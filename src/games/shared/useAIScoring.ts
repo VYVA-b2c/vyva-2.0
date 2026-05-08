@@ -13,11 +13,10 @@ type RetellScore = {
 };
 
 function fallbackRetellScore(keyFacts: string[], error: string): RetellScore {
-  const half = Math.floor(keyFacts.length / 2);
   return {
-    covered: Array.from({ length: half }, (_, index) => index + 1),
-    not_covered: Array.from({ length: keyFacts.length - half }, (_, index) => half + index + 1),
-    covered_count: half,
+    covered: [],
+    not_covered: Array.from({ length: keyFacts.length }, (_, index) => index + 1),
+    covered_count: 0,
     total_count: keyFacts.length,
     error,
   };

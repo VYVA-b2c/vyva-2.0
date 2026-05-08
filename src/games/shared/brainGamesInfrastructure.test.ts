@@ -25,6 +25,7 @@ const requiredKeys = [
   "storyRecall.readLabel",
   "storyRecall.submitRetell",
   "storyRecall.scoringFallback",
+  "memory.nextLevel",
 ];
 
 describe("brain game shared infrastructure", () => {

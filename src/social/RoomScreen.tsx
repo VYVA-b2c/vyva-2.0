@@ -7,7 +7,14 @@ import { useProfile } from "@/contexts/ProfileContext";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 import SocialStyles from "./SocialStyles";
 import { getSocialCopy, getSocialLanguage } from "./roomUtils";
-import type { SocialLanguage, SocialRoom, SocialRoomChatItem, SocialRoomMember, SocialRoomResponse } from "./types";
+import type {
+  SocialLanguage,
+  SocialRoom,
+  SocialRoomChatItem,
+  SocialRoomMember,
+  SocialRoomResponse,
+  SocialRoomVisitState,
+} from "./types";
 
 const FALLBACK_MEMBER_NAMES = ["Carmen", "Josefa", "Manuel", "Ana"];
 const MEMBER_COLOURS = ["#F59E0B", "#0EA5A4", "#EC4899", "#3B82F6"];
@@ -387,13 +394,33 @@ function buildAgentPrompt(
   ].join(" ");
 }
 
-function buildAgentContext(language: SocialLanguage, roomName: string, topic: string, quickQuestions: string[]) {
+function buildAgentContext(
+  language: SocialLanguage,
+  roomName: string,
+  topic: string,
+  quickQuestions: string[],
+  visitState?: SocialRoomVisitState | null,
+) {
   const intro =
     language === "en"
       ? `Room: ${roomName}. Topic: ${topic}.`
       : language === "de"
         ? `Raum: ${roomName}. Thema: ${topic}.`
         : `Sala: ${roomName}. Tema: ${topic}.`;
+
+  const visitHint = visitState
+    ? visitState.isFirstVisit
+      ? language === "en"
+        ? "This is the user's first visit to this room."
+        : language === "de"
+          ? "Dies ist der erste Besuch der Nutzerin in diesem Raum."
+          : "Esta es la primera visita de la usuaria a esta sala."
+      : language === "en"
+        ? `This user has visited this room before. Previous visits: ${visitState.previousVisitCount ?? visitState.visitCount}.`
+        : language === "de"
+          ? `Diese Nutzerin war schon einmal in diesem Raum. Fruehere Besuche: ${visitState.previousVisitCount ?? visitState.visitCount}.`
+          : `Esta usuaria ya ha visitado esta sala. Visitas anteriores: ${visitState.previousVisitCount ?? visitState.visitCount}.`
+    : "";
 
   const chipHint =
     quickQuestions.length > 0
@@ -404,7 +431,7 @@ function buildAgentContext(language: SocialLanguage, roomName: string, topic: st
           : `Preguntas sugeridas: ${quickQuestions.join(" | ")}.`
       : "";
 
-  return `${intro} ${chipHint}`.trim();
+  return `${intro} ${visitHint} ${chipHint}`.trim();
 }
 
 function buildWelcomeBootstrap(language: SocialLanguage, agentName: string, userName?: string) {
@@ -1023,6 +1050,11 @@ function buildFallbackRoomResponse(slug: string, language: SocialLanguage): Soci
     promptChips: getQuickQuestions(slug, language, []),
     members: buildFallbackMembers(room, language),
     memberChat: [],
+    visitState: {
+      isFirstVisit: true,
+      previousVisitCount: 0,
+      visitCount: 0,
+    },
   };
 }
 
@@ -1050,6 +1082,7 @@ const RoomScreen = () => {
   const [chatDraft, setChatDraft] = useState("");
   const [isChatSending, setIsChatSending] = useState(false);
   const [localChatMessages, setLocalChatMessages] = useState<SocialRoomChatItem[]>([]);
+  const [roomEntryVisitState, setRoomEntryVisitState] = useState<SocialRoomVisitState | null>(null);
   const {
     startVoice,
     stopVoice,
@@ -1107,6 +1140,8 @@ const RoomScreen = () => {
     () => roomResponse?.memberChat ?? [],
     [roomResponse?.memberChat],
   );
+
+  const currentVisitState = roomEntryVisitState ?? roomResponse?.visitState ?? null;
 
   const visibleRoomChat = useMemo<SocialRoomChatItem[]>(
     () => [...roomChat, ...localChatMessages],
@@ -1213,9 +1248,16 @@ const RoomScreen = () => {
         agentSlug: room.agentSlug,
         roomSlug: room.slug,
         skipMicrophone,
+        dynamicVariables: currentVisitState
+          ? {
+              is_first_room_visit: currentVisitState.isFirstVisit,
+              room_visit_count: currentVisitState.visitCount,
+              previous_room_visit_count: currentVisitState.previousVisitCount ?? currentVisitState.visitCount,
+            }
+          : undefined,
       });
     },
-    [room?.agentSlug, room?.slug, startVoice],
+    [currentVisitState, room?.agentSlug, room?.slug, startVoice],
   );
 
   const armLiveReplyTimeout = useCallback(
@@ -1253,20 +1295,31 @@ const RoomScreen = () => {
     [armLiveReplyTimeout, sendAgentText, submitFallbackQuestion],
   );
 
+  const quietRoomAgent = useCallback(() => {
+    clearPresenceTimers();
+    clearLiveReplyTimeout();
+    clearReconnectFallbackTimeout();
+    endUserTurn();
+    stopVoice();
+    startListeningWhenReadyRef.current = false;
+    queuedQuestionRef.current = null;
+    pendingQuestionRef.current = null;
+    setIsSending(false);
+    setAgentPresence("idle");
+  }, [clearLiveReplyTimeout, clearPresenceTimers, clearReconnectFallbackTimeout, endUserTurn, stopVoice]);
+
   useEffect(() => {
     return () => {
-      clearPresenceTimers();
-      clearLiveReplyTimeout();
-      clearReconnectFallbackTimeout();
-      stopVoice();
+      quietRoomAgent();
     };
-  }, [clearLiveReplyTimeout, clearPresenceTimers, clearReconnectFallbackTimeout, stopVoice]);
+  }, [quietRoomAgent]);
 
   useEffect(() => {
     setRoomMode("welcome");
     setChatDraft("");
     setLocalChatMessages([]);
     setIsChatSending(false);
+    setRoomEntryVisitState(null);
   }, [slug]);
 
   useEffect(() => {
@@ -1284,6 +1337,7 @@ const RoomScreen = () => {
 
   useEffect(() => {
     if (!room?.slug || !room.agentSlug) return;
+    if (roomMode === "chat") return;
     if (agentSessionStatus !== "idle" || agentIsConnecting) return;
 
     const autoStartKey = `${room.slug}:${room.agentSlug}`;
@@ -1304,6 +1358,7 @@ const RoomScreen = () => {
     agentTranscript.length,
     room?.agentSlug,
     room?.slug,
+    roomMode,
     startRoomAgentSession,
   ]);
 
@@ -1311,13 +1366,17 @@ const RoomScreen = () => {
     if (!room || agentSessionStatus !== "connected") return;
 
     const userDisplayName = firstName || profile?.firstName;
-    const contextKey = `${room.slug}:${language}:${userDisplayName ?? ""}`;
+    const visitKey = currentVisitState
+      ? `${currentVisitState.isFirstVisit}:${currentVisitState.previousVisitCount ?? ""}:${currentVisitState.visitCount}`
+      : "unknown";
+    const contextKey = `${room.slug}:${language}:${userDisplayName ?? ""}:${visitKey}`;
     if (liveGreetingKeyRef.current === contextKey) return;
 
-    sendContextUpdate(buildAgentContext(language, room.name, room.topic, quickQuestions));
+    sendContextUpdate(buildAgentContext(language, room.name, room.topic, quickQuestions, currentVisitState));
     liveGreetingKeyRef.current = contextKey;
   }, [
     agentSessionStatus,
+    currentVisitState,
     firstName,
     language,
     profile?.firstName,
@@ -1423,10 +1482,27 @@ const RoomScreen = () => {
       });
       if (!response.ok) return;
 
-      const result = (await response.json()) as { visitId: string };
+      const result = (await response.json()) as {
+        visitId: string;
+        visitState?: SocialRoomVisitState;
+        isFirstVisit?: boolean;
+        previousVisitCount?: number;
+        visitCount?: number;
+      };
       if (!cancelled) {
+        const nextVisitState =
+          result.visitState ??
+          (typeof result.isFirstVisit === "boolean"
+            ? {
+                isFirstVisit: result.isFirstVisit,
+                previousVisitCount: result.previousVisitCount ?? 0,
+                visitCount: result.visitCount ?? 0,
+              }
+            : null);
+
         leaveVisitIdRef.current = result.visitId;
         setVisitId(result.visitId);
+        setRoomEntryVisitState(nextVisitState);
       }
     }
 
@@ -1510,17 +1586,13 @@ const RoomScreen = () => {
   };
 
   const handleSwitchToChat = () => {
-    clearPresenceTimers();
-    clearLiveReplyTimeout();
-    clearReconnectFallbackTimeout();
-    endUserTurn();
-    stopVoice();
-    startListeningWhenReadyRef.current = false;
-    queuedQuestionRef.current = null;
-    pendingQuestionRef.current = null;
-    setIsSending(false);
-    setAgentPresence("idle");
+    quietRoomAgent();
     setRoomMode("chat");
+  };
+
+  const handleBackToRooms = () => {
+    quietRoomAgent();
+    navigate("/social-rooms");
   };
 
   const submitChatMessage = async () => {
@@ -1627,7 +1699,7 @@ const RoomScreen = () => {
       <div className="px-6 py-8">
         <button
           type="button"
-          onClick={() => navigate("/social-rooms")}
+          onClick={handleBackToRooms}
           className="min-h-[64px] rounded-full border border-[#E0D4F0] bg-[#FFFDFC] px-6 font-body text-[22px] font-semibold text-[#6B3CC7]"
         >
           {copy.back}
@@ -1645,7 +1717,7 @@ const RoomScreen = () => {
 
       <button
         type="button"
-        onClick={() => navigate("/social-rooms")}
+        onClick={handleBackToRooms}
         className="inline-flex min-h-[56px] items-center gap-3 rounded-full border border-[#E0D4F0] bg-[#FFFDFC] px-5 font-body text-[20px] font-semibold text-[#6B3CC7]"
       >
         <ArrowLeft size={22} />

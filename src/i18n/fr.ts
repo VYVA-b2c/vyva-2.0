@@ -31,6 +31,7 @@ const fr = {
     chooseAnotherExercise: "Choisir un autre exercice",
     lastSession: "Derniere session",
     currentLevel: "Niveau actuel",
+    nextLevel: "Niveau suivant",
     trainedArea: "Zone entrainee",
     startRecommended: "Commencer la recommandation",
     continueRecommended: "Continuer avec la recommandation suivante",

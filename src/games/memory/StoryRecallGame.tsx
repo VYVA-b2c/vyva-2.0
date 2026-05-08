@@ -14,6 +14,7 @@ import type { LanguageCode } from "@/i18n/languages";
 import { useAIScoring } from "@/games/shared/useAIScoring";
 import { useTTS } from "@/games/shared/useTTS";
 import { saveGameResult } from "./gameStorage";
+import { getRepeatLevelForResult } from "./progressionEngine";
 import type { CognitiveDomain, MemoryGameVariantContent, Recommendation } from "./types";
 
 export type StoryChoiceQuestion = {
@@ -53,7 +54,7 @@ type StoryRecallGameProps = {
   t: (path: string, fallback?: string) => string;
   onBack: () => void;
   onOpenRecommended: () => void;
-  onOpenSameGame: () => void;
+  onOpenSameGame: (levelOverride?: number) => void | Promise<void>;
   actionLoading: "recommended" | "repeat" | null;
 };
 
@@ -243,8 +244,8 @@ export default function StoryRecallGame({
       retellScore,
     });
 
-    const coveredFacts = getFactList(retellScore.covered, payload.keyFacts);
-    const missedFacts = getFactList(retellScore.not_covered, payload.keyFacts);
+    const coveredFacts = retellScore.error ? [] : getFactList(retellScore.covered, payload.keyFacts);
+    const missedFacts = retellScore.error ? [] : getFactList(retellScore.not_covered, payload.keyFacts);
 
     try {
       await saveGameResult({
@@ -294,6 +295,9 @@ export default function StoryRecallGame({
   }
 
   if (phase === "result" && result) {
+    const repeatLevel = getRepeatLevelForResult(plan.level, result.accuracy);
+    const repeatLevelLabel = repeatLevel > plan.level ? t("memory.nextLevel") : t("memory.currentLevel");
+
     return (
       <div className="px-[22px] pb-6">
         <div className="mt-6 rounded-[28px] bg-white p-6 shadow-vyva-card">
@@ -361,12 +365,13 @@ export default function StoryRecallGame({
               <span className="mt-1 block text-[14px] font-medium text-white/82">{t("memory.nextRecommended")}</span>
             </button>
             <button
-              onClick={onOpenSameGame}
+              type="button"
+              onClick={() => void onOpenSameGame(repeatLevel)}
               disabled={actionLoading !== null}
               className="w-full rounded-[20px] border border-[#D8C7F3] bg-[#FAF7FF] px-5 py-5 text-left text-[18px] font-semibold text-vyva-text-1 shadow-vyva-card disabled:opacity-60"
             >
               <span className="block">{t("memory.repeatSameGame")}</span>
-              <span className="mt-1 block text-[14px] font-medium text-vyva-text-2">{t("memory.currentLevel")}</span>
+              <span className="mt-1 block text-[14px] font-medium text-vyva-text-2">{repeatLevelLabel}</span>
             </button>
             <button
               onClick={onBack}

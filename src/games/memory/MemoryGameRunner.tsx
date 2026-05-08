@@ -31,7 +31,12 @@ import {
   getVariantContent,
   memoryGameRegistry,
 } from "./memoryGameRegistry";
-import { selectGamePlan, selectNextMemoryGame, selectNextVariantForSameGame } from "./progressionEngine";
+import {
+  getRepeatLevelForResult,
+  selectGamePlan,
+  selectNextMemoryGame,
+  selectNextVariantForSameGame,
+} from "./progressionEngine";
 import type { MemoryGameType, Recommendation } from "./types";
 import { useSpeechRecognition } from "./useSpeechRecognition";
 import { isSequenceTileMatch } from "./sequenceScoring";
@@ -852,11 +857,15 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     }
   };
 
-  const openSameGame = async () => {
+  const openSameGame = async (levelOverride?: number) => {
     if (!plan) return;
     setActionLoading("repeat");
     try {
-      const sameGameRecommendation = await selectNextVariantForSameGame(userId, plan.gameType, language, plan.level);
+      const requestedLevel = typeof levelOverride === "number" ? levelOverride : undefined;
+      const repeatLevel = requestedLevel ?? (
+        completionMetrics ? getRepeatLevelForResult(plan.level, completionMetrics.accuracy) : plan.level
+      );
+      const sameGameRecommendation = await selectNextVariantForSameGame(userId, plan.gameType, language, repeatLevel);
       navigate(buildGameRoute(sameGameRecommendation), {
         state: { sessionToken: Date.now() },
       });
@@ -1034,7 +1043,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
             replayLabel={t("brainGames.resultActions.playAgain")}
             anotherLabel={t("brainGames.resultActions.playAnotherGame")}
             onContinue={openRecommended}
-            onReplay={openSameGame}
+            onReplay={() => void openSameGame()}
             onAnother={backToList}
             disabled={actionLoading !== null}
           />
@@ -1685,7 +1694,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
                 <span className="mt-1 block text-[14px] font-medium text-white/82">{t("memory.nextRecommended")}</span>
               </button>
               <button
-                onClick={openSameGame}
+                onClick={() => void openSameGame()}
                 disabled={actionLoading !== null}
                 className="w-full rounded-[20px] border border-[#D8C7F3] bg-[#FAF7FF] px-5 py-5 text-left text-[18px] font-semibold text-vyva-text-1 shadow-vyva-card disabled:opacity-60"
               >

@@ -11,8 +11,14 @@ const DOMAIN_ROTATION: CognitiveDomain[] = [
   "associative_memory",
 ];
 
+export const MEMORY_LEVEL_UP_ACCURACY = 80;
+
 function clampLevel(level: number) {
   return Math.min(5, Math.max(1, level));
+}
+
+export function getRepeatLevelForResult(currentLevel: number, accuracy: number) {
+  return clampLevel(accuracy >= MEMORY_LEVEL_UP_ACCURACY ? currentLevel + 1 : currentLevel);
 }
 
 function sortNewestFirst(results: GameResult[]) {
@@ -27,7 +33,7 @@ export function getRecommendedLevelForGame(history: GameResult[], gameType: Memo
   const latestLevel = gameHistory[0].level;
   const averageAccuracy = recent.reduce((sum, entry) => sum + entry.accuracy, 0) / recent.length;
 
-  if (averageAccuracy >= 80) return clampLevel(latestLevel + 1);
+  if (averageAccuracy >= MEMORY_LEVEL_UP_ACCURACY) return clampLevel(latestLevel + 1);
   if (averageAccuracy < 50) return clampLevel(latestLevel - 1);
   return clampLevel(latestLevel);
 }

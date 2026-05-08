@@ -32,6 +32,7 @@ const de = {
     chooseAnotherExercise: "Anderes Training auswahlen",
     lastSession: "Letzte Sitzung",
     currentLevel: "Aktuelles Level",
+    nextLevel: "Nachstes Level",
     trainedArea: "Trainierter Bereich",
     startRecommended: "Empfohlen starten",
     continueRecommended: "Mit der nachsten Empfehlung fortfahren",

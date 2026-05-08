@@ -32,6 +32,12 @@ type InterestSnapshot = {
   lastRooms: string[];
 };
 
+type RoomVisitState = {
+  isFirstVisit: boolean;
+  previousVisitCount: number;
+  visitCount: number;
+};
+
 const router = Router();
 const IS_PROD = process.env.NODE_ENV === "production";
 const DEMO_USER_ID = "demo-user";
@@ -215,6 +221,23 @@ async function persistInterestSnapshot(userId: string, snapshot: InterestSnapsho
     },
     async () => undefined,
   );
+}
+
+function buildRoomVisitState(snapshot: InterestSnapshot, roomSlug: string, incrementBy = 0): RoomVisitState {
+  const canonicalSlug = resolveSocialRoomSlug(roomSlug);
+  const rawCount = Number(snapshot.roomVisitCounts[canonicalSlug] ?? 0);
+  const previousVisitCount = Number.isFinite(rawCount) ? Math.max(0, rawCount) : 0;
+
+  return {
+    isFirstVisit: previousVisitCount === 0,
+    previousVisitCount,
+    visitCount: previousVisitCount + incrementBy,
+  };
+}
+
+async function loadRoomVisitState(userId: string, roomSlug: string): Promise<RoomVisitState> {
+  const snapshot = await loadUserInterestSnapshot(userId);
+  return buildRoomVisitState(snapshot, roomSlug);
 }
 
 async function ensureRoomRecords(slug: string) {
@@ -586,17 +609,18 @@ function buildRoomChat(slug: string, language: SocialLanguage, members: Array<{ 
   }));
 }
 
-async function updateVisitInterests(userId: string, roomSlug: string) {
+async function updateVisitInterests(userId: string, roomSlug: string): Promise<RoomVisitState> {
   const canonicalSlug = resolveSocialRoomSlug(roomSlug);
   const seed = getSocialRoomBySlug(canonicalSlug);
-  if (!seed) return;
+  if (!seed) return { isFirstVisit: true, previousVisitCount: 0, visitCount: 0 };
 
   const existing = await loadUserInterestSnapshot(userId);
+  const visitState = buildRoomVisitState(existing, canonicalSlug, 1);
   const nextTags = Array.from(new Set([...existing.interestTags, ...seed.topicTags]));
   const nextTimes = Array.from(new Set([...existing.preferredTimes, ...seed.timeSlots]));
   const nextCounts = {
     ...existing.roomVisitCounts,
-    [canonicalSlug]: (existing.roomVisitCounts[canonicalSlug] ?? 0) + 1,
+    [canonicalSlug]: visitState.visitCount,
   };
   const nextLastRooms = [canonicalSlug, ...existing.lastRooms.filter((value) => value !== canonicalSlug)].slice(0, 3);
 
@@ -607,6 +631,8 @@ async function updateVisitInterests(userId: string, roomSlug: string) {
     roomVisitCounts: nextCounts,
     lastRooms: nextLastRooms,
   });
+
+  return visitState;
 }
 
 router.get("/hub", async (req: Request, res: Response) => {
@@ -650,12 +676,14 @@ router.get("/hub", async (req: Request, res: Response) => {
 });
 
 router.get("/rooms/:slug", async (req: Request, res: Response) => {
+  const userId = resolvePublicUserId(req);
   const language = normalizeLanguage(req.query.lang as string | undefined);
   const room = buildRoomPayload(req.params.slug, language);
   if (!room) return res.status(404).json({ error: "Room not found" });
 
   const members = buildRoomMembers(room.slug, language, room.participantCount);
   const memberChat = buildRoomChat(room.slug, language, members);
+  const visitState = await loadRoomVisitState(userId, room.slug);
 
   return res.json({
     room: {
@@ -673,6 +701,7 @@ router.get("/rooms/:slug", async (req: Request, res: Response) => {
     promptChips: room.options?.length ? room.options : buildPromptChips(room.slug, language),
     members,
     memberChat,
+    visitState,
   });
 });
 
@@ -697,7 +726,7 @@ router.post("/rooms/:slug/enter", async (req: Request, res: Response) => {
   });
   memoryRoomOccupancy.set(slug, (memoryRoomOccupancy.get(slug) ?? 0) + 1);
 
-  await updateVisitInterests(userId, slug);
+  const visitState = await updateVisitInterests(userId, slug);
 
   const ensured = await ensureRoomRecords(slug);
   if (ensured) {
@@ -718,6 +747,10 @@ router.post("/rooms/:slug/enter", async (req: Request, res: Response) => {
     visitId,
     participantCount: getRoomParticipantCount(slug),
     liveBadge: toLiveBadge(normalizeLanguage(parsed.data.lang), getRoomParticipantCount(slug)),
+    isFirstVisit: visitState.isFirstVisit,
+    previousVisitCount: visitState.previousVisitCount,
+    visitCount: visitState.visitCount,
+    visitState,
   });
 });
 

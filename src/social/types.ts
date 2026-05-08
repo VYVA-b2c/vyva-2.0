@@ -60,6 +60,12 @@ export type SocialRoomChatItem = {
   connectable?: boolean;
 };
 
+export type SocialRoomVisitState = {
+  isFirstVisit: boolean;
+  visitCount: number;
+  previousVisitCount?: number;
+};
+
 export type SocialHubResponse = {
   user: {
     id: string;
@@ -81,6 +87,7 @@ export type SocialRoomResponse = {
   promptChips: string[];
   members: SocialRoomMember[];
   memberChat: SocialRoomChatItem[];
+  visitState?: SocialRoomVisitState;
 };
 
 export type SocialMatchResponse = {
