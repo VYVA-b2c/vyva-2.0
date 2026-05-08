@@ -37,6 +37,8 @@ const EYES = {
   hazel: "#8A5A22",
 };
 
+const SHIRTS = ["#6B21A8", "#2563EB", "#0F766E", "#C2410C", "#BE185D", "#4C1D95", "#854D0E", "#0E7490"];
+
 function normalizeConfig(config = {}) {
   const hasGlasses = Boolean(config.hasGlasses);
   return {
@@ -65,6 +67,17 @@ function FaceShape({ shape, fill }) {
   }
 
   return <ellipse cx="60" cy="62" rx="44" ry="55" fill={fill} />;
+}
+
+function Ears({ fill }) {
+  return (
+    <>
+      <ellipse cx="27" cy="64" rx="7" ry="11" fill={fill} />
+      <ellipse cx="93" cy="64" rx="7" ry="11" fill={fill} />
+      <path d="M27 61 C31 64 31 69 27 72" fill="none" stroke="#8A5A44" strokeWidth="1.4" strokeLinecap="round" opacity="0.35" />
+      <path d="M93 61 C89 64 89 69 93 72" fill="none" stroke="#8A5A44" strokeWidth="1.4" strokeLinecap="round" opacity="0.35" />
+    </>
+  );
 }
 
 function Hair({ style, color }) {
@@ -107,6 +120,46 @@ function Hair({ style, color }) {
   return <path d="M28 56 C29 33 42 22 60 22 C78 22 91 33 92 56 C80 45 40 45 28 56 Z" fill={color} />;
 }
 
+function HairFront({ style, color }) {
+  if (style === "bald") {
+    return <path d="M42 38 C50 34 70 34 78 38" fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" opacity="0.5" />;
+  }
+
+  if (style === "bun") {
+    return (
+      <>
+        <path d="M35 43 C42 30 78 30 85 43 C72 38 48 38 35 43 Z" fill={color} />
+        <path d="M41 43 C47 38 54 38 60 43 C66 38 73 38 79 43" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" opacity="0.22" />
+      </>
+    );
+  }
+
+  if (style === "short_curly") {
+    return (
+      <>
+        {[39, 49, 60, 71, 81].map((cx) => (
+          <circle key={cx} cx={cx} cy={39 + (cx % 2) * 2} r="8" fill={color} />
+        ))}
+        <path d="M33 48 C45 39 76 39 87 48 C76 45 45 45 33 48 Z" fill={color} />
+      </>
+    );
+  }
+
+  if (style === "medium_wavy") {
+    return <path d="M31 58 C34 39 48 33 61 36 C73 38 80 46 88 58 C77 50 68 48 59 52 C48 56 40 55 31 58 Z" fill={color} />;
+  }
+
+  if (style === "long_straight") {
+    return <path d="M29 68 C31 43 42 29 60 28 C78 29 89 43 91 68 C82 55 74 45 61 45 C47 45 38 55 29 68 Z" fill={color} />;
+  }
+
+  if (style === "short_textured") {
+    return <path d="M32 52 L39 38 L46 49 L54 34 L61 49 L68 34 L76 49 L83 38 L88 52 C72 46 48 46 32 52 Z" fill={color} />;
+  }
+
+  return <path d="M33 50 C38 35 49 29 60 29 C72 29 82 35 87 50 C76 43 44 43 33 50 Z" fill={color} />;
+}
+
 function Eyes({ color, shape }) {
   const ry = shape === "hooded" ? 2.4 : shape === "almond" ? 3.2 : 4.2;
   const rx = shape === "round" ? 4.4 : 5.4;
@@ -116,10 +169,12 @@ function Eyes({ color, shape }) {
       <path d="M64 49 C68 45 73 45 78 49" fill="none" stroke="#3A2722" strokeWidth="2.5" strokeLinecap="round" opacity="0.7" />
       <ellipse cx="49" cy="56" rx={rx} ry={ry} fill="#FFFFFF" />
       <ellipse cx="71" cy="56" rx={rx} ry={ry} fill="#FFFFFF" />
-      <circle cx="49" cy="56" r="2.9" fill={color} />
-      <circle cx="71" cy="56" r="2.9" fill={color} />
-      <circle cx="50" cy="55" r="1.1" fill="#111827" />
-      <circle cx="72" cy="55" r="1.1" fill="#111827" />
+      <circle cx="49" cy="56" r="3.2" fill={color} />
+      <circle cx="71" cy="56" r="3.2" fill={color} />
+      <circle cx="49" cy="56" r="1.5" fill="#111827" />
+      <circle cx="71" cy="56" r="1.5" fill="#111827" />
+      <circle cx="50" cy="55" r="0.9" fill="#FFFFFF" opacity="0.9" />
+      <circle cx="72" cy="55" r="0.9" fill="#FFFFFF" opacity="0.9" />
     </>
   );
 }
@@ -207,11 +262,23 @@ function Accessory({ type }) {
   return null;
 }
 
+function Bust({ skin, shirt }) {
+  return (
+    <>
+      <path d="M22 118 C25 99 41 89 60 89 C79 89 95 99 98 118 Z" fill={shirt} opacity="0.92" />
+      <rect x="49" y="83" width="22" height="22" rx="9" fill={skin} />
+      <path d="M43 97 C50 105 70 105 77 97 L83 118 H37 Z" fill="#FFFFFF" opacity="0.16" />
+    </>
+  );
+}
+
 export default function FaceAvatar({ config, size = 120 }) {
   const face = normalizeConfig(config);
   const skin = SKIN[face.skinTone] ?? SKIN.medium;
   const hair = HAIR[face.hairColor] ?? HAIR.brown;
   const eye = EYES[face.eyeColor] ?? EYES.brown;
+  const bgIndex = AVATAR_OPTIONS.bgColors.indexOf(face.bgColor);
+  const shirt = SHIRTS[bgIndex >= 0 ? bgIndex % SHIRTS.length : 0];
 
   return (
     <svg
@@ -224,9 +291,16 @@ export default function FaceAvatar({ config, size = 120 }) {
       className="block shrink-0"
     >
       <circle cx="60" cy="60" r="58" fill={face.bgColor} />
+      <circle cx="60" cy="56" r="48" fill="#FFFFFF" opacity="0.38" />
+      <ellipse cx="60" cy="113" rx="36" ry="5" fill="#2E193F" opacity="0.11" />
+      <Bust skin={skin} shirt={shirt} />
       <Hair style={face.hairStyle} color={hair} />
+      <Ears fill={skin} />
       <FaceShape shape={face.faceShape} fill={skin} />
+      <HairFront style={face.hairStyle} color={hair} />
       <Accessory type={face.accessory} />
+      <ellipse cx="43" cy="69" rx="7" ry="4" fill="#F7A8A8" opacity="0.2" />
+      <ellipse cx="77" cy="69" rx="7" ry="4" fill="#F7A8A8" opacity="0.2" />
       <Eyes color={eye} shape={face.eyeShape} />
       <Glasses style={face.glassStyle} />
       <path d="M59 61 C57 67 56 70 60 72" fill="none" stroke="#8A5A44" strokeWidth="2" strokeLinecap="round" opacity="0.5" />
