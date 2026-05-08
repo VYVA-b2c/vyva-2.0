@@ -243,8 +243,8 @@ export default function StoryRecallGame({
       retellScore,
     });
 
-    const coveredFacts = getFactList(retellScore.covered, payload.keyFacts);
-    const missedFacts = getFactList(retellScore.not_covered, payload.keyFacts);
+    const coveredFacts = retellScore.error ? [] : getFactList(retellScore.covered, payload.keyFacts);
+    const missedFacts = retellScore.error ? [] : getFactList(retellScore.not_covered, payload.keyFacts);
 
     try {
       await saveGameResult({

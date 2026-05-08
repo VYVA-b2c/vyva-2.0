@@ -43,9 +43,9 @@ describe("brain game API routes", () => {
       .expect(200);
 
     expect(res.body).toMatchObject({
-      covered: [1],
-      not_covered: [2, 3],
-      covered_count: 1,
+      covered: [],
+      not_covered: [1, 2, 3],
+      covered_count: 0,
       total_count: 3,
     });
     expect(res.body.error).toContain("OpenAI API key");
