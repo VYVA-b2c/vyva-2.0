@@ -1,4 +1,4 @@
-import { ArrowLeft, MessageCircle, Mic, Square } from "lucide-react";
+import { ArrowLeft, MessageCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
@@ -1098,8 +1098,6 @@ const RoomScreen = () => {
     return room.agentFullName.split(" ")[0] ?? room.agentFullName;
   }, [room]);
 
-  const isGamesRoomPilot = room?.slug === "games-room";
-
   const quickQuestions = useMemo(
     () => getQuickQuestions(slug, language, roomResponse?.promptChips ?? []),
     [language, roomResponse?.promptChips, slug],
@@ -1293,7 +1291,7 @@ const RoomScreen = () => {
 
     autoStartedRoomRef.current = autoStartKey;
     setVoiceAttempted(true);
-    startListeningWhenReadyRef.current = !isGamesRoomPilot;
+    startListeningWhenReadyRef.current = false;
     queuedQuestionRef.current = null;
     pendingQuestionRef.current = null;
     transcriptCursorRef.current = agentTranscript.length;
@@ -1304,7 +1302,6 @@ const RoomScreen = () => {
     agentIsConnecting,
     agentSessionStatus,
     agentTranscript.length,
-    isGamesRoomPilot,
     room?.agentSlug,
     room?.slug,
     startRoomAgentSession,
@@ -1719,8 +1716,7 @@ const RoomScreen = () => {
       </header>
 
       <main className="mt-5 space-y-4">
-        {isGamesRoomPilot ? (
-          roomMode === "welcome" ? (
+        {roomMode === "welcome" ? (
             <section className="rounded-[34px] border border-[#E8DDCF] bg-[#FFFDFC] p-5 shadow-[0_16px_34px_rgba(91,33,182,0.05)]">
               <div className="rounded-[28px] bg-[#F8F3FF] px-5 py-5">
                 <div className="flex items-center gap-3">
@@ -1848,167 +1844,7 @@ const RoomScreen = () => {
                 </button>
               </form>
             </section>
-          )
-        ) : (
-          <>
-        <section className="rounded-[34px] border border-[#E8DDCF] bg-[#FFFDFC] p-6 shadow-[0_16px_34px_rgba(91,33,182,0.05)]">
-          <p className="font-body text-[18px] font-medium text-[#8B7D9A]">{getTopicHint(slug, language, room.topic)}</p>
-          <p className="mt-3 rounded-[20px] bg-[#F8F3FF] px-4 py-3 font-body text-[18px] leading-[1.35] text-[#6B5D78]">
-            {getRoomInteractionHint(language)}
-          </p>
-
-          {voiceAttempted && agentVoiceError && agentSessionStatus === "idle" && (
-            <p className="mt-3 rounded-[20px] border border-[#F4D6BF] bg-[#FFF7ED] px-4 py-3 font-body text-[18px] leading-[1.35] text-[#9A3412]">
-              {getRoomVoiceUnavailableLabel(language, agentVoiceError)}
-            </p>
           )}
-
-          <div className="mt-4 flex flex-col gap-3">
-            <div className="flex gap-3">
-              <input
-                ref={inputRef}
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    void submitQuestion(draft);
-                  }
-                }}
-                disabled={isSending}
-                placeholder={getAskPlaceholder(language)}
-                className="h-[72px] flex-1 rounded-[22px] border border-[#E5D9F0] bg-[#FFFCF7] px-5 font-body text-[22px] text-[#5B4A68] outline-none placeholder:text-[#9A8EA8]"
-              />
-              <button
-                type="button"
-                onClick={() => void submitQuestion(draft)}
-                disabled={isSending || !draft.trim()}
-                className="min-h-[72px] rounded-[22px] px-6 font-body text-[22px] font-semibold text-white disabled:opacity-50"
-                style={{ background: room.agentColour }}
-              >
-                {getAskButtonLabel(language)}
-              </button>
-            </div>
-
-            {quickQuestions.length > 0 && (
-              <div className="flex flex-wrap gap-3">
-                {quickQuestions.map((chip) => (
-                  <button
-                    key={chip}
-                    type="button"
-                    onClick={() => void submitQuestion(chip)}
-                    disabled={isSending}
-                    className="min-h-[56px] rounded-full border border-[#DECBEF] bg-[#F8F3FF] px-5 font-body text-[19px] font-semibold text-[#6B3CC7] disabled:opacity-50"
-                  >
-                    {chip}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={() => void handleVoiceToggle()}
-              className="inline-flex min-h-[64px] items-center justify-center gap-3 rounded-[22px] px-5 font-body text-[21px] font-semibold text-white disabled:opacity-60"
-              style={{
-                background:
-                  isUserSpeaking || agentIsSpeaking || agentSessionStatus === "connected" || agentIsConnecting
-                    ? "#C81E1E"
-                    : room.agentColour,
-                boxShadow: "0 12px 24px rgba(91,33,182,0.12)",
-              }}
-            >
-              {isUserSpeaking || agentIsSpeaking || agentSessionStatus === "connected" || agentIsConnecting ? (
-                <Square size={21} />
-              ) : (
-                <Mic size={22} />
-              )}
-              {getVoiceButtonLabel(
-                language,
-                isUserSpeaking || agentIsSpeaking || agentSessionStatus === "connected" || agentIsConnecting,
-                agentIsConnecting,
-              )}
-            </button>
-          </div>
-
-          {latestQuestion && latestAnswer && (
-            <div className="mt-6 rounded-[26px] border border-[#E5D9F0] bg-[#FCF9FF] px-5 py-5">
-              <p className="font-body text-[18px] font-semibold text-[#6B3CC7]">{latestQuestion}</p>
-              <div className="mt-4 rounded-[20px] bg-white px-4 py-4 shadow-[0_10px_20px_rgba(91,33,182,0.04)]">
-                <p className="font-body text-[17px] font-semibold text-[#7D66A0]">{getAnswerLabel(language, agentName)}</p>
-                <p className="mt-2 font-body text-[24px] leading-[1.38] text-[#5B4A68]">{latestAnswer}</p>
-              </div>
-            </div>
-          )}
-        </section>
-
-        <section className="rounded-[30px] border border-[#E8DDCF] bg-[#FFFDFC] px-5 py-5 shadow-[0_12px_28px_rgba(91,33,182,0.04)]">
-          <p className="font-body text-[18px] font-semibold text-[#8B7D9A]">{getRecentQuestionsLabel(language)}</p>
-
-          <div className="mt-4 space-y-4">
-            {knowledgeFeed.map((item) => (
-              <div key={item.id} className="rounded-[24px] border border-[#EFE6DA] bg-[#FFFDFC] px-4 py-4">
-                <p className="font-body text-[18px] font-semibold text-[#6B3CC7]">{item.asker}</p>
-                <p className="mt-2 font-body text-[22px] leading-[1.34] text-[#45325B]">{item.question}</p>
-
-                <div className="mt-4 rounded-[18px] bg-[#FCF9FF] px-4 py-4">
-                  <p className="font-body text-[16px] font-semibold text-[#7D66A0]">{getAnswerLabel(language, agentName)}</p>
-                  <p className="mt-2 font-body text-[21px] leading-[1.38] text-[#5B4A68]">{item.answer}</p>
-                </div>
-
-                <div className="mt-4">
-                  <button
-                    type="button"
-                    onClick={() => setCommentComposerFor((current) => (current === item.id ? null : item.id))}
-                    className="min-h-[48px] rounded-full border border-[#DECBEF] bg-[#F8F3FF] px-4 font-body text-[18px] font-semibold text-[#6B3CC7]"
-                  >
-                    {getCommentLabel(language)}
-                  </button>
-                </div>
-
-                {item.comments.length > 0 && (
-                  <div className="mt-4 space-y-2">
-                    {item.comments.slice(0, 2).map((comment) => (
-                      <div key={comment.id} className="rounded-[16px] bg-[#FBF7F0] px-4 py-3">
-                        <p className="font-body text-[16px] font-semibold text-[#7D66A0]">{comment.author}</p>
-                        <p className="mt-1 font-body text-[18px] leading-[1.36] text-[#6E627D]">{comment.text}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {commentComposerFor === item.id && (
-                  <div className="mt-4 flex gap-3">
-                    <input
-                      value={commentDrafts[item.id] ?? ""}
-                      onChange={(event) =>
-                        setCommentDrafts((current) => ({ ...current, [item.id]: event.target.value }))
-                      }
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          addComment(item.id);
-                        }
-                      }}
-                      placeholder={getCommentPlaceholder(language)}
-                      className="h-[60px] flex-1 rounded-[18px] border border-[#E5D9F0] bg-[#FFFCF7] px-4 font-body text-[20px] text-[#5B4A68] outline-none placeholder:text-[#9A8EA8]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => addComment(item.id)}
-                      className="min-h-[60px] rounded-[18px] px-5 font-body text-[20px] font-semibold text-white"
-                      style={{ background: room.agentColour }}
-                    >
-                      {copy.send}
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
-          </>
-        )}
       </main>
 
       {membersOpen && (
