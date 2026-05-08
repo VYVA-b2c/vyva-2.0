@@ -1,4 +1,4 @@
-import { Users, Volume2, X } from "lucide-react";
+import { Users, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -160,23 +160,13 @@ function RoomDetailSheet({ room, language, onClose, onEnter }: RoomDetailSheetPr
           </p>
         </div>
 
-        <div className="mt-6 grid gap-3 sm:grid-cols-[1fr_auto]">
+        <div className="mt-6">
           <button
             type="button"
             onClick={() => onEnter(room.slug)}
-            className="min-h-[64px] rounded-full bg-[#6D28D9] px-6 font-body text-[21px] font-bold text-white shadow-[0_14px_28px_rgba(109,40,217,0.22)]"
+            className="min-h-[64px] w-full rounded-full bg-[#6D28D9] px-6 font-body text-[21px] font-bold text-white shadow-[0_14px_28px_rgba(109,40,217,0.22)]"
           >
             {copy.enterSelectedRoom}
-          </button>
-          <button
-            type="button"
-            onClick={handleListen}
-            className="min-h-[64px] rounded-full border border-[#D8C8FB] bg-white px-6 font-body text-[19px] font-bold text-[#6D28D9]"
-          >
-            <span className="inline-flex items-center gap-2">
-              <Volume2 size={22} />
-              {copy.listenWelcome}
-            </span>
           </button>
         </div>
       </section>
