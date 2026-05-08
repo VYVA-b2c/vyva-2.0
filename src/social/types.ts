@@ -66,6 +66,13 @@ export type SocialRoomVisitState = {
   previousVisitCount?: number;
 };
 
+export type SocialConversationContext = {
+  generatedAt: string;
+  lines: string[];
+  text: string;
+  facts?: Record<string, unknown>;
+};
+
 export type SocialHubResponse = {
   user: {
     id: string;
@@ -88,6 +95,7 @@ export type SocialRoomResponse = {
   members: SocialRoomMember[];
   memberChat: SocialRoomChatItem[];
   visitState?: SocialRoomVisitState;
+  conversationContext?: SocialConversationContext;
 };
 
 export type SocialMatchResponse = {

@@ -8,6 +8,7 @@ import {
   agentDifficulty,
 } from "../../shared/schema.js";
 import { genderInstruction, inferProfileGender, type GrammaticalGender } from "../lib/userPersonalization.js";
+import { buildUserConversationContext, formatConversationContextForPrompt } from "../lib/conversationContext.js";
 
 type RoutingDomain =
   | "safety"
@@ -391,9 +392,10 @@ export async function routerHandler(req: Request, res: Response) {
     confidence = 1;
 
     const mem0Key = process.env.MEM0_API_KEY ?? "";
-    const [profileSafe, prevSafe] = await Promise.all([
+    const [profileSafe, prevSafe, conversationContextSafe] = await Promise.all([
       getProfile(user_id).catch(() => null),
       getSessionState(session_id).catch(() => null),
+      buildUserConversationContext(user_id).catch(() => null),
     ]);
 
     const mem0UserIdSafe = profileSafe?.mem0_user_id?.trim() || user_id;
@@ -410,6 +412,8 @@ export async function routerHandler(req: Request, res: Response) {
 
     const system_prompt_override = [
       memoryBlockSafe ? `MEMORY BLOCK:\n${memoryBlockSafe}` : "MEMORY BLOCK:\n(no memory retrieved)",
+      "",
+      formatConversationContextForPrompt(conversationContextSafe),
       "",
       `SESSION BLOCK:\nCurrent agent domain: safety.\nLast topic discussed: ${lastTopicSafe}.\nTime of day (UTC bucket): ${timeOfDayLabel(nowSafe)}.\nUser first name: ${firstSafe}.\n${genderInstruction(genderSafe)}\n`,
       "URGENT: Treat this as a potential safety or crisis situation. Prioritise calm, clear guidance and appropriate escalation.",
@@ -469,9 +473,10 @@ export async function routerHandler(req: Request, res: Response) {
     memories = await searchMemories(utterance, mem0UserId, mem0Key).catch(() => []);
   }
 
-  const [diffRow, streak] = await Promise.all([
+  const [diffRow, streak, conversationContext] = await Promise.all([
     getAgentDifficulty(user_id, domain).catch(() => null),
     domain === "brain_coach" ? getBrainCoachStreak(session_id, user_id).catch(() => 0) : Promise.resolve(0),
+    buildUserConversationContext(user_id).catch(() => null),
   ]);
 
   const first = firstName(profile?.full_name ?? null);
@@ -498,6 +503,8 @@ export async function routerHandler(req: Request, res: Response) {
 
   const system_prompt_override = [
     memoryBlock ? `MEMORY BLOCK:\n${memoryBlock}` : "MEMORY BLOCK:\n(no memory retrieved)",
+    "",
+    formatConversationContextForPrompt(conversationContext),
     "",
     `SESSION BLOCK:\n${sessionBlockLines.join("\n")}`,
   ].join("\n");
