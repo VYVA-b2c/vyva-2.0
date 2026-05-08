@@ -277,7 +277,7 @@ const MemoryGamesPage = () => {
 
             <div className="mt-4 flex items-center justify-between gap-2">
               <span className="min-w-0 rounded-full bg-[#E8D5F5] px-3 py-2 text-[13px] font-medium leading-tight text-vyva-purple">
-                {t("cognitiveDomains.associative_memory")}
+                {t("cognitiveDomains.executive_function")}
               </span>
               <div className="flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-full bg-[#E8D5F5] text-vyva-purple">
                 <ChevronRight size={18} />

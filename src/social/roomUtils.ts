@@ -42,6 +42,9 @@ type CopyShape = {
   activityFeed: string;
   viewChat: string;
   hideChat: string;
+  switchToChat: string;
+  roomChat: string;
+  emptyRoomChat: string;
   solveChallenge: string;
   startActivity: string;
   viewExample: string;
@@ -101,6 +104,9 @@ const COPY: Record<SocialLanguage, CopyShape> = {
     activityFeed: "Actividad en la sala",
     viewChat: "Ver conversación",
     hideChat: "Ocultar conversación",
+    switchToChat: "Cambiar al chat",
+    roomChat: "Chat de la sala",
+    emptyRoomChat: "Todavía no hay mensajes en esta sala.",
     solveChallenge: "Resolver reto",
     startActivity: "Empezar actividad",
     viewExample: "Ver ejemplo",
@@ -158,6 +164,9 @@ const COPY: Record<SocialLanguage, CopyShape> = {
     activityFeed: "Aktivität im Raum",
     viewChat: "Gespräch ansehen",
     hideChat: "Gespräch ausblenden",
+    switchToChat: "Zum Chat wechseln",
+    roomChat: "Raumchat",
+    emptyRoomChat: "In diesem Raum gibt es noch keine Nachrichten.",
     solveChallenge: "Aufgabe lösen",
     startActivity: "Aktivität starten",
     viewExample: "Beispiel ansehen",
@@ -215,6 +224,9 @@ const COPY: Record<SocialLanguage, CopyShape> = {
     activityFeed: "Activity in the room",
     viewChat: "View conversation",
     hideChat: "Hide conversation",
+    switchToChat: "Switch to chat",
+    roomChat: "Room chat",
+    emptyRoomChat: "There are no messages in this room yet.",
     solveChallenge: "Solve challenge",
     startActivity: "Start activity",
     viewExample: "View example",
