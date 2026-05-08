@@ -25,6 +25,7 @@ import ActivitiesScreen from "./pages/ActivitiesScreen";
 import ActivityScreen from "./pages/ActivityScreen";
 import SpatialNavigator from "./games/SpatialNavigator";
 import AttentionBoostersPage from "./games/AttentionBoostersPage";
+import LanguageGamesPage from "./games/LanguageGamesPage";
 import MemoryGamesPage from "./games/memory/MemoryGamesPage";
 import MemoryGameRunner from "./games/memory/MemoryGameRunner";
 import DualTaskWalk from "./games/DualTaskWalk";
@@ -229,6 +230,7 @@ const App = () => (
                   <Route path="/activity" element={<AppShell><ActivityScreen /></AppShell>} />
                   <Route path="/attention-boosters" element={<AppShell><AttentionBoostersPage /></AppShell>} />
                   <Route path="/attention-boosters/rhythm-tap" element={<AppShell><MemoryGameRunner forcedGameType="sequence_memory" returnPath="/attention-boosters" /></AppShell>} />
+                  <Route path="/language" element={<AppShell><LanguageGamesPage /></AppShell>} />
                   <Route path="/spatial-navigator" element={<AppShell><SpatialNavigatorRoute /></AppShell>} />
                   <Route path="/memory-games" element={<AppShell><MemoryGamesPage /></AppShell>} />
                   <Route path="/memory-games/:gameType" element={<AppShell><MemoryGameRunner /></AppShell>} />

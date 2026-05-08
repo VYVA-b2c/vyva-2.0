@@ -159,6 +159,14 @@ const it = {
         badge: "Focus",
       },
     },
+    language: {
+      title: "Linguaggio",
+      subtitle: "Scegli un esercizio per parole, storie e memoria.",
+      storyRecall: {
+        badge: "Storia",
+        ariaLabel: "Apri Storie brevi",
+      },
+    },
     dualTask: {
       loading: "Preparazione del tuo esercizio...",
       title: "Doppio Compito",

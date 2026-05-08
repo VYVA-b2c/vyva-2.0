@@ -160,6 +160,14 @@ const de = {
         badge: "Fokus",
       },
     },
+    language: {
+      title: "Sprache",
+      subtitle: "Wahlen Sie eine Ubung fur Worter, Geschichten und Erinnerung.",
+      storyRecall: {
+        badge: "Geschichte",
+        ariaLabel: "Kurzgeschichten offnen",
+      },
+    },
     dualTask: {
       loading: "Ubung wird vorbereitet...",
       title: "Doppelaufgabe",

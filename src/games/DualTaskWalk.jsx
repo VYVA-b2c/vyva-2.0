@@ -356,16 +356,22 @@ export default function DualTaskWalk({ userId, onExit }) {
 
   const loadSequence = useCallback(async (state) => {
     const tier = state?.current_tier ?? 1;
-    const languageToUse = normalizeGameLanguage(lang);
-    const rows = await supabase
-      .from("dual_task_sequences")
-      .select("*")
-      .eq("difficulty_tier", tier)
-      .eq("is_active", true)
-      .eq("language", languageToUse);
+    const languageOrder = [...new Set([normalizeGameLanguage(lang), "es", "en", "de"])];
+    let sequences = [];
 
-    if (rows.error) throw new Error(rows.error.message);
-    const sequences = (rows.data ?? []).map(normalizeSequence);
+    for (const languageToUse of languageOrder) {
+      const rows = await supabase
+        .from("dual_task_sequences")
+        .select("*")
+        .eq("difficulty_tier", tier)
+        .eq("is_active", true)
+        .eq("language", languageToUse);
+
+      if (rows.error) throw new Error(rows.error.message);
+      sequences = (rows.data ?? []).map(normalizeSequence);
+      if (sequences.length > 0) break;
+    }
+
     if (sequences.length === 0) throw new Error("No Dual Task Walk sequences are available.");
 
     const todaySessions = userId
