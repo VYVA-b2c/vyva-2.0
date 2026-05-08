@@ -1253,14 +1253,24 @@ const RoomScreen = () => {
     [armLiveReplyTimeout, sendAgentText, submitFallbackQuestion],
   );
 
+  const quietRoomAgent = useCallback(() => {
+    clearPresenceTimers();
+    clearLiveReplyTimeout();
+    clearReconnectFallbackTimeout();
+    endUserTurn();
+    stopVoice();
+    startListeningWhenReadyRef.current = false;
+    queuedQuestionRef.current = null;
+    pendingQuestionRef.current = null;
+    setIsSending(false);
+    setAgentPresence("idle");
+  }, [clearLiveReplyTimeout, clearPresenceTimers, clearReconnectFallbackTimeout, endUserTurn, stopVoice]);
+
   useEffect(() => {
     return () => {
-      clearPresenceTimers();
-      clearLiveReplyTimeout();
-      clearReconnectFallbackTimeout();
-      stopVoice();
+      quietRoomAgent();
     };
-  }, [clearLiveReplyTimeout, clearPresenceTimers, clearReconnectFallbackTimeout, stopVoice]);
+  }, [quietRoomAgent]);
 
   useEffect(() => {
     setRoomMode("welcome");
@@ -1284,6 +1294,7 @@ const RoomScreen = () => {
 
   useEffect(() => {
     if (!room?.slug || !room.agentSlug) return;
+    if (roomMode === "chat") return;
     if (agentSessionStatus !== "idle" || agentIsConnecting) return;
 
     const autoStartKey = `${room.slug}:${room.agentSlug}`;
@@ -1304,6 +1315,7 @@ const RoomScreen = () => {
     agentTranscript.length,
     room?.agentSlug,
     room?.slug,
+    roomMode,
     startRoomAgentSession,
   ]);
 
@@ -1510,17 +1522,13 @@ const RoomScreen = () => {
   };
 
   const handleSwitchToChat = () => {
-    clearPresenceTimers();
-    clearLiveReplyTimeout();
-    clearReconnectFallbackTimeout();
-    endUserTurn();
-    stopVoice();
-    startListeningWhenReadyRef.current = false;
-    queuedQuestionRef.current = null;
-    pendingQuestionRef.current = null;
-    setIsSending(false);
-    setAgentPresence("idle");
+    quietRoomAgent();
     setRoomMode("chat");
+  };
+
+  const handleBackToRooms = () => {
+    quietRoomAgent();
+    navigate("/social-rooms");
   };
 
   const submitChatMessage = async () => {
@@ -1627,7 +1635,7 @@ const RoomScreen = () => {
       <div className="px-6 py-8">
         <button
           type="button"
-          onClick={() => navigate("/social-rooms")}
+          onClick={handleBackToRooms}
           className="min-h-[64px] rounded-full border border-[#E0D4F0] bg-[#FFFDFC] px-6 font-body text-[22px] font-semibold text-[#6B3CC7]"
         >
           {copy.back}
@@ -1645,7 +1653,7 @@ const RoomScreen = () => {
 
       <button
         type="button"
-        onClick={() => navigate("/social-rooms")}
+        onClick={handleBackToRooms}
         className="inline-flex min-h-[56px] items-center gap-3 rounded-full border border-[#E0D4F0] bg-[#FFFDFC] px-5 font-body text-[20px] font-semibold text-[#6B3CC7]"
       >
         <ArrowLeft size={22} />
