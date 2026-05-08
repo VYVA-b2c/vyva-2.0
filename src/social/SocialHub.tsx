@@ -102,11 +102,11 @@ function RoomDetailSheet({ room, language, onClose, onEnter }: RoomDetailSheetPr
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end bg-[rgba(45,31,66,0.35)] px-3 pb-3 md:items-center md:justify-center md:p-6"
+      className="fixed inset-0 z-[80] flex items-end bg-[rgba(45,31,66,0.35)] px-3 pb-[112px] pt-3 md:items-center md:justify-center md:p-6"
       onClick={onClose}
     >
       <section
-        className="w-full max-w-[620px] rounded-t-[38px] border border-[#E6DCCF] bg-[#FFFCF8] p-6 shadow-[0_26px_70px_rgba(45,31,66,0.22)] md:rounded-[38px]"
+        className="max-h-[calc(100vh-136px)] w-full max-w-[620px] overflow-y-auto rounded-t-[38px] border border-[#E6DCCF] bg-[#FFFCF8] p-6 shadow-[0_26px_70px_rgba(45,31,66,0.22)] md:max-h-[calc(100vh-48px)] md:rounded-[38px]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">
