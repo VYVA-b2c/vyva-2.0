@@ -19,12 +19,7 @@ export function getFaceNameFaceCount(tier: number) {
 }
 
 export function getFaceNameStudySeconds(tier: number) {
-  if (tier >= 9) return 25;
-  if (tier >= 7) return 30;
-  if (tier >= 5) return 35;
-  if (tier >= 3) return 40;
-  if (tier >= 2) return 40;
-  return 45;
+  return [45, 40, 40, 35, 35, 30, 30, 25, 25, 20][clampFaceNameTier(tier) - 1];
 }
 
 export function getFaceNameRecallModes(tier: number): FaceNameRecallMode[] {
@@ -34,9 +29,7 @@ export function getFaceNameRecallModes(tier: number): FaceNameRecallMode[] {
 }
 
 export function getFaceNameDistractorCount(tier: number) {
-  if (tier >= 7) return 2;
-  if (tier >= 2) return 1;
-  return 0;
+  return [0, 1, 1, 2, 2, 2, 2, 3, 3, 3][clampFaceNameTier(tier) - 1];
 }
 
 export function computeFaceNameScore(recallLog: FaceNameRecallLogEntry[], faceCount: number, recallModes: FaceNameRecallMode[]) {
