@@ -24,6 +24,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@dicebear/core": "^9.4.2",
+    "@dicebear/micah": "^9.4.2",
     "@elevenlabs/react": "^1.0.2",
     "@googlemaps/js-api-loader": "^2.0.2",
     "@hookform/resolvers": "^3.10.0",
