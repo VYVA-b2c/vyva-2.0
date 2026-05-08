@@ -123,6 +123,15 @@ function getRetellScoringErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "OpenAI scoring failed.";
 }
 
+function logRetellScoringFallback(reason: string, message: string) {
+  console.warn("[games] Retell scoring fallback", {
+    reason,
+    hasOpenAIKey: Boolean(process.env.OPENAI_API_KEY),
+    model: OPENAI_MODEL,
+    message,
+  });
+}
+
 export async function scoreRetellHandler(req: Request, res: Response) {
   const parsed = retellSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -133,7 +142,9 @@ export async function scoreRetellHandler(req: Request, res: Response) {
   const language = normalizeGameLanguage(parsed.data.language);
   const apiKey = process.env.OPENAI_API_KEY ?? "";
   if (!apiKey) {
-    return res.json(fallbackRetellScore(keyFacts, "OpenAI API key is not configured."));
+    const message = "OpenAI API key is not configured.";
+    logRetellScoringFallback("missing_key", message);
+    return res.json(fallbackRetellScore(keyFacts, message));
   }
 
   try {
@@ -153,8 +164,9 @@ export async function scoreRetellHandler(req: Request, res: Response) {
     const content = completion.choices[0]?.message?.content ?? "{}";
     return res.json(normalizeRetellScore(JSON.parse(content), keyFacts.length));
   } catch (error) {
-    console.error("[games] Retell scoring failed:", error);
-    return res.json(fallbackRetellScore(keyFacts, getRetellScoringErrorMessage(error)));
+    const message = getRetellScoringErrorMessage(error);
+    logRetellScoringFallback(message.includes("timed out") ? "timeout" : "openai_error", message);
+    return res.json(fallbackRetellScore(keyFacts, message));
   }
 }
 
