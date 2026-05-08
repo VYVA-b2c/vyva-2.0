@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useLanguage } from "../i18n";
+import BrainGameResultActions from "./shared/BrainGameResultActions";
 import { normalizeGameLanguage } from "./shared/language";
 
 const PURPLE = "#6B21A8";
@@ -186,8 +187,10 @@ export default function SpatialNavigator({ userId, onExit }) {
     accuracy: t("brainGames.spatialNav.accuracy"),
     streak: t("brainGames.spatialNav.streak"),
     score: t("brainGames.spatialNav.score"),
-    replay: t("brainGames.spatialNav.replay"),
-    finish: t("brainGames.spatialNav.finish"),
+    continueAction: t("brainGames.resultActions.continue"),
+    continueToLevel: t("brainGames.resultActions.continueToLevel"),
+    playAgain: t("brainGames.resultActions.playAgain"),
+    playAnotherGame: t("brainGames.resultActions.playAnotherGame"),
     days: t("brainGames.spatialNav.days"),
     progressNext: t("brainGames.spatialNav.progressNext"),
     readySoon: t("brainGames.spatialNav.readySoon"),
@@ -337,6 +340,30 @@ export default function SpatialNavigator({ userId, onExit }) {
       setScreen("intro");
     }
   }, [gameLanguage, loadMap, loadUserState, text.practiceNote, userId]);
+
+  const loadSameLevelGame = useCallback(async () => {
+    const completedTier = Number(map?.difficulty_tier ?? userState?.current_tier ?? 1);
+    const baseState = userState ?? defaultUserState(userId);
+
+    setScreen("loading");
+    setLoadNote("");
+    setDrawnPath([]);
+    setSessionResult(null);
+    sessionSavedRef.current = false;
+    drawStartedAtRef.current = null;
+
+    try {
+      const selectedMap = await loadMap({ ...baseState, current_tier: completedTier });
+      setUserState(baseState);
+      setMap(selectedMap);
+      setScreen("intro");
+    } catch {
+      setUserState(baseState);
+      setMap(practiceMap(gameLanguage));
+      setLoadNote(text.practiceNote);
+      setScreen("intro");
+    }
+  }, [gameLanguage, loadMap, map?.difficulty_tier, text.practiceNote, userId, userState]);
 
   useEffect(() => {
     void loadGame();
@@ -756,8 +783,13 @@ export default function SpatialNavigator({ userId, onExit }) {
   }, [blockedFlashCell, canvasSize, drawnPath, map, screen, sessionResult]);
 
   const resultAccuracy = Math.round(sessionResult?.accuracyPct ?? 0);
-  const resultTier = Number(userState?.current_tier ?? map?.difficulty_tier ?? 1);
+  const completedTier = Number(map?.difficulty_tier ?? 1);
+  const resultTier = Number(userState?.current_tier ?? completedTier);
   const nextTier = Math.min(10, resultTier + 1);
+  const resultWasPromoted = resultTier > completedTier;
+  const continueLabel = resultWasPromoted
+    ? text.continueToLevel.replace("{level}", String(resultTier))
+    : text.continueAction;
   const winProgress = Math.min(3, Number(userState?.consecutive_wins ?? 0));
 
   if (screen === "loading") {
@@ -875,10 +907,14 @@ export default function SpatialNavigator({ userId, onExit }) {
           </div>
           <p className="spatial-hint">{text.progressNext} {nextTier}</p>
 
-          <div className="spatial-result-actions">
-            <button className="spatial-secondary-button" type="button" onClick={loadGame}>{text.replay}</button>
-            <button className="spatial-primary-button" type="button" onClick={handleExit}>{text.finish}</button>
-          </div>
+          <BrainGameResultActions
+            continueLabel={continueLabel}
+            replayLabel={text.playAgain}
+            anotherLabel={text.playAnotherGame}
+            onContinue={loadGame}
+            onReplay={loadSameLevelGame}
+            onAnother={handleExit}
+          />
         </section>
       )}
     </div>
@@ -1013,7 +1049,8 @@ const spatialStyles = `
   }
 
   .spatial-canvas-result {
-    max-width: 400px;
+    max-width: 300px;
+    margin-top: 8px;
   }
 
   .spatial-canvas {
@@ -1104,48 +1141,41 @@ const spatialStyles = `
     align-items: center;
     text-align: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: 6px;
   }
 
   .spatial-stats {
     width: 100%;
-    margin-top: 8px;
+    margin-top: 6px;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
     border: 2px solid #EDE2D1;
     background: #FFFFFF;
-    border-radius: 18px;
-    padding: 10px;
+    border-radius: 16px;
+    padding: 8px;
   }
 
   .spatial-stats div {
-    min-height: 74px;
-    border-radius: 14px;
+    min-height: 64px;
+    border-radius: 12px;
     background: #FFF9F1;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 4px;
+    gap: 2px;
   }
 
   .spatial-stats span {
-    font-size: 22px;
+    font-size: 20px;
     color: #6A5A70;
     font-weight: 750;
   }
 
   .spatial-stats strong {
-    font-size: 30px;
+    font-size: 28px;
     color: #2F2135;
     font-weight: 900;
-  }
-
-  .spatial-result-actions {
-    width: 100%;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
   }
 
   .spatial-spinner {
@@ -1170,25 +1200,21 @@ const spatialStyles = `
       grid-template-columns: 1fr;
     }
 
-    .spatial-result-actions {
-      grid-template-columns: 1fr;
-    }
-
     .spatial-result .spatial-result-icon {
-      font-size: 40px;
+      font-size: 34px;
       margin-top: 0;
     }
 
     .spatial-result .spatial-title {
-      margin-top: 6px;
-      font-size: clamp(30px, 8.5vw, 38px);
+      margin-top: 4px;
+      font-size: clamp(28px, 7.5vw, 34px);
       line-height: 1;
     }
 
     .spatial-result .spatial-canvas-wrap {
       min-width: 0;
-      max-width: 220px;
-      margin-top: 8px;
+      max-width: 180px;
+      margin-top: 4px;
     }
 
     .spatial-result .spatial-canvas {
@@ -1202,15 +1228,15 @@ const spatialStyles = `
     }
 
     .spatial-result .spatial-stats span {
-      font-size: 19px;
+      font-size: 22px;
     }
 
     .spatial-result .spatial-stats strong {
-      font-size: 26px;
+      font-size: 28px;
     }
 
     .spatial-result .spatial-stats div {
-      min-height: 68px;
+      min-height: 64px;
     }
 
     .spatial-result .spatial-progress-track {
@@ -1220,20 +1246,8 @@ const spatialStyles = `
 
     .spatial-result .spatial-hint {
       margin-top: 4px;
-      font-size: 18px;
-      line-height: 1.15;
-    }
-
-    .spatial-result .spatial-result-actions {
-      gap: 8px;
-      grid-template-columns: 1fr 1fr;
-    }
-
-    .spatial-result .spatial-primary-button,
-    .spatial-result .spatial-secondary-button {
-      min-height: 64px;
-      margin-top: 0;
       font-size: 22px;
+      line-height: 1.15;
     }
   }
 `;

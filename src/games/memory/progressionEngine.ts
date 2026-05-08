@@ -113,10 +113,11 @@ export async function selectNextVariantForSameGame(
   userId: string,
   gameType: MemoryGameType,
   language: LanguageCode,
+  levelOverride?: number,
 ): Promise<Recommendation> {
   const history = await getGameHistory(userId);
   const gameHistory = sortNewestFirst(history).filter((entry) => entry.gameType === gameType);
-  const level = getRecommendedLevelForGame(history, gameType);
+  const level = levelOverride ?? getRecommendedLevelForGame(history, gameType);
   const latestVariantId = gameHistory[0]?.variantId;
   const variant = pickNextVariantForSameGame(history, gameType, level, latestVariantId);
 
