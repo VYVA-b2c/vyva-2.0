@@ -150,7 +150,7 @@ function NumberPicker({ value, min, max, onChange, ariaLabel, increaseLabel, dec
 
   return (
     <div
-      className="grid w-[178px] grid-rows-[64px_96px_64px] overflow-hidden rounded-[8px] border-2 bg-white"
+      className="grid w-[150px] grid-rows-[64px_68px_64px] overflow-hidden rounded-[8px] border-2 bg-white sm:w-[178px] sm:grid-rows-[64px_76px_64px]"
       style={{ borderColor: BRAND.border }}
       onWheel={(event) => {
         event.preventDefault();
@@ -172,11 +172,11 @@ function NumberPicker({ value, min, max, onChange, ariaLabel, increaseLabel, dec
         <ChevronUp size={34} />
       </button>
       <div className="grid grid-rows-3 text-center">
-        <div className="text-[24px] leading-[32px] text-[#7C6D94]">{visible[0] === value ? "" : visible[0]}</div>
-        <div className="text-[40px] font-bold leading-[32px]" style={{ color: BRAND.ink }}>
+        <div className="text-[22px] leading-[21px] text-[#7C6D94] sm:text-[24px] sm:leading-[22px]">{visible[0] === value ? "" : visible[0]}</div>
+        <div className="text-[34px] font-bold leading-[26px] sm:text-[38px] sm:leading-[32px]" style={{ color: BRAND.ink }}>
           {value}
         </div>
-        <div className="text-[24px] leading-[32px] text-[#7C6D94]">{visible[2] === value ? "" : visible[2]}</div>
+        <div className="text-[22px] leading-[21px] text-[#7C6D94] sm:text-[24px] sm:leading-[22px]">{visible[2] === value ? "" : visible[2]}</div>
       </div>
       <button
         type="button"
@@ -713,10 +713,15 @@ export default function DualTaskWalk({ userId, onExit }) {
     background: BRAND.bg,
     color: BRAND.ink,
   };
+  const fixedShellStyle = {
+    ...shellStyle,
+    paddingTop: "max(8px, env(safe-area-inset-top))",
+    paddingBottom: "max(8px, env(safe-area-inset-bottom))",
+  };
 
   if (screen === "loading") {
     return (
-      <div className="flex min-h-screen items-center justify-center px-8" style={shellStyle}>
+      <div className="flex h-[100dvh] items-center justify-center overflow-hidden px-8" style={fixedShellStyle}>
         <div className="text-center">
           <Loader2 className="mx-auto h-20 w-20 animate-spin" style={{ color: BRAND.purple }} />
           <p className="mt-8 text-[28px] font-semibold">{text.loading}</p>
@@ -727,9 +732,9 @@ export default function DualTaskWalk({ userId, onExit }) {
 
   if (screen === "intro") {
     return (
-      <div className="min-h-screen px-4 py-4 sm:px-6 md:px-8 md:py-6" style={shellStyle}>
-        <div className="mx-auto flex min-h-[calc(100vh-32px)] w-full max-w-[820px] flex-col md:min-h-[calc(100vh-48px)]">
-          <div className="flex items-center justify-between gap-3">
+      <div className="h-[100dvh] overflow-hidden px-4 sm:px-6 md:px-8" style={fixedShellStyle}>
+        <div className="mx-auto flex h-full w-full max-w-[820px] flex-col">
+          <div className="flex shrink-0 items-center justify-between gap-3">
             <button
               type="button"
               onClick={handleExit}
@@ -743,7 +748,7 @@ export default function DualTaskWalk({ userId, onExit }) {
             </div>
           </div>
 
-          <main className="flex flex-1 flex-col justify-center py-5 md:py-6">
+          <main className="flex min-h-0 flex-1 flex-col justify-center py-4 md:py-6">
             <div className="text-center">
               <div className="text-[60px] leading-none md:text-[68px]">🧠</div>
               <h1 className="mt-3 font-display text-[40px] font-bold leading-none md:text-[46px]">{text.title}</h1>
@@ -769,7 +774,7 @@ export default function DualTaskWalk({ userId, onExit }) {
           <button
             type="button"
             onClick={() => setScreen("tutorial")}
-            className="min-h-[72px] w-full rounded-[8px] px-6 text-[26px] font-bold text-white shadow-vyva-card sm:px-8 sm:text-[28px]"
+            className="min-h-[72px] w-full shrink-0 rounded-[8px] px-6 text-[26px] font-bold text-white shadow-vyva-card sm:px-8 sm:text-[28px]"
             style={{ background: BRAND.purple }}
           >
             {text.example}
@@ -781,26 +786,26 @@ export default function DualTaskWalk({ userId, onExit }) {
 
   if (screen === "tutorial") {
     return (
-      <div className="min-h-screen px-4 py-5 sm:px-6" style={shellStyle}>
-        <div className="mx-auto flex min-h-[calc(100vh-40px)] w-full max-w-[820px] flex-col">
-          <header className="flex min-h-[76px] items-center justify-between border-b-2" style={{ borderColor: BRAND.border }}>
-            <h1 className="text-[24px] font-bold sm:text-[28px]">{text.tutorialTitle}</h1>
+      <div className="h-[100dvh] overflow-hidden px-3 sm:px-5 md:px-6" style={fixedShellStyle}>
+        <div className="mx-auto flex h-full w-full max-w-[820px] flex-col">
+          <header className="flex min-h-[64px] shrink-0 items-center justify-between gap-3 border-b-2" style={{ borderColor: BRAND.border }}>
+            <h1 className="min-w-0 text-[24px] font-bold leading-[1.1] sm:text-[28px]">{text.tutorialTitle}</h1>
             <button
               type="button"
               onClick={() => startRound()}
-              className="min-h-[64px] rounded-[8px] px-5 text-[22px] font-bold sm:px-6 sm:text-[24px]"
+              className="min-h-[64px] shrink-0 rounded-full px-5 text-[22px] font-bold sm:px-6 sm:text-[24px]"
               style={{ background: BRAND.softPurple, color: BRAND.purple }}
             >
               {text.skip}
             </button>
           </header>
 
-          <main className="grid flex-1 grid-rows-[40fr_60fr] gap-4 py-4">
-            <section className="rounded-[8px] border-2 bg-white p-6" style={{ borderColor: BRAND.border }}>
-              <p className="text-[28px] font-semibold">
+          <main className="grid min-h-0 flex-1 grid-rows-[minmax(256px,40fr)_minmax(0,60fr)] gap-2 py-2 sm:gap-3">
+            <section className="flex min-h-0 flex-col rounded-[8px] border-2 bg-white p-3 sm:p-4" style={{ borderColor: BRAND.border }}>
+              <p className="text-[24px] font-semibold leading-[1.15] sm:text-[28px]">
                 {text.startAt}: <span style={{ color: BRAND.purple }}>{DEMO_SEQUENCE.start_number}</span>
               </p>
-              <div className="mt-5 flex flex-col items-stretch gap-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="mt-2 grid flex-1 grid-cols-[150px_minmax(0,1fr)] items-stretch gap-3 sm:grid-cols-[178px_minmax(0,1fr)]">
                 <NumberPicker
                   value={44}
                   min={1}
@@ -810,27 +815,27 @@ export default function DualTaskWalk({ userId, onExit }) {
                   increaseLabel={text.increaseNumber}
                   decreaseLabel={text.decreaseNumber}
                 />
-                <div className="flex min-h-[80px] flex-1 items-center justify-center rounded-[8px] text-[32px] font-bold" style={{ background: "#ECFDF3", color: "#15803D" }}>
+                <div className="flex min-h-[80px] items-center justify-center rounded-[8px] text-[30px] font-bold sm:text-[32px]" style={{ background: "#ECFDF3", color: "#15803D" }}>
                   <Check size={42} />
                   <span className="ml-3">✓ ✓</span>
                 </div>
               </div>
             </section>
 
-            <section className="relative flex flex-col rounded-[8px] border-2 bg-white p-6" style={{ borderColor: BRAND.border }}>
+            <section className="relative flex min-h-0 flex-col rounded-[8px] border-2 bg-white p-3 sm:p-4" style={{ borderColor: BRAND.border }}>
               {tutorialMatch && !tutorialTapped && (
-                <div className="absolute left-6 right-6 top-6 rounded-[8px] px-5 py-4 text-center text-[26px] font-bold text-white" style={{ background: BRAND.gold }}>
+                <div className="absolute left-3 right-3 top-3 rounded-[8px] px-4 py-3 text-center text-[22px] font-bold text-white sm:left-4 sm:right-4 sm:top-4 sm:text-[26px]" style={{ background: BRAND.gold }}>
                   {text.sameSymbol}
                 </div>
               )}
-              <p className="text-[24px] font-semibold text-[#5B4B71]">
+              <p className="text-[22px] font-semibold leading-[1.15] text-[#5B4B71] sm:text-[24px]">
                 {text.previousSymbol}: <span className="text-[34px] text-[#2B2233]">{tutorialPreviousSymbol}</span>
               </p>
-              <div className="flex flex-1 items-center justify-center text-[104px] font-bold leading-none">{tutorialCurrentSymbol}</div>
+              <div className="flex min-h-0 flex-1 items-center justify-center text-[88px] font-bold leading-none sm:text-[104px]">{tutorialCurrentSymbol}</div>
               <button
                 type="button"
                 onClick={() => setTutorialTapped(true)}
-                className="mx-auto flex min-h-[92px] w-full max-w-[520px] items-center justify-center rounded-[8px] px-8 text-[30px] font-bold text-white"
+                className="mx-auto flex min-h-[92px] w-full max-w-[520px] shrink-0 items-center justify-center rounded-[8px] px-6 text-[28px] font-bold text-white sm:px-8 sm:text-[30px]"
                 style={{ background: tutorialTapped && tutorialMatch ? "#16A34A" : BRAND.purple }}
               >
                 {text.tapHere}
@@ -841,7 +846,7 @@ export default function DualTaskWalk({ userId, onExit }) {
           <button
             type="button"
             onClick={() => startRound()}
-            className="min-h-[72px] w-full rounded-[8px] px-8 text-[28px] font-bold text-white shadow-vyva-card"
+            className="min-h-[72px] w-full shrink-0 rounded-[8px] px-8 text-[28px] font-bold text-white shadow-vyva-card"
             style={{ background: BRAND.purple }}
           >
             {text.start}
@@ -855,61 +860,64 @@ export default function DualTaskWalk({ userId, onExit }) {
     const mathDone = serial7sStep >= serialSteps;
 
     return (
-      <div className="min-h-screen px-4 py-4 sm:px-5" style={shellStyle}>
-        <div className="mx-auto flex min-h-[calc(100vh-32px)] w-full max-w-[820px] flex-col">
-          <header className="border-b-2 pb-3" style={{ borderColor: BRAND.border }}>
-            <div className="flex min-h-[70px] items-center justify-between gap-4">
-              <h1 className="text-[26px] font-bold sm:text-[30px]">{text.title}</h1>
+      <div className="h-[100dvh] overflow-hidden px-3 sm:px-4 md:px-5" style={fixedShellStyle}>
+        <div className="mx-auto flex h-full w-full max-w-[820px] flex-col gap-2">
+          <header className="shrink-0">
+            <div className="flex min-h-[64px] items-center justify-between gap-3">
+              <h1 className="min-w-0 text-[24px] font-bold leading-[1.1] sm:text-[30px]">{text.title}</h1>
               <button
                 type="button"
                 onClick={handleExit}
-                className="inline-flex min-h-[64px] items-center gap-3 rounded-[8px] px-4 text-[22px] font-bold sm:px-5 sm:text-[24px]"
+                className="inline-flex min-h-[64px] shrink-0 items-center gap-2 rounded-full px-4 text-[22px] font-bold sm:gap-3 sm:px-5 sm:text-[24px]"
                 style={{ background: "#FFF7ED", color: "#9A3412" }}
               >
                 <Square size={24} />
                 {text.exit}
               </button>
             </div>
-            <div className="h-3 overflow-hidden rounded-full bg-[#EDE6F4]">
+            <div className="h-2 overflow-hidden rounded-full bg-[#EDE6F4]">
               <div className="h-full transition-[width] duration-100" style={{ width: `${roundProgress * 100}%`, background: BRAND.purple }} />
             </div>
           </header>
 
-          <main className="grid flex-1 grid-rows-[40fr_60fr] gap-4 py-4">
+          <main className="flex min-h-0 flex-1 flex-col gap-2">
             <section
-              className={`rounded-[8px] border-2 bg-white p-5 transition-colors ${
+              className={`flex min-h-0 shrink-0 flex-col rounded-[8px] border-2 bg-white p-3 transition-colors sm:p-4 ${
                 serialFeedback === "correct" ? "bg-[#ECFDF3]" : serialFeedback === "almost" ? "bg-[#FFFBEB]" : ""
               }`}
-              style={{ borderColor: serialFeedback === "correct" ? "#16A34A" : serialFeedback === "almost" ? BRAND.gold : BRAND.border }}
+              style={{
+                borderColor: serialFeedback === "correct" ? "#16A34A" : serialFeedback === "almost" ? BRAND.gold : BRAND.border,
+                flexBasis: "clamp(324px, 38dvh, 336px)",
+              }}
             >
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <p className="text-[28px] font-bold">
+              <div className="flex items-center justify-between gap-2">
+                <p className="min-w-0 text-[22px] font-bold leading-[1.15] sm:text-[28px]">
                   {text.startAt}: <span style={{ color: BRAND.purple }}>{currentSequence.start_number}</span>
                 </p>
-                <p className="text-[24px] font-bold text-[#5B4B71]">
+                <p className="shrink-0 text-[22px] font-bold leading-[1.15] text-[#5B4B71] sm:text-[24px]">
                   {text.step} {Math.min(serial7sStep + 1, serialSteps)} {text.of} {serialSteps}
                 </p>
               </div>
 
               {mathDone ? (
-                <div className="mt-7 flex min-h-[170px] items-center justify-center rounded-[8px] text-[32px] font-bold" style={{ background: "#ECFDF3", color: "#15803D" }}>
+                <div className="mt-2 flex min-h-0 flex-1 items-center justify-center rounded-[8px] text-[30px] font-bold sm:text-[32px]" style={{ background: "#ECFDF3", color: "#15803D" }}>
                   <Check size={46} />
                   <span className="ml-3">✓ ✓ ✓</span>
                 </div>
               ) : (
-                <div className="mt-5 flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[30px] font-bold leading-[1.2]">
+                <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2">
+                  <div className="min-w-0 shrink-0">
+                    <p className="text-[26px] font-bold leading-[1.12] sm:text-[30px]">
                       {text.question} {currentMinuend} - 7?
                     </p>
-                    <p className="mt-5 text-[24px] font-semibold text-[#5B4B71]">
+                    <p className="mt-1 text-[22px] font-semibold leading-[1.15] text-[#5B4B71] sm:text-[24px]">
                       {text.recent}:{" "}
                       {lastThreeMath.length === 0
                         ? "—"
                         : lastThreeMath.map((entry) => (entry.correct ? "OK" : text.almost)).join(" ")}
                     </p>
                   </div>
-                  <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-center">
+                  <div className="grid min-h-0 grid-cols-[150px_minmax(0,1fr)] items-stretch gap-3 sm:grid-cols-[178px_minmax(0,1fr)]">
                     <NumberPicker
                       value={pickerValue}
                       min={pickerMin}
@@ -922,7 +930,7 @@ export default function DualTaskWalk({ userId, onExit }) {
                     <button
                       type="button"
                       onClick={handleSerial7sConfirm}
-                      className="inline-flex min-h-[96px] items-center justify-center gap-3 rounded-[8px] px-6 text-[26px] font-bold text-white"
+                      className="inline-flex min-h-[96px] items-center justify-center gap-2 rounded-[8px] px-4 text-[24px] font-bold leading-[1.05] text-white sm:gap-3 sm:px-6 sm:text-[26px]"
                       style={{ background: BRAND.purple }}
                     >
                       <Check size={34} />
@@ -934,34 +942,36 @@ export default function DualTaskWalk({ userId, onExit }) {
             </section>
 
             <section
-              className={`flex flex-col rounded-[8px] border-2 bg-white p-5 transition-colors ${
+              className={`flex min-h-0 flex-1 flex-col rounded-[8px] border-2 bg-white p-3 transition-colors sm:p-4 ${
                 lastTapResult === "hit" ? "bg-[#ECFDF3]" : lastTapResult === "fp" ? "bg-[#FEF2F2]" : ""
               }`}
               style={{ borderColor: lastTapResult === "hit" ? "#16A34A" : lastTapResult === "fp" ? "#DC2626" : BRAND.border }}
             >
-              <p className="text-[24px] font-semibold text-[#5B4B71]">
-                {text.previousSymbol}: <span className="text-[36px] text-[#2B2233]">{previousSymbol}</span>
-              </p>
-              <div className="flex flex-1 items-center justify-center">
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1">
+                <p className="text-[22px] font-semibold leading-[1.1] text-[#5B4B71] sm:text-[24px]">
+                  {text.previousSymbol}: <span className="text-[30px] text-[#2B2233] sm:text-[36px]">{previousSymbol}</span>
+                </p>
+                <div className="flex items-center gap-4 text-[22px] font-bold leading-[1.1] sm:gap-6 sm:text-[24px]">
+                  <span>{text.hits}: {tapLog.filter((entry) => entry.wasMatch && entry.tapped).length}</span>
+                  <span>{text.almost}: {tapLog.filter((entry) => !entry.wasMatch && entry.tapped).length}</span>
+                </div>
+              </div>
+              <div className="flex min-h-0 flex-1 items-center justify-center py-1">
                 {symbolsComplete ? (
                   <p className="text-center text-[32px] font-bold" style={{ color: BRAND.purple }}>{text.visualDone}</p>
                 ) : (
-                  <div className="text-[112px] font-bold leading-none">{currentSymbol}</div>
+                  <div className="text-[92px] font-bold leading-none sm:text-[112px]">{currentSymbol}</div>
                 )}
               </div>
               <button
                 type="button"
                 onClick={handleTap}
                 disabled={symbolsComplete}
-                className="mx-auto flex min-h-[200px] w-full max-w-[560px] items-center justify-center rounded-[8px] px-8 text-center text-[32px] font-bold text-white disabled:opacity-60"
+                className="mx-auto flex min-h-[200px] w-full max-w-[560px] shrink-0 items-center justify-center rounded-[8px] px-6 text-center text-[30px] font-bold leading-[1.05] text-white disabled:opacity-60 sm:px-8 sm:text-[32px]"
                 style={{ background: lastTapResult === "hit" ? "#16A34A" : lastTapResult === "fp" ? "#DC2626" : BRAND.purple }}
               >
                 {text.tapHere}
               </button>
-              <div className="mt-4 flex items-center justify-center gap-8 text-[24px] font-bold">
-                <span>{text.hits}: {tapLog.filter((entry) => entry.wasMatch && entry.tapped).length}</span>
-                <span>{text.almost}: {tapLog.filter((entry) => !entry.wasMatch && entry.tapped).length}</span>
-              </div>
             </section>
           </main>
         </div>
@@ -977,16 +987,16 @@ export default function DualTaskWalk({ userId, onExit }) {
       : `${text.keepGoing} ${text.level} ${nextTier}`;
 
   return (
-    <div className="min-h-screen px-4 py-5 sm:px-6 md:px-8 md:py-8" style={shellStyle}>
-      <div className="mx-auto flex min-h-[calc(100vh-40px)] w-full max-w-[820px] flex-col md:min-h-[calc(100vh-64px)]">
-        <div className="flex flex-1 flex-col justify-center">
-          <div className="text-center text-[82px] leading-none">{resultToneGreat ? "🎉" : "😊"}</div>
-          <h1 className="mt-5 text-center font-display text-[44px] font-bold leading-[1.1]">
+    <div className="h-[100dvh] overflow-hidden px-4 sm:px-6 md:px-8" style={fixedShellStyle}>
+      <div className="mx-auto flex h-full w-full max-w-[820px] flex-col">
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          <div className="text-center text-[64px] leading-none sm:text-[82px]">{resultToneGreat ? "🎉" : "😊"}</div>
+          <h1 className="mt-3 text-center font-display text-[38px] font-bold leading-[1.1] sm:mt-5 sm:text-[44px]">
             {resultToneGreat ? text.resultGreat : text.resultGood}
           </h1>
 
-          <section className="mt-8 rounded-[8px] border-2 bg-white p-6 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-            <div className="grid grid-cols-1 gap-5 text-center sm:grid-cols-2">
+          <section className="mt-5 rounded-[8px] border-2 bg-white p-4 shadow-vyva-card sm:mt-8 sm:p-6" style={{ borderColor: BRAND.border }}>
+            <div className="grid grid-cols-1 gap-4 text-center sm:grid-cols-2 sm:gap-5">
               <div>
                 <p className="text-[24px] font-bold text-[#5B4B71]">{text.mathTask}</p>
                 <p className="mt-2 text-[42px] font-bold" style={{ color: BRAND.purple }}>{Math.round(result.serial7s_accuracy_pct)}%</p>
@@ -1008,14 +1018,14 @@ export default function DualTaskWalk({ userId, onExit }) {
             </div>
           </section>
 
-          <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2">
-            <div className="rounded-[8px] border-2 bg-white p-5" style={{ borderColor: BRAND.border }}>
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:mt-6 sm:grid-cols-2 sm:gap-5">
+            <div className="rounded-[8px] border-2 bg-white p-4 sm:p-5" style={{ borderColor: BRAND.border }}>
               <div className="h-4 overflow-hidden rounded-full bg-[#EDE6F4]">
                 <div className="h-full" style={{ width: `${result.serial7s_accuracy_pct}%`, background: BRAND.purple }} />
               </div>
               <p className="mt-4 text-[24px] font-bold">{text.mathLine}: {mathMarks || "—"}</p>
             </div>
-            <div className="rounded-[8px] border-2 bg-white p-5" style={{ borderColor: BRAND.border }}>
+            <div className="rounded-[8px] border-2 bg-white p-4 sm:p-5" style={{ borderColor: BRAND.border }}>
               <div className="h-4 overflow-hidden rounded-full bg-[#EDE6F4]">
                 <div className="h-full" style={{ width: `${result.tap_accuracy_pct}%`, background: BRAND.gold }} />
               </div>
@@ -1025,7 +1035,7 @@ export default function DualTaskWalk({ userId, onExit }) {
             </div>
           </div>
 
-          <div className="mt-6 rounded-[8px] border-2 bg-white p-5" style={{ borderColor: BRAND.border }}>
+          <div className="mt-4 rounded-[8px] border-2 bg-white p-4 sm:mt-6 sm:p-5" style={{ borderColor: BRAND.border }}>
             <p className="text-[24px] font-bold">{promotionLabel}</p>
             <div className="mt-4 h-5 overflow-hidden rounded-full bg-[#EDE6F4]">
               <div className="h-full" style={{ width: `${progressToPromotion}%`, background: BRAND.purple }} />
@@ -1033,7 +1043,7 @@ export default function DualTaskWalk({ userId, onExit }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid shrink-0 grid-cols-1 gap-3 pt-3 sm:grid-cols-2 sm:gap-4">
           <button
             type="button"
             onClick={handleReplay}
