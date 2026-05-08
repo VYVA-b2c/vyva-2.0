@@ -7,7 +7,14 @@ import { useProfile } from "@/contexts/ProfileContext";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 import SocialStyles from "./SocialStyles";
 import { getSocialCopy, getSocialLanguage } from "./roomUtils";
-import type { SocialLanguage, SocialRoom, SocialRoomChatItem, SocialRoomMember, SocialRoomResponse } from "./types";
+import type {
+  SocialLanguage,
+  SocialRoom,
+  SocialRoomChatItem,
+  SocialRoomMember,
+  SocialRoomResponse,
+  SocialRoomVisitState,
+} from "./types";
 
 const FALLBACK_MEMBER_NAMES = ["Carmen", "Josefa", "Manuel", "Ana"];
 const MEMBER_COLOURS = ["#F59E0B", "#0EA5A4", "#EC4899", "#3B82F6"];
@@ -387,13 +394,33 @@ function buildAgentPrompt(
   ].join(" ");
 }
 
-function buildAgentContext(language: SocialLanguage, roomName: string, topic: string, quickQuestions: string[]) {
+function buildAgentContext(
+  language: SocialLanguage,
+  roomName: string,
+  topic: string,
+  quickQuestions: string[],
+  visitState?: SocialRoomVisitState | null,
+) {
   const intro =
     language === "en"
       ? `Room: ${roomName}. Topic: ${topic}.`
       : language === "de"
         ? `Raum: ${roomName}. Thema: ${topic}.`
         : `Sala: ${roomName}. Tema: ${topic}.`;
+
+  const visitHint = visitState
+    ? visitState.isFirstVisit
+      ? language === "en"
+        ? "This is the user's first visit to this room."
+        : language === "de"
+          ? "Dies ist der erste Besuch der Nutzerin in diesem Raum."
+          : "Esta es la primera visita de la usuaria a esta sala."
+      : language === "en"
+        ? `This user has visited this room before. Previous visits: ${visitState.previousVisitCount ?? visitState.visitCount}.`
+        : language === "de"
+          ? `Diese Nutzerin war schon einmal in diesem Raum. Fruehere Besuche: ${visitState.previousVisitCount ?? visitState.visitCount}.`
+          : `Esta usuaria ya ha visitado esta sala. Visitas anteriores: ${visitState.previousVisitCount ?? visitState.visitCount}.`
+    : "";
 
   const chipHint =
     quickQuestions.length > 0
@@ -404,7 +431,7 @@ function buildAgentContext(language: SocialLanguage, roomName: string, topic: st
           : `Preguntas sugeridas: ${quickQuestions.join(" | ")}.`
       : "";
 
-  return `${intro} ${chipHint}`.trim();
+  return `${intro} ${visitHint} ${chipHint}`.trim();
 }
 
 function buildWelcomeBootstrap(language: SocialLanguage, agentName: string, userName?: string) {
@@ -1023,6 +1050,11 @@ function buildFallbackRoomResponse(slug: string, language: SocialLanguage): Soci
     promptChips: getQuickQuestions(slug, language, []),
     members: buildFallbackMembers(room, language),
     memberChat: [],
+    visitState: {
+      isFirstVisit: true,
+      previousVisitCount: 0,
+      visitCount: 0,
+    },
   };
 }
 
@@ -1050,6 +1082,7 @@ const RoomScreen = () => {
   const [chatDraft, setChatDraft] = useState("");
   const [isChatSending, setIsChatSending] = useState(false);
   const [localChatMessages, setLocalChatMessages] = useState<SocialRoomChatItem[]>([]);
+  const [roomEntryVisitState, setRoomEntryVisitState] = useState<SocialRoomVisitState | null>(null);
   const {
     startVoice,
     stopVoice,
@@ -1107,6 +1140,8 @@ const RoomScreen = () => {
     () => roomResponse?.memberChat ?? [],
     [roomResponse?.memberChat],
   );
+
+  const currentVisitState = roomEntryVisitState ?? roomResponse?.visitState ?? null;
 
   const visibleRoomChat = useMemo<SocialRoomChatItem[]>(
     () => [...roomChat, ...localChatMessages],
@@ -1213,9 +1248,16 @@ const RoomScreen = () => {
         agentSlug: room.agentSlug,
         roomSlug: room.slug,
         skipMicrophone,
+        dynamicVariables: currentVisitState
+          ? {
+              is_first_room_visit: currentVisitState.isFirstVisit,
+              room_visit_count: currentVisitState.visitCount,
+              previous_room_visit_count: currentVisitState.previousVisitCount ?? currentVisitState.visitCount,
+            }
+          : undefined,
       });
     },
-    [room?.agentSlug, room?.slug, startVoice],
+    [currentVisitState, room?.agentSlug, room?.slug, startVoice],
   );
 
   const armLiveReplyTimeout = useCallback(
@@ -1277,6 +1319,7 @@ const RoomScreen = () => {
     setChatDraft("");
     setLocalChatMessages([]);
     setIsChatSending(false);
+    setRoomEntryVisitState(null);
   }, [slug]);
 
   useEffect(() => {
@@ -1323,13 +1366,17 @@ const RoomScreen = () => {
     if (!room || agentSessionStatus !== "connected") return;
 
     const userDisplayName = firstName || profile?.firstName;
-    const contextKey = `${room.slug}:${language}:${userDisplayName ?? ""}`;
+    const visitKey = currentVisitState
+      ? `${currentVisitState.isFirstVisit}:${currentVisitState.previousVisitCount ?? ""}:${currentVisitState.visitCount}`
+      : "unknown";
+    const contextKey = `${room.slug}:${language}:${userDisplayName ?? ""}:${visitKey}`;
     if (liveGreetingKeyRef.current === contextKey) return;
 
-    sendContextUpdate(buildAgentContext(language, room.name, room.topic, quickQuestions));
+    sendContextUpdate(buildAgentContext(language, room.name, room.topic, quickQuestions, currentVisitState));
     liveGreetingKeyRef.current = contextKey;
   }, [
     agentSessionStatus,
+    currentVisitState,
     firstName,
     language,
     profile?.firstName,
@@ -1435,10 +1482,27 @@ const RoomScreen = () => {
       });
       if (!response.ok) return;
 
-      const result = (await response.json()) as { visitId: string };
+      const result = (await response.json()) as {
+        visitId: string;
+        visitState?: SocialRoomVisitState;
+        isFirstVisit?: boolean;
+        previousVisitCount?: number;
+        visitCount?: number;
+      };
       if (!cancelled) {
+        const nextVisitState =
+          result.visitState ??
+          (typeof result.isFirstVisit === "boolean"
+            ? {
+                isFirstVisit: result.isFirstVisit,
+                previousVisitCount: result.previousVisitCount ?? 0,
+                visitCount: result.visitCount ?? 0,
+              }
+            : null);
+
         leaveVisitIdRef.current = result.visitId;
         setVisitId(result.visitId);
+        setRoomEntryVisitState(nextVisitState);
       }
     }
 
