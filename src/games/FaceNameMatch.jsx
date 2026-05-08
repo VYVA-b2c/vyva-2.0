@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Loader2, RotateCcw, Square, Users } from "lucide-react";
+import { ArrowLeft, Check, Loader2, RotateCcw, Users } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { useLanguage } from "../i18n";
 import FaceAvatar from "./FaceAvatar";
@@ -54,10 +54,9 @@ function GameHeader({ title, meta, timer, pulse = false, exitLabel, onExit }) {
           <button
             type="button"
             onClick={onExit}
-            className="inline-flex min-h-[64px] items-center gap-2 rounded-[20px] px-4 text-[20px] font-extrabold shadow-sm"
-            style={{ background: "#FFF7ED", color: "#9A3412" }}
+            className="inline-flex min-h-[64px] items-center gap-2 rounded-full bg-white px-4 text-[20px] font-extrabold text-vyva-text-1 shadow-sm"
           >
-            <Square size={21} />
+            <ArrowLeft size={22} />
             {exitLabel}
           </button>
         </div>
@@ -758,7 +757,7 @@ export default function FaceNameMatch({ userId, onExit }) {
         <GameHeader
           title={text.title}
           meta={`${text.level} ${currentTier} | ${faceCount} ${text.people}`}
-          exitLabel={text.exit}
+          exitLabel={text.back}
           onExit={handleExit}
         />
 
@@ -827,7 +826,7 @@ export default function FaceNameMatch({ userId, onExit }) {
           meta={`${faceCount} ${text.people}`}
           timer={`${Math.ceil(studyCountdown)}s`}
           pulse={pulse}
-          exitLabel={text.exit}
+          exitLabel={text.back}
           onExit={handleExit}
         />
             <div className="mt-3 h-3 overflow-hidden rounded-full bg-[#EDE6F4]">
@@ -842,9 +841,9 @@ export default function FaceNameMatch({ userId, onExit }) {
               {personas.map((persona) => (
                 <div key={persona.id} className="rounded-[22px] border bg-white p-3 text-center shadow-vyva-card" style={{ borderColor: BORDER }}>
                   <div className="flex justify-center">
-                    <FaceAvatar config={persona.avatar_config} size={120} />
+                    <FaceAvatar config={persona.avatar_config} size={108} />
                   </div>
-                  <p className="mt-2 text-[23px] font-extrabold leading-tight text-vyva-text-1">{getPersonaName(persona, language)}</p>
+                  <p className="mt-2 text-[22px] font-extrabold leading-tight text-vyva-text-1">{getPersonaName(persona, language)}</p>
                 </div>
               ))}
             </div>
@@ -853,7 +852,7 @@ export default function FaceNameMatch({ userId, onExit }) {
           <button
             type="button"
             onClick={beginRecall}
-            className="min-h-[72px] w-full rounded-[22px] px-8 text-[25px] font-extrabold text-white shadow-vyva-card"
+            className="min-h-[72px] shrink-0 w-full rounded-full px-6 text-[24px] font-extrabold leading-tight text-white shadow-vyva-card"
             style={{ background: PURPLE }}
           >
             {text.ready}
