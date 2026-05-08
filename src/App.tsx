@@ -24,6 +24,7 @@ import AdherenceReportScreen from "./pages/AdherenceReportScreen";
 import ActivitiesScreen from "./pages/ActivitiesScreen";
 import ActivityScreen from "./pages/ActivityScreen";
 import SpatialNavigator from "./games/SpatialNavigator";
+import FaceNameMatch from "./games/FaceNameMatch";
 import AttentionBoostersPage from "./games/AttentionBoostersPage";
 import LanguageGamesPage from "./games/LanguageGamesPage";
 import MemoryGamesPage from "./games/memory/MemoryGamesPage";
@@ -137,6 +138,18 @@ function SpatialNavigatorRoute() {
   );
 }
 
+function FaceNameMatchRoute() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  return (
+    <FaceNameMatch
+      userId={user?.id ?? ""}
+      onExit={() => navigate("/memory-games")}
+    />
+  );
+}
+
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const location = useLocation();
@@ -232,6 +245,7 @@ const App = () => (
                   <Route path="/attention-boosters/rhythm-tap" element={<AppShell><MemoryGameRunner forcedGameType="sequence_memory" returnPath="/attention-boosters" /></AppShell>} />
                   <Route path="/language" element={<AppShell><LanguageGamesPage /></AppShell>} />
                   <Route path="/spatial-navigator" element={<AppShell><SpatialNavigatorRoute /></AppShell>} />
+                  <Route path="/face-name-match" element={<AppShell><FaceNameMatchRoute /></AppShell>} />
                   <Route path="/memory-games" element={<AppShell><MemoryGamesPage /></AppShell>} />
                   <Route path="/memory-games/:gameType" element={<AppShell><MemoryGameRunner /></AppShell>} />
                   <Route path="/dual-task-walk" element={<DualTaskWalkRoute />} />
