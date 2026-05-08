@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Check, Loader2, RotateCcw, Square, Users } from "lucide-react";
+import { ArrowLeft, Check, Loader2, RotateCcw, Users } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { useLanguage } from "../i18n";
 import FaceAvatar from "./FaceAvatar";
@@ -18,6 +18,52 @@ const GOLD = "#F59E0B";
 const BACKGROUND = "#FAF9F6";
 const GREEN = "#16A34A";
 const TEAL_SOFT = "#D5F5F5";
+const BORDER = "#EDE5DB";
+const SCREEN_STYLE = {
+  background: `radial-gradient(circle at top, #FFFFFF 0%, ${BACKGROUND} 52%, #F4EFE7 100%)`,
+  minHeight: "100dvh",
+  paddingTop: "max(12px, env(safe-area-inset-top))",
+  paddingBottom: "max(12px, env(safe-area-inset-bottom))",
+};
+
+function FaceNameScreen({ children }) {
+  return (
+    <div className="px-4 sm:px-6" style={SCREEN_STYLE}>
+      <div className="mx-auto flex min-h-[calc(100dvh-24px)] w-full max-w-[760px] flex-col">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function GameHeader({ title, meta, timer, pulse = false, exitLabel, onExit }) {
+  return (
+    <header className="rounded-[24px] border bg-white/90 px-4 py-3 shadow-vyva-card backdrop-blur" style={{ borderColor: BORDER }}>
+      <div className="flex min-h-[64px] items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[13px] font-extrabold uppercase tracking-[0.08em]" style={{ color: PURPLE }}>Face-Name Match</p>
+          <h1 className="mt-1 truncate font-display text-[25px] font-bold leading-tight text-vyva-text-1">{title}</h1>
+          {meta && <p className="mt-1 truncate text-[17px] font-semibold text-vyva-text-2">{meta}</p>}
+        </div>
+        <div className="flex flex-shrink-0 items-center gap-2">
+          {timer && (
+            <div className="rounded-full px-4 py-3 text-[21px] font-extrabold" style={{ background: pulse ? "#FEF3C7" : "#F3E8FF", color: pulse ? "#92400E" : PURPLE }}>
+              {timer}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={onExit}
+            className="inline-flex min-h-[64px] items-center gap-2 rounded-full bg-white px-4 text-[20px] font-extrabold text-vyva-text-1 shadow-sm"
+          >
+            <ArrowLeft size={22} />
+            {exitLabel}
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+}
 
 function todayKey(date = new Date()) {
   const year = date.getFullYear();
@@ -707,76 +753,65 @@ export default function FaceNameMatch({ userId, onExit }) {
 
   if (screen === "intro") {
     return (
-      <div className="px-[22px] pb-6">
-        <button
-          type="button"
-          onClick={handleExit}
-          className="mt-2 inline-flex min-h-[54px] items-center gap-2 rounded-full bg-white px-5 text-[17px] font-bold text-vyva-text-1 shadow-vyva-card"
-        >
-          <ArrowLeft size={20} />
-          {text.back}
-        </button>
+      <FaceNameScreen>
+        <GameHeader
+          title={text.title}
+          meta={`${text.level} ${currentTier} | ${faceCount} ${text.people}`}
+          exitLabel={text.back}
+          onExit={handleExit}
+        />
 
-        <div className="mx-auto mt-4 w-full max-w-[840px]">
-          <section className="relative overflow-hidden rounded-[28px] border border-[#EFE7DB] bg-[#FFF9F1] px-5 py-5 shadow-vyva-card">
-            <div
-              className="pointer-events-none absolute right-[-34px] top-[-28px] h-[132px] w-[132px] rounded-full"
-              style={{ background: "radial-gradient(circle, rgba(107,33,168,0.16) 0%, rgba(107,33,168,0) 72%)" }}
-              aria-hidden="true"
-            />
-            <div
-              className="pointer-events-none absolute bottom-[-42px] left-[-18px] h-[112px] w-[112px] rounded-full"
-              style={{ background: "radial-gradient(circle, rgba(245,158,11,0.16) 0%, rgba(245,158,11,0) 72%)" }}
-              aria-hidden="true"
-            />
-
-            <div className="relative flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-[14px] font-bold uppercase tracking-[0.06em] text-vyva-purple shadow-sm">
-                  <Users size={16} />
-                  {text.badge}
-                </div>
-                <h1 className="mt-3 font-display text-[36px] font-bold leading-[1.03] text-vyva-text-1">
-                  {text.title}
-                </h1>
-                <p className="mt-2 text-[22px] leading-[1.25] text-vyva-text-2">{text.subtitle}</p>
-                {loadNote && <p className="mt-2 text-[22px] font-bold" style={{ color: GOLD }}>{loadNote}</p>}
+        <main className="flex min-h-0 flex-1 flex-col py-4">
+          <section className="rounded-[28px] border bg-white p-5 shadow-vyva-card" style={{ borderColor: BORDER }}>
+            <div className="flex items-center gap-4">
+              <div className="flex h-[76px] w-[76px] flex-shrink-0 items-center justify-center rounded-[24px]" style={{ background: "#F3E8FF", color: PURPLE }}>
+                <Users size={38} />
               </div>
-
-              <div className="flex h-[74px] w-[74px] flex-shrink-0 items-center justify-center rounded-[22px] bg-white text-vyva-purple shadow-vyva-card">
-                <Users size={36} />
+              <div className="min-w-0">
+                <h1 className="font-display text-[37px] font-bold leading-[1.04] text-vyva-text-1">{text.title}</h1>
+                <p className="mt-2 text-[22px] font-medium leading-[1.25] text-vyva-text-2">{text.subtitle}</p>
               </div>
             </div>
 
-            <div className="relative mt-4 flex flex-wrap gap-3">
-              <span className="rounded-full px-5 py-3 text-[22px] font-bold text-white" style={{ background: GOLD }}>
+            {loadNote && (
+              <div className="mt-4 rounded-[20px] px-4 py-3 text-[20px] font-extrabold" style={{ background: "#FEF3C7", color: "#92400E" }}>
+                {loadNote}
+              </div>
+            )}
+
+            <div className="mt-4 flex flex-wrap gap-3">
+              <span className="rounded-full px-5 py-3 text-[21px] font-extrabold text-white" style={{ background: GOLD }}>
                 {text.level} {currentTier}
               </span>
-              <span className="rounded-full px-5 py-3 text-[22px] font-bold" style={{ background: TEAL_SOFT, color: "#0F766E" }}>
+              <span className="rounded-full px-5 py-3 text-[21px] font-extrabold" style={{ background: TEAL_SOFT, color: "#0F766E" }}>
                 {faceCount} {text.people}
               </span>
             </div>
 
-            <div className="relative mt-4 flex flex-wrap justify-center gap-2">
+            <div className="mt-5 overflow-hidden rounded-[24px] border bg-[#FFFDF9] p-3" style={{ borderColor: BORDER }}>
+              <div className="flex items-center justify-center gap-2 overflow-x-auto no-scrollbar">
               {personas.map((persona) => (
-                <div key={persona.id} className="opacity-95">
-                  <FaceAvatar config={persona.avatar_config} size={58} />
+                <div key={persona.id} className="flex-shrink-0">
+                  <FaceAvatar config={persona.avatar_config} size={72} />
                 </div>
               ))}
+              </div>
             </div>
           </section>
+        </main>
 
+        <div className="mt-auto pb-1">
           <button
             type="button"
             onClick={beginStudy}
-            className="mt-5 min-h-[72px] w-full rounded-full px-8 text-[28px] font-bold text-white shadow-vyva-card"
+            className="min-h-[72px] w-full rounded-[22px] px-8 text-[27px] font-extrabold text-white shadow-vyva-card"
             style={{ background: PURPLE }}
           >
             {text.start}
           </button>
-          <p className="mt-4 text-center text-[22px] leading-[1.35] text-vyva-text-2">{text.introHint}</p>
+          <p className="mt-3 text-center text-[19px] font-medium leading-[1.35] text-vyva-text-2">{text.introHint}</p>
         </div>
-      </div>
+      </FaceNameScreen>
     );
   }
 
@@ -785,42 +820,30 @@ export default function FaceNameMatch({ userId, onExit }) {
     const pulse = studyCountdown <= 5;
 
     return (
-      <div className="px-[18px] pb-3">
-        <div className="mx-auto flex max-h-[calc(100dvh-196px)] min-h-0 w-full max-w-[900px] flex-col gap-3 overflow-hidden">
-          <header className="shrink-0 rounded-[24px] border border-[#EFE7DB] bg-[#FFF9F1] p-3 shadow-vyva-card">
-            <div className="flex min-h-[56px] items-center justify-between gap-2">
-              <h1 className="min-w-0 text-[24px] font-bold leading-[1.05] text-vyva-text-1">{text.studyTitle}</h1>
-              <div
-                className="shrink-0 rounded-full bg-white px-3 py-2 text-[22px] font-bold leading-none shadow-sm"
-                style={{ color: pulse ? GOLD : PURPLE }}
-              >
-                {Math.ceil(studyCountdown)}s
-              </div>
-              <button
-                type="button"
-                onClick={handleExit}
-                className="inline-flex min-h-[56px] shrink-0 items-center gap-2 rounded-full bg-white px-4 text-[18px] font-bold text-vyva-text-1 shadow-sm"
-              >
-                <ArrowLeft size={20} />
-                {text.back}
-              </button>
-            </div>
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#EDE6F4]">
+      <FaceNameScreen>
+        <GameHeader
+          title={text.studyTitle}
+          meta={`${faceCount} ${text.people}`}
+          timer={`${Math.ceil(studyCountdown)}s`}
+          pulse={pulse}
+          exitLabel={text.back}
+          onExit={handleExit}
+        />
+            <div className="mt-3 h-3 overflow-hidden rounded-full bg-[#EDE6F4]">
               <div
                 className={`h-full ${pulse ? "animate-pulse" : ""}`}
                 style={{ width: `${progress}%`, background: pulse ? GOLD : PURPLE }}
               />
             </div>
-          </header>
 
-          <main className="min-h-0 overflow-y-auto rounded-[26px] border border-[#EFE7DB] bg-white/80 p-3 shadow-vyva-card">
+          <main className="min-h-0 flex-1 overflow-y-auto py-3 pr-1">
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
               {personas.map((persona) => (
-                <div key={persona.id} className="rounded-[22px] border border-[#EFE7DB] bg-white p-3 text-center shadow-sm">
+                <div key={persona.id} className="rounded-[22px] border bg-white p-3 text-center shadow-vyva-card" style={{ borderColor: BORDER }}>
                   <div className="flex justify-center">
-                    <FaceAvatar config={persona.avatar_config} size={92} />
+                    <FaceAvatar config={persona.avatar_config} size={108} />
                   </div>
-                  <p className="mt-2 text-[22px] font-extrabold leading-[1.1] text-vyva-text-1">{getPersonaName(persona, language)}</p>
+                  <p className="mt-2 text-[22px] font-extrabold leading-tight text-vyva-text-1">{getPersonaName(persona, language)}</p>
                 </div>
               ))}
             </div>
@@ -829,13 +852,12 @@ export default function FaceNameMatch({ userId, onExit }) {
           <button
             type="button"
             onClick={beginRecall}
-            className="min-h-[72px] shrink-0 w-full rounded-full px-6 text-[24px] font-bold leading-tight text-white shadow-vyva-card"
+            className="min-h-[72px] shrink-0 w-full rounded-full px-6 text-[24px] font-extrabold leading-tight text-white shadow-vyva-card"
             style={{ background: PURPLE }}
           >
             {text.ready}
           </button>
-        </div>
-      </div>
+      </FaceNameScreen>
     );
   }
 
@@ -844,27 +866,18 @@ export default function FaceNameMatch({ userId, onExit }) {
     const options = isNameToFace ? faceOptions : nameOptions;
 
     return (
-      <div className="min-h-screen px-4 py-5 sm:px-6 md:px-8" style={{ background: BACKGROUND }}>
-        <div className="mx-auto flex min-h-[calc(100vh-40px)] w-full max-w-[900px] flex-col">
-          <header className="flex min-h-[76px] items-center justify-between border-b-2" style={{ borderColor: "#E5E3DF" }}>
-            <h1 className="text-[26px] font-bold text-vyva-text-1">
-              {text.question} {questionNumber} {text.of} {totalQuestions}
-            </h1>
-            <button
-              type="button"
-              onClick={handleExit}
-              className="inline-flex min-h-[64px] items-center gap-2 rounded-[8px] px-5 text-[22px] font-bold"
-              style={{ background: "#FFF7ED", color: "#9A3412" }}
-            >
-              <Square size={24} />
-              {text.exit}
-            </button>
-          </header>
+      <FaceNameScreen>
+        <GameHeader
+          title={`${text.question} ${questionNumber} ${text.of} ${totalQuestions}`}
+          meta={isNameToFace ? text.whichFace : text.faceQuestion}
+          exitLabel={text.exit}
+          onExit={handleExit}
+        />
 
-          <main className="relative flex flex-1 flex-col justify-center py-6">
+          <main className="relative flex min-h-0 flex-1 flex-col py-3">
             {feedback && (
               <div
-                className="absolute left-1/2 top-5 z-10 -translate-x-1/2 rounded-full px-6 py-3 text-[24px] font-bold text-white shadow-vyva-card"
+                className="absolute left-1/2 top-2 z-10 -translate-x-1/2 rounded-full px-5 py-3 text-[22px] font-extrabold text-white shadow-vyva-card"
                 style={{ background: feedback.correct ? GREEN : GOLD }}
               >
                 {feedback.correct ? text.correct : text.answerShown}
@@ -873,14 +886,14 @@ export default function FaceNameMatch({ userId, onExit }) {
 
             {isNameToFace ? (
               <>
-                <section className="rounded-[8px] border-2 bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: "#E5E3DF" }}>
-                  <p className="text-[26px] font-bold text-vyva-text-2">{text.whichFace}</p>
-                  <p className="mt-4 text-[44px] font-extrabold uppercase tracking-wide" style={{ color: PURPLE }}>
+                <section className="rounded-[24px] border bg-white p-4 text-center shadow-vyva-card" style={{ borderColor: BORDER }}>
+                  <p className="text-[22px] font-bold text-vyva-text-2">{text.whichFace}</p>
+                  <p className="mt-2 text-[39px] font-extrabold uppercase leading-none" style={{ color: PURPLE }}>
                     {getPersonaName(currentPersona, language)}
                   </p>
                 </section>
 
-                <section className="mt-6 grid grid-cols-2 gap-4">
+                <section className="mt-3 grid min-h-0 flex-1 grid-cols-2 gap-3 overflow-y-auto pr-1 md:grid-cols-3">
                   {options.map((persona) => {
                     const isCorrect = feedback?.correctId === persona.id;
                     const isSelected = feedback?.selectedId === persona.id;
@@ -891,11 +904,11 @@ export default function FaceNameMatch({ userId, onExit }) {
                         type="button"
                         disabled={Boolean(feedback)}
                         onClick={() => handleRecallAnswer(persona.id)}
-                        className="min-h-[150px] rounded-[8px] border-4 bg-white p-4 shadow-vyva-card transition-transform active:scale-[0.99]"
+                        className="min-h-[136px] rounded-[22px] border-[3px] bg-white p-3 shadow-vyva-card transition-transform active:scale-[0.99]"
                         style={{ borderColor }}
                       >
                         <div className="flex justify-center">
-                          <FaceAvatar config={persona.avatar_config} size={110} />
+                          <FaceAvatar config={persona.avatar_config} size={104} />
                         </div>
                       </button>
                     );
@@ -904,14 +917,14 @@ export default function FaceNameMatch({ userId, onExit }) {
               </>
             ) : (
               <>
-                <section className="rounded-[8px] border-2 bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: "#E5E3DF" }}>
-                  <p className="text-[26px] font-bold text-vyva-text-2">{text.faceQuestion}</p>
-                  <div className="mt-5 flex justify-center">
-                    <FaceAvatar config={currentPersona.avatar_config} size={160} />
+                <section className="rounded-[24px] border bg-white p-4 text-center shadow-vyva-card" style={{ borderColor: BORDER }}>
+                  <p className="text-[22px] font-bold text-vyva-text-2">{text.faceQuestion}</p>
+                  <div className="mt-3 flex justify-center">
+                    <FaceAvatar config={currentPersona.avatar_config} size={142} />
                   </div>
                 </section>
 
-                <section className="mt-6 flex flex-col gap-4">
+                <section className="mt-3 flex flex-col gap-3">
                   {options.map((persona) => {
                     const isCorrect = feedback?.correctId === persona.id;
                     const isSelected = feedback?.selectedId === persona.id;
@@ -922,7 +935,7 @@ export default function FaceNameMatch({ userId, onExit }) {
                         type="button"
                         disabled={Boolean(feedback)}
                         onClick={() => handleRecallAnswer(persona.id)}
-                        className="min-h-[72px] rounded-[8px] border-4 bg-white px-6 text-center text-[28px] font-extrabold shadow-vyva-card transition-transform active:scale-[0.99]"
+                        className="min-h-[72px] rounded-[22px] border-[3px] bg-white px-6 text-center text-[27px] font-extrabold shadow-vyva-card transition-transform active:scale-[0.99]"
                         style={{ borderColor, color: isCorrect ? GREEN : PURPLE }}
                       >
                         {getPersonaName(persona, language)}
@@ -933,8 +946,7 @@ export default function FaceNameMatch({ userId, onExit }) {
               </>
             )}
           </main>
-        </div>
-      </div>
+      </FaceNameScreen>
     );
   }
 
@@ -947,21 +959,40 @@ export default function FaceNameMatch({ userId, onExit }) {
   const progressWidth = Math.min(100, Math.max(0, ((userState?.consecutive_wins ?? 0) / 3) * 100));
 
   return (
-    <div className="min-h-screen px-4 py-5 sm:px-6 md:px-8" style={{ background: BACKGROUND }}>
-      <div className="mx-auto flex min-h-[calc(100vh-40px)] w-full max-w-[900px] flex-col">
-        <main className="flex flex-1 flex-col justify-center py-4">
-          <div className="text-center text-[82px] leading-none">{resultToneGreat ? "🎉" : "😊"}</div>
-          <h1 className="mt-4 text-center font-display text-[44px] font-bold leading-[1.1] text-vyva-text-1">
-            {resultToneGreat ? text.resultGreat : text.resultTry}
-          </h1>
+    <FaceNameScreen>
+      <GameHeader
+        title={resultToneGreat ? text.resultGreat : text.resultTry}
+        meta={`${text.score}: ${result.score}`}
+        exitLabel={text.exit}
+        onExit={handleExit}
+      />
+        <main className="min-h-0 flex-1 overflow-y-auto py-3 pr-1">
+          <section className="rounded-[24px] border bg-white p-4 shadow-vyva-card" style={{ borderColor: BORDER }}>
+            <div className="flex items-center gap-3">
+              <div className="flex h-[58px] w-[58px] flex-shrink-0 items-center justify-center rounded-full" style={{ background: "#ECFDF5", color: GREEN }}>
+                <Check size={32} />
+              </div>
+              <div>
+                <h1 className="font-display text-[30px] font-bold leading-tight text-vyva-text-1">{resultToneGreat ? text.resultGreat : text.resultTry}</h1>
+                <p className="mt-1 text-[19px] font-semibold text-vyva-text-2">{`${text.score}: ${result.score}`}</p>
+              </div>
+            </div>
+          </section>
 
-          <section className="mt-6 grid grid-cols-2 gap-3 rounded-[8px] border-2 bg-white p-4 shadow-vyva-card md:grid-cols-4" style={{ borderColor: "#E5E3DF" }}>
+          <section className="mt-3 grid grid-cols-2 gap-3 rounded-[24px] border bg-white p-3 shadow-vyva-card md:grid-cols-4" style={{ borderColor: BORDER }}>
             {personas.map((persona) => (
               <div key={persona.id} className="text-center">
                 <div className="flex justify-center">
-                  <FaceAvatar config={persona.avatar_config} size={64} />
+                  <FaceAvatar config={persona.avatar_config} size={58} />
                 </div>
-                <p className="mt-2 text-[20px] font-bold text-vyva-text-1">
+                <p className="mt-1 inline-flex items-center justify-center gap-1 text-[18px] font-bold leading-tight text-vyva-text-1 [&>span:nth-child(2)]:hidden">
+                  {outcomeMap.get(persona.id) ? (
+                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full" style={{ background: "#FEF3C7", color: "#92400E" }}>
+                      <Check size={13} />
+                    </span>
+                  ) : (
+                    <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#9CA3AF]" />
+                  )}
                   <span style={{ color: outcomeMap.get(persona.id) ? GOLD : "#9CA3AF" }}>{outcomeMap.get(persona.id) ? "✓" : "·"}</span>{" "}
                   {getPersonaName(persona, language)}
                 </p>
@@ -969,49 +1000,49 @@ export default function FaceNameMatch({ userId, onExit }) {
             ))}
           </section>
 
-          <section className="mt-6 rounded-[8px] border-2 bg-white p-6 shadow-vyva-card" style={{ borderColor: "#E5E3DF" }}>
-            <div className={`grid gap-5 text-center ${hasFaceToName ? "grid-cols-2" : "grid-cols-1"}`}>
+          <section className="mt-3 rounded-[24px] border bg-white p-4 shadow-vyva-card" style={{ borderColor: BORDER }}>
+            <div className={`grid gap-4 text-center ${hasFaceToName ? "grid-cols-2" : "grid-cols-1"}`}>
               <div>
-                <p className="text-[22px] font-bold text-vyva-text-2">{text.n2f}</p>
-                <p className="mt-2 text-[42px] font-extrabold" style={{ color: PURPLE }}>{pct(result.n2fAccuracyPct)}</p>
+                <p className="text-[19px] font-bold text-vyva-text-2">{text.n2f}</p>
+                <p className="mt-1 text-[34px] font-extrabold" style={{ color: PURPLE }}>{pct(result.n2fAccuracyPct)}</p>
               </div>
               {hasFaceToName && (
                 <div>
-                  <p className="text-[22px] font-bold text-vyva-text-2">{text.f2n}</p>
-                  <p className="mt-2 text-[42px] font-extrabold" style={{ color: GOLD }}>{pct(result.f2nAccuracyPct)}</p>
+                  <p className="text-[19px] font-bold text-vyva-text-2">{text.f2n}</p>
+                  <p className="mt-1 text-[34px] font-extrabold" style={{ color: GOLD }}>{pct(result.f2nAccuracyPct)}</p>
                 </div>
               )}
             </div>
 
-            <div className="mt-6 grid grid-cols-2 gap-5 text-center">
+            <div className="mt-4 grid grid-cols-2 gap-4 text-center">
               <div>
-                <p className="text-[22px] font-bold text-vyva-text-2">{text.score}</p>
-                <p className="mt-2 text-[40px] font-extrabold text-vyva-text-1">{result.score}</p>
+                <p className="text-[19px] font-bold text-vyva-text-2">{text.score}</p>
+                <p className="mt-1 text-[33px] font-extrabold text-vyva-text-1">{result.score}</p>
               </div>
               <div>
-                <p className="text-[22px] font-bold text-vyva-text-2">{text.streak}</p>
-                <p className="mt-2 text-[40px] font-extrabold text-vyva-text-1">
+                <p className="text-[19px] font-bold text-vyva-text-2">{text.streak}</p>
+                <p className="mt-1 text-[33px] font-extrabold text-vyva-text-1">
                   {result.streakDays ?? userState?.streak_days ?? 1} {text.days}
                 </p>
               </div>
             </div>
           </section>
 
-          <div className="mt-6 rounded-[8px] border-2 bg-white p-5" style={{ borderColor: "#E5E3DF" }}>
+          <div className="mt-3 rounded-[24px] border bg-white p-4" style={{ borderColor: BORDER }}>
             <div className="h-4 overflow-hidden rounded-full bg-[#EDE6F4]">
               <div className="h-full" style={{ width: `${progressWidth}%`, background: PURPLE }} />
             </div>
-            <p className="mt-3 text-center text-[22px] font-bold text-vyva-text-2">
+            <p className="mt-3 text-center text-[19px] font-bold text-vyva-text-2">
               {result.currentTier && result.currentTier > currentTier ? text.newLevel : `${text.progressNext} ${nextTier}`}
             </p>
           </div>
         </main>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 pb-1 sm:grid-cols-2">
           <button
             type="button"
             onClick={handleReplay}
-            className="inline-flex min-h-[72px] items-center justify-center gap-3 rounded-[8px] px-6 text-[25px] font-bold text-white shadow-vyva-card"
+            className="inline-flex min-h-[72px] items-center justify-center gap-3 rounded-[22px] px-6 text-[24px] font-extrabold text-white shadow-vyva-card"
             style={{ background: PURPLE }}
           >
             <RotateCcw size={30} />
@@ -1020,14 +1051,13 @@ export default function FaceNameMatch({ userId, onExit }) {
           <button
             type="button"
             onClick={handleExit}
-            className="inline-flex min-h-[72px] items-center justify-center gap-3 rounded-[8px] bg-white px-6 text-[25px] font-bold shadow-vyva-card"
+            className="inline-flex min-h-[72px] items-center justify-center gap-3 rounded-[22px] bg-white px-6 text-[24px] font-extrabold shadow-vyva-card"
             style={{ color: PURPLE }}
           >
             <Check size={30} />
             {text.finish}
           </button>
         </div>
-      </div>
-    </div>
+    </FaceNameScreen>
   );
 }

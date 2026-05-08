@@ -14,30 +14,30 @@ export const AVATAR_OPTIONS = {
 };
 
 const SKIN = {
-  light: "#FDDBB4",
-  medium: "#E8A87C",
-  tan: "#C68642",
-  dark: "#8D4A2A",
-  deep: "#4A2010",
+  light: "#F8D7B1",
+  medium: "#D99A6C",
+  tan: "#B8793F",
+  dark: "#7D442A",
+  deep: "#44200F",
 };
 
 const HAIR = {
-  black: "#1A1A1A",
-  brown: "#6B3A2A",
-  blonde: "#D4A853",
-  red: "#A0351A",
-  grey: "#9E9E9E",
-  white: "#E8E8E8",
+  black: "#211816",
+  brown: "#68402C",
+  blonde: "#C99738",
+  red: "#A44727",
+  grey: "#9B9B95",
+  white: "#E9E5DD",
 };
 
 const EYES = {
   brown: "#4B2E1F",
-  blue: "#2563EB",
-  green: "#15803D",
-  hazel: "#8A5A22",
+  blue: "#2563A8",
+  green: "#237A4C",
+  hazel: "#805C28",
 };
 
-const SHIRTS = ["#6B21A8", "#2563EB", "#0F766E", "#C2410C", "#BE185D", "#4C1D95", "#854D0E", "#0E7490"];
+const CLOTHES = ["#6B21A8", "#0F766E", "#7C3AED", "#B45309", "#1D4E89", "#A23A55"];
 
 function normalizeConfig(config = {}) {
   const hasGlasses = Boolean(config.hasGlasses);
@@ -57,16 +57,20 @@ function normalizeConfig(config = {}) {
   };
 }
 
-function FaceShape({ shape, fill }) {
+function colorIndex(value = "") {
+  return [...value].reduce((sum, char) => sum + char.charCodeAt(0), 0) % CLOTHES.length;
+}
+
+function Head({ shape, fill }) {
   if (shape === "square") {
-    return <rect x="34" y="31" width="52" height="61" rx="16" fill={fill} />;
+    return <path d="M36 42 C39 29 49 22 60 22 C72 22 82 29 85 42 L86 67 C86 88 75 100 60 100 C45 100 34 88 34 67 Z" fill={fill} />;
   }
 
   if (shape === "round") {
-    return <ellipse cx="60" cy="62" rx="49" ry="50" fill={fill} />;
+    return <path d="M29 62 C29 38 42 24 60 24 C78 24 91 38 91 62 C91 87 78 101 60 101 C42 101 29 87 29 62 Z" fill={fill} />;
   }
 
-  return <ellipse cx="60" cy="62" rx="44" ry="55" fill={fill} />;
+  return <path d="M33 61 C33 37 44 22 60 22 C76 22 87 37 87 61 C87 86 76 101 60 101 C44 101 33 86 33 61 Z" fill={fill} />;
 }
 
 function Ears({ fill }) {
@@ -82,14 +86,15 @@ function Ears({ fill }) {
 
 function Hair({ style, color }) {
   if (style === "bald") {
-    return <path d="M39 42 C46 26 74 26 81 42" fill="none" stroke={color} strokeWidth="4" strokeLinecap="round" opacity="0.55" />;
+    return <path d="M40 39 C45 27 75 27 80 39" fill="none" stroke={color} strokeWidth="4" strokeLinecap="round" opacity="0.55" />;
   }
 
   if (style === "bun") {
     return (
       <>
-        <circle cx="60" cy="20" r="14" fill={color} />
-        <path d="M28 58 C29 29 43 18 60 18 C78 18 91 29 92 58 C82 44 39 44 28 58 Z" fill={color} />
+        <circle cx="60" cy="20" r="13" fill={color} />
+        <path d="M29 58 C29 34 41 21 60 21 C79 21 91 34 91 58 C82 44 74 39 60 39 C46 39 38 44 29 58 Z" fill={color} />
+        <path d="M39 35 C46 45 75 45 82 35 C76 27 45 27 39 35 Z" fill={color} opacity="0.78" />
       </>
     );
   }
@@ -97,27 +102,27 @@ function Hair({ style, color }) {
   if (style === "short_curly") {
     return (
       <>
-        <path d="M28 55 C28 33 42 23 60 23 C79 23 91 34 92 55 C80 43 41 43 28 55 Z" fill={color} />
-        {[38, 48, 59, 70, 80].map((cx) => (
-          <circle key={cx} cx={cx} cy={34 + (cx % 2) * 3} r="9" fill={color} />
+        <path d="M29 57 C29 35 42 23 60 23 C78 23 91 35 91 57 C82 45 74 39 60 39 C46 39 38 45 29 57 Z" fill={color} />
+        {[35, 45, 55, 65, 75, 85].map((cx, index) => (
+          <circle key={cx} cx={cx} cy={34 + (index % 2) * 3} r="8" fill={color} />
         ))}
       </>
     );
   }
 
   if (style === "medium_wavy") {
-    return <path d="M25 77 C24 42 37 23 59 23 C82 23 95 42 94 78 C84 65 82 42 67 41 C51 39 42 63 25 77 Z" fill={color} />;
+    return <path d="M25 79 C24 45 37 23 60 23 C83 23 96 45 95 79 C83 68 84 45 68 42 C53 40 44 64 25 79 Z" fill={color} />;
   }
 
   if (style === "long_straight") {
-    return <path d="M22 100 C23 54 30 22 60 21 C90 22 97 54 98 100 C85 90 35 90 22 100 Z" fill={color} />;
+    return <path d="M22 104 C23 58 31 22 60 21 C89 22 97 58 98 104 C88 95 80 82 80 62 C75 49 45 49 40 62 C40 82 32 95 22 104 Z" fill={color} />;
   }
 
   if (style === "short_textured") {
-    return <path d="M28 55 L35 35 L43 47 L51 28 L60 45 L69 28 L77 47 L85 35 L92 55 C76 43 44 43 28 55 Z" fill={color} />;
+    return <path d="M29 55 L35 37 L43 47 L50 28 L59 45 L68 28 L76 47 L84 37 L91 55 C77 45 43 45 29 55 Z" fill={color} />;
   }
 
-  return <path d="M28 56 C29 33 42 22 60 22 C78 22 91 33 92 56 C80 45 40 45 28 56 Z" fill={color} />;
+  return <path d="M29 57 C30 34 43 22 60 22 C77 22 90 34 91 57 C82 47 75 42 60 42 C45 42 38 47 29 57 Z" fill={color} />;
 }
 
 function HairFront({ style, color }) {
@@ -161,57 +166,58 @@ function HairFront({ style, color }) {
 }
 
 function Eyes({ color, shape }) {
-  const ry = shape === "hooded" ? 2.4 : shape === "almond" ? 3.2 : 4.2;
-  const rx = shape === "round" ? 4.4 : 5.4;
+  const ry = shape === "hooded" ? 2.2 : shape === "almond" ? 3 : 4;
+  const rx = shape === "round" ? 4 : 5;
   return (
-    <>
-      <path d="M42 49 C47 45 52 45 56 49" fill="none" stroke="#3A2722" strokeWidth="2.5" strokeLinecap="round" opacity="0.7" />
-      <path d="M64 49 C68 45 73 45 78 49" fill="none" stroke="#3A2722" strokeWidth="2.5" strokeLinecap="round" opacity="0.7" />
-      <ellipse cx="49" cy="56" rx={rx} ry={ry} fill="#FFFFFF" />
-      <ellipse cx="71" cy="56" rx={rx} ry={ry} fill="#FFFFFF" />
-      <circle cx="49" cy="56" r="3.2" fill={color} />
-      <circle cx="71" cy="56" r="3.2" fill={color} />
-      <circle cx="49" cy="56" r="1.5" fill="#111827" />
-      <circle cx="71" cy="56" r="1.5" fill="#111827" />
-      <circle cx="50" cy="55" r="0.9" fill="#FFFFFF" opacity="0.9" />
-      <circle cx="72" cy="55" r="0.9" fill="#FFFFFF" opacity="0.9" />
-    </>
+    <g>
+      <path d="M42 53 C46 49 52 49 56 53" fill="none" stroke="#4B352D" strokeWidth="2.2" strokeLinecap="round" opacity="0.65" />
+      <path d="M64 53 C68 49 74 49 78 53" fill="none" stroke="#4B352D" strokeWidth="2.2" strokeLinecap="round" opacity="0.65" />
+      <ellipse cx="49" cy="60" rx={rx} ry={ry} fill="#FFFFFF" />
+      <ellipse cx="71" cy="60" rx={rx} ry={ry} fill="#FFFFFF" />
+      <circle cx="49" cy="60" r="3.2" fill={color} />
+      <circle cx="71" cy="60" r="3.2" fill={color} />
+      <circle cx="49" cy="60" r="1.45" fill="#15100E" />
+      <circle cx="71" cy="60" r="1.45" fill="#15100E" />
+      <circle cx="50" cy="59" r="0.9" fill="#FFFFFF" opacity="0.9" />
+      <circle cx="72" cy="59" r="0.9" fill="#FFFFFF" opacity="0.9" />
+    </g>
   );
 }
 
 function Glasses({ style }) {
   if (style === "none") return null;
-  const common = { fill: "none", stroke: "#3F2D56", strokeWidth: 2.5 };
+  const frame = { fill: "none", stroke: "#49345F", strokeWidth: 2.8 };
   if (style === "rectangle") {
     return (
-      <>
-        <rect x="39" y="50" width="19" height="13" rx="4" {...common} />
-        <rect x="62" y="50" width="19" height="13" rx="4" {...common} />
-        <path d="M58 56 H62" {...common} />
-      </>
+      <g>
+        <rect x="38" y="53" width="20" height="14" rx="4" {...frame} />
+        <rect x="62" y="53" width="20" height="14" rx="4" {...frame} />
+        <path d="M58 60 H62" {...frame} />
+      </g>
     );
   }
+
   return (
-    <>
-      <circle cx="49" cy="56" r="9" {...common} />
-      <circle cx="71" cy="56" r="9" {...common} />
-      <path d="M58 56 H62" {...common} />
-    </>
+    <g>
+      <circle cx="49" cy="60" r="10" {...frame} />
+      <circle cx="71" cy="60" r="10" {...frame} />
+      <path d="M59 60 H61" {...frame} />
+    </g>
   );
 }
 
 function Wrinkles({ level }) {
   if (level === "none") return null;
-  const opacity = level === "moderate" ? 0.45 : 0.28;
+  const opacity = level === "moderate" ? 0.38 : 0.24;
   return (
-    <g stroke="#5C4036" strokeWidth="1.6" strokeLinecap="round" opacity={opacity} fill="none">
-      <path d="M35 59 C38 57 41 57 44 59" />
-      <path d="M76 59 C79 57 82 57 85 59" />
-      <path d="M47 79 C55 84 65 84 73 79" />
+    <g stroke="#6A4737" strokeWidth="1.5" strokeLinecap="round" opacity={opacity} fill="none">
+      <path d="M37 65 C40 63 43 63 46 65" />
+      <path d="M74 65 C77 63 80 63 83 65" />
+      <path d="M48 82 C56 86 65 86 73 82" />
       {level === "moderate" && (
         <>
-          <path d="M45 72 C55 75 65 75 75 72" />
-          <path d="M45 38 C54 35 66 35 75 38" />
+          <path d="M46 45 C54 42 66 42 74 45" />
+          <path d="M45 76 C55 79 65 79 75 76" />
         </>
       )}
     </g>
@@ -221,54 +227,49 @@ function Wrinkles({ level }) {
 function FacialHair({ style, color }) {
   if (style === "none") return null;
   if (style === "stubble") {
-    return <ellipse cx="60" cy="78" rx="19" ry="12" fill={color} opacity="0.18" />;
+    return <path d="M43 75 C48 91 72 91 77 75 C72 98 48 98 43 75 Z" fill={color} opacity="0.16" />;
   }
   if (style === "moustache") {
-    return (
-      <path
-        d="M43 72 C49 66 56 67 60 72 C64 67 71 66 77 72 C71 78 64 77 60 73 C56 77 49 78 43 72 Z"
-        fill={color}
-      />
-    );
+    return <path d="M43 74 C50 68 56 69 60 74 C64 69 70 68 77 74 C70 79 64 79 60 75 C56 79 50 79 43 74 Z" fill={color} />;
   }
   return (
-    <>
-      <path d="M41 71 C47 91 73 91 79 71 C74 100 46 100 41 71 Z" fill={color} opacity="0.82" />
-      <path d="M43 72 C49 66 56 67 60 72 C64 67 71 66 77 72 C71 78 64 77 60 73 C56 77 49 78 43 72 Z" fill={color} />
-    </>
+    <g>
+      <path d="M41 73 C47 95 73 95 79 73 C75 101 45 101 41 73 Z" fill={color} opacity="0.82" />
+      <path d="M43 74 C50 68 56 69 60 74 C64 69 70 68 77 74 C70 79 64 79 60 75 C56 79 50 79 43 74 Z" fill={color} />
+    </g>
   );
 }
 
 function Accessory({ type }) {
   if (type === "earrings") {
     return (
-      <>
-        <circle cx="24" cy="68" r="3.5" fill="#F59E0B" />
-        <circle cx="96" cy="68" r="3.5" fill="#F59E0B" />
-      </>
+      <g>
+        <circle cx="30" cy="70" r="3.2" fill="#F59E0B" />
+        <circle cx="90" cy="70" r="3.2" fill="#F59E0B" />
+      </g>
     );
   }
   if (type === "necklace") {
-    return <path d="M43 100 C51 108 69 108 77 100" fill="none" stroke="#F59E0B" strokeWidth="3" strokeLinecap="round" />;
+    return <path d="M43 104 C51 111 69 111 77 104" fill="none" stroke="#F59E0B" strokeWidth="3" strokeLinecap="round" />;
   }
   if (type === "hat") {
     return (
-      <>
-        <path d="M35 32 C40 16 80 16 85 32 Z" fill="#6B21A8" />
-        <rect x="29" y="31" width="62" height="8" rx="4" fill="#4C1D95" />
-      </>
+      <g>
+        <path d="M35 35 C40 18 80 18 85 35 Z" fill="#6B21A8" />
+        <rect x="29" y="33" width="62" height="8" rx="4" fill="#4C1D95" />
+      </g>
     );
   }
   return null;
 }
 
-function Bust({ skin, shirt }) {
+function Bust({ skin, clothes }) {
   return (
-    <>
-      <path d="M22 118 C25 99 41 89 60 89 C79 89 95 99 98 118 Z" fill={shirt} opacity="0.92" />
-      <rect x="49" y="83" width="22" height="22" rx="9" fill={skin} />
-      <path d="M43 97 C50 105 70 105 77 97 L83 118 H37 Z" fill="#FFFFFF" opacity="0.16" />
-    </>
+    <g>
+      <path d="M21 115 C26 97 39 88 60 88 C81 88 94 97 99 115 Z" fill={clothes} />
+      <path d="M50 84 H70 V105 C66 109 54 109 50 105 Z" fill={skin} />
+      <path d="M42 100 C49 107 71 107 78 100 L84 115 H36 Z" fill="#FFFFFF" opacity="0.14" />
+    </g>
   );
 }
 
@@ -277,8 +278,7 @@ export default function FaceAvatar({ config, size = 120 }) {
   const skin = SKIN[face.skinTone] ?? SKIN.medium;
   const hair = HAIR[face.hairColor] ?? HAIR.brown;
   const eye = EYES[face.eyeColor] ?? EYES.brown;
-  const bgIndex = AVATAR_OPTIONS.bgColors.indexOf(face.bgColor);
-  const shirt = SHIRTS[bgIndex >= 0 ? bgIndex % SHIRTS.length : 0];
+  const clothes = CLOTHES[colorIndex(`${face.bgColor}-${face.hairStyle}-${face.accessory}`)];
 
   return (
     <svg
@@ -290,23 +290,24 @@ export default function FaceAvatar({ config, size = 120 }) {
       focusable="false"
       className="block shrink-0"
     >
-      <circle cx="60" cy="60" r="58" fill={face.bgColor} />
-      <circle cx="60" cy="56" r="48" fill="#FFFFFF" opacity="0.38" />
-      <ellipse cx="60" cy="113" rx="36" ry="5" fill="#2E193F" opacity="0.11" />
-      <Bust skin={skin} shirt={shirt} />
-      <Hair style={face.hairStyle} color={hair} />
+      <rect x="5" y="5" width="110" height="110" rx="32" fill={face.bgColor} />
+      <circle cx="92" cy="24" r="20" fill="#FFFFFF" opacity="0.24" />
+      <ellipse cx="60" cy="113" rx="35" ry="5" fill="#2E193F" opacity="0.1" />
+      <Bust skin={skin} clothes={clothes} />
       <Ears fill={skin} />
-      <FaceShape shape={face.faceShape} fill={skin} />
+      <Hair style={face.hairStyle} color={hair} />
+      <Head shape={face.faceShape} fill={skin} />
       <HairFront style={face.hairStyle} color={hair} />
       <Accessory type={face.accessory} />
-      <ellipse cx="43" cy="69" rx="7" ry="4" fill="#F7A8A8" opacity="0.2" />
-      <ellipse cx="77" cy="69" rx="7" ry="4" fill="#F7A8A8" opacity="0.2" />
+      <ellipse cx="43" cy="73" rx="7" ry="4" fill="#F7A8A8" opacity="0.18" />
+      <ellipse cx="77" cy="73" rx="7" ry="4" fill="#F7A8A8" opacity="0.18" />
       <Eyes color={eye} shape={face.eyeShape} />
       <Glasses style={face.glassStyle} />
-      <path d="M59 61 C57 67 56 70 60 72" fill="none" stroke="#8A5A44" strokeWidth="2" strokeLinecap="round" opacity="0.5" />
-      <path d="M49 83 C55 88 66 88 72 83" fill="none" stroke="#7A3A36" strokeWidth="3" strokeLinecap="round" />
+      <path d="M59 65 C57 70 57 73 61 75" fill="none" stroke="#7B5140" strokeWidth="2" strokeLinecap="round" opacity="0.46" />
+      <path d="M49 86 C55 91 66 91 72 86" fill="none" stroke="#743A36" strokeWidth="3" strokeLinecap="round" />
       <Wrinkles level={face.wrinkles} />
       <FacialHair style={face.facialHair} color={hair} />
+      <rect x="5" y="5" width="110" height="110" rx="32" fill="none" stroke="#FFFFFF" strokeWidth="2" opacity="0.65" />
     </svg>
   );
 }

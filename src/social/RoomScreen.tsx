@@ -1,4 +1,4 @@
-import { ArrowLeft, Mic, Square } from "lucide-react";
+import { ArrowLeft, MessageCircle, Mic, Square } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
@@ -7,12 +7,13 @@ import { useProfile } from "@/contexts/ProfileContext";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 import SocialStyles from "./SocialStyles";
 import { getSocialCopy, getSocialLanguage } from "./roomUtils";
-import type { SocialLanguage, SocialRoom, SocialRoomMember, SocialRoomResponse } from "./types";
+import type { SocialLanguage, SocialRoom, SocialRoomChatItem, SocialRoomMember, SocialRoomResponse } from "./types";
 
 const FALLBACK_MEMBER_NAMES = ["Carmen", "Josefa", "Manuel", "Ana"];
 const MEMBER_COLOURS = ["#F59E0B", "#0EA5A4", "#EC4899", "#3B82F6"];
 
 type AgentPresence = "idle" | "thinking" | "speaking";
+type RoomMode = "welcome" | "chat";
 
 type FeedComment = {
   id: string;
@@ -286,6 +287,16 @@ function getVoiceButtonLabel(language: SocialLanguage, isVoiceActive: boolean, i
   if (language === "en") return "Speak now";
   if (language === "de") return "Jetzt sprechen";
   return "Hablar ahora";
+}
+
+function formatChatTime(createdAt: string, language: SocialLanguage) {
+  const date = new Date(createdAt);
+  if (Number.isNaN(date.getTime())) return "";
+
+  return date.toLocaleTimeString(language, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function buildFallbackMembers(room: SocialRoomResponse["room"], language: SocialLanguage) {
@@ -1035,6 +1046,7 @@ const RoomScreen = () => {
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
   const [extraComments, setExtraComments] = useState<Record<string, FeedComment[]>>({});
   const [voiceAttempted, setVoiceAttempted] = useState(false);
+  const [roomMode, setRoomMode] = useState<RoomMode>("welcome");
   const {
     startVoice,
     stopVoice,
@@ -1083,10 +1095,31 @@ const RoomScreen = () => {
     return room.agentFullName.split(" ")[0] ?? room.agentFullName;
   }, [room]);
 
+  const isGamesRoomPilot = room?.slug === "games-room";
+
   const quickQuestions = useMemo(
     () => getQuickQuestions(slug, language, roomResponse?.promptChips ?? []),
     [language, roomResponse?.promptChips, slug],
   );
+
+  const roomChat = useMemo<SocialRoomChatItem[]>(
+    () => roomResponse?.memberChat ?? [],
+    [roomResponse?.memberChat],
+  );
+
+  const welcomeText = useMemo(() => {
+    const liveWelcome = [...agentTranscript]
+      .reverse()
+      .find((entry) => entry.from === "vyva" && looksLikeGreeting(entry.text))?.text;
+    const roomWelcome = roomResponse?.transcript?.find((entry) => entry.speaker === "agent")?.text;
+
+    return (
+      liveWelcome ||
+      roomWelcome ||
+      room?.opener ||
+      buildWelcomeGreeting(language, agentName, firstName || profile?.firstName)
+    );
+  }, [agentName, agentTranscript, firstName, language, profile?.firstName, room?.opener, roomResponse?.transcript]);
 
   const baseKnowledgeFeed = useMemo(
     () => buildKnowledgeFeed(slug, language, roomMembers),
@@ -1224,6 +1257,10 @@ const RoomScreen = () => {
   }, [clearLiveReplyTimeout, clearPresenceTimers, clearReconnectFallbackTimeout, stopVoice]);
 
   useEffect(() => {
+    setRoomMode("welcome");
+  }, [slug]);
+
+  useEffect(() => {
     if (!room?.slug || !room.agentSlug) return;
 
     liveGreetingKeyRef.current = null;
@@ -1245,7 +1282,7 @@ const RoomScreen = () => {
 
     autoStartedRoomRef.current = autoStartKey;
     setVoiceAttempted(true);
-    startListeningWhenReadyRef.current = true;
+    startListeningWhenReadyRef.current = !isGamesRoomPilot;
     queuedQuestionRef.current = null;
     pendingQuestionRef.current = null;
     transcriptCursorRef.current = agentTranscript.length;
@@ -1256,6 +1293,7 @@ const RoomScreen = () => {
     agentIsConnecting,
     agentSessionStatus,
     agentTranscript.length,
+    isGamesRoomPilot,
     room?.agentSlug,
     room?.slug,
     startRoomAgentSession,
@@ -1463,6 +1501,20 @@ const RoomScreen = () => {
     void window.setTimeout(() => startRoomAgentSession(false), 0);
   };
 
+  const handleSwitchToChat = () => {
+    clearPresenceTimers();
+    clearLiveReplyTimeout();
+    clearReconnectFallbackTimeout();
+    endUserTurn();
+    stopVoice();
+    startListeningWhenReadyRef.current = false;
+    queuedQuestionRef.current = null;
+    pendingQuestionRef.current = null;
+    setIsSending(false);
+    setAgentPresence("idle");
+    setRoomMode("chat");
+  };
+
   const addComment = (itemId: string) => {
     const text = commentDrafts[itemId]?.trim();
     if (!text) return;
@@ -1596,6 +1648,115 @@ const RoomScreen = () => {
       </header>
 
       <main className="mt-5 space-y-4">
+        {isGamesRoomPilot ? (
+          roomMode === "welcome" ? (
+            <section className="rounded-[34px] border border-[#E8DDCF] bg-[#FFFDFC] p-5 shadow-[0_16px_34px_rgba(91,33,182,0.05)]">
+              <div className="rounded-[28px] bg-[#F8F3FF] px-5 py-5">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="flex h-[52px] w-[52px] flex-shrink-0 items-center justify-center rounded-[18px] text-white shadow-[0_10px_22px_rgba(91,33,182,0.12)]"
+                    style={{ background: "#6B3CC7" }}
+                    aria-hidden="true"
+                  >
+                    <MessageCircle size={25} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-body text-[18px] font-semibold text-[#6B3CC7]">
+                      {agentPresence === "speaking"
+                        ? getAgentSpeakingLabel(language, agentName)
+                        : copy.welcomeLabel(agentName)}
+                    </p>
+                    <p className="mt-1 font-body text-[17px] leading-[1.35] text-[#7D66A0]">
+                      {getTopicHint(slug, language, room.topic)}
+                    </p>
+                  </div>
+                </div>
+
+                <p className="mt-5 font-body text-[25px] leading-[1.3] text-[#45325B]">{welcomeText}</p>
+
+                {agentPresence === "speaking" && (
+                  <div className="mt-4 flex items-center gap-2 text-[#6B3CC7]">
+                    <span className="social-mini-wave" aria-hidden="true">
+                      <b></b>
+                      <b></b>
+                      <b></b>
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSwitchToChat}
+                className="mt-5 inline-flex min-h-[68px] w-full items-center justify-center gap-3 rounded-[22px] bg-[#6B3CC7] px-5 font-body text-[22px] font-semibold text-white shadow-[0_14px_28px_rgba(91,33,182,0.18)]"
+              >
+                <MessageCircle size={24} />
+                {copy.switchToChat}
+              </button>
+            </section>
+          ) : (
+            <section className="rounded-[34px] border border-[#E8DDCF] bg-[#FFFDFC] p-5 shadow-[0_16px_34px_rgba(91,33,182,0.05)]">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="font-display text-[31px] leading-[1.05] text-[#45325B]">{copy.roomChat}</p>
+                  <p className="mt-2 font-body text-[18px] leading-[1.35] text-[#7D66A0]">{copy.sharedConversation}</p>
+                </div>
+                <div className="flex -space-x-2">
+                  {roomMembers.slice(0, 3).map((member, index) => (
+                    <button
+                      key={member.id}
+                      type="button"
+                      onClick={() => setSelectedMember(member)}
+                      className="flex h-[38px] w-[38px] items-center justify-center rounded-full border-2 border-[#FFFDFC] text-[14px] font-semibold text-white shadow-[0_6px_12px_rgba(91,33,182,0.08)]"
+                      style={{ background: getParticipantColour(index) }}
+                    >
+                      {member.name.slice(0, 1).toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-5 space-y-3">
+                {roomChat.length > 0 ? (
+                  roomChat.map((item, index) => {
+                    const memberIndex = roomMembers.findIndex((member) => member.id === item.authorId);
+                    const member = memberIndex >= 0 ? roomMembers[memberIndex] : null;
+                    const colourIndex = memberIndex >= 0 ? memberIndex : index;
+                    const chatTime = formatChatTime(item.createdAt, language);
+
+                    return (
+                      <div key={item.id} className="flex gap-3 rounded-[24px] bg-[#FBF7F0] px-4 py-4">
+                        <button
+                          type="button"
+                          onClick={() => member && setSelectedMember(member)}
+                          disabled={!member}
+                          className="flex h-[46px] w-[46px] flex-shrink-0 items-center justify-center rounded-full text-[18px] font-semibold text-white shadow-[0_6px_12px_rgba(91,33,182,0.08)] disabled:cursor-default"
+                          style={{ background: getParticipantColour(colourIndex) }}
+                          aria-label={member ? copy.connectWith(member.name) : item.authorName}
+                        >
+                          {item.authorName.slice(0, 1).toUpperCase()}
+                        </button>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <p className="font-body text-[18px] font-semibold text-[#45325B]">{item.authorName}</p>
+                            {chatTime && <p className="font-body text-[15px] text-[#9A8EA8]">{chatTime}</p>}
+                          </div>
+                          <p className="mt-2 font-body text-[20px] leading-[1.36] text-[#5B4A68]">{item.text}</p>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="rounded-[24px] bg-[#FBF7F0] px-4 py-5 font-body text-[19px] leading-[1.35] text-[#7D66A0]">
+                    {copy.emptyRoomChat}
+                  </p>
+                )}
+              </div>
+            </section>
+          )
+        ) : (
+          <>
         <section className="rounded-[34px] border border-[#E8DDCF] bg-[#FFFDFC] p-6 shadow-[0_16px_34px_rgba(91,33,182,0.05)]">
           <p className="font-body text-[18px] font-medium text-[#8B7D9A]">{getTopicHint(slug, language, room.topic)}</p>
           <p className="mt-3 rounded-[20px] bg-[#F8F3FF] px-4 py-3 font-body text-[18px] leading-[1.35] text-[#6B5D78]">
@@ -1752,6 +1913,8 @@ const RoomScreen = () => {
             ))}
           </div>
         </section>
+          </>
+        )}
       </main>
 
       {membersOpen && (
