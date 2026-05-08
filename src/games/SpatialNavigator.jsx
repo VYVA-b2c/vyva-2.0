@@ -349,7 +349,10 @@ export default function SpatialNavigator({ userId, onExit }) {
 
     const updateSize = () => {
       const width = container.getBoundingClientRect().width || 360;
-      setCanvasSize(Math.max(320, Math.min(width, 480)));
+      const compactResult = screen === "result" && window.innerWidth <= 520;
+      const maxSize = screen === "result" ? (compactResult ? 220 : 300) : 480;
+      const minSize = screen === "result" ? (compactResult ? 200 : 240) : 320;
+      setCanvasSize(Math.max(minSize, Math.min(width, maxSize)));
     };
 
     updateSize();
@@ -768,7 +771,7 @@ export default function SpatialNavigator({ userId, onExit }) {
   }
 
   return (
-    <div className="spatial-screen">
+    <div className={`spatial-screen ${screen === "result" ? "spatial-result-screen" : ""}`}>
       <style>{spatialStyles}</style>
 
       {screen === "intro" && (
@@ -884,15 +887,22 @@ export default function SpatialNavigator({ userId, onExit }) {
 
 const spatialStyles = `
   .spatial-screen {
-    min-height: 100vh;
+    min-height: 100dvh;
     width: 100%;
     background: ${BACKGROUND};
     color: #2F2135;
     display: flex;
     justify-content: center;
     align-items: stretch;
-    padding: 24px;
+    overflow-x: hidden;
+    padding: max(16px, env(safe-area-inset-top)) 24px max(16px, env(safe-area-inset-bottom));
     font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  .spatial-result-screen {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .spatial-center {
@@ -903,9 +913,14 @@ const spatialStyles = `
 
   .spatial-panel {
     width: min(100%, 720px);
-    min-height: calc(100vh - 48px);
+    min-height: calc(100dvh - 48px);
     display: flex;
     flex-direction: column;
+  }
+
+  .spatial-result-screen .spatial-panel {
+    min-height: 0;
+    height: 100%;
   }
 
   .spatial-intro {
@@ -1088,28 +1103,30 @@ const spatialStyles = `
   .spatial-result {
     align-items: center;
     text-align: center;
+    justify-content: space-between;
+    gap: 8px;
   }
 
   .spatial-stats {
     width: 100%;
-    margin-top: 24px;
+    margin-top: 8px;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px;
-    border: 3px solid #EDE2D1;
+    gap: 8px;
+    border: 2px solid #EDE2D1;
     background: #FFFFFF;
-    border-radius: 26px;
-    padding: 18px;
+    border-radius: 18px;
+    padding: 10px;
   }
 
   .spatial-stats div {
-    min-height: 96px;
-    border-radius: 20px;
+    min-height: 74px;
+    border-radius: 14px;
     background: #FFF9F1;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 8px;
+    gap: 4px;
   }
 
   .spatial-stats span {
@@ -1119,7 +1136,7 @@ const spatialStyles = `
   }
 
   .spatial-stats strong {
-    font-size: 34px;
+    font-size: 30px;
     color: #2F2135;
     font-weight: 900;
   }
@@ -1146,20 +1163,77 @@ const spatialStyles = `
 
   @media (max-width: 520px) {
     .spatial-screen {
-      padding: 16px;
-    }
-
-    .spatial-panel {
-      min-height: calc(100vh - 32px);
+      padding: max(10px, env(safe-area-inset-top)) 12px max(10px, env(safe-area-inset-bottom));
     }
 
     .spatial-play-header {
       grid-template-columns: 1fr;
     }
 
-    .spatial-result-actions,
-    .spatial-stats {
+    .spatial-result-actions {
       grid-template-columns: 1fr;
+    }
+
+    .spatial-result .spatial-result-icon {
+      font-size: 40px;
+      margin-top: 0;
+    }
+
+    .spatial-result .spatial-title {
+      margin-top: 6px;
+      font-size: clamp(30px, 8.5vw, 38px);
+      line-height: 1;
+    }
+
+    .spatial-result .spatial-canvas-wrap {
+      min-width: 0;
+      max-width: 220px;
+      margin-top: 8px;
+    }
+
+    .spatial-result .spatial-canvas {
+      border-radius: 16px;
+      border-width: 2px;
+      box-shadow: 0 10px 20px rgba(43, 31, 24, 0.08);
+    }
+
+    .spatial-result .spatial-stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .spatial-result .spatial-stats span {
+      font-size: 19px;
+    }
+
+    .spatial-result .spatial-stats strong {
+      font-size: 26px;
+    }
+
+    .spatial-result .spatial-stats div {
+      min-height: 68px;
+    }
+
+    .spatial-result .spatial-progress-track {
+      height: 10px;
+      margin-top: 6px;
+    }
+
+    .spatial-result .spatial-hint {
+      margin-top: 4px;
+      font-size: 18px;
+      line-height: 1.15;
+    }
+
+    .spatial-result .spatial-result-actions {
+      gap: 8px;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .spatial-result .spatial-primary-button,
+    .spatial-result .spatial-secondary-button {
+      min-height: 64px;
+      margin-top: 0;
+      font-size: 22px;
     }
   }
 `;
