@@ -127,7 +127,7 @@ const fr = {
     recall: "Rappel",
     remembered: "Vous avez retenu",
     alsoInStory: "Aussi dans l'histoire",
-    scoringFallback: "Le score IA n'etait pas disponible, nous avons donc enregistre un score d'entrainement.",
+    scoringFallback: "Nous avons enregistre ceci comme une revue d'entrainement. Vous pouvez continuer.",
     completionTitle: "Tres bien",
     completionBody: "Vous avez termine l'exercice d'histoire courte.",
   },

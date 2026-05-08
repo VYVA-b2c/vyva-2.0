@@ -2,6 +2,8 @@ import { useCallback } from "react";
 import { apiFetch } from "@/lib/queryClient";
 import { normalizeGameLanguage } from "./language";
 
+const SCORE_RETELL_TIMEOUT_MS = 12000;
+
 type RetellScore = {
   covered: number[];
   not_covered: number[];
@@ -21,15 +23,27 @@ function fallbackRetellScore(keyFacts: string[], error: string): RetellScore {
   };
 }
 
+function getScoringErrorMessage(error: unknown) {
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return "Scoring request timed out.";
+  }
+  if (error instanceof Error) return error.message;
+  return "Scoring request failed";
+}
+
 export function useAIScoring() {
   const scoreRetell = useCallback(async (
     retellText: string,
     keyFacts: string[],
     language = "es",
   ): Promise<RetellScore> => {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), SCORE_RETELL_TIMEOUT_MS);
+
     try {
       const response = await apiFetch("/api/games/score-retell", {
         method: "POST",
+        signal: controller.signal,
         body: JSON.stringify({
           retellText,
           keyFacts,
@@ -43,8 +57,9 @@ export function useAIScoring() {
 
       return await response.json() as RetellScore;
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Scoring request failed";
-      return fallbackRetellScore(keyFacts, message);
+      return fallbackRetellScore(keyFacts, getScoringErrorMessage(error));
+    } finally {
+      window.clearTimeout(timeoutId);
     }
   }, []);
 

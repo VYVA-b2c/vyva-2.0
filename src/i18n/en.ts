@@ -128,7 +128,7 @@ const en = {
     recall: "Recall",
     remembered: "You remembered",
     alsoInStory: "Also in the story",
-    scoringFallback: "The AI score was unavailable, so we saved a practice score.",
+    scoringFallback: "We saved this as a practice review. You can keep going.",
     completionTitle: "Well done",
     completionBody: "You completed the short story exercise.",
   },
