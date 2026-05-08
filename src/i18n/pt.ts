@@ -159,6 +159,14 @@ const pt = {
         badge: "Foco",
       },
     },
+    language: {
+      title: "Linguagem",
+      subtitle: "Escolha um exercicio para palavras, historias e memoria.",
+      storyRecall: {
+        badge: "Historia",
+        ariaLabel: "Abrir Historias curtas",
+      },
+    },
     dualTask: {
       loading: "A preparar o seu exercicio...",
       title: "Dupla Tarefa",

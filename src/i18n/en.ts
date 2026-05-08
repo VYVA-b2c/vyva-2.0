@@ -160,6 +160,14 @@ const en = {
         badge: "Focus",
       },
     },
+    language: {
+      title: "Language",
+      subtitle: "Choose an exercise for words, stories, and recall.",
+      storyRecall: {
+        badge: "Story",
+        ariaLabel: "Open Short stories",
+      },
+    },
     dualTask: {
       loading: "Preparing your exercise...",
       title: "Dual Task",

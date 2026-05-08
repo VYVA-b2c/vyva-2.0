@@ -160,6 +160,14 @@ const es = {
         badge: "Atencion",
       },
     },
+    language: {
+      title: "Lenguaje",
+      subtitle: "Elige un ejercicio para palabras, historias y memoria.",
+      storyRecall: {
+        badge: "Historia",
+        ariaLabel: "Abrir Historias cortas",
+      },
+    },
     dualTask: {
       loading: "Preparando tu ejercicio...",
       title: "Doble Tarea",
