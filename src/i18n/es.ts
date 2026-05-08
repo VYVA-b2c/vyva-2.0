@@ -210,6 +210,8 @@ const es = {
       subtitle: "Aprende los nombres. Luego recuerdalos.",
       badge: "Nombres",
       people: "personas",
+      extraChoice: "opcion extra",
+      extraChoices: "opciones extra",
       start: "Empezar!",
       introHint: "Mira cada cara y su nombre. Luego te los preguntare.",
       studyTitle: "Memoriza!",

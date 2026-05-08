@@ -23,6 +23,7 @@ export function getFaceNameStudySeconds(tier: number) {
   if (tier >= 7) return 30;
   if (tier >= 5) return 35;
   if (tier >= 3) return 40;
+  if (tier >= 2) return 40;
   return 45;
 }
 
@@ -34,7 +35,7 @@ export function getFaceNameRecallModes(tier: number): FaceNameRecallMode[] {
 
 export function getFaceNameDistractorCount(tier: number) {
   if (tier >= 7) return 2;
-  if (tier >= 3) return 1;
+  if (tier >= 2) return 1;
   return 0;
 }
 

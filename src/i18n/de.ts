@@ -210,6 +210,8 @@ const de = {
       subtitle: "Lerne die Namen. Erinnere dich danach.",
       badge: "Namen",
       people: "Personen",
+      extraChoice: "Extra-Auswahl",
+      extraChoices: "Extra-Auswahlen",
       start: "Start!",
       introHint: "Sieh dir jedes Gesicht und jeden Namen an. Danach frage ich dich.",
       studyTitle: "Einpragen!",

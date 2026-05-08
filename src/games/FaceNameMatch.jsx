@@ -349,6 +349,8 @@ export default function FaceNameMatch({ userId, onExit }) {
     badge: t("brainGames.faceName.badge"),
     level: t("common.level"),
     people: t("brainGames.faceName.people"),
+    extraChoice: t("brainGames.faceName.extraChoice"),
+    extraChoices: t("brainGames.faceName.extraChoices"),
     start: t("brainGames.faceName.start"),
     introHint: t("brainGames.faceName.introHint"),
     studyTitle: t("brainGames.faceName.studyTitle"),
@@ -408,6 +410,9 @@ export default function FaceNameMatch({ userId, onExit }) {
   const faceCount = Number(selectedSet?.face_count ?? personas.length);
   const totalQuestions = recallModes.length * Math.max(1, faceCount);
   const questionNumber = recallModeIndex * Math.max(1, faceCount) + recallIndex + 1;
+  const distractorCount = getFaceNameDistractorCount(currentTier);
+  const extraChoiceLabel = distractorCount === 1 ? text.extraChoice : text.extraChoices;
+  const faceMeta = `${faceCount} ${text.people}${distractorCount > 0 ? ` | ${distractorCount} ${extraChoiceLabel}` : ""}`;
 
   const loadUserState = useCallback(async () => {
     if (!userId) return defaultUserState(userId);
@@ -567,7 +572,7 @@ export default function FaceNameMatch({ userId, onExit }) {
   useEffect(() => {
     if (screen !== "study" || !selectedSet) return undefined;
 
-    const seconds = Number(selectedSet.study_seconds ?? getFaceNameStudySeconds(currentTier));
+    const seconds = getFaceNameStudySeconds(currentTier);
     const startedAt = Date.now();
     const durationMs = seconds * 1000;
     setStudyCountdown(seconds);
@@ -736,9 +741,8 @@ export default function FaceNameMatch({ userId, onExit }) {
 
   const faceOptions = useMemo(() => {
     if (!currentPersona || currentMode !== "name_to_face") return [];
-    const distractorCount = getFaceNameDistractorCount(currentTier);
     return shuffle([...personas, ...shuffle(distractors).slice(0, distractorCount)]);
-  }, [currentMode, currentPersona, currentTier, distractors, personas]);
+  }, [currentMode, currentPersona, distractorCount, distractors, personas]);
 
   const nameOptions = useMemo(() => {
     if (!currentPersona || currentMode !== "face_to_name") return [];
@@ -766,7 +770,7 @@ export default function FaceNameMatch({ userId, onExit }) {
       <FaceNameScreen>
         <GameHeader
           title={text.title}
-          meta={`${text.level} ${currentTier} | ${faceCount} ${text.people}`}
+          meta={`${text.level} ${currentTier} | ${faceMeta}`}
           exitLabel={text.back}
           onExit={handleExit}
         />
@@ -796,6 +800,11 @@ export default function FaceNameMatch({ userId, onExit }) {
               <span className="rounded-full px-5 py-3 text-[21px] font-extrabold" style={{ background: TEAL_SOFT, color: "#0F766E" }}>
                 {faceCount} {text.people}
               </span>
+              {distractorCount > 0 && (
+                <span className="rounded-full px-5 py-3 text-[21px] font-extrabold" style={{ background: "#F3E8FF", color: PURPLE }}>
+                  {distractorCount} {extraChoiceLabel}
+                </span>
+              )}
             </div>
 
             <div className="mt-5 overflow-hidden rounded-[24px] border bg-[#FFFDF9] p-3" style={{ borderColor: BORDER }}>
@@ -826,7 +835,8 @@ export default function FaceNameMatch({ userId, onExit }) {
   }
 
   if (screen === "study") {
-    const progress = Math.max(0, Math.min(100, (studyCountdown / Number(selectedSet.study_seconds ?? 45)) * 100));
+    const studySeconds = getFaceNameStudySeconds(currentTier);
+    const progress = Math.max(0, Math.min(100, (studyCountdown / studySeconds) * 100));
     const pulse = studyCountdown <= 5;
     const studyGridCols = personas.length <= 4 ? "grid-cols-2" : "grid-cols-2 md:grid-cols-3";
 
@@ -834,7 +844,7 @@ export default function FaceNameMatch({ userId, onExit }) {
       <FaceNameScreen>
         <GameHeader
           title={text.studyTitle}
-          meta={`${faceCount} ${text.people}`}
+          meta={faceMeta}
           timer={`${Math.ceil(studyCountdown)}s`}
           pulse={pulse}
           exitLabel={text.back}

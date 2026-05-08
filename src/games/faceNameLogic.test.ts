@@ -13,8 +13,10 @@ describe("face-name match logic", () => {
     expect(getFaceNameFaceCount(5)).toBe(6);
     expect(getFaceNameFaceCount(10)).toBe(8);
     expect(getFaceNameStudySeconds(1)).toBe(45);
+    expect(getFaceNameStudySeconds(2)).toBe(40);
     expect(getFaceNameStudySeconds(10)).toBe(25);
-    expect(getFaceNameDistractorCount(2)).toBe(0);
+    expect(getFaceNameDistractorCount(1)).toBe(0);
+    expect(getFaceNameDistractorCount(2)).toBe(1);
     expect(getFaceNameDistractorCount(3)).toBe(1);
     expect(getFaceNameDistractorCount(8)).toBe(2);
   });
