@@ -828,6 +828,7 @@ export default function FaceNameMatch({ userId, onExit }) {
   if (screen === "study") {
     const progress = Math.max(0, Math.min(100, (studyCountdown / Number(selectedSet.study_seconds ?? 45)) * 100));
     const pulse = studyCountdown <= 5;
+    const studyGridCols = personas.length <= 4 ? "grid-cols-2" : "grid-cols-2 md:grid-cols-3";
 
     return (
       <FaceNameScreen>
@@ -847,7 +848,7 @@ export default function FaceNameMatch({ userId, onExit }) {
             </div>
 
           <main className="min-h-0 flex-1 overflow-y-auto py-3 pr-1">
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            <div className={`grid gap-3 ${studyGridCols}`}>
               {personas.map((persona) => (
                 <div key={persona.id} className="rounded-[22px] border bg-white p-3 text-center shadow-vyva-card" style={{ borderColor: BORDER }}>
                   <div className="flex justify-center">
