@@ -1047,6 +1047,9 @@ const RoomScreen = () => {
   const [extraComments, setExtraComments] = useState<Record<string, FeedComment[]>>({});
   const [voiceAttempted, setVoiceAttempted] = useState(false);
   const [roomMode, setRoomMode] = useState<RoomMode>("welcome");
+  const [chatDraft, setChatDraft] = useState("");
+  const [isChatSending, setIsChatSending] = useState(false);
+  const [localChatMessages, setLocalChatMessages] = useState<SocialRoomChatItem[]>([]);
   const {
     startVoice,
     stopVoice,
@@ -1105,6 +1108,11 @@ const RoomScreen = () => {
   const roomChat = useMemo<SocialRoomChatItem[]>(
     () => roomResponse?.memberChat ?? [],
     [roomResponse?.memberChat],
+  );
+
+  const visibleRoomChat = useMemo<SocialRoomChatItem[]>(
+    () => [...roomChat, ...localChatMessages],
+    [localChatMessages, roomChat],
   );
 
   const welcomeText = useMemo(() => {
@@ -1258,6 +1266,9 @@ const RoomScreen = () => {
 
   useEffect(() => {
     setRoomMode("welcome");
+    setChatDraft("");
+    setLocalChatMessages([]);
+    setIsChatSending(false);
   }, [slug]);
 
   useEffect(() => {
@@ -1515,6 +1526,66 @@ const RoomScreen = () => {
     setRoomMode("chat");
   };
 
+  const submitChatMessage = async () => {
+    const trimmed = chatDraft.trim();
+    if (!trimmed || isChatSending) return;
+
+    const userName = firstName || profile?.firstName?.trim() || (language === "en" ? "You" : language === "de" ? "Du" : "Tú");
+    const now = new Date().toISOString();
+    setLocalChatMessages((current) => [
+      ...current,
+      {
+        id: `${slug}-chat-user-${Date.now()}`,
+        authorId: "current-user",
+        authorName: userName,
+        text: trimmed,
+        createdAt: now,
+        connectable: false,
+      },
+    ]);
+    setChatDraft("");
+    setIsChatSending(true);
+    setAgentPresence("thinking");
+
+    try {
+      const response = await apiFetch(`/api/social/rooms/${slug}/message`, {
+        method: "POST",
+        body: JSON.stringify({ message: trimmed, lang: language, visitId: visitId ?? undefined }),
+      });
+      if (!response.ok) {
+        setAgentPresence("idle");
+        return;
+      }
+
+      const result = (await response.json()) as { reply?: string; createdAt?: string };
+      const reply = result.reply?.trim();
+      if (!reply) {
+        setAgentPresence("idle");
+        return;
+      }
+
+      setLocalChatMessages((current) => [
+        ...current,
+        {
+          id: `${slug}-chat-agent-${Date.now()}`,
+          authorId: "agent",
+          authorName: agentName || room?.agentFullName || "VYVA",
+          text: reply,
+          createdAt: result.createdAt ?? new Date().toISOString(),
+          connectable: false,
+        },
+      ]);
+      clearPresenceTimers();
+      setAgentPresence("speaking");
+      speakingTimerRef.current = window.setTimeout(() => {
+        setAgentPresence("idle");
+        speakingTimerRef.current = null;
+      }, 2200);
+    } finally {
+      setIsChatSending(false);
+    }
+  };
+
   const addComment = (itemId: string) => {
     const text = commentDrafts[itemId]?.trim();
     if (!text) return;
@@ -1717,21 +1788,33 @@ const RoomScreen = () => {
               </div>
 
               <div className="mt-5 space-y-3">
-                {roomChat.length > 0 ? (
-                  roomChat.map((item, index) => {
+                {visibleRoomChat.length > 0 ? (
+                  visibleRoomChat.map((item, index) => {
                     const memberIndex = roomMembers.findIndex((member) => member.id === item.authorId);
                     const member = memberIndex >= 0 ? roomMembers[memberIndex] : null;
                     const colourIndex = memberIndex >= 0 ? memberIndex : index;
                     const chatTime = formatChatTime(item.createdAt, language);
+                    const isCurrentUser = item.authorId === "current-user";
+                    const isAgentMessage = item.authorId === "agent";
+                    const avatarColour = isCurrentUser
+                      ? "#6B3CC7"
+                      : isAgentMessage
+                        ? room.agentColour
+                        : getParticipantColour(colourIndex);
 
                     return (
-                      <div key={item.id} className="flex gap-3 rounded-[24px] bg-[#FBF7F0] px-4 py-4">
+                      <div
+                        key={item.id}
+                        className={`flex gap-3 rounded-[24px] px-4 py-4 ${
+                          isCurrentUser ? "flex-row-reverse bg-[#F2EBFF] text-right" : "bg-[#FBF7F0]"
+                        }`}
+                      >
                         <button
                           type="button"
                           onClick={() => member && setSelectedMember(member)}
                           disabled={!member}
                           className="flex h-[46px] w-[46px] flex-shrink-0 items-center justify-center rounded-full text-[18px] font-semibold text-white shadow-[0_6px_12px_rgba(91,33,182,0.08)] disabled:cursor-default"
-                          style={{ background: getParticipantColour(colourIndex) }}
+                          style={{ background: avatarColour }}
                           aria-label={member ? copy.connectWith(member.name) : item.authorName}
                         >
                           {item.authorName.slice(0, 1).toUpperCase()}
@@ -1753,6 +1836,30 @@ const RoomScreen = () => {
                   </p>
                 )}
               </div>
+
+              <form
+                className="mt-5 flex gap-3 rounded-[26px] border border-[#E5D9F0] bg-[#FFFCF7] p-3 shadow-[0_10px_22px_rgba(91,33,182,0.04)]"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void submitChatMessage();
+                }}
+              >
+                <input
+                  value={chatDraft}
+                  onChange={(event) => setChatDraft(event.target.value)}
+                  disabled={isChatSending}
+                  placeholder={copy.writePlaceholder}
+                  aria-label={copy.writePlaceholder}
+                  className="h-[58px] min-w-0 flex-1 rounded-[18px] border border-transparent bg-white px-4 font-body text-[20px] text-[#5B4A68] outline-none placeholder:text-[#9A8EA8] focus:border-[#D8C8FB]"
+                />
+                <button
+                  type="submit"
+                  disabled={isChatSending || !chatDraft.trim()}
+                  className="min-h-[58px] rounded-[18px] bg-[#6B3CC7] px-5 font-body text-[19px] font-semibold text-white disabled:opacity-50"
+                >
+                  {copy.send}
+                </button>
+              </form>
             </section>
           )
         ) : (
