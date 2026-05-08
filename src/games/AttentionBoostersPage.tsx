@@ -36,8 +36,7 @@ export default function AttentionBoostersPage() {
       <section className="mt-5 rounded-[8px] border border-[#EDE2D1] bg-[#FFF9F1] p-6 shadow-vyva-card">
         <div className="flex items-start justify-between gap-5">
           <div className="min-w-0">
-            <p className="text-[22px] font-bold uppercase text-vyva-purple">{title}</p>
-            <h1 className="mt-3 font-display text-[42px] font-bold leading-[1.05] text-vyva-text-1">
+            <h1 className="font-display text-[42px] font-bold leading-[1.05] text-vyva-text-1">
               {title}
             </h1>
             <p className="mt-4 text-[24px] leading-[1.35] text-vyva-text-2">{t("brainGames.attentionBoosters.subtitle")}</p>
