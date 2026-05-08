@@ -232,7 +232,6 @@ export default function DualTaskWalk({ userId, onExit }) {
     newLevel: t("brainGames.dualTask.newLevel"),
     replay: t("brainGames.dualTask.replay"),
     finish: t("brainGames.dualTask.finish"),
-    preparingFallback: t("brainGames.dualTask.preparingFallback"),
     increaseNumber: t("brainGames.dualTask.increaseNumber"),
     decreaseNumber: t("brainGames.dualTask.decreaseNumber"),
     tutorialNumber: t("brainGames.dualTask.tutorialNumber"),
@@ -242,7 +241,6 @@ export default function DualTaskWalk({ userId, onExit }) {
   const [screen, setScreen] = useState("loading");
   const [sequence, setSequence] = useState(null);
   const [userState, setUserState] = useState(null);
-  const [loadNote, setLoadNote] = useState("");
 
   const [serial7sStep, setSerial7sStep] = useState(0);
   const [pickerValue, setPickerValue] = useState(0);
@@ -659,7 +657,6 @@ export default function DualTaskWalk({ userId, onExit }) {
 
     async function prepare() {
       setScreen("loading");
-      setLoadNote("");
       try {
         const state = await loadUserState();
         const nextSequence = await loadSequence(state);
@@ -674,7 +671,6 @@ export default function DualTaskWalk({ userId, onExit }) {
         setUserState(fallbackState);
         setSequence(FALLBACK_SEQUENCE);
         setPickerValue(FALLBACK_SEQUENCE.start_number - 7);
-        setLoadNote(text.preparingFallback);
         setScreen("intro");
       }
     }
@@ -683,7 +679,7 @@ export default function DualTaskWalk({ userId, onExit }) {
     return () => {
       active = false;
     };
-  }, [loadSequence, loadUserState, text.preparingFallback, userId]);
+  }, [loadSequence, loadUserState, userId]);
 
   useEffect(() => clearRoundTimers, [clearRoundTimers]);
 
@@ -731,40 +727,41 @@ export default function DualTaskWalk({ userId, onExit }) {
 
   if (screen === "intro") {
     return (
-      <div className="min-h-screen px-4 py-5 sm:px-6 md:px-8 md:py-8" style={shellStyle}>
-        <div className="mx-auto flex min-h-[calc(100vh-40px)] w-full max-w-[820px] flex-col md:min-h-[calc(100vh-64px)]">
+      <div className="min-h-screen px-4 py-4 sm:px-6 md:px-8 md:py-6" style={shellStyle}>
+        <div className="mx-auto flex min-h-[calc(100vh-32px)] w-full max-w-[820px] flex-col md:min-h-[calc(100vh-48px)]">
           <div className="flex items-center justify-between gap-3">
             <button
               type="button"
               onClick={handleExit}
-              className="inline-flex min-h-[64px] items-center gap-2 rounded-[8px] bg-white px-4 text-[22px] font-bold shadow-vyva-card"
-              style={{ color: BRAND.purple }}
+              className="inline-flex min-h-[64px] items-center gap-3 rounded-full bg-white px-5 text-[22px] font-bold text-vyva-text-1 shadow-vyva-card"
             >
-              <ArrowLeft size={28} />
+              <ArrowLeft size={24} />
               {text.back}
             </button>
-            <div className="text-[24px] font-bold sm:text-[28px]" style={{ color: BRAND.purple }}>VYVA</div>
-            <div className="rounded-full px-4 py-3 text-[20px] font-bold text-white sm:px-5 sm:text-[22px]" style={{ background: BRAND.gold }}>
+            <div className="flex min-h-[64px] items-center rounded-full px-5 text-[22px] font-bold text-white shadow-vyva-card" style={{ background: BRAND.gold }}>
               {text.level} {currentSequence.difficulty_tier}
             </div>
           </div>
 
-          <main className="flex flex-1 flex-col justify-center py-6 md:py-8">
+          <main className="flex flex-1 flex-col justify-center py-5 md:py-6">
             <div className="text-center">
-              <div className="text-[84px] leading-none">🧠</div>
-              <h1 className="mt-4 font-display text-[42px] font-bold leading-none sm:text-[48px] md:mt-5 md:text-[54px]">{text.title}</h1>
-              <p className="mt-4 text-[24px] leading-[1.3] text-[#5B4B71] md:mt-5 md:text-[28px]">{text.subtitle}</p>
-              {loadNote && <p className="mt-4 text-[22px] font-semibold" style={{ color: BRAND.gold }}>{loadNote}</p>}
+              <div className="text-[60px] leading-none md:text-[68px]">🧠</div>
+              <h1 className="mt-3 font-display text-[40px] font-bold leading-none md:text-[46px]">{text.title}</h1>
+              <p className="mx-auto mt-3 max-w-[26ch] text-[24px] leading-[1.35] text-[#5B4B71]">{text.subtitle}</p>
             </div>
 
-            <div className="mt-8 grid overflow-hidden rounded-[8px] border-2 bg-white sm:mt-10 sm:grid-cols-2" style={{ borderColor: BRAND.border }}>
-              <div className="border-b-2 p-5 text-center sm:border-b-0 sm:border-r-2 sm:p-7" style={{ borderColor: BRAND.border }}>
-                <Brain className="mx-auto h-14 w-14 sm:h-16 sm:w-16" style={{ color: BRAND.purple }} />
-                <p className="mt-4 text-[24px] font-semibold leading-[1.2] sm:mt-5 sm:text-[28px]">{text.countBack}</p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2 md:mt-7">
+              <div className="flex min-h-[124px] items-center gap-4 rounded-[8px] border bg-white p-5 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
+                <div className="flex h-[64px] w-[64px] flex-shrink-0 items-center justify-center rounded-[8px]" style={{ background: BRAND.softPurple }}>
+                  <Brain className="h-10 w-10" style={{ color: BRAND.purple }} />
+                </div>
+                <p className="text-[24px] font-bold leading-[1.2]">{text.countBack}</p>
               </div>
-              <div className="p-5 text-center sm:p-7">
-                <Eye className="mx-auto h-14 w-14 sm:h-16 sm:w-16" style={{ color: BRAND.gold }} />
-                <p className="mt-4 text-[24px] font-semibold leading-[1.2] sm:mt-5 sm:text-[28px]">{text.tapMatch}</p>
+              <div className="flex min-h-[124px] items-center gap-4 rounded-[8px] border bg-white p-5 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
+                <div className="flex h-[64px] w-[64px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[#FFF7ED]">
+                  <Eye className="h-10 w-10" style={{ color: BRAND.gold }} />
+                </div>
+                <p className="text-[24px] font-bold leading-[1.2]">{text.tapMatch}</p>
               </div>
             </div>
           </main>
