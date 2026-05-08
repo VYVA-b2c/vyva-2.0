@@ -345,6 +345,8 @@ export default function FaceNameMatch({ userId, onExit }) {
     practiceNote: t("brainGames.faceName.practiceNote"),
     title: t("brainGames.faceName.title"),
     subtitle: t("brainGames.faceName.subtitle"),
+    back: t("common.back"),
+    badge: t("brainGames.faceName.badge"),
     level: t("common.level"),
     people: t("brainGames.faceName.people"),
     start: t("brainGames.faceName.start"),
@@ -741,7 +743,7 @@ export default function FaceNameMatch({ userId, onExit }) {
 
   if (screen === "loading") {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-5 px-6 text-center" style={{ background: BACKGROUND, color: PURPLE }}>
+      <div className="flex min-h-[calc(100dvh-180px)] flex-col items-center justify-center gap-5 px-[22px] pb-6 text-center" style={{ color: PURPLE }}>
         <Loader2 className="h-16 w-16 animate-spin" />
         <p className="text-[26px] font-bold">{text.loading}</p>
       </div>
