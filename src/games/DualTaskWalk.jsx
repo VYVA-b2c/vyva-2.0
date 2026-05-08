@@ -7,11 +7,11 @@ import {
   ChevronUp,
   Eye,
   Loader2,
-  RotateCcw,
   Square,
 } from "lucide-react";
 import { useLanguage } from "@/i18n";
 import { supabase } from "../lib/supabaseClient";
+import BrainGameResultActions from "./shared/BrainGameResultActions";
 import { normalizeGameLanguage } from "./shared/language";
 
 const SYMBOLS = ["★", "●", "▲", "■", "♦"];
@@ -230,8 +230,10 @@ export default function DualTaskWalk({ userId, onExit }) {
     visualLine: t("brainGames.dualTask.visualLine"),
     keepGoing: t("brainGames.dualTask.keepGoing"),
     newLevel: t("brainGames.dualTask.newLevel"),
-    replay: t("brainGames.dualTask.replay"),
-    finish: t("brainGames.dualTask.finish"),
+    continueAction: t("brainGames.resultActions.continue"),
+    continueToLevel: t("brainGames.resultActions.continueToLevel"),
+    playAgain: t("brainGames.resultActions.playAgain"),
+    playAnotherGame: t("brainGames.resultActions.playAnotherGame"),
     increaseNumber: t("brainGames.dualTask.increaseNumber"),
     decreaseNumber: t("brainGames.dualTask.decreaseNumber"),
     tutorialNumber: t("brainGames.dualTask.tutorialNumber"),
@@ -598,7 +600,7 @@ export default function DualTaskWalk({ userId, onExit }) {
     }, 100);
   }, [advanceSymbol, clearRoundTimers, finishRound]);
 
-  const handleReplay = useCallback(async () => {
+  const handleContinue = useCallback(async () => {
     setScreen("loading");
     try {
       const nextSequence = await loadSequence(userStateRef.current ?? userState ?? getDefaultUserState(userId));
@@ -607,6 +609,22 @@ export default function DualTaskWalk({ userId, onExit }) {
       startRound();
     }
   }, [loadSequence, startRound, userId, userState]);
+
+  const handlePlayAgain = useCallback(async () => {
+    const completedTier = sequenceRef.current?.difficulty_tier ?? sequence?.difficulty_tier ?? FALLBACK_SEQUENCE.difficulty_tier;
+    const sameTierState = {
+      ...(userStateRef.current ?? userState ?? getDefaultUserState(userId)),
+      current_tier: completedTier,
+    };
+
+    setScreen("loading");
+    try {
+      const nextSequence = await loadSequence(sameTierState);
+      startRound(nextSequence);
+    } catch {
+      startRound(sequenceRef.current ?? sequence ?? FALLBACK_SEQUENCE);
+    }
+  }, [loadSequence, sequence, startRound, userId, userState]);
 
   const handleTap = useCallback(() => {
     if (screenRef.current !== "playing" || symbolsCompleteRef.current || tapWindowRef.current) return;
@@ -975,8 +993,14 @@ export default function DualTaskWalk({ userId, onExit }) {
 
   const result = sessionResult ?? computeScore(serial7sLog, tapLog, currentSequence, false);
   const mathMarks = result.serial7s_log.map((entry) => (entry.correct ? "OK" : text.almost)).join(" ");
+  const completedTier = currentSequence.difficulty_tier;
+  const adaptiveTier = userState?.current_tier ?? completedTier;
+  const resultWasPromoted = adaptiveTier > completedTier;
+  const continueLabel = resultWasPromoted
+    ? text.continueToLevel.replace("{level}", String(adaptiveTier))
+    : text.continueAction;
   const promotionLabel =
-    (userState?.current_tier ?? currentSequence.difficulty_tier) > currentSequence.difficulty_tier
+    resultWasPromoted
       ? text.newLevel
       : `${text.keepGoing} ${text.level} ${nextTier}`;
 
@@ -1037,26 +1061,15 @@ export default function DualTaskWalk({ userId, onExit }) {
           </div>
         </div>
 
-        <div className="grid shrink-0 grid-cols-1 gap-3 pt-3 sm:grid-cols-2 sm:gap-4">
-          <button
-            type="button"
-            onClick={handleReplay}
-            className="inline-flex min-h-[72px] items-center justify-center gap-3 rounded-[8px] px-6 text-[26px] font-bold text-white"
-            style={{ background: BRAND.purple }}
-          >
-            <RotateCcw size={32} />
-            {text.replay}
-          </button>
-          <button
-            type="button"
-            onClick={handleExit}
-            className="inline-flex min-h-[72px] items-center justify-center gap-3 rounded-[8px] px-6 text-[26px] font-bold"
-            style={{ background: "#FFF7ED", color: "#9A3412" }}
-          >
-            <ArrowLeft size={32} />
-            {text.finish}
-          </button>
-        </div>
+        <BrainGameResultActions
+          className="shrink-0 pt-3"
+          continueLabel={continueLabel}
+          replayLabel={text.playAgain}
+          anotherLabel={text.playAnotherGame}
+          onContinue={handleContinue}
+          onReplay={handlePlayAgain}
+          onAnother={handleExit}
+        />
       </div>
     </div>
   );

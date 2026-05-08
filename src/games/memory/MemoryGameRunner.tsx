@@ -21,6 +21,7 @@ import { useLocation, useNavigate, useParams, useSearchParams } from "react-rout
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n";
 import { useTtsReadout } from "@/hooks/useVyvaVoice";
+import BrainGameResultActions from "../shared/BrainGameResultActions";
 import { saveGameResult } from "./gameStorage";
 import {
   getGameDefinition,
@@ -853,7 +854,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     if (!plan) return;
     setActionLoading("repeat");
     try {
-      const sameGameRecommendation = await selectNextVariantForSameGame(userId, plan.gameType, language);
+      const sameGameRecommendation = await selectNextVariantForSameGame(userId, plan.gameType, language, plan.level);
       navigate(buildGameRoute(sameGameRecommendation), {
         state: { sessionToken: Date.now() },
       });
@@ -1003,32 +1004,16 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
             </div>
           )}
 
-          <div className="mt-6 flex flex-col gap-3">
-            <button
-              onClick={openRecommended}
-              disabled={actionLoading !== null}
-              className="w-full rounded-[20px] bg-vyva-purple px-5 py-5 text-left text-[18px] font-semibold text-white shadow-vyva-card disabled:opacity-60"
-            >
-              <span className="block">{t("memory.continueRecommended")}</span>
-              <span className="mt-1 block text-[14px] font-medium text-white/82">{t("memory.nextRecommended")}</span>
-            </button>
-            <button
-              onClick={openSameGame}
-              disabled={actionLoading !== null}
-              className="w-full rounded-[20px] border border-[#D8C7F3] bg-[#FAF7FF] px-5 py-5 text-left text-[18px] font-semibold text-vyva-text-1 shadow-vyva-card disabled:opacity-60"
-            >
-              <span className="block">{t("memory.repeatSameGame")}</span>
-              <span className="mt-1 block text-[14px] font-medium text-vyva-text-2">{t("memory.currentLevel")}</span>
-            </button>
-            <button
-              onClick={backToList}
-              disabled={actionLoading !== null}
-              className="w-full rounded-[20px] border border-vyva-border bg-white px-5 py-5 text-left text-[18px] font-semibold text-vyva-text-1 shadow-vyva-card disabled:opacity-60"
-            >
-              <span className="block">{t("memory.chooseAnotherExercise")}</span>
-              <span className="mt-1 block text-[14px] font-medium text-vyva-text-2">{t("memory.chooseAnother")}</span>
-            </button>
-          </div>
+          <BrainGameResultActions
+            className="mt-6"
+            continueLabel={t("brainGames.resultActions.continue")}
+            replayLabel={t("brainGames.resultActions.playAgain")}
+            anotherLabel={t("brainGames.resultActions.playAnotherGame")}
+            onContinue={openRecommended}
+            onReplay={openSameGame}
+            onAnother={backToList}
+            disabled={actionLoading !== null}
+          />
         </div>
       </div>
     );

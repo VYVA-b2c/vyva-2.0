@@ -145,6 +145,13 @@ const it = {
     comprehension_memory: "Comprensione e richiamo",
   },
   brainGames: {
+    resultActions: {
+      continue: "Continua",
+      continueToLevel: "Continua al livello {level}",
+      nextRecommended: "Prossimo consigliato",
+      playAgain: "Gioca ancora",
+      playAnotherGame: "Gioca a un altro gioco",
+    },
     attentionBoosters: {
       title: "Attenzione",
       subtitle: "Scegli un esercizio per concentrazione, reazione e ritmo.",

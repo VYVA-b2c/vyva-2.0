@@ -146,6 +146,13 @@ const de = {
     comprehension_memory: "Verstehen und Erinnern",
   },
   brainGames: {
+    resultActions: {
+      continue: "Weiter",
+      continueToLevel: "Weiter zu Level {level}",
+      nextRecommended: "Nachste Empfehlung",
+      playAgain: "Noch einmal",
+      playAnotherGame: "Anderes Spiel",
+    },
     attentionBoosters: {
       title: "Aufmerksamkeit",
       subtitle: "Wahle eine Ubung fur Fokus, Reaktion und Rhythmus.",
