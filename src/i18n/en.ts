@@ -32,6 +32,7 @@ const en = {
     chooseAnotherExercise: "Choose another exercise",
     lastSession: "Last session",
     currentLevel: "Current level",
+    nextLevel: "Next level",
     trainedArea: "Trained area",
     startRecommended: "Start recommended",
     continueRecommended: "Continue with the next recommended",

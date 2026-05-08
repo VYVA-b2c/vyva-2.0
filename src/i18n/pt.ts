@@ -31,6 +31,7 @@ const pt = {
     chooseAnotherExercise: "Escolher outro exercicio",
     lastSession: "Ultima sessao",
     currentLevel: "Nivel atual",
+    nextLevel: "Nivel seguinte",
     trainedArea: "Area treinada",
     startRecommended: "Comecar recomendado",
     continueRecommended: "Continuar com o proximo recomendado",
