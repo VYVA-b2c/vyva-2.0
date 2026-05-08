@@ -34,6 +34,7 @@ import { selectGamePlan, selectNextMemoryGame, selectNextVariantForSameGame } fr
 import type { MemoryGameType, Recommendation } from "./types";
 import { useSpeechRecognition } from "./useSpeechRecognition";
 import { isSequenceTileMatch } from "./sequenceScoring";
+import StoryRecallGame from "./StoryRecallGame";
 
 const FALLBACK_USER_ID = "vyva-local-user";
 const MEMORY_AUDIO_STORAGE_KEY = "vyva_memory_audio_muted";
@@ -895,6 +896,27 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   const gamePrompt = localizedVariant?.prompt ?? getGameDescription(plan.gameType, language);
   const GameIcon = getMemoryGameIcon(plan.gameType);
   const gameIconStyle = { background: definition.iconBg, color: definition.accentColor };
+
+  if (plan.gameType === "story_recall") {
+    return (
+      <StoryRecallGame
+        plan={plan}
+        localizedVariant={localizedVariant}
+        gameTitle={gameTitle}
+        gamePrompt={gamePrompt}
+        accentColor={definition.accentColor}
+        iconBg={definition.iconBg}
+        cognitiveDomain={definition.cognitiveDomain}
+        userId={userId}
+        language={language}
+        t={t}
+        onBack={backToList}
+        onOpenRecommended={openRecommended}
+        onOpenSameGame={openSameGame}
+        actionLoading={actionLoading}
+      />
+    );
+  }
 
   if (plan.gameType !== "memory_match" && plan.gameType !== "sequence_memory" && plan.gameType !== "word_recall") {
     return (
