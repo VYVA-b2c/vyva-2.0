@@ -1772,19 +1772,6 @@ const RoomScreen = () => {
                   <p className="font-display text-[31px] leading-[1.05] text-[#45325B]">{copy.roomChat}</p>
                   <p className="mt-2 font-body text-[18px] leading-[1.35] text-[#7D66A0]">{copy.sharedConversation}</p>
                 </div>
-                <div className="flex -space-x-2">
-                  {roomMembers.slice(0, 3).map((member, index) => (
-                    <button
-                      key={member.id}
-                      type="button"
-                      onClick={() => setSelectedMember(member)}
-                      className="flex h-[38px] w-[38px] items-center justify-center rounded-full border-2 border-[#FFFDFC] text-[14px] font-semibold text-white shadow-[0_6px_12px_rgba(91,33,182,0.08)]"
-                      style={{ background: getParticipantColour(index) }}
-                    >
-                      {member.name.slice(0, 1).toUpperCase()}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               <div className="mt-5 space-y-3">
