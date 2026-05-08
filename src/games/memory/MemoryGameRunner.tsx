@@ -33,6 +33,7 @@ import {
 import { selectGamePlan, selectNextMemoryGame, selectNextVariantForSameGame } from "./progressionEngine";
 import type { MemoryGameType, Recommendation } from "./types";
 import { useSpeechRecognition } from "./useSpeechRecognition";
+import { isSequenceTileMatch } from "./sequenceScoring";
 
 const FALLBACK_USER_ID = "vyva-local-user";
 const MEMORY_AUDIO_STORAGE_KEY = "vyva_memory_audio_muted";
@@ -91,11 +92,6 @@ function getSequenceAccuracy(totalSteps: number, mistakes: number) {
 
 function getScore(level: number, accuracy: number, mistakes: number, durationSeconds: number) {
   return Math.max(60, Math.round(accuracy + level * 12 - mistakes * 2 + Math.max(0, 45 - durationSeconds)));
-}
-
-function getMirroredSequenceIndex(index: number) {
-  if (index < 0 || index > 3) return index;
-  return index < 2 ? index + 2 : index - 2;
 }
 
 function shuffleItems<T>(items: T[]) {
@@ -1092,7 +1088,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     const expectedPosition = expectedSequencePositions[currentProgress];
     if (expectedPosition === undefined) return;
 
-    const isMatchingPosition = getMirroredSequenceIndex(tileIndex) === expectedPosition;
+    const isMatchingPosition = isSequenceTileMatch(tileIndex, expectedPosition);
 
     if (isMatchingPosition) {
       setSequenceStatus("idle");
