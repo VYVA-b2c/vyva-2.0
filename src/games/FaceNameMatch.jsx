@@ -298,6 +298,8 @@ export default function FaceNameMatch({ userId, onExit }) {
     practiceNote: t("brainGames.faceName.practiceNote"),
     title: t("brainGames.faceName.title"),
     subtitle: t("brainGames.faceName.subtitle"),
+    back: t("common.back"),
+    badge: t("brainGames.faceName.badge"),
     level: t("common.level"),
     people: t("brainGames.faceName.people"),
     start: t("brainGames.faceName.start"),
@@ -694,7 +696,7 @@ export default function FaceNameMatch({ userId, onExit }) {
 
   if (screen === "loading") {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-5 px-6 text-center" style={{ background: BACKGROUND, color: PURPLE }}>
+      <div className="flex min-h-[calc(100dvh-180px)] flex-col items-center justify-center gap-5 px-[22px] pb-6 text-center" style={{ color: PURPLE }}>
         <Loader2 className="h-16 w-16 animate-spin" />
         <p className="text-[26px] font-bold">{text.loading}</p>
       </div>
@@ -705,30 +707,48 @@ export default function FaceNameMatch({ userId, onExit }) {
 
   if (screen === "intro") {
     return (
-      <div className="min-h-screen px-4 py-5 sm:px-6 md:px-8" style={{ background: BACKGROUND }}>
-        <div className="mx-auto flex min-h-[calc(100vh-40px)] w-full max-w-[840px] flex-col">
-          <div className="flex items-center justify-between">
-            <div className="text-[28px] font-bold" style={{ color: PURPLE }}>VYVA</div>
-            <button
-              type="button"
-              onClick={handleExit}
-              className="inline-flex min-h-[64px] items-center gap-2 rounded-[8px] bg-white px-5 text-[22px] font-bold shadow-vyva-card"
-              style={{ color: "#7C2D12" }}
-            >
-              <ArrowLeft size={26} />
-              {text.exit}
-            </button>
-          </div>
+      <div className="px-[22px] pb-6">
+        <button
+          type="button"
+          onClick={handleExit}
+          className="mt-2 inline-flex min-h-[54px] items-center gap-2 rounded-full bg-white px-5 text-[17px] font-bold text-vyva-text-1 shadow-vyva-card"
+        >
+          <ArrowLeft size={20} />
+          {text.back}
+        </button>
 
-          <main className="flex flex-1 flex-col justify-center py-6">
-            <section className="text-center">
-              <div className="text-[86px] leading-none">👥</div>
-              <h1 className="mt-5 font-display text-[50px] font-bold leading-none text-vyva-text-1">{text.title}</h1>
-              <p className="mt-5 text-[27px] leading-[1.35] text-vyva-text-2">{text.subtitle}</p>
-              {loadNote && <p className="mt-4 text-[22px] font-bold" style={{ color: GOLD }}>{loadNote}</p>}
-            </section>
+        <div className="mx-auto mt-4 w-full max-w-[840px]">
+          <section className="relative overflow-hidden rounded-[28px] border border-[#EFE7DB] bg-[#FFF9F1] px-5 py-5 shadow-vyva-card">
+            <div
+              className="pointer-events-none absolute right-[-34px] top-[-28px] h-[132px] w-[132px] rounded-full"
+              style={{ background: "radial-gradient(circle, rgba(107,33,168,0.16) 0%, rgba(107,33,168,0) 72%)" }}
+              aria-hidden="true"
+            />
+            <div
+              className="pointer-events-none absolute bottom-[-42px] left-[-18px] h-[112px] w-[112px] rounded-full"
+              style={{ background: "radial-gradient(circle, rgba(245,158,11,0.16) 0%, rgba(245,158,11,0) 72%)" }}
+              aria-hidden="true"
+            />
 
-            <div className="mt-7 flex flex-wrap justify-center gap-3">
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-[14px] font-bold uppercase tracking-[0.06em] text-vyva-purple shadow-sm">
+                  <Users size={16} />
+                  {text.badge}
+                </div>
+                <h1 className="mt-3 font-display text-[36px] font-bold leading-[1.03] text-vyva-text-1">
+                  {text.title}
+                </h1>
+                <p className="mt-2 text-[22px] leading-[1.25] text-vyva-text-2">{text.subtitle}</p>
+                {loadNote && <p className="mt-2 text-[22px] font-bold" style={{ color: GOLD }}>{loadNote}</p>}
+              </div>
+
+              <div className="flex h-[74px] w-[74px] flex-shrink-0 items-center justify-center rounded-[22px] bg-white text-vyva-purple shadow-vyva-card">
+                <Users size={36} />
+              </div>
+            </div>
+
+            <div className="relative mt-4 flex flex-wrap gap-3">
               <span className="rounded-full px-5 py-3 text-[22px] font-bold text-white" style={{ background: GOLD }}>
                 {text.level} {currentTier}
               </span>
@@ -737,19 +757,19 @@ export default function FaceNameMatch({ userId, onExit }) {
               </span>
             </div>
 
-            <div className="mt-8 flex flex-wrap justify-center gap-3 rounded-[8px] border-2 bg-white p-5 shadow-vyva-card" style={{ borderColor: "#E5E3DF" }}>
+            <div className="relative mt-4 flex flex-wrap justify-center gap-2">
               {personas.map((persona) => (
-                <div key={persona.id} className="opacity-70 grayscale">
-                  <FaceAvatar config={persona.avatar_config} size={74} />
+                <div key={persona.id} className="opacity-75 grayscale">
+                  <FaceAvatar config={persona.avatar_config} size={58} />
                 </div>
               ))}
             </div>
-          </main>
+          </section>
 
           <button
             type="button"
             onClick={beginStudy}
-            className="min-h-[72px] w-full rounded-[8px] px-8 text-[28px] font-bold text-white shadow-vyva-card"
+            className="mt-5 min-h-[72px] w-full rounded-full px-8 text-[28px] font-bold text-white shadow-vyva-card"
             style={{ background: PURPLE }}
           >
             {text.start}
