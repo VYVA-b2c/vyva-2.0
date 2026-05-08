@@ -318,7 +318,7 @@ export default function StoryRecallGame({
           </div>
 
           {result.scoringError && (
-            <div className="mt-5 rounded-[20px] border border-[#F3E0BD] bg-[#FFF7ED] p-4 text-[15px] leading-[1.55] text-vyva-text-2">
+            <div className="mt-5 rounded-[20px] border border-[#CFE9D9] bg-[#F0FDF4] p-4 text-[15px] leading-[1.55] text-vyva-text-2">
               {t("storyRecall.scoringFallback")}
             </div>
           )}

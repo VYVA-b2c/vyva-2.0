@@ -4,6 +4,7 @@ import { z } from "zod";
 
 const OPENAI_MODEL = "gpt-4o-mini";
 const ELEVENLABS_TTS_MODEL = "eleven_multilingual_v2";
+const SCORE_RETELL_TIMEOUT_MS = 10000;
 const GAME_LANGUAGES = ["es", "en", "fr", "de", "it", "pt"] as const;
 type GameLanguage = (typeof GAME_LANGUAGES)[number];
 
@@ -105,6 +106,32 @@ Respond only with a valid JSON object:
 }`;
 }
 
+function createTimeoutSignal(timeoutMs: number) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  return {
+    signal: controller.signal,
+    clear: () => clearTimeout(timeoutId),
+  };
+}
+
+function getRetellScoringErrorMessage(error: unknown) {
+  if (error instanceof Error && error.name === "AbortError") {
+    return "OpenAI scoring timed out.";
+  }
+  return error instanceof Error ? error.message : "OpenAI scoring failed.";
+}
+
+function logRetellScoringFallback(reason: string, message: string) {
+  console.warn("[games] Retell scoring fallback", {
+    reason,
+    hasOpenAIKey: Boolean(process.env.OPENAI_API_KEY),
+    model: OPENAI_MODEL,
+    message,
+  });
+}
+
 export async function scoreRetellHandler(req: Request, res: Response) {
   const parsed = retellSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -115,24 +142,30 @@ export async function scoreRetellHandler(req: Request, res: Response) {
   const language = normalizeGameLanguage(parsed.data.language);
   const apiKey = process.env.OPENAI_API_KEY ?? "";
   if (!apiKey) {
-    return res.json(fallbackRetellScore(keyFacts, "OpenAI API key is not configured."));
+    const message = "OpenAI API key is not configured.";
+    logRetellScoringFallback("missing_key", message);
+    return res.json(fallbackRetellScore(keyFacts, message));
   }
 
   try {
     const client = new OpenAI({ apiKey });
-    const completion = await client.chat.completions.create({
-      model: OPENAI_MODEL,
-      response_format: { type: "json_object" },
-      temperature: 0,
-      max_tokens: 250,
-      messages: [{ role: "user", content: buildRetellPrompt(retellText, keyFacts, language) }],
-    });
+    const timeout = createTimeoutSignal(SCORE_RETELL_TIMEOUT_MS);
+    const completion = await client.chat.completions.create(
+      {
+        model: OPENAI_MODEL,
+        response_format: { type: "json_object" },
+        temperature: 0,
+        max_tokens: 250,
+        messages: [{ role: "user", content: buildRetellPrompt(retellText, keyFacts, language) }],
+      },
+      { signal: timeout.signal },
+    ).finally(timeout.clear);
 
     const content = completion.choices[0]?.message?.content ?? "{}";
     return res.json(normalizeRetellScore(JSON.parse(content), keyFacts.length));
   } catch (error) {
-    console.error("[games] Retell scoring failed:", error);
-    const message = error instanceof Error ? error.message : "OpenAI scoring failed.";
+    const message = getRetellScoringErrorMessage(error);
+    logRetellScoringFallback(message.includes("timed out") ? "timeout" : "openai_error", message);
     return res.json(fallbackRetellScore(keyFacts, message));
   }
 }

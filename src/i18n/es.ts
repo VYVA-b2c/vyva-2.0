@@ -128,7 +128,7 @@ const es = {
     recall: "Recuerdo",
     remembered: "Recordaste",
     alsoInStory: "Tambien estaba en la historia",
-    scoringFallback: "La puntuacion de IA no estuvo disponible, asi que guardamos una puntuacion de practica.",
+    scoringFallback: "Guardamos esto como una revision de practica. Puedes continuar.",
     completionTitle: "Muy bien",
     completionBody: "Has completado el ejercicio de historia corta.",
   },

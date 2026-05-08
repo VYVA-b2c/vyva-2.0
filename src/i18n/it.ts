@@ -127,7 +127,7 @@ const it = {
     recall: "Ricordo",
     remembered: "Hai ricordato",
     alsoInStory: "Anche nella storia",
-    scoringFallback: "Il punteggio IA non era disponibile, quindi abbiamo salvato un punteggio di pratica.",
+    scoringFallback: "Abbiamo salvato questa come revisione di pratica. Puoi continuare.",
     completionTitle: "Ben fatto",
     completionBody: "Hai completato l'esercizio della storia breve.",
   },

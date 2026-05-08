@@ -833,6 +833,11 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     userId,
   ]);
 
+  useEffect(() => {
+    if (!finished) return;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [finished]);
+
   const openRecommended = async () => {
     if (!plan) return;
     setActionLoading("recommended");
@@ -896,6 +901,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   const gamePrompt = localizedVariant?.prompt ?? getGameDescription(plan.gameType, language);
   const GameIcon = getMemoryGameIcon(plan.gameType);
   const gameIconStyle = { background: definition.iconBg, color: definition.accentColor };
+  const memoryComplete = plan.gameType === "memory_match" && memoryDeck.length > 0 && matchedIds.length === memoryDeck.length;
 
   if (plan.gameType === "story_recall") {
     return (
@@ -1667,6 +1673,51 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
             {t("memory.matchInstruction")} <span className="font-semibold text-vyva-purple">{memoryAccuracy}%</span>
           </p>
         </div>
+
+        {memoryComplete && (
+          <div className="sticky bottom-4 z-20 mt-5 rounded-[24px] border border-[#D8C7F3] bg-white/95 p-4 shadow-vyva-card backdrop-blur">
+            <div className="flex items-center gap-3">
+              <div className="flex h-[54px] w-[54px] flex-shrink-0 items-center justify-center rounded-full bg-[#ECFDF5] text-[#0A7C4E]">
+                <CheckCircle2 size={28} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[22px] font-semibold leading-tight text-vyva-text-1">{t("memory.wellDone")}</p>
+                <p className="mt-1 text-[15px] font-medium text-vyva-text-2">
+                  {completionMetrics
+                    ? `${t("memory.score")}: ${completionMetrics.score} | ${t("memory.accuracy")}: ${completionMetrics.accuracy}%`
+                    : t("memory.exerciseCompleted")}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-col gap-3">
+              <button
+                onClick={openRecommended}
+                disabled={actionLoading !== null}
+                className="w-full rounded-[20px] bg-vyva-purple px-5 py-5 text-left text-[18px] font-semibold text-white shadow-vyva-card disabled:opacity-60"
+              >
+                <span className="block">{t("memory.continueRecommended")}</span>
+                <span className="mt-1 block text-[14px] font-medium text-white/82">{t("memory.nextRecommended")}</span>
+              </button>
+              <button
+                onClick={openSameGame}
+                disabled={actionLoading !== null}
+                className="w-full rounded-[20px] border border-[#D8C7F3] bg-[#FAF7FF] px-5 py-5 text-left text-[18px] font-semibold text-vyva-text-1 shadow-vyva-card disabled:opacity-60"
+              >
+                <span className="block">{t("memory.repeatSameGame")}</span>
+                <span className="mt-1 block text-[14px] font-medium text-vyva-text-2">{t("memory.currentLevel")}</span>
+              </button>
+              <button
+                onClick={backToList}
+                disabled={actionLoading !== null}
+                className="w-full rounded-[20px] border border-vyva-border bg-white px-5 py-5 text-left text-[18px] font-semibold text-vyva-text-1 shadow-vyva-card disabled:opacity-60"
+              >
+                <span className="block">{t("memory.chooseAnotherExercise")}</span>
+                <span className="mt-1 block text-[14px] font-medium text-vyva-text-2">{t("memory.chooseAnother")}</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className={`mt-5 grid gap-3 ${memoryDeck.length <= 6 ? "grid-cols-2" : "grid-cols-4"}`}>
           {memoryDeck.map((card) => {

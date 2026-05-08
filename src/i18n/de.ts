@@ -128,7 +128,7 @@ const de = {
     recall: "Erinnerung",
     remembered: "Sie haben erinnert",
     alsoInStory: "Auch in der Geschichte",
-    scoringFallback: "Die KI-Bewertung war nicht verfugbar, daher wurde eine Ubungspunktzahl gespeichert.",
+    scoringFallback: "Wir haben dies als Ubungsbewertung gespeichert. Sie konnen weitermachen.",
     completionTitle: "Gut gemacht",
     completionBody: "Sie haben die Ubung mit der kurzen Geschichte abgeschlossen.",
   },
