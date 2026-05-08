@@ -3,6 +3,7 @@ import { translate } from "@/i18n";
 import type { LanguageCode } from "@/i18n/languages";
 import attentionBoostersSource from "../AttentionBoostersPage.tsx?raw";
 import dualTaskSource from "../DualTaskWalk.jsx?raw";
+import faceNameSource from "../FaceNameMatch.jsx?raw";
 import languageGamesSource from "../LanguageGamesPage.tsx?raw";
 import spatialNavigatorSource from "../SpatialNavigator.jsx?raw";
 
@@ -13,6 +14,8 @@ const requiredKeys = [
   "brainGames.attentionBoosters.rhythmTap.description",
   "brainGames.language.title",
   "brainGames.language.storyRecall.ariaLabel",
+  "brainGames.faceName.title",
+  "brainGames.faceName.f2n",
   "brainGames.dualTask.loading",
   "brainGames.dualTask.mathAnswer",
   "brainGames.spatialNav.loading",
@@ -33,7 +36,7 @@ describe("brain game shared infrastructure", () => {
   });
 
   it("keeps current games off local copy dictionaries", () => {
-    [attentionBoostersSource, dualTaskSource, languageGamesSource, spatialNavigatorSource].forEach((source) => {
+    [attentionBoostersSource, dualTaskSource, faceNameSource, languageGamesSource, spatialNavigatorSource].forEach((source) => {
       expect(source).not.toContain("const COPY =");
       expect(source).not.toContain("const TEXT =");
       expect(source).not.toContain("COPY[");
