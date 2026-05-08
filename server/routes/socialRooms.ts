@@ -554,7 +554,28 @@ function buildRoomChat(slug: string, language: SocialLanguage, members: Array<{ 
     en: ["I like how it's being explained.", "I wanted to ask that too."],
   };
 
-  const pool = messages[canonicalSlug]?.[language] ?? messages[slug]?.[language] ?? fallback[language];
+  const gamesRoomMessages: Record<SocialLanguage, string[]> = {
+    es: [
+      "Yo empece con una pista de ajedrez y me ayudo ir despacio.",
+      "Los juegos de palabras me salen mejor cuando la ronda es corta.",
+      "Viktor explico el reto de memoria paso a paso y fue mas facil.",
+    ],
+    de: [
+      "Ich habe mit einem Schachhinweis begonnen, und langsam zu gehen hat geholfen.",
+      "Wortspiele fallen mir leichter, wenn die Runde kurz ist.",
+      "Viktor hat die Gedaechtnisaufgabe Schritt fuer Schritt erklaert, das war einfacher.",
+    ],
+    en: [
+      "I started with a chess clue, and slowing down helped.",
+      "Word games feel easier when the round is short.",
+      "Viktor explained the memory challenge one step at a time, and it felt easier.",
+    ],
+  };
+
+  const pool =
+    canonicalSlug === "games-room"
+      ? gamesRoomMessages[language]
+      : messages[canonicalSlug]?.[language] ?? messages[slug]?.[language] ?? fallback[language];
   return pool.slice(0, Math.min(pool.length, members.length)).map((text, index) => ({
     id: `${slug}-chat-${index}`,
     authorId: members[index]?.id ?? `member-${index}`,
