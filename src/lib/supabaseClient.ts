@@ -43,9 +43,9 @@ async function getSupabaseConfig(): Promise<SupabaseConfig | null> {
   return getBuildtimeSupabaseConfig() ?? await getRuntimeSupabaseConfig();
 }
 
-function encodeFilterValue(value: unknown) {
-  if (value instanceof Date) return encodeURIComponent(value.toISOString());
-  return encodeURIComponent(String(value));
+function formatFilterValue(value: unknown) {
+  if (value instanceof Date) return value.toISOString();
+  return String(value);
 }
 
 function serializeBody(values: unknown) {
@@ -55,7 +55,7 @@ function serializeBody(values: unknown) {
 class SupabaseRestQuery {
   private method = "GET";
   private selectColumns = "*";
-  private filters: string[] = [];
+  private filters: Array<{ column: string; expression: string }> = [];
   private orderClause: string | null = null;
   private limitCount: number | null = null;
   private body: unknown = null;
@@ -70,12 +70,40 @@ class SupabaseRestQuery {
   }
 
   eq(column: string, value: unknown) {
-    this.filters.push(`${column}=eq.${encodeFilterValue(value)}`);
+    this.filters.push({ column, expression: `eq.${formatFilterValue(value)}` });
+    return this;
+  }
+
+  gt(column: string, value: unknown) {
+    this.filters.push({ column, expression: `gt.${formatFilterValue(value)}` });
     return this;
   }
 
   gte(column: string, value: unknown) {
-    this.filters.push(`${column}=gte.${encodeFilterValue(value)}`);
+    this.filters.push({ column, expression: `gte.${formatFilterValue(value)}` });
+    return this;
+  }
+
+  lt(column: string, value: unknown) {
+    this.filters.push({ column, expression: `lt.${formatFilterValue(value)}` });
+    return this;
+  }
+
+  lte(column: string, value: unknown) {
+    this.filters.push({ column, expression: `lte.${formatFilterValue(value)}` });
+    return this;
+  }
+
+  in(column: string, values: unknown[]) {
+    this.filters.push({
+      column,
+      expression: `in.(${values.map(formatFilterValue).join(",")})`,
+    });
+    return this;
+  }
+
+  not(column: string, operator: string, value: unknown) {
+    this.filters.push({ column, expression: `not.${operator}.${formatFilterValue(value)}` });
     return this;
   }
 
@@ -138,8 +166,7 @@ class SupabaseRestQuery {
     if (this.limitCount !== null) params.set("limit", String(this.limitCount));
     if (this.onConflict) params.set("on_conflict", this.onConflict);
     this.filters.forEach((filter) => {
-      const [key, value] = filter.split("=");
-      params.append(key, value);
+      params.append(filter.column, filter.expression);
     });
 
     const token = getToken();
