@@ -1,4 +1,4 @@
-import { ArrowLeft, ChevronRight, GitBranch, Layers } from "lucide-react";
+import { ArrowLeft, ChevronRight, GitBranch, Layers, Route as RouteIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n";
 
@@ -8,6 +8,12 @@ const executiveGames = [
     route: "/executive-function/category-sort",
     Icon: GitBranch,
     colors: { accent: "#6B21A8", bg: "#F5EEFF", border: "#D8C7F3" },
+  },
+  {
+    key: "numberTrails",
+    route: "/executive-function/number-trails",
+    Icon: RouteIcon,
+    colors: { accent: "#B45309", bg: "#FEF3C7", border: "#F8D37A" },
   },
 ] as const;
 
