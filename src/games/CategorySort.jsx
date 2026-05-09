@@ -567,7 +567,11 @@ export default function CategorySort({ userId, onExit }) {
   const updateUserState = useCallback(async (result) => {
     if (!userId || result.abandoned) return userState;
 
-    const previous = userState ?? getDefaultUserState(userId);
+    const persistedState = await loadUserState().catch((error) => {
+      console.warn("Category Sort could not refresh saved progress before updating.", error);
+      return null;
+    });
+    const previous = persistedState ?? userState ?? getDefaultUserState(userId);
     const today = todayKey();
     const yesterday = todayKey(addDays(new Date(), -1));
 
@@ -629,8 +633,12 @@ export default function CategorySort({ userId, onExit }) {
       return updated.data;
     }
 
+    if (updated.error) {
+      console.warn("Category Sort could not save progress state.", updated.error);
+    }
+
     return next;
-  }, [userId, userState]);
+  }, [loadUserState, userId, userState]);
 
   const computeScore = useCallback((log, abandoned = false) => {
     const currentSequence = sequence ?? FALLBACK_SEQUENCE;
