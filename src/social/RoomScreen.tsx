@@ -9,6 +9,7 @@ import SocialStyles from "./SocialStyles";
 import { getSocialCopy, getSocialLanguage } from "./roomUtils";
 import type {
   SocialLanguage,
+  SocialConversationContext,
   SocialRoom,
   SocialRoomChatItem,
   SocialRoomMember,
@@ -400,6 +401,7 @@ function buildAgentContext(
   topic: string,
   quickQuestions: string[],
   visitState?: SocialRoomVisitState | null,
+  conversationContext?: SocialConversationContext | null,
 ) {
   const intro =
     language === "en"
@@ -431,7 +433,23 @@ function buildAgentContext(
           : `Preguntas sugeridas: ${quickQuestions.join(" | ")}.`
       : "";
 
-  return `${intro} ${visitHint} ${chipHint}`.trim();
+  const reportHint = conversationContext?.lines?.length
+    ? [
+        language === "en"
+          ? "Recent summarized context:"
+          : language === "de"
+            ? "Aktuelle Zusammenfassung:"
+            : "Contexto resumido reciente:",
+        ...conversationContext.lines.map((line) => `- ${line}`),
+        language === "en"
+          ? "Use this quietly. Do not recite private details unless the user asks."
+          : language === "de"
+            ? "Nutze dies leise im Hintergrund. Nenne private Details nur, wenn die Nutzerin fragt."
+            : "Usa esto como contexto silencioso. No recites detalles privados salvo que la usuaria pregunte.",
+      ].join(" ")
+    : "";
+
+  return `${intro} ${visitHint} ${chipHint} ${reportHint}`.trim();
 }
 
 function buildWelcomeBootstrap(language: SocialLanguage, agentName: string, userName?: string) {
@@ -1055,6 +1073,12 @@ function buildFallbackRoomResponse(slug: string, language: SocialLanguage): Soci
       previousVisitCount: 0,
       visitCount: 0,
     },
+    conversationContext: {
+      generatedAt: new Date().toISOString(),
+      lines: [],
+      text: "No recent report context available.",
+      facts: {},
+    },
   };
 }
 
@@ -1083,6 +1107,7 @@ const RoomScreen = () => {
   const [isChatSending, setIsChatSending] = useState(false);
   const [localChatMessages, setLocalChatMessages] = useState<SocialRoomChatItem[]>([]);
   const [roomEntryVisitState, setRoomEntryVisitState] = useState<SocialRoomVisitState | null>(null);
+  const [roomEntryConversationContext, setRoomEntryConversationContext] = useState<SocialConversationContext | null>(null);
   const {
     startVoice,
     stopVoice,
@@ -1142,6 +1167,7 @@ const RoomScreen = () => {
   );
 
   const currentVisitState = roomEntryVisitState ?? roomResponse?.visitState ?? null;
+  const currentConversationContext = roomEntryConversationContext ?? roomResponse?.conversationContext ?? null;
 
   const visibleRoomChat = useMemo<SocialRoomChatItem[]>(
     () => [...roomChat, ...localChatMessages],
@@ -1248,16 +1274,17 @@ const RoomScreen = () => {
         agentSlug: room.agentSlug,
         roomSlug: room.slug,
         skipMicrophone,
-        dynamicVariables: currentVisitState
+        dynamicVariables: currentVisitState || currentConversationContext
           ? {
-              is_first_room_visit: currentVisitState.isFirstVisit,
-              room_visit_count: currentVisitState.visitCount,
-              previous_room_visit_count: currentVisitState.previousVisitCount ?? currentVisitState.visitCount,
+              is_first_room_visit: currentVisitState?.isFirstVisit ?? false,
+              room_visit_count: currentVisitState?.visitCount ?? 0,
+              previous_room_visit_count: currentVisitState?.previousVisitCount ?? currentVisitState?.visitCount ?? 0,
+              conversation_context_summary: currentConversationContext?.text ?? "",
             }
           : undefined,
       });
     },
-    [currentVisitState, room?.agentSlug, room?.slug, startVoice],
+    [currentConversationContext?.text, currentVisitState, room?.agentSlug, room?.slug, startVoice],
   );
 
   const armLiveReplyTimeout = useCallback(
@@ -1320,6 +1347,7 @@ const RoomScreen = () => {
     setLocalChatMessages([]);
     setIsChatSending(false);
     setRoomEntryVisitState(null);
+    setRoomEntryConversationContext(null);
   }, [slug]);
 
   useEffect(() => {
@@ -1369,13 +1397,17 @@ const RoomScreen = () => {
     const visitKey = currentVisitState
       ? `${currentVisitState.isFirstVisit}:${currentVisitState.previousVisitCount ?? ""}:${currentVisitState.visitCount}`
       : "unknown";
-    const contextKey = `${room.slug}:${language}:${userDisplayName ?? ""}:${visitKey}`;
+    const reportKey = currentConversationContext?.generatedAt ?? "none";
+    const contextKey = `${room.slug}:${language}:${userDisplayName ?? ""}:${visitKey}:${reportKey}`;
     if (liveGreetingKeyRef.current === contextKey) return;
 
-    sendContextUpdate(buildAgentContext(language, room.name, room.topic, quickQuestions, currentVisitState));
+    sendContextUpdate(
+      buildAgentContext(language, room.name, room.topic, quickQuestions, currentVisitState, currentConversationContext),
+    );
     liveGreetingKeyRef.current = contextKey;
   }, [
     agentSessionStatus,
+    currentConversationContext,
     currentVisitState,
     firstName,
     language,
@@ -1488,6 +1520,7 @@ const RoomScreen = () => {
         isFirstVisit?: boolean;
         previousVisitCount?: number;
         visitCount?: number;
+        conversationContext?: SocialConversationContext;
       };
       if (!cancelled) {
         const nextVisitState =
@@ -1503,6 +1536,7 @@ const RoomScreen = () => {
         leaveVisitIdRef.current = result.visitId;
         setVisitId(result.visitId);
         setRoomEntryVisitState(nextVisitState);
+        setRoomEntryConversationContext(result.conversationContext ?? null);
       }
     }
 
@@ -1626,7 +1660,14 @@ const RoomScreen = () => {
         return;
       }
 
-      const result = (await response.json()) as { reply?: string; createdAt?: string };
+      const result = (await response.json()) as {
+        reply?: string;
+        createdAt?: string;
+        conversationContext?: SocialConversationContext;
+      };
+      if (result.conversationContext) {
+        setRoomEntryConversationContext(result.conversationContext);
+      }
       const reply = result.reply?.trim();
       if (!reply) {
         setAgentPresence("idle");
@@ -1920,8 +1961,8 @@ const RoomScreen = () => {
       </main>
 
       {membersOpen && (
-        <div className="fixed inset-0 z-40 flex items-end bg-[rgba(43,27,65,0.26)] p-4">
-          <div className="w-full rounded-[30px] border border-[#E8DDCF] bg-[#FFFDFC] p-5 shadow-[0_20px_48px_rgba(91,33,182,0.12)]">
+        <div className="fixed inset-0 z-[80] flex items-end bg-[rgba(43,27,65,0.26)] px-4 pb-[calc(136px+env(safe-area-inset-bottom))] pt-6 md:items-center md:justify-center md:p-6">
+          <div className="max-h-[calc(100dvh-176px)] w-full overflow-y-auto overscroll-contain rounded-[30px] border border-[#E8DDCF] bg-[#FFFDFC] p-5 shadow-[0_20px_48px_rgba(91,33,182,0.12)] md:max-w-[520px]">
             <div className="flex items-center justify-between gap-4">
               <p className="font-display text-[30px] text-[#45325B]">{copy.viewMembers}</p>
               <button
@@ -1962,8 +2003,8 @@ const RoomScreen = () => {
       )}
 
       {selectedMember && (
-        <div className="fixed inset-0 z-50 flex items-end bg-[rgba(43,27,65,0.32)] p-4">
-          <div className="w-full rounded-[30px] border border-[#E8DDCF] bg-[#FFFDFC] p-5 shadow-[0_20px_48px_rgba(91,33,182,0.12)]">
+        <div className="fixed inset-0 z-[80] flex items-end bg-[rgba(43,27,65,0.32)] px-4 pb-[calc(136px+env(safe-area-inset-bottom))] pt-6 md:items-center md:justify-center md:p-6">
+          <div className="max-h-[calc(100dvh-176px)] w-full overflow-y-auto overscroll-contain rounded-[30px] border border-[#E8DDCF] bg-[#FFFDFC] p-5 shadow-[0_20px_48px_rgba(91,33,182,0.12)] md:max-w-[520px]">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="font-display text-[30px] text-[#45325B]">{selectedMember.name}</p>
