@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Heart, Brain, Users, ConciergeBell, Lock, Mic, RefreshCw, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -68,11 +69,15 @@ function writeCoordsWeatherCache(data: WeatherData) {
 }
 
 const HOME_AGENT_CARDS: HomeAgentCard[] = [
-  { id: "health", icon: Heart, path: "/health", voiceContext: "health", theme: "pink" },
+  { id: "health", icon: Heart, path: "/health/doctor", voiceContext: "health", theme: "pink" },
   { id: "cognitive", icon: Brain, path: "/activities", voiceContext: "cognitive", theme: "purple" },
   { id: "social", icon: Users, path: "/social-rooms", voiceContext: "social", theme: "blue" },
   { id: "concierge", icon: ConciergeBell, path: "/concierge", voiceContext: "concierge", theme: "green" },
 ];
+
+const HEALTH_DOCTOR_AUTO_START_OPTIONS: NavigateOptions = {
+  state: { autoStartVoice: true },
+};
 
 const HOME_AGENT_THEMES: Record<HomeAgentCard["theme"], {
   iconBg: string;
@@ -359,9 +364,22 @@ const HomeScreen = () => {
     return t(`home.greeting.${period}.withoutName.${variant}`);
   }, [firstName, timeGreetingKey, t]);
 
-  const handleNavigate = (path: string) => {
+  const handleNavigate = (path: string, options?: NavigateOptions) => {
     if (path === "/chat") incrementChatNavigationCount();
-    guardPath(path);
+    guardPath(path, options);
+  };
+
+  const handleHealthDoctorHandoff = () => {
+    if (isVoiceActive) stopVoice();
+    handleNavigate("/health/doctor", HEALTH_DOCTOR_AUTO_START_OPTIONS);
+  };
+
+  const handleAgentCardOpen = (card: HomeAgentCard) => {
+    if (card.id === "health") {
+      handleHealthDoctorHandoff();
+      return;
+    }
+    handleNavigate(card.path);
   };
 
   const isSubscriptionLocked = (path: string) => {
@@ -380,6 +398,10 @@ const HomeScreen = () => {
   };
 
   const handleCardVoice = (card: HomeAgentCard) => {
+    if (card.id === "health") {
+      handleHealthDoctorHandoff();
+      return;
+    }
     if (isSubscriptionLocked(card.path)) {
       handleNavigate(card.path);
       return;
@@ -421,11 +443,11 @@ const HomeScreen = () => {
                 role="button"
                 tabIndex={0}
                 aria-label={t(`home.voiceCards.${card.id}.openLabel`)}
-                onClick={() => handleNavigate(card.path)}
+                onClick={() => handleAgentCardOpen(card)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
-                    handleNavigate(card.path);
+                    handleAgentCardOpen(card);
                   }
                 }}
                 className={`group relative min-h-[188px] overflow-visible rounded-[28px] border bg-[#FFFCF8] px-4 py-4 text-left transition-transform active:scale-[0.99] ${locked ? "opacity-80" : ""}`}
