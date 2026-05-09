@@ -56,6 +56,13 @@ const FALLBACK_SEQUENCE = {
   ],
 };
 
+function getFallbackSequence(tier = 1) {
+  return {
+    ...FALLBACK_SEQUENCE,
+    difficulty_tier: clamp(Number(tier) || 1, 1, 10),
+  };
+}
+
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
@@ -405,7 +412,7 @@ export default function CategorySort({ userId, onExit }) {
 
   const loadSequence = useCallback(async (state) => {
     if (!userId) {
-      return { sequence: FALLBACK_SEQUENCE, cards: FALLBACK_CARDS };
+      return { sequence: getFallbackSequence(state?.current_tier), cards: FALLBACK_CARDS };
     }
 
     const tier = Number(state?.current_tier ?? 1);
@@ -500,18 +507,21 @@ export default function CategorySort({ userId, onExit }) {
     resetRoundState();
     setScreen("loading");
     setLoadNote("");
+    let attemptedState = overrideState ?? null;
 
     try {
       const state = overrideState ?? await loadUserState();
+      attemptedState = state;
       const loaded = await loadSequence(state);
       setUserState(state);
       setSequence(loaded.sequence);
       setCards(loaded.cards);
       setScreen("intro");
-    } catch {
-      const fallbackState = getDefaultUserState(userId);
+    } catch (error) {
+      console.warn("Category Sort is using the practice deck because levels could not load.", error);
+      const fallbackState = attemptedState ?? getDefaultUserState(userId);
       setUserState(fallbackState);
-      setSequence(FALLBACK_SEQUENCE);
+      setSequence(getFallbackSequence(fallbackState.current_tier));
       setCards(FALLBACK_CARDS);
       setLoadNote(text.practiceNote);
       setScreen("intro");
