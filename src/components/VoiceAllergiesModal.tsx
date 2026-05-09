@@ -141,7 +141,7 @@ export default function VoiceAllergiesModal({
     <Sheet open={open} onOpenChange={handleClose}>
       <SheetContent
         side="bottom"
-        className="rounded-t-[24px] px-0 pb-0 max-h-[90vh] flex flex-col"
+        className="bottom-[calc(env(safe-area-inset-bottom)+12px)] left-1/2 right-auto flex max-h-[calc(100dvh-32px)] w-[calc(100vw-20px)] max-w-[430px] -translate-x-1/2 flex-col rounded-[28px] border border-[#E6DCCF] px-0 pb-0 shadow-[0_24px_70px_rgba(31,20,45,0.24)]"
         data-testid="modal-voice-allergies"
       >
         <SheetHeader className="px-5 pt-5 pb-3 border-b border-gray-100 flex-shrink-0">
