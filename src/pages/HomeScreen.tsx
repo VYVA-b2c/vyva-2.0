@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Heart, Brain, Users, ConciergeBell, Lock, Mic, RefreshCw, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -69,15 +68,11 @@ function writeCoordsWeatherCache(data: WeatherData) {
 }
 
 const HOME_AGENT_CARDS: HomeAgentCard[] = [
-  { id: "health", icon: Heart, path: "/health/doctor", voiceContext: "health", theme: "pink" },
+  { id: "health", icon: Heart, path: "/health", voiceContext: "health", theme: "pink" },
   { id: "cognitive", icon: Brain, path: "/activities", voiceContext: "cognitive", theme: "purple" },
   { id: "social", icon: Users, path: "/social-rooms", voiceContext: "social", theme: "blue" },
   { id: "concierge", icon: ConciergeBell, path: "/concierge", voiceContext: "concierge", theme: "green" },
 ];
-
-const HEALTH_DOCTOR_AUTO_START_OPTIONS: NavigateOptions = {
-  state: { autoStartVoice: true },
-};
 
 const HOME_AGENT_THEMES: Record<HomeAgentCard["theme"], {
   iconBg: string;
@@ -364,21 +359,12 @@ const HomeScreen = () => {
     return t(`home.greeting.${period}.withoutName.${variant}`);
   }, [firstName, timeGreetingKey, t]);
 
-  const handleNavigate = (path: string, options?: NavigateOptions) => {
+  const handleNavigate = (path: string) => {
     if (path === "/chat") incrementChatNavigationCount();
-    guardPath(path, options);
-  };
-
-  const handleHealthDoctorHandoff = () => {
-    if (isVoiceActive) stopVoice();
-    handleNavigate("/health/doctor", HEALTH_DOCTOR_AUTO_START_OPTIONS);
+    guardPath(path);
   };
 
   const handleAgentCardOpen = (card: HomeAgentCard) => {
-    if (card.id === "health") {
-      handleHealthDoctorHandoff();
-      return;
-    }
     handleNavigate(card.path);
   };
 
@@ -398,10 +384,6 @@ const HomeScreen = () => {
   };
 
   const handleCardVoice = (card: HomeAgentCard) => {
-    if (card.id === "health") {
-      handleHealthDoctorHandoff();
-      return;
-    }
     if (isSubscriptionLocked(card.path)) {
       handleNavigate(card.path);
       return;
@@ -464,23 +446,25 @@ const HomeScreen = () => {
                     >
                       <Icon size={30} strokeWidth={2.5} style={{ color: theme.iconColor }} />
                     </div>
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        handleCardVoice(card);
-                      }}
-                      aria-label={t(`home.voiceCards.${card.id}.micLabel`)}
-                      data-testid={`button-home-agent-voice-${card.id}`}
-                      className={`relative z-20 flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-full bg-white transition-transform active:scale-95 ${isVoiceActive ? "mic-pulse-listening" : ""}`}
-                      style={{
-                        border: "1px solid #EFE4D5",
-                        boxShadow: "0 10px 22px rgba(43,31,24,0.08)",
-                        color: theme.micColor,
-                      }}
-                    >
-                      {locked ? <Lock size={22} strokeWidth={2.4} /> : <Mic size={25} strokeWidth={2.4} />}
-                    </button>
+                    {card.id !== "health" && (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleCardVoice(card);
+                        }}
+                        aria-label={t(`home.voiceCards.${card.id}.micLabel`)}
+                        data-testid={`button-home-agent-voice-${card.id}`}
+                        className={`relative z-20 flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-full bg-white transition-transform active:scale-95 ${isVoiceActive ? "mic-pulse-listening" : ""}`}
+                        style={{
+                          border: "1px solid #EFE4D5",
+                          boxShadow: "0 10px 22px rgba(43,31,24,0.08)",
+                          color: theme.micColor,
+                        }}
+                      >
+                        {locked ? <Lock size={22} strokeWidth={2.4} /> : <Mic size={25} strokeWidth={2.4} />}
+                      </button>
+                    )}
                   </div>
 
                   <div className="min-w-0">
