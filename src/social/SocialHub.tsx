@@ -1,5 +1,5 @@
 import { Users, X } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useProfile } from "@/contexts/ProfileContext";
@@ -8,15 +8,12 @@ import SocialStyles from "./SocialStyles";
 import {
   filterRoomsByCategory,
   formatLiveText,
-  getAgentFirstName,
   getRoomBadge,
   getRoomPickerName,
   getSocialCopy,
   getSocialLanguage,
-  getSpeechLangTag,
 } from "./roomUtils";
 import type { SocialHubResponse, SocialLanguage, SocialRoom, SocialRoomCategory } from "./types";
-import { speak } from "./voiceEngine";
 
 type RoomPickerTileProps = {
   room: SocialRoom;
@@ -89,16 +86,7 @@ type RoomDetailSheetProps = {
 
 function RoomDetailSheet({ room, language, onClose, onEnter }: RoomDetailSheetProps) {
   const copy = getSocialCopy(language);
-  const avatarRef = useRef<HTMLButtonElement>(null);
-  const firstName = getAgentFirstName(room.agentFullName);
   const description = room.contentBody || room.opener || room.topic;
-
-  const handleListen = () => {
-    speak(room.opener || room.topic, {
-      avEl: avatarRef.current,
-      lang: getSpeechLangTag(language),
-    });
-  };
 
   return (
     <div
@@ -111,13 +99,11 @@ function RoomDetailSheet({ room, language, onClose, onEnter }: RoomDetailSheetPr
       >
         <div className="flex items-start justify-between gap-4">
           <AgentAvatar
-            ref={avatarRef}
             agentSlug={room.agentSlug}
             fullName={room.agentFullName}
             colour={room.agentColour}
             size={76}
-            title={copy.listenTo(firstName)}
-            onClick={handleListen}
+            title={room.agentFullName}
           />
           <button
             type="button"
