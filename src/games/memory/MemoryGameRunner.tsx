@@ -32,7 +32,6 @@ import {
   memoryGameRegistry,
 } from "./memoryGameRegistry";
 import {
-  getRepeatLevelForResult,
   selectGamePlan,
   selectNextMemoryGame,
   selectNextVariantForSameGame,
@@ -260,7 +259,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   const [saving, setSaving] = useState(false);
   const [completionMetrics, setCompletionMetrics] = useState<CompletionMetrics | null>(null);
   const [completionDetails, setCompletionDetails] = useState<CompletionDetails | null>(null);
-  const [actionLoading, setActionLoading] = useState<"recommended" | "repeat" | null>(null);
+  const [actionLoading, setActionLoading] = useState<"recommended" | "repeat" | "nextLevel" | null>(null);
   const [sequencePhase, setSequencePhase] = useState<"countdown" | "watching" | "input">("countdown");
   const [sequenceProgress, setSequenceProgress] = useState(0);
   const [activeSequenceTile, setActiveSequenceTile] = useState<string | null>(null);
@@ -288,8 +287,21 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   const latestWordRecallWordsRef = useRef<string[]>([]);
   const wordRecallNarrationKeyRef = useRef<string>("");
   const wordRecallCommandCooldownRef = useRef(0);
+  const wordRecallRepeatTimerRef = useRef<number | null>(null);
 
-  const backToList = () => navigate(returnPath);
+  const stopWordRecallAudio = () => {
+    if (wordRecallRepeatTimerRef.current) {
+      window.clearTimeout(wordRecallRepeatTimerRef.current);
+      wordRecallRepeatTimerRef.current = null;
+    }
+    stopTts();
+    wordRecallNarrationKeyRef.current = "";
+  };
+
+  const backToList = () => {
+    stopWordRecallAudio();
+    navigate(returnPath);
+  };
   const buildGameRoute = (recommendation: Recommendation) => {
     const query = `level=${recommendation.level}&variant=${recommendation.variantId}`;
     if (recommendation.gameType === "sequence_memory") {
@@ -366,8 +378,25 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
       if (sequenceStatusTimeoutRef.current) {
         window.clearTimeout(sequenceStatusTimeoutRef.current);
       }
+      if (wordRecallRepeatTimerRef.current) {
+        window.clearTimeout(wordRecallRepeatTimerRef.current);
+        wordRecallRepeatTimerRef.current = null;
+      }
+      stopTts();
+      wordRecallNarrationKeyRef.current = "";
     };
-  }, [initialLevel, initialVariantId, language, location.key, userId, validGameType]);
+  }, [initialLevel, initialVariantId, language, location.key, stopTts, userId, validGameType]);
+
+  useEffect(() => {
+    return () => {
+      if (wordRecallRepeatTimerRef.current) {
+        window.clearTimeout(wordRecallRepeatTimerRef.current);
+        wordRecallRepeatTimerRef.current = null;
+      }
+      stopTts();
+      wordRecallNarrationKeyRef.current = "";
+    };
+  }, [stopTts]);
 
   const definition = plan ? getGameDefinition(plan.gameType) : null;
   const variant = useMemo(() => {
@@ -476,7 +505,11 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
         wordRecallNarrationKeyRef.current = "";
         setWordRecallMessage(t("wordRecall.commandRepeatHeard"));
         stopTts();
-        setTimeout(() => {
+        if (wordRecallRepeatTimerRef.current) {
+          window.clearTimeout(wordRecallRepeatTimerRef.current);
+        }
+        wordRecallRepeatTimerRef.current = window.setTimeout(() => {
+          wordRecallRepeatTimerRef.current = null;
           speakSequence(
             wordRecallCoachSegments.map((segment) => ({
               ...segment,
@@ -530,6 +563,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
 
     return () => {
       window.clearTimeout(timer);
+      stopTts();
     };
   }, [
     isMemoryAudioMuted,
@@ -545,7 +579,12 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
 
   useEffect(() => {
     if (plan?.gameType !== "word_recall") {
+      if (wordRecallRepeatTimerRef.current) {
+        window.clearTimeout(wordRecallRepeatTimerRef.current);
+        wordRecallRepeatTimerRef.current = null;
+      }
       stopTts();
+      wordRecallNarrationKeyRef.current = "";
       return;
     }
   }, [plan?.gameType, stopTts]);
@@ -846,6 +885,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
 
   const openRecommended = async () => {
     if (!plan) return;
+    stopWordRecallAudio();
     setActionLoading("recommended");
     try {
       const nextRecommendation = await selectNextMemoryGame(userId, language);
@@ -859,14 +899,36 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
 
   const openSameGame = async (levelOverride?: number) => {
     if (!plan) return;
+    stopWordRecallAudio();
     setActionLoading("repeat");
     try {
       const requestedLevel = typeof levelOverride === "number" ? levelOverride : undefined;
-      const repeatLevel = requestedLevel ?? (
-        completionMetrics ? getRepeatLevelForResult(plan.level, completionMetrics.accuracy) : plan.level
-      );
+      const repeatLevel = requestedLevel ?? plan.level;
       const sameGameRecommendation = await selectNextVariantForSameGame(userId, plan.gameType, language, repeatLevel);
       navigate(buildGameRoute(sameGameRecommendation), {
+        state: { sessionToken: Date.now() },
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const getNextPlayableLevel = () => {
+    if (!plan) return 1;
+    const maxLevel = definition?.levels.reduce((highest, levelConfig) => Math.max(highest, levelConfig.level), 1) ?? 5;
+    return Math.min(maxLevel, plan.level + 1);
+  };
+
+  const openNextLevel = async () => {
+    if (!plan) return;
+    const nextLevel = getNextPlayableLevel();
+    if (nextLevel <= plan.level) return;
+
+    stopWordRecallAudio();
+    setActionLoading("nextLevel");
+    try {
+      const nextRecommendation = await selectNextVariantForSameGame(userId, plan.gameType, language, nextLevel);
+      navigate(buildGameRoute(nextRecommendation), {
         state: { sessionToken: Date.now() },
       });
     } finally {
@@ -928,6 +990,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
         t={t}
         onBack={backToList}
         onOpenRecommended={openRecommended}
+        onOpenNextLevel={openNextLevel}
         onOpenSameGame={openSameGame}
         actionLoading={actionLoading}
       />
@@ -972,38 +1035,54 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     const score = completionMetrics?.score ?? getScore(plan.level, summaryAccuracy, summaryMistakes, durationSeconds);
     const finishedAccuracy = completionMetrics?.accuracy ?? summaryAccuracy;
     const finishedMistakes = completionMetrics?.mistakes ?? summaryMistakes;
+    const nextPlayableLevel = getNextPlayableLevel();
+    const canOpenNextLevel = nextPlayableLevel > plan.level;
+    const nextLevelLabel = t("brainGames.resultActions.continueToLevel").replace("{level}", String(nextPlayableLevel));
 
     return (
-      <div className="px-[22px] pb-6">
-        <div className="mt-6 rounded-[28px] bg-white p-6 shadow-vyva-card">
-          <div className="flex h-[70px] w-[70px] items-center justify-center rounded-full bg-[#ECFDF5] text-[#0A7C4E]">
-            <CheckCircle2 size={34} />
+      <div className="px-[22px] pb-4">
+        <div className="mt-3 rounded-[28px] bg-white p-4 shadow-vyva-card sm:p-5">
+          <div className="flex h-[58px] w-[58px] items-center justify-center rounded-full bg-[#ECFDF5] text-[#0A7C4E]">
+            <CheckCircle2 size={30} />
           </div>
-          <h1 className="mt-5 font-display text-[34px] text-vyva-text-1">{t("memory.wellDone")}</h1>
-          <p className="mt-2 text-[18px] leading-[1.6] text-vyva-text-2">{t("memory.exerciseCompleted")}</p>
+          <h1 className="mt-3 font-display text-[30px] leading-tight text-vyva-text-1">{t("memory.wellDone")}</h1>
+          <p className="mt-1 text-[16px] leading-[1.45] text-vyva-text-2">{t("memory.exerciseCompleted")}</p>
 
-          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="mt-4 grid grid-cols-2 gap-2">
             {[
               { label: t("memory.score"), value: `${score}` },
               { label: t("memory.accuracy"), value: `${finishedAccuracy}%` },
               { label: t("memory.mistakes"), value: `${finishedMistakes}` },
               { label: t("memory.duration"), value: `${durationSeconds}s` },
             ].map((item) => (
-              <div key={item.label} className="rounded-[20px] border border-vyva-border bg-vyva-cream p-4">
-                <p className="text-[13px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{item.label}</p>
-                <p className="mt-2 text-[26px] font-semibold text-vyva-text-1">{item.value}</p>
+              <div key={item.label} className="rounded-[18px] border border-vyva-border bg-vyva-cream p-3">
+                <p className="text-[12px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{item.label}</p>
+                <p className="mt-1 text-[22px] font-semibold text-vyva-text-1">{item.value}</p>
               </div>
             ))}
           </div>
 
+          <BrainGameResultActions
+            className="mt-4"
+            continueLabel={t("brainGames.resultActions.continue")}
+            nextLevelLabel={canOpenNextLevel ? nextLevelLabel : undefined}
+            replayLabel={t("brainGames.resultActions.playAgain")}
+            anotherLabel={t("brainGames.resultActions.playAnotherGame")}
+            onContinue={openRecommended}
+            onNextLevel={canOpenNextLevel ? () => void openNextLevel() : undefined}
+            onReplay={() => void openSameGame()}
+            onAnother={backToList}
+            disabled={actionLoading !== null}
+          />
+
           {completionDetails && (
-            <div className="mt-5 grid gap-3">
+            <div className="mt-3 grid max-h-[32dvh] gap-2 overflow-y-auto pr-1">
               {completionDetails.rememberedWords && completionDetails.rememberedWords.length > 0 && (
-                <div className="rounded-[20px] border border-vyva-border bg-[#F8FAFC] p-4">
-                  <p className="text-[13px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{t("wordRecall.remembered")}</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
+                <div className="rounded-[18px] border border-vyva-border bg-[#F8FAFC] p-3">
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{t("wordRecall.remembered")}</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
                     {completionDetails.rememberedWords.map((word) => (
-                      <span key={`remembered-${word}`} className="rounded-full bg-white px-3 py-2 text-[15px] font-medium text-vyva-text-1 shadow-sm">
+                      <span key={`remembered-${word}`} className="rounded-full bg-white px-3 py-2 text-[14px] font-medium text-vyva-text-1 shadow-sm">
                         {word}
                       </span>
                     ))}
@@ -1011,11 +1090,11 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
                 </div>
               )}
               {completionDetails.correctWords && completionDetails.correctWords.length > 0 && (
-                <div className="rounded-[20px] border border-[#CFE9D9] bg-[#F0FDF4] p-4">
-                  <p className="text-[13px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{t("wordRecall.correctWords")}</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
+                <div className="rounded-[18px] border border-[#CFE9D9] bg-[#F0FDF4] p-3">
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{t("wordRecall.correctWords")}</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
                     {completionDetails.correctWords.map((word) => (
-                      <span key={`correct-${word}`} className="rounded-full bg-white px-3 py-2 text-[15px] font-medium text-vyva-text-1 shadow-sm">
+                      <span key={`correct-${word}`} className="rounded-full bg-white px-3 py-2 text-[14px] font-medium text-vyva-text-1 shadow-sm">
                         {word}
                       </span>
                     ))}
@@ -1023,11 +1102,11 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
                 </div>
               )}
               {completionDetails.missedWords && completionDetails.missedWords.length > 0 && (
-                <div className="rounded-[20px] border border-[#F3E0BD] bg-[#FFF7ED] p-4">
-                  <p className="text-[13px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{t("wordRecall.missedWords")}</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
+                <div className="rounded-[18px] border border-[#F3E0BD] bg-[#FFF7ED] p-3">
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{t("wordRecall.missedWords")}</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
                     {completionDetails.missedWords.map((word) => (
-                      <span key={`missed-${word}`} className="rounded-full bg-white px-3 py-2 text-[15px] font-medium text-vyva-text-1 shadow-sm">
+                      <span key={`missed-${word}`} className="rounded-full bg-white px-3 py-2 text-[14px] font-medium text-vyva-text-1 shadow-sm">
                         {word}
                       </span>
                     ))}
@@ -1036,17 +1115,6 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
               )}
             </div>
           )}
-
-          <BrainGameResultActions
-            className="mt-6"
-            continueLabel={t("brainGames.resultActions.continue")}
-            replayLabel={t("brainGames.resultActions.playAgain")}
-            anotherLabel={t("brainGames.resultActions.playAnotherGame")}
-            onContinue={openRecommended}
-            onReplay={() => void openSameGame()}
-            onAnother={backToList}
-            disabled={actionLoading !== null}
-          />
         </div>
       </div>
     );
@@ -1159,6 +1227,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   };
 
   const finishWordRecall = () => {
+    stopWordRecallAudio();
     const pendingWords = splitRecallText(wordRecallInput);
     const rememberedWords = dedupeWords([...wordRecallSelectedWords, ...wordRecallTypedWords, ...pendingWords]);
     const correctWords = wordRecallWords.filter((targetWord) =>
@@ -1188,6 +1257,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   };
 
   const continueWordRecall = () => {
+    stopWordRecallAudio();
     setWordRecallMessage(null);
     if (plan.level >= 4 && wordRecallDistractionType) {
       setWordRecallPhase("distraction");
@@ -1197,6 +1267,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   };
 
   const completeWordRecallDistraction = () => {
+    stopWordRecallAudio();
     setWordRecallMessage(null);
     setWordRecallPhase("recall");
   };
@@ -1628,6 +1699,9 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
 
   const matchedPairs = matchedIds.length / 2;
   const totalPairs = memoryDeck.length / 2;
+  const nextPlayableLevel = getNextPlayableLevel();
+  const canOpenNextLevel = nextPlayableLevel > plan.level;
+  const nextLevelLabel = t("brainGames.resultActions.continueToLevel").replace("{level}", String(nextPlayableLevel));
 
   return (
     <div className="px-[22px] pb-6">
@@ -1684,32 +1758,18 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
               </div>
             </div>
 
-            <div className="mt-4 flex flex-col gap-3">
-              <button
-                onClick={openRecommended}
-                disabled={actionLoading !== null}
-                className="w-full rounded-[20px] bg-vyva-purple px-5 py-5 text-left text-[18px] font-semibold text-white shadow-vyva-card disabled:opacity-60"
-              >
-                <span className="block">{t("memory.continueRecommended")}</span>
-                <span className="mt-1 block text-[14px] font-medium text-white/82">{t("memory.nextRecommended")}</span>
-              </button>
-              <button
-                onClick={() => void openSameGame()}
-                disabled={actionLoading !== null}
-                className="w-full rounded-[20px] border border-[#D8C7F3] bg-[#FAF7FF] px-5 py-5 text-left text-[18px] font-semibold text-vyva-text-1 shadow-vyva-card disabled:opacity-60"
-              >
-                <span className="block">{t("memory.repeatSameGame")}</span>
-                <span className="mt-1 block text-[14px] font-medium text-vyva-text-2">{t("memory.currentLevel")}</span>
-              </button>
-              <button
-                onClick={backToList}
-                disabled={actionLoading !== null}
-                className="w-full rounded-[20px] border border-vyva-border bg-white px-5 py-5 text-left text-[18px] font-semibold text-vyva-text-1 shadow-vyva-card disabled:opacity-60"
-              >
-                <span className="block">{t("memory.chooseAnotherExercise")}</span>
-                <span className="mt-1 block text-[14px] font-medium text-vyva-text-2">{t("memory.chooseAnother")}</span>
-              </button>
-            </div>
+            <BrainGameResultActions
+              className="mt-4"
+              continueLabel={t("brainGames.resultActions.continue")}
+              nextLevelLabel={canOpenNextLevel ? nextLevelLabel : undefined}
+              replayLabel={t("brainGames.resultActions.playAgain")}
+              anotherLabel={t("brainGames.resultActions.playAnotherGame")}
+              onContinue={openRecommended}
+              onNextLevel={canOpenNextLevel ? () => void openNextLevel() : undefined}
+              onReplay={() => void openSameGame()}
+              onAnother={backToList}
+              disabled={actionLoading !== null}
+            />
           </div>
         )}
 
