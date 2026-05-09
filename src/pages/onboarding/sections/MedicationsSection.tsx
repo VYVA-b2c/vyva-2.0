@@ -459,8 +459,8 @@ export default function MedicationsSection() {
                   </div>
                   <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-gray-600">Time(s)</Label>
-                      <Input data-testid={`input-med-times-${idx}`} placeholder="e.g. 08:00, 20:00" value={med.times} onChange={(e) => updateMed(med.id, "times", e.target.value)} className="h-11 border-purple-200" />
+                      <Label className="text-xs font-bold text-gray-600">When do you take it?</Label>
+                      <Input data-testid={`input-med-times-${idx}`} placeholder="Morning, evening, bedtime" value={med.times} onChange={(e) => updateMed(med.id, "times", e.target.value)} className="h-11 border-purple-200" />
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs font-bold text-gray-600">With food?</Label>
