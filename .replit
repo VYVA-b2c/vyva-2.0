@@ -44,3 +44,8 @@ outputType = "webview"
 
 [nix]
 channel = "stable-25_05"
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["node", "./server-dist/index.cjs"]
+build = ["npm", "run", "build"]

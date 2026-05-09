@@ -191,7 +191,7 @@ const de = {
         badge: "Neu",
       },
       rhythmTap: {
-        title: "Rhythmus & Tippen",
+        title: "Sequenzen",
         description: "Merken Sie sich die Folge und tippen Sie sie ruhig nach.",
         badge: "Fokus",
       },

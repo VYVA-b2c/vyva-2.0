@@ -191,7 +191,7 @@ const en = {
         badge: "New",
       },
       rhythmTap: {
-        title: "Rhythm & Tap",
+        title: "Sequences",
         description: "Watch the pattern and tap the tiles in the same order.",
         badge: "Focus",
       },

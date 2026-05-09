@@ -191,7 +191,7 @@ const es = {
         badge: "Nuevo",
       },
       rhythmTap: {
-        title: "Ritmo y Toque",
+        title: "Secuencias",
         description: "Mira la secuencia y toca las fichas en el mismo orden.",
         badge: "Atencion",
       },
