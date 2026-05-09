@@ -33,14 +33,14 @@ const FALLBACK_CARDS = [
   { id: "practice-2", color: "blue", shape: "square", size: "medium", semantic_class: "vehicle", semantic_group: "non_living", label_es: "Coche", label_de: "Auto", label_en: "Car", icon: "🚗" },
   { id: "practice-3", color: "yellow", shape: "triangle", size: "small", semantic_class: "animal", semantic_group: "living", label_es: "Mariposa", label_de: "Schmetterling", label_en: "Butterfly", icon: "🦋" },
   { id: "practice-4", color: "green", shape: "circle", size: "medium", semantic_class: "plant", semantic_group: "living", label_es: "Arbol", label_de: "Baum", label_en: "Tree", icon: "🌲" },
-  { id: "practice-5", color: "red", shape: "star", size: "large", semantic_class: "tool", semantic_group: "non_living", label_es: "Llave", label_de: "Schluessel", label_en: "Key", icon: "🔑" },
-  { id: "practice-6", color: "blue", shape: "star", size: "small", semantic_class: "animal", semantic_group: "living", label_es: "Zorro", label_de: "Fuchs", label_en: "Fox", icon: "🦊" },
-  { id: "practice-7", color: "yellow", shape: "square", size: "small", semantic_class: "clothing", semantic_group: "man_made", label_es: "Gorra", label_de: "Muetze", label_en: "Hat", icon: "👒" },
-  { id: "practice-8", color: "green", shape: "triangle", size: "large", semantic_class: "nature", semantic_group: "nature", label_es: "Montana", label_de: "Berg", label_en: "Mountain", icon: "🏔️" },
-  { id: "practice-9", color: "red", shape: "circle", size: "small", semantic_class: "food", semantic_group: "food", label_es: "Limon", label_de: "Zitrone", label_en: "Lemon", icon: "🍋" },
-  { id: "practice-10", color: "blue", shape: "star", size: "large", semantic_class: "building", semantic_group: "non_living", label_es: "Casa", label_de: "Haus", label_en: "House", icon: "🏠" },
-  { id: "practice-11", color: "yellow", shape: "triangle", size: "medium", semantic_class: "animal", semantic_group: "living", label_es: "Pajaro", label_de: "Vogel", label_en: "Bird", icon: "🐦" },
-  { id: "practice-12", color: "green", shape: "square", size: "large", semantic_class: "food", semantic_group: "food", label_es: "Uvas", label_de: "Trauben", label_en: "Grapes", icon: "🍇" },
+  { id: "practice-5", color: "purple", shape: "diamond", size: "large", semantic_class: "tool", semantic_group: "non_living", label_es: "Llave", label_de: "Schluessel", label_en: "Key", icon: "🔑" },
+  { id: "practice-6", color: "orange", shape: "cross", size: "small", semantic_class: "animal", semantic_group: "living", label_es: "Zorro", label_de: "Fuchs", label_en: "Fox", icon: "🦊" },
+  { id: "practice-7", color: "red", shape: "diamond", size: "small", semantic_class: "clothing", semantic_group: "man_made", label_es: "Gorra", label_de: "Muetze", label_en: "Hat", icon: "👒" },
+  { id: "practice-8", color: "blue", shape: "cross", size: "large", semantic_class: "nature", semantic_group: "nature", label_es: "Montana", label_de: "Berg", label_en: "Mountain", icon: "🏔️" },
+  { id: "practice-9", color: "yellow", shape: "circle", size: "small", semantic_class: "food", semantic_group: "food", label_es: "Limon", label_de: "Zitrone", label_en: "Lemon", icon: "🍋" },
+  { id: "practice-10", color: "green", shape: "star", size: "large", semantic_class: "building", semantic_group: "non_living", label_es: "Casa", label_de: "Haus", label_en: "House", icon: "🏠" },
+  { id: "practice-11", color: "purple", shape: "triangle", size: "medium", semantic_class: "animal", semantic_group: "living", label_es: "Pajaro", label_de: "Vogel", label_en: "Bird", icon: "🐦" },
+  { id: "practice-12", color: "orange", shape: "square", size: "large", semantic_class: "food", semantic_group: "food", label_es: "Uvas", label_de: "Trauben", label_en: "Grapes", icon: "🍇" },
 ];
 
 const FALLBACK_SEQUENCE = {
@@ -217,17 +217,19 @@ function ShapeGlyph({ shape, color, className = "", size = 84 }) {
   );
 }
 
-function CategoryMarker({ category, rule }) {
+function CategoryMarker({ category, rule, compact = false }) {
   if (rule.rule === "color") {
-    return <span className="h-8 w-8 rounded-full border-2 border-white shadow-sm" style={{ background: COLOR_HEX[category.value] ?? BRAND.purple }} aria-hidden="true" />;
+    return <span className={`${compact ? "h-6 w-6" : "h-8 w-8"} shrink-0 rounded-full border-2 border-white shadow-sm`} style={{ background: COLOR_HEX[category.value] ?? BRAND.purple }} aria-hidden="true" />;
   }
 
   if (rule.rule === "shape") {
-    return <ShapeGlyph shape={category.value} color="purple" size={38} />;
+    return <ShapeGlyph shape={category.value} color="purple" size={compact ? 28 : 38} />;
   }
 
   if (rule.rule === "size") {
-    const scale = category.value === "small" ? "h-5 w-5" : category.value === "medium" ? "h-7 w-7" : "h-9 w-9";
+    const scale = compact
+      ? category.value === "small" ? "h-4 w-4" : category.value === "medium" ? "h-5 w-5" : "h-6 w-6"
+      : category.value === "small" ? "h-5 w-5" : category.value === "medium" ? "h-7 w-7" : "h-9 w-9";
     return <span className={`${scale} rounded-[6px] bg-vyva-purple`} aria-hidden="true" />;
   }
 
@@ -961,35 +963,35 @@ export default function CategorySort({ userId, onExit }) {
         )}
 
         <div className="mx-auto flex h-full w-full max-w-[820px] flex-col">
-          <header className="flex min-h-[72px] shrink-0 items-center justify-between gap-3 border-b-2" style={{ borderColor: BRAND.border }}>
-            <h1 className="min-w-0 text-[26px] font-bold leading-[1.1] sm:text-[30px]">{text.tutorialTitle}</h1>
+          <header className="flex min-h-[52px] shrink-0 items-center justify-between gap-3 border-b-2" style={{ borderColor: BRAND.border }}>
+            <h1 className="min-w-0 text-[22px] font-bold leading-[1.1] sm:text-[26px]">{text.tutorialTitle}</h1>
             <button
               type="button"
               onClick={startRound}
-              className="min-h-[64px] shrink-0 rounded-full px-5 text-[22px] font-bold sm:px-6"
+              className="min-h-[48px] shrink-0 rounded-full px-4 text-[19px] font-bold sm:px-5 sm:text-[21px]"
               style={{ background: BRAND.softPurple, color: BRAND.purple }}
             >
               {text.skip}
             </button>
           </header>
 
-          <main className="flex min-h-0 flex-1 flex-col justify-center gap-4 py-4">
-            <div className="rounded-[8px] border-2 p-4 text-center shadow-vyva-card" style={{ borderColor: BRAND.border, background: BRAND.gold }}>
-              <p className="inline-flex items-center gap-3 text-[26px] font-black leading-[1.1] text-white">
-                <TutorialRuleIcon size={34} />
+          <main className="flex min-h-0 flex-1 flex-col justify-center gap-2 py-2">
+            <div className="rounded-[8px] border-2 px-3 py-2 text-center shadow-vyva-card" style={{ borderColor: BRAND.border, background: BRAND.gold }}>
+              <p className="inline-flex items-center gap-3 text-[22px] font-black leading-[1.1] text-white sm:text-[24px]">
+                <TutorialRuleIcon size={30} />
                 {text.sortBy}: {ruleLabel(tutorialRule, gameLanguage)}
               </p>
             </div>
 
-            <div className="mx-auto flex min-h-[200px] w-full max-w-[420px] items-center justify-center rounded-[8px] border-2 bg-white p-5 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-              <CardFace card={tutorialCard} language={gameLanguage} showLabel={false} />
+            <div className="mx-auto flex h-[clamp(116px,22dvh,176px)] min-h-0 w-full max-w-[380px] items-center justify-center rounded-[8px] border-2 bg-white p-3 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
+              <CardFace card={tutorialCard} language={gameLanguage} showLabel={false} compact />
             </div>
 
-            <p className="text-center text-[24px] font-bold leading-[1.2]" style={{ color: BRAND.muted }}>
+            <p className="text-center text-[20px] font-bold leading-[1.15] sm:text-[22px]" style={{ color: BRAND.muted }}>
               {tutorialRuleIndex === 0 ? text.tutorialColorHint : text.tutorialShapeHint}
             </p>
 
-            <div className="grid gap-3">
+            <div className="grid shrink-0 grid-cols-2 gap-2 sm:gap-3">
               {tutorialCategories.map((category) => (
                 <CategoryButton
                   key={category.value}
@@ -997,6 +999,7 @@ export default function CategorySort({ userId, onExit }) {
                   rule={tutorialRule}
                   onClick={handleTutorialTap}
                   disabled={tutorialOverlay}
+                  compact
                 />
               ))}
             </div>
@@ -1005,7 +1008,7 @@ export default function CategorySort({ userId, onExit }) {
           <button
             type="button"
             onClick={startRound}
-            className="min-h-[72px] w-full shrink-0 rounded-[8px] px-8 text-[28px] font-bold text-white shadow-vyva-card"
+            className="min-h-[56px] w-full shrink-0 rounded-[8px] px-8 text-[23px] font-bold text-white shadow-vyva-card sm:text-[25px]"
             style={{ background: BRAND.purple }}
           >
             {text.start}
@@ -1033,53 +1036,53 @@ export default function CategorySort({ userId, onExit }) {
 
         <div className="mx-auto flex h-full w-full max-w-[820px] flex-col gap-2">
           <header className="shrink-0">
-            <div className="flex min-h-[64px] items-center justify-between gap-3">
-              <h1 className="min-w-0 text-[24px] font-bold leading-[1.1] sm:text-[30px]">{text.title}</h1>
+            <div className="flex min-h-[54px] items-center justify-between gap-3">
+              <h1 className="min-w-0 text-[22px] font-bold leading-[1.1] sm:text-[26px]">{text.title}</h1>
               <button
                 type="button"
                 onClick={handleExit}
-                className="inline-flex min-h-[64px] shrink-0 items-center gap-2 rounded-full px-4 text-[22px] font-bold sm:gap-3 sm:px-5"
+                className="inline-flex min-h-[48px] shrink-0 items-center gap-2 rounded-full px-4 text-[19px] font-bold sm:gap-3 sm:px-5 sm:text-[21px]"
                 style={{ background: "#FFF7ED", color: "#9A3412" }}
               >
-                <Square size={24} />
+                <Square size={22} />
                 {text.exit}
               </button>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-[#EDE6F4]">
               <div className="h-full transition-[width] duration-300" style={{ width: `${progress}%`, background: BRAND.purple }} />
             </div>
-            <p className="mt-1 text-center text-[22px] font-bold" style={{ color: BRAND.muted }}>
+            <p className="mt-1 text-center text-[18px] font-bold sm:text-[20px]" style={{ color: BRAND.muted }}>
               {text.card} {Math.min(currentCardIndex + 1, cards.length)} {text.of} {cards.length}
             </p>
           </header>
 
           <main className="flex min-h-0 flex-1 flex-col gap-2">
             <section className="rounded-[8px] border-2 px-4 py-3 text-center shadow-vyva-card" style={{ borderColor: "#D97706", background: BRAND.gold }}>
-              <p className="inline-flex items-center justify-center gap-3 text-[24px] font-black leading-[1.1] text-white sm:text-[26px]">
-                <RuleIcon size={34} />
+              <p className="inline-flex items-center justify-center gap-3 text-[22px] font-black leading-[1.1] text-white sm:text-[24px]">
+                <RuleIcon size={30} />
                 {text.sortBy}: {ruleLabel(currentRule, gameLanguage)}
               </p>
             </section>
 
             <section className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2">
-              <div className="flex min-h-[184px] w-full max-w-[440px] items-center justify-center rounded-[8px] border-2 bg-white p-4 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-                <CardFace card={currentCard} language={gameLanguage} showLabel={showSemanticLabel} />
+              <div className="flex h-[clamp(116px,22dvh,178px)] min-h-0 w-full max-w-[400px] items-center justify-center rounded-[8px] border-2 bg-white p-3 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
+                <CardFace card={currentCard} language={gameLanguage} showLabel={showSemanticLabel} compact />
               </div>
 
-              <div className="flex min-h-[42px] items-center justify-center text-center">
+              <div className="flex min-h-[clamp(26px,4dvh,42px)] items-center justify-center text-center">
                 {lastFeedback === "correct" && (
-                  <p className="inline-flex items-center gap-2 text-[26px] font-black text-[#15803D]">
-                    <Check size={34} />
+                  <p className="inline-flex items-center gap-2 text-[22px] font-black text-[#15803D] sm:text-[24px]">
+                    <Check size={30} />
                     {text.correct}
                   </p>
                 )}
                 {lastFeedback === "reminder" && (
-                  <p className="text-[24px] font-black text-[#9A3412]">{text.reminder}</p>
+                  <p className="text-[21px] font-black text-[#9A3412] sm:text-[23px]">{text.reminder}</p>
                 )}
               </div>
             </section>
 
-            <section className="grid shrink-0 gap-3 pb-1">
+            <section className="grid shrink-0 grid-cols-2 gap-2 pb-1 sm:gap-3">
               {categories.map((category) => (
                 <CategoryButton
                   key={category.value}
@@ -1087,12 +1090,13 @@ export default function CategorySort({ userId, onExit }) {
                   rule={currentRule}
                   onClick={handleCategoryTap}
                   disabled={isResolving || showRuleChange}
+                  compact
                 />
               ))}
             </section>
           </main>
 
-          <footer className="shrink-0 text-center text-[22px] font-bold" style={{ color: BRAND.muted }}>
+          <footer className="shrink-0 text-center text-[18px] font-bold sm:text-[20px]" style={{ color: BRAND.muted }}>
             {text.streak}: {consecutiveCorrect}
           </footer>
         </div>
@@ -1158,18 +1162,20 @@ export default function CategorySort({ userId, onExit }) {
   );
 }
 
-function CardFace({ card, language, showLabel }) {
+function CardFace({ card, language, showLabel, compact = false }) {
   if (!card) return null;
-  const size = card.size === "small" ? 88 : card.size === "medium" ? 116 : 142;
+  const size = compact
+    ? card.size === "small" ? 58 : card.size === "medium" ? 76 : 94
+    : card.size === "small" ? 88 : card.size === "medium" ? 116 : 142;
 
   return (
-    <div className="relative flex min-h-[160px] min-w-[160px] flex-col items-center justify-center">
+    <div className={`relative flex flex-col items-center justify-center ${compact ? "min-h-[104px] min-w-[104px]" : "min-h-[160px] min-w-[160px]"}`}>
       <ShapeGlyph shape={card.shape} color={card.color} size={size} />
-      <div className="absolute inset-0 flex items-center justify-center text-[52px] leading-none drop-shadow-sm" aria-hidden="true">
+      <div className={`absolute inset-0 flex items-center justify-center leading-none drop-shadow-sm ${compact ? "text-[36px]" : "text-[52px]"}`} aria-hidden="true">
         {card.icon}
       </div>
       {showLabel && (
-        <p className="mt-2 max-w-[14ch] text-center text-[22px] font-black leading-[1.05]" style={{ color: BRAND.ink }}>
+        <p className={`${compact ? "mt-1 text-[18px]" : "mt-2 text-[22px]"} max-w-[14ch] text-center font-black leading-[1.05]`} style={{ color: BRAND.ink }}>
           {cardLabel(card, language)}
         </p>
       )}
@@ -1177,16 +1183,20 @@ function CardFace({ card, language, showLabel }) {
   );
 }
 
-function CategoryButton({ category, rule, onClick, disabled }) {
+function CategoryButton({ category, rule, onClick, disabled, compact = false }) {
   return (
     <button
       type="button"
       onClick={() => onClick(category.value)}
       disabled={disabled}
-      className="flex min-h-[72px] w-full items-center gap-4 rounded-[8px] border-2 bg-white px-5 py-3 text-left text-[24px] font-black leading-[1.08] shadow-vyva-card transition-transform active:scale-[0.99] disabled:opacity-70"
-      style={{ borderColor: BRAND.border, color: BRAND.ink }}
+      className={`flex w-full items-center rounded-[8px] border-2 bg-white text-left font-black leading-[1.08] shadow-vyva-card transition-transform active:scale-[0.99] disabled:opacity-70 ${compact ? "gap-3 px-3 py-2 text-[20px] sm:px-4 sm:text-[22px]" : "min-h-[72px] gap-4 px-5 py-3 text-[24px]"}`}
+      style={{
+        borderColor: BRAND.border,
+        color: BRAND.ink,
+        minHeight: compact ? "clamp(52px, 8dvh, 68px)" : undefined,
+      }}
     >
-      <CategoryMarker category={category} rule={rule} />
+      <CategoryMarker category={category} rule={rule} compact={compact} />
       <span className="min-w-0 [overflow-wrap:anywhere]">{category.label}</span>
     </button>
   );
