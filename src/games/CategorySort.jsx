@@ -33,14 +33,14 @@ const FALLBACK_CARDS = [
   { id: "practice-2", color: "blue", shape: "square", size: "medium", semantic_class: "vehicle", semantic_group: "non_living", label_es: "Coche", label_de: "Auto", label_en: "Car", icon: "🚗" },
   { id: "practice-3", color: "yellow", shape: "triangle", size: "small", semantic_class: "animal", semantic_group: "living", label_es: "Mariposa", label_de: "Schmetterling", label_en: "Butterfly", icon: "🦋" },
   { id: "practice-4", color: "green", shape: "circle", size: "medium", semantic_class: "plant", semantic_group: "living", label_es: "Arbol", label_de: "Baum", label_en: "Tree", icon: "🌲" },
-  { id: "practice-5", color: "purple", shape: "star", size: "large", semantic_class: "tool", semantic_group: "non_living", label_es: "Llave", label_de: "Schluessel", label_en: "Key", icon: "🔑" },
-  { id: "practice-6", color: "orange", shape: "diamond", size: "small", semantic_class: "animal", semantic_group: "living", label_es: "Zorro", label_de: "Fuchs", label_en: "Fox", icon: "🦊" },
-  { id: "practice-7", color: "red", shape: "square", size: "small", semantic_class: "clothing", semantic_group: "man_made", label_es: "Gorra", label_de: "Muetze", label_en: "Hat", icon: "👒" },
-  { id: "practice-8", color: "blue", shape: "triangle", size: "large", semantic_class: "nature", semantic_group: "nature", label_es: "Montana", label_de: "Berg", label_en: "Mountain", icon: "🏔️" },
-  { id: "practice-9", color: "yellow", shape: "circle", size: "small", semantic_class: "food", semantic_group: "food", label_es: "Limon", label_de: "Zitrone", label_en: "Lemon", icon: "🍋" },
-  { id: "practice-10", color: "green", shape: "square", size: "large", semantic_class: "building", semantic_group: "non_living", label_es: "Casa", label_de: "Haus", label_en: "House", icon: "🏠" },
-  { id: "practice-11", color: "red", shape: "triangle", size: "medium", semantic_class: "animal", semantic_group: "living", label_es: "Pajaro", label_de: "Vogel", label_en: "Bird", icon: "🐦" },
-  { id: "practice-12", color: "blue", shape: "circle", size: "large", semantic_class: "food", semantic_group: "food", label_es: "Uvas", label_de: "Trauben", label_en: "Grapes", icon: "🍇" },
+  { id: "practice-5", color: "red", shape: "star", size: "large", semantic_class: "tool", semantic_group: "non_living", label_es: "Llave", label_de: "Schluessel", label_en: "Key", icon: "🔑" },
+  { id: "practice-6", color: "blue", shape: "star", size: "small", semantic_class: "animal", semantic_group: "living", label_es: "Zorro", label_de: "Fuchs", label_en: "Fox", icon: "🦊" },
+  { id: "practice-7", color: "yellow", shape: "square", size: "small", semantic_class: "clothing", semantic_group: "man_made", label_es: "Gorra", label_de: "Muetze", label_en: "Hat", icon: "👒" },
+  { id: "practice-8", color: "green", shape: "triangle", size: "large", semantic_class: "nature", semantic_group: "nature", label_es: "Montana", label_de: "Berg", label_en: "Mountain", icon: "🏔️" },
+  { id: "practice-9", color: "red", shape: "circle", size: "small", semantic_class: "food", semantic_group: "food", label_es: "Limon", label_de: "Zitrone", label_en: "Lemon", icon: "🍋" },
+  { id: "practice-10", color: "blue", shape: "star", size: "large", semantic_class: "building", semantic_group: "non_living", label_es: "Casa", label_de: "Haus", label_en: "House", icon: "🏠" },
+  { id: "practice-11", color: "yellow", shape: "triangle", size: "medium", semantic_class: "animal", semantic_group: "living", label_es: "Pajaro", label_de: "Vogel", label_en: "Bird", icon: "🐦" },
+  { id: "practice-12", color: "green", shape: "square", size: "large", semantic_class: "food", semantic_group: "food", label_es: "Uvas", label_de: "Trauben", label_en: "Grapes", icon: "🍇" },
 ];
 
 const FALLBACK_SEQUENCE = {

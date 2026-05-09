@@ -19,5 +19,6 @@ describe("CategorySort", () => {
     expect(screen.getByText("Tarjeta 1 de 12")).toBeInTheDocument();
     expect(screen.getByText(/Ordena por/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Rojo" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Naranja" })).not.toBeInTheDocument();
   });
 });

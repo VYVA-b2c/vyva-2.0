@@ -253,7 +253,7 @@ const App = () => (
                   <Route path="/attention-boosters" element={<AppShell><AttentionBoostersPage /></AppShell>} />
                   <Route path="/attention-boosters/rhythm-tap" element={<AppShell><MemoryGameRunner forcedGameType="sequence_memory" returnPath="/attention-boosters" /></AppShell>} />
                   <Route path="/executive-function" element={<AppShell><ExecutiveFunctionPage /></AppShell>} />
-                  <Route path="/executive-function/category-sort" element={<AppShell><CategorySortRoute /></AppShell>} />
+                  <Route path="/executive-function/category-sort" element={<CategorySortRoute />} />
                   <Route path="/language" element={<AppShell><LanguageGamesPage /></AppShell>} />
                   <Route path="/spatial-navigator" element={<AppShell><SpatialNavigatorRoute /></AppShell>} />
                   <Route path="/face-name-match" element={<AppShell><FaceNameMatchRoute /></AppShell>} />
