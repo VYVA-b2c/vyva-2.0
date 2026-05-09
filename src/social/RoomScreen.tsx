@@ -1961,8 +1961,8 @@ const RoomScreen = () => {
       </main>
 
       {membersOpen && (
-        <div className="fixed inset-0 z-40 flex items-end bg-[rgba(43,27,65,0.26)] p-4">
-          <div className="w-full rounded-[30px] border border-[#E8DDCF] bg-[#FFFDFC] p-5 shadow-[0_20px_48px_rgba(91,33,182,0.12)]">
+        <div className="fixed inset-0 z-[80] flex items-end bg-[rgba(43,27,65,0.26)] px-4 pb-[calc(136px+env(safe-area-inset-bottom))] pt-6 md:items-center md:justify-center md:p-6">
+          <div className="max-h-[calc(100dvh-176px)] w-full overflow-y-auto overscroll-contain rounded-[30px] border border-[#E8DDCF] bg-[#FFFDFC] p-5 shadow-[0_20px_48px_rgba(91,33,182,0.12)] md:max-w-[520px]">
             <div className="flex items-center justify-between gap-4">
               <p className="font-display text-[30px] text-[#45325B]">{copy.viewMembers}</p>
               <button
@@ -2003,8 +2003,8 @@ const RoomScreen = () => {
       )}
 
       {selectedMember && (
-        <div className="fixed inset-0 z-50 flex items-end bg-[rgba(43,27,65,0.32)] p-4">
-          <div className="w-full rounded-[30px] border border-[#E8DDCF] bg-[#FFFDFC] p-5 shadow-[0_20px_48px_rgba(91,33,182,0.12)]">
+        <div className="fixed inset-0 z-[80] flex items-end bg-[rgba(43,27,65,0.32)] px-4 pb-[calc(136px+env(safe-area-inset-bottom))] pt-6 md:items-center md:justify-center md:p-6">
+          <div className="max-h-[calc(100dvh-176px)] w-full overflow-y-auto overscroll-contain rounded-[30px] border border-[#E8DDCF] bg-[#FFFDFC] p-5 shadow-[0_20px_48px_rgba(91,33,182,0.12)] md:max-w-[520px]">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="font-display text-[30px] text-[#45325B]">{selectedMember.name}</p>
