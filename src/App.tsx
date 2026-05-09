@@ -26,10 +26,12 @@ import ActivityScreen from "./pages/ActivityScreen";
 import SpatialNavigator from "./games/SpatialNavigator";
 import FaceNameMatch from "./games/FaceNameMatch";
 import AttentionBoostersPage from "./games/AttentionBoostersPage";
+import ExecutiveFunctionPage from "./games/ExecutiveFunctionPage";
 import LanguageGamesPage from "./games/LanguageGamesPage";
 import MemoryGamesPage from "./games/memory/MemoryGamesPage";
 import MemoryGameRunner from "./games/memory/MemoryGameRunner";
 import DualTaskWalk from "./games/DualTaskWalk";
+import CategorySort from "./games/CategorySort";
 import ConciergeScreen from "./pages/ConciergeScreen";
 import SafeHomeScreen from "./pages/SafeHomeScreen";
 import ScamGuardScreen from "./pages/ScamGuardScreen";
@@ -182,6 +184,13 @@ function DualTaskWalkRoute() {
   return <DualTaskWalk userId={user?.id ?? ""} onExit={() => navigate("/attention-boosters")} />;
 }
 
+function CategorySortRoute() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  return <CategorySort userId={user?.id ?? ""} onExit={() => navigate("/executive-function")} />;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
@@ -243,6 +252,8 @@ const App = () => (
                   <Route path="/activity" element={<AppShell><ActivityScreen /></AppShell>} />
                   <Route path="/attention-boosters" element={<AppShell><AttentionBoostersPage /></AppShell>} />
                   <Route path="/attention-boosters/rhythm-tap" element={<AppShell><MemoryGameRunner forcedGameType="sequence_memory" returnPath="/attention-boosters" /></AppShell>} />
+                  <Route path="/executive-function" element={<AppShell><ExecutiveFunctionPage /></AppShell>} />
+                  <Route path="/executive-function/category-sort" element={<AppShell><CategorySortRoute /></AppShell>} />
                   <Route path="/language" element={<AppShell><LanguageGamesPage /></AppShell>} />
                   <Route path="/spatial-navigator" element={<AppShell><SpatialNavigatorRoute /></AppShell>} />
                   <Route path="/face-name-match" element={<AppShell><FaceNameMatchRoute /></AppShell>} />

@@ -71,7 +71,7 @@ const activityRoutes: Partial<Record<string, string>> = {
   "brain.activities.memoryGame": "/memory-games",
   "brain.activities.spatialNavigator": "/spatial-navigator",
   "brain.activities.scrabble": "/language",
-  "brain.activities.logicPuzzle": "/memory-games/routine_memory",
+  "brain.activities.logicPuzzle": "/executive-function",
 };
 
 const ActivitiesScreen = () => {

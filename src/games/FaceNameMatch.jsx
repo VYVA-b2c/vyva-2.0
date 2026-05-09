@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Loader2, RotateCcw, Square, Users } from "lucide-react";
+import { ArrowLeft, Check, Loader2, Users } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { useLanguage } from "../i18n";
 import FaceAvatar from "./FaceAvatar";
+import BrainGameResultActions from "./shared/BrainGameResultActions";
 import {
   clampFaceNameTier,
   computeFaceNameScore,
@@ -29,7 +30,7 @@ const SCREEN_STYLE = {
 function FaceNameScreen({ children }) {
   return (
     <div className="px-4 sm:px-6" style={SCREEN_STYLE}>
-      <div className="mx-auto flex min-h-[calc(100dvh-24px)] w-full max-w-[760px] flex-col">
+      <div className="mx-auto flex h-[calc(100dvh-24px)] min-h-0 w-full max-w-[760px] flex-col">
         {children}
       </div>
     </div>
@@ -54,10 +55,9 @@ function GameHeader({ title, meta, timer, pulse = false, exitLabel, onExit }) {
           <button
             type="button"
             onClick={onExit}
-            className="inline-flex min-h-[64px] items-center gap-2 rounded-[20px] px-4 text-[20px] font-extrabold shadow-sm"
-            style={{ background: "#FFF7ED", color: "#9A3412" }}
+            className="inline-flex min-h-[64px] items-center gap-2 rounded-full bg-white px-4 text-[20px] font-extrabold text-vyva-text-1 shadow-sm"
           >
-            <Square size={21} />
+            <ArrowLeft size={22} />
             {exitLabel}
           </button>
         </div>
@@ -371,6 +371,11 @@ export default function FaceNameMatch({ userId, onExit }) {
     newLevel: t("brainGames.faceName.newLevel"),
     replay: t("brainGames.faceName.replay"),
     finish: t("brainGames.faceName.finish"),
+    continueAction: t("brainGames.resultActions.continue"),
+    continueToLevel: t("brainGames.resultActions.continueToLevel"),
+    nextRecommended: t("brainGames.resultActions.nextRecommended"),
+    playAgain: t("brainGames.resultActions.playAgain"),
+    playAnotherGame: t("brainGames.resultActions.playAnotherGame"),
   }), [t]);
 
   const [screen, setScreen] = useState("loading");
@@ -725,6 +730,10 @@ export default function FaceNameMatch({ userId, onExit }) {
     void loadGame();
   };
 
+  const handleContinue = () => {
+    void loadGame();
+  };
+
   const faceOptions = useMemo(() => {
     if (!currentPersona || currentMode !== "name_to_face") return [];
     const distractorCount = getFaceNameDistractorCount(currentTier);
@@ -758,7 +767,7 @@ export default function FaceNameMatch({ userId, onExit }) {
         <GameHeader
           title={text.title}
           meta={`${text.level} ${currentTier} | ${faceCount} ${text.people}`}
-          exitLabel={text.exit}
+          exitLabel={text.back}
           onExit={handleExit}
         />
 
@@ -819,6 +828,7 @@ export default function FaceNameMatch({ userId, onExit }) {
   if (screen === "study") {
     const progress = Math.max(0, Math.min(100, (studyCountdown / Number(selectedSet.study_seconds ?? 45)) * 100));
     const pulse = studyCountdown <= 5;
+    const studyGridCols = personas.length <= 4 ? "grid-cols-2" : "grid-cols-2 md:grid-cols-3";
 
     return (
       <FaceNameScreen>
@@ -827,7 +837,7 @@ export default function FaceNameMatch({ userId, onExit }) {
           meta={`${faceCount} ${text.people}`}
           timer={`${Math.ceil(studyCountdown)}s`}
           pulse={pulse}
-          exitLabel={text.exit}
+          exitLabel={text.back}
           onExit={handleExit}
         />
             <div className="mt-3 h-3 overflow-hidden rounded-full bg-[#EDE6F4]">
@@ -838,13 +848,13 @@ export default function FaceNameMatch({ userId, onExit }) {
             </div>
 
           <main className="min-h-0 flex-1 overflow-y-auto py-3 pr-1">
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            <div className={`grid gap-3 ${studyGridCols}`}>
               {personas.map((persona) => (
                 <div key={persona.id} className="rounded-[22px] border bg-white p-3 text-center shadow-vyva-card" style={{ borderColor: BORDER }}>
                   <div className="flex justify-center">
-                    <FaceAvatar config={persona.avatar_config} size={120} />
+                    <FaceAvatar config={persona.avatar_config} size={108} />
                   </div>
-                  <p className="mt-2 text-[23px] font-extrabold leading-tight text-vyva-text-1">{getPersonaName(persona, language)}</p>
+                  <p className="mt-2 text-[22px] font-extrabold leading-tight text-vyva-text-1">{getPersonaName(persona, language)}</p>
                 </div>
               ))}
             </div>
@@ -853,7 +863,7 @@ export default function FaceNameMatch({ userId, onExit }) {
           <button
             type="button"
             onClick={beginRecall}
-            className="min-h-[72px] w-full rounded-[22px] px-8 text-[25px] font-extrabold text-white shadow-vyva-card"
+            className="min-h-[72px] shrink-0 w-full rounded-full px-6 text-[24px] font-extrabold leading-tight text-white shadow-vyva-card"
             style={{ background: PURPLE }}
           >
             {text.ready}
@@ -958,6 +968,10 @@ export default function FaceNameMatch({ userId, onExit }) {
   const hasFaceToName = result.f2nAttempts > 0;
   const nextTier = result.nextTier ?? clampFaceNameTier(currentTier + 1);
   const progressWidth = Math.min(100, Math.max(0, ((userState?.consecutive_wins ?? 0) / 3) * 100));
+  const promoted = Boolean(result.currentTier && result.currentTier > currentTier);
+  const continueLabel = promoted
+    ? text.continueToLevel.replace("{level}", String(result.currentTier))
+    : text.continueAction;
 
   return (
     <FaceNameScreen>
@@ -1029,36 +1043,31 @@ export default function FaceNameMatch({ userId, onExit }) {
             </div>
           </section>
 
-          <div className="mt-3 rounded-[24px] border bg-white p-4" style={{ borderColor: BORDER }}>
+          <button
+            type="button"
+            onClick={handleContinue}
+            className="mt-3 w-full rounded-[24px] border bg-white p-4 text-left shadow-sm transition-transform active:scale-[0.99]"
+            style={{ borderColor: BORDER }}
+          >
             <div className="h-4 overflow-hidden rounded-full bg-[#EDE6F4]">
               <div className="h-full" style={{ width: `${progressWidth}%`, background: PURPLE }} />
             </div>
             <p className="mt-3 text-center text-[19px] font-bold text-vyva-text-2">
               {result.currentTier && result.currentTier > currentTier ? text.newLevel : `${text.progressNext} ${nextTier}`}
             </p>
-          </div>
+          </button>
         </main>
 
-        <div className="grid grid-cols-1 gap-3 pb-1 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={handleReplay}
-            className="inline-flex min-h-[72px] items-center justify-center gap-3 rounded-[22px] px-6 text-[24px] font-extrabold text-white shadow-vyva-card"
-            style={{ background: PURPLE }}
-          >
-            <RotateCcw size={30} />
-            {text.replay}
-          </button>
-          <button
-            type="button"
-            onClick={handleExit}
-            className="inline-flex min-h-[72px] items-center justify-center gap-3 rounded-[22px] bg-white px-6 text-[24px] font-extrabold shadow-vyva-card"
-            style={{ color: PURPLE }}
-          >
-            <Check size={30} />
-            {text.finish}
-          </button>
-        </div>
+        <BrainGameResultActions
+          className="pb-1"
+          continueLabel={continueLabel}
+          continueHint={text.nextRecommended}
+          replayLabel={text.playAgain}
+          anotherLabel={text.playAnotherGame}
+          onContinue={handleContinue}
+          onReplay={handleReplay}
+          onAnother={handleExit}
+        />
     </FaceNameScreen>
   );
 }
