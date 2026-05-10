@@ -1284,7 +1284,7 @@ const RoomScreen = () => {
           : undefined,
       });
     },
-    [currentConversationContext?.text, currentVisitState, room?.agentSlug, room?.slug, startVoice],
+    [currentConversationContext, currentVisitState, room?.agentSlug, room?.slug, startVoice],
   );
 
   const armLiveReplyTimeout = useCallback(
