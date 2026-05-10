@@ -35,6 +35,10 @@ const POSTCODE_RE = /^(?:[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}|\d{4,5}(?:-\d{4})?|[A
 const APARTMENT_KEYWORDS = /\b(flat|floor|apt|apartment|suite|piso|planta|etage|étage|unit|#)\b/i;
 const STREET_RE = /^\d+\s+\S/;       // "42 Calle Mayor…"
 const HAS_NUMBER_RE = /\d/;          // segment contains any digit (postcode candidate)
+const ADDRESS_LEAD_IN_RE = /^(?:please\s+)?(?:(?:my|the)\s+(?:home\s+)?address|(?:home\s+)?address|mi\s+direccion|la\s+direccion|mi\s+domicilio|domicilio)\s*(?:is|this|it's|its|es|esta|e)?\s*[:,-]?\s*/i;
+const LOCATION_LEAD_IN_RE = /^(?:i\s+live|i'm|i\s+am|we\s+live|vivo|vivimos|resido|residimos)\s+(?:at|in|on|en|a)\s*[:,-]?\s*/i;
+const GENERIC_LEAD_IN_RE = /^(?:it(?:'s|\s+is)|this\s+is|that\s+is|it's)\s*[:,-]?\s*/i;
+const TRAILING_SPEECH_FILLER_RE = /\s*(?:,?\s*(?:thank\s+you|thanks|that's\s+it|that\s+is\s+it|that's\s+all|that\s+is\s+all|gracias))\.?$/i;
 
 function normaliseCountry(raw: string): string {
   const key = raw.toLowerCase().trim().replace(/[^a-záéíóúüñ ]/gi, "");
@@ -46,12 +50,32 @@ function normaliseCountry(raw: string): string {
   return "Other";
 }
 
-function parseAddressFromTranscript(transcript: string): Record<string, string> {
+function stripSpeechScaffolding(value: string): string {
+  let cleaned = value.trim().replace(/\s+/g, " ");
+
+  for (let i = 0; i < 4; i++) {
+    const next = cleaned
+      .replace(TRAILING_SPEECH_FILLER_RE, "")
+      .replace(ADDRESS_LEAD_IN_RE, "")
+      .replace(LOCATION_LEAD_IN_RE, "")
+      .replace(GENERIC_LEAD_IN_RE, "")
+      .replace(/^["'.,:\-\s]+/, "")
+      .replace(/["'.,:\-\s]+$/, "")
+      .trim();
+
+    if (next === cleaned) break;
+    cleaned = next;
+  }
+
+  return cleaned;
+}
+
+export function parseAddressFromTranscript(transcript: string): Record<string, string> {
   // Normalise: strip leading/trailing whitespace, collapse multiple spaces
-  const text = transcript.trim().replace(/\s+/g, " ");
+  const text = stripSpeechScaffolding(transcript);
 
   // Split on commas; also handle spoken " in " and " at " followed by capital letter
-  const raw = text.split(/,|(?:\s+(?:in|at)\s+)(?=[A-Z])/i).map((s) => s.trim()).filter(Boolean);
+  const raw = text.split(/,|(?:\s+(?:in|at)\s+)(?=[A-Z])/i).map((s) => stripSpeechScaffolding(s)).filter(Boolean);
 
   const result: Record<string, string> = {
     address_line_1: "",
