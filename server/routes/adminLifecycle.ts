@@ -716,6 +716,7 @@ adminLifecycleRouter.get("/users", async (req: Request, res: Response) => {
         id: profiles.id,
         account_status: profiles.account_status,
         disabled_at: profiles.disabled_at,
+        subscription_tier: profiles.subscription_tier,
       })
       .from(profiles)
       .where(inArray(profiles.id, profileIds))
@@ -727,6 +728,9 @@ adminLifecycleRouter.get("/users", async (req: Request, res: Response) => {
       const profile = profileById.get(targetUserIdForIntake(row.intake) ?? "");
       return {
         ...row.intake,
+        intake_tier: row.intake.tier,
+        profile_subscription_tier: profile?.subscription_tier ?? null,
+        tier: profile?.subscription_tier ?? row.intake.tier,
         organization_name: row.organization_name,
         account_status: profile?.account_status ?? "enabled",
         disabled_at: profile?.disabled_at ?? null,
@@ -784,7 +788,10 @@ adminLifecycleRouter.patch("/users/:id/profile", async (req: Request, res: Respo
   if (data.timezone !== undefined) profilePatch.timezone = data.timezone || "Europe/Madrid";
   if (data.caregiver_name !== undefined) profilePatch.caregiver_name = data.caregiver_name || null;
   if (data.caregiver_contact !== undefined) profilePatch.caregiver_contact = data.caregiver_contact || null;
-  if (data.subscription_tier !== undefined || data.tier !== undefined) profilePatch.subscription_tier = normalizeSubscriptionTier(data.subscription_tier ?? data.tier);
+  if (data.subscription_tier !== undefined || data.tier !== undefined) {
+    profilePatch.subscription_tier = normalizeSubscriptionTier(data.subscription_tier ?? data.tier);
+    profilePatch.subscription_status = "active";
+  }
 
   const [profile] = await db
     .update(profiles)
