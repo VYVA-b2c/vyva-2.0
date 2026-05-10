@@ -1151,6 +1151,17 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
         .update(users)
         .set({ active_profile_id: profile.id })
         .where(eq(users.id, account.id));
+      await db
+        .insert(profileMemberships)
+        .values({
+          user_id: account.id,
+          profile_id: profile.id,
+          role: "elder",
+          relationship: "self",
+          is_primary: true,
+          accepted_at: new Date(),
+        })
+        .onConflictDoNothing();
       syncedAccountId = account.id;
     } catch (error) {
       if (!isMissingRelationError(error)) throw error;

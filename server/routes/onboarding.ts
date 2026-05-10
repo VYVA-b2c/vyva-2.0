@@ -607,9 +607,6 @@ onboardingRouter.post("/basics", async (req: Request, res: Response) => {
           ...(instagram_url        !== undefined && { instagram_url:         instagram_url        ?? null }),
           ...(whatsapp_number      !== undefined && { whatsapp_number:       whatsapp_number      ?? null }),
           language,
-          subscription_status:  "trial",
-          subscription_tier:    "free",
-          trial_ends_at:        trialEndsAt,
           // Preserve stage if already past stage_1.
           current_stage:        nextStage,
           stage_1_completed_at: new Date(),
