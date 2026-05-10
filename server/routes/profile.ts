@@ -234,7 +234,8 @@ router.get("/readiness", async (req: Request, res: Response) => {
     const hasHealthContext = healthConditions.length > 0;
     const hasAllergies = Array.isArray(profile?.known_allergies) && profile.known_allergies.some(hasText);
     const hasGp = hasText(profile?.gp_name) || hasText(profile?.gp_phone);
-    const entitlements = await entitlementForTier(normalizeSubscriptionTier(profile?.subscription_tier));
+    const effectiveTier = normalizeSubscriptionTier(profile?.subscription_tier);
+    const entitlements = await entitlementForTier(effectiveTier);
 
     const medicationMissing = [
       setupStep("medications", "To make medication reminders and reports work, add at least one medication first."),
@@ -265,7 +266,10 @@ router.get("/readiness", async (req: Request, res: Response) => {
 
     return res.json({
       profile: {
+        id: profile?.id ?? null,
         exists: !!profile,
+        subscriptionTier: effectiveTier,
+        subscriptionStatus: profile?.subscription_status ?? null,
         hasBasics,
         hasContact,
         hasDetailedAddress,
