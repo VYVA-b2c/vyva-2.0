@@ -532,7 +532,7 @@ const HomeScreen = () => {
                   boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
                 }}
               >
-                <div className="px-[18px] pt-[18px] pb-[14px] flex flex-col gap-[10px] flex-1">
+                <div className="px-[18px] pt-[18px] pb-[14px] flex flex-col gap-[12px] flex-1">
                   <div className="flex items-center justify-between gap-2">
                     <span
                       className="font-body text-[11px] font-semibold px-[10px] py-[4px] rounded-full"
@@ -546,15 +546,15 @@ const HomeScreen = () => {
                         Plan
                       </span>
                     ) : displayEmoji && (
-                      <span className="text-[26px]" aria-hidden="true">{displayEmoji}</span>
+                      <span className="text-[30px]" aria-hidden="true">{displayEmoji}</span>
                     )}
                   </div>
 
-                  <p className="font-body text-[17px] font-semibold text-vyva-text-1 leading-[1.35]">
+                  <h3 className="font-body text-[21px] font-extrabold leading-tight text-vyva-text-1 [overflow-wrap:anywhere]">
                     {t(`home.todayForYou.cards.${card.id}.title`)}
-                  </p>
+                  </h3>
 
-                  <p className="font-body text-[13px] text-vyva-text-2 leading-[1.5] flex-1">
+                  <p className="font-body text-[14px] font-medium leading-snug text-vyva-text-2 [overflow-wrap:anywhere] flex-1">
                     {t(`home.todayForYou.cards.${card.id}.text`)}
                   </p>
 
