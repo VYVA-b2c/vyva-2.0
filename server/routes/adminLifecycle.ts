@@ -463,6 +463,121 @@ async function searchSupabaseAuthAccounts(query: string): Promise<SupabaseAuthAc
   }
 }
 
+function normalizedEmail(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim().toLowerCase();
+  return trimmed.includes("@") ? trimmed : null;
+}
+
+async function syncSubscriptionForEmail(input: {
+  email: string | null;
+  seedProfileId: string;
+  profilePatch: Partial<typeof profiles.$inferInsert>;
+}) {
+  const profileIds = new Set<string>([input.seedProfileId]);
+  const email = normalizedEmail(input.email);
+  if (!email) return Array.from(profileIds);
+
+  const profileRows = await db
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(sql`lower(coalesce(${profiles.email}, '')) = ${email}`);
+
+  let accountRows: Array<Pick<typeof users.$inferSelect, "id" | "active_profile_id">> = [];
+  try {
+    accountRows = await db
+      .select({ id: users.id, active_profile_id: users.active_profile_id })
+      .from(users)
+      .where(sql`lower(coalesce(${users.email}, '')) = ${email}`);
+  } catch (error) {
+    if (!isMissingRelationError(error)) throw error;
+  }
+
+  const supabaseRows = await searchSupabaseAuthAccounts(email);
+
+  for (const row of profileRows) profileIds.add(row.id);
+  for (const row of accountRows) {
+    profileIds.add(row.id);
+    if (row.active_profile_id) profileIds.add(row.active_profile_id);
+  }
+  for (const row of supabaseRows) {
+    if (normalizedEmail(row.email) === email) profileIds.add(row.id);
+  }
+
+  const accountIds = accountRows.map((account) => account.id);
+  if (accountIds.length) {
+    try {
+      const membershipRows = await db
+        .select({ profile_id: profileMemberships.profile_id })
+        .from(profileMemberships)
+        .where(and(
+          inArray(profileMemberships.user_id, accountIds),
+          eq(profileMemberships.status, "active"),
+        ));
+      for (const row of membershipRows) profileIds.add(row.profile_id);
+    } catch (error) {
+      if (!isMissingRelationError(error)) throw error;
+    }
+  }
+
+  const ids = Array.from(profileIds);
+  if (ids.length > 0) {
+    await db
+      .update(profiles)
+      .set(input.profilePatch)
+      .where(inArray(profiles.id, ids));
+
+    const existingRows = await db
+      .select({ id: profiles.id })
+      .from(profiles)
+      .where(inArray(profiles.id, ids));
+    const existingIds = new Set(existingRows.map((row) => row.id));
+    const missingIds = ids.filter((id) => !existingIds.has(id));
+
+    for (const id of missingIds) {
+      await db
+        .insert(profiles)
+        .values({
+          id,
+          email,
+          ...input.profilePatch,
+        })
+        .onConflictDoUpdate({
+          target: profiles.id,
+          set: input.profilePatch,
+        });
+    }
+  }
+
+  return ids;
+}
+
+async function syncIntakeTiersForProfiles(profileIds: string[], email: string | null, subscriptionTier: string) {
+  const uniqueProfileIds = Array.from(new Set(profileIds)).filter(Boolean);
+  try {
+    for (const profileId of uniqueProfileIds) {
+      await db
+        .update(userIntakes)
+        .set({ tier: subscriptionTier, updated_at: new Date() })
+        .where(sql`
+          ${userIntakes.user_id} = ${profileId}
+          or ${userIntakes.elder_user_id} = ${profileId}
+          or ${userIntakes.family_user_id} = ${profileId}
+        `);
+    }
+
+    const normalized = normalizedEmail(email);
+    if (normalized) {
+      await db
+        .update(userIntakes)
+        .set({ tier: subscriptionTier, updated_at: new Date() })
+        .where(sql`lower(coalesce(${userIntakes.email}, '')) = ${normalized}`);
+    }
+  } catch (error) {
+    if (!isMissingRelationError(error)) throw error;
+  }
+}
+
 async function recordEvent(input: {
   intakeId?: string | null;
   userId?: string | null;
@@ -988,6 +1103,13 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
 
   if (!profile) return res.status(404).json({ error: "Profile not found" });
 
+  const subscriptionEmail = normalizedEmail(parsed.data.account_email) ?? normalizedEmail(profile.email);
+  const syncedProfileIds = await syncSubscriptionForEmail({
+    email: subscriptionEmail,
+    seedProfileId: profile.id,
+    profilePatch,
+  });
+
   let syncedAccountId: string | null = null;
   if (parsed.data.account_id) {
     if (parsed.data.account_source === "supabase") {
@@ -1036,18 +1158,7 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
     }
   }
 
-  try {
-    await db
-      .update(userIntakes)
-      .set({ tier: subscriptionTier, updated_at: new Date() })
-      .where(sql`
-        ${userIntakes.user_id} = ${profile.id}
-        or ${userIntakes.elder_user_id} = ${profile.id}
-        or ${userIntakes.family_user_id} = ${profile.id}
-      `);
-  } catch (error) {
-    if (!isMissingRelationError(error)) throw error;
-  }
+  await syncIntakeTiersForProfiles(syncedProfileIds, subscriptionEmail, subscriptionTier);
 
   try {
     await recordEvent({
@@ -1058,6 +1169,8 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
       metadata: {
         subscription_tier: subscriptionTier,
         subscription_status: parsed.data.subscription_status,
+        account_email: subscriptionEmail,
+        synced_profile_ids: syncedProfileIds,
       },
     });
   } catch (error) {
@@ -1080,6 +1193,7 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
       account_status: profile.account_status,
       profile_role: profile.role,
       updated_at: profile.updated_at,
+      synced_profile_ids: syncedProfileIds,
     },
   });
 });
