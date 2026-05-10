@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Check, Loader2, MousePointer2, Play, Route, Smile, Sparkles, Square, Timer, Zap } from "lucide-react";
+import { ArrowLeft, Loader2, MousePointer2, Play, Route, Smile, Sparkles, Square, Timer, Zap } from "lucide-react";
 import { useLanguage } from "@/i18n";
 import vyvaLogo from "@/assets/vyva-logo.png";
 import { supabase } from "../lib/supabaseClient";
+import BrainGameResultActions from "./shared/BrainGameResultActions";
 import { normalizeGameLanguage } from "./shared/language";
 
 const BRAND = {
@@ -330,10 +331,12 @@ export default function NumberTrails({ userId, onExit }) {
     start: t("common.start"),
     skip: t("common.skip"),
     exit: t("common.exit"),
-    finish: t("common.finish"),
-    playAgain: t("common.playAgain"),
     nextLevel: t("common.nextLevel"),
     level: t("common.level"),
+    continueAction: t("brainGames.resultActions.continue"),
+    continueToLevel: t("brainGames.resultActions.continueToLevel"),
+    playAgain: t("brainGames.resultActions.playAgain"),
+    playAnotherGame: t("brainGames.resultActions.playAnotherGame"),
   }), [t]);
 
   const [screen, setScreen] = useState("loading");
@@ -1091,8 +1094,15 @@ export default function NumberTrails({ userId, onExit }) {
   const resultIsGood = score >= 600;
   const completionSeconds = wholeSeconds(result?.completion_time_ms);
   const fasterThanPar = result?.completion_time_ms && result.completion_time_ms <= result.par_time_ms;
-  const nextTier = clamp(Number(resultState.current_tier ?? currentTier) + 1, 1, 10);
+  const completedTier = currentTier;
+  const resultTier = Number(resultState.current_tier ?? completedTier);
+  const resultWasPromoted = resultTier > completedTier;
+  const continueLabel = resultWasPromoted
+    ? text.continueToLevel.replace("{level}", String(resultTier))
+    : text.continueAction;
+  const nextTier = clamp(resultTier + 1, 1, 10);
   const promotionProgress = clamp(Number(resultState.consecutive_wins ?? 0) / 3, 0, 1);
+  const replayState = { ...resultState, current_tier: completedTier };
 
   return (
     <main className="min-h-screen px-5 pb-8 pt-5" style={{ background: BRAND.bg }}>
@@ -1156,28 +1166,16 @@ export default function NumberTrails({ userId, onExit }) {
             </div>
           </div>
 
-          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={() => loadGame(resultState)}
-              disabled={savingResult}
-              className="flex min-h-[72px] items-center justify-center gap-3 rounded-full border-2 bg-white px-5 text-[22px] font-extrabold shadow-vyva-card disabled:opacity-60"
-              style={{ borderColor: BRAND.border, color: BRAND.purple }}
-            >
-              <Route size={28} />
-              {text.playAgain}
-            </button>
-            <button
-              type="button"
-              onClick={handleExit}
-              disabled={savingResult}
-              className="flex min-h-[72px] items-center justify-center gap-3 rounded-full px-5 text-[22px] font-extrabold text-white shadow-vyva-hero disabled:opacity-60"
-              style={{ background: BRAND.purple }}
-            >
-              <Check size={28} />
-              {text.finish}
-            </button>
-          </div>
+          <BrainGameResultActions
+            className="mt-6"
+            continueLabel={continueLabel}
+            replayLabel={text.playAgain}
+            anotherLabel={text.playAnotherGame}
+            onContinue={() => loadGame(resultState)}
+            onReplay={() => loadGame(replayState)}
+            onAnother={handleExit}
+            disabled={savingResult}
+          />
         </section>
       </div>
 

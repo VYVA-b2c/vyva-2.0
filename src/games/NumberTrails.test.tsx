@@ -30,7 +30,11 @@ describe("NumberTrails", () => {
 
     expect(await screen.findByText("¡Qué rapidez mental!")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Terminar" }));
+    expect(screen.getByRole("button", { name: "Continuar" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Volver a jugar" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Terminar" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Jugar otro juego" }));
     expect(onExit).toHaveBeenCalledTimes(1);
   });
 });
