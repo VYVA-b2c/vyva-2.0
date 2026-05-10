@@ -763,13 +763,13 @@ const HealthScreen = () => {
               className="vyva-card overflow-hidden"
               style={{ background: "#FFFFFF", border: "1px solid #EDE5DB", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" }}
             >
-              <div className="flex items-center gap-3 px-[18px] py-[16px]">
-                <div className="w-[48px] h-[48px] rounded-[14px] flex items-center justify-center flex-shrink-0" style={{ background: "#F0FDF4" }}>
-                  <Stethoscope size={24} style={{ color: "#0A7C4E" }} />
+              <div className="flex items-center gap-4 px-[18px] py-[18px]">
+                <div className="w-[58px] h-[58px] rounded-[20px] flex items-center justify-center flex-shrink-0" style={{ background: "#F0FDF4" }}>
+                  <Stethoscope size={30} style={{ color: "#0A7C4E" }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-body text-[17px] font-semibold leading-snug text-vyva-text-1">{t("health.seeDoctor.title", "See a Doctor")}</p>
-                  <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">{t("health.seeDoctor.subtitle", "Video or phone in minutes")}</p>
+                  <p className="font-body text-[21px] font-extrabold leading-tight text-vyva-text-1">{t("health.seeDoctor.title", "See a Doctor")}</p>
+                  <p className="mt-2 font-body text-[14px] font-medium leading-snug text-vyva-text-2">{t("health.seeDoctor.subtitle", "Video or phone in minutes")}</p>
                 </div>
                 <button
                   data-testid="button-see-doctor"
@@ -806,13 +806,13 @@ const HealthScreen = () => {
               className="vyva-card overflow-hidden"
               style={{ background: "#FFFFFF", border: "1px solid #EDE5DB", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" }}
             >
-              <div className="flex items-center gap-3 px-[18px] py-[16px]">
-                <div className="w-[48px] h-[48px] rounded-[14px] flex items-center justify-center flex-shrink-0" style={{ background: "#FFFBEB" }}>
-                  <Camera size={24} style={{ color: "#C9890A" }} />
+              <div className="flex items-center gap-4 px-[18px] py-[18px]">
+                <div className="w-[58px] h-[58px] rounded-[20px] flex items-center justify-center flex-shrink-0" style={{ background: "#FFFBEB" }}>
+                  <Camera size={30} style={{ color: "#C9890A" }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-body text-[17px] font-semibold leading-snug text-vyva-text-1">{t("health.scanWound.title", "Scan My Wound")}</p>
-                  <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">{t("health.scanWound.subtitle", "Take or upload a photo for AI analysis")}</p>
+                  <p className="font-body text-[21px] font-extrabold leading-tight text-vyva-text-1">{t("health.scanWound.title", "Scan My Wound")}</p>
+                  <p className="mt-2 font-body text-[14px] font-medium leading-snug text-vyva-text-2">{t("health.scanWound.subtitle", "Take or upload a photo for AI analysis")}</p>
                 </div>
                 <button
                   data-testid="button-scan-wound"
@@ -996,13 +996,13 @@ const HealthScreen = () => {
               className="vyva-card overflow-hidden"
               style={{ background: "#FFFFFF", border: "1px solid #EDE5DB", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" }}
             >
-              <div className="flex items-center gap-3 px-[18px] py-[16px]">
-                <div className="w-[48px] h-[48px] rounded-[14px] flex items-center justify-center flex-shrink-0" style={{ background: "#F5F3FF" }}>
-                  <UserSearch size={24} style={{ color: "#7C3AED" }} />
+              <div className="flex items-center gap-4 px-[18px] py-[18px]">
+                <div className="w-[58px] h-[58px] rounded-[20px] flex items-center justify-center flex-shrink-0" style={{ background: "#F5F3FF" }}>
+                  <UserSearch size={30} style={{ color: "#7C3AED" }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-body text-[17px] font-semibold leading-snug text-vyva-text-1">{t("health.findSpecialist.title", "Find a Specialist")}</p>
-                  <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">{t("health.findSpecialist.subtitle", "Connect with the right expert")}</p>
+                  <p className="font-body text-[21px] font-extrabold leading-tight text-vyva-text-1">{t("health.findSpecialist.title", "Find a Specialist")}</p>
+                  <p className="mt-2 font-body text-[14px] font-medium leading-snug text-vyva-text-2">{t("health.findSpecialist.subtitle", "Connect with the right expert")}</p>
                 </div>
                 <button
                   data-testid="button-find-specialist"
