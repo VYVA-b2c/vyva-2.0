@@ -173,6 +173,7 @@ const profileUpdateSchema = z.object({
   subscription_tier: z.string().optional(),
   organization_id: z.string().uuid().optional().nullable(),
   tier: z.string().optional(),
+  sync_profile_ids: z.array(z.string().uuid()).optional().default([]),
 });
 
 const scheduledEventAdminSchema = z.object({
@@ -1650,7 +1651,15 @@ adminLifecycleRouter.patch("/users/:id/profile", async (req: Request, res: Respo
 
   let syncedProfileIds: string[] = [userId];
   if (profilePatch.subscription_tier) {
+    const subscriptionPatch: Partial<typeof profiles.$inferInsert> = {
+      subscription_tier: profilePatch.subscription_tier,
+      subscription_status: "active",
+      updated_at: new Date(),
+    };
     const profileIds = new Set<string>([userId]);
+    for (const profileId of data.sync_profile_ids ?? []) {
+      profileIds.add(profileId);
+    }
     for (const accountMapping of mapping.mappings) {
       if (accountMapping.effective_profile_id) profileIds.add(accountMapping.effective_profile_id);
       await repairLegacyAccountWithoutActiveProfile(accountMapping, userId);
@@ -1660,14 +1669,14 @@ adminLifecycleRouter.patch("/users/:id/profile", async (req: Request, res: Respo
       for (const profileId of await syncSubscriptionForEmail({
         email: nextEmail,
         seedProfileId: userId,
-        profilePatch,
+        profilePatch: subscriptionPatch,
       })) profileIds.add(profileId);
       await syncIntakeTiersForProfiles(Array.from(profileIds), nextEmail, profilePatch.subscription_tier);
     } else {
       for (const profileId of await syncSubscriptionForPhone({
         phone: nextPhone,
         seedProfileId: userId,
-        profilePatch,
+        profilePatch: subscriptionPatch,
       })) profileIds.add(profileId);
       await syncIntakeTiersForPhone(Array.from(profileIds), nextPhone, profilePatch.subscription_tier);
     }
@@ -1675,7 +1684,7 @@ adminLifecycleRouter.patch("/users/:id/profile", async (req: Request, res: Respo
     if (profileIds.size > 0) {
       await db
         .update(profiles)
-        .set(profilePatch)
+        .set(subscriptionPatch)
         .where(inArray(profiles.id, Array.from(profileIds)));
     }
     syncedProfileIds = Array.from(profileIds);

@@ -565,6 +565,9 @@ export default function LifecycleAdminPage() {
       method: "PATCH",
       body: JSON.stringify({
         ...selectedDraft,
+        sync_profile_ids: (selectedUser.account_mappings ?? [])
+          .map((mapping) => mapping.effective_profile_id)
+          .filter(Boolean),
         organization_id: selectedDraft.organization_id || null,
       }),
     });
