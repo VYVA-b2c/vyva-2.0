@@ -1127,6 +1127,10 @@ function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, 
   onEventTime: (event: ScheduledEvent, scheduledFor: string) => void;
 }) {
   const disabled = detail.profile?.account_status === "disabled" || detail.intake.account_status === "disabled";
+  const primaryMapping = detail.account_mappings?.[0];
+  const selectedTier = String(draft.tier ?? "free").toLowerCase();
+  const appTier = primaryMapping?.effective_subscription_tier?.toLowerCase() ?? null;
+  const hasTierMismatch = Boolean(appTier && selectedTier && appTier !== selectedTier);
   return (
     <div className="fixed inset-0 z-50 overflow-auto bg-black/30 p-4">
       <div className="mx-auto max-w-5xl rounded-[2rem] bg-white p-6 shadow-2xl">
@@ -1179,10 +1183,17 @@ function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, 
                 <Field label="Caregiver contact"><input className="w-full rounded-2xl border px-4 py-3" value={draft.caregiver_contact ?? ""} onChange={(e) => setDraft({ ...draft, caregiver_contact: e.target.value })} /></Field>
               </div>
               <div className="grid gap-3 md:grid-cols-3">
-                <Field label="Tier"><select className="w-full rounded-2xl border px-4 py-3" value={draft.tier ?? "free"} onChange={(e) => setDraft({ ...draft, tier: e.target.value })}>{planOptions.map((plan) => <option key={plan.value} value={plan.value}>{plan.label}</option>)}</select></Field>
+                <Field label="Admin tier"><select className="w-full rounded-2xl border px-4 py-3" value={draft.tier ?? "free"} onChange={(e) => setDraft({ ...draft, tier: e.target.value })}>{planOptions.map((plan) => <option key={plan.value} value={plan.value}>{plan.label}</option>)}</select></Field>
                 <Field label="Language"><select className="w-full rounded-2xl border px-4 py-3" value={draft.language ?? "es"} onChange={(e) => setDraft({ ...draft, language: e.target.value })}>{languageOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
                 <Field label="Organization"><select className="w-full rounded-2xl border px-4 py-3" value={draft.organization_id ?? ""} onChange={(e) => setDraft({ ...draft, organization_id: e.target.value })}><option value="">None</option>{organizations.filter((org) => org.is_active).map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}</select></Field>
               </div>
+              {primaryMapping && (
+                <p className={`rounded-2xl px-4 py-3 text-sm font-bold ${hasTierMismatch ? "bg-[#fff3e8] text-[#8a4a00]" : "bg-[#ecfdf3] text-[#087443]"}`}>
+                  App access is currently {primaryMapping.effective_subscription_tier ?? "unknown"}
+                  {primaryMapping.effective_subscription_status ? ` (${primaryMapping.effective_subscription_status})` : ""}.
+                  {hasTierMismatch ? " Save changes to sync the selected Admin tier to the user's login profile." : " Admin and app access are aligned."}
+                </p>
+              )}
               <div className="flex flex-wrap gap-2"><button className="rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white" onClick={onSave}>Save changes</button><button className="rounded-2xl border px-5 py-3 font-bold" onClick={onToggle}>{disabled ? "Enable user" : "Disable user"}</button></div>
             </div>
           </section>
