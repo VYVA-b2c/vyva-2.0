@@ -4,16 +4,16 @@ import { useLanguage } from "@/i18n";
 
 const executiveGames = [
   {
-    key: "categorySort",
-    route: "/executive-function/category-sort",
-    Icon: GitBranch,
-    colors: { accent: "#6B21A8", bg: "#F5EEFF", border: "#D8C7F3" },
-  },
-  {
     key: "numberTrails",
     route: "/executive-function/number-trails",
     Icon: RouteIcon,
     colors: { accent: "#B45309", bg: "#FEF3C7", border: "#F8D37A" },
+  },
+  {
+    key: "categorySort",
+    route: "/executive-function/category-sort",
+    Icon: GitBranch,
+    colors: { accent: "#6B21A8", bg: "#F5EEFF", border: "#D8C7F3" },
   },
 ] as const;
 
