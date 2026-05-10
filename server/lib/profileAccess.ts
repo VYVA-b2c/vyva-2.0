@@ -27,18 +27,25 @@ export async function getActiveProfileContext(accountUserId: string): Promise<Ac
   }
 
   if (account.active_profile_id) {
-    const [activeMembership] = await db
-      .select({ role: profileMemberships.role })
-      .from(profileMemberships)
-      .where(and(
-        eq(profileMemberships.user_id, accountUserId),
-        eq(profileMemberships.profile_id, account.active_profile_id),
-        eq(profileMemberships.status, "active"),
-      ))
-      .limit(1);
+    const [[activeProfile], [activeMembership]] = await Promise.all([
+      db
+        .select({ id: profiles.id })
+        .from(profiles)
+        .where(eq(profiles.id, account.active_profile_id))
+        .limit(1),
+      db
+        .select({ role: profileMemberships.role })
+        .from(profileMemberships)
+        .where(and(
+          eq(profileMemberships.user_id, accountUserId),
+          eq(profileMemberships.profile_id, account.active_profile_id),
+          eq(profileMemberships.status, "active"),
+        ))
+        .limit(1),
+    ]);
 
-    if (activeMembership) {
-      return { accountUserId, profileId: account.active_profile_id, role: activeMembership.role };
+    if (activeProfile) {
+      return { accountUserId, profileId: activeProfile.id, role: activeMembership?.role ?? null };
     }
   }
 
