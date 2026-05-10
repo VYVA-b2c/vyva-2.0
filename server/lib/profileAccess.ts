@@ -10,23 +10,26 @@ export type ActiveProfileContext = {
 };
 
 export async function getActiveProfileContext(accountUserId: string): Promise<ActiveProfileContext> {
-  const [account] = await db
-    .select({ active_profile_id: users.active_profile_id })
-    .from(users)
-    .where(eq(users.id, accountUserId))
-    .limit(1);
-
   const [directProfile] = await db
     .select({ id: profiles.id })
     .from(profiles)
     .where(eq(profiles.id, accountUserId))
     .limit(1);
 
-  if (!account) {
-    return { accountUserId, profileId: directProfile?.id ?? null, role: null };
+  let account: { active_profile_id: string | null } | null = null;
+  try {
+    const [accountRow] = await db
+      .select({ active_profile_id: users.active_profile_id })
+      .from(users)
+      .where(eq(users.id, accountUserId))
+      .limit(1);
+    account = accountRow ?? null;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (!message.includes("does not exist")) throw err;
   }
 
-  if (account.active_profile_id) {
+  if (account?.active_profile_id) {
     const [[activeProfile], [activeMembership]] = await Promise.all([
       db
         .select({ id: profiles.id })
@@ -60,10 +63,12 @@ export async function getActiveProfileContext(accountUserId: string): Promise<Ac
     .limit(1);
 
   if (membership) {
-    await db
-      .update(users)
-      .set({ active_profile_id: membership.profile_id })
-      .where(eq(users.id, accountUserId));
+    if (account) {
+      await db
+        .update(users)
+        .set({ active_profile_id: membership.profile_id })
+        .where(eq(users.id, accountUserId));
+    }
     return { accountUserId, profileId: membership.profile_id, role: membership.role };
   }
 
@@ -80,10 +85,12 @@ export async function getActiveProfileContext(accountUserId: string): Promise<Ac
       })
       .onConflictDoNothing();
 
-    await db
-      .update(users)
-      .set({ active_profile_id: directProfile.id })
-      .where(eq(users.id, accountUserId));
+    if (account) {
+      await db
+        .update(users)
+        .set({ active_profile_id: directProfile.id })
+        .where(eq(users.id, accountUserId));
+    }
 
     return { accountUserId, profileId: directProfile.id, role: "elder" };
   }

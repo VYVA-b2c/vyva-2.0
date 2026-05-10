@@ -86,9 +86,32 @@ function stringValue(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
+type LoginMapping = {
+  source: "legacy" | "supabase";
+  login_uid: string;
+  login_email?: string | null;
+  login_phone?: string | null;
+  match_field?: "email" | "phone" | null;
+  active_profile_id?: string | null;
+  effective_profile_id?: string | null;
+  effective_profile_email?: string | null;
+  effective_profile_phone?: string | null;
+  effective_subscription_tier?: string | null;
+  effective_subscription_status?: string | null;
+  lifecycle_profile_id?: string | null;
+  lifecycle_profile_email?: string | null;
+  lifecycle_subscription_tier?: string | null;
+  lifecycle_subscription_status?: string | null;
+  warnings?: string[];
+};
+
 type UserDetail = {
   intake: Intake;
   profile: JsonRecord | null;
+  account_mappings?: LoginMapping[];
+  account_mapping_warnings?: string[];
+  account_match_field?: "email" | "phone" | null;
+  synced_profile_ids?: string[];
   communications: Communication[];
   lifecycle_events: JsonRecord[];
   consent_attempts: ConsentAttempt[];
@@ -518,13 +541,14 @@ export default function LifecycleAdminPage() {
   async function openUserDetail(intake: Intake) {
     const data = await api(`/users/${intake.id}/details`);
     const profileTier = stringValue(data.profile?.subscription_tier);
+    const primaryMapping = Array.isArray(data.account_mappings) ? data.account_mappings[0] as LoginMapping | undefined : undefined;
     setSelectedUser(data);
     setSelectedDraft({
       full_name: data.profile?.full_name ?? intake.name,
       preferred_name: data.profile?.preferred_name ?? "",
       date_of_birth: data.profile?.date_of_birth ?? "",
-      email: data.profile?.email ?? intake.email ?? "",
-      phone_number: data.profile?.phone_number ?? intake.phone,
+      email: data.profile?.email ?? intake.email ?? primaryMapping?.login_email ?? "",
+      phone_number: data.profile?.phone_number ?? intake.phone ?? primaryMapping?.login_phone ?? "",
       whatsapp_number: data.profile?.whatsapp_number ?? "",
       language: data.profile?.language ?? "es",
       timezone: data.profile?.timezone ?? "Europe/Madrid",
@@ -544,8 +568,17 @@ export default function LifecycleAdminPage() {
         organization_id: selectedDraft.organization_id || null,
       }),
     });
-    setMessage("User details saved.");
-    setSelectedUser({ ...selectedUser, intake: data.intake, profile: data.profile });
+    const syncedCount = Array.isArray(data.synced_profile_ids) ? data.synced_profile_ids.length : 1;
+    setMessage(`User details saved${syncedCount > 1 ? ` across ${syncedCount} linked profiles` : ""}.`);
+    setSelectedUser({
+      ...selectedUser,
+      intake: data.intake,
+      profile: data.profile,
+      account_mappings: data.account_mappings ?? selectedUser.account_mappings,
+      account_mapping_warnings: data.account_mapping_warnings ?? selectedUser.account_mapping_warnings,
+      account_match_field: data.account_match_field ?? selectedUser.account_match_field,
+      synced_profile_ids: data.synced_profile_ids ?? selectedUser.synced_profile_ids,
+    });
     await refresh();
   }
 
@@ -1101,6 +1134,35 @@ function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, 
         <div className="mt-5 grid gap-5 lg:grid-cols-2">
           <section className="rounded-3xl border p-4">
             <h3 className="text-xl font-black">Profile and access</h3>
+            <div className="mt-3 rounded-2xl border border-[#eadfd5] bg-[#fbf8f5] p-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-bold text-[#20112a]">Login mapping</p>
+                <span className="rounded-full bg-[#f4eafe] px-3 py-1 text-xs font-black uppercase tracking-[0.08em] text-purple-700">
+                  {detail.account_match_field ? `Matched by ${detail.account_match_field}` : "No match"}
+                </span>
+              </div>
+              {(detail.account_mapping_warnings ?? []).map((warning) => (
+                <p key={warning} className="mt-2 rounded-xl bg-[#fff3e8] px-3 py-2 text-sm font-bold text-[#8a4a00]">{warning}</p>
+              ))}
+              {(detail.account_mappings ?? []).length === 0 ? (
+                <p className="mt-2 text-sm text-[#7d6b65]">No login account is linked to this intake yet.</p>
+              ) : (
+                <div className="mt-3 grid gap-2">
+                  {(detail.account_mappings ?? []).map((mapping) => (
+                    <div key={`${mapping.source}:${mapping.login_uid}`} className="rounded-xl bg-white p-3 text-sm">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-purple-100 px-2 py-1 text-xs font-black text-purple-800">{mapping.source === "supabase" ? "Supabase login" : "Legacy login"}</span>
+                        <span className="font-mono text-xs text-[#6d596f]">{mapping.login_uid}</span>
+                      </div>
+                      <p className="mt-2 text-[#5f515d]"><span className="font-bold">Login:</span> {mapping.login_email || mapping.login_phone || "No email/phone"}</p>
+                      <p className="text-[#5f515d]"><span className="font-bold">App profile:</span> <span className="font-mono text-xs">{mapping.effective_profile_id ?? "None"}</span></p>
+                      <p className="text-[#5f515d]"><span className="font-bold">App tier:</span> {mapping.effective_subscription_tier ?? "None"} {mapping.effective_subscription_status ? `(${mapping.effective_subscription_status})` : ""}</p>
+                      <p className="text-[#5f515d]"><span className="font-bold">Admin profile:</span> <span className="font-mono text-xs">{mapping.lifecycle_profile_id ?? "None"}</span></p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <div className="mt-3 grid gap-3">
               <Field label="Full name"><input className="w-full rounded-2xl border px-4 py-3" value={draft.full_name ?? ""} onChange={(e) => setDraft({ ...draft, full_name: e.target.value })} /></Field>
               <Field label="Preferred name"><input className="w-full rounded-2xl border px-4 py-3" value={draft.preferred_name ?? ""} onChange={(e) => setDraft({ ...draft, preferred_name: e.target.value })} /></Field>

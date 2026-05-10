@@ -4,6 +4,7 @@ import { randomBytes, randomUUID } from "crypto";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, pool } from "../db.js";
+import { getActiveProfileContext } from "../lib/profileAccess.js";
 import {
   accessLinks,
   communicationsLog,
@@ -438,6 +439,27 @@ type SupabaseAuthAccount = {
   created_at: Date | null;
 };
 
+type AccountSource = "legacy" | "supabase";
+
+type LoginMapping = {
+  source: AccountSource;
+  login_uid: string;
+  login_email: string | null;
+  login_phone: string | null;
+  match_field: "email" | "phone" | null;
+  active_profile_id: string | null;
+  effective_profile_id: string | null;
+  effective_profile_email: string | null;
+  effective_profile_phone: string | null;
+  effective_subscription_tier: string | null;
+  effective_subscription_status: string | null;
+  lifecycle_profile_id: string | null;
+  lifecycle_profile_email: string | null;
+  lifecycle_subscription_tier: string | null;
+  lifecycle_subscription_status: string | null;
+  warnings: string[];
+};
+
 async function searchSupabaseAuthAccounts(query: string): Promise<SupabaseAuthAccount[]> {
   const like = `%${query}%`;
   try {
@@ -467,6 +489,184 @@ function normalizedEmail(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim().toLowerCase();
   return trimmed.includes("@") ? trimmed : null;
+}
+
+function normalizedPhoneOrNull(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = normalizePhone(value);
+  return normalized ? normalized : null;
+}
+
+function phoneDigits(value: string | null): string | null {
+  if (!value) return null;
+  const digits = value.replace(/\D/g, "");
+  return digits ? digits : null;
+}
+
+async function searchSupabaseAuthAccountsExact(input: { email?: string | null; phone?: string | null }): Promise<SupabaseAuthAccount[]> {
+  const email = normalizedEmail(input.email);
+  const phone = normalizedPhoneOrNull(input.phone);
+  const digits = phoneDigits(phone);
+  if (!email && !phone) return [];
+
+  try {
+    const result = email
+      ? await pool.query<{
+          id: string;
+          email: string | null;
+          phone_number: string | null;
+          created_at: Date | null;
+        }>(
+          `select id::text, email::text, phone::text as phone_number, created_at
+           from auth.users
+           where lower(coalesce(email, '')) = $1
+           order by created_at desc
+           limit 20`,
+          [email],
+        )
+      : await pool.query<{
+          id: string;
+          email: string | null;
+          phone_number: string | null;
+          created_at: Date | null;
+        }>(
+          `select id::text, email::text, phone::text as phone_number, created_at
+           from auth.users
+           where regexp_replace(coalesce(phone, ''), '[^0-9+]', '', 'g') = $1
+              or regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g') = $2
+           order by created_at desc
+           limit 20`,
+          [phone, digits],
+        );
+    return result.rows;
+  } catch (error) {
+    const maybeError = error as { code?: string; message?: string };
+    if (isMissingRelationError(error) || maybeError?.code === "42501") return [];
+    throw error;
+  }
+}
+
+async function searchLegacyAccountsExact(input: { email?: string | null; phone?: string | null }): Promise<Array<typeof users.$inferSelect>> {
+  const email = normalizedEmail(input.email);
+  const phone = normalizedPhoneOrNull(input.phone);
+  const digits = phoneDigits(phone);
+  if (!email && !phone) return [];
+
+  try {
+    return await db
+      .select()
+      .from(users)
+      .where(email
+        ? sql`lower(coalesce(${users.email}, '')) = ${email}`
+        : sql`
+            regexp_replace(coalesce(${users.phone_number}, ''), '[^0-9+]', '', 'g') = ${phone}
+            or regexp_replace(coalesce(${users.phone_number}, ''), '[^0-9]', '', 'g') = ${digits}
+          `)
+      .limit(20);
+  } catch (error) {
+    if (isMissingRelationError(error)) return [];
+    throw error;
+  }
+}
+
+async function profileById(profileId: string | null | undefined): Promise<typeof profiles.$inferSelect | null> {
+  if (!profileId) return null;
+  const [profile] = await db.select().from(profiles).where(eq(profiles.id, profileId)).limit(1);
+  return profile ?? null;
+}
+
+function buildMappingWarning(mapping: LoginMapping) {
+  if (!mapping.effective_profile_id) return "This login does not yet have an app profile.";
+  if (mapping.lifecycle_profile_id && mapping.lifecycle_profile_id !== mapping.effective_profile_id) {
+    return "Admin is editing a lifecycle profile, but the app reads a different active login profile.";
+  }
+  return null;
+}
+
+async function resolveLoginMappings(input: {
+  intake: typeof userIntakes.$inferSelect;
+  lifecycleProfile: typeof profiles.$inferSelect | null;
+  email?: string | null;
+  phone?: string | null;
+}): Promise<{ mappings: LoginMapping[]; warnings: string[]; match_field: "email" | "phone" | null }> {
+  const lifecycleProfileId = targetUserIdForIntake(input.intake);
+  const email = normalizedEmail(input.email)
+    ?? normalizedEmail(input.lifecycleProfile?.email)
+    ?? normalizedEmail(input.intake.email);
+  const phone = normalizedPhoneOrNull(input.phone)
+    ?? normalizedPhoneOrNull(input.lifecycleProfile?.phone_number)
+    ?? normalizedPhoneOrNull(input.intake.phone);
+  const matchField = email ? "email" : phone ? "phone" : null;
+
+  const [legacyAccounts, supabaseAccounts] = await Promise.all([
+    searchLegacyAccountsExact({ email, phone: email ? null : phone }),
+    searchSupabaseAuthAccountsExact({ email, phone: email ? null : phone }),
+  ]);
+
+  const mappings: LoginMapping[] = [];
+
+  for (const account of legacyAccounts) {
+    const context = await getActiveProfileContext(account.id);
+    const effectiveProfileId = context.profileId ?? account.active_profile_id ?? account.id;
+    const effectiveProfile = await profileById(effectiveProfileId);
+    const mapping: LoginMapping = {
+      source: "legacy",
+      login_uid: account.id,
+      login_email: account.email ?? null,
+      login_phone: account.phone_number ?? null,
+      match_field: matchField,
+      active_profile_id: account.active_profile_id ?? context.profileId ?? null,
+      effective_profile_id: effectiveProfileId,
+      effective_profile_email: effectiveProfile?.email ?? null,
+      effective_profile_phone: effectiveProfile?.phone_number ?? null,
+      effective_subscription_tier: effectiveProfile ? normalizeSubscriptionTier(effectiveProfile.subscription_tier) : null,
+      effective_subscription_status: effectiveProfile?.subscription_status ?? null,
+      lifecycle_profile_id: lifecycleProfileId,
+      lifecycle_profile_email: input.lifecycleProfile?.email ?? input.intake.email ?? null,
+      lifecycle_subscription_tier: input.lifecycleProfile ? normalizeSubscriptionTier(input.lifecycleProfile.subscription_tier) : input.intake.tier,
+      lifecycle_subscription_status: input.lifecycleProfile?.subscription_status ?? null,
+      warnings: [],
+    };
+    const warning = buildMappingWarning(mapping);
+    if (warning) mapping.warnings.push(warning);
+    mappings.push(mapping);
+  }
+
+  for (const account of supabaseAccounts) {
+    const context = await getActiveProfileContext(account.id);
+    const effectiveProfileId = context.profileId ?? account.id;
+    const effectiveProfile = await profileById(effectiveProfileId);
+    const mapping: LoginMapping = {
+      source: "supabase",
+      login_uid: account.id,
+      login_email: account.email ?? null,
+      login_phone: account.phone_number ?? null,
+      match_field: matchField,
+      active_profile_id: effectiveProfileId,
+      effective_profile_id: effectiveProfileId,
+      effective_profile_email: effectiveProfile?.email ?? account.email ?? null,
+      effective_profile_phone: effectiveProfile?.phone_number ?? account.phone_number ?? null,
+      effective_subscription_tier: effectiveProfile ? normalizeSubscriptionTier(effectiveProfile.subscription_tier) : null,
+      effective_subscription_status: effectiveProfile?.subscription_status ?? null,
+      lifecycle_profile_id: lifecycleProfileId,
+      lifecycle_profile_email: input.lifecycleProfile?.email ?? input.intake.email ?? null,
+      lifecycle_subscription_tier: input.lifecycleProfile ? normalizeSubscriptionTier(input.lifecycleProfile.subscription_tier) : input.intake.tier,
+      lifecycle_subscription_status: input.lifecycleProfile?.subscription_status ?? null,
+      warnings: [],
+    };
+    const warning = buildMappingWarning(mapping);
+    if (warning) mapping.warnings.push(warning);
+    mappings.push(mapping);
+  }
+
+  const warnings = Array.from(new Set(mappings.flatMap((mapping) => mapping.warnings)));
+  if (!mappings.length) {
+    warnings.push(matchField
+      ? `No login account matched this ${matchField}.`
+      : "No email or phone is available to match a login account.");
+  }
+
+  return { mappings, warnings, match_field: matchField };
 }
 
 async function syncSubscriptionForEmail(input: {
@@ -552,6 +752,84 @@ async function syncSubscriptionForEmail(input: {
   return ids;
 }
 
+async function syncSubscriptionForPhone(input: {
+  phone: string | null;
+  seedProfileId: string;
+  profilePatch: Partial<typeof profiles.$inferInsert>;
+}) {
+  const profileIds = new Set<string>([input.seedProfileId]);
+  const phone = normalizedPhoneOrNull(input.phone);
+  const digits = phoneDigits(phone);
+  if (!phone) return Array.from(profileIds);
+
+  const profileRows = await db
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(sql`
+      regexp_replace(coalesce(${profiles.phone_number}, ''), '[^0-9+]', '', 'g') = ${phone}
+      or regexp_replace(coalesce(${profiles.phone_number}, ''), '[^0-9]', '', 'g') = ${digits}
+      or regexp_replace(coalesce(${profiles.whatsapp_number}, ''), '[^0-9+]', '', 'g') = ${phone}
+      or regexp_replace(coalesce(${profiles.whatsapp_number}, ''), '[^0-9]', '', 'g') = ${digits}
+    `);
+
+  const accountRows = await searchLegacyAccountsExact({ phone });
+  const supabaseRows = await searchSupabaseAuthAccountsExact({ phone });
+
+  for (const row of profileRows) profileIds.add(row.id);
+  for (const row of accountRows) {
+    profileIds.add(row.id);
+    if (row.active_profile_id) profileIds.add(row.active_profile_id);
+  }
+  for (const row of supabaseRows) profileIds.add(row.id);
+
+  const accountIds = accountRows.map((account) => account.id);
+  if (accountIds.length) {
+    try {
+      const membershipRows = await db
+        .select({ profile_id: profileMemberships.profile_id })
+        .from(profileMemberships)
+        .where(and(
+          inArray(profileMemberships.user_id, accountIds),
+          eq(profileMemberships.status, "active"),
+        ));
+      for (const row of membershipRows) profileIds.add(row.profile_id);
+    } catch (error) {
+      if (!isMissingRelationError(error)) throw error;
+    }
+  }
+
+  const ids = Array.from(profileIds);
+  if (ids.length > 0) {
+    await db
+      .update(profiles)
+      .set(input.profilePatch)
+      .where(inArray(profiles.id, ids));
+
+    const existingRows = await db
+      .select({ id: profiles.id })
+      .from(profiles)
+      .where(inArray(profiles.id, ids));
+    const existingIds = new Set(existingRows.map((row) => row.id));
+    const missingIds = ids.filter((id) => !existingIds.has(id));
+
+    for (const id of missingIds) {
+      await db
+        .insert(profiles)
+        .values({
+          id,
+          phone_number: phone,
+          ...input.profilePatch,
+        })
+        .onConflictDoUpdate({
+          target: profiles.id,
+          set: input.profilePatch,
+        });
+    }
+  }
+
+  return ids;
+}
+
 async function syncIntakeTiersForProfiles(profileIds: string[], email: string | null, subscriptionTier: string) {
   const uniqueProfileIds = Array.from(new Set(profileIds)).filter(Boolean);
   try {
@@ -576,6 +854,65 @@ async function syncIntakeTiersForProfiles(profileIds: string[], email: string | 
   } catch (error) {
     if (!isMissingRelationError(error)) throw error;
   }
+}
+
+async function syncIntakeTiersForPhone(profileIds: string[], phone: string | null, subscriptionTier: string) {
+  const uniqueProfileIds = Array.from(new Set(profileIds)).filter(Boolean);
+  const normalized = normalizedPhoneOrNull(phone);
+  const digits = phoneDigits(normalized);
+  try {
+    for (const profileId of uniqueProfileIds) {
+      await db
+        .update(userIntakes)
+        .set({ tier: subscriptionTier, updated_at: new Date() })
+        .where(sql`
+          ${userIntakes.user_id} = ${profileId}
+          or ${userIntakes.elder_user_id} = ${profileId}
+          or ${userIntakes.family_user_id} = ${profileId}
+        `);
+    }
+
+    if (normalized) {
+      await db
+        .update(userIntakes)
+        .set({ tier: subscriptionTier, updated_at: new Date() })
+        .where(sql`
+          regexp_replace(coalesce(${userIntakes.phone}, ''), '[^0-9+]', '', 'g') = ${normalized}
+          or regexp_replace(coalesce(${userIntakes.phone}, ''), '[^0-9]', '', 'g') = ${digits}
+        `);
+    }
+  } catch (error) {
+    if (!isMissingRelationError(error)) throw error;
+  }
+}
+
+async function repairLegacyAccountWithoutActiveProfile(mapping: LoginMapping, profileId: string | null) {
+  if (mapping.source !== "legacy" || !profileId) return;
+
+  const [account] = await db
+    .select({ active_profile_id: users.active_profile_id })
+    .from(users)
+    .where(eq(users.id, mapping.login_uid))
+    .limit(1);
+
+  if (!account || account.active_profile_id) return;
+
+  await db
+    .insert(profileMemberships)
+    .values({
+      user_id: mapping.login_uid,
+      profile_id: profileId,
+      role: "elder",
+      relationship: "self",
+      is_primary: true,
+      accepted_at: new Date(),
+    })
+    .onConflictDoNothing();
+
+  await db
+    .update(users)
+    .set({ active_profile_id: profileId })
+    .where(eq(users.id, mapping.login_uid));
 }
 
 async function recordEvent(input: {
@@ -1111,12 +1448,14 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
   });
 
   let syncedAccountId: string | null = null;
+  let syncedActiveProfileId: string | null = null;
   if (parsed.data.account_id) {
     if (parsed.data.account_source === "supabase") {
       if (parsed.data.account_id !== profile.id) {
         return res.status(400).json({ error: "Supabase login must be updated through its own profile row." });
       }
       syncedAccountId = parsed.data.account_id;
+      syncedActiveProfileId = profile.id;
     } else {
     try {
       const [account] = await db
@@ -1148,10 +1487,6 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
       }
 
       await db
-        .update(users)
-        .set({ active_profile_id: profile.id })
-        .where(eq(users.id, account.id));
-      await db
         .insert(profileMemberships)
         .values({
           user_id: account.id,
@@ -1162,6 +1497,15 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
           accepted_at: new Date(),
         })
         .onConflictDoNothing();
+      if (!account.active_profile_id) {
+        await db
+          .update(users)
+          .set({ active_profile_id: profile.id })
+          .where(eq(users.id, account.id));
+        syncedActiveProfileId = profile.id;
+      } else {
+        syncedActiveProfileId = account.active_profile_id;
+      }
       syncedAccountId = account.id;
     } catch (error) {
       if (!isMissingRelationError(error)) throw error;
@@ -1192,8 +1536,8 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
     account: {
       account_id: syncedAccountId,
       account_source: parsed.data.account_source ?? null,
-      active_profile_id: syncedAccountId ? profile.id : null,
-      is_active_profile: Boolean(syncedAccountId),
+      active_profile_id: syncedActiveProfileId,
+      is_active_profile: syncedActiveProfileId === profile.id,
       profile_id: profile.id,
       profile_email: profile.email,
       full_name: profile.full_name,
@@ -1219,6 +1563,10 @@ adminLifecycleRouter.get("/users/:id/details", async (req: Request, res: Respons
   const [profile] = userId
     ? await db.select().from(profiles).where(eq(profiles.id, userId)).limit(1)
     : [];
+  const mapping = await resolveLoginMappings({
+    intake,
+    lifecycleProfile: profile ?? null,
+  });
   const [communicationRows, lifecycleRows, consentRows, scheduledRows] = await Promise.all([
     db.select().from(communicationsLog).where(eq(communicationsLog.intake_id, intake.id)).orderBy(desc(communicationsLog.created_at)).limit(100),
     db.select().from(lifecycleEvents).where(eq(lifecycleEvents.intake_id, intake.id)).orderBy(desc(lifecycleEvents.created_at)).limit(100),
@@ -1229,6 +1577,9 @@ adminLifecycleRouter.get("/users/:id/details", async (req: Request, res: Respons
   return res.json({
     intake,
     profile: profile ?? null,
+    account_mappings: mapping.mappings,
+    account_mapping_warnings: mapping.warnings,
+    account_match_field: mapping.match_field,
     communications: communicationRows,
     lifecycle_events: lifecycleRows,
     consent_attempts: consentRows,
@@ -1247,6 +1598,19 @@ adminLifecycleRouter.patch("/users/:id/profile", async (req: Request, res: Respo
   if (!userId) return res.status(400).json({ error: "This intake is not linked to a profile yet" });
 
   const data = parsed.data;
+  const [existingProfile] = await db
+    .select()
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
+  if (!existingProfile) return res.status(404).json({ error: "Linked profile not found" });
+
+  const nextEmail = data.email !== undefined
+    ? data.email || null
+    : existingProfile.email ?? intake.email ?? null;
+  const nextPhone = data.phone_number !== undefined
+    ? data.phone_number || null
+    : existingProfile.phone_number ?? intake.phone;
   const profilePatch: Partial<typeof profiles.$inferInsert> = { updated_at: new Date() };
   if (data.full_name !== undefined) profilePatch.full_name = data.full_name;
   if (data.preferred_name !== undefined) profilePatch.preferred_name = data.preferred_name || null;
@@ -1277,9 +1641,77 @@ adminLifecycleRouter.patch("/users/:id/profile", async (req: Request, res: Respo
   if (data.organization_id !== undefined) intakePatch.organization_id = data.organization_id ?? null;
 
   const [updatedIntake] = await db.update(userIntakes).set(intakePatch).where(eq(userIntakes.id, intake.id)).returning();
-  await recordEvent({ intakeId: intake.id, userId, eventType: "admin_profile_updated", channel: "admin" });
+  const mapping = await resolveLoginMappings({
+    intake: updatedIntake,
+    lifecycleProfile: profile ?? null,
+    email: nextEmail,
+    phone: nextPhone,
+  });
 
-  return res.json({ intake: updatedIntake, profile });
+  let syncedProfileIds: string[] = [userId];
+  if (profilePatch.subscription_tier) {
+    const profileIds = new Set<string>([userId]);
+    for (const accountMapping of mapping.mappings) {
+      if (accountMapping.effective_profile_id) profileIds.add(accountMapping.effective_profile_id);
+      await repairLegacyAccountWithoutActiveProfile(accountMapping, userId);
+    }
+
+    if (normalizedEmail(nextEmail)) {
+      for (const profileId of await syncSubscriptionForEmail({
+        email: nextEmail,
+        seedProfileId: userId,
+        profilePatch,
+      })) profileIds.add(profileId);
+      await syncIntakeTiersForProfiles(Array.from(profileIds), nextEmail, profilePatch.subscription_tier);
+    } else {
+      for (const profileId of await syncSubscriptionForPhone({
+        phone: nextPhone,
+        seedProfileId: userId,
+        profilePatch,
+      })) profileIds.add(profileId);
+      await syncIntakeTiersForPhone(Array.from(profileIds), nextPhone, profilePatch.subscription_tier);
+    }
+
+    if (profileIds.size > 0) {
+      await db
+        .update(profiles)
+        .set(profilePatch)
+        .where(inArray(profiles.id, Array.from(profileIds)));
+    }
+    syncedProfileIds = Array.from(profileIds);
+  }
+
+  const freshProfile = await profileById(userId);
+  const freshMapping = await resolveLoginMappings({
+    intake: updatedIntake,
+    lifecycleProfile: freshProfile,
+    email: nextEmail,
+    phone: nextPhone,
+  });
+
+  await recordEvent({
+    intakeId: intake.id,
+    userId,
+    eventType: "admin_profile_updated",
+    channel: "admin",
+    metadata: {
+      synced_profile_ids: syncedProfileIds,
+      account_mappings: freshMapping.mappings.map((item) => ({
+        source: item.source,
+        login_uid: item.login_uid,
+        effective_profile_id: item.effective_profile_id,
+      })),
+    },
+  });
+
+  return res.json({
+    intake: updatedIntake,
+    profile: freshProfile ?? profile,
+    account_mappings: freshMapping.mappings,
+    account_mapping_warnings: freshMapping.warnings,
+    account_match_field: freshMapping.match_field,
+    synced_profile_ids: syncedProfileIds,
+  });
 });
 
 adminLifecycleRouter.post("/users/:id/disable", async (req: Request, res: Response) => {
