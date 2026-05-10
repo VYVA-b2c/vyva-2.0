@@ -11,35 +11,29 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n";
 import { LANGUAGES, type LanguageCode } from "@/i18n/languages";
-import { detectBrowserLanguage, normalizeLanguageCode } from "@/i18n/detectLanguage";
+import { detectBrowserLanguage } from "@/i18n/detectLanguage";
 import { apiFetch, queryClient } from "@/lib/queryClient";
+import {
+  PHONE_COUNTRY_OPTIONS,
+  buildProfileIdentityPayload,
+  compressAvatarFile,
+  createEmptyIdentityForm,
+  formatPhoneLocal,
+  identityFromProfileResponse,
+  validateIdentityBasics,
+  type IdentityBasicsForm,
+  type ProfileIdentityResponse,
+} from "@/lib/profileIdentity";
 import { useToast } from "@/hooks/use-toast";
 
-type ProfileResponse = {
-  firstName: string;
-  lastName: string;
-  preferredName?: string;
-  dateOfBirth?: string;
+type ProfileResponse = ProfileIdentityResponse & {
   gender?: string;
-  email?: string;
-  phone?: string;
-  country?: string;
-  language?: string;
   timezone?: string;
-  avatarUrl: string | null;
 };
 
-type AccountForm = {
-  firstName: string;
-  lastName: string;
-  preferredName: string;
-  dateOfBirth: string;
+type AccountForm = IdentityBasicsForm & {
   gender: string;
-  phoneCountry: string;
-  phoneLocal: string;
   whatsapp: string;
-  email: string;
-  language: LanguageCode;
   timezone: string;
 };
 
@@ -161,17 +155,6 @@ const TIMEZONE_OPTIONS = [
   { value: "mexico_city", label: "Mexico - Mexico City (CST)", zone: "America/Mexico_City" },
 ];
 
-const PHONE_COUNTRY_OPTIONS = [
-  { value: "ES", dialCode: "+34", label: "ES" },
-  { value: "UK", dialCode: "+44", label: "UK" },
-  { value: "US", dialCode: "+1", label: "US" },
-  { value: "DE", dialCode: "+49", label: "DE" },
-  { value: "FR", dialCode: "+33", label: "FR" },
-  { value: "IT", dialCode: "+39", label: "IT" },
-  { value: "PT", dialCode: "+351", label: "PT" },
-  { value: "AE", dialCode: "+971", label: "AE" },
-];
-
 const COUNTRY_DEFAULTS: Record<string, { timezone: string }> = {
   ES: { timezone: "europe_central" },
   UK: { timezone: "london" },
@@ -219,87 +202,6 @@ function inferGenderFromName(firstName: string): "female" | "male" | null {
   return null;
 }
 
-function loadImageFromFile(file: File): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const objectUrl = URL.createObjectURL(file);
-    const image = new Image();
-    image.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      resolve(image);
-    };
-    image.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      reject(new Error("Could not read image"));
-    };
-    image.src = objectUrl;
-  });
-}
-
-async function compressAvatarFile(file: File): Promise<string> {
-  if (!file.type.startsWith("image/")) {
-    throw new Error("Selected file is not an image");
-  }
-
-  const image = await loadImageFromFile(file);
-  const attempts = [
-    { maxSize: 720, quality: 0.84 },
-    { maxSize: 560, quality: 0.78 },
-    { maxSize: 420, quality: 0.72 },
-  ];
-
-  let lastDataUrl = "";
-
-  for (const attempt of attempts) {
-    const scale = Math.min(1, attempt.maxSize / Math.max(image.width, image.height));
-    const width = Math.max(1, Math.round(image.width * scale));
-    const height = Math.max(1, Math.round(image.height * scale));
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("Could not prepare image");
-    ctx.drawImage(image, 0, 0, width, height);
-    lastDataUrl = canvas.toDataURL("image/jpeg", attempt.quality);
-
-    if (lastDataUrl.length <= 1_800_000) {
-      return lastDataUrl;
-    }
-  }
-
-  return lastDataUrl;
-}
-
-function splitPhoneNumber(phone: string | undefined, countryCode: string | undefined) {
-  const fallbackCountry = PHONE_COUNTRY_OPTIONS.find((option) => option.value === (countryCode || "ES"))?.value ?? "ES";
-  const rawPhone = (phone ?? "").trim();
-  if (!rawPhone) {
-    return { phoneCountry: fallbackCountry, phoneLocal: "" };
-  }
-
-  const matchedOption = PHONE_COUNTRY_OPTIONS.find((option) => rawPhone.startsWith(option.dialCode));
-  if (!matchedOption) {
-    return { phoneCountry: fallbackCountry, phoneLocal: rawPhone.replace(/[^\d\s-]/g, "").trim() };
-  }
-
-  return {
-    phoneCountry: matchedOption.value,
-    phoneLocal: rawPhone.slice(matchedOption.dialCode.length).trim(),
-  };
-}
-
-function buildPhoneNumber(phoneCountry: string, phoneLocal: string) {
-  const option = PHONE_COUNTRY_OPTIONS.find((entry) => entry.value === phoneCountry) ?? PHONE_COUNTRY_OPTIONS[0];
-  const cleanedLocal = phoneLocal.trim();
-  if (!cleanedLocal) return "";
-  return `${option.dialCode} ${cleanedLocal}`.trim();
-}
-
-function formatPhoneLocal(value: string) {
-  const digits = value.replace(/\D/g, "").slice(0, 15);
-  const groups = digits.match(/.{1,3}/g);
-  return groups ? groups.join(" ") : "";
-}
-
 function getTimezoneValue(zone: string | undefined) {
   return TIMEZONE_OPTIONS.find((option) => option.zone === zone)?.value ?? "europe_central";
 }
@@ -325,19 +227,12 @@ export default function AccountSettings() {
   const [timezoneTouched, setTimezoneTouched] = useState(false);
   const [genderTouched, setGenderTouched] = useState(false);
   const [genderWasInferred, setGenderWasInferred] = useState(false);
-  const [form, setForm] = useState<AccountForm>({
-    firstName: "",
-    lastName: "",
-    preferredName: "",
-    dateOfBirth: "",
+  const [form, setForm] = useState<AccountForm>(() => ({
+    ...createEmptyIdentityForm(language ?? browserLanguageRef.current),
     gender: "prefer_not",
-    phoneCountry: "ES",
-    phoneLocal: "",
     whatsapp: "",
-    email: "",
-    language: language ?? browserLanguageRef.current,
     timezone: "europe_central",
-  });
+  }));
   const [errors, setErrors] = useState<{ firstName?: string; lastName?: string; phone?: string }>({});
 
   const profileQuery = useQuery<ProfileResponse | null>({
@@ -346,22 +241,15 @@ export default function AccountSettings() {
 
   useEffect(() => {
     if (!profileQuery.data) return;
-    const phoneParts = splitPhoneNumber(profileQuery.data.phone, profileQuery.data.country as string | undefined);
-    const defaultForCountry = getDefaultsForCountry(phoneParts.phoneCountry);
+    const identity = identityFromProfileResponse(profileQuery.data, browserLanguageRef.current);
+    const defaultForCountry = getDefaultsForCountry(identity.phoneCountry);
     const profileGender = profileQuery.data.gender;
-    const inferredGender = inferGenderFromName(profileQuery.data.firstName ?? "");
+    const inferredGender = inferGenderFromName(identity.firstName);
     const shouldUseInferredGender = (!profileGender || profileGender === "prefer_not") && Boolean(inferredGender);
     setForm((current) => ({
       ...current,
-      firstName: profileQuery.data.firstName ?? "",
-      lastName: profileQuery.data.lastName ?? "",
-      preferredName: profileQuery.data.preferredName ?? "",
-      dateOfBirth: profileQuery.data.dateOfBirth ?? "",
+      ...identity,
       gender: shouldUseInferredGender ? inferredGender! : profileGender ?? "prefer_not",
-      phoneCountry: phoneParts.phoneCountry,
-      phoneLocal: formatPhoneLocal(phoneParts.phoneLocal),
-      email: profileQuery.data.email ?? "",
-      language: normalizeLanguageCode(profileQuery.data.language, current.language ?? browserLanguageRef.current),
       timezone: profileQuery.data.timezone ? getTimezoneValue(profileQuery.data.timezone) : defaultForCountry.timezone,
     }));
     setTimezoneTouched(Boolean(profileQuery.data.timezone));
@@ -454,10 +342,11 @@ export default function AccountSettings() {
   };
 
   const handleSave = async () => {
+    const validation = validateIdentityBasics(form, { requireLastName: true, requirePhone: true });
     const nextErrors: { firstName?: string; lastName?: string; phone?: string } = {};
-    if (!form.firstName.trim()) nextErrors.firstName = accountCopy.firstNameRequired;
-    if (!form.lastName.trim()) nextErrors.lastName = accountCopy.lastNameRequired;
-    if (!form.phoneLocal.trim()) nextErrors.phone = accountCopy.phoneRequired;
+    if (validation.firstName) nextErrors.firstName = accountCopy.firstNameRequired;
+    if (validation.lastName) nextErrors.lastName = accountCopy.lastNameRequired;
+    if (validation.phone) nextErrors.phone = accountCopy.phoneRequired;
     setErrors(nextErrors);
 
     if (Object.keys(nextErrors).length > 0) {
@@ -470,18 +359,12 @@ export default function AccountSettings() {
 
     setSaving(true);
     try {
+      const identityPayload = buildProfileIdentityPayload(form);
       const res = await apiFetch("/api/profile", {
         method: "POST",
         body: JSON.stringify({
-          firstName: form.firstName.trim(),
-          lastName: form.lastName.trim(),
-          preferredName: form.preferredName.trim(),
-          dateOfBirth: form.dateOfBirth,
+          ...identityPayload,
           gender: form.gender,
-          phone: buildPhoneNumber(form.phoneCountry, form.phoneLocal),
-          email: form.email.trim(),
-          language: form.language,
-          country: form.phoneCountry,
           timezone: getTimezoneZone(form.timezone),
         }),
       });
