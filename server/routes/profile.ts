@@ -200,6 +200,7 @@ function hasUsableMedication(med: typeof userMedications.$inferSelect): boolean 
 router.get("/readiness", async (req: Request, res: Response) => {
   const userId = await resolveUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  const accountUserId = req.user?.id ?? null;
 
   try {
     const [profileRows, medications] = await Promise.all([
@@ -266,6 +267,7 @@ router.get("/readiness", async (req: Request, res: Response) => {
 
     return res.json({
       profile: {
+        accountUserId,
         id: profile?.id ?? null,
         exists: !!profile,
         subscriptionTier: effectiveTier,
@@ -636,19 +638,37 @@ router.get("/export", async (req: Request, res: Response) => {
 router.get("/", async (req: Request, res: Response) => {
   const userId = await resolveUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  const accountUserId = req.user?.id ?? null;
 
   try {
-    const rows = await db
-      .select()
-      .from(profiles)
-      .where(eq(profiles.id, userId))
-      .limit(1);
+    const [rows, accountRows] = await Promise.all([
+      db
+        .select()
+        .from(profiles)
+        .where(eq(profiles.id, userId))
+        .limit(1),
+      accountUserId
+        ? db
+            .select({ email: users.email, phone_number: users.phone_number })
+            .from(users)
+            .where(eq(users.id, accountUserId))
+            .limit(1)
+            .catch((err) => {
+              const message = err instanceof Error ? err.message : String(err);
+              if (message.includes("does not exist")) return [];
+              throw err;
+            })
+        : Promise.resolve([]),
+    ]);
 
     if (!rows[0]) {
       return res.json(null);
     }
 
     const p = rows[0];
+    const accountEmail = typeof req.user?.email === "string"
+      ? req.user.email
+      : accountRows[0]?.email ?? null;
     const nameParts = (p.full_name ?? "").trim().split(/\s+/);
     const firstName = nameParts[0] ?? "";
     const lastName  = nameParts.slice(1).join(" ");
@@ -659,7 +679,10 @@ router.get("/", async (req: Request, res: Response) => {
       preferredName:    p.preferred_name ?? "",
       dateOfBirth:      p.date_of_birth ?? "",
       gender:           readProfileGender(p.data_sharing_consent),
-      email:            p.email ?? "",
+      email:            p.email ?? accountEmail ?? "",
+      accountEmail:     accountEmail ?? "",
+      accountUserId,
+      profileId:        p.id,
       phone:            p.phone_number ?? "",
       country:          p.country_code ?? "",
       timezone:         p.timezone ?? "",
