@@ -239,6 +239,7 @@ const adminRoleUpdateSchema = z.object({
 });
 
 const accountSubscriptionUpdateSchema = z.object({
+  account_id: z.string().optional().nullable(),
   subscription_tier: z.string().min(1).optional(),
   tier: z.string().min(1).optional(),
   subscription_status: z.string().min(1).optional().default("active"),
@@ -899,6 +900,47 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
 
   if (!profile) return res.status(404).json({ error: "Profile not found" });
 
+  let syncedAccountId: string | null = null;
+  if (parsed.data.account_id) {
+    try {
+      const [account] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, parsed.data.account_id))
+        .limit(1);
+
+      if (!account) {
+        return res.status(404).json({ error: "Login account not found" });
+      }
+
+      let isLinkedToAccount = account.id === profile.id || account.active_profile_id === profile.id;
+      if (!isLinkedToAccount) {
+        const [membership] = await db
+          .select({ id: profileMemberships.id })
+          .from(profileMemberships)
+          .where(and(
+            eq(profileMemberships.user_id, account.id),
+            eq(profileMemberships.profile_id, profile.id),
+            eq(profileMemberships.status, "active"),
+          ))
+          .limit(1);
+        isLinkedToAccount = Boolean(membership);
+      }
+
+      if (!isLinkedToAccount) {
+        return res.status(400).json({ error: "This profile is not linked to the selected login account." });
+      }
+
+      await db
+        .update(users)
+        .set({ active_profile_id: profile.id })
+        .where(eq(users.id, account.id));
+      syncedAccountId = account.id;
+    } catch (error) {
+      if (!isMissingRelationError(error)) throw error;
+    }
+  }
+
   try {
     await db
       .update(userIntakes)
@@ -929,6 +971,9 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
 
   return res.json({
     account: {
+      account_id: syncedAccountId,
+      active_profile_id: syncedAccountId ? profile.id : null,
+      is_active_profile: Boolean(syncedAccountId),
       profile_id: profile.id,
       profile_email: profile.email,
       full_name: profile.full_name,

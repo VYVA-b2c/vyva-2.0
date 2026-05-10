@@ -481,6 +481,7 @@ export default function LifecycleAdminPage() {
       const data = await api(`/account-subscriptions/${account.profile_id}`, {
         method: "PATCH",
         body: JSON.stringify({
+          account_id: account.account_id,
           subscription_tier: account.subscription_tier,
           subscription_status: account.subscription_status || "active",
         }),
@@ -488,10 +489,18 @@ export default function LifecycleAdminPage() {
       const updated = data.account as AccountSubscription;
       setAccountSubscriptions((current) => current.map((item) => (
         item.profile_id === account.profile_id
-          ? { ...item, ...updated, account_id: item.account_id, account_email: item.account_email, account_phone: item.account_phone, active_profile_id: item.active_profile_id }
+          ? {
+              ...item,
+              ...updated,
+              account_id: updated.account_id ?? item.account_id,
+              account_email: item.account_email,
+              account_phone: item.account_phone,
+              active_profile_id: updated.active_profile_id ?? item.active_profile_id,
+              is_active_profile: updated.is_active_profile ?? item.is_active_profile,
+            }
           : item
       )));
-      setAccountSearchMessage(`${account.profile_email ?? account.account_email ?? account.profile_id} updated to ${updated.subscription_tier}.`);
+      setAccountSearchMessage(`${account.profile_email ?? account.account_email ?? account.profile_id} updated to ${updated.subscription_tier}${account.account_id ? " and made active for that login" : ""}.`);
       await refresh();
     } catch (err) {
       setAccountSearchMessage(err instanceof Error ? err.message : "Could not update subscription.");
@@ -997,6 +1006,9 @@ function AccountSubscriptionsSection({
                     {account.is_active_profile && (
                       <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">Active profile</span>
                     )}
+                    {account.account_id && !account.is_active_profile && (
+                      <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800">Not active for login</span>
+                    )}
                     {account.account_status === "disabled" && (
                       <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700">Disabled</span>
                     )}
@@ -1006,6 +1018,9 @@ function AccountSubscriptionsSection({
                     <p><span className="font-bold text-[#4d4351]">Profile:</span> {account.profile_email || account.phone_number || account.profile_id}</p>
                     <p><span className="font-bold text-[#4d4351]">Profile ID:</span> <span className="font-mono text-xs">{account.profile_id}</span></p>
                     {account.membership_role && <p><span className="font-bold text-[#4d4351]">Relationship:</span> {account.membership_role}{account.membership_relationship ? ` - ${account.membership_relationship}` : ""}</p>}
+                    {account.account_id && !account.is_active_profile && (
+                      <p className="font-bold text-amber-800">Saving this row will make it the active profile for this login.</p>
+                    )}
                   </div>
                 </div>
 
