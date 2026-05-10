@@ -3,7 +3,7 @@ import type { Request, Response } from "express";
 import { randomBytes, randomUUID } from "crypto";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
-import { db } from "../db.js";
+import { db, pool } from "../db.js";
 import {
   accessLinks,
   communicationsLog,
@@ -240,6 +240,8 @@ const adminRoleUpdateSchema = z.object({
 
 const accountSubscriptionUpdateSchema = z.object({
   account_id: z.string().optional().nullable(),
+  account_source: z.enum(["legacy", "supabase"]).optional().nullable(),
+  account_email: z.string().email().optional().nullable().or(z.literal("")),
   subscription_tier: z.string().min(1).optional(),
   tier: z.string().min(1).optional(),
   subscription_status: z.string().min(1).optional().default("active"),
@@ -427,6 +429,38 @@ function publicBaseUrl(req: Request): string {
 function isMissingRelationError(error: unknown): boolean {
   const maybeError = error as { code?: string; message?: string };
   return maybeError?.code === "42P01" || String(maybeError?.message ?? error).includes("does not exist");
+}
+
+type SupabaseAuthAccount = {
+  id: string;
+  email: string | null;
+  phone_number: string | null;
+  created_at: Date | null;
+};
+
+async function searchSupabaseAuthAccounts(query: string): Promise<SupabaseAuthAccount[]> {
+  const like = `%${query}%`;
+  try {
+    const result = await pool.query<{
+      id: string;
+      email: string | null;
+      phone_number: string | null;
+      created_at: Date | null;
+    }>(
+      `select id::text, email::text, phone::text as phone_number, created_at
+       from auth.users
+       where lower(coalesce(email, '')) like $1
+          or coalesce(phone, '') like $1
+       order by created_at desc
+       limit 50`,
+      [like],
+    );
+    return result.rows;
+  } catch (error) {
+    const maybeError = error as { code?: string; message?: string };
+    if (isMissingRelationError(error) || maybeError?.code === "42501") return [];
+    throw error;
+  }
 }
 
 async function recordEvent(input: {
@@ -790,6 +824,7 @@ adminLifecycleRouter.get("/account-subscriptions", async (req: Request, res: Res
     if (!isMissingRelationError(error)) throw error;
   }
 
+  const supabaseAccountRows = await searchSupabaseAuthAccounts(query);
   const accountIds = accountRows.map((account) => account.id);
   let membershipRows: Array<typeof profileMemberships.$inferSelect> = [];
   if (accountIds.length) {
@@ -810,6 +845,7 @@ adminLifecycleRouter.get("/account-subscriptions", async (req: Request, res: Res
     ...directProfileRows.map((profile) => profile.id),
     ...accountRows.map((account) => account.active_profile_id).filter(Boolean),
     ...accountRows.map((account) => account.id),
+    ...supabaseAccountRows.map((account) => account.id),
     ...membershipRows.map((membership) => membership.profile_id),
   ])) as string[];
 
@@ -825,6 +861,12 @@ adminLifecycleRouter.get("/account-subscriptions", async (req: Request, res: Res
   }
 
   const rows = new Map<string, Record<string, unknown>>();
+  const upsertRow = (key: string, row: Record<string, unknown>) => {
+    const existing = rows.get(key);
+    if (existing && existing.source !== "profile_match") return;
+    rows.set(key, row);
+  };
+
   const addRow = (
     profile: typeof profiles.$inferSelect,
     account: typeof users.$inferSelect | null,
@@ -832,10 +874,9 @@ adminLifecycleRouter.get("/account-subscriptions", async (req: Request, res: Res
     membership: typeof profileMemberships.$inferSelect | null = null,
   ) => {
     const key = profile.id;
-    const existing = rows.get(key);
-    if (existing && !(existing.source === "profile_match" && account)) return;
-    rows.set(key, {
+    upsertRow(key, {
       account_id: account?.id ?? null,
+      account_source: account ? "legacy" : null,
       account_email: account?.email ?? null,
       account_phone: account?.phone_number ?? null,
       active_profile_id: account?.active_profile_id ?? null,
@@ -857,6 +898,33 @@ adminLifecycleRouter.get("/account-subscriptions", async (req: Request, res: Res
     });
   };
 
+  const addSupabaseRow = (account: SupabaseAuthAccount) => {
+    const profile = profileById.get(account.id);
+    const key = `supabase:${account.id}`;
+    upsertRow(key, {
+      account_id: account.id,
+      account_source: "supabase",
+      account_email: account.email,
+      account_phone: account.phone_number,
+      active_profile_id: account.id,
+      profile_id: account.id,
+      profile_email: profile?.email ?? account.email,
+      full_name: profile?.full_name ?? null,
+      preferred_name: profile?.preferred_name ?? null,
+      phone_number: profile?.phone_number ?? account.phone_number,
+      subscription_status: profile?.subscription_status ?? "trial",
+      subscription_tier: normalizeSubscriptionTier(profile?.subscription_tier),
+      stored_subscription_tier: profile?.subscription_tier ?? null,
+      account_status: profile?.account_status ?? "enabled",
+      profile_role: profile?.role ?? "user",
+      membership_role: null,
+      membership_relationship: null,
+      is_active_profile: Boolean(profile),
+      source: profile ? "supabase_auth_profile" : "supabase_auth_missing_profile",
+      updated_at: profile?.updated_at ?? account.created_at,
+    });
+  };
+
   for (const profile of directProfileRows) {
     addRow(profile, null, "profile_match");
   }
@@ -873,6 +941,10 @@ adminLifecycleRouter.get("/account-subscriptions", async (req: Request, res: Res
       const membership = (membershipsByAccount.get(account.id) ?? []).find((item) => item.profile_id === profile.id) ?? null;
       addRow(profile, account, account.active_profile_id === profile.id ? "active_account_profile" : "linked_account_profile", membership);
     }
+  }
+
+  for (const account of supabaseAccountRows) {
+    addSupabaseRow(account);
   }
 
   return res.json({ accounts: Array.from(rows.values()) });
@@ -892,16 +964,38 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
   };
   if (parsed.data.subscription_status === "active") profilePatch.trial_ends_at = null;
 
-  const [profile] = await db
+  let [profile] = await db
     .update(profiles)
     .set(profilePatch)
     .where(eq(profiles.id, req.params.profileId))
     .returning();
 
+  if (!profile && parsed.data.account_source === "supabase" && parsed.data.account_id === req.params.profileId) {
+    const [createdProfile] = await db
+      .insert(profiles)
+      .values({
+        id: req.params.profileId,
+        email: parsed.data.account_email || undefined,
+        ...profilePatch,
+      })
+      .onConflictDoUpdate({
+        target: profiles.id,
+        set: profilePatch,
+      })
+      .returning();
+    profile = createdProfile;
+  }
+
   if (!profile) return res.status(404).json({ error: "Profile not found" });
 
   let syncedAccountId: string | null = null;
   if (parsed.data.account_id) {
+    if (parsed.data.account_source === "supabase") {
+      if (parsed.data.account_id !== profile.id) {
+        return res.status(400).json({ error: "Supabase login must be updated through its own profile row." });
+      }
+      syncedAccountId = parsed.data.account_id;
+    } else {
     try {
       const [account] = await db
         .select()
@@ -939,6 +1033,7 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
     } catch (error) {
       if (!isMissingRelationError(error)) throw error;
     }
+    }
   }
 
   try {
@@ -972,6 +1067,7 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
   return res.json({
     account: {
       account_id: syncedAccountId,
+      account_source: parsed.data.account_source ?? null,
       active_profile_id: syncedAccountId ? profile.id : null,
       is_active_profile: Boolean(syncedAccountId),
       profile_id: profile.id,
