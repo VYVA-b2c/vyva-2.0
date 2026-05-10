@@ -721,7 +721,7 @@ const HealthScreen = () => {
                   key={tile.id}
                   data-testid={`button-health-quick-${tile.id}`}
                   onClick={tile.action}
-                  className={`vyva-tap relative flex min-h-[150px] min-w-0 flex-col items-center justify-center gap-3 rounded-[28px] border border-vyva-border bg-[#FFFCF8] px-3 py-5 text-center transition-transform active:scale-[0.99] ${locked ? "opacity-80" : ""}`}
+                  className={`vyva-tap relative flex min-h-[188px] min-w-0 flex-col items-center justify-center gap-4 rounded-[28px] border border-vyva-border bg-[#FFFCF8] px-4 py-5 text-center transition-transform active:scale-[0.99] ${locked ? "opacity-80" : ""}`}
                   style={{ boxShadow: "0 14px 30px rgba(60,38,20,0.08)" }}
                 >
                   {locked && (
@@ -734,9 +734,9 @@ const HealthScreen = () => {
                     className="flex h-[58px] w-[58px] flex-shrink-0 items-center justify-center rounded-[20px]"
                     style={{ background: tile.iconBg }}
                   >
-                    {locked ? <Lock size={25} style={{ color: tile.iconColor }} /> : <tile.Icon size={27} style={{ color: tile.iconColor }} />}
+                    {locked ? <Lock size={28} style={{ color: tile.iconColor }} /> : <tile.Icon size={30} style={{ color: tile.iconColor }} />}
                   </div>
-                  <span className="font-body text-[18px] font-extrabold leading-[1.08] text-vyva-text-1 [overflow-wrap:anywhere]">
+                  <span className="font-body text-[21px] font-extrabold leading-tight text-vyva-text-1 [overflow-wrap:anywhere]">
                     {tile.label}
                   </span>
                   <span className="font-body text-[14px] font-medium leading-snug text-vyva-text-2 [overflow-wrap:anywhere]">
@@ -768,8 +768,8 @@ const HealthScreen = () => {
                   <Stethoscope size={24} style={{ color: "#0A7C4E" }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-body text-[15px] font-semibold text-vyva-text-1">{t("health.seeDoctor.title", "See a Doctor")}</p>
-                  <p className="font-body text-[12px] text-vyva-text-2">{t("health.seeDoctor.subtitle", "Video or phone in minutes")}</p>
+                  <p className="font-body text-[17px] font-semibold leading-snug text-vyva-text-1">{t("health.seeDoctor.title", "See a Doctor")}</p>
+                  <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">{t("health.seeDoctor.subtitle", "Video or phone in minutes")}</p>
                 </div>
                 <button
                   data-testid="button-see-doctor"
@@ -811,8 +811,8 @@ const HealthScreen = () => {
                   <Camera size={24} style={{ color: "#C9890A" }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-body text-[15px] font-semibold text-vyva-text-1">{t("health.scanWound.title", "Scan My Wound")}</p>
-                  <p className="font-body text-[12px] text-vyva-text-2">{t("health.scanWound.subtitle", "Take or upload a photo for AI analysis")}</p>
+                  <p className="font-body text-[17px] font-semibold leading-snug text-vyva-text-1">{t("health.scanWound.title", "Scan My Wound")}</p>
+                  <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">{t("health.scanWound.subtitle", "Take or upload a photo for AI analysis")}</p>
                 </div>
                 <button
                   data-testid="button-scan-wound"
@@ -1001,8 +1001,8 @@ const HealthScreen = () => {
                   <UserSearch size={24} style={{ color: "#7C3AED" }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-body text-[15px] font-semibold text-vyva-text-1">{t("health.findSpecialist.title", "Find a Specialist")}</p>
-                  <p className="font-body text-[12px] text-vyva-text-2">{t("health.findSpecialist.subtitle", "Connect with the right expert")}</p>
+                  <p className="font-body text-[17px] font-semibold leading-snug text-vyva-text-1">{t("health.findSpecialist.title", "Find a Specialist")}</p>
+                  <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">{t("health.findSpecialist.subtitle", "Connect with the right expert")}</p>
                 </div>
                 <button
                   data-testid="button-find-specialist"
