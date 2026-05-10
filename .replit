@@ -44,3 +44,12 @@ outputType = "webview"
 
 [nix]
 channel = "stable-25_05"
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["node", "./server-dist/index.cjs"]
+build = ["npm", "run", "build"]
+
+[postMerge]
+path = ".local/post_merge_setup.sh"
+timeoutMs = 180000

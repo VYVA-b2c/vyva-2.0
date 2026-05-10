@@ -190,7 +190,7 @@ const pt = {
         badge: "Novo",
       },
       rhythmTap: {
-        title: "Ritmo e Toque",
+        title: "Sequências",
         description: "Observe a sequencia e toque nos blocos pela mesma ordem.",
         badge: "Foco",
       },

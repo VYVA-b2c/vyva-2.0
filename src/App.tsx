@@ -33,6 +33,7 @@ import MemoryGamesPage from "./games/memory/MemoryGamesPage";
 import MemoryGameRunner from "./games/memory/MemoryGameRunner";
 import DualTaskWalk from "./games/DualTaskWalk";
 import CategorySort from "./games/CategorySort";
+import NumberTrails from "./games/NumberTrails";
 import ConciergeScreen from "./pages/ConciergeScreen";
 import SafeHomeScreen from "./pages/SafeHomeScreen";
 import ScamGuardScreen from "./pages/ScamGuardScreen";
@@ -192,6 +193,13 @@ function CategorySortRoute() {
   return <CategorySort userId={user?.id ?? ""} onExit={() => navigate("/executive-function")} />;
 }
 
+function NumberTrailsRoute() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  return <NumberTrails userId={user?.id ?? ""} onExit={() => navigate("/executive-function")} />;
+}
+
 function getInteractiveLabel(element: Element): string {
   const explicitLabel =
     element.getAttribute("aria-label") ||
@@ -295,7 +303,8 @@ const App = () => (
                   <Route path="/attention-boosters" element={<AppShell><AttentionBoostersPage /></AppShell>} />
                   <Route path="/attention-boosters/rhythm-tap" element={<AppShell><MemoryGameRunner forcedGameType="sequence_memory" returnPath="/attention-boosters" /></AppShell>} />
                   <Route path="/executive-function" element={<AppShell><ExecutiveFunctionPage /></AppShell>} />
-                  <Route path="/executive-function/category-sort" element={<AppShell><CategorySortRoute /></AppShell>} />
+                  <Route path="/executive-function/category-sort" element={<CategorySortRoute />} />
+                  <Route path="/executive-function/number-trails" element={<NumberTrailsRoute />} />
                   <Route path="/language" element={<AppShell><LanguageGamesPage /></AppShell>} />
                   <Route path="/spatial-navigator" element={<AppShell><SpatialNavigatorRoute /></AppShell>} />
                   <Route path="/face-name-match" element={<AppShell><FaceNameMatchRoute /></AppShell>} />

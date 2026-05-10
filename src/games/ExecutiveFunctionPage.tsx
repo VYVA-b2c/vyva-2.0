@@ -1,8 +1,17 @@
-import { ArrowLeft, ChevronRight, GitBranch, Layers, Users } from "lucide-react";
+import { ArrowLeft, ChevronRight, GitBranch, Layers, Route as RouteIcon, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n";
 
 const executiveGames = [
+  {
+    key: "numberTrails",
+    route: "/executive-function/number-trails",
+    Icon: RouteIcon,
+    titleKey: "brainGames.executiveFunction.numberTrails.title",
+    descriptionKey: "brainGames.executiveFunction.numberTrails.description",
+    badgeKey: "brainGames.executiveFunction.numberTrails.badge",
+    colors: { accent: "#B45309", bg: "#FEF3C7", border: "#F8D37A" },
+  },
   {
     key: "categorySort",
     route: "/executive-function/category-sort",
