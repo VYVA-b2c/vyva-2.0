@@ -211,8 +211,8 @@ const ActivitiesScreen = () => {
             <Users size={28} strokeWidth={2.5} style={{ color: "#2F66D0" }} />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="font-body text-[17px] font-semibold leading-snug text-vyva-text-1">{t("companions.activityTile")}</p>
-            <p className="mt-1 font-body text-[13px] leading-[1.5] text-vyva-text-2">{t("companions.activityTileSubtitle")}</p>
+            <h3 className="font-body text-[21px] font-extrabold leading-tight text-vyva-text-1 [overflow-wrap:anywhere]">{t("companions.activityTile")}</h3>
+            <p className="mt-2 font-body text-[14px] font-medium leading-snug text-vyva-text-2 [overflow-wrap:anywhere]">{t("companions.activityTileSubtitle")}</p>
           </div>
         </div>
       </section>
