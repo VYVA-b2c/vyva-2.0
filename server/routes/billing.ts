@@ -13,6 +13,7 @@ import {
   planPrice,
   planStripePriceId,
 } from "../lib/plans.js";
+import { getActiveProfileContext } from "../lib/profileAccess.js";
 
 let _stripe: Stripe | null = null;
 function getStripe(): Stripe {
@@ -46,6 +47,33 @@ async function planIdFromSubscription(sub: Stripe.Subscription) {
   return plan?.plan_id ?? "premium";
 }
 
+async function billingProfileForAccount(accountUserId: string) {
+  const context = await getActiveProfileContext(accountUserId);
+  const profileId = context.profileId ?? accountUserId;
+  const [profile] = await db
+    .select()
+    .from(profiles)
+    .where(eq(profiles.id, profileId))
+    .limit(1);
+
+  if (profile) {
+    return { accountUserId, profileId: profile.id, profile };
+  }
+
+  if (profileId !== accountUserId) {
+    const [fallbackProfile] = await db
+      .select()
+      .from(profiles)
+      .where(eq(profiles.id, accountUserId))
+      .limit(1);
+    if (fallbackProfile) {
+      return { accountUserId, profileId: fallbackProfile.id, profile: fallbackProfile };
+    }
+  }
+
+  return { accountUserId, profileId, profile: null };
+}
+
 router.get("/plans", async (_req, res) => {
   const plans = await listPlans({ publicOnly: true });
   return res.json({ plans });
@@ -57,7 +85,7 @@ router.get("/status", async (req, res) => {
   const userId = req.user?.id;
   if (!userId) return res.status(401).json({ error: "Unauthorised" });
 
-  const [profile] = await db.select().from(profiles).where(eq(profiles.id, userId));
+  const { accountUserId, profileId, profile } = await billingProfileForAccount(userId);
   if (!profile) return res.status(404).json({ error: "Profile not found" });
 
   const trialDaysRemaining = profile.trial_ends_at
@@ -67,6 +95,8 @@ router.get("/status", async (req, res) => {
   const plans = await listPlans();
 
   return res.json({
+    account_user_id: accountUserId,
+    profile_id: profileId,
     status: profile.subscription_status,
     tier: effectiveTier,
     stored_tier: profile.subscription_tier,
@@ -85,7 +115,7 @@ router.post("/create-checkout", async (req, res) => {
   const userId = req.user?.id;
   if (!userId) return res.status(401).json({ error: "Unauthorised" });
 
-  const [profile] = await db.select().from(profiles).where(eq(profiles.id, userId));
+  const { accountUserId, profileId, profile } = await billingProfileForAccount(userId);
   if (!profile) return res.status(404).json({ error: "Profile not found" });
 
   const planId = typeof req.body?.plan_id === "string" ? req.body.plan_id : "premium";
@@ -101,7 +131,7 @@ router.post("/create-checkout", async (req, res) => {
       subscription_tier: plan.plan_id,
       trial_ends_at: trialEndsAt,
       updated_at: new Date(),
-    }).where(eq(profiles.id, userId));
+    }).where(eq(profiles.id, profileId));
     return res.json({ status: "trial_started", redirect_url: "/settings/subscription?trial=started" });
   }
 
@@ -117,13 +147,13 @@ router.post("/create-checkout", async (req, res) => {
       email: profile.email || undefined,
       name: profile.full_name || undefined,
       phone: profile.phone_number || undefined,
-      metadata: { user_id: userId },
+      metadata: { user_id: profileId, account_user_id: accountUserId, profile_id: profileId },
     });
     customerId = customer.id;
     await db.update(profiles).set({
       stripe_customer_id: customerId,
       updated_at: new Date(),
-    }).where(eq(profiles.id, userId));
+    }).where(eq(profiles.id, profileId));
   }
 
   const session = await getStripe().checkout.sessions.create({
@@ -135,9 +165,9 @@ router.post("/create-checkout", async (req, res) => {
     }],
     success_url: `${appUrl()}/?upgraded=true&plan=${encodeURIComponent(plan.plan_id)}`,
     cancel_url: `${appUrl()}/settings/subscription`,
-    metadata: { user_id: userId, plan_id: plan.plan_id, currency },
+    metadata: { user_id: profileId, account_user_id: accountUserId, profile_id: profileId, plan_id: plan.plan_id, currency },
     subscription_data: {
-      metadata: { user_id: userId, plan_id: plan.plan_id, currency },
+      metadata: { user_id: profileId, account_user_id: accountUserId, profile_id: profileId, plan_id: plan.plan_id, currency },
       ...(plan.trial_days ? { trial_period_days: plan.trial_days } : {}),
     },
   });
@@ -152,7 +182,7 @@ router.get("/portal", async (req, res) => {
   const userId = req.user?.id;
   if (!userId) return res.status(401).json({ error: "Unauthorised" });
 
-  const [profile] = await db.select().from(profiles).where(eq(profiles.id, userId));
+  const { profile } = await billingProfileForAccount(userId);
   if (!profile?.stripe_customer_id) {
     return res.status(400).json({ error: "No billing account found" });
   }
