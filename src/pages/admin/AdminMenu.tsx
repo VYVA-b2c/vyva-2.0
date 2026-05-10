@@ -19,21 +19,21 @@ export default function AdminMenu() {
     : adminItems.filter((item) => item.path !== "/admin/users");
 
   return (
-    <nav className="mx-auto mt-5 grid max-w-7xl gap-3 md:grid-cols-5">
+    <nav className="mt-3 flex flex-wrap gap-2 rounded-2xl border border-[#eadfd5] bg-white p-2 shadow-sm">
       {items.map((item) => {
         const active = location.pathname === item.path;
         return (
           <Link
             key={item.path}
             to={item.path}
-            className={`rounded-3xl border px-5 py-4 shadow-sm transition ${
+            className={`rounded-xl px-4 py-2.5 transition ${
               active
-                ? "border-[#2f2135] bg-[#2f2135] text-white"
-                : "border-[#eadfd5] bg-white text-[#2f2135] hover:border-purple-200"
+                ? "bg-[#2f2135] text-white"
+                : "text-[#4f4352] hover:bg-[#fbf8f5] hover:text-purple-700"
             }`}
           >
-            <span className="block text-lg font-black">{item.label}</span>
-            <span className={`mt-1 block text-sm ${active ? "text-white/75" : "text-[#7d6b65]"}`}>
+            <span className="block text-sm font-black">{item.label}</span>
+            <span className={`hidden text-xs lg:block ${active ? "text-white/70" : "text-[#8b7a73]"}`}>
               {item.description}
             </span>
           </Link>

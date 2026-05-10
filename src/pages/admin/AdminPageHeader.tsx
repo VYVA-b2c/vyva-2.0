@@ -13,25 +13,29 @@ export default function AdminPageHeader({ title, subtitle, children }: AdminPage
   const { logout } = useAuth();
 
   return (
-    <div className="rounded-[2rem] border border-[#eadfd5] bg-white p-6 shadow-sm">
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <VyvaWordmark className="h-auto w-[128px] sm:w-[154px]" />
-          <p className="mt-5 text-sm font-bold uppercase tracking-[0.22em] text-purple-700">VYVA Admin</p>
-          <h1 className="mt-2 font-serif text-4xl">{title}</h1>
-          <p className="mt-2 max-w-3xl text-[#7d6b65]">{subtitle}</p>
+    <header className="rounded-2xl border border-[#eadfd5] bg-white px-5 py-4 shadow-sm">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex min-w-0 items-center gap-4">
+          <VyvaWordmark className="h-auto w-[96px] shrink-0 sm:w-[112px]" />
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-purple-700">VYVA Admin</p>
+            <h1 className="mt-1 truncate font-serif text-2xl leading-tight sm:text-3xl">{title}</h1>
+            <p className="mt-1 max-w-3xl text-sm text-[#7d6b65]">{subtitle}</p>
+          </div>
         </div>
-        <button
-          type="button"
-          data-testid="button-admin-logout"
-          onClick={logout}
-          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#eadfd5] bg-[#fffaf4] px-4 py-3 text-sm font-bold text-[#5b4a46] transition hover:border-purple-200 hover:text-purple-700"
-        >
-          <LogOut size={16} />
-          Sign out
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {children}
+          <button
+            type="button"
+            data-testid="button-admin-logout"
+            onClick={logout}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-3 py-2 text-sm font-bold text-[#5b4a46] transition hover:border-purple-200 hover:text-purple-700"
+          >
+            <LogOut size={16} />
+            Sign out
+          </button>
+        </div>
       </div>
-      {children && <div className="mt-5 flex flex-wrap gap-3">{children}</div>}
-    </div>
+    </header>
   );
 }

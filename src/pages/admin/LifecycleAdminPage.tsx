@@ -680,19 +680,19 @@ export default function LifecycleAdminPage() {
   );
 
   return (
-    <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
+    <main className="min-h-screen bg-[#f7f2eb] px-4 py-4 text-[#2f2135] sm:px-6">
       <section className="mx-auto max-w-7xl">
         <AdminPageHeader
           title="Signup, Access and Lifecycle"
           subtitle="One operating layer for form, phone, WhatsApp and admin-created users."
         >
-          <button className="rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white" onClick={() => refresh().catch((err) => setMessage(err.message))}>Refresh</button>
-          {message && <span className="rounded-2xl bg-purple-50 px-4 py-3 text-purple-800">{message}</span>}
+          <button className="rounded-xl bg-purple-700 px-4 py-2 text-sm font-bold text-white" onClick={() => refresh().catch((err) => setMessage(err.message))}>Refresh</button>
+          {message && <span className="rounded-xl bg-purple-50 px-3 py-2 text-sm font-bold text-purple-800">{message}</span>}
         </AdminPageHeader>
 
         <AdminMenu />
 
-        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-5">
+        <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5">
           {[
             ["Total", summary?.total ?? 0],
             ["Active", summary?.active ?? 0],
@@ -700,23 +700,23 @@ export default function LifecycleAdminPage() {
             ["Dropped", summary?.dropped ?? 0],
             ["Links sent", summary?.byStatus?.link_sent ?? 0],
           ].map(([label, value]) => (
-            <div key={label} className="rounded-3xl border border-[#eadfd5] bg-white p-5">
-              <p className="text-sm text-[#8b7a73]">{label}</p>
-              <p className="mt-1 text-3xl font-black">{String(value)}</p>
+            <div key={label} className="rounded-2xl border border-[#eadfd5] bg-white px-4 py-3 shadow-sm">
+              <p className="text-xs font-bold uppercase tracking-[0.06em] text-[#8b7a73]">{label}</p>
+              <p className="mt-1 text-2xl font-black leading-none">{String(value)}</p>
             </div>
           ))}
         </div>
 
-        <nav className="mt-5 flex flex-wrap gap-2">
+        <nav className="mt-3 flex flex-wrap gap-2">
           {["users", "accounts", "invites", "consent", "organizations", "tiers", "communications", "analytics"].map((tab) => (
-            <button key={tab} onClick={() => setActiveTab(tab)} className={`rounded-full px-5 py-3 font-bold ${activeTab === tab ? "bg-purple-700 text-white" : "border border-purple-100 bg-white text-purple-700"}`}>
+            <button key={tab} onClick={() => setActiveTab(tab)} className={`rounded-xl px-4 py-2 text-sm font-bold shadow-sm ${activeTab === tab ? "bg-purple-700 text-white" : "border border-purple-100 bg-white text-purple-700 hover:bg-purple-50"}`}>
               {tab[0].toUpperCase() + tab.slice(1)}
             </button>
           ))}
         </nav>
 
         {activeTab === "users" && (
-          <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5">
+          <section className="mt-3 rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
             <div className="grid gap-3 md:grid-cols-4">
               {[
                 ["entry_point", entryPoints],
@@ -724,7 +724,7 @@ export default function LifecycleAdminPage() {
                 ["status", statuses],
                 ["tier", ["", ...planOptions.map((plan) => plan.value)]],
               ].map(([key, values]) => (
-                <select key={key as keyof typeof filters} className="rounded-2xl border border-[#e4d8ce] px-4 py-3" value={filters[key as keyof typeof filters]} onChange={(e) => setFilters((prev) => ({ ...prev, [key as keyof typeof filters]: e.target.value }))}>
+                <select key={key as keyof typeof filters} className="rounded-xl border border-[#e4d8ce] px-3 py-2.5 text-sm font-semibold" value={filters[key as keyof typeof filters]} onChange={(e) => setFilters((prev) => ({ ...prev, [key as keyof typeof filters]: e.target.value }))}>
                   {(values as string[]).map((value) => <option key={value} value={value}>{value || String(key).replace("_", " ")}</option>)}
                 </select>
               ))}
@@ -1127,6 +1127,10 @@ function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, 
   onEventTime: (event: ScheduledEvent, scheduledFor: string) => void;
 }) {
   const disabled = detail.profile?.account_status === "disabled" || detail.intake.account_status === "disabled";
+  const primaryMapping = detail.account_mappings?.[0];
+  const selectedTier = String(draft.tier ?? "free").toLowerCase();
+  const appTier = primaryMapping?.effective_subscription_tier?.toLowerCase() ?? null;
+  const hasTierMismatch = Boolean(appTier && selectedTier && appTier !== selectedTier);
   return (
     <div className="fixed inset-0 z-50 overflow-auto bg-black/30 p-4">
       <div className="mx-auto max-w-5xl rounded-[2rem] bg-white p-6 shadow-2xl">
@@ -1179,10 +1183,17 @@ function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, 
                 <Field label="Caregiver contact"><input className="w-full rounded-2xl border px-4 py-3" value={draft.caregiver_contact ?? ""} onChange={(e) => setDraft({ ...draft, caregiver_contact: e.target.value })} /></Field>
               </div>
               <div className="grid gap-3 md:grid-cols-3">
-                <Field label="Tier"><select className="w-full rounded-2xl border px-4 py-3" value={draft.tier ?? "free"} onChange={(e) => setDraft({ ...draft, tier: e.target.value })}>{planOptions.map((plan) => <option key={plan.value} value={plan.value}>{plan.label}</option>)}</select></Field>
+                <Field label="Admin tier"><select className="w-full rounded-2xl border px-4 py-3" value={draft.tier ?? "free"} onChange={(e) => setDraft({ ...draft, tier: e.target.value })}>{planOptions.map((plan) => <option key={plan.value} value={plan.value}>{plan.label}</option>)}</select></Field>
                 <Field label="Language"><select className="w-full rounded-2xl border px-4 py-3" value={draft.language ?? "es"} onChange={(e) => setDraft({ ...draft, language: e.target.value })}>{languageOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
                 <Field label="Organization"><select className="w-full rounded-2xl border px-4 py-3" value={draft.organization_id ?? ""} onChange={(e) => setDraft({ ...draft, organization_id: e.target.value })}><option value="">None</option>{organizations.filter((org) => org.is_active).map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}</select></Field>
               </div>
+              {primaryMapping && (
+                <p className={`rounded-2xl px-4 py-3 text-sm font-bold ${hasTierMismatch ? "bg-[#fff3e8] text-[#8a4a00]" : "bg-[#ecfdf3] text-[#087443]"}`}>
+                  App access is currently {primaryMapping.effective_subscription_tier ?? "unknown"}
+                  {primaryMapping.effective_subscription_status ? ` (${primaryMapping.effective_subscription_status})` : ""}.
+                  {hasTierMismatch ? " Save changes to sync the selected Admin tier to the user's login profile." : " Admin and app access are aligned."}
+                </p>
+              )}
               <div className="flex flex-wrap gap-2"><button className="rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white" onClick={onSave}>Save changes</button><button className="rounded-2xl border px-5 py-3 font-bold" onClick={onToggle}>{disabled ? "Enable user" : "Disable user"}</button></div>
             </div>
           </section>
