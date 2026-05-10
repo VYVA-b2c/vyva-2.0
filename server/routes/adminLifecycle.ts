@@ -13,9 +13,11 @@ import {
   lifecycleEvents,
   organizations,
   profiles,
+  profileMemberships,
   scheduledEventLogs,
   scheduledEvents,
   tierEntitlements,
+  users,
   userIntakes,
   userMedications,
 } from "../../shared/schema.js";
@@ -236,6 +238,14 @@ const adminRoleUpdateSchema = z.object({
   role: z.enum(["user", "admin"]),
 });
 
+const accountSubscriptionUpdateSchema = z.object({
+  subscription_tier: z.string().min(1).optional(),
+  tier: z.string().min(1).optional(),
+  subscription_status: z.string().min(1).optional().default("active"),
+}).refine((value) => Boolean(value.subscription_tier || value.tier), {
+  message: "Subscription tier is required",
+});
+
 function targetUserIdForIntake(intake: typeof userIntakes.$inferSelect): string | null {
   return intake.elder_user_id ?? intake.user_id ?? intake.family_user_id ?? null;
 }
@@ -411,6 +421,11 @@ function validateFamilyIntake(data: z.infer<typeof intakeSchema>): string | null
 function publicBaseUrl(req: Request): string {
   return process.env.APP_URL
     ?? `${req.protocol}://${req.get("host")}`;
+}
+
+function isMissingRelationError(error: unknown): boolean {
+  const maybeError = error as { code?: string; message?: string };
+  return maybeError?.code === "42P01" || String(maybeError?.message ?? error).includes("does not exist");
 }
 
 async function recordEvent(input: {
@@ -736,6 +751,195 @@ adminLifecycleRouter.get("/users", async (req: Request, res: Response) => {
         disabled_at: profile?.disabled_at ?? null,
       };
     }),
+  });
+});
+
+adminLifecycleRouter.get("/account-subscriptions", async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+
+  const query = String(req.query.query ?? "").trim().toLowerCase();
+  if (query.length < 3) return res.json({ accounts: [] });
+
+  const like = `%${query}%`;
+  const directProfileRows = await db
+    .select()
+    .from(profiles)
+    .where(sql`
+      lower(coalesce(${profiles.email}, '')) like ${like}
+      or lower(coalesce(${profiles.full_name}, '')) like ${like}
+      or lower(coalesce(${profiles.preferred_name}, '')) like ${like}
+      or coalesce(${profiles.phone_number}, '') like ${like}
+      or coalesce(${profiles.whatsapp_number}, '') like ${like}
+    `)
+    .orderBy(desc(profiles.updated_at))
+    .limit(50);
+
+  let accountRows: Array<typeof users.$inferSelect> = [];
+  try {
+    accountRows = await db
+      .select()
+      .from(users)
+      .where(sql`
+        lower(coalesce(${users.email}, '')) like ${like}
+        or coalesce(${users.phone_number}, '') like ${like}
+      `)
+      .orderBy(desc(users.created_at))
+      .limit(50);
+  } catch (error) {
+    if (!isMissingRelationError(error)) throw error;
+  }
+
+  const accountIds = accountRows.map((account) => account.id);
+  let membershipRows: Array<typeof profileMemberships.$inferSelect> = [];
+  if (accountIds.length) {
+    try {
+      membershipRows = await db
+        .select()
+        .from(profileMemberships)
+        .where(and(
+          inArray(profileMemberships.user_id, accountIds),
+          eq(profileMemberships.status, "active"),
+        ));
+    } catch (error) {
+      if (!isMissingRelationError(error)) throw error;
+    }
+  }
+
+  const profileIds = Array.from(new Set([
+    ...directProfileRows.map((profile) => profile.id),
+    ...accountRows.map((account) => account.active_profile_id).filter(Boolean),
+    ...accountRows.map((account) => account.id),
+    ...membershipRows.map((membership) => membership.profile_id),
+  ])) as string[];
+
+  const linkedProfiles = profileIds.length
+    ? await db.select().from(profiles).where(inArray(profiles.id, profileIds))
+    : [];
+  const profileById = new Map(linkedProfiles.map((profile) => [profile.id, profile]));
+  const membershipsByAccount = new Map<string, Array<typeof profileMemberships.$inferSelect>>();
+  for (const membership of membershipRows) {
+    const current = membershipsByAccount.get(membership.user_id) ?? [];
+    current.push(membership);
+    membershipsByAccount.set(membership.user_id, current);
+  }
+
+  const rows = new Map<string, Record<string, unknown>>();
+  const addRow = (
+    profile: typeof profiles.$inferSelect,
+    account: typeof users.$inferSelect | null,
+    source: string,
+    membership: typeof profileMemberships.$inferSelect | null = null,
+  ) => {
+    const key = profile.id;
+    const existing = rows.get(key);
+    if (existing && !(existing.source === "profile_match" && account)) return;
+    rows.set(key, {
+      account_id: account?.id ?? null,
+      account_email: account?.email ?? null,
+      account_phone: account?.phone_number ?? null,
+      active_profile_id: account?.active_profile_id ?? null,
+      profile_id: profile.id,
+      profile_email: profile.email,
+      full_name: profile.full_name,
+      preferred_name: profile.preferred_name,
+      phone_number: profile.phone_number,
+      subscription_status: profile.subscription_status,
+      subscription_tier: normalizeSubscriptionTier(profile.subscription_tier),
+      stored_subscription_tier: profile.subscription_tier,
+      account_status: profile.account_status,
+      profile_role: profile.role,
+      membership_role: membership?.role ?? null,
+      membership_relationship: membership?.relationship ?? null,
+      is_active_profile: account?.active_profile_id === profile.id,
+      source,
+      updated_at: profile.updated_at,
+    });
+  };
+
+  for (const profile of directProfileRows) {
+    addRow(profile, null, "profile_match");
+  }
+
+  for (const account of accountRows) {
+    const linkedProfileIds = new Set<string>();
+    if (account.active_profile_id) linkedProfileIds.add(account.active_profile_id);
+    linkedProfileIds.add(account.id);
+    for (const membership of membershipsByAccount.get(account.id) ?? []) linkedProfileIds.add(membership.profile_id);
+
+    for (const profileId of linkedProfileIds) {
+      const profile = profileById.get(profileId);
+      if (!profile) continue;
+      const membership = (membershipsByAccount.get(account.id) ?? []).find((item) => item.profile_id === profile.id) ?? null;
+      addRow(profile, account, account.active_profile_id === profile.id ? "active_account_profile" : "linked_account_profile", membership);
+    }
+  }
+
+  return res.json({ accounts: Array.from(rows.values()) });
+});
+
+adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+
+  const parsed = accountSubscriptionUpdateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid subscription update" });
+
+  const subscriptionTier = normalizeSubscriptionTier(parsed.data.subscription_tier ?? parsed.data.tier);
+  const profilePatch: Partial<typeof profiles.$inferInsert> = {
+    subscription_tier: subscriptionTier,
+    subscription_status: parsed.data.subscription_status,
+    updated_at: new Date(),
+  };
+  if (parsed.data.subscription_status === "active") profilePatch.trial_ends_at = null;
+
+  const [profile] = await db
+    .update(profiles)
+    .set(profilePatch)
+    .where(eq(profiles.id, req.params.profileId))
+    .returning();
+
+  if (!profile) return res.status(404).json({ error: "Profile not found" });
+
+  try {
+    await db
+      .update(userIntakes)
+      .set({ tier: subscriptionTier, updated_at: new Date() })
+      .where(sql`
+        ${userIntakes.user_id} = ${profile.id}
+        or ${userIntakes.elder_user_id} = ${profile.id}
+        or ${userIntakes.family_user_id} = ${profile.id}
+      `);
+  } catch (error) {
+    if (!isMissingRelationError(error)) throw error;
+  }
+
+  try {
+    await recordEvent({
+      intakeId: null,
+      userId: profile.id,
+      eventType: "admin_subscription_updated",
+      channel: "admin",
+      metadata: {
+        subscription_tier: subscriptionTier,
+        subscription_status: parsed.data.subscription_status,
+      },
+    });
+  } catch (error) {
+    if (!isMissingRelationError(error)) throw error;
+  }
+
+  return res.json({
+    account: {
+      profile_id: profile.id,
+      profile_email: profile.email,
+      full_name: profile.full_name,
+      preferred_name: profile.preferred_name,
+      subscription_status: profile.subscription_status,
+      subscription_tier: normalizeSubscriptionTier(profile.subscription_tier),
+      stored_subscription_tier: profile.subscription_tier,
+      account_status: profile.account_status,
+      profile_role: profile.role,
+      updated_at: profile.updated_at,
+    },
   });
 });
 

@@ -142,10 +142,33 @@ type SubscriptionPlanAdmin = {
   entitlement?: PlanEntitlement | null;
 };
 
+type AccountSubscription = {
+  account_id?: string | null;
+  account_email?: string | null;
+  account_phone?: string | null;
+  active_profile_id?: string | null;
+  profile_id: string;
+  profile_email?: string | null;
+  full_name?: string | null;
+  preferred_name?: string | null;
+  phone_number?: string | null;
+  subscription_status: string;
+  subscription_tier: string;
+  stored_subscription_tier?: string | null;
+  account_status?: string | null;
+  profile_role?: string | null;
+  membership_role?: string | null;
+  membership_relationship?: string | null;
+  is_active_profile?: boolean;
+  source?: string;
+  updated_at?: string;
+};
+
 const entryPoints = ["", "form", "phone", "whatsapp", "admin"];
 const userTypes = ["", "elder", "family", "admin"];
 const statuses = ["", "created", "link_sent", "consent_pending", "active", "dropped"];
 const tiers = ["free", "premium"];
+const subscriptionStatusOptions = ["active", "trial", "past_due", "cancelled"];
 const languageOptions = [
   { value: "es", label: "Spanish" },
   { value: "en", label: "English" },
@@ -257,6 +280,10 @@ export default function LifecycleAdminPage() {
   const [users, setUsers] = useState<Intake[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [plans, setPlans] = useState<SubscriptionPlanAdmin[]>([]);
+  const [accountSearch, setAccountSearch] = useState("");
+  const [accountSubscriptions, setAccountSubscriptions] = useState<AccountSubscription[]>([]);
+  const [accountSearchMessage, setAccountSearchMessage] = useState("");
+  const [savingAccountProfileId, setSavingAccountProfileId] = useState<string | null>(null);
   const [orgFilter, setOrgFilter] = useState<"active" | "archived" | "all">("active");
   const [consentAttempts, setConsentAttempts] = useState<ConsentAttempt[]>([]);
   const [communications, setCommunications] = useState<Communication[]>([]);
@@ -426,6 +453,53 @@ export default function LifecycleAdminPage() {
     await refresh();
   }
 
+  async function searchAccountSubscriptions(search = accountSearch) {
+    const query = search.trim();
+    setAccountSearchMessage("");
+    if (query.length < 3) {
+      setAccountSubscriptions([]);
+      setAccountSearchMessage("Enter at least 3 characters to search accounts.");
+      return;
+    }
+
+    const data = await api(`/account-subscriptions?query=${encodeURIComponent(query)}`);
+    const accounts = (data.accounts ?? []) as AccountSubscription[];
+    setAccountSubscriptions(accounts);
+    setAccountSearchMessage(accounts.length ? `${accounts.length} matching account profile${accounts.length === 1 ? "" : "s"} found.` : "No matching account profiles found.");
+  }
+
+  function updateAccountSubscription(profileId: string, patch: Partial<AccountSubscription>) {
+    setAccountSubscriptions((current) => current.map((account) => (
+      account.profile_id === profileId ? { ...account, ...patch } : account
+    )));
+  }
+
+  async function saveAccountSubscription(account: AccountSubscription) {
+    setSavingAccountProfileId(account.profile_id);
+    setAccountSearchMessage("");
+    try {
+      const data = await api(`/account-subscriptions/${account.profile_id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          subscription_tier: account.subscription_tier,
+          subscription_status: account.subscription_status || "active",
+        }),
+      });
+      const updated = data.account as AccountSubscription;
+      setAccountSubscriptions((current) => current.map((item) => (
+        item.profile_id === account.profile_id
+          ? { ...item, ...updated, account_id: item.account_id, account_email: item.account_email, account_phone: item.account_phone, active_profile_id: item.active_profile_id }
+          : item
+      )));
+      setAccountSearchMessage(`${account.profile_email ?? account.account_email ?? account.profile_id} updated to ${updated.subscription_tier}.`);
+      await refresh();
+    } catch (err) {
+      setAccountSearchMessage(err instanceof Error ? err.message : "Could not update subscription.");
+    } finally {
+      setSavingAccountProfileId(null);
+    }
+  }
+
   async function openUserDetail(intake: Intake) {
     const data = await api(`/users/${intake.id}/details`);
     const profileTier = stringValue(data.profile?.subscription_tier);
@@ -583,7 +657,7 @@ export default function LifecycleAdminPage() {
         </div>
 
         <nav className="mt-5 flex flex-wrap gap-2">
-          {["users", "invites", "consent", "organizations", "tiers", "communications", "analytics"].map((tab) => (
+          {["users", "accounts", "invites", "consent", "organizations", "tiers", "communications", "analytics"].map((tab) => (
             <button key={tab} onClick={() => setActiveTab(tab)} className={`rounded-full px-5 py-3 font-bold ${activeTab === tab ? "bg-purple-700 text-white" : "border border-purple-100 bg-white text-purple-700"}`}>
               {tab[0].toUpperCase() + tab.slice(1)}
             </button>
@@ -606,6 +680,20 @@ export default function LifecycleAdminPage() {
             </div>
             <IntakeTable users={users} onView={openUserDetail} onSendLink={sendLink} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} />
           </section>
+        )}
+
+        {activeTab === "accounts" && (
+          <AccountSubscriptionsSection
+            accounts={accountSubscriptions}
+            message={accountSearchMessage}
+            planOptions={planOptions}
+            search={accountSearch}
+            savingProfileId={savingAccountProfileId}
+            onSearchChange={setAccountSearch}
+            onSearch={() => searchAccountSubscriptions().catch((err) => setAccountSearchMessage(err.message))}
+            onChange={updateAccountSubscription}
+            onSave={saveAccountSubscription}
+          />
         )}
 
         {activeTab === "invites" && (
@@ -834,6 +922,132 @@ function IntakeTable({ users, onView, onSendLink, onTriggerConsent, onToggleEnab
         </tbody>
       </table>
     </div>
+  );
+}
+
+function AccountSubscriptionsSection({
+  accounts,
+  message,
+  planOptions,
+  search,
+  savingProfileId,
+  onSearchChange,
+  onSearch,
+  onChange,
+  onSave,
+}: {
+  accounts: AccountSubscription[];
+  message: string;
+  planOptions: Array<{ value: string; label: string }>;
+  search: string;
+  savingProfileId: string | null;
+  onSearchChange: (value: string) => void;
+  onSearch: () => void;
+  onChange: (profileId: string, patch: Partial<AccountSubscription>) => void;
+  onSave: (account: AccountSubscription) => Promise<void>;
+}) {
+  return (
+    <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 className="font-serif text-3xl">Account subscriptions</h2>
+          <p className="mt-2 max-w-3xl text-sm text-[#7d6b65]">
+            Search by the user login email, profile email, name or phone. Updates here change the real app profile plan.
+          </p>
+        </div>
+        <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">
+          {accounts.length} result{accounts.length === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      <form
+        className="mt-5 grid gap-3 md:grid-cols-[1fr_auto]"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSearch();
+        }}
+      >
+        <input
+          className="rounded-2xl border border-[#e4d8ce] px-4 py-3"
+          value={search}
+          onChange={(event) => onSearchChange(event.target.value)}
+          placeholder="Search 040270@gmail.com, name or phone"
+        />
+        <button className="rounded-2xl bg-[#2f2135] px-5 py-3 font-bold text-white" type="submit">
+          Search accounts
+        </button>
+      </form>
+
+      {message && (
+        <p className="mt-4 rounded-2xl bg-purple-50 px-4 py-3 text-sm font-bold text-purple-800">
+          {message}
+        </p>
+      )}
+
+      <div className="mt-5 grid gap-3">
+        {accounts.map((account) => {
+          const displayName = account.preferred_name || account.full_name || account.profile_email || account.profile_id;
+          const saving = savingProfileId === account.profile_id;
+          return (
+            <article key={`${account.account_id ?? "profile"}:${account.profile_id}`} className="rounded-3xl border border-[#eadfd5] bg-[#fbf8f5] p-4">
+              <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-xl font-black">{displayName}</h3>
+                    {account.is_active_profile && (
+                      <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">Active profile</span>
+                    )}
+                    {account.account_status === "disabled" && (
+                      <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700">Disabled</span>
+                    )}
+                  </div>
+                  <div className="mt-2 grid gap-1 text-sm text-[#7d6b65]">
+                    <p><span className="font-bold text-[#4d4351]">Login:</span> {account.account_email || account.account_phone || "No linked login shown"}</p>
+                    <p><span className="font-bold text-[#4d4351]">Profile:</span> {account.profile_email || account.phone_number || account.profile_id}</p>
+                    <p><span className="font-bold text-[#4d4351]">Profile ID:</span> <span className="font-mono text-xs">{account.profile_id}</span></p>
+                    {account.membership_role && <p><span className="font-bold text-[#4d4351]">Relationship:</span> {account.membership_role}{account.membership_relationship ? ` - ${account.membership_relationship}` : ""}</p>}
+                  </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] xl:grid-cols-1">
+                  <Field label="Plan">
+                    <select
+                      className="w-full rounded-2xl border px-4 py-3 bg-white"
+                      value={account.subscription_tier}
+                      onChange={(event) => onChange(account.profile_id, { subscription_tier: event.target.value })}
+                    >
+                      {planOptions.map((plan) => <option key={plan.value} value={plan.value}>{plan.label}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Status">
+                    <select
+                      className="w-full rounded-2xl border px-4 py-3 bg-white"
+                      value={account.subscription_status}
+                      onChange={(event) => onChange(account.profile_id, { subscription_status: event.target.value })}
+                    >
+                      {subscriptionStatusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+                    </select>
+                  </Field>
+                  <button
+                    className="rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={saving}
+                    onClick={() => onSave(account)}
+                  >
+                    {saving ? "Saving..." : "Save account plan"}
+                  </button>
+                </div>
+              </div>
+            </article>
+          );
+        })}
+
+        {accounts.length === 0 && !message && (
+          <div className="rounded-3xl bg-[#fbf8f5] p-6 text-center text-[#7d6b65]">
+            Search for a user account to update its real app subscription.
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
