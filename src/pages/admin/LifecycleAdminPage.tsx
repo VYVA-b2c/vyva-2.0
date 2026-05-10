@@ -1,5 +1,6 @@
 import { useEffect, useState, type ChangeEvent, type ReactNode } from "react";
 import AdminMenu from "./AdminMenu";
+import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
 
 type Intake = {
@@ -13,6 +14,8 @@ type Intake = {
   journey_step: string;
   consent_status: string;
   tier: string;
+  intake_tier?: string | null;
+  profile_subscription_tier?: string | null;
   organization_id?: string | null;
   organization_name?: string | null;
   account_status?: "enabled" | "disabled";
@@ -78,6 +81,10 @@ type ScheduledEvent = {
 };
 
 type JsonRecord = Record<string, unknown>;
+
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
 
 type UserDetail = {
   intake: Intake;
@@ -421,6 +428,7 @@ export default function LifecycleAdminPage() {
 
   async function openUserDetail(intake: Intake) {
     const data = await api(`/users/${intake.id}/details`);
+    const profileTier = stringValue(data.profile?.subscription_tier);
     setSelectedUser(data);
     setSelectedDraft({
       full_name: data.profile?.full_name ?? intake.name,
@@ -433,7 +441,7 @@ export default function LifecycleAdminPage() {
       timezone: data.profile?.timezone ?? "Europe/Madrid",
       caregiver_name: data.profile?.caregiver_name ?? "",
       caregiver_contact: data.profile?.caregiver_contact ?? "",
-      tier: intake.tier,
+      tier: profileTier ?? intake.tier,
       organization_id: intake.organization_id ?? "",
     });
   }
@@ -549,15 +557,13 @@ export default function LifecycleAdminPage() {
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
       <section className="mx-auto max-w-7xl">
-        <div className="rounded-[2rem] border border-[#eadfd5] bg-white p-6 shadow-sm">
-          <p className="text-sm font-bold uppercase tracking-[0.22em] text-purple-700">VYVA Admin</p>
-          <h1 className="mt-2 font-serif text-4xl">Signup, Access and Lifecycle</h1>
-          <p className="mt-2 text-[#7d6b65]">One operating layer for form, phone, WhatsApp and admin-created users.</p>
-          <div className="mt-5 flex flex-wrap gap-3">
-            <button className="rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white" onClick={() => refresh().catch((err) => setMessage(err.message))}>Refresh</button>
-            {message && <span className="rounded-2xl bg-purple-50 px-4 py-3 text-purple-800">{message}</span>}
-          </div>
-        </div>
+        <AdminPageHeader
+          title="Signup, Access and Lifecycle"
+          subtitle="One operating layer for form, phone, WhatsApp and admin-created users."
+        >
+          <button className="rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white" onClick={() => refresh().catch((err) => setMessage(err.message))}>Refresh</button>
+          {message && <span className="rounded-2xl bg-purple-50 px-4 py-3 text-purple-800">{message}</span>}
+        </AdminPageHeader>
 
         <AdminMenu />
 
@@ -805,7 +811,12 @@ function IntakeTable({ users, onView, onSendLink, onTriggerConsent, onToggleEnab
               {!compact && <td className="px-3 py-3">{user.phone}</td>}
               <td className="px-3 py-3">{user.user_type}</td>
               <td className="px-3 py-3">{user.entry_point}</td>
-              <td className="px-3 py-3">{user.tier}</td>
+              <td className="px-3 py-3">
+                <span>{user.tier}</span>
+                {user.intake_tier && user.intake_tier !== user.tier && (
+                  <span className="mt-1 block text-xs text-[#8b7a73]">Intake: {user.intake_tier}</span>
+                )}
+              </td>
               <td className="px-3 py-3">{user.status}</td>
               <td className="px-3 py-3">{user.account_status ?? "enabled"}</td>
               <td className="px-3 py-3">{user.consent_status}</td>

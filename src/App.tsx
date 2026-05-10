@@ -8,6 +8,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { ProfileProvider } from "@/contexts/ProfileContext";
 import { recordAgentButtonClick, recordAgentPageChange } from "@/lib/agentAppContext";
 import LoginPage from "@/pages/LoginPage";
@@ -155,7 +156,7 @@ function FaceNameMatchRoute() {
 }
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, logout } = useAuth();
   const location = useLocation();
 
   if (isLoading) return <div className="min-h-screen bg-[#f7f2eb]" />;
@@ -164,9 +165,17 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f7f2eb] px-6 text-center text-[#2f2135]">
         <section className="max-w-md rounded-3xl border border-[#eadfd5] bg-white p-6 shadow-sm">
-          <p className="text-sm font-bold uppercase tracking-[0.22em] text-purple-700">VYVA Admin</p>
+          <VyvaWordmark className="mx-auto h-auto w-[132px] sm:w-[158px]" />
+          <p className="mt-4 text-sm font-bold uppercase tracking-[0.22em] text-purple-700">VYVA Admin</p>
           <h1 className="mt-2 font-serif text-3xl">Admin access required</h1>
           <p className="mt-2 text-sm text-[#7d6b65]">Your account is signed in, but it does not have the admin role.</p>
+          <button
+            type="button"
+            onClick={logout}
+            className="mt-5 rounded-2xl bg-purple-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-purple-800"
+          >
+            Sign out
+          </button>
         </section>
       </main>
     );
