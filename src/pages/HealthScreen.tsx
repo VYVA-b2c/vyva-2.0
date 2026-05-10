@@ -367,10 +367,9 @@ const HealthScreen = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const specialistRecognitionRef = useRef<BrowserSpeechRecognition | null>(null);
 
-  const headlineText = firstName
-    ? `Todo en orden hoy, ${firstName}`
-    : "Todo en orden hoy";
-  const specialistLanguage = activeLanguage(profile?.language) || "es";
+  const headlineBase = t("health.allGoodToday", "All good today");
+  const headlineText = firstName ? `${headlineBase}, ${firstName}` : headlineBase;
+  const specialistLanguage = activeLanguage(profile?.language || i18n.language);
 
   const profileLocation = useMemo(() => {
     const parts = [
@@ -437,14 +436,14 @@ const HealthScreen = () => {
     },
     onSuccess: (data) => setSpecialistResult(data),
     onError: () => {
-      toast({ description: "No he podido buscar especialistas ahora mismo. Intentalo de nuevo en un momento." });
+      toast({ description: t("health.findSpecialist.searchError", "I could not search for specialists right now. Please try again in a moment.") });
     },
   });
 
   const runSpecialistSearch = (condition = specialistCondition) => {
     const trimmedCondition = condition.trim();
     if (!trimmedCondition) {
-      toast({ description: "Dime la condicion o necesidad para buscar el especialista adecuado." });
+      toast({ description: t("health.findSpecialist.emptyCondition", "Tell me the condition or need so I can find the right specialist.") });
       return;
     }
     setSpecialistCondition(trimmedCondition);
@@ -470,7 +469,7 @@ const HealthScreen = () => {
   const startSpecialistVoice = () => {
     const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
     if (!Recognition) {
-      toast({ description: "Tu navegador no permite dictado por voz aqui. Puedes escribir la condicion." });
+      toast({ description: t("health.findSpecialist.voiceUnsupported", "Voice dictation is not available here. You can type the condition.") });
       return;
     }
 
@@ -486,7 +485,7 @@ const HealthScreen = () => {
       }
     };
     recognition.onerror = () => {
-      toast({ description: "No he podido escuchar bien. Intentalo de nuevo o escribelo." });
+      toast({ description: t("health.findSpecialist.voiceError", "I could not hear clearly. Try again or type it.") });
       setSpecialistVoiceListening(false);
     };
     recognition.onend = () => {
@@ -518,17 +517,20 @@ const HealthScreen = () => {
   const bookSpecialistMutation = useMutation({
     mutationFn: async (provider: SpecialistProvider) => {
       const specialty = displaySpecialty(provider, specialistLanguage);
+      const providerName = provider.clinicName ?? provider.name;
       const res = await apiFetch("/api/concierge/actions/trigger", {
         method: "POST",
         body: JSON.stringify({
           use_case: "book_appointment",
-          provider_name: provider.clinicName ?? provider.name,
+          provider_name: providerName,
           provider_phone: provider.phone ?? null,
           found_externally: true,
-          action_summary: `Pedir una cita de ${specialty} en ${provider.clinicName ?? provider.name}.`,
+          action_summary: activeLanguage(specialistLanguage) === "es"
+            ? `Pedir una cita de ${specialty} en ${providerName}.`
+            : `Request a ${specialty} appointment at ${providerName}.`,
           action_payload: {
             doctor_name: provider.name,
-            practice_name: provider.clinicName ?? provider.name,
+            practice_name: providerName,
             specialty,
             reason: specialistCondition,
             preferred_days: [],
@@ -547,12 +549,12 @@ const HealthScreen = () => {
       return res.json() as Promise<{ pendingId: string; status: string }>;
     },
     onSuccess: () => {
-      toast({ description: "He preparado la solicitud. Te llevo a Concierge para confirmarla." });
+      toast({ description: t("health.findSpecialist.appointmentReady", "I prepared the request. I will take you to Concierge to confirm it.") });
       queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
       navigate("/concierge");
     },
     onError: () => {
-      toast({ description: "No he podido preparar la cita. Intentalo de nuevo en un momento." });
+      toast({ description: t("health.findSpecialist.appointmentError", "I could not prepare the appointment. Please try again in a moment.") });
     },
   });
 
@@ -581,11 +583,11 @@ const HealthScreen = () => {
     const lines = [
       provider.name,
       specialty,
-      provider.phone ? `Telefono: ${provider.phone}` : null,
-      location ? `Ubicacion: ${location}` : null,
-      provider.openingTimes ? `Horario: ${provider.openingTimes}` : null,
-      provider.distanceLabel ? `Distancia: ${provider.distanceLabel}` : null,
-      provider.bookingUrl ? `Mas informacion: ${provider.bookingUrl}` : null,
+      provider.phone ? `${t("health.findSpecialist.phoneLabel", "Phone")}: ${provider.phone}` : null,
+      location ? `${t("health.findSpecialist.locationLabel", "Location")}: ${location}` : null,
+      provider.openingTimes ? `${t("health.findSpecialist.hoursLabel", "Hours")}: ${provider.openingTimes}` : null,
+      provider.distanceLabel ? `${t("health.findSpecialist.distanceLabel", "Distance")}: ${provider.distanceLabel}` : null,
+      provider.bookingUrl ? `${t("health.findSpecialist.moreInfoLabel", "More information")}: ${provider.bookingUrl}` : null,
       provider.mapsUrl ? `Google Maps: ${provider.mapsUrl}` : null,
     ].filter(Boolean).join("\n");
 
@@ -594,10 +596,10 @@ const HealthScreen = () => {
         await navigator.share({ title: provider.name, text: lines });
       } else {
         await navigator.clipboard.writeText(lines);
-        toast({ description: "He copiado los datos para compartirlos." });
+        toast({ description: t("health.findSpecialist.shareCopied", "Details copied for sharing.") });
       }
     } catch {
-      toast({ description: "No he podido compartirlo ahora. Intentalo de nuevo." });
+      toast({ description: t("health.findSpecialist.shareError", "I could not share it right now. Please try again.") });
     }
   };
 
@@ -660,10 +662,10 @@ const HealthScreen = () => {
   };
 
   const QUICK_TILES = [
-    { id: "sintomas",   Icon: HeartPulse,    iconBg: "#F5F3FF", iconColor: "#7C3AED", label: "Síntomas",    hint: "Revisar cómo me siento", path: "/health/symptom-check", action: () => guardPath("/health/symptom-check") },
-    { id: "medicacion", Icon: Pill,          iconBg: "#FDF4FF", iconColor: "#86198F", label: "Medicación",  hint: "Mis pastillas",     path: "/meds", action: () => guardPath("/meds") },
-    { id: "signos",     Icon: Activity,      iconBg: "#FFF1F2", iconColor: "#BE123C", label: "Estado",      hint: "Signos vitales",    path: "/health/vitals", action: () => navigate("/health/vitals") },
-    { id: "historial",  Icon: ClipboardList, iconBg: "#EFF6FF", iconColor: "#1D4ED8", label: "Informes",    hint: "Ver resumen",      path: "/informes", action: () => navigate("/informes") },
+    { id: "sintomas",   Icon: HeartPulse,    iconBg: "#F5F3FF", iconColor: "#7C3AED", label: t("health.quickTiles.symptoms.label", "Symptoms"),    hint: t("health.quickTiles.symptoms.hint", "Check how I feel"), path: "/health/symptom-check", action: () => guardPath("/health/symptom-check") },
+    { id: "medicacion", Icon: Pill,          iconBg: "#FDF4FF", iconColor: "#86198F", label: t("health.quickTiles.medication.label", "Medication"),  hint: t("health.quickTiles.medication.hint", "My pills"),     path: "/meds", action: () => guardPath("/meds") },
+    { id: "signos",     Icon: Activity,      iconBg: "#FFF1F2", iconColor: "#BE123C", label: t("health.quickTiles.status.label", "Status"),      hint: t("health.quickTiles.status.hint", "Vital signs"),    path: "/health/vitals", action: () => navigate("/health/vitals") },
+    { id: "historial",  Icon: ClipboardList, iconBg: "#EFF6FF", iconColor: "#1D4ED8", label: t("health.quickTiles.reports.label", "Reports"),    hint: t("health.quickTiles.reports.hint", "View summary"),      path: "/informes", action: () => navigate("/informes") },
   ];
 
   const isSubscriptionLocked = (path?: string) => {
@@ -697,10 +699,10 @@ const HealthScreen = () => {
           </span>
           <span className="min-w-0 flex-1">
             <span className="block font-body text-[19px] font-bold leading-tight text-vyva-text-1">
-              Historial de bienestar
+              {t("health.wellbeingHistory.title", "Wellbeing history")}
             </span>
             <span className="mt-1 block font-body text-[15px] leading-snug text-vyva-text-2">
-              Ver tus lecturas anteriores y patrones recientes.
+              {t("health.wellbeingHistory.subtitle", "See your previous readings and recent patterns.")}
             </span>
           </span>
           <ChevronRight size={22} className="flex-shrink-0 text-vyva-purple" />
@@ -709,7 +711,7 @@ const HealthScreen = () => {
         {/* ── 2. Acceso rápido (2×2 grid) ── */}
         <div className="mt-[20px]">
           <p className="vyva-section-title mb-3">
-            Acceso rápido
+            {t("health.quickAccess", "Quick access")}
           </p>
           <div className="grid grid-cols-2 gap-4">
             {QUICK_TILES.map((tile) => {
@@ -750,7 +752,7 @@ const HealthScreen = () => {
         {/* ── 3. Acciones rápidas ── */}
         <div className="mt-[24px]">
           <p className="vyva-section-title mb-3">
-            Acciones rápidas
+            {t("health.quickActions", "Quick actions")}
           </p>
 
           <div className="flex flex-col gap-[10px]">
@@ -766,8 +768,8 @@ const HealthScreen = () => {
                   <Stethoscope size={24} style={{ color: "#0A7C4E" }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-body text-[15px] font-semibold text-vyva-text-1">Ver a un médico</p>
-                  <p className="font-body text-[12px] text-vyva-text-2">Videollamada o teléfono</p>
+                  <p className="font-body text-[15px] font-semibold text-vyva-text-1">{t("health.seeDoctor.title", "See a Doctor")}</p>
+                  <p className="font-body text-[12px] text-vyva-text-2">{t("health.seeDoctor.subtitle", "Video or phone in minutes")}</p>
                 </div>
                 <button
                   data-testid="button-see-doctor"
@@ -775,15 +777,15 @@ const HealthScreen = () => {
                   className="vyva-tap flex-shrink-0 rounded-full px-[16px] py-[8px] font-body text-[14px] font-semibold transition-all"
                   style={{ background: "#F0FDF4", color: "#0A7C4E", border: "1px solid #BBF7D0" }}
                 >
-                  Reservar
+                  {t("health.seeDoctor.cta", "Book Now")}
                 </button>
               </div>
 
               {seeDoctorOpen && (
                 <div className="px-[18px] pb-[16px] flex flex-col gap-2" style={{ borderTop: "1px solid #F0FDF4" }}>
                   {[
-                    { Icon: Video, label: "Videollamada", testId: "button-video-call" },
-                    { Icon: Phone, label: "Llamada de voz", testId: "button-phone-call" },
+                    { Icon: Video, label: t("health.seeDoctor.videoCall", "Video Call"), testId: "button-video-call" },
+                    { Icon: Phone, label: t("health.seeDoctor.phoneCall", "Phone Call"), testId: "button-phone-call" },
                   ].map(({ Icon, label, testId }) => (
                     <div key={label} className="flex items-center gap-3 rounded-[12px] px-[14px] py-[11px] mt-2" style={{ background: "#F9FAFB", border: "1px solid #E5E7EB" }}>
                       <div className="w-[34px] h-[34px] rounded-[10px] flex items-center justify-center flex-shrink-0" style={{ background: "#F0FDF4" }}>
@@ -791,7 +793,7 @@ const HealthScreen = () => {
                       </div>
                       <p className="font-body text-[14px] font-medium text-vyva-text-1 flex-1">{label}</p>
                       <button data-testid={testId} className="px-[12px] py-[5px] rounded-full font-body text-[12px] font-semibold" style={{ background: "#E5E7EB", color: "#6B7280" }}>
-                        Próximamente
+                        {t("health.seeDoctor.comingSoonBtn", "Coming soon")}
                       </button>
                     </div>
                   ))}
@@ -809,8 +811,8 @@ const HealthScreen = () => {
                   <Camera size={24} style={{ color: "#C9890A" }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-body text-[15px] font-semibold text-vyva-text-1">Escanear herida</p>
-                  <p className="font-body text-[12px] text-vyva-text-2">Análisis con IA en segundos</p>
+                  <p className="font-body text-[15px] font-semibold text-vyva-text-1">{t("health.scanWound.title", "Scan My Wound")}</p>
+                  <p className="font-body text-[12px] text-vyva-text-2">{t("health.scanWound.subtitle", "Take or upload a photo for AI analysis")}</p>
                 </div>
                 <button
                   data-testid="button-scan-wound"
@@ -819,7 +821,7 @@ const HealthScreen = () => {
                   className="vyva-tap flex-shrink-0 rounded-full px-[16px] py-[8px] font-body text-[14px] font-semibold transition-all"
                   style={{ background: "#FFFBEB", color: "#C9890A", border: "1px solid #FDE68A" }}
                 >
-                  {woundAnalyzing ? "Analizando…" : "Empezar"}
+                  {woundAnalyzing ? t("health.scanWound.analyzing", "Analysing...") : t("health.scanWound.cta", "Take or Upload Photo")}
                 </button>
               </div>
 
@@ -869,7 +871,7 @@ const HealthScreen = () => {
               >
                 <History size={14} style={{ color: "#C9890A" }} />
                 <span className="font-body text-[13px] font-medium flex-1 text-left" style={{ color: "#C9890A" }}>
-                  Ver historial
+                  {t("health.pastScans.viewHistory", "View history")}
                   {!pastScansLoading && pastScans.length > 0 && (
                     <span
                       className="ml-[6px] px-[7px] py-[1px] rounded-full font-body text-[11px] font-semibold"
@@ -893,7 +895,7 @@ const HealthScreen = () => {
                     {pastScansLoading ? (
                       [1, 2].map((i) => <div key={i} className="h-[54px] rounded-[12px] bg-gray-100 animate-pulse mb-[10px]" />)
                     ) : pastScans.length === 0 ? (
-                      <p className="font-body text-[13px] text-vyva-text-2 text-center py-4">Aún no hay escaneos guardados</p>
+                      <p className="font-body text-[13px] text-vyva-text-2 text-center py-4">{t("health.pastScans.empty", "No saved scans yet")}</p>
                     ) : (
                       pastScans.map((scan) => {
                         const colors = SCAN_SEVERITY_COLORS[scan.severity] ?? SCAN_SEVERITY_COLORS["Minor"];
@@ -965,7 +967,7 @@ const HealthScreen = () => {
                                     style={{ border: "1px solid #DDD6FE" }}
                                   >
                                     <Copy size={13} style={{ color: "#7C3AED" }} />
-                                    <span className="font-body text-[12px]" style={{ color: "#7C3AED" }}>{t("health.pastScans.shareAdvice", "Compartir")}</span>
+                                    <span className="font-body text-[12px]" style={{ color: "#7C3AED" }}>{t("health.pastScans.shareAdvice", "Share advice")}</span>
                                   </button>
                                   <button
                                     data-testid={`button-delete-scan-${scan.id}`}
@@ -975,7 +977,7 @@ const HealthScreen = () => {
                                     style={{ border: "1px solid #FECACA" }}
                                   >
                                     <Trash2 size={13} style={{ color: "#EF4444" }} />
-                                    <span className="font-body text-[12px]" style={{ color: "#EF4444" }}>{t("health.pastScans.delete", "Eliminar")}</span>
+                                    <span className="font-body text-[12px]" style={{ color: "#EF4444" }}>{t("health.pastScans.delete", "Delete")}</span>
                                   </button>
                                 </div>
                               </div>
@@ -999,8 +1001,8 @@ const HealthScreen = () => {
                   <UserSearch size={24} style={{ color: "#7C3AED" }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-body text-[15px] font-semibold text-vyva-text-1">Encontrar especialista</p>
-                  <p className="font-body text-[12px] text-vyva-text-2">Médicos cerca de ti</p>
+                  <p className="font-body text-[15px] font-semibold text-vyva-text-1">{t("health.findSpecialist.title", "Find a Specialist")}</p>
+                  <p className="font-body text-[12px] text-vyva-text-2">{t("health.findSpecialist.subtitle", "Connect with the right expert")}</p>
                 </div>
                 <button
                   data-testid="button-find-specialist"
@@ -1020,11 +1022,11 @@ const HealthScreen = () => {
                 >
                   {specialistOpen ? (
                     <>
-                      Ocultar
+                      {t("health.findSpecialist.hideButton", "Hide")}
                       <ChevronUp size={16} />
                     </>
                   ) : (
-                    "Ver opciones"
+                    t("health.findSpecialist.optionsButton", "Options")
                   )}
                 </button>
               </div>
@@ -1033,7 +1035,7 @@ const HealthScreen = () => {
                 <div className="px-[18px] pb-[16px]" style={{ borderTop: "1px solid #F5F3FF" }}>
                   <div className="flex items-start justify-between gap-3 pt-[14px]">
                     <p className="font-body text-[15px] leading-relaxed text-vyva-text-2">
-                      Describe la condicion o preocupacion. VYVA buscara el tipo de especialista adecuado y opciones cercanas.
+                      {t("health.findSpecialist.intro", "Describe the condition or concern. VYVA will look for the right specialist type and nearby options.")}
                     </p>
                     <button
                       data-testid="button-reset-specialist-search"
@@ -1042,12 +1044,12 @@ const HealthScreen = () => {
                       className="vyva-tap flex-shrink-0 rounded-full px-[10px] py-[6px] font-body text-[12px] font-semibold"
                       style={{ background: "#FFFFFF", color: "#7C3AED", border: "1px solid #DDD6FE" }}
                     >
-                      Reiniciar
+                      {t("health.findSpecialist.reset", "Reset")}
                     </button>
                   </div>
                   <div className="flex items-center justify-between gap-2 pt-[12px] pb-[8px]">
                     <p className="font-body text-[12px] font-semibold uppercase tracking-wide" style={{ color: "#7C3AED" }}>
-                      Sugerencias para ti
+                      {t("health.findSpecialist.suggestions", "Suggestions for you")}
                     </p>
                     <button
                       data-testid="button-refresh-specialist-examples"
@@ -1057,7 +1059,7 @@ const HealthScreen = () => {
                       style={{ background: "#FFFFFF", color: "#7C3AED", border: "1px solid #DDD6FE" }}
                     >
                       <RefreshCw size={13} />
-                      Más
+                      {t("health.findSpecialist.more", "More")}
                     </button>
                   </div>
                   <div className="flex flex-wrap gap-2 pb-[10px]">
@@ -1086,13 +1088,13 @@ const HealthScreen = () => {
                       }}
                     >
                       {specialistVoiceListening ? <Square size={16} /> : <Mic size={16} />}
-                      {specialistVoiceListening ? "Escuchando..." : "Buscar por voz"}
+                      {specialistVoiceListening ? t("health.findSpecialist.listening", "Listening...") : t("health.findSpecialist.voiceSearch", "Search by voice")}
                     </button>
                     <input
                       data-testid="input-specialist-condition"
                       value={specialistCondition}
                       onChange={(e) => setSpecialistCondition(e.target.value)}
-                      placeholder="Ej. dolor de rodilla, diabetes, memoria..."
+                      placeholder={t("health.findSpecialist.conditionPlaceholder", "e.g. knee pain, diabetes, memory...")}
                       className="w-full rounded-[16px] px-[16px] py-[13px] font-body text-[16px] outline-none"
                       style={{ border: "1px solid #DDD6FE", background: "#FFFFFF", color: "#2F2925" }}
                     />
@@ -1103,7 +1105,7 @@ const HealthScreen = () => {
                         setSpecialistLocationEdited(true);
                         setSpecialistLocation(e.target.value);
                       }}
-                      placeholder={profileLocation || "Ciudad o zona"}
+                      placeholder={profileLocation || t("health.findSpecialist.locationPlaceholder", "City or area")}
                       className="w-full rounded-[16px] px-[16px] py-[13px] font-body text-[16px] outline-none"
                       style={{ border: "1px solid #EDE5DB", background: "#FFFFFF", color: "#2F2925" }}
                     />
@@ -1114,7 +1116,7 @@ const HealthScreen = () => {
                       className="vyva-primary-action w-full"
                       style={{ background: "#7C3AED", color: "#FFFFFF" }}
                     >
-                      {specialistMutation.isPending ? "Buscando especialistas..." : "Buscar especialistas"}
+                      {specialistMutation.isPending ? t("health.findSpecialist.searching", "Searching specialists...") : t("health.findSpecialist.searchButton", "Search specialists")}
                     </button>
                   </div>
 
@@ -1122,35 +1124,35 @@ const HealthScreen = () => {
                     <div className="mt-[12px] flex flex-col gap-2">
                       <div className="rounded-[14px] px-[14px] py-[11px]" style={{ background: "#F5F3FF", border: "1px solid #DDD6FE" }}>
                         <p className="font-body text-[12px] font-semibold" style={{ color: "#6D28D9" }}>
-                          Especialidades recomendadas
+                          {t("health.findSpecialist.recommendedSpecialties", "Recommended specialties")}
                         </p>
                         <p className="font-body text-[14px] font-semibold text-vyva-text-1">
                           {specialistResult.matchedSpecialties.map((specialty) => displaySpecialtyText(specialty, specialistLanguage)).join(", ")}
                         </p>
                         <p className="font-body text-[11px] text-vyva-text-2 leading-snug mt-[6px]">
-                          Esto no es un diagnostico. Si los sintomas son graves o repentinos, llama a emergencias o a tu medico.
+                          {t("health.findSpecialist.disclaimer", "This is not a diagnosis. If symptoms are serious or sudden, call emergency services or your doctor.")}
                         </p>
                       </div>
                       {specialistResult.providers.length === 0 ? (
                         <div className="rounded-[16px] px-[14px] py-[14px]" style={{ background: "#FFF7ED", border: "1px solid #FED7AA" }}>
                           <p className="font-body text-[16px] font-semibold leading-tight text-vyva-text-1">
-                            No he encontrado proveedores verificados con datos suficientes ahora mismo.
+                            {t("health.findSpecialist.noProvidersTitle", "I could not find verified providers with enough data right now.")}
                           </p>
                           <p className="mt-2 font-body text-[13px] leading-snug text-vyva-text-2">
-                            Puedes probar otra ciudad o abrir Google Maps para buscar opciones cerca.
+                            {t("health.findSpecialist.noProvidersBody", "You can try another city or open Google Maps to look for nearby options.")}
                           </p>
                           <button
                             data-testid="button-open-specialist-maps-search"
                             onClick={() => {
                               const query = specialistResult.mapsSearchUrl
-                                ?? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${displaySpecialtyText(specialistResult.matchedSpecialties[0] ?? "medico", specialistLanguage)} ${specialistLocation || profileLocation}`)}`;
+                                ?? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${displaySpecialtyText(specialistResult.matchedSpecialties[0] ?? t("health.findSpecialist.doctorSearchTerm", "doctor"), specialistLanguage)} ${specialistLocation || profileLocation}`)}`;
                               window.open(query, "_blank", "noopener,noreferrer");
                             }}
                             className="mt-[12px] min-h-[44px] rounded-full px-[16px] font-body text-[14px] font-semibold flex items-center justify-center gap-2"
                             style={{ background: "#7C3AED", color: "#FFFFFF" }}
                           >
                             <MapPin size={15} />
-                            Abrir Google Maps
+                            {t("health.findSpecialist.openMaps", "Open Google Maps")}
                           </button>
                         </div>
                       ) : specialistResult.providers.map((spec, i) => {
@@ -1209,7 +1211,7 @@ const HealthScreen = () => {
                               style={{ background: "#7C3AED", color: "#FFFFFF" }}
                             >
                               <Phone size={15} />
-                              Contactar
+                              {t("health.findSpecialist.contact", "Contact")}
                             </button>
                             {spec.mapsUrl && (
                               <button
@@ -1219,7 +1221,7 @@ const HealthScreen = () => {
                                 style={{ background: "#F0FDF4", color: "#047857", border: "1px solid #BBF7D0" }}
                               >
                                 <MapPin size={15} />
-                                Mapa
+                                {t("health.findSpecialist.map", "Map")}
                               </button>
                             )}
                             <button
@@ -1229,7 +1231,7 @@ const HealthScreen = () => {
                               style={{ background: "#FFFFFF", color: "#7C3AED", border: "1px solid #DDD6FE" }}
                             >
                               <Share2 size={15} />
-                              Compartir
+                              {t("health.findSpecialist.share", "Share")}
                             </button>
                           </div>
 
