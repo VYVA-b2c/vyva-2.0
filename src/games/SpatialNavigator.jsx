@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { useLanguage } from "../i18n";
 import BrainGameResultActions from "./shared/BrainGameResultActions";
@@ -172,6 +173,7 @@ export default function SpatialNavigator({ userId, onExit }) {
     practiceNote: t("brainGames.spatialNav.practiceNote"),
     title: t("brainGames.spatialNav.title"),
     subtitle: t("brainGames.spatialNav.subtitle"),
+    back: t("common.back"),
     level: t("common.level"),
     start: t("brainGames.spatialNav.start"),
     introHint: t("brainGames.spatialNav.introHint"),
@@ -808,8 +810,12 @@ export default function SpatialNavigator({ userId, onExit }) {
 
       {screen === "intro" && (
         <section className="spatial-panel spatial-intro">
-          <div className="spatial-logo-row">
+          <div className="spatial-topbar">
             <div className="spatial-logo">V</div>
+            <button className="spatial-back-button" type="button" onClick={handleExit}>
+              <ArrowLeft size={24} />
+              {text.back}
+            </button>
           </div>
 
           <div className="spatial-hero-icon" aria-hidden="true">🗺️</div>
@@ -964,35 +970,56 @@ const spatialStyles = `
     text-align: center;
   }
 
-  .spatial-logo-row {
+  .spatial-topbar {
     width: 100%;
     display: flex;
-    justify-content: flex-start;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
   }
 
   .spatial-logo {
-    width: 64px;
-    height: 64px;
+    width: 60px;
+    height: 60px;
     border-radius: 50%;
     background: ${PURPLE};
     color: #FFFFFF;
     display: grid;
     place-items: center;
-    font-size: 36px;
+    font-size: 34px;
     font-weight: 900;
     box-shadow: 0 10px 22px rgba(107, 33, 168, 0.24);
   }
 
+  .spatial-back-button {
+    min-height: 64px;
+    min-width: 64px;
+    border: 0;
+    border-radius: 999px;
+    background: #FFFFFF;
+    color: #2F2135;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 0 22px;
+    font-size: 22px;
+    line-height: 1.1;
+    font-weight: 850;
+    cursor: pointer;
+    box-shadow: 0 10px 22px rgba(43, 31, 24, 0.08);
+  }
+
   .spatial-hero-icon,
   .spatial-result-icon {
-    font-size: 76px;
+    font-size: 60px;
     line-height: 1;
-    margin-top: 10px;
+    margin-top: 12px;
   }
 
   .spatial-title {
-    margin: 18px 0 0;
-    font-size: clamp(42px, 7vw, 62px);
+    margin: 12px 0 0;
+    font-size: clamp(40px, 6vw, 54px);
     line-height: 1.02;
     color: #2F2135;
     font-weight: 850;
@@ -1003,8 +1030,8 @@ const spatialStyles = `
   .spatial-hint,
   .spatial-note,
   .spatial-loading {
-    margin: 14px 0 0;
-    font-size: 24px;
+    margin: 10px 0 0;
+    font-size: 22px;
     line-height: 1.32;
     color: #5B4A61;
     letter-spacing: 0;
@@ -1022,7 +1049,7 @@ const spatialStyles = `
 
   .spatial-badge {
     min-height: 64px;
-    margin-top: 20px;
+    margin-top: 16px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1039,7 +1066,7 @@ const spatialStyles = `
     width: 100%;
     max-width: 480px;
     min-width: 320px;
-    margin: 26px auto 0;
+    margin: 20px auto 0;
     display: flex;
     justify-content: center;
   }
@@ -1078,7 +1105,7 @@ const spatialStyles = `
 
   .spatial-primary-button {
     width: 100%;
-    margin-top: 26px;
+    margin-top: 20px;
     background: ${PURPLE};
     color: #FFFFFF;
     box-shadow: 0 16px 30px rgba(107, 33, 168, 0.24);

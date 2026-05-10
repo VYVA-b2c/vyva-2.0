@@ -13,7 +13,6 @@ import {
   Route,
   Sparkles,
   Target,
-  Users,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -250,41 +249,6 @@ const MemoryGamesPage = () => {
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => navigate("/face-name-match")}
-            className="relative min-h-[168px] overflow-hidden rounded-[24px] border border-vyva-border bg-white p-4 text-left shadow-vyva-card transition-transform hover:-translate-y-[1px]"
-          >
-            <div
-              className="absolute inset-x-0 top-0 h-[6px]"
-              style={{ background: "linear-gradient(90deg, #6B21A8 0%, #D5F5F5 100%)" }}
-              aria-hidden="true"
-            />
-
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex h-[68px] w-[68px] flex-shrink-0 items-center justify-center rounded-[22px] bg-[#E8D5F5] text-vyva-purple">
-                <Users size={30} />
-              </div>
-
-              <div className="rounded-full bg-[#D5F5F5] px-3 py-1 text-[12px] font-semibold text-[#0F766E]">
-                {t("brainGames.faceName.badge")}
-              </div>
-            </div>
-
-            <h3 className="mt-4 text-[22px] font-semibold leading-[1.15] text-vyva-text-1">
-              {t("brainGames.faceName.title")}
-            </h3>
-
-            <div className="mt-4 flex items-center justify-between gap-2">
-              <span className="min-w-0 rounded-full bg-[#E8D5F5] px-3 py-2 text-[13px] font-medium leading-tight text-vyva-purple">
-                {t("cognitiveDomains.executive_function")}
-              </span>
-              <div className="flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-full bg-[#E8D5F5] text-vyva-purple">
-                <ChevronRight size={18} />
-              </div>
-            </div>
-          </button>
-
           {availableGameTypes.map((gameType) => {
             const definition = memoryGameRegistry[gameType];
             const plan = manualPlans[gameType];
