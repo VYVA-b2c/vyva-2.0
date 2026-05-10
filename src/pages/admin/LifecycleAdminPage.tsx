@@ -161,6 +161,7 @@ type AccountSubscription = {
   membership_role?: string | null;
   membership_relationship?: string | null;
   is_active_profile?: boolean;
+  synced_profile_ids?: string[];
   source?: string;
   updated_at?: string;
 };
@@ -504,7 +505,8 @@ export default function LifecycleAdminPage() {
             }
           : item
       )));
-      setAccountSearchMessage(`${account.profile_email ?? account.account_email ?? account.profile_id} updated to ${updated.subscription_tier}${account.account_id ? " and made active for that login" : ""}.`);
+      const syncedCount = updated.synced_profile_ids?.length ?? 1;
+      setAccountSearchMessage(`${account.profile_email ?? account.account_email ?? account.profile_id} updated to ${updated.subscription_tier}${account.account_id ? " and made active for that login" : ""}${syncedCount > 1 ? ` across ${syncedCount} linked profiles` : ""}.`);
       await refresh();
     } catch (err) {
       setAccountSearchMessage(err instanceof Error ? err.message : "Could not update subscription.");

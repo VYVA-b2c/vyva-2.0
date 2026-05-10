@@ -16,8 +16,14 @@ export async function getActiveProfileContext(accountUserId: string): Promise<Ac
     .where(eq(users.id, accountUserId))
     .limit(1);
 
+  const [directProfile] = await db
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(eq(profiles.id, accountUserId))
+    .limit(1);
+
   if (!account) {
-    return { accountUserId, profileId: null, role: null };
+    return { accountUserId, profileId: directProfile?.id ?? null, role: null };
   }
 
   if (account.active_profile_id) {
@@ -54,18 +60,12 @@ export async function getActiveProfileContext(accountUserId: string): Promise<Ac
     return { accountUserId, profileId: membership.profile_id, role: membership.role };
   }
 
-  const [legacyProfile] = await db
-    .select({ id: profiles.id })
-    .from(profiles)
-    .where(eq(profiles.id, accountUserId))
-    .limit(1);
-
-  if (legacyProfile) {
+  if (directProfile) {
     await db
       .insert(profileMemberships)
       .values({
         user_id: accountUserId,
-        profile_id: legacyProfile.id,
+        profile_id: directProfile.id,
         role: "elder",
         relationship: "self",
         is_primary: true,
@@ -75,10 +75,10 @@ export async function getActiveProfileContext(accountUserId: string): Promise<Ac
 
     await db
       .update(users)
-      .set({ active_profile_id: legacyProfile.id })
+      .set({ active_profile_id: directProfile.id })
       .where(eq(users.id, accountUserId));
 
-    return { accountUserId, profileId: legacyProfile.id, role: "elder" };
+    return { accountUserId, profileId: directProfile.id, role: "elder" };
   }
 
   return { accountUserId, profileId: null, role: null };
