@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Conversation } from "@elevenlabs/client";
 import type { Conversation as ElevenConversation, DisconnectionDetails, PartialOptions } from "@elevenlabs/client";
+import { getAgentAppContextVariables, subscribeAgentAppContext } from "@/lib/agentAppContext";
 import { apiFetch } from "@/lib/queryClient";
 
 type TtsSegment = {
@@ -151,6 +152,17 @@ export function useVyvaVoice() {
 
   useEffect(() => () => { teardown(); }, [teardown]);
 
+  useEffect(() => {
+    return subscribeAgentAppContext((message) => {
+      if (statusRef.current !== "connected" || !conversationRef.current) return;
+      try {
+        conversationRef.current.sendContextualUpdate(message);
+      } catch (error) {
+        console.warn("[VYVA] Failed to send app context update:", error);
+      }
+    });
+  }, []);
+
   const fetchSessionOptions = useCallback(
     async (
       activeAgentId: string | undefined,
@@ -254,7 +266,10 @@ export function useVyvaVoice() {
         const conversation = await Conversation.startSession({
           ...sessionOptions,
           textOnly: skipMicrophone,
-          dynamicVariables: options?.dynamicVariables,
+          dynamicVariables: {
+            ...getAgentAppContextVariables(),
+            ...(options?.dynamicVariables ?? {}),
+          },
           overrides: systemPrompt
             ? { agent: { prompt: { prompt: systemPrompt } } }
             : undefined,

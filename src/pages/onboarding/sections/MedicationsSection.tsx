@@ -30,6 +30,16 @@ const emptyMed = (id: string): Medication => ({
   id, name: "", dosage: "", frequency: "", times: "", with_food: "", prescribed_by: "",
 });
 
+const STANDARD_FREQUENCIES = ["once_daily", "twice_daily", "three_daily"];
+
+function isCustomFrequency(value: string): boolean {
+  return Boolean(value && !STANDARD_FREQUENCIES.includes(value));
+}
+
+function customFrequencyDisplayValue(value: string): string {
+  return value === "as_needed" ? "As needed" : value;
+}
+
 function parseMedicationTimes(raw: string): string[] | undefined {
   const times = raw
     .split(/[,\n;]+/)
@@ -80,6 +90,7 @@ export default function MedicationsSection() {
   const [adding, setAdding] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [voiceModalOpen, setVoiceModalOpen] = useState(false);
+  const [customFrequencyMedIds, setCustomFrequencyMedIds] = useState<Set<string>>(() => new Set());
 
   // Refs so auto-save closure always sees the latest values
   const medsRef = useRef(meds);
@@ -139,6 +150,25 @@ export default function MedicationsSection() {
   const updateMed = (id: string, field: keyof Omit<Medication, "id">, value: string) => {
     setMeds((prev) => prev.map((m) => m.id === id ? { ...m, [field]: value } : m));
     scheduleAutoSave();
+  };
+
+  const updateFrequency = (id: string, value: string) => {
+    if (value === "other") {
+      setCustomFrequencyMedIds((prev) => new Set(prev).add(id));
+      const currentFrequency = medsRef.current.find((med) => med.id === id)?.frequency ?? "";
+      if (!isCustomFrequency(currentFrequency)) {
+        updateMed(id, "frequency", "");
+      }
+      return;
+    }
+
+    setCustomFrequencyMedIds((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    updateMed(id, "frequency", value);
   };
 
   const addMed = async () => {
@@ -342,6 +372,9 @@ export default function MedicationsSection() {
             {meds.map((med, idx) => {
               const saved = isMedSaved(idx);
               const dirty = isMedDirty(idx);
+              const showCustomFrequency =
+                customFrequencyMedIds.has(med.id) || isCustomFrequency(med.frequency);
+
               return (
                 <div
                   key={med.id}
@@ -401,21 +434,33 @@ export default function MedicationsSection() {
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs font-bold text-gray-600">Frequency</Label>
-                      <Select value={med.frequency || undefined} onValueChange={(v) => updateMed(med.id, "frequency", v)}>
+                      <Select
+                        value={showCustomFrequency ? "other" : med.frequency || undefined}
+                        onValueChange={(v) => updateFrequency(med.id, v)}
+                      >
                         <SelectTrigger data-testid={`select-med-frequency-${idx}`} className="h-11 border-purple-200"><SelectValue placeholder="Select" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="once_daily">Once daily</SelectItem>
                           <SelectItem value="twice_daily">Twice daily</SelectItem>
                           <SelectItem value="three_daily">3x daily</SelectItem>
-                          <SelectItem value="as_needed">As needed</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
                         </SelectContent>
                       </Select>
+                      {showCustomFrequency && (
+                        <Input
+                          data-testid={`input-med-frequency-other-${idx}`}
+                          placeholder="Type frequency"
+                          value={customFrequencyDisplayValue(med.frequency)}
+                          onChange={(e) => updateMed(med.id, "frequency", e.target.value)}
+                          className="h-11 border-purple-200"
+                        />
+                      )}
                     </div>
                   </div>
                   <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-gray-600">Time(s)</Label>
-                      <Input data-testid={`input-med-times-${idx}`} placeholder="e.g. 08:00, 20:00" value={med.times} onChange={(e) => updateMed(med.id, "times", e.target.value)} className="h-11 border-purple-200" />
+                      <Label className="text-xs font-bold text-gray-600">When do you take it?</Label>
+                      <Input data-testid={`input-med-times-${idx}`} placeholder="Morning, evening, bedtime" value={med.times} onChange={(e) => updateMed(med.id, "times", e.target.value)} className="h-11 border-purple-200" />
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs font-bold text-gray-600">With food?</Label>

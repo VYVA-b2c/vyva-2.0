@@ -364,6 +364,10 @@ const HomeScreen = () => {
     guardPath(path);
   };
 
+  const handleAgentCardOpen = (card: HomeAgentCard) => {
+    handleNavigate(card.path);
+  };
+
   const isSubscriptionLocked = (path: string) => {
     const serviceId = serviceForPath(path);
     if (!serviceId) return false;
@@ -421,11 +425,11 @@ const HomeScreen = () => {
                 role="button"
                 tabIndex={0}
                 aria-label={t(`home.voiceCards.${card.id}.openLabel`)}
-                onClick={() => handleNavigate(card.path)}
+                onClick={() => handleAgentCardOpen(card)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
-                    handleNavigate(card.path);
+                    handleAgentCardOpen(card);
                   }
                 }}
                 className={`group relative min-h-[188px] overflow-visible rounded-[28px] border bg-[#FFFCF8] px-4 py-4 text-left transition-transform active:scale-[0.99] ${locked ? "opacity-80" : ""}`}
@@ -442,23 +446,25 @@ const HomeScreen = () => {
                     >
                       <Icon size={30} strokeWidth={2.5} style={{ color: theme.iconColor }} />
                     </div>
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        handleCardVoice(card);
-                      }}
-                      aria-label={t(`home.voiceCards.${card.id}.micLabel`)}
-                      data-testid={`button-home-agent-voice-${card.id}`}
-                      className={`relative z-20 flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-full bg-white transition-transform active:scale-95 ${isVoiceActive ? "mic-pulse-listening" : ""}`}
-                      style={{
-                        border: "1px solid #EFE4D5",
-                        boxShadow: "0 10px 22px rgba(43,31,24,0.08)",
-                        color: theme.micColor,
-                      }}
-                    >
-                      {locked ? <Lock size={22} strokeWidth={2.4} /> : <Mic size={25} strokeWidth={2.4} />}
-                    </button>
+                    {card.id !== "health" && (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleCardVoice(card);
+                        }}
+                        aria-label={t(`home.voiceCards.${card.id}.micLabel`)}
+                        data-testid={`button-home-agent-voice-${card.id}`}
+                        className={`relative z-20 flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-full bg-white transition-transform active:scale-95 ${isVoiceActive ? "mic-pulse-listening" : ""}`}
+                        style={{
+                          border: "1px solid #EFE4D5",
+                          boxShadow: "0 10px 22px rgba(43,31,24,0.08)",
+                          color: theme.micColor,
+                        }}
+                      >
+                        {locked ? <Lock size={22} strokeWidth={2.4} /> : <Mic size={25} strokeWidth={2.4} />}
+                      </button>
+                    )}
                   </div>
 
                   <div className="min-w-0">

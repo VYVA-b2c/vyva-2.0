@@ -9,6 +9,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { ProfileProvider } from "@/contexts/ProfileContext";
+import { recordAgentButtonClick, recordAgentPageChange } from "@/lib/agentAppContext";
 import LoginPage from "@/pages/LoginPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import AccessLinkPage from "@/pages/AccessLinkPage";
@@ -199,6 +200,46 @@ function NumberTrailsRoute() {
   return <NumberTrails userId={user?.id ?? ""} onExit={() => navigate("/executive-function")} />;
 }
 
+function getInteractiveLabel(element: Element): string {
+  const explicitLabel =
+    element.getAttribute("aria-label") ||
+    element.getAttribute("title") ||
+    element.getAttribute("data-testid");
+
+  if (explicitLabel) return explicitLabel;
+
+  return (element.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
+}
+
+function AgentAppContextTracker() {
+  const location = useLocation();
+
+  React.useEffect(() => {
+    recordAgentPageChange(`${location.pathname}${location.search}`);
+  }, [location.pathname, location.search]);
+
+  React.useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const interactiveElement = target?.closest("button,a,[role='button']");
+      if (!interactiveElement || interactiveElement.hasAttribute("data-agent-context-ignore")) return;
+
+      const label = getInteractiveLabel(interactiveElement);
+      if (!label) return;
+
+      recordAgentButtonClick({
+        label,
+        path: `${window.location.pathname}${window.location.search}`,
+      });
+    };
+
+    document.addEventListener("click", handleClick, true);
+    return () => document.removeEventListener("click", handleClick, true);
+  }, []);
+
+  return null;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
@@ -207,6 +248,7 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter>
+              <AgentAppContextTracker />
               <Routes>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/admin/login" element={<LoginPage adminOnly />} />
