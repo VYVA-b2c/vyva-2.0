@@ -1,4 +1,4 @@
-import { ArrowLeft, ChevronRight, GitBranch, Layers } from "lucide-react";
+import { ArrowLeft, ChevronRight, GitBranch, Layers, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n";
 
@@ -7,7 +7,19 @@ const executiveGames = [
     key: "categorySort",
     route: "/executive-function/category-sort",
     Icon: GitBranch,
+    titleKey: "brainGames.executiveFunction.categorySort.title",
+    descriptionKey: "brainGames.executiveFunction.categorySort.description",
+    badgeKey: "brainGames.executiveFunction.categorySort.badge",
     colors: { accent: "#6B21A8", bg: "#F5EEFF", border: "#D8C7F3" },
+  },
+  {
+    key: "faceName",
+    route: "/face-name-match",
+    Icon: Users,
+    titleKey: "brainGames.faceName.title",
+    descriptionKey: "brainGames.faceName.subtitle",
+    badgeKey: "brainGames.faceName.badge",
+    colors: { accent: "#6B21A8", bg: "#E8D5F5", border: "#D8C7F3" },
   },
 ] as const;
 
@@ -43,7 +55,6 @@ export default function ExecutiveFunctionPage() {
 
       <section className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
         {executiveGames.map((game) => {
-          const copyPath = `brainGames.executiveFunction.${game.key}`;
           const Icon = game.Icon;
 
           return (
@@ -66,13 +77,13 @@ export default function ExecutiveFunctionPage() {
                     className="rounded-full px-4 py-2 text-[18px] font-bold"
                     style={{ background: game.colors.bg, color: game.colors.accent }}
                   >
-                    {t(`${copyPath}.badge`)}
+                    {t(game.badgeKey)}
                   </span>
                 </div>
 
                 <div>
-                  <h2 className="text-[30px] font-extrabold leading-[1.1] text-vyva-text-1">{t(`${copyPath}.title`)}</h2>
-                  <p className="mt-3 text-[22px] leading-[1.35] text-vyva-text-2">{t(`${copyPath}.description`)}</p>
+                  <h2 className="text-[30px] font-extrabold leading-[1.1] text-vyva-text-1">{t(game.titleKey)}</h2>
+                  <p className="mt-3 text-[22px] leading-[1.35] text-vyva-text-2">{t(game.descriptionKey)}</p>
                 </div>
 
                 <div className="flex items-center justify-end">
