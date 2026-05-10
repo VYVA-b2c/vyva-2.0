@@ -144,6 +144,7 @@ type SubscriptionPlanAdmin = {
 
 type AccountSubscription = {
   account_id?: string | null;
+  account_source?: "legacy" | "supabase" | null;
   account_email?: string | null;
   account_phone?: string | null;
   active_profile_id?: string | null;
@@ -482,6 +483,8 @@ export default function LifecycleAdminPage() {
         method: "PATCH",
         body: JSON.stringify({
           account_id: account.account_id,
+          account_source: account.account_source,
+          account_email: account.account_email,
           subscription_tier: account.subscription_tier,
           subscription_status: account.subscription_status || "active",
         }),
@@ -493,6 +496,7 @@ export default function LifecycleAdminPage() {
               ...item,
               ...updated,
               account_id: updated.account_id ?? item.account_id,
+              account_source: updated.account_source ?? item.account_source,
               account_email: item.account_email,
               account_phone: item.account_phone,
               active_profile_id: updated.active_profile_id ?? item.active_profile_id,
@@ -1004,7 +1008,10 @@ function AccountSubscriptionsSection({
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="text-xl font-black">{displayName}</h3>
                     {account.is_active_profile && (
-                      <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">Active profile</span>
+                      <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">{account.account_source === "supabase" ? "Supabase app profile" : "Active profile"}</span>
+                    )}
+                    {account.account_source === "supabase" && (
+                      <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700">Supabase login</span>
                     )}
                     {account.account_id && !account.is_active_profile && (
                       <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800">Not active for login</span>
@@ -1014,7 +1021,7 @@ function AccountSubscriptionsSection({
                     )}
                   </div>
                   <div className="mt-2 grid gap-1 text-sm text-[#7d6b65]">
-                    <p><span className="font-bold text-[#4d4351]">Login:</span> {account.account_email || account.account_phone || "No linked login shown"}</p>
+                    <p><span className="font-bold text-[#4d4351]">Login:</span> {account.account_email || account.account_phone || "No linked login shown"}{account.account_source ? ` (${account.account_source})` : ""}</p>
                     <p><span className="font-bold text-[#4d4351]">Profile:</span> {account.profile_email || account.phone_number || account.profile_id}</p>
                     <p><span className="font-bold text-[#4d4351]">Profile ID:</span> <span className="font-mono text-xs">{account.profile_id}</span></p>
                     {account.membership_role && <p><span className="font-bold text-[#4d4351]">Relationship:</span> {account.membership_role}{account.membership_relationship ? ` - ${account.membership_relationship}` : ""}</p>}
