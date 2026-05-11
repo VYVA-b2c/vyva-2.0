@@ -1131,74 +1131,62 @@ function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, 
   const selectedTier = String(draft.tier ?? "free").toLowerCase();
   const appTier = primaryMapping?.effective_subscription_tier?.toLowerCase() ?? null;
   const hasTierMismatch = Boolean(appTier && selectedTier && appTier !== selectedTier);
+  const appAccessText = primaryMapping
+    ? `${primaryMapping.effective_subscription_tier ?? "Unknown"}${primaryMapping.effective_subscription_status ? ` (${primaryMapping.effective_subscription_status})` : ""}`
+    : "No login match";
   return (
-    <div className="fixed inset-0 z-50 overflow-auto bg-black/30 p-4">
-      <div className="mx-auto max-w-5xl rounded-[2rem] bg-white p-6 shadow-2xl">
-        <div className="flex items-start justify-between gap-4">
-          <div><p className="text-sm font-bold uppercase tracking-[0.22em] text-purple-700">User details</p><h2 className="font-serif text-4xl">{detail.intake.name}</h2><p className="text-[#7d6b65]">{detail.intake.user_type} - {detail.intake.status} - {disabled ? "Disabled" : "Enabled"}</p></div>
-          <button className="rounded-full border px-4 py-2 font-bold" onClick={onClose}>Close</button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-3 sm:p-5">
+      <div className="flex max-h-[calc(100vh-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-[1.5rem] bg-white shadow-2xl">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#eadfd5] px-5 py-4">
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-purple-700">User details</p>
+            <h2 className="mt-1 truncate font-serif text-3xl leading-tight">{detail.intake.name}</h2>
+            <p className="mt-1 text-sm text-[#7d6b65]">{detail.intake.user_type} - {detail.intake.status} - {disabled ? "Disabled" : "Enabled"}</p>
+          </div>
+          <button className="rounded-xl border border-[#eadfd5] px-4 py-2 text-sm font-bold" onClick={onClose}>Close</button>
         </div>
-        <div className="mt-5 grid gap-5 lg:grid-cols-2">
-          <section className="rounded-3xl border p-4">
-            <h3 className="text-xl font-black">Profile and access</h3>
-            <div className="mt-3 rounded-2xl border border-[#eadfd5] bg-[#fbf8f5] p-3">
-              <div className="flex items-center justify-between gap-3">
-                <p className="font-bold text-[#20112a]">Login mapping</p>
-                <span className="rounded-full bg-[#f4eafe] px-3 py-1 text-xs font-black uppercase tracking-[0.08em] text-purple-700">
-                  {detail.account_match_field ? `Matched by ${detail.account_match_field}` : "No match"}
-                </span>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]">
+          <section className="rounded-2xl border border-[#eadfd5] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-xl font-black">Profile and access</h3>
+                <p className="mt-1 text-sm text-[#7d6b65]">Account, contact, and plan controls.</p>
               </div>
-              {(detail.account_mapping_warnings ?? []).map((warning) => (
-                <p key={warning} className="mt-2 rounded-xl bg-[#fff3e8] px-3 py-2 text-sm font-bold text-[#8a4a00]">{warning}</p>
-              ))}
-              {(detail.account_mappings ?? []).length === 0 ? (
-                <p className="mt-2 text-sm text-[#7d6b65]">No login account is linked to this intake yet.</p>
-              ) : (
-                <div className="mt-3 grid gap-2">
-                  {(detail.account_mappings ?? []).map((mapping) => (
-                    <div key={`${mapping.source}:${mapping.login_uid}`} className="rounded-xl bg-white p-3 text-sm">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-full bg-purple-100 px-2 py-1 text-xs font-black text-purple-800">{mapping.source === "supabase" ? "Supabase login" : "Legacy login"}</span>
-                        <span className="font-mono text-xs text-[#6d596f]">{mapping.login_uid}</span>
-                      </div>
-                      <p className="mt-2 text-[#5f515d]"><span className="font-bold">Login:</span> {mapping.login_email || mapping.login_phone || "No email/phone"}</p>
-                      <p className="text-[#5f515d]"><span className="font-bold">App profile:</span> <span className="font-mono text-xs">{mapping.effective_profile_id ?? "None"}</span></p>
-                      <p className="text-[#5f515d]"><span className="font-bold">App tier:</span> {mapping.effective_subscription_tier ?? "None"} {mapping.effective_subscription_status ? `(${mapping.effective_subscription_status})` : ""}</p>
-                      <p className="text-[#5f515d]"><span className="font-bold">Admin profile:</span> <span className="font-mono text-xs">{mapping.lifecycle_profile_id ?? "None"}</span></p>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <span className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${hasTierMismatch ? "bg-[#fff3e8] text-[#8a4a00]" : primaryMapping ? "bg-[#ecfdf3] text-[#087443]" : "bg-[#f4eafe] text-purple-700"}`}>
+                App access: {appAccessText}
+              </span>
             </div>
-            <div className="mt-3 grid gap-3">
-              <Field label="Full name"><input className="w-full rounded-2xl border px-4 py-3" value={draft.full_name ?? ""} onChange={(e) => setDraft({ ...draft, full_name: e.target.value })} /></Field>
-              <Field label="Preferred name"><input className="w-full rounded-2xl border px-4 py-3" value={draft.preferred_name ?? ""} onChange={(e) => setDraft({ ...draft, preferred_name: e.target.value })} /></Field>
+            {primaryMapping && (
+              <p className={`mt-3 rounded-xl px-3 py-2 text-sm font-bold ${hasTierMismatch ? "bg-[#fff3e8] text-[#8a4a00]" : "bg-[#ecfdf3] text-[#087443]"}`}>
+                {hasTierMismatch ? "Save changes to sync this user to the selected tier." : "Admin and app access are aligned."}
+              </p>
+            )}
+            {!primaryMapping && (
+              <p className="mt-3 rounded-xl bg-[#f4eafe] px-3 py-2 text-sm font-bold text-purple-800">No login account matched yet. The tier will apply when the user signs in with this email or phone.</p>
+            )}
+            <div className="mt-4 grid gap-3">
+              <Field label="Full name"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.full_name ?? ""} onChange={(e) => setDraft({ ...draft, full_name: e.target.value })} /></Field>
+              <Field label="Preferred name"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.preferred_name ?? ""} onChange={(e) => setDraft({ ...draft, preferred_name: e.target.value })} /></Field>
               <div className="grid gap-3 md:grid-cols-2">
-                <Field label="Phone"><input className="w-full rounded-2xl border px-4 py-3" value={draft.phone_number ?? ""} onChange={(e) => setDraft({ ...draft, phone_number: e.target.value })} /></Field>
-                <Field label="WhatsApp"><input className="w-full rounded-2xl border px-4 py-3" value={draft.whatsapp_number ?? ""} onChange={(e) => setDraft({ ...draft, whatsapp_number: e.target.value })} /></Field>
+                <Field label="Phone"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.phone_number ?? ""} onChange={(e) => setDraft({ ...draft, phone_number: e.target.value })} /></Field>
+                <Field label="WhatsApp"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.whatsapp_number ?? ""} onChange={(e) => setDraft({ ...draft, whatsapp_number: e.target.value })} /></Field>
               </div>
-              <Field label="Email"><input className="w-full rounded-2xl border px-4 py-3" value={draft.email ?? ""} onChange={(e) => setDraft({ ...draft, email: e.target.value })} /></Field>
+              <Field label="Email"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.email ?? ""} onChange={(e) => setDraft({ ...draft, email: e.target.value })} /></Field>
               <div className="grid gap-3 md:grid-cols-2">
-                <Field label="Caregiver name"><input className="w-full rounded-2xl border px-4 py-3" value={draft.caregiver_name ?? ""} onChange={(e) => setDraft({ ...draft, caregiver_name: e.target.value })} /></Field>
-                <Field label="Caregiver contact"><input className="w-full rounded-2xl border px-4 py-3" value={draft.caregiver_contact ?? ""} onChange={(e) => setDraft({ ...draft, caregiver_contact: e.target.value })} /></Field>
+                <Field label="Caregiver name"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.caregiver_name ?? ""} onChange={(e) => setDraft({ ...draft, caregiver_name: e.target.value })} /></Field>
+                <Field label="Caregiver contact"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.caregiver_contact ?? ""} onChange={(e) => setDraft({ ...draft, caregiver_contact: e.target.value })} /></Field>
               </div>
               <div className="grid gap-3 md:grid-cols-3">
-                <Field label="Admin tier"><select className="w-full rounded-2xl border px-4 py-3" value={draft.tier ?? "free"} onChange={(e) => setDraft({ ...draft, tier: e.target.value })}>{planOptions.map((plan) => <option key={plan.value} value={plan.value}>{plan.label}</option>)}</select></Field>
-                <Field label="Language"><select className="w-full rounded-2xl border px-4 py-3" value={draft.language ?? "es"} onChange={(e) => setDraft({ ...draft, language: e.target.value })}>{languageOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
-                <Field label="Organization"><select className="w-full rounded-2xl border px-4 py-3" value={draft.organization_id ?? ""} onChange={(e) => setDraft({ ...draft, organization_id: e.target.value })}><option value="">None</option>{organizations.filter((org) => org.is_active).map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}</select></Field>
+                <Field label="Admin tier"><select className="w-full rounded-xl border px-3 py-2.5" value={draft.tier ?? "free"} onChange={(e) => setDraft({ ...draft, tier: e.target.value })}>{planOptions.map((plan) => <option key={plan.value} value={plan.value}>{plan.label}</option>)}</select></Field>
+                <Field label="Language"><select className="w-full rounded-xl border px-3 py-2.5" value={draft.language ?? "es"} onChange={(e) => setDraft({ ...draft, language: e.target.value })}>{languageOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
+                <Field label="Organization"><select className="w-full rounded-xl border px-3 py-2.5" value={draft.organization_id ?? ""} onChange={(e) => setDraft({ ...draft, organization_id: e.target.value })}><option value="">None</option>{organizations.filter((org) => org.is_active).map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}</select></Field>
               </div>
-              {primaryMapping && (
-                <p className={`rounded-2xl px-4 py-3 text-sm font-bold ${hasTierMismatch ? "bg-[#fff3e8] text-[#8a4a00]" : "bg-[#ecfdf3] text-[#087443]"}`}>
-                  App access is currently {primaryMapping.effective_subscription_tier ?? "unknown"}
-                  {primaryMapping.effective_subscription_status ? ` (${primaryMapping.effective_subscription_status})` : ""}.
-                  {hasTierMismatch ? " Save changes to sync the selected Admin tier to the user's login profile." : " Admin and app access are aligned."}
-                </p>
-              )}
-              <div className="flex flex-wrap gap-2"><button className="rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white" onClick={onSave}>Save changes</button><button className="rounded-2xl border px-5 py-3 font-bold" onClick={onToggle}>{disabled ? "Enable user" : "Disable user"}</button></div>
+              <div className="flex flex-wrap gap-2"><button className="rounded-xl bg-purple-700 px-5 py-2.5 font-bold text-white" onClick={onSave}>Save changes</button><button className="rounded-xl border px-5 py-2.5 font-bold" onClick={onToggle}>{disabled ? "Enable user" : "Disable user"}</button></div>
             </div>
           </section>
 
-          <section className="rounded-3xl border p-4">
+          <section className="self-start rounded-2xl border border-[#eadfd5] p-4">
             <h3 className="text-xl font-black">Scheduled events</h3>
             <div className="mt-3 grid gap-2">
               {detail.scheduled_events.length === 0 && <p className="text-[#7d6b65]">No scheduled events yet.</p>}
@@ -1250,14 +1238,15 @@ function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, 
               </div>
             </div>
           </section>
-        </div>
+          </div>
 
-        <section className="mt-5 grid gap-4 lg:grid-cols-3">
+        <section className="mt-4 grid gap-4 lg:grid-cols-3">
           <LogPanel title="Communications" rows={detail.communications} />
           <LogPanel title="Consent attempts" rows={detail.consent_attempts} />
           <LogPanel title="Lifecycle history" rows={detail.lifecycle_events} />
         </section>
       </div>
+    </div>
     </div>
   );
 }
