@@ -96,8 +96,11 @@ type SendTextOptions = {
 const VYVA_AGENT_ID = import.meta.env.VITE_ELEVENLABS_AGENT_ID ?? "agent_0401knfndsypfmqa31ssw82h364m";
 const FALLBACK_USER_ID = "vyva-local-user";
 const VOICE_SESSION_STORAGE_KEY = "vyva.voice.sessionId";
+const VOICE_FORCE_STOP_EVENT = "vyva:voice-force-stop";
 const ALLOW_PUBLIC_AGENT_FALLBACK =
   import.meta.env.DEV && import.meta.env.VITE_ELEVENLABS_ALLOW_PUBLIC_FALLBACK === "true";
+
+let activeVoiceInstanceId: string | null = null;
 
 type ConversationTurn = { role: "user" | "assistant"; content: string };
 
@@ -171,6 +174,23 @@ function getVoiceSessionId() {
   }
 }
 
+function createVoiceInstanceId() {
+  return typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `voice-instance-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function claimVoiceInstance(instanceId: string) {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(VOICE_FORCE_STOP_EVENT, { detail: { requester: instanceId } }));
+  }
+  activeVoiceInstanceId = instanceId;
+}
+
+function releaseVoiceInstance(instanceId: string) {
+  if (activeVoiceInstanceId === instanceId) activeVoiceInstanceId = null;
+}
+
 function transcriptToHistory(transcript: TranscriptEntry[]): ConversationTurn[] {
   return transcript.slice(-12).map((entry) => ({
     role: entry.from === "user" ? "user" : "assistant",
@@ -200,6 +220,7 @@ export function useVyvaVoice() {
   const userClosingRef = useRef(false);
   const shouldMuteOnConnectRef = useRef(true);
   const hiddenOutgoingMessagesRef = useRef<string[]>([]);
+  const voiceInstanceIdRef = useRef(createVoiceInstanceId());
 
   const setVoiceStatus = useCallback((nextStatus: "idle" | "connecting" | "connected") => {
     statusRef.current = nextStatus;
@@ -235,7 +256,32 @@ export function useVyvaVoice() {
     setIsUserSpeaking(false);
   }, []);
 
-  useEffect(() => () => { teardown(); }, [teardown]);
+  useEffect(() => () => {
+    teardown();
+    releaseVoiceInstance(voiceInstanceIdRef.current);
+  }, [teardown]);
+
+  useEffect(() => {
+    const handleForceStop = (event: Event) => {
+      const requester = event instanceof CustomEvent
+        ? (event.detail as { requester?: string } | undefined)?.requester
+        : undefined;
+
+      if (requester === voiceInstanceIdRef.current) return;
+
+      userClosingRef.current = true;
+      teardown();
+      releaseVoiceInstance(voiceInstanceIdRef.current);
+      setVoiceStatus("idle");
+      setIsConnecting(false);
+      setIsSpeaking(false);
+      setIsUserSpeaking(false);
+      setLastError(null);
+    };
+
+    window.addEventListener(VOICE_FORCE_STOP_EVENT, handleForceStop);
+    return () => window.removeEventListener(VOICE_FORCE_STOP_EVENT, handleForceStop);
+  }, [setVoiceStatus, teardown]);
 
   const fetchSessionOptions = useCallback(
     async (
@@ -384,6 +430,7 @@ export function useVyvaVoice() {
       options?: StartVoiceOptions,
     ) => {
       if (statusRef.current !== "idle") return;
+      claimVoiceInstance(voiceInstanceIdRef.current);
       setIsConnecting(true);
       setVoiceStatus("connecting");
       replaceTranscript([]);
@@ -440,6 +487,7 @@ export function useVyvaVoice() {
           onDisconnect: (details) => {
             const message = formatDisconnectDetails(details);
             conversationRef.current = null;
+            releaseVoiceInstance(voiceInstanceIdRef.current);
             setVoiceStatus("idle");
             setIsConnecting(false);
             setIsSpeaking(false);
@@ -495,6 +543,7 @@ export function useVyvaVoice() {
         setLastError(err instanceof Error ? err.message : "Unable to start voice session");
         setVoiceStatus("idle");
         setIsConnecting(false);
+        releaseVoiceInstance(voiceInstanceIdRef.current);
         teardown();
       }
     },
@@ -516,6 +565,7 @@ export function useVyvaVoice() {
   const stopVoice = useCallback(() => {
     userClosingRef.current = true;
     teardown();
+    releaseVoiceInstance(voiceInstanceIdRef.current);
     setVoiceStatus("idle");
     setIsSpeaking(false);
     setIsUserSpeaking(false);

@@ -16,6 +16,7 @@ import {
   searchMemories,
   type Mem0Memory,
 } from "../lib/mem0.js";
+import { buildAgentOperatingRules, buildConversationPlan } from "../lib/voiceAgentPolicy.js";
 
 type RoutingDomain =
   | "safety"
@@ -420,9 +421,13 @@ export async function routerHandler(req: Request, res: Response) {
     const lastTopicSafe = prevSafe?.last_intent ?? prevSafe?.last_agent ?? "general chat";
 
     const system_prompt_override = [
+      buildAgentOperatingRules("safety"),
+      "",
       memoryBlockSafe ? `MEMORY BLOCK:\n${memoryBlockSafe}` : "MEMORY BLOCK:\n(no memory retrieved)",
       "",
       `SESSION BLOCK:\nCurrent agent domain: safety.\nLast topic discussed: ${lastTopicSafe}.\nTime of day (UTC bucket): ${timeOfDayLabel(nowSafe)}.\nUser first name: ${firstSafe}.\n${genderInstruction(genderSafe)}\n`,
+      `CONVERSATION PLAN:\n${buildConversationPlan("safety")}`,
+      "",
       "URGENT: Treat this as a potential safety or crisis situation. Prioritise calm, clear guidance and appropriate escalation.",
     ].join("\n");
 
@@ -523,9 +528,13 @@ export async function routerHandler(req: Request, res: Response) {
   }
 
   const system_prompt_override = [
+    buildAgentOperatingRules(domain),
+    "",
     memoryBlock ? `MEMORY BLOCK:\n${memoryBlock}` : "MEMORY BLOCK:\n(no memory retrieved)",
     "",
     `SESSION BLOCK:\n${sessionBlockLines.join("\n")}`,
+    "",
+    `CONVERSATION PLAN:\n${buildConversationPlan(domain)}`,
   ].join("\n");
 
   const newTurn = (sessionRow?.turn_count ?? 0) + 1;

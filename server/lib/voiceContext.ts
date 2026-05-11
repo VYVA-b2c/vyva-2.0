@@ -11,6 +11,7 @@ import {
   vitalsReadings,
 } from "../../shared/schema.js";
 import { formatMemoryBlock, searchMemories } from "./mem0.js";
+import { buildAgentOperatingRules, buildConversationPlan } from "./voiceAgentPolicy.js";
 
 export type VoiceContextDomain =
   | "safety"
@@ -238,6 +239,8 @@ export async function buildVoiceContext(
   const variables: VoiceDynamicVariables = {
     user_id: userId,
     agent_domain: domain,
+    agent_operating_rules: buildAgentOperatingRules(domain),
+    conversation_plan: buildConversationPlan(domain),
     first_name: firstName(profile),
     preferred_name: profile?.preferred_name ?? "",
     full_name: profile?.full_name ?? "",
