@@ -35,6 +35,7 @@ interface VoiceHeroProps {
   subtitle?: React.ReactNode;
   children?: React.ReactNode;
   contextHint?: string;
+  voiceDynamicVariables?: Record<string, string | number | boolean>;
   talkLabel?: string;
   onTalkClick?: () => void;
   onChatClick?: () => void;
@@ -62,6 +63,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   subtitle,
   children,
   contextHint,
+  voiceDynamicVariables,
   talkLabel,
   onTalkClick,
   onChatClick,
@@ -93,7 +95,11 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
     } else if (onTalkClick) {
       onTalkClick();
     } else {
-      startVoice(resolvedContextHint);
+      startVoice(
+        resolvedContextHint,
+        undefined,
+        voiceDynamicVariables ? { dynamicVariables: voiceDynamicVariables } : undefined,
+      );
     }
   };
 

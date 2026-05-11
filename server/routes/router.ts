@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, count } from "drizzle-orm";
 import { db } from "../db.js";
 import {
   profiles,
@@ -17,6 +17,7 @@ import {
   type Mem0Memory,
 } from "../lib/mem0.js";
 import { buildAgentOperatingRules, buildConversationPlan } from "../lib/voiceAgentPolicy.js";
+import { formatConversationPlanPrompt, selectVoiceConversationPlan } from "../lib/voiceConversationPlans.js";
 
 type RoutingDomain =
   | "safety"
@@ -35,6 +36,7 @@ type RouterRequestBody = {
   conversation_history: ConversationTurn[];
   last_assistant_metadata?: { escalate_to?: string };
   store_next_turn_override?: string;
+  app_entrypoint?: string;
 };
 
 const DOMAIN_ORDER: Exclude<RoutingDomain, "safety" | "companion">[] = [
@@ -275,13 +277,27 @@ function buildRouteDynamicVariables(data: {
   return variables;
 }
 
-async function safeBuildVoiceContext(userId: string, domain: RoutingDomain, memoryQuery: string): Promise<VoiceDynamicVariables> {
-  try {
-    return await buildVoiceContext(userId, domain, memoryQuery);
-  } catch (err) {
-    console.warn("[router] voice context unavailable:", err);
-    return {};
-  }
+function contextValue(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
+}
+
+function buildVoiceContextPromptBlock(voiceContext: VoiceDynamicVariables) {
+  return [
+    `Profile summary: ${contextValue(voiceContext.profile_summary) || "Not recorded"}`,
+    `First voice session: ${contextValue(voiceContext.is_first_voice_session) || "false"}`,
+    `Prior voice exchanges: ${contextValue(voiceContext.prior_voice_exchange_count) || "0"}`,
+    contextValue(voiceContext.app_entrypoint) ? `App entrypoint: ${contextValue(voiceContext.app_entrypoint)}` : "",
+    contextValue(voiceContext.memory_block) ? `Memory: ${contextValue(voiceContext.memory_block)}` : "",
+    contextValue(voiceContext.social_context) ? `Social context: ${contextValue(voiceContext.social_context)}` : "",
+    contextValue(voiceContext.health_context) ? `Health context: ${contextValue(voiceContext.health_context)}` : "",
+    contextValue(voiceContext.location_context) ? `Location context: ${contextValue(voiceContext.location_context)}` : "",
+    contextValue(voiceContext.communication_preferences)
+      ? `Communication preferences: ${contextValue(voiceContext.communication_preferences)}`
+      : "",
+    contextValue(voiceContext.safety_context) ? `Safety context: ${contextValue(voiceContext.safety_context)}` : "",
+  ].filter(Boolean).join("\n").slice(0, 5000);
 }
 
 function buildMem0Messages(history: ConversationTurn[], utterance: string): ConversationTurn[] {
@@ -383,6 +399,14 @@ async function getBrainCoachStreak(sessionId: string, userId: string): Promise<n
   return streak;
 }
 
+async function getPriorVoiceExchangeCount(userId: string): Promise<number> {
+  const rows = await db
+    .select({ value: count() })
+    .from(sessionExchanges)
+    .where(eq(sessionExchanges.user_id, userId));
+  return Number(rows[0]?.value ?? 0);
+}
+
 export async function routerHandler(req: Request, res: Response) {
   const body = req.body as RouterRequestBody;
   const { user_id, session_id, utterance, conversation_history } = body;
@@ -392,6 +416,11 @@ export async function routerHandler(req: Request, res: Response) {
   }
 
   const history = Array.isArray(conversation_history) ? conversation_history : [];
+  const appEntrypoint = typeof body.app_entrypoint === "string" && body.app_entrypoint.trim()
+    ? body.app_entrypoint.trim()
+    : utterance === "app_open"
+    ? "app_open"
+    : "";
 
   let domain: RoutingDomain;
   let confidence: number;
@@ -403,9 +432,10 @@ export async function routerHandler(req: Request, res: Response) {
     confidence = 1;
 
     const mem0Key = getMem0ApiKey();
-    const [profileSafe, prevSafe] = await Promise.all([
+    const [profileSafe, prevSafe, priorVoiceExchangeCountSafe] = await Promise.all([
       getProfile(user_id).catch(() => null),
       getSessionState(session_id).catch(() => null),
+      getPriorVoiceExchangeCount(user_id).catch(() => 0),
     ]);
 
     const mem0UserIdSafe = profileSafe?.mem0_user_id?.trim() || user_id;
@@ -419,14 +449,28 @@ export async function routerHandler(req: Request, res: Response) {
     const nowSafe = new Date();
     const memoryBlockSafe = formatMemoryBlock(memoriesSafe);
     const lastTopicSafe = prevSafe?.last_intent ?? prevSafe?.last_agent ?? "general chat";
+    const conversationPlanSafe = selectVoiceConversationPlan({
+      domain: "safety",
+      appEntrypoint,
+      priorVoiceExchangeCount: priorVoiceExchangeCountSafe,
+    });
+    const voiceContext = await buildVoiceContext(user_id, "safety", utterance, {
+      appEntrypoint,
+      priorVoiceExchangeCount: priorVoiceExchangeCountSafe,
+    }).catch((err) => {
+      console.warn("[router] voice context unavailable:", err);
+      return {};
+    });
 
     const system_prompt_override = [
       buildAgentOperatingRules("safety"),
       "",
+      `VOICE CONTEXT BLOCK:\n${buildVoiceContextPromptBlock(voiceContext)}`,
+      "",
       memoryBlockSafe ? `MEMORY BLOCK:\n${memoryBlockSafe}` : "MEMORY BLOCK:\n(no memory retrieved)",
       "",
       `SESSION BLOCK:\nCurrent agent domain: safety.\nLast topic discussed: ${lastTopicSafe}.\nTime of day (UTC bucket): ${timeOfDayLabel(nowSafe)}.\nUser first name: ${firstSafe}.\n${genderInstruction(genderSafe)}\n`,
-      `CONVERSATION PLAN:\n${buildConversationPlan("safety")}`,
+      `CONVERSATION PLAN:\n${formatConversationPlanPrompt(conversationPlanSafe) || buildConversationPlan("safety")}`,
       "",
       "URGENT: Treat this as a potential safety or crisis situation. Prioritise calm, clear guidance and appropriate escalation.",
     ].join("\n");
@@ -450,7 +494,6 @@ export async function routerHandler(req: Request, res: Response) {
     if (mem0Key) scheduleMem0Add(mem0UserIdSafe, buildMem0Messages(history, utterance), mem0Key);
 
     const agent_id = agentIdForDomain("safety");
-    const voiceContext = await safeBuildVoiceContext(user_id, "safety", utterance);
     return res.json({
       agent_id, system_prompt_override,
       dynamic_variables: {
@@ -471,9 +514,10 @@ export async function routerHandler(req: Request, res: Response) {
     });
   }
 
-  const [profile, sessionRow] = await Promise.all([
+  const [profile, sessionRow, priorVoiceExchangeCount] = await Promise.all([
     getProfile(user_id).catch(() => null),
     getSessionState(session_id).catch(() => null),
+    getPriorVoiceExchangeCount(user_id).catch(() => 0),
   ]);
 
   const fromBody = resolveEscalationDomain(body.last_assistant_metadata?.escalate_to);
@@ -526,15 +570,29 @@ export async function routerHandler(req: Request, res: Response) {
       `Difficulty context: level ${diffRow.difficulty_level}, sessions_at_level ${diffRow.sessions_at_level}, last_score ${diffRow.last_score ?? "n/a"}.`
     );
   }
+  const conversationPlan = selectVoiceConversationPlan({
+    domain,
+    appEntrypoint,
+    priorVoiceExchangeCount,
+  });
+  const voiceContext = await buildVoiceContext(user_id, domain, utterance, {
+    appEntrypoint,
+    priorVoiceExchangeCount,
+  }).catch((err) => {
+    console.warn("[router] voice context unavailable:", err);
+    return {};
+  });
 
   const system_prompt_override = [
     buildAgentOperatingRules(domain),
+    "",
+    `VOICE CONTEXT BLOCK:\n${buildVoiceContextPromptBlock(voiceContext)}`,
     "",
     memoryBlock ? `MEMORY BLOCK:\n${memoryBlock}` : "MEMORY BLOCK:\n(no memory retrieved)",
     "",
     `SESSION BLOCK:\n${sessionBlockLines.join("\n")}`,
     "",
-    `CONVERSATION PLAN:\n${buildConversationPlan(domain)}`,
+    `CONVERSATION PLAN:\n${formatConversationPlanPrompt(conversationPlan) || buildConversationPlan(domain)}`,
   ].join("\n");
 
   const newTurn = (sessionRow?.turn_count ?? 0) + 1;
@@ -559,7 +617,6 @@ export async function routerHandler(req: Request, res: Response) {
 
   const agent_id = agentIdForDomain(domain);
   if (!agent_id) console.error(`Missing env for domain ${domain}: ${AGENT_ENV_MAP[domain]}`);
-  const voiceContext = await safeBuildVoiceContext(user_id, domain, utterance);
 
   return res.json({
     agent_id, system_prompt_override,

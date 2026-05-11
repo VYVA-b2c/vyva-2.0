@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { count, desc, eq } from "drizzle-orm";
 import { db } from "../db.js";
 import {
   companionProfiles,
@@ -9,9 +9,15 @@ import {
   userChannelPreferences,
   userMedications,
   vitalsReadings,
+  sessionExchanges,
 } from "../../shared/schema.js";
 import { formatMemoryBlock, searchMemories } from "./mem0.js";
 import { buildAgentOperatingRules, buildConversationPlan } from "./voiceAgentPolicy.js";
+import {
+  conversationPlanToVariables,
+  formatConversationPlanPrompt,
+  selectVoiceConversationPlan,
+} from "./voiceConversationPlans.js";
 
 export type VoiceContextDomain =
   | "safety"
@@ -25,6 +31,11 @@ export type VoiceContextDomain =
 
 export type VoiceDynamicVariables = Record<string, string | number | boolean>;
 export type ConversationTurn = { role: "user" | "assistant"; content: string };
+
+type BuildVoiceContextOptions = {
+  appEntrypoint?: string;
+  priorVoiceExchangeCount?: number;
+};
 
 type JsonRecord = Record<string, unknown>;
 
@@ -176,6 +187,7 @@ export async function buildVoiceContext(
   userId: string,
   domain: VoiceContextDomain,
   memoryQuery = "",
+  options: BuildVoiceContextOptions = {},
 ): Promise<VoiceDynamicVariables> {
   const [
     profileRows,
@@ -186,6 +198,7 @@ export async function buildVoiceContext(
     socialInterestRows,
     latestReports,
     latestVitals,
+    voiceExchangeCountRows,
   ] = await Promise.all([
     db.select().from(profiles).where(eq(profiles.id, userId)).limit(1),
     db.select().from(userMedications).where(eq(userMedications.user_id, userId)).limit(20),
@@ -195,6 +208,9 @@ export async function buildVoiceContext(
     db.select().from(socialUserInterests).where(eq(socialUserInterests.user_id, userId)).limit(1),
     db.select().from(triageReports).where(eq(triageReports.user_id, userId)).orderBy(desc(triageReports.created_at)).limit(3),
     db.select().from(vitalsReadings).where(eq(vitalsReadings.user_id, userId)).orderBy(desc(vitalsReadings.recorded_at)).limit(3),
+    options.priorVoiceExchangeCount === undefined
+      ? db.select({ value: count() }).from(sessionExchanges).where(eq(sessionExchanges.user_id, userId))
+      : Promise.resolve([{ value: options.priorVoiceExchangeCount }]),
   ]);
 
   const profile = profileRows[0] ?? null;
@@ -235,12 +251,22 @@ export async function buildVoiceContext(
     asString(emergencySection.emergency_phone),
     asString(emergencySection.emergency_role),
   ]);
+  const priorVoiceExchangeCount = Number(voiceExchangeCountRows[0]?.value ?? 0);
+  const conversationPlan = selectVoiceConversationPlan({
+    domain,
+    appEntrypoint: options.appEntrypoint ?? memoryQuery,
+    priorVoiceExchangeCount,
+  });
 
   const variables: VoiceDynamicVariables = {
     user_id: userId,
     agent_domain: domain,
     agent_operating_rules: buildAgentOperatingRules(domain),
-    conversation_plan: buildConversationPlan(domain),
+    conversation_plan: formatConversationPlanPrompt(conversationPlan) || buildConversationPlan(domain),
+    ...conversationPlanToVariables(conversationPlan),
+    is_first_voice_session: priorVoiceExchangeCount === 0,
+    prior_voice_exchange_count: priorVoiceExchangeCount,
+    app_entrypoint: options.appEntrypoint ?? "",
     first_name: firstName(profile),
     preferred_name: profile?.preferred_name ?? "",
     full_name: profile?.full_name ?? "",

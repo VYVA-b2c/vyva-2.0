@@ -348,6 +348,10 @@ export function useVyvaVoice() {
       currentSystemPrompt: string | undefined,
       options: StartVoiceOptions | undefined,
     ) => {
+      const appEntrypoint = typeof options?.dynamicVariables?.app_entrypoint === "string"
+        ? options.dynamicVariables.app_entrypoint
+        : undefined;
+
       if (options?.agentId || options?.agentSlug || options?.roomSlug) {
         let sharedDynamicVariables: Record<string, string | number | boolean> = {};
         try {
@@ -356,6 +360,7 @@ export function useVyvaVoice() {
             body: JSON.stringify({
               domain: inferVoiceContextDomain(options),
               ...(contextHint ? { memory_query: contextHint } : {}),
+              ...(appEntrypoint ? { app_entrypoint: appEntrypoint } : {}),
               ...(options.agentSlug ? { agent_slug: options.agentSlug } : {}),
               ...(options.roomSlug ? { room_slug: options.roomSlug } : {}),
             }),
@@ -386,6 +391,7 @@ export function useVyvaVoice() {
             user_id: userIdFromToken(),
             session_id: getVoiceSessionId(),
             utterance,
+            ...(appEntrypoint ? { app_entrypoint: appEntrypoint } : {}),
             conversation_history: transcriptToHistory(transcriptRef.current),
           }),
         });

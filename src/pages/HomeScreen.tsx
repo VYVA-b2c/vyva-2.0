@@ -261,6 +261,7 @@ const HomeScreen = () => {
     try {
       localStorage.setItem(COORDS_WEATHER_CACHE_KEY, JSON.stringify({ data, ts: Date.now() }));
     } catch {
+      // Weather cache is optional; ignore storage failures.
     }
   }
 
@@ -285,6 +286,7 @@ const HomeScreen = () => {
         setCoordsWeatherData(data);
       }
     } catch {
+      // IP weather is a soft enhancement.
     }
   };
 
@@ -313,6 +315,7 @@ const HomeScreen = () => {
             setCoordsWeatherData(data);
           }
         } catch {
+          // Coordinate weather is a soft enhancement.
         }
       },
       () => {
@@ -375,7 +378,8 @@ const HomeScreen = () => {
           <span className="block">{greetingText}</span>
         }
         weatherData={weatherData}
-        contextHint="companion"
+        contextHint="app_open"
+        voiceDynamicVariables={{ app_entrypoint: "home_open" }}
         onChatClick={() => handleNavigate("/chat")}
       />
 

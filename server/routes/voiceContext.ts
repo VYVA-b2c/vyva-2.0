@@ -39,7 +39,8 @@ export async function voiceContextHandler(req: Request, res: Response) {
     const body = (req.body ?? {}) as Record<string, unknown>;
     const domain = resolveDomain(body);
     const memoryQuery = typeof body.memory_query === "string" ? body.memory_query : "";
-    const dynamicVariables = await buildVoiceContext(userId, domain, memoryQuery);
+    const appEntrypoint = typeof body.app_entrypoint === "string" ? body.app_entrypoint : "";
+    const dynamicVariables = await buildVoiceContext(userId, domain, memoryQuery, { appEntrypoint });
     return res.json({ domain, dynamic_variables: dynamicVariables });
   } catch (err) {
     console.error("[voice-context]", err);
