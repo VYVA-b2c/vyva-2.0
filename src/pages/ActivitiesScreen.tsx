@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { margaret } from "@/data/mockData";
 import { useLanguage } from "@/i18n";
 import VoiceHero from "@/components/VoiceHero";
+import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 
 const activityIcons: Record<string, LucideIcon> = {
   "brain.activities.triviaQuiz": Route,
@@ -77,6 +78,7 @@ const activityRoutes: Partial<Record<string, string>> = {
 const ActivitiesScreen = () => {
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const autoStartVoice = useRouteVoiceAutoStart();
   const todayIndex = new Date().getDay();
   const mappedToday = todayIndex === 0 ? 6 : todayIndex - 1;
   const days = ["M", "T", "W", "T", "F", "S", "S"];
@@ -104,6 +106,9 @@ const ActivitiesScreen = () => {
         headline={<>{t("brain.headline")}</>}
         subtitle={t("brain.subtitle", { streak: margaret.streak })}
         contextHint="brain training"
+        autoStartVoice={autoStartVoice ? "brain" : false}
+        showVoiceOverlay={false}
+        activeLabel={t("voiceHero.endCall", "End call")}
       />
 
       <section

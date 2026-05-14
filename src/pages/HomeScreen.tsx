@@ -1,13 +1,12 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Heart, Brain, Users, ConciergeBell, Lock, Mic, RefreshCw, type LucideIcon } from "lucide-react";
+import { Heart, Brain, Users, ConciergeBell, Lock, RefreshCw, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
-import VoiceCallOverlay from "@/components/VoiceCallOverlay";
-import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 import { useProfile } from "@/contexts/ProfileContext";
 import { apiFetch } from "@/lib/queryClient";
+import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import { serviceForPath, useServiceGate } from "@/hooks/useServiceGate";
 import {
   personaliseCardOrder,
@@ -35,7 +34,6 @@ type HomeAgentCard = {
   id: "health" | "cognitive" | "social" | "concierge";
   icon: LucideIcon;
   path: string;
-  voiceContext: string;
   theme: "pink" | "purple" | "blue" | "green";
 };
 
@@ -69,44 +67,43 @@ function writeCoordsWeatherCache(data: WeatherData) {
 }
 
 const HOME_AGENT_CARDS: HomeAgentCard[] = [
-  { id: "health", icon: Heart, path: "/health", voiceContext: "health", theme: "pink" },
-  { id: "cognitive", icon: Brain, path: "/activities", voiceContext: "cognitive", theme: "purple" },
-  { id: "social", icon: Users, path: "/social-rooms", voiceContext: "social", theme: "blue" },
-  { id: "concierge", icon: ConciergeBell, path: "/concierge", voiceContext: "concierge", theme: "green" },
+  { id: "health", icon: Heart, path: "/health", theme: "pink" },
+  { id: "cognitive", icon: Brain, path: "/activities", theme: "purple" },
+  { id: "social", icon: Users, path: "/social-rooms", theme: "blue" },
+  { id: "concierge", icon: ConciergeBell, path: "/concierge", theme: "green" },
 ];
 
 const HEALTH_AUTO_START_OPTIONS: NavigateOptions = {
   state: { autoStartDoctorVoice: true },
 };
 
+const SECTION_VOICE_AUTO_START_OPTIONS: NavigateOptions = {
+  state: { [SECTION_VOICE_AUTO_START_KEY]: true },
+};
+
 const HOME_AGENT_THEMES: Record<HomeAgentCard["theme"], {
   iconBg: string;
   iconColor: string;
-  micColor: string;
   glow: string;
 }> = {
   pink: {
     iconBg: "linear-gradient(135deg, #FFE7E7 0%, #FFF7F2 100%)",
     iconColor: "#E74C43",
-    micColor: "#E74C43",
     glow: "rgba(231,76,67,0.12)",
   },
   purple: {
     iconBg: "linear-gradient(135deg, #ECE4FF 0%, #F8F2FF 100%)",
     iconColor: "#7C3AED",
-    micColor: "#7C3AED",
     glow: "rgba(124,58,237,0.13)",
   },
   blue: {
     iconBg: "linear-gradient(135deg, #E6F0FF 0%, #F3F8FF 100%)",
     iconColor: "#2F66D0",
-    micColor: "#2F66D0",
     glow: "rgba(47,102,208,0.12)",
   },
   green: {
     iconBg: "linear-gradient(135deg, #DDF8EA 0%, #F1FBF5 100%)",
     iconColor: "#149A63",
-    micColor: "#149A63",
     glow: "rgba(20,154,99,0.12)",
   },
 };
@@ -267,8 +264,6 @@ const HomeScreen = () => {
     };
   }, [startAutoScroll, stopAutoScroll]);
   const { firstName: profileFirstName } = useProfile();
-  const { startVoice, stopVoice, status: voiceStatus, isSpeaking, isConnecting, transcript } = useVyvaVoice();
-  const isVoiceActive = voiceStatus !== "idle";
 
   const firstName = profileFirstName || "";
 
@@ -374,7 +369,7 @@ const HomeScreen = () => {
       handleNavigate(card.path, HEALTH_AUTO_START_OPTIONS);
       return;
     }
-    handleNavigate(card.path);
+    handleNavigate(card.path, SECTION_VOICE_AUTO_START_OPTIONS);
   };
 
   const isSubscriptionLocked = (path: string) => {
@@ -390,18 +385,6 @@ const HomeScreen = () => {
     pauseAndResume();
     carouselRef.current?.scrollTo({ top: 0, left: 0, behavior: "smooth" });
     window.setTimeout(() => setIsRefreshingTodayCards(false), 550);
-  };
-
-  const handleCardVoice = (card: HomeAgentCard) => {
-    if (isSubscriptionLocked(card.path)) {
-      handleNavigate(card.path);
-      return;
-    }
-    if (isVoiceActive) {
-      stopVoice();
-      return;
-    }
-    startVoice(card.voiceContext);
   };
 
   return (
@@ -433,7 +416,7 @@ const HomeScreen = () => {
                 data-testid={`card-home-agent-${card.id}`}
                 role="button"
                 tabIndex={0}
-                aria-label={t(`home.voiceCards.${card.id}.openLabel`)}
+                aria-label={t(`home.voiceCards.${card.id}.micLabel`)}
                 onClick={() => handleAgentCardOpen(card)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
@@ -455,47 +438,15 @@ const HomeScreen = () => {
                     >
                       <Icon size={30} strokeWidth={2.5} style={{ color: theme.iconColor }} />
                     </div>
-                    {card.id === "health" ? (
-                      <div
-                        aria-hidden="true"
-                        data-testid="icon-home-agent-voice-health"
-                        className="relative z-20 flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-full bg-white"
-                        style={{
-                          border: "1px solid #EFE4D5",
-                          boxShadow: "0 10px 22px rgba(43,31,24,0.08)",
-                          color: theme.micColor,
-                        }}
-                      >
-                        {locked ? <Lock size={22} strokeWidth={2.4} /> : <Mic size={25} strokeWidth={2.4} />}
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          handleCardVoice(card);
-                        }}
-                        aria-label={t(`home.voiceCards.${card.id}.micLabel`)}
-                        data-testid={`button-home-agent-voice-${card.id}`}
-                        className={`relative z-20 flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-full bg-white transition-transform active:scale-95 ${isVoiceActive ? "mic-pulse-listening" : ""}`}
-                        style={{
-                          border: "1px solid #EFE4D5",
-                          boxShadow: "0 10px 22px rgba(43,31,24,0.08)",
-                          color: theme.micColor,
-                        }}
-                      >
-                        {locked ? <Lock size={22} strokeWidth={2.4} /> : <Mic size={25} strokeWidth={2.4} />}
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="min-w-0">
-                    {locked && (
-                      <span className="mb-2 inline-flex items-center gap-1 rounded-full bg-[#F4EAFE] px-2.5 py-1 font-body text-[11px] font-bold text-[#6B21A8]">
+                    {locked ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[#F4EAFE] px-2.5 py-1 font-body text-[11px] font-bold text-[#6B21A8]">
                         <Lock size={12} strokeWidth={2.5} />
                         Plan
                       </span>
-                    )}
+                    ) : null}
+                  </div>
+
+                  <div className="min-w-0">
                     <h2 className="font-body text-[21px] font-extrabold leading-tight text-vyva-text-1 [overflow-wrap:anywhere]">
                       {t(`home.voiceCards.${card.id}.title`)}
                     </h2>
@@ -595,14 +546,6 @@ const HomeScreen = () => {
         </div>
       </div>
 
-      {isVoiceActive && (
-        <VoiceCallOverlay
-          isSpeaking={isSpeaking}
-          isConnecting={isConnecting}
-          transcript={transcript}
-          onEnd={stopVoice}
-        />
-      )}
     </div>
   );
 };

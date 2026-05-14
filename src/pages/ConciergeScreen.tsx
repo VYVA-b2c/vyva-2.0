@@ -30,6 +30,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import VoiceHero from "@/components/VoiceHero";
+import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 import { apiFetch } from "@/lib/queryClient";
 
 interface ChatMessage {
@@ -986,6 +987,7 @@ const ConciergeScreen = () => {
   const locale = i18n.language.split("-")[0].toLowerCase();
   const isSpanish = locale === "es";
   const navigate = useNavigate();
+  const autoStartVoice = useRouteVoiceAutoStart();
   const queryClient = useQueryClient();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -1680,6 +1682,9 @@ const ConciergeScreen = () => {
         headline={t("concierge.headline")}
         subtitle={t("concierge.subtitle")}
         contextHint="concierge"
+        autoStartVoice={autoStartVoice ? "concierge" : false}
+        showVoiceOverlay={false}
+        activeLabel={t("voiceHero.endCall", "End call")}
       />
 
       <section className="mt-5" data-testid="section-concierge-active-task">
