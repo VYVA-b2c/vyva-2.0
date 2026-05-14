@@ -446,7 +446,20 @@ const HomeScreen = () => {
                     >
                       <Icon size={30} strokeWidth={2.5} style={{ color: theme.iconColor }} />
                     </div>
-                    {card.id !== "health" && (
+                    {card.id === "health" ? (
+                      <div
+                        aria-hidden="true"
+                        data-testid="icon-home-agent-voice-health"
+                        className="relative z-20 flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-full bg-white"
+                        style={{
+                          border: "1px solid #EFE4D5",
+                          boxShadow: "0 10px 22px rgba(43,31,24,0.08)",
+                          color: theme.micColor,
+                        }}
+                      >
+                        {locked ? <Lock size={22} strokeWidth={2.4} /> : <Mic size={25} strokeWidth={2.4} />}
+                      </div>
+                    ) : (
                       <button
                         type="button"
                         onClick={(event) => {
