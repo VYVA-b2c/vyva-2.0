@@ -430,6 +430,7 @@ export function useVyvaVoice() {
     startVoice,
     stopVoice,
     sendText,
+    sendUserMessage: sendText,
     sendContextUpdate,
     status,
     isSpeaking,
