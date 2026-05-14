@@ -202,6 +202,10 @@ function transcriptToHistory(transcript: TranscriptEntry[]): ConversationTurn[] 
 function inferVoiceContextDomain(options: StartVoiceOptions | undefined) {
   const agentSlug = options?.agentSlug?.trim().toLowerCase();
   if (agentSlug === "doctor" || agentSlug === "medical-doctor") return "doctor";
+  if (agentSlug === "health" || agentSlug === "health-assistant") return "health";
+  if (agentSlug === "meds" || agentSlug === "medication" || agentSlug === "medications") return "meds";
+  if (agentSlug === "concierge") return "concierge";
+  if (agentSlug === "brain-coach" || agentSlug === "brain_coach") return "brain_coach";
   if (options?.roomSlug || agentSlug) return "social";
   return undefined;
 }
@@ -355,11 +359,14 @@ function useVyvaVoiceController() {
 
       if (options?.agentId || options?.agentSlug || options?.roomSlug) {
         let sharedDynamicVariables: Record<string, string | number | boolean> = {};
+        const voiceSessionId = getVoiceSessionId();
         try {
           const res = await apiFetch("/api/voice-context", {
             method: "POST",
             body: JSON.stringify({
               domain: inferVoiceContextDomain(options),
+              session_id: voiceSessionId,
+              conversation_id: voiceSessionId,
               ...(contextHint ? { memory_query: contextHint } : {}),
               ...(appEntrypoint ? { app_entrypoint: appEntrypoint } : {}),
               ...(options.agentSlug ? { agent_slug: options.agentSlug } : {}),

@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { buildVoiceContext, type VoiceContextDomain } from "../lib/voiceContext.js";
+import { signMedicalProfileToolToken } from "../lib/jwt.js";
 
 const KNOWN_DOMAINS = new Set<VoiceContextDomain>([
   "safety",
@@ -25,8 +26,18 @@ function resolveDomain(body: Record<string, unknown>): VoiceContextDomain {
   const agentSlug = typeof body.agent_slug === "string" ? normalizeSlug(body.agent_slug) : "";
   const roomSlug = typeof body.room_slug === "string" ? normalizeSlug(body.room_slug) : "";
   if (agentSlug === "doctor" || agentSlug === "medical-doctor") return "doctor";
+  if (agentSlug === "health" || agentSlug === "health-assistant") return "health";
+  if (agentSlug === "meds" || agentSlug === "medication" || agentSlug === "medications") return "meds";
   if (roomSlug || agentSlug) return "social";
   return "companion";
+}
+
+function isMedicalContextDomain(domain: VoiceContextDomain) {
+  return domain === "health" || domain === "doctor" || domain === "meds" || domain === "safety";
+}
+
+function createConversationId() {
+  return `voice-context-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 export async function voiceContextHandler(req: Request, res: Response) {
@@ -40,7 +51,17 @@ export async function voiceContextHandler(req: Request, res: Response) {
     const domain = resolveDomain(body);
     const memoryQuery = typeof body.memory_query === "string" ? body.memory_query : "";
     const appEntrypoint = typeof body.app_entrypoint === "string" ? body.app_entrypoint : "";
+    const conversationId =
+      (typeof body.conversation_id === "string" && body.conversation_id.trim()) ||
+      (typeof body.session_id === "string" && body.session_id.trim()) ||
+      createConversationId();
     const dynamicVariables = await buildVoiceContext(userId, domain, memoryQuery, { appEntrypoint });
+    if (isMedicalContextDomain(domain)) {
+      const token = await signMedicalProfileToolToken(userId, conversationId);
+      dynamicVariables.conversation_id = conversationId;
+      dynamicVariables.context_token = token;
+      dynamicVariables.medical_profile_token = token;
+    }
     return res.json({ domain, dynamic_variables: dynamicVariables });
   } catch (err) {
     console.error("[voice-context]", err);

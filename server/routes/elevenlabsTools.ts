@@ -48,6 +48,19 @@ export async function retrieveMedicalProfileToolHandler(req: Request, res: Respo
       care_team: medicalProfile.care_team,
       emergency_contact: medicalProfile.emergency_contact,
       recent_health_events: medicalProfile.recent_health_events,
+      health_profile_summary: medicalProfile.health_profile_summary,
+      latest_vitals_scan: medicalProfile.latest_vitals_scan,
+      latest_vitals_scan_at: medicalProfile.latest_vitals_scan_at,
+      vitals_trend: medicalProfile.vitals_trend,
+      latest_symptom_report: medicalProfile.latest_symptom_report,
+      latest_symptom_report_at: medicalProfile.latest_symptom_report_at,
+      recent_symptom_reports: medicalProfile.recent_symptom_reports,
+      medication_adherence_summary: medicalProfile.medication_adherence_summary,
+      medication_interaction_context: medicalProfile.medication_interaction_context,
+      latest_medical_visit: medicalProfile.latest_medical_visit,
+      upcoming_medical_appointment: medicalProfile.upcoming_medical_appointment,
+      health_session_context: medicalProfile.health_session_context,
+      medical_profile_last_updated: medicalProfile.medical_profile_last_updated,
     });
   } catch (err) {
     console.error("[elevenlabs tool retrieve_medical_profile]", err);

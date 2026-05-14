@@ -18,6 +18,7 @@ import {
 } from "../lib/mem0.js";
 import { buildAgentOperatingRules, buildConversationPlan } from "../lib/voiceAgentPolicy.js";
 import { formatConversationPlanPrompt, selectVoiceConversationPlan } from "../lib/voiceConversationPlans.js";
+import { signMedicalProfileToolToken } from "../lib/jwt.js";
 
 type RoutingDomain =
   | "safety"
@@ -291,7 +292,21 @@ function buildVoiceContextPromptBlock(voiceContext: VoiceDynamicVariables) {
     contextValue(voiceContext.app_entrypoint) ? `App entrypoint: ${contextValue(voiceContext.app_entrypoint)}` : "",
     contextValue(voiceContext.memory_block) ? `Memory: ${contextValue(voiceContext.memory_block)}` : "",
     contextValue(voiceContext.social_context) ? `Social context: ${contextValue(voiceContext.social_context)}` : "",
+    contextValue(voiceContext.health_profile_summary) ? `Health profile summary: ${contextValue(voiceContext.health_profile_summary)}` : "",
     contextValue(voiceContext.health_context) ? `Health context: ${contextValue(voiceContext.health_context)}` : "",
+    contextValue(voiceContext.latest_vitals_scan) ? `Latest vitals scan: ${contextValue(voiceContext.latest_vitals_scan)}` : "",
+    contextValue(voiceContext.vitals_trend) ? `Vitals trend: ${contextValue(voiceContext.vitals_trend)}` : "",
+    contextValue(voiceContext.latest_symptom_report) ? `Latest symptom report: ${contextValue(voiceContext.latest_symptom_report)}` : "",
+    contextValue(voiceContext.medication_adherence_summary)
+      ? `Medication adherence summary: ${contextValue(voiceContext.medication_adherence_summary)}`
+      : "",
+    contextValue(voiceContext.medication_interaction_context)
+      ? `Medication interaction context: ${contextValue(voiceContext.medication_interaction_context)}`
+      : "",
+    contextValue(voiceContext.latest_medical_visit) ? `Latest medical visit: ${contextValue(voiceContext.latest_medical_visit)}` : "",
+    contextValue(voiceContext.upcoming_medical_appointment)
+      ? `Upcoming medical appointment: ${contextValue(voiceContext.upcoming_medical_appointment)}`
+      : "",
     contextValue(voiceContext.location_context) ? `Location context: ${contextValue(voiceContext.location_context)}` : "",
     contextValue(voiceContext.communication_preferences)
       ? `Communication preferences: ${contextValue(voiceContext.communication_preferences)}`
@@ -617,6 +632,12 @@ export async function routerHandler(req: Request, res: Response) {
 
   const agent_id = agentIdForDomain(domain);
   if (!agent_id) console.error(`Missing env for domain ${domain}: ${AGENT_ENV_MAP[domain]}`);
+  const medicalProfileToolToken = ["health", "meds", "safety"].includes(domain)
+    ? await signMedicalProfileToolToken(user_id, session_id).catch((err) => {
+        console.warn("[router] medical profile tool token unavailable:", err);
+        return "";
+      })
+    : "";
 
   return res.json({
     agent_id, system_prompt_override,
@@ -639,6 +660,13 @@ export async function routerHandler(req: Request, res: Response) {
           difficultyLastScore: diffRow.last_score,
         } : {}),
       }),
+      ...(medicalProfileToolToken
+        ? {
+            conversation_id: session_id,
+            context_token: medicalProfileToolToken,
+            medical_profile_token: medicalProfileToolToken,
+          }
+        : {}),
     },
     session_data: { domain, intent_confidence: confidence, session_id, turn_count: newTurn, last_agent: lastAgentBefore },
   });

@@ -3,6 +3,7 @@ import type { AgentPolicyDomain } from "./voiceAgentPolicy.js";
 export type VoiceConversationPlanId =
   | "main_vyva_first_welcome_tour"
   | "main_vyva_returning_app_open"
+  | "health_assistant_session"
   | "default_specialist_session";
 
 export type VoiceConversationPlan = {
@@ -172,6 +173,73 @@ const DEFAULT_SPECIALIST_SESSION: VoiceConversationPlan = {
   tour_steps: [],
 };
 
+const HEALTH_ASSISTANT_SESSION: VoiceConversationPlan = {
+  plan_id: "health_assistant_session",
+  agent_domain: "health",
+  goal:
+    "Use the user's current health profile, recent app insight, memory, vitals, symptoms, medication context, and care details to provide a personalised health-support conversation without diagnosing.",
+  opening_instruction:
+    "Start by recognising the user from profile context, then use the freshest health snapshot before asking questions. If recent vitals, symptoms, medication adherence, or GP/care-team context is available, refer to one relevant point naturally and ask what they would like help with today.",
+  steps: [
+    "Identify the user using preferred name, first name, language, and relevant communication preferences.",
+    "Review health profile, latest vitals scan, latest symptom report, medication list, adherence summary, allergies, GP, providers, care team, and memory before asking for repeated details.",
+    "Ask one focused question at a time when information is missing, especially symptom timing, severity, change from baseline, and current safety risk.",
+    "Use vitals and symptom trends as context, not as a diagnosis. Explain uncertainty clearly and encourage GP/pharmacist review where appropriate.",
+    "For medication interactions, side effects, missed doses, adherence, or prescription questions, use medication context and hand off to the meds specialist when the conversation needs medication management.",
+    "For urgent red flags, chest pain, severe breathing trouble, sudden weakness, confusion, fainting, severe allergic reaction, falls, or crisis language, stop normal coaching and route to safety/emergency guidance.",
+    "Summarise the agreed next step, such as monitoring, symptom report, vitals scan, GP prep, pharmacist check, care-team update, or VYVA transfer.",
+  ],
+  required_keys: [
+    "agent_operating_rules",
+    "conversation_plan_id",
+    "conversation_plan_goal",
+    "conversation_plan_opening_instruction",
+    "conversation_plan_steps",
+    "profile_summary",
+    "health_profile_summary",
+    "health_context",
+    "latest_vitals_scan",
+    "vitals_trend",
+    "latest_symptom_report",
+    "medications",
+    "medication_adherence_summary",
+    "medication_interaction_context",
+    "first_name",
+  ],
+  optional_keys: [
+    "preferred_name",
+    "allergies",
+    "health_conditions",
+    "devices",
+    "recent_health_events",
+    "recent_symptom_reports",
+    "latest_medical_visit",
+    "upcoming_medical_appointment",
+    "gp_details",
+    "providers",
+    "care_team",
+    "emergency_contact",
+    "memory_block",
+    "health_session_context",
+    "medical_profile_last_updated",
+  ],
+  success_criteria: [
+    "The user is recognised and the conversation feels continuous.",
+    "The agent uses current health context before asking repeat questions.",
+    "Vitals, symptoms, medications, allergies, GP, care team, and app insight are used safely and only when relevant.",
+    "The agent avoids diagnosis and gives clear next-step support.",
+    "Safety, medication, concierge, and orchestrator handoffs are used when the need belongs elsewhere.",
+  ],
+  transfer_rules: [
+    "Transfer to safety immediately for emergency symptoms, falls, crisis language, severe allergic reaction, chest pain, severe shortness of breath, sudden weakness, confusion, fainting, or acute danger.",
+    "Transfer to meds for medication schedules, missed doses, prescriptions, adherence, side effects, or interaction checks.",
+    "Transfer to concierge for booking appointments, transport, pharmacy calls, provider contact, reminders, or admin logistics.",
+    "Transfer to VYVA orchestrator when the user asks for a non-health topic.",
+  ],
+  tour_available: false,
+  tour_steps: [],
+};
+
 function isAppOpenEntrypoint(value?: string) {
   const normalized = value?.trim().toLowerCase() ?? "";
   return normalized === "app_open" || normalized === "home_open";
@@ -182,6 +250,13 @@ export function selectVoiceConversationPlan(input: PlanSelectionInput): VoiceCon
     return (input.priorVoiceExchangeCount ?? 0) === 0
       ? MAIN_VYVA_FIRST_WELCOME_TOUR
       : MAIN_VYVA_RETURNING_APP_OPEN;
+  }
+
+  if (input.domain === "health" || input.domain === "doctor") {
+    return {
+      ...HEALTH_ASSISTANT_SESSION,
+      agent_domain: input.domain,
+    };
   }
 
   return {
