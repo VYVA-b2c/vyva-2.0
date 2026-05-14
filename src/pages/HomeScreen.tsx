@@ -1,34 +1,13 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Heart, Brain, Users, ConciergeBell, Lock, RefreshCw, type LucideIcon } from "lucide-react";
+import { Heart, Brain, Users, ConciergeBell, Lock, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import { useProfile } from "@/contexts/ProfileContext";
-import { apiFetch } from "@/lib/queryClient";
 import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import { serviceForPath, useServiceGate } from "@/hooks/useServiceGate";
-import {
-  personaliseCardOrder,
-  getChatNavigationCount,
-  incrementChatNavigationCount,
-  type PersonalisationData,
-} from "@/lib/personaliseCards";
-
-const SectionHeader = ({ title }: { title: string }) => (
-  <p className="vyva-section-title mb-3">
-    {title}
-  </p>
-);
-
-type HoyCard = {
-  id: string;
-  emoji: string;
-  bg: string;
-  badgeBg: string;
-  badgeText: string;
-  route: string;
-};
+import { incrementChatNavigationCount } from "@/lib/personaliseCards";
 
 type HomeAgentCard = {
   id: "health" | "cognitive" | "social" | "concierge";
@@ -108,170 +87,18 @@ const HOME_AGENT_THEMES: Record<HomeAgentCard["theme"], {
   },
 };
 
-const HOY_CARDS: HoyCard[] = [
-  { id: "symptomCheck", emoji: "🩺", bg: "#FFF7ED", badgeBg: "#FFEDD5", badgeText: "#C2410C", route: "/health/symptom-check" },
-  { id: "specialistFinder", emoji: "👩‍⚕️", bg: "#F4F0FF", badgeBg: "#EDE9FE", badgeText: "#6D28D9", route: "/health" },
-  { id: "gamesRoom", emoji: "♟️", bg: "#F0FDF4", badgeBg: "#DCFCE7", badgeText: "#15803D", route: "/social-rooms/games-room" },
-  { id: "musicSalon", emoji: "🎼", bg: "#EEF4FF", badgeBg: "#DBEAFE", badgeText: "#1D4ED8", route: "/social-rooms/music-salon" },
-  { id: "billReview", emoji: "⚡", bg: "#F0FDFA", badgeBg: "#CCFBF1", badgeText: "#0F766E", route: "/concierge" },
-  { id: "breathing",  emoji: "🫁", bg: "#EEF4FF", badgeBg: "#DBEAFE", badgeText: "#1D4ED8", route: "/health" },
-  { id: "chatPrompt", emoji: "💬", bg: "#F4F0FF", badgeBg: "#EDE9FE", badgeText: "#6D28D9", route: "/chat" },
-  { id: "brainGame",  emoji: "🧠", bg: "#FFF7ED", badgeBg: "#FFEDD5", badgeText: "#C2410C", route: "/activities" },
-  { id: "movement",   emoji: "🤸", bg: "#ECFDF5", badgeBg: "#D1FAE5", badgeText: "#065F46", route: "/health" },
-  { id: "healthTip",  emoji: "❤️", bg: "#FFF1F2", badgeBg: "#FFE4E6", badgeText: "#BE123C", route: "/health" },
-  { id: "wordGame",   emoji: "📝", bg: "#F0FDF4", badgeBg: "#DCFCE7", badgeText: "#15803D", route: "/activities" },
-  { id: "concierge",  emoji: "🛎️", bg: "#F0FDFA", badgeBg: "#CCFBF1", badgeText: "#0F766E", route: "/concierge" },
-  { id: "meds",       emoji: "💊", bg: "#FDF4FF", badgeBg: "#FAE8FF", badgeText: "#86198F", route: "/meds" },
-  { id: "social",     emoji: "🤝", bg: "#FFFBEB", badgeBg: "#FEF3C7", badgeText: "#B45309", route: "/social-rooms" },
-];
-
-const PICTOGRAPH_RE = /\p{Extended_Pictographic}/u;
-
-function getDisplayEmoji(value: string | undefined): string {
-  const trimmed = value?.trim() ?? "";
-  return PICTOGRAPH_RE.test(trimmed) ? trimmed : "";
-}
-
-function dateSeededCardOrder(): HoyCard[] {
-  const today = new Date();
-  const seed =
-    today.getFullYear() * 10000 +
-    (today.getMonth() + 1) * 100 +
-    today.getDate();
-  const arr = [...HOY_CARDS];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.abs((seed * (i + 1) * 2654435761) | 0) % (i + 1);
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-
-function todayDateString() {
-  const d = new Date();
-  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-}
-
 const HomeScreen = () => {
   const { guardPath, readiness } = useServiceGate();
   const { t } = useTranslation();
-  const [todayKey, setTodayKey] = useState(todayDateString);
-  const [todayRefreshIndex, setTodayRefreshIndex] = useState(0);
-  const [isRefreshingTodayCards, setIsRefreshingTodayCards] = useState(false);
-
-  useEffect(() => {
-    const now = new Date();
-    const msUntilMidnight =
-      new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() - now.getTime();
-    const timer = setTimeout(() => setTodayKey(todayDateString()), msUntilMidnight);
-    return () => clearTimeout(timer);
-  }, [todayKey]);
-
-  const { data: personalisationData } = useQuery<{
-    conditions: string[];
-    hobbies: string[];
-    hasMedications: boolean;
-  }>({
-    queryKey: ["/api/profile/personalisation"],
-    staleTime: 10 * 60 * 1000,
-    retry: false,
-  });
-
-  const orderedCards = useMemo(() => {
-    void todayKey;
-    const dateSorted = dateSeededCardOrder();
-    if (!personalisationData) return dateSorted;
-    const pData: PersonalisationData = {
-      conditions: personalisationData.conditions,
-      hobbies: personalisationData.hobbies,
-      hasMedications: personalisationData.hasMedications,
-      chatNavigationCount: getChatNavigationCount(),
-    };
-    return personaliseCardOrder(dateSorted, pData);
-  }, [todayKey, personalisationData]);
-
-  const visibleTodayCards = useMemo(() => {
-    if (orderedCards.length === 0) return [];
-    const cardCount = Math.min(3, orderedCards.length);
-    const start = (todayRefreshIndex * cardCount) % orderedCards.length;
-    return Array.from({ length: cardCount }, (_, offset) => orderedCards[(start + offset) % orderedCards.length]);
-  }, [orderedCards, todayRefreshIndex]);
-
-  const { data: personalPlanData, isFetching: isFetchingPersonalPlan } = useQuery<{
-    cards: HoyCard[];
-    source: string;
-    generatedAt: string;
-  }>({
-    queryKey: ["/api/home/personal-plan", todayKey, todayRefreshIndex, personalisationData],
-    queryFn: async () => {
-      const response = await apiFetch("/api/home/personal-plan", {
-        method: "POST",
-        body: JSON.stringify({
-          refreshIndex: todayRefreshIndex,
-          conditions: personalisationData?.conditions ?? [],
-          hobbies: personalisationData?.hobbies ?? [],
-          hasMedications: personalisationData?.hasMedications ?? false,
-          chatNavigationCount: getChatNavigationCount(),
-        }),
-      });
-      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-      return response.json();
-    },
-    staleTime: 2 * 60 * 1000,
-    retry: false,
-  });
-
-  const displayedTodayCards = personalPlanData?.cards?.length ? personalPlanData.cards : visibleTodayCards;
-  const carouselRef = useRef<HTMLDivElement | null>(null);
-  const autoScrollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const resumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const stopAutoScroll = useCallback(() => {
-    if (autoScrollRef.current) {
-      clearInterval(autoScrollRef.current);
-      autoScrollRef.current = null;
-    }
-  }, []);
-
-  const startAutoScroll = useCallback(() => {
-    if (autoScrollRef.current) return;
-    autoScrollRef.current = setInterval(() => {
-      const el = carouselRef.current;
-      if (!el) return;
-      const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 2;
-      if (atEnd) {
-        stopAutoScroll();
-        el.scrollTo({ left: 0, behavior: "smooth" });
-        resumeTimerRef.current = setTimeout(() => startAutoScroll(), 600);
-      } else {
-        el.scrollBy({ left: 1 });
-      }
-    }, 20);
-  }, [stopAutoScroll]);
-
-  const pauseAndResume = () => {
-    stopAutoScroll();
-    if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
-    resumeTimerRef.current = setTimeout(() => {
-      startAutoScroll();
-    }, 3000);
-  };
-
-  useEffect(() => {
-    startAutoScroll();
-    return () => {
-      stopAutoScroll();
-      if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
-    };
-  }, [startAutoScroll, stopAutoScroll]);
   const { firstName: profileFirstName } = useProfile();
 
   const firstName = profileFirstName || "";
 
-  const { data: profileWeatherData, isLoading: profileWeatherLoading, isError: profileWeatherError, error: profileWeatherRawError } = useQuery<{
-    city: string;
-    temperature: number;
-    description: string;
-  }>({
+  const {
+    data: profileWeatherData,
+    isError: profileWeatherError,
+    error: profileWeatherRawError,
+  } = useQuery<WeatherData>({
     queryKey: ["/api/weather"],
     staleTime: 0,
     gcTime: 30 * 60 * 1000,
@@ -379,14 +206,6 @@ const HomeScreen = () => {
     return Boolean(service && !service.ready && service.missing.some((step) => step.section === "subscription"));
   };
 
-  const handleRefreshTodayCards = () => {
-    setTodayRefreshIndex((current) => current + 1);
-    setIsRefreshingTodayCards(true);
-    pauseAndResume();
-    carouselRef.current?.scrollTo({ top: 0, left: 0, behavior: "smooth" });
-    window.setTimeout(() => setIsRefreshingTodayCards(false), 550);
-  };
-
   return (
     <div className="vyva-page">
       <VoiceHero
@@ -460,92 +279,6 @@ const HomeScreen = () => {
           })}
         </div>
       </div>
-
-      <div className="mt-[18px]">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <p className="vyva-section-title">
-            {t("home.todayForYou.sectionTitle")}
-          </p>
-          <button
-            type="button"
-            onClick={handleRefreshTodayCards}
-            aria-label={t("home.todayForYou.refreshLabel")}
-            title={t("home.todayForYou.refreshLabel")}
-            data-testid="button-refresh-today-for-you"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#E5D8F7] bg-white text-[#7B24D4] shadow-[0_8px_20px_rgba(92,44,145,0.10)] transition-transform active:scale-95"
-          >
-            <RefreshCw
-              size={20}
-              strokeWidth={2.4}
-              className={(isRefreshingTodayCards || isFetchingPersonalPlan) ? "animate-spin" : ""}
-              aria-hidden="true"
-            />
-          </button>
-        </div>
-        <div
-          ref={carouselRef}
-          className="grid grid-cols-1 gap-3"
-          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-          data-testid="carousel-today-for-you"
-          onMouseDown={pauseAndResume}
-          onTouchStart={pauseAndResume}
-        >
-          {displayedTodayCards.map((card) => {
-            const displayEmoji = getDisplayEmoji(card.emoji);
-            const locked = isSubscriptionLocked(card.route);
-
-            return (
-              <div
-                key={card.id}
-                data-testid={`card-today-for-you-${card.id}`}
-                className="flex flex-col overflow-hidden rounded-[26px]"
-                style={{
-                  background: card.bg,
-                  border: "1px solid #EDE2D1",
-                  boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
-                }}
-              >
-                <div className="px-[18px] pt-[18px] pb-[14px] flex flex-col gap-[12px] flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span
-                      className="font-body text-[11px] font-semibold px-[10px] py-[4px] rounded-full"
-                      style={{ background: card.badgeBg, color: card.badgeText }}
-                    >
-                      {t(`home.todayForYou.cards.${card.id}.badge`)}
-                    </span>
-                    {locked ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-1 font-body text-[11px] font-bold text-[#6B21A8]">
-                        <Lock size={12} strokeWidth={2.5} />
-                        Plan
-                      </span>
-                    ) : displayEmoji && (
-                      <span className="text-[30px]" aria-hidden="true">{displayEmoji}</span>
-                    )}
-                  </div>
-
-                  <h3 className="font-body text-[21px] font-extrabold leading-tight text-vyva-text-1 [overflow-wrap:anywhere]">
-                    {t(`home.todayForYou.cards.${card.id}.title`)}
-                  </h3>
-
-                  <p className="font-body text-[14px] font-medium leading-snug text-vyva-text-2 [overflow-wrap:anywhere] flex-1">
-                    {t(`home.todayForYou.cards.${card.id}.text`)}
-                  </p>
-
-                  <button
-                    data-testid={`button-today-for-you-${card.id}`}
-                    onClick={() => handleNavigate(card.route)}
-                    className="w-full mt-1 py-[10px] rounded-[14px] font-body text-[14px] font-semibold text-white transition-all active:scale-[0.975]"
-                    style={{ background: locked ? "#6B21A8" : card.badgeText }}
-                  >
-                    {t(`home.todayForYou.cards.${card.id}.cta`)}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
     </div>
   );
 };
