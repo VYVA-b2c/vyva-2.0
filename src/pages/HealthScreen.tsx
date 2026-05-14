@@ -36,6 +36,7 @@ import { useProfile } from "@/contexts/ProfileContext";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useDoctorVoice } from "@/hooks/useDoctorVoice";
 import { serviceForPath, useServiceGate } from "@/hooks/useServiceGate";
 
 type WoundScan = {
@@ -346,9 +347,19 @@ const HealthScreen = () => {
   const { t, i18n } = useTranslation();
   const { firstName, profile } = useProfile();
   const navigate = useNavigate();
-  const { guardPath, canUseService, readiness } = useServiceGate();
+  const { guardPath, canUseService, readiness, isLoading: serviceGateLoading } = useServiceGate();
   const location = useLocation();
   const { toast } = useToast();
+  const {
+    startDoctorVoice,
+    stopDoctorVoice,
+    status: doctorVoiceStatus,
+    isVoiceLive: doctorVoiceLive,
+    isSpeaking: doctorVoiceSpeaking,
+    isConnecting: doctorVoiceConnecting,
+    transcript: doctorVoiceTranscript,
+    lastError: doctorVoiceLastError,
+  } = useDoctorVoice();
 
   const [seeDoctorOpen,    setSeeDoctorOpen]    = useState(false);
   const [specialistOpen,   setSpecialistOpen]   = useState(false);
@@ -366,10 +377,13 @@ const HealthScreen = () => {
   const [woundResult,      setWoundResult]      = useState<null | { severity: string; resultTitle: string; advice: string }>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const specialistRecognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const doctorAutoStartConsumedRef = useRef(false);
 
   const headlineBase = t("health.allGoodToday", "All good today");
   const headlineText = firstName ? `${headlineBase}, ${firstName}` : headlineBase;
   const specialistLanguage = activeLanguage(profile?.language || i18n.language);
+  const autoStartDoctorVoice = Boolean((location.state as { autoStartDoctorVoice?: boolean } | null)?.autoStartDoctorVoice);
+  const doctorServiceBlocked = readiness?.services?.doctor?.ready === false;
 
   const profileLocation = useMemo(() => {
     const parts = [
@@ -513,6 +527,35 @@ const HealthScreen = () => {
       });
     }, 80);
   }, [location.search]);
+
+  useEffect(() => {
+    if (!autoStartDoctorVoice || doctorAutoStartConsumedRef.current || serviceGateLoading) return;
+
+    doctorAutoStartConsumedRef.current = true;
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+
+    if (doctorServiceBlocked || doctorVoiceLive) return;
+    void startDoctorVoice();
+  }, [
+    autoStartDoctorVoice,
+    doctorServiceBlocked,
+    doctorVoiceLive,
+    location.pathname,
+    location.search,
+    navigate,
+    serviceGateLoading,
+    startDoctorVoice,
+  ]);
+
+  useEffect(() => {
+    if (!doctorVoiceLastError) return;
+    toast({
+      description: t(
+        "health.doctorChoice.voiceError",
+        "The doctor's voice could not start. You can still tap Talk to Doctor.",
+      ),
+    });
+  }, [doctorVoiceLastError, t, toast]);
 
   const bookSpecialistMutation = useMutation({
     mutationFn: async (provider: SpecialistProvider) => {
@@ -686,7 +729,22 @@ const HealthScreen = () => {
           headline={<>{headlineText}</>}
           contextHint="health symptoms"
           talkLabel={t("health.talkToDoctor", "Talk to a Doctor")}
-          onTalkClick={() => guardPath("/health/doctor", { state: { autoStartVoice: true } })}
+          onTalkClick={() => {
+            if (doctorVoiceLive) {
+              stopDoctorVoice();
+              return;
+            }
+            guardPath("/health/doctor", { state: { autoStartVoice: true } });
+          }}
+          voiceControls={{
+            status: doctorVoiceStatus,
+            isSpeaking: doctorVoiceSpeaking,
+            isConnecting: doctorVoiceConnecting,
+            transcript: doctorVoiceTranscript,
+            onEnd: stopDoctorVoice,
+            showOverlay: false,
+            activeLabel: t("health.doctorChoice.stopCall", "Stop call"),
+          }}
         />
 
         <button
