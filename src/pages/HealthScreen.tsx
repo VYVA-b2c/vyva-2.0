@@ -359,6 +359,7 @@ const HealthScreen = () => {
     isConnecting: doctorVoiceConnecting,
     transcript: doctorVoiceTranscript,
     lastError: doctorVoiceLastError,
+    sendUserMessage: sendDoctorUserMessage,
   } = useDoctorVoice();
 
   const [seeDoctorOpen,    setSeeDoctorOpen]    = useState(false);
@@ -705,11 +706,16 @@ const HealthScreen = () => {
   };
 
   const QUICK_TILES = [
-    { id: "sintomas",   Icon: HeartPulse,    iconBg: "#F5F3FF", iconColor: "#7C3AED", label: t("health.quickTiles.symptoms.label", "Symptoms"),    hint: t("health.quickTiles.symptoms.hint", "Check how I feel"), path: "/health/symptom-check", action: () => guardPath("/health/symptom-check") },
-    { id: "medicacion", Icon: Pill,          iconBg: "#FDF4FF", iconColor: "#86198F", label: t("health.quickTiles.medication.label", "Medication"),  hint: t("health.quickTiles.medication.hint", "My pills"),     path: "/meds", action: () => guardPath("/meds") },
-    { id: "signos",     Icon: Activity,      iconBg: "#FFF1F2", iconColor: "#BE123C", label: t("health.quickTiles.status.label", "Status"),      hint: t("health.quickTiles.status.hint", "Vital signs"),    path: "/health/vitals", action: () => navigate("/health/vitals") },
-    { id: "historial",  Icon: ClipboardList, iconBg: "#EFF6FF", iconColor: "#1D4ED8", label: t("health.quickTiles.reports.label", "Reports"),    hint: t("health.quickTiles.reports.hint", "View summary"),      path: "/informes", action: () => navigate("/informes") },
+    { id: "sintomas",   Icon: HeartPulse,    iconBg: "#F5F3FF", iconColor: "#7C3AED", label: t("health.quickTiles.symptoms.label", "Symptoms"),    hint: t("health.quickTiles.symptoms.hint", "Check how I feel"), path: "/health/symptom-check", agentMessage: "I want to talk about my symptoms", action: () => guardPath("/health/symptom-check") },
+    { id: "medicacion", Icon: Pill,          iconBg: "#FDF4FF", iconColor: "#86198F", label: t("health.quickTiles.medication.label", "Medication"),  hint: t("health.quickTiles.medication.hint", "My pills"),     path: "/meds", agentMessage: "I want to review my medications", action: () => guardPath("/meds") },
+    { id: "signos",     Icon: Activity,      iconBg: "#FFF1F2", iconColor: "#BE123C", label: t("health.quickTiles.status.label", "Status"),      hint: t("health.quickTiles.status.hint", "Vital signs"),    path: "/health/vitals", agentMessage: "I want to check my health status", action: () => navigate("/health/vitals") },
+    { id: "historial",  Icon: ClipboardList, iconBg: "#EFF6FF", iconColor: "#1D4ED8", label: t("health.quickTiles.reports.label", "Reports"),    hint: t("health.quickTiles.reports.hint", "View summary"),      path: "/informes", agentMessage: "I want to see my health reports", action: () => navigate("/informes") },
   ];
+
+  const handleQuickTileClick = (tile: (typeof QUICK_TILES)[number]) => {
+    sendDoctorUserMessage(tile.agentMessage);
+    tile.action();
+  };
 
   const isSubscriptionLocked = (path?: string) => {
     if (!path) return false;
@@ -778,7 +784,7 @@ const HealthScreen = () => {
                 <button
                   key={tile.id}
                   data-testid={`button-health-quick-${tile.id}`}
-                  onClick={tile.action}
+                  onClick={() => handleQuickTileClick(tile)}
                   className={`vyva-tap relative flex min-h-[188px] min-w-0 flex-col items-center justify-center gap-4 rounded-[28px] border border-vyva-border bg-[#FFFCF8] px-4 py-5 text-center transition-transform active:scale-[0.99] ${locked ? "opacity-80" : ""}`}
                   style={{ boxShadow: "0 14px 30px rgba(60,38,20,0.08)" }}
                 >
