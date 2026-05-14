@@ -1,9 +1,14 @@
-import { ReactNode, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { ReactNode, useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AlertCircle } from "lucide-react";
 import StatusBar from "./StatusBar";
 import BottomNav from "./BottomNav";
+import {
+  routeForVoiceUtterance,
+  VYVA_VOICE_USER_MESSAGE_EVENT,
+  type VoiceUserMessageDetail,
+} from "@/lib/voiceNavigation";
 
 const FULL_SCREEN_ROUTES = ["/chat"];
 const WIDE_ROUTES = ["/social-rooms"];
@@ -59,9 +64,33 @@ const SosSheet = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: 
 
 const AppShell = ({ children }: { children: ReactNode }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [sosOpen, setSosOpen] = useState(false);
+  const lastVoiceRouteRef = useRef<{ route: string; at: number } | null>(null);
   const isFullScreen = FULL_SCREEN_ROUTES.includes(location.pathname);
   const isWideRoute = WIDE_ROUTES.some((route) => location.pathname.startsWith(route));
+
+  useEffect(() => {
+    const handleVoiceUserMessage = (event: Event) => {
+      const detail = event instanceof CustomEvent
+        ? (event.detail as VoiceUserMessageDetail | undefined)
+        : undefined;
+      if (!detail?.text) return;
+
+      const route = routeForVoiceUtterance(detail.text);
+      if (!route || location.pathname === route) return;
+
+      const previous = lastVoiceRouteRef.current;
+      const now = Date.now();
+      if (previous?.route === route && now - previous.at < 3500) return;
+
+      lastVoiceRouteRef.current = { route, at: now };
+      navigate(route);
+    };
+
+    window.addEventListener(VYVA_VOICE_USER_MESSAGE_EVENT, handleVoiceUserMessage);
+    return () => window.removeEventListener(VYVA_VOICE_USER_MESSAGE_EVENT, handleVoiceUserMessage);
+  }, [location.pathname, navigate]);
 
   return (
     <div className="flex min-h-screen justify-center bg-[radial-gradient(circle_at_top,#fffaf2_0%,#f7f1e9_42%,#f4efe8_100%)]">

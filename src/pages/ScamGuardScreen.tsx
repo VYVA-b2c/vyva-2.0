@@ -418,7 +418,7 @@ const ScamGuardScreen = () => {
               <Mic size={18} />
             )}
             {isCallActive
-              ? t("scamGuard.callCompanionEnd", "End Call")
+              ? t("scamGuard.callCompanionEnd", "Pause guidance")
               : isConnecting
               ? t("scamGuard.callCompanionConnecting", "Connecting…")
               : t("scamGuard.callCompanionStart", "Start Call Companion")}

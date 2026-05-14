@@ -3,6 +3,7 @@ import { Conversation } from "@elevenlabs/client";
 import type { Conversation as ElevenConversation, DisconnectionDetails, PartialOptions } from "@elevenlabs/client";
 import { getToken } from "@/lib/auth";
 import { apiFetch } from "@/lib/queryClient";
+import { emitVoiceUserMessage } from "@/lib/voiceNavigation";
 
 type TtsSegment = {
   text: string;
@@ -536,7 +537,9 @@ export function useVyvaVoice() {
                 hiddenOutgoingMessagesRef.current.splice(hiddenIndex, 1);
                 return;
               }
-              appendTranscript({ from: "user", text: message, timestamp: Date.now() });
+              const transcriptEntry = { from: "user" as const, text: message, timestamp: Date.now() };
+              appendTranscript(transcriptEntry);
+              emitVoiceUserMessage({ text: message, transcriptEntry });
               return;
             }
             appendTranscript({ from: "vyva", text: message, timestamp: Date.now() });
