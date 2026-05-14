@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Heart, Brain, Users, ConciergeBell, Lock, Mic, RefreshCw, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -73,6 +74,10 @@ const HOME_AGENT_CARDS: HomeAgentCard[] = [
   { id: "social", icon: Users, path: "/social-rooms", voiceContext: "social", theme: "blue" },
   { id: "concierge", icon: ConciergeBell, path: "/concierge", voiceContext: "concierge", theme: "green" },
 ];
+
+const HEALTH_AUTO_START_OPTIONS: NavigateOptions = {
+  state: { autoStartDoctorVoice: true },
+};
 
 const HOME_AGENT_THEMES: Record<HomeAgentCard["theme"], {
   iconBg: string;
@@ -359,12 +364,16 @@ const HomeScreen = () => {
     return t(`home.greeting.${period}.withoutName.${variant}`);
   }, [firstName, timeGreetingKey, t]);
 
-  const handleNavigate = (path: string) => {
+  const handleNavigate = (path: string, options?: NavigateOptions) => {
     if (path === "/chat") incrementChatNavigationCount();
-    guardPath(path);
+    guardPath(path, options);
   };
 
   const handleAgentCardOpen = (card: HomeAgentCard) => {
+    if (card.id === "health") {
+      handleNavigate(card.path, HEALTH_AUTO_START_OPTIONS);
+      return;
+    }
     handleNavigate(card.path);
   };
 

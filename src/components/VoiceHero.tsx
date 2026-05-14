@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { Mic, MessageCircle, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useVyvaVoice } from "@/hooks/useVyvaVoice";
+import { type TranscriptEntry, useVyvaVoice } from "@/hooks/useVyvaVoice";
 import { type HeroSurface } from "@/lib/heroMessages";
 import { type UseHeroMessageOptions, useHeroMessage } from "@/hooks/useHeroMessage";
 import VoiceCallOverlay from "@/components/VoiceCallOverlay";
@@ -39,6 +39,16 @@ interface VoiceHeroProps {
   onTalkClick?: () => void;
   onChatClick?: () => void;
   weatherData?: WeatherData | null;
+  voiceControls?: {
+    status: "idle" | "connecting" | "connected";
+    isSpeaking: boolean;
+    isConnecting: boolean;
+    transcript?: TranscriptEntry[];
+    onEnd: () => void;
+    showOverlay?: boolean;
+    activeLabel?: string;
+    connectingLabel?: string;
+  };
 }
 
 const headlineClampStyle: React.CSSProperties = {
@@ -66,9 +76,10 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   onTalkClick,
   onChatClick,
   weatherData,
+  voiceControls,
 }) => {
   const { t } = useTranslation();
-  const { startVoice, stopVoice, status, isSpeaking, isConnecting, transcript } = useVyvaVoice();
+  const internalVoice = useVyvaVoice();
   const dynamicHero = useHeroMessage(heroSurface, {
     ...heroContext,
     fallbackHeadline: typeof headline === "string" ? headline : heroContext?.fallbackHeadline,
@@ -84,8 +95,15 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   const resolvedContextHint = dynamicHero?.contextHint ?? contextHint;
   const resolvedTalkLabel = dynamicHero?.ctaLabel ?? talkLabel;
 
-  const isActive = status === "connected";
-  const showOverlay = isActive || isConnecting;
+  const voiceStatus = voiceControls?.status ?? internalVoice.status;
+  const isSpeaking = voiceControls?.isSpeaking ?? internalVoice.isSpeaking;
+  const isConnecting = voiceControls?.isConnecting ?? internalVoice.isConnecting;
+  const transcript = voiceControls?.transcript ?? internalVoice.transcript;
+  const stopVoice = voiceControls?.onEnd ?? internalVoice.stopVoice;
+  const shouldShowOverlay = voiceControls?.showOverlay ?? true;
+
+  const isActive = voiceStatus === "connected";
+  const showOverlay = shouldShowOverlay && (isActive || isConnecting);
 
   const handleTalk = () => {
     if (isActive) {
@@ -93,16 +111,16 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
     } else if (onTalkClick) {
       onTalkClick();
     } else {
-      startVoice(resolvedContextHint);
+      internalVoice.startVoice(resolvedContextHint);
     }
   };
 
   const statusLabel = isConnecting
-    ? t("voiceHero.connecting")
+    ? voiceControls?.connectingLabel ?? t("voiceHero.connecting")
     : isActive
-    ? isSpeaking
-      ? t("voiceHero.speaking")
-      : t("voiceHero.listening")
+    ? voiceControls?.activeLabel ?? (isSpeaking
+        ? t("voiceHero.speaking")
+        : t("voiceHero.listening"))
     : resolvedTalkLabel ?? t("voiceHero.talkToVyva");
 
   const timeOfDay = useMemo((): "morning" | "afternoon" | "evening" => {
