@@ -1,10 +1,14 @@
-import { and, count, desc, eq, gte } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray } from "drizzle-orm";
 import { db } from "../db.js";
 import {
+  activityLogs,
   companionProfiles,
+  users,
   profiles,
   medicationAdherence,
   scheduledEvents,
+  socialRoomVisits,
+  socialRooms,
   socialUserInterests,
   teamInvitations,
   triageReports,
@@ -14,6 +18,7 @@ import {
   sessionExchanges,
 } from "../../shared/schema.js";
 import { formatMemoryBlock, searchMemories } from "./mem0.js";
+import { socialRoomSeeds } from "./socialRoomsSeed.js";
 import { buildAgentOperatingRules, buildConversationPlan } from "./voiceAgentPolicy.js";
 import {
   conversationPlanToVariables,
@@ -130,6 +135,50 @@ function daysAgo(days: number) {
 
 function formatDateTime(value: Date | string | null | undefined) {
   return value ? new Date(value).toISOString() : "";
+}
+
+function formatRelativeTime(value: Date | string | null | undefined, now = new Date()) {
+  if (!value) return "";
+  const date = new Date(value);
+  const diffMs = now.getTime() - date.getTime();
+  if (!Number.isFinite(diffMs) || diffMs < 0) return `scheduled ${date.toISOString()}`;
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 60) return `${days} day${days === 1 ? "" : "s"} ago`;
+  const months = Math.floor(days / 30);
+  if (months < 24) return `${months} month${months === 1 ? "" : "s"} ago`;
+  const years = Math.floor(days / 365);
+  return `${years} year${years === 1 ? "" : "s"} ago`;
+}
+
+function ageFromDate(value: string | null | undefined, now = new Date()) {
+  if (!value) return "";
+  const birth = new Date(value);
+  if (!Number.isFinite(birth.getTime())) return "";
+  let age = now.getUTCFullYear() - birth.getUTCFullYear();
+  const monthDelta = now.getUTCMonth() - birth.getUTCMonth();
+  if (monthDelta < 0 || (monthDelta === 0 && now.getUTCDate() < birth.getUTCDate())) {
+    age -= 1;
+  }
+  return age >= 0 && age < 130 ? String(age) : "";
+}
+
+function birthdayContext(value: string | null | undefined, now = new Date()) {
+  if (!value) return "";
+  const birth = new Date(value);
+  if (!Number.isFinite(birth.getTime())) return "";
+  const next = new Date(Date.UTC(now.getUTCFullYear(), birth.getUTCMonth(), birth.getUTCDate()));
+  if (next.getTime() < Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())) {
+    next.setUTCFullYear(next.getUTCFullYear() + 1);
+  }
+  const days = Math.round((next.getTime() - Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())) / 86400000);
+  if (days === 0) return "Birthday is today.";
+  if (days <= 14) return `Birthday is in ${days} day${days === 1 ? "" : "s"}.`;
+  return `Next birthday: ${next.toISOString().slice(0, 10)}.`;
 }
 
 function metricLabel(metric: string | null | undefined) {
@@ -268,6 +317,101 @@ function splitMedicalEvents(events: Array<typeof scheduledEvents.$inferSelect>) 
   return { latestVisit: past, upcomingAppointment: upcoming };
 }
 
+function formatScheduledEvent(event: typeof scheduledEvents.$inferSelect) {
+  return valueList([
+    event.title,
+    event.event_type ? `type ${event.event_type}` : null,
+    event.status ? `status ${event.status}` : null,
+    event.scheduled_for ? `scheduled ${formatDateTime(event.scheduled_for)}` : null,
+    event.description,
+  ], "");
+}
+
+function formatUpcomingEvents(events: Array<typeof scheduledEvents.$inferSelect>, now = new Date()) {
+  return events
+    .filter((event) => event.scheduled_for && event.scheduled_for.getTime() >= now.getTime() && event.status !== "cancelled")
+    .sort((a, b) => a.scheduled_for.getTime() - b.scheduled_for.getTime())
+    .slice(0, 5)
+    .map(formatScheduledEvent);
+}
+
+function formatRecentActivity(logs: Array<typeof activityLogs.$inferSelect>) {
+  if (logs.length === 0) return "";
+  const latest = logs[0];
+  const totalMinutes = logs.reduce((sum, log) => sum + (log.duration_minutes ?? 0), 0);
+  const counts = new Map<string, number>();
+  logs.forEach((log) => counts.set(log.activity_type, (counts.get(log.activity_type) ?? 0) + 1));
+  const common = Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([name, count]) => `${name} x${count}`);
+
+  return compactLines([
+    latest ? `Latest activity: ${latest.activity_type}, ${latest.duration_minutes} minutes, ${formatDateTime(latest.logged_at)}.` : "",
+    `Last 14 days: ${totalMinutes} activity minutes recorded.`,
+    common.length ? `Common activities: ${common.join(", ")}.` : "",
+  ], 900);
+}
+
+function formatSocialActivity(
+  visits: Array<typeof socialRoomVisits.$inferSelect>,
+  roomsById: Map<string, typeof socialRooms.$inferSelect>,
+) {
+  if (visits.length === 0) return "";
+  const latest = visits[0];
+  const latestRoom = roomsById.get(String(latest?.room_id));
+  const totalMessages = visits.reduce((sum, visit) => sum + (visit.messages_sent ?? 0), 0);
+  const completed = visits.filter((visit) => visit.completed).length;
+  const roomNames = visits
+    .map((visit) => roomsById.get(String(visit.room_id))?.name_en)
+    .filter((value): value is string => Boolean(value));
+
+  return compactLines([
+    latest ? `Last social room: ${latestRoom?.name_en ?? "social room"} (${latestRoom?.slug ?? "unknown"}), ${formatDateTime(latest.last_active_at)}.` : "",
+    `Recent social room visits: ${visits.length}; completed sessions: ${completed}; messages sent: ${totalMessages}.`,
+    roomNames.length ? `Recent rooms: ${joinList([...new Set(roomNames)])}` : "",
+  ], 1000);
+}
+
+function matchingSocialRoomSuggestions(interests: string[], preferredTimes: string[]) {
+  if (interests.length === 0) return "";
+  const normalizedInterests = interests.map((interest) => interest.toLowerCase());
+  const normalizedTimes = preferredTimes.map((time) => time.toLowerCase());
+  const matches = socialRoomSeeds
+    .map((room) => {
+      const tagHit = room.topicTags.some((tag) =>
+        normalizedInterests.some((interest) => interest.includes(tag) || tag.includes(interest)),
+      );
+      const timeHit = normalizedTimes.length === 0 || room.timeSlots.some((slot) => normalizedTimes.includes(slot));
+      return { room, score: (tagHit ? 2 : 0) + (timeHit ? 1 : 0) };
+    })
+    .filter((item) => item.score > 1)
+    .sort((a, b) => b.score - a.score || a.room.sortOrder - b.room.sortOrder)
+    .slice(0, 3)
+    .map((item) => `${item.room.names.en} (${item.room.slug}) for ${item.room.topicTags.slice(0, 3).join(", ")}`);
+
+  return joinList(matches);
+}
+
+function buildLocalInterestOpportunities(input: {
+  city: string;
+  region: string;
+  interests: string[];
+  hobbies: string[];
+  mobilityContext: string;
+}) {
+  const interests = [...new Set([...input.interests, ...input.hobbies])].filter(Boolean);
+  if (interests.length === 0) return "";
+  const location = valueList([input.city, input.region], "the user's area");
+  const selected = interests.slice(0, 4);
+  return compactLines([
+    `Saved interests to convert into useful local plans: ${joinList(selected)}.`,
+    `Location for live checks: ${location}.`,
+    input.mobilityContext ? `Fit plans to mobility/living context: ${input.mobilityContext}.` : "",
+    "Do not invent specific event names, times, prices, or venues. Offer to ask Concierge to check real nearby options when the user is interested.",
+  ], 1200);
+}
+
 function profileLocation(profile: typeof profiles.$inferSelect | null) {
   if (!profile) return "";
   return valueList([
@@ -353,6 +497,10 @@ export async function buildVoiceContext(
     latestVitals,
     medicationAdherenceRows,
     scheduledEventRows,
+    userRows,
+    latestVoiceExchangeRows,
+    recentActivityRows,
+    recentSocialVisitRows,
     voiceExchangeCountRows,
   ] = await Promise.all([
     db.select().from(profiles).where(eq(profiles.id, userId)).limit(1),
@@ -370,12 +518,26 @@ export async function buildVoiceContext(
       .orderBy(desc(medicationAdherence.created_at))
       .limit(80),
     db.select().from(scheduledEvents).where(eq(scheduledEvents.user_id, userId)).orderBy(desc(scheduledEvents.scheduled_for)).limit(20),
+    db.select({ last_seen_at: users.last_seen_at }).from(users).where(eq(users.id, userId)).limit(1),
+    db.select().from(sessionExchanges).where(eq(sessionExchanges.user_id, userId)).orderBy(desc(sessionExchanges.created_at)).limit(1),
+    db
+      .select()
+      .from(activityLogs)
+      .where(and(eq(activityLogs.user_id, userId), gte(activityLogs.logged_at, daysAgo(13))))
+      .orderBy(desc(activityLogs.logged_at))
+      .limit(20),
+    db.select().from(socialRoomVisits).where(eq(socialRoomVisits.user_id, userId)).orderBy(desc(socialRoomVisits.last_active_at)).limit(8),
     options.priorVoiceExchangeCount === undefined
       ? db.select({ value: count() }).from(sessionExchanges).where(eq(sessionExchanges.user_id, userId))
       : Promise.resolve([{ value: options.priorVoiceExchangeCount }]),
   ]);
 
   const profile = profileRows[0] ?? null;
+  const socialRoomIds = [...new Set(recentSocialVisitRows.map((visit) => String(visit.room_id)).filter(Boolean))];
+  const socialRoomRows = socialRoomIds.length
+    ? await db.select().from(socialRooms).where(inArray(socialRooms.id, socialRoomIds)).catch(() => [])
+    : [];
+  const socialRoomsById = new Map(socialRoomRows.map((room) => [String(room.id), room]));
   const consent = profile?.data_sharing_consent ?? {};
   const conditionsSection = section(consent, "conditions");
   const dietSection = section(consent, "diet");
@@ -420,6 +582,77 @@ export async function buildVoiceContext(
   const { latestVisit, upcomingAppointment } = splitMedicalEvents(scheduledEventRows);
   const latestMedicalVisit = formatScheduledHealthEvent(latestVisit);
   const upcomingMedicalAppointment = formatScheduledHealthEvent(upcomingAppointment);
+  const now = new Date();
+  const userRow = userRows[0] ?? null;
+  const latestVoiceExchange = latestVoiceExchangeRows[0] ?? null;
+  const allHobbies = [...new Set([
+    ...hobbies,
+    ...(companion?.hobbies ?? []),
+  ])];
+  const allInterests = [...new Set([
+    ...(companion?.interests ?? []),
+    ...(socialInterests?.interest_tags ?? []),
+  ])];
+  const allPreferredActivities = [...new Set(companion?.preferred_activities ?? [])];
+  const appLastSeenAt = userRow?.last_seen_at ?? null;
+  const lastVoiceSessionAt = latestVoiceExchange?.created_at ?? null;
+  const dateOfBirth = profile?.date_of_birth ?? "";
+  const ageYears = ageFromDate(dateOfBirth, now);
+  const birthday = birthdayContext(dateOfBirth, now);
+  const upcomingEvents = formatUpcomingEvents(scheduledEventRows, now);
+  const recentActivitySummary = formatRecentActivity(recentActivityRows);
+  const socialActivitySummary = formatSocialActivity(recentSocialVisitRows, socialRoomsById);
+  const matchingSocialRooms = matchingSocialRoomSuggestions(
+    [...allInterests, ...allHobbies],
+    socialInterests?.preferred_times ?? [],
+  );
+  const mobilityContext = valueList([mobilityLevel, livingSituation]);
+  const localInterestOpportunities = buildLocalInterestOpportunities({
+    city: profile?.city ?? "",
+    region: profile?.region ?? "",
+    interests: allInterests,
+    hobbies: allHobbies,
+    mobilityContext,
+  });
+  const relationshipContinuityContext = compactLines([
+    appLastSeenAt ? `Last app visit: ${formatDateTime(appLastSeenAt)} (${formatRelativeTime(appLastSeenAt, now)}).` : "",
+    lastVoiceSessionAt ? `Last VYVA voice session: ${formatDateTime(lastVoiceSessionAt)} (${formatRelativeTime(lastVoiceSessionAt, now)}).` : "",
+    latestVoiceExchange?.agent_used
+      ? `Last voice agent/topic: ${latestVoiceExchange.agent_used}${latestVoiceExchange.intent_classified ? ` / ${latestVoiceExchange.intent_classified}` : ""}.`
+      : "",
+    latestVoiceExchange?.message ? `Last user voice message: ${latestVoiceExchange.message.slice(0, 220)}.` : "",
+  ], 1400);
+  const preferenceContext = compactLines([
+    allHobbies.length ? `Hobbies: ${joinList(allHobbies)}` : "",
+    allInterests.length ? `Interests: ${joinList(allInterests)}` : "",
+    companion?.values?.length ? `Values: ${joinList(companion.values)}` : "",
+    allPreferredActivities.length ? `Preferred activities: ${joinList(allPreferredActivities)}` : "",
+    socialInterests?.preferred_times?.length ? `Preferred social times: ${joinList(socialInterests.preferred_times)}` : "",
+  ], 1600);
+  const appInsightContext = compactLines([
+    relationshipContinuityContext,
+    preferenceContext,
+    upcomingEvents.length ? `Upcoming events/reminders: ${joinList(upcomingEvents)}` : "",
+    recentActivitySummary ? `Activity history: ${recentActivitySummary}` : "",
+    socialActivitySummary ? `Social activity: ${socialActivitySummary}` : "",
+    matchingSocialRooms ? `Suggested social rooms: ${matchingSocialRooms}` : "",
+    localInterestOpportunities ? `Nearby interest opportunities: ${localInterestOpportunities}` : "",
+    birthday ? `Birthday context: ${birthday}` : "",
+  ], 4200);
+  const personalisationOpportunities = compactLines([
+    latestVitalsScanSummary ? "If health is relevant, latest vitals context is available." : "",
+    medicationAdherenceSummary ? "If medication is relevant, medication adherence context is available." : "",
+    upcomingEvents.length ? "Offer help preparing for the next scheduled event if useful." : "",
+    matchingSocialRooms ? "Offer one social room or companion activity that matches the user's interests." : "",
+    localInterestOpportunities ? "Offer Concierge to verify a nearby event or place before naming specifics." : "",
+    recentActivitySummary ? "Use recent activity to suggest a balanced movement, rest, or routine step." : "",
+    birthday ? "Use birthday context warmly only when it feels natural." : "",
+  ], 1400);
+  const orchestratorContext = compactLines([
+    relationshipContinuityContext,
+    appInsightContext,
+    personalisationOpportunities,
+  ], 6000);
   const emergencyContact = valueList([
     asString(emergencySection.emergency_name),
     asString(emergencySection.emergency_phone),
@@ -444,6 +677,9 @@ export async function buildVoiceContext(
     first_name: firstName(profile),
     preferred_name: profile?.preferred_name ?? "",
     full_name: profile?.full_name ?? "",
+    date_of_birth: dateOfBirth,
+    age_years: ageYears,
+    birthday_context: birthday,
     preferred_language: profile?.language ?? "en",
     timezone: profile?.timezone ?? "Europe/Madrid",
     city: profile?.city ?? "",
@@ -452,31 +688,43 @@ export async function buildVoiceContext(
     profile_summary: compactLines([
       `Name: ${profile?.preferred_name || profile?.full_name || "Not recorded"}`,
       `Language: ${profile?.language ?? "en"}`,
+      ageYears ? `Age: ${ageYears}` : "",
       profile?.timezone ? `Timezone: ${profile.timezone}` : "",
       profile?.city || profile?.country_code ? `Location: ${valueList([profile.city, profile.country_code])}` : "",
     ], 900),
     memory_block: memoryBlock || "(no memory retrieved)",
+    last_app_visit_at: formatDateTime(appLastSeenAt),
+    time_since_last_app_visit: formatRelativeTime(appLastSeenAt, now),
+    last_voice_session_at: formatDateTime(lastVoiceSessionAt),
+    time_since_last_voice_session: formatRelativeTime(lastVoiceSessionAt, now),
+    last_visit_activity: relationshipContinuityContext,
+    preference_context: preferenceContext,
+    app_insight_context: appInsightContext,
+    orchestrator_context: orchestratorContext,
+    personalisation_opportunities: personalisationOpportunities,
+    upcoming_events: joinList(upcomingEvents),
+    recent_activity_summary: recentActivitySummary,
+    social_activity_summary: socialActivitySummary,
+    nearby_events_of_interest: localInterestOpportunities,
+    matching_social_rooms: matchingSocialRooms,
   };
 
   if (domainAllows(domain, "social")) {
-    variables.hobbies = joinList([...new Set([
-      ...hobbies,
-      ...(companion?.hobbies ?? []),
-    ])]);
-    variables.interests = joinList([...new Set([
-      ...(companion?.interests ?? []),
-      ...(socialInterests?.interest_tags ?? []),
-    ])]);
+    variables.hobbies = joinList(allHobbies);
+    variables.interests = joinList(allInterests);
     variables.values = joinList(companion?.values ?? []);
-    variables.preferred_activities = joinList(companion?.preferred_activities ?? []);
+    variables.preferred_activities = joinList(allPreferredActivities);
     variables.social_context = compactLines([
       hobbyDetails,
-      companion?.interests?.length ? `Interests: ${joinList(companion.interests)}` : "",
+      allInterests.length ? `Interests: ${joinList(allInterests)}` : "",
       companion?.values?.length ? `Values: ${joinList(companion.values)}` : "",
-      companion?.preferred_activities?.length ? `Preferred activities: ${joinList(companion.preferred_activities)}` : "",
+      allPreferredActivities.length ? `Preferred activities: ${joinList(allPreferredActivities)}` : "",
       socialInterests?.interest_tags?.length ? `Social room interests: ${joinList(socialInterests.interest_tags)}` : "",
       socialInterests?.preferred_times?.length ? `Preferred social times: ${joinList(socialInterests.preferred_times)}` : "",
       socialInterests?.activity_level ? `Activity level: ${socialInterests.activity_level}` : "",
+      socialActivitySummary ? `Recent social activity: ${socialActivitySummary}` : "",
+      matchingSocialRooms ? `Good-fit social rooms: ${matchingSocialRooms}` : "",
+      localInterestOpportunities ? `Local interest opportunities: ${localInterestOpportunities}` : "",
     ], 1800);
   }
 
@@ -492,7 +740,7 @@ export async function buildVoiceContext(
     variables.providers = joinList(providers);
     variables.gp_details = valueList([profile?.gp_name, profile?.gp_phone, profile?.gp_address]);
     variables.diet_context = valueList([dietaryNotes, dietaryPreferences.length ? dietaryPreferences.join(", ") : ""]);
-    variables.mobility_context = valueList([mobilityLevel, livingSituation]);
+    variables.mobility_context = mobilityContext;
   }
 
   if (domainAllows(domain, "medical")) {

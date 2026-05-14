@@ -291,6 +291,33 @@ function buildVoiceContextPromptBlock(voiceContext: VoiceDynamicVariables) {
     `Prior voice exchanges: ${contextValue(voiceContext.prior_voice_exchange_count) || "0"}`,
     contextValue(voiceContext.app_entrypoint) ? `App entrypoint: ${contextValue(voiceContext.app_entrypoint)}` : "",
     contextValue(voiceContext.memory_block) ? `Memory: ${contextValue(voiceContext.memory_block)}` : "",
+    contextValue(voiceContext.orchestrator_context)
+      ? `Orchestrator context: ${contextValue(voiceContext.orchestrator_context)}`
+      : "",
+    contextValue(voiceContext.last_visit_activity)
+      ? `Relationship continuity: ${contextValue(voiceContext.last_visit_activity)}`
+      : "",
+    contextValue(voiceContext.app_insight_context)
+      ? `App insight: ${contextValue(voiceContext.app_insight_context)}`
+      : "",
+    contextValue(voiceContext.personalisation_opportunities)
+      ? `Personalisation opportunities: ${contextValue(voiceContext.personalisation_opportunities)}`
+      : "",
+    contextValue(voiceContext.preference_context) ? `Preference context: ${contextValue(voiceContext.preference_context)}` : "",
+    contextValue(voiceContext.birthday_context) ? `Birthday context: ${contextValue(voiceContext.birthday_context)}` : "",
+    contextValue(voiceContext.upcoming_events) ? `Upcoming events: ${contextValue(voiceContext.upcoming_events)}` : "",
+    contextValue(voiceContext.recent_activity_summary)
+      ? `Recent activity: ${contextValue(voiceContext.recent_activity_summary)}`
+      : "",
+    contextValue(voiceContext.social_activity_summary)
+      ? `Recent social activity: ${contextValue(voiceContext.social_activity_summary)}`
+      : "",
+    contextValue(voiceContext.nearby_events_of_interest)
+      ? `Nearby interest opportunities: ${contextValue(voiceContext.nearby_events_of_interest)}`
+      : "",
+    contextValue(voiceContext.matching_social_rooms)
+      ? `Good-fit social rooms: ${contextValue(voiceContext.matching_social_rooms)}`
+      : "",
     contextValue(voiceContext.social_context) ? `Social context: ${contextValue(voiceContext.social_context)}` : "",
     contextValue(voiceContext.health_profile_summary) ? `Health profile summary: ${contextValue(voiceContext.health_profile_summary)}` : "",
     contextValue(voiceContext.health_context) ? `Health context: ${contextValue(voiceContext.health_context)}` : "",
@@ -312,7 +339,7 @@ function buildVoiceContextPromptBlock(voiceContext: VoiceDynamicVariables) {
       ? `Communication preferences: ${contextValue(voiceContext.communication_preferences)}`
       : "",
     contextValue(voiceContext.safety_context) ? `Safety context: ${contextValue(voiceContext.safety_context)}` : "",
-  ].filter(Boolean).join("\n").slice(0, 5000);
+  ].filter(Boolean).join("\n").slice(0, 8000);
 }
 
 function buildMem0Messages(history: ConversationTurn[], utterance: string): ConversationTurn[] {
