@@ -2,7 +2,10 @@ import { Users, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useProfile } from "@/contexts/ProfileContext";
+import VoiceHero from "@/components/VoiceHero";
+import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 import AgentAvatar from "./AgentAvatar";
 import SocialStyles from "./SocialStyles";
 import {
@@ -162,9 +165,11 @@ function RoomDetailSheet({ room, language, onClose, onEnter }: RoomDetailSheetPr
 
 const SocialHub = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { profile } = useProfile();
   const language = getSocialLanguage(profile?.language);
   const copy = getSocialCopy(language);
+  const autoStartVoice = useRouteVoiceAutoStart();
   const [category, setCategory] = useState<"all" | SocialRoomCategory>("all");
   const [selectedRoomSlug, setSelectedRoomSlug] = useState<string | null>(null);
 
@@ -190,14 +195,17 @@ const SocialHub = () => {
     <div className="px-5 pb-10">
       <SocialStyles />
 
-      <header className="pt-6">
-        <p className="font-body text-[18px] tracking-[0.28em] text-[#8E7FAA]">{copy.dayLabel}</p>
-        <h1 className="mt-3 font-display text-[42px] leading-[1.06] text-[#2D1F42]">
-          {copy.chooseRoom}
-        </h1>
-        <p className="mt-3 font-body text-[21px] leading-[1.4] text-[#6E5A8A]">
-          {copy.chooseRoomSubtitle}
-        </p>
+      <header className="pt-4">
+        <VoiceHero
+          heroSurface="social"
+          sourceText={copy.dayLabel}
+          headline={copy.chooseRoom}
+          subtitle={copy.chooseRoomSubtitle}
+          contextHint="social rooms"
+          autoStartVoice={autoStartVoice ? "social" : false}
+          showVoiceOverlay={false}
+          activeLabel={t("voiceHero.endCall", "End call")}
+        />
       </header>
 
       <div className="mt-6 flex gap-3 overflow-x-auto pb-2">
