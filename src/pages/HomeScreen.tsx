@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { Heart, Brain, Users, ConciergeBell, Mic, RefreshCw, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
-import VoiceCallOverlay from "@/components/VoiceCallOverlay";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 import { useProfile } from "@/contexts/ProfileContext";
 import { apiFetch } from "@/lib/queryClient";
@@ -225,7 +224,7 @@ const HomeScreen = () => {
     };
   }, []);
   const { firstName: profileFirstName } = useProfile();
-  const { startVoice, stopVoice, status: voiceStatus, isSpeaking, isConnecting, transcript } = useVyvaVoice();
+  const { startVoice, stopVoice, status: voiceStatus } = useVyvaVoice();
   const isVoiceActive = voiceStatus !== "idle";
 
   const firstName = profileFirstName || "";
@@ -527,15 +526,6 @@ const HomeScreen = () => {
           ))}
         </div>
       </div>
-
-      {isVoiceActive && (
-        <VoiceCallOverlay
-          isSpeaking={isSpeaking}
-          isConnecting={isConnecting}
-          transcript={transcript}
-          onEnd={stopVoice}
-        />
-      )}
     </div>
   );
 };

@@ -182,8 +182,6 @@ const DoctorChoiceScreen = () => {
     void beginUserTurn();
   }, [beginUserTurn, hasMicrophone, status]);
 
-  useEffect(() => () => stopVoice(), [stopVoice]);
-
   const handleDirect = () => {
     if (isVoiceLive) return;
     void startDoctorVoice();

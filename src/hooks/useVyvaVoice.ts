@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { createContext, createElement, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Conversation } from "@elevenlabs/client";
 import type { Conversation as ElevenConversation, DisconnectionDetails, PartialOptions } from "@elevenlabs/client";
 import { getToken } from "@/lib/auth";
@@ -206,7 +206,7 @@ function inferVoiceContextDomain(options: StartVoiceOptions | undefined) {
   return undefined;
 }
 
-export function useVyvaVoice() {
+function useVyvaVoiceController() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [status, setStatus] = useState<"idle" | "connecting" | "connected">("idle");
@@ -629,4 +629,21 @@ export function useVyvaVoice() {
     endUserTurn,
     interruptAgentAudio,
   };
+}
+
+type VyvaVoiceController = ReturnType<typeof useVyvaVoiceController>;
+
+const VyvaVoiceContext = createContext<VyvaVoiceController | null>(null);
+
+export function VyvaVoiceProvider({ children }: { children: ReactNode }) {
+  const controller = useVyvaVoiceController();
+  return createElement(VyvaVoiceContext.Provider, { value: controller }, children);
+}
+
+export function useVyvaVoice() {
+  const context = useContext(VyvaVoiceContext);
+  if (!context) {
+    throw new Error("useVyvaVoice must be used inside VyvaVoiceProvider");
+  }
+  return context;
 }

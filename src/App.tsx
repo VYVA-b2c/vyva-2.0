@@ -8,6 +8,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProfileProvider } from "@/contexts/ProfileContext";
+import { VyvaVoiceProvider } from "@/hooks/useVyvaVoice";
 import LoginPage from "@/pages/LoginPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import AccessLinkPage from "@/pages/AccessLinkPage";
@@ -124,7 +125,8 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter>
-              <Routes>
+              <VyvaVoiceProvider>
+                <Routes>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/access/:token" element={<AccessLinkPage />} />
@@ -180,7 +182,8 @@ const App = () => (
                   <Route path="/history" element={<AppShell><HistoryScreen /></AppShell>} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
-              </Routes>
+                </Routes>
+              </VyvaVoiceProvider>
             </BrowserRouter>
           </TooltipProvider>
       </ProfileProvider>

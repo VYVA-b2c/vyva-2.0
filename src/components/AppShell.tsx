@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import { AlertCircle } from "lucide-react";
 import StatusBar from "./StatusBar";
 import BottomNav from "./BottomNav";
+import VoiceCallOverlay from "./VoiceCallOverlay";
+import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 import {
   routeForVoiceUtterance,
   VYVA_VOICE_USER_MESSAGE_EVENT,
@@ -67,8 +69,10 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
   const [sosOpen, setSosOpen] = useState(false);
   const lastVoiceRouteRef = useRef<{ route: string; at: number } | null>(null);
+  const { status, isConnecting, isSpeaking, transcript, stopVoice } = useVyvaVoice();
   const isFullScreen = FULL_SCREEN_ROUTES.includes(location.pathname);
   const isWideRoute = WIDE_ROUTES.some((route) => location.pathname.startsWith(route));
+  const showVoiceOverlay = status === "connected" || isConnecting;
 
   useEffect(() => {
     const handleVoiceUserMessage = (event: Event) => {
@@ -101,6 +105,14 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         </main>
         {!isFullScreen && <BottomNav onSosClick={() => setSosOpen(true)} />}
         {!isFullScreen && <SosSheet open={sosOpen} onOpenChange={setSosOpen} />}
+        {showVoiceOverlay && (
+          <VoiceCallOverlay
+            isSpeaking={isSpeaking}
+            isConnecting={isConnecting}
+            transcript={transcript}
+            onEnd={stopVoice}
+          />
+        )}
       </div>
     </div>
   );

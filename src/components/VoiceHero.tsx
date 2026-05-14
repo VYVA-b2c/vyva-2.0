@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 import { type HeroSurface } from "@/lib/heroMessages";
 import { type UseHeroMessageOptions, useHeroMessage } from "@/hooks/useHeroMessage";
-import VoiceCallOverlay from "@/components/VoiceCallOverlay";
 import VyvaAvatar from "@/components/VyvaAvatar";
 
 const WEATHER_EMOJI: Record<string, string> = {
@@ -70,7 +69,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   weatherData,
 }) => {
   const { t } = useTranslation();
-  const { startVoice, stopVoice, status, isSpeaking, isConnecting, transcript } = useVyvaVoice();
+  const { startVoice, stopVoice, status, isSpeaking, isConnecting } = useVyvaVoice();
   const dynamicHero = useHeroMessage(heroSurface, {
     ...heroContext,
     fallbackHeadline: typeof headline === "string" ? headline : heroContext?.fallbackHeadline,
@@ -87,7 +86,6 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   const resolvedTalkLabel = dynamicHero?.ctaLabel ?? talkLabel;
 
   const isActive = status === "connected";
-  const showOverlay = isActive || isConnecting;
 
   const handleTalk = () => {
     if (isActive) {
@@ -126,15 +124,6 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   if (weatherData !== undefined) {
     return (
       <>
-        {showOverlay && (
-          <VoiceCallOverlay
-            isSpeaking={isSpeaking}
-            isConnecting={isConnecting}
-            transcript={transcript}
-            onEnd={stopVoice}
-          />
-        )}
-
         <div className="mt-[14px] rounded-[24px] relative overflow-visible hero-purple" style={{ paddingTop: "0" }}>
           {/* En Vivo badge — top right */}
           <div className="absolute top-[14px] right-[16px] flex items-center gap-1.5 px-[10px] py-[4px] rounded-full z-10" style={{ background: isActive ? "rgba(52,211,153,0.3)" : "rgba(52,211,153,0.18)", border: "1px solid rgba(52,211,153,0.28)" }}>
@@ -221,15 +210,6 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
 
   return (
     <>
-      {showOverlay && (
-        <VoiceCallOverlay
-          isSpeaking={isSpeaking}
-          isConnecting={isConnecting}
-          transcript={transcript}
-          onEnd={stopVoice}
-        />
-      )}
-
       <div className="relative mt-[14px] overflow-hidden rounded-[28px] p-[24px_22px] hero-purple shadow-vyva-hero">
         <div className="absolute -right-[30px] -top-[30px] w-[130px] h-[130px] rounded-full pointer-events-none" style={{ background: "rgba(255,255,255,0.05)" }} />
 

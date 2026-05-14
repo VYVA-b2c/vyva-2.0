@@ -24,7 +24,6 @@ import { apiFetch, queryClient } from "@/lib/queryClient";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useVyvaVoice, useTtsReadout } from "@/hooks/useVyvaVoice";
-import VoiceCallOverlay from "@/components/VoiceCallOverlay";
 
 type ScamCheck = {
   id: string;
@@ -243,9 +242,8 @@ const ScamGuardScreen = () => {
   const [fullScreenCheck, setFullScreenCheck] = useState<ScamCheck | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { startVoice, stopVoice, status, isSpeaking, isConnecting, transcript } = useVyvaVoice();
+  const { startVoice, stopVoice, status, isConnecting } = useVyvaVoice();
   const isCallActive = status === "connected";
-  const showCallOverlay = isCallActive || isConnecting;
 
   const { speakText, stopTts, isTtsSpeaking } = useTtsReadout();
 
@@ -338,15 +336,6 @@ const ScamGuardScreen = () => {
 
   return (
     <>
-      {showCallOverlay && (
-        <VoiceCallOverlay
-          isSpeaking={isSpeaking}
-          isConnecting={isConnecting}
-          transcript={transcript}
-          onEnd={stopVoice}
-        />
-      )}
-
       {fullScreenCheck && (
         <FullScreenModal
           check={fullScreenCheck}

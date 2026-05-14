@@ -1219,9 +1219,8 @@ const RoomScreen = () => {
       clearPresenceTimers();
       clearLiveReplyTimeout();
       clearReconnectFallbackTimeout();
-      stopVoice();
     };
-  }, [clearLiveReplyTimeout, clearPresenceTimers, clearReconnectFallbackTimeout, stopVoice]);
+  }, [clearLiveReplyTimeout, clearPresenceTimers, clearReconnectFallbackTimeout]);
 
   useEffect(() => {
     if (!room?.slug || !room.agentSlug) return;
@@ -1363,7 +1362,7 @@ const RoomScreen = () => {
         setIsSending(false);
       }
     });
-  }, [agentIsSpeaking, agentTranscript, armLiveReplyTimeout, clearPresenceTimers]);
+  }, [agentIsSpeaking, agentTranscript, armLiveReplyTimeout, clearLiveReplyTimeout, clearPresenceTimers]);
 
   useEffect(() => {
     let cancelled = false;
