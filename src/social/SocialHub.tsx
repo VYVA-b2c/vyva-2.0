@@ -1,5 +1,5 @@
-import { Users, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { RefreshCw, Users, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -17,6 +17,15 @@ import {
   getSocialLanguage,
 } from "./roomUtils";
 import type { SocialHubResponse, SocialLanguage, SocialRoom, SocialRoomCategory } from "./types";
+
+const ROOM_WINDOW_SIZE = 4;
+const ROOM_ROTATION_MS = 9000;
+
+function getMoreRoomsLabel(language: SocialLanguage) {
+  if (language === "es") return "Mostrar más salas";
+  if (language === "de") return "Mehr Räume zeigen";
+  return "Show more rooms";
+}
 
 type RoomPickerTileProps = {
   room: SocialRoom;
@@ -172,6 +181,7 @@ const SocialHub = () => {
   const autoStartVoice = useRouteVoiceAutoStart();
   const [category, setCategory] = useState<"all" | SocialRoomCategory>("all");
   const [selectedRoomSlug, setSelectedRoomSlug] = useState<string | null>(null);
+  const [roomWindowIndex, setRoomWindowIndex] = useState(0);
 
   const { data, isLoading, isError } = useQuery<SocialHubResponse>({
     queryKey: [`/api/social/hub?lang=${language}`],
@@ -188,8 +198,39 @@ const SocialHub = () => {
     () => hubRooms.find((room) => room.slug === selectedRoomSlug) ?? null,
     [hubRooms, selectedRoomSlug],
   );
+  const roomWindowCount = Math.max(1, Math.ceil(filteredRooms.length / ROOM_WINDOW_SIZE));
+  const visibleRooms = useMemo(() => {
+    if (filteredRooms.length <= ROOM_WINDOW_SIZE) return filteredRooms;
+    const start = (roomWindowIndex * ROOM_WINDOW_SIZE) % filteredRooms.length;
+    return Array.from(
+      { length: ROOM_WINDOW_SIZE },
+      (_, index) => filteredRooms[(start + index) % filteredRooms.length],
+    );
+  }, [filteredRooms, roomWindowIndex]);
+  const moreRoomsLabel = getMoreRoomsLabel(language);
+  const canRotateRooms = filteredRooms.length > ROOM_WINDOW_SIZE;
 
   const filters: Array<"all" | SocialRoomCategory> = ["all", "activity", "social", "useful", "connection"];
+
+  const showNextRooms = useCallback(() => {
+    setRoomWindowIndex((current) => (current + 1) % roomWindowCount);
+  }, [roomWindowCount]);
+
+  useEffect(() => {
+    setRoomWindowIndex(0);
+  }, [category, language, filteredRooms.length]);
+
+  useEffect(() => {
+    if (roomWindowIndex >= roomWindowCount) {
+      setRoomWindowIndex(0);
+    }
+  }, [roomWindowCount, roomWindowIndex]);
+
+  useEffect(() => {
+    if (!canRotateRooms || selectedRoom) return undefined;
+    const timer = window.setInterval(showNextRooms, ROOM_ROTATION_MS);
+    return () => window.clearInterval(timer);
+  }, [canRotateRooms, selectedRoom, showNextRooms]);
 
   return (
     <div className="px-5 pb-10">
@@ -248,8 +289,41 @@ const SocialHub = () => {
           </div>
         )}
 
+        {filteredRooms.length > 0 && (
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="font-body text-[18px] font-bold text-[#24172F]">
+              {copy.allRooms}
+            </h2>
+            {canRotateRooms && (
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1" aria-hidden="true">
+                  {Array.from({ length: roomWindowCount }, (_, index) => (
+                    <span
+                      key={index}
+                      className="h-1.5 rounded-full transition-all"
+                      style={{
+                        width: index === roomWindowIndex ? 18 : 7,
+                        background: index === roomWindowIndex ? "#6D28D9" : "#D9C7F8",
+                      }}
+                    />
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={showNextRooms}
+                  aria-label={moreRoomsLabel}
+                  title={moreRoomsLabel}
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#D8C8FB] bg-white text-[#6D28D9] shadow-[0_10px_22px_rgba(109,40,217,0.12)] transition-transform active:scale-95"
+                >
+                  <RefreshCw size={19} strokeWidth={2.4} aria-hidden="true" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-4">
-          {filteredRooms.map((room) => (
+          {visibleRooms.map((room) => (
             <RoomPickerTile
               key={room.slug}
               room={room}
