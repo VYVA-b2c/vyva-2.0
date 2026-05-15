@@ -22,6 +22,7 @@ import {
 import { useServiceGate } from "@/hooks/useServiceGate";
 import { useToastSurface } from "@/hooks/useToastSurface";
 import { useVoiceActionContext } from "@/contexts/VoiceActionContext";
+import { recordVoiceTimelineEvent } from "@/lib/voiceTimeline";
 
 const FULL_SCREEN_ROUTES = ["/chat", "/spatial-navigator", "/face-name-match"];
 const WIDE_ROUTES = ["/social-rooms", "/spatial-navigator", "/face-name-match"];
@@ -197,6 +198,14 @@ const AppShell = ({ children }: { children: ReactNode }) => {
       if (request.autoStart === false || !request.agentSlug) return;
 
       const transferContext = request.contextHint || request.reason || `Transfer to ${request.domain}`;
+      recordVoiceTimelineEvent({
+        kind: "transfer_requested",
+        title: `Transfer to ${request.domain}`,
+        detail: request.reason,
+        domain: request.domain,
+        ...(request.route ? { route: request.route } : {}),
+        ...(request.agentSlug ? { agentSlug: request.agentSlug } : {}),
+      });
       beginVoiceTransfer();
       window.setTimeout(() => {
         stopVoice();
