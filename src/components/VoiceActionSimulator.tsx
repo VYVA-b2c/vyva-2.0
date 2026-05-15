@@ -16,12 +16,16 @@ export function canShowVoiceActionSimulator({
   isDev,
   flagValue,
   userRole,
+  hostname,
 }: {
   isDev: boolean;
   flagValue?: string;
   userRole?: string | null;
+  hostname?: string;
 }) {
-  return isDev || (flagValue === "true" && userRole === "admin");
+  const localHostnames = new Set(["localhost", "127.0.0.1", "::1"]);
+  const isLocalHost = hostname ? localHostnames.has(hostname) : false;
+  return isLocalHost && (isDev || (flagValue === "true" && userRole === "admin"));
 }
 
 export default function VoiceActionSimulator() {
@@ -37,6 +41,7 @@ export default function VoiceActionSimulator() {
     isDev: import.meta.env.DEV,
     flagValue: import.meta.env.VITE_ENABLE_VOICE_ACTION_SIMULATOR,
     userRole: user?.role,
+    hostname: typeof window === "undefined" ? undefined : window.location.hostname,
   });
 
   if (!simulatorEnabled || entries.length === 0) return null;
