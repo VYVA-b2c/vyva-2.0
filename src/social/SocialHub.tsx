@@ -1,4 +1,4 @@
-import { RefreshCw, Users, X } from "lucide-react";
+import { RefreshCw, Users } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useProfile } from "@/contexts/ProfileContext";
 import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
+import { BottomSheet, EmptyState, ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 import AgentAvatar from "./AgentAvatar";
 import SocialStyles from "./SocialStyles";
@@ -102,14 +103,8 @@ function RoomDetailSheet({ room, language, onClose, onEnter }: RoomDetailSheetPr
   const description = room.contentBody || room.opener || room.topic;
 
   return (
-    <div
-      className="fixed inset-0 z-[80] flex items-end bg-[rgba(45,31,66,0.35)] px-3 pb-[112px] pt-3 md:items-center md:justify-center md:p-6"
-      onClick={onClose}
-    >
-      <section
-        className="max-h-[calc(100vh-136px)] w-full max-w-[620px] overflow-y-auto rounded-t-[38px] border border-[#E6DCCF] bg-[#FFFCF8] p-6 shadow-[0_26px_70px_rgba(45,31,66,0.22)] md:max-h-[calc(100vh-48px)] md:rounded-[38px]"
-        onClick={(event) => event.stopPropagation()}
-      >
+    <BottomSheet open onOpenChange={(open) => { if (!open) onClose(); }} closeLabel={copy.closeDetails}>
+      <div>
         <div className="flex items-start justify-between gap-4">
           <AgentAvatar
             agentSlug={room.agentSlug}
@@ -118,14 +113,6 @@ function RoomDetailSheet({ room, language, onClose, onEnter }: RoomDetailSheetPr
             size={76}
             title={room.agentFullName}
           />
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={copy.closeDetails}
-            className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F4EEE7] text-[#7A677F]"
-          >
-            <X size={24} />
-          </button>
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -168,8 +155,8 @@ function RoomDetailSheet({ room, language, onClose, onEnter }: RoomDetailSheetPr
             {copy.enterSelectedRoom}
           </button>
         </div>
-      </section>
-    </div>
+      </div>
+    </BottomSheet>
   );
 }
 
@@ -284,29 +271,23 @@ const SocialHub = () => {
 
       <main className="mt-6">
         {isLoading && (
-          <div className="rounded-[28px] bg-white p-6 font-body text-[22px] text-[#6E5A8A]">
-            ...
-          </div>
+          <EmptyState title="..." className="text-[#6E5A8A]" />
         )}
 
         {isError && !filteredRooms.length && (
-          <div className="rounded-[28px] bg-white p-6 font-body text-[22px] text-[#6E5A8A]">
-            {copy.noRooms}
-          </div>
+          <EmptyState icon={Users} title={copy.noRooms} />
         )}
 
         {!isLoading && !isError && !filteredRooms.length && (
-          <div className="rounded-[28px] bg-white p-6 font-body text-[22px] text-[#6E5A8A]">
-            {copy.noRooms}
-          </div>
+          <EmptyState icon={Users} title={copy.noRooms} />
         )}
 
         {filteredRooms.length > 0 && (
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 className="font-body text-[18px] font-bold text-[#24172F]">
-              {copy.allRooms}
-            </h2>
-            {canRotateRooms && (
+          <SectionTitle
+            className="mb-3"
+            title={copy.allRooms}
+            titleClassName="font-body text-[18px] font-bold not-italic text-[#24172F]"
+            action={canRotateRooms && (
               <div className="flex items-center gap-2">
                 <div className="flex gap-1" aria-hidden="true">
                   {Array.from({ length: roomWindowCount }, (_, index) => (
@@ -331,10 +312,10 @@ const SocialHub = () => {
                 </button>
               </div>
             )}
-          </div>
+          />
         )}
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <ResponsiveGrid columns="two">
           {visibleRooms.map((room) => (
             <RoomPickerTile
               key={room.slug}
@@ -343,7 +324,7 @@ const SocialHub = () => {
               onSelect={(nextRoom) => setSelectedRoomSlug(nextRoom.slug)}
             />
           ))}
-        </div>
+        </ResponsiveGrid>
       </main>
 
       {selectedRoom && (

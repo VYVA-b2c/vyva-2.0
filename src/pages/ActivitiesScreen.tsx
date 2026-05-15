@@ -5,6 +5,7 @@ import { useLanguage } from "@/i18n";
 import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
+import { ActionCard, ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
 
 const activityIcons: Record<string, LucideIcon> = {
   "brain.activities.triviaQuiz": Route,
@@ -157,8 +158,8 @@ const ActivitiesScreen = () => {
       </section>
 
       <section className="mt-[18px]">
-        <h2 className="vyva-section-title">{t("activities.chooseActivity")}</h2>
-        <div className="mt-3 grid grid-cols-2 gap-3">
+        <SectionTitle title={t("activities.chooseActivity")} />
+        <ResponsiveGrid className="mt-3" columns="two" gap="sm">
           {margaret.activities.map((act) => {
             const Icon = activityIcons[act.name] || BrainCircuit;
             const style = activityStyles[act.name] || {
@@ -170,44 +171,32 @@ const ActivitiesScreen = () => {
             };
 
             return (
-              <button
+              <ActionCard
                 key={act.name}
-                type="button"
                 onClick={() => handleActivityClick(act.name)}
                 data-testid={`activity-card-${act.name.replaceAll(".", "-")}`}
                 aria-label={activityLabels[act.name] ?? t("activities.memory")}
-                className="group relative min-h-[168px] overflow-visible rounded-[28px] border bg-[#FFFCF8] px-4 py-4 text-left transition-transform active:scale-[0.99]"
+                title={activityLabels[act.name] ?? t("activities.memory")}
+                icon={Icon}
+                iconBg={style.iconBg}
+                iconColor={style.iconColor}
+                size="standard"
                 style={{
                   borderColor: "#EDE2D1",
                   boxShadow: `0 16px 34px ${style.glow}, 0 2px 10px rgba(43,31,24,0.05)`,
                 }}
-              >
-                <div className="relative z-10 flex h-full flex-col justify-between gap-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div
-                      className="flex h-[58px] w-[58px] shrink-0 items-center justify-center rounded-[20px]"
-                      style={{ background: style.iconBg }}
-                    >
-                      <Icon size={30} strokeWidth={2.5} style={{ color: style.iconColor }} />
-                    </div>
-                    {act.done ? (
-                      <span
-                        className="rounded-full px-2.5 py-1 font-body text-[11px] font-bold leading-tight shadow-sm"
-                        style={{ background: style.badgeBg, color: style.badgeText }}
-                      >
-                        {t("activities.doneToday")}
-                      </span>
-                    ) : null}
-                  </div>
-
-                  <p className="min-w-0 font-body text-[21px] font-extrabold leading-tight text-vyva-text-1 [overflow-wrap:anywhere]">
-                    {activityLabels[act.name] ?? t("activities.memory")}
-                  </p>
-                </div>
-              </button>
+                badge={act.done ? (
+                  <span
+                    className="rounded-full px-2.5 py-1 font-body text-[11px] font-bold leading-tight shadow-sm"
+                    style={{ background: style.badgeBg, color: style.badgeText }}
+                  >
+                    {t("activities.doneToday")}
+                  </span>
+                ) : null}
+              />
             );
           })}
-        </div>
+        </ResponsiveGrid>
       </section>
 
       <section

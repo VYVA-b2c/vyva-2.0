@@ -32,6 +32,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import VoiceHero from "@/components/VoiceHero";
+import { ActionCard, ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -774,50 +775,40 @@ const HealthScreen = () => {
 
         {/* ── 2. Acceso rápido (2×2 grid) ── */}
         <div className="mt-[20px]">
-          <p className="vyva-section-title mb-3">
-            {t("health.quickAccess", "Quick access")}
-          </p>
-          <div className="grid grid-cols-2 gap-4">
+          <SectionTitle className="mb-3" title={t("health.quickAccess", "Quick access")} />
+          <ResponsiveGrid columns="two">
             {QUICK_TILES.map((tile) => {
               const locked = isSubscriptionLocked(tile.path);
               return (
-                <button
+                <ActionCard
                   key={tile.id}
                   data-testid={`button-health-quick-${tile.id}`}
                   onClick={() => handleQuickTileClick(tile)}
-                  className={`vyva-tap relative flex min-h-[188px] min-w-0 flex-col items-center justify-center gap-4 rounded-[28px] border border-vyva-border bg-[#FFFCF8] px-4 py-5 text-center transition-transform active:scale-[0.99] ${locked ? "opacity-80" : ""}`}
-                  style={{ boxShadow: "0 14px 30px rgba(60,38,20,0.08)" }}
-                >
-                  {locked && (
+                  title={tile.label}
+                  description={tile.hint}
+                  icon={locked ? undefined : tile.Icon}
+                  iconNode={locked ? <Lock size={28} aria-hidden="true" /> : undefined}
+                  iconBg={tile.iconBg}
+                  iconColor={tile.iconColor}
+                  align="center"
+                  size="large"
+                  locked={locked}
+                  badge={locked ? (
                     <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-[#F4EAFE] px-2 py-1 font-body text-[11px] font-bold text-[#6B21A8]">
                       <Lock size={12} strokeWidth={2.5} />
                       Plan
                     </span>
-                  )}
-                  <div
-                    className="flex h-[58px] w-[58px] flex-shrink-0 items-center justify-center rounded-[20px]"
-                    style={{ background: tile.iconBg }}
-                  >
-                    {locked ? <Lock size={28} style={{ color: tile.iconColor }} /> : <tile.Icon size={30} style={{ color: tile.iconColor }} />}
-                  </div>
-                  <span className="font-body text-[21px] font-extrabold leading-tight text-vyva-text-1 [overflow-wrap:anywhere]">
-                    {tile.label}
-                  </span>
-                  <span className="font-body text-[14px] font-medium leading-snug text-vyva-text-2 [overflow-wrap:anywhere]">
-                    {tile.hint}
-                  </span>
-                </button>
+                  ) : null}
+                />
               );
             })}
-          </div>
+          </ResponsiveGrid>
         </div>
 
 
         {/* ── 3. Acciones rápidas ── */}
         <div className="mt-[24px]">
-          <p className="vyva-section-title mb-3">
-            {t("health.quickActions", "Quick actions")}
-          </p>
+          <SectionTitle className="mb-3" title={t("health.quickActions", "Quick actions")} />
 
           <div className="flex flex-col gap-[10px]">
 
