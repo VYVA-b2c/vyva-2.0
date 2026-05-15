@@ -2,6 +2,7 @@ import { createContext, createElement, useCallback, useContext, useEffect, useRe
 import { Conversation } from "@elevenlabs/client";
 import type { Conversation as ElevenConversation, DisconnectionDetails, PartialOptions } from "@elevenlabs/client";
 import { getToken } from "@/lib/auth";
+import { getAgentAppContextVariables, subscribeAgentAppContext } from "@/lib/agentAppContext";
 import { apiFetch } from "@/lib/queryClient";
 import { emitVoiceUserMessage } from "@/lib/voiceNavigation";
 
@@ -222,6 +223,7 @@ function useVyvaVoiceController() {
   const statusRef = useRef<"idle" | "connecting" | "connected">("idle");
   const conversationRef = useRef<ElevenConversation | null>(null);
   const transcriptRef = useRef<TranscriptEntry[]>([]);
+  const sessionGenerationRef = useRef(0);
   const userClosingRef = useRef(false);
   const shouldMuteOnConnectRef = useRef(true);
   const hiddenOutgoingMessagesRef = useRef<string[]>([]);
@@ -250,12 +252,14 @@ function useVyvaVoiceController() {
   }, []);
 
   const teardown = useCallback(() => {
+    sessionGenerationRef.current += 1;
     const conversation = conversationRef.current;
     conversationRef.current = null;
     if (conversation) {
       void conversation.endSession().catch(() => {});
     }
     hiddenOutgoingMessagesRef.current = [];
+    setIsConnecting(false);
     setHasMicrophone(false);
     setIsSpeaking(false);
     setIsUserSpeaking(false);
@@ -287,6 +291,17 @@ function useVyvaVoiceController() {
     window.addEventListener(VOICE_FORCE_STOP_EVENT, handleForceStop);
     return () => window.removeEventListener(VOICE_FORCE_STOP_EVENT, handleForceStop);
   }, [setVoiceStatus, teardown]);
+
+  useEffect(() => {
+    return subscribeAgentAppContext((message) => {
+      if (statusRef.current !== "connected" || !conversationRef.current) return;
+      try {
+        conversationRef.current.sendContextualUpdate(message);
+      } catch (error) {
+        console.warn("[VYVA] Failed to send app context update:", error);
+      }
+    });
+  }, []);
 
   const fetchSessionOptions = useCallback(
     async (
@@ -445,6 +460,10 @@ function useVyvaVoiceController() {
     ) => {
       if (statusRef.current !== "idle") return;
       claimVoiceInstance(voiceInstanceIdRef.current);
+      const sessionGeneration = sessionGenerationRef.current + 1;
+      sessionGenerationRef.current = sessionGeneration;
+      const isCurrentSession = () => sessionGenerationRef.current === sessionGeneration && !userClosingRef.current;
+
       setIsConnecting(true);
       setVoiceStatus("connecting");
       replaceTranscript([]);
@@ -462,6 +481,7 @@ function useVyvaVoiceController() {
 
       if (!activeAgentId && !shouldResolveAgentOnServer) {
         const greeting = contextHint ?? "Listening...";
+        if (!isCurrentSession()) return;
         replaceTranscript([{ from: "vyva", text: greeting, timestamp: Date.now() }]);
         setIsSpeaking(true);
         setVoiceStatus("connected");
@@ -477,20 +497,32 @@ function useVyvaVoiceController() {
           options,
         );
 
+        if (!isCurrentSession()) return;
+
         const conversation = await Conversation.startSession({
           ...sessionOptions,
           textOnly: skipMicrophone,
-          dynamicVariables: routedSession.dynamicVariables,
+          dynamicVariables: {
+            ...getAgentAppContextVariables(),
+            ...(routedSession.dynamicVariables ?? {}),
+          },
           overrides: resolvedSystemPrompt
             ? { agent: { prompt: { prompt: resolvedSystemPrompt } } }
             : undefined,
           onConversationCreated: (createdConversation) => {
+            if (!isCurrentSession()) {
+              void createdConversation.endSession().catch(() => {});
+              return;
+            }
+
             conversationRef.current = createdConversation;
             if (!skipMicrophone && shouldMuteOnConnectRef.current) {
               createdConversation.setMicMuted(true);
             }
           },
           onConnect: () => {
+            if (!isCurrentSession()) return;
+
             setVoiceStatus("connected");
             setIsConnecting(false);
             setHasMicrophone(!skipMicrophone);
@@ -499,6 +531,8 @@ function useVyvaVoiceController() {
             }
           },
           onDisconnect: (details) => {
+            if (!isCurrentSession()) return;
+
             const message = formatDisconnectDetails(details);
             conversationRef.current = null;
             releaseVoiceInstance(voiceInstanceIdRef.current);
@@ -514,10 +548,14 @@ function useVyvaVoiceController() {
             userClosingRef.current = false;
           },
           onError: (message, context) => {
+            if (!isCurrentSession()) return;
+
             console.error("[VYVA] Voice session error:", message, context);
             setLastError(message);
           },
           onStatusChange: ({ status }) => {
+            if (!isCurrentSession()) return;
+
             if (status === "connecting") {
               setIsConnecting(true);
               setVoiceStatus("connecting");
@@ -530,12 +568,15 @@ function useVyvaVoiceController() {
             }
           },
           onModeChange: ({ mode }) => {
+            if (!isCurrentSession()) return;
             setIsSpeaking(mode === "speaking");
           },
           onInterruption: () => {
+            if (!isCurrentSession()) return;
             setIsSpeaking(false);
           },
           onMessage: ({ role, source, message }) => {
+            if (!isCurrentSession()) return;
             if (!message?.trim()) return;
             if (role === "user" || source === "user") {
               const normalized = normalizeTranscriptText(message);
@@ -553,8 +594,15 @@ function useVyvaVoiceController() {
           },
         });
 
+        if (!isCurrentSession()) {
+          void conversation.endSession().catch(() => {});
+          return;
+        }
+
         conversationRef.current = conversation;
       } catch (err) {
+        if (!isCurrentSession()) return;
+
         console.error("[VYVA] Failed to start session:", err);
         setLastError(err instanceof Error ? err.message : "Unable to start voice session");
         setVoiceStatus("idle");
@@ -623,6 +671,7 @@ function useVyvaVoiceController() {
     startVoice,
     stopVoice,
     sendText,
+    sendUserMessage: sendText,
     sendContextUpdate,
     status,
     isSpeaking,

@@ -1,6 +1,6 @@
 // src/pages/onboarding/sections/MedicationsSection.tsx
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,13 +30,37 @@ const emptyMed = (id: string): Medication => ({
   id, name: "", dosage: "", frequency: "", times: "", with_food: "", prescribed_by: "",
 });
 
+const STANDARD_FREQUENCIES = ["once_daily", "twice_daily", "three_daily"];
+
+function isCustomFrequency(value: string): boolean {
+  return Boolean(value && !STANDARD_FREQUENCIES.includes(value));
+}
+
+function customFrequencyDisplayValue(value: string): string {
+  return value === "as_needed" ? "As needed" : value;
+}
+
+function parseMedicationTimes(raw: string): string[] | undefined {
+  const times = raw
+    .split(/[,\n;]+/)
+    .map((time) => time.trim())
+    .filter(Boolean);
+
+  return times.length > 0 ? times : undefined;
+}
+
 async function saveMedsToServer(meds: Medication[]): Promise<Response> {
   return await apiFetch("/api/onboarding/section/medications", {
     method: "POST",
     body: JSON.stringify({
       medications: meds
         .filter((m) => m.name.trim())
-        .map(({ id: _id, ...rest }) => rest),
+        .map((m) => ({
+          medication_name: m.name.trim(),
+          dosage: m.dosage.trim() || undefined,
+          frequency: m.frequency || undefined,
+          scheduled_times: parseMedicationTimes(m.times),
+        })),
     }),
   });
 }
@@ -54,6 +78,7 @@ function medsAreEqual(a: Medication, b: Medication): boolean {
 
 export default function MedicationsSection() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const counterRef = useRef(1);
   const loadedRef = useRef(false);
@@ -65,6 +90,7 @@ export default function MedicationsSection() {
   const [adding, setAdding] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [voiceModalOpen, setVoiceModalOpen] = useState(false);
+  const [customFrequencyMedIds, setCustomFrequencyMedIds] = useState<Set<string>>(() => new Set());
 
   // Refs so auto-save closure always sees the latest values
   const medsRef = useRef(meds);
@@ -74,6 +100,13 @@ export default function MedicationsSection() {
   useEffect(() => { medsRef.current = meds; }, [meds]);
   useEffect(() => { busyRef.current = saving || autoSaving || adding || !!removingId; }, [saving, autoSaving, adding, removingId]);
   useEffect(() => () => { if (navTimerRef.current) clearTimeout(navTimerRef.current); }, []);
+
+  const completePath = () => {
+    const returnTo = searchParams.get("returnTo");
+    return returnTo
+      ? `/onboarding/complete/medications?returnTo=${encodeURIComponent(returnTo)}`
+      : "/onboarding/complete/medications";
+  };
 
   const { data, isLoading } = useQuery<{ profile: { medications?: Omit<Medication, "id">[] } | null }>({
     queryKey: ["/api/onboarding/state"],
@@ -106,6 +139,7 @@ export default function MedicationsSection() {
         }
         setSavedMeds([...currentMeds]);
         queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
       } finally {
         setAutoSaving(false);
       }
@@ -116,6 +150,25 @@ export default function MedicationsSection() {
   const updateMed = (id: string, field: keyof Omit<Medication, "id">, value: string) => {
     setMeds((prev) => prev.map((m) => m.id === id ? { ...m, [field]: value } : m));
     scheduleAutoSave();
+  };
+
+  const updateFrequency = (id: string, value: string) => {
+    if (value === "other") {
+      setCustomFrequencyMedIds((prev) => new Set(prev).add(id));
+      const currentFrequency = medsRef.current.find((med) => med.id === id)?.frequency ?? "";
+      if (!isCustomFrequency(currentFrequency)) {
+        updateMed(id, "frequency", "");
+      }
+      return;
+    }
+
+    setCustomFrequencyMedIds((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    updateMed(id, "frequency", value);
   };
 
   const addMed = async () => {
@@ -133,6 +186,7 @@ export default function MedicationsSection() {
       setSavedMeds(updated);
       setAutoSaveStatus("saved");
       queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
     } catch (err) {
       setMeds(previous);
       const msg = await friendlyError(err, res && !res.ok ? res : undefined);
@@ -157,6 +211,7 @@ export default function MedicationsSection() {
       setSavedMeds(updated);
       setAutoSaveStatus("saved");
       queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
     } catch (err) {
       setMeds(previous);
       const msg = await friendlyError(err, res && !res.ok ? res : undefined);
@@ -191,6 +246,7 @@ export default function MedicationsSection() {
         setSavedMeds(updated);
         setAutoSaveStatus("saved");
         queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
       } catch (err) {
         setMeds(previous);
         const msg = await friendlyError(err, res && !res.ok ? res : undefined);
@@ -233,10 +289,11 @@ export default function MedicationsSection() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
       setSavedMeds(meds);
       setAutoSaveStatus("saved");
       navigating = true;
-      navTimerRef.current = setTimeout(() => navigate("/onboarding/complete/medications"), 300);
+      navTimerRef.current = setTimeout(() => navigate(completePath()), 300);
     } catch (err) {
       const msg = await friendlyError(err, res && !res.ok ? res : undefined);
       toast({ title: "Could not save medications", description: msg, variant: "destructive" });
@@ -276,11 +333,10 @@ export default function MedicationsSection() {
 
   return (
     <PhoneFrame subtitle="💊 Medications" showBack onBack={() => confirmNavigation("/onboarding/profile")} showAllSections onAllSections={() => confirmNavigation("/onboarding/profile")}>
-      <div className="flex flex-col gap-5 px-4 py-5">
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900">💊 Medications</h2>
-            <p className="text-xs text-gray-500 mt-1">All optional — skip any field you prefer not to fill in.</p>
+      <div className="flex flex-col gap-5 px-4 py-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1">
+            <p className="text-xs text-gray-500 leading-relaxed">All optional — skip any field you prefer not to fill in.</p>
           </div>
           <AutoSaveStatusBadge autoSaveStatus={autoSaveStatus} savedFading={savedFading} retryCountdown={retryCountdown} onRetryNow={retryNow} testId="status-meds-autosave" />
         </div>
@@ -316,6 +372,9 @@ export default function MedicationsSection() {
             {meds.map((med, idx) => {
               const saved = isMedSaved(idx);
               const dirty = isMedDirty(idx);
+              const showCustomFrequency =
+                customFrequencyMedIds.has(med.id) || isCustomFrequency(med.frequency);
+
               return (
                 <div
                   key={med.id}
@@ -368,28 +427,40 @@ export default function MedicationsSection() {
                     <Label className="text-xs font-bold text-gray-600">Medication name</Label>
                     <Input data-testid={`input-med-name-${idx}`} placeholder="e.g. Metformin" value={med.name} onChange={(e) => updateMed(med.id, "name", e.target.value)} className="h-11 border-purple-200" />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
                     <div className="space-y-1.5">
                       <Label className="text-xs font-bold text-gray-600">Dosage</Label>
                       <Input data-testid={`input-med-dosage-${idx}`} placeholder="e.g. 500mg" value={med.dosage} onChange={(e) => updateMed(med.id, "dosage", e.target.value)} className="h-11 border-purple-200" />
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs font-bold text-gray-600">Frequency</Label>
-                      <Select value={med.frequency || undefined} onValueChange={(v) => updateMed(med.id, "frequency", v)}>
+                      <Select
+                        value={showCustomFrequency ? "other" : med.frequency || undefined}
+                        onValueChange={(v) => updateFrequency(med.id, v)}
+                      >
                         <SelectTrigger data-testid={`select-med-frequency-${idx}`} className="h-11 border-purple-200"><SelectValue placeholder="Select" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="once_daily">Once daily</SelectItem>
                           <SelectItem value="twice_daily">Twice daily</SelectItem>
                           <SelectItem value="three_daily">3x daily</SelectItem>
-                          <SelectItem value="as_needed">As needed</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
                         </SelectContent>
                       </Select>
+                      {showCustomFrequency && (
+                        <Input
+                          data-testid={`input-med-frequency-other-${idx}`}
+                          placeholder="Type frequency"
+                          value={customFrequencyDisplayValue(med.frequency)}
+                          onChange={(e) => updateMed(med.id, "frequency", e.target.value)}
+                          className="h-11 border-purple-200"
+                        />
+                      )}
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-gray-600">Time(s)</Label>
-                      <Input data-testid={`input-med-times-${idx}`} placeholder="e.g. 08:00, 20:00" value={med.times} onChange={(e) => updateMed(med.id, "times", e.target.value)} className="h-11 border-purple-200" />
+                      <Label className="text-xs font-bold text-gray-600">When do you take it?</Label>
+                      <Input data-testid={`input-med-times-${idx}`} placeholder="Morning, evening, bedtime" value={med.times} onChange={(e) => updateMed(med.id, "times", e.target.value)} className="h-11 border-purple-200" />
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs font-bold text-gray-600">With food?</Label>

@@ -12,7 +12,7 @@ import billingRouter from "./routes/billing.js";
 import { adminRouter } from "./routes/admin.js";
 import { adminLifecycleRouter } from "./routes/adminLifecycle.js";
 import { authRouter } from "./routes/auth.js";
-import { authMiddleware } from "./middleware/auth.js";
+import { authMiddleware, requireAdminUser, requireUser } from "./middleware/auth.js";
 import { medsVoiceParseHandler } from "./routes/medsVoiceParse.js";
 import { medsAssistantHandler } from "./routes/medsAssistant.js";
 import {
@@ -37,13 +37,13 @@ import companionsRouter from "./routes/companions.js";
 import socialRoomsRouter from "./routes/socialRooms.js";
 import medsAdherenceRouter from "./routes/medsAdherence.js";
 import { scanHistoryHandler } from "./routes/history.js";
-import { requireUser } from "./middleware/auth.js";
 import reportsRouter from "./routes/reports.js";
 import vitalsRouter from "./routes/vitals.js";
 import specialistsRouter from "./routes/specialists.js";
 import offersRouter, { analyzeOfferDocumentHandler } from "./routes/offers.js";
 import utilitiesRouter from "./routes/utilities.js";
 import checkinsRouter, { analyzeCheckinHandler, checkinHistoryHandler, sharedCheckinReportHandler } from "./routes/checkins.js";
+import gamesRouter from "./routes/games.js";
 import { getGooglePlacesApiKey, getGooglePlacesApiKeySource } from "./lib/googlePlacesKey.js";
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -94,8 +94,8 @@ app.post("/api/address-voice-parse", addressVoiceParseHandler);
 app.use("/api/auth", authRouter);
 app.use("/api/onboarding", authMiddleware, onboardingRouter);
 app.use("/api/billing", authMiddleware, billingRouter);
-app.use("/api/admin", adminRouter);
-app.use("/api/admin/lifecycle", adminLifecycleRouter);
+app.use("/api/admin/lifecycle", authMiddleware, requireAdminUser, adminLifecycleRouter);
+app.use("/api/admin", authMiddleware, requireAdminUser, adminRouter);
 app.use("/api/hero-messages", heroMessagesRouter);
 app.use("/api/activity", authMiddleware, activityRouter);
 app.use("/api/profile", authMiddleware, profileRouter);
@@ -115,6 +115,7 @@ app.use("/api/vitals", authMiddleware, vitalsRouter);
 app.use("/api/specialists", authMiddleware, specialistsRouter);
 app.use("/api/offers", authMiddleware, offersRouter);
 app.use("/api/utilities", authMiddleware, utilitiesRouter);
+app.use("/api/games", authMiddleware, requireUser, gamesRouter);
 app.get("/api/checkins/shared/:token", sharedCheckinReportHandler);
 app.post("/api/checkins/analyze", authMiddleware, requireUser, analyzeCheckinHandler);
 app.get("/api/checkins/history", authMiddleware, requireUser, checkinHistoryHandler);
@@ -191,6 +192,80 @@ app.get("/api/places/details/:placeId", async (req, res) => {
     return res.status(upstream.status).json(data);
   } catch (err) {
     console.error("[places/details]", err);
+    return res.status(502).json({ error: "Upstream request failed" });
+  }
+});
+
+app.get("/api/places/reverse-geocode", async (req, res) => {
+  const key = getGooglePlacesApiKey();
+  if (!key) return res.status(503).json({ error: "Places API key not configured" });
+
+  const lat = Number(req.query.lat);
+  const lng = Number(req.query.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return res.status(400).json({ error: "lat and lng required" });
+  }
+
+  try {
+    const upstream = await fetch(
+      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${key}`
+    );
+    const data = await upstream.json() as {
+      status?: string;
+      error_message?: string;
+      results?: Array<{
+        formatted_address?: string;
+        types?: string[];
+        address_components?: Array<{
+          long_name: string;
+          short_name: string;
+          types: string[];
+        }>;
+      }>;
+    };
+
+    if (!upstream.ok || data.status === "REQUEST_DENIED") {
+      return res.status(upstream.status || 502).json({ error: data.error_message ?? "Reverse geocoding failed" });
+    }
+
+    const best =
+      data.results?.find((result) => result.types?.includes("street_address")) ??
+      data.results?.find((result) => result.types?.includes("premise")) ??
+      data.results?.find((result) => result.types?.includes("route")) ??
+      data.results?.[0];
+
+    if (!best?.address_components?.length) {
+      return res.status(404).json({ error: "No address found" });
+    }
+
+    const component = (type: string, useShort = false) => {
+      const match = best.address_components?.find((item) => item.types.includes(type));
+      return useShort ? match?.short_name ?? "" : match?.long_name ?? "";
+    };
+
+    const streetNumber = component("street_number");
+    const route = component("route");
+    const line2 = component("subpremise") || component("premise") || component("neighborhood") || component("sublocality");
+    const city =
+      component("locality") ||
+      component("postal_town") ||
+      component("administrative_area_level_3") ||
+      component("administrative_area_level_2");
+
+    return res.json({
+      formattedAddress: best.formatted_address ?? "",
+      address: {
+        address_line_1: [streetNumber, route].filter(Boolean).join(" "),
+        address_line_2: line2,
+        city,
+        region: component("administrative_area_level_1"),
+        postcode: component("postal_code"),
+        country: component("country"),
+        country_code: component("country", true),
+      },
+    });
+  } catch (err) {
+    console.error("[places/reverse-geocode]", err);
     return res.status(502).json({ error: "Upstream request failed" });
   }
 });

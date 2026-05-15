@@ -1,17 +1,20 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../db.js";
 import {
   profiles,
+  profileMemberships,
   onboardingState,
   consentLog,
   userChannelPreferences,
   userMedications,
   teamInvitations,
+  users,
 } from "../../shared/schema.js";
 import { z } from "zod";
 import { notifyElderOfProxySetup } from "../services/notifications.js";
+import { getActiveProfileContext, requireActiveProfileId } from "../lib/profileAccess.js";
 
 export const onboardingRouter = Router();
 
@@ -159,23 +162,188 @@ async function markField(userId: string, field: string): Promise<void> {
     .where(eq(onboardingState.user_id, userId));
 }
 
+function hasText(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function splitTimes(value: unknown): string[] | undefined {
+  if (Array.isArray(value)) {
+    const times = value.filter(hasText).map((time) => time.trim());
+    return times.length > 0 ? times : undefined;
+  }
+
+  if (!hasText(value)) return undefined;
+
+  const times = value
+    .split(/[,\n;]+/)
+    .map((time) => time.trim())
+    .filter(Boolean);
+
+  return times.length > 0 ? times : undefined;
+}
+
+// ============================================================
+// POST /start-profile
+// Creates the care-recipient profile for this login account.
+// ============================================================
+
+const startProfileSchema = z.object({
+  setup_for: z.enum(["self", "someone_else"]),
+  language: z.string().optional().default("es"),
+});
+
+onboardingRouter.post("/start-profile", async (req: Request, res: Response) => {
+  const accountUserId = requireUser(req, res);
+  if (!accountUserId) return;
+
+  const parsed = startProfileSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid request body", details: parsed.error.flatten() });
+  }
+
+  try {
+    const [account] = await db
+      .select({ email: users.email, phone_number: users.phone_number })
+      .from(users)
+      .where(eq(users.id, accountUserId))
+      .limit(1);
+
+    if (!account) {
+      return res.status(401).json({ error: "Account not found" });
+    }
+
+    const isSelf = parsed.data.setup_for === "self";
+    const profileId = isSelf ? accountUserId : crypto.randomUUID();
+    const now = new Date();
+
+    await db
+      .insert(profiles)
+      .values({
+        id: profileId,
+        email: isSelf ? account.email : null,
+        phone_number: isSelf ? account.phone_number : null,
+        language: parsed.data.language,
+        onboarding_channel: isSelf ? "web_form" : "proxy_web",
+        current_stage: "stage_1_identity",
+      })
+      .onConflictDoNothing();
+
+    await db
+      .insert(profileMemberships)
+      .values({
+        user_id: accountUserId,
+        profile_id: profileId,
+        role: isSelf ? "elder" : "caregiver",
+        relationship: isSelf ? "self" : "setup_initiator",
+        is_primary: true,
+        status: "active",
+        accepted_at: now,
+      })
+      .onConflictDoUpdate({
+        target: [profileMemberships.user_id, profileMemberships.profile_id],
+        set: {
+          role: isSelf ? "elder" : "caregiver",
+          relationship: isSelf ? "self" : "setup_initiator",
+          status: "active",
+          is_primary: true,
+          accepted_at: now,
+          updated_at: now,
+        },
+      });
+
+    await db
+      .update(users)
+      .set({
+        active_profile_id: profileId,
+        onboarding_intent: parsed.data.setup_for,
+      })
+      .where(eq(users.id, accountUserId));
+
+    await ensureOnboardingState(profileId);
+
+    return res.json({
+      ok: true,
+      profileId,
+      role: isSelf ? "elder" : "caregiver",
+      nextRoute: isSelf ? "/onboarding/basics" : "/onboarding/proxy-setup",
+    });
+  } catch (e) {
+    console.error("[onboarding] POST /start-profile error:", e);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ============================================================
 // GET /state
 // ============================================================
 
 onboardingRouter.get("/state", async (req: Request, res: Response) => {
-  const userId = requireUser(req, res);
-  if (!userId) return;
+  const accountUserId = requireUser(req, res);
+  if (!accountUserId) return;
 
   try {
-    const [profileRows, stateRow] = await Promise.all([
-      db.select().from(profiles).where(eq(profiles.id, userId)).limit(1),
-      ensureOnboardingState(userId),
+    const context = await getActiveProfileContext(accountUserId);
+    if (!context.profileId) {
+      return res.json({
+        profile: null,
+        onboardingState: null,
+        account: { id: accountUserId, activeProfileId: null, role: null },
+      });
+    }
+
+    const [profileRows, stateRow, medicationRows] = await Promise.all([
+      db.select().from(profiles).where(eq(profiles.id, context.profileId)).limit(1),
+      ensureOnboardingState(context.profileId),
+      db.select()
+        .from(userMedications)
+        .where(and(
+          eq(userMedications.user_id, context.profileId),
+          eq(userMedications.active, true),
+          eq(userMedications.added_by, "onboarding"),
+        )),
     ]);
 
+    const profile = profileRows[0];
+    const consent = (profile?.data_sharing_consent ?? {}) as Record<string, unknown>;
+    const conditionSection = (consent.conditions ?? {}) as {
+      health_conditions?: string[];
+      mobility_level?: string | null;
+      living_situation?: string | null;
+    };
+    const emergencySection = (consent.emergency ?? {}) as {
+      emergency_name?: string;
+      emergency_phone?: string;
+      emergency_role?: string;
+      secondary_phone?: string;
+      address?: string;
+    };
+
     return res.json({
-      profile: profileRows[0] ?? null,
+      profile: profile
+        ? {
+            ...profile,
+            medications: medicationRows.map((med) => ({
+              name: med.medication_name,
+              dosage: med.dosage ?? "",
+              frequency: med.frequency ?? "",
+              times: med.scheduled_times?.join(", ") ?? "",
+              with_food: "",
+              prescribed_by: "",
+            })),
+            conditions: (conditionSection.health_conditions ?? []).map((name) => ({ name, category: "other" })),
+            mobility_level: conditionSection.mobility_level ?? "",
+            living_situation: conditionSection.living_situation ?? "",
+            emergency_contact: {
+              name: emergencySection.emergency_name ?? "",
+              relationship: emergencySection.emergency_role ?? "",
+              primary_phone: emergencySection.emergency_phone ?? "",
+              secondary_phone: emergencySection.secondary_phone ?? "",
+              address: emergencySection.address ?? "",
+            },
+          }
+        : null,
       onboardingState: stateRow,
+      account: { id: accountUserId, activeProfileId: context.profileId, role: context.role },
     });
   } catch (e) {
     console.error("[onboarding] GET /state error:", e);
@@ -188,7 +356,9 @@ onboardingRouter.get("/state", async (req: Request, res: Response) => {
 // ============================================================
 
 onboardingRouter.get("/careteam", async (req: Request, res: Response) => {
-  const userId = requireUser(req, res);
+  const accountUserId = requireUser(req, res);
+  if (!accountUserId) return;
+  const userId = await requireActiveProfileId(accountUserId, res);
   if (!userId) return;
 
   try {
@@ -222,7 +392,9 @@ onboardingRouter.get("/careteam", async (req: Request, res: Response) => {
 // ============================================================
 
 onboardingRouter.patch("/careteam/:id", async (req: Request, res: Response) => {
-  const userId = requireUser(req, res);
+  const accountUserId = requireUser(req, res);
+  if (!accountUserId) return;
+  const userId = await requireActiveProfileId(accountUserId, res);
   if (!userId) return;
 
   const { id } = req.params;
@@ -272,7 +444,9 @@ onboardingRouter.patch("/careteam/:id", async (req: Request, res: Response) => {
 // ============================================================
 
 onboardingRouter.post("/careteam/:id/resend", async (req: Request, res: Response) => {
-  const userId = requireUser(req, res);
+  const accountUserId = requireUser(req, res);
+  if (!accountUserId) return;
+  const userId = await requireActiveProfileId(accountUserId, res);
   if (!userId) return;
 
   const { id } = req.params;
@@ -362,7 +536,9 @@ const basicsSchema = z.object({
 });
 
 onboardingRouter.post("/basics", async (req: Request, res: Response) => {
-  const userId = requireUser(req, res);
+  const accountUserId = requireUser(req, res);
+  if (!accountUserId) return;
+  const userId = await requireActiveProfileId(accountUserId, res);
   if (!userId) return;
 
   const parsed = basicsSchema.safeParse(req.body);
@@ -410,6 +586,7 @@ onboardingRouter.post("/basics", async (req: Request, res: Response) => {
         ...(whatsapp_number        ? { whatsapp_number }        : {}),
         language,
         subscription_status: "trial",
+        subscription_tier:   "free",
         trial_ends_at:       trialEndsAt,
         current_stage:       "stage_2_preferences",
         stage_1_completed_at: new Date(),
@@ -430,8 +607,6 @@ onboardingRouter.post("/basics", async (req: Request, res: Response) => {
           ...(instagram_url        !== undefined && { instagram_url:         instagram_url        ?? null }),
           ...(whatsapp_number      !== undefined && { whatsapp_number:       whatsapp_number      ?? null }),
           language,
-          subscription_status:  "trial",
-          trial_ends_at:        trialEndsAt,
           // Preserve stage if already past stage_1.
           current_stage:        nextStage,
           stage_1_completed_at: new Date(),
@@ -474,7 +649,9 @@ const channelSchema = z.object({
 });
 
 onboardingRouter.post("/channel", async (req: Request, res: Response) => {
-  const userId = requireUser(req, res);
+  const accountUserId = requireUser(req, res);
+  if (!accountUserId) return;
+  const userId = await requireActiveProfileId(accountUserId, res);
   if (!userId) return;
 
   // Gate: basics must be complete (stage_2_preferences) before channel can be set.
@@ -545,7 +722,9 @@ const proxySchema = z.object({
 });
 
 onboardingRouter.post("/proxy", async (req: Request, res: Response) => {
-  const userId = requireUser(req, res);
+  const accountUserId = requireUser(req, res);
+  if (!accountUserId) return;
+  const userId = await requireActiveProfileId(accountUserId, res);
   if (!userId) return;
 
   // Gate: user must have started onboarding (profile must exist with at least basics complete).
@@ -564,9 +743,12 @@ onboardingRouter.post("/proxy", async (req: Request, res: Response) => {
     // rather than a user ID. This is intentional for the current MVP where the carer does not have
     // their own VYVA account. Future work should migrate to storing carer user ID + separate display fields.
     //
-    // Selecting "proxy" replaces the normal channel step, so we advance the stage to stage_3_health
-    // here (equivalent to what POST /channel does), allowing the elder to proceed to consent.
-    const shouldAdvance = stageIndex(currentStage) <= stageIndex("stage_2_preferences");
+    // In the new signup flow, proxy setup can happen before the elder's basics
+    // are entered. In the older channel-step flow, it still replaces channel
+    // preferences and advances to the health/consent stage.
+    const shouldAdvance =
+      stageIndex(currentStage) >= stageIndex("stage_2_preferences") &&
+      stageIndex(currentStage) <= stageIndex("stage_2_preferences");
 
     // Generate a one-time confirmation token stored on the profile.
     // This lets the elder confirm without needing to be logged in — they
@@ -599,13 +781,22 @@ onboardingRouter.post("/proxy", async (req: Request, res: Response) => {
         },
       });
 
+    await db
+      .update(profileMemberships)
+      .set({
+        display_name: parsed.data.proxy_name,
+        updated_at: new Date(),
+      })
+      .where(and(
+        eq(profileMemberships.user_id, accountUserId),
+        eq(profileMemberships.profile_id, userId),
+      ));
+
     // Build the direct confirmation URL for the elder's SMS.
-    // Priority: APP_BASE_URL env var → first REPLIT_DOMAINS entry → hardcoded fallback.
+    // Priority: APP_BASE_URL env var, then local development fallback.
     const appBase =
       process.env.APP_BASE_URL ??
-      (process.env.REPLIT_DOMAINS
-        ? `https://${process.env.REPLIT_DOMAINS.split(",")[0].trim()}`
-        : "https://vyva-companion.replit.app");
+      `http://localhost:${process.env.PORT || "5000"}`;
     const confirmUrl = `${appBase}/confirm/${confirmToken}`;
 
     // Notify the elder that their account has been set up by a proxy.
@@ -633,7 +824,11 @@ onboardingRouter.post("/proxy", async (req: Request, res: Response) => {
       console.error("[onboarding] POST /proxy — notification error (non-fatal):", notifyErr);
     }
 
-    return res.json({ ok: true, confirmUrl });
+    return res.json({
+      ok: true,
+      confirmUrl,
+      nextRoute: shouldAdvance ? "/onboarding/elder-confirm" : "/onboarding/basics",
+    });
   } catch (e) {
     console.error("[onboarding] POST /proxy error:", e);
     return res.status(500).json({ error: "Internal server error" });
@@ -722,7 +917,9 @@ onboardingRouter.post("/confirm/:token", async (req: Request, res: Response) => 
 // ============================================================
 
 onboardingRouter.post("/elder-confirm", async (req: Request, res: Response) => {
-  const userId = requireUser(req, res);
+  const accountUserId = requireUser(req, res);
+  if (!accountUserId) return;
+  const userId = await requireActiveProfileId(accountUserId, res);
   if (!userId) return;
 
   try {
@@ -784,7 +981,9 @@ const consentSchema = z.object({
 });
 
 onboardingRouter.post("/consent", async (req: Request, res: Response) => {
-  const userId = requireUser(req, res);
+  const accountUserId = requireUser(req, res);
+  if (!accountUserId) return;
+  const userId = await requireActiveProfileId(accountUserId, res);
   if (!userId) return;
 
   // Gate: channel preferences (stage_2) must be complete before submitting consent.
@@ -856,7 +1055,9 @@ const fieldSchema = z.object({
 });
 
 onboardingRouter.post("/field", async (req: Request, res: Response) => {
-  const userId = requireUser(req, res);
+  const accountUserId = requireUser(req, res);
+  if (!accountUserId) return;
+  const userId = await requireActiveProfileId(accountUserId, res);
   if (!userId) return;
 
   const parsed = fieldSchema.safeParse(req.body);
@@ -886,15 +1087,24 @@ onboardingRouter.post("/field", async (req: Request, res: Response) => {
 const sectionSchemas: Record<string, z.ZodTypeAny> = {
   medications: z.object({
     medications: z.array(z.object({
-      medication_name: z.string(),
+      medication_name: z.string().optional(),
+      name:            z.string().optional(),
       dosage:          z.string().optional(),
       frequency:       z.string().optional(),
       scheduled_times: z.array(z.string()).optional(),
+      times:           z.union([z.string(), z.array(z.string())]).optional(),
     })).optional(),
     known_allergies: z.array(z.string()).optional(),
   }),
   conditions: z.object({
     health_conditions: z.array(z.string()).optional(),
+    conditions: z.array(z.object({
+      name:     z.string(),
+      category: z.string().optional(),
+    })).optional(),
+    mobility_level:   z.string().nullable().optional(),
+    living_situation: z.string().nullable().optional(),
+    allergies:        z.array(z.string()).optional(),
   }),
   cognitive: z.object({
     cognitive_notes: z.string().optional(),
@@ -909,6 +1119,7 @@ const sectionSchemas: Record<string, z.ZodTypeAny> = {
     region:         z.string().optional(),
     postcode:       z.string().optional(),
     country_code:   z.string().optional(),
+    country:        z.string().optional(),
     timezone:       z.string().optional(),
   }),
   gp: z.object({
@@ -952,6 +1163,11 @@ const sectionSchemas: Record<string, z.ZodTypeAny> = {
     emergency_name:  z.string().optional(),
     emergency_phone: z.string().optional(),
     emergency_role:  z.string().optional(),
+    name:            z.string().optional(),
+    relationship:    z.string().optional(),
+    primary_phone:   z.string().optional(),
+    secondary_phone: z.string().optional(),
+    address:         z.string().optional(),
   }),
   careteam: z.object({
     role:           z.enum(["family", "carer", "doctor"]),
@@ -1029,7 +1245,9 @@ async function mergeSectionIntoConsent(
 }
 
 onboardingRouter.post("/section/:sectionId", async (req: Request, res: Response) => {
-  const userId = requireUser(req, res);
+  const accountUserId = requireUser(req, res);
+  if (!accountUserId) return;
+  const userId = await requireActiveProfileId(accountUserId, res);
   if (!userId) return;
 
   const { sectionId } = req.params;
@@ -1056,39 +1274,91 @@ onboardingRouter.post("/section/:sectionId", async (req: Request, res: Response)
           .where(eq(profiles.id, userId));
       }
 
-      const meds = data.medications as Array<{
-        medication_name: string;
+      const rawMeds = data.medications as Array<{
+        medication_name?: string;
+        name?: string;
         dosage?: string;
         frequency?: string;
         scheduled_times?: string[];
+        times?: string | string[];
       }> | undefined;
 
-      if (Array.isArray(meds) && meds.length > 0) {
+      const meds = Array.isArray(rawMeds)
+        ? rawMeds
+            .map((m) => ({
+              medication_name: (m.medication_name ?? m.name ?? "").trim(),
+              dosage: hasText(m.dosage) ? m.dosage.trim() : null,
+              frequency: hasText(m.frequency) ? m.frequency.trim() : null,
+              scheduled_times: splitTimes(m.scheduled_times ?? m.times) ?? null,
+            }))
+            .filter((m) => m.medication_name.length > 0)
+        : [];
+
+      // The profile medication form is treated as the source of truth for
+      // onboarding-entered medicines, so repeated autosaves update instead of duplicate.
+      await db
+        .delete(userMedications)
+        .where(and(eq(userMedications.user_id, userId), eq(userMedications.added_by, "onboarding")));
+
+      if (meds.length > 0) {
         await db.insert(userMedications).values(
           meds.map((m) => ({
             user_id:         userId,
             medication_name: m.medication_name,
-            dosage:          m.dosage ?? null,
-            frequency:       m.frequency ?? null,
-            scheduled_times: m.scheduled_times ?? null,
+            dosage:          m.dosage,
+            frequency:       m.frequency,
+            scheduled_times: m.scheduled_times,
             added_by:        "onboarding",
           }))
         );
-
-        await markField(userId, "has_medications");
       }
+
+      await db
+        .update(onboardingState)
+        .set({
+          has_medications: meds.length > 0,
+          feature_medication_mgmt: meds.length > 0,
+          updated_at: new Date(),
+        })
+        .where(eq(onboardingState.user_id, userId));
 
       if (Array.isArray(data.known_allergies) && (data.known_allergies as string[]).length > 0) {
         await markField(userId, "has_allergies");
       }
+    } else if (sectionId === "conditions") {
+      const namedConditions = Array.isArray(data.conditions)
+        ? (data.conditions as Array<{ name?: string }>)
+            .map((condition) => condition.name)
+            .filter(hasText)
+            .map((name) => name.trim())
+        : [];
+      const healthConditions = Array.isArray(data.health_conditions)
+        ? (data.health_conditions as unknown[]).filter(hasText).map((name) => name.trim())
+        : namedConditions;
+      const payload = {
+        health_conditions: healthConditions,
+        mobility_level: hasText(data.mobility_level) ? data.mobility_level.trim() : null,
+        living_situation: hasText(data.living_situation) ? data.living_situation.trim() : null,
+      };
+
+      await mergeSectionIntoConsent(userId, "conditions", payload);
+
+      if (
+        payload.health_conditions.length > 0 ||
+        payload.mobility_level ||
+        payload.living_situation
+      ) {
+        await markField(userId, "has_health_conditions");
+      }
     } else if (sectionId === "address") {
       const profileUpdates: Record<string, unknown> = { updated_at: new Date() };
-      if (data.address_line_1) profileUpdates.address_line_1 = data.address_line_1;
-      if (data.city)           profileUpdates.city           = data.city;
-      if (data.region)         profileUpdates.region         = data.region;
-      if (data.postcode)       profileUpdates.postcode       = data.postcode;
-      if (data.country_code)   profileUpdates.country_code   = data.country_code;
-      if (data.timezone)       profileUpdates.timezone       = data.timezone;
+      const country = data.country_code ?? data.country;
+      if (data.address_line_1 !== undefined) profileUpdates.address_line_1 = hasText(data.address_line_1) ? data.address_line_1.trim() : null;
+      if (data.city           !== undefined) profileUpdates.city           = hasText(data.city) ? data.city.trim() : null;
+      if (data.region         !== undefined) profileUpdates.region         = hasText(data.region) ? data.region.trim() : null;
+      if (data.postcode       !== undefined) profileUpdates.postcode       = hasText(data.postcode) ? data.postcode.trim() : null;
+      if (country             !== undefined) profileUpdates.country_code   = hasText(country) ? country.trim() : null;
+      if (data.timezone       !== undefined) profileUpdates.timezone       = hasText(data.timezone) ? data.timezone.trim() : null;
 
       await db.update(profiles).set(profileUpdates).where(eq(profiles.id, userId));
 
@@ -1148,6 +1418,20 @@ onboardingRouter.post("/section/:sectionId", async (req: Request, res: Response)
 
       const fieldToMark = CARETEAM_ONBOARDING_FIELD[ct.role];
       if (fieldToMark) await markField(userId, fieldToMark);
+    } else if (sectionId === "emergency") {
+      const payload = {
+        emergency_name: hasText(data.emergency_name) ? data.emergency_name.trim() : hasText(data.name) ? data.name.trim() : "",
+        emergency_phone: hasText(data.emergency_phone) ? data.emergency_phone.trim() : hasText(data.primary_phone) ? data.primary_phone.trim() : "",
+        emergency_role: hasText(data.emergency_role) ? data.emergency_role.trim() : hasText(data.relationship) ? data.relationship.trim() : "",
+        secondary_phone: hasText(data.secondary_phone) ? data.secondary_phone.trim() : "",
+        address: hasText(data.address) ? data.address.trim() : "",
+      };
+
+      await mergeSectionIntoConsent(userId, "emergency", payload);
+
+      if (payload.emergency_name && payload.emergency_phone) {
+        await markField(userId, "has_emergency_address");
+      }
     } else {
       await mergeSectionIntoConsent(userId, sectionId, data);
 

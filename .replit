@@ -1,15 +1,22 @@
-modules = ["nodejs-20", "web", "postgresql-16"]
+modules = ["nodejs-20", "postgresql-16"]
 [agent]
 expertMode = true
-integrations = ["javascript_database:1.0.0"]
 
-[nix]
-channel = "stable-25_05"
+[[ports]]
+localPort = 3001
+externalPort = 3002
 
-[deployment]
-deploymentTarget = "autoscale"
-run = ["npm", "start"]
-build = ["npm", "run", "build"]
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 5001
+externalPort = 3000
+
+[[ports]]
+localPort = 24678
+externalPort = 3001
 
 [workflows]
 runButton = "Project"
@@ -35,27 +42,14 @@ waitForPort = 5000
 [workflows.workflow.metadata]
 outputType = "webview"
 
-[[ports]]
-localPort = 3001
-externalPort = 3001
+[nix]
+channel = "stable-25_05"
 
-[[ports]]
-localPort = 5000
-externalPort = 80
-
-[[ports]]
-localPort = 5001
-externalPort = 3000
-
-[[ports]]
-localPort = 24678
-externalPort = 3002
-
-[userenv]
-
-[userenv.shared]
-VITE_ELEVENLABS_AGENT_ID = "agent_2901kbz1tjt5e5cs4m4hgb0krhgm"
+[deployment]
+deploymentTarget = "autoscale"
+run = ["node", "./server-dist/index.cjs"]
+build = ["npm", "run", "build"]
 
 [postMerge]
-path = "scripts/post-merge.sh"
-timeoutMs = 20000
+path = ".local/post_merge_setup.sh"
+timeoutMs = 180000

@@ -11,9 +11,11 @@ import {
   VYVA_VOICE_USER_MESSAGE_EVENT,
   type VoiceUserMessageDetail,
 } from "@/lib/voiceNavigation";
+import { useServiceGate } from "@/hooks/useServiceGate";
+import { useToastSurface } from "@/hooks/useToastSurface";
 
-const FULL_SCREEN_ROUTES = ["/chat"];
-const WIDE_ROUTES = ["/social-rooms"];
+const FULL_SCREEN_ROUTES = ["/chat", "/spatial-navigator", "/face-name-match"];
+const WIDE_ROUTES = ["/social-rooms", "/spatial-navigator", "/face-name-match"];
 
 const SosSheet = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
   const { t } = useTranslation();
@@ -67,12 +69,14 @@ const SosSheet = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: 
 const AppShell = ({ children }: { children: ReactNode }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { canUseService } = useServiceGate();
   const [sosOpen, setSosOpen] = useState(false);
   const lastVoiceRouteRef = useRef<{ route: string; at: number } | null>(null);
   const { status, isConnecting, isSpeaking, transcript, stopVoice } = useVyvaVoice();
   const isFullScreen = FULL_SCREEN_ROUTES.includes(location.pathname);
   const isWideRoute = WIDE_ROUTES.some((route) => location.pathname.startsWith(route));
   const showVoiceOverlay = status === "connected" || isConnecting;
+  const toastSurfaceRef = useToastSurface<HTMLDivElement>(isFullScreen ? 24 : 112);
 
   useEffect(() => {
     const handleVoiceUserMessage = (event: Event) => {
@@ -98,12 +102,14 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 
   return (
     <div className="flex min-h-screen justify-center bg-[radial-gradient(circle_at_top,#fffaf2_0%,#f7f1e9_42%,#f4efe8_100%)]">
-      <div className={`relative w-full ${isWideRoute ? "max-w-[768px]" : "max-w-[520px]"}`}>
+      <div ref={toastSurfaceRef} className={`relative w-full ${isWideRoute ? "max-w-[768px]" : "max-w-[520px]"}`}>
         {!isFullScreen && <StatusBar />}
         <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : "pt-[76px] pb-[104px]"}`}>
           {children}
         </main>
-        {!isFullScreen && <BottomNav onSosClick={() => setSosOpen(true)} />}
+        {!isFullScreen && <BottomNav onSosClick={() => {
+          if (canUseService("sos", "/sos")) setSosOpen(true);
+        }} />}
         {!isFullScreen && <SosSheet open={sosOpen} onOpenChange={setSosOpen} />}
         {showVoiceOverlay && (
           <VoiceCallOverlay

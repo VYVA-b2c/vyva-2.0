@@ -1,5 +1,6 @@
 .env
 .env.*
+!.env.example
 
 # Logs
 logs
@@ -14,7 +15,14 @@ node_modules
 dist
 dist-ssr
 server-dist
+test-results
+playwright-report
 *.local
+bun.lock
+*.timestamp-*.mjs
+
+# Generated local tooling state
+supabase/.temp/
 
 # Editor directories and files
 .vscode/*

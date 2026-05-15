@@ -21,6 +21,10 @@ import {
   resolveSocialRoomSlug,
   socialRoomSeeds,
 } from "../lib/socialRoomsSeed.js";
+import {
+  buildUserConversationContext,
+  type ConversationContextSummary,
+} from "../lib/conversationContext.js";
 
 type SocialLanguage = "es" | "de" | "en";
 
@@ -30,6 +34,12 @@ type InterestSnapshot = {
   activityLevel: "low" | "moderate" | "active";
   roomVisitCounts: Record<string, number>;
   lastRooms: string[];
+};
+
+type RoomVisitState = {
+  isFirstVisit: boolean;
+  previousVisitCount: number;
+  visitCount: number;
 };
 
 const router = Router();
@@ -217,6 +227,23 @@ async function persistInterestSnapshot(userId: string, snapshot: InterestSnapsho
   );
 }
 
+function buildRoomVisitState(snapshot: InterestSnapshot, roomSlug: string, incrementBy = 0): RoomVisitState {
+  const canonicalSlug = resolveSocialRoomSlug(roomSlug);
+  const rawCount = Number(snapshot.roomVisitCounts[canonicalSlug] ?? 0);
+  const previousVisitCount = Number.isFinite(rawCount) ? Math.max(0, rawCount) : 0;
+
+  return {
+    isFirstVisit: previousVisitCount === 0,
+    previousVisitCount,
+    visitCount: previousVisitCount + incrementBy,
+  };
+}
+
+async function loadRoomVisitState(userId: string, roomSlug: string): Promise<RoomVisitState> {
+  const snapshot = await loadUserInterestSnapshot(userId);
+  return buildRoomVisitState(snapshot, roomSlug);
+}
+
 async function ensureRoomRecords(slug: string) {
   const roomSeed = getSocialRoomBySlug(slug);
   if (!roomSeed) return null;
@@ -372,7 +399,11 @@ function toLiveBadge(language: SocialLanguage, participantCount: number) {
   return `${participantCount} en la sala`;
 }
 
-function buildAgentReply(slug: string, language: SocialLanguage, userMessage: string) {
+function buildAgentReply(
+  slug: string,
+  language: SocialLanguage,
+  userMessage: string,
+) {
   const canonicalSlug = resolveSocialRoomSlug(slug);
   const lowered = userMessage.toLowerCase();
   const quotedPrompt = language === "de"
@@ -442,6 +473,25 @@ function buildAgentReply(slug: string, language: SocialLanguage, userMessage: st
     : language === "en"
       ? `Thank you for sharing that. ${quotedPrompt}`
       : `Gracias por compartirlo. ${quotedPrompt}`;
+}
+
+function applyConversationContextCue(
+  reply: string,
+  language: SocialLanguage,
+  conversationContext?: ConversationContextSummary | null,
+) {
+  const hasSensitiveDailyContext = conversationContext?.lines.some((line) =>
+    /health report|vitals|check-in|medication/i.test(line),
+  );
+  if (!hasSensitiveDailyContext) return reply;
+
+  const cue =
+    language === "de"
+      ? "Wir halten es heute ruhig und angenehm."
+      : language === "en"
+        ? "We can keep it gentle today."
+        : "Podemos mantenerlo tranquilo hoy.";
+  return `${reply} ${cue}`;
 }
 
 function buildPromptChips(slug: string, language: SocialLanguage) {
@@ -554,7 +604,28 @@ function buildRoomChat(slug: string, language: SocialLanguage, members: Array<{ 
     en: ["I like how it's being explained.", "I wanted to ask that too."],
   };
 
-  const pool = messages[canonicalSlug]?.[language] ?? messages[slug]?.[language] ?? fallback[language];
+  const gamesRoomMessages: Record<SocialLanguage, string[]> = {
+    es: [
+      "Yo empece con una pista de ajedrez y me ayudo ir despacio.",
+      "Los juegos de palabras me salen mejor cuando la ronda es corta.",
+      "Viktor explico el reto de memoria paso a paso y fue mas facil.",
+    ],
+    de: [
+      "Ich habe mit einem Schachhinweis begonnen, und langsam zu gehen hat geholfen.",
+      "Wortspiele fallen mir leichter, wenn die Runde kurz ist.",
+      "Viktor hat die Gedaechtnisaufgabe Schritt fuer Schritt erklaert, das war einfacher.",
+    ],
+    en: [
+      "I started with a chess clue, and slowing down helped.",
+      "Word games feel easier when the round is short.",
+      "Viktor explained the memory challenge one step at a time, and it felt easier.",
+    ],
+  };
+
+  const pool =
+    canonicalSlug === "games-room"
+      ? gamesRoomMessages[language]
+      : messages[canonicalSlug]?.[language] ?? messages[slug]?.[language] ?? fallback[language];
   return pool.slice(0, Math.min(pool.length, members.length)).map((text, index) => ({
     id: `${slug}-chat-${index}`,
     authorId: members[index]?.id ?? `member-${index}`,
@@ -565,17 +636,18 @@ function buildRoomChat(slug: string, language: SocialLanguage, members: Array<{ 
   }));
 }
 
-async function updateVisitInterests(userId: string, roomSlug: string) {
+async function updateVisitInterests(userId: string, roomSlug: string): Promise<RoomVisitState> {
   const canonicalSlug = resolveSocialRoomSlug(roomSlug);
   const seed = getSocialRoomBySlug(canonicalSlug);
-  if (!seed) return;
+  if (!seed) return { isFirstVisit: true, previousVisitCount: 0, visitCount: 0 };
 
   const existing = await loadUserInterestSnapshot(userId);
+  const visitState = buildRoomVisitState(existing, canonicalSlug, 1);
   const nextTags = Array.from(new Set([...existing.interestTags, ...seed.topicTags]));
   const nextTimes = Array.from(new Set([...existing.preferredTimes, ...seed.timeSlots]));
   const nextCounts = {
     ...existing.roomVisitCounts,
-    [canonicalSlug]: (existing.roomVisitCounts[canonicalSlug] ?? 0) + 1,
+    [canonicalSlug]: visitState.visitCount,
   };
   const nextLastRooms = [canonicalSlug, ...existing.lastRooms.filter((value) => value !== canonicalSlug)].slice(0, 3);
 
@@ -586,6 +658,8 @@ async function updateVisitInterests(userId: string, roomSlug: string) {
     roomVisitCounts: nextCounts,
     lastRooms: nextLastRooms,
   });
+
+  return visitState;
 }
 
 router.get("/hub", async (req: Request, res: Response) => {
@@ -629,12 +703,18 @@ router.get("/hub", async (req: Request, res: Response) => {
 });
 
 router.get("/rooms/:slug", async (req: Request, res: Response) => {
+  const userId = resolvePublicUserId(req);
   const language = normalizeLanguage(req.query.lang as string | undefined);
   const room = buildRoomPayload(req.params.slug, language);
   if (!room) return res.status(404).json({ error: "Room not found" });
 
   const members = buildRoomMembers(room.slug, language, room.participantCount);
   const memberChat = buildRoomChat(room.slug, language, members);
+  const visitState = await loadRoomVisitState(userId, room.slug);
+  const conversationContext = await buildUserConversationContext(userId, {
+    roomSlug: room.slug,
+    roomVisitState: visitState,
+  });
 
   return res.json({
     room: {
@@ -652,6 +732,8 @@ router.get("/rooms/:slug", async (req: Request, res: Response) => {
     promptChips: room.options?.length ? room.options : buildPromptChips(room.slug, language),
     members,
     memberChat,
+    visitState,
+    conversationContext,
   });
 });
 
@@ -676,7 +758,7 @@ router.post("/rooms/:slug/enter", async (req: Request, res: Response) => {
   });
   memoryRoomOccupancy.set(slug, (memoryRoomOccupancy.get(slug) ?? 0) + 1);
 
-  await updateVisitInterests(userId, slug);
+  const visitState = await updateVisitInterests(userId, slug);
 
   const ensured = await ensureRoomRecords(slug);
   if (ensured) {
@@ -697,6 +779,14 @@ router.post("/rooms/:slug/enter", async (req: Request, res: Response) => {
     visitId,
     participantCount: getRoomParticipantCount(slug),
     liveBadge: toLiveBadge(normalizeLanguage(parsed.data.lang), getRoomParticipantCount(slug)),
+    isFirstVisit: visitState.isFirstVisit,
+    previousVisitCount: visitState.previousVisitCount,
+    visitCount: visitState.visitCount,
+    visitState,
+    conversationContext: await buildUserConversationContext(userId, {
+      roomSlug: slug,
+      roomVisitState: visitState,
+    }),
   });
 });
 
@@ -732,11 +822,21 @@ router.post("/rooms/:slug/message", async (req: Request, res: Response) => {
   if (!room) return res.status(404).json({ error: "Room not found" });
 
   const language = normalizeLanguage(parsed.data.lang);
-  const reply = buildAgentReply(room.slug, language, parsed.data.message);
+  const visitState = await loadRoomVisitState(userId, room.slug);
+  const conversationContext = await buildUserConversationContext(userId, {
+    roomSlug: room.slug,
+    roomVisitState: visitState,
+  });
+  const reply = applyConversationContextCue(
+    buildAgentReply(room.slug, language, parsed.data.message),
+    language,
+    conversationContext,
+  );
 
   return res.json({
     reply,
     createdAt: new Date().toISOString(),
+    conversationContext,
   });
 });
 

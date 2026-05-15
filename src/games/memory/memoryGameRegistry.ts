@@ -49,10 +49,24 @@ type RoutineTemplate = {
   activities: string[];
 };
 
-type StoryTemplate = {
+type GameContentLanguage = Exclude<LanguageCode, "cy">;
+
+type StoryChoiceQuestion = {
+  prompt: string;
+  options: string[];
+  answerIndex: number;
+};
+
+type StoryContent = {
   title: string;
   story: string;
+  keyFacts: string[];
+  choiceQuestions: StoryChoiceQuestion[];
 };
+
+type StoryTemplate = Record<GameContentLanguage, StoryContent>;
+
+const GAME_CONTENT_LANGUAGES: GameContentLanguage[] = ["es", "en", "fr", "de", "it", "pt"];
 
 function createVariant(
   id: string,
@@ -514,23 +528,94 @@ function buildAssociationLevels(templates: readonly Array<{ left: string; right:
 }
 
 function buildStoryLevels(stories: readonly StoryTemplate[]): MemoryGameLevel[] {
-  return [
-    { level: 1, prompt: "Lee una historia breve y responde una pregunta.", payload: (story: StoryTemplate) => ({ story: story.story, questions: 1 }) },
-    { level: 2, prompt: "Lee una historia breve y responde dos preguntas sencillas.", payload: (story: StoryTemplate) => ({ story: story.story, questions: 2 }) },
-    { level: 3, prompt: "Recuerda quién, qué y dónde ocurre la historia.", payload: (story: StoryTemplate) => ({ story: story.story, questions: ["quién", "qué", "dónde"] }) },
-    { level: 4, prompt: "Recuerda el orden de los hechos de la historia.", payload: (story: StoryTemplate) => ({ story: story.story, questions: ["secuencia"] }) },
-    { level: 5, prompt: "Escucha o lee y recuerda la historia después de una breve espera.", payload: (story: StoryTemplate) => ({ story: story.story, delayed: true }) },
-  ].map((spec) => ({
+  const levelSpecs = [
+    {
+      level: 1,
+      questionCount: 1,
+      factCount: 3,
+      prompts: {
+        es: "Lee o escucha la historia y responde una pregunta.",
+        en: "Read or listen to the story and answer one question.",
+        fr: "Lisez ou ecoutez l'histoire et repondez a une question.",
+        de: "Lesen oder horen Sie die Geschichte und beantworten Sie eine Frage.",
+        it: "Leggi o ascolta la storia e rispondi a una domanda.",
+        pt: "Leia ou ouca a historia e responda a uma pergunta.",
+      },
+    },
+    {
+      level: 2,
+      questionCount: 2,
+      factCount: 4,
+      prompts: {
+        es: "Recuerda dos detalles importantes de la historia.",
+        en: "Remember two important details from the story.",
+        fr: "Souvenez-vous de deux details importants de l'histoire.",
+        de: "Merken Sie sich zwei wichtige Details aus der Geschichte.",
+        it: "Ricorda due dettagli importanti della storia.",
+        pt: "Recorde dois detalhes importantes da historia.",
+      },
+    },
+    {
+      level: 3,
+      questionCount: 3,
+      factCount: 4,
+      prompts: {
+        es: "Recuerda quien, que y donde ocurre la historia.",
+        en: "Remember who, what, and where in the story.",
+        fr: "Souvenez-vous de qui, quoi et ou dans l'histoire.",
+        de: "Merken Sie sich wer, was und wo in der Geschichte.",
+        it: "Ricorda chi, che cosa e dove nella storia.",
+        pt: "Recorde quem, o que e onde na historia.",
+      },
+    },
+    {
+      level: 4,
+      questionCount: 3,
+      factCount: 4,
+      prompts: {
+        es: "Recuerda los detalles y cuenta la historia con tus palabras.",
+        en: "Remember the details and tell the story in your own words.",
+        fr: "Souvenez-vous des details et racontez l'histoire avec vos mots.",
+        de: "Merken Sie sich die Details und erzahlen Sie die Geschichte mit eigenen Worten.",
+        it: "Ricorda i dettagli e racconta la storia con parole tue.",
+        pt: "Recorde os detalhes e conte a historia pelas suas palavras.",
+      },
+    },
+    {
+      level: 5,
+      questionCount: 4,
+      factCount: 4,
+      prompts: {
+        es: "Lee o escucha con calma y recuerda la historia completa.",
+        en: "Read or listen calmly and remember the whole story.",
+        fr: "Lisez ou ecoutez calmement et souvenez-vous de toute l'histoire.",
+        de: "Lesen oder horen Sie ruhig zu und merken Sie sich die ganze Geschichte.",
+        it: "Leggi o ascolta con calma e ricorda tutta la storia.",
+        pt: "Leia ou ouca com calma e recorde a historia completa.",
+      },
+    },
+  ] as const;
+
+  return levelSpecs.map((spec) => ({
     level: spec.level,
-    variants: buildSpanishOnlyVariants(
-      "story_recall",
-      spec.level,
-      stories.map((story, index) => ({
-        title: `Historia ${index + 1}`,
-        prompt: spec.prompt,
-        payload: spec.payload(story),
-      })),
-    ),
+    variants: stories.map((story, index) => {
+      const content = GAME_CONTENT_LANGUAGES.reduce((accumulator, language) => {
+        const localizedStory = story[language];
+        accumulator[language] = {
+          title: localizedStory.title,
+          prompt: spec.prompts[language],
+          payload: {
+            story: localizedStory.story,
+            keyFacts: localizedStory.keyFacts.slice(0, spec.factCount),
+            choiceQuestions: localizedStory.choiceQuestions.slice(0, spec.questionCount),
+          },
+        };
+
+        return accumulator;
+      }, {} as LocalizedValue<MemoryGameVariantContent>);
+
+      return createVariant(`story_recall-l${spec.level}-v${index + 1}`, spec.level, content);
+    }),
   }));
 }
 
@@ -1096,16 +1181,398 @@ const associationTemplates = [
 ] as const;
 
 const storyTemplates: StoryTemplate[] = [
-  { title: "El paseo de Ana", story: "Ana salió por la mañana con su bolso azul, compró pan en la esquina y después se sentó en un banco del parque." },
-  { title: "La llamada de Luis", story: "Luis llamó a su hermana después de comer, apuntó una cita en su agenda y dejó las llaves junto a la radio." },
-  { title: "Té con Elena", story: "Elena preparó té de manzanilla, sacó galletas de avena y recibió a su vecino en el salón a las cinco." },
-  { title: "Compra en el mercado", story: "Marta fue al mercado, eligió tomates y queso fresco, y regresó a casa antes de que empezara a llover." },
-  { title: "La visita al médico", story: "Pedro llevó su tarjeta sanitaria, llegó diez minutos antes a la consulta y después pasó por la farmacia." },
-  { title: "Un domingo tranquilo", story: "Sonia regó las plantas del balcón, escuchó música suave y llamó a su nieta al terminar la tarde." },
-  { title: "Tarde de lectura", story: "Ramón tomó café, se acomodó en el sofá con una novela corta y encendió la lámpara cuando cayó el sol." },
-  { title: "Preparando la cena", story: "Julia cortó verduras, puso arroz a cocer y dejó la mesa lista antes de que llegara su hijo." },
-  { title: "Camino a la iglesia", story: "Teresa salió con paraguas, saludó a una vecina y dejó flores blancas junto al altar." },
-  { title: "Mañana de recados", story: "Andrés fue al banco, compró sellos en el estanco y volvió a casa para escuchar las noticias del mediodía." },
+  {
+    es: {
+      title: "El paseo de Ana",
+      story: "Ana salio por la manana con su bolso azul, compro pan en la esquina y despues se sento en un banco del parque.",
+      keyFacts: [
+        "Ana salio por la manana.",
+        "Ana llevaba un bolso azul.",
+        "Ana compro pan en la esquina.",
+        "Ana se sento en un banco del parque.",
+      ],
+      choiceQuestions: [
+        { prompt: "Que compro Ana?", options: ["Pan", "Leche", "Flores"], answerIndex: 0 },
+        { prompt: "De que color era el bolso?", options: ["Azul", "Rojo", "Verde"], answerIndex: 0 },
+        { prompt: "Donde se sento Ana?", options: ["En un banco del parque", "En una cafeteria", "En el autobus"], answerIndex: 0 },
+        { prompt: "Cuando salio Ana?", options: ["Por la manana", "Por la noche", "Al mediodia"], answerIndex: 0 },
+      ],
+    },
+    en: {
+      title: "Ana's walk",
+      story: "Ana went out in the morning with her blue bag, bought bread on the corner, and then sat on a bench in the park.",
+      keyFacts: [
+        "Ana went out in the morning.",
+        "Ana carried a blue bag.",
+        "Ana bought bread on the corner.",
+        "Ana sat on a bench in the park.",
+      ],
+      choiceQuestions: [
+        { prompt: "What did Ana buy?", options: ["Bread", "Milk", "Flowers"], answerIndex: 0 },
+        { prompt: "What colour was the bag?", options: ["Blue", "Red", "Green"], answerIndex: 0 },
+        { prompt: "Where did Ana sit?", options: ["On a park bench", "In a cafe", "On the bus"], answerIndex: 0 },
+        { prompt: "When did Ana go out?", options: ["In the morning", "At night", "At midday"], answerIndex: 0 },
+      ],
+    },
+    fr: {
+      title: "La promenade d'Ana",
+      story: "Ana est sortie le matin avec son sac bleu, a achete du pain au coin de la rue, puis s'est assise sur un banc du parc.",
+      keyFacts: [
+        "Ana est sortie le matin.",
+        "Ana portait un sac bleu.",
+        "Ana a achete du pain au coin de la rue.",
+        "Ana s'est assise sur un banc du parc.",
+      ],
+      choiceQuestions: [
+        { prompt: "Qu'a achete Ana?", options: ["Du pain", "Du lait", "Des fleurs"], answerIndex: 0 },
+        { prompt: "De quelle couleur etait le sac?", options: ["Bleu", "Rouge", "Vert"], answerIndex: 0 },
+        { prompt: "Ou Ana s'est-elle assise?", options: ["Sur un banc du parc", "Dans un cafe", "Dans le bus"], answerIndex: 0 },
+        { prompt: "Quand Ana est-elle sortie?", options: ["Le matin", "Le soir", "A midi"], answerIndex: 0 },
+      ],
+    },
+    de: {
+      title: "Anas Spaziergang",
+      story: "Ana ging am Morgen mit ihrer blauen Tasche hinaus, kaufte Brot an der Ecke und setzte sich danach auf eine Bank im Park.",
+      keyFacts: [
+        "Ana ging am Morgen hinaus.",
+        "Ana trug eine blaue Tasche.",
+        "Ana kaufte Brot an der Ecke.",
+        "Ana setzte sich auf eine Bank im Park.",
+      ],
+      choiceQuestions: [
+        { prompt: "Was kaufte Ana?", options: ["Brot", "Milch", "Blumen"], answerIndex: 0 },
+        { prompt: "Welche Farbe hatte die Tasche?", options: ["Blau", "Rot", "Grun"], answerIndex: 0 },
+        { prompt: "Wo setzte sich Ana hin?", options: ["Auf eine Bank im Park", "In ein Cafe", "In den Bus"], answerIndex: 0 },
+        { prompt: "Wann ging Ana hinaus?", options: ["Am Morgen", "Am Abend", "Mittags"], answerIndex: 0 },
+      ],
+    },
+    it: {
+      title: "La passeggiata di Ana",
+      story: "Ana e uscita la mattina con la borsa blu, ha comprato il pane all'angolo e poi si e seduta su una panchina del parco.",
+      keyFacts: [
+        "Ana e uscita la mattina.",
+        "Ana aveva una borsa blu.",
+        "Ana ha comprato il pane all'angolo.",
+        "Ana si e seduta su una panchina del parco.",
+      ],
+      choiceQuestions: [
+        { prompt: "Che cosa ha comprato Ana?", options: ["Pane", "Latte", "Fiori"], answerIndex: 0 },
+        { prompt: "Di che colore era la borsa?", options: ["Blu", "Rossa", "Verde"], answerIndex: 0 },
+        { prompt: "Dove si e seduta Ana?", options: ["Su una panchina del parco", "In un bar", "Sull'autobus"], answerIndex: 0 },
+        { prompt: "Quando e uscita Ana?", options: ["La mattina", "La sera", "A mezzogiorno"], answerIndex: 0 },
+      ],
+    },
+    pt: {
+      title: "O passeio da Ana",
+      story: "Ana saiu de manha com a sua mala azul, comprou pao na esquina e depois sentou-se num banco do parque.",
+      keyFacts: [
+        "Ana saiu de manha.",
+        "Ana levava uma mala azul.",
+        "Ana comprou pao na esquina.",
+        "Ana sentou-se num banco do parque.",
+      ],
+      choiceQuestions: [
+        { prompt: "O que comprou Ana?", options: ["Pao", "Leite", "Flores"], answerIndex: 0 },
+        { prompt: "De que cor era a mala?", options: ["Azul", "Vermelha", "Verde"], answerIndex: 0 },
+        { prompt: "Onde se sentou Ana?", options: ["Num banco do parque", "Num cafe", "No autocarro"], answerIndex: 0 },
+        { prompt: "Quando saiu Ana?", options: ["De manha", "A noite", "Ao meio-dia"], answerIndex: 0 },
+      ],
+    },
+  },
+  {
+    es: {
+      title: "La llamada de Luis",
+      story: "Luis llamo a su hermana despues de comer, apunto una cita en su agenda y dejo las llaves junto a la radio.",
+      keyFacts: [
+        "Luis llamo a su hermana despues de comer.",
+        "Luis apunto una cita en su agenda.",
+        "Luis dejo las llaves junto a la radio.",
+        "La llamada fue despues de comer.",
+      ],
+      choiceQuestions: [
+        { prompt: "A quien llamo Luis?", options: ["A su hermana", "A su vecino", "A su medico"], answerIndex: 0 },
+        { prompt: "Donde apunto la cita?", options: ["En su agenda", "En una servilleta", "En el calendario de pared"], answerIndex: 0 },
+        { prompt: "Donde dejo las llaves?", options: ["Junto a la radio", "En el abrigo", "En la cocina"], answerIndex: 0 },
+        { prompt: "Cuando hizo la llamada?", options: ["Despues de comer", "Antes de desayunar", "Al acostarse"], answerIndex: 0 },
+      ],
+    },
+    en: {
+      title: "Luis's call",
+      story: "Luis called his sister after lunch, wrote an appointment in his diary, and left the keys next to the radio.",
+      keyFacts: [
+        "Luis called his sister after lunch.",
+        "Luis wrote an appointment in his diary.",
+        "Luis left the keys next to the radio.",
+        "The call happened after lunch.",
+      ],
+      choiceQuestions: [
+        { prompt: "Who did Luis call?", options: ["His sister", "His neighbour", "His doctor"], answerIndex: 0 },
+        { prompt: "Where did he write the appointment?", options: ["In his diary", "On a napkin", "On the wall calendar"], answerIndex: 0 },
+        { prompt: "Where did he leave the keys?", options: ["Next to the radio", "In his coat", "In the kitchen"], answerIndex: 0 },
+        { prompt: "When did he make the call?", options: ["After lunch", "Before breakfast", "At bedtime"], answerIndex: 0 },
+      ],
+    },
+    fr: {
+      title: "L'appel de Luis",
+      story: "Luis a appele sa soeur apres le repas, a note un rendez-vous dans son agenda et a laisse les cles pres de la radio.",
+      keyFacts: [
+        "Luis a appele sa soeur apres le repas.",
+        "Luis a note un rendez-vous dans son agenda.",
+        "Luis a laisse les cles pres de la radio.",
+        "L'appel a eu lieu apres le repas.",
+      ],
+      choiceQuestions: [
+        { prompt: "Qui Luis a-t-il appele?", options: ["Sa soeur", "Son voisin", "Son medecin"], answerIndex: 0 },
+        { prompt: "Ou a-t-il note le rendez-vous?", options: ["Dans son agenda", "Sur une serviette", "Sur le calendrier mural"], answerIndex: 0 },
+        { prompt: "Ou a-t-il laisse les cles?", options: ["Pres de la radio", "Dans son manteau", "Dans la cuisine"], answerIndex: 0 },
+        { prompt: "Quand a-t-il appele?", options: ["Apres le repas", "Avant le petit-dejeuner", "Au coucher"], answerIndex: 0 },
+      ],
+    },
+    de: {
+      title: "Luis ruft an",
+      story: "Luis rief nach dem Essen seine Schwester an, schrieb einen Termin in seinen Kalender und legte die Schlussel neben das Radio.",
+      keyFacts: [
+        "Luis rief nach dem Essen seine Schwester an.",
+        "Luis schrieb einen Termin in seinen Kalender.",
+        "Luis legte die Schlussel neben das Radio.",
+        "Der Anruf war nach dem Essen.",
+      ],
+      choiceQuestions: [
+        { prompt: "Wen rief Luis an?", options: ["Seine Schwester", "Seinen Nachbarn", "Seinen Arzt"], answerIndex: 0 },
+        { prompt: "Wo schrieb er den Termin auf?", options: ["In seinen Kalender", "Auf eine Serviette", "Auf den Wandkalender"], answerIndex: 0 },
+        { prompt: "Wo legte er die Schlussel hin?", options: ["Neben das Radio", "In den Mantel", "In die Kuche"], answerIndex: 0 },
+        { prompt: "Wann rief er an?", options: ["Nach dem Essen", "Vor dem Fruhstuck", "Vor dem Schlafen"], answerIndex: 0 },
+      ],
+    },
+    it: {
+      title: "La telefonata di Luis",
+      story: "Luis ha chiamato sua sorella dopo pranzo, ha segnato un appuntamento sull'agenda e ha lasciato le chiavi accanto alla radio.",
+      keyFacts: [
+        "Luis ha chiamato sua sorella dopo pranzo.",
+        "Luis ha segnato un appuntamento sull'agenda.",
+        "Luis ha lasciato le chiavi accanto alla radio.",
+        "La telefonata e stata dopo pranzo.",
+      ],
+      choiceQuestions: [
+        { prompt: "Chi ha chiamato Luis?", options: ["Sua sorella", "Il vicino", "Il medico"], answerIndex: 0 },
+        { prompt: "Dove ha segnato l'appuntamento?", options: ["Sull'agenda", "Su un tovagliolo", "Sul calendario"], answerIndex: 0 },
+        { prompt: "Dove ha lasciato le chiavi?", options: ["Accanto alla radio", "Nel cappotto", "In cucina"], answerIndex: 0 },
+        { prompt: "Quando ha telefonato?", options: ["Dopo pranzo", "Prima di colazione", "Prima di dormire"], answerIndex: 0 },
+      ],
+    },
+    pt: {
+      title: "A chamada do Luis",
+      story: "Luis telefonou a irma depois do almoco, apontou uma consulta na agenda e deixou as chaves junto ao radio.",
+      keyFacts: [
+        "Luis telefonou a irma depois do almoco.",
+        "Luis apontou uma consulta na agenda.",
+        "Luis deixou as chaves junto ao radio.",
+        "A chamada foi depois do almoco.",
+      ],
+      choiceQuestions: [
+        { prompt: "A quem telefonou Luis?", options: ["A irma", "Ao vizinho", "Ao medico"], answerIndex: 0 },
+        { prompt: "Onde apontou a consulta?", options: ["Na agenda", "Num guardanapo", "No calendario"], answerIndex: 0 },
+        { prompt: "Onde deixou as chaves?", options: ["Junto ao radio", "No casaco", "Na cozinha"], answerIndex: 0 },
+        { prompt: "Quando telefonou?", options: ["Depois do almoco", "Antes do pequeno-almoco", "Ao deitar"], answerIndex: 0 },
+      ],
+    },
+  },
+  {
+    es: {
+      title: "Compra en el mercado",
+      story: "Marta fue al mercado con una bolsa de tela, eligio tomates y queso fresco, y regreso a casa antes de que empezara a llover.",
+      keyFacts: [
+        "Marta fue al mercado.",
+        "Marta llevaba una bolsa de tela.",
+        "Marta eligio tomates y queso fresco.",
+        "Marta regreso antes de que empezara a llover.",
+      ],
+      choiceQuestions: [
+        { prompt: "A donde fue Marta?", options: ["Al mercado", "A la farmacia", "Al parque"], answerIndex: 0 },
+        { prompt: "Que llevaba Marta?", options: ["Una bolsa de tela", "Un paraguas rojo", "Un libro"], answerIndex: 0 },
+        { prompt: "Que compro Marta?", options: ["Tomates y queso fresco", "Pan y leche", "Manzanas y arroz"], answerIndex: 0 },
+        { prompt: "Cuando volvio a casa?", options: ["Antes de la lluvia", "De madrugada", "Despues de cenar"], answerIndex: 0 },
+      ],
+    },
+    en: {
+      title: "Shopping at the market",
+      story: "Marta went to the market with a cloth bag, chose tomatoes and fresh cheese, and returned home before it started to rain.",
+      keyFacts: [
+        "Marta went to the market.",
+        "Marta carried a cloth bag.",
+        "Marta chose tomatoes and fresh cheese.",
+        "Marta returned before it started to rain.",
+      ],
+      choiceQuestions: [
+        { prompt: "Where did Marta go?", options: ["To the market", "To the pharmacy", "To the park"], answerIndex: 0 },
+        { prompt: "What did Marta carry?", options: ["A cloth bag", "A red umbrella", "A book"], answerIndex: 0 },
+        { prompt: "What did Marta choose?", options: ["Tomatoes and fresh cheese", "Bread and milk", "Apples and rice"], answerIndex: 0 },
+        { prompt: "When did she return home?", options: ["Before the rain", "At dawn", "After dinner"], answerIndex: 0 },
+      ],
+    },
+    fr: {
+      title: "Courses au marche",
+      story: "Marta est allee au marche avec un sac en tissu, a choisi des tomates et du fromage frais, puis est rentree avant la pluie.",
+      keyFacts: [
+        "Marta est allee au marche.",
+        "Marta portait un sac en tissu.",
+        "Marta a choisi des tomates et du fromage frais.",
+        "Marta est rentree avant la pluie.",
+      ],
+      choiceQuestions: [
+        { prompt: "Ou Marta est-elle allee?", options: ["Au marche", "A la pharmacie", "Au parc"], answerIndex: 0 },
+        { prompt: "Que portait Marta?", options: ["Un sac en tissu", "Un parapluie rouge", "Un livre"], answerIndex: 0 },
+        { prompt: "Qu'a choisi Marta?", options: ["Des tomates et du fromage frais", "Du pain et du lait", "Des pommes et du riz"], answerIndex: 0 },
+        { prompt: "Quand est-elle rentree?", options: ["Avant la pluie", "A l'aube", "Apres le diner"], answerIndex: 0 },
+      ],
+    },
+    de: {
+      title: "Einkauf auf dem Markt",
+      story: "Marta ging mit einer Stofftasche zum Markt, suchte Tomaten und Frischkase aus und kam nach Hause, bevor es regnete.",
+      keyFacts: [
+        "Marta ging zum Markt.",
+        "Marta trug eine Stofftasche.",
+        "Marta suchte Tomaten und Frischkase aus.",
+        "Marta kam zuruck, bevor es regnete.",
+      ],
+      choiceQuestions: [
+        { prompt: "Wohin ging Marta?", options: ["Zum Markt", "Zur Apotheke", "In den Park"], answerIndex: 0 },
+        { prompt: "Was trug Marta?", options: ["Eine Stofftasche", "Einen roten Regenschirm", "Ein Buch"], answerIndex: 0 },
+        { prompt: "Was suchte Marta aus?", options: ["Tomaten und Frischkase", "Brot und Milch", "Apfel und Reis"], answerIndex: 0 },
+        { prompt: "Wann kam sie nach Hause?", options: ["Vor dem Regen", "Bei Tagesanbruch", "Nach dem Abendessen"], answerIndex: 0 },
+      ],
+    },
+    it: {
+      title: "Spesa al mercato",
+      story: "Marta e andata al mercato con una borsa di stoffa, ha scelto pomodori e formaggio fresco ed e tornata a casa prima della pioggia.",
+      keyFacts: [
+        "Marta e andata al mercato.",
+        "Marta aveva una borsa di stoffa.",
+        "Marta ha scelto pomodori e formaggio fresco.",
+        "Marta e tornata prima della pioggia.",
+      ],
+      choiceQuestions: [
+        { prompt: "Dove e andata Marta?", options: ["Al mercato", "In farmacia", "Al parco"], answerIndex: 0 },
+        { prompt: "Che cosa aveva Marta?", options: ["Una borsa di stoffa", "Un ombrello rosso", "Un libro"], answerIndex: 0 },
+        { prompt: "Che cosa ha scelto Marta?", options: ["Pomodori e formaggio fresco", "Pane e latte", "Mele e riso"], answerIndex: 0 },
+        { prompt: "Quando e tornata a casa?", options: ["Prima della pioggia", "All'alba", "Dopo cena"], answerIndex: 0 },
+      ],
+    },
+    pt: {
+      title: "Compras no mercado",
+      story: "Marta foi ao mercado com um saco de pano, escolheu tomates e queijo fresco e voltou para casa antes de comecar a chover.",
+      keyFacts: [
+        "Marta foi ao mercado.",
+        "Marta levava um saco de pano.",
+        "Marta escolheu tomates e queijo fresco.",
+        "Marta voltou antes de comecar a chover.",
+      ],
+      choiceQuestions: [
+        { prompt: "Onde foi Marta?", options: ["Ao mercado", "A farmacia", "Ao parque"], answerIndex: 0 },
+        { prompt: "O que levava Marta?", options: ["Um saco de pano", "Um guarda-chuva vermelho", "Um livro"], answerIndex: 0 },
+        { prompt: "O que escolheu Marta?", options: ["Tomates e queijo fresco", "Pao e leite", "Macas e arroz"], answerIndex: 0 },
+        { prompt: "Quando voltou para casa?", options: ["Antes da chuva", "De madrugada", "Depois do jantar"], answerIndex: 0 },
+      ],
+    },
+  },
+  {
+    es: {
+      title: "Un domingo tranquilo",
+      story: "Sonia rego las plantas del balcon, escucho musica suave y llamo a su nieta al terminar la tarde.",
+      keyFacts: [
+        "Sonia rego las plantas del balcon.",
+        "Sonia escucho musica suave.",
+        "Sonia llamo a su nieta.",
+        "Sonia llamo al terminar la tarde.",
+      ],
+      choiceQuestions: [
+        { prompt: "Que rego Sonia?", options: ["Las plantas del balcon", "El jardin del vecino", "La cocina"], answerIndex: 0 },
+        { prompt: "Que escucho Sonia?", options: ["Musica suave", "Noticias fuertes", "Un partido"], answerIndex: 0 },
+        { prompt: "A quien llamo Sonia?", options: ["A su nieta", "A su hermana", "Al medico"], answerIndex: 0 },
+        { prompt: "Cuando llamo Sonia?", options: ["Al terminar la tarde", "Por la manana", "Antes de comer"], answerIndex: 0 },
+      ],
+    },
+    en: {
+      title: "A quiet Sunday",
+      story: "Sonia watered the balcony plants, listened to gentle music, and called her granddaughter at the end of the afternoon.",
+      keyFacts: [
+        "Sonia watered the balcony plants.",
+        "Sonia listened to gentle music.",
+        "Sonia called her granddaughter.",
+        "Sonia called at the end of the afternoon.",
+      ],
+      choiceQuestions: [
+        { prompt: "What did Sonia water?", options: ["The balcony plants", "The neighbour's garden", "The kitchen"], answerIndex: 0 },
+        { prompt: "What did Sonia listen to?", options: ["Gentle music", "Loud news", "A match"], answerIndex: 0 },
+        { prompt: "Who did Sonia call?", options: ["Her granddaughter", "Her sister", "The doctor"], answerIndex: 0 },
+        { prompt: "When did Sonia call?", options: ["At the end of the afternoon", "In the morning", "Before lunch"], answerIndex: 0 },
+      ],
+    },
+    fr: {
+      title: "Un dimanche calme",
+      story: "Sonia a arrose les plantes du balcon, a ecoute de la musique douce et a appele sa petite-fille en fin d'apres-midi.",
+      keyFacts: [
+        "Sonia a arrose les plantes du balcon.",
+        "Sonia a ecoute de la musique douce.",
+        "Sonia a appele sa petite-fille.",
+        "Sonia a appele en fin d'apres-midi.",
+      ],
+      choiceQuestions: [
+        { prompt: "Qu'a arrose Sonia?", options: ["Les plantes du balcon", "Le jardin du voisin", "La cuisine"], answerIndex: 0 },
+        { prompt: "Qu'a ecoute Sonia?", options: ["De la musique douce", "Des nouvelles fortes", "Un match"], answerIndex: 0 },
+        { prompt: "Qui Sonia a-t-elle appele?", options: ["Sa petite-fille", "Sa soeur", "Le medecin"], answerIndex: 0 },
+        { prompt: "Quand Sonia a-t-elle appele?", options: ["En fin d'apres-midi", "Le matin", "Avant le repas"], answerIndex: 0 },
+      ],
+    },
+    de: {
+      title: "Ein ruhiger Sonntag",
+      story: "Sonia goss die Pflanzen auf dem Balkon, horte leise Musik und rief am Ende des Nachmittags ihre Enkelin an.",
+      keyFacts: [
+        "Sonia goss die Pflanzen auf dem Balkon.",
+        "Sonia horte leise Musik.",
+        "Sonia rief ihre Enkelin an.",
+        "Sonia rief am Ende des Nachmittags an.",
+      ],
+      choiceQuestions: [
+        { prompt: "Was goss Sonia?", options: ["Die Pflanzen auf dem Balkon", "Den Garten des Nachbarn", "Die Kuche"], answerIndex: 0 },
+        { prompt: "Was horte Sonia?", options: ["Leise Musik", "Laute Nachrichten", "Ein Spiel"], answerIndex: 0 },
+        { prompt: "Wen rief Sonia an?", options: ["Ihre Enkelin", "Ihre Schwester", "Den Arzt"], answerIndex: 0 },
+        { prompt: "Wann rief Sonia an?", options: ["Am Ende des Nachmittags", "Am Morgen", "Vor dem Essen"], answerIndex: 0 },
+      ],
+    },
+    it: {
+      title: "Una domenica tranquilla",
+      story: "Sonia ha annaffiato le piante del balcone, ha ascoltato musica dolce e ha chiamato la nipote alla fine del pomeriggio.",
+      keyFacts: [
+        "Sonia ha annaffiato le piante del balcone.",
+        "Sonia ha ascoltato musica dolce.",
+        "Sonia ha chiamato la nipote.",
+        "Sonia ha chiamato alla fine del pomeriggio.",
+      ],
+      choiceQuestions: [
+        { prompt: "Che cosa ha annaffiato Sonia?", options: ["Le piante del balcone", "Il giardino del vicino", "La cucina"], answerIndex: 0 },
+        { prompt: "Che cosa ha ascoltato Sonia?", options: ["Musica dolce", "Notizie forti", "Una partita"], answerIndex: 0 },
+        { prompt: "Chi ha chiamato Sonia?", options: ["La nipote", "La sorella", "Il medico"], answerIndex: 0 },
+        { prompt: "Quando ha chiamato Sonia?", options: ["Alla fine del pomeriggio", "La mattina", "Prima di pranzo"], answerIndex: 0 },
+      ],
+    },
+    pt: {
+      title: "Um domingo tranquilo",
+      story: "Sonia regou as plantas da varanda, ouviu musica suave e telefonou a neta ao fim da tarde.",
+      keyFacts: [
+        "Sonia regou as plantas da varanda.",
+        "Sonia ouviu musica suave.",
+        "Sonia telefonou a neta.",
+        "Sonia telefonou ao fim da tarde.",
+      ],
+      choiceQuestions: [
+        { prompt: "O que regou Sonia?", options: ["As plantas da varanda", "O jardim do vizinho", "A cozinha"], answerIndex: 0 },
+        { prompt: "O que ouviu Sonia?", options: ["Musica suave", "Noticias altas", "Um jogo"], answerIndex: 0 },
+        { prompt: "A quem telefonou Sonia?", options: ["A neta", "A irma", "Ao medico"], answerIndex: 0 },
+        { prompt: "Quando telefonou Sonia?", options: ["Ao fim da tarde", "De manha", "Antes do almoco"], answerIndex: 0 },
+      ],
+    },
+  },
 ];
 
 const sequenceLevels = buildSequenceLevels(sequenceTemplates);
@@ -1132,22 +1599,19 @@ const memoryMatchLevels = buildMemoryMatchLevels(memoryMatchSets);
 
 export const MEMORY_GAME_ORDER: MemoryGameType[] = [
   "memory_match",
-  "sequence_memory",
   "word_recall",
   "number_memory",
-  "routine_memory",
   "association_memory",
-  "story_recall",
 ];
 
 export const memoryGameRegistry: Record<MemoryGameType, MemoryGameDefinition> = {
   memory_match: createDefinition("memory_match", "memoryGames.memoryMatch.title", "memoryGames.memoryMatch.description", "visual_memory", "#6B21A8", "#F5F3FF", memoryMatchLevels),
-  sequence_memory: createDefinition("sequence_memory", "memoryGames.sequenceMemory.title", "memoryGames.sequenceMemory.description", "working_memory", "#0F766E", "#ECFEFF", sequenceLevels),
+  sequence_memory: createDefinition("sequence_memory", "memoryGames.sequenceMemory.title", "memoryGames.sequenceMemory.description", "attention", "#0F766E", "#ECFEFF", sequenceLevels),
   word_recall: createDefinition("word_recall", "memoryGames.wordRecall.title", "memoryGames.wordRecall.description", "episodic_memory", "#B45309", "#FFF7ED", wordRecallPlayableLevels),
   number_memory: createDefinition("number_memory", "memoryGames.numberMemory.title", "memoryGames.numberMemory.description", "working_memory", "#2563EB", "#EFF6FF", numberMemoryLevels),
-  routine_memory: createDefinition("routine_memory", "memoryGames.routineMemory.title", "memoryGames.routineMemory.description", "prospective_memory", "#0A7C4E", "#ECFDF5", routineLevels),
+  routine_memory: createDefinition("routine_memory", "memoryGames.routineMemory.title", "memoryGames.routineMemory.description", "executive_function", "#0A7C4E", "#ECFDF5", routineLevels),
   association_memory: createDefinition("association_memory", "memoryGames.associationMemory.title", "memoryGames.associationMemory.description", "associative_memory", "#BE185D", "#FFF1F2", associationLevels),
-  story_recall: createDefinition("story_recall", "memoryGames.storyRecall.title", "memoryGames.storyRecall.description", "comprehension_memory", "#92400E", "#FEF3C7", storyLevels),
+  story_recall: createDefinition("story_recall", "memoryGames.storyRecall.title", "memoryGames.storyRecall.description", "language", "#92400E", "#FEF3C7", storyLevels),
 };
 
 export function getGameDefinition(gameType: MemoryGameType) {

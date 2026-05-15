@@ -1,25 +1,31 @@
 {
   "name": "vite_react_shadcn_ts",
   "private": true,
-  "version": "0.0.0",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "dev": "concurrently --kill-others \"PORT=3001 tsx server/index.ts\" \"vite\"",
     "dev:server": "tsx server/index.ts",
     "dev:client": "vite",
+    "preview:adherence": "node scripts/preview-adherence-report.mjs",
     "db:push": "drizzle-kit push",
+    "db:auth": "node scripts/apply-auth-schema.mjs",
     "db:concierge": "node scripts/apply-concierge-schema.mjs",
     "build:client": "vite build",
     "build:server": "esbuild server/index.ts --bundle --platform=node --format=cjs --outfile=server-dist/index.cjs --packages=external",
     "build": "npm run build:client && npm run build:server",
     "build:dev": "vite build --mode development",
-    "start": "NODE_ENV=production node ./server-dist/index.cjs",
-    "lint": "eslint .",
+    "start": "cross-env NODE_ENV=production node ./server-dist/index.cjs",
+    "lint": "eslint . --max-warnings=0",
     "preview": "vite preview",
+    "test:e2e": "playwright test",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@dicebear/core": "^9.4.2",
+    "@dicebear/micah": "^9.4.2",
     "@elevenlabs/react": "^1.0.2",
     "@googlemaps/js-api-loader": "^2.0.2",
     "@hookform/resolvers": "^3.10.0",
@@ -106,19 +112,25 @@
     "@vitejs/plugin-react-swc": "^3.11.0",
     "autoprefixer": "^10.4.21",
     "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.32.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
-    "jsdom": "^20.0.3",
+    "jsdom": "^29.1.1",
     "postcss": "^8.5.6",
     "supertest": "^7.2.2",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.21.0",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.38.0",
-    "vite": "^5.4.19",
+    "vite": "^6.4.2",
     "vitest": "^3.2.4"
+  },
+  "overrides": {
+    "@esbuild-kit/core-utils": {
+      "esbuild": "^0.25.12"
+    }
   }
 }

@@ -1,6 +1,6 @@
 // src/pages/onboarding/sections/AddressSection.tsx
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,11 @@ type AddressForm = {
   region: string;
   postcode: string;
   country: string;
+};
+
+type ReverseGeocodeResponse = {
+  formattedAddress?: string;
+  address?: Partial<AddressForm> & { country_code?: string };
 };
 
 const EMPTY_FORM: AddressForm = {
@@ -60,16 +65,34 @@ function normaliseCountry(raw: string): string {
 
 export default function AddressSection() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [form, setForm] = useState<AddressForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [detecting, setDetecting] = useState(false);
   const [detected, setDetected] = useState(false);
+  const [locationAccuracy, setLocationAccuracy] = useState<number | null>(null);
   const [speakItOpen, setSpeakItOpen] = useState(false);
   const [parsing, setParsing] = useState(false);
 
   const formRef = useRef(form);
   useEffect(() => { formRef.current = form; }, [form]);
+
+  const buildAddressPayload = (current: AddressForm) => ({
+    address_line_1: current.address_line_1,
+    address_line_2: current.address_line_2,
+    city: current.city,
+    region: current.region,
+    postcode: current.postcode,
+    country_code: current.country,
+  });
+
+  const completePath = () => {
+    const returnTo = searchParams.get("returnTo");
+    return returnTo
+      ? `/onboarding/complete/address?returnTo=${encodeURIComponent(returnTo)}`
+      : "/onboarding/complete/address";
+  };
 
   const { data, isLoading } = useQuery<{ profile: AddressForm | null }>({
     queryKey: ["/api/onboarding/state"],
@@ -84,7 +107,7 @@ export default function AddressSection() {
         city:           p.city           ?? prev.city,
         region:         p.region         ?? prev.region,
         postcode:       p.postcode       ?? prev.postcode,
-        country:        (p as AddressForm & { country?: string }).country ?? prev.country,
+        country:        (p as AddressForm & { country?: string; country_code?: string }).country_code ?? (p as AddressForm & { country?: string }).country ?? prev.country,
       }));
     }
   }, [data]);
@@ -93,12 +116,13 @@ export default function AddressSection() {
     async () => {
       const res = await apiFetch("/api/onboarding/section/address", {
         method: "POST",
-        body: JSON.stringify(formRef.current),
+        body: JSON.stringify(buildAddressPayload(formRef.current)),
       });
       if (!res.ok) {
         const msg = await friendlyError(new Error(), res);
         throw new Error(msg);
       }
+      queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
     },
     2000,
   );
@@ -128,26 +152,50 @@ export default function AddressSection() {
     }
     setDetecting(true);
     setDetected(false);
+    setLocationAccuracy(null);
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
-          const { latitude: lat, longitude: lon } = pos.coords;
-          const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=en`;
-          const res = await fetch(url, { headers: { "User-Agent": "VYVA-App/1.0" } });
-          if (!res.ok) throw new Error("Geocoding failed");
-          const json = await res.json() as { address: Record<string, string> };
-          const a = json.address ?? {};
-          const houseNo   = a.house_number ?? "";
-          const road      = a.road ?? a.street ?? a.pedestrian ?? "";
-          const line1     = houseNo ? `${houseNo} ${road}` : road;
-          const line2     = a.suburb ?? a.neighbourhood ?? a.quarter ?? "";
-          const city      = a.city ?? a.town ?? a.village ?? a.municipality ?? "";
-          const postcode  = a.postcode ?? "";
-          const region    = a.state ?? a.county ?? "";
-          const country   = normaliseCountry(a.country ?? "");
-          applyAddress({ address_line_1: line1, address_line_2: line2, city, postcode, region, country });
+          const { latitude: lat, longitude: lon, accuracy } = pos.coords;
+          let geocoded: ReverseGeocodeResponse | null = null;
+
+          try {
+            const params = new URLSearchParams({ lat: String(lat), lng: String(lon) });
+            const googleRes = await apiFetch(`/api/places/reverse-geocode?${params.toString()}`);
+            if (googleRes.ok) geocoded = await googleRes.json() as ReverseGeocodeResponse;
+          } catch {
+            geocoded = null;
+          }
+
+          if (!geocoded?.address) {
+            const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=en`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error("Geocoding failed");
+            const json = await res.json() as { address: Record<string, string> };
+            const a = json.address ?? {};
+            const houseNo   = a.house_number ?? "";
+            const road      = a.road ?? a.street ?? a.pedestrian ?? "";
+            geocoded = {
+              address: {
+                address_line_1: houseNo ? `${houseNo} ${road}` : road,
+                address_line_2: a.suburb ?? a.neighbourhood ?? a.quarter ?? "",
+                city: a.city ?? a.town ?? a.village ?? a.municipality ?? "",
+                postcode: a.postcode ?? "",
+                region: a.state ?? a.county ?? "",
+                country: a.country ?? "",
+              },
+            };
+          }
+
+          const addr = geocoded.address ?? {};
+          const country = normaliseCountry(addr.country_code ?? addr.country ?? "");
+          applyAddress({ ...addr, country });
+          setLocationAccuracy(Math.round(accuracy));
           setDetected(true);
-          toast({ title: "📍 Location detected!", description: "We've filled in your address — please check and adjust if needed." });
+          toast({
+            title: "Location detected",
+            description: `We found your address within about ${Math.round(accuracy)}m. Please check the house/floor details.`,
+          });
         } catch {
           toast({ title: "Could not get address", description: "Location was found but we couldn't look up the address. Please fill in manually.", variant: "destructive" });
         } finally {
@@ -161,7 +209,7 @@ export default function AddressSection() {
           : "Could not detect your location. Please fill in the address manually.";
         toast({ title: "Location unavailable", description: msg, variant: "destructive" });
       },
-      { timeout: 10000, maximumAge: 60000 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   };
 
@@ -201,11 +249,12 @@ export default function AddressSection() {
     try {
       res = await apiFetch("/api/onboarding/section/address", {
         method: "POST",
-        body: JSON.stringify(form),
+        body: JSON.stringify(buildAddressPayload(form)),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
-      navigate("/onboarding/complete/address");
+      await queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
+      navigate(completePath());
     } catch (err) {
       const msg = await friendlyError(err, res && !res.ok ? res : undefined);
       toast({ title: "Could not save home address", description: msg, variant: "destructive" });
@@ -218,13 +267,12 @@ export default function AddressSection() {
 
   return (
     <PhoneFrame subtitle="🏠 Home address" showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
-      <div className="flex flex-col gap-4 px-4 py-5">
+      <div className="flex flex-col gap-4 px-4 py-4">
 
-        {/* Header */}
+        {/* Guidance */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1">
-            <h2 className="text-lg font-bold text-gray-900">🏠 Your home address</h2>
-            <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+            <p className="text-xs text-gray-500 leading-relaxed">
               This helps VYVA with safety features and local services. It's only shared with emergency services if you need urgent help.
             </p>
           </div>
@@ -261,7 +309,12 @@ export default function AddressSection() {
                 {detecting ? "Detecting…" : detected ? "Location used!" : "Detect my location"}
               </p>
               <p className="font-body text-[11px]" style={{ color: "#16A34A" }}>
-                {detecting ? "Getting your address" : "Auto-fill from GPS"}
+                {detecting
+                  ? "High-accuracy GPS"
+                  : locationAccuracy
+                    ? `Approx. ±${locationAccuracy}m`
+                    : "Auto-fill from GPS"
+                }
               </p>
             </div>
           </button>

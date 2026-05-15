@@ -1,6 +1,6 @@
 // src/pages/onboarding/sections/ConditionsSection.tsx
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Mic, CheckCircle2, ChevronDown } from "lucide-react";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { AutoSaveStatusBadge } from "@/components/onboarding/AutoSaveStatusBadge";
@@ -133,6 +133,7 @@ type SavedCondition = { name: string; category: string };
 
 export default function ConditionsSection() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
@@ -146,21 +147,36 @@ export default function ConditionsSection() {
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (navTimerRef.current) clearTimeout(navTimerRef.current); }, []);
 
+  const buildConditionsPayload = () => ({
+    health_conditions: selected,
+    conditions: selected.map((name) => {
+      const group = CONDITION_GROUPS.find((g) => g.items.includes(name));
+      return { name, category: group?.cat || "other" };
+    }),
+    mobility_level: mobility || null,
+    living_situation: living || null,
+    allergies: [],
+  });
+
+  const completePath = () => {
+    const returnTo = searchParams.get("returnTo");
+    return returnTo
+      ? `/onboarding/complete/conditions?returnTo=${encodeURIComponent(returnTo)}`
+      : "/onboarding/complete/conditions";
+  };
+
   const { autoSaveStatus, savedFading, retryCountdown, retryNow, scheduleAutoSave, cancelAutoSave, setAutoSaveStatus } = useAutoSave(
     async () => {
-      const conditions = selected.map((name) => {
-        const group = CONDITION_GROUPS.find((g) => g.items.includes(name));
-        return { name, category: group?.cat || "other" };
-      });
       const res = await apiFetch("/api/onboarding/section/conditions", {
         method: "POST",
-        body: JSON.stringify({ conditions, mobility_level: mobility || null, living_situation: living || null, allergies: [] }),
+        body: JSON.stringify(buildConditionsPayload()),
       });
       if (!res.ok) {
         const msg = await friendlyError(new Error(), res);
         throw new Error(msg);
       }
       queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
     },
     2000,
   );
@@ -225,20 +241,17 @@ export default function ConditionsSection() {
     let navigating = false;
     let res: Response | undefined;
     try {
-      const conditions = selected.map((name) => {
-        const group = CONDITION_GROUPS.find((g) => g.items.includes(name));
-        return { name, category: group?.cat || "other" };
-      });
       res = await apiFetch("/api/onboarding/section/conditions", {
         method: "POST",
-        body: JSON.stringify({ conditions, mobility_level: mobility || null, living_situation: living || null, allergies: [] }),
+        body: JSON.stringify(buildConditionsPayload()),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
       setAutoSaveStatus("saved");
       navigating = true;
-      navTimerRef.current = setTimeout(() => navigate("/onboarding/complete/conditions"), 300);
+      navTimerRef.current = setTimeout(() => navigate(completePath()), 300);
     } catch (err) {
       const msg = await friendlyError(err, res && !res.ok ? res : undefined);
       toast({ title: "Could not save health conditions", description: msg, variant: "destructive" });
@@ -249,13 +262,12 @@ export default function ConditionsSection() {
 
   return (
     <PhoneFrame subtitle="❤️ Health conditions" showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
-      <div className="flex flex-col gap-4 px-4 py-5">
+      <div className="flex flex-col gap-4 px-4 py-4">
 
-        {/* Header */}
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900">❤️ Health conditions</h2>
-            <p className="text-xs text-gray-500 mt-1">Select everything that applies. Tap again to remove.</p>
+        {/* Guidance */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1">
+            <p className="text-xs text-gray-500 leading-relaxed">Select everything that applies. Tap again to remove.</p>
           </div>
           <AutoSaveStatusBadge autoSaveStatus={autoSaveStatus} savedFading={savedFading} retryCountdown={retryCountdown} onRetryNow={retryNow} testId="status-conditions-autosave" />
         </div>
@@ -376,23 +388,25 @@ export default function ConditionsSection() {
                       type="button"
                       data-testid={`accordion-${group.cat}`}
                       onClick={() => !isSearching && toggleCat(group.cat)}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-left"
+                      className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left"
                     >
-                      <span className="text-[20px] leading-none flex-shrink-0">{cat.emoji}</span>
-                      <span className="flex-1 font-body text-[14px] font-semibold text-gray-800">{cat.label}</span>
-                      {hasSelections && (
-                        <span
-                          className="text-[11px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-                          style={{ background: "#EDE9FE", color: "#6B21A8" }}
-                          data-testid={`badge-count-${group.cat}`}
-                        >
-                          {selectedCount} selected
-                        </span>
-                      )}
+                      <span className="text-[20px] leading-none">{cat.emoji}</span>
+                      <span className="min-w-0">
+                        <span className="block font-body text-[14px] font-semibold leading-snug text-gray-800">{cat.label}</span>
+                        {hasSelections && (
+                          <span
+                            className="mt-1 inline-flex max-w-full rounded-full px-2 py-0.5 text-[11px] font-bold"
+                            style={{ background: "#EDE9FE", color: "#6B21A8" }}
+                            data-testid={`badge-count-${group.cat}`}
+                          >
+                            {selectedCount} selected
+                          </span>
+                        )}
+                      </span>
                       {!isSearching && (
                         <ChevronDown
                           size={16}
-                          className="flex-shrink-0 text-gray-400 transition-transform duration-200"
+                          className="text-gray-400 transition-transform duration-200"
                           style={{ transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }}
                         />
                       )}
@@ -403,7 +417,7 @@ export default function ConditionsSection() {
                       className="overflow-hidden transition-all duration-300 ease-in-out"
                       style={{ maxHeight: isOpen ? "2000px" : "0px" }}
                     >
-                      <div className="grid grid-cols-2 gap-[8px] px-3 pb-3">
+                      <div className="grid grid-cols-1 gap-[8px] px-3 pb-3 min-[360px]:grid-cols-2">
                         {visibleItems.map((item) => {
                           const isSelected = selected.includes(item);
                           return (
@@ -467,7 +481,7 @@ export default function ConditionsSection() {
             {/* Living situation */}
             <div>
               <p className="text-xs font-bold text-gray-600 mb-2">Living situation</p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2">
                 {LIVING_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}

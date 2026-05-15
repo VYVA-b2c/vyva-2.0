@@ -3,6 +3,17 @@ import Stripe from "stripe";
 import { db } from "../db.js";
 import { profiles, billingEvents, stripeWebhooks } from "../../shared/schema.js";
 import { eq } from "drizzle-orm";
+import {
+  entitlementForTier,
+  findActivePlan,
+  findPlanByStripePriceId,
+  listPlans,
+  normalizeCurrency,
+  normalizeSubscriptionTier,
+  planPrice,
+  planStripePriceId,
+} from "../lib/plans.js";
+import { getActiveProfileContext } from "../lib/profileAccess.js";
 
 let _stripe: Stripe | null = null;
 function getStripe(): Stripe {
@@ -16,24 +27,84 @@ function getStripe(): Stripe {
 }
 const router = Router();
 
+function appUrl() {
+  return process.env.APP_URL ?? "http://localhost:5000";
+}
+
+function subscriptionStatusFromStripe(status: Stripe.Subscription.Status) {
+  if (status === "active") return "active";
+  if (status === "trialing") return "trial";
+  if (status === "past_due") return "past_due";
+  return "cancelled";
+}
+
+async function planIdFromSubscription(sub: Stripe.Subscription) {
+  const metadataPlan = typeof sub.metadata?.plan_id === "string" ? sub.metadata.plan_id : null;
+  if (metadataPlan) return normalizeSubscriptionTier(metadataPlan);
+
+  const priceId = sub.items.data[0]?.price?.id;
+  const plan = await findPlanByStripePriceId(priceId);
+  return plan?.plan_id ?? "premium";
+}
+
+async function billingProfileForAccount(accountUserId: string) {
+  const context = await getActiveProfileContext(accountUserId);
+  const profileId = context.profileId ?? accountUserId;
+  const [profile] = await db
+    .select()
+    .from(profiles)
+    .where(eq(profiles.id, profileId))
+    .limit(1);
+
+  if (profile) {
+    return { accountUserId, profileId: profile.id, profile };
+  }
+
+  if (profileId !== accountUserId) {
+    const [fallbackProfile] = await db
+      .select()
+      .from(profiles)
+      .where(eq(profiles.id, accountUserId))
+      .limit(1);
+    if (fallbackProfile) {
+      return { accountUserId, profileId: fallbackProfile.id, profile: fallbackProfile };
+    }
+  }
+
+  return { accountUserId, profileId, profile: null };
+}
+
+router.get("/plans", async (_req, res) => {
+  const plans = await listPlans({ publicOnly: true });
+  return res.json({ plans });
+});
+
 // GET /api/billing/status
 // Returns current plan, trial days remaining, and feature list.
 router.get("/status", async (req, res) => {
   const userId = req.user?.id;
   if (!userId) return res.status(401).json({ error: "Unauthorised" });
 
-  const [profile] = await db.select().from(profiles).where(eq(profiles.id, userId));
+  const { accountUserId, profileId, profile } = await billingProfileForAccount(userId);
   if (!profile) return res.status(404).json({ error: "Profile not found" });
 
   const trialDaysRemaining = profile.trial_ends_at
     ? Math.max(0, Math.ceil((new Date(profile.trial_ends_at).getTime() - Date.now()) / 86400000))
     : 0;
+  const effectiveTier = normalizeSubscriptionTier(profile.subscription_tier);
+  const plans = await listPlans();
 
   return res.json({
+    account_user_id: accountUserId,
+    profile_id: profileId,
     status: profile.subscription_status,
-    tier: profile.subscription_tier,
+    tier: effectiveTier,
+    stored_tier: profile.subscription_tier,
     trial_days_remaining: trialDaysRemaining,
     trial_ends_at: profile.trial_ends_at,
+    has_billing_account: Boolean(profile.stripe_customer_id),
+    plan: plans.find((plan) => plan.plan_id === effectiveTier) ?? null,
+    entitlements: await entitlementForTier(effectiveTier),
   });
 });
 
@@ -44,35 +115,61 @@ router.post("/create-checkout", async (req, res) => {
   const userId = req.user?.id;
   if (!userId) return res.status(401).json({ error: "Unauthorised" });
 
-  const [profile] = await db.select().from(profiles).where(eq(profiles.id, userId));
+  const { accountUserId, profileId, profile } = await billingProfileForAccount(userId);
   if (!profile) return res.status(404).json({ error: "Profile not found" });
+
+  const planId = typeof req.body?.plan_id === "string" ? req.body.plan_id : "premium";
+  const currency = normalizeCurrency(req.body?.currency);
+  const plan = await findActivePlan(planId, { publicOnly: true });
+  if (!plan) return res.status(404).json({ error: "Plan not found" });
+
+  const price = planPrice(plan, currency);
+  if (price === 0) {
+    const trialEndsAt = plan.trial_days ? new Date(Date.now() + plan.trial_days * 86400000) : null;
+    await db.update(profiles).set({
+      subscription_status: plan.trial_days ? "trial" : "active",
+      subscription_tier: plan.plan_id,
+      trial_ends_at: trialEndsAt,
+      updated_at: new Date(),
+    }).where(eq(profiles.id, profileId));
+    return res.json({ status: "trial_started", redirect_url: "/settings/subscription?trial=started" });
+  }
+
+  const stripePriceId = planStripePriceId(plan, currency);
+  if (!stripePriceId) {
+    return res.status(400).json({ error: "Stripe price is not configured for this plan yet." });
+  }
 
   // Create or retrieve Stripe customer
   let customerId = profile.stripe_customer_id;
   if (!customerId) {
     const customer = await getStripe().customers.create({
-      email: undefined, // add if you have email
+      email: profile.email || undefined,
       name: profile.full_name || undefined,
       phone: profile.phone_number || undefined,
-      metadata: { user_id: userId },
+      metadata: { user_id: profileId, account_user_id: accountUserId, profile_id: profileId },
     });
     customerId = customer.id;
     await db.update(profiles).set({
       stripe_customer_id: customerId,
       updated_at: new Date(),
-    }).where(eq(profiles.id, userId));
+    }).where(eq(profiles.id, profileId));
   }
 
   const session = await getStripe().checkout.sessions.create({
     customer: customerId,
     mode: "subscription",
     line_items: [{
-      price: process.env.STRIPE_PREMIUM_PRICE_ID!,
+      price: stripePriceId,
       quantity: 1,
     }],
-    success_url: `${process.env.APP_URL}/app?upgraded=true`,
-    cancel_url: `${process.env.APP_URL}/app/settings/subscription`,
-    metadata: { user_id: userId },
+    success_url: `${appUrl()}/?upgraded=true&plan=${encodeURIComponent(plan.plan_id)}`,
+    cancel_url: `${appUrl()}/settings/subscription`,
+    metadata: { user_id: profileId, account_user_id: accountUserId, profile_id: profileId, plan_id: plan.plan_id, currency },
+    subscription_data: {
+      metadata: { user_id: profileId, account_user_id: accountUserId, profile_id: profileId, plan_id: plan.plan_id, currency },
+      ...(plan.trial_days ? { trial_period_days: plan.trial_days } : {}),
+    },
   });
 
   return res.json({ url: session.url });
@@ -85,14 +182,14 @@ router.get("/portal", async (req, res) => {
   const userId = req.user?.id;
   if (!userId) return res.status(401).json({ error: "Unauthorised" });
 
-  const [profile] = await db.select().from(profiles).where(eq(profiles.id, userId));
+  const { profile } = await billingProfileForAccount(userId);
   if (!profile?.stripe_customer_id) {
     return res.status(400).json({ error: "No billing account found" });
   }
 
   const session = await getStripe().billingPortal.sessions.create({
     customer: profile.stripe_customer_id,
-    return_url: `${process.env.APP_URL}/app/settings/subscription`,
+    return_url: `${appUrl()}/settings/subscription`,
   });
 
   return res.json({ url: session.url });
@@ -131,13 +228,12 @@ router.post("/webhook", async (req, res) => {
       case "customer.subscription.updated": {
         const sub = event.data.object as Stripe.Subscription;
         const customerId = sub.customer as string;
+        const planId = await planIdFromSubscription(sub);
         await db.update(profiles).set({
           stripe_subscription_id: sub.id,
-          subscription_status: sub.status === "active" ? "active"
-            : sub.status === "trialing" ? "trial"
-            : sub.status === "past_due" ? "past_due"
-            : "cancelled",
-          subscription_tier: sub.status === "active" ? "premium" : "free",
+          subscription_status: subscriptionStatusFromStripe(sub.status),
+          subscription_tier: planId,
+          trial_ends_at: sub.trial_end ? new Date(sub.trial_end * 1000) : null,
           updated_at: new Date(),
         }).where(eq(profiles.stripe_customer_id, customerId));
         break;
@@ -166,7 +262,7 @@ router.post("/webhook", async (req, res) => {
             event_type: "payment_succeeded",
             amount_cents: invoice.amount_paid,
             currency: invoice.currency,
-            plan_id: "premium",
+            plan_id: profile.subscription_tier,
             status: "succeeded",
             stripe_payload: JSON.parse(JSON.stringify(event)) as Record<string, unknown>,
           });
@@ -191,7 +287,7 @@ router.post("/webhook", async (req, res) => {
             event_type: "payment_failed",
             amount_cents: invoice.amount_due,
             currency: invoice.currency,
-            plan_id: "premium",
+            plan_id: profile.subscription_tier,
             status: "failed",
             failure_reason: "payment_failed",
             stripe_payload: JSON.parse(JSON.stringify(event)) as Record<string, unknown>,

@@ -1,4 +1,4 @@
-import { ArrowLeft, Mic, Square } from "lucide-react";
+import { ArrowLeft, MessageCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
@@ -7,12 +7,21 @@ import { useProfile } from "@/contexts/ProfileContext";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 import SocialStyles from "./SocialStyles";
 import { getSocialCopy, getSocialLanguage } from "./roomUtils";
-import type { SocialLanguage, SocialRoom, SocialRoomMember, SocialRoomResponse } from "./types";
+import type {
+  SocialLanguage,
+  SocialConversationContext,
+  SocialRoom,
+  SocialRoomChatItem,
+  SocialRoomMember,
+  SocialRoomResponse,
+  SocialRoomVisitState,
+} from "./types";
 
 const FALLBACK_MEMBER_NAMES = ["Carmen", "Josefa", "Manuel", "Ana"];
 const MEMBER_COLOURS = ["#F59E0B", "#0EA5A4", "#EC4899", "#3B82F6"];
 
 type AgentPresence = "idle" | "thinking" | "speaking";
+type RoomMode = "welcome" | "chat";
 
 type FeedComment = {
   id: string;
@@ -288,6 +297,16 @@ function getVoiceButtonLabel(language: SocialLanguage, isVoiceActive: boolean, i
   return "Hablar ahora";
 }
 
+function formatChatTime(createdAt: string, language: SocialLanguage) {
+  const date = new Date(createdAt);
+  if (Number.isNaN(date.getTime())) return "";
+
+  return date.toLocaleTimeString(language, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function buildFallbackMembers(room: SocialRoomResponse["room"], language: SocialLanguage) {
   const visibleCount = Math.min(Math.max(room.participantCount - 1, 2), 4);
 
@@ -376,13 +395,34 @@ function buildAgentPrompt(
   ].join(" ");
 }
 
-function buildAgentContext(language: SocialLanguage, roomName: string, topic: string, quickQuestions: string[]) {
+function buildAgentContext(
+  language: SocialLanguage,
+  roomName: string,
+  topic: string,
+  quickQuestions: string[],
+  visitState?: SocialRoomVisitState | null,
+  conversationContext?: SocialConversationContext | null,
+) {
   const intro =
     language === "en"
       ? `Room: ${roomName}. Topic: ${topic}.`
       : language === "de"
         ? `Raum: ${roomName}. Thema: ${topic}.`
         : `Sala: ${roomName}. Tema: ${topic}.`;
+
+  const visitHint = visitState
+    ? visitState.isFirstVisit
+      ? language === "en"
+        ? "This is the user's first visit to this room."
+        : language === "de"
+          ? "Dies ist der erste Besuch der Nutzerin in diesem Raum."
+          : "Esta es la primera visita de la usuaria a esta sala."
+      : language === "en"
+        ? `This user has visited this room before. Previous visits: ${visitState.previousVisitCount ?? visitState.visitCount}.`
+        : language === "de"
+          ? `Diese Nutzerin war schon einmal in diesem Raum. Fruehere Besuche: ${visitState.previousVisitCount ?? visitState.visitCount}.`
+          : `Esta usuaria ya ha visitado esta sala. Visitas anteriores: ${visitState.previousVisitCount ?? visitState.visitCount}.`
+    : "";
 
   const chipHint =
     quickQuestions.length > 0
@@ -393,7 +433,23 @@ function buildAgentContext(language: SocialLanguage, roomName: string, topic: st
           : `Preguntas sugeridas: ${quickQuestions.join(" | ")}.`
       : "";
 
-  return `${intro} ${chipHint}`.trim();
+  const reportHint = conversationContext?.lines?.length
+    ? [
+        language === "en"
+          ? "Recent summarized context:"
+          : language === "de"
+            ? "Aktuelle Zusammenfassung:"
+            : "Contexto resumido reciente:",
+        ...conversationContext.lines.map((line) => `- ${line}`),
+        language === "en"
+          ? "Use this quietly. Do not recite private details unless the user asks."
+          : language === "de"
+            ? "Nutze dies leise im Hintergrund. Nenne private Details nur, wenn die Nutzerin fragt."
+            : "Usa esto como contexto silencioso. No recites detalles privados salvo que la usuaria pregunte.",
+      ].join(" ")
+    : "";
+
+  return `${intro} ${visitHint} ${chipHint} ${reportHint}`.trim();
 }
 
 function buildWelcomeBootstrap(language: SocialLanguage, agentName: string, userName?: string) {
@@ -1012,6 +1068,17 @@ function buildFallbackRoomResponse(slug: string, language: SocialLanguage): Soci
     promptChips: getQuickQuestions(slug, language, []),
     members: buildFallbackMembers(room, language),
     memberChat: [],
+    visitState: {
+      isFirstVisit: true,
+      previousVisitCount: 0,
+      visitCount: 0,
+    },
+    conversationContext: {
+      generatedAt: new Date().toISOString(),
+      lines: [],
+      text: "No recent report context available.",
+      facts: {},
+    },
   };
 }
 
@@ -1035,6 +1102,12 @@ const RoomScreen = () => {
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
   const [extraComments, setExtraComments] = useState<Record<string, FeedComment[]>>({});
   const [voiceAttempted, setVoiceAttempted] = useState(false);
+  const [roomMode, setRoomMode] = useState<RoomMode>("welcome");
+  const [chatDraft, setChatDraft] = useState("");
+  const [isChatSending, setIsChatSending] = useState(false);
+  const [localChatMessages, setLocalChatMessages] = useState<SocialRoomChatItem[]>([]);
+  const [roomEntryVisitState, setRoomEntryVisitState] = useState<SocialRoomVisitState | null>(null);
+  const [roomEntryConversationContext, setRoomEntryConversationContext] = useState<SocialConversationContext | null>(null);
   const {
     startVoice,
     stopVoice,
@@ -1087,6 +1160,33 @@ const RoomScreen = () => {
     () => getQuickQuestions(slug, language, roomResponse?.promptChips ?? []),
     [language, roomResponse?.promptChips, slug],
   );
+
+  const roomChat = useMemo<SocialRoomChatItem[]>(
+    () => roomResponse?.memberChat ?? [],
+    [roomResponse?.memberChat],
+  );
+
+  const currentVisitState = roomEntryVisitState ?? roomResponse?.visitState ?? null;
+  const currentConversationContext = roomEntryConversationContext ?? roomResponse?.conversationContext ?? null;
+
+  const visibleRoomChat = useMemo<SocialRoomChatItem[]>(
+    () => [...roomChat, ...localChatMessages],
+    [localChatMessages, roomChat],
+  );
+
+  const welcomeText = useMemo(() => {
+    const liveWelcome = [...agentTranscript]
+      .reverse()
+      .find((entry) => entry.from === "vyva" && looksLikeGreeting(entry.text))?.text;
+    const roomWelcome = roomResponse?.transcript?.find((entry) => entry.speaker === "agent")?.text;
+
+    return (
+      liveWelcome ||
+      roomWelcome ||
+      room?.opener ||
+      buildWelcomeGreeting(language, agentName, firstName || profile?.firstName)
+    );
+  }, [agentName, agentTranscript, firstName, language, profile?.firstName, room?.opener, roomResponse?.transcript]);
 
   const baseKnowledgeFeed = useMemo(
     () => buildKnowledgeFeed(slug, language, roomMembers),
@@ -1174,9 +1274,17 @@ const RoomScreen = () => {
         agentSlug: room.agentSlug,
         roomSlug: room.slug,
         skipMicrophone,
+        dynamicVariables: currentVisitState || currentConversationContext
+          ? {
+              is_first_room_visit: currentVisitState?.isFirstVisit ?? false,
+              room_visit_count: currentVisitState?.visitCount ?? 0,
+              previous_room_visit_count: currentVisitState?.previousVisitCount ?? currentVisitState?.visitCount ?? 0,
+              conversation_context_summary: currentConversationContext?.text ?? "",
+            }
+          : undefined,
       });
     },
-    [room?.agentSlug, room?.slug, startVoice],
+    [currentConversationContext, currentVisitState, room?.agentSlug, room?.slug, startVoice],
   );
 
   const armLiveReplyTimeout = useCallback(
@@ -1214,13 +1322,33 @@ const RoomScreen = () => {
     [armLiveReplyTimeout, sendAgentText, submitFallbackQuestion],
   );
 
+  const quietRoomAgent = useCallback(() => {
+    clearPresenceTimers();
+    clearLiveReplyTimeout();
+    clearReconnectFallbackTimeout();
+    endUserTurn();
+    stopVoice();
+    startListeningWhenReadyRef.current = false;
+    queuedQuestionRef.current = null;
+    pendingQuestionRef.current = null;
+    setIsSending(false);
+    setAgentPresence("idle");
+  }, [clearLiveReplyTimeout, clearPresenceTimers, clearReconnectFallbackTimeout, endUserTurn, stopVoice]);
+
   useEffect(() => {
     return () => {
-      clearPresenceTimers();
-      clearLiveReplyTimeout();
-      clearReconnectFallbackTimeout();
+      quietRoomAgent();
     };
-  }, [clearLiveReplyTimeout, clearPresenceTimers, clearReconnectFallbackTimeout]);
+  }, [quietRoomAgent]);
+
+  useEffect(() => {
+    setRoomMode("welcome");
+    setChatDraft("");
+    setLocalChatMessages([]);
+    setIsChatSending(false);
+    setRoomEntryVisitState(null);
+    setRoomEntryConversationContext(null);
+  }, [slug]);
 
   useEffect(() => {
     if (!room?.slug || !room.agentSlug) return;
@@ -1237,6 +1365,7 @@ const RoomScreen = () => {
 
   useEffect(() => {
     if (!room?.slug || !room.agentSlug) return;
+    if (roomMode === "chat") return;
     if (agentSessionStatus !== "idle" || agentIsConnecting) return;
 
     const autoStartKey = `${room.slug}:${room.agentSlug}`;
@@ -1244,7 +1373,7 @@ const RoomScreen = () => {
 
     autoStartedRoomRef.current = autoStartKey;
     setVoiceAttempted(true);
-    startListeningWhenReadyRef.current = true;
+    startListeningWhenReadyRef.current = false;
     queuedQuestionRef.current = null;
     pendingQuestionRef.current = null;
     transcriptCursorRef.current = agentTranscript.length;
@@ -1257,6 +1386,7 @@ const RoomScreen = () => {
     agentTranscript.length,
     room?.agentSlug,
     room?.slug,
+    roomMode,
     startRoomAgentSession,
   ]);
 
@@ -1264,13 +1394,21 @@ const RoomScreen = () => {
     if (!room || agentSessionStatus !== "connected") return;
 
     const userDisplayName = firstName || profile?.firstName;
-    const contextKey = `${room.slug}:${language}:${userDisplayName ?? ""}`;
+    const visitKey = currentVisitState
+      ? `${currentVisitState.isFirstVisit}:${currentVisitState.previousVisitCount ?? ""}:${currentVisitState.visitCount}`
+      : "unknown";
+    const reportKey = currentConversationContext?.generatedAt ?? "none";
+    const contextKey = `${room.slug}:${language}:${userDisplayName ?? ""}:${visitKey}:${reportKey}`;
     if (liveGreetingKeyRef.current === contextKey) return;
 
-    sendContextUpdate(buildAgentContext(language, room.name, room.topic, quickQuestions));
+    sendContextUpdate(
+      buildAgentContext(language, room.name, room.topic, quickQuestions, currentVisitState, currentConversationContext),
+    );
     liveGreetingKeyRef.current = contextKey;
   }, [
     agentSessionStatus,
+    currentConversationContext,
+    currentVisitState,
     firstName,
     language,
     profile?.firstName,
@@ -1376,10 +1514,29 @@ const RoomScreen = () => {
       });
       if (!response.ok) return;
 
-      const result = (await response.json()) as { visitId: string };
+      const result = (await response.json()) as {
+        visitId: string;
+        visitState?: SocialRoomVisitState;
+        isFirstVisit?: boolean;
+        previousVisitCount?: number;
+        visitCount?: number;
+        conversationContext?: SocialConversationContext;
+      };
       if (!cancelled) {
+        const nextVisitState =
+          result.visitState ??
+          (typeof result.isFirstVisit === "boolean"
+            ? {
+                isFirstVisit: result.isFirstVisit,
+                previousVisitCount: result.previousVisitCount ?? 0,
+                visitCount: result.visitCount ?? 0,
+              }
+            : null);
+
         leaveVisitIdRef.current = result.visitId;
         setVisitId(result.visitId);
+        setRoomEntryVisitState(nextVisitState);
+        setRoomEntryConversationContext(result.conversationContext ?? null);
       }
     }
 
@@ -1462,6 +1619,83 @@ const RoomScreen = () => {
     void window.setTimeout(() => startRoomAgentSession(false), 0);
   };
 
+  const handleSwitchToChat = () => {
+    quietRoomAgent();
+    setRoomMode("chat");
+  };
+
+  const handleBackToRooms = () => {
+    quietRoomAgent();
+    navigate("/social-rooms");
+  };
+
+  const submitChatMessage = async () => {
+    const trimmed = chatDraft.trim();
+    if (!trimmed || isChatSending) return;
+
+    const userName = firstName || profile?.firstName?.trim() || (language === "en" ? "You" : language === "de" ? "Du" : "Tú");
+    const now = new Date().toISOString();
+    setLocalChatMessages((current) => [
+      ...current,
+      {
+        id: `${slug}-chat-user-${Date.now()}`,
+        authorId: "current-user",
+        authorName: userName,
+        text: trimmed,
+        createdAt: now,
+        connectable: false,
+      },
+    ]);
+    setChatDraft("");
+    setIsChatSending(true);
+    setAgentPresence("thinking");
+
+    try {
+      const response = await apiFetch(`/api/social/rooms/${slug}/message`, {
+        method: "POST",
+        body: JSON.stringify({ message: trimmed, lang: language, visitId: visitId ?? undefined }),
+      });
+      if (!response.ok) {
+        setAgentPresence("idle");
+        return;
+      }
+
+      const result = (await response.json()) as {
+        reply?: string;
+        createdAt?: string;
+        conversationContext?: SocialConversationContext;
+      };
+      if (result.conversationContext) {
+        setRoomEntryConversationContext(result.conversationContext);
+      }
+      const reply = result.reply?.trim();
+      if (!reply) {
+        setAgentPresence("idle");
+        return;
+      }
+
+      setLocalChatMessages((current) => [
+        ...current,
+        {
+          id: `${slug}-chat-agent-${Date.now()}`,
+          authorId: "agent",
+          authorName: agentName || room?.agentFullName || "VYVA",
+          text: reply,
+          createdAt: result.createdAt ?? new Date().toISOString(),
+          connectable: false,
+        },
+      ]);
+      clearPresenceTimers();
+      setAgentPresence("speaking");
+      speakingTimerRef.current = window.setTimeout(() => {
+        setAgentPresence("idle");
+        speakingTimerRef.current = null;
+      }, 2200);
+    } finally {
+      setIsChatSending(false);
+    }
+  };
+
   const addComment = (itemId: string) => {
     const text = commentDrafts[itemId]?.trim();
     if (!text) return;
@@ -1506,7 +1740,7 @@ const RoomScreen = () => {
       <div className="px-6 py-8">
         <button
           type="button"
-          onClick={() => navigate("/social-rooms")}
+          onClick={handleBackToRooms}
           className="min-h-[64px] rounded-full border border-[#E0D4F0] bg-[#FFFDFC] px-6 font-body text-[22px] font-semibold text-[#6B3CC7]"
         >
           {copy.back}
@@ -1524,7 +1758,7 @@ const RoomScreen = () => {
 
       <button
         type="button"
-        onClick={() => navigate("/social-rooms")}
+        onClick={handleBackToRooms}
         className="inline-flex min-h-[56px] items-center gap-3 rounded-full border border-[#E0D4F0] bg-[#FFFDFC] px-5 font-body text-[20px] font-semibold text-[#6B3CC7]"
       >
         <ArrowLeft size={22} />
@@ -1595,167 +1829,140 @@ const RoomScreen = () => {
       </header>
 
       <main className="mt-5 space-y-4">
-        <section className="rounded-[34px] border border-[#E8DDCF] bg-[#FFFDFC] p-6 shadow-[0_16px_34px_rgba(91,33,182,0.05)]">
-          <p className="font-body text-[18px] font-medium text-[#8B7D9A]">{getTopicHint(slug, language, room.topic)}</p>
-          <p className="mt-3 rounded-[20px] bg-[#F8F3FF] px-4 py-3 font-body text-[18px] leading-[1.35] text-[#6B5D78]">
-            {getRoomInteractionHint(language)}
-          </p>
+        {roomMode === "welcome" ? (
+            <section className="rounded-[34px] border border-[#E8DDCF] bg-[#FFFDFC] p-5 shadow-[0_16px_34px_rgba(91,33,182,0.05)]">
+              <div className="rounded-[28px] bg-[#F8F3FF] px-5 py-5">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="flex h-[52px] w-[52px] flex-shrink-0 items-center justify-center rounded-[18px] text-white shadow-[0_10px_22px_rgba(91,33,182,0.12)]"
+                    style={{ background: "#6B3CC7" }}
+                    aria-hidden="true"
+                  >
+                    <MessageCircle size={25} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-body text-[18px] font-semibold text-[#6B3CC7]">
+                      {agentPresence === "speaking"
+                        ? getAgentSpeakingLabel(language, agentName)
+                        : copy.welcomeLabel(agentName)}
+                    </p>
+                    <p className="mt-1 font-body text-[17px] leading-[1.35] text-[#7D66A0]">
+                      {getTopicHint(slug, language, room.topic)}
+                    </p>
+                  </div>
+                </div>
 
-          {voiceAttempted && agentVoiceError && agentSessionStatus === "idle" && (
-            <p className="mt-3 rounded-[20px] border border-[#F4D6BF] bg-[#FFF7ED] px-4 py-3 font-body text-[18px] leading-[1.35] text-[#9A3412]">
-              {getRoomVoiceUnavailableLabel(language, agentVoiceError)}
-            </p>
-          )}
+                <p className="mt-5 font-body text-[25px] leading-[1.3] text-[#45325B]">{welcomeText}</p>
 
-          <div className="mt-4 flex flex-col gap-3">
-            <div className="flex gap-3">
-              <input
-                ref={inputRef}
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    void submitQuestion(draft);
-                  }
-                }}
-                disabled={isSending}
-                placeholder={getAskPlaceholder(language)}
-                className="h-[72px] flex-1 rounded-[22px] border border-[#E5D9F0] bg-[#FFFCF7] px-5 font-body text-[22px] text-[#5B4A68] outline-none placeholder:text-[#9A8EA8]"
-              />
+                {agentPresence === "speaking" && (
+                  <div className="mt-4 flex items-center gap-2 text-[#6B3CC7]">
+                    <span className="social-mini-wave" aria-hidden="true">
+                      <b></b>
+                      <b></b>
+                      <b></b>
+                    </span>
+                  </div>
+                )}
+              </div>
+
               <button
                 type="button"
-                onClick={() => void submitQuestion(draft)}
-                disabled={isSending || !draft.trim()}
-                className="min-h-[72px] rounded-[22px] px-6 font-body text-[22px] font-semibold text-white disabled:opacity-50"
-                style={{ background: room.agentColour }}
+                onClick={handleSwitchToChat}
+                className="mt-5 inline-flex min-h-[68px] w-full items-center justify-center gap-3 rounded-[22px] bg-[#6B3CC7] px-5 font-body text-[22px] font-semibold text-white shadow-[0_14px_28px_rgba(91,33,182,0.18)]"
               >
-                {getAskButtonLabel(language)}
+                <MessageCircle size={24} />
+                {copy.switchToChat}
               </button>
-            </div>
-
-            {quickQuestions.length > 0 && (
-              <div className="flex flex-wrap gap-3">
-                {quickQuestions.map((chip) => (
-                  <button
-                    key={chip}
-                    type="button"
-                    onClick={() => void submitQuestion(chip)}
-                    disabled={isSending}
-                    className="min-h-[56px] rounded-full border border-[#DECBEF] bg-[#F8F3FF] px-5 font-body text-[19px] font-semibold text-[#6B3CC7] disabled:opacity-50"
-                  >
-                    {chip}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={() => void handleVoiceToggle()}
-              className="inline-flex min-h-[64px] items-center justify-center gap-3 rounded-[22px] px-5 font-body text-[21px] font-semibold text-white disabled:opacity-60"
-              style={{
-                background:
-                  isUserSpeaking || agentIsSpeaking || agentSessionStatus === "connected" || agentIsConnecting
-                    ? "#C81E1E"
-                    : room.agentColour,
-                boxShadow: "0 12px 24px rgba(91,33,182,0.12)",
-              }}
-            >
-              {isUserSpeaking || agentIsSpeaking || agentSessionStatus === "connected" || agentIsConnecting ? (
-                <Square size={21} />
-              ) : (
-                <Mic size={22} />
-              )}
-              {getVoiceButtonLabel(
-                language,
-                isUserSpeaking || agentIsSpeaking || agentSessionStatus === "connected" || agentIsConnecting,
-                agentIsConnecting,
-              )}
-            </button>
-          </div>
-
-          {latestQuestion && latestAnswer && (
-            <div className="mt-6 rounded-[26px] border border-[#E5D9F0] bg-[#FCF9FF] px-5 py-5">
-              <p className="font-body text-[18px] font-semibold text-[#6B3CC7]">{latestQuestion}</p>
-              <div className="mt-4 rounded-[20px] bg-white px-4 py-4 shadow-[0_10px_20px_rgba(91,33,182,0.04)]">
-                <p className="font-body text-[17px] font-semibold text-[#7D66A0]">{getAnswerLabel(language, agentName)}</p>
-                <p className="mt-2 font-body text-[24px] leading-[1.38] text-[#5B4A68]">{latestAnswer}</p>
-              </div>
-            </div>
-          )}
-        </section>
-
-        <section className="rounded-[30px] border border-[#E8DDCF] bg-[#FFFDFC] px-5 py-5 shadow-[0_12px_28px_rgba(91,33,182,0.04)]">
-          <p className="font-body text-[18px] font-semibold text-[#8B7D9A]">{getRecentQuestionsLabel(language)}</p>
-
-          <div className="mt-4 space-y-4">
-            {knowledgeFeed.map((item) => (
-              <div key={item.id} className="rounded-[24px] border border-[#EFE6DA] bg-[#FFFDFC] px-4 py-4">
-                <p className="font-body text-[18px] font-semibold text-[#6B3CC7]">{item.asker}</p>
-                <p className="mt-2 font-body text-[22px] leading-[1.34] text-[#45325B]">{item.question}</p>
-
-                <div className="mt-4 rounded-[18px] bg-[#FCF9FF] px-4 py-4">
-                  <p className="font-body text-[16px] font-semibold text-[#7D66A0]">{getAnswerLabel(language, agentName)}</p>
-                  <p className="mt-2 font-body text-[21px] leading-[1.38] text-[#5B4A68]">{item.answer}</p>
+            </section>
+          ) : (
+            <section className="rounded-[34px] border border-[#E8DDCF] bg-[#FFFDFC] p-5 shadow-[0_16px_34px_rgba(91,33,182,0.05)]">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="font-display text-[31px] leading-[1.05] text-[#45325B]">{copy.roomChat}</p>
+                  <p className="mt-2 font-body text-[18px] leading-[1.35] text-[#7D66A0]">{copy.sharedConversation}</p>
                 </div>
+              </div>
 
-                <div className="mt-4">
-                  <button
-                    type="button"
-                    onClick={() => setCommentComposerFor((current) => (current === item.id ? null : item.id))}
-                    className="min-h-[48px] rounded-full border border-[#DECBEF] bg-[#F8F3FF] px-4 font-body text-[18px] font-semibold text-[#6B3CC7]"
-                  >
-                    {getCommentLabel(language)}
-                  </button>
-                </div>
+              <div className="mt-5 space-y-3">
+                {visibleRoomChat.length > 0 ? (
+                  visibleRoomChat.map((item, index) => {
+                    const memberIndex = roomMembers.findIndex((member) => member.id === item.authorId);
+                    const member = memberIndex >= 0 ? roomMembers[memberIndex] : null;
+                    const colourIndex = memberIndex >= 0 ? memberIndex : index;
+                    const chatTime = formatChatTime(item.createdAt, language);
+                    const isCurrentUser = item.authorId === "current-user";
+                    const isAgentMessage = item.authorId === "agent";
+                    const avatarColour = isCurrentUser
+                      ? "#6B3CC7"
+                      : isAgentMessage
+                        ? room.agentColour
+                        : getParticipantColour(colourIndex);
 
-                {item.comments.length > 0 && (
-                  <div className="mt-4 space-y-2">
-                    {item.comments.slice(0, 2).map((comment) => (
-                      <div key={comment.id} className="rounded-[16px] bg-[#FBF7F0] px-4 py-3">
-                        <p className="font-body text-[16px] font-semibold text-[#7D66A0]">{comment.author}</p>
-                        <p className="mt-1 font-body text-[18px] leading-[1.36] text-[#6E627D]">{comment.text}</p>
+                    return (
+                      <div
+                        key={item.id}
+                        className={`flex gap-3 rounded-[24px] px-4 py-4 ${
+                          isCurrentUser ? "flex-row-reverse bg-[#F2EBFF] text-right" : "bg-[#FBF7F0]"
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => member && setSelectedMember(member)}
+                          disabled={!member}
+                          className="flex h-[46px] w-[46px] flex-shrink-0 items-center justify-center rounded-full text-[18px] font-semibold text-white shadow-[0_6px_12px_rgba(91,33,182,0.08)] disabled:cursor-default"
+                          style={{ background: avatarColour }}
+                          aria-label={member ? copy.connectWith(member.name) : item.authorName}
+                        >
+                          {item.authorName.slice(0, 1).toUpperCase()}
+                        </button>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <p className="font-body text-[18px] font-semibold text-[#45325B]">{item.authorName}</p>
+                            {chatTime && <p className="font-body text-[15px] text-[#9A8EA8]">{chatTime}</p>}
+                          </div>
+                          <p className="mt-2 font-body text-[20px] leading-[1.36] text-[#5B4A68]">{item.text}</p>
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-
-                {commentComposerFor === item.id && (
-                  <div className="mt-4 flex gap-3">
-                    <input
-                      value={commentDrafts[item.id] ?? ""}
-                      onChange={(event) =>
-                        setCommentDrafts((current) => ({ ...current, [item.id]: event.target.value }))
-                      }
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          addComment(item.id);
-                        }
-                      }}
-                      placeholder={getCommentPlaceholder(language)}
-                      className="h-[60px] flex-1 rounded-[18px] border border-[#E5D9F0] bg-[#FFFCF7] px-4 font-body text-[20px] text-[#5B4A68] outline-none placeholder:text-[#9A8EA8]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => addComment(item.id)}
-                      className="min-h-[60px] rounded-[18px] px-5 font-body text-[20px] font-semibold text-white"
-                      style={{ background: room.agentColour }}
-                    >
-                      {copy.send}
-                    </button>
-                  </div>
+                    );
+                  })
+                ) : (
+                  <p className="rounded-[24px] bg-[#FBF7F0] px-4 py-5 font-body text-[19px] leading-[1.35] text-[#7D66A0]">
+                    {copy.emptyRoomChat}
+                  </p>
                 )}
               </div>
-            ))}
-          </div>
-        </section>
+
+              <form
+                className="mt-5 flex gap-3 rounded-[26px] border border-[#E5D9F0] bg-[#FFFCF7] p-3 shadow-[0_10px_22px_rgba(91,33,182,0.04)]"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void submitChatMessage();
+                }}
+              >
+                <input
+                  value={chatDraft}
+                  onChange={(event) => setChatDraft(event.target.value)}
+                  disabled={isChatSending}
+                  placeholder={copy.writePlaceholder}
+                  aria-label={copy.writePlaceholder}
+                  className="h-[58px] min-w-0 flex-1 rounded-[18px] border border-transparent bg-white px-4 font-body text-[20px] text-[#5B4A68] outline-none placeholder:text-[#9A8EA8] focus:border-[#D8C8FB]"
+                />
+                <button
+                  type="submit"
+                  disabled={isChatSending || !chatDraft.trim()}
+                  className="min-h-[58px] rounded-[18px] bg-[#6B3CC7] px-5 font-body text-[19px] font-semibold text-white disabled:opacity-50"
+                >
+                  {copy.send}
+                </button>
+              </form>
+            </section>
+          )}
       </main>
 
       {membersOpen && (
-        <div className="fixed inset-0 z-40 flex items-end bg-[rgba(43,27,65,0.26)] p-4">
-          <div className="w-full rounded-[30px] border border-[#E8DDCF] bg-[#FFFDFC] p-5 shadow-[0_20px_48px_rgba(91,33,182,0.12)]">
+        <div className="fixed inset-0 z-[80] flex items-end bg-[rgba(43,27,65,0.26)] px-4 pb-[calc(136px+env(safe-area-inset-bottom))] pt-6 md:items-center md:justify-center md:p-6">
+          <div className="max-h-[calc(100dvh-176px)] w-full overflow-y-auto overscroll-contain rounded-[30px] border border-[#E8DDCF] bg-[#FFFDFC] p-5 shadow-[0_20px_48px_rgba(91,33,182,0.12)] md:max-w-[520px]">
             <div className="flex items-center justify-between gap-4">
               <p className="font-display text-[30px] text-[#45325B]">{copy.viewMembers}</p>
               <button
@@ -1796,8 +2003,8 @@ const RoomScreen = () => {
       )}
 
       {selectedMember && (
-        <div className="fixed inset-0 z-50 flex items-end bg-[rgba(43,27,65,0.32)] p-4">
-          <div className="w-full rounded-[30px] border border-[#E8DDCF] bg-[#FFFDFC] p-5 shadow-[0_20px_48px_rgba(91,33,182,0.12)]">
+        <div className="fixed inset-0 z-[80] flex items-end bg-[rgba(43,27,65,0.32)] px-4 pb-[calc(136px+env(safe-area-inset-bottom))] pt-6 md:items-center md:justify-center md:p-6">
+          <div className="max-h-[calc(100dvh-176px)] w-full overflow-y-auto overscroll-contain rounded-[30px] border border-[#E8DDCF] bg-[#FFFDFC] p-5 shadow-[0_20px_48px_rgba(91,33,182,0.12)] md:max-w-[520px]">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="font-display text-[30px] text-[#45325B]">{selectedMember.name}</p>

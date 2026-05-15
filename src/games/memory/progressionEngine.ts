@@ -8,13 +8,17 @@ const DOMAIN_ROTATION: CognitiveDomain[] = [
   "visual_memory",
   "working_memory",
   "episodic_memory",
-  "prospective_memory",
   "associative_memory",
-  "comprehension_memory",
 ];
+
+export const MEMORY_LEVEL_UP_ACCURACY = 80;
 
 function clampLevel(level: number) {
   return Math.min(5, Math.max(1, level));
+}
+
+export function getRepeatLevelForResult(currentLevel: number, accuracy: number) {
+  return clampLevel(accuracy >= MEMORY_LEVEL_UP_ACCURACY ? currentLevel + 1 : currentLevel);
 }
 
 function sortNewestFirst(results: GameResult[]) {
@@ -29,7 +33,7 @@ export function getRecommendedLevelForGame(history: GameResult[], gameType: Memo
   const latestLevel = gameHistory[0].level;
   const averageAccuracy = recent.reduce((sum, entry) => sum + entry.accuracy, 0) / recent.length;
 
-  if (averageAccuracy >= 80) return clampLevel(latestLevel + 1);
+  if (averageAccuracy >= MEMORY_LEVEL_UP_ACCURACY) return clampLevel(latestLevel + 1);
   if (averageAccuracy < 50) return clampLevel(latestLevel - 1);
   return clampLevel(latestLevel);
 }
@@ -115,10 +119,11 @@ export async function selectNextVariantForSameGame(
   userId: string,
   gameType: MemoryGameType,
   language: LanguageCode,
+  levelOverride?: number,
 ): Promise<Recommendation> {
   const history = await getGameHistory(userId);
   const gameHistory = sortNewestFirst(history).filter((entry) => entry.gameType === gameType);
-  const level = getRecommendedLevelForGame(history, gameType);
+  const level = levelOverride ?? getRecommendedLevelForGame(history, gameType);
   const latestVariantId = gameHistory[0]?.variantId;
   const variant = pickNextVariantForSameGame(history, gameType, level, latestVariantId);
 

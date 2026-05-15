@@ -1,58 +1,31 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ChevronRight, HeartPulse, Mic, Stethoscope, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import { useProfile } from "@/contexts/ProfileContext";
+import { useDoctorVoice } from "@/hooks/useDoctorVoice";
 import { useHeroMessage } from "@/hooks/useHeroMessage";
-import { useVyvaVoice } from "@/hooks/useVyvaVoice";
-import { apiFetch } from "@/lib/queryClient";
-
-const DOCTOR_AGENT_SLUG = "doctor";
-const FALLBACK_DOCTOR_USER_ID = "vyva-local-user";
-type VoiceDynamicVariables = Record<string, string | number | boolean>;
-
-function createDoctorConversationId() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  return `doctor-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-async function fetchDoctorContextVariables(conversationId: string): Promise<VoiceDynamicVariables> {
-  const params = new URLSearchParams({ conversation_id: conversationId });
-  const res = await apiFetch(`/api/profile/doctor-context?${params.toString()}`);
-  if (!res.ok) {
-    throw new Error(`Doctor context failed: ${res.status}`);
-  }
-
-  const data = await res.json() as { dynamicVariables?: VoiceDynamicVariables };
-  return data.dynamicVariables ?? {};
-}
+import { useServiceGate } from "@/hooks/useServiceGate";
 
 const DoctorChoiceScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t, i18n } = useTranslation();
-  const { user } = useAuth();
-  const { profile, firstName } = useProfile();
+  const { readiness } = useServiceGate();
   const {
-    startVoice,
-    stopVoice,
-    beginUserTurn,
-    endUserTurn,
     status,
     isSpeaking,
     isUserSpeaking,
     isConnecting,
-    hasMicrophone,
     lastError,
-  } = useVyvaVoice();
+    isVoiceLive,
+    startDoctorVoice,
+    stopDoctorVoice,
+    startAttempted,
+    userStopped,
+  } = useDoctorVoice();
   const [voiceError, setVoiceError] = useState<string | null>(null);
-  const userStoppedRef = useRef(false);
-  const attemptedStartRef = useRef(false);
-  const startListeningWhenReadyRef = useRef(false);
   const autoStartRequested = Boolean((location.state as { autoStartVoice?: boolean } | null)?.autoStartVoice);
+  const doctorRecommendations = readiness?.services.doctor.recommended ?? [];
 
   const heroMessage = useHeroMessage("doctor", {
     fallbackHeadline: t("health.doctorChoice.title", "Elige una opcion"),
@@ -81,55 +54,19 @@ const DoctorChoiceScreen = () => {
     }
   }, [i18n.language]);
 
-  const isVoiceLive =
-    status === "connecting" ||
-    status === "connected" ||
-    isConnecting ||
-    isSpeaking ||
-    isUserSpeaking;
-
-  const startDoctorVoice = useCallback(async () => {
-    userStoppedRef.current = false;
-    attemptedStartRef.current = true;
-    startListeningWhenReadyRef.current = true;
+  const stopDoctorVoiceAndClearError = useCallback(() => {
+    stopDoctorVoice();
     setVoiceError(null);
-    const conversationId = createDoctorConversationId();
-    let doctorContext: VoiceDynamicVariables = {};
-    try {
-      doctorContext = await fetchDoctorContextVariables(conversationId);
-    } catch (error) {
-      console.warn("[DoctorChoice] Starting doctor voice without profile context:", error);
-      doctorContext = {
-        health_context: "The user's health profile could not be loaded before this call.",
-      };
-    }
-    await startVoice(undefined, undefined, {
-      agentSlug: DOCTOR_AGENT_SLUG,
-      dynamicVariables: {
-        ...doctorContext,
-        first_name: firstName?.trim() || profile?.firstName?.trim() || "there",
-        user_id: user?.id ?? FALLBACK_DOCTOR_USER_ID,
-        conversation_id: conversationId,
-        language: i18n.language?.slice(0, 2) || "en",
-      },
-    });
-  }, [firstName, i18n.language, profile?.firstName, startVoice, user?.id]);
-
-  const stopDoctorVoice = useCallback(() => {
-    userStoppedRef.current = true;
-    startListeningWhenReadyRef.current = false;
-    endUserTurn();
-    stopVoice();
-    setVoiceError(null);
-  }, [endUserTurn, stopVoice]);
+  }, [stopDoctorVoice]);
 
   const handleHeroVoiceAction = useCallback(() => {
     if (isVoiceLive) {
-      stopDoctorVoice();
+      stopDoctorVoiceAndClearError();
       return;
     }
+    setVoiceError(null);
     void startDoctorVoice();
-  }, [isVoiceLive, startDoctorVoice, stopDoctorVoice]);
+  }, [isVoiceLive, startDoctorVoice, stopDoctorVoiceAndClearError]);
 
   useEffect(() => {
     if (!lastError) return;
@@ -160,7 +97,7 @@ const DoctorChoiceScreen = () => {
   }, [lastError, t]);
 
   useEffect(() => {
-    if (!attemptedStartRef.current || userStoppedRef.current || lastError) return;
+    if (!startAttempted || userStopped || lastError) return;
     if (status === "idle" && !isConnecting && !isSpeaking && !isUserSpeaking) {
       setVoiceError(
         t(
@@ -169,26 +106,21 @@ const DoctorChoiceScreen = () => {
         ),
       );
     }
-  }, [isConnecting, isSpeaking, isUserSpeaking, lastError, status, t]);
+  }, [isConnecting, isSpeaking, isUserSpeaking, lastError, startAttempted, status, t, userStopped]);
 
   useEffect(() => {
-    if (!autoStartRequested || attemptedStartRef.current || isVoiceLive) return;
+    if (!autoStartRequested || startAttempted || isVoiceLive) return;
     void startDoctorVoice();
-  }, [autoStartRequested, isVoiceLive, startDoctorVoice]);
-
-  useEffect(() => {
-    if (status !== "connected" || !startListeningWhenReadyRef.current || !hasMicrophone) return;
-    startListeningWhenReadyRef.current = false;
-    void beginUserTurn();
-  }, [beginUserTurn, hasMicrophone, status]);
+  }, [autoStartRequested, isVoiceLive, startAttempted, startDoctorVoice]);
 
   const handleDirect = () => {
     if (isVoiceLive) return;
+    setVoiceError(null);
     void startDoctorVoice();
   };
 
   const handleTriage = () => {
-    stopDoctorVoice();
+    stopDoctorVoiceAndClearError();
     navigate("/health/symptom-check");
   };
 
@@ -202,7 +134,7 @@ const DoctorChoiceScreen = () => {
         <button
           type="button"
           onClick={() => {
-            stopDoctorVoice();
+            stopDoctorVoiceAndClearError();
             navigate("/health");
           }}
           className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#FFFDF9] px-5 py-3 font-body text-[16px] font-bold text-vyva-text-1 shadow-sm"
@@ -214,7 +146,7 @@ const DoctorChoiceScreen = () => {
         <button
           type="button"
           onClick={() => {
-            stopDoctorVoice();
+            stopDoctorVoiceAndClearError();
             navigate("/health");
           }}
           className="vyva-tap inline-flex h-[48px] w-[48px] items-center justify-center rounded-full bg-[#F5F3FF] text-vyva-purple shadow-sm"
@@ -275,6 +207,24 @@ const DoctorChoiceScreen = () => {
         <div className="mt-4 rounded-[24px] border border-[#FDBA74] bg-[#FFF7ED] px-5 py-4 font-body text-[16px] font-semibold text-[#9A3412]">
           {voiceError}
         </div>
+      ) : null}
+
+      {doctorRecommendations.length > 0 ? (
+        <button
+          type="button"
+          onClick={() => {
+            const firstRecommendation = doctorRecommendations[0];
+            navigate(`${firstRecommendation.path}?returnTo=${encodeURIComponent("/health/doctor")}`);
+          }}
+          className="mt-4 w-full rounded-[24px] border border-vyva-border bg-white px-5 py-4 text-left shadow-sm"
+        >
+          <p className="font-body text-[13px] font-extrabold uppercase tracking-[0.12em] text-vyva-purple">
+            {t("health.doctorChoice.contextTipTitle", "Optional profile tip")}
+          </p>
+          <p className="mt-1 font-body text-[15px] font-semibold text-vyva-text-1">
+            {doctorRecommendations[0].reason}
+          </p>
+        </button>
       ) : null}
 
       <div className="mt-5 flex flex-col gap-4">

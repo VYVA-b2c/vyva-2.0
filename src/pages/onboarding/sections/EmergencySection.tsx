@@ -1,6 +1,6 @@
 // src/pages/onboarding/sections/EmergencySection.tsx
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,7 @@ type EmergencyForm = {
 
 export default function EmergencySection() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [form, setForm] = useState<EmergencyForm>({
     name: "", relationship: "",
@@ -32,6 +33,21 @@ export default function EmergencySection() {
 
   const formRef = useRef(form);
   useEffect(() => { formRef.current = form; }, [form]);
+
+  const buildEmergencyPayload = (current: EmergencyForm) => ({
+    emergency_name: current.name,
+    emergency_phone: current.primary_phone,
+    emergency_role: current.relationship,
+    secondary_phone: current.secondary_phone,
+    address: current.address,
+  });
+
+  const completePath = () => {
+    const returnTo = searchParams.get("returnTo");
+    return returnTo
+      ? `/onboarding/complete/emergency?returnTo=${encodeURIComponent(returnTo)}`
+      : "/onboarding/complete/emergency";
+  };
 
   const { data, isLoading } = useQuery<{ profile: { emergency_contact?: EmergencyForm } | null }>({
     queryKey: ["/api/onboarding/state"],
@@ -54,12 +70,13 @@ export default function EmergencySection() {
     async () => {
       const res = await apiFetch("/api/onboarding/section/emergency", {
         method: "POST",
-        body: JSON.stringify(formRef.current),
+        body: JSON.stringify(buildEmergencyPayload(formRef.current)),
       });
       if (!res.ok) {
         const msg = await friendlyError(new Error(), res);
         throw new Error(msg);
       }
+      queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
     },
     2000,
   );
@@ -79,11 +96,12 @@ export default function EmergencySection() {
     try {
       res = await apiFetch("/api/onboarding/section/emergency", {
         method: "POST",
-        body: JSON.stringify(form),
+        body: JSON.stringify(buildEmergencyPayload(form)),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
-      navigate("/onboarding/complete/emergency");
+      await queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
+      navigate(completePath());
     } catch (err) {
       const msg = await friendlyError(err, res && !res.ok ? res : undefined);
       toast({ title: "Could not save emergency contact", description: msg, variant: "destructive" });
@@ -94,11 +112,10 @@ export default function EmergencySection() {
 
   return (
     <PhoneFrame subtitle="🆘 Emergency contact" showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
-      <div className="flex flex-col gap-4 px-4 py-5">
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900">🆘 Emergency contact</h2>
-            <p className="text-xs text-gray-500 mt-1">Called immediately if VYVA cannot reach you. Must be reachable 24/7.</p>
+      <div className="flex flex-col gap-4 px-4 py-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1">
+            <p className="text-xs text-gray-500 leading-relaxed">Called immediately if VYVA cannot reach you. Must be reachable 24/7.</p>
           </div>
           <AutoSaveStatusBadge autoSaveStatus={autoSaveStatus} savedFading={savedFading} retryCountdown={retryCountdown} onRetryNow={retryNow} testId="status-emergency-autosave" />
         </div>

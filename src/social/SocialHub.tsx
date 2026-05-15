@@ -1,22 +1,31 @@
-import { Users, Volume2, X } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { RefreshCw, Users, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useProfile } from "@/contexts/ProfileContext";
+import VoiceHero from "@/components/VoiceHero";
+import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 import AgentAvatar from "./AgentAvatar";
 import SocialStyles from "./SocialStyles";
 import {
   filterRoomsByCategory,
   formatLiveText,
-  getAgentFirstName,
   getRoomBadge,
   getRoomPickerName,
   getSocialCopy,
   getSocialLanguage,
-  getSpeechLangTag,
 } from "./roomUtils";
 import type { SocialHubResponse, SocialLanguage, SocialRoom, SocialRoomCategory } from "./types";
-import { speak } from "./voiceEngine";
+
+const ROOM_WINDOW_SIZE = 4;
+const ROOM_ROTATION_MS = 9000;
+
+function getMoreRoomsLabel(language: SocialLanguage) {
+  if (language === "es") return "Mostrar más salas";
+  if (language === "de") return "Mehr Räume zeigen";
+  return "Show more rooms";
+}
 
 type RoomPickerTileProps = {
   room: SocialRoom;
@@ -89,35 +98,24 @@ type RoomDetailSheetProps = {
 
 function RoomDetailSheet({ room, language, onClose, onEnter }: RoomDetailSheetProps) {
   const copy = getSocialCopy(language);
-  const avatarRef = useRef<HTMLButtonElement>(null);
-  const firstName = getAgentFirstName(room.agentFullName);
   const description = room.contentBody || room.opener || room.topic;
-
-  const handleListen = () => {
-    speak(room.opener || room.topic, {
-      avEl: avatarRef.current,
-      lang: getSpeechLangTag(language),
-    });
-  };
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end bg-[rgba(45,31,66,0.35)] px-3 pb-3 md:items-center md:justify-center md:p-6"
+      className="fixed inset-0 z-[80] flex items-end bg-[rgba(45,31,66,0.35)] px-3 pb-[112px] pt-3 md:items-center md:justify-center md:p-6"
       onClick={onClose}
     >
       <section
-        className="w-full max-w-[620px] rounded-t-[38px] border border-[#E6DCCF] bg-[#FFFCF8] p-6 shadow-[0_26px_70px_rgba(45,31,66,0.22)] md:rounded-[38px]"
+        className="max-h-[calc(100vh-136px)] w-full max-w-[620px] overflow-y-auto rounded-t-[38px] border border-[#E6DCCF] bg-[#FFFCF8] p-6 shadow-[0_26px_70px_rgba(45,31,66,0.22)] md:max-h-[calc(100vh-48px)] md:rounded-[38px]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">
           <AgentAvatar
-            ref={avatarRef}
             agentSlug={room.agentSlug}
             fullName={room.agentFullName}
             colour={room.agentColour}
             size={76}
-            title={copy.listenTo(firstName)}
-            onClick={handleListen}
+            title={room.agentFullName}
           />
           <button
             type="button"
@@ -160,23 +158,13 @@ function RoomDetailSheet({ room, language, onClose, onEnter }: RoomDetailSheetPr
           </p>
         </div>
 
-        <div className="mt-6 grid gap-3 sm:grid-cols-[1fr_auto]">
+        <div className="mt-6">
           <button
             type="button"
             onClick={() => onEnter(room.slug)}
-            className="min-h-[64px] rounded-full bg-[#6D28D9] px-6 font-body text-[21px] font-bold text-white shadow-[0_14px_28px_rgba(109,40,217,0.22)]"
+            className="min-h-[64px] w-full rounded-full bg-[#6D28D9] px-6 font-body text-[21px] font-bold text-white shadow-[0_14px_28px_rgba(109,40,217,0.22)]"
           >
             {copy.enterSelectedRoom}
-          </button>
-          <button
-            type="button"
-            onClick={handleListen}
-            className="min-h-[64px] rounded-full border border-[#D8C8FB] bg-white px-6 font-body text-[19px] font-bold text-[#6D28D9]"
-          >
-            <span className="inline-flex items-center gap-2">
-              <Volume2 size={22} />
-              {copy.listenWelcome}
-            </span>
           </button>
         </div>
       </section>
@@ -186,11 +174,14 @@ function RoomDetailSheet({ room, language, onClose, onEnter }: RoomDetailSheetPr
 
 const SocialHub = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { profile } = useProfile();
   const language = getSocialLanguage(profile?.language);
   const copy = getSocialCopy(language);
+  const autoStartVoice = useRouteVoiceAutoStart();
   const [category, setCategory] = useState<"all" | SocialRoomCategory>("all");
   const [selectedRoomSlug, setSelectedRoomSlug] = useState<string | null>(null);
+  const [roomWindowIndex, setRoomWindowIndex] = useState(0);
 
   const { data, isLoading, isError } = useQuery<SocialHubResponse>({
     queryKey: [`/api/social/hub?lang=${language}`],
@@ -207,21 +198,55 @@ const SocialHub = () => {
     () => hubRooms.find((room) => room.slug === selectedRoomSlug) ?? null,
     [hubRooms, selectedRoomSlug],
   );
+  const roomWindowCount = Math.max(1, Math.ceil(filteredRooms.length / ROOM_WINDOW_SIZE));
+  const visibleRooms = useMemo(() => {
+    if (filteredRooms.length <= ROOM_WINDOW_SIZE) return filteredRooms;
+    const start = (roomWindowIndex * ROOM_WINDOW_SIZE) % filteredRooms.length;
+    return Array.from(
+      { length: ROOM_WINDOW_SIZE },
+      (_, index) => filteredRooms[(start + index) % filteredRooms.length],
+    );
+  }, [filteredRooms, roomWindowIndex]);
+  const moreRoomsLabel = getMoreRoomsLabel(language);
+  const canRotateRooms = filteredRooms.length > ROOM_WINDOW_SIZE;
 
   const filters: Array<"all" | SocialRoomCategory> = ["all", "activity", "social", "useful", "connection"];
+
+  const showNextRooms = useCallback(() => {
+    setRoomWindowIndex((current) => (current + 1) % roomWindowCount);
+  }, [roomWindowCount]);
+
+  useEffect(() => {
+    setRoomWindowIndex(0);
+  }, [category, language, filteredRooms.length]);
+
+  useEffect(() => {
+    if (roomWindowIndex >= roomWindowCount) {
+      setRoomWindowIndex(0);
+    }
+  }, [roomWindowCount, roomWindowIndex]);
+
+  useEffect(() => {
+    if (!canRotateRooms || selectedRoom) return undefined;
+    const timer = window.setInterval(showNextRooms, ROOM_ROTATION_MS);
+    return () => window.clearInterval(timer);
+  }, [canRotateRooms, selectedRoom, showNextRooms]);
 
   return (
     <div className="px-5 pb-10">
       <SocialStyles />
 
-      <header className="pt-6">
-        <p className="font-body text-[18px] tracking-[0.28em] text-[#8E7FAA]">{copy.dayLabel}</p>
-        <h1 className="mt-3 font-display text-[42px] leading-[1.06] text-[#2D1F42]">
-          {copy.chooseRoom}
-        </h1>
-        <p className="mt-3 font-body text-[21px] leading-[1.4] text-[#6E5A8A]">
-          {copy.chooseRoomSubtitle}
-        </p>
+      <header className="pt-4">
+        <VoiceHero
+          heroSurface="social"
+          sourceText={copy.dayLabel}
+          headline={copy.chooseRoom}
+          subtitle={copy.chooseRoomSubtitle}
+          contextHint="social rooms"
+          autoStartVoice={autoStartVoice ? "social" : false}
+          showVoiceOverlay={false}
+          activeLabel={t("voiceHero.endCall", "End call")}
+        />
       </header>
 
       <div className="mt-6 flex gap-3 overflow-x-auto pb-2">
@@ -264,8 +289,41 @@ const SocialHub = () => {
           </div>
         )}
 
+        {filteredRooms.length > 0 && (
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="font-body text-[18px] font-bold text-[#24172F]">
+              {copy.allRooms}
+            </h2>
+            {canRotateRooms && (
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1" aria-hidden="true">
+                  {Array.from({ length: roomWindowCount }, (_, index) => (
+                    <span
+                      key={index}
+                      className="h-1.5 rounded-full transition-all"
+                      style={{
+                        width: index === roomWindowIndex ? 18 : 7,
+                        background: index === roomWindowIndex ? "#6D28D9" : "#D9C7F8",
+                      }}
+                    />
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={showNextRooms}
+                  aria-label={moreRoomsLabel}
+                  title={moreRoomsLabel}
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#D8C8FB] bg-white text-[#6D28D9] shadow-[0_10px_22px_rgba(109,40,217,0.12)] transition-transform active:scale-95"
+                >
+                  <RefreshCw size={19} strokeWidth={2.4} aria-hidden="true" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-4">
-          {filteredRooms.map((room) => (
+          {visibleRooms.map((room) => (
             <RoomPickerTile
               key={room.slug}
               room={room}

@@ -1,9 +1,10 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { Mic, MessageCircle, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useVyvaVoice } from "@/hooks/useVyvaVoice";
+import { type TranscriptEntry, useVyvaVoice } from "@/hooks/useVyvaVoice";
 import { type HeroSurface } from "@/lib/heroMessages";
 import { type UseHeroMessageOptions, useHeroMessage } from "@/hooks/useHeroMessage";
+import VoiceCallOverlay from "@/components/VoiceCallOverlay";
 import VyvaAvatar from "@/components/VyvaAvatar";
 
 const WEATHER_EMOJI: Record<string, string> = {
@@ -39,6 +40,20 @@ interface VoiceHeroProps {
   onTalkClick?: () => void;
   onChatClick?: () => void;
   weatherData?: WeatherData | null;
+  autoStartVoice?: boolean | string;
+  showVoiceOverlay?: boolean;
+  activeLabel?: string;
+  connectingLabel?: string;
+  voiceControls?: {
+    status: "idle" | "connecting" | "connected";
+    isSpeaking: boolean;
+    isConnecting: boolean;
+    transcript?: TranscriptEntry[];
+    onEnd: () => void;
+    showOverlay?: boolean;
+    activeLabel?: string;
+    connectingLabel?: string;
+  };
 }
 
 const headlineClampStyle: React.CSSProperties = {
@@ -67,9 +82,22 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   onTalkClick,
   onChatClick,
   weatherData,
+  autoStartVoice,
+  showVoiceOverlay = true,
+  activeLabel,
+  connectingLabel,
+  voiceControls,
 }) => {
   const { t } = useTranslation();
-  const { startVoice, stopVoice, status, isSpeaking, isConnecting } = useVyvaVoice();
+  const internalVoice = useVyvaVoice();
+  const {
+    startVoice,
+    stopVoice: internalStopVoice,
+    status: internalStatus,
+    isSpeaking: internalIsSpeaking,
+    isConnecting: internalIsConnecting,
+    transcript: internalTranscript,
+  } = internalVoice;
   const dynamicHero = useHeroMessage(heroSurface, {
     ...heroContext,
     fallbackHeadline: typeof headline === "string" ? headline : heroContext?.fallbackHeadline,
@@ -85,7 +113,42 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   const resolvedContextHint = dynamicHero?.contextHint ?? contextHint;
   const resolvedTalkLabel = dynamicHero?.ctaLabel ?? talkLabel;
 
-  const isActive = status === "connected";
+  const voiceStatus = voiceControls?.status ?? internalStatus;
+  const isSpeaking = voiceControls?.isSpeaking ?? internalIsSpeaking;
+  const isConnecting = voiceControls?.isConnecting ?? internalIsConnecting;
+  const transcript = voiceControls?.transcript ?? internalTranscript;
+  const stopVoice = voiceControls?.onEnd ?? internalStopVoice;
+  const shouldShowOverlay = voiceControls?.showOverlay ?? showVoiceOverlay;
+  const autoStartKey = typeof autoStartVoice === "string"
+    ? autoStartVoice
+    : autoStartVoice
+      ? "voice-hero-auto-start"
+      : null;
+  const autoStartedRef = useRef<string | null>(null);
+
+  const isActive = voiceStatus === "connected";
+  const showOverlay = shouldShowOverlay && (isActive || isConnecting);
+
+  useEffect(() => {
+    if (!autoStartKey || voiceControls) return;
+    if (autoStartedRef.current === autoStartKey) return;
+    if (internalStatus !== "idle" || internalIsConnecting) return;
+
+    autoStartedRef.current = autoStartKey;
+    void startVoice(
+      resolvedContextHint,
+      undefined,
+      voiceDynamicVariables ? { dynamicVariables: voiceDynamicVariables } : undefined,
+    );
+  }, [
+    autoStartKey,
+    internalIsConnecting,
+    internalStatus,
+    resolvedContextHint,
+    startVoice,
+    voiceDynamicVariables,
+    voiceControls,
+  ]);
 
   const handleTalk = () => {
     if (isActive) {
@@ -102,11 +165,11 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   };
 
   const statusLabel = isConnecting
-    ? t("voiceHero.connecting")
+    ? voiceControls?.connectingLabel ?? connectingLabel ?? t("voiceHero.connecting")
     : isActive
-    ? isSpeaking
-      ? t("voiceHero.speaking")
-      : t("voiceHero.listening")
+    ? voiceControls?.activeLabel ?? activeLabel ?? (isSpeaking
+        ? t("voiceHero.speaking")
+        : t("voiceHero.listening"))
     : resolvedTalkLabel ?? t("voiceHero.talkToVyva");
 
   const timeOfDay = useMemo((): "morning" | "afternoon" | "evening" => {
@@ -124,6 +187,15 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   if (weatherData !== undefined) {
     return (
       <>
+        {showOverlay && (
+          <VoiceCallOverlay
+            isSpeaking={isSpeaking}
+            isConnecting={isConnecting}
+            transcript={transcript}
+            onEnd={stopVoice}
+          />
+        )}
+
         <div className="mt-[14px] rounded-[24px] relative overflow-visible hero-purple" style={{ paddingTop: "0" }}>
           {/* En Vivo badge — top right */}
           <div className="absolute top-[14px] right-[16px] flex items-center gap-1.5 px-[10px] py-[4px] rounded-full z-10" style={{ background: isActive ? "rgba(52,211,153,0.3)" : "rgba(52,211,153,0.18)", border: "1px solid rgba(52,211,153,0.28)" }}>
@@ -139,16 +211,16 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
             className="absolute pointer-events-none select-none vyva-avatar"
             style={{
               width: "auto",
-              height: "190px",
-              bottom: "16px",
-              right: "-40px",
+              height: "220px",
+              bottom: "18px",
+              right: "-46px",
               filter: timeOfDay ? { morning: "brightness(1.06) saturate(1.08)", afternoon: "brightness(1.0) saturate(1.0)", evening: "brightness(0.92) saturate(0.9) sepia(0.08)" }[timeOfDay] : undefined,
             }}
           />
 
-          <div className="flex min-h-[216px]">
+          <div className="flex min-h-[268px]">
             {/* Left column — text + CTA */}
-            <div className="flex-[0_0_58%] flex flex-col gap-0 px-[22px] pt-[26px] pb-[16px] min-w-0">
+            <div className="flex-[0_0_62%] flex flex-col gap-0 px-[22px] pt-[30px] pb-[20px] min-w-0">
               {/* Headline */}
               <h1
                 className="mb-auto max-w-[12ch] min-w-0 font-display text-[30px] font-normal italic leading-[1.08] text-white"
@@ -162,7 +234,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
                 onClick={handleTalk}
                 disabled={isConnecting}
                 data-testid="button-voice-hero-talk"
-                className={`mt-[18px] flex min-h-[58px] w-full items-center justify-center gap-2 rounded-full px-[20px] py-[14px] transition-all ${isActive ? (isSpeaking ? "mic-listening" : "mic-pulse-listening") : ""}`}
+                className={`mt-[24px] flex min-h-[74px] w-full items-center justify-center gap-3 rounded-full px-[24px] py-[18px] transition-all ${isActive ? (isSpeaking ? "mic-listening" : "mic-pulse-listening") : ""}`}
                 style={
                   isActive
                     ? {
@@ -176,12 +248,12 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
                 }
               >
                 {isActive ? (
-                  <X size={17} style={{ color: "rgba(255,255,255,0.9)" }} />
+                  <X size={23} style={{ color: "rgba(255,255,255,0.9)" }} />
                 ) : (
-                  <Mic size={17} style={{ color: "#6B21A8" }} />
+                  <Mic size={23} style={{ color: "#6B21A8" }} />
                 )}
                 <span
-                  className="min-w-0 max-w-full text-center font-body text-[16px] font-semibold leading-tight"
+                  className="min-w-0 max-w-full text-center font-body text-[20px] font-extrabold leading-tight"
                   style={{ color: isActive ? "#ffffff" : "#6B21A8" }}
                 >
                   {statusLabel}
@@ -210,6 +282,15 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
 
   return (
     <>
+      {showOverlay && (
+        <VoiceCallOverlay
+          isSpeaking={isSpeaking}
+          isConnecting={isConnecting}
+          transcript={transcript}
+          onEnd={stopVoice}
+        />
+      )}
+
       <div className="relative mt-[14px] overflow-hidden rounded-[28px] p-[24px_22px] hero-purple shadow-vyva-hero">
         <div className="absolute -right-[30px] -top-[30px] w-[130px] h-[130px] rounded-full pointer-events-none" style={{ background: "rgba(255,255,255,0.05)" }} />
 

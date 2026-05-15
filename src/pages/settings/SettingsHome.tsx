@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -18,6 +19,17 @@ import {
 } from "lucide-react";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { APP_VERSION } from "@/lib/appInfo";
+import { apiFetch } from "@/lib/queryClient";
+
+const TERMS_OF_SERVICE_URL = "https://vyva.life/terms-of-service";
+const PRIVACY_POLICY_URL = "https://vyva.life/privacypolicy";
+const SUPPORT_EMAIL = "support@vyva.life";
+
+function buildMailtoUrl(subject: string, body: string) {
+  return `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
 
 interface RowProps {
   icon: React.ComponentType<{ size?: number; className?: string }>;
@@ -27,6 +39,7 @@ interface RowProps {
   sub?: string;
   value?: string;
   onClick?: () => void;
+  disabled?: boolean;
   danger?: boolean;
   "data-testid"?: string;
 }
@@ -39,16 +52,12 @@ function Row({
   sub,
   value,
   onClick,
+  disabled,
   danger,
   "data-testid": testId,
 }: RowProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      data-testid={testId}
-      className="flex w-full items-center gap-3 rounded-[18px] px-3 py-3 text-left transition-colors hover:bg-[#FCF8FF]"
-    >
+  const rowContent = (
+    <>
       <div
         className="flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-[14px]"
         style={{ background: iconBg, color: iconColor }}
@@ -60,7 +69,30 @@ function Row({
         {sub ? <p className="mt-0.5 text-[12px] leading-[1.45] text-vyva-text-2">{sub}</p> : null}
       </div>
       {value ? <span className="rounded-full bg-[#F5F0FF] px-2.5 py-1 text-[11px] font-semibold text-vyva-purple">{value}</span> : null}
-      <ChevronRight className="h-4 w-4 flex-shrink-0 text-[#C4B5D8]" />
+      {onClick ? <ChevronRight className="h-4 w-4 flex-shrink-0 text-[#C4B5D8]" /> : null}
+    </>
+  );
+
+  if (!onClick) {
+    return (
+      <div
+        data-testid={testId}
+        className="flex w-full items-center gap-3 rounded-[18px] px-3 py-3 text-left"
+      >
+        {rowContent}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      data-testid={testId}
+      className="flex w-full items-center gap-3 rounded-[18px] px-3 py-3 text-left transition-colors hover:bg-[#FCF8FF] disabled:cursor-wait disabled:opacity-70"
+    >
+      {rowContent}
     </button>
   );
 }
@@ -78,10 +110,80 @@ export default function SettingsHome() {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const { t } = useTranslation();
+  const { toast } = useToast();
+  const [isDownloadingData, setIsDownloadingData] = useState(false);
 
   const handleSignOut = () => {
     logout();
     navigate("/login");
+  };
+
+  const openExternalLink = (url: string) => {
+    const opened = window.open(url, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      window.location.href = url;
+    }
+  };
+
+  const openSupportEmail = (subject: string, bodyIntro: string) => {
+    const body = [
+      bodyIntro,
+      "",
+      "Page:",
+      window.location.href,
+      "",
+      "App version:",
+      APP_VERSION,
+      "",
+      "Message:",
+    ].join("\n");
+
+    navigator.clipboard?.writeText(SUPPORT_EMAIL).catch(() => undefined);
+    toast({
+      title: t("settings.home.rows.supportEmailReady", "Opening email draft"),
+      description: t("settings.home.rows.supportEmailCopied", "Support email copied: {{email}}", { email: SUPPORT_EMAIL }),
+    });
+    window.setTimeout(() => {
+      window.location.href = buildMailtoUrl(subject, body);
+    }, 50);
+  };
+
+  const handleDownloadData = async () => {
+    if (isDownloadingData) return;
+    setIsDownloadingData(true);
+
+    try {
+      const response = await apiFetch("/api/profile/export");
+      if (!response.ok) {
+        const body = await response.clone().json().catch(() => null);
+        const message = body?.detail
+          ? `${body.error ?? "Export failed"}: ${body.detail}`
+          : body?.error ?? `Export failed (${response.status})`;
+        throw new Error(message);
+      }
+
+      const blob = await response.blob();
+      const disposition = response.headers.get("Content-Disposition") ?? "";
+      const match = disposition.match(/filename="([^"]+)"/);
+      const filename = match?.[1] ?? `vyva-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast({ title: t("settings.home.rows.downloadDataStarted", "Your data export is downloading") });
+    } catch (err) {
+      toast({
+        title: t("settings.home.rows.downloadDataError", "Could not download your data"),
+        description: err instanceof Error ? err.message : undefined,
+        variant: "destructive",
+      });
+    } finally {
+      setIsDownloadingData(false);
+    }
   };
 
   return (
@@ -137,8 +239,11 @@ export default function SettingsHome() {
             icon={Download}
             iconBg="#FFF7E8"
             iconColor="#C9890A"
-            title={t("settings.home.rows.downloadData")}
+            title={isDownloadingData ? t("settings.home.rows.downloadDataPreparing", "Preparing your data...") : t("settings.home.rows.downloadData")}
             sub={t("settings.home.rows.downloadDataSub")}
+            onClick={handleDownloadData}
+            disabled={isDownloadingData}
+            data-testid="button-settings-download-data"
           />
         </Section>
 
@@ -155,11 +260,39 @@ export default function SettingsHome() {
         </Section>
 
         <Section title={t("settings.home.sections.about")}>
-          <Row icon={FileText} iconBg="#F7F2FF" iconColor="#7C3AED" title={t("settings.home.rows.termsOfService")} />
-          <Row icon={Shield} iconBg="#EEF8F2" iconColor="#0F766E" title={t("settings.home.rows.privacyPolicy")} />
-          <Row icon={MessageCircle} iconBg="#EEF4FF" iconColor="#2563EB" title={t("settings.home.rows.contactSupport")} />
-          <Row icon={Star} iconBg="#FFF7E8" iconColor="#C9890A" title={t("settings.home.rows.sendFeedback")} />
-          <Row icon={Info} iconBg="#F5F5F4" iconColor="#57534E" title={t("settings.home.rows.appVersion")} value="1.0.0" />
+          <Row
+            icon={FileText}
+            iconBg="#F7F2FF"
+            iconColor="#7C3AED"
+            title={t("settings.home.rows.termsOfService")}
+            onClick={() => openExternalLink(TERMS_OF_SERVICE_URL)}
+            data-testid="button-settings-terms-of-service"
+          />
+          <Row
+            icon={Shield}
+            iconBg="#EEF8F2"
+            iconColor="#0F766E"
+            title={t("settings.home.rows.privacyPolicy")}
+            onClick={() => openExternalLink(PRIVACY_POLICY_URL)}
+            data-testid="button-settings-privacy-policy"
+          />
+          <Row
+            icon={MessageCircle}
+            iconBg="#EEF4FF"
+            iconColor="#2563EB"
+            title={t("settings.home.rows.contactSupport")}
+            onClick={() => openSupportEmail("VYVA support request", "Tell us what you need help with and we will get back to you.")}
+            data-testid="button-settings-contact-support"
+          />
+          <Row
+            icon={Star}
+            iconBg="#FFF7E8"
+            iconColor="#C9890A"
+            title={t("settings.home.rows.sendFeedback")}
+            onClick={() => openSupportEmail("VYVA app feedback", "Tell us what you liked, what felt confusing, or what you would improve.")}
+            data-testid="button-settings-send-feedback"
+          />
+          <Row icon={Info} iconBg="#F5F5F4" iconColor="#57534E" title={t("settings.home.rows.appVersion")} value={APP_VERSION} />
         </Section>
 
         <Section title={t("settings.home.sections.dangerZone")}>

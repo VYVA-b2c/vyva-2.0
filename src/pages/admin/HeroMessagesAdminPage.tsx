@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import AdminMenu from "./AdminMenu";
+import AdminPageHeader from "./AdminPageHeader";
+import { apiFetch } from "@/lib/queryClient";
 import {
   HERO_LIMITS,
   HERO_MESSAGES,
@@ -35,7 +37,6 @@ type HeroMessageRow = {
   updated_at?: string;
 };
 
-const ADMIN_KEY_STORAGE = "vyva_admin_lifecycle_key";
 const LANGUAGES: HeroLanguage[] = ["es", "en", "de", "fr", "it", "pt"];
 const SURFACES: HeroSurface[] = ["home", "health", "doctor", "vitals", "meds", "concierge", "brain", "activity", "companions", "social"];
 const REASONS: HeroReason[] = ["safety", "scheduled_event", "continuation", "time_of_day", "evergreen"];
@@ -109,14 +110,11 @@ function LimitNote({ label, value, wordsLimit, charsLimit }: { label: string; va
 }
 
 export default function HeroMessagesAdminPage() {
-  const [adminKey, setAdminKey] = useState(() => sessionStorage.getItem(ADMIN_KEY_STORAGE) ?? "dev-admin-key");
   const [databaseMessages, setDatabaseMessages] = useState<HeroMessageAdmin[]>([]);
   const [drafts, setDrafts] = useState<Record<string, HeroMessageAdmin>>({});
   const [surfaceFilter, setSurfaceFilter] = useState<HeroSurface | "all">("all");
   const [language, setLanguage] = useState<HeroLanguage>("es");
   const [message, setMessage] = useState("");
-
-  const headers = useMemo(() => ({ "Content-Type": "application/json", "x-admin-key": adminKey }), [adminKey]);
 
   const messages = useMemo(() => {
     const merged = new Map<string, HeroMessageAdmin>();
@@ -129,17 +127,13 @@ export default function HeroMessagesAdminPage() {
   }, [databaseMessages, drafts, surfaceFilter]);
 
   async function api(path: string, options: RequestInit = {}) {
-    const res = await fetch(`/api/admin/lifecycle${path}`, {
-      ...options,
-      headers: { ...headers, ...(options.headers ?? {}) },
-    });
+    const res = await apiFetch(`/api/admin/lifecycle${path}`, options);
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Admin request failed");
     return data;
   }
 
   async function refresh() {
-    sessionStorage.setItem(ADMIN_KEY_STORAGE, adminKey);
     setMessage("");
     const data = await api("/hero-messages");
     setDatabaseMessages((data.messages ?? []).map(rowToAdmin));
@@ -211,18 +205,13 @@ export default function HeroMessagesAdminPage() {
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
       <section className="mx-auto max-w-7xl">
-        <div className="rounded-[2rem] border border-[#eadfd5] bg-white p-6 shadow-sm">
-          <p className="text-sm font-bold uppercase tracking-[0.22em] text-purple-700">VYVA Admin</p>
-          <h1 className="mt-2 font-serif text-4xl">Hero messages</h1>
-          <p className="mt-2 max-w-3xl text-[#7d6b65]">
-            Manage approved banner copy used across the app. Built-in messages remain as fallbacks, while saved messages override them.
-          </p>
-          <div className="mt-5 flex flex-wrap gap-3">
-            <input className="min-w-[260px] rounded-2xl border border-[#e4d8ce] px-4 py-3" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="Admin key" />
-            <button className="rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white" onClick={() => refresh().catch((err) => setMessage(err.message))}>Refresh</button>
-            {message && <span className="rounded-2xl bg-purple-50 px-4 py-3 text-purple-800">{message}</span>}
-          </div>
-        </div>
+        <AdminPageHeader
+          title="Hero messages"
+          subtitle="Manage approved banner copy used across the app. Built-in messages remain as fallbacks, while saved messages override them."
+        >
+          <button className="rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white" onClick={() => refresh().catch((err) => setMessage(err.message))}>Refresh</button>
+          {message && <span className="rounded-2xl bg-purple-50 px-4 py-3 text-purple-800">{message}</span>}
+        </AdminPageHeader>
 
         <AdminMenu />
 

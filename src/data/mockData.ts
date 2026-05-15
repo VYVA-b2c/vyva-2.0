@@ -12,10 +12,10 @@ export const margaret = {
   activities: [
     { name: "brain.activities.triviaQuiz", done: true, icon: "trophy", iconBg: "bg-vyva-green-light", iconColor: "text-vyva-green" },
     { name: "brain.activities.memoryGame", done: false, icon: "brain", iconBg: "bg-vyva-purple-light", iconColor: "text-vyva-purple" },
+    { name: "brain.activities.spatialNavigator", done: false, icon: "map", iconBg: "bg-vyva-gold-light", iconColor: "text-vyva-gold" },
     { name: "brain.activities.scrabble", done: false, icon: "type", iconBg: "bg-vyva-rose-light", iconColor: "text-vyva-rose" },
     { name: "brain.activities.logicPuzzle", done: false, icon: "puzzle", iconBg: "bg-vyva-gold-light", iconColor: "text-vyva-gold" },
     { name: "brain.activities.meditation", done: false, icon: "flower", iconBg: "bg-vyva-teal-light", iconColor: "text-vyva-teal" },
-    { name: "brain.activities.breathing", done: false, icon: "wind", iconBg: "bg-vyva-green-light", iconColor: "text-vyva-green" },
   ],
   caregivers: [
     { name: "Sarah", role: "profile.roles.daughter", initials: "SC" },

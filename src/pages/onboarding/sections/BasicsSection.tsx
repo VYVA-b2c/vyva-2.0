@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronLeft, Camera, CheckCircle2, ChevronDown } from "lucide-react";
 import { SiFacebook, SiInstagram, SiWhatsapp } from "react-icons/si";
 import { Input } from "@/components/ui/input";
@@ -9,23 +9,25 @@ import {
   Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient, apiFetch } from "@/lib/queryClient";
 import { useAutoSave } from "@/hooks/useAutoSave";
 import { AutoSaveStatusBadge } from "@/components/onboarding/AutoSaveStatusBadge";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyError } from "@/lib/apiError";
-
-const LANGUAGES = [
-  { value: "en", label: "🇬🇧 English" },
-  { value: "es", label: "🇪🇸 Español" },
-  { value: "de", label: "🇩🇪 Deutsch" },
-  { value: "fr", label: "🇫🇷 Français" },
-  { value: "it", label: "🇮🇹 Italiano" },
-  { value: "pt", label: "🇵🇹 Português" },
-  { value: "nl", label: "🇳🇱 Nederlands" },
-  { value: "pl", label: "🇵🇱 Polski" },
-];
+import { LANGUAGES } from "@/i18n/languages";
+import {
+  buildOnboardingIdentityPayload,
+  compressAvatarFile,
+  createEmptyIdentityForm,
+  identityFromOnboardingProfile,
+  joinFullName,
+  splitFullName,
+  splitPhoneNumber,
+  validateIdentityBasics,
+  type IdentityBasicsForm,
+  type OnboardingIdentityProfile,
+} from "@/lib/profileIdentity";
 
 const MONTHS = [
   { value: "01", label: "January"  },
@@ -72,13 +74,7 @@ function assembleDob(day: string, month: string, year: string): string {
   return `${year}-${month}-${day.padStart(2, "0")}`;
 }
 
-type BasicsForm = {
-  full_name:              string;
-  preferred_name:         string;
-  date_of_birth:          string;
-  language:               string;
-  phone_number:           string;
-  email:                  string;
+type BasicsForm = IdentityBasicsForm & {
   channel_reports:        ChannelValue;
   channel_chats:          ChannelValue;
   channel_notifications:  ChannelValue;
@@ -88,7 +84,15 @@ type BasicsForm = {
   whatsapp_number:        string;
 };
 
-type ServerProfile = Partial<BasicsForm>;
+type ServerProfile = OnboardingIdentityProfile & Partial<{
+  channel_reports:        ChannelValue;
+  channel_chats:          ChannelValue;
+  channel_notifications:  ChannelValue;
+  hybrid_channel_mode:    boolean;
+  facebook_url:           string | null;
+  instagram_url:          string | null;
+  whatsapp_number:        string | null;
+}>;
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
@@ -128,18 +132,17 @@ function Toggle({
 
 export default function BasicsSection() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
 
-  const [form, setForm] = useState<BasicsForm>({
-    full_name: "", preferred_name: "",
-    date_of_birth: "", language: "en", phone_number: "",
-    email: "",
+  const [form, setForm] = useState<BasicsForm>(() => ({
+    ...createEmptyIdentityForm(),
     channel_reports: "email",
     channel_chats: "in-app",
     channel_notifications: "whatsapp",
     hybrid_channel_mode: false,
     facebook_url: "", instagram_url: "", whatsapp_number: "",
-  });
+  }));
 
   const [dobDay,   setDobDay]   = useState("");
   const [dobMonth, setDobMonth] = useState("");
@@ -150,7 +153,6 @@ export default function BasicsSection() {
   const [whatsappOn,     setWhatsappOn]     = useState(false);
   const [socialExpanded, setSocialExpanded] = useState(false);
 
-  const [avatarUrl,    setAvatarUrl]    = useState<string | null>(null);
   const [saving,       setSaving]       = useState(false);
   const [saveSuccess,  setSaveSuccess]  = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -163,39 +165,31 @@ export default function BasicsSection() {
 
   useEffect(() => {
     if (data?.profile) {
-      const p = data.profile as Record<string, unknown>;
+      const p = data.profile;
+      const identity = identityFromOnboardingProfile(p);
       setForm((prev) => ({
-        full_name:             (p.full_name       as string) ?? prev.full_name,
-        preferred_name:        (p.preferred_name  as string) ?? prev.preferred_name,
-        date_of_birth:         (p.date_of_birth   as string) ?? prev.date_of_birth,
-        language:              (p.language        as string) ?? prev.language ?? "en",
-        phone_number:          (p.phone_number    as string) ?? prev.phone_number,
-        email:                 (p.email           as string) ?? prev.email,
-        channel_reports:       (p.channel_reports       as ChannelValue) ?? prev.channel_reports,
-        channel_chats:         (p.channel_chats         as ChannelValue) ?? prev.channel_chats,
-        channel_notifications: (p.channel_notifications as ChannelValue) ?? prev.channel_notifications,
+        ...prev,
+        ...identity,
+        channel_reports:       p.channel_reports ?? prev.channel_reports,
+        channel_chats:         p.channel_chats ?? prev.channel_chats,
+        channel_notifications: p.channel_notifications ?? prev.channel_notifications,
         hybrid_channel_mode:   typeof p.hybrid_channel_mode === "boolean" ? p.hybrid_channel_mode : prev.hybrid_channel_mode,
-        facebook_url:          (p.facebook_url    as string) ?? prev.facebook_url,
-        instagram_url:         (p.instagram_url   as string) ?? prev.instagram_url,
-        whatsapp_number:       (p.whatsapp_number as string) ?? prev.whatsapp_number,
+        facebook_url:          p.facebook_url ?? prev.facebook_url,
+        instagram_url:         p.instagram_url ?? prev.instagram_url,
+        whatsapp_number:       p.whatsapp_number ?? prev.whatsapp_number,
       }));
-      const parsed = parseDob((p.date_of_birth as string) ?? "");
+      const parsed = parseDob(identity.dateOfBirth);
       setDobDay(parsed.day);
       setDobMonth(parsed.month);
       setDobYear(parsed.year);
-      setFacebookOn(!!(p.facebook_url));
-      setInstagramOn(!!(p.instagram_url));
-      setWhatsappOn(!!(p.whatsapp_number));
+      setFacebookOn(Boolean(p.facebook_url));
+      setInstagramOn(Boolean(p.instagram_url));
+      setWhatsappOn(Boolean(p.whatsapp_number));
     }
   }, [data]);
 
   const buildPayload = (f: BasicsForm) => ({
-    full_name:              f.full_name.trim(),
-    preferred_name:         f.preferred_name.trim() || null,
-    date_of_birth:          f.date_of_birth.trim()  || null,
-    phone_number:           f.phone_number.trim(),
-    language:               f.language || "en",
-    email:                  f.email.trim()           || null,
+    ...buildOnboardingIdentityPayload(f),
     channel_reports:        f.channel_reports,
     channel_chats:          f.channel_chats,
     channel_notifications:  f.channel_notifications,
@@ -205,10 +199,17 @@ export default function BasicsSection() {
     whatsapp_number:        f.whatsapp_number.trim() || null,
   });
 
+  const completePath = () => {
+    const returnTo = searchParams.get("returnTo");
+    return returnTo
+      ? `/onboarding/complete/basics?returnTo=${encodeURIComponent(returnTo)}`
+      : "/onboarding/complete/basics";
+  };
+
   const { autoSaveStatus, savedFading, retryCountdown, retryNow, scheduleAutoSave, cancelAutoSave } = useAutoSave(
     async () => {
       const f = formRef.current;
-      if (!f.full_name.trim()) return;
+      if (validateIdentityBasics(f).firstName) return;
       const res = await apiFetch("/api/onboarding/basics", {
         method: "POST",
         body: JSON.stringify(buildPayload(f)),
@@ -217,29 +218,69 @@ export default function BasicsSection() {
         const msg = await friendlyError(new Error(), res);
         throw new Error(msg);
       }
+      queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
     },
     2000,
   );
 
-  const set = (field: keyof BasicsForm, value: string | boolean) => {
+  const avatarMutation = useMutation({
+    mutationFn: async (dataUrl: string | null) => {
+      const res = await apiFetch("/api/profile/avatar", {
+        method: "PATCH",
+        body: JSON.stringify({ avatarUrl: dataUrl }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: (_data, dataUrl) => {
+      setForm((prev) => ({ ...prev, avatarUrl: dataUrl }));
+      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
+    },
+    onError: () => {
+      toast({ title: "Could not update photo", variant: "destructive" });
+    },
+  });
+
+  const set = <K extends keyof BasicsForm>(field: K, value: BasicsForm[K]) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+    scheduleAutoSave();
+  };
+
+  const setFullName = (value: string) => {
+    setForm((prev) => ({ ...prev, ...splitFullName(value) }));
+    scheduleAutoSave();
+  };
+
+  const setPhoneNumber = (value: string) => {
+    const phone = splitPhoneNumber(value, form.phoneCountry);
+    setForm((prev) => ({ ...prev, ...phone }));
     scheduleAutoSave();
   };
 
   const handleDobChange = (day: string, month: string, year: string) => {
     const assembled = assembleDob(day, month, year);
-    setForm((prev) => ({ ...prev, date_of_birth: assembled }));
+    setForm((prev) => ({ ...prev, dateOfBirth: assembled }));
     scheduleAutoSave();
   };
 
   const handleAvatarClick = () => fileInputRef.current?.click();
 
-  const handleAvatarFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setAvatarUrl(URL.createObjectURL(file));
+    if (!file) return;
+
+    try {
+      const dataUrl = await compressAvatarFile(file);
+      avatarMutation.mutate(dataUrl);
+    } catch {
+      toast({ title: "Could not update photo", variant: "destructive" });
+    } finally {
+      e.target.value = "";
+    }
   };
 
-  const isValid = form.full_name.trim().length > 0;
+  const isValid = !validateIdentityBasics(form).firstName;
 
   const handleSave = async () => {
     if (saving || !isValid) return;
@@ -253,8 +294,9 @@ export default function BasicsSection() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
       setSaveSuccess(true);
-      setTimeout(() => navigate("/onboarding/complete/basics"), 1500);
+      setTimeout(() => navigate(completePath()), 1500);
     } catch (err) {
       const msg = await friendlyError(err, res && !res.ok ? res : undefined);
       toast({ title: "Could not save basics", description: msg, variant: "destructive" });
@@ -265,8 +307,9 @@ export default function BasicsSection() {
 
   const FieldSkeleton = () => <Skeleton className="h-11 w-full rounded-lg" />;
 
-  const greeting = form.preferred_name.trim()
-    ? `Hi, ${form.preferred_name.trim()}!`
+  const greetingName = form.preferredName.trim() || form.firstName.trim();
+  const greeting = greetingName
+    ? `Hi, ${greetingName}!`
     : "Hi there!";
 
   return (
@@ -302,8 +345,8 @@ export default function BasicsSection() {
             onClick={handleAvatarClick}
             className="relative w-[88px] h-[88px] rounded-full bg-vyva-warm2 flex items-center justify-center overflow-hidden flex-shrink-0 ring-2 ring-vyva-purple/20 hover:ring-vyva-purple/50 transition-all"
           >
-            {avatarUrl ? (
-              <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+            {form.avatarUrl ? (
+              <img src={form.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
             ) : (
               <Camera size={28} className="text-vyva-text-3" />
             )}
@@ -318,6 +361,7 @@ export default function BasicsSection() {
             className="hidden"
             data-testid="input-basics-avatar-file"
             onChange={handleAvatarFile}
+            disabled={avatarMutation.isPending}
           />
           <div className="text-center">
             <p className="font-display text-[18px] font-semibold text-vyva-text-1">
@@ -343,8 +387,8 @@ export default function BasicsSection() {
                 <Input
                   data-testid="input-basics-full-name"
                   placeholder="Your full legal name"
-                  value={form.full_name}
-                  onChange={(e) => set("full_name", e.target.value)}
+                  value={joinFullName(form.firstName, form.lastName)}
+                  onChange={(e) => setFullName(e.target.value)}
                   className="border-0 shadow-none px-0 text-[15px] focus-visible:ring-0 h-9"
                 />
               )}
@@ -359,8 +403,8 @@ export default function BasicsSection() {
                 <Input
                   data-testid="input-basics-preferred-name"
                   placeholder="What should VYVA call you?"
-                  value={form.preferred_name}
-                  onChange={(e) => set("preferred_name", e.target.value)}
+                  value={form.preferredName}
+                  onChange={(e) => set("preferredName", e.target.value)}
                   className="border-0 shadow-none px-0 text-[15px] focus-visible:ring-0 h-9"
                 />
               )}
@@ -400,8 +444,8 @@ export default function BasicsSection() {
                   type="tel"
                   inputMode="tel"
                   placeholder="e.g. +34 612 345 678"
-                  value={form.phone_number}
-                  onChange={(e) => set("phone_number", e.target.value)}
+                  value={form.phoneLocal}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
                   className="border-0 shadow-none px-0 text-[15px] focus-visible:ring-0 h-9"
                 />
               )}
@@ -540,13 +584,13 @@ export default function BasicsSection() {
           <div className="bg-white rounded-[22px] border border-vyva-border px-4 py-3"
                style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
             {isLoading ? <FieldSkeleton /> : (
-              <Select value={form.language} onValueChange={(v) => set("language", v)}>
+              <Select value={form.language} onValueChange={(v) => set("language", v as BasicsForm["language"])}>
                 <SelectTrigger data-testid="select-basics-language" className="h-11 border-0 shadow-none px-0 text-[15px] focus:ring-0">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {LANGUAGES.map((l) => (
-                    <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
+                    <SelectItem key={l.code} value={l.code}>{l.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

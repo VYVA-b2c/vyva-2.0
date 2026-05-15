@@ -1,18 +1,22 @@
-import type React from "react";
+import React, { lazy, Suspense } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import { BrowserRouter, Route, Routes, useParams, useNavigate } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { ProfileProvider } from "@/contexts/ProfileContext";
 import { VyvaVoiceProvider } from "@/hooks/useVyvaVoice";
+import { recordAgentButtonClick, recordAgentPageChange } from "@/lib/agentAppContext";
 import LoginPage from "@/pages/LoginPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import AccessLinkPage from "@/pages/AccessLinkPage";
 import AppShell from "./components/AppShell";
+import ServiceGateRoute from "./components/ServiceGateRoute";
 import ProtectedRoute from "./components/ProtectedRoute";
 import OnboardingGuard from "./components/OnboardingGuard";
 import HomeScreen from "./pages/HomeScreen";
@@ -22,8 +26,16 @@ import MedsScreen from "./pages/MedsScreen";
 import AdherenceReportScreen from "./pages/AdherenceReportScreen";
 import ActivitiesScreen from "./pages/ActivitiesScreen";
 import ActivityScreen from "./pages/ActivityScreen";
+import SpatialNavigator from "./games/SpatialNavigator";
+import FaceNameMatch from "./games/FaceNameMatch";
+import AttentionBoostersPage from "./games/AttentionBoostersPage";
+import ExecutiveFunctionPage from "./games/ExecutiveFunctionPage";
+import LanguageGamesPage from "./games/LanguageGamesPage";
 import MemoryGamesPage from "./games/memory/MemoryGamesPage";
 import MemoryGameRunner from "./games/memory/MemoryGameRunner";
+import DualTaskWalk from "./games/DualTaskWalk";
+import CategorySort from "./games/CategorySort";
+import NumberTrails from "./games/NumberTrails";
 import ConciergeScreen from "./pages/ConciergeScreen";
 import SafeHomeScreen from "./pages/SafeHomeScreen";
 import ScamGuardScreen from "./pages/ScamGuardScreen";
@@ -31,6 +43,7 @@ import SettingsScreen from "./pages/SettingsScreen";
 import NotFound from "./pages/NotFound";
 
 import WelcomeScreen from "./pages/onboarding/WelcomeScreen";
+import WhoForStep from "./pages/onboarding/WhoForStep";
 import BasicsStep from "./pages/onboarding/BasicsStep";
 import ChannelStep from "./pages/onboarding/ChannelStep";
 import DataConsentStep from "./pages/onboarding/DataConsentStep";
@@ -69,13 +82,15 @@ import SubscriptionSettings from "./pages/settings/SubscriptionSettings";
 import SettingsHome from "./pages/settings/SettingsHome";
 import AccountSettings from "./pages/settings/AccountSettings";
 import NotificationsSettings from "./pages/settings/NotificationsSettings";
-import ProxyPendingPage from "./pages/admin/ProxyPendingPage";
-import LifecycleAdminPage from "./pages/admin/LifecycleAdminPage";
-import HomeCardsAdminPage from "./pages/admin/HomeCardsAdminPage";
-import HeroMessagesAdminPage from "./pages/admin/HeroMessagesAdminPage";
 import CaregiverDashboardPage from "./pages/CaregiverDashboardPage";
 import SocialHub from "./social/SocialHub";
 import RoomScreen from "./social/RoomScreen";
+
+const ProxyPendingPage = lazy(() => import("./pages/admin/ProxyPendingPage"));
+const LifecycleAdminPage = lazy(() => import("./pages/admin/LifecycleAdminPage"));
+const AdminUsersPage = lazy(() => import("./pages/admin/AdminUsersPage"));
+const HomeCardsAdminPage = lazy(() => import("./pages/admin/HomeCardsAdminPage"));
+const HeroMessagesAdminPage = lazy(() => import("./pages/admin/HeroMessagesAdminPage"));
 
 const SECTION_MAP: Record<string, React.ComponentType> = {
   allergies: AllergiesSection,
@@ -117,6 +132,124 @@ function SectionRouter() {
   );
 }
 
+function SpatialNavigatorRoute() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  return (
+    <SpatialNavigator
+      userId={user?.id ?? ""}
+      onExit={() => navigate("/activities")}
+    />
+  );
+}
+
+function FaceNameMatchRoute() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  return (
+    <FaceNameMatch
+      userId={user?.id ?? ""}
+      onExit={() => navigate("/memory-games")}
+    />
+  );
+}
+
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { user, isLoading, logout } = useAuth();
+  const location = useLocation();
+
+  if (isLoading) return <div className="min-h-screen bg-[#f7f2eb]" />;
+  if (!user) return <Navigate to="/admin/login" replace state={{ from: location.pathname }} />;
+  if (user.role !== "admin") {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f7f2eb] px-6 text-center text-[#2f2135]">
+        <section className="max-w-md rounded-3xl border border-[#eadfd5] bg-white p-6 shadow-sm">
+          <VyvaWordmark className="mx-auto h-auto w-[132px] sm:w-[158px]" />
+          <p className="mt-4 text-sm font-bold uppercase tracking-[0.22em] text-purple-700">VYVA Admin</p>
+          <h1 className="mt-2 font-serif text-3xl">Admin access required</h1>
+          <p className="mt-2 text-sm text-[#7d6b65]">Your account is signed in, but it does not have the admin role.</p>
+          <button
+            type="button"
+            onClick={logout}
+            className="mt-5 rounded-2xl bg-purple-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-purple-800"
+          >
+            Sign out
+          </button>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#f7f2eb]" />}>
+      {children}
+    </Suspense>
+  );
+}
+
+function DualTaskWalkRoute() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  return <DualTaskWalk userId={user?.id ?? ""} onExit={() => navigate("/attention-boosters")} />;
+}
+
+function CategorySortRoute() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  return <CategorySort userId={user?.id ?? ""} onExit={() => navigate("/executive-function")} />;
+}
+
+function NumberTrailsRoute() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  return <NumberTrails userId={user?.id ?? ""} onExit={() => navigate("/executive-function")} />;
+}
+
+function getInteractiveLabel(element: Element): string {
+  const explicitLabel =
+    element.getAttribute("aria-label") ||
+    element.getAttribute("title") ||
+    element.getAttribute("data-testid");
+
+  if (explicitLabel) return explicitLabel;
+
+  return (element.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
+}
+
+function AgentAppContextTracker() {
+  const location = useLocation();
+
+  React.useEffect(() => {
+    recordAgentPageChange(`${location.pathname}${location.search}`);
+  }, [location.pathname, location.search]);
+
+  React.useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const interactiveElement = target?.closest("button,a,[role='button']");
+      if (!interactiveElement || interactiveElement.hasAttribute("data-agent-context-ignore")) return;
+
+      const label = getInteractiveLabel(interactiveElement);
+      if (!label) return;
+
+      recordAgentButtonClick({
+        label,
+        path: `${window.location.pathname}${window.location.search}`,
+      });
+    };
+
+    document.addEventListener("click", handleClick, true);
+    return () => document.removeEventListener("click", handleClick, true);
+  }, []);
+
+  return null;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
@@ -126,19 +259,23 @@ const App = () => (
             <Sonner />
             <BrowserRouter>
               <VyvaVoiceProvider>
+                <AgentAppContextTracker />
                 <Routes>
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/admin/login" element={<LoginPage adminOnly />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/access/:token" element={<AccessLinkPage />} />
                 <Route path="/confirm/:token" element={<ElderConfirmByToken />} />
                 <Route path="/shared/check-in/:token" element={<SharedCheckinReport />} />
-                <Route path="/admin/proxy-pending" element={<ProxyPendingPage />} />
-                <Route path="/admin/lifecycle" element={<LifecycleAdminPage />} />
-                <Route path="/admin/home-cards" element={<HomeCardsAdminPage />} />
-                <Route path="/admin/hero-messages" element={<HeroMessagesAdminPage />} />
+                <Route path="/admin/proxy-pending" element={<AdminRoute><ProxyPendingPage /></AdminRoute>} />
+                <Route path="/admin/lifecycle" element={<AdminRoute><LifecycleAdminPage /></AdminRoute>} />
+                <Route path="/admin/users" element={<AdminRoute><AdminUsersPage /></AdminRoute>} />
+                <Route path="/admin/home-cards" element={<AdminRoute><HomeCardsAdminPage /></AdminRoute>} />
+                <Route path="/admin/hero-messages" element={<AdminRoute><HeroMessagesAdminPage /></AdminRoute>} />
                 <Route element={<ProtectedRoute />}>
                   <Route element={<OnboardingGuard />}>
                     <Route path="/onboarding" element={<WelcomeScreen />} />
+                    <Route path="/onboarding/who-for" element={<WhoForStep />} />
                     <Route path="/onboarding/basics" element={<BasicsStep />} />
                     <Route path="/onboarding/channel" element={<ChannelStep />} />
                     <Route path="/onboarding/proxy-setup" element={<ProxySetupStep />} />
@@ -151,32 +288,41 @@ const App = () => (
                   <Route path="/onboarding/profile/:id" element={<SectionRouter />} />
                   <Route path="/onboarding/careteam" element={<CareTeamFlow />} />
                   <Route path="/settings/privacy" element={<PrivacySettings />} />
-                  <Route path="/settings/subscription" element={<SubscriptionSettings />} />
+                  <Route path="/settings/subscription" element={<AppShell><SubscriptionSettings /></AppShell>} />
                   <Route path="/settings" element={<AppShell><SettingsHome /></AppShell>} />
                   <Route path="/settings/account" element={<AppShell><AccountSettings /></AppShell>} />
                   <Route path="/settings/notifications" element={<AppShell><NotificationsSettings /></AppShell>} />
                   <Route path="/" element={<AppShell><HomeScreen /></AppShell>} />
-                  <Route path="/chat" element={<AppShell><ChatScreen /></AppShell>} />
+                  <Route path="/chat" element={<AppShell><ServiceGateRoute service="chat"><ChatScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/health" element={<AppShell><HealthScreen /></AppShell>} />
-                  <Route path="/health/doctor" element={<AppShell><DoctorChoiceScreen /></AppShell>} />
+                  <Route path="/health/doctor" element={<AppShell><ServiceGateRoute service="doctor"><DoctorChoiceScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/health/check-in" element={<AppShell><CheckHowIFeelScreen /></AppShell>} />
                   <Route path="/health/check-ins" element={<AppShell><CheckinHistoryScreen /></AppShell>} />
-                  <Route path="/health/symptom-check" element={<AppShell><SymptomCheckScreen /></AppShell>} />
+                  <Route path="/health/symptom-check" element={<AppShell><ServiceGateRoute service="symptomCheck"><SymptomCheckScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/health/vitals" element={<AppShell><SignosScreen /></AppShell>} />
                   <Route path="/informes" element={<AppShell><InformesScreen /></AppShell>} />
                   <Route path="/informes/:id" element={<AppShell><InformesScreen /></AppShell>} />
                   <Route path="/companions" element={<AppShell><CompanionsScreen /></AppShell>} />
-                  <Route path="/caregiver" element={<CaregiverDashboardPage />} />
-                  <Route path="/caregiver-dashboard" element={<CaregiverDashboardPage />} />
+                  <Route path="/caregiver" element={<ServiceGateRoute service="caregiverDashboard"><CaregiverDashboardPage /></ServiceGateRoute>} />
+                  <Route path="/caregiver-dashboard" element={<ServiceGateRoute service="caregiverDashboard"><CaregiverDashboardPage /></ServiceGateRoute>} />
                   <Route path="/social-rooms" element={<AppShell><SocialHub /></AppShell>} />
                   <Route path="/social-rooms/:slug" element={<AppShell><RoomScreen /></AppShell>} />
-                  <Route path="/meds" element={<AppShell><MedsScreen /></AppShell>} />
-                  <Route path="/meds/adherence-report" element={<AppShell><AdherenceReportScreen /></AppShell>} />
+                  <Route path="/meds" element={<AppShell><ServiceGateRoute service="medications"><MedsScreen /></ServiceGateRoute></AppShell>} />
+                  <Route path="/meds/adherence-report" element={<AppShell><ServiceGateRoute service="adherenceReport"><AdherenceReportScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/activities" element={<AppShell><ActivitiesScreen /></AppShell>} />
                   <Route path="/activity" element={<AppShell><ActivityScreen /></AppShell>} />
+                  <Route path="/attention-boosters" element={<AppShell><AttentionBoostersPage /></AppShell>} />
+                  <Route path="/attention-boosters/rhythm-tap" element={<AppShell><MemoryGameRunner forcedGameType="sequence_memory" returnPath="/attention-boosters" /></AppShell>} />
+                  <Route path="/executive-function" element={<AppShell><ExecutiveFunctionPage /></AppShell>} />
+                  <Route path="/executive-function/category-sort" element={<CategorySortRoute />} />
+                  <Route path="/executive-function/number-trails" element={<NumberTrailsRoute />} />
+                  <Route path="/language" element={<AppShell><LanguageGamesPage /></AppShell>} />
+                  <Route path="/spatial-navigator" element={<AppShell><SpatialNavigatorRoute /></AppShell>} />
+                  <Route path="/face-name-match" element={<AppShell><FaceNameMatchRoute /></AppShell>} />
                   <Route path="/memory-games" element={<AppShell><MemoryGamesPage /></AppShell>} />
                   <Route path="/memory-games/:gameType" element={<AppShell><MemoryGameRunner /></AppShell>} />
-                  <Route path="/concierge" element={<AppShell><ConciergeScreen /></AppShell>} />
+                  <Route path="/dual-task-walk" element={<DualTaskWalkRoute />} />
+                  <Route path="/concierge" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/safe-home" element={<AppShell><SafeHomeScreen /></AppShell>} />
                   <Route path="/scam-guard" element={<AppShell><ScamGuardScreen /></AppShell>} />
                   <Route path="/history" element={<AppShell><HistoryScreen /></AppShell>} />
