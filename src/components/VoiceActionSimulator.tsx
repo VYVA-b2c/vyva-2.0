@@ -9,10 +9,20 @@ import {
   voiceActionRegistryEntries,
 } from "@/lib/voiceNavigation";
 import { useVoiceActionContext } from "@/contexts/VoiceActionContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { recordVoiceTimelineEvent } from "@/lib/voiceTimeline";
 
-const simulatorEnabled =
-  import.meta.env.DEV || import.meta.env.VITE_ENABLE_VOICE_ACTION_SIMULATOR === "true";
+export function canShowVoiceActionSimulator({
+  isDev,
+  flagValue,
+  userRole,
+}: {
+  isDev: boolean;
+  flagValue?: string;
+  userRole?: string | null;
+}) {
+  return isDev || (flagValue === "true" && userRole === "admin");
+}
 
 export default function VoiceActionSimulator() {
   const entries = useMemo(() => voiceActionRegistryEntries(), []);
@@ -22,11 +32,17 @@ export default function VoiceActionSimulator() {
   const [utterance, setUtterance] = useState("Do we need to buy Paracetamol?");
   const [evidence, setEvidence] = useState("Simulator action");
   const { activeAction } = useVoiceActionContext();
+  const { user } = useAuth();
+  const simulatorEnabled = canShowVoiceActionSimulator({
+    isDev: import.meta.env.DEV,
+    flagValue: import.meta.env.VITE_ENABLE_VOICE_ACTION_SIMULATOR,
+    userRole: user?.role,
+  });
 
   if (!simulatorEnabled || entries.length === 0) return null;
 
   const selected = entries.find((entry) => entry.actionType === actionType) ?? entries[0];
-  const activeLabel = activeAction ? `${activeAction.title} · ${activeAction.domain}` : "No active action";
+  const activeLabel = activeAction ? `${activeAction.title} - ${activeAction.domain}` : "No active action";
 
   const buildParams = () => ({
     action_type: selected.actionType,
@@ -158,7 +174,7 @@ export default function VoiceActionSimulator() {
           >
             {entries.map((entry) => (
               <option key={entry.actionType} value={entry.actionType}>
-                {entry.title} · {entry.domain}
+                {entry.title} - {entry.domain}
               </option>
             ))}
           </select>
