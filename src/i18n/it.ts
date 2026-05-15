@@ -15,13 +15,20 @@ const it = {
   },
   activities: {
     chooseActivity: "Scegli un'attivita",
-    trivia: "Attenzione",
+    trivia: "Concentrazione e attenzione",
     memory: "Gioco di memoria",
-    scrabble: "Linguaggio",
-    logicPuzzle: "Funzione esecutiva",
-    meditation: "Meditazione",
-    breathing: "Respirazione",
+    spatialNavigator: "Logica e ragionamento",
+    scrabble: "Parole e linguaggio",
+    logicPuzzle: "Allenamento mentale",
+    meditation: "Rilassati e respira",
+    breathing: "Rilassati e respira",
     doneToday: "Fatto oggi",
+  },
+  brain: {
+    subtitle: "Mantieni la mente agile",
+  },
+  companions: {
+    activityTile: "Connettiti con altri",
   },
   memory: {
     title: "Allenamento della memoria",

@@ -20,14 +20,20 @@ const de = {
   },
   activities: {
     chooseActivity: "Aktivitat auswahlen",
-    trivia: "Aufmerksamkeit",
+    trivia: "Fokus und Aufmerksamkeit",
     memory: "Gedachtnisspiel",
-    spatialNavigator: "Raum-Navigator",
-    scrabble: "Sprache",
-    logicPuzzle: "Exekutive Funktion",
-    meditation: "Meditation",
-    breathing: "Atmung",
+    spatialNavigator: "Logik und Denken",
+    scrabble: "Worter und Sprache",
+    logicPuzzle: "Gehirntraining",
+    meditation: "Entspannen und atmen",
+    breathing: "Entspannen und atmen",
     doneToday: "Heute erledigt",
+  },
+  brain: {
+    subtitle: "Halten Sie den Geist fit",
+  },
+  companions: {
+    activityTile: "Mit anderen verbinden",
   },
   memory: {
     title: "Gedachtnistraining",

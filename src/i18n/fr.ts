@@ -15,13 +15,20 @@ const fr = {
   },
   activities: {
     chooseActivity: "Choisissez une activite",
-    trivia: "Attention",
+    trivia: "Concentration et attention",
     memory: "Jeu de memoire",
-    scrabble: "Langage",
-    logicPuzzle: "Fonction executive",
-    meditation: "Meditation",
-    breathing: "Respiration",
+    spatialNavigator: "Logique et raisonnement",
+    scrabble: "Mots et langage",
+    logicPuzzle: "Entrainement cerebral",
+    meditation: "Se detendre et respirer",
+    breathing: "Se detendre et respirer",
     doneToday: "Fait aujourd'hui",
+  },
+  brain: {
+    subtitle: "Gardez l'esprit vif",
+  },
+  companions: {
+    activityTile: "Se connecter aux autres",
   },
   memory: {
     title: "Entrainement de la memoire",
