@@ -310,7 +310,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
         />
       )}
 
-      <div className="relative mt-[14px] overflow-hidden rounded-[28px] p-[24px_22px] hero-purple shadow-vyva-hero">
+      <div className="relative mt-[14px] flex min-h-[274px] flex-col overflow-hidden rounded-[28px] p-[24px_22px] hero-purple shadow-vyva-hero">
         <div className="absolute -right-[30px] -top-[30px] w-[130px] h-[130px] rounded-full pointer-events-none" style={{ background: "rgba(255,255,255,0.05)" }} />
 
         {/* Source row */}
@@ -367,7 +367,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
           onClick={handleTalk}
           disabled={isConnecting}
           data-testid="button-voice-hero-talk"
-          className={`mt-4 flex min-h-[60px] w-full items-center justify-center gap-2 rounded-full px-[20px] py-[14px] transition-all ${isActive ? (isSpeaking ? "mic-listening" : "mic-pulse-listening") : ""}`}
+          className={`mt-auto flex min-h-[64px] w-full items-center justify-center gap-2 rounded-full px-[20px] py-[14px] transition-all ${isActive ? (isSpeaking ? "mic-listening" : "mic-pulse-listening") : ""}`}
           style={{
             background: isActive ? "rgba(52,211,153,0.2)" : isBrainHero ? "#FFFFFF" : "rgba(255,255,255,0.13)",
             border: isActive ? "1px solid rgba(52,211,153,0.4)" : isBrainHero ? "none" : "1px solid rgba(255,255,255,0.18)",

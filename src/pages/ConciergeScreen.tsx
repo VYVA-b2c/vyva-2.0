@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
+import { ActionCard, EmptyState, ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { apiFetch } from "@/lib/queryClient";
@@ -1484,11 +1485,10 @@ const ConciergeScreen = () => {
       )}
 
       <section className="mt-5" data-testid="section-concierge-active-task">
-        <div className="flex items-center justify-between mb-[10px]">
-          <h2 className="vyva-section-title">
-            {isSpanish ? "Ahora mismo" : "Right now"}
-          </h2>
-          {queuedActionCount > 0 && (
+        <SectionTitle
+          className="mb-3"
+          title={isSpanish ? "Ahora mismo" : "Right now"}
+          action={queuedActionCount > 0 && (
             <button
               type="button"
               onClick={showNextQueuedAction}
@@ -1498,36 +1498,22 @@ const ConciergeScreen = () => {
               +{queuedActionCount} {isSpanish ? "en cola" : "queued"}
             </button>
           )}
-        </div>
+        />
 
         {pendingLoading ? (
-          <div className="flex items-center gap-2 py-4">
-            <Loader2 size={16} className="animate-spin text-vyva-purple" />
-            <span className="font-body text-[13px] text-vyva-text-2">
-              {isSpanish ? "Buscando acciones activas..." : "Looking for active actions..."}
-            </span>
-          </div>
+          <EmptyState
+            icon={Loader2}
+            title={isSpanish ? "Buscando acciones activas..." : "Looking for active actions..."}
+            className="[&_svg]:animate-spin"
+          />
         ) : !activeAction ? (
-          <div
-            className="vyva-card p-[18px]"
-            style={{ boxShadow: "0 10px 30px rgba(107,33,168,0.08)" }}
-          >
-            <div className="flex items-start gap-4">
-              <div className="w-[48px] h-[48px] rounded-[16px] flex items-center justify-center bg-[#F5F3FF]">
-                <Sparkles size={22} style={{ color: "#6B21A8" }} />
-              </div>
-              <div className="flex-1">
-                <p className="font-body text-[15px] font-semibold text-vyva-text-1">
-                  {isSpanish ? "Sin tareas pendientes" : "No pending tasks"}
-                </p>
-                <p className="mt-1 font-body text-[13px] leading-relaxed text-vyva-text-2">
-                  {isSpanish
-                    ? "Cuando VYVA prepare una llamada, reserva o gestion, aparecera aqui para que la confirmes."
-                    : "When VYVA prepares a call, booking, or task, it will appear here for your confirmation."}
-                </p>
-              </div>
-            </div>
-          </div>
+          <EmptyState
+            icon={Sparkles}
+            title={isSpanish ? "Sin tareas pendientes" : "No pending tasks"}
+            description={isSpanish
+              ? "Cuando VYVA prepare una llamada, reserva o gestion, aparecera aqui para que la confirmes."
+              : "When VYVA prepares a call, booking, or task, it will appear here for your confirmation."}
+          />
         ) : isRightNowHidden && activeAction ? (
           <button
             type="button"
@@ -1632,31 +1618,22 @@ const ConciergeScreen = () => {
       </section>
 
       <section className="mt-6">
-        <h2 className="vyva-section-title mb-[10px]">
-          {t("concierge.quickActions")}
-        </h2>
-        <div className="grid grid-cols-2 gap-4">
+        <SectionTitle className="mb-3" title={t("concierge.quickActions")} />
+        <ResponsiveGrid columns="two">
           {QUICK_ACTIONS.map(({ key, Icon, color, bg }) => (
-            <button
+            <ActionCard
               key={key}
               data-testid={`button-concierge-action-${key}`}
               onClick={() => handleQuickAction(key)}
               disabled={chatLoading}
-              className="vyva-tap flex min-h-[144px] min-w-0 flex-col items-start justify-between rounded-[28px] border border-vyva-border bg-[#FFFCF8] px-4 py-5 text-left transition-transform active:scale-[0.99] disabled:opacity-50"
-              style={{ boxShadow: "0 14px 30px rgba(60,38,20,0.08)" }}
-            >
-              <div
-                className="flex h-[56px] w-[56px] flex-shrink-0 items-center justify-center rounded-[20px]"
-                style={{ background: bg }}
-              >
-                <Icon size={25} style={{ color }} />
-              </div>
-              <span className="font-body text-[20px] font-extrabold leading-[1.08] text-vyva-text-1 [overflow-wrap:anywhere]">
-                {t(`concierge.actions.${key}`)}
-              </span>
-            </button>
+              title={t(`concierge.actions.${key}`)}
+              icon={Icon}
+              iconBg={bg}
+              iconColor={color}
+              size="large"
+            />
           ))}
-        </div>
+        </ResponsiveGrid>
 
         {appointmentOpen && (
           <div

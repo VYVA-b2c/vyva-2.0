@@ -180,7 +180,7 @@ const ActivitiesScreen = () => {
                 icon={Icon}
                 iconBg={style.iconBg}
                 iconColor={style.iconColor}
-                size="standard"
+                size="large"
                 style={{
                   borderColor: "#EDE2D1",
                   boxShadow: `0 16px 34px ${style.glow}, 0 2px 10px rgba(43,31,24,0.05)`,

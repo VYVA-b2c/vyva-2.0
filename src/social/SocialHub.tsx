@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useProfile } from "@/contexts/ProfileContext";
 import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
-import { BottomSheet, EmptyState, ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
+import { ActionCard, BottomSheet, EmptyState, ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 import AgentAvatar from "./AgentAvatar";
 import SocialStyles from "./SocialStyles";
@@ -41,19 +41,14 @@ function RoomPickerTile({ room, language, onSelect }: RoomPickerTileProps) {
   const participantLabel = room.participantCount.toLocaleString(language);
 
   return (
-    <article
-      role="button"
-      tabIndex={0}
+    <ActionCard
       onClick={() => onSelect(room)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onSelect(room);
-        }
-      }}
-      className="min-h-[188px] cursor-pointer overflow-hidden rounded-[28px] border border-[#E6DCCF] bg-white p-4 shadow-[0_18px_42px_rgba(45,31,66,0.08)] transition-transform active:scale-[0.99]"
-    >
-      <div className="flex items-start justify-between gap-3">
+      aria-label={pickerName}
+      title={pickerName}
+      description={topic}
+      size="large"
+      iconBg="transparent"
+      iconNode={(
         <AgentAvatar
           agentSlug={room.agentSlug}
           fullName={room.agentFullName}
@@ -61,33 +56,15 @@ function RoomPickerTile({ room, language, onSelect }: RoomPickerTileProps) {
           size={54}
           title={room.agentFullName}
         />
+      )}
+      badge={(
         <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#F7F2FF] px-2.5 py-1.5 font-body text-[14px] font-bold text-[#6D28D9]">
           <Users size={17} />
           {participantLabel}
         </span>
-      </div>
-
-      <h2
-        className="mt-5 min-w-0 overflow-hidden break-words font-body text-[21px] font-bold leading-[1.12] text-[#24172F]"
-        style={{
-          display: "-webkit-box",
-          WebkitBoxOrient: "vertical",
-          WebkitLineClamp: 2,
-        }}
-      >
-        {pickerName}
-      </h2>
-      <p
-        className="mt-2 min-w-0 overflow-hidden break-words font-body text-[16px] leading-[1.3] text-[#7A677F]"
-        style={{
-          display: "-webkit-box",
-          WebkitBoxOrient: "vertical",
-          WebkitLineClamp: 2,
-        }}
-      >
-        {topic}
-      </p>
-    </article>
+      )}
+      style={{ boxShadow: "0 18px 42px rgba(45,31,66,0.08)" }}
+    />
   );
 }
 
@@ -221,10 +198,10 @@ const SocialHub = () => {
   }, [canRotateRooms, selectedRoom, showNextRooms]);
 
   return (
-    <div className="px-5 pb-10">
+    <div className="vyva-page">
       <SocialStyles />
 
-      <header className="pt-4">
+      <header>
         <VoiceHero
           heroSurface="social"
           sourceText={copy.dayLabel}
