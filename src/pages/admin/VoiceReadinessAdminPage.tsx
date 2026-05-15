@@ -30,6 +30,12 @@ import {
 } from "@/lib/voiceNavigation";
 import { voiceSessionPhaseLabel } from "@/lib/voiceSessionState";
 import {
+  buildVoiceQaDashboard,
+  filterVoiceTimelineEvents,
+  timelineFilterOptions,
+  type VoiceTimelineFilter,
+} from "@/lib/voiceQa";
+import {
   clearVoiceTimeline,
   fetchPersistedVoiceTimelineEvents,
   flushVoiceTimelineEvents,
@@ -48,6 +54,13 @@ const QUICK_UTTERANCES = [
   "Let's play a memory game",
   "Show me social rooms",
 ];
+
+const DEFAULT_QA_FILTERS: VoiceTimelineFilter = {
+  query: "",
+  domain: "all",
+  kind: "all",
+  severity: "all",
+};
 
 function statusLabel(validation: VoiceContextValidation) {
   if (validation.status === "ready") return "Ready";
@@ -98,6 +111,24 @@ function formatTimelineTime(at: number) {
     minute: "2-digit",
     second: "2-digit",
   });
+}
+
+function formatTimelineDate(at: number) {
+  return new Date(at).toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatDuration(ms: number) {
+  if (ms < 1000) return "<1s";
+  const totalSeconds = Math.round(ms / 1000);
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}m ${seconds}s`;
 }
 
 function timelineMarkerClass(severity: "info" | "success" | "warning" | "error") {
@@ -185,9 +216,15 @@ export default function VoiceReadinessAdminPage() {
   const [timelineServerStatus, setTimelineServerStatus] = useState("Local timeline ready");
   const [utterance, setUtterance] = useState(QUICK_UTTERANCES[0]);
   const [simulatorMessage, setSimulatorMessage] = useState("");
+  const [qaFilters, setQaFilters] = useState<VoiceTimelineFilter>(DEFAULT_QA_FILTERS);
   const displayedTimelineEvents: VoiceTimelineEvent[] = useMemo(() => (
     persistedTimelineEvents.length > 0 ? persistedTimelineEvents : [...timelineEvents].reverse()
   ), [persistedTimelineEvents, timelineEvents]);
+  const filteredTimelineEvents = useMemo(() => (
+    filterVoiceTimelineEvents(displayedTimelineEvents, qaFilters)
+  ), [displayedTimelineEvents, qaFilters]);
+  const filterOptions = useMemo(() => timelineFilterOptions(displayedTimelineEvents), [displayedTimelineEvents]);
+  const qaDashboard = useMemo(() => buildVoiceQaDashboard(filteredTimelineEvents), [filteredTimelineEvents]);
 
   const currentContract = voiceAgentContractFor({
     domain: lastResolvedSessionContext?.domain,
@@ -316,6 +353,124 @@ export default function VoiceReadinessAdminPage() {
           />
         </section>
 
+        <section className="mt-5 rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#8b7a73]">Voice QA console</p>
+              <h2 className="mt-1 text-xl font-black text-[#2f2135]">Session grouping and filters</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[#7d6b65]">
+                Review persisted app-side voice behavior by session, agent, event type, severity, and route before adjusting ElevenLabs prompts.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Pill tone={qaDashboard.totalIssues > 0 ? "warn" : "good"}>{qaDashboard.totalIssues} QA flags</Pill>
+              <Pill>{qaDashboard.sessions.length} sessions</Pill>
+              <Pill>{qaDashboard.filteredEventCount} events</Pill>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(220px,1.4fr)_repeat(3,minmax(150px,0.8fr))]">
+            <input
+              value={qaFilters.query}
+              onChange={(event) => setQaFilters((current) => ({ ...current, query: event.target.value }))}
+              placeholder="Search title, route, session, plan..."
+              className="min-h-[44px] rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-3 text-sm font-bold outline-none focus:border-purple-300"
+            />
+            <select
+              value={qaFilters.domain}
+              onChange={(event) => setQaFilters((current) => ({ ...current, domain: event.target.value }))}
+              className="min-h-[44px] rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-3 text-sm font-bold text-[#4f4352] outline-none focus:border-purple-300"
+            >
+              <option value="all">All domains</option>
+              {filterOptions.domains.map((domain) => <option key={domain} value={domain}>{domain}</option>)}
+            </select>
+            <select
+              value={qaFilters.kind}
+              onChange={(event) => setQaFilters((current) => ({ ...current, kind: event.target.value }))}
+              className="min-h-[44px] rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-3 text-sm font-bold text-[#4f4352] outline-none focus:border-purple-300"
+            >
+              <option value="all">All events</option>
+              {filterOptions.kinds.map((kind) => <option key={kind} value={kind}>{kind}</option>)}
+            </select>
+            <select
+              value={qaFilters.severity}
+              onChange={(event) => setQaFilters((current) => ({ ...current, severity: event.target.value }))}
+              className="min-h-[44px] rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-3 text-sm font-bold text-[#4f4352] outline-none focus:border-purple-300"
+            >
+              <option value="all">All severities</option>
+              {filterOptions.severities.map((severity) => <option key={severity} value={severity}>{severity}</option>)}
+            </select>
+          </div>
+
+          <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
+            <div className="rounded-xl border border-[#eadfd5] bg-[#fbf8f5] p-3">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-black text-[#2f2135]">Agent performance</h3>
+                <Pill>{qaDashboard.agentPerformance.length} agents</Pill>
+              </div>
+              <div className="mt-3 max-h-[340px] space-y-2 overflow-auto pr-1">
+                {qaDashboard.agentPerformance.length > 0 ? qaDashboard.agentPerformance.slice(0, 8).map((agent) => (
+                  <article key={agent.key} className="rounded-xl border border-[#eadfd5] bg-white p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="min-w-0 break-words text-sm font-black text-[#2f2135]">{agent.label}</p>
+                      <Pill tone={agent.errors > 0 || agent.dismissedActions > 0 ? "warn" : "good"}>
+                        {agent.sessions} sessions
+                      </Pill>
+                    </div>
+                    <div className="mt-2 grid grid-cols-4 gap-2 text-center text-xs font-black text-[#5b4a46]">
+                      <span className="rounded-lg bg-[#fbf8f5] px-2 py-2">{agent.transfers} transfers</span>
+                      <span className="rounded-lg bg-[#fbf8f5] px-2 py-2">{agent.completedActions} done</span>
+                      <span className="rounded-lg bg-[#fbf8f5] px-2 py-2">{agent.dismissedActions} dismissed</span>
+                      <span className="rounded-lg bg-[#fbf8f5] px-2 py-2">{agent.errors} errors</span>
+                    </div>
+                  </article>
+                )) : (
+                  <p className="rounded-xl bg-white p-3 text-sm font-bold text-[#7d6b65]">No agent activity matches these filters.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-[#eadfd5] bg-[#fbf8f5] p-3">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-black text-[#2f2135]">Recent sessions</h3>
+                <Pill tone={qaDashboard.totalIssues > 0 ? "warn" : "good"}>
+                  {qaDashboard.sessions.filter((session) => session.flags.length > 0).length} flagged
+                </Pill>
+              </div>
+              <div className="mt-3 max-h-[340px] space-y-2 overflow-auto pr-1">
+                {qaDashboard.sessions.length > 0 ? qaDashboard.sessions.slice(0, 8).map((session) => (
+                  <article key={session.id} className="rounded-xl border border-[#eadfd5] bg-white p-3">
+                    <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0">
+                        <p className="break-words text-sm font-black text-[#2f2135]">{session.latestTitle}</p>
+                        <p className="mt-1 break-words text-xs font-bold text-[#8b7a73]">
+                          {session.sessionId} - {formatTimelineDate(session.startedAt)} - {formatDuration(session.durationMs)}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 lg:justify-end">
+                        <Pill>{session.domain}</Pill>
+                        <Pill>{session.eventCount} events</Pill>
+                      </div>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {session.flags.length > 0 ? session.flags.map((flag) => (
+                        <Pill key={flag} tone="warn">{flag}</Pill>
+                      )) : (
+                        <Pill tone="good">Clean</Pill>
+                      )}
+                      {session.transferCount > 0 && <Pill>{session.transferCount} transfers</Pill>}
+                      {session.completedActionCount > 0 && <Pill tone="good">{session.completedActionCount} completed</Pill>}
+                      {session.conversationPlanId !== "unknown" && <Pill>{session.conversationPlanId}</Pill>}
+                    </div>
+                  </article>
+                )) : (
+                  <p className="rounded-xl bg-white p-3 text-sm font-bold text-[#7d6b65]">No sessions match these filters.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
           <div className="space-y-4">
             {agentRows.map(({ contract, validation }) => (
@@ -411,7 +566,7 @@ export default function VoiceReadinessAdminPage() {
               </div>
 
               <div className="mt-4 max-h-[440px] space-y-3 overflow-auto pr-1">
-                {displayedTimelineEvents.length > 0 ? displayedTimelineEvents.slice(0, 18).map((event) => (
+                {filteredTimelineEvents.length > 0 ? filteredTimelineEvents.slice(0, 18).map((event) => (
                   <article key={event.id} className="relative rounded-xl border border-[#eadfd5] bg-[#fbf8f5] p-3">
                     <div className="flex items-start gap-3">
                       <span className={`mt-1 h-2.5 w-2.5 flex-shrink-0 rounded-full ${timelineMarkerClass(event.severity)}`} />
@@ -435,7 +590,7 @@ export default function VoiceReadinessAdminPage() {
                   </article>
                 )) : (
                   <p className="rounded-xl bg-[#fbf8f5] p-3 text-sm font-bold text-[#7d6b65]">
-                    No voice timeline events yet. Start a voice session or use a simulator shortcut.
+                    No voice timeline events match the current filters.
                   </p>
                 )}
               </div>
