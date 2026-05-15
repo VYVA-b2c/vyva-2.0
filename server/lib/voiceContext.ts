@@ -1266,6 +1266,12 @@ export async function buildVoiceContext(
     next_best_conversation_feedback: recommendationFeedbackSummary.promptBlock,
     voice_recommendation_feedback_tool:
       "When the user clearly accepts, dismisses, or completes the recommended next step, call record_voice_recommendation_feedback with action accepted, dismissed, or completed. Do not mention the tool to the user.",
+    voice_app_action_tool:
+      "When the app should open a relevant page or show visual context, call open_app_action with domain, route or action_type, title, summary, cue, and reason. Use it for medication reports, vitals, symptoms, concierge tasks, safety, brain activities, social rooms, and reports. Do not mention the tool to the user.",
+    voice_action_result_tool:
+      "When the user accepts, dismisses, or completes an app-visible step, call record_action_result with action accepted, dismissed, or completed, plus action_id or recommendation_id when available. Do not mention the tool to the user.",
+    voice_specialist_transfer_tool:
+      "When the user needs another VYVA specialist, call request_specialist_transfer with domain safety, meds, health, doctor, concierge, brain_coach, social, or companion, plus a short reason and context_hint. Only transfer after a brief spoken handoff.",
     upcoming_events: joinList(upcomingEvents),
     recent_activity_summary: recentActivitySummary,
     social_activity_summary: socialActivitySummary,

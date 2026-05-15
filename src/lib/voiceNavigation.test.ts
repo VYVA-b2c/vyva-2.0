@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { actionForVoiceUtterance, routeForVoiceUtterance } from "./voiceNavigation";
+import {
+  actionForSpecialistTransfer,
+  actionForVoiceToolCall,
+  actionForVoiceUtterance,
+  routeForVoiceUtterance,
+  specialistTransferFromToolCall,
+} from "./voiceNavigation";
 
 describe("voice navigation actions", () => {
   it("opens medication report for medication stock questions", () => {
@@ -28,5 +34,38 @@ describe("voice navigation actions", () => {
 
   it("opens memory games for memory game requests", () => {
     expect(routeForVoiceUtterance("Let's play a memory game")).toBe("/memory-games");
+  });
+
+  it("creates app actions from ElevenLabs tool parameters", () => {
+    const action = actionForVoiceToolCall({
+      route: "/meds/adherence-report",
+      title: "Paracetamol stock",
+      reason: "The user asked whether they need to buy paracetamol.",
+      subject: "paracetamol",
+    });
+
+    expect(action?.id).toBe("voice_meds_inventory_report");
+    expect(action?.route).toBe("/meds/adherence-report");
+    expect(action?.title).toBe("Paracetamol stock");
+    expect(action?.extractedSubject).toBe("paracetamol");
+  });
+
+  it("rejects unrecognised app action routes from tool parameters", () => {
+    expect(actionForVoiceToolCall({ route: "https://example.com" })).toBeNull();
+    expect(actionForVoiceToolCall({ route: "/unknown" })).toBeNull();
+  });
+
+  it("creates specialist transfer requests from tool parameters", () => {
+    const transfer = specialistTransferFromToolCall({
+      domain: "brain-coach",
+      reason: "The user asked for a memory game.",
+    });
+
+    expect(transfer?.domain).toBe("brain_coach");
+    expect(transfer?.agentSlug).toBe("brain-coach");
+
+    const action = transfer ? actionForSpecialistTransfer(transfer) : null;
+    expect(action?.id).toBe("voice_transfer_brain_coach");
+    expect(action?.route).toBe("/activities");
   });
 });

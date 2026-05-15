@@ -4,7 +4,15 @@ import type { Conversation as ElevenConversation, DisconnectionDetails, PartialO
 import { getToken } from "@/lib/auth";
 import { getAgentAppContextVariables, subscribeAgentAppContext } from "@/lib/agentAppContext";
 import { apiFetch } from "@/lib/queryClient";
-import { emitVoiceUserMessage } from "@/lib/voiceNavigation";
+import {
+  actionForVoiceToolCall,
+  emitVoiceAppAction,
+  emitVoiceAppActionResult,
+  emitVoiceSpecialistTransfer,
+  emitVoiceUserMessage,
+  isVoiceAppActionDomain,
+  specialistTransferFromToolCall,
+} from "@/lib/voiceNavigation";
 
 type TtsSegment = {
   text: string;
@@ -217,6 +225,7 @@ function inferVoiceContextDomain(options: StartVoiceOptions | undefined) {
   if (agentSlug === "doctor" || agentSlug === "medical-doctor") return "doctor";
   if (agentSlug === "health" || agentSlug === "health-assistant") return "health";
   if (agentSlug === "meds" || agentSlug === "medication" || agentSlug === "medications") return "meds";
+  if (agentSlug === "safety" || agentSlug === "safe-home" || agentSlug === "sos") return "safety";
   if (agentSlug === "concierge") return "concierge";
   if (agentSlug === "brain-coach" || agentSlug === "brain_coach") return "brain_coach";
   if (options?.roomSlug || agentSlug) return "social";
@@ -231,6 +240,17 @@ function dynamicString(
   if (typeof value === "string") return value.trim();
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   return "";
+}
+
+function toolParameters(parameters: unknown): Record<string, unknown> {
+  return parameters && typeof parameters === "object"
+    ? parameters as Record<string, unknown>
+    : {};
+}
+
+function toolString(parameters: Record<string, unknown>, key: string) {
+  const value = parameters[key];
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function activeRecommendationFromVariables(
@@ -607,17 +627,88 @@ function useVyvaVoiceController() {
           },
           clientTools: {
             ...(sessionOptions.clientTools ?? {}),
+            open_app_action: async (parameters: unknown) => {
+              const params = toolParameters(parameters);
+              const action = actionForVoiceToolCall(params);
+              if (!action) {
+                return "App action was not opened because the route, domain, or action type was not recognised.";
+              }
+
+              emitVoiceAppAction(action);
+              return `Opening ${action.title}.`;
+            },
+            record_action_result: async (parameters: unknown) => {
+              const params = toolParameters(parameters);
+              const rawAction = toolString(params, "action");
+              if (!["accepted", "dismissed", "completed"].includes(rawAction)) {
+                return "Action result was not recorded because action must be accepted, dismissed, or completed.";
+              }
+
+              const actionId = toolString(params, "action_id") || toolString(params, "recommendation_id");
+              const domain = toolString(params, "domain");
+              const safeDomain = isVoiceAppActionDomain(domain) ? domain : undefined;
+              const title = toolString(params, "title");
+              const reason = toolString(params, "reason");
+              const evidence = toolString(params, "evidence").slice(0, 500);
+
+              emitVoiceAppActionResult({
+                action: rawAction as VoiceRecommendationFeedbackAction,
+                ...(actionId ? { actionId } : {}),
+                ...(safeDomain ? { domain: safeDomain } : {}),
+                ...(title ? { title } : {}),
+                ...(reason ? { reason } : {}),
+                ...(evidence ? { evidence } : {}),
+                source: "elevenlabs_client_tool",
+              });
+
+              const current = activeRecommendationRef.current;
+              const recommendationId = actionId || current?.id;
+              if (!recommendationId) {
+                return "Action result was shared with the app, but no recommendation id was available for analytics.";
+              }
+
+              const recorded = await recordRecommendationFeedback(
+                rawAction as VoiceRecommendationFeedbackAction,
+                {
+                  source: "elevenlabs_client_tool",
+                  evidence,
+                  outcome: toolString(params, "outcome").slice(0, 500),
+                  voice_action_id: actionId,
+                },
+                {
+                  id: recommendationId,
+                  domain: safeDomain || current?.domain,
+                  title: title || current?.title,
+                  reason: reason || current?.reason,
+                  sessionId: current?.sessionId,
+                  conversationId: current?.conversationId,
+                  token: current?.token,
+                },
+              );
+
+              return recorded
+                ? `Recorded ${rawAction} result for ${recommendationId}.`
+                : "Action result was shared with the app, but analytics could not be recorded.";
+            },
+            request_specialist_transfer: async (parameters: unknown) => {
+              const params = toolParameters(parameters);
+              const request = specialistTransferFromToolCall(params);
+              if (!request) {
+                return "Specialist transfer was not requested because the target domain was not recognised.";
+              }
+
+              emitVoiceSpecialistTransfer(request);
+              return `Transfer requested to ${request.domain}.`;
+            },
             record_voice_recommendation_feedback: async (parameters: unknown) => {
-              const params = parameters && typeof parameters === "object"
-                ? parameters as Record<string, unknown>
-                : {};
-              const rawAction = typeof params.action === "string" ? params.action.trim() : "";
+              const params = toolParameters(parameters);
+              const rawAction = toolString(params, "action");
               if (!["accepted", "dismissed", "completed"].includes(rawAction)) {
                 return "Feedback was not recorded because action must be accepted, dismissed, or completed.";
               }
               const current = activeRecommendationRef.current;
-              const recommendationId = typeof params.recommendation_id === "string" && params.recommendation_id.trim()
-                ? params.recommendation_id.trim()
+              const recommendationId = toolString(params, "recommendation_id")
+                ? toolString(params, "recommendation_id")
                 : current?.id;
               if (!recommendationId) return "Feedback was not recorded because no active recommendation was available.";
 
@@ -625,14 +716,14 @@ function useVyvaVoiceController() {
                 rawAction as VoiceRecommendationFeedbackAction,
                 {
                   source: "elevenlabs_client_tool",
-                  evidence: typeof params.evidence === "string" ? params.evidence.slice(0, 500) : "",
-                  outcome: typeof params.outcome === "string" ? params.outcome.slice(0, 500) : "",
+                  evidence: toolString(params, "evidence").slice(0, 500),
+                  outcome: toolString(params, "outcome").slice(0, 500),
                 },
                 {
                   id: recommendationId,
-                  domain: typeof params.domain === "string" ? params.domain : current?.domain,
-                  title: typeof params.title === "string" ? params.title : current?.title,
-                  reason: typeof params.reason === "string" ? params.reason : current?.reason,
+                  domain: toolString(params, "domain") || current?.domain,
+                  title: toolString(params, "title") || current?.title,
+                  reason: toolString(params, "reason") || current?.reason,
                   sessionId: current?.sessionId,
                   conversationId: current?.conversationId,
                   token: current?.token,

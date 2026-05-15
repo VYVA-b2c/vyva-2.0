@@ -9,7 +9,12 @@ import {
   useState,
 } from "react";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
-import { VYVA_VOICE_APP_ACTION_EVENT, type VoiceAppAction } from "@/lib/voiceNavigation";
+import {
+  VYVA_VOICE_APP_ACTION_EVENT,
+  VYVA_VOICE_APP_ACTION_RESULT_EVENT,
+  type VoiceAppAction,
+  type VoiceAppActionResult,
+} from "@/lib/voiceNavigation";
 
 type VoiceActionFeedbackMetadata = Record<string, unknown>;
 
@@ -68,7 +73,7 @@ export function VoiceActionProvider({ children }: { children: ReactNode }) {
   const recordActionFeedback = useCallback(
     (
       state: ActiveVoiceActionState,
-      feedbackAction: "completed" | "dismissed",
+      feedbackAction: "accepted" | "completed" | "dismissed",
       metadata: VoiceActionFeedbackMetadata = {},
     ) => {
       const source = typeof metadata.source === "string" ? metadata.source : "voice_action_context";
@@ -121,6 +126,35 @@ export function VoiceActionProvider({ children }: { children: ReactNode }) {
     window.addEventListener(VYVA_VOICE_APP_ACTION_EVENT, handleVoiceAppAction);
     return () => window.removeEventListener(VYVA_VOICE_APP_ACTION_EVENT, handleVoiceAppAction);
   }, [openVoiceAction]);
+
+  useEffect(() => {
+    const handleVoiceAppActionResult = (event: Event) => {
+      const result = event instanceof CustomEvent
+        ? (event.detail as VoiceAppActionResult | undefined)
+        : undefined;
+      if (!result?.action) return;
+
+      const current = activeStateRef.current;
+      if (!current) return;
+      if (result.actionId && result.actionId !== current.action.id) return;
+      if (result.domain && result.domain !== current.action.domain) return;
+
+      recordActionFeedback(current, result.action, {
+        source: result.source ?? "voice_action_result_event",
+        evidence: result.evidence ?? "",
+        title: result.title ?? current.action.title,
+        reason: result.reason ?? current.action.feedbackReason,
+      });
+
+      if (result.action === "completed" || result.action === "dismissed") {
+        activeStateRef.current = null;
+        setActiveState(null);
+      }
+    };
+
+    window.addEventListener(VYVA_VOICE_APP_ACTION_RESULT_EVENT, handleVoiceAppActionResult);
+    return () => window.removeEventListener(VYVA_VOICE_APP_ACTION_RESULT_EVENT, handleVoiceAppActionResult);
+  }, [recordActionFeedback]);
 
   useEffect(() => {
     if (!activeState) return;

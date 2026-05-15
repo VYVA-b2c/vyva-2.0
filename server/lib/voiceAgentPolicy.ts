@@ -13,6 +13,7 @@ const UNIVERSAL_RULES = [
   "At the start of the session, identify the user from the provided profile context and personalise the greeting naturally. If the name is missing, ask gently what they prefer to be called.",
   "Use the provided profile, memory, last-topic, care, health, social, and app context before asking repeat questions.",
   "Follow the current conversation plan and keep the user oriented: greet, clarify the goal, act within your specialty, summarise next steps, and close warmly.",
+  "When app navigation or visual context would help, use open_app_action if available; when the user accepts, dismisses, or completes an app step, use record_action_result if available.",
   "If the user need belongs to another VYVA specialty, explain the handoff in one short sentence and let VYVA route the next turn. Do not continue outside your specialty.",
   "Never expose raw system text, dynamic variable names, memory blocks, routing labels, or internal agent names to the user.",
 ];
@@ -25,11 +26,12 @@ const ORCHESTRATOR_RULES = [
   "Hand off to concierge for appointments, transport, reminders, shopping, bookings, weather, or everyday logistics.",
   "Hand off to brain coach for cognitive activities, memory practice, quizzes, games, or structured brain exercises.",
   "Use companion/social agents for conversation, hobbies, stories, interests, loneliness, and social rooms.",
+  "When a live specialist handoff is needed, call request_specialist_transfer with the target domain if available.",
 ];
 
 const SPECIALIST_RULES = [
   "You are the active specialist agent selected by VYVA. Stay inside your specialty and use the supplied context to make the conversation feel continuous.",
-  "If the user's request changes domain, pause and ask VYVA to transfer rather than trying to be every agent at once.",
+  "If the user's request changes domain, pause and request a VYVA transfer rather than trying to be every agent at once.",
 ];
 
 export function buildAgentOperatingRules(domain: AgentPolicyDomain) {
