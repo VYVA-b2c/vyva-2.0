@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AlertCircle } from "lucide-react";
 import StatusBar from "./StatusBar";
@@ -7,8 +7,10 @@ import BottomNav from "./BottomNav";
 import VoiceCallOverlay from "./VoiceCallOverlay";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 import {
-  routeForVoiceUtterance,
+  actionForVoiceUtterance,
+  emitVoiceAppAction,
   VYVA_VOICE_USER_MESSAGE_EVENT,
+  type VoiceAppAction,
   type VoiceUserMessageDetail,
 } from "@/lib/voiceNavigation";
 import { useServiceGate } from "@/hooks/useServiceGate";
@@ -68,11 +70,11 @@ const SosSheet = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: 
 
 const AppShell = ({ children }: { children: ReactNode }) => {
   const location = useLocation();
-  const navigate = useNavigate();
-  const { canUseService } = useServiceGate();
+  const { canUseService, guardPath } = useServiceGate();
   const [sosOpen, setSosOpen] = useState(false);
-  const lastVoiceRouteRef = useRef<{ route: string; at: number } | null>(null);
-  const { status, isConnecting, isSpeaking, transcript, stopVoice } = useVyvaVoice();
+  const [activeVoiceAction, setActiveVoiceAction] = useState<VoiceAppAction | null>(null);
+  const lastVoiceActionRef = useRef<{ key: string; at: number } | null>(null);
+  const { status, isConnecting, isSpeaking, transcript, stopVoice, sendContextUpdate, recordRecommendationFeedback } = useVyvaVoice();
   const isFullScreen = FULL_SCREEN_ROUTES.includes(location.pathname);
   const isWideRoute = WIDE_ROUTES.some((route) => location.pathname.startsWith(route));
   const showVoiceOverlay = status === "connected" || isConnecting;
@@ -85,20 +87,81 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         : undefined;
       if (!detail?.text) return;
 
-      const route = routeForVoiceUtterance(detail.text);
-      if (!route || location.pathname === route) return;
+      const action = actionForVoiceUtterance(detail.text);
+      if (!action) return;
 
-      const previous = lastVoiceRouteRef.current;
+      const actionKey = `${action.id}:${action.route}`;
+      const previous = lastVoiceActionRef.current;
       const now = Date.now();
-      if (previous?.route === route && now - previous.at < 3500) return;
+      if (previous?.key === actionKey && now - previous.at < 3500) return;
 
-      lastVoiceRouteRef.current = { route, at: now };
-      navigate(route);
+      lastVoiceActionRef.current = { key: actionKey, at: now };
+      setActiveVoiceAction(action);
+      emitVoiceAppAction(action);
+      sendContextUpdate(
+        `App action opened: ${action.title}. Route: ${action.route}. Context: ${action.cue}`,
+      );
+
+      const alreadyOnRoute = location.pathname === action.route;
+      const navigated = alreadyOnRoute || guardPath(action.route, {
+        state: {
+          voiceActionId: action.id,
+          voiceActionTitle: action.title,
+          voiceActionDomain: action.domain,
+        },
+      });
+
+      if (navigated) {
+        void recordRecommendationFeedback("accepted", {
+          source: "app_voice_action",
+          voice_action_id: action.id,
+          voice_action_domain: action.domain,
+          voice_action_route: action.route,
+          voice_action_title: action.title,
+          voice_action_reason: action.feedbackReason,
+          source_text: action.sourceText.slice(0, 180),
+          already_on_route: alreadyOnRoute,
+        }, {
+          id: action.id,
+          domain: action.domain,
+          title: action.title,
+          reason: action.feedbackReason,
+        });
+      }
     };
 
     window.addEventListener(VYVA_VOICE_USER_MESSAGE_EVENT, handleVoiceUserMessage);
     return () => window.removeEventListener(VYVA_VOICE_USER_MESSAGE_EVENT, handleVoiceUserMessage);
-  }, [location.pathname, navigate]);
+  }, [guardPath, location.pathname, recordRecommendationFeedback, sendContextUpdate]);
+
+  useEffect(() => {
+    if (!activeVoiceAction) return;
+    if (location.pathname !== activeVoiceAction.route) return;
+
+    const timer = window.setTimeout(() => {
+      void recordRecommendationFeedback("completed", {
+        source: "app_voice_action_route_landed",
+        voice_action_id: activeVoiceAction.id,
+        voice_action_domain: activeVoiceAction.domain,
+        voice_action_route: activeVoiceAction.route,
+        voice_action_title: activeVoiceAction.title,
+        voice_action_reason: activeVoiceAction.feedbackReason,
+      }, {
+        id: activeVoiceAction.id,
+        domain: activeVoiceAction.domain,
+        title: activeVoiceAction.title,
+        reason: activeVoiceAction.feedbackReason,
+      });
+    }, 1400);
+
+    return () => window.clearTimeout(timer);
+  }, [activeVoiceAction, location.pathname, recordRecommendationFeedback]);
+
+  useEffect(() => {
+    if (!activeVoiceAction) return;
+    const timer = window.setTimeout(() => setActiveVoiceAction(null), 18000);
+    return () => window.clearTimeout(timer);
+  }, [activeVoiceAction]);
 
   return (
     <div className="flex min-h-screen justify-center bg-[radial-gradient(circle_at_top,#fffaf2_0%,#f7f1e9_42%,#f4efe8_100%)]">
@@ -117,6 +180,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             isConnecting={isConnecting}
             transcript={transcript}
             onEnd={stopVoice}
+            activeAction={activeVoiceAction}
           />
         )}
       </div>

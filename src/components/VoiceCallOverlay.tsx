@@ -2,15 +2,17 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { TranscriptEntry } from "@/hooks/useVyvaVoice";
+import type { VoiceAppAction } from "@/lib/voiceNavigation";
 
 interface VoiceCallOverlayProps {
   isSpeaking: boolean;
   isConnecting: boolean;
   transcript: TranscriptEntry[];
   onEnd: () => void;
+  activeAction?: VoiceAppAction | null;
 }
 
-const VoiceCallOverlay = ({ isSpeaking, isConnecting, transcript, onEnd }: VoiceCallOverlayProps) => {
+const VoiceCallOverlay = ({ isSpeaking, isConnecting, transcript, onEnd, activeAction }: VoiceCallOverlayProps) => {
   const { t } = useTranslation();
   const [visibleEntry, setVisibleEntry] = useState<TranscriptEntry | null>(null);
   const [fade, setFade] = useState(true);
@@ -110,6 +112,70 @@ const VoiceCallOverlay = ({ isSpeaking, isConnecting, transcript, onEnd }: Voice
         >
           {visibleEntry?.text ?? ""}
         </p>
+
+        {activeAction && (
+          <div
+            data-testid="voice-action-panel"
+            className="font-body"
+            style={{
+              width: "min(100%, 360px)",
+              borderRadius: 20,
+              border: "1px solid rgba(52,211,153,0.34)",
+              background: "linear-gradient(135deg, rgba(16,185,129,0.22), rgba(5,150,105,0.12))",
+              padding: "14px 16px",
+              boxShadow: "0 18px 44px rgba(0,0,0,0.16)",
+              color: "rgba(255,255,255,0.92)",
+              transition: "opacity 0.18s ease, transform 0.18s ease",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 9,
+                  height: 9,
+                  borderRadius: 999,
+                  background: "#34D399",
+                  boxShadow: "0 0 0 6px rgba(52,211,153,0.12)",
+                  flexShrink: 0,
+                }}
+              />
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  color: "rgba(209,250,229,0.9)",
+                }}
+              >
+                App context
+              </span>
+            </div>
+            <p
+              style={{
+                fontSize: 18,
+                lineHeight: 1.22,
+                fontWeight: 700,
+                margin: 0,
+                overflowWrap: "anywhere",
+              }}
+            >
+              {activeAction.title}
+            </p>
+            <p
+              style={{
+                fontSize: 13,
+                lineHeight: 1.45,
+                margin: "6px 0 0",
+                color: "rgba(236,253,245,0.82)",
+                overflowWrap: "anywhere",
+              }}
+            >
+              {activeAction.summary}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Bottom controls — absolutely anchored so they're always visible */}
