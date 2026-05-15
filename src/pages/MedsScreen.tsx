@@ -4,9 +4,11 @@ import { useNavigate } from "react-router-dom";
 import { Check, Clock, AlertCircle, Calendar, Link as LinkIcon, Mic, ChevronDown, ExternalLink, Zap, Leaf, ShoppingCart, Sparkles, BarChart2, Pencil, Trash2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
+import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import VoiceMedsModal, { type MedicationForForm } from "@/components/VoiceMedsModal";
 import MedsAssistantSheet from "@/components/MedsAssistantSheet";
 import { useToast } from "@/hooks/use-toast";
+import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { apiFetch } from "@/lib/queryClient";
 import {
   Dialog,
@@ -56,6 +58,14 @@ type DbMed = {
 
 type TodayResponse = { medications: DbMed[] };
 
+function normalizeVoiceFocus(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
 const MedsScreen = () => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -84,6 +94,15 @@ const MedsScreen = () => {
     // No medications from DB yet — return empty list so the UI shows an empty state.
     return [];
   })();
+  const { action: voiceAction, payloadValue: voicePayloadValue } = useVoiceActionFulfillment({
+    domain: "meds",
+    actionTypes: ["meds.management"],
+  });
+  const focusedMedicationName = voicePayloadValue("medication_name") || voiceAction?.extractedSubject || "";
+  const focusedMedicationKey = normalizeVoiceFocus(focusedMedicationName);
+  const focusedMedication = focusedMedicationKey
+    ? displayMeds.find((med) => normalizeVoiceFocus(med.displayName).includes(focusedMedicationKey))
+    : null;
 
   const medNames = (() => {
     const names = displayMeds.map((m) => m.displayName);
@@ -212,6 +231,15 @@ const MedsScreen = () => {
   const isMedTaken = (med: DisplayMed) =>
     remainingDoseCount(med) === 0;
 
+  const voiceActionHighlights = [
+    ...(focusedMedicationName
+      ? [{ label: "Medication", value: focusedMedicationName, tone: focusedMedication ? "good" as const : "warning" as const }]
+      : []),
+    ...(focusedMedication
+      ? [{ label: "Today", value: isMedTaken(focusedMedication) ? "Already taken" : `${remainingDoseCount(focusedMedication)} left`, tone: isMedTaken(focusedMedication) ? "good" as const : "warning" as const }]
+      : []),
+  ];
+
   const totalScheduledDoseCount = displayMeds.reduce(
     (sum, med) => sum + med.scheduledCountToday,
     0
@@ -336,6 +364,15 @@ const MedsScreen = () => {
         </div>
       </VoiceHero>
 
+      <VoiceActionFulfillmentPanel
+        domain="meds"
+        actionTypes={["meds.management"]}
+        title="Medication context ready"
+        description="VYVA can use today's schedule and the medication profile on this page."
+        highlights={voiceActionHighlights}
+        className="mt-4"
+      />
+
       {/* Medication info */}
       <div className="mt-[14px] bg-white rounded-[20px] border border-vyva-border overflow-hidden" style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}>
         <div className="px-[18px] py-[13px] border-b border-vyva-border" style={{ background: "#F5EFE4" }}>
@@ -399,7 +436,11 @@ const MedsScreen = () => {
             const takenDoseCount = effectiveTakenCount(med);
             const showDoseProgress = med.scheduledCountToday > 1;
             return (
-              <div key={med.id} className="flex items-center gap-[14px] px-[18px] py-[14px] border-b border-vyva-border last:border-b-0" style={{ minHeight: 64 }}>
+              <div
+                key={med.id}
+                className={`flex items-center gap-[14px] px-[18px] py-[14px] border-b border-vyva-border last:border-b-0 ${focusedMedication?.id === med.id ? "bg-emerald-50 ring-2 ring-inset ring-emerald-200" : ""}`}
+                style={{ minHeight: 64 }}
+              >
                 <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: taken ? "#ECFDF5" : "#FEF3C7" }}>
                   {taken ? <Check size={18} style={{ color: "#0A7C4E" }} /> : <Clock size={18} style={{ color: "#C9890A" }} />}
                 </div>

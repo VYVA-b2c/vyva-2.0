@@ -15,6 +15,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n";
+import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { getGameHistory } from "./gameStorage";
 import { getGameTitle, memoryGameRegistry, MEMORY_GAME_ORDER } from "./memoryGameRegistry";
 import { getRecommendedLevelForGame, selectGamePlan, selectNextMemoryGame } from "./progressionEngine";
@@ -151,6 +152,18 @@ const MemoryGamesPage = () => {
           </p>
         ) : null}
       </section>
+
+      <VoiceActionFulfillmentPanel
+        domain="brain_coach"
+        actionTypes={["brain.memory_game"]}
+        title="Memory game context ready"
+        description="VYVA can use the recommended level, last session, and chosen game while keeping the user company."
+        highlights={[
+          ...(recommendation ? [{ label: "Recommended", value: getGameTitle(recommendation.gameType, language), tone: "good" as const }] : []),
+          ...(summary.lastSessionLabel ? [{ label: "Last session", value: summary.lastSessionLabel, tone: "neutral" as const }] : []),
+        ]}
+        className="mt-5"
+      />
 
       <button
         type="button"

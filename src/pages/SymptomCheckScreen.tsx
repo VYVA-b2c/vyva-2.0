@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { ChevronLeft, ChevronRight, Heart, MessageSquare, FileText, Share2, Copy, CheckCircle, AlertTriangle, Eye, Mic } from "lucide-react";
 import VitalsScan from "@/components/VitalsScan";
 import TriageChat from "@/components/TriageChat";
+import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/queryClient";
 
@@ -435,6 +436,15 @@ export default function SymptomCheckScreen() {
       )}
 
       <div className="flex flex-col flex-1 min-h-0 overflow-y-auto">
+        <div className="px-4 pt-4">
+          <VoiceActionFulfillmentPanel
+            domain="health"
+            actionTypes={["health.symptom_support"]}
+            title={t("health.symptomCheck.contextReady", "Symptom context ready")}
+            description={t("health.symptomCheck.contextReadySub", "VYVA can keep the current symptom topic, scan context, and report flow together here.")}
+          />
+        </div>
+
         {step === "intro" && (
           <IntroScreen
             onStart={() => setStep("vitals")}

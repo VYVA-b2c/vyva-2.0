@@ -23,6 +23,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import VoiceHero from "@/components/VoiceHero";
+import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 import { apiFetch } from "@/lib/queryClient";
 
@@ -1354,6 +1355,16 @@ const ConciergeScreen = () => {
         autoStartVoice={autoStartVoice ? "concierge" : false}
         showVoiceOverlay={false}
         activeLabel={t("voiceHero.endCall", "End call")}
+      />
+
+      <VoiceActionFulfillmentPanel
+        domain="concierge"
+        actionTypes={["concierge.appointment_help", "concierge.task"]}
+        title={isSpanish ? "Gestion preparada" : "Task context ready"}
+        description={isSpanish
+          ? "VYVA puede usar la peticion, la fecha, el proveedor y la ubicacion antes de confirmar cualquier accion."
+          : "VYVA can use the request, date, provider, and location before confirming any action."}
+        className="mt-5"
       />
 
       <section className="mt-5" data-testid="section-concierge-active-task">
