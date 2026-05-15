@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Send,
@@ -11,8 +10,6 @@ import {
   Tag,
   Plus,
   Sparkles,
-  Home,
-  ShieldCheck,
   PhoneCall,
   CircleCheck,
   ExternalLink,
@@ -21,6 +18,7 @@ import {
   Mic,
   PencilLine,
   Zap,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -742,7 +740,6 @@ const ConciergeScreen = () => {
   const { t, i18n } = useTranslation();
   const locale = i18n.language.split("-")[0].toLowerCase();
   const isSpanish = locale === "es";
-  const navigate = useNavigate();
   const autoStartVoice = useRouteVoiceAutoStart();
   const queryClient = useQueryClient();
 
@@ -751,6 +748,8 @@ const ConciergeScreen = () => {
   const [input, setInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [visibleActionId, setVisibleActionId] = useState<string | null>(null);
+  const [isRightNowHidden, setIsRightNowHidden] = useState(false);
   const reqIdRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const chatSectionRef = useRef<HTMLElement>(null);
@@ -806,6 +805,21 @@ const ConciergeScreen = () => {
       ]);
     },
   });
+
+  useEffect(() => {
+    if (pendingActions.length === 0) {
+      setVisibleActionId(null);
+      setIsRightNowHidden(false);
+      return;
+    }
+
+    setVisibleActionId((currentId) => {
+      if (currentId && pendingActions.some((action) => action.id === currentId)) {
+        return currentId;
+      }
+      return pendingActions[0]?.id ?? null;
+    });
+  }, [pendingActions]);
 
   useEffect(() => {
     currentLocaleRef.current = i18n.language;
@@ -1316,10 +1330,18 @@ const ConciergeScreen = () => {
     if (url) window.open(url, "_blank", "noopener,noreferrer");
   }
 
-  const activeAction = pendingActions[0];
-  const queuedActionCount = Math.max(0, pendingActions.length - 1);
+  const activeAction = pendingActions.find((action) => action.id === visibleActionId) ?? pendingActions[0];
+  const queuedActions = activeAction ? pendingActions.filter((action) => action.id !== activeAction.id) : [];
+  const queuedActionCount = queuedActions.length;
   const priorityOfferIdeas = OFFER_IDEA_CHIPS.slice(0, 3);
   const visibleOfferIdeas = OFFER_IDEA_CHIPS.slice(3 + offersIdeaPage * 4, 3 + offersIdeaPage * 4 + 4);
+
+  function showNextQueuedAction() {
+    const nextAction = queuedActions[0] ?? pendingActions[0];
+    if (!nextAction) return;
+    setVisibleActionId(nextAction.id);
+    setIsRightNowHidden(false);
+  }
 
   return (
     <div className="vyva-page">
@@ -1340,9 +1362,14 @@ const ConciergeScreen = () => {
             {isSpanish ? "Ahora mismo" : "Right now"}
           </h2>
           {queuedActionCount > 0 && (
-            <span className="font-body text-[12px] font-medium text-vyva-text-2">
+            <button
+              type="button"
+              onClick={showNextQueuedAction}
+              className="vyva-tap rounded-full bg-[#F5F3FF] px-3 py-1 font-body text-[12px] font-semibold text-vyva-purple"
+              aria-label={isSpanish ? "Mostrar siguiente accion en cola" : "Show next queued action"}
+            >
               +{queuedActionCount} {isSpanish ? "en cola" : "queued"}
-            </span>
+            </button>
           )}
         </div>
 
@@ -1374,6 +1401,26 @@ const ConciergeScreen = () => {
               </div>
             </div>
           </div>
+        ) : isRightNowHidden && activeAction ? (
+          <button
+            type="button"
+            onClick={() => setIsRightNowHidden(false)}
+            className="vyva-tap flex w-full items-center justify-between gap-4 rounded-[22px] border border-vyva-border bg-[#FFFCF8] p-4 text-left"
+            style={{ boxShadow: "0 10px 28px rgba(60,38,20,0.08)" }}
+            data-testid="button-concierge-show-right-now"
+          >
+            <div>
+              <p className="font-body text-[15px] font-semibold text-vyva-text-1">
+                {isSpanish ? "Tarjeta oculta" : "Card hidden"}
+              </p>
+              <p className="mt-1 font-body text-[13px] text-vyva-text-2">
+                {isSpanish ? "Toca para volver a verla." : "Tap to show it again."}
+              </p>
+            </div>
+            <span className="rounded-full bg-[#F5F3FF] px-4 py-2 font-body text-[13px] font-semibold text-vyva-purple">
+              {isSpanish ? "Mostrar" : "Show"}
+            </span>
+          </button>
         ) : (
           <div
             className="vyva-card p-[18px]"
@@ -1388,15 +1435,26 @@ const ConciergeScreen = () => {
                   {activeAction.provider_name || (isSpanish ? "Proveedor seleccionado" : "Selected provider")}
                 </p>
               </div>
-              <span
-                className="rounded-full px-3 py-1 text-[12px] font-medium"
-                style={{
-                  background: activeAction.status === "calling" ? "#F5F3FF" : "#F3F4F6",
-                  color: activeAction.status === "calling" ? "#6B21A8" : "#374151",
-                }}
-              >
-                {statusLabel(activeAction.status, locale)}
-              </span>
+              <div className="flex flex-shrink-0 items-center gap-2">
+                <span
+                  className="rounded-full px-3 py-1 text-[12px] font-medium"
+                  style={{
+                    background: activeAction.status === "calling" ? "#F5F3FF" : "#F3F4F6",
+                    color: activeAction.status === "calling" ? "#6B21A8" : "#374151",
+                  }}
+                >
+                  {statusLabel(activeAction.status, locale)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsRightNowHidden(true)}
+                  className="vyva-tap flex h-9 w-9 items-center justify-center rounded-full border border-vyva-border bg-white text-vyva-text-2"
+                  aria-label={isSpanish ? "Ocultar tarjeta" : "Hide card"}
+                  title={isSpanish ? "Ocultar" : "Hide"}
+                >
+                  <X size={16} />
+                </button>
+              </div>
             </div>
 
             <p className="mt-4 font-body text-[15px] leading-relaxed text-vyva-text-1">
@@ -2146,67 +2204,6 @@ const ConciergeScreen = () => {
         )}
       </section>
 
-      <section className="mt-6">
-        <h2 className="vyva-section-title mb-[10px]">
-          {isSpanish ? "Herramientas de ayuda" : "Help tools"}
-        </h2>
-        <div className="space-y-3">
-          <div
-            className="flex items-center gap-4 rounded-[20px] border border-vyva-border bg-white p-[16px_18px]"
-            style={{ boxShadow: "0 2px 12px rgba(107,33,168,0.08)" }}
-            data-testid="banner-concierge-intro"
-          >
-            <div
-              className="w-[48px] h-[48px] rounded-[14px] flex items-center justify-center flex-shrink-0"
-              style={{ background: "#F5F3FF" }}
-            >
-              <Sparkles size={22} style={{ color: "#6B21A8" }} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-body text-[15px] font-semibold text-vyva-text-1">{t("concierge.activityTile")}</p>
-              <p className="font-body text-[13px] text-vyva-text-2 truncate">{t("concierge.activityTileSubtitle")}</p>
-            </div>
-          </div>
-
-          <button
-            data-testid="button-safe-home-teaser"
-            onClick={() => navigate("/activity")}
-            className="w-full flex items-center gap-4 rounded-[20px] border border-vyva-border bg-white p-[16px_18px] text-left"
-            style={{ boxShadow: "0 2px 12px rgba(107,33,168,0.08)" }}
-          >
-            <div
-              className="w-[48px] h-[48px] rounded-[14px] flex items-center justify-center flex-shrink-0"
-              style={{ background: "#ECFDF5" }}
-            >
-              <Home size={22} style={{ color: "#0A7C4E" }} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-body text-[15px] font-semibold text-vyva-text-1">{t("safeHome.activityTile")}</p>
-              <p className="font-body text-[13px] text-vyva-text-2 truncate">{t("safeHome.activityTileSubtitle")}</p>
-            </div>
-            <span className="font-body text-[18px] font-medium" style={{ color: "#6B21A8" }}>›</span>
-          </button>
-
-          <button
-            data-testid="button-scam-guard-teaser"
-            onClick={() => navigate("/scam-guard")}
-            className="w-full flex items-center gap-4 rounded-[20px] border border-vyva-border bg-white p-[16px_18px] text-left"
-            style={{ boxShadow: "0 2px 12px rgba(107,33,168,0.08)" }}
-          >
-            <div
-              className="w-[48px] h-[48px] rounded-[14px] flex items-center justify-center flex-shrink-0"
-              style={{ background: "#EDE9FE" }}
-            >
-              <ShieldCheck size={22} style={{ color: "#6B21A8" }} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-body text-[15px] font-semibold text-vyva-text-1">{t("scamGuard.activityTile")}</p>
-              <p className="font-body text-[13px] text-vyva-text-2 truncate">{t("scamGuard.activityTileSubtitle")}</p>
-            </div>
-            <span className="font-body text-[18px] font-medium" style={{ color: "#6B21A8" }}>›</span>
-          </button>
-        </div>
-      </section>
     </div>
   );
 };
