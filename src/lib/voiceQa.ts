@@ -44,6 +44,40 @@ export type VoiceQaDashboard = {
   filteredEventCount: number;
 };
 
+export type VoiceQaReplayPack = {
+  version: "vyva_voice_replay_pack_v1";
+  generatedAt: string;
+  sessionCount: number;
+  sessions: Array<{
+    sessionId: string;
+    startedAt: string;
+    endedAt: string;
+    durationMs: number;
+    domain: string;
+    agentSlug: string;
+    conversationPlanId: string;
+    flags: string[];
+    metrics: {
+      eventCount: number;
+      transfers: number;
+      completedActions: number;
+      dismissedActions: number;
+      errors: number;
+    };
+    timeline: Array<{
+      at: string;
+      offsetMs: number;
+      kind: string;
+      severity: string;
+      title: string;
+      detail?: string;
+      route?: string;
+      actionType?: string;
+      actionId?: string;
+    }>;
+  }>;
+};
+
 const EMPTY_FILTER: VoiceTimelineFilter = {
   query: "",
   domain: "all",
@@ -194,4 +228,117 @@ export function timelineFilterOptions(events: VoiceTimelineEvent[]) {
   const kinds = Array.from(new Set(events.map((event) => event.kind))).sort();
   const severities = Array.from(new Set(events.map((event) => event.severity))).sort();
   return { domains, kinds, severities };
+}
+
+function isoTime(value: number) {
+  return new Date(value).toISOString();
+}
+
+function csvCell(value: unknown) {
+  const text = String(value ?? "");
+  if (!/[",\n\r]/.test(text)) return text;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+export function buildVoiceReplayPack(sessions: VoiceQaSession[]): VoiceQaReplayPack {
+  return {
+    version: "vyva_voice_replay_pack_v1",
+    generatedAt: new Date().toISOString(),
+    sessionCount: sessions.length,
+    sessions: sessions.map((session) => ({
+      sessionId: session.sessionId,
+      startedAt: isoTime(session.startedAt),
+      endedAt: isoTime(session.endedAt),
+      durationMs: session.durationMs,
+      domain: session.domain,
+      agentSlug: session.agentSlug,
+      conversationPlanId: session.conversationPlanId,
+      flags: session.flags,
+      metrics: {
+        eventCount: session.eventCount,
+        transfers: session.transferCount,
+        completedActions: session.completedActionCount,
+        dismissedActions: session.dismissedActionCount,
+        errors: session.errorCount,
+      },
+      timeline: session.events.map((event) => ({
+        at: isoTime(event.at),
+        offsetMs: Math.max(0, event.at - session.startedAt),
+        kind: event.kind,
+        severity: event.severity,
+        title: event.title,
+        ...(event.detail ? { detail: event.detail } : {}),
+        ...(event.route ? { route: event.route } : {}),
+        ...(event.actionType ? { actionType: event.actionType } : {}),
+        ...(event.actionId ? { actionId: event.actionId } : {}),
+      })),
+    })),
+  };
+}
+
+export function voiceQaSessionsToCsv(sessions: VoiceQaSession[]) {
+  const header = [
+    "session_id",
+    "started_at",
+    "ended_at",
+    "duration_ms",
+    "domain",
+    "agent_slug",
+    "conversation_plan_id",
+    "events",
+    "transfers",
+    "completed_actions",
+    "dismissed_actions",
+    "errors",
+    "flags",
+    "latest_title",
+  ];
+  const rows = sessions.map((session) => [
+    session.sessionId,
+    isoTime(session.startedAt),
+    isoTime(session.endedAt),
+    session.durationMs,
+    session.domain,
+    session.agentSlug,
+    session.conversationPlanId,
+    session.eventCount,
+    session.transferCount,
+    session.completedActionCount,
+    session.dismissedActionCount,
+    session.errorCount,
+    session.flags.join("; "),
+    session.latestTitle,
+  ]);
+
+  return [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
+}
+
+export function buildVoicePromptDebugContext(session: VoiceQaSession) {
+  const events = session.events
+    .map((event) => {
+      const detail = event.detail ? ` - ${event.detail}` : "";
+      const route = event.route ? ` route=${event.route}` : "";
+      return `${isoTime(event.at)} ${event.kind} ${event.severity}: ${event.title}${detail}${route}`;
+    })
+    .join("\n");
+
+  return [
+    "VYVA voice prompt debug context",
+    `Session: ${session.sessionId}`,
+    `Agent/domain: ${session.domain}`,
+    `Agent slug: ${session.agentSlug}`,
+    `Conversation plan: ${session.conversationPlanId}`,
+    `Duration: ${session.durationMs}ms`,
+    `Flags: ${session.flags.length > 0 ? session.flags.join(", ") : "none"}`,
+    `Metrics: ${session.eventCount} events, ${session.transferCount} transfers, ${session.completedActionCount} completed actions, ${session.dismissedActionCount} dismissed actions, ${session.errorCount} errors`,
+    "",
+    "Timeline:",
+    events || "No events recorded.",
+    "",
+    "Prompt tuning questions:",
+    "- Did the agent open with the correct plan and context?",
+    "- Did the app route or transfer at the right moment?",
+    "- Did the user need extra clarification before an action?",
+    "- Should the specialist prompt, tool call, or app fulfilment change?",
+  ].join("\n");
 }

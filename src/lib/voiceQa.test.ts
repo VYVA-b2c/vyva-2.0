@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildVoicePromptDebugContext,
   buildVoiceQaDashboard,
+  buildVoiceReplayPack,
   filterVoiceTimelineEvents,
   groupVoiceTimelineSessions,
+  voiceQaSessionsToCsv,
 } from "./voiceQa";
 import type { VoiceTimelineEvent } from "./voiceTimeline";
 
@@ -63,5 +66,44 @@ describe("voice QA", () => {
       sessions: 1,
       dismissedActions: 1,
     });
+  });
+
+  it("builds a replay pack for prompt and tool testing", () => {
+    const dashboard = buildVoiceQaDashboard([
+      event({ id: "1", at: 100, kind: "session_started", title: "Started", sessionId: "s1", domain: "meds", conversationPlanId: "meds_check" }),
+      event({ id: "2", at: 250, kind: "transfer_requested", title: "Transfer", sessionId: "s1", route: "/meds" }),
+    ]);
+
+    const pack = buildVoiceReplayPack(dashboard.sessions);
+    expect(pack.version).toBe("vyva_voice_replay_pack_v1");
+    expect(pack.sessions[0]).toMatchObject({
+      sessionId: "s1",
+      domain: "meds",
+      conversationPlanId: "meds_check",
+      metrics: { transfers: 1 },
+    });
+    expect(pack.sessions[0].timeline[1].offsetMs).toBe(150);
+  });
+
+  it("exports sessions as CSV", () => {
+    const dashboard = buildVoiceQaDashboard([
+      event({ id: "1", at: 100, kind: "session_started", title: "Started, with comma", sessionId: "s1", domain: "health" }),
+    ]);
+
+    const csv = voiceQaSessionsToCsv(dashboard.sessions);
+    expect(csv).toContain("session_id,started_at");
+    expect(csv).toContain('"Started, with comma"');
+  });
+
+  it("builds prompt debug context for one session", () => {
+    const dashboard = buildVoiceQaDashboard([
+      event({ id: "1", at: 100, kind: "session_started", title: "Started", sessionId: "s1", domain: "companion" }),
+      event({ id: "2", at: 200, kind: "session_error", title: "Token failed", sessionId: "s1", severity: "error" }),
+    ]);
+
+    const context = buildVoicePromptDebugContext(dashboard.sessions[0]);
+    expect(context).toContain("Session: s1");
+    expect(context).toContain("Flags: Error, No connection");
+    expect(context).toContain("Prompt tuning questions");
   });
 });
