@@ -20,6 +20,12 @@ import { buildAgentOperatingRules, buildConversationPlan } from "../lib/voiceAge
 import { formatConversationPlanPrompt, selectVoiceConversationPlan } from "../lib/voiceConversationPlans.js";
 import { signMedicalProfileToolToken } from "../lib/jwt.js";
 import { buildUserConversationContext, formatConversationContextForPrompt } from "../lib/conversationContext.js";
+import {
+  getLatestShownVoiceRecommendation,
+  inferVoiceRecommendationResponseAction,
+  recordShownVoiceRecommendation,
+  recordVoiceRecommendationFeedback,
+} from "../lib/voiceRecommendationFeedback.js";
 
 type RoutingDomain =
   | "safety"
@@ -285,6 +291,54 @@ function contextValue(value: unknown): string {
   return "";
 }
 
+async function recordRecommendationResponseFromUtterance(input: {
+  userId: string;
+  sessionId: string;
+  utterance: string;
+  routedDomain: RoutingDomain;
+}) {
+  const latestShown = await getLatestShownVoiceRecommendation(input.userId, input.sessionId).catch(() => null);
+  const action = inferVoiceRecommendationResponseAction({
+    utterance: input.utterance,
+    routedDomain: input.routedDomain,
+    latestShown,
+  });
+  if (!latestShown || !action) return;
+
+  await recordVoiceRecommendationFeedback({
+    userId: input.userId,
+    sessionId: input.sessionId,
+    recommendationId: latestShown.recommendation_id,
+    action,
+    domain: latestShown.domain,
+    title: latestShown.title,
+    reason: latestShown.reason,
+    source: "router_inferred",
+    metadata: {
+      routed_domain: input.routedDomain,
+      utterance_preview: input.utterance.slice(0, 160),
+    },
+  }).catch((err) => {
+    console.warn("[router] voice recommendation response feedback unavailable:", err);
+  });
+}
+
+function recordShownRecommendationFromContext(input: {
+  userId: string;
+  sessionId: string;
+  voiceContext: VoiceDynamicVariables;
+  source: string;
+}) {
+  void recordShownVoiceRecommendation({
+    userId: input.userId,
+    sessionId: input.sessionId,
+    voiceContext: input.voiceContext,
+    source: input.source,
+  }).catch((err) => {
+    console.warn("[router] voice recommendation shown feedback unavailable:", err);
+  });
+}
+
 function buildVoiceContextPromptBlock(voiceContext: VoiceDynamicVariables) {
   return [
     `Profile summary: ${contextValue(voiceContext.profile_summary) || "Not recorded"}`,
@@ -305,6 +359,9 @@ function buildVoiceContextPromptBlock(voiceContext: VoiceDynamicVariables) {
       : "",
     contextValue(voiceContext.next_best_conversation_candidates)
       ? `Next best candidates: ${contextValue(voiceContext.next_best_conversation_candidates)}`
+      : "",
+    contextValue(voiceContext.next_best_conversation_feedback)
+      ? `Next best feedback history: ${contextValue(voiceContext.next_best_conversation_feedback)}`
       : "",
     contextValue(voiceContext.orchestrator_context)
       ? `Orchestrator context: ${contextValue(voiceContext.orchestrator_context)}`
@@ -519,6 +576,18 @@ export async function routerHandler(req: Request, res: Response) {
       console.warn("[router] voice context unavailable:", err);
       return {};
     });
+    await recordRecommendationResponseFromUtterance({
+      userId: user_id,
+      sessionId: session_id,
+      utterance,
+      routedDomain: "safety",
+    });
+    recordShownRecommendationFromContext({
+      userId: user_id,
+      sessionId: session_id,
+      voiceContext,
+      source: "router_safety",
+    });
 
     const system_prompt_override = [
       buildAgentOperatingRules("safety"),
@@ -642,6 +711,18 @@ export async function routerHandler(req: Request, res: Response) {
   }).catch((err) => {
     console.warn("[router] voice context unavailable:", err);
     return {};
+  });
+  await recordRecommendationResponseFromUtterance({
+    userId: user_id,
+    sessionId: session_id,
+    utterance,
+    routedDomain: domain,
+  });
+  recordShownRecommendationFromContext({
+    userId: user_id,
+    sessionId: session_id,
+    voiceContext,
+    source: "router",
   });
 
   const system_prompt_override = [

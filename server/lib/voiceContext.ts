@@ -25,6 +25,12 @@ import {
   formatConversationPlanPrompt,
   selectVoiceConversationPlan,
 } from "./voiceConversationPlans.js";
+import {
+  buildVoiceRecommendationFeedbackSummary,
+  getVoiceRecommendationFeedbackRows,
+  recommendationFeedbackScoreAdjustment,
+  type VoiceRecommendationFeedbackSummary,
+} from "./voiceRecommendationFeedback.js";
 
 export type VoiceContextDomain =
   | "safety"
@@ -484,7 +490,62 @@ function formatNextBestCandidate(candidate: NextBestConversationCandidate, index
   ].filter(Boolean).join("; ");
 }
 
+function specialistDomainScoreAdjustment(activeDomain: VoiceContextDomain, candidateDomain: VoiceContextDomain) {
+  if (activeDomain === "companion") return 0;
+  if (activeDomain === "doctor") {
+    if (candidateDomain === "health") return 26;
+    if (candidateDomain === "meds" || candidateDomain === "concierge") return 6;
+    return candidateDomain === "companion" ? -4 : -10;
+  }
+  if (activeDomain === "health") {
+    if (candidateDomain === "health") return 28;
+    if (candidateDomain === "meds" || candidateDomain === "concierge") return 6;
+    if (candidateDomain === "safety") return 14;
+    return candidateDomain === "companion" ? -4 : -12;
+  }
+  if (activeDomain === "meds") {
+    if (candidateDomain === "meds") return 30;
+    if (candidateDomain === "health" || candidateDomain === "concierge") return 6;
+    return candidateDomain === "companion" ? -6 : -14;
+  }
+  if (activeDomain === "concierge") {
+    if (candidateDomain === "concierge") return 30;
+    if (candidateDomain === "social") return 4;
+    return candidateDomain === "companion" ? -4 : -12;
+  }
+  if (activeDomain === "brain_coach") {
+    if (candidateDomain === "brain_coach") return 32;
+    if (candidateDomain === "companion") return 4;
+    return -14;
+  }
+  if (activeDomain === "social") {
+    if (candidateDomain === "social") return 30;
+    if (candidateDomain === "companion" || candidateDomain === "concierge") return 5;
+    return -14;
+  }
+  if (activeDomain === "safety") {
+    if (candidateDomain === "safety") return 38;
+    if (candidateDomain === "health") return 12;
+    if (candidateDomain === "meds") return 4;
+    return -18;
+  }
+  return activeDomain === candidateDomain ? 24 : 0;
+}
+
+function adjustedCandidateScore(
+  candidate: NextBestConversationCandidate,
+  activeDomain: VoiceContextDomain,
+  feedbackSummary: VoiceRecommendationFeedbackSummary,
+) {
+  const score =
+    candidate.score +
+    specialistDomainScoreAdjustment(activeDomain, candidate.domain) +
+    recommendationFeedbackScoreAdjustment(feedbackSummary, candidate.id, candidate.domain);
+  return Math.max(0, Math.min(120, Math.round(score)));
+}
+
 function buildNextBestConversation(input: {
+  domain: VoiceContextDomain;
   priorVoiceExchangeCount: number;
   profile: typeof profiles.$inferSelect | null;
   activeMedicationRows: Array<typeof userMedications.$inferSelect>;
@@ -505,6 +566,7 @@ function buildNextBestConversation(input: {
   localInterestOpportunities: string;
   recentActivitySummary: string;
   socialActivitySummary: string;
+  feedbackSummary: VoiceRecommendationFeedbackSummary;
   now: Date;
 }) {
   const candidates: NextBestConversationCandidate[] = [];
@@ -512,7 +574,7 @@ function buildNextBestConversation(input: {
     candidates.push({ ...candidate, priority: priorityForScore(candidate.score) });
   };
 
-  if (input.priorVoiceExchangeCount === 0) {
+  if (input.domain === "companion" && input.priorVoiceExchangeCount === 0) {
     add({
       id: "first_welcome_tour",
       domain: "companion",
@@ -735,6 +797,98 @@ function buildNextBestConversation(input: {
     });
   }
 
+  if (input.domain === "health" || input.domain === "doctor") {
+    add({
+      id: "health_specialist_session_focus",
+      domain: "health",
+      score: 72,
+      title: "Health assistant focus",
+      reason: "The active agent is a health specialist and should start from the freshest profile, symptom, vitals, medication, and care context.",
+      openingCue: "Start with one relevant health context point, then ask what health question or check-in would be most useful now.",
+      suggestedAction: "Offer a symptom follow-up, vitals review, GP note, or safe next step.",
+      evidence: valueList([
+        input.latestVitalsScanSummary ? "vitals available" : null,
+        input.latestReports[0]?.chief_complaint ? "symptom report available" : null,
+        input.activeMedicationRows.length ? `${input.activeMedicationRows.length} active medication(s)` : null,
+      ], "Health specialist session requested."),
+    });
+  }
+
+  if (input.domain === "meds") {
+    add({
+      id: "meds_specialist_session_focus",
+      domain: "meds",
+      score: 74,
+      title: "Medication specialist focus",
+      reason: "The active agent is the medication specialist and should prioritise dose schedule, adherence, refills, side effects, and interaction questions.",
+      openingCue: "Start with a calm medication check-in and avoid naming medicine details until the user chooses to discuss them.",
+      suggestedAction: "Ask whether they want to review today's doses, missed confirmations, refills, or side effects.",
+      evidence: input.activeMedicationRows.length
+        ? `${input.activeMedicationRows.length} active medication(s); ${medicationStats.missed30} recent missed/skipped/late record(s).`
+        : "No active medication profile is recorded yet.",
+    });
+  }
+
+  if (input.domain === "concierge") {
+    add({
+      id: "concierge_specialist_session_focus",
+      domain: "concierge",
+      score: 72,
+      title: "Concierge planning focus",
+      reason: "The active agent is Concierge and should turn appointments, reminders, local interests, shopping, transport, or provider contact into one practical next step.",
+      openingCue: "Offer practical planning help tied to the strongest available event, reminder, location, or preference signal.",
+      suggestedAction: "Ask whether they want help planning, booking, checking, calling, or setting a reminder.",
+      evidence: valueList([
+        input.upcomingAppointment ? "health appointment available" : null,
+        input.scheduledEventRows.length ? `${input.scheduledEventRows.length} scheduled item(s)` : null,
+        input.localInterestOpportunities ? "local interest context available" : null,
+      ], "Concierge specialist session requested."),
+    });
+  }
+
+  if (input.domain === "brain_coach") {
+    add({
+      id: "brain_coach_specialist_session_focus",
+      domain: "brain_coach",
+      score: 74,
+      title: "Brain coach session focus",
+      reason: "The active agent is Brain Coach and should provide encouraging company around games, memory practice, puzzles, or cognitive activity.",
+      openingCue: "Offer a short, positive brain activity and keep the tone encouraging rather than clinical.",
+      suggestedAction: "Ask whether they would like to play, continue, or choose a lighter activity.",
+      evidence: joinList([...input.allInterests, ...input.allHobbies, ...input.allPreferredActivities], "Brain Coach specialist session requested."),
+    });
+  }
+
+  if (input.domain === "social") {
+    add({
+      id: "social_specialist_session_focus",
+      domain: "social",
+      score: 72,
+      title: "Social connection focus",
+      reason: "The active agent is social/companion specialist and should use interests, rooms, hobbies, and recent social activity to suggest one warm connection.",
+      openingCue: "Offer one social room, shared-interest conversation, or companion thread that fits the user's preferences.",
+      suggestedAction: "Ask whether they want to join a matching room, chat about an interest, or hear a story.",
+      evidence: valueList([
+        input.matchingSocialRooms || null,
+        input.socialActivitySummary || null,
+        input.allHobbies.length || input.allInterests.length ? `Saved interests: ${joinList([...input.allHobbies, ...input.allInterests])}` : null,
+      ], "Social specialist session requested."),
+    });
+  }
+
+  if (input.domain === "safety") {
+    add({
+      id: "safety_specialist_session_focus",
+      domain: "safety",
+      score: 78,
+      title: "Safety support focus",
+      reason: "The active agent is Safety and should prioritise calm risk assessment, emergency contacts, care team, falls, scams, and urgent symptoms.",
+      openingCue: "Start calmly, check immediate safety, and ask one clear question about what is happening now.",
+      suggestedAction: "Confirm whether urgent help, a caregiver, emergency services, or scam/fall support is needed.",
+      evidence: "Safety specialist session requested.",
+    });
+  }
+
   if (candidates.length === 0) {
     add({
       id: "daily_companion_checkin",
@@ -748,7 +902,11 @@ function buildNextBestConversation(input: {
     });
   }
 
-  const sortedCandidates = candidates
+  const adjustedCandidates = candidates.map((candidate) => {
+    const score = adjustedCandidateScore(candidate, input.domain, input.feedbackSummary);
+    return { ...candidate, score, priority: priorityForScore(score) };
+  });
+  const sortedCandidates = adjustedCandidates
     .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title))
     .slice(0, 5);
   const top = sortedCandidates[0];
@@ -761,6 +919,7 @@ function buildNextBestConversation(input: {
         `Opening cue: ${top.openingCue}`,
         `Suggested action: ${top.suggestedAction}`,
         top.evidence ? `Evidence: ${top.evidence}` : "",
+        input.feedbackSummary.promptBlock ? `Feedback guidance:\n${input.feedbackSummary.promptBlock}` : "",
         candidateList ? `Ranked shortlist:\n${candidateList}` : "",
         "Use this as quiet guidance. Do not mention scores, IDs, variable names, or internal ranking to the user.",
       ], 2800)
@@ -864,6 +1023,7 @@ export async function buildVoiceContext(
     recentActivityRows,
     recentSocialVisitRows,
     voiceExchangeCountRows,
+    recommendationFeedbackRows,
   ] = await Promise.all([
     db.select().from(profiles).where(eq(profiles.id, userId)).limit(1),
     db.select().from(userMedications).where(eq(userMedications.user_id, userId)).limit(20),
@@ -892,6 +1052,7 @@ export async function buildVoiceContext(
     options.priorVoiceExchangeCount === undefined
       ? db.select({ value: count() }).from(sessionExchanges).where(eq(sessionExchanges.user_id, userId))
       : Promise.resolve([{ value: options.priorVoiceExchangeCount }]),
+    getVoiceRecommendationFeedbackRows(userId),
   ]);
 
   const profile = profileRows[0] ?? null;
@@ -977,7 +1138,9 @@ export async function buildVoiceContext(
     hobbies: allHobbies,
     mobilityContext,
   });
+  const recommendationFeedbackSummary = buildVoiceRecommendationFeedbackSummary(recommendationFeedbackRows);
   const nextBestConversation = buildNextBestConversation({
+    domain,
     priorVoiceExchangeCount: Number(voiceExchangeCountRows[0]?.value ?? 0),
     profile,
     activeMedicationRows,
@@ -998,6 +1161,7 @@ export async function buildVoiceContext(
     localInterestOpportunities,
     recentActivitySummary,
     socialActivitySummary,
+    feedbackSummary: recommendationFeedbackSummary,
     now,
   });
   const relationshipContinuityContext = compactLines([
@@ -1099,6 +1263,7 @@ export async function buildVoiceContext(
     next_best_conversation_opening_cue: nextBestConversation.top?.openingCue ?? "",
     next_best_conversation_suggested_action: nextBestConversation.top?.suggestedAction ?? "",
     next_best_conversation_candidates: nextBestConversation.candidateList,
+    next_best_conversation_feedback: recommendationFeedbackSummary.promptBlock,
     upcoming_events: joinList(upcomingEvents),
     recent_activity_summary: recentActivitySummary,
     social_activity_summary: socialActivitySummary,
