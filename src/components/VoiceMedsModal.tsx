@@ -6,16 +6,16 @@ import { Button } from "@/components/ui/button";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 
 const DISCLAIMER =
-  "This is information only, not medical advice — always check with your doctor or pharmacist.";
+  "This is information only, not medical advice - always check with your doctor or pharmacist.";
 
-const MEDS_QA_PROMPT_SUFFIX = `IMPORTANT INSTRUCTION — MEDICATION Q&A MODE:
+const MEDS_QA_PROMPT_SUFFIX = `IMPORTANT INSTRUCTION - MEDICATION Q&A MODE:
 You are answering medication management questions. After every single response you give, you MUST append this disclaimer verbatim on a new line: "${DISCLAIMER}"
 This disclaimer must appear at the end of every spoken and written response without exception.`;
 
 const FREQ_LABELS: Record<string, string> = {
   once_daily: "Once daily",
   twice_daily: "Twice daily",
-  three_daily: "3× daily",
+  three_daily: "3x daily",
   as_needed: "As needed",
 };
 const FOOD_LABELS: Record<string, string> = {
@@ -187,12 +187,12 @@ export default function VoiceMedsModal({ open, onOpenChange, onAddMedication }: 
         className="bottom-[calc(env(safe-area-inset-bottom)+12px)] left-1/2 right-auto flex max-h-[calc(100dvh-32px)] w-[calc(100vw-20px)] max-w-[430px] -translate-x-1/2 flex-col rounded-[28px] border border-[#E6DCCF] px-0 pb-0 shadow-[0_24px_70px_rgba(31,20,45,0.24)]"
         data-testid="modal-voice-meds"
       >
-        <SheetHeader className="px-5 pt-5 pb-3 border-b border-gray-100 flex-shrink-0">
-          <SheetTitle className="text-left font-display text-[18px] text-gray-900">
-            Voice Medication Assistant
+        <SheetHeader className="flex-shrink-0 border-b border-gray-100 px-5 pb-4 pt-5">
+          <SheetTitle className="text-left font-display text-[24px] leading-tight text-gray-900">
+            Add medication by voice
           </SheetTitle>
-          <SheetDescription className="sr-only">
-            Speak to add a medication by voice or ask questions about medication management.
+          <SheetDescription className="text-left font-body text-[14px] leading-snug text-gray-500">
+            Speak naturally. VYVA will pull out the name, dose, timing, and prescriber where it can.
           </SheetDescription>
         </SheetHeader>
 
@@ -225,17 +225,17 @@ export default function VoiceMedsModal({ open, onOpenChange, onAddMedication }: 
               onValueChange={handleTabChange}
               className="flex-1 flex flex-col overflow-hidden"
             >
-              <TabsList className="mx-5 mt-3 flex-shrink-0 bg-gray-100 rounded-xl h-10">
+              <TabsList className="mx-5 mt-4 h-12 flex-shrink-0 rounded-[16px] bg-gray-100 p-1">
                 <TabsTrigger
                   value="add"
-                  className="flex-1 rounded-lg text-[13px] font-body data-[state=active]:bg-white"
+                  className="flex-1 rounded-[12px] text-[14px] font-body data-[state=active]:bg-white"
                   data-testid="tab-voice-meds-add"
                 >
                   Add by voice
                 </TabsTrigger>
                 <TabsTrigger
                   value="ask"
-                  className="flex-1 rounded-lg text-[13px] font-body data-[state=active]:bg-white"
+                  className="flex-1 rounded-[12px] text-[14px] font-body data-[state=active]:bg-white"
                   data-testid="tab-voice-meds-ask"
                 >
                   Ask a question
@@ -259,7 +259,7 @@ export default function VoiceMedsModal({ open, onOpenChange, onAddMedication }: 
 
                   {/* Hint */}
                   {parseState === "idle" && !isActive && (
-                    <p className="font-body text-[13px] text-gray-500 text-center">
+                    <p className="rounded-[18px] bg-[#F8F4EF] px-4 py-3 text-center font-body text-[13px] leading-snug text-gray-600">
                       Say something like: <em>"I take Metformin 500mg twice a day with food, prescribed by Dr Ahmed"</em>
                     </p>
                   )}

@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 const EN_DISCLAIMER =
-  "This is information only, not medical advice — always check with your doctor or pharmacist.";
+  "This is information only, not medical advice - always check with your doctor or pharmacist.";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -134,19 +134,19 @@ const MedsAssistantSheet = ({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        className="h-[85dvh] flex flex-col rounded-t-[24px] px-0 pb-0"
+        className="bottom-[calc(env(safe-area-inset-bottom)+12px)] left-1/2 right-auto flex max-h-[calc(100dvh-32px)] w-[calc(100vw-20px)] max-w-[430px] -translate-x-1/2 flex-col rounded-[28px] border border-[#E6DCCF] px-0 pb-0 shadow-[0_24px_70px_rgba(31,20,45,0.24)]"
       >
-        <SheetHeader className="px-5 pt-4 pb-3 border-b border-vyva-border flex-shrink-0">
-          <SheetTitle className="font-heading text-[17px] text-vyva-text-1 text-left">
+        <SheetHeader className="flex-shrink-0 border-b border-vyva-border px-5 pb-4 pt-5">
+          <SheetTitle className="text-left font-display text-[24px] leading-tight text-vyva-text-1">
             {title}
           </SheetTitle>
-          <SheetDescription className="sr-only">
-            AI medication assistant chat
+          <SheetDescription className="text-left font-body text-[14px] leading-snug text-vyva-text-2">
+            Ask a follow-up question or read the answer here.
           </SheetDescription>
         </SheetHeader>
 
         {/* Disclaimer banner */}
-        <div className="mx-4 mt-3 flex-shrink-0 flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2">
+        <div className="mx-5 mt-4 flex flex-shrink-0 items-start gap-2 rounded-[16px] border border-amber-200 bg-amber-50 px-3 py-3">
           <AlertTriangle size={14} className="text-amber-600 mt-0.5 flex-shrink-0" />
           <p className="font-body text-[11px] text-amber-700 leading-relaxed">
             {localizedDisclaimer}
@@ -156,11 +156,11 @@ const MedsAssistantSheet = ({
         {/* Messages */}
         <div
           ref={scrollRef}
-          className="flex-1 overflow-y-auto px-4 py-3 space-y-3"
+          className="flex-1 overflow-y-auto px-5 py-4 space-y-3"
         >
           {messages.length === 0 && loading && (
             <div className="flex items-start gap-2 mt-2">
-              <div className="w-7 h-7 rounded-full bg-vyva-purple flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 rounded-full bg-vyva-purple flex items-center justify-center flex-shrink-0">
                 <span className="text-white text-[10px] font-bold">V</span>
               </div>
               <div className="bg-vyva-bg-soft rounded-2xl rounded-tl-sm px-4 py-3 max-w-[85%]">
@@ -181,7 +181,7 @@ const MedsAssistantSheet = ({
                 </div>
               )}
               <div
-                className={`rounded-2xl px-4 py-3 max-w-[85%] font-body text-[14px] leading-relaxed ${
+                className={`rounded-2xl px-4 py-3 max-w-[88%] font-body text-[14px] leading-relaxed ${
                   msg.role === "user"
                     ? "bg-vyva-purple text-white rounded-tr-sm"
                     : "bg-vyva-bg-soft text-vyva-text-1 rounded-tl-sm"
@@ -196,7 +196,7 @@ const MedsAssistantSheet = ({
 
           {messages.length > 0 && loading && (
             <div className="flex items-start gap-2">
-              <div className="w-7 h-7 rounded-full bg-vyva-purple flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 rounded-full bg-vyva-purple flex items-center justify-center flex-shrink-0">
                 <span className="text-white text-[10px] font-bold">V</span>
               </div>
               <div className="bg-vyva-bg-soft rounded-2xl rounded-tl-sm px-4 py-3">
@@ -215,7 +215,7 @@ const MedsAssistantSheet = ({
         </div>
 
         {/* Input bar */}
-        <div className="flex-shrink-0 px-4 py-3 border-t border-vyva-border bg-white flex items-center gap-2 pb-[max(12px,env(safe-area-inset-bottom))]">
+        <div className="flex-shrink-0 px-5 py-4 border-t border-vyva-border bg-white flex items-center gap-2 pb-[max(16px,env(safe-area-inset-bottom))]">
           <Input
             data-testid="input-meds-assistant"
             value={input}

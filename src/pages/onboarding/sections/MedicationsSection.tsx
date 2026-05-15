@@ -4,9 +4,9 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FormField, ResponsiveGrid } from "@/components/vyva-ui";
 import { Trash2, Loader2, Plus, CheckCircle2, AlertCircle, Mic } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -315,13 +315,13 @@ export default function MedicationsSection() {
   };
 
   const MedSkeleton = () => (
-    <div className="border border-purple-100 rounded-xl p-4 bg-white flex flex-col gap-3">
+    <div className="flex flex-col gap-4 rounded-[24px] border border-purple-100 bg-white p-5">
       <Skeleton className="h-11 w-full rounded-lg" />
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
         <Skeleton className="h-11 w-full rounded-lg" />
         <Skeleton className="h-11 w-full rounded-lg" />
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
         <Skeleton className="h-11 w-full rounded-lg" />
         <Skeleton className="h-11 w-full rounded-lg" />
       </div>
@@ -330,13 +330,16 @@ export default function MedicationsSection() {
   );
 
   const busy = saving || autoSaving || adding || !!removingId;
+  const inputClassName = "h-12 rounded-[16px] border-purple-200 bg-[#FFFCF8] text-[15px]";
+  const selectClassName = "h-12 rounded-[16px] border-purple-200 bg-[#FFFCF8] text-[15px]";
 
   return (
     <PhoneFrame subtitle="💊 Medications" showBack onBack={() => confirmNavigation("/onboarding/profile")} showAllSections onAllSections={() => confirmNavigation("/onboarding/profile")}>
-      <div className="flex flex-col gap-5 px-4 py-4">
+      <div className="flex flex-col gap-6 px-4 py-5">
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1">
-            <p className="text-xs text-gray-500 leading-relaxed">All optional — skip any field you prefer not to fill in.</p>
+            <h2 className="font-display text-[24px] leading-tight text-vyva-text-1">Medications</h2>
+            <p className="mt-1 text-[14px] leading-relaxed text-vyva-text-2">Add the details you know. You can leave optional fields blank.</p>
           </div>
           <AutoSaveStatusBadge autoSaveStatus={autoSaveStatus} savedFading={savedFading} retryCountdown={retryCountdown} onRetryNow={retryNow} testId="status-meds-autosave" />
         </div>
@@ -346,20 +349,20 @@ export default function MedicationsSection() {
           type="button"
           data-testid="button-meds-voice"
           onClick={() => setVoiceModalOpen(true)}
-          className="flex items-center gap-3 w-full rounded-[14px] px-4 py-3 text-left"
+          className="flex w-full items-center gap-4 rounded-[22px] px-4 py-4 text-left"
           style={{ background: "#FFFBEB", border: "1px solid #FDE68A" }}
         >
           <div
-            className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full"
             style={{ background: "#F59E0B" }}
           >
-            <Mic size={16} className="text-white" />
+            <Mic size={18} className="text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-body text-[14px] font-medium" style={{ color: "#92400E" }}>
+            <p className="font-body text-[16px] font-bold" style={{ color: "#92400E" }}>
               Add by voice
             </p>
-            <p className="font-body text-[12px]" style={{ color: "#B45309" }}>
+            <p className="mt-0.5 font-body text-[13px] leading-snug" style={{ color: "#B45309" }}>
               Speak your medications and VYVA will fill in the details
             </p>
           </div>
@@ -379,7 +382,7 @@ export default function MedicationsSection() {
                 <div
                   key={med.id}
                   data-testid={`card-med-${med.id}`}
-                  className={`border rounded-xl p-4 bg-white flex flex-col gap-3 ${
+                  className={`flex flex-col gap-4 rounded-[24px] border bg-white p-5 ${
                     dirty
                       ? "border-amber-300 ring-1 ring-amber-200"
                       : saved
@@ -387,58 +390,62 @@ export default function MedicationsSection() {
                       : "border-purple-100"
                   }`}
                 >
-                  <div className="flex items-center justify-between min-h-[20px]">
-                    {meds.length > 1 && (
-                      <p className="text-[10px] font-bold text-purple-600">Medication {idx + 1}</p>
-                    )}
-                    {saved && (
-                      <span
-                        data-testid={`status-med-saved-${idx}`}
-                        className="flex items-center gap-1 text-[10px] font-semibold text-green-600 ml-auto"
-                      >
-                        <CheckCircle2 className="w-3 h-3" />
-                        Saved
-                      </span>
-                    )}
-                    {dirty && (
-                      <span
-                        data-testid={`status-med-unsaved-${idx}`}
-                        className="flex items-center gap-1 text-[10px] font-semibold text-amber-600 ml-auto"
-                      >
-                        <AlertCircle className="w-3 h-3" />
-                        Unsaved changes
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      data-testid={`button-meds-remove-${med.id}`}
-                      onClick={() => removeMed(med.id)}
-                      disabled={busy}
-                      className="p-1 rounded-full text-gray-400 hover:text-red-500 disabled:opacity-40 disabled:cursor-not-allowed ml-2"
-                    >
-                      {removingId === med.id ? (
-                        <Loader2 size={15} className="animate-spin" />
-                      ) : (
-                        <Trash2 size={15} />
-                      )}
-                    </button>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-bold text-gray-600">Medication name</Label>
-                    <Input data-testid={`input-med-name-${idx}`} placeholder="e.g. Metformin" value={med.name} onChange={(e) => updateMed(med.id, "name", e.target.value)} className="h-11 border-purple-200" />
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-gray-600">Dosage</Label>
-                      <Input data-testid={`input-med-dosage-${idx}`} placeholder="e.g. 500mg" value={med.dosage} onChange={(e) => updateMed(med.id, "dosage", e.target.value)} className="h-11 border-purple-200" />
+                  <div className="flex min-h-[32px] items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-vyva-purple">
+                        Medication {idx + 1}
+                      </p>
+                      <p className="mt-0.5 font-body text-[13px] text-vyva-text-3">
+                        Name is enough to save. The rest helps reminders feel smarter.
+                      </p>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-gray-600">Frequency</Label>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {saved && (
+                        <span
+                          data-testid={`status-med-saved-${idx}`}
+                          className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-green-600"
+                        >
+                          <CheckCircle2 className="w-3 h-3" />
+                          Saved
+                        </span>
+                      )}
+                      {dirty && (
+                        <span
+                          data-testid={`status-med-unsaved-${idx}`}
+                          className="flex items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-600"
+                        >
+                          <AlertCircle className="w-3 h-3" />
+                          Unsaved
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        data-testid={`button-meds-remove-${med.id}`}
+                        onClick={() => removeMed(med.id)}
+                        disabled={busy}
+                        className="flex h-9 w-9 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {removingId === med.id ? (
+                          <Loader2 size={15} className="animate-spin" />
+                        ) : (
+                          <Trash2 size={15} />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                  <FormField label="Medication name" required optionalLabel="Optional" requiredLabel="Needed">
+                    <Input data-testid={`input-med-name-${idx}`} placeholder="e.g. Metformin" value={med.name} onChange={(e) => updateMed(med.id, "name", e.target.value)} className={inputClassName} />
+                  </FormField>
+                  <ResponsiveGrid columns="two" gap="md">
+                    <FormField label="Dosage" hint="Strength or amount, if you know it.">
+                      <Input data-testid={`input-med-dosage-${idx}`} placeholder="e.g. 500mg" value={med.dosage} onChange={(e) => updateMed(med.id, "dosage", e.target.value)} className={inputClassName} />
+                    </FormField>
+                    <FormField label="Frequency" hint={showCustomFrequency ? "Type it in your own words." : "Choose Other if none of these fit."}>
                       <Select
                         value={showCustomFrequency ? "other" : med.frequency || undefined}
                         onValueChange={(v) => updateFrequency(med.id, v)}
                       >
-                        <SelectTrigger data-testid={`select-med-frequency-${idx}`} className="h-11 border-purple-200"><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectTrigger data-testid={`select-med-frequency-${idx}`} className={selectClassName}><SelectValue placeholder="Select" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="once_daily">Once daily</SelectItem>
                           <SelectItem value="twice_daily">Twice daily</SelectItem>
@@ -452,32 +459,29 @@ export default function MedicationsSection() {
                           placeholder="Type frequency"
                           value={customFrequencyDisplayValue(med.frequency)}
                           onChange={(e) => updateMed(med.id, "frequency", e.target.value)}
-                          className="h-11 border-purple-200"
+                          className={inputClassName}
                         />
                       )}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-gray-600">When do you take it?</Label>
-                      <Input data-testid={`input-med-times-${idx}`} placeholder="Morning, evening, bedtime" value={med.times} onChange={(e) => updateMed(med.id, "times", e.target.value)} className="h-11 border-purple-200" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-gray-600">With food?</Label>
+                    </FormField>
+                  </ResponsiveGrid>
+                  <ResponsiveGrid columns="two" gap="md">
+                    <FormField label="Time or routine" hint="Examples: morning and evening, bedtime, or 08:00, 20:00.">
+                      <Input data-testid={`input-med-times-${idx}`} placeholder="Morning and evening" value={med.times} onChange={(e) => updateMed(med.id, "times", e.target.value)} className={inputClassName} />
+                    </FormField>
+                    <FormField label="With food?">
                       <Select value={med.with_food || undefined} onValueChange={(v) => updateMed(med.id, "with_food", v)}>
-                        <SelectTrigger data-testid={`select-med-food-${idx}`} className="h-11 border-purple-200"><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectTrigger data-testid={`select-med-food-${idx}`} className={selectClassName}><SelectValue placeholder="Select" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="with_food">With food</SelectItem>
                           <SelectItem value="without_food">Without food</SelectItem>
                           <SelectItem value="doesnt_matter">Doesn't matter</SelectItem>
                         </SelectContent>
                       </Select>
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-bold text-gray-600">Prescribed by</Label>
-                    <Input data-testid={`input-med-prescribed-${idx}`} placeholder="GP or specialist name" value={med.prescribed_by} onChange={(e) => updateMed(med.id, "prescribed_by", e.target.value)} className="h-11 border-purple-200" />
-                  </div>
+                    </FormField>
+                  </ResponsiveGrid>
+                  <FormField label="Prescribed by" hint="Optional, but helpful for future reports.">
+                    <Input data-testid={`input-med-prescribed-${idx}`} placeholder="GP, specialist, or clinic name" value={med.prescribed_by} onChange={(e) => updateMed(med.id, "prescribed_by", e.target.value)} className={inputClassName} />
+                  </FormField>
                 </div>
               );
             })}
@@ -487,7 +491,7 @@ export default function MedicationsSection() {
               data-testid="button-meds-add"
               onClick={addMed}
               disabled={busy || isLoading}
-              className="flex items-center gap-1.5 text-sm font-bold text-[#6b21a8] text-left disabled:opacity-40"
+              className="flex min-h-[52px] items-center justify-center gap-2 rounded-full border border-dashed border-vyva-purple/40 bg-white text-[15px] font-bold text-[#6b21a8] disabled:opacity-40"
             >
               {adding ? (
                 <Loader2 size={14} className="animate-spin" />
