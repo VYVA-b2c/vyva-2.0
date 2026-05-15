@@ -400,7 +400,7 @@ export default function SymptomCheckScreen() {
 
   return (
     <div
-      className="fixed inset-0 flex flex-col"
+      className="flex min-h-[calc(100vh-204px)] w-full flex-col overflow-hidden"
       style={{ background: "hsl(var(--vyva-cream))" }}
     >
       <div
