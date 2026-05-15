@@ -158,10 +158,11 @@ export function VoiceActionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!activeState) return;
+    const expiresAfterMs = activeState.action.completion?.expiresAfterMs ?? 45000;
     const timer = window.setTimeout(() => {
       activeStateRef.current = null;
       setActiveState(null);
-    }, 45000);
+    }, expiresAfterMs);
     return () => window.clearTimeout(timer);
   }, [activeState]);
 

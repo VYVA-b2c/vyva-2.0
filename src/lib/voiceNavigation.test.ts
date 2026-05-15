@@ -5,6 +5,7 @@ import {
   actionForVoiceUtterance,
   routeForVoiceUtterance,
   specialistTransferFromToolCall,
+  voiceActionRegistryEntries,
 } from "./voiceNavigation";
 
 describe("voice navigation actions", () => {
@@ -14,6 +15,8 @@ describe("voice navigation actions", () => {
     expect(action?.id).toBe("voice_meds_inventory_report");
     expect(action?.route).toBe("/meds/adherence-report");
     expect(action?.domain).toBe("meds");
+    expect(action?.actionType).toBe("meds.inventory_report");
+    expect(action?.safetyLevel).toBe("medical");
     expect(action?.extractedSubject).toBe("paracetamol");
   });
 
@@ -23,6 +26,7 @@ describe("voice navigation actions", () => {
     expect(action?.id).toBe("voice_book_health_appointment");
     expect(action?.route).toBe("/concierge");
     expect(action?.domain).toBe("concierge");
+    expect(action?.requiresConfirmation).toBe(true);
   });
 
   it("prioritises vitals over generic health routing", () => {
@@ -48,6 +52,19 @@ describe("voice navigation actions", () => {
     expect(action?.route).toBe("/meds/adherence-report");
     expect(action?.title).toBe("Paracetamol stock");
     expect(action?.extractedSubject).toBe("paracetamol");
+    expect(action?.payload?.simulated).toBeUndefined();
+    expect(action?.optionalPayloadKeys).toContain("medication_name");
+  });
+
+  it("creates app actions from registry aliases", () => {
+    const action = actionForVoiceToolCall({
+      action_type: "meds_inventory_report",
+      medication_name: "ibuprofen",
+    });
+
+    expect(action?.actionType).toBe("meds.inventory_report");
+    expect(action?.route).toBe("/meds/adherence-report");
+    expect(action?.payload?.medication_name).toBe("ibuprofen");
   });
 
   it("rejects unrecognised app action routes from tool parameters", () => {
@@ -67,5 +84,16 @@ describe("voice navigation actions", () => {
     const action = transfer ? actionForSpecialistTransfer(transfer) : null;
     expect(action?.id).toBe("voice_transfer_brain_coach");
     expect(action?.route).toBe("/activities");
+  });
+
+  it("exposes action registry contracts for simulator and app fulfilment", () => {
+    const entries = voiceActionRegistryEntries();
+    const meds = entries.find((entry) => entry.actionType === "meds.inventory_report");
+    const safety = entries.find((entry) => entry.actionType === "safety.support");
+
+    expect(entries.length).toBeGreaterThan(8);
+    expect(meds?.optionalPayloadKeys).toContain("medication_name");
+    expect(safety?.safetyLevel).toBe("urgent");
+    expect(safety?.requiresConfirmation).toBe(true);
   });
 });

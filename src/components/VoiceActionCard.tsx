@@ -39,6 +39,20 @@ export default function VoiceActionCard({ action, onComplete, onDismiss, classNa
           </div>
           <h2 className="font-display text-[20px] leading-tight text-vyva-text-1">{action.title}</h2>
           <p className="mt-1 font-body text-[14px] leading-[1.45] text-vyva-text-2">{action.summary}</p>
+          {(action.extractedSubject || action.requiresConfirmation) && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {action.extractedSubject && (
+                <span className="rounded-full bg-white px-2.5 py-1 font-body text-[12px] font-bold text-emerald-700 shadow-sm">
+                  {action.extractedSubject}
+                </span>
+              )}
+              {action.requiresConfirmation && (
+                <span className="rounded-full bg-white px-2.5 py-1 font-body text-[12px] font-bold text-vyva-text-2 shadow-sm">
+                  Confirm first
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {onDismiss && (
@@ -63,7 +77,7 @@ export default function VoiceActionCard({ action, onComplete, onDismiss, classNa
           data-testid="button-complete-voice-action"
         >
           <CheckCircle2 size={18} />
-          Done
+          {action.completion?.doneLabel ?? "Done"}
         </button>
       )}
     </section>

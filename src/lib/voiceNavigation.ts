@@ -1,4 +1,21 @@
 import type { TranscriptEntry } from "@/hooks/useVyvaVoice";
+import {
+  buildVoiceAppAction,
+  isVoiceAppActionDomain,
+  isVoiceSpecialistTransferDomain,
+  normalizeVoiceActionRoute,
+  VOICE_SPECIALIST_AGENT_SLUGS,
+  voiceActionEntryForLookup,
+  voiceActionEntryForSpecialistTransfer,
+  voiceActionRegistryEntries,
+} from "@/lib/voiceActionRegistry";
+
+export {
+  isVoiceAppActionDomain,
+  isVoiceSpecialistTransferDomain,
+  VOICE_SPECIALIST_AGENT_SLUGS,
+  voiceActionRegistryEntries,
+};
 
 export const VYVA_VOICE_USER_MESSAGE_EVENT = "vyva:voice-user-message";
 export const VYVA_VOICE_APP_ACTION_EVENT = "vyva:voice-app-action";
@@ -21,6 +38,7 @@ export type VoiceAppActionDomain =
 
 export type VoiceAppAction = {
   id: string;
+  actionType?: string;
   domain: VoiceAppActionDomain;
   route: string;
   title: string;
@@ -30,6 +48,17 @@ export type VoiceAppAction = {
   priority: "high" | "medium" | "low";
   extractedSubject?: string;
   feedbackReason: string;
+  payload?: Record<string, string | number | boolean>;
+  requiredPayloadKeys?: readonly string[];
+  optionalPayloadKeys?: readonly string[];
+  safetyLevel?: "routine" | "sensitive" | "medical" | "urgent";
+  requiresConfirmation?: boolean;
+  completion?: {
+    mode: "manual" | "route_landed";
+    doneLabel: string;
+    routeLandedDelayMs?: number;
+    expiresAfterMs: number;
+  };
 };
 
 export type VoiceAppActionResult = {
@@ -100,214 +129,57 @@ function createAction(input: Omit<VoiceAppAction, "sourceText">, sourceText: str
   return { ...input, sourceText };
 }
 
-type VoiceActionTemplate = Omit<VoiceAppAction, "sourceText">;
-
-const APP_ACTION_TEMPLATES: Record<string, VoiceActionTemplate> = {
-  meds_management: {
-    id: "voice_meds_management",
-    domain: "meds",
-    route: "/meds",
-    title: "Medication management",
-    summary: "Opening the medication page for schedule, dose, refill, and routine support.",
-    cue: "Use the medication profile and ask what part of the routine they want to review.",
-    priority: "high",
-    feedbackReason: "Agent requested medication management context.",
-  },
-  meds_inventory_report: {
-    id: "voice_meds_inventory_report",
-    domain: "meds",
-    route: "/meds/adherence-report",
-    title: "Medication check",
-    summary: "Opening the medication report so VYVA can use adherence and stock context.",
-    cue: "Review medication confirmations, missed doses, and practical next steps.",
-    priority: "high",
-    feedbackReason: "Agent requested medication stock, adherence, or refill context.",
-  },
-  vitals_review: {
-    id: "voice_vitals_review",
-    domain: "health",
-    route: "/health/vitals",
-    title: "Vitals review",
-    summary: "Opening vitals so VYVA can use the latest scan and trend context.",
-    cue: "Review the latest vitals context without diagnosing.",
-    priority: "high",
-    feedbackReason: "Agent requested vitals context.",
-  },
-  doctor_health_support: {
-    id: "voice_doctor_health_support",
-    domain: "health",
-    route: "/health/doctor",
-    title: "Doctor support",
-    summary: "Opening doctor support so the conversation can use health profile context.",
-    cue: "Use profile, GP, vitals, symptoms, and care context before asking repeat questions.",
-    priority: "high",
-    feedbackReason: "Agent requested doctor or health-support context.",
-  },
-  symptom_support: {
-    id: "voice_symptom_support",
-    domain: "health",
-    route: "/health/symptom-check",
-    title: "Symptom support",
-    summary: "Opening symptom support so VYVA can help structure what is happening.",
-    cue: "Ask one focused question at a time and stay away from diagnosis.",
-    priority: "high",
-    feedbackReason: "Agent requested symptom-support context.",
-  },
-  safety_support: {
-    id: "voice_safety_support",
-    domain: "safety",
-    route: "/safe-home",
-    title: "Safety support",
-    summary: "Opening safety support for urgent help, falls, or immediate concerns.",
-    cue: "Check immediate safety and whether emergency help or a caregiver is needed.",
-    priority: "high",
-    feedbackReason: "Agent requested safety support.",
-  },
-  scam_support: {
-    id: "voice_scam_support",
-    domain: "safety",
-    route: "/scam-guard",
-    title: "Scam support",
-    summary: "Opening scam support so VYVA can help check the situation calmly.",
-    cue: "Ask what happened and avoid asking for bank details.",
-    priority: "high",
-    feedbackReason: "Agent requested scam or fraud support.",
-  },
-  concierge_task: {
-    id: "voice_concierge_task",
-    domain: "concierge",
-    route: "/concierge",
-    title: "Concierge help",
-    summary: "Opening Concierge for appointments, transport, shopping, reminders, or planning.",
-    cue: "Turn the request into one practical next step and confirm before taking action.",
-    priority: "medium",
-    feedbackReason: "Agent requested concierge support.",
-  },
-  brain_activity: {
-    id: "voice_brain_activity",
-    domain: "brain_coach",
-    route: "/activities",
-    title: "Brain activities",
-    summary: "Opening activities for games, practice, and friendly brain-coach support.",
-    cue: "Offer a light activity and keep encouragement available.",
-    priority: "medium",
-    feedbackReason: "Agent requested brain-coach activity context.",
-  },
-  memory_game: {
-    id: "voice_memory_game",
-    domain: "brain_coach",
-    route: "/memory-games",
-    title: "Memory games",
-    summary: "Opening memory games so the Brain Coach can keep the user company while playing.",
-    cue: "Encourage the user and offer a gentle game choice.",
-    priority: "medium",
-    feedbackReason: "Agent requested memory game context.",
-  },
-  social_rooms: {
-    id: "voice_social_rooms",
-    domain: "social",
-    route: "/social-rooms",
-    title: "Social rooms",
-    summary: "Opening social rooms so VYVA can suggest a warm connection around interests.",
-    cue: "Use interests and recent social context to suggest one room or chat topic.",
-    priority: "medium",
-    feedbackReason: "Agent requested social or companion context.",
-  },
-  reports_history: {
-    id: "voice_reports_history",
-    domain: "reports",
-    route: "/informes",
-    title: "Reports",
-    summary: "Opening reports so VYVA can reference previous scans and health summaries.",
-    cue: "Use report history only when relevant to the user's question.",
-    priority: "medium",
-    feedbackReason: "Agent requested reports or history context.",
-  },
-};
-
-const ROUTE_TO_TEMPLATE_KEY: Record<string, keyof typeof APP_ACTION_TEMPLATES> = {
-  "/meds": "meds_management",
-  "/meds/adherence-report": "meds_inventory_report",
-  "/health": "doctor_health_support",
-  "/health/doctor": "doctor_health_support",
-  "/health/symptom-check": "symptom_support",
-  "/health/vitals": "vitals_review",
-  "/safe-home": "safety_support",
-  "/scam-guard": "scam_support",
-  "/concierge": "concierge_task",
-  "/activities": "brain_activity",
-  "/memory-games": "memory_game",
-  "/social-rooms": "social_rooms",
-  "/companions": "social_rooms",
-  "/informes": "reports_history",
-};
-
-const ACTION_ID_TO_TEMPLATE_KEY = Object.fromEntries(
-  Object.entries(APP_ACTION_TEMPLATES).map(([key, value]) => [value.id, key]),
-) as Record<string, keyof typeof APP_ACTION_TEMPLATES>;
-
-const DOMAIN_TO_TEMPLATE_KEY: Record<VoiceAppActionDomain, keyof typeof APP_ACTION_TEMPLATES> = {
-  meds: "meds_management",
-  health: "doctor_health_support",
-  safety: "safety_support",
-  concierge: "concierge_task",
-  brain_coach: "brain_activity",
-  social: "social_rooms",
-  reports: "reports_history",
-};
-
-const SPECIALIST_TO_TEMPLATE_KEY: Record<VoiceSpecialistTransferDomain, keyof typeof APP_ACTION_TEMPLATES> = {
-  meds: "meds_management",
-  health: "doctor_health_support",
-  doctor: "doctor_health_support",
-  safety: "safety_support",
-  concierge: "concierge_task",
-  brain_coach: "brain_activity",
-  social: "social_rooms",
-  companion: "social_rooms",
-  reports: "reports_history",
-};
-
-export const VOICE_SPECIALIST_AGENT_SLUGS: Partial<Record<VoiceSpecialistTransferDomain, string>> = {
-  meds: "meds",
-  health: "health",
-  doctor: "doctor",
-  safety: "safety",
-  concierge: "concierge",
-  brain_coach: "brain-coach",
-  social: "companion",
-  companion: "companion",
-};
+function actionFromRegistry(
+  actionType: string,
+  sourceText: string,
+  overrides: Partial<Pick<VoiceAppAction, "id" | "title" | "summary" | "cue" | "priority" | "extractedSubject" | "feedbackReason" | "payload">> = {},
+) {
+  const entry = voiceActionEntryForLookup({ actionType });
+  if (!entry) {
+    return createAction({
+      id: overrides.id ?? actionType,
+      domain: "social",
+      route: "/",
+      title: overrides.title ?? "VYVA",
+      summary: overrides.summary ?? "Opening VYVA context.",
+      cue: overrides.cue ?? "",
+      priority: overrides.priority ?? "low",
+      feedbackReason: overrides.feedbackReason ?? "Voice action registry entry was missing.",
+    }, sourceText);
+  }
+  return buildVoiceAppAction(entry, sourceText, overrides);
+}
 
 function stringParam(parameters: Record<string, unknown>, key: string) {
   const value = parameters[key];
   return typeof value === "string" ? value.trim() : "";
 }
 
-function normalizeRoute(route: string) {
-  const trimmed = route.trim();
-  if (!trimmed.startsWith("/")) return "";
-  return trimmed.replace(/\/+$/, "") || "/";
-}
+const TOOL_PAYLOAD_RESERVED_KEYS = new Set([
+  "action_id",
+  "action_type",
+  "domain",
+  "route",
+  "title",
+  "summary",
+  "cue",
+  "reason",
+  "evidence",
+  "source_text",
+  "priority",
+  "subject",
+  "extracted_subject",
+]);
 
-export function isVoiceAppActionDomain(value: string): value is VoiceAppActionDomain {
-  return value in DOMAIN_TO_TEMPLATE_KEY;
-}
-
-export function isVoiceSpecialistTransferDomain(value: string): value is VoiceSpecialistTransferDomain {
-  return value in SPECIALIST_TO_TEMPLATE_KEY;
-}
-
-function actionFromTemplate(
-  templateKey: keyof typeof APP_ACTION_TEMPLATES,
-  sourceText: string,
-  overrides: Partial<Pick<VoiceAppAction, "id" | "title" | "summary" | "cue" | "priority" | "extractedSubject" | "feedbackReason">> = {},
-) {
-  const template = APP_ACTION_TEMPLATES[templateKey];
-  return createAction({
-    ...template,
-    ...overrides,
-  }, sourceText || overrides.feedbackReason || template.feedbackReason);
+function payloadFromParameters(parameters: Record<string, unknown>) {
+  const payload: VoiceAppAction["payload"] = {};
+  Object.entries(parameters).forEach(([key, value]) => {
+    if (TOOL_PAYLOAD_RESERVED_KEYS.has(key)) return;
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      payload[key] = value;
+    }
+  });
+  return Object.keys(payload).length ? payload : undefined;
 }
 
 export function actionForVoiceToolCall(parameters: Record<string, unknown>): VoiceAppAction | null {
@@ -315,18 +187,18 @@ export function actionForVoiceToolCall(parameters: Record<string, unknown>): Voi
     || stringParam(parameters, "evidence")
     || stringParam(parameters, "reason")
     || "ElevenLabs tool call";
-  const rawRoute = normalizeRoute(stringParam(parameters, "route"));
+  const rawRoute = normalizeVoiceActionRoute(stringParam(parameters, "route"));
   const rawActionId = stringParam(parameters, "action_id");
   const rawActionType = stringParam(parameters, "action_type");
   const rawDomain = stringParam(parameters, "domain");
-  const templateKey =
-    (rawActionType && rawActionType in APP_ACTION_TEMPLATES ? rawActionType : undefined)
-    || (rawActionId && rawActionId in APP_ACTION_TEMPLATES ? rawActionId : undefined)
-    || (rawActionId ? ACTION_ID_TO_TEMPLATE_KEY[rawActionId] : undefined)
-    || (rawRoute ? ROUTE_TO_TEMPLATE_KEY[rawRoute] : undefined)
-    || (isVoiceAppActionDomain(rawDomain) ? DOMAIN_TO_TEMPLATE_KEY[rawDomain] : undefined);
+  const entry = voiceActionEntryForLookup({
+    actionType: rawActionType,
+    actionId: rawActionId,
+    route: rawRoute,
+    domain: rawDomain,
+  });
 
-  if (!templateKey) return null;
+  if (!entry) return null;
 
   const title = stringParam(parameters, "title");
   const summary = stringParam(parameters, "summary");
@@ -337,36 +209,39 @@ export function actionForVoiceToolCall(parameters: Record<string, unknown>): Voi
   const priority = priorityParam === "high" || priorityParam === "medium" || priorityParam === "low"
     ? priorityParam
     : undefined;
+  const payload = payloadFromParameters(parameters);
 
-  return actionFromTemplate(templateKey, sourceText, {
-    ...(rawActionId && !(rawActionId in APP_ACTION_TEMPLATES) ? { id: rawActionId } : {}),
+  return buildVoiceAppAction(entry, sourceText, {
+    ...(rawActionId && rawActionId !== entry.id ? { id: rawActionId } : {}),
     ...(title ? { title } : {}),
     ...(summary ? { summary } : {}),
     ...(cue ? { cue } : {}),
     ...(priority ? { priority } : {}),
     ...(subject ? { extractedSubject: subject } : {}),
     ...(reason ? { feedbackReason: reason } : {}),
+    ...(payload ? { payload } : {}),
   });
 }
 
 export function actionForSpecialistTransfer(request: VoiceSpecialistTransferRequest): VoiceAppAction {
-  const templateKey = request.route
-    ? ROUTE_TO_TEMPLATE_KEY[normalizeRoute(request.route)] ?? SPECIALIST_TO_TEMPLATE_KEY[request.domain]
-    : SPECIALIST_TO_TEMPLATE_KEY[request.domain];
+  const entry = voiceActionEntryForSpecialistTransfer(request.domain, request.route);
 
-  const template = APP_ACTION_TEMPLATES[templateKey];
-  return actionFromTemplate(templateKey, request.evidence || request.reason, {
+  return buildVoiceAppAction(entry, request.evidence || request.reason, {
     id: `voice_transfer_${request.domain}`,
-    title: template.title,
-    summary: `Opening ${template.title.toLowerCase()} for specialist support.`,
-    cue: request.contextHint || request.reason || template.cue,
+    title: entry.title,
+    summary: `Opening ${entry.title.toLowerCase()} for specialist support.`,
+    cue: request.contextHint || request.reason || entry.cue,
     feedbackReason: request.reason || `Agent requested transfer to ${request.domain}.`,
-    priority: request.domain === "safety" ? "high" : template.priority,
+    priority: request.domain === "safety" ? "high" : entry.priority,
+    payload: {
+      transfer_domain: request.domain,
+      ...(request.agentSlug ? { agent_slug: request.agentSlug } : {}),
+    },
   });
 }
 
 export function specialistTransferFromToolCall(parameters: Record<string, unknown>): VoiceSpecialistTransferRequest | null {
-  const rawDomain = stringParam(parameters, "domain").replace("-", "_");
+  const rawDomain = stringParam(parameters, "domain").replace(/-/g, "_");
   if (!isVoiceSpecialistTransferDomain(rawDomain)) return null;
 
   const reason = stringParam(parameters, "reason")
@@ -379,7 +254,7 @@ export function specialistTransferFromToolCall(parameters: Record<string, unknow
     reason,
     evidence: stringParam(parameters, "evidence"),
     contextHint: stringParam(parameters, "context_hint") || reason,
-    route: normalizeRoute(stringParam(parameters, "route")) || undefined,
+    route: normalizeVoiceActionRoute(stringParam(parameters, "route")) || undefined,
     agentSlug: stringParam(parameters, "agent_slug") || VOICE_SPECIALIST_AGENT_SLUGS[rawDomain],
     autoStart: typeof autoStartParam === "boolean" ? autoStartParam : true,
   };
@@ -425,160 +300,80 @@ export function actionForVoiceUtterance(text: string): VoiceAppAction | null {
     "faltan",
     "tomado",
   ])) {
-    return createAction({
-      id: "voice_meds_inventory_report",
-      domain: "meds",
-      route: "/meds/adherence-report",
+    return actionFromRegistry("meds.inventory_report", text, {
       title: subject ? `${subject} check` : "Medication check",
-      summary: "Opening the medication report so VYVA can use adherence and stock context.",
       cue: subject
         ? `Review whether ${subject} needs attention.`
         : "Review medication confirmations, missed doses, and practical next steps.",
-      priority: "high",
       extractedSubject: subject,
       feedbackReason: "User asked about medicine stock, buying, adherence, or missed/taken medication.",
-    }, text);
+      payload: subject ? { medication_name: subject } : undefined,
+    });
   }
 
   if (mentionsMedication) {
-    return createAction({
-      id: "voice_meds_management",
-      domain: "meds",
-      route: "/meds",
-      title: "Medication management",
-      summary: "Opening the medication page for schedule, dose, refill, and routine support.",
-      cue: "Use the medication profile and ask what part of the routine they want to review.",
-      priority: "high",
+    return actionFromRegistry("meds.management", text, {
       extractedSubject: subject,
       feedbackReason: "User raised medication, dose, prescription, or pill routine.",
-    }, text);
+      payload: subject ? { medication_name: subject } : undefined,
+    });
   }
 
   if (hasAny(normalized, ["chest pain", "cant breathe", "can't breathe", "fallen", "fall", "emergency", "sos", "scam", "fraud", "estafa", "emergencia"])) {
     const isScam = hasAny(normalized, ["scam", "fraud", "estafa"]);
-    return createAction({
-      id: isScam ? "voice_scam_support" : "voice_safety_support",
-      domain: "safety",
-      route: isScam ? "/scam-guard" : "/safe-home",
-      title: isScam ? "Scam support" : "Safety support",
-      summary: isScam
-        ? "Opening scam support so VYVA can help check the situation calmly."
-        : "Opening safety support for urgent help, falls, or immediate concerns.",
-      cue: isScam
-        ? "Ask what happened and avoid asking for bank details."
-        : "Check immediate safety and whether emergency help or a caregiver is needed.",
-      priority: "high",
+    return actionFromRegistry(isScam ? "safety.scam_support" : "safety.support", text, {
       feedbackReason: "User mentioned safety, fall, emergency, scam, or fraud language.",
-    }, text);
+    });
   }
 
   if (hasAny(normalized, ["vitals", "blood pressure", "heart rate", "signos", "presion", "pulso"])) {
-    return createAction({
-      id: "voice_vitals_review",
-      domain: "health",
-      route: "/health/vitals",
-      title: "Vitals review",
-      summary: "Opening vitals so VYVA can use the latest scan and trend context.",
-      cue: "Review the latest vitals context without diagnosing.",
-      priority: "high",
+    return actionFromRegistry("health.vitals_review", text, {
       feedbackReason: "User mentioned vitals, blood pressure, heart rate, or pulse.",
-    }, text);
+    });
   }
 
   if (hasAny(normalized, ["book gp", "book doctor", "gp appointment", "doctor appointment", "book appointment", "cita con", "pedir cita"])) {
-    return createAction({
-      id: "voice_book_health_appointment",
-      domain: "concierge",
-      route: "/concierge",
-      title: "Appointment help",
-      summary: "Opening Concierge to help plan, book, remind, or prepare for an appointment.",
-      cue: "Offer help with booking, questions, reminders, transport, or provider contact.",
-      priority: "high",
+    return actionFromRegistry("concierge.appointment_help", text, {
       feedbackReason: "User asked to book or arrange a GP/doctor appointment.",
-    }, text);
+      payload: { task_type: "appointment" },
+    });
   }
 
   if (hasAny(normalized, ["doctor", "gp", "medical", "symptom", "dizzy", "pain", "allergy", "allergies", "health", "medico", "sintoma", "alergia", "salud"])) {
     const doctorRoute = hasAny(normalized, ["doctor", "gp", "medico"]);
-    return createAction({
-      id: doctorRoute ? "voice_doctor_health_support" : "voice_symptom_support",
-      domain: "health",
-      route: doctorRoute ? "/health/doctor" : "/health/symptom-check",
-      title: doctorRoute ? "Doctor support" : "Symptom support",
-      summary: doctorRoute
-        ? "Opening doctor support so the conversation can use health profile context."
-        : "Opening symptom support so VYVA can help structure what is happening.",
-      cue: doctorRoute
-        ? "Use profile, GP, vitals, symptoms, and care context before asking repeat questions."
-        : "Ask one focused question at a time and stay away from diagnosis.",
-      priority: "high",
+    return actionFromRegistry(doctorRoute ? "health.doctor_support" : "health.symptom_support", text, {
       feedbackReason: "User raised a health, symptom, doctor, allergy, or pain topic.",
-    }, text);
+    });
   }
 
   if (hasAny(normalized, ["report", "reports", "history", "scan", "informe", "informes", "historial"])) {
-    return createAction({
-      id: "voice_reports_history",
-      domain: "reports",
-      route: "/informes",
-      title: "Reports",
-      summary: "Opening reports so VYVA can reference previous scans and health summaries.",
-      cue: "Use report history only when relevant to the user's question.",
-      priority: "medium",
+    return actionFromRegistry("reports.history", text, {
       feedbackReason: "User asked for reports, history, scans, or summaries.",
-    }, text);
+    });
   }
 
   if (hasAny(normalized, ["appointment", "book", "taxi", "shopping", "groceries", "delivery", "weather", "concierge", "cita", "compras", "taxi"])) {
-    return createAction({
-      id: "voice_concierge_task",
-      domain: "concierge",
-      route: "/concierge",
-      title: "Concierge help",
-      summary: "Opening Concierge for appointments, transport, shopping, reminders, or planning.",
-      cue: "Turn the request into one practical next step and confirm before taking action.",
-      priority: "medium",
+    return actionFromRegistry("concierge.task", text, {
       feedbackReason: "User asked for logistics, shopping, booking, weather, or reminder help.",
-    }, text);
+    });
   }
 
   if (hasAny(normalized, ["memory game", "test my memory", "memoria", "juego de memoria"])) {
-    return createAction({
-      id: "voice_memory_game",
-      domain: "brain_coach",
-      route: "/memory-games",
-      title: "Memory games",
-      summary: "Opening memory games so the Brain Coach can keep the user company while playing.",
-      cue: "Encourage the user and offer a gentle game choice.",
-      priority: "medium",
+    return actionFromRegistry("brain.memory_game", text, {
       feedbackReason: "User asked for a memory game or memory practice.",
-    }, text);
+    });
   }
 
   if (hasAny(normalized, ["brain", "activity", "activities", "exercise", "quiz", "game", "juego", "actividad"])) {
-    return createAction({
-      id: "voice_brain_activity",
-      domain: "brain_coach",
-      route: "/activities",
-      title: "Brain activities",
-      summary: "Opening activities for games, practice, and friendly brain-coach support.",
-      cue: "Offer a light activity and keep encouragement available.",
-      priority: "medium",
+    return actionFromRegistry("brain.activity", text, {
       feedbackReason: "User asked for an activity, game, quiz, or brain exercise.",
-    }, text);
+    });
   }
 
   if (hasAny(normalized, ["social", "room", "community", "chat with people", "friends", "sala", "comunidad", "amigos"])) {
-    return createAction({
-      id: "voice_social_rooms",
-      domain: "social",
-      route: "/social-rooms",
-      title: "Social rooms",
-      summary: "Opening social rooms so VYVA can suggest a warm connection around interests.",
-      cue: "Use interests and recent social context to suggest one room or chat topic.",
-      priority: "medium",
+    return actionFromRegistry("social.rooms", text, {
       feedbackReason: "User asked about social rooms, community, friends, or chat.",
-    }, text);
+    });
   }
 
   return null;

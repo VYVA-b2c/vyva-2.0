@@ -6,6 +6,7 @@ import StatusBar from "./StatusBar";
 import BottomNav from "./BottomNav";
 import VoiceCallOverlay from "./VoiceCallOverlay";
 import VoiceActionCard from "./VoiceActionCard";
+import VoiceActionSimulator from "./VoiceActionSimulator";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 import {
   actionForSpecialistTransfer,
@@ -215,6 +216,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!activeVoiceAction) return;
     if (!voiceActionRouteMatches) return;
+    if (activeVoiceAction.completion?.mode !== "route_landed") return;
 
     const timer = window.setTimeout(() => {
       completeActiveAction({
@@ -224,7 +226,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
           current_path: location.pathname,
         },
       });
-    }, 1400);
+    }, activeVoiceAction.completion.routeLandedDelayMs ?? 1400);
 
     return () => window.clearTimeout(timer);
   }, [activeVoiceAction, completeActiveAction, location.pathname, voiceActionRouteMatches]);
@@ -265,6 +267,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
           if (canUseService("sos", "/sos")) setSosOpen(true);
         }} />}
         {!isFullScreen && <SosSheet open={sosOpen} onOpenChange={setSosOpen} />}
+        {!isFullScreen && <VoiceActionSimulator />}
         {showVoiceOverlay && (
           <VoiceCallOverlay
             isSpeaking={isSpeaking}
