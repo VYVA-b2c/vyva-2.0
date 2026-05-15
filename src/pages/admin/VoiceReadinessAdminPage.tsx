@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -29,7 +29,15 @@ import {
   VOICE_SPECIALIST_AGENT_SLUGS,
 } from "@/lib/voiceNavigation";
 import { voiceSessionPhaseLabel } from "@/lib/voiceSessionState";
-import { clearVoiceTimeline, recordVoiceTimelineEvent, useVoiceTimeline } from "@/lib/voiceTimeline";
+import {
+  clearVoiceTimeline,
+  fetchPersistedVoiceTimelineEvents,
+  flushVoiceTimelineEvents,
+  recordVoiceTimelineEvent,
+  useVoiceTimeline,
+  type PersistedVoiceTimelineEvent,
+  type VoiceTimelineEvent,
+} from "@/lib/voiceTimeline";
 
 const QUICK_UTTERANCES = [
   "Do we need to buy Paracetamol?",
@@ -97,6 +105,10 @@ function timelineMarkerClass(severity: "info" | "success" | "warning" | "error")
   if (severity === "warning") return "bg-amber-500";
   if (severity === "error") return "bg-red-500";
   return "bg-purple-500";
+}
+
+function isPersistedTimelineEvent(event: VoiceTimelineEvent): event is PersistedVoiceTimelineEvent {
+  return "userId" in event;
 }
 
 function AgentCard({ contract, validation, active }: {
@@ -169,8 +181,13 @@ export default function VoiceReadinessAdminPage() {
   } = useVyvaVoice();
   const { activeAction, isActiveActionAccepted } = useVoiceActionContext();
   const timelineEvents = useVoiceTimeline();
+  const [persistedTimelineEvents, setPersistedTimelineEvents] = useState<PersistedVoiceTimelineEvent[]>([]);
+  const [timelineServerStatus, setTimelineServerStatus] = useState("Local timeline ready");
   const [utterance, setUtterance] = useState(QUICK_UTTERANCES[0]);
   const [simulatorMessage, setSimulatorMessage] = useState("");
+  const displayedTimelineEvents: VoiceTimelineEvent[] = useMemo(() => (
+    persistedTimelineEvents.length > 0 ? persistedTimelineEvents : [...timelineEvents].reverse()
+  ), [persistedTimelineEvents, timelineEvents]);
 
   const currentContract = voiceAgentContractFor({
     domain: lastResolvedSessionContext?.domain,
@@ -196,6 +213,42 @@ export default function VoiceReadinessAdminPage() {
       ),
     }))
   ), [currentContract.id, lastResolvedSessionContext?.dynamicVariables]);
+
+  async function refreshPersistedTimeline() {
+    try {
+      setTimelineServerStatus("Syncing latest events...");
+      await flushVoiceTimelineEvents();
+      const events = await fetchPersistedVoiceTimelineEvents(120);
+      setPersistedTimelineEvents(events);
+      setTimelineServerStatus(events.length > 0
+        ? `${events.length} persisted QA events loaded`
+        : "No persisted QA events yet");
+    } catch {
+      setTimelineServerStatus("Persisted QA timeline unavailable");
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        setTimelineServerStatus("Loading persisted QA events...");
+        await flushVoiceTimelineEvents();
+        const events = await fetchPersistedVoiceTimelineEvents(120);
+        if (cancelled) return;
+        setPersistedTimelineEvents(events);
+        setTimelineServerStatus(events.length > 0
+          ? `${events.length} persisted QA events loaded`
+          : "No persisted QA events yet");
+      } catch {
+        if (!cancelled) setTimelineServerStatus("Persisted QA timeline unavailable");
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function simulateUtterance(value = utterance) {
     const action = actionForVoiceUtterance(value);
@@ -333,20 +386,32 @@ export default function VoiceReadinessAdminPage() {
                   </div>
                   <div>
                     <h2 className="text-lg font-black">Voice timeline</h2>
-                    <p className="text-sm text-[#7d6b65]">Latest app-side voice events.</p>
+                    <p className="text-sm text-[#7d6b65]">{timelineServerStatus}</p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={clearVoiceTimeline}
-                  className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-3 py-2 text-xs font-black text-[#5b4a46] transition hover:border-red-200 hover:text-red-700"
-                >
-                  Clear
-                </button>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void refreshPersistedTimeline()}
+                    className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-3 py-2 text-xs font-black text-[#5b4a46] transition hover:border-purple-200 hover:text-purple-700"
+                  >
+                    Sync
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearVoiceTimeline();
+                      setTimelineServerStatus("Local timeline cleared");
+                    }}
+                    className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-3 py-2 text-xs font-black text-[#5b4a46] transition hover:border-red-200 hover:text-red-700"
+                  >
+                    Clear local
+                  </button>
+                </div>
               </div>
 
               <div className="mt-4 max-h-[440px] space-y-3 overflow-auto pr-1">
-                {timelineEvents.length > 0 ? timelineEvents.slice(-18).reverse().map((event) => (
+                {displayedTimelineEvents.length > 0 ? displayedTimelineEvents.slice(0, 18).map((event) => (
                   <article key={event.id} className="relative rounded-xl border border-[#eadfd5] bg-[#fbf8f5] p-3">
                     <div className="flex items-start gap-3">
                       <span className={`mt-1 h-2.5 w-2.5 flex-shrink-0 rounded-full ${timelineMarkerClass(event.severity)}`} />
@@ -363,6 +428,7 @@ export default function VoiceReadinessAdminPage() {
                           {event.domain && <Pill>{event.domain}</Pill>}
                           {event.route && <Pill>{event.route}</Pill>}
                           {event.conversationPlanId && <Pill>{event.conversationPlanId}</Pill>}
+                          {isPersistedTimelineEvent(event) && event.userId && <Pill>persisted</Pill>}
                         </div>
                       </div>
                     </div>
