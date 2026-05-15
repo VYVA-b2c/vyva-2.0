@@ -34,16 +34,27 @@ export function useDoctorVoice() {
   const { user } = useAuth();
   const { profile, firstName } = useProfile();
   const voice = useVyvaVoice();
+  const {
+    beginUserTurn,
+    endUserTurn,
+    hasMicrophone,
+    isConnecting,
+    isSpeaking,
+    isUserSpeaking,
+    startVoice,
+    status,
+    stopVoice,
+  } = voice;
   const [startAttempted, setStartAttempted] = useState(false);
   const [userStopped, setUserStopped] = useState(false);
   const [startListeningWhenReady, setStartListeningWhenReady] = useState(false);
 
   const isVoiceLive =
-    voice.status === "connecting" ||
-    voice.status === "connected" ||
-    voice.isConnecting ||
-    voice.isSpeaking ||
-    voice.isUserSpeaking;
+    status === "connecting" ||
+    status === "connected" ||
+    isConnecting ||
+    isSpeaking ||
+    isUserSpeaking;
 
   const startDoctorVoice = useCallback(async () => {
     setUserStopped(false);
@@ -61,7 +72,7 @@ export function useDoctorVoice() {
       };
     }
 
-    await voice.startVoice(undefined, undefined, {
+    await startVoice(undefined, undefined, {
       agentId: DOCTOR_AGENT_ID,
       dynamicVariables: {
         ...doctorContext,
@@ -71,22 +82,22 @@ export function useDoctorVoice() {
         language: i18n.language?.slice(0, 2) || "en",
       },
     });
-  }, [firstName, i18n.language, profile?.firstName, user?.id, voice.startVoice]);
+  }, [firstName, i18n.language, profile?.firstName, startVoice, user?.id]);
 
   const stopDoctorVoice = useCallback(() => {
     setUserStopped(true);
     setStartListeningWhenReady(false);
-    voice.endUserTurn();
-    voice.stopVoice();
-  }, [voice.endUserTurn, voice.stopVoice]);
+    endUserTurn();
+    stopVoice();
+  }, [endUserTurn, stopVoice]);
 
   useEffect(() => {
-    if (voice.status !== "connected" || !startListeningWhenReady || !voice.hasMicrophone) return;
+    if (status !== "connected" || !startListeningWhenReady || !hasMicrophone) return;
     setStartListeningWhenReady(false);
-    void voice.beginUserTurn();
-  }, [startListeningWhenReady, voice.beginUserTurn, voice.hasMicrophone, voice.status]);
+    void beginUserTurn();
+  }, [beginUserTurn, hasMicrophone, startListeningWhenReady, status]);
 
-  useEffect(() => () => voice.stopVoice(), [voice.stopVoice]);
+  useEffect(() => () => stopVoice(), [stopVoice]);
 
   return useMemo(() => ({
     ...voice,
