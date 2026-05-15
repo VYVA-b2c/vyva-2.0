@@ -5,6 +5,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useDoctorVoice } from "@/hooks/useDoctorVoice";
 import { useHeroMessage } from "@/hooks/useHeroMessage";
 import { useServiceGate } from "@/hooks/useServiceGate";
+import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 
 const DoctorChoiceScreen = () => {
   const navigate = useNavigate();
@@ -208,6 +209,14 @@ const DoctorChoiceScreen = () => {
           {voiceError}
         </div>
       ) : null}
+
+      <VoiceActionFulfillmentPanel
+        domain="health"
+        actionTypes={["health.doctor_support"]}
+        title={t("health.doctorChoice.contextReady", "Health context ready")}
+        description={t("health.doctorChoice.contextReadySub", "VYVA can use the health profile, recent symptoms, vitals, and GP context while helping here.")}
+        className="mt-4"
+      />
 
       {doctorRecommendations.length > 0 ? (
         <button

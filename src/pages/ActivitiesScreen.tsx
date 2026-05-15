@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { margaret } from "@/data/mockData";
 import { useLanguage } from "@/i18n";
 import VoiceHero from "@/components/VoiceHero";
+import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 
 const activityIcons: Record<string, LucideIcon> = {
@@ -109,6 +110,14 @@ const ActivitiesScreen = () => {
         autoStartVoice={autoStartVoice ? "brain" : false}
         showVoiceOverlay={false}
         activeLabel={t("voiceHero.endCall", "End call")}
+      />
+
+      <VoiceActionFulfillmentPanel
+        domain="brain_coach"
+        actionTypes={["brain.activity"]}
+        title="Activity context ready"
+        description="VYVA can suggest a light activity and keep encouragement available while the user chooses."
+        className="mt-[18px]"
       />
 
       <section

@@ -16,6 +16,7 @@ import {
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 
 type HomeScan = {
   id: string;
@@ -320,6 +321,14 @@ const SafeHomeScreen = () => {
             </p>
           </div>
         </div>
+
+        <VoiceActionFulfillmentPanel
+          domain="safety"
+          actionTypes={["safety.support"]}
+          title={t("safeHome.voiceContextTitle", "Safety context ready")}
+          description={t("safeHome.voiceContextSub", "VYVA can focus on immediate safety, location, and caregiver escalation before taking action.")}
+          className="mb-[14px]"
+        />
 
         {/* Scan a Room card */}
         <div style={cardStyle} className="mb-[14px]">

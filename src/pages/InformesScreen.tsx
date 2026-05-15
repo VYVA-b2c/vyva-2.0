@@ -15,6 +15,7 @@ import {
   TrendingUp,
   ClipboardList,
 } from "lucide-react";
+import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 
 type TriageReport = {
   id: string;
@@ -371,6 +372,19 @@ function InformesMain() {
           <p className="font-body text-[13px] text-vyva-text-3">{t("informes.subtitle")}</p>
         </div>
       </div>
+
+      <VoiceActionFulfillmentPanel
+        domain="reports"
+        actionTypes={["reports.history"]}
+        title={t("informes.voiceContextTitle", "Report context ready")}
+        description={t("informes.voiceContextSub", "VYVA can use recent reports, latest vitals, and medication summary when this page is opened.")}
+        highlights={[
+          ...(summary?.latestTriage ? [{ label: t("informes.cards.symptom.title"), value: formatDate(summary.latestTriage.created_at), tone: "neutral" as const }] : []),
+          ...(summary?.latestVitals ? [{ label: t("health.quickTiles.status.label", "Status"), value: formatDate(summary.latestVitals.recorded_at), tone: "neutral" as const }] : []),
+          ...(summary?.todayMeds.total ? [{ label: t("health.quickTiles.medication.label", "Medication"), value: `${summary.todayMeds.taken}/${summary.todayMeds.total}`, tone: "good" as const }] : []),
+        ]}
+        className="mb-4"
+      />
 
       {summaryLoading && (
         <div className="flex flex-col gap-4">

@@ -21,7 +21,9 @@ import {
   X,
 } from "lucide-react";
 import VoiceHero from "@/components/VoiceHero";
+import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { useToast } from "@/hooks/use-toast";
+import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 
 const METRIC_META = {
   hr: {
@@ -95,6 +97,14 @@ function buildTrend(trend: (string | null)[]): number[] {
   return numeric;
 }
 
+function focusedMetricFromVoice(value: string): MetricType | null {
+  const normalized = value.toLowerCase();
+  if (normalized.includes("blood") || normalized.includes("pressure") || normalized.includes("presion")) return "bp";
+  if (normalized.includes("resp") || normalized.includes("breath") || normalized.includes("rpm")) return "rr";
+  if (normalized.includes("heart") || normalized.includes("pulse") || normalized.includes("card") || normalized.includes("bpm")) return "hr";
+  return null;
+}
+
 function formatRecordedAt(iso: string | null): string {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -136,9 +146,11 @@ function MiniBarChart({ values }: { values: number[] }) {
 function MetricCard({
   metricKey,
   summary,
+  highlighted = false,
 }: {
   metricKey: MetricType;
   summary: VitalsSummaryEntry | undefined;
+  highlighted?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const meta = METRIC_META[metricKey];
@@ -151,7 +163,7 @@ function MetricCard({
 
   return (
     <div
-      className="bg-white rounded-[18px] p-4 transition-all"
+      className={`bg-white rounded-[18px] p-4 transition-all ${highlighted ? "ring-2 ring-emerald-200 bg-emerald-50" : ""}`}
       style={{ boxShadow: "0 1px 6px rgba(0,0,0,0.07)" }}
     >
       <div className="flex items-center justify-between">
@@ -350,6 +362,10 @@ function LogReadingModal({
 const SignosScreen = () => {
   const navigate = useNavigate();
   const [showLogModal, setShowLogModal] = useState(false);
+  const { action: voiceAction, payloadValue: voicePayloadValue } = useVoiceActionFulfillment({
+    domain: "health",
+    actionTypes: ["health.vitals_review"],
+  });
 
   const { data: vitalsData, isLoading } = useQuery<VitalsResponse>({
     queryKey: ["/api/vitals"],
@@ -372,6 +388,25 @@ const SignosScreen = () => {
   const subtitleText = latestReadingAt
     ? `Última lectura: ${formatRecordedAt(latestReadingAt)}`
     : "Última lectura: —";
+
+  const focusedMetric = focusedMetricFromVoice(
+    voicePayloadValue("vital_type")
+      || voicePayloadValue("trend_focus")
+      || voiceAction?.extractedSubject
+      || "",
+  );
+  const focusedMetricSummary = focusedMetric ? summary?.[focusedMetric] : undefined;
+  const voiceActionHighlights = [
+    ...(focusedMetric
+      ? [{ label: "Metric", value: METRIC_META[focusedMetric].label, tone: "good" as const }]
+      : []),
+    ...(focusedMetricSummary?.latest_value
+      ? [{ label: "Latest", value: `${focusedMetricSummary.latest_value} ${METRIC_META[focusedMetric!].unit}`, tone: "neutral" as const }]
+      : []),
+    ...(latestReadingAt
+      ? [{ label: "Last scan", value: formatRecordedAt(latestReadingAt), tone: "neutral" as const }]
+      : []),
+  ];
 
   return (
     <div className="px-[18px] pb-10">
@@ -408,6 +443,15 @@ const SignosScreen = () => {
           </span>
         </div>
       </VoiceHero>
+
+      <VoiceActionFulfillmentPanel
+        domain="health"
+        actionTypes={["health.vitals_review"]}
+        title="Vitals context ready"
+        description="VYVA can use the latest readings, trend cards, and scan timing from this page."
+        highlights={voiceActionHighlights}
+        className="mt-4 mb-4"
+      />
 
       <div
         className="bg-white rounded-[18px] p-4 mb-4 mt-5 flex items-center gap-4"
@@ -459,7 +503,12 @@ const SignosScreen = () => {
               />
             ))
           : (["hr", "rr", "bp"] as MetricType[]).map((key) => (
-              <MetricCard key={key} metricKey={key} summary={summary?.[key]} />
+              <MetricCard
+                key={key}
+                metricKey={key}
+                summary={summary?.[key]}
+                highlighted={focusedMetric === key}
+              />
             ))}
       </div>
 

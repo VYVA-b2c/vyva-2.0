@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useProfile } from "@/contexts/ProfileContext";
 import VoiceHero from "@/components/VoiceHero";
+import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 import AgentAvatar from "./AgentAvatar";
 import SocialStyles from "./SocialStyles";
@@ -248,6 +249,17 @@ const SocialHub = () => {
           activeLabel={t("voiceHero.endCall", "End call")}
         />
       </header>
+
+      <VoiceActionFulfillmentPanel
+        domain="social"
+        actionTypes={["social.rooms"]}
+        title={copy.chooseRoom}
+        description="VYVA can use interests, room context, and conversation style to suggest one warm place to start."
+        highlights={[
+          ...(filteredRooms.length > 0 ? [{ label: "Rooms", value: filteredRooms.length, tone: "good" as const }] : []),
+        ]}
+        className="mt-5"
+      />
 
       <div className="mt-6 flex gap-3 overflow-x-auto pb-2">
         {filters.map((value) => {

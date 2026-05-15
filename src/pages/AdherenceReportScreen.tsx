@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, BarChart2, Copy, AlertCircle, RefreshCw, ClipboardCheck, Flame, ShieldCheck, TriangleAlert, Sparkles, Clock3, Target, LockKeyhole, LogIn } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
+import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { ApiError } from "@/lib/queryClient";
 
 type DailyStatus = "taken" | "missed" | "none";
@@ -94,6 +96,14 @@ function SkeletonRow() {
   );
 }
 
+function normalizeVoiceFocus(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
 const AdherenceReportScreen = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -101,6 +111,10 @@ const AdherenceReportScreen = () => {
 
   const { data, isLoading, isError, refetch, error } = useQuery<AdherenceReport, ApiError>({
     queryKey: ["/api/meds/adherence-report"],
+  });
+  const { action: voiceAction, payloadValue: voicePayloadValue } = useVoiceActionFulfillment({
+    domain: "meds",
+    actionTypes: ["meds.inventory_report"],
   });
   const isAuthError = error instanceof ApiError && (error.status === 401 || error.status === 403);
 
@@ -128,6 +142,11 @@ const AdherenceReportScreen = () => {
     const adherencePct = med.scheduled > 0 ? Math.round((med.taken / med.scheduled) * 100) : 0;
     return { ...med, missedCount, adherencePct };
   });
+  const focusedMedicationName = voicePayloadValue("medication_name") || voiceAction?.extractedSubject || "";
+  const focusedMedicationKey = normalizeVoiceFocus(focusedMedicationName);
+  const focusedMedication = focusedMedicationKey
+    ? medicationInsights.find((med) => normalizeVoiceFocus(med.name).includes(focusedMedicationKey))
+    : null;
   const mostMissedMedication = [...medicationInsights].sort((a, b) => {
     if (a.missedCount !== b.missedCount) return b.missedCount - a.missedCount;
     return a.name.localeCompare(b.name);
@@ -143,6 +162,17 @@ const AdherenceReportScreen = () => {
     if (aMissed !== bMissed) return bMissed - aMissed;
     return a.name.localeCompare(b.name);
   });
+  const voiceActionHighlights = [
+    ...(focusedMedicationName
+      ? [{ label: "Medication", value: focusedMedicationName, tone: focusedMedication ? "good" as const : "warning" as const }]
+      : []),
+    ...(focusedMedication
+      ? [{ label: "Adherence", value: `${focusedMedication.adherencePct}%`, tone: focusedMedication.adherencePct >= 80 ? "good" as const : "warning" as const }]
+      : []),
+    ...(todayStillDueCount > 0
+      ? [{ label: "Still due", value: todayStillDueCount, tone: "warning" as const }]
+      : []),
+  ];
 
   const insights = [
     {
@@ -328,6 +358,15 @@ const AdherenceReportScreen = () => {
             {t("meds.adherence.title")}
           </h1>
         </div>
+
+        <VoiceActionFulfillmentPanel
+          domain="meds"
+          actionTypes={["meds.inventory_report"]}
+          title="Medication report ready"
+          description="VYVA can use adherence, missed doses, streaks, and today's remaining items from this report."
+          highlights={voiceActionHighlights}
+          className="mb-[14px]"
+        />
 
         {isLoading && (
           <>
@@ -555,7 +594,7 @@ const AdherenceReportScreen = () => {
                   return (
                     <div
                       key={i}
-                      className="px-[18px] py-[16px] border-b border-vyva-border last:border-b-0"
+                      className={`px-[18px] py-[16px] border-b border-vyva-border last:border-b-0 ${focusedMedication?.name === med.name ? "bg-emerald-50 ring-2 ring-inset ring-emerald-200" : ""}`}
                       data-testid={`card-med-adherence-${i}`}
                     >
                       <div className="flex items-start justify-between gap-3 mb-3">

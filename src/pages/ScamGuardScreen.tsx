@@ -24,6 +24,7 @@ import { apiFetch, queryClient } from "@/lib/queryClient";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useVyvaVoice, useTtsReadout } from "@/hooks/useVyvaVoice";
+import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 
 type ScamCheck = {
   id: string;
@@ -362,6 +363,14 @@ const ScamGuardScreen = () => {
             </p>
           </div>
         </div>
+
+        <VoiceActionFulfillmentPanel
+          domain="safety"
+          actionTypes={["safety.scam_support"]}
+          title={t("scamGuard.voiceContextTitle", "Scam context ready")}
+          description={t("scamGuard.voiceContextSub", "VYVA can focus on the source, requested action, and risk detail without asking for private banking information.")}
+          className="mb-[14px]"
+        />
 
         {/* Call Companion hero card */}
         <div
