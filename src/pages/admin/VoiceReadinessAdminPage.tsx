@@ -11,6 +11,7 @@ import {
   Mic,
   RadioTower,
   Route,
+  Save,
   Sparkles,
   TestTube2,
 } from "lucide-react";
@@ -42,6 +43,15 @@ import {
   type VoiceTimelineFilter,
 } from "@/lib/voiceQa";
 import {
+  fetchVoiceQaSessionReviews,
+  saveVoiceQaSessionReview,
+  VOICE_QA_REVIEW_STATUSES,
+  voiceQaReviewStatusLabel,
+  type VoiceQaReviewDraft,
+  type VoiceQaReviewStatus,
+  type VoiceQaSessionReview,
+} from "@/lib/voiceQaReviews";
+import {
   clearVoiceTimeline,
   fetchPersistedVoiceTimelineEvents,
   flushVoiceTimelineEvents,
@@ -67,6 +77,14 @@ const DEFAULT_QA_FILTERS: VoiceTimelineFilter = {
   kind: "all",
   severity: "all",
 };
+
+const REVIEW_STATUS_FILTERS = [
+  "all",
+  "unresolved",
+  ...VOICE_QA_REVIEW_STATUSES,
+] as const;
+
+type ReviewStatusFilter = typeof REVIEW_STATUS_FILTERS[number];
 
 function statusLabel(validation: VoiceContextValidation) {
   if (validation.status === "ready") return "Ready";
@@ -146,6 +164,21 @@ function timelineMarkerClass(severity: "info" | "success" | "warning" | "error")
 
 function isPersistedTimelineEvent(event: VoiceTimelineEvent): event is PersistedVoiceTimelineEvent {
   return "userId" in event;
+}
+
+function reviewStatusTone(status: VoiceQaReviewStatus): "neutral" | "good" | "warn" | "dark" {
+  if (status === "good" || status === "reviewed") return "good";
+  if (status === "unreviewed") return "neutral";
+  if (status === "prompt_fix_needed" || status === "app_fix_needed" || status === "elevenlabs_config_needed") return "dark";
+  return "warn";
+}
+
+function isUnresolvedReviewStatus(status: VoiceQaReviewStatus) {
+  return status === "unreviewed" ||
+    status === "needs_review" ||
+    status === "prompt_fix_needed" ||
+    status === "app_fix_needed" ||
+    status === "elevenlabs_config_needed";
 }
 
 function exportStamp() {
@@ -240,6 +273,9 @@ export default function VoiceReadinessAdminPage() {
   const [utterance, setUtterance] = useState(QUICK_UTTERANCES[0]);
   const [simulatorMessage, setSimulatorMessage] = useState("");
   const [qaFilters, setQaFilters] = useState<VoiceTimelineFilter>(DEFAULT_QA_FILTERS);
+  const [reviewStatusFilter, setReviewStatusFilter] = useState<ReviewStatusFilter>("all");
+  const [qaReviews, setQaReviews] = useState<VoiceQaSessionReview[]>([]);
+  const [qaReviewDrafts, setQaReviewDrafts] = useState<Record<string, VoiceQaReviewDraft>>({});
   const [qaExportStatus, setQaExportStatus] = useState("");
   const displayedTimelineEvents: VoiceTimelineEvent[] = useMemo(() => (
     persistedTimelineEvents.length > 0 ? persistedTimelineEvents : [...timelineEvents].reverse()
@@ -249,6 +285,23 @@ export default function VoiceReadinessAdminPage() {
   ), [displayedTimelineEvents, qaFilters]);
   const filterOptions = useMemo(() => timelineFilterOptions(displayedTimelineEvents), [displayedTimelineEvents]);
   const qaDashboard = useMemo(() => buildVoiceQaDashboard(filteredTimelineEvents), [filteredTimelineEvents]);
+  const qaReviewBySessionId = useMemo(() => new Map(qaReviews.map((review) => [review.sessionId, review])), [qaReviews]);
+  const visibleQaSessions = useMemo(() => {
+    const sessions = qaDashboard.sessions.filter((session) => {
+      const status = qaReviewDrafts[session.sessionId]?.status ?? qaReviewBySessionId.get(session.sessionId)?.status ?? "unreviewed";
+      if (reviewStatusFilter === "all") return true;
+      if (reviewStatusFilter === "unresolved") return isUnresolvedReviewStatus(status);
+      return status === reviewStatusFilter;
+    });
+
+    return sessions.sort((a, b) => {
+      const aStatus = qaReviewDrafts[a.sessionId]?.status ?? qaReviewBySessionId.get(a.sessionId)?.status ?? "unreviewed";
+      const bStatus = qaReviewDrafts[b.sessionId]?.status ?? qaReviewBySessionId.get(b.sessionId)?.status ?? "unreviewed";
+      const aPriority = isUnresolvedReviewStatus(aStatus) ? 0 : 1;
+      const bPriority = isUnresolvedReviewStatus(bStatus) ? 0 : 1;
+      return aPriority - bPriority || b.startedAt - a.startedAt;
+    });
+  }, [qaDashboard.sessions, qaReviewBySessionId, qaReviewDrafts, reviewStatusFilter]);
 
   const currentContract = voiceAgentContractFor({
     domain: lastResolvedSessionContext?.domain,
@@ -279,8 +332,12 @@ export default function VoiceReadinessAdminPage() {
     try {
       setTimelineServerStatus("Syncing latest events...");
       await flushVoiceTimelineEvents();
-      const events = await fetchPersistedVoiceTimelineEvents(120);
+      const [events, reviews] = await Promise.all([
+        fetchPersistedVoiceTimelineEvents(120),
+        fetchVoiceQaSessionReviews(),
+      ]);
       setPersistedTimelineEvents(events);
+      setQaReviews(reviews);
       setTimelineServerStatus(events.length > 0
         ? `${events.length} persisted QA events loaded`
         : "No persisted QA events yet");
@@ -295,9 +352,13 @@ export default function VoiceReadinessAdminPage() {
       try {
         setTimelineServerStatus("Loading persisted QA events...");
         await flushVoiceTimelineEvents();
-        const events = await fetchPersistedVoiceTimelineEvents(120);
+        const [events, reviews] = await Promise.all([
+          fetchPersistedVoiceTimelineEvents(120),
+          fetchVoiceQaSessionReviews(),
+        ]);
         if (cancelled) return;
         setPersistedTimelineEvents(events);
+        setQaReviews(reviews);
         setTimelineServerStatus(events.length > 0
           ? `${events.length} persisted QA events loaded`
           : "No persisted QA events yet");
@@ -336,8 +397,57 @@ export default function VoiceReadinessAdminPage() {
     });
   }
 
+  function draftForSession(sessionId: string): VoiceQaReviewDraft {
+    return qaReviewDrafts[sessionId] ?? {
+      status: qaReviewBySessionId.get(sessionId)?.status ?? "unreviewed",
+      note: qaReviewBySessionId.get(sessionId)?.note ?? "",
+    };
+  }
+
+  function updateReviewDraft(sessionId: string, draft: Partial<VoiceQaReviewDraft>) {
+    setQaReviewDrafts((current) => {
+      const persisted = qaReviewBySessionId.get(sessionId);
+      const currentDraft = current[sessionId] ?? {
+        status: persisted?.status ?? "unreviewed",
+        note: persisted?.note ?? "",
+      };
+      return {
+        ...current,
+        [sessionId]: {
+          ...currentDraft,
+          ...draft,
+        },
+      };
+    });
+  }
+
+  async function saveSessionReview(sessionId: string) {
+    const draft = draftForSession(sessionId);
+    try {
+      const review = await saveVoiceQaSessionReview({
+        sessionId,
+        status: draft.status,
+        note: draft.note,
+      });
+      if (review) {
+        setQaReviews((current) => [
+          review,
+          ...current.filter((item) => item.sessionId !== review.sessionId),
+        ]);
+      }
+      setQaReviewDrafts((current) => {
+        const next = { ...current };
+        delete next[sessionId];
+        return next;
+      });
+      setQaExportStatus(`Review saved for ${sessionId}.`);
+    } catch {
+      setQaExportStatus(`Could not save review for ${sessionId}.`);
+    }
+  }
+
   function exportReplayPack() {
-    const pack = buildVoiceReplayPack(qaDashboard.sessions);
+    const pack = buildVoiceReplayPack(visibleQaSessions);
     downloadTextFile(
       `vyva-voice-replay-pack-${exportStamp()}.json`,
       JSON.stringify(pack, null, 2),
@@ -349,14 +459,14 @@ export default function VoiceReadinessAdminPage() {
   function exportSessionCsv() {
     downloadTextFile(
       `vyva-voice-session-summary-${exportStamp()}.csv`,
-      voiceQaSessionsToCsv(qaDashboard.sessions),
+      voiceQaSessionsToCsv(visibleQaSessions),
       "text/csv",
     );
-    setQaExportStatus(`CSV exported for ${qaDashboard.sessions.length} sessions.`);
+    setQaExportStatus(`CSV exported for ${visibleQaSessions.length} sessions.`);
   }
 
   async function copyPromptDebugContext() {
-    const session = qaDashboard.sessions[0];
+    const session = visibleQaSessions[0];
     if (!session) {
       setQaExportStatus("No filtered session to copy.");
       return;
@@ -422,12 +532,12 @@ export default function VoiceReadinessAdminPage() {
             </div>
             <div className="flex flex-wrap gap-2">
               <Pill tone={qaDashboard.totalIssues > 0 ? "warn" : "good"}>{qaDashboard.totalIssues} QA flags</Pill>
-              <Pill>{qaDashboard.sessions.length} sessions</Pill>
+              <Pill>{visibleQaSessions.length}/{qaDashboard.sessions.length} sessions</Pill>
               <Pill>{qaDashboard.filteredEventCount} events</Pill>
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(220px,1.4fr)_repeat(3,minmax(150px,0.8fr))]">
+          <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(220px,1.4fr)_repeat(4,minmax(150px,0.8fr))]">
             <input
               value={qaFilters.query}
               onChange={(event) => setQaFilters((current) => ({ ...current, query: event.target.value }))}
@@ -458,6 +568,17 @@ export default function VoiceReadinessAdminPage() {
               <option value="all">All severities</option>
               {filterOptions.severities.map((severity) => <option key={severity} value={severity}>{severity}</option>)}
             </select>
+            <select
+              value={reviewStatusFilter}
+              onChange={(event) => setReviewStatusFilter(event.target.value as ReviewStatusFilter)}
+              className="min-h-[44px] rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-3 text-sm font-bold text-[#4f4352] outline-none focus:border-purple-300"
+            >
+              <option value="all">All reviews</option>
+              <option value="unresolved">Unresolved</option>
+              {VOICE_QA_REVIEW_STATUSES.map((status) => (
+                <option key={status} value={status}>{voiceQaReviewStatusLabel(status)}</option>
+              ))}
+            </select>
           </div>
 
           <div className="mt-4 rounded-xl border border-[#eadfd5] bg-[#fbf8f5] p-3">
@@ -472,7 +593,7 @@ export default function VoiceReadinessAdminPage() {
                 <button
                   type="button"
                   onClick={exportReplayPack}
-                  disabled={qaDashboard.sessions.length === 0}
+                  disabled={visibleQaSessions.length === 0}
                   className="inline-flex min-h-[40px] items-center gap-2 rounded-xl bg-[#2f2135] px-3 text-xs font-black text-white transition hover:bg-[#47324f] disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   <FileJson size={15} />
@@ -481,7 +602,7 @@ export default function VoiceReadinessAdminPage() {
                 <button
                   type="button"
                   onClick={exportSessionCsv}
-                  disabled={qaDashboard.sessions.length === 0}
+                  disabled={visibleQaSessions.length === 0}
                   className="inline-flex min-h-[40px] items-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-[#5b4a46] transition hover:border-purple-200 hover:text-purple-700 disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   <Download size={15} />
@@ -490,7 +611,7 @@ export default function VoiceReadinessAdminPage() {
                 <button
                   type="button"
                   onClick={() => void copyPromptDebugContext()}
-                  disabled={qaDashboard.sessions.length === 0}
+                  disabled={visibleQaSessions.length === 0}
                   className="inline-flex min-h-[40px] items-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-[#5b4a46] transition hover:border-purple-200 hover:text-purple-700 disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   <Clipboard size={15} />
@@ -537,36 +658,65 @@ export default function VoiceReadinessAdminPage() {
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-sm font-black text-[#2f2135]">Recent sessions</h3>
                 <Pill tone={qaDashboard.totalIssues > 0 ? "warn" : "good"}>
-                  {qaDashboard.sessions.filter((session) => session.flags.length > 0).length} flagged
+                  {visibleQaSessions.filter((session) => session.flags.length > 0).length} flagged
                 </Pill>
               </div>
               <div className="mt-3 max-h-[340px] space-y-2 overflow-auto pr-1">
-                {qaDashboard.sessions.length > 0 ? qaDashboard.sessions.slice(0, 8).map((session) => (
-                  <article key={session.id} className="rounded-xl border border-[#eadfd5] bg-white p-3">
-                    <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="min-w-0">
-                        <p className="break-words text-sm font-black text-[#2f2135]">{session.latestTitle}</p>
-                        <p className="mt-1 break-words text-xs font-bold text-[#8b7a73]">
-                          {session.sessionId} - {formatTimelineDate(session.startedAt)} - {formatDuration(session.durationMs)}
-                        </p>
+                {visibleQaSessions.length > 0 ? visibleQaSessions.slice(0, 8).map((session) => {
+                  const review = draftForSession(session.sessionId);
+                  return (
+                    <article key={session.id} className="rounded-xl border border-[#eadfd5] bg-white p-3">
+                      <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="min-w-0">
+                          <p className="break-words text-sm font-black text-[#2f2135]">{session.latestTitle}</p>
+                          <p className="mt-1 break-words text-xs font-bold text-[#8b7a73]">
+                            {session.sessionId} - {formatTimelineDate(session.startedAt)} - {formatDuration(session.durationMs)}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 lg:justify-end">
+                          <Pill>{session.domain}</Pill>
+                          <Pill>{session.eventCount} events</Pill>
+                          <Pill tone={reviewStatusTone(review.status)}>{voiceQaReviewStatusLabel(review.status)}</Pill>
+                        </div>
                       </div>
-                      <div className="flex flex-wrap gap-1.5 lg:justify-end">
-                        <Pill>{session.domain}</Pill>
-                        <Pill>{session.eventCount} events</Pill>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {session.flags.length > 0 ? session.flags.map((flag) => (
+                          <Pill key={flag} tone="warn">{flag}</Pill>
+                        )) : (
+                          <Pill tone="good">Clean</Pill>
+                        )}
+                        {session.transferCount > 0 && <Pill>{session.transferCount} transfers</Pill>}
+                        {session.completedActionCount > 0 && <Pill tone="good">{session.completedActionCount} completed</Pill>}
+                        {session.conversationPlanId !== "unknown" && <Pill>{session.conversationPlanId}</Pill>}
                       </div>
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {session.flags.length > 0 ? session.flags.map((flag) => (
-                        <Pill key={flag} tone="warn">{flag}</Pill>
-                      )) : (
-                        <Pill tone="good">Clean</Pill>
-                      )}
-                      {session.transferCount > 0 && <Pill>{session.transferCount} transfers</Pill>}
-                      {session.completedActionCount > 0 && <Pill tone="good">{session.completedActionCount} completed</Pill>}
-                      {session.conversationPlanId !== "unknown" && <Pill>{session.conversationPlanId}</Pill>}
-                    </div>
-                  </article>
-                )) : (
+                      <div className="mt-3 grid gap-2 lg:grid-cols-[180px_1fr_auto]">
+                        <select
+                          value={review.status}
+                          onChange={(event) => updateReviewDraft(session.sessionId, { status: event.target.value as VoiceQaReviewStatus })}
+                          className="min-h-[40px] rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-3 text-xs font-black text-[#4f4352] outline-none focus:border-purple-300"
+                        >
+                          {VOICE_QA_REVIEW_STATUSES.map((status) => (
+                            <option key={status} value={status}>{voiceQaReviewStatusLabel(status)}</option>
+                          ))}
+                        </select>
+                        <input
+                          value={review.note}
+                          onChange={(event) => updateReviewDraft(session.sessionId, { note: event.target.value })}
+                          placeholder="QA note"
+                          className="min-h-[40px] rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-3 text-xs font-bold outline-none focus:border-purple-300"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void saveSessionReview(session.sessionId)}
+                          className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-xl bg-[#2f2135] px-3 text-xs font-black text-white transition hover:bg-[#47324f]"
+                        >
+                          <Save size={14} />
+                          Save
+                        </button>
+                      </div>
+                    </article>
+                  );
+                }) : (
                   <p className="rounded-xl bg-white p-3 text-sm font-bold text-[#7d6b65]">No sessions match these filters.</p>
                 )}
               </div>

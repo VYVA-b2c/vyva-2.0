@@ -1371,6 +1371,21 @@ export const insertVoiceTimelineEventSchema = createInsertSchema(voiceTimelineEv
 export type InsertVoiceTimelineEvent = z.infer<typeof insertVoiceTimelineEventSchema>;
 export type VoiceTimelineEventRow = typeof voiceTimelineEvents.$inferSelect;
 
+export const voiceQaSessionReviews = pgTable("voice_qa_session_reviews", {
+  id:         uuid("id").primaryKey().defaultRandom(),
+  session_id: text("session_id").notNull().unique(),
+  status:     text("status").notNull().default("unreviewed"),
+  note:       text("note"),
+  reviewed_by: text("reviewed_by"),
+  reviewed_at: timestamp("reviewed_at", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertVoiceQaSessionReviewSchema = createInsertSchema(voiceQaSessionReviews).omit({ id: true, created_at: true, updated_at: true });
+export type InsertVoiceQaSessionReview = z.infer<typeof insertVoiceQaSessionReviewSchema>;
+export type VoiceQaSessionReviewRow = typeof voiceQaSessionReviews.$inferSelect;
+
 export const homePlanCards = pgTable("home_plan_cards", {
   id:                       uuid("id").primaryKey().defaultRandom(),
   card_id:                  text("card_id").notNull().unique(),

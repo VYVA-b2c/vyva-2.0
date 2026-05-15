@@ -13,6 +13,10 @@ import {
   recordVoiceTimelineEventsHandler,
 } from "./routes/voiceTimeline.js";
 import {
+  listVoiceQaSessionReviewsHandler,
+  saveVoiceQaSessionReviewHandler,
+} from "./routes/voiceQaSessionReviews.js";
+import {
   recordVoiceRecommendationFeedbackToolHandler,
   retrieveMedicalProfileToolHandler,
 } from "./routes/elevenlabsTools.js";
@@ -109,6 +113,8 @@ app.use("/api/onboarding", authMiddleware, onboardingRouter);
 app.use("/api/billing", authMiddleware, billingRouter);
 app.use("/api/admin/lifecycle", authMiddleware, requireAdminUser, adminLifecycleRouter);
 app.get("/api/admin/voice/timeline-events", authMiddleware, requireAdminUser, listAdminVoiceTimelineEventsHandler);
+app.get("/api/admin/voice/qa-reviews", authMiddleware, requireAdminUser, listVoiceQaSessionReviewsHandler);
+app.post("/api/admin/voice/qa-reviews", authMiddleware, requireAdminUser, saveVoiceQaSessionReviewHandler);
 app.use("/api/admin", authMiddleware, requireAdminUser, adminRouter);
 app.use("/api/hero-messages", heroMessagesRouter);
 app.use("/api/activity", authMiddleware, activityRouter);
