@@ -31,7 +31,7 @@ const pt = {
     activityTile: "Conectar com outros",
   },
   memory: {
-    title: "Treino de memoria",
+    title: "Jogo de memoria",
     subtitle: "Exercicios curtos para treinar memoria, atencao e concentracao.",
     recommendedToday: "Recomendado para hoje",
     chooseAnother: "Escolher outro exercicio",
@@ -170,9 +170,9 @@ const pt = {
     },
   },
   cognitiveDomains: {
-    attention: "Atencao",
-    executive_function: "Funcao executiva",
-    language: "Linguagem",
+    attention: "Foco e atencao",
+    executive_function: "Treino mental",
+    language: "Palavras e linguagem",
     visual_memory: "Memoria visual",
     working_memory: "Memoria de trabalho",
     episodic_memory: "Memoria episodica",
@@ -189,7 +189,7 @@ const pt = {
       playAnotherGame: "Jogar outro jogo",
     },
     attentionBoosters: {
-      title: "Atencao",
+      title: "Foco e atencao",
       subtitle: "Escolha um exercicio para foco, reacao e ritmo.",
       dualTask: {
         title: "Dupla Tarefa",
@@ -202,8 +202,22 @@ const pt = {
         badge: "Foco",
       },
     },
+    executiveFunction: {
+      title: "Treino mental",
+      subtitle: "Pratique pensamento flexivel, planeamento e mudanca de regras.",
+      categorySort: {
+        title: "Ordenar categorias",
+        description: "Ordene cada carta quando a regra muda entre cor, forma e significado.",
+        badge: "Regras",
+      },
+      numberTrails: {
+        title: "Percursos numericos",
+        description: "Ligue numeros, depois numeros e letras, para treinar velocidade e flexibilidade.",
+        badge: "Percursos",
+      },
+    },
     language: {
-      title: "Linguagem",
+      title: "Palavras e linguagem",
       subtitle: "Escolha um exercicio para palavras, historias e memoria.",
       storyRecall: {
         badge: "Historia",
@@ -285,7 +299,7 @@ const pt = {
     spatialNav: {
       loading: "A preparar o seu mapa...",
       practiceNote: "Vamos usar um mapa de pratica.",
-      title: "Navegador espacial",
+      title: "Logica e raciocinio",
       subtitle: "Memorize o caminho. Depois desenhe-o.",
       start: "Comecar!",
       introHint: "Olhe para o caminho, depois trace-o com o dedo",
@@ -309,9 +323,9 @@ const pt = {
     },
   },
   recommendationReasons: {
-    attention: "Hoje treinamos a atencao com um exercicio suave.",
-    executive_function: "Hoje treinamos a funcao executiva com um exercicio suave.",
-    language: "Hoje treinamos a linguagem com um exercicio suave.",
+    attention: "Hoje trabalhamos foco e atencao com um exercicio suave.",
+    executive_function: "Hoje trabalhamos treino mental com um exercicio suave.",
+    language: "Hoje trabalhamos palavras e linguagem com um exercicio suave.",
     visual_memory: "Hoje treinamos a memoria visual com um exercicio suave.",
     working_memory: "Hoje treinamos a memoria de trabalho com um exercicio suave.",
     episodic_memory: "Hoje treinamos a memoria episodica com um exercicio suave.",

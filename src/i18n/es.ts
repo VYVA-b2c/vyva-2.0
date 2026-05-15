@@ -36,7 +36,7 @@ const es = {
     activityTile: "Conecta con otros",
   },
   memory: {
-    title: "Entrenamiento de memoria",
+    title: "Juego de memoria",
     subtitle: "Ejercicios breves para entrenar memoria, atencion y concentracion.",
     recommendedToday: "Recomendado para hoy",
     chooseAnother: "Elige otro ejercicio",
@@ -175,9 +175,9 @@ const es = {
     },
   },
   cognitiveDomains: {
-    attention: "Atencion",
-    executive_function: "Funcion ejecutiva",
-    language: "Lenguaje",
+    attention: "Enfoque y atencion",
+    executive_function: "Entrenamiento mental",
+    language: "Palabras y lenguaje",
     visual_memory: "Memoria visual",
     working_memory: "Memoria de trabajo",
     episodic_memory: "Memoria episodica",
@@ -220,7 +220,7 @@ const es = {
       playAnotherGame: "Jugar otro juego",
     },
     attentionBoosters: {
-      title: "Atencion",
+      title: "Enfoque y atencion",
       subtitle: "Elige un ejercicio para concentrarte, reaccionar y mantener el ritmo.",
       dualTask: {
         title: "Doble Tarea",
@@ -234,7 +234,7 @@ const es = {
       },
     },
     executiveFunction: {
-      title: "Funcion ejecutiva",
+      title: "Entrenamiento mental",
       subtitle: "Practica pensamiento flexible, planificacion y cambio de reglas.",
       categorySort: {
         title: "Clasifica y Ordena",
@@ -248,7 +248,7 @@ const es = {
       },
     },
     language: {
-      title: "Lenguaje",
+      title: "Palabras y lenguaje",
       subtitle: "Elige un ejercicio para palabras, historias y memoria.",
       storyRecall: {
         badge: "Historia",
@@ -388,7 +388,7 @@ const es = {
     spatialNav: {
       loading: "Preparando tu mapa...",
       practiceNote: "Usaremos un mapa de practica.",
-      title: "Navegador Espacial",
+      title: "Logica y razonamiento",
       subtitle: "Memoriza el camino. Luego dibujalo.",
       start: "Empezar!",
       introHint: "Mira el camino, luego trazalo con el dedo",
@@ -412,9 +412,9 @@ const es = {
     },
   },
   recommendationReasons: {
-    attention: "Hoy entrenamos atencion con un ejercicio suave.",
-    executive_function: "Hoy entrenamos funcion ejecutiva con un ejercicio suave.",
-    language: "Hoy entrenamos lenguaje con un ejercicio suave.",
+    attention: "Hoy trabajamos enfoque y atencion con un ejercicio suave.",
+    executive_function: "Hoy trabajamos entrenamiento mental con un ejercicio suave.",
+    language: "Hoy trabajamos palabras y lenguaje con un ejercicio suave.",
     visual_memory: "Hoy entrenamos memoria visual con un ejercicio suave.",
     working_memory: "Hoy entrenamos memoria de trabajo con un ejercicio suave.",
     episodic_memory: "Hoy entrenamos memoria episodica con un ejercicio suave.",
