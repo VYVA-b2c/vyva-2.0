@@ -44,4 +44,21 @@ describe("voice timeline", () => {
 
     expect(getVoiceTimelineEvents()).toEqual([]);
   });
+
+  it("returns a stable snapshot for unchanged stored events", () => {
+    localStorage.setItem("vyva.voice.timeline.v1", JSON.stringify([
+      {
+        id: "event-1",
+        at: 1,
+        kind: "simulator",
+        title: "Stored simulator event",
+        severity: "info",
+      },
+    ]));
+
+    const firstSnapshot = getVoiceTimelineEvents();
+    const secondSnapshot = getVoiceTimelineEvents();
+
+    expect(firstSnapshot).toBe(secondSnapshot);
+  });
 });
