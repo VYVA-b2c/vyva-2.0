@@ -15,16 +15,23 @@ const fr = {
   },
   activities: {
     chooseActivity: "Choisissez une activite",
-    trivia: "Attention",
+    trivia: "Concentration et attention",
     memory: "Jeu de memoire",
-    scrabble: "Langage",
-    logicPuzzle: "Fonction executive",
-    meditation: "Meditation",
-    breathing: "Respiration",
+    spatialNavigator: "Logique et raisonnement",
+    scrabble: "Mots et langage",
+    logicPuzzle: "Entrainement cerebral",
+    meditation: "Se detendre et respirer",
+    breathing: "Se detendre et respirer",
     doneToday: "Fait aujourd'hui",
   },
+  brain: {
+    subtitle: "Gardez l'esprit vif",
+  },
+  companions: {
+    activityTile: "Se connecter aux autres",
+  },
   memory: {
-    title: "Entrainement de la memoire",
+    title: "Jeu de memoire",
     subtitle: "De courts exercices pour entrainer la memoire, l'attention et la concentration.",
     recommendedToday: "Recommande aujourd'hui",
     chooseAnother: "Choisir un autre exercice",
@@ -163,9 +170,9 @@ const fr = {
     },
   },
   cognitiveDomains: {
-    attention: "Attention",
-    executive_function: "Fonction executive",
-    language: "Langage",
+    attention: "Concentration et attention",
+    executive_function: "Entrainement cerebral",
+    language: "Mots et langage",
     visual_memory: "Memoire visuelle",
     working_memory: "Memoire de travail",
     episodic_memory: "Memoire episodique",
@@ -182,7 +189,7 @@ const fr = {
       playAnotherGame: "Jouer a un autre jeu",
     },
     attentionBoosters: {
-      title: "Attention",
+      title: "Concentration et attention",
       subtitle: "Choisissez un exercice pour travailler concentration, reaction et rythme.",
       dualTask: {
         title: "Double Tache",
@@ -195,8 +202,22 @@ const fr = {
         badge: "Focus",
       },
     },
+    executiveFunction: {
+      title: "Entrainement cerebral",
+      subtitle: "Travaillez la pensee flexible, la planification et les changements de regles.",
+      categorySort: {
+        title: "Tri de categories",
+        description: "Triez chaque carte lorsque la regle change entre couleur, forme et sens.",
+        badge: "Regles",
+      },
+      numberTrails: {
+        title: "Parcours numeriques",
+        description: "Reliez les nombres, puis les nombres et les lettres, pour travailler vitesse et flexibilite.",
+        badge: "Parcours",
+      },
+    },
     language: {
-      title: "Langage",
+      title: "Mots et langage",
       subtitle: "Choisissez un exercice pour les mots, les histoires et le rappel.",
       storyRecall: {
         badge: "Histoire",
@@ -278,7 +299,7 @@ const fr = {
     spatialNav: {
       loading: "Preparation de votre carte...",
       practiceNote: "Nous utiliserons une carte d'entrainement.",
-      title: "Navigateur spatial",
+      title: "Logique et raisonnement",
       subtitle: "Memorisez le chemin. Puis dessinez-le.",
       start: "Commencer!",
       introHint: "Regardez le chemin, puis tracez-le avec le doigt",
@@ -302,9 +323,9 @@ const fr = {
     },
   },
   recommendationReasons: {
-    attention: "Aujourd'hui, nous entrainons l'attention avec un exercice doux.",
-    executive_function: "Aujourd'hui, nous entrainons la fonction executive avec un exercice doux.",
-    language: "Aujourd'hui, nous entrainons le langage avec un exercice doux.",
+    attention: "Aujourd'hui, nous travaillons la concentration et l'attention avec un exercice doux.",
+    executive_function: "Aujourd'hui, nous travaillons l'entrainement cerebral avec un exercice doux.",
+    language: "Aujourd'hui, nous travaillons les mots et le langage avec un exercice doux.",
     visual_memory: "Aujourd'hui, nous entrainons la memoire visuelle avec un exercice doux.",
     working_memory: "Aujourd'hui, nous entrainons la memoire de travail avec un exercice doux.",
     episodic_memory: "Aujourd'hui, nous entrainons la memoire episodique avec un exercice doux.",

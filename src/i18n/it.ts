@@ -15,16 +15,23 @@ const it = {
   },
   activities: {
     chooseActivity: "Scegli un'attivita",
-    trivia: "Attenzione",
+    trivia: "Concentrazione e attenzione",
     memory: "Gioco di memoria",
-    scrabble: "Linguaggio",
-    logicPuzzle: "Funzione esecutiva",
-    meditation: "Meditazione",
-    breathing: "Respirazione",
+    spatialNavigator: "Logica e ragionamento",
+    scrabble: "Parole e linguaggio",
+    logicPuzzle: "Allenamento mentale",
+    meditation: "Rilassati e respira",
+    breathing: "Rilassati e respira",
     doneToday: "Fatto oggi",
   },
+  brain: {
+    subtitle: "Mantieni la mente agile",
+  },
+  companions: {
+    activityTile: "Connettiti con altri",
+  },
   memory: {
-    title: "Allenamento della memoria",
+    title: "Gioco di memoria",
     subtitle: "Esercizi brevi per allenare memoria, attenzione e concentrazione.",
     recommendedToday: "Consigliato per oggi",
     chooseAnother: "Scegli un altro esercizio",
@@ -163,9 +170,9 @@ const it = {
     },
   },
   cognitiveDomains: {
-    attention: "Attenzione",
-    executive_function: "Funzione esecutiva",
-    language: "Linguaggio",
+    attention: "Concentrazione e attenzione",
+    executive_function: "Allenamento mentale",
+    language: "Parole e linguaggio",
     visual_memory: "Memoria visiva",
     working_memory: "Memoria di lavoro",
     episodic_memory: "Memoria episodica",
@@ -182,7 +189,7 @@ const it = {
       playAnotherGame: "Gioca a un altro gioco",
     },
     attentionBoosters: {
-      title: "Attenzione",
+      title: "Concentrazione e attenzione",
       subtitle: "Scegli un esercizio per concentrazione, reazione e ritmo.",
       dualTask: {
         title: "Doppio Compito",
@@ -195,8 +202,22 @@ const it = {
         badge: "Focus",
       },
     },
+    executiveFunction: {
+      title: "Allenamento mentale",
+      subtitle: "Allena pensiero flessibile, pianificazione e cambio di regole.",
+      categorySort: {
+        title: "Ordina categorie",
+        description: "Ordina ogni carta quando la regola cambia tra colore, forma e significato.",
+        badge: "Regole",
+      },
+      numberTrails: {
+        title: "Percorsi numerici",
+        description: "Collega numeri, poi numeri e lettere, per allenare velocita e flessibilita.",
+        badge: "Percorsi",
+      },
+    },
     language: {
-      title: "Linguaggio",
+      title: "Parole e linguaggio",
       subtitle: "Scegli un esercizio per parole, storie e memoria.",
       storyRecall: {
         badge: "Storia",
@@ -278,7 +299,7 @@ const it = {
     spatialNav: {
       loading: "Preparazione della tua mappa...",
       practiceNote: "Useremo una mappa di pratica.",
-      title: "Navigatore spaziale",
+      title: "Logica e ragionamento",
       subtitle: "Memorizza il percorso. Poi disegnalo.",
       start: "Inizia!",
       introHint: "Guarda il percorso, poi traccialo con il dito",
@@ -302,9 +323,9 @@ const it = {
     },
   },
   recommendationReasons: {
-    attention: "Oggi alleniamo l'attenzione con un esercizio delicato.",
-    executive_function: "Oggi alleniamo la funzione esecutiva con un esercizio delicato.",
-    language: "Oggi alleniamo il linguaggio con un esercizio delicato.",
+    attention: "Oggi lavoriamo su concentrazione e attenzione con un esercizio delicato.",
+    executive_function: "Oggi lavoriamo sull'allenamento mentale con un esercizio delicato.",
+    language: "Oggi lavoriamo su parole e linguaggio con un esercizio delicato.",
     visual_memory: "Oggi alleniamo la memoria visiva con un esercizio delicato.",
     working_memory: "Oggi alleniamo la memoria di lavoro con un esercizio delicato.",
     episodic_memory: "Oggi alleniamo la memoria episodica con un esercizio delicato.",

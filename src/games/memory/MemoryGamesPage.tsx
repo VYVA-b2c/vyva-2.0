@@ -7,18 +7,16 @@ import {
   Clock3,
   Grid2x2,
   Hash,
-  Layers3,
   Link2,
   NotebookPen,
   Route,
   Sparkles,
-  Target,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n";
 import { getGameHistory } from "./gameStorage";
-import { getCognitiveDomainLabel, getGameTitle, memoryGameRegistry, MEMORY_GAME_ORDER } from "./memoryGameRegistry";
+import { getGameTitle, memoryGameRegistry, MEMORY_GAME_ORDER } from "./memoryGameRegistry";
 import { getRecommendedLevelForGame, selectGamePlan, selectNextMemoryGame } from "./progressionEngine";
 import type { GameResult, MemoryGameType, Recommendation } from "./types";
 
@@ -108,23 +106,22 @@ const MemoryGamesPage = () => {
       return {
         lastSessionLabel: formatLastSession(lastSession, language, t),
         levelLabel: `${t("common.level")} 1`,
-        areaLabel: t("cognitiveDomains.visual_memory"),
       };
     }
 
-    const definition = memoryGameRegistry[recommendation.gameType];
     const currentLevel = getRecommendedLevelForGame(history, recommendation.gameType);
 
     return {
       lastSessionLabel: formatLastSession(lastSession, language, t),
       levelLabel: `${t("common.level")} ${currentLevel}`,
-      areaLabel: getCognitiveDomainLabel(definition.cognitiveDomain, language),
     };
   }, [history, language, lastSession, recommendation, t]);
 
-  const recommendedDefinition = recommendation ? memoryGameRegistry[recommendation.gameType] : null;
   const RecommendedIcon = recommendation ? getGameIcon(recommendation.gameType) : Sparkles;
-  const availableGameTypes = useMemo(() => MEMORY_GAME_ORDER, []);
+  const availableGameTypes = useMemo(
+    () => MEMORY_GAME_ORDER.filter((gameType) => gameType !== recommendation?.gameType),
+    [recommendation?.gameType],
+  );
   const hasLastSession = Boolean(summary.lastSessionLabel);
 
   const openPlan = (plan: Recommendation) => {
@@ -141,112 +138,55 @@ const MemoryGamesPage = () => {
         {t("common.back")}
       </button>
 
-      <section className="relative mt-4 overflow-hidden rounded-[30px] border border-[#EFE7DB] bg-[#FFF9F1] px-5 py-5 shadow-vyva-card">
-        <div
-          className="pointer-events-none absolute right-[-34px] top-[-28px] h-[140px] w-[140px] rounded-full"
-          style={{ background: "radial-gradient(circle, rgba(107,33,168,0.16) 0%, rgba(107,33,168,0) 72%)" }}
-          aria-hidden="true"
-        />
-        <div
-          className="pointer-events-none absolute bottom-[-44px] left-[-18px] h-[118px] w-[118px] rounded-full"
-          style={{ background: "radial-gradient(circle, rgba(255,193,94,0.16) 0%, rgba(255,193,94,0) 72%)" }}
-          aria-hidden="true"
-        />
-
-        <div className="relative flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-[12px] font-semibold uppercase tracking-[0.06em] text-vyva-purple shadow-sm">
-              <Sparkles size={14} />
-              {t("memory.trainingDaily")}
-            </div>
-            <h1 className="mt-4 max-w-[10ch] font-display text-[31px] leading-[1.04] text-vyva-text-1">
-              {t("activities.memory")}
-            </h1>
-          </div>
-
-          <div className="relative flex h-[96px] w-[96px] flex-shrink-0 items-center justify-center rounded-[28px] bg-white shadow-vyva-card">
-            <div
-              className="absolute inset-[10px] rounded-[22px]"
-              style={{ background: "linear-gradient(145deg, #6B21A8 0%, #8B3FC8 100%)" }}
-            />
-            <RecommendedIcon size={34} className="relative z-[1] text-white" />
-            <div className="absolute -left-2 bottom-3 flex h-[22px] w-[22px] items-center justify-center rounded-full bg-[#F7D35F] text-[#7C4A00] shadow-sm">
-              <Brain size={12} />
-            </div>
-            <div className="absolute -right-1 top-3 flex h-[22px] w-[22px] items-center justify-center rounded-full bg-[#DDF7E9] text-[#15803D] shadow-sm">
-              <Target size={12} />
-            </div>
-          </div>
-        </div>
-
-        <div className="relative mt-5 flex flex-wrap gap-2">
-          <div className="rounded-full bg-white px-3 py-2 text-[13px] font-medium text-vyva-text-1 shadow-sm">
-            {summary.levelLabel}
-          </div>
-          <div className="rounded-full bg-white px-3 py-2 text-[13px] font-medium text-vyva-text-1 shadow-sm">
-            {summary.areaLabel}
-          </div>
-          {hasLastSession ? (
-            <div className="rounded-full bg-white px-3 py-2 text-[13px] font-medium text-vyva-text-2 shadow-sm">
-              {summary.lastSessionLabel}
-            </div>
-          ) : null}
-        </div>
+      <section className="mt-5">
+        <h1 className="font-display text-[38px] leading-[1.02] text-vyva-text-1">
+          {t("memory.title")}
+        </h1>
+        <p className="mt-3 text-[20px] leading-[1.45] text-vyva-text-2">
+          {t("memory.subtitle")}
+        </p>
+        {hasLastSession ? (
+          <p className="mt-3 text-[16px] font-semibold text-vyva-text-2">
+            {t("memory.lastSession")}: {summary.lastSessionLabel}
+          </p>
+        ) : null}
       </section>
 
-      <section className="mt-5 rounded-[28px] border border-vyva-border bg-white p-4 shadow-vyva-card">
-        <div className="grid grid-cols-[76px_1fr] gap-4">
+      <button
+        type="button"
+        onClick={() => recommendation && openPlan(recommendation)}
+        disabled={!recommendation || loading}
+        className="mt-5 w-full rounded-[26px] bg-vyva-purple p-5 text-left text-white shadow-vyva-card transition-transform active:scale-[0.99] disabled:opacity-60"
+      >
+        <div className="grid grid-cols-[70px_1fr_auto] items-center gap-4">
           <div
-            className="flex min-h-[96px] items-center justify-center rounded-[24px] text-white"
+            className="flex h-[70px] w-[70px] items-center justify-center rounded-[22px] bg-white/16"
             style={{
-              background: recommendedDefinition
-                ? `linear-gradient(180deg, ${recommendedDefinition.accentColor} 0%, #3D0D82 100%)`
-                : "linear-gradient(180deg, #6B21A8 0%, #3D0D82 100%)",
+              color: "#FFFFFF",
             }}
           >
             <RecommendedIcon size={34} />
           </div>
 
           <div className="min-w-0">
-            <div className="inline-flex items-center gap-2 rounded-full bg-vyva-purple-light px-3 py-1 text-[12px] font-semibold uppercase tracking-[0.06em] text-vyva-purple">
+            <div className="inline-flex items-center gap-2 text-[13px] font-extrabold uppercase tracking-[0.06em] text-white/82">
               <Sparkles size={14} />
               {t("memory.recommendedToday")}
             </div>
-            <h2 className="mt-3 text-[26px] font-semibold leading-[1.08] text-vyva-text-1">
+            <h2 className="mt-2 text-[26px] font-extrabold leading-[1.08] text-white">
               {recommendation ? getGameTitle(recommendation.gameType, language) : t("common.loading")}
             </h2>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <span className="rounded-full bg-vyva-cream px-3 py-2 text-[13px] font-medium text-vyva-text-1">
-                {summary.areaLabel}
-              </span>
-              <span className="rounded-full bg-vyva-cream px-3 py-2 text-[13px] font-medium text-vyva-text-1">
-                {summary.levelLabel}
-              </span>
-            </div>
+            <p className="mt-1 text-[18px] font-semibold text-white/80">{summary.levelLabel}</p>
           </div>
-        </div>
 
-        <button
-          onClick={() => recommendation && openPlan(recommendation)}
-          disabled={!recommendation || loading}
-          className="mt-4 flex w-full items-center justify-between rounded-[22px] px-5 py-5 text-left text-white shadow-vyva-card disabled:opacity-60"
-          style={{ background: "linear-gradient(135deg, #6B21A8 0%, #8B3FC8 100%)" }}
-        >
-          <div className="min-w-0">
-            <p className="text-[20px] font-semibold">{t("memory.startRecommended")}</p>
-          </div>
-          <div className="ml-4 flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-full bg-white/14">
+          <div className="flex h-[50px] w-[50px] items-center justify-center rounded-full bg-white/14">
             <ChevronRight size={22} />
           </div>
-        </button>
-      </section>
-
-      <section className="mt-5">
-        <div className="flex items-center gap-2">
-          <Layers3 size={18} className="text-vyva-purple" />
-          <h2 className="font-display text-[24px] text-vyva-text-1">{t("memory.chooseAnother")}</h2>
         </div>
+      </button>
+
+      <section className="mt-7">
+        <h2 className="font-display text-[28px] leading-tight text-vyva-text-1">{t("memory.chooseAnother")}</h2>
 
         <div className="mt-4 grid grid-cols-2 gap-3">
           {availableGameTypes.map((gameType) => {
@@ -258,24 +198,18 @@ const MemoryGamesPage = () => {
               <button
                 key={gameType}
                 onClick={() => plan && openPlan(plan)}
-                className="relative min-h-[168px] overflow-hidden rounded-[24px] border border-vyva-border bg-white p-4 text-left shadow-vyva-card transition-transform hover:-translate-y-[1px]"
+                className="min-h-[160px] rounded-[22px] border border-vyva-border bg-white p-4 text-left shadow-vyva-card transition-transform active:scale-[0.99]"
               >
-                <div
-                  className="absolute inset-x-0 top-0 h-[6px]"
-                  style={{ background: `linear-gradient(90deg, ${definition.accentColor} 0%, ${definition.iconBg} 100%)` }}
-                  aria-hidden="true"
-                />
-
                 <div className="flex items-start justify-between gap-2">
                   <div
-                    className="flex h-[68px] w-[68px] flex-shrink-0 items-center justify-center rounded-[22px]"
+                    className="flex h-[60px] w-[60px] flex-shrink-0 items-center justify-center rounded-[20px]"
                     style={{ background: definition.iconBg, color: definition.accentColor }}
                   >
-                    <GameIcon size={30} />
+                    <GameIcon size={28} />
                   </div>
 
                   <div
-                    className="rounded-full px-3 py-1 text-[12px] font-semibold"
+                    className="rounded-full px-3 py-1 text-[12px] font-bold"
                     style={{ background: definition.iconBg, color: definition.accentColor }}
                   >
                     {plan ? `${t("common.level")} ${plan.level}` : `${t("common.level")} 1`}
@@ -285,20 +219,12 @@ const MemoryGamesPage = () => {
                 <h3 className="mt-4 text-[22px] font-semibold leading-[1.15] text-vyva-text-1">
                   {getGameTitle(gameType, language)}
                 </h3>
+                <p className="mt-2 line-clamp-2 text-[16px] leading-[1.35] text-vyva-text-2">
+                  {t(definition.descriptionKey)}
+                </p>
 
-                <div className="mt-4 flex items-center justify-between gap-2">
-                  <span
-                    className="min-w-0 rounded-full px-3 py-2 text-[13px] font-medium leading-tight"
-                    style={{ background: definition.iconBg, color: definition.accentColor }}
-                  >
-                    {getCognitiveDomainLabel(definition.cognitiveDomain, language)}
-                  </span>
-                  <div
-                    className="flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-full"
-                    style={{ background: definition.iconBg, color: definition.accentColor }}
-                  >
-                    <ChevronRight size={18} />
-                  </div>
+                <div className="mt-4 flex justify-end">
+                  <ChevronRight size={24} style={{ color: definition.accentColor }} />
                 </div>
               </button>
             );

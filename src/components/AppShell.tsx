@@ -103,7 +103,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     : false;
   const showInlineVoiceAction = Boolean(!isFullScreen && activeVoiceAction && voiceActionRouteMatches);
   const showVoiceOverlay = status === "connected" || isConnecting;
-  const toastSurfaceRef = useToastSurface<HTMLDivElement>(isFullScreen ? 24 : 112);
+  const toastSurfaceRef = useToastSurface<HTMLDivElement>(isFullScreen ? 24 : 128);
 
   const openVoiceAppAction = useCallback((action: VoiceAppAction) => {
     const actionKey = `${action.id}:${action.route}`;
@@ -251,7 +251,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     <div className="flex min-h-screen justify-center bg-[radial-gradient(circle_at_top,#fffaf2_0%,#f7f1e9_42%,#f4efe8_100%)]">
       <div ref={toastSurfaceRef} className={`relative w-full ${isWideRoute ? "max-w-[768px]" : "max-w-[520px]"}`}>
         {!isFullScreen && <StatusBar />}
-        <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : "pt-[76px] pb-[104px]"}`}>
+        <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : "pt-[76px] pb-[128px]"}`}>
           {showInlineVoiceAction && activeVoiceAction && (
             <div className="px-[22px] pb-3 pt-2">
               <VoiceActionCard

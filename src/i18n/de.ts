@@ -20,17 +20,23 @@ const de = {
   },
   activities: {
     chooseActivity: "Aktivitat auswahlen",
-    trivia: "Aufmerksamkeit",
+    trivia: "Fokus und Aufmerksamkeit",
     memory: "Gedachtnisspiel",
-    spatialNavigator: "Raum-Navigator",
-    scrabble: "Sprache",
-    logicPuzzle: "Exekutive Funktion",
-    meditation: "Meditation",
-    breathing: "Atmung",
+    spatialNavigator: "Logik und Denken",
+    scrabble: "Worter und Sprache",
+    logicPuzzle: "Gehirntraining",
+    meditation: "Entspannen und atmen",
+    breathing: "Entspannen und atmen",
     doneToday: "Heute erledigt",
   },
+  brain: {
+    subtitle: "Halten Sie den Geist fit",
+  },
+  companions: {
+    activityTile: "Mit anderen verbinden",
+  },
   memory: {
-    title: "Gedachtnistraining",
+    title: "Gedachtnisspiel",
     subtitle: "Kurze Ubungen fur Gedachtnis, Aufmerksamkeit und Konzentration.",
     recommendedToday: "Heute empfohlen",
     chooseAnother: "Andere Ubung wahlen",
@@ -169,9 +175,9 @@ const de = {
     },
   },
   cognitiveDomains: {
-    attention: "Aufmerksamkeit",
-    executive_function: "Exekutive Funktion",
-    language: "Sprache",
+    attention: "Fokus und Aufmerksamkeit",
+    executive_function: "Gehirntraining",
+    language: "Worter und Sprache",
     visual_memory: "Visuelles Gedachtnis",
     working_memory: "Arbeitsgedachtnis",
     episodic_memory: "Episodisches Gedachtnis",
@@ -214,7 +220,7 @@ const de = {
       playAnotherGame: "Anderes Spiel",
     },
     attentionBoosters: {
-      title: "Aufmerksamkeit",
+      title: "Fokus und Aufmerksamkeit",
       subtitle: "Wahle eine Ubung fur Fokus, Reaktion und Rhythmus.",
       dualTask: {
         title: "Doppelaufgabe",
@@ -228,7 +234,7 @@ const de = {
       },
     },
     executiveFunction: {
-      title: "Exekutive Funktion",
+      title: "Gehirntraining",
       subtitle: "Uben Sie flexibles Denken, Planen und Regelwechsel.",
       categorySort: {
         title: "Kategorien sortieren",
@@ -242,7 +248,7 @@ const de = {
       },
     },
     language: {
-      title: "Sprache",
+      title: "Worter und Sprache",
       subtitle: "Wahlen Sie eine Ubung fur Worter, Geschichten und Erinnerung.",
       storyRecall: {
         badge: "Geschichte",
@@ -382,7 +388,7 @@ const de = {
     spatialNav: {
       loading: "Karte wird vorbereitet...",
       practiceNote: "Wir nutzen eine Ubungskarte.",
-      title: "Raum-Navigator",
+      title: "Logik und Denken",
       subtitle: "Merke dir den Weg. Zeichne ihn danach nach.",
       start: "Starten!",
       introHint: "Schau dir den Weg an und zeichne ihn mit dem Finger nach",
@@ -406,9 +412,9 @@ const de = {
     },
   },
   recommendationReasons: {
-    attention: "Heute trainieren wir die Aufmerksamkeit mit einer einfachen Ubung.",
-    executive_function: "Heute trainieren wir die exekutive Funktion mit einer einfachen Ubung.",
-    language: "Heute trainieren wir Sprache mit einer einfachen Ubung.",
+    attention: "Heute arbeiten wir an Fokus und Aufmerksamkeit mit einer einfachen Ubung.",
+    executive_function: "Heute arbeiten wir am Gehirntraining mit einer einfachen Ubung.",
+    language: "Heute arbeiten wir an Wortern und Sprache mit einer einfachen Ubung.",
     visual_memory: "Heute trainieren wir das visuelle Gedachtnis mit einer einfachen Ubung.",
     working_memory: "Heute trainieren wir das Arbeitsgedachtnis mit einer einfachen Ubung.",
     episodic_memory: "Heute trainieren wir das episodische Gedachtnis mit einer einfachen Ubung.",

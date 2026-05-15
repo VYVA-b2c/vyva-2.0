@@ -20,17 +20,30 @@ const en = {
   },
   activities: {
     chooseActivity: "Choose an activity",
-    trivia: "Attention Boosters",
-    memory: "Memory Games",
-    spatialNavigator: "Spatial Navigator",
-    scrabble: "Language",
-    logicPuzzle: "Executive Function",
-    meditation: "Meditation & Breathing",
-    breathing: "Breathing",
+    trivia: "Focus & Attention",
+    memory: "Memory Game",
+    spatialNavigator: "Logic & Reasoning",
+    scrabble: "Word & Language",
+    logicPuzzle: "Brain Training",
+    meditation: "Relax & Breathe",
+    breathing: "Relax & Breathe",
     doneToday: "Done today",
   },
+  nav: {
+    home: "Home",
+    vyva: "VYVA",
+    myHealth: "My Health",
+    myMind: "My Mind",
+    concierge: "Concierge",
+  },
+  brain: {
+    subtitle: "Keep your mind sharp",
+  },
+  companions: {
+    activityTile: "Connect with others",
+  },
   memory: {
-    title: "Memory training",
+    title: "Memory Game",
     subtitle: "Short exercises to train memory, attention and concentration.",
     recommendedToday: "Recommended today",
     chooseAnother: "Choose another exercise",
@@ -169,9 +182,9 @@ const en = {
     },
   },
   cognitiveDomains: {
-    attention: "Attention",
-    executive_function: "Executive Function",
-    language: "Language",
+    attention: "Focus & Attention",
+    executive_function: "Brain Training",
+    language: "Word & Language",
     visual_memory: "Visual memory",
     working_memory: "Working memory",
     episodic_memory: "Episodic memory",
@@ -214,7 +227,7 @@ const en = {
       playAnotherGame: "Play another game",
     },
     attentionBoosters: {
-      title: "Attention Boosters",
+      title: "Focus & Attention",
       subtitle: "Choose an exercise for focus, reaction, and rhythm.",
       dualTask: {
         title: "Dual Task Walk",
@@ -228,7 +241,7 @@ const en = {
       },
     },
     executiveFunction: {
-      title: "Executive Function",
+      title: "Brain Training",
       subtitle: "Practice flexible thinking, planning, and switching rules.",
       categorySort: {
         title: "Category Sort",
@@ -242,7 +255,7 @@ const en = {
       },
     },
     language: {
-      title: "Language",
+      title: "Word & Language",
       subtitle: "Choose an exercise for words, stories, and recall.",
       storyRecall: {
         badge: "Story",
@@ -382,7 +395,7 @@ const en = {
     spatialNav: {
       loading: "Preparing your map...",
       practiceNote: "We will use a practice map.",
-      title: "Spatial Navigator",
+      title: "Logic & Reasoning",
       subtitle: "Memorise the path. Then draw it.",
       start: "Start!",
       introHint: "Look at the path, then trace it with your finger",
@@ -406,9 +419,9 @@ const en = {
     },
   },
   recommendationReasons: {
-    attention: "Today we train attention with a gentle exercise.",
-    executive_function: "Today we train executive function with a gentle exercise.",
-    language: "Today we train language with a gentle exercise.",
+    attention: "Today we work on focus and attention with a gentle exercise.",
+    executive_function: "Today we work on brain training with a gentle exercise.",
+    language: "Today we work on words and language with a gentle exercise.",
     visual_memory: "Today we train visual memory with a gentle exercise.",
     working_memory: "Today we train working memory with a gentle exercise.",
     episodic_memory: "Today we train episodic memory with a gentle exercise.",
