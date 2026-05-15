@@ -76,7 +76,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const isFullScreen = FULL_SCREEN_ROUTES.includes(location.pathname);
   const isWideRoute = WIDE_ROUTES.some((route) => location.pathname.startsWith(route));
   const showVoiceOverlay = status === "connected" || isConnecting;
-  const toastSurfaceRef = useToastSurface<HTMLDivElement>(isFullScreen ? 24 : 112);
+  const toastSurfaceRef = useToastSurface<HTMLDivElement>(isFullScreen ? 24 : 128);
 
   useEffect(() => {
     const handleVoiceUserMessage = (event: Event) => {
@@ -104,7 +104,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     <div className="flex min-h-screen justify-center bg-[radial-gradient(circle_at_top,#fffaf2_0%,#f7f1e9_42%,#f4efe8_100%)]">
       <div ref={toastSurfaceRef} className={`relative w-full ${isWideRoute ? "max-w-[768px]" : "max-w-[520px]"}`}>
         {!isFullScreen && <StatusBar />}
-        <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : "pt-[76px] pb-[104px]"}`}>
+        <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : "pt-[76px] pb-[128px]"}`}>
           {children}
         </main>
         {!isFullScreen && <BottomNav onSosClick={() => {

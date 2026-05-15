@@ -932,7 +932,7 @@
   "brain": {
     "voiceSource": "VYVA is your brain coach",
     "headline": "Ready to train\nyour brain?",
-    "subtitle": "{{streak}} day streak — keep it up!",
+    "subtitle": "Keep your mind sharp",
     "startSession": "Start Session",
     "chooseActivity": "Choose an activity",
     "doneToday": "Done today",
@@ -948,12 +948,12 @@
       "S"
     ],
     "activities": {
-      "triviaQuiz": "Trivia Quiz",
+      "triviaQuiz": "Focus & Attention",
       "memoryGame": "Memory Game",
-      "scrabble": "Scrabble",
-      "logicPuzzle": "Logic Puzzle",
-      "meditation": "Meditation",
-      "breathing": "Breathing"
+      "scrabble": "Word & Language",
+      "logicPuzzle": "Brain Training",
+      "meditation": "Relax & Breathe",
+      "breathing": "Relax & Breathe"
     }
   },
   "activity": {
@@ -1236,7 +1236,7 @@
       "requestSent": "Connection request sent!"
     },
     "noConnections": "No companions yet — check the Suggestions tab!",
-    "activityTile": "Find a Play Date",
+    "activityTile": "Connect with others",
     "activityTileSubtitle": "Meet others with shared interests",
     "sayHello": "Say Hello via VYVA",
     "sayHelloPrompt": "Say hello to {{name}}!",

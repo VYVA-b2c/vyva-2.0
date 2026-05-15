@@ -171,6 +171,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
         ? t("voiceHero.speaking")
         : t("voiceHero.listening"))
     : resolvedTalkLabel ?? t("voiceHero.talkToVyva");
+  const isBrainHero = heroSurface === "brain";
 
   const timeOfDay = useMemo((): "morning" | "afternoon" | "evening" => {
     const hour = new Date().getHours();
@@ -350,16 +351,22 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
           data-testid="button-voice-hero-talk"
           className={`mt-4 flex min-h-[60px] w-full items-center justify-center gap-2 rounded-full px-[20px] py-[14px] transition-all ${isActive ? (isSpeaking ? "mic-listening" : "mic-pulse-listening") : ""}`}
           style={{
-            background: isActive ? "rgba(52,211,153,0.2)" : "rgba(255,255,255,0.13)",
-            border: isActive ? "1px solid rgba(52,211,153,0.4)" : "1px solid rgba(255,255,255,0.18)",
+            background: isActive ? "rgba(52,211,153,0.2)" : isBrainHero ? "#FFFFFF" : "rgba(255,255,255,0.13)",
+            border: isActive ? "1px solid rgba(52,211,153,0.4)" : isBrainHero ? "none" : "1px solid rgba(255,255,255,0.18)",
+            boxShadow: !isActive && isBrainHero ? "0 12px 28px rgba(255,255,255,0.16)" : undefined,
           }}
         >
           {isActive ? (
             <X size={18} style={{ color: "rgba(255,255,255,0.9)" }} />
           ) : (
-            <Mic size={18} style={{ color: "rgba(255,255,255,0.7)" }} />
+            <Mic size={18} style={{ color: isBrainHero ? "#6B21A8" : "rgba(255,255,255,0.7)" }} />
           )}
-          <span className="min-w-0 max-w-full text-center font-body text-[17px] font-semibold leading-tight text-white">{statusLabel}</span>
+          <span
+            className="min-w-0 max-w-full text-center font-body text-[17px] font-semibold leading-tight"
+            style={{ color: isActive ? "#FFFFFF" : isBrainHero ? "#6B21A8" : "#FFFFFF" }}
+          >
+            {statusLabel}
+          </span>
         </button>
       </div>
     </>
