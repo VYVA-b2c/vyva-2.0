@@ -1,4 +1,4 @@
-import { AlertCircle, Brain, ConciergeBell, HeartPulse, House, Sparkles, type LucideIcon } from "lucide-react";
+import { AlertCircle, ClipboardList, House, type LucideIcon } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -24,41 +24,11 @@ const BottomNav = ({ onSosClick }: { onSosClick: () => void }) => {
       isActive: (pathname) => pathname === "/",
     },
     {
-      id: "vyva",
-      path: "/chat",
-      label: t("nav.vyva", "VYVA"),
-      icon: Sparkles,
-      isActive: (pathname) => pathname.startsWith("/chat"),
-    },
-    {
-      id: "health",
-      path: "/health",
-      label: t("nav.myHealth", "My Health"),
-      icon: HeartPulse,
-      isActive: (pathname) => pathname.startsWith("/health") || pathname.startsWith("/meds") || pathname.startsWith("/informes"),
-    },
-    {
-      id: "mind",
-      path: "/activities",
-      label: t("nav.myMind", "My Mind"),
-      icon: Brain,
-      isActive: (pathname) =>
-        pathname.startsWith("/activities") ||
-        pathname.startsWith("/activity") ||
-        pathname.startsWith("/attention-boosters") ||
-        pathname.startsWith("/memory-games") ||
-        pathname.startsWith("/language") ||
-        pathname.startsWith("/executive-function") ||
-        pathname.startsWith("/spatial-navigator") ||
-        pathname.startsWith("/face-name-match") ||
-        pathname.startsWith("/dual-task-walk"),
-    },
-    {
-      id: "concierge",
-      path: "/concierge",
-      label: t("nav.concierge", "Concierge"),
-      icon: ConciergeBell,
-      isActive: (pathname) => pathname.startsWith("/concierge") || pathname.startsWith("/safe-home") || pathname.startsWith("/scam-guard"),
+      id: "reports",
+      path: "/informes",
+      label: t("informes.title", "My Reports"),
+      icon: ClipboardList,
+      isActive: (pathname) => pathname.startsWith("/informes"),
     },
   ];
 
@@ -100,10 +70,8 @@ const BottomNav = ({ onSosClick }: { onSosClick: () => void }) => {
       className="fixed bottom-0 left-1/2 z-50 w-full max-w-[520px] -translate-x-1/2 border-t border-vyva-border bg-white/95 shadow-[0_-8px_28px_rgba(63,45,35,0.08)] backdrop-blur"
       style={{ height: "calc(96px + env(safe-area-inset-bottom))", paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <div className="grid h-full grid-cols-6 items-center gap-0.5 px-2">
+      <div className="grid h-full grid-cols-3 items-center gap-3 px-8">
         {renderTab(tabs[0])}
-        {renderTab(tabs[1])}
-        {renderTab(tabs[2])}
         <button
           data-testid="nav-tab-sos"
           onClick={onSosClick}
@@ -115,8 +83,7 @@ const BottomNav = ({ onSosClick }: { onSosClick: () => void }) => {
           </div>
           <span className="font-body text-[10px] font-extrabold leading-tight text-[#B91C1C]">SOS</span>
         </button>
-        {renderTab(tabs[3])}
-        {renderTab(tabs[4])}
+        {renderTab(tabs[1])}
       </div>
     </nav>
   );
