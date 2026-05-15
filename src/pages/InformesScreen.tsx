@@ -3,17 +3,18 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ChevronLeft,
-  Heart,
-  Wind,
-  Pill,
   Activity,
-  CheckCircle,
   AlertTriangle,
-  Eye,
-  MessageCircle,
-  TrendingUp,
+  ArrowRight,
+  CheckCircle2,
+  ChevronLeft,
   ClipboardList,
+  Heart,
+  MessageCircle,
+  Pill,
+  ShieldCheck,
+  TrendingUp,
+  Wind,
 } from "lucide-react";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 
@@ -48,17 +49,16 @@ type VitalsHistory = {
   readings: VitalsReading[];
 };
 
+const cardShell = "rounded-[24px] border border-[#E8DED4] bg-white shadow-[0_10px_28px_rgba(63,45,35,0.06)]";
+
 function urgencyConfig(urgency: TriageReport["urgency"]) {
-  if (urgency === "urgent") {
-    return { icon: AlertTriangle, bg: "#FEE2E2", text: "#B91C1C" };
-  }
-  if (urgency === "routine") {
-    return { icon: Eye, bg: "#FEF3C7", text: "#B45309" };
-  }
-  return { icon: CheckCircle, bg: "#D1FAE5", text: "#065F46" };
+  if (urgency === "urgent") return { icon: AlertTriangle, bg: "#FEE2E2", text: "#B91C1C", labelBg: "#FEE2E2" };
+  if (urgency === "routine") return { icon: AlertTriangle, bg: "#FEF3C7", text: "#B45309", labelBg: "#FFF7ED" };
+  return { icon: CheckCircle2, bg: "#D1FAE5", text: "#047857", labelBg: "#ECFDF5" };
 }
 
-function formatDate(iso: string): string {
+function formatDate(iso?: string | null): string {
+  if (!iso) return "--";
   try {
     return new Date(iso).toLocaleDateString(undefined, {
       day: "numeric",
@@ -70,76 +70,92 @@ function formatDate(iso: string): string {
   }
 }
 
+function formatTime(iso?: string | null): string {
+  if (!iso) return "--";
+  try {
+    return new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "--";
+  }
+}
+
 function formatDuration(seconds: number): string {
   if (seconds < 60) return `${seconds}s`;
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return s > 0 ? `${m}m ${s}s` : `${m}m`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return rest > 0 ? `${minutes}m ${rest}s` : `${minutes}m`;
+}
+
+function reportSignal(summary?: Summary | null) {
+  if (!summary) return { tone: "neutral", text: "No report data yet" };
+  const { latestTriage, latestVitals, todayMeds } = summary;
+  if (latestTriage?.urgency === "urgent") return { tone: "urgent", text: "Needs attention" };
+  if (latestTriage?.urgency === "routine") return { tone: "routine", text: "Routine follow-up" };
+  if (latestVitals && (latestVitals.bpm < 55 || latestVitals.bpm > 100)) return { tone: "routine", text: "Vitals to review" };
+  if (todayMeds.total > 0 && todayMeds.taken < todayMeds.total) return { tone: "routine", text: "Medication pending" };
+  if (latestTriage || latestVitals || todayMeds.total > 0) return { tone: "good", text: "Looks steady" };
+  return { tone: "neutral", text: "Ready for first report" };
 }
 
 function SummaryPhrase({ summary }: { summary: Summary }) {
   const { t } = useTranslation();
   if (!summary.latestTriage && !summary.latestVitals && summary.todayMeds.total === 0) {
-    return (
-      <p className="font-body text-[15px] text-white/90">
-        {t("informes.summaryEmpty")}
-      </p>
-    );
+    return <p className="font-body text-[15px] leading-relaxed text-white/86">{t("informes.summaryEmpty")}</p>;
   }
 
-  const { latestTriage, latestVitals, todayMeds } = summary;
   let phrase = t("informes.summaryGood");
+  if (summary.latestTriage?.urgency === "urgent") phrase = t("informes.summaryUrgent");
+  else if (summary.latestTriage?.urgency === "routine") phrase = t("informes.summaryRoutine");
+  else if (summary.todayMeds.total > 0 && summary.todayMeds.taken < summary.todayMeds.total) {
+    phrase = t("informes.summaryMedsPending", { pending: summary.todayMeds.total - summary.todayMeds.taken });
+  } else if (summary.latestVitals && summary.latestVitals.bpm > 100) phrase = t("informes.summaryHighHR");
+  else if (summary.latestVitals && summary.latestVitals.bpm < 55) phrase = t("informes.summaryLowHR");
 
-  if (latestTriage?.urgency === "urgent") {
-    phrase = t("informes.summaryUrgent");
-  } else if (latestTriage?.urgency === "routine") {
-    phrase = t("informes.summaryRoutine");
-  } else if (todayMeds.total > 0 && todayMeds.taken < todayMeds.total) {
-    phrase = t("informes.summaryMedsPending", { pending: todayMeds.total - todayMeds.taken });
-  } else if (latestVitals && latestVitals.bpm > 100) {
-    phrase = t("informes.summaryHighHR");
-  } else if (latestVitals && latestVitals.bpm < 55) {
-    phrase = t("informes.summaryLowHR");
-  }
-
-  return (
-    <p className="font-body text-[16px] font-medium text-white leading-relaxed">
-      {phrase}
-    </p>
-  );
+  return <p className="font-body text-[17px] font-semibold leading-relaxed text-white">{phrase}</p>;
 }
 
-function LineChart({
-  values,
-  color,
-}: {
-  values: number[];
-  color: string;
-}) {
+function LineChart({ values, color }: { values: number[]; color: string }) {
   if (values.length < 2) return null;
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = max - min || 10;
-  const W = 280;
-  const H = 60;
-  const pts = values.map((v, i) => {
-    const x = (i / (values.length - 1)) * W;
-    const y = H - ((v - min) / range) * (H - 10) - 4;
+  const width = 280;
+  const height = 64;
+  const points = values.map((value, index) => {
+    const x = (index / (values.length - 1)) * width;
+    const y = height - ((value - min) / range) * (height - 12) - 6;
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   });
-  const d = `M ${pts.join(" L ")}`;
+
   return (
-    <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
-      <path
-        d={d}
-        fill="none"
-        stroke={color}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        opacity={0.85}
-      />
+    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
+      <path d={`M ${points.join(" L ")}`} fill="none" stroke={color} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
+  );
+}
+
+function SectionLabel({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
+  return (
+    <div className="mb-3 mt-6 flex items-center justify-between gap-3">
+      <p className="font-body text-[13px] font-bold uppercase tracking-[0.12em] text-vyva-text-2">{children}</p>
+      {action}
+    </div>
+  );
+}
+
+function EmptyCard({ icon: Icon, title, body }: { icon: typeof ClipboardList; title: string; body: string }) {
+  return (
+    <section className={`${cardShell} p-5`}>
+      <div className="flex items-start gap-3">
+        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#F5F3FF] text-[#6B21A8]">
+          <Icon size={21} />
+        </div>
+        <div className="min-w-0">
+          <p className="font-body text-[16px] font-bold text-vyva-text-1">{title}</p>
+          <p className="mt-1 font-body text-[13px] leading-relaxed text-vyva-text-2">{body}</p>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -147,148 +163,117 @@ function DetailView({ report, onBack }: { report: TriageReport; onBack: () => vo
   const { t } = useTranslation();
   const navigate = useNavigate();
   const cfg = urgencyConfig(report.urgency);
-  const UrgIcon = cfg.icon;
+  const UrgencyIcon = cfg.icon;
 
   return (
-    <div className="flex flex-col min-h-screen" style={{ background: "hsl(var(--vyva-cream))" }}>
-      <div
-        className="flex items-center gap-3 px-4 py-3 flex-shrink-0"
-        style={{
-          paddingTop: "max(12px, env(safe-area-inset-top))",
-          borderBottom: "1px solid hsl(var(--vyva-border))",
-          background: "white",
-        }}
-      >
+    <div className="min-h-screen px-[18px] pb-10">
+      <div className="mb-4 mt-1 flex items-center gap-3">
         <button
           onClick={onBack}
           data-testid="button-report-detail-back"
-          className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-all active:scale-95"
-          style={{ background: "hsl(var(--vyva-warm))" }}
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-[0_4px_14px_rgba(63,45,35,0.08)] active:scale-95"
+          aria-label={t("informes.back", "Back")}
         >
-          <ChevronLeft size={20} style={{ color: "hsl(var(--vyva-text-1))" }} />
+          <ChevronLeft size={20} className="text-vyva-text-1" />
         </button>
-        <p className="font-body text-[16px] font-semibold text-vyva-text-1 flex-1">
-          {t("informes.reportDetail.title")}
-        </p>
+        <div className="min-w-0">
+          <p className="font-body text-[12px] font-bold uppercase tracking-[0.14em] text-vyva-text-3">
+            {t("informes.reportDetail.title")}
+          </p>
+          <h1 className="font-display text-[24px] italic leading-tight text-vyva-text-1">
+            {report.chief_complaint}
+          </h1>
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 pt-4 pb-8 flex flex-col gap-4">
-        <div
-          className="rounded-[20px] p-5 flex flex-col gap-3"
-          style={{ background: "white", border: "1px solid hsl(var(--vyva-border))", boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}
-        >
-          <div className="flex items-center gap-3">
-            <div
-              className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-              style={{ background: cfg.bg }}
-            >
-              <UrgIcon size={22} style={{ color: cfg.text }} />
+      <section className="overflow-hidden rounded-[28px] bg-[#3D0D82] text-white shadow-[0_16px_36px_rgba(91,18,160,0.24)]">
+        <div className="relative p-5">
+          <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-white/10" />
+          <div className="relative flex items-start gap-4">
+            <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px]" style={{ background: "rgba(255,255,255,0.14)" }}>
+              <UrgencyIcon size={25} />
             </div>
-            <div>
-              <p className="font-body text-[12px] font-medium uppercase tracking-wider" style={{ color: cfg.text }}>
+            <div className="min-w-0 flex-1">
+              <span className="inline-flex rounded-full px-3 py-1 font-body text-[12px] font-bold" style={{ background: cfg.bg, color: cfg.text }}>
                 {t(`informes.urgency.${report.urgency}`)}
-              </p>
-              <p className="font-body text-[18px] font-bold text-vyva-text-1 leading-tight">
-                {report.chief_complaint}
-              </p>
+              </span>
+              <p className="mt-4 font-body text-[13px] text-white/65">{formatDate(report.created_at)} · {formatTime(report.created_at)}</p>
+              {report.ai_summary && (
+                <p className="mt-3 font-body text-[16px] font-semibold leading-relaxed text-white">{report.ai_summary}</p>
+              )}
             </div>
-          </div>
-          <p className="font-body text-[13px] text-vyva-text-3">{formatDate(report.created_at)}</p>
-
-          {report.ai_summary && (
-            <p className="font-body text-[15px] text-vyva-text-2 leading-relaxed">
-              {report.ai_summary}
-            </p>
-          )}
-
-          <div className="flex items-center gap-4 flex-wrap">
-            {report.bpm != null && (
-              <div className="flex items-center gap-1.5">
-                <Heart size={14} style={{ color: "hsl(var(--vyva-purple))" }} />
-                <span className="font-body text-[14px] text-vyva-text-2">{report.bpm} bpm</span>
-              </div>
-            )}
-            {report.respiratory_rate != null && (
-              <div className="flex items-center gap-1.5">
-                <Wind size={14} style={{ color: "#0369A1" }} />
-                <span className="font-body text-[14px] text-vyva-text-2">{report.respiratory_rate} rpm</span>
-              </div>
-            )}
-            {report.duration_seconds != null && report.duration_seconds > 0 && (
-              <div className="flex items-center gap-1.5">
-                <span className="font-body text-[12px] text-vyva-text-3">
-                  {t("informes.reportDetail.duration")}: {formatDuration(report.duration_seconds)}
-                </span>
-              </div>
-            )}
           </div>
         </div>
+      </section>
 
-        {report.symptoms.length > 0 && (
-          <div
-            className="rounded-[20px] p-5"
-            style={{ background: "white", border: "1px solid hsl(var(--vyva-border))", boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}
-          >
-            <p className="font-body text-[12px] font-semibold text-vyva-text-3 uppercase tracking-wider mb-3">
-              {t("informes.reportDetail.symptoms")}
-            </p>
-            <ul className="flex flex-col gap-2">
-              {report.symptoms.map((s, i) => (
-                <li key={i} className="flex items-start gap-2">
-                  <span
-                    className="w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0"
-                    style={{ background: "hsl(var(--vyva-purple))" }}
-                  />
-                  <span className="font-body text-[15px] text-vyva-text-1">{s}</span>
-                </li>
-              ))}
-            </ul>
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        {report.bpm != null && (
+          <div className={`${cardShell} p-4`}>
+            <Heart size={18} style={{ color: "#BE123C" }} />
+            <p className="mt-3 font-body text-[28px] font-bold leading-none text-vyva-text-1">{report.bpm}<span className="ml-1 text-[13px] text-vyva-text-2">bpm</span></p>
           </div>
         )}
-
-        {report.recommendations.length > 0 && (
-          <div
-            className="rounded-[20px] p-5"
-            style={{ background: "white", border: "1px solid hsl(var(--vyva-border))", boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}
-          >
-            <p className="font-body text-[12px] font-semibold text-vyva-text-3 uppercase tracking-wider mb-3">
-              {t("informes.reportDetail.recommendations")}
-            </p>
-            <ol className="flex flex-col gap-3">
-              {report.recommendations.map((rec, i) => (
-                <li key={i} className="flex items-start gap-3">
-                  <span
-                    className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 font-body text-[12px] font-bold text-white"
-                    style={{ background: "hsl(var(--vyva-purple))" }}
-                  >
-                    {i + 1}
-                  </span>
-                  <span className="font-body text-[15px] text-vyva-text-1 leading-relaxed pt-0.5">{rec}</span>
-                </li>
-              ))}
-            </ol>
+        {report.respiratory_rate != null && (
+          <div className={`${cardShell} p-4`}>
+            <Wind size={18} style={{ color: "#0369A1" }} />
+            <p className="mt-3 font-body text-[28px] font-bold leading-none text-vyva-text-1">{report.respiratory_rate}<span className="ml-1 text-[13px] text-vyva-text-2">rpm</span></p>
           </div>
         )}
-
-        {report.disclaimer ? (
-          <p className="font-body text-[11px] text-vyva-text-3 text-center leading-relaxed px-2">
-            {report.disclaimer}
-          </p>
-        ) : null}
-
-        <button
-          data-testid="button-report-detail-chat"
-          onClick={() => navigate("/chat")}
-          className="w-full rounded-full py-[15px] flex items-center justify-center gap-2 font-body text-[16px] font-semibold text-white transition-all active:scale-95"
-          style={{
-            background: "linear-gradient(135deg, hsl(var(--vyva-purple)) 0%, #7C3AED 100%)",
-            boxShadow: "0 4px 18px rgba(91,18,160,0.30)",
-          }}
-        >
-          <MessageCircle size={18} />
-          {t("informes.reportDetail.chatCta")}
-        </button>
+        {report.duration_seconds != null && report.duration_seconds > 0 && (
+          <div className={`${cardShell} p-4`}>
+            <ClipboardList size={18} style={{ color: "#6B21A8" }} />
+            <p className="mt-3 font-body text-[18px] font-bold leading-tight text-vyva-text-1">{formatDuration(report.duration_seconds)}</p>
+          </div>
+        )}
       </div>
+
+      {report.symptoms.length > 0 && (
+        <section className={`${cardShell} mt-4 p-5`}>
+          <p className="mb-3 font-body text-[13px] font-bold uppercase tracking-[0.12em] text-vyva-text-2">
+            {t("informes.reportDetail.symptoms")}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {report.symptoms.map((symptom) => (
+              <span key={symptom} className="rounded-full bg-[#F5F3FF] px-3 py-2 font-body text-[13px] font-bold text-[#6B21A8]">
+                {symptom}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {report.recommendations.length > 0 && (
+        <section className={`${cardShell} mt-4 p-5`}>
+          <p className="mb-4 font-body text-[13px] font-bold uppercase tracking-[0.12em] text-vyva-text-2">
+            {t("informes.reportDetail.recommendations")}
+          </p>
+          <ol className="flex flex-col gap-3">
+            {report.recommendations.map((recommendation, index) => (
+              <li key={`${index}-${recommendation}`} className="flex items-start gap-3">
+                <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[#6B21A8] font-body text-[12px] font-bold text-white">
+                  {index + 1}
+                </span>
+                <span className="pt-1 font-body text-[15px] leading-relaxed text-vyva-text-1">{recommendation}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+
+      {report.disclaimer && (
+        <section className="mt-4 rounded-[22px] border border-[#FED7AA] bg-[#FFFBEB] p-4">
+          <p className="font-body text-[12px] leading-relaxed text-[#92400E]">{report.disclaimer}</p>
+        </section>
+      )}
+
+      <button
+        data-testid="button-report-detail-chat"
+        onClick={() => navigate("/chat")}
+        className="vyva-primary-action mt-5 w-full"
+      >
+        <MessageCircle size={18} />
+        {t("informes.reportDetail.chatCta")}
+      </button>
     </div>
   );
 }
@@ -302,74 +287,76 @@ function InformesMain() {
   const { data: summary, isLoading: summaryLoading } = useQuery<Summary>({
     queryKey: ["/api/reports/summary"],
   });
-
   const { data: vitalsHistory } = useQuery<VitalsHistory>({
     queryKey: ["/api/reports/vitals/history"],
   });
-
   const { data: directReport, isLoading: directLoading, isError: directError } = useQuery<TriageReport>({
     queryKey: [`/api/reports/triage/${selectedReportId}`],
     enabled: !!selectedReportId,
     retry: 1,
   });
 
-  const handleBack = () => { setSelectedReportId(null); navigate("/informes"); };
+  const handleBack = () => {
+    setSelectedReportId(null);
+    navigate("/informes");
+  };
+
+  const respReadings = vitalsHistory?.readings.filter((reading) => reading.respiratory_rate != null) ?? [];
+  const bpmReadings = vitalsHistory?.readings ?? [];
+  const hasRespHistory = respReadings.length >= 2;
+  const hasBpmHistory = bpmReadings.length >= 2;
+  const hasData = summary && (summary.latestTriage || summary.latestVitals || summary.todayMeds.total > 0);
+  const signal = reportSignal(summary);
+  const pendingMeds = summary?.todayMeds.total ? Math.max(summary.todayMeds.total - summary.todayMeds.taken, 0) : 0;
+  const statusTone = signal.tone === "urgent" ? "#B91C1C" : signal.tone === "routine" ? "#B45309" : signal.tone === "good" ? "#047857" : "#6B7280";
+
+  const voiceHighlights = [
+    ...(summary?.latestTriage ? [{ label: t("informes.cards.symptom.title"), value: formatDate(summary.latestTriage.created_at), tone: "neutral" as const }] : []),
+    ...(summary?.latestVitals ? [{ label: t("health.quickTiles.status.label", "Status"), value: `${summary.latestVitals.bpm} bpm`, tone: "good" as const }] : []),
+    ...(summary?.todayMeds.total ? [{ label: t("health.quickTiles.medication.label", "Medication"), value: `${summary.todayMeds.taken}/${summary.todayMeds.total}`, tone: pendingMeds ? "warning" as const : "good" as const }] : []),
+  ];
 
   if (selectedReportId) {
     if (directLoading) {
       return (
-        <div className="flex flex-col min-h-screen items-center justify-center" style={{ background: "hsl(var(--vyva-cream))" }}>
-          <div className="w-10 h-10 rounded-full animate-pulse" style={{ background: "hsl(var(--vyva-warm))" }} />
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="h-12 w-12 animate-pulse rounded-full bg-[#E8DED4]" />
         </div>
       );
     }
-    if (directError || (!directLoading && !directReport)) {
+
+    if (directError || !directReport) {
       return (
-        <div className="flex flex-col min-h-screen px-[22px] pt-6" style={{ background: "hsl(var(--vyva-cream))" }}>
+        <div className="px-[18px] pb-10">
           <button
             data-testid="button-back-from-error"
             onClick={handleBack}
-            className="flex items-center gap-1 mb-6 font-body text-[14px] text-vyva-text-3"
+            className="mb-5 mt-2 flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-[0_4px_14px_rgba(63,45,35,0.08)]"
+            aria-label={t("informes.back")}
           >
-            ← {t("informes.back")}
+            <ChevronLeft size={20} />
           </button>
-          <div
-            className="rounded-[20px] flex flex-col items-center gap-4 px-[24px] py-[48px] text-center"
-            style={{ background: "white", border: "1px solid hsl(var(--vyva-border))" }}
-          >
-            <ClipboardList size={44} style={{ color: "#A78BFA" }} />
-            <p className="font-body text-[19px] font-bold text-vyva-text-1">{t("informes.errorTitle")}</p>
-            <p className="font-body text-[15px] text-vyva-text-2">{t("informes.errorSub")}</p>
-          </div>
+          <EmptyCard icon={ClipboardList} title={t("informes.errorTitle")} body={t("informes.errorSub")} />
         </div>
       );
     }
-    if (directReport) {
-      return <DetailView report={directReport} onBack={handleBack} />;
-    }
+
+    return <DetailView report={directReport} onBack={handleBack} />;
   }
 
-  const hasData =
-    summary && (summary.latestTriage != null || summary.latestVitals != null || summary.todayMeds.total > 0);
-
-  const respReadings = vitalsHistory?.readings.filter(r => r.respiratory_rate != null) ?? [];
-  const hasRespHistory = respReadings.length >= 2;
-  const hasBpmHistory = (vitalsHistory?.readings?.length ?? 0) >= 2;
-
   return (
-    <div className="px-[22px] pb-8">
-      <div className="pt-2 pb-4 flex items-center gap-3">
-        <div
-          className="w-11 h-11 rounded-[14px] flex items-center justify-center flex-shrink-0"
-          style={{ background: "#EFF6FF" }}
-        >
-          <ClipboardList size={22} style={{ color: "#1D4ED8" }} />
+    <div className="px-[18px] pb-10">
+      <div className="mb-4 mt-1 flex items-center gap-3">
+        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#EFF6FF] text-[#1D4ED8] shadow-sm">
+          <ClipboardList size={22} />
         </div>
-        <div>
-          <h1 className="font-body text-[22px] font-bold text-vyva-text-1 leading-tight">
+        <div className="min-w-0">
+          <p className="font-body text-[12px] font-bold uppercase tracking-[0.14em] text-vyva-text-3">
             {t("informes.title")}
+          </p>
+          <h1 className="font-display text-[25px] italic leading-tight text-vyva-text-1">
+            {t("informes.subtitle")}
           </h1>
-          <p className="font-body text-[13px] text-vyva-text-3">{t("informes.subtitle")}</p>
         </div>
       </div>
 
@@ -378,369 +365,213 @@ function InformesMain() {
         actionTypes={["reports.history"]}
         title={t("informes.voiceContextTitle", "Report context ready")}
         description={t("informes.voiceContextSub", "VYVA can use recent reports, latest vitals, and medication summary when this page is opened.")}
-        highlights={[
-          ...(summary?.latestTriage ? [{ label: t("informes.cards.symptom.title"), value: formatDate(summary.latestTriage.created_at), tone: "neutral" as const }] : []),
-          ...(summary?.latestVitals ? [{ label: t("health.quickTiles.status.label", "Status"), value: formatDate(summary.latestVitals.recorded_at), tone: "neutral" as const }] : []),
-          ...(summary?.todayMeds.total ? [{ label: t("health.quickTiles.medication.label", "Medication"), value: `${summary.todayMeds.taken}/${summary.todayMeds.total}`, tone: "good" as const }] : []),
-        ]}
+        highlights={voiceHighlights}
         className="mb-4"
       />
 
       {summaryLoading && (
         <div className="flex flex-col gap-4">
-          {[0, 1, 2].map(i => (
-            <div
-              key={i}
-              className="rounded-[20px] h-28 animate-pulse"
-              style={{ background: "white", border: "1px solid hsl(var(--vyva-border))" }}
-            />
+          {[0, 1, 2].map((item) => (
+            <div key={item} className="h-32 animate-pulse rounded-[24px] bg-white shadow-[0_8px_24px_rgba(63,45,35,0.06)]" />
           ))}
         </div>
       )}
 
       {!summaryLoading && summary && (
         <>
-          <div
-            className="rounded-[20px] p-5 mb-4"
-            style={{
-              background: "linear-gradient(135deg, hsl(var(--vyva-purple)) 0%, #7C3AED 100%)",
-              boxShadow: "0 4px 18px rgba(91,18,160,0.25)",
-            }}
-            data-testid="banner-today-summary"
-          >
-            <p className="font-body text-[11px] font-semibold text-white/70 uppercase tracking-wider mb-1">
-              {t("informes.todaySummary")}
-            </p>
-            {hasData ? (
-              <SummaryPhrase summary={summary} />
-            ) : (
-              <p className="font-body text-[15px] text-white/90">{t("informes.summaryEmpty")}</p>
-            )}
-          </div>
+          <section className="relative overflow-hidden rounded-[30px] bg-[#3D0D82] p-5 text-white shadow-[0_16px_36px_rgba(91,18,160,0.24)]" data-testid="banner-today-summary">
+            <div className="absolute -right-14 -top-14 h-44 w-44 rounded-full bg-white/10" />
+            <div className="relative">
+              <div className="mb-5 flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-body text-[12px] font-bold uppercase tracking-[0.14em] text-white/64">
+                    {t("informes.todaySummary")}
+                  </p>
+                  <h2 className="mt-1 font-display text-[30px] italic leading-tight text-white">
+                    {signal.text}
+                  </h2>
+                </div>
+                <span className="rounded-full bg-white px-3 py-1 font-body text-[12px] font-bold" style={{ color: statusTone }}>
+                  {formatTime(summary.latestTriage?.created_at ?? summary.latestVitals?.recorded_at)}
+                </span>
+              </div>
+              {hasData ? <SummaryPhrase summary={summary} /> : <p className="font-body text-[15px] text-white/86">{t("informes.summaryEmpty")}</p>}
+              <div className="mt-5 grid grid-cols-3 gap-2 border-t border-white/15 pt-4">
+                <div>
+                  <p className="font-body text-[20px] font-bold text-white">{summary.latestTriage ? "1" : "0"}</p>
+                  <p className="font-body text-[11px] leading-tight text-white/66">{t("informes.cards.symptom.title")}</p>
+                </div>
+                <div>
+                  <p className="font-body text-[20px] font-bold text-white">{summary.latestVitals ? summary.latestVitals.bpm : "--"}</p>
+                  <p className="font-body text-[11px] leading-tight text-white/66">bpm</p>
+                </div>
+                <div>
+                  <p className="font-body text-[20px] font-bold text-white">{summary.todayMeds.total ? `${summary.todayMeds.taken}/${summary.todayMeds.total}` : "--"}</p>
+                  <p className="font-body text-[11px] leading-tight text-white/66">{t("informes.cards.meds.title")}</p>
+                </div>
+              </div>
+            </div>
+          </section>
 
-          <p className="font-body text-[14px] font-semibold text-vyva-text-3 uppercase tracking-wider mb-3">
-            {t("informes.latestReports")}
-          </p>
+          <SectionLabel>{t("informes.latestReports")}</SectionLabel>
 
-          <div className="flex flex-col gap-3 mb-6">
+          <div className="flex flex-col gap-3">
             {summary.latestTriage ? (
               <button
                 data-testid="card-symptom-report"
-                onClick={() => navigate(`/informes/${summary.latestTriage!.id}`)}
-                className="w-full text-left rounded-[20px] p-5 transition-all active:scale-[0.98]"
-                style={{ background: "white", border: "1px solid hsl(var(--vyva-border))", boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}
+                onClick={() => {
+                  setSelectedReportId(summary.latestTriage!.id);
+                  navigate(`/informes/${summary.latestTriage!.id}`);
+                }}
+                className={`${cardShell} w-full p-5 text-left active:scale-[0.99]`}
               >
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-10 h-10 rounded-[12px] flex items-center justify-center flex-shrink-0"
-                      style={{ background: "#F5F3FF" }}
-                    >
-                      <Activity size={18} style={{ color: "#7C3AED" }} />
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#F5F3FF] text-[#6B21A8]">
+                      <Activity size={21} />
                     </div>
-                    <div>
-                      <p className="font-body text-[15px] font-semibold text-vyva-text-1">
-                        {t("informes.cards.symptom.title")}
-                      </p>
-                      <p className="font-body text-[12px] text-vyva-text-3">
-                        {formatDate(summary.latestTriage.created_at)}
-                      </p>
+                    <div className="min-w-0">
+                      <p className="font-body text-[16px] font-bold leading-tight text-vyva-text-1">{t("informes.cards.symptom.title")}</p>
+                      <p className="font-body text-[12px] text-vyva-text-2">{formatDate(summary.latestTriage.created_at)}</p>
                     </div>
                   </div>
-                  <span
-                    className="font-body text-[12px] font-semibold px-2.5 py-1 rounded-full flex-shrink-0"
-                    style={{
-                      background: urgencyConfig(summary.latestTriage.urgency).bg,
-                      color: urgencyConfig(summary.latestTriage.urgency).text,
-                    }}
-                    data-testid="badge-symptom-urgency"
-                  >
+                  <span className="rounded-full px-3 py-1 font-body text-[11px] font-bold" style={{ background: urgencyConfig(summary.latestTriage.urgency).bg, color: urgencyConfig(summary.latestTriage.urgency).text }} data-testid="badge-symptom-urgency">
                     {t(`informes.urgency.${summary.latestTriage.urgency}`)}
                   </span>
                 </div>
-                {summary.latestTriage.ai_summary ? (
-                  <p className="font-body text-[14px] text-vyva-text-2 leading-relaxed mb-2 line-clamp-2">
-                    {summary.latestTriage.ai_summary}
-                  </p>
-                ) : (
-                  <p className="font-body text-[14px] text-vyva-text-2 leading-relaxed mb-2">
-                    {summary.latestTriage.chief_complaint}
-                  </p>
-                )}
-                <div className="flex items-center gap-3 flex-wrap mb-1">
-                  {summary.latestTriage.bpm != null && (
-                    <div className="flex items-center gap-1">
-                      <Heart size={12} style={{ color: "hsl(var(--vyva-purple))" }} />
-                      <span className="font-body text-[12px] text-vyva-text-3">{summary.latestTriage.bpm} bpm</span>
-                    </div>
-                  )}
-                  {summary.latestTriage.respiratory_rate != null && (
-                    <div className="flex items-center gap-1">
-                      <Wind size={12} style={{ color: "#0369A1" }} />
-                      <span className="font-body text-[12px] text-vyva-text-3">{summary.latestTriage.respiratory_rate} rpm</span>
-                    </div>
-                  )}
-                </div>
-                <p
-                  className="font-body text-[13px] font-semibold"
-                  style={{ color: "hsl(var(--vyva-purple))" }}
-                >
-                  {t("informes.cards.symptom.cta")} →
+                <p className="line-clamp-2 font-body text-[14px] leading-relaxed text-vyva-text-2">
+                  {summary.latestTriage.ai_summary || summary.latestTriage.chief_complaint}
                 </p>
+                <div className="mt-4 flex items-center justify-between pr-24">
+                  <div className="flex items-center gap-3">
+                    {summary.latestTriage.bpm != null && <span className="font-body text-[12px] font-bold text-vyva-text-2">{summary.latestTriage.bpm} bpm</span>}
+                    {summary.latestTriage.respiratory_rate != null && <span className="font-body text-[12px] font-bold text-vyva-text-2">{summary.latestTriage.respiratory_rate} rpm</span>}
+                  </div>
+                  <span className="inline-flex items-center gap-1 font-body text-[12px] font-bold text-[#6B21A8]">
+                    {t("informes.cards.symptom.cta")}
+                    <ArrowRight size={15} />
+                  </span>
+                </div>
               </button>
             ) : (
-              <div
-                className="rounded-[20px] p-5"
-                style={{ background: "white", border: "1px solid hsl(var(--vyva-border))", boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}
-                data-testid="card-symptom-empty"
-              >
-                <div className="flex items-center gap-3 mb-2">
-                  <div
-                    className="w-10 h-10 rounded-[12px] flex items-center justify-center flex-shrink-0"
-                    style={{ background: "#F5F3FF" }}
-                  >
-                    <Activity size={18} style={{ color: "#7C3AED" }} />
-                  </div>
-                  <p className="font-body text-[15px] font-semibold text-vyva-text-1">
-                    {t("informes.cards.symptom.title")}
-                  </p>
-                </div>
-                <p className="font-body text-[14px] text-vyva-text-3">
-                  {t("informes.cards.symptom.empty")}
-                </p>
-              </div>
+              <EmptyCard icon={Activity} title={t("informes.cards.symptom.title")} body={t("informes.cards.symptom.empty")} />
             )}
 
             {summary.latestVitals ? (
-              <div
-                className="rounded-[20px] p-5"
-                style={{ background: "white", border: "1px solid hsl(var(--vyva-border))", boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}
-                data-testid="card-vitals"
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <div
-                    className="w-10 h-10 rounded-[12px] flex items-center justify-center flex-shrink-0"
-                    style={{ background: "#FFF1F2" }}
-                  >
-                    <Heart size={18} style={{ color: "#BE123C" }} />
-                  </div>
-                  <div>
-                    <p className="font-body text-[15px] font-semibold text-vyva-text-1">
-                      {t("informes.cards.vitals.title")}
-                    </p>
-                    <p className="font-body text-[12px] text-vyva-text-3">
-                      {formatDate(summary.latestVitals.recorded_at)}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-6 flex-wrap">
-                  <div>
-                    <div className="flex items-baseline gap-1.5">
-                      <Heart size={14} style={{ color: "#BE123C" }} />
-                      <p className="font-body text-[28px] font-bold" style={{ color: "#BE123C" }}>
-                        {summary.latestVitals.bpm}
-                      </p>
-                      <span className="font-body text-[13px] text-vyva-text-3">bpm</span>
+              <section className={`${cardShell} p-5`} data-testid="card-vitals">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#FFF1F2] text-[#BE123C]">
+                      <Heart size={21} />
                     </div>
-                    <span
-                      className="font-body text-[11px] font-semibold px-2 py-0.5 rounded-full"
-                      style={{
-                        background: summary.latestVitals.bpm < 60 || summary.latestVitals.bpm > 100
-                          ? "#FEF3C7"
-                          : "#D1FAE5",
-                        color: summary.latestVitals.bpm < 60 || summary.latestVitals.bpm > 100
-                          ? "#92400E"
-                          : "#065F46",
-                      }}
-                      data-testid="badge-vitals-hr-status"
-                    >
-                      {summary.latestVitals.bpm < 60 || summary.latestVitals.bpm > 100
-                        ? t("informes.cards.vitals.statusReview")
-                        : t("informes.cards.vitals.statusNormal")}
-                    </span>
-                  </div>
-                  {summary.latestVitals.respiratory_rate != null && (
                     <div>
-                      <div className="flex items-baseline gap-1.5">
-                        <Wind size={14} style={{ color: "#0369A1" }} />
-                        <p className="font-body text-[28px] font-bold" style={{ color: "#0369A1" }}>
-                          {summary.latestVitals.respiratory_rate}
-                        </p>
-                        <span className="font-body text-[13px] text-vyva-text-3">rpm</span>
-                      </div>
-                      <span
-                        className="font-body text-[11px] font-semibold px-2 py-0.5 rounded-full"
-                        style={{
-                          background: summary.latestVitals.respiratory_rate < 12 || summary.latestVitals.respiratory_rate > 20
-                            ? "#FEF3C7"
-                            : "#D1FAE5",
-                          color: summary.latestVitals.respiratory_rate < 12 || summary.latestVitals.respiratory_rate > 20
-                            ? "#92400E"
-                            : "#065F46",
-                        }}
-                        data-testid="badge-vitals-resp-status"
-                      >
-                        {t("informes.cards.vitals.breathsPerMin")}
-                      </span>
+                      <p className="font-body text-[16px] font-bold text-vyva-text-1">{t("informes.cards.vitals.title")}</p>
+                      <p className="font-body text-[12px] text-vyva-text-2">{formatDate(summary.latestVitals.recorded_at)}</p>
                     </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div
-                className="rounded-[20px] p-5"
-                style={{ background: "white", border: "1px solid hsl(var(--vyva-border))", boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}
-                data-testid="card-vitals-empty"
-              >
-                <div className="flex items-center gap-3 mb-2">
-                  <div
-                    className="w-10 h-10 rounded-[12px] flex items-center justify-center flex-shrink-0"
-                    style={{ background: "#FFF1F2" }}
-                  >
-                    <Heart size={18} style={{ color: "#BE123C" }} />
                   </div>
-                  <p className="font-body text-[15px] font-semibold text-vyva-text-1">
-                    {t("informes.cards.vitals.title")}
-                  </p>
+                  <span className="rounded-full bg-[#ECFDF5] px-3 py-1 font-body text-[11px] font-bold text-[#047857]">
+                    {t("informes.cards.vitals.statusNormal")}
+                  </span>
                 </div>
-                <p className="font-body text-[14px] text-vyva-text-3">
-                  {t("informes.cards.vitals.empty")}
-                </p>
-              </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-[18px] bg-[#FFF7F8] p-4">
+                    <Heart size={16} style={{ color: "#BE123C" }} />
+                    <p className="mt-3 font-body text-[30px] font-bold leading-none text-vyva-text-1">{summary.latestVitals.bpm}<span className="ml-1 text-[13px] text-vyva-text-2">bpm</span></p>
+                  </div>
+                  <div className="rounded-[18px] bg-[#EFF6FF] p-4">
+                    <Wind size={16} style={{ color: "#0369A1" }} />
+                    <p className="mt-3 font-body text-[30px] font-bold leading-none text-vyva-text-1">{summary.latestVitals.respiratory_rate ?? "--"}<span className="ml-1 text-[13px] text-vyva-text-2">rpm</span></p>
+                  </div>
+                </div>
+              </section>
+            ) : (
+              <EmptyCard icon={Heart} title={t("informes.cards.vitals.title")} body={t("informes.cards.vitals.empty")} />
             )}
 
-            <div
-              className="rounded-[20px] p-5"
-              style={{ background: "white", border: "1px solid hsl(var(--vyva-border))", boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}
-              data-testid="card-medication"
-            >
-              <div className="flex items-center gap-3 mb-3">
-                <div
-                  className="w-10 h-10 rounded-[12px] flex items-center justify-center flex-shrink-0"
-                  style={{ background: "#FDF4FF" }}
-                >
-                  <Pill size={18} style={{ color: "#86198F" }} />
+            <section className={`${cardShell} p-5`} data-testid="card-medication">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#FDF4FF] text-[#86198F]">
+                  <Pill size={21} />
                 </div>
                 <div>
-                  <p className="font-body text-[15px] font-semibold text-vyva-text-1">
-                    {t("informes.cards.meds.title")}
-                  </p>
-                  <p className="font-body text-[12px] text-vyva-text-3">{t("informes.cards.meds.today")}</p>
+                  <p className="font-body text-[16px] font-bold text-vyva-text-1">{t("informes.cards.meds.title")}</p>
+                  <p className="font-body text-[12px] text-vyva-text-2">{t("informes.cards.meds.today")}</p>
                 </div>
               </div>
               {summary.todayMeds.total > 0 ? (
-                <div className="flex items-center gap-4">
+                <div className="flex items-end justify-between gap-3">
                   <div>
-                    <p className="font-body text-[28px] font-bold" style={{ color: "#86198F" }}>
-                      {summary.todayMeds.adherencePct ?? 0}%
-                    </p>
-                    <p className="font-body text-[12px] text-vyva-text-3">
-                      {t("informes.cards.meds.taken", {
-                        taken: summary.todayMeds.taken,
-                        total: summary.todayMeds.total,
-                      })}
+                    <p className="font-body text-[34px] font-bold leading-none text-vyva-text-1">{summary.todayMeds.adherencePct ?? 0}%</p>
+                    <p className="mt-1 font-body text-[13px] text-vyva-text-2">
+                      {t("informes.cards.meds.taken", { taken: summary.todayMeds.taken, total: summary.todayMeds.total })}
                     </p>
                   </div>
                   <button
                     data-testid="button-meds-details"
                     onClick={() => navigate("/meds/adherence-report")}
-                    className="ml-auto font-body text-[13px] font-semibold px-3 py-1.5 rounded-full transition-all active:scale-95"
-                    style={{ background: "#FDF4FF", color: "#86198F" }}
+                    className="rounded-full bg-[#FDF4FF] px-4 py-2 font-body text-[13px] font-bold text-[#86198F] active:scale-95"
                   >
                     {t("informes.cards.meds.cta")}
                   </button>
                 </div>
               ) : (
-                <p className="font-body text-[14px] text-vyva-text-3">
-                  {t("informes.cards.meds.empty")}
-                </p>
+                <p className="font-body text-[14px] leading-relaxed text-vyva-text-2">{t("informes.cards.meds.empty")}</p>
               )}
-            </div>
+            </section>
           </div>
 
-          <p className="font-body text-[14px] font-semibold text-vyva-text-3 uppercase tracking-wider mb-3">
-            {t("informes.trends.title")}
-          </p>
+          <SectionLabel>{t("informes.trends.title")}</SectionLabel>
+
           {!hasBpmHistory && !hasRespHistory && (
-            <div
-              className="rounded-[20px] p-5 mb-4 flex flex-col items-center gap-2 text-center"
-              style={{ background: "white", border: "1px solid hsl(var(--vyva-border))", boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}
-              data-testid="trends-empty-state"
-            >
-              <TrendingUp size={28} style={{ color: "#A78BFA", opacity: 0.5 }} />
-              <p className="font-body text-[14px] text-vyva-text-3">{t("informes.trends.empty")}</p>
-            </div>
+            <section className={`${cardShell} p-5 text-center`} data-testid="trends-empty-state">
+              <TrendingUp className="mx-auto" size={28} style={{ color: "#A78BFA" }} />
+              <p className="mt-2 font-body text-[14px] leading-relaxed text-vyva-text-2">{t("informes.trends.empty")}</p>
+            </section>
           )}
+
           {hasBpmHistory && (
-            <div
-              className="rounded-[20px] p-5 mb-3"
-              style={{ background: "white", border: "1px solid hsl(var(--vyva-border))", boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}
-              data-testid="chart-heart-rate"
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <Heart size={14} style={{ color: "#BE123C" }} />
-                <p className="font-body text-[14px] font-semibold text-vyva-text-1">
-                  {t("informes.trends.heartRate")}
-                </p>
-                <span className="font-body text-[12px] text-vyva-text-3 ml-auto">
-                  {t("informes.trends.readings", { count: vitalsHistory!.readings.length })}
-                </span>
+            <section className={`${cardShell} mb-3 p-5`} data-testid="chart-heart-rate">
+              <div className="mb-3 flex items-center gap-2">
+                <Heart size={16} style={{ color: "#BE123C" }} />
+                <p className="font-body text-[15px] font-bold text-vyva-text-1">{t("informes.trends.heartRate")}</p>
+                <span className="ml-auto font-body text-[12px] text-vyva-text-2">{t("informes.trends.readings", { count: bpmReadings.length })}</span>
               </div>
-              <LineChart
-                values={vitalsHistory!.readings.map(r => r.bpm)}
-                color="#BE123C"
-              />
-              <div className="flex items-center justify-between mt-2">
-                <span className="font-body text-[12px] text-vyva-text-3">
-                  {t("informes.trends.min")}: {Math.min(...vitalsHistory!.readings.map(r => r.bpm))} bpm
-                </span>
-                <span className="font-body text-[12px] text-vyva-text-3">
-                  {t("informes.trends.max")}: {Math.max(...vitalsHistory!.readings.map(r => r.bpm))} bpm
-                </span>
+              <LineChart values={bpmReadings.map((reading) => reading.bpm)} color="#BE123C" />
+              <div className="mt-2 flex items-center justify-between">
+                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.min")}: {Math.min(...bpmReadings.map((reading) => reading.bpm))} bpm</span>
+                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.max")}: {Math.max(...bpmReadings.map((reading) => reading.bpm))} bpm</span>
               </div>
-            </div>
+            </section>
           )}
+
           {hasRespHistory && (
-            <div
-              className="rounded-[20px] p-5 mb-4"
-              style={{ background: "white", border: "1px solid hsl(var(--vyva-border))", boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}
-              data-testid="chart-respiratory-rate"
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <Wind size={14} style={{ color: "#0369A1" }} />
-                <p className="font-body text-[14px] font-semibold text-vyva-text-1">
-                  {t("informes.trends.respiratoryRate")}
-                </p>
-                <span className="font-body text-[12px] text-vyva-text-3 ml-auto">
-                  {t("informes.trends.readings", { count: respReadings.length })}
-                </span>
+            <section className={`${cardShell} p-5`} data-testid="chart-respiratory-rate">
+              <div className="mb-3 flex items-center gap-2">
+                <Wind size={16} style={{ color: "#0369A1" }} />
+                <p className="font-body text-[15px] font-bold text-vyva-text-1">{t("informes.trends.respiratoryRate")}</p>
+                <span className="ml-auto font-body text-[12px] text-vyva-text-2">{t("informes.trends.readings", { count: respReadings.length })}</span>
               </div>
-              <LineChart
-                values={respReadings.map(r => r.respiratory_rate!)}
-                color="#0369A1"
-              />
-              <div className="flex items-center justify-between mt-2">
-                <span className="font-body text-[12px] text-vyva-text-3">
-                  {t("informes.trends.min")}: {Math.min(...respReadings.map(r => r.respiratory_rate!))} rpm
-                </span>
-                <span className="font-body text-[12px] text-vyva-text-3">
-                  {t("informes.trends.max")}: {Math.max(...respReadings.map(r => r.respiratory_rate!))} rpm
-                </span>
+              <LineChart values={respReadings.map((reading) => reading.respiratory_rate!)} color="#0369A1" />
+              <div className="mt-2 flex items-center justify-between">
+                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.min")}: {Math.min(...respReadings.map((reading) => reading.respiratory_rate!))} rpm</span>
+                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.max")}: {Math.max(...respReadings.map((reading) => reading.respiratory_rate!))} rpm</span>
               </div>
-            </div>
+            </section>
           )}
+
+          <section className="mt-5 rounded-[22px] border border-[#D1FAE5] bg-[#ECFDF5] p-4">
+            <div className="flex items-start gap-3">
+              <ShieldCheck size={18} className="mt-0.5 flex-shrink-0" style={{ color: "#047857" }} />
+              <p className="font-body text-[12px] leading-relaxed text-[#047857]">
+                {t("informes.privacyNote", "Reports are private to your account unless you choose to share them with a caregiver or clinician.")}
+              </p>
+            </div>
+          </section>
         </>
       )}
 
       {!summaryLoading && !summary && (
-        <div
-          className="rounded-[20px] flex flex-col items-center gap-4 px-[24px] py-[48px] text-center"
-          style={{ background: "white", border: "1px solid hsl(var(--vyva-border))" }}
-        >
-          <ClipboardList size={44} style={{ color: "#A78BFA" }} />
-          <p className="font-body text-[19px] font-bold text-vyva-text-1">{t("informes.errorTitle")}</p>
-          <p className="font-body text-[15px] text-vyva-text-2">{t("informes.errorSub")}</p>
-        </div>
+        <EmptyCard icon={ClipboardList} title={t("informes.errorTitle")} body={t("informes.errorSub")} />
       )}
     </div>
   );
