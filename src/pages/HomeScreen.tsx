@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Heart, Brain, Users, ConciergeBell, Lock, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
+import { ActionCard, ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
 import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import { serviceForPath, useServiceGate } from "@/hooks/useServiceGate";
@@ -220,65 +221,43 @@ const HomeScreen = () => {
       />
 
       <div className="mt-[22px]">
-        <div className="mb-4 flex items-end justify-between gap-3">
-          <div>
-            <p className="font-body text-[16px] font-semibold text-vyva-text-2">{t("home.whatNow")}</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
+        <SectionTitle
+          className="mb-4"
+          title={t("home.whatNow")}
+          titleClassName="font-body text-[16px] font-semibold not-italic text-vyva-text-2"
+        />
+        <ResponsiveGrid columns="two" gap="sm">
           {HOME_AGENT_CARDS.map((card) => {
             const theme = HOME_AGENT_THEMES[card.theme];
             const Icon = card.icon;
             const locked = isSubscriptionLocked(card.path);
             return (
-              <article
+              <ActionCard
                 key={card.id}
                 data-testid={`card-home-agent-${card.id}`}
-                role="button"
-                tabIndex={0}
                 aria-label={t(`home.voiceCards.${card.id}.micLabel`)}
                 onClick={() => handleAgentCardOpen(card)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    handleAgentCardOpen(card);
-                  }
-                }}
-                className={`group relative min-h-[188px] overflow-visible rounded-[28px] border bg-[#FFFCF8] px-4 py-4 text-left transition-transform active:scale-[0.99] ${locked ? "opacity-80" : ""}`}
+                title={t(`home.voiceCards.${card.id}.title`)}
+                description={t(`home.voiceCards.${card.id}.subtitle`)}
+                icon={Icon}
+                iconBg={theme.iconBg}
+                iconColor={theme.iconColor}
+                size="large"
+                locked={locked}
                 style={{
                   borderColor: "#EDE2D1",
                   boxShadow: `0 16px 34px ${theme.glow}, 0 2px 10px rgba(43,31,24,0.05)`,
                 }}
-              >
-                <div className="relative z-10 flex h-full flex-col justify-between gap-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div
-                      className="flex h-[58px] w-[58px] shrink-0 items-center justify-center rounded-[20px]"
-                      style={{ background: theme.iconBg }}
-                    >
-                      <Icon size={30} strokeWidth={2.5} style={{ color: theme.iconColor }} />
-                    </div>
-                    {locked ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-[#F4EAFE] px-2.5 py-1 font-body text-[11px] font-bold text-[#6B21A8]">
-                        <Lock size={12} strokeWidth={2.5} />
-                        Plan
-                      </span>
-                    ) : null}
-                  </div>
-
-                  <div className="min-w-0">
-                    <h2 className="font-body text-[21px] font-extrabold leading-tight text-vyva-text-1 [overflow-wrap:anywhere]">
-                      {t(`home.voiceCards.${card.id}.title`)}
-                    </h2>
-                    <p className="mt-2 font-body text-[14px] font-medium leading-snug text-vyva-text-2 [overflow-wrap:anywhere]">
-                      {t(`home.voiceCards.${card.id}.subtitle`)}
-                    </p>
-                  </div>
-                </div>
-              </article>
+                badge={locked ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[#F4EAFE] px-2.5 py-1 font-body text-[11px] font-bold text-[#6B21A8]">
+                    <Lock size={12} strokeWidth={2.5} />
+                    Plan
+                  </span>
+                ) : null}
+              />
             );
           })}
-        </div>
+        </ResponsiveGrid>
       </div>
     </div>
   );
