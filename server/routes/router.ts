@@ -18,7 +18,10 @@ import {
 } from "../lib/mem0.js";
 import { buildAgentOperatingRules, buildConversationPlan } from "../lib/voiceAgentPolicy.js";
 import { formatConversationPlanPrompt, selectVoiceConversationPlan } from "../lib/voiceConversationPlans.js";
-import { signMedicalProfileToolToken } from "../lib/jwt.js";
+import {
+  signMedicalProfileToolToken,
+  signVoiceRecommendationFeedbackToolToken,
+} from "../lib/jwt.js";
 import { buildUserConversationContext, formatConversationContextForPrompt } from "../lib/conversationContext.js";
 import {
   getLatestShownVoiceRecommendation,
@@ -363,6 +366,9 @@ function buildVoiceContextPromptBlock(voiceContext: VoiceDynamicVariables) {
     contextValue(voiceContext.next_best_conversation_feedback)
       ? `Next best feedback history: ${contextValue(voiceContext.next_best_conversation_feedback)}`
       : "",
+    contextValue(voiceContext.voice_recommendation_feedback_tool)
+      ? `Voice feedback tool guidance: ${contextValue(voiceContext.voice_recommendation_feedback_tool)}`
+      : "",
     contextValue(voiceContext.orchestrator_context)
       ? `Orchestrator context: ${contextValue(voiceContext.orchestrator_context)}`
       : "",
@@ -623,6 +629,10 @@ export async function routerHandler(req: Request, res: Response) {
     if (mem0Key) scheduleMem0Add(mem0UserIdSafe, buildMem0Messages(history, utterance), mem0Key);
 
     const agent_id = agentIdForDomain("safety");
+    const feedbackTokenSafe = await signVoiceRecommendationFeedbackToolToken(user_id, session_id).catch((err) => {
+      console.warn("[router] voice recommendation feedback token unavailable:", err);
+      return "";
+    });
     return res.json({
       agent_id, system_prompt_override,
       dynamic_variables: {
@@ -638,6 +648,8 @@ export async function routerHandler(req: Request, res: Response) {
           firstName: firstSafe,
           memoryBlock: memoryBlockSafe,
         }),
+        conversation_id: session_id,
+        ...(feedbackTokenSafe ? { voice_recommendation_feedback_token: feedbackTokenSafe } : {}),
       },
       session_data: { domain: "safety", intent_confidence: confidence, session_id, turn_count: newTurnSafe, last_agent: lastAgentBeforeSafe },
     });
@@ -767,6 +779,10 @@ export async function routerHandler(req: Request, res: Response) {
         return "";
       })
     : "";
+  const feedbackToken = await signVoiceRecommendationFeedbackToolToken(user_id, session_id).catch((err) => {
+    console.warn("[router] voice recommendation feedback token unavailable:", err);
+    return "";
+  });
 
   return res.json({
     agent_id, system_prompt_override,
@@ -795,7 +811,8 @@ export async function routerHandler(req: Request, res: Response) {
             context_token: medicalProfileToolToken,
             medical_profile_token: medicalProfileToolToken,
           }
-        : {}),
+        : { conversation_id: session_id }),
+      ...(feedbackToken ? { voice_recommendation_feedback_token: feedbackToken } : {}),
     },
     session_data: { domain, intent_confidence: confidence, session_id, turn_count: newTurn, last_agent: lastAgentBefore },
   });

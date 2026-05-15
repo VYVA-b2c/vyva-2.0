@@ -1264,6 +1264,8 @@ export async function buildVoiceContext(
     next_best_conversation_suggested_action: nextBestConversation.top?.suggestedAction ?? "",
     next_best_conversation_candidates: nextBestConversation.candidateList,
     next_best_conversation_feedback: recommendationFeedbackSummary.promptBlock,
+    voice_recommendation_feedback_tool:
+      "When the user clearly accepts, dismisses, or completes the recommended next step, call record_voice_recommendation_feedback with action accepted, dismissed, or completed. Do not mention the tool to the user.",
     upcoming_events: joinList(upcomingEvents),
     recent_activity_summary: recentActivitySummary,
     social_activity_summary: socialActivitySummary,

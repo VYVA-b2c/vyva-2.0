@@ -7,7 +7,10 @@ import { routerHandler } from "./routes/router.js";
 import { conversationTokenHandler } from "./routes/conversationToken.js";
 import { voiceContextHandler } from "./routes/voiceContext.js";
 import { voiceRecommendationFeedbackHandler } from "./routes/voiceRecommendationFeedback.js";
-import { retrieveMedicalProfileToolHandler } from "./routes/elevenlabsTools.js";
+import {
+  recordVoiceRecommendationFeedbackToolHandler,
+  retrieveMedicalProfileToolHandler,
+} from "./routes/elevenlabsTools.js";
 import { onboardingRouter } from "./routes/onboarding.js";
 import billingRouter from "./routes/billing.js";
 import { adminRouter } from "./routes/admin.js";
@@ -84,6 +87,7 @@ app.post("/api/voice-context", authMiddleware, voiceContextHandler);
 app.post("/api/voice/recommendations/feedback", authMiddleware, requireUser, voiceRecommendationFeedbackHandler);
 app.post("/api/elevenlabs-conversation-token", conversationTokenHandler);
 app.post("/api/elevenlabs/tools/retrieve-medical-profile", retrieveMedicalProfileToolHandler);
+app.post("/api/elevenlabs/tools/record-voice-recommendation-feedback", recordVoiceRecommendationFeedbackToolHandler);
 app.post("/api/meds-voice-parse", medsVoiceParseHandler);
 app.post("/api/meds-assistant", medsAssistantHandler);
 app.post("/api/concierge", authMiddleware, conciergeHandler);
