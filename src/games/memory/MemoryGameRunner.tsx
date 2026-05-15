@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   BookOpen,
@@ -71,6 +71,22 @@ type CompletionDetails = {
 };
 
 type WordRecallDistractionType = "count_backwards" | "choose_blue" | "breathe_continue";
+type MemoryCompanionMessageKind =
+  | "start"
+  | "keepGoing"
+  | "match"
+  | "mismatch"
+  | "sequenceGood"
+  | "sequenceWrong"
+  | "recall"
+  | "complete";
+
+type MemoryCompanionCopy = {
+  mute: string;
+  unmute: string;
+  onStatus: string;
+  offStatus: string;
+} & Record<MemoryCompanionMessageKind, string[]>;
 
 function shuffleCards(cards: MemoryCard[]) {
   const copy = [...cards];
@@ -100,10 +116,20 @@ function getScore(level: number, accuracy: number, mistakes: number, durationSec
   return Math.max(60, Math.round(accuracy + level * 12 - mistakes * 2 + Math.max(0, 45 - durationSeconds)));
 }
 
-function shuffleItems<T>(items: T[]) {
+function getMirroredSequenceIndex(index: number) {
+  if (index < 0 || index > 3) return index;
+  return index < 2 ? index + 2 : index - 2;
+}
+
+function seededShuffleValue(seed: number) {
+  const value = Math.sin(seed) * 10000;
+  return value - Math.floor(value);
+}
+
+function shuffleItems<T>(items: T[], seed = 1) {
   const copy = [...items];
   for (let index = copy.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
+    const swapIndex = Math.floor(seededShuffleValue(seed + index * 997) * (index + 1));
     [copy[index], copy[swapIndex]] = [copy[swapIndex], copy[index]];
   }
   return copy;
@@ -228,6 +254,141 @@ function getWordRecallCommandTerms(language: string) {
   }
 }
 
+function getMemoryCompanionCopy(language: string): MemoryCompanionCopy {
+  const englishCopy: MemoryCompanionCopy = {
+    mute: "Pause VYVA's voice",
+    unmute: "Let VYVA encourage me",
+    onStatus: "VYVA is keeping you company",
+    offStatus: "Voice encouragement is off",
+    start: ["I am here with you. Take your time and enjoy this one.", "Let's do this together. Slow and steady is perfect."],
+    keepGoing: ["You are doing well. Keep going at your own pace.", "Nice focus. I am right here with you."],
+    match: ["Good match.", "Yes, that pair belongs together.", "Lovely, you found it."],
+    mismatch: ["That is okay. Have another look and try again.", "No rush. Each try gives you a little more information."],
+    sequenceGood: ["Good step.", "That is it.", "You have the pattern."],
+    sequenceWrong: ["No problem. Watch it once more and we will try again.", "Almost. Let's reset and take it step by step."],
+    recall: ["Now bring back the words you remember. Anything you recall helps.", "Take a breath and say or choose the words that come back."],
+    complete: ["Well done. You finished the exercise.", "Great work. That was a good brain session."],
+  };
+
+  switch (language) {
+    case "es":
+      return {
+        mute: "Pausar la voz de VYVA",
+        unmute: "Que VYVA me anime",
+        onStatus: "VYVA te acompana",
+        offStatus: "Animo por voz apagado",
+        start: ["Estoy contigo. Hazlo con calma y disfruta.", "Vamos juntos. Despacio y seguro esta perfecto."],
+        keepGoing: ["Lo estas haciendo bien. Sigue a tu ritmo.", "Buena concentracion. Estoy aqui contigo."],
+        match: ["Buena pareja.", "Si, esas dos van juntas.", "Muy bien, la encontraste."],
+        mismatch: ["No pasa nada. Mira otra vez y prueba de nuevo.", "Sin prisa. Cada intento te da mas pistas."],
+        sequenceGood: ["Buen paso.", "Eso es.", "Ya tienes el patron."],
+        sequenceWrong: ["No pasa nada. Lo vemos otra vez y probamos de nuevo.", "Casi. Reiniciamos y vamos paso a paso."],
+        recall: ["Ahora recuerda las palabras que puedas. Todo lo que vuelva ayuda.", "Respira y elige o di las palabras que recuerdes."],
+        complete: ["Muy bien. Terminaste el ejercicio.", "Gran trabajo. Buena sesion para la mente."],
+      };
+    case "fr":
+      return {
+        mute: "Mettre la voix de VYVA en pause",
+        unmute: "Laisser VYVA m'encourager",
+        onStatus: "VYVA reste avec vous",
+        offStatus: "Encouragement vocal arrete",
+        start: ["Je suis avec vous. Prenez votre temps.", "On le fait ensemble. Doucement, c'est tres bien."],
+        keepGoing: ["Vous faites bien. Continuez a votre rythme.", "Belle concentration. Je reste avec vous."],
+        match: ["Bonne paire.", "Oui, ces deux vont ensemble.", "Tres bien, vous l'avez trouvee."],
+        mismatch: ["Ce n'est pas grave. Regardez encore et reessayez.", "Sans pression. Chaque essai donne un indice."],
+        sequenceGood: ["Bonne etape.", "C'est ca.", "Vous tenez le rythme."],
+        sequenceWrong: ["Aucun souci. Regardons encore et reessayons.", "Presque. On reprend pas a pas."],
+        recall: ["Maintenant, retrouvez les mots dont vous vous souvenez.", "Respirez et choisissez les mots qui reviennent."],
+        complete: ["Bravo. Vous avez termine l'exercice.", "Tres beau travail. Bonne seance pour l'esprit."],
+      };
+    case "de":
+      return {
+        mute: "VYVAs Stimme pausieren",
+        unmute: "VYVA soll mich ermutigen",
+        onStatus: "VYVA bleibt bei dir",
+        offStatus: "Sprachliche Ermutigung ist aus",
+        start: ["Ich bin bei dir. Nimm dir Zeit.", "Wir machen das zusammen. Ruhig und Schritt fuer Schritt."],
+        keepGoing: ["Das machst du gut. Bleib bei deinem Tempo.", "Gute Konzentration. Ich bin hier bei dir."],
+        match: ["Gutes Paar.", "Ja, die zwei gehoeren zusammen.", "Sehr gut, du hast es gefunden."],
+        mismatch: ["Kein Problem. Schau noch einmal und versuch es wieder.", "Keine Eile. Jeder Versuch gibt dir mehr Hinweise."],
+        sequenceGood: ["Guter Schritt.", "Genau so.", "Du hast das Muster."],
+        sequenceWrong: ["Kein Problem. Wir schauen es noch einmal an.", "Fast. Wir starten neu und gehen Schritt fuer Schritt."],
+        recall: ["Jetzt erinnere dich an die Woerter, die zurueckkommen.", "Atme kurz und waehle die Woerter, die dir einfallen."],
+        complete: ["Gut gemacht. Du hast die Uebung beendet.", "Sehr gute Arbeit. Das war eine gute Einheit fuer den Kopf."],
+      };
+    case "it":
+      return {
+        mute: "Metti in pausa la voce di VYVA",
+        unmute: "Lascia che VYVA mi incoraggi",
+        onStatus: "VYVA ti fa compagnia",
+        offStatus: "Incoraggiamento vocale spento",
+        start: ["Sono qui con te. Prenditi il tuo tempo.", "Lo facciamo insieme. Piano e con calma va benissimo."],
+        keepGoing: ["Stai andando bene. Continua al tuo ritmo.", "Bella concentrazione. Sono qui con te."],
+        match: ["Bella coppia.", "Si, queste due stanno insieme.", "Molto bene, l'hai trovata."],
+        mismatch: ["Non fa niente. Guarda ancora e riprova.", "Senza fretta. Ogni tentativo ti da piu indizi."],
+        sequenceGood: ["Bel passo.", "Ecco, cosi.", "Hai preso il ritmo."],
+        sequenceWrong: ["Nessun problema. Guardiamolo ancora e riproviamo.", "Quasi. Ripartiamo e andiamo passo per passo."],
+        recall: ["Ora richiama le parole che ricordi.", "Respira e scegli o di le parole che ti tornano in mente."],
+        complete: ["Ben fatto. Hai finito l'esercizio.", "Ottimo lavoro. Bella sessione per la mente."],
+      };
+    case "pt":
+      return {
+        mute: "Pausar a voz da VYVA",
+        unmute: "Deixar a VYVA encorajar-me",
+        onStatus: "A VYVA esta consigo",
+        offStatus: "Incentivo por voz desligado",
+        start: ["Estou consigo. Leve o tempo que precisar.", "Vamos fazer isto juntos. Devagar esta perfeito."],
+        keepGoing: ["Esta a ir bem. Continue ao seu ritmo.", "Boa concentracao. Estou aqui consigo."],
+        match: ["Boa dupla.", "Sim, essas duas combinam.", "Muito bem, encontrou."],
+        mismatch: ["Nao faz mal. Veja outra vez e tente de novo.", "Sem pressa. Cada tentativa da mais pistas."],
+        sequenceGood: ["Bom passo.", "E isso.", "Ja tem o padrao."],
+        sequenceWrong: ["Sem problema. Vamos ver outra vez e tentar de novo.", "Quase. Recomecamos e vamos passo a passo."],
+        recall: ["Agora lembre-se das palavras que conseguir.", "Respire e escolha ou diga as palavras que voltarem."],
+        complete: ["Muito bem. Terminou o exercicio.", "Excelente trabalho. Foi uma boa sessao para a mente."],
+      };
+    case "en":
+    default:
+      return englishCopy;
+  }
+}
+
+function pickCompanionLine(lines: string[], key: string) {
+  if (lines.length === 0) return "";
+  let hash = 0;
+  for (let index = 0; index < key.length; index += 1) {
+    hash = (hash * 31 + key.charCodeAt(index)) >>> 0;
+  }
+  return lines[hash % lines.length] ?? lines[0];
+}
+
+function MemoryAudioToggle({
+  isMuted,
+  onToggle,
+  copy,
+}: {
+  isMuted: boolean;
+  onToggle: () => void;
+  copy: MemoryCompanionCopy;
+}) {
+  const Icon = isMuted ? VolumeX : Volume2;
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={!isMuted}
+      className="inline-flex w-full items-center gap-3 rounded-[20px] border border-[#D8C7F3] bg-white px-4 py-3 text-left text-vyva-text-1 shadow-vyva-card sm:w-auto"
+    >
+      <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#FAF7FF] text-vyva-purple">
+        <Icon size={19} />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[15px] font-semibold">{isMuted ? copy.unmute : copy.mute}</span>
+        <span className="mt-0.5 block text-[12px] font-medium text-vyva-text-2">{isMuted ? copy.offStatus : copy.onStatus}</span>
+      </span>
+    </button>
+  );
+}
+
 type MemoryGameRunnerProps = {
   forcedGameType?: MemoryGameType;
   returnPath?: string;
@@ -287,6 +448,9 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   const latestWordRecallWordsRef = useRef<string[]>([]);
   const wordRecallNarrationKeyRef = useRef<string>("");
   const wordRecallCommandCooldownRef = useRef(0);
+  const isMemoryAudioMutedRef = useRef(isMemoryAudioMuted);
+  const isTtsSpeakingRef = useRef(isTtsSpeaking);
+  const companionLineKeyRef = useRef("");
   const wordRecallRepeatTimerRef = useRef<number | null>(null);
 
   const stopWordRecallAudio = () => {
@@ -428,7 +592,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   const wordRecallChoiceWords = useMemo(() => {
     void wordRecallChoicesSeed;
     if (plan?.gameType !== "word_recall") return [];
-    return shuffleItems([...wordRecallWords, ...wordRecallDistractors]);
+    return shuffleItems([...wordRecallWords, ...wordRecallDistractors], wordRecallChoicesSeed);
   }, [plan?.gameType, wordRecallChoicesSeed, wordRecallDistractors, wordRecallWords]);
 
   const wordRecallCoachSegments = useMemo(() => {
@@ -465,6 +629,33 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   }, [localizedVariant?.prompt, plan?.gameType, t, wordRecallDistractionType, wordRecallPhase, wordRecallWords]);
 
   const wordRecallCommandTerms = useMemo(() => getWordRecallCommandTerms(language), [language]);
+  const companionCopy = useMemo(() => getMemoryCompanionCopy(language), [language]);
+
+  useEffect(() => {
+    isMemoryAudioMutedRef.current = isMemoryAudioMuted;
+  }, [isMemoryAudioMuted]);
+
+  useEffect(() => {
+    isTtsSpeakingRef.current = isTtsSpeaking;
+  }, [isTtsSpeaking]);
+
+  const speakCompanion = useCallback(
+    (kind: MemoryCompanionMessageKind, key: string) => {
+      if (!plan || loading || saving) return;
+      if (finished && kind !== "complete") return;
+      if (isMemoryAudioMutedRef.current || isTtsSpeakingRef.current) return;
+
+      const lineKey = `${kind}:${key}`;
+      if (companionLineKeyRef.current === lineKey) return;
+      companionLineKeyRef.current = lineKey;
+
+      const text = pickCompanionLine(companionCopy[kind], lineKey);
+      if (!text) return;
+
+      speakSequence([{ text, lang: getSpeechLanguage(language), rate: 0.88 }]);
+    },
+    [companionCopy, finished, language, loading, plan, saving, speakSequence],
+  );
 
   const { isSupported: wordRecallVoiceSupported, isListening: wordRecallListening, startListening: startWordRecallListening } =
     useSpeechRecognition({
@@ -596,6 +787,58 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
       stopTts();
     }
   }, [isMemoryAudioMuted, stopTts]);
+
+  useEffect(() => {
+    if (!plan || loading || saving || finished || isMemoryAudioMuted) return;
+
+    const canSpeakDuringCurrentPhase =
+      plan.gameType === "memory_match" ||
+      (plan.gameType === "sequence_memory" && sequencePhase === "input") ||
+      (plan.gameType === "word_recall" && wordRecallPhase === "recall");
+
+    if (!canSpeakDuringCurrentPhase) return;
+
+    const openingTimer = window.setTimeout(() => {
+      const openingKind: MemoryCompanionMessageKind = plan.gameType === "word_recall" ? "recall" : "start";
+      speakCompanion(openingKind, `${plan.variantId}-${plan.gameType}-opening`);
+    }, plan.gameType === "sequence_memory" ? 900 : 1400);
+
+    const encouragementTimer = window.setInterval(() => {
+      speakCompanion("keepGoing", `${plan.variantId}-${plan.gameType}-${Date.now()}`);
+    }, 22000);
+
+    return () => {
+      window.clearTimeout(openingTimer);
+      window.clearInterval(encouragementTimer);
+    };
+  }, [
+    finished,
+    isMemoryAudioMuted,
+    loading,
+    plan,
+    saving,
+    sequencePhase,
+    speakCompanion,
+    wordRecallPhase,
+  ]);
+
+  useEffect(() => {
+    if (!finished || !completionMetrics || isMemoryAudioMuted) return;
+
+    const timer = window.setTimeout(() => {
+      speakCompanion("complete", `${plan?.variantId ?? "memory"}-${completionMetrics.score}-${completionMetrics.accuracy}`);
+    }, 650);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [
+    completionMetrics,
+    finished,
+    isMemoryAudioMuted,
+    plan?.variantId,
+    speakCompanion,
+  ]);
 
   useEffect(() => {
     const canListenForCommands =
@@ -1144,11 +1387,13 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
       timeoutRef.current = window.setTimeout(() => {
         setMatchedIds((current) => [...current, firstId, secondId]);
         setRevealed([]);
+        speakCompanion("match", `${firstCard.pairId}-${secondCard.deckId}`);
       }, 450);
       return;
     }
 
     setMistakes((current) => current + 1);
+    speakCompanion("mismatch", `${firstCard.deckId}-${secondCard.deckId}-${memoryAttempts}`);
     timeoutRef.current = window.setTimeout(() => {
       setRevealed([]);
     }, 850);
@@ -1189,10 +1434,14 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
       const nextProgress = currentProgress + 1;
       sequenceProgressRef.current = nextProgress;
       setSequenceProgress(nextProgress);
+      if (nextProgress < expectedSequence.length) {
+        speakCompanion("sequenceGood", `${plan.variantId}-${nextProgress}`);
+      }
       return;
     }
 
     setSequenceTotalMistakes((current) => current + 1);
+    speakCompanion("sequenceWrong", `${plan.variantId}-${currentProgress}-${tileId}`);
     setSequenceStatus("wrong");
     setSequenceReady(false);
     setSequencePhase("countdown");
@@ -1264,12 +1513,14 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
       return;
     }
     setWordRecallPhase("recall");
+    speakCompanion("recall", `${plan.variantId}-direct`);
   };
 
   const completeWordRecallDistraction = () => {
     stopWordRecallAudio();
     setWordRecallMessage(null);
     setWordRecallPhase("recall");
+    speakCompanion("recall", `${plan.variantId}-distraction`);
   };
 
   const startWordRecallVoice = () => {
@@ -1339,13 +1590,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
           </div>
 
           <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-            <button
-              onClick={toggleMemoryAudio}
-              className="inline-flex items-center justify-center gap-2 rounded-full border border-[#D8C7F3] bg-white px-4 py-3 text-[15px] font-semibold text-vyva-purple shadow-vyva-card"
-            >
-              {isMemoryAudioMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
-              {isMemoryAudioMuted ? t("wordRecall.unmuteAudio") : t("wordRecall.muteAudio")}
-            </button>
+            <MemoryAudioToggle isMuted={isMemoryAudioMuted} onToggle={toggleMemoryAudio} copy={companionCopy} />
           </div>
 
           {wordRecallPhase === "memorize" && (
@@ -1584,6 +1829,10 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
             <span className="rounded-full bg-white px-3 py-2 text-[13px] font-medium text-vyva-text-1 shadow-sm">{`${durationSeconds}s`}</span>
           </div>
 
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <MemoryAudioToggle isMuted={isMemoryAudioMuted} onToggle={toggleMemoryAudio} copy={companionCopy} />
+          </div>
+
           <div className="mt-4 rounded-[22px] border border-[#EADFF8] bg-white p-5">
             <p className="text-[18px] font-semibold text-vyva-text-1">{sequenceInstruction}</p>
             <p className="mt-2 text-[15px] leading-[1.55] text-vyva-text-2">{sequenceSupportText}</p>
@@ -1734,6 +1983,10 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
           <span className="rounded-full bg-white px-3 py-2 text-[13px] font-medium text-vyva-text-1 shadow-sm">{`${matchedPairs}/${totalPairs} ${t("memory.pairs")}`}</span>
           <span className="rounded-full bg-white px-3 py-2 text-[13px] font-medium text-vyva-text-1 shadow-sm">{`${memoryAccuracy}%`}</span>
           <span className="rounded-full bg-white px-3 py-2 text-[13px] font-medium text-vyva-text-1 shadow-sm">{`${durationSeconds}s`}</span>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+          <MemoryAudioToggle isMuted={isMemoryAudioMuted} onToggle={toggleMemoryAudio} copy={companionCopy} />
         </div>
 
         <div className="mt-4 rounded-[22px] border border-[#EADFF8] bg-white p-4">

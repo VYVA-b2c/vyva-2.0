@@ -35,6 +35,7 @@ interface VoiceHeroProps {
   subtitle?: React.ReactNode;
   children?: React.ReactNode;
   contextHint?: string;
+  voiceDynamicVariables?: Record<string, string | number | boolean>;
   talkLabel?: string;
   onTalkClick?: () => void;
   onChatClick?: () => void;
@@ -76,6 +77,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   subtitle,
   children,
   contextHint,
+  voiceDynamicVariables,
   talkLabel,
   onTalkClick,
   onChatClick,
@@ -88,6 +90,14 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
 }) => {
   const { t } = useTranslation();
   const internalVoice = useVyvaVoice();
+  const {
+    startVoice,
+    stopVoice: internalStopVoice,
+    status: internalStatus,
+    isSpeaking: internalIsSpeaking,
+    isConnecting: internalIsConnecting,
+    transcript: internalTranscript,
+  } = internalVoice;
   const dynamicHero = useHeroMessage(heroSurface, {
     ...heroContext,
     fallbackHeadline: typeof headline === "string" ? headline : heroContext?.fallbackHeadline,
@@ -103,11 +113,11 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   const resolvedContextHint = dynamicHero?.contextHint ?? contextHint;
   const resolvedTalkLabel = dynamicHero?.ctaLabel ?? talkLabel;
 
-  const voiceStatus = voiceControls?.status ?? internalVoice.status;
-  const isSpeaking = voiceControls?.isSpeaking ?? internalVoice.isSpeaking;
-  const isConnecting = voiceControls?.isConnecting ?? internalVoice.isConnecting;
-  const transcript = voiceControls?.transcript ?? internalVoice.transcript;
-  const stopVoice = voiceControls?.onEnd ?? internalVoice.stopVoice;
+  const voiceStatus = voiceControls?.status ?? internalStatus;
+  const isSpeaking = voiceControls?.isSpeaking ?? internalIsSpeaking;
+  const isConnecting = voiceControls?.isConnecting ?? internalIsConnecting;
+  const transcript = voiceControls?.transcript ?? internalTranscript;
+  const stopVoice = voiceControls?.onEnd ?? internalStopVoice;
   const shouldShowOverlay = voiceControls?.showOverlay ?? showVoiceOverlay;
   const autoStartKey = typeof autoStartVoice === "string"
     ? autoStartVoice
@@ -122,16 +132,21 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   useEffect(() => {
     if (!autoStartKey || voiceControls) return;
     if (autoStartedRef.current === autoStartKey) return;
-    if (internalVoice.status !== "idle" || internalVoice.isConnecting) return;
+    if (internalStatus !== "idle" || internalIsConnecting) return;
 
     autoStartedRef.current = autoStartKey;
-    void internalVoice.startVoice(resolvedContextHint);
+    void startVoice(
+      resolvedContextHint,
+      undefined,
+      voiceDynamicVariables ? { dynamicVariables: voiceDynamicVariables } : undefined,
+    );
   }, [
     autoStartKey,
-    internalVoice.isConnecting,
-    internalVoice.startVoice,
-    internalVoice.status,
+    internalIsConnecting,
+    internalStatus,
     resolvedContextHint,
+    startVoice,
+    voiceDynamicVariables,
     voiceControls,
   ]);
 
@@ -141,7 +156,11 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
     } else if (onTalkClick) {
       onTalkClick();
     } else {
-      internalVoice.startVoice(resolvedContextHint);
+      startVoice(
+        resolvedContextHint,
+        undefined,
+        voiceDynamicVariables ? { dynamicVariables: voiceDynamicVariables } : undefined,
+      );
     }
   };
 

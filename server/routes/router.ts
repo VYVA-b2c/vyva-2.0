@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, count } from "drizzle-orm";
 import { db } from "../db.js";
 import {
   profiles,
@@ -8,6 +8,17 @@ import {
   agentDifficulty,
 } from "../../shared/schema.js";
 import { genderInstruction, inferProfileGender, type GrammaticalGender } from "../lib/userPersonalization.js";
+import { buildVoiceContext, type VoiceDynamicVariables } from "../lib/voiceContext.js";
+import {
+  formatMemoryBlock,
+  getMem0ApiKey,
+  scheduleMem0Add,
+  searchMemories,
+  type Mem0Memory,
+} from "../lib/mem0.js";
+import { buildAgentOperatingRules, buildConversationPlan } from "../lib/voiceAgentPolicy.js";
+import { formatConversationPlanPrompt, selectVoiceConversationPlan } from "../lib/voiceConversationPlans.js";
+import { signMedicalProfileToolToken } from "../lib/jwt.js";
 import { buildUserConversationContext, formatConversationContextForPrompt } from "../lib/conversationContext.js";
 
 type RoutingDomain =
@@ -27,6 +38,7 @@ type RouterRequestBody = {
   conversation_history: ConversationTurn[];
   last_assistant_metadata?: { escalate_to?: string };
   store_next_turn_override?: string;
+  app_entrypoint?: string;
 };
 
 const DOMAIN_ORDER: Exclude<RoutingDomain, "safety" | "companion">[] = [
@@ -85,7 +97,7 @@ const HEALTH_KEYWORDS = [
   "worried about my health", "i think i might have", "not feeling well",
   "feel dizzy", "blood pressure", "my head feels", "my chest", "my back",
   "my knee", "breathless", "symptom", "nausea", "temperature", "unwell",
-  "doctor", "hurts", "ache", "pain",
+  "doctor", "health", "vitals", "vital signs", "hurts", "ache", "pain",
   "allergy", "allergies", "allergic", "allergen", "anaphylaxis", "hives", "rash",
   "epipen", "antihistamine", "hay fever", "pollen", "dust mite",
   "natural remedy for", "natural remedies for", "remedy for my allerg", "allergic reaction",
@@ -110,11 +122,20 @@ const NEWS_FOR_COMPANION = [
 const BRAIN_COACH_KEYWORDS = [
   "memory game", "brain exercise", "brain training", "test my memory",
   "let's do a game", "lets do a game", "exercise my brain", "scrabble",
-  "trivia", "puzzle", "cognitive", "quiz", "logic", "game", "practice",
+  "trivia", "puzzle", "cognitive", "cognition", "quiz", "logic", "game", "practice",
 ];
 const STORY_FOR_COMPANION = ["tell me a story", "read me", "\\bstory\\b"];
 
 const THRESHOLD = 0.55;
+
+const ROUTING_HINTS: Array<{ domain: RoutingDomain; patterns: string[] }> = [
+  { domain: "safety", patterns: ["urgent health", "emergency help", "safety", "scam guard"] },
+  { domain: "meds", patterns: ["medication", "medicine", "meds", "prescription", "pill", "tablet"] },
+  { domain: "health", patterns: ["health", "doctor", "medical", "vitals", "vital signs", "signos", "symptom", "allergy", "allergies"] },
+  { domain: "concierge", patterns: ["concierge", "appointment", "schedule", "taxi", "shopping"] },
+  { domain: "brain_coach", patterns: ["brain", "cognitive", "cognition", "memory", "activity", "activities"] },
+  { domain: "companion", patterns: ["companion", "community", "social", "social rooms"] },
+];
 
 function countKeywordHits(utterance: string, patterns: string[]): number {
   let n = 0;
@@ -151,7 +172,21 @@ function healthDisallowedTiredOnly(utterance: string): boolean {
   return countKeywordHits(utterance, HEALTH_BODY_OR_SYMPTOM) === 0;
 }
 
+function classifyRoutingHint(utterance: string): RoutingDomain | null {
+  const normalized = utterance.toLowerCase().replace(/\s+/g, " ").trim();
+  if (!normalized) return null;
+  for (const hint of ROUTING_HINTS) {
+    if (hint.patterns.some((pattern) => normalized === pattern || normalized.includes(pattern))) {
+      return hint.domain;
+    }
+  }
+  return null;
+}
+
 function classifyIntent(utterance: string): { domain: RoutingDomain; confidence: number } {
+  const hintedDomain = classifyRoutingHint(utterance);
+  if (hintedDomain) return { domain: hintedDomain, confidence: 1 };
+
   for (const domain of DOMAIN_ORDER) {
     let hits = 0;
     if (domain === "meds") {
@@ -205,72 +240,107 @@ function firstName(fullName: string | null): string {
   return fullName.trim().split(/\s+/)[0] ?? "friend";
 }
 
-type Mem0Memory = { memory?: string; content?: string; text?: string };
-
-async function searchMemories(query: string, mem0UserId: string, apiKey: string): Promise<Mem0Memory[]> {
-  const headers = {
-    Authorization: `Token ${apiKey}`,
-    "Content-Type": "application/json",
-    Accept: "application/json",
+function buildRouteDynamicVariables(data: {
+  domain: RoutingDomain;
+  confidence: number;
+  sessionId: string;
+  turnCount: number;
+  lastAgent: string | null;
+  lastTopic: string;
+  timeOfDay: string;
+  firstName: string;
+  memoryBlock: string;
+  brainCoachStreak?: number;
+  difficultyLevel?: number;
+  difficultySessionsAtLevel?: number;
+  difficultyLastScore?: number | null;
+}) {
+  const variables: Record<string, string | number | boolean> = {
+    routing_domain: data.domain,
+    intent_confidence: data.confidence,
+    session_id: data.sessionId,
+    turn_count: data.turnCount,
+    last_agent: data.lastAgent ?? "",
+    last_topic: data.lastTopic,
+    time_of_day: data.timeOfDay,
+    first_name: data.firstName,
+    memory_block: data.memoryBlock || "(no memory retrieved)",
   };
-  const tryV1 = await fetch("https://api.mem0.ai/v1/memories/search/", {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ query, user_id: mem0UserId, limit: 5 }),
-  }).catch(() => null);
 
-  if (tryV1?.ok) {
-    const data = await tryV1.json().catch(() => null);
-    const list = normalizeMem0SearchResponse(data);
-    if (list.length) return list;
+  if (data.brainCoachStreak !== undefined) {
+    variables.brain_coach_streak = data.brainCoachStreak;
+  }
+  if (data.difficultyLevel !== undefined) {
+    variables.difficulty_level = data.difficultyLevel;
+    variables.difficulty_sessions_at_level = data.difficultySessionsAtLevel ?? 0;
+    variables.difficulty_last_score = data.difficultyLastScore ?? "";
   }
 
-  const tryV2 = await fetch("https://api.mem0.ai/v2/memories/search/", {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ query, filters: { user_id: mem0UserId }, top_k: 5 }),
-  }).catch(() => null);
-
-  if (tryV2?.ok) {
-    const data = await tryV2.json().catch(() => null);
-    return normalizeMem0SearchResponse(data);
-  }
-  return [];
+  return variables;
 }
 
-function normalizeMem0SearchResponse(data: unknown): Mem0Memory[] {
-  if (!data) return [];
-  if (Array.isArray(data)) return data as Mem0Memory[];
-  if (typeof data === "object" && data !== null) {
-    const o = data as Record<string, unknown>;
-    if (Array.isArray(o.memories)) return o.memories as Mem0Memory[];
-    if (Array.isArray(o.results)) return o.results as Mem0Memory[];
-  }
-  return [];
+function contextValue(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
 }
 
-function memoryText(m: Mem0Memory): string {
-  const s = m.memory ?? m.content ?? m.text ?? "";
-  return typeof s === "string" ? s.trim() : "";
-}
-
-function formatMemoryBlock(memories: Mem0Memory[]): string {
-  const top = memories.slice(0, 3).map(memoryText).filter(Boolean);
-  if (!top.length) return "";
-  const labels = ["Margaret mentioned", "Margaret likes", "Margaret also shared"];
-  return top.map((t, i) => `${labels[i] ?? "Memory"}: ${t}.`).join(" ");
-}
-
-function scheduleMem0Add(mem0UserId: string, messages: ConversationTurn[], apiKey: string): void {
-  fetch("https://api.mem0.ai/v1/memories/", {
-    method: "POST",
-    headers: {
-      Authorization: `Token ${apiKey}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({ user_id: mem0UserId, messages }),
-  }).catch((e) => console.error("[mem0] add error:", e));
+function buildVoiceContextPromptBlock(voiceContext: VoiceDynamicVariables) {
+  return [
+    `Profile summary: ${contextValue(voiceContext.profile_summary) || "Not recorded"}`,
+    `First voice session: ${contextValue(voiceContext.is_first_voice_session) || "false"}`,
+    `Prior voice exchanges: ${contextValue(voiceContext.prior_voice_exchange_count) || "0"}`,
+    contextValue(voiceContext.app_entrypoint) ? `App entrypoint: ${contextValue(voiceContext.app_entrypoint)}` : "",
+    contextValue(voiceContext.memory_block) ? `Memory: ${contextValue(voiceContext.memory_block)}` : "",
+    contextValue(voiceContext.orchestrator_context)
+      ? `Orchestrator context: ${contextValue(voiceContext.orchestrator_context)}`
+      : "",
+    contextValue(voiceContext.last_visit_activity)
+      ? `Relationship continuity: ${contextValue(voiceContext.last_visit_activity)}`
+      : "",
+    contextValue(voiceContext.app_insight_context)
+      ? `App insight: ${contextValue(voiceContext.app_insight_context)}`
+      : "",
+    contextValue(voiceContext.personalisation_opportunities)
+      ? `Personalisation opportunities: ${contextValue(voiceContext.personalisation_opportunities)}`
+      : "",
+    contextValue(voiceContext.preference_context) ? `Preference context: ${contextValue(voiceContext.preference_context)}` : "",
+    contextValue(voiceContext.birthday_context) ? `Birthday context: ${contextValue(voiceContext.birthday_context)}` : "",
+    contextValue(voiceContext.upcoming_events) ? `Upcoming events: ${contextValue(voiceContext.upcoming_events)}` : "",
+    contextValue(voiceContext.recent_activity_summary)
+      ? `Recent activity: ${contextValue(voiceContext.recent_activity_summary)}`
+      : "",
+    contextValue(voiceContext.social_activity_summary)
+      ? `Recent social activity: ${contextValue(voiceContext.social_activity_summary)}`
+      : "",
+    contextValue(voiceContext.nearby_events_of_interest)
+      ? `Nearby interest opportunities: ${contextValue(voiceContext.nearby_events_of_interest)}`
+      : "",
+    contextValue(voiceContext.matching_social_rooms)
+      ? `Good-fit social rooms: ${contextValue(voiceContext.matching_social_rooms)}`
+      : "",
+    contextValue(voiceContext.social_context) ? `Social context: ${contextValue(voiceContext.social_context)}` : "",
+    contextValue(voiceContext.health_profile_summary) ? `Health profile summary: ${contextValue(voiceContext.health_profile_summary)}` : "",
+    contextValue(voiceContext.health_context) ? `Health context: ${contextValue(voiceContext.health_context)}` : "",
+    contextValue(voiceContext.latest_vitals_scan) ? `Latest vitals scan: ${contextValue(voiceContext.latest_vitals_scan)}` : "",
+    contextValue(voiceContext.vitals_trend) ? `Vitals trend: ${contextValue(voiceContext.vitals_trend)}` : "",
+    contextValue(voiceContext.latest_symptom_report) ? `Latest symptom report: ${contextValue(voiceContext.latest_symptom_report)}` : "",
+    contextValue(voiceContext.medication_adherence_summary)
+      ? `Medication adherence summary: ${contextValue(voiceContext.medication_adherence_summary)}`
+      : "",
+    contextValue(voiceContext.medication_interaction_context)
+      ? `Medication interaction context: ${contextValue(voiceContext.medication_interaction_context)}`
+      : "",
+    contextValue(voiceContext.latest_medical_visit) ? `Latest medical visit: ${contextValue(voiceContext.latest_medical_visit)}` : "",
+    contextValue(voiceContext.upcoming_medical_appointment)
+      ? `Upcoming medical appointment: ${contextValue(voiceContext.upcoming_medical_appointment)}`
+      : "",
+    contextValue(voiceContext.location_context) ? `Location context: ${contextValue(voiceContext.location_context)}` : "",
+    contextValue(voiceContext.communication_preferences)
+      ? `Communication preferences: ${contextValue(voiceContext.communication_preferences)}`
+      : "",
+    contextValue(voiceContext.safety_context) ? `Safety context: ${contextValue(voiceContext.safety_context)}` : "",
+  ].filter(Boolean).join("\n").slice(0, 8000);
 }
 
 function buildMem0Messages(history: ConversationTurn[], utterance: string): ConversationTurn[] {
@@ -372,6 +442,14 @@ async function getBrainCoachStreak(sessionId: string, userId: string): Promise<n
   return streak;
 }
 
+async function getPriorVoiceExchangeCount(userId: string): Promise<number> {
+  const rows = await db
+    .select({ value: count() })
+    .from(sessionExchanges)
+    .where(eq(sessionExchanges.user_id, userId));
+  return Number(rows[0]?.value ?? 0);
+}
+
 export async function routerHandler(req: Request, res: Response) {
   const body = req.body as RouterRequestBody;
   const { user_id, session_id, utterance, conversation_history } = body;
@@ -381,6 +459,11 @@ export async function routerHandler(req: Request, res: Response) {
   }
 
   const history = Array.isArray(conversation_history) ? conversation_history : [];
+  const appEntrypoint = typeof body.app_entrypoint === "string" && body.app_entrypoint.trim()
+    ? body.app_entrypoint.trim()
+    : utterance === "app_open"
+    ? "app_open"
+    : "";
 
   let domain: RoutingDomain;
   let confidence: number;
@@ -391,10 +474,11 @@ export async function routerHandler(req: Request, res: Response) {
     domain = "safety";
     confidence = 1;
 
-    const mem0Key = process.env.MEM0_API_KEY ?? "";
-    const [profileSafe, prevSafe, conversationContextSafe] = await Promise.all([
+    const mem0Key = getMem0ApiKey();
+    const [profileSafe, prevSafe, priorVoiceExchangeCountSafe, conversationContextSafe] = await Promise.all([
       getProfile(user_id).catch(() => null),
       getSessionState(session_id).catch(() => null),
+      getPriorVoiceExchangeCount(user_id).catch(() => 0),
       buildUserConversationContext(user_id).catch(() => null),
     ]);
 
@@ -409,13 +493,31 @@ export async function routerHandler(req: Request, res: Response) {
     const nowSafe = new Date();
     const memoryBlockSafe = formatMemoryBlock(memoriesSafe);
     const lastTopicSafe = prevSafe?.last_intent ?? prevSafe?.last_agent ?? "general chat";
+    const conversationPlanSafe = selectVoiceConversationPlan({
+      domain: "safety",
+      appEntrypoint,
+      priorVoiceExchangeCount: priorVoiceExchangeCountSafe,
+    });
+    const voiceContext = await buildVoiceContext(user_id, "safety", utterance, {
+      appEntrypoint,
+      priorVoiceExchangeCount: priorVoiceExchangeCountSafe,
+    }).catch((err) => {
+      console.warn("[router] voice context unavailable:", err);
+      return {};
+    });
 
     const system_prompt_override = [
+      buildAgentOperatingRules("safety"),
+      "",
+      `VOICE CONTEXT BLOCK:\n${buildVoiceContextPromptBlock(voiceContext)}`,
+      "",
       memoryBlockSafe ? `MEMORY BLOCK:\n${memoryBlockSafe}` : "MEMORY BLOCK:\n(no memory retrieved)",
       "",
       formatConversationContextForPrompt(conversationContextSafe),
       "",
       `SESSION BLOCK:\nCurrent agent domain: safety.\nLast topic discussed: ${lastTopicSafe}.\nTime of day (UTC bucket): ${timeOfDayLabel(nowSafe)}.\nUser first name: ${firstSafe}.\n${genderInstruction(genderSafe)}\n`,
+      `CONVERSATION PLAN:\n${formatConversationPlanPrompt(conversationPlanSafe) || buildConversationPlan("safety")}`,
+      "",
       "URGENT: Treat this as a potential safety or crisis situation. Prioritise calm, clear guidance and appropriate escalation.",
     ].join("\n");
 
@@ -440,13 +542,28 @@ export async function routerHandler(req: Request, res: Response) {
     const agent_id = agentIdForDomain("safety");
     return res.json({
       agent_id, system_prompt_override,
+      dynamic_variables: {
+        ...voiceContext,
+        ...buildRouteDynamicVariables({
+          domain: "safety",
+          confidence,
+          sessionId: session_id,
+          turnCount: newTurnSafe,
+          lastAgent: lastAgentBeforeSafe,
+          lastTopic: lastTopicSafe,
+          timeOfDay: timeOfDayLabel(nowSafe),
+          firstName: firstSafe,
+          memoryBlock: memoryBlockSafe,
+        }),
+      },
       session_data: { domain: "safety", intent_confidence: confidence, session_id, turn_count: newTurnSafe, last_agent: lastAgentBeforeSafe },
     });
   }
 
-  const [profile, sessionRow] = await Promise.all([
+  const [profile, sessionRow, priorVoiceExchangeCount] = await Promise.all([
     getProfile(user_id).catch(() => null),
     getSessionState(session_id).catch(() => null),
+    getPriorVoiceExchangeCount(user_id).catch(() => 0),
   ]);
 
   const fromBody = resolveEscalationDomain(body.last_assistant_metadata?.escalate_to);
@@ -466,7 +583,7 @@ export async function routerHandler(req: Request, res: Response) {
     confidence = c.confidence;
   }
 
-  const mem0Key = process.env.MEM0_API_KEY ?? "";
+  const mem0Key = getMem0ApiKey();
   const mem0UserId = profile?.mem0_user_id?.trim() || user_id;
   let memories: Mem0Memory[] = [];
   if (mem0Key) {
@@ -500,13 +617,31 @@ export async function routerHandler(req: Request, res: Response) {
       `Difficulty context: level ${diffRow.difficulty_level}, sessions_at_level ${diffRow.sessions_at_level}, last_score ${diffRow.last_score ?? "n/a"}.`
     );
   }
+  const conversationPlan = selectVoiceConversationPlan({
+    domain,
+    appEntrypoint,
+    priorVoiceExchangeCount,
+  });
+  const voiceContext = await buildVoiceContext(user_id, domain, utterance, {
+    appEntrypoint,
+    priorVoiceExchangeCount,
+  }).catch((err) => {
+    console.warn("[router] voice context unavailable:", err);
+    return {};
+  });
 
   const system_prompt_override = [
+    buildAgentOperatingRules(domain),
+    "",
+    `VOICE CONTEXT BLOCK:\n${buildVoiceContextPromptBlock(voiceContext)}`,
+    "",
     memoryBlock ? `MEMORY BLOCK:\n${memoryBlock}` : "MEMORY BLOCK:\n(no memory retrieved)",
     "",
     formatConversationContextForPrompt(conversationContext),
     "",
     `SESSION BLOCK:\n${sessionBlockLines.join("\n")}`,
+    "",
+    `CONVERSATION PLAN:\n${formatConversationPlanPrompt(conversationPlan) || buildConversationPlan(domain)}`,
   ].join("\n");
 
   const newTurn = (sessionRow?.turn_count ?? 0) + 1;
@@ -531,9 +666,42 @@ export async function routerHandler(req: Request, res: Response) {
 
   const agent_id = agentIdForDomain(domain);
   if (!agent_id) console.error(`Missing env for domain ${domain}: ${AGENT_ENV_MAP[domain]}`);
+  const medicalProfileToolToken = ["health", "meds", "safety"].includes(domain)
+    ? await signMedicalProfileToolToken(user_id, session_id).catch((err) => {
+        console.warn("[router] medical profile tool token unavailable:", err);
+        return "";
+      })
+    : "";
 
   return res.json({
     agent_id, system_prompt_override,
+    dynamic_variables: {
+      ...voiceContext,
+      ...buildRouteDynamicVariables({
+        domain,
+        confidence,
+        sessionId: session_id,
+        turnCount: newTurn,
+        lastAgent: lastAgentBefore,
+        lastTopic,
+        timeOfDay: timeOfDayLabel(now),
+        firstName: first,
+        memoryBlock,
+        ...(domain === "brain_coach" ? { brainCoachStreak: streak } : {}),
+        ...(diffRow ? {
+          difficultyLevel: diffRow.difficulty_level,
+          difficultySessionsAtLevel: diffRow.sessions_at_level,
+          difficultyLastScore: diffRow.last_score,
+        } : {}),
+      }),
+      ...(medicalProfileToolToken
+        ? {
+            conversation_id: session_id,
+            context_token: medicalProfileToolToken,
+            medical_profile_token: medicalProfileToolToken,
+          }
+        : {}),
+    },
     session_data: { domain, intent_confidence: confidence, session_id, turn_count: newTurn, last_agent: lastAgentBefore },
   });
 }

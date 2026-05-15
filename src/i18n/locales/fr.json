@@ -255,7 +255,7 @@
     "active": "Active",
     "live": "En direct",
     "you": "Vous",
-    "endCall": "Terminer l'appel"
+    "endCall": "Mettre en pause"
   },
   "timezoneGroups": {
     "europe": "Europe",
@@ -1291,7 +1291,7 @@
     "callCompanionSubtitle": "Conseils en direct pendant un appel suspect",
     "callCompanionDesc": "Activez VYVA pendant un appel suspect. Demandez quoi dire, quoi éviter et si vous devez raccrocher.",
     "callCompanionStart": "Démarrer l’assistant",
-    "callCompanionEnd": "Terminer l’appel",
+    "callCompanionEnd": "Mettre l’aide en pause",
     "callCompanionConnecting": "Connexion…"
   },
   "community": {

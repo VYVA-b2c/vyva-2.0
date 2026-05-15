@@ -224,7 +224,7 @@
     "active": "Actif",
     "live": "Byw",
     "you": "Chi",
-    "endCall": "Gorffen yr alwad"
+    "endCall": "Seibio gwrando"
   },
   "timezoneGroups": {
     "europe": "Ewrop",
@@ -1235,7 +1235,7 @@
     "callCompanionSubtitle": "Arweiniad byw yn ystod galwad amheus",
     "callCompanionDesc": "Dechreuwch VYVA yn ystod galwad amheus. Gofynnwch beth i’w ddweud, beth i’w osgoi, ac a ddylech chi roi’r ffôn i lawr.",
     "callCompanionStart": "Dechrau Cymrawd Galwad",
-    "callCompanionEnd": "Gorffen Galwad",
+    "callCompanionEnd": "Seibio cymorth",
     "callCompanionConnecting": "Yn cysylltu…"
   },
   "community": {

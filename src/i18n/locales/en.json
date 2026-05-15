@@ -267,7 +267,7 @@
     "active": "Active",
     "live": "Live",
     "you": "You",
-    "endCall": "End call"
+    "endCall": "Pause listening"
   },
   "timezoneGroups": {
     "europe": "Europe",
@@ -1364,7 +1364,7 @@
     "callCompanionSubtitle": "Get live guidance during a suspicious call",
     "callCompanionDesc": "Start VYVA on your phone while taking a suspicious call. Ask VYVA what to say, what to watch out for, and whether to hang up.",
     "callCompanionStart": "Start Call Companion",
-    "callCompanionEnd": "End Call",
+    "callCompanionEnd": "Pause guidance",
     "callCompanionConnecting": "Connecting…"
   },
   "community": {

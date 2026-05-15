@@ -255,7 +255,7 @@
     "active": "Aktiv",
     "live": "Live",
     "you": "Sie",
-    "endCall": "Anruf beenden"
+    "endCall": "Zuhören pausieren"
   },
   "timezoneGroups": {
     "europe": "Europa",
@@ -1276,7 +1276,7 @@
     "callCompanionSubtitle": "Live-Hilfe bei einem verdächtigen Anruf",
     "callCompanionDesc": "Starten Sie VYVA während eines verdächtigen Anrufs. Fragen Sie, was Sie sagen sollen und ob Sie auflegen sollten.",
     "callCompanionStart": "Anruf-Begleitung starten",
-    "callCompanionEnd": "Anruf beenden",
+    "callCompanionEnd": "Hilfe pausieren",
     "callCompanionConnecting": "Verbindung…"
   },
   "community": {

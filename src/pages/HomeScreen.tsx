@@ -214,7 +214,8 @@ const HomeScreen = () => {
           <span className="block">{greetingText}</span>
         }
         weatherData={weatherData}
-        contextHint="companion"
+        contextHint="app_open"
+        voiceDynamicVariables={{ app_entrypoint: "home_open" }}
         onChatClick={() => handleNavigate("/chat")}
       />
 

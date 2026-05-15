@@ -255,7 +255,7 @@
     "active": "Attiva",
     "live": "In diretta",
     "you": "Tu",
-    "endCall": "Termina chiamata"
+    "endCall": "Metti in pausa"
   },
   "timezoneGroups": {
     "europe": "Europa",
@@ -1276,7 +1276,7 @@
     "callCompanionSubtitle": "Guida in tempo reale durante una chiamata sospetta",
     "callCompanionDesc": "Attiva VYVA durante una chiamata sospetta. Chiedi cosa dire, cosa evitare e se riagganciare.",
     "callCompanionStart": "Avvia compagno di chiamata",
-    "callCompanionEnd": "Termina chiamata",
+    "callCompanionEnd": "Metti in pausa",
     "callCompanionConnecting": "Connessione…"
   },
   "community": {
