@@ -1,112 +1,36 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/queryClient";
 import {
-  Heart,
-  Wind,
   Activity,
-  Watch,
-  Stethoscope,
-  Plus,
-  ChevronDown,
-  ChevronUp,
-  Share2,
-  Phone,
-  ClipboardList,
-  Users,
-  CheckCircle2,
   AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronLeft,
+  ChevronUp,
+  ClipboardList,
+  Heart,
+  LucideIcon,
+  Phone,
+  Plus,
+  ScanLine,
+  Share2,
+  ShieldCheck,
+  Stethoscope,
+  Users,
+  Watch,
+  Wind,
   X,
 } from "lucide-react";
-import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
-import { BackButton, SectionTitle } from "@/components/vyva-ui";
+import VoiceHero from "@/components/VoiceHero";
+import VitalsScan from "@/components/VitalsScan";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
+import { apiFetch } from "@/lib/queryClient";
 
-const METRIC_META = {
-  hr: {
-    id: "hr",
-    Icon: Heart,
-    iconColor: "#BE123C",
-    iconBg: "#FFF1F2",
-    labelKey: "health.vitalsPage.metrics.hr.label",
-    labelFallback: "Heart rate",
-    unit: "bpm",
-    placeholderKey: "health.vitalsPage.metrics.hr.placeholder",
-    placeholderFallback: "e.g. 72",
-    statusKey: "health.vitalsPage.metrics.hr.defaultStatus",
-    statusFallback: "Normal",
-    statusColor: "#16A34A",
-    statusBg: "#F0FDF4",
-  },
-  rr: {
-    id: "rr",
-    Icon: Wind,
-    iconColor: "#0369A1",
-    iconBg: "#EFF6FF",
-    labelKey: "health.vitalsPage.metrics.rr.label",
-    labelFallback: "Respiratory rate",
-    unit: "rpm",
-    placeholderKey: "health.vitalsPage.metrics.rr.placeholder",
-    placeholderFallback: "e.g. 16",
-    statusKey: "health.vitalsPage.metrics.rr.defaultStatus",
-    statusFallback: "Stable",
-    statusColor: "#1D4ED8",
-    statusBg: "#EFF6FF",
-  },
-  bp: {
-    id: "bp",
-    Icon: Activity,
-    iconColor: "#7C3AED",
-    iconBg: "#F5F3FF",
-    labelKey: "health.vitalsPage.metrics.bp.label",
-    labelFallback: "Blood pressure",
-    unit: "mmHg",
-    placeholderKey: "health.vitalsPage.metrics.bp.placeholder",
-    placeholderFallback: "e.g. 118/76",
-    statusKey: "health.vitalsPage.metrics.bp.defaultStatus",
-    statusFallback: "Normal",
-    statusColor: "#16A34A",
-    statusBg: "#F0FDF4",
-  },
-} as const;
-
-type MetricType = keyof typeof METRIC_META;
-
-const DEVICE_META = [
-  {
-    id: "watch",
-    Icon: Watch,
-    labelKey: "health.vitalsPage.devices.watch.label",
-    labelFallback: "Smartwatch",
-    modelKey: "health.vitalsPage.devices.watch.model",
-    modelFallback: "VYVA Band 2",
-    connected: true,
-  },
-  {
-    id: "bp-cuff",
-    Icon: Activity,
-    labelKey: "health.vitalsPage.devices.bpCuff.label",
-    labelFallback: "Blood pressure cuff",
-    modelKey: "health.vitalsPage.devices.bpCuff.model",
-    modelFallback: "OmronConnect",
-    connected: true,
-  },
-  {
-    id: "stethoscope",
-    Icon: Stethoscope,
-    labelKey: "health.vitalsPage.devices.stethoscope.label",
-    labelFallback: "Digital stethoscope",
-    modelKey: "health.vitalsPage.devices.stethoscope.model",
-    modelFallback: "Eko DUO",
-    connected: false,
-  },
-];
-
-const DAY_LABELS = ["L", "M", "X", "J", "V", "S", "D"];
+type MetricType = "hr" | "rr" | "bp";
 
 interface VitalsSummaryEntry {
   latest_value: string | null;
@@ -120,15 +44,69 @@ interface VitalsResponse {
   compliance_days: boolean[];
 }
 
-function parseNumericValue(val: string | null): number | null {
-  if (!val) return null;
-  const n = parseFloat(val.split("/")[0]);
-  return isNaN(n) ? null : n;
+interface MetricMeta {
+  id: MetricType;
+  Icon: LucideIcon;
+  labelKey: string;
+  fallbackLabel: string;
+  unit: string;
+  placeholder: string;
+  accent: string;
+  soft: string;
+  range?: { low: number; high: number };
 }
 
-function buildTrend(trend: (string | null)[]): number[] {
-  const numeric = trend.map((v) => parseNumericValue(v) ?? 0);
-  return numeric;
+const METRIC_META: Record<MetricType, MetricMeta> = {
+  hr: {
+    id: "hr",
+    Icon: Heart,
+    labelKey: "statusVitals.metrics.heartRate",
+    fallbackLabel: "Heart rate",
+    unit: "bpm",
+    placeholder: "72",
+    accent: "#BE123C",
+    soft: "#FFF1F2",
+    range: { low: 50, high: 100 },
+  },
+  rr: {
+    id: "rr",
+    Icon: Wind,
+    labelKey: "statusVitals.metrics.respiration",
+    fallbackLabel: "Respiration",
+    unit: "rpm",
+    placeholder: "16",
+    accent: "#0369A1",
+    soft: "#EFF6FF",
+    range: { low: 12, high: 20 },
+  },
+  bp: {
+    id: "bp",
+    Icon: Activity,
+    labelKey: "statusVitals.metrics.bloodPressure",
+    fallbackLabel: "Blood pressure",
+    unit: "mmHg",
+    placeholder: "118/76",
+    accent: "#6B21A8",
+    soft: "#F5F3FF",
+  },
+};
+
+const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
+
+const DEVICE_ROWS = [
+  { id: "watch", Icon: Watch, label: "Smartwatch", model: "VYVA Band 2", connected: true },
+  { id: "bp-cuff", Icon: Activity, label: "Blood pressure cuff", model: "OmronConnect", connected: true },
+  { id: "stethoscope", Icon: Stethoscope, label: "Digital stethoscope", model: "Eko DUO", connected: false },
+];
+
+function parseNumericValue(value: string | null): number | null {
+  if (!value) return null;
+  const parsed = Number.parseFloat(value.split("/")[0]);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function buildTrend(values: (string | null)[]): number[] {
+  return values.map((value) => parseNumericValue(value) ?? 0);
 }
 
 function focusedMetricFromVoice(value: string): MetricType | null {
@@ -139,40 +117,50 @@ function focusedMetricFromVoice(value: string): MetricType | null {
   return null;
 }
 
-function formatRecordedAt(
-  iso: string | null,
-  locale: string,
-  labels: { today: string; yesterday: string },
-): string {
-  if (!iso) return "-";
-  const d = new Date(iso);
+function formatRecordedAt(iso: string | null, language: string): string {
+  if (!iso) return "--";
+  const date = new Date(iso);
   const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffH = diffMs / (1000 * 60 * 60);
-  if (diffH < 24) {
-    return `${labels.today}, ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+  const diffHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+
+  if (diffHours < 24) {
+    return `${language.startsWith("es") ? "Hoy" : "Today"}, ${date.toLocaleTimeString(language, {
+      hour: "2-digit",
+      minute: "2-digit",
+    })}`;
   }
-  if (diffH < 48) return labels.yesterday;
-  return d.toLocaleDateString(locale, { day: "numeric", month: "short" });
+
+  if (diffHours < 48) return language.startsWith("es") ? "Ayer" : "Yesterday";
+  return date.toLocaleDateString(language, { day: "numeric", month: "short" });
 }
 
-function MiniBarChart({ values }: { values: number[] }) {
-  const max = Math.max(...values);
-  const min = Math.min(...values);
-  const range = max - min || 1;
+function getMetricState(meta: MetricMeta, value: string | null) {
+  const numeric = parseNumericValue(value);
+  if (!numeric) return { tone: "neutral", color: "#6B7280", bg: "#F3F4F6" };
+  if (!meta.range) return { tone: "logged", color: "#6B21A8", bg: "#F5F3FF" };
+  if (numeric < meta.range.low || numeric > meta.range.high) return { tone: "review", color: "#B45309", bg: "#FEF3C7" };
+  return { tone: "steady", color: "#047857", bg: "#D1FAE5" };
+}
+
+function MiniTrend({ values, accent }: { values: number[]; accent: string }) {
+  const nonZeroValues = values.filter((value) => value > 0);
+  const max = Math.max(...nonZeroValues, 1);
+  const min = Math.min(...nonZeroValues, max);
+  const range = Math.max(max - min, 1);
+
   return (
-    <div className="flex items-end gap-[3px] h-[36px] mt-3">
-      {values.map((v, i) => {
-        const height = Math.round(((v - min) / range) * 28) + 8;
+    <div className="mt-4 flex h-[42px] items-end gap-[5px]" aria-hidden="true">
+      {values.map((value, index) => {
+        const hasValue = value > 0;
+        const height = hasValue ? Math.round(((value - min) / range) * 26) + 12 : 8;
         return (
           <div
-            key={i}
+            key={`${value}-${index}`}
+            className="flex-1 rounded-full"
             style={{
               height,
-              flex: 1,
-              borderRadius: 3,
-              background: i === values.length - 1 ? "#6B21A8" : "hsl(var(--vyva-warm2))",
-              opacity: i === values.length - 1 ? 1 : 0.6,
+              background: hasValue ? accent : "#E8DED4",
+              opacity: index === values.length - 1 && hasValue ? 1 : 0.5,
             }}
           />
         );
@@ -184,230 +172,239 @@ function MiniBarChart({ values }: { values: number[] }) {
 function MetricCard({
   metricKey,
   summary,
+  t,
   highlighted = false,
 }: {
   metricKey: MetricType;
-  summary: VitalsSummaryEntry | undefined;
+  summary?: VitalsSummaryEntry;
+  t: (key: string, fallback: string) => string;
   highlighted?: boolean;
 }) {
-  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const meta = METRIC_META[metricKey];
-  const { Icon, iconColor, iconBg, unit, statusColor, statusBg } = meta;
-  const label = t(meta.labelKey, meta.labelFallback);
-  const defaultStatus = t(meta.statusKey, meta.statusFallback);
-
-  const hasData = summary?.has_data === true;
-  const displayValue = hasData ? (summary?.latest_value ?? "—") : "—";
   const trend = buildTrend(summary?.trend ?? Array(7).fill(null));
-  const hasTrendData = hasData && trend.some((v) => v > 0);
+  const hasData = summary?.has_data === true;
+  const displayValue = hasData ? summary?.latest_value ?? "--" : "--";
+  const hasTrend = trend.some((value) => value > 0);
+  const state = getMetricState(meta, summary?.latest_value ?? null);
+  const stateLabel =
+    state.tone === "steady"
+      ? t("statusVitals.status.steady", "Steady")
+      : state.tone === "review"
+      ? t("statusVitals.status.review", "Review")
+      : state.tone === "logged"
+      ? t("statusVitals.status.logged", "Logged")
+      : t("statusVitals.status.noData", "No data");
+  const Icon = meta.Icon;
 
   return (
-    <div
-      className={`vyva-card p-4 transition-all ${highlighted ? "ring-2 ring-emerald-200 bg-emerald-50" : ""}`}
+    <section
+      className={`rounded-[24px] border border-[#EDE5DB] bg-white p-4 shadow-[0_8px_24px_rgba(63,45,35,0.06)] ${
+        highlighted ? "ring-2 ring-emerald-200" : ""
+      }`}
+      data-testid={`card-vital-${metricKey}`}
     >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div
-            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-            style={{ background: iconBg }}
-          >
-            <Icon size={18} style={{ color: iconColor }} />
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px]" style={{ background: meta.soft }}>
+            <Icon size={21} style={{ color: meta.accent }} />
           </div>
-          <div>
-            <p className="font-body text-[12px] text-vyva-text-2">{label}</p>
-            <p className="font-body text-[22px] font-bold text-vyva-text-1 leading-tight">
-              {displayValue === "—"
-                ? <span className="text-vyva-text-2 font-normal text-[16px]">{t("health.vitalsPage.noData", "No data")}</span>
-                : (
-                  <>
-                    {displayValue}
-                    <span className="text-[13px] font-normal ml-1 text-vyva-text-2">{unit}</span>
-                  </>
-                )}
+          <div className="min-w-0">
+            <p className="font-body text-[13px] font-semibold text-vyva-text-2">
+              {t(meta.labelKey, meta.fallbackLabel)}
+            </p>
+            <p className="mt-1 font-body text-[28px] font-bold leading-none text-vyva-text-1">
+              {displayValue === "--" ? (
+                <span className="text-[17px] font-semibold text-vyva-text-2">{t("statusVitals.emptyMetric", "No reading")}</span>
+              ) : (
+                <>
+                  {displayValue}
+                  <span className="ml-1 text-[13px] font-semibold text-vyva-text-2">{meta.unit}</span>
+                </>
+              )}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {hasData && (
-            <span
-              className="font-body text-[11px] font-semibold px-[10px] py-[3px] rounded-full"
-              style={{ color: statusColor, background: statusBg }}
-            >
-              {defaultStatus}
-            </span>
-          )}
-          {hasTrendData && (
+        <div className="flex flex-col items-end gap-2">
+          <span className="rounded-full px-3 py-1 font-body text-[11px] font-bold" style={{ color: state.color, background: state.bg }}>
+            {stateLabel}
+          </span>
+          {hasTrend && (
             <button
-              onClick={() => setExpanded((v) => !v)}
+              type="button"
+              onClick={() => setExpanded((value) => !value)}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F7F1E9] text-vyva-text-2 active:scale-95"
+              aria-label={expanded ? t("statusVitals.collapseTrend", "Hide trend") : t("statusVitals.expandTrend", "Show trend")}
               data-testid={`button-metric-expand-${metricKey}`}
-              className="w-12 h-12 rounded-full flex items-center justify-center transition-colors"
-              style={{ background: "hsl(var(--vyva-warm))" }}
-              aria-label={expanded
-                ? t("health.vitalsPage.collapseTrend", "Collapse trend")
-                : t("health.vitalsPage.expandTrend", "View trend")}
             >
-              {expanded
-                ? <ChevronUp size={16} className="text-vyva-text-2" />
-                : <ChevronDown size={16} className="text-vyva-text-2" />}
+              {expanded ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
             </button>
           )}
         </div>
       </div>
-
-      {expanded && hasTrendData && (
-        <div className="mt-2 pt-3 border-t border-vyva-warm">
-          <p className="font-body text-[11px] text-vyva-text-2 mb-1">{t("health.vitalsPage.trend7d", "Last 7 days")}</p>
-          <MiniBarChart values={trend} />
+      {expanded && hasTrend && (
+        <div className="mt-4 border-t border-[#EFE5DC] pt-3">
+          <div className="flex items-center justify-between">
+            <p className="font-body text-[12px] font-semibold uppercase tracking-[0.08em] text-vyva-text-2">
+              {t("statusVitals.sevenDayTrend", "7-day trend")}
+            </p>
+            <p className="font-body text-[12px] text-vyva-text-3">{t("statusVitals.latestRight", "Latest at right")}</p>
+          </div>
+          <MiniTrend values={trend} accent={meta.accent} />
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
-function EventDot({ level }: { level: string }) {
-  const colors: Record<string, string> = {
-    amber: "#D97706",
-    green: "#16A34A",
-    neutral: "#9CA3AF",
-  };
-  return (
-    <div
-      className="w-2 h-2 rounded-full mt-[6px] flex-shrink-0"
-      style={{ background: colors[level] ?? "#9CA3AF" }}
-    />
-  );
-}
-
-function LogReadingModal({
-  onClose,
-  onSaved,
-}: {
-  onClose: () => void;
-  onSaved: () => void;
-}) {
+function LogReadingModal({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
-  const [metricType, setMetricType] = useState<MetricType>("hr");
-  const [value, setValue] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [metricType, setMetricType] = useState<MetricType>("hr");
+  const [value, setValue] = useState("");
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const res = await apiFetch("/api/vitals", {
+      const response = await apiFetch("/api/vitals", {
         method: "POST",
         body: JSON.stringify({ metric_type: metricType, value: value.trim() }),
       });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error((body as { error?: string }).error ?? `HTTP ${res.status}`);
-      }
-      return res.json();
+      if (!response.ok) throw new Error("Failed to save reading");
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/vitals"] });
       toast({
-        title: t("health.vitalsPage.savedToastTitle", "Reading saved"),
-        description: t("health.vitalsPage.savedToastDescription", "Your vital sign was recorded."),
+        title: t("statusVitals.savedTitle", "Reading saved"),
+        description: t("statusVitals.savedBody", "Your vitals timeline has been updated."),
       });
-      onSaved();
+      onClose();
     },
     onError: () => {
       toast({
-        title: t("health.vitalsPage.saveErrorTitle", "Could not save reading"),
-        description: t("health.vitalsPage.saveErrorDescription", "Please try again."),
+        title: t("statusVitals.saveErrorTitle", "Could not save reading"),
+        description: t("statusVitals.saveErrorBody", "Please try again in a moment."),
         variant: "destructive",
       });
     },
   });
 
-  const handleSubmit = () => {
-    if (!value.trim()) return;
-    mutation.mutate();
-  };
-
-  const meta = METRIC_META[metricType];
-  const placeholder = t(meta.placeholderKey, meta.placeholderFallback);
+  const activeMetric = METRIC_META[metricType];
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center"
-      style={{ background: "rgba(0,0,0,0.45)" }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div
-        className="w-full max-w-md rounded-t-[24px] bg-white px-5 pt-5 pb-8"
-        style={{ boxShadow: "0 -4px 24px rgba(0,0,0,0.12)" }}
-      >
-        <div className="flex items-center justify-between mb-5">
-          <p className="font-display italic text-[18px] text-vyva-text-1">{t("health.vitalsPage.modalTitle", "Log reading")}</p>
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/45 px-0" onClick={(event) => event.currentTarget === event.target && onClose()}>
+      <section className="w-full max-w-[520px] rounded-t-[30px] bg-white px-5 pb-8 pt-4 shadow-[0_-16px_40px_rgba(31,24,18,0.18)]">
+        <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-[#E8DED4]" />
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="font-display text-[24px] italic leading-tight text-vyva-text-1">
+              {t("statusVitals.logTitle", "Log a reading")}
+            </h2>
+            <p className="mt-1 font-body text-[13px] text-vyva-text-2">
+              {t("statusVitals.logSubtitle", "Add the latest number from your device.")}
+            </p>
+          </div>
           <button
+            type="button"
             onClick={onClose}
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-[#F7F1E9]"
+            aria-label={t("common.close", "Close")}
             data-testid="button-close-log-modal"
-            className="w-9 h-9 rounded-full flex items-center justify-center"
-            style={{ background: "hsl(var(--vyva-warm))" }}
           >
-            <X size={16} className="text-vyva-text-2" />
+            <X size={18} />
           </button>
         </div>
 
-        <p className="font-body text-[12px] text-vyva-text-2 mb-2 font-semibold uppercase tracking-wide">
-          {t("health.vitalsPage.measurementType", "Measurement type")}
-        </p>
-        <div className="grid grid-cols-3 gap-2 mb-5">
+        <div className="mb-5 grid grid-cols-3 gap-2">
           {(Object.keys(METRIC_META) as MetricType[]).map((key) => {
-            const m = METRIC_META[key];
+            const meta = METRIC_META[key];
+            const Icon = meta.Icon;
             const active = metricType === key;
             return (
               <button
                 key={key}
-                onClick={() => { setMetricType(key); setValue(""); }}
-                data-testid={`button-metric-select-${key}`}
-                className="flex flex-col items-center gap-1 py-3 rounded-[14px] transition-all"
-                style={{
-                  background: active ? "#6B21A8" : "hsl(var(--vyva-warm))",
+                type="button"
+                onClick={() => {
+                  setMetricType(key);
+                  setValue("");
                 }}
+                className="flex min-h-[84px] flex-col items-center justify-center gap-2 rounded-[18px] border px-2 py-3 active:scale-[0.98]"
+                style={{
+                  background: active ? meta.accent : "#F9F6F2",
+                  borderColor: active ? meta.accent : "#EDE5DB",
+                  color: active ? "#FFFFFF" : meta.accent,
+                }}
+                data-testid={`button-metric-select-${key}`}
               >
-                <m.Icon size={16} style={{ color: active ? "#fff" : m.iconColor }} />
-                <span
-                  className="font-body text-[10px] font-semibold text-center leading-tight"
-                  style={{ color: active ? "#fff" : "#6B21A8" }}
-                >
-                  {m.unit}
-                </span>
+                <Icon size={18} />
+                <span className="font-body text-[11px] font-bold leading-tight">{meta.unit}</span>
               </button>
             );
           })}
         </div>
 
-        <p className="font-body text-[12px] text-vyva-text-2 mb-2 font-semibold uppercase tracking-wide">
-          {t("health.vitalsPage.valueLabel", "Value")} ({meta.unit})
-        </p>
+        <label className="mb-2 block font-body text-[12px] font-bold uppercase tracking-[0.1em] text-vyva-text-2" htmlFor="vitals-value-input">
+          {t(activeMetric.labelKey, activeMetric.fallbackLabel)} ({activeMetric.unit})
+        </label>
         <input
+          id="vitals-value-input"
           type="text"
           inputMode="decimal"
           value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder={placeholder}
+          onChange={(event) => setValue(event.target.value)}
+          placeholder={activeMetric.placeholder}
+          className="mb-5 w-full rounded-[18px] border-2 border-transparent bg-[#F7F1E9] px-4 py-4 font-body text-[22px] font-bold text-vyva-text-1 outline-none focus:border-[#6B21A8]"
           data-testid="input-vitals-value"
-          className="w-full rounded-[14px] px-4 py-[14px] font-body text-[18px] text-vyva-text-1 font-bold outline-none border-2 border-transparent focus:border-[#6B21A8] mb-5"
-          style={{ background: "hsl(var(--vyva-warm))" }}
         />
-
         <button
-          onClick={handleSubmit}
+          type="button"
+          onClick={() => mutation.mutate()}
           disabled={!value.trim() || mutation.isPending}
+          className="vyva-primary-action w-full"
           data-testid="button-save-vital"
-          className="w-full flex items-center justify-center gap-2 py-[14px] rounded-[14px] transition-all active:scale-[0.98] min-h-[52px] disabled:opacity-50"
-          style={{ background: "#6B21A8" }}
         >
-          <span className="font-body text-[14px] font-semibold text-white">
-            {mutation.isPending
-              ? t("health.vitalsPage.saving", "Saving...")
-              : t("health.vitalsPage.saveReading", "Save reading")}
-          </span>
+          {mutation.isPending ? t("statusVitals.saving", "Saving...") : t("statusVitals.saveReading", "Save reading")}
         </button>
-      </div>
+      </section>
+    </div>
+  );
+}
+
+function ScanModal({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+
+  return (
+    <div className="fixed inset-0 z-[80] flex justify-center bg-white">
+      <section className="flex min-h-screen w-full max-w-[520px] flex-col bg-[#FBF7F2]">
+        <div className="flex items-center justify-between border-b border-[#EDE5DB] bg-white px-5 py-4">
+          <div>
+            <h2 className="font-display text-[22px] italic text-vyva-text-1">
+              {t("statusVitals.scanTitle", "Vitals scan")}
+            </h2>
+            <p className="font-body text-[12px] text-vyva-text-2">
+              {t("statusVitals.scanSubtitle", "Camera-based pulse estimate")}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-[#F7F1E9]"
+            aria-label={t("common.close", "Close")}
+            data-testid="button-close-scan-modal"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <VitalsScan
+          onComplete={() => {
+            queryClient.invalidateQueries({ queryKey: ["/api/vitals"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/reports/vitals/history"] });
+            onClose();
+          }}
+        />
+      </section>
     </div>
   );
 }
@@ -415,7 +412,9 @@ function LogReadingModal({
 const SignosScreen = () => {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
+  const { toast } = useToast();
   const [showLogModal, setShowLogModal] = useState(false);
+  const [showScanModal, setShowScanModal] = useState(false);
   const { action: voiceAction, payloadValue: voicePayloadValue } = useVoiceActionFulfillment({
     domain: "health",
     actionTypes: ["health.vitals_review"],
@@ -423,30 +422,28 @@ const SignosScreen = () => {
 
   const { data: vitalsData, isLoading } = useQuery<VitalsResponse>({
     queryKey: ["/api/vitals"],
+    retry: false,
   });
 
-  const complianceDays = vitalsData?.compliance_days ?? Array(7).fill(false) as boolean[];
-  const filledDays = complianceDays.filter(Boolean).length;
-
   const summary = vitalsData?.summary;
+  const complianceDays = vitalsData?.compliance_days ?? (Array(7).fill(false) as boolean[]);
+  const filledDays = complianceDays.filter(Boolean).length;
+  const connectedDevices = DEVICE_ROWS.filter((device) => device.connected).length;
 
-  const latestReadingAt = (() => {
+  const latestReadingAt = useMemo(() => {
     if (!summary) return null;
-    const dates = (Object.values(summary) as VitalsSummaryEntry[])
-      .map((s) => s.latest_recorded_at)
+    const dates = Object.values(summary)
+      .map((entry) => entry.latest_recorded_at)
       .filter(Boolean) as string[];
-    if (!dates.length) return null;
-    return dates.sort().reverse()[0];
-  })();
+    return dates.sort().reverse()[0] ?? null;
+  }, [summary]);
 
-  const recordedAtLabels = {
-    today: t("health.vitalsPage.today", "Today"),
-    yesterday: t("health.vitalsPage.yesterday", "Yesterday"),
-  };
-  const subtitleText = latestReadingAt
-    ? `${t("health.vitalsPage.latestReadingLabel", "Latest reading")}: ${formatRecordedAt(latestReadingAt, i18n.language, recordedAtLabels)}`
-    : `${t("health.vitalsPage.latestReadingLabel", "Latest reading")}: -`;
-
+  const metricsWithData = (["hr", "rr", "bp"] as MetricType[]).filter((key) => summary?.[key]?.has_data).length;
+  const latestText = latestReadingAt
+    ? formatRecordedAt(latestReadingAt, i18n.language)
+    : t("statusVitals.noLatest", "No recent readings");
+  const completionPct = Math.round((filledDays / 7) * 100);
+  const overallGood = metricsWithData > 0 && filledDays >= 3;
   const focusedMetric = focusedMetricFromVoice(
     voicePayloadValue("vital_type")
       || voicePayloadValue("trend_focus")
@@ -457,316 +454,301 @@ const SignosScreen = () => {
   const voiceActionHighlights = [
     ...(focusedMetric
       ? [{
-          label: t("health.vitalsPage.metricHighlight", "Metric"),
-          value: t(METRIC_META[focusedMetric].labelKey, METRIC_META[focusedMetric].labelFallback),
+          label: t("statusVitals.voiceMetric", "Metric"),
+          value: t(METRIC_META[focusedMetric].labelKey, METRIC_META[focusedMetric].fallbackLabel),
           tone: "good" as const,
         }]
       : []),
     ...(focusedMetricSummary?.latest_value
       ? [{
-          label: t("health.vitalsPage.latestHighlight", "Latest"),
+          label: t("statusVitals.voiceLatest", "Latest"),
           value: `${focusedMetricSummary.latest_value} ${METRIC_META[focusedMetric!].unit}`,
           tone: "neutral" as const,
         }]
       : []),
     ...(latestReadingAt
       ? [{
-          label: t("health.vitalsPage.lastScanHighlight", "Last scan"),
-          value: formatRecordedAt(latestReadingAt, i18n.language, recordedAtLabels),
+          label: t("statusVitals.voiceLastScan", "Last scan"),
+          value: latestText,
           tone: "neutral" as const,
         }]
       : []),
   ];
 
+  const shareStatus = async () => {
+    const lines = (["hr", "rr", "bp"] as MetricType[]).map((key) => {
+      const meta = METRIC_META[key];
+      const value = summary?.[key]?.latest_value;
+      return `${t(meta.labelKey, meta.fallbackLabel)}: ${value ? `${value} ${meta.unit}` : t("statusVitals.noReading", "no reading")}`;
+    });
+    const text = `${t("statusVitals.shareTitle", "VYVA Status / Vitals")}\n${lines.join("\n")}\n${t("statusVitals.shareUpdated", "Updated")}: ${latestText}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: t("statusVitals.shareTitle", "VYVA Status / Vitals"), text });
+        return;
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") return;
+      }
+    }
+
+    await navigator.clipboard.writeText(text);
+    toast({ description: t("statusVitals.copied", "Vitals summary copied.") });
+  };
+
   return (
-    <div className="vyva-page">
-      <BackButton
-        to="/health"
-        label={t("common.back", "Back")}
-        data-testid="button-signos-back"
-        className="mb-5"
-      />
+    <div className="px-[18px] pb-10">
+      <div className="mb-2 mt-1 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => navigate("/health")}
+          data-testid="button-signos-back"
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-[0_4px_14px_rgba(63,45,35,0.08)] active:scale-95"
+          aria-label={t("common.back", "Back")}
+        >
+          <ChevronLeft size={20} className="text-vyva-text-1" />
+        </button>
+        <div className="min-w-0">
+          <p className="font-body text-[12px] font-bold uppercase tracking-[0.14em] text-vyva-text-3">
+            {t("health.quickTiles.status.label", "Status")}
+          </p>
+          <h1 className="font-display text-[24px] italic leading-tight text-vyva-text-1">
+            {t("statusVitals.title", "Status / Vitals")}
+          </h1>
+        </div>
+      </div>
 
       <VoiceHero
         heroSurface="vitals"
-        headline={t("health.vitalsPage.heroTitle", "Active monitoring")}
-        subtitle={subtitleText}
-        contextHint={t("health.vitalsPage.contextHint", "vital signs monitoring")}
-        talkLabel={t("health.vitalsPage.scanVitals", "Scan my vitals")}
+        sourceText={t("statusVitals.heroSource", "Status / Vitals")}
+        headline={t("statusVitals.heroHeadline", "Vitals are ready when you are")}
+        subtitle={latestReadingAt ? t("statusVitals.heroSubtitleWithLatest", `Last reading: ${latestText}`) : t("statusVitals.heroSubtitle", "Scan, log, and share your key health numbers.")}
+        contextHint="status vitals heart rate breathing blood pressure"
+        talkLabel={t("statusVitals.heroCta", "Ask about my vitals")}
       >
-        <div className="flex items-center gap-3 mt-4 pt-4 border-t border-white/15">
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full" style={{ background: "#34D399" }} />
-            <span className="font-body text-[12px]" style={{ color: "rgba(255,255,255,0.82)" }}>
-              {t("health.vitalsPage.activeDevices", "{{count}} active devices", { count: 3 })}
-            </span>
+        <div className="mt-4 grid grid-cols-3 gap-2 border-t border-white/15 pt-4">
+          <div>
+            <p className="font-body text-[18px] font-bold text-white">{metricsWithData}/3</p>
+            <p className="font-body text-[11px] leading-tight text-white/70">{t("statusVitals.heroMetrics", "metrics")}</p>
           </div>
-          <div className="w-[1px] h-[14px]" style={{ background: "rgba(255,255,255,0.2)" }} />
-          <span className="font-body text-[12px]" style={{ color: "rgba(255,255,255,0.82)" }}>
-            {t("health.vitalsPage.trackedDays", "{{count}}/7 days", { count: filledDays })}
-          </span>
+          <div>
+            <p className="font-body text-[18px] font-bold text-white">{filledDays}/7</p>
+            <p className="font-body text-[11px] leading-tight text-white/70">{t("statusVitals.heroDays", "days")}</p>
+          </div>
+          <div>
+            <p className="font-body text-[18px] font-bold text-white">{connectedDevices}</p>
+            <p className="font-body text-[11px] leading-tight text-white/70">{t("statusVitals.heroDevices", "devices")}</p>
+          </div>
         </div>
       </VoiceHero>
 
       <VoiceActionFulfillmentPanel
         domain="health"
         actionTypes={["health.vitals_review"]}
-        title={t("health.vitalsPage.contextPanelTitle", "Vitals context ready")}
-        description={t("health.vitalsPage.contextPanelDescription", "VYVA can use the latest readings, trend cards, and scan timing from this page.")}
+        title={t("statusVitals.contextPanelTitle", "Vitals context ready")}
+        description={t("statusVitals.contextPanelDescription", "VYVA can use the latest readings, trend cards, and scan timing from this page.")}
         highlights={voiceActionHighlights}
-        className="mt-4 mb-4"
+        className="mt-4"
       />
 
-      <div
-        className="vyva-card p-4 mb-4 mt-5 flex items-center gap-4"
+      <section
+        className="mt-5 rounded-[26px] border border-[#E4D9CE] bg-white p-4 shadow-[0_10px_28px_rgba(63,45,35,0.07)]"
         data-testid="card-general-status"
       >
-        <div
-          className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ background: "#F0FDF4" }}
-        >
-          <CheckCircle2 size={22} style={{ color: "#16A34A" }} />
+        <div className="flex items-start gap-3">
+          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px]" style={{ background: overallGood ? "#ECFDF5" : "#FFF7ED" }}>
+            {overallGood ? <CheckCircle2 size={23} style={{ color: "#047857" }} /> : <AlertTriangle size={23} style={{ color: "#B45309" }} />}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-body text-[13px] font-semibold text-vyva-text-2">
+                  {t("statusVitals.overallLabel", "Overall status")}
+                </p>
+                <p className="mt-1 font-body text-[17px] font-bold leading-snug text-vyva-text-1">
+                  {overallGood
+                    ? t("statusVitals.overallGood", "Stable pattern this week")
+                    : t("statusVitals.overallNeedsData", "Add a reading to complete today")}
+                </p>
+              </div>
+              <span
+                className="rounded-full px-3 py-1 font-body text-[11px] font-bold"
+                style={{
+                  background: overallGood ? "#D1FAE5" : "#FEF3C7",
+                  color: overallGood ? "#047857" : "#B45309",
+                }}
+              >
+                {overallGood ? t("health.statGood", "Good") : t("statusVitals.pending", "Pending")}
+              </span>
+            </div>
+            <p className="mt-3 font-body text-[13px] leading-relaxed text-vyva-text-2">
+              {t("statusVitals.overallBody", "Latest update")}: {latestText}
+            </p>
+          </div>
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-body text-[13px] text-vyva-text-2">{t("health.vitalsPage.generalStatusLabel", "General status")}</p>
-          <p className="font-body text-[16px] font-semibold text-vyva-text-1 leading-snug">
-            {t("health.vitalsPage.generalStatusValue", "Stable - no relevant changes")}
-          </p>
-        </div>
-        <span
-          className="font-body text-[11px] font-bold px-[10px] py-[3px] rounded-full flex-shrink-0"
-          style={{ color: "#16A34A", background: "#DCFCE7" }}
+      </section>
+
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <button
+          type="button"
+          onClick={() => setShowScanModal(true)}
+          className="flex min-h-[92px] flex-col justify-between rounded-[22px] bg-[#6B21A8] p-4 text-left shadow-[0_10px_24px_rgba(107,33,168,0.24)] active:scale-[0.98]"
+          data-testid="button-open-vitals-scan"
         >
-          {t("health.vitalsPage.generalStatusBadge", "Good")}
-        </span>
+          <ScanLine size={21} className="text-white" />
+          <span className="font-body text-[15px] font-bold leading-tight text-white">
+            {t("statusVitals.scanAction", "Scan vitals")}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowLogModal(true)}
+          className="flex min-h-[92px] flex-col justify-between rounded-[22px] border border-[#EDE5DB] bg-white p-4 text-left shadow-[0_8px_22px_rgba(63,45,35,0.06)] active:scale-[0.98]"
+          data-testid="button-log-reading"
+        >
+          <Plus size={21} style={{ color: "#6B21A8" }} />
+          <span className="font-body text-[15px] font-bold leading-tight text-vyva-text-1">
+            {t("statusVitals.logAction", "Log reading")}
+          </span>
+        </button>
       </div>
 
-      <SectionTitle
-        className="mb-3"
-        title={t("health.vitalsPage.keyMetrics", "Key metrics")}
-        titleClassName="font-body text-[16px] font-semibold not-italic text-vyva-text-2"
-        action={(
-          <button
-            onClick={() => setShowLogModal(true)}
-            data-testid="button-log-reading"
-            className="vyva-tap flex items-center gap-1.5 rounded-full px-3 py-[6px]"
-            style={{ background: "#6B21A8" }}
-          >
-            <Plus size={13} className="text-white" />
-            <span className="font-body text-[12px] font-semibold text-white">
-              {t("health.vitalsPage.logReading", "Log")}
-            </span>
-          </button>
-        )}
-      />
+      <div className="mb-3 mt-6 flex items-center justify-between">
+        <p className="font-body text-[13px] font-bold uppercase tracking-[0.11em] text-vyva-text-2">
+          {t("statusVitals.keyMetrics", "Key metrics")}
+        </p>
+        <button
+          type="button"
+          onClick={shareStatus}
+          className="flex min-h-[38px] items-center gap-2 rounded-full border border-[#DDD6FE] bg-white px-3 font-body text-[12px] font-bold text-[#6B21A8]"
+          data-testid="button-share-vitals-summary"
+        >
+          <Share2 size={14} />
+          {t("statusVitals.share", "Share")}
+        </button>
+      </div>
 
-      <div className="flex flex-col gap-3 mb-5">
+      <div className="flex flex-col gap-3">
         {isLoading
           ? (["hr", "rr", "bp"] as MetricType[]).map((key) => (
-              <div
-                key={key}
-                className="vyva-card h-[72px] animate-pulse p-4"
-              />
+              <div key={key} className="h-[112px] animate-pulse rounded-[24px] bg-white shadow-[0_8px_24px_rgba(63,45,35,0.06)]" />
             ))
           : (["hr", "rr", "bp"] as MetricType[]).map((key) => (
-              <MetricCard
-                key={key}
-                metricKey={key}
-                summary={summary?.[key]}
-                highlighted={focusedMetric === key}
-              />
+              <MetricCard key={key} metricKey={key} summary={summary?.[key]} t={t} highlighted={focusedMetric === key} />
             ))}
       </div>
 
-      <SectionTitle
-        className="mb-3"
-        title={t("health.vitalsPage.devicesTitle", "Devices")}
-        titleClassName="font-body text-[16px] font-semibold not-italic text-vyva-text-2"
-      />
-      <div className="vyva-card overflow-hidden mb-5">
-        {DEVICE_META.map((d, i) => (
-          <div
-            key={d.id}
-            data-testid={`row-device-${d.id}`}
-            className={`flex items-center gap-3 px-4 py-[14px] ${i < DEVICE_META.length - 1 ? "border-b border-vyva-warm" : ""}`}
-          >
-            <div
-              className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-              style={{ background: "hsl(var(--vyva-warm))" }}
-            >
-              <d.Icon size={16} className="text-vyva-text-2" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-body text-[14px] font-semibold text-vyva-text-1">{t(d.labelKey, d.labelFallback)}</p>
-              <p className="font-body text-[12px] text-vyva-text-2">{t(d.modelKey, d.modelFallback)}</p>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div
-                className="w-2 h-2 rounded-full"
-                style={{ background: d.connected ? "#16A34A" : "#D1D5DB" }}
-              />
-              <span
-                className="font-body text-[11px]"
-                style={{ color: d.connected ? "#16A34A" : "#9CA3AF" }}
-              >
-                {d.connected
-                  ? t("health.vitalsPage.connected", "Connected")
-                  : t("health.vitalsPage.disconnected", "Disconnected")}
-              </span>
-            </div>
+      <section className="mt-5 rounded-[24px] border border-[#EDE5DB] bg-white p-4 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="card-compliance">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <p className="font-body text-[13px] font-bold uppercase tracking-[0.11em] text-vyva-text-2">
+              {t("statusVitals.weeklyRhythm", "Weekly rhythm")}
+            </p>
+            <p className="mt-1 font-body text-[15px] font-bold text-vyva-text-1">
+              {t("statusVitals.daysWithReadings", `${filledDays} of 7 days with readings`)}
+            </p>
           </div>
-        ))}
-        <button
-          data-testid="button-add-device"
-          className="w-full flex items-center justify-center gap-2 py-3 border-t border-vyva-warm transition-colors active:bg-vyva-warm"
-        >
-          <Plus size={15} style={{ color: "#6B21A8" }} />
-          <span className="font-body text-[14px] font-semibold" style={{ color: "#6B21A8" }}>
-            {t("health.vitalsPage.addDevice", "Add device")}
-          </span>
-        </button>
-      </div>
-
-      <SectionTitle
-        className="mb-3"
-        title={t("health.vitalsPage.adherence", "Adherence")}
-        titleClassName="font-body text-[16px] font-semibold not-italic text-vyva-text-2"
-      />
-      <div
-        className="vyva-card p-4 mb-5"
-        data-testid="card-compliance"
-      >
-        <div className="flex items-center justify-between mb-3">
-          <p className="font-body text-[14px] font-semibold text-vyva-text-1">
-            {t("health.vitalsPage.complianceSummary", "{{count}} of 7 days with readings", { count: filledDays })}
-          </p>
-          <span
-            className="font-body text-[11px] font-semibold px-[10px] py-[3px] rounded-full"
-            style={{ color: "#D97706", background: "#FFF7ED" }}
-          >
-            {Math.round((filledDays / 7) * 100)}%
-          </span>
+          <span className="rounded-full bg-[#FFF7ED] px-3 py-1 font-body text-[12px] font-bold text-[#B45309]">{completionPct}%</span>
         </div>
-        <div className="flex gap-2">
-          {complianceDays.map((done, i) => (
-            <div key={i} className="flex flex-col items-center gap-1 flex-1">
+        <div className="grid grid-cols-7 gap-2">
+          {complianceDays.map((done, index) => (
+            <div key={`${index}-${done}`} className="flex flex-col items-center gap-1">
               <div
-                className="w-full rounded-[6px]"
+                className="h-8 w-full rounded-[10px]"
                 style={{
-                  height: 28,
-                  background: done ? "#6B21A8" : "hsl(var(--vyva-warm2))",
-                  opacity: done ? 1 : 0.45,
+                  background: done ? "#6B21A8" : "#E8DED4",
+                  opacity: done ? 1 : 0.5,
                 }}
-                data-testid={`compliance-day-${i}`}
+                data-testid={`compliance-day-${index}`}
               />
-              <span className="font-body text-[10px] text-vyva-text-2">{DAY_LABELS[i]}</span>
+              <span className="font-body text-[10px] font-semibold text-vyva-text-2">{DAY_LABELS[index]}</span>
             </div>
           ))}
         </div>
-      </div>
+      </section>
 
-      <SectionTitle
-        className="mb-3"
-        title={t("health.vitalsPage.actions", "Actions")}
-        titleClassName="font-body text-[16px] font-semibold not-italic text-vyva-text-2"
-      />
-      <div className="grid grid-cols-3 gap-3 mb-5">
-        {[
-          {
-            id: "revisar",
-            Icon: ClipboardList,
-            label: t("health.vitalsPage.actionReviewSymptoms", "Review symptoms"),
-            color: "#7C3AED",
-            bg: "#F5F3FF",
-            action: () => navigate("/health/symptom-check"),
-          },
-          {
-            id: "contactar",
-            Icon: Phone,
-            label: t("health.vitalsPage.actionContactDoctor", "Contact doctor"),
-            color: "#0369A1",
-            bg: "#EFF6FF",
-            action: () => {},
-          },
-          {
-            id: "compartir",
-            Icon: Share2,
-            label: t("health.vitalsPage.actionShareReport", "Share report"),
-            color: "#BE123C",
-            bg: "#FFF1F2",
-            action: () => {},
-          },
-        ].map((btn) => (
-          <button
-            key={btn.id}
-            onClick={btn.action}
-            data-testid={`button-action-${btn.id}`}
-            className="flex flex-col items-center justify-center gap-2 rounded-[16px] py-4 px-2 transition-all active:scale-95 min-h-[80px]"
-            style={{ background: btn.bg, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
-          >
-            <btn.Icon size={20} style={{ color: btn.color }} />
-            <span
-              className="font-body text-[11px] font-semibold text-center leading-tight"
-              style={{ color: btn.color }}
+      <section className="mt-5 rounded-[24px] border border-[#EDE5DB] bg-white shadow-[0_8px_24px_rgba(63,45,35,0.06)]">
+        <div className="flex items-center justify-between px-4 pb-2 pt-4">
+          <p className="font-body text-[13px] font-bold uppercase tracking-[0.11em] text-vyva-text-2">
+            {t("statusVitals.devices", "Devices")}
+          </p>
+          <span className="font-body text-[12px] font-bold text-[#047857]">
+            {connectedDevices} {t("statusVitals.connected", "connected")}
+          </span>
+        </div>
+        {DEVICE_ROWS.map((device, index) => {
+          const Icon = device.Icon;
+          return (
+            <div
+              key={device.id}
+              className={`flex items-center gap-3 px-4 py-3 ${index < DEVICE_ROWS.length - 1 ? "border-b border-[#F0E7DE]" : ""}`}
+              data-testid={`row-device-${device.id}`}
             >
-              {btn.label}
-            </span>
-          </button>
-        ))}
-      </div>
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-[#F7F1E9]">
+                <Icon size={17} className="text-vyva-text-2" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-body text-[14px] font-bold leading-tight text-vyva-text-1">{device.label}</p>
+                <p className="font-body text-[12px] text-vyva-text-2">{device.model}</p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full" style={{ background: device.connected ? "#047857" : "#D1D5DB" }} />
+                <span className="font-body text-[11px] font-semibold" style={{ color: device.connected ? "#047857" : "#9CA3AF" }}>
+                  {device.connected ? t("statusVitals.online", "Online") : t("statusVitals.offline", "Offline")}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </section>
 
-      <SectionTitle
-        className="mb-3"
-        title={t("health.vitalsPage.shareData", "Share data")}
-        titleClassName="font-body text-[16px] font-semibold not-italic text-vyva-text-2"
-      />
-      <div
-        className="vyva-card p-4"
-        data-testid="card-sharing"
-      >
-        <div className="flex items-center gap-3 mb-4">
-          <div
-            className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0"
-            style={{ background: "#F5F3FF" }}
-          >
-            <Users size={20} style={{ color: "#6B21A8" }} />
+      <section className="mt-5 rounded-[24px] border border-[#EDE5DB] bg-white p-4 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="card-sharing">
+        <div className="mb-4 flex items-start gap-3">
+          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#F5F3FF]">
+            <ShieldCheck size={21} style={{ color: "#6B21A8" }} />
           </div>
-          <div className="flex-1">
-            <p className="font-body text-[14px] font-semibold text-vyva-text-1">
-              {t("health.vitalsPage.sharingTitle", "Caregivers and doctor")}
+          <div className="min-w-0">
+            <p className="font-body text-[15px] font-bold text-vyva-text-1">
+              {t("statusVitals.sharingTitle", "Share with care team")}
             </p>
-            <p className="font-body text-[12px] text-vyva-text-2">
-              {t("health.vitalsPage.sharingSubtitle", "Share your health data securely")}
+            <p className="mt-1 font-body text-[13px] leading-relaxed text-vyva-text-2">
+              {t("statusVitals.sharingBody", "Copy a clean summary for a caregiver, doctor, or upcoming appointment.")}
             </p>
           </div>
         </div>
-        <div
-          className="rounded-[12px] p-3 mb-4 flex items-center gap-2"
-          style={{ background: "#FFFBEB", border: "1px dashed #D97706" }}
-        >
-          <AlertTriangle size={14} style={{ color: "#D97706" }} />
-          <p className="font-body text-[12px]" style={{ color: "#92400E" }}>
-            {t("health.vitalsPage.noCaregiver", "No caregiver connected yet.")}
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={shareStatus}
+            className="vyva-secondary-action min-h-[52px] rounded-[16px] px-3 text-[14px]"
+            data-testid="button-share-care-team"
+          >
+            <Users size={16} />
+            {t("statusVitals.copySummary", "Copy")}
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("/health/doctor")}
+            className="vyva-primary-action min-h-[52px] rounded-[16px] text-[14px]"
+            data-testid="button-contact-doctor"
+          >
+            <Phone size={16} />
+            {t("statusVitals.doctor", "Doctor")}
+          </button>
+        </div>
+      </section>
+
+      <section className="mt-5 rounded-[22px] border border-[#FED7AA] bg-[#FFFBEB] p-4">
+        <div className="flex items-start gap-3">
+          <ClipboardList size={18} className="mt-0.5 flex-shrink-0" style={{ color: "#B45309" }} />
+          <p className="font-body text-[12px] leading-relaxed" style={{ color: "#92400E" }}>
+            {t("statusVitals.disclaimer", "Vitals are informational and do not replace medical care. If symptoms are severe or sudden, contact emergency services.")}
           </p>
         </div>
-        <button
-          data-testid="button-connect-caregiver"
-          className="w-full flex items-center justify-center gap-2 py-[14px] rounded-[14px] transition-all active:scale-[0.98] min-h-[52px]"
-          style={{ background: "#6B21A8" }}
-        >
-          <Plus size={16} className="text-white" />
-          <span className="font-body text-[14px] font-semibold text-white">
-            {t("health.vitalsPage.connectCaregiver", "Connect caregiver")}
-          </span>
-        </button>
-      </div>
+      </section>
 
-      {showLogModal && (
-        <LogReadingModal
-          onClose={() => setShowLogModal(false)}
-          onSaved={() => setShowLogModal(false)}
-        />
-      )}
+      {showLogModal && <LogReadingModal onClose={() => setShowLogModal(false)} />}
+      {showScanModal && <ScanModal onClose={() => setShowScanModal(false)} />}
     </div>
   );
 };
