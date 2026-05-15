@@ -335,7 +335,7 @@ export default function BasicsSection() {
         />
       </div>
 
-      <div className="flex-1 overflow-y-auto pb-8 px-5 space-y-5">
+      <div className="mx-auto flex w-full max-w-[560px] flex-1 flex-col space-y-5 overflow-y-auto px-4 pb-8 sm:px-5">
         {/* Avatar + greeting card */}
         <div className="bg-white rounded-[22px] border border-vyva-border px-5 py-5 flex flex-col items-center gap-3"
              style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
@@ -459,7 +459,7 @@ export default function BasicsSection() {
           <div className="bg-white rounded-[22px] border border-vyva-border px-4 py-3"
                style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
             {isLoading ? <FieldSkeleton /> : (
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-3">
                 <div className="space-y-1">
                   <p className="font-body text-[11px] text-vyva-text-3">Day</p>
                   <Select
