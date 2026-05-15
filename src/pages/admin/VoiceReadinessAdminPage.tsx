@@ -3,6 +3,9 @@ import {
   Activity,
   AlertTriangle,
   CheckCircle2,
+  Clipboard,
+  Download,
+  FileJson,
   GitBranch,
   KeyRound,
   Mic,
@@ -30,9 +33,12 @@ import {
 } from "@/lib/voiceNavigation";
 import { voiceSessionPhaseLabel } from "@/lib/voiceSessionState";
 import {
+  buildVoicePromptDebugContext,
   buildVoiceQaDashboard,
+  buildVoiceReplayPack,
   filterVoiceTimelineEvents,
   timelineFilterOptions,
+  voiceQaSessionsToCsv,
   type VoiceTimelineFilter,
 } from "@/lib/voiceQa";
 import {
@@ -142,6 +148,23 @@ function isPersistedTimelineEvent(event: VoiceTimelineEvent): event is Persisted
   return "userId" in event;
 }
 
+function exportStamp() {
+  return new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+}
+
+function downloadTextFile(filename: string, body: string, mimeType: string) {
+  if (typeof document === "undefined") return;
+  const blob = new Blob([body], { type: `${mimeType};charset=utf-8` });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 function AgentCard({ contract, validation, active }: {
   contract: VoiceAgentContract;
   validation: VoiceContextValidation;
@@ -217,6 +240,7 @@ export default function VoiceReadinessAdminPage() {
   const [utterance, setUtterance] = useState(QUICK_UTTERANCES[0]);
   const [simulatorMessage, setSimulatorMessage] = useState("");
   const [qaFilters, setQaFilters] = useState<VoiceTimelineFilter>(DEFAULT_QA_FILTERS);
+  const [qaExportStatus, setQaExportStatus] = useState("");
   const displayedTimelineEvents: VoiceTimelineEvent[] = useMemo(() => (
     persistedTimelineEvents.length > 0 ? persistedTimelineEvents : [...timelineEvents].reverse()
   ), [persistedTimelineEvents, timelineEvents]);
@@ -312,6 +336,40 @@ export default function VoiceReadinessAdminPage() {
     });
   }
 
+  function exportReplayPack() {
+    const pack = buildVoiceReplayPack(qaDashboard.sessions);
+    downloadTextFile(
+      `vyva-voice-replay-pack-${exportStamp()}.json`,
+      JSON.stringify(pack, null, 2),
+      "application/json",
+    );
+    setQaExportStatus(`Replay pack exported for ${pack.sessionCount} sessions.`);
+  }
+
+  function exportSessionCsv() {
+    downloadTextFile(
+      `vyva-voice-session-summary-${exportStamp()}.csv`,
+      voiceQaSessionsToCsv(qaDashboard.sessions),
+      "text/csv",
+    );
+    setQaExportStatus(`CSV exported for ${qaDashboard.sessions.length} sessions.`);
+  }
+
+  async function copyPromptDebugContext() {
+    const session = qaDashboard.sessions[0];
+    if (!session) {
+      setQaExportStatus("No filtered session to copy.");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(buildVoicePromptDebugContext(session));
+      setQaExportStatus(`Prompt debug copied for ${session.sessionId}.`);
+    } catch {
+      setQaExportStatus("Clipboard is unavailable in this browser session.");
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
       <section className="mx-auto max-w-7xl">
@@ -400,6 +458,51 @@ export default function VoiceReadinessAdminPage() {
               <option value="all">All severities</option>
               {filterOptions.severities.map((severity) => <option key={severity} value={severity}>{severity}</option>)}
             </select>
+          </div>
+
+          <div className="mt-4 rounded-xl border border-[#eadfd5] bg-[#fbf8f5] p-3">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h3 className="text-sm font-black text-[#2f2135]">Replay export</h3>
+                <p className="mt-1 text-sm font-bold text-[#7d6b65]">
+                  Filtered sessions are packaged for prompt tuning and ElevenLabs tool testing.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={exportReplayPack}
+                  disabled={qaDashboard.sessions.length === 0}
+                  className="inline-flex min-h-[40px] items-center gap-2 rounded-xl bg-[#2f2135] px-3 text-xs font-black text-white transition hover:bg-[#47324f] disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  <FileJson size={15} />
+                  Replay JSON
+                </button>
+                <button
+                  type="button"
+                  onClick={exportSessionCsv}
+                  disabled={qaDashboard.sessions.length === 0}
+                  className="inline-flex min-h-[40px] items-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-[#5b4a46] transition hover:border-purple-200 hover:text-purple-700 disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  <Download size={15} />
+                  CSV summary
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void copyPromptDebugContext()}
+                  disabled={qaDashboard.sessions.length === 0}
+                  className="inline-flex min-h-[40px] items-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-[#5b4a46] transition hover:border-purple-200 hover:text-purple-700 disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  <Clipboard size={15} />
+                  Copy debug
+                </button>
+              </div>
+            </div>
+            {qaExportStatus && (
+              <p className="mt-3 rounded-lg bg-white px-3 py-2 text-xs font-black text-[#5b4a46]">
+                {qaExportStatus}
+              </p>
+            )}
           </div>
 
           <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
