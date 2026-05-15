@@ -1,0 +1,2153 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/9y4z08",
+    "id": "9y4z08",
+    "slide": 2,
+    "layoutId": "3b575ccd-665d-468f-abdd-b62be0f58573",
+    "layoutName": "Title Slide",
+    "layoutType": "title",
+    "masterLayoutId": "a8fb2d1a-4a40-4dbc-a8ed-1b5de76052fb",
+    "masterLayoutName": "Master",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1920,
+      "height": 1080
+    }
+  },
+  "theme": {
+    "colorSchemeName": "ChatGPT",
+    "colors": {
+      "accent1": "#156082",
+      "accent2": "#E97132",
+      "accent3": "#196B24",
+      "accent4": "#0F9ED5",
+      "accent5": "#A02B93",
+      "accent6": "#4EA72E",
+      "bg1": "#FFFFFF",
+      "bg2": "#000000",
+      "tx1": "#1F1F1F",
+      "tx2": "#FFFFFF",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#0E2841",
+      "lt2": "#E8E8E8",
+      "hlink": "#467886",
+      "folHlink": "#96607D"
+    },
+    "typefaces": [
+      "+mn-lt"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "3b575ccd-665d-468f-abdd-b62be0f58573",
+      "name": "Title Slide",
+      "type": "title",
+      "parentLayoutId": "a8fb2d1a-4a40-4dbc-a8ed-1b5de76052fb",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "a8fb2d1a-4a40-4dbc-a8ed-1b5de76052fb",
+      "name": "Master",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/m94fu18j",
+      "id": "1",
+      "name": "slide-bg",
+      "bbox": [
+        0,
+        0,
+        1920,
+        1080
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.0"
+      },
+      "geometry": "rect",
+      "fillColor": "#FBFAFD"
+    },
+    {
+      "order": 2,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/x0nuxc3y",
+      "id": "2",
+      "bbox": [
+        86,
+        70,
+        777.4,
+        940
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.0"
+      },
+      "geometry": "roundRect",
+      "fillColor": "#171321"
+    },
+    {
+      "order": 3,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/1gvy90je",
+      "id": "3",
+      "name": "senior-alone",
+      "bbox": [
+        86,
+        70,
+        777.4,
+        940
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.0.0"
+      },
+      "alt": "Senior alone between visits",
+      "contentType": "image/png",
+      "asset": {
+        "assetId": "155adc1b-ad1e-4f5b-98cf-ea63dd65aefb",
+        "contentType": "image/png",
+        "uri": "scratch\\assets\\ff16b97be98646d3f3f930e34b73ac7378b248b7.png",
+        "byteLength": 3835852
+      }
+    },
+    {
+      "order": 4,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/fil0rqd4",
+      "id": "4",
+      "bbox": [
+        922,
+        70,
+        912,
+        22
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.1.0.0"
+      },
+      "geometry": "rect",
+      "text": "THE PROBLEM",
+      "textPreview": "THE PROBLEM",
+      "resolvedFontSize": 18,
+      "resolvedTextStyle": {
+        "fontSize": 18,
+        "typeface": "+mn-lt",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "THE PROBLEM"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "THE PROBLEM",
+          "runs": [
+            {
+              "index": 1,
+              "text": "THE PROBLEM",
+              "fontSize": 18,
+              "color": "#8253AB",
+              "bold": true,
+              "alignment": "left"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/qxs72x4n",
+      "id": "5",
+      "name": "slide-title",
+      "bbox": [
+        922,
+        106,
+        912,
+        130
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.1.0.1"
+      },
+      "geometry": "rect",
+      "text": "Home care is strong during the visit. The gap is the hours in between.",
+      "textPreview": "Home care is strong during the visit. The gap is the hours in between.",
+      "resolvedFontSize": 54,
+      "resolvedTextStyle": {
+        "fontSize": 54,
+        "typeface": "+mn-lt",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Home care is strong during the visit. The"
+          },
+          {
+            "index": 2,
+            "text": "gap is the hours in between."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Home care is strong during the visit. The gap is the hours in between.",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Home care is strong during the visit. The gap is the hours in between.",
+              "fontSize": 54,
+              "color": "#171321",
+              "bold": true,
+              "alignment": "left"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 6,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/xobm58z2",
+      "id": "6",
+      "name": "slide-subtitle",
+      "bbox": [
+        922,
+        250,
+        524,
+        68
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.1.0.2"
+      },
+      "geometry": "rect",
+      "text": "\"Who is watching when the caregiver leaves?\"",
+      "textPreview": "\"Who is watching when the caregiver leaves?\"",
+      "resolvedFontSize": 28,
+      "resolvedTextStyle": {
+        "fontSize": 28,
+        "typeface": "+mn-lt",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "\"Who is watching when the caregiver leaves?\""
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "\"Who is watching when the caregiver leaves?\"",
+          "runs": [
+            {
+              "index": 1,
+              "text": "\"Who is watching when the caregiver leaves?\"",
+              "fontSize": 28,
+              "color": "#5D5668",
+              "alignment": "left"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 7,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/83itgfml",
+      "id": "7",
+      "name": "dot",
+      "bbox": [
+        922,
+        348,
+        14,
+        14
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.1.1.0.0"
+      },
+      "geometry": "ellipse",
+      "fillColor": "#8253AB"
+    },
+    {
+      "order": 8,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/fepkzupw",
+      "id": "8",
+      "bbox": [
+        952,
+        348,
+        882,
+        32
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.1.1.0.1.0"
+      },
+      "geometry": "rect",
+      "text": "Seniors alone between visits",
+      "textPreview": "Seniors alone between visits",
+      "resolvedFontSize": 26,
+      "resolvedTextStyle": {
+        "fontSize": 26,
+        "typeface": "+mn-lt",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Seniors alone between visits"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Seniors alone between visits",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Seniors alone between visits",
+              "fontSize": 26,
+              "color": "#171321",
+              "bold": true,
+              "alignment": "left"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 9,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/mtwra5gb",
+      "id": "9",
+      "bbox": [
+        952,
+        384,
+        882,
+        24
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.1.1.0.1.1"
+      },
+      "geometry": "rect",
+      "text": "Hours of isolation where anxiety and confusion can set in without support.",
+      "textPreview": "Hours of isolation where anxiety and confusion can set in without support.",
+      "resolvedFontSize": 20,
+      "resolvedTextStyle": {
+        "fontSize": 20,
+        "typeface": "+mn-lt",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Hours of isolation where anxiety and confusion can set in without support."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Hours of isolation where anxiety and confusion can set in without support.",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Hours of isolation where anxiety and confusion can set in without support.",
+              "fontSize": 20,
+              "color": "#5D5668",
+              "alignment": "left"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 10,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/oj2t83it",
+      "id": "10",
+      "name": "dot",
+      "bbox": [
+        922,
+        430,
+        14,
+        14
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.1.1.1.0"
+      },
+      "geometry": "ellipse",
+      "fillColor": "#2F8A6D"
+    },
+    {
+      "order": 11,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/d4vmtwra",
+      "id": "11",
+      "bbox": [
+        952,
+        430,
+        882,
+        32
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.1.1.1.1.0"
+      },
+      "geometry": "rect",
+      "text": "Missed medications",
+      "textPreview": "Missed medications",
+      "resolvedFontSize": 26,
+      "resolvedTextStyle": {
+        "fontSize": 26,
+        "typeface": "+mn-lt",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Missed medications"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Missed medications",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Missed medications",
+              "fontSize": 26,
+              "color": "#171321",
+              "bold": true,
+              "alignment": "left"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 12,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/6dcbulwv",
+      "id": "12",
+      "bbox": [
+        952,
+        464,
+        882,
+        24
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.1.1.1.1.1"
+      },
+      "geometry": "rect",
+      "text": "Complex schedules often lead to errors or skipped doses when unsupervised.",
+      "textPreview": "Complex schedules often lead to errors or skipped doses when unsupervised.",
+      "resolvedFontSize": 20,
+      "resolvedTextStyle": {
+        "fontSize": 20,
+        "typeface": "+mn-lt",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Complex schedules often lead to errors or skipped doses when unsupervised."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Complex schedules often lead to errors or skipped doses when unsupervised.",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Complex schedules often lead to errors or skipped doses when unsupervised.",
+              "fontSize": 20,
+              "color": "#5D5668",
+              "alignment": "left"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 13,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/vy90je9c",
+      "id": "13",
+      "name": "dot",
+      "bbox": [
+        922,
+        510,
+        14,
+        14
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.1.1.2.0"
+      },
+      "geometry": "ellipse",
+      "fillColor": "#3266A8"
+    },
+    {
+      "order": 14,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/o7qpg3ex",
+      "id": "14",
+      "bbox": [
+        952,
+        510,
+        882,
+        32
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.1.1.2.1.0"
+      },
+      "geometry": "rect",
+      "text": "Unnoticed symptoms",
+      "textPreview": "Unnoticed symptoms",
+      "resolvedFontSize": 26,
+      "resolvedTextStyle": {
+        "fontSize": 26,
+        "typeface": "+mn-lt",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Unnoticed symptoms"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Unnoticed symptoms",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Unnoticed symptoms",
+              "fontSize": 26,
+              "color": "#171321",
+              "bold": true,
+              "alignment": "left"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 15,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/dsji5sne",
+      "id": "15",
+      "bbox": [
+        952,
+        546,
+        882,
+        24
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.1.1.2.1.1"
+      },
+      "geometry": "rect",
+      "text": "Health declines may not be caught until the next scheduled visit.",
+      "textPreview": "Health declines may not be caught until the next scheduled visit.",
+      "resolvedFontSize": 20,
+      "resolvedTextStyle": {
+        "fontSize": 20,
+        "typeface": "+mn-lt",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Health declines may not be caught until the next scheduled visit."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Health declines may not be caught until the next scheduled visit.",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Health declines may not be caught until the next scheduled visit.",
+              "fontSize": 20,
+              "color": "#5D5668",
+              "alignment": "left"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 16,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/61032lsz",
+      "id": "16",
+      "bbox": [
+        922,
+        602,
+        280,
+        6
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.1.2"
+      },
+      "geometry": "rect",
+      "fillColor": "#F7C900",
+      "lineColor": "#F7C900",
+      "lineWidth": 0
+    },
+    {
+      "order": 17,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/vmtwra5g",
+      "id": "17",
+      "bbox": [
+        922,
+        640,
+        912,
+        36
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.1.3"
+      },
+      "geometry": "rect",
+      "text": "VYVA covers the hours in between.",
+      "textPreview": "VYVA covers the hours in between.",
+      "resolvedFontSize": 30,
+      "resolvedTextStyle": {
+        "fontSize": 30,
+        "typeface": "+mn-lt",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "VYVA covers the hours in between."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "VYVA covers the hours in between.",
+          "runs": [
+            {
+              "index": 1,
+              "text": "VYVA covers the hours in between.",
+              "fontSize": 30,
+              "color": "#8253AB",
+              "bold": true,
+              "alignment": "left"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "composeRuns": [
+    {
+      "index": 1,
+      "frame": {
+        "left": 0,
+        "top": 0,
+        "width": 1920,
+        "height": 1080
+      },
+      "baseUnit": 8,
+      "root": {
+        "path": "0",
+        "kind": "layers",
+        "requestedSize": {
+          "width": {
+            "mode": "fill",
+            "value": 1
+          },
+          "height": {
+            "mode": "fill",
+            "value": 1
+          }
+        },
+        "intrinsicSize": {
+          "width": 0,
+          "height": 0
+        },
+        "frame": {
+          "left": 0,
+          "top": 0,
+          "width": 1920,
+          "height": 1080
+        },
+        "children": [
+          {
+            "path": "0.0",
+            "kind": "shape",
+            "name": "slide-bg",
+            "requestedSize": {
+              "width": {
+                "mode": "fill",
+                "value": 1
+              },
+              "height": {
+                "mode": "fill",
+                "value": 1
+              }
+            },
+            "intrinsicSize": {
+              "width": 0,
+              "height": 0
+            },
+            "frame": {
+              "left": 0,
+              "top": 0,
+              "width": 1920,
+              "height": 1080
+            },
+            "snappedFrame": {
+              "left": 0,
+              "top": 0,
+              "width": 1920,
+              "height": 1080
+            },
+            "children": [],
+            "geometry": "rect",
+            "element": {
+              "aid": "sh/m94fu18j",
+              "id": "1",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.1",
+            "kind": "grid",
+            "requestedSize": {
+              "width": {
+                "mode": "fill",
+                "value": 1
+              },
+              "height": {
+                "mode": "fill",
+                "value": 1
+              }
+            },
+            "intrinsicSize": {
+              "width": 230,
+              "height": 140
+            },
+            "frame": {
+              "left": 0,
+              "top": 0,
+              "width": 1920,
+              "height": 1080
+            },
+            "children": [
+              {
+                "path": "0.1.0",
+                "kind": "panel",
+                "requestedSize": {
+                  "width": {
+                    "mode": "fill",
+                    "value": 1
+                  },
+                  "height": {
+                    "mode": "fill",
+                    "value": 1
+                  }
+                },
+                "intrinsicSize": {
+                  "width": 0,
+                  "height": 0
+                },
+                "frame": {
+                  "left": 86,
+                  "top": 70,
+                  "width": 777.4,
+                  "height": 940
+                },
+                "snappedFrame": {
+                  "left": 86,
+                  "top": 70,
+                  "width": 777.4,
+                  "height": 940
+                },
+                "children": [
+                  {
+                    "path": "0.1.0.0",
+                    "kind": "image",
+                    "name": "senior-alone",
+                    "requestedSize": {
+                      "width": {
+                        "mode": "fill",
+                        "value": 1
+                      },
+                      "height": {
+                        "mode": "fill",
+                        "value": 1
+                      }
+                    },
+                    "intrinsicSize": {
+                      "width": 0,
+                      "height": 0
+                    },
+                    "frame": {
+                      "left": 86,
+                      "top": 70,
+                      "width": 777.4,
+                      "height": 940
+                    },
+                    "snappedFrame": {
+                      "left": 86,
+                      "top": 70,
+                      "width": 777.4,
+                      "height": 940
+                    },
+                    "children": [],
+                    "source": {
+                      "kind": "path",
+                      "path": "scratch\\assets\\ff16b97be98646d3f3f930e34b73ac7378b248b7.png"
+                    },
+                    "fit": "cover",
+                    "alt": "Senior alone between visits",
+                    "element": {
+                      "aid": "im/1gvy90je",
+                      "id": "3",
+                      "kind": "image"
+                    }
+                  }
+                ],
+                "padding": {
+                  "top": 0,
+                  "right": 0,
+                  "bottom": 0,
+                  "left": 0
+                },
+                "align": "start",
+                "justify": "start",
+                "contentFrame": {
+                  "left": 86,
+                  "top": 70,
+                  "width": 777.4,
+                  "height": 940
+                },
+                "element": {
+                  "aid": "sh/x0nuxc3y",
+                  "id": "2",
+                  "kind": "shape"
+                }
+              },
+              {
+                "path": "0.1.1",
+                "kind": "column",
+                "requestedSize": {
+                  "width": {
+                    "mode": "fill",
+                    "value": 1
+                  },
+                  "height": {
+                    "mode": "fill",
+                    "value": 1
+                  }
+                },
+                "intrinsicSize": {
+                  "width": 280,
+                  "height": 507.6
+                },
+                "frame": {
+                  "left": 921.4,
+                  "top": 70,
+                  "width": 912.6,
+                  "height": 940
+                },
+                "children": [
+                  {
+                    "path": "0.1.1.0",
+                    "kind": "column",
+                    "name": "title-stack",
+                    "requestedSize": {
+                      "width": {
+                        "mode": "fill",
+                        "value": 1
+                      },
+                      "height": {
+                        "mode": "hug"
+                      }
+                    },
+                    "intrinsicSize": {
+                      "width": 523.89,
+                      "height": 148
+                    },
+                    "frame": {
+                      "left": 921.4,
+                      "top": 70,
+                      "width": 912.6,
+                      "height": 246.4
+                    },
+                    "children": [
+                      {
+                        "path": "0.1.1.0.0",
+                        "kind": "text",
+                        "requestedSize": {
+                          "width": {
+                            "mode": "fill",
+                            "value": 1
+                          },
+                          "height": {
+                            "mode": "hug"
+                          }
+                        },
+                        "intrinsicSize": {
+                          "width": 0,
+                          "height": 21.6
+                        },
+                        "frame": {
+                          "left": 921.4,
+                          "top": 70,
+                          "width": 912.6,
+                          "height": 21.6
+                        },
+                        "snappedFrame": {
+                          "left": 922,
+                          "top": 70,
+                          "width": 912,
+                          "height": 22
+                        },
+                        "children": [],
+                        "text": "THE PROBLEM",
+                        "transform": "none",
+                        "element": {
+                          "aid": "sh/fil0rqd4",
+                          "id": "4",
+                          "kind": "shape"
+                        }
+                      },
+                      {
+                        "path": "0.1.1.0.1",
+                        "kind": "text",
+                        "name": "slide-title",
+                        "requestedSize": {
+                          "width": {
+                            "mode": "fill",
+                            "value": 1
+                          },
+                          "height": {
+                            "mode": "hug"
+                          }
+                        },
+                        "intrinsicSize": {
+                          "width": 0,
+                          "height": 64.8
+                        },
+                        "frame": {
+                          "left": 921.4,
+                          "top": 105.6,
+                          "width": 912.6,
+                          "height": 129.6
+                        },
+                        "snappedFrame": {
+                          "left": 922,
+                          "top": 106,
+                          "width": 912,
+                          "height": 130
+                        },
+                        "children": [],
+                        "text": "Home care is strong during the visit. The gap is the hours in between.",
+                        "transform": "none",
+                        "element": {
+                          "aid": "sh/qxs72x4n",
+                          "id": "5",
+                          "kind": "shape"
+                        }
+                      },
+                      {
+                        "path": "0.1.1.0.2",
+                        "kind": "text",
+                        "name": "slide-subtitle",
+                        "requestedSize": {
+                          "width": {
+                            "mode": "wrap",
+                            "max": 1120
+                          },
+                          "height": {
+                            "mode": "hug"
+                          }
+                        },
+                        "intrinsicSize": {
+                          "width": 523.89,
+                          "height": 33.6
+                        },
+                        "frame": {
+                          "left": 921.4,
+                          "top": 249.2,
+                          "width": 523.89,
+                          "height": 67.2
+                        },
+                        "snappedFrame": {
+                          "left": 922,
+                          "top": 250,
+                          "width": 524,
+                          "height": 68
+                        },
+                        "children": [],
+                        "text": "\"Who is watching when the caregiver leaves?\"",
+                        "transform": "none",
+                        "element": {
+                          "aid": "sh/xobm58z2",
+                          "id": "6",
+                          "kind": "shape"
+                        }
+                      }
+                    ],
+                    "padding": {
+                      "top": 0,
+                      "right": 0,
+                      "bottom": 0,
+                      "left": 0
+                    },
+                    "gap": 14,
+                    "effectiveGap": 14,
+                    "justifyOffset": 0,
+                    "align": "start",
+                    "justify": "start",
+                    "contentFrame": {
+                      "left": 921.4,
+                      "top": 70,
+                      "width": 912.6,
+                      "height": 246.4
+                    },
+                    "items": [
+                      {
+                        "path": "0.1.1.0.0",
+                        "frame": {
+                          "left": 921.4,
+                          "top": 70,
+                          "width": 912.6,
+                          "height": 21.6
+                        }
+                      },
+                      {
+                        "path": "0.1.1.0.1",
+                        "frame": {
+                          "left": 921.4,
+                          "top": 105.6,
+                          "width": 912.6,
+                          "height": 129.6
+                        }
+                      },
+                      {
+                        "path": "0.1.1.0.2",
+                        "frame": {
+                          "left": 921.4,
+                          "top": 249.2,
+                          "width": 523.89,
+                          "height": 67.2
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "path": "0.1.1.1",
+                    "kind": "column",
+                    "requestedSize": {
+                      "width": {
+                        "mode": "fill",
+                        "value": 1
+                      },
+                      "height": {
+                        "mode": "hug"
+                      }
+                    },
+                    "intrinsicSize": {
+                      "width": 0,
+                      "height": 221.6
+                    },
+                    "frame": {
+                      "left": 921.4,
+                      "top": 348.4,
+                      "width": 912.6,
+                      "height": 221.6
+                    },
+                    "children": [
+                      {
+                        "path": "0.1.1.1.0",
+                        "kind": "row",
+                        "name": "value-Seniors alone between visits",
+                        "requestedSize": {
+                          "width": {
+                            "mode": "fill",
+                            "value": 1
+                          },
+                          "height": {
+                            "mode": "hug"
+                          }
+                        },
+                        "intrinsicSize": {
+                          "width": 30,
+                          "height": 59.2
+                        },
+                        "frame": {
+                          "left": 921.4,
+                          "top": 348.4,
+                          "width": 912.6,
+                          "height": 59.2
+                        },
+                        "children": [
+                          {
+                            "path": "0.1.1.1.0.0",
+                            "kind": "shape",
+                            "name": "dot",
+                            "requestedSize": {
+                              "width": {
+                                "mode": "fixed",
+                                "value": 14
+                              },
+                              "height": {
+                                "mode": "fixed",
+                                "value": 14
+                              }
+                            },
+                            "intrinsicSize": {
+                              "width": 14,
+                              "height": 14
+                            },
+                            "frame": {
+                              "left": 921.4,
+                              "top": 348.4,
+                              "width": 14,
+                              "height": 14
+                            },
+                            "snappedFrame": {
+                              "left": 922,
+                              "top": 348,
+                              "width": 14,
+                              "height": 14
+                            },
+                            "children": [],
+                            "geometry": "ellipse",
+                            "element": {
+                              "aid": "sh/83itgfml",
+                              "id": "7",
+                              "kind": "shape"
+                            }
+                          },
+                          {
+                            "path": "0.1.1.1.0.1",
+                            "kind": "column",
+                            "requestedSize": {
+                              "width": {
+                                "mode": "fill",
+                                "value": 1
+                              },
+                              "height": {
+                                "mode": "hug"
+                              }
+                            },
+                            "intrinsicSize": {
+                              "width": 0,
+                              "height": 59.2
+                            },
+                            "frame": {
+                              "left": 951.4,
+                              "top": 348.4,
+                              "width": 882.6,
+                              "height": 59.2
+                            },
+                            "children": [
+                              {
+                                "path": "0.1.1.1.0.1.0",
+                                "kind": "text",
+                                "requestedSize": {
+                                  "width": {
+                                    "mode": "fill",
+                                    "value": 1
+                                  },
+                                  "height": {
+                                    "mode": "hug"
+                                  }
+                                },
+                                "intrinsicSize": {
+                                  "width": 0,
+                                  "height": 31.2
+                                },
+                                "frame": {
+                                  "left": 951.4,
+                                  "top": 348.4,
+                                  "width": 882.6,
+                                  "height": 31.2
+                                },
+                                "snappedFrame": {
+                                  "left": 952,
+                                  "top": 348,
+                                  "width": 882,
+                                  "height": 32
+                                },
+                                "children": [],
+                                "text": "Seniors alone between visits",
+                                "transform": "none",
+                                "element": {
+                                  "aid": "sh/fepkzupw",
+                                  "id": "8",
+                                  "kind": "shape"
+                                }
+                              },
+                              {
+                                "path": "0.1.1.1.0.1.1",
+                                "kind": "text",
+                                "requestedSize": {
+                                  "width": {
+                                    "mode": "fill",
+                                    "value": 1
+                                  },
+                                  "height": {
+                                    "mode": "hug"
+                                  }
+                                },
+                                "intrinsicSize": {
+                                  "width": 0,
+                                  "height": 24
+                                },
+                                "frame": {
+                                  "left": 951.4,
+                                  "top": 383.6,
+                                  "width": 882.6,
+                                  "height": 24
+                                },
+                                "snappedFrame": {
+                                  "left": 952,
+                                  "top": 384,
+                                  "width": 882,
+                                  "height": 24
+                                },
+                                "children": [],
+                                "text": "Hours of isolation where anxiety and confusion can set in without support.",
+                                "transform": "none",
+                                "element": {
+                                  "aid": "sh/mtwra5gb",
+                                  "id": "9",
+                                  "kind": "shape"
+                                }
+                              }
+                            ],
+                            "padding": {
+                              "top": 0,
+                              "right": 0,
+                              "bottom": 0,
+                              "left": 0
+                            },
+                            "gap": 4,
+                            "effectiveGap": 4,
+                            "justifyOffset": 0,
+                            "align": "start",
+                            "justify": "start",
+                            "contentFrame": {
+                              "left": 951.4,
+                              "top": 348.4,
+                              "width": 882.6,
+                              "height": 59.2
+                            },
+                            "items": [
+                              {
+                                "path": "0.1.1.1.0.1.0",
+                                "frame": {
+                                  "left": 951.4,
+                                  "top": 348.4,
+                                  "width": 882.6,
+                                  "height": 31.2
+                                }
+                              },
+                              {
+                                "path": "0.1.1.1.0.1.1",
+                                "frame": {
+                                  "left": 951.4,
+                                  "top": 383.6,
+                                  "width": 882.6,
+                                  "height": 24
+                                }
+                              }
+                            ]
+                          }
+                        ],
+                        "padding": {
+                          "top": 0,
+                          "right": 0,
+                          "bottom": 0,
+                          "left": 0
+                        },
+                        "gap": 16,
+                        "effectiveGap": 16,
+                        "justifyOffset": 0,
+                        "align": "start",
+                        "justify": "start",
+                        "contentFrame": {
+                          "left": 921.4,
+                          "top": 348.4,
+                          "width": 912.6,
+                          "height": 59.2
+                        },
+                        "items": [
+                          {
+                            "path": "0.1.1.1.0.0",
+                            "frame": {
+                              "left": 921.4,
+                              "top": 348.4,
+                              "width": 14,
+                              "height": 14
+                            }
+                          },
+                          {
+                            "path": "0.1.1.1.0.1",
+                            "frame": {
+                              "left": 951.4,
+                              "top": 348.4,
+                              "width": 882.6,
+                              "height": 59.2
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "path": "0.1.1.1.1",
+                        "kind": "row",
+                        "name": "value-Missed medications",
+                        "requestedSize": {
+                          "width": {
+                            "mode": "fill",
+                            "value": 1
+                          },
+                          "height": {
+                            "mode": "hug"
+                          }
+                        },
+                        "intrinsicSize": {
+                          "width": 30,
+                          "height": 59.2
+                        },
+                        "frame": {
+                          "left": 921.4,
+                          "top": 429.6,
+                          "width": 912.6,
+                          "height": 59.2
+                        },
+                        "children": [
+                          {
+                            "path": "0.1.1.1.1.0",
+                            "kind": "shape",
+                            "name": "dot",
+                            "requestedSize": {
+                              "width": {
+                                "mode": "fixed",
+                                "value": 14
+                              },
+                              "height": {
+                                "mode": "fixed",
+                                "value": 14
+                              }
+                            },
+                            "intrinsicSize": {
+                              "width": 14,
+                              "height": 14
+                            },
+                            "frame": {
+                              "left": 921.4,
+                              "top": 429.6,
+                              "width": 14,
+                              "height": 14
+                            },
+                            "snappedFrame": {
+                              "left": 922,
+                              "top": 430,
+                              "width": 14,
+                              "height": 14
+                            },
+                            "children": [],
+                            "geometry": "ellipse",
+                            "element": {
+                              "aid": "sh/oj2t83it",
+                              "id": "10",
+                              "kind": "shape"
+                            }
+                          },
+                          {
+                            "path": "0.1.1.1.1.1",
+                            "kind": "column",
+                            "requestedSize": {
+                              "width": {
+                                "mode": "fill",
+                                "value": 1
+                              },
+                              "height": {
+                                "mode": "hug"
+                              }
+                            },
+                            "intrinsicSize": {
+                              "width": 0,
+                              "height": 59.2
+                            },
+                            "frame": {
+                              "left": 951.4,
+                              "top": 429.6,
+                              "width": 882.6,
+                              "height": 59.2
+                            },
+                            "children": [
+                              {
+                                "path": "0.1.1.1.1.1.0",
+                                "kind": "text",
+                                "requestedSize": {
+                                  "width": {
+                                    "mode": "fill",
+                                    "value": 1
+                                  },
+                                  "height": {
+                                    "mode": "hug"
+                                  }
+                                },
+                                "intrinsicSize": {
+                                  "width": 0,
+                                  "height": 31.2
+                                },
+                                "frame": {
+                                  "left": 951.4,
+                                  "top": 429.6,
+                                  "width": 882.6,
+                                  "height": 31.2
+                                },
+                                "snappedFrame": {
+                                  "left": 952,
+                                  "top": 430,
+                                  "width": 882,
+                                  "height": 32
+                                },
+                                "children": [],
+                                "text": "Missed medications",
+                                "transform": "none",
+                                "element": {
+                                  "aid": "sh/d4vmtwra",
+                                  "id": "11",
+                                  "kind": "shape"
+                                }
+                              },
+                              {
+                                "path": "0.1.1.1.1.1.1",
+                                "kind": "text",
+                                "requestedSize": {
+                                  "width": {
+                                    "mode": "fill",
+                                    "value": 1
+                                  },
+                                  "height": {
+                                    "mode": "hug"
+                                  }
+                                },
+                                "intrinsicSize": {
+                                  "width": 0,
+                                  "height": 24
+                                },
+                                "frame": {
+                                  "left": 951.4,
+                                  "top": 464.8,
+                                  "width": 882.6,
+                                  "height": 24
+                                },
+                                "snappedFrame": {
+                                  "left": 952,
+                                  "top": 464,
+                                  "width": 882,
+                                  "height": 24
+                                },
+                                "children": [],
+                                "text": "Complex schedules often lead to errors or skipped doses when unsupervised.",
+                                "transform": "none",
+                                "element": {
+                                  "aid": "sh/6dcbulwv",
+                                  "id": "12",
+                                  "kind": "shape"
+                                }
+                              }
+                            ],
+                            "padding": {
+                              "top": 0,
+                              "right": 0,
+                              "bottom": 0,
+                              "left": 0
+                            },
+                            "gap": 4,
+                            "effectiveGap": 4,
+                            "justifyOffset": 0,
+                            "align": "start",
+                            "justify": "start",
+                            "contentFrame": {
+                              "left": 951.4,
+                              "top": 429.6,
+                              "width": 882.6,
+                              "height": 59.2
+                            },
+                            "items": [
+                              {
+                                "path": "0.1.1.1.1.1.0",
+                                "frame": {
+                                  "left": 951.4,
+                                  "top": 429.6,
+                                  "width": 882.6,
+                                  "height": 31.2
+                                }
+                              },
+                              {
+                                "path": "0.1.1.1.1.1.1",
+                                "frame": {
+                                  "left": 951.4,
+                                  "top": 464.8,
+                                  "width": 882.6,
+                                  "height": 24
+                                }
+                              }
+                            ]
+                          }
+                        ],
+                        "padding": {
+                          "top": 0,
+                          "right": 0,
+                          "bottom": 0,
+                          "left": 0
+                        },
+                        "gap": 16,
+                        "effectiveGap": 16,
+                        "justifyOffset": 0,
+                        "align": "start",
+                        "justify": "start",
+                        "contentFrame": {
+                          "left": 921.4,
+                          "top": 429.6,
+                          "width": 912.6,
+                          "height": 59.2
+                        },
+                        "items": [
+                          {
+                            "path": "0.1.1.1.1.0",
+                            "frame": {
+                              "left": 921.4,
+                              "top": 429.6,
+                              "width": 14,
+                              "height": 14
+                            }
+                          },
+                          {
+                            "path": "0.1.1.1.1.1",
+                            "frame": {
+                              "left": 951.4,
+                              "top": 429.6,
+                              "width": 882.6,
+                              "height": 59.2
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "path": "0.1.1.1.2",
+                        "kind": "row",
+                        "name": "value-Unnoticed symptoms",
+                        "requestedSize": {
+                          "width": {
+                            "mode": "fill",
+                            "value": 1
+                          },
+                          "height": {
+                            "mode": "hug"
+                          }
+                        },
+                        "intrinsicSize": {
+                          "width": 30,
+                          "height": 59.2
+                        },
+                        "frame": {
+                          "left": 921.4,
+                          "top": 510.8,
+                          "width": 912.6,
+                          "height": 59.2
+                        },
+                        "children": [
+                          {
+                            "path": "0.1.1.1.2.0",
+                            "kind": "shape",
+                            "name": "dot",
+                            "requestedSize": {
+                              "width": {
+                                "mode": "fixed",
+                                "value": 14
+                              },
+                              "height": {
+                                "mode": "fixed",
+                                "value": 14
+                              }
+                            },
+                            "intrinsicSize": {
+                              "width": 14,
+                              "height": 14
+                            },
+                            "frame": {
+                              "left": 921.4,
+                              "top": 510.8,
+                              "width": 14,
+                              "height": 14
+                            },
+                            "snappedFrame": {
+                              "left": 922,
+                              "top": 510,
+                              "width": 14,
+                              "height": 14
+                            },
+                            "children": [],
+                            "geometry": "ellipse",
+                            "element": {
+                              "aid": "sh/vy90je9c",
+                              "id": "13",
+                              "kind": "shape"
+                            }
+                          },
+                          {
+                            "path": "0.1.1.1.2.1",
+                            "kind": "column",
+                            "requestedSize": {
+                              "width": {
+                                "mode": "fill",
+                                "value": 1
+                              },
+                              "height": {
+                                "mode": "hug"
+                              }
+                            },
+                            "intrinsicSize": {
+                              "width": 0,
+                              "height": 59.2
+                            },
+                            "frame": {
+                              "left": 951.4,
+                              "top": 510.8,
+                              "width": 882.6,
+                              "height": 59.2
+                            },
+                            "children": [
+                              {
+                                "path": "0.1.1.1.2.1.0",
+                                "kind": "text",
+                                "requestedSize": {
+                                  "width": {
+                                    "mode": "fill",
+                                    "value": 1
+                                  },
+                                  "height": {
+                                    "mode": "hug"
+                                  }
+                                },
+                                "intrinsicSize": {
+                                  "width": 0,
+                                  "height": 31.2
+                                },
+                                "frame": {
+                                  "left": 951.4,
+                                  "top": 510.8,
+                                  "width": 882.6,
+                                  "height": 31.2
+                                },
+                                "snappedFrame": {
+                                  "left": 952,
+                                  "top": 510,
+                                  "width": 882,
+                                  "height": 32
+                                },
+                                "children": [],
+                                "text": "Unnoticed symptoms",
+                                "transform": "none",
+                                "element": {
+                                  "aid": "sh/o7qpg3ex",
+                                  "id": "14",
+                                  "kind": "shape"
+                                }
+                              },
+                              {
+                                "path": "0.1.1.1.2.1.1",
+                                "kind": "text",
+                                "requestedSize": {
+                                  "width": {
+                                    "mode": "fill",
+                                    "value": 1
+                                  },
+                                  "height": {
+                                    "mode": "hug"
+                                  }
+                                },
+                                "intrinsicSize": {
+                                  "width": 0,
+                                  "height": 24
+                                },
+                                "frame": {
+                                  "left": 951.4,
+                                  "top": 546,
+                                  "width": 882.6,
+                                  "height": 24
+                                },
+                                "snappedFrame": {
+                                  "left": 952,
+                                  "top": 546,
+                                  "width": 882,
+                                  "height": 24
+                                },
+                                "children": [],
+                                "text": "Health declines may not be caught until the next scheduled visit.",
+                                "transform": "none",
+                                "element": {
+                                  "aid": "sh/dsji5sne",
+                                  "id": "15",
+                                  "kind": "shape"
+                                }
+                              }
+                            ],
+                            "padding": {
+                              "top": 0,
+                              "right": 0,
+                              "bottom": 0,
+                              "left": 0
+                            },
+                            "gap": 4,
+                            "effectiveGap": 4,
+                            "justifyOffset": 0,
+                            "align": "start",
+                            "justify": "start",
+                            "contentFrame": {
+                              "left": 951.4,
+                              "top": 510.8,
+                              "width": 882.6,
+                              "height": 59.2
+                            },
+                            "items": [
+                              {
+                                "path": "0.1.1.1.2.1.0",
+                                "frame": {
+                                  "left": 951.4,
+                                  "top": 510.8,
+                                  "width": 882.6,
+                                  "height": 31.2
+                                }
+                              },
+                              {
+                                "path": "0.1.1.1.2.1.1",
+                                "frame": {
+                                  "left": 951.4,
+                                  "top": 546,
+                                  "width": 882.6,
+                                  "height": 24
+                                }
+                              }
+                            ]
+                          }
+                        ],
+                        "padding": {
+                          "top": 0,
+                          "right": 0,
+                          "bottom": 0,
+                          "left": 0
+                        },
+                        "gap": 16,
+                        "effectiveGap": 16,
+                        "justifyOffset": 0,
+                        "align": "start",
+                        "justify": "start",
+                        "contentFrame": {
+                          "left": 921.4,
+                          "top": 510.8,
+                          "width": 912.6,
+                          "height": 59.2
+                        },
+                        "items": [
+                          {
+                            "path": "0.1.1.1.2.0",
+                            "frame": {
+                              "left": 921.4,
+                              "top": 510.8,
+                              "width": 14,
+                              "height": 14
+                            }
+                          },
+                          {
+                            "path": "0.1.1.1.2.1",
+                            "frame": {
+                              "left": 951.4,
+                              "top": 510.8,
+                              "width": 882.6,
+                              "height": 59.2
+                            }
+                          }
+                        ]
+                      }
+                    ],
+                    "padding": {
+                      "top": 0,
+                      "right": 0,
+                      "bottom": 0,
+                      "left": 0
+                    },
+                    "gap": 22,
+                    "effectiveGap": 22,
+                    "justifyOffset": 0,
+                    "align": "start",
+                    "justify": "start",
+                    "contentFrame": {
+                      "left": 921.4,
+                      "top": 348.4,
+                      "width": 912.6,
+                      "height": 221.6
+                    },
+                    "items": [
+                      {
+                        "path": "0.1.1.1.0",
+                        "frame": {
+                          "left": 921.4,
+                          "top": 348.4,
+                          "width": 912.6,
+                          "height": 59.2
+                        }
+                      },
+                      {
+                        "path": "0.1.1.1.1",
+                        "frame": {
+                          "left": 921.4,
+                          "top": 429.6,
+                          "width": 912.6,
+                          "height": 59.2
+                        }
+                      },
+                      {
+                        "path": "0.1.1.1.2",
+                        "frame": {
+                          "left": 921.4,
+                          "top": 510.8,
+                          "width": 912.6,
+                          "height": 59.2
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "path": "0.1.1.2",
+                    "kind": "rule",
+                    "requestedSize": {
+                      "width": {
+                        "mode": "fixed",
+                        "value": 280
+                      },
+                      "height": {
+                        "mode": "fixed",
+                        "value": 6
+                      }
+                    },
+                    "intrinsicSize": {
+                      "width": 280,
+                      "height": 6
+                    },
+                    "frame": {
+                      "left": 921.4,
+                      "top": 602,
+                      "width": 280,
+                      "height": 6
+                    },
+                    "snappedFrame": {
+                      "left": 922,
+                      "top": 602,
+                      "width": 280,
+                      "height": 6
+                    },
+                    "children": [],
+                    "weight": 6,
+                    "element": {
+                      "aid": "sh/61032lsz",
+                      "id": "16",
+                      "kind": "shape"
+                    }
+                  },
+                  {
+                    "path": "0.1.1.3",
+                    "kind": "text",
+                    "requestedSize": {
+                      "width": {
+                        "mode": "fill",
+                        "value": 1
+                      },
+                      "height": {
+                        "mode": "hug"
+                      }
+                    },
+                    "intrinsicSize": {
+                      "width": 0,
+                      "height": 36
+                    },
+                    "frame": {
+                      "left": 921.4,
+                      "top": 640,
+                      "width": 912.6,
+                      "height": 36
+                    },
+                    "snappedFrame": {
+                      "left": 922,
+                      "top": 640,
+                      "width": 912,
+                      "height": 36
+                    },
+                    "children": [],
+                    "text": "VYVA covers the hours in between.",
+                    "transform": "none",
+                    "element": {
+                      "aid": "sh/vmtwra5g",
+                      "id": "17",
+                      "kind": "shape"
+                    }
+                  }
+                ],
+                "padding": {
+                  "top": 0,
+                  "right": 0,
+                  "bottom": 0,
+                  "left": 0
+                },
+                "gap": 32,
+                "effectiveGap": 32,
+                "justifyOffset": 0,
+                "align": "start",
+                "justify": "start",
+                "contentFrame": {
+                  "left": 921.4,
+                  "top": 70,
+                  "width": 912.6,
+                  "height": 940
+                },
+                "items": [
+                  {
+                    "path": "0.1.1.0",
+                    "frame": {
+                      "left": 921.4,
+                      "top": 70,
+                      "width": 912.6,
+                      "height": 246.4
+                    }
+                  },
+                  {
+                    "path": "0.1.1.1",
+                    "frame": {
+                      "left": 921.4,
+                      "top": 348.4,
+                      "width": 912.6,
+                      "height": 221.6
+                    }
+                  },
+                  {
+                    "path": "0.1.1.2",
+                    "frame": {
+                      "left": 921.4,
+                      "top": 602,
+                      "width": 280,
+                      "height": 6
+                    }
+                  },
+                  {
+                    "path": "0.1.1.3",
+                    "frame": {
+                      "left": 921.4,
+                      "top": 640,
+                      "width": 912.6,
+                      "height": 36
+                    }
+                  }
+                ]
+              }
+            ],
+            "padding": {
+              "top": 70,
+              "right": 86,
+              "bottom": 70,
+              "left": 86
+            },
+            "columnGap": 58,
+            "rowGap": 0,
+            "alignItems": "stretch",
+            "justifyItems": "stretch",
+            "contentFrame": {
+              "left": 86,
+              "top": 70,
+              "width": 1748,
+              "height": 940
+            },
+            "columns": [
+              {
+                "mode": "fr",
+                "value": 0.92
+              },
+              {
+                "mode": "fr",
+                "value": 1.08
+              }
+            ],
+            "rows": [
+              {
+                "mode": "fr",
+                "value": 1
+              }
+            ],
+            "autoRows": "auto",
+            "resolvedRows": [
+              {
+                "mode": "fr",
+                "value": 1
+              }
+            ],
+            "columnSizes": [
+              777.4,
+              912.6
+            ],
+            "rowSizes": [
+              940
+            ],
+            "cells": [
+              {
+                "path": "0.1.0",
+                "column": 0,
+                "row": 0,
+                "columnSpan": 1,
+                "rowSpan": 1,
+                "cellFrame": {
+                  "left": 86,
+                  "top": 70,
+                  "width": 777.4,
+                  "height": 940
+                }
+              },
+              {
+                "path": "0.1.1",
+                "column": 1,
+                "row": 0,
+                "columnSpan": 1,
+                "rowSpan": 1,
+                "cellFrame": {
+                  "left": 921.4,
+                  "top": 70,
+                  "width": 912.6,
+                  "height": 940
+                }
+              }
+            ]
+          }
+        ],
+        "padding": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        },
+        "alignItems": "stretch",
+        "justifyItems": "stretch",
+        "contentFrame": {
+          "left": 0,
+          "top": 0,
+          "width": 1920,
+          "height": 1080
+        },
+        "items": [
+          {
+            "path": "0.0",
+            "frame": {
+              "left": 0,
+              "top": 0,
+              "width": 1920,
+              "height": 1080
+            }
+          },
+          {
+            "path": "0.1",
+            "frame": {
+              "left": 0,
+              "top": 0,
+              "width": 1920,
+              "height": 1080
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
