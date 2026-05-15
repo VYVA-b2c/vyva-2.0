@@ -6,7 +6,11 @@
     "medications": "Medicamentos",
     "cognitiveActivity": "Atividade Cognitiva",
     "history": "Histórico",
-    "myProfile": "O meu perfil"
+    "myProfile": "O meu perfil",
+    "vyva": "VYVA",
+    "myHealth": "Minha saúde",
+    "myMind": "Minha mente",
+    "concierge": "Concierge"
   },
   "history": {
     "title": "O meu histórico",
@@ -245,7 +249,7 @@
         "openLabel": "Abrir o seu ajudante"
       }
     },
-    "whatNow": "O que fazemos agora?"
+    "whatNow": "ou explore um tema"
   },
   "voiceHero": {
     "talkToVyva": "Falar com VYVA",
@@ -255,7 +259,7 @@
     "active": "Ativa",
     "live": "Ao vivo",
     "you": "Você",
-    "endCall": "Terminar chamada"
+    "endCall": "Pausar escuta"
   },
   "timezoneGroups": {
     "europe": "Europa",
@@ -844,7 +848,7 @@
   "brain": {
     "voiceSource": "VYVA é o seu treinador mental",
     "headline": "Pronto para treinar\na sua mente?",
-    "subtitle": "Série de {{streak}} dias — continue assim!",
+    "subtitle": "Mantenha a mente ativa",
     "startSession": "Iniciar sessão",
     "chooseActivity": "Escolher uma atividade",
     "doneToday": "Feito hoje",
@@ -860,12 +864,12 @@
       "D"
     ],
     "activities": {
-      "triviaQuiz": "Quiz",
-      "memoryGame": "Jogo da memória",
-      "scrabble": "Scrabble",
-      "logicPuzzle": "Puzzle lógico",
-      "meditation": "Meditação",
-      "breathing": "Respiração"
+      "triviaQuiz": "Foco e atenção",
+      "memoryGame": "Jogo de memória",
+      "scrabble": "Palavras e linguagem",
+      "logicPuzzle": "Treino mental",
+      "meditation": "Relaxe e respire",
+      "breathing": "Relaxe e respire"
     }
   },
   "activity": {
@@ -1148,7 +1152,7 @@
       "requestSent": "Pedido de ligação enviado!"
     },
     "noConnections": "Ainda sem companheiros — veja a aba Sugestões!",
-    "activityTile": "Encontrar uma data para brincar",
+    "activityTile": "Conectar com outros",
     "activityTileSubtitle": "Conheça outros com interesses semelhantes",
     "sayHello": "Dizer olá com VYVA",
     "sayHelloPrompt": "Diga olá a {{name}}!",
@@ -1276,7 +1280,7 @@
     "callCompanionSubtitle": "Orientação em tempo real durante uma chamada suspeita",
     "callCompanionDesc": "Ative o VYVA durante uma chamada suspeita. Pergunte o que dizer, o que evitar e se deve desligar.",
     "callCompanionStart": "Iniciar companheiro de chamada",
-    "callCompanionEnd": "Terminar chamada",
+    "callCompanionEnd": "Pausar ajuda",
     "callCompanionConnecting": "A ligar…"
   },
   "community": {

@@ -23,9 +23,11 @@ import {
   Wind,
   X,
 } from "lucide-react";
+import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import VoiceHero from "@/components/VoiceHero";
 import VitalsScan from "@/components/VitalsScan";
 import { useToast } from "@/hooks/use-toast";
+import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { apiFetch } from "@/lib/queryClient";
 
 type MetricType = "hr" | "rr" | "bp";
@@ -107,6 +109,14 @@ function buildTrend(values: (string | null)[]): number[] {
   return values.map((value) => parseNumericValue(value) ?? 0);
 }
 
+function focusedMetricFromVoice(value: string): MetricType | null {
+  const normalized = value.toLowerCase();
+  if (normalized.includes("blood") || normalized.includes("pressure") || normalized.includes("presion")) return "bp";
+  if (normalized.includes("resp") || normalized.includes("breath") || normalized.includes("rpm")) return "rr";
+  if (normalized.includes("heart") || normalized.includes("pulse") || normalized.includes("card") || normalized.includes("bpm")) return "hr";
+  return null;
+}
+
 function formatRecordedAt(iso: string | null, language: string): string {
   if (!iso) return "--";
   const date = new Date(iso);
@@ -163,10 +173,12 @@ function MetricCard({
   metricKey,
   summary,
   t,
+  highlighted = false,
 }: {
   metricKey: MetricType;
   summary?: VitalsSummaryEntry;
   t: (key: string, fallback: string) => string;
+  highlighted?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const meta = METRIC_META[metricKey];
@@ -187,7 +199,9 @@ function MetricCard({
 
   return (
     <section
-      className="rounded-[24px] border border-[#EDE5DB] bg-white p-4 shadow-[0_8px_24px_rgba(63,45,35,0.06)]"
+      className={`rounded-[24px] border border-[#EDE5DB] bg-white p-4 shadow-[0_8px_24px_rgba(63,45,35,0.06)] ${
+        highlighted ? "ring-2 ring-emerald-200" : ""
+      }`}
       data-testid={`card-vital-${metricKey}`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -401,6 +415,10 @@ const SignosScreen = () => {
   const { toast } = useToast();
   const [showLogModal, setShowLogModal] = useState(false);
   const [showScanModal, setShowScanModal] = useState(false);
+  const { action: voiceAction, payloadValue: voicePayloadValue } = useVoiceActionFulfillment({
+    domain: "health",
+    actionTypes: ["health.vitals_review"],
+  });
 
   const { data: vitalsData, isLoading } = useQuery<VitalsResponse>({
     queryKey: ["/api/vitals"],
@@ -426,6 +444,36 @@ const SignosScreen = () => {
     : t("statusVitals.noLatest", "No recent readings");
   const completionPct = Math.round((filledDays / 7) * 100);
   const overallGood = metricsWithData > 0 && filledDays >= 3;
+  const focusedMetric = focusedMetricFromVoice(
+    voicePayloadValue("vital_type")
+      || voicePayloadValue("trend_focus")
+      || voiceAction?.extractedSubject
+      || "",
+  );
+  const focusedMetricSummary = focusedMetric ? summary?.[focusedMetric] : undefined;
+  const voiceActionHighlights = [
+    ...(focusedMetric
+      ? [{
+          label: t("statusVitals.voiceMetric", "Metric"),
+          value: t(METRIC_META[focusedMetric].labelKey, METRIC_META[focusedMetric].fallbackLabel),
+          tone: "good" as const,
+        }]
+      : []),
+    ...(focusedMetricSummary?.latest_value
+      ? [{
+          label: t("statusVitals.voiceLatest", "Latest"),
+          value: `${focusedMetricSummary.latest_value} ${METRIC_META[focusedMetric!].unit}`,
+          tone: "neutral" as const,
+        }]
+      : []),
+    ...(latestReadingAt
+      ? [{
+          label: t("statusVitals.voiceLastScan", "Last scan"),
+          value: latestText,
+          tone: "neutral" as const,
+        }]
+      : []),
+  ];
 
   const shareStatus = async () => {
     const lines = (["hr", "rr", "bp"] as MetricType[]).map((key) => {
@@ -493,6 +541,15 @@ const SignosScreen = () => {
           </div>
         </div>
       </VoiceHero>
+
+      <VoiceActionFulfillmentPanel
+        domain="health"
+        actionTypes={["health.vitals_review"]}
+        title={t("statusVitals.contextPanelTitle", "Vitals context ready")}
+        description={t("statusVitals.contextPanelDescription", "VYVA can use the latest readings, trend cards, and scan timing from this page.")}
+        highlights={voiceActionHighlights}
+        className="mt-4"
+      />
 
       <section
         className="mt-5 rounded-[26px] border border-[#E4D9CE] bg-white p-4 shadow-[0_10px_28px_rgba(63,45,35,0.07)]"
@@ -577,7 +634,7 @@ const SignosScreen = () => {
               <div key={key} className="h-[112px] animate-pulse rounded-[24px] bg-white shadow-[0_8px_24px_rgba(63,45,35,0.06)]" />
             ))
           : (["hr", "rr", "bp"] as MetricType[]).map((key) => (
-              <MetricCard key={key} metricKey={key} summary={summary?.[key]} t={t} />
+              <MetricCard key={key} metricKey={key} summary={summary?.[key]} t={t} highlighted={focusedMetric === key} />
             ))}
       </div>
 

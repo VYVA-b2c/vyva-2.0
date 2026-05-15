@@ -6,7 +6,11 @@
     "medications": "Medicamentos",
     "cognitiveActivity": "Actividad Cognitiva",
     "history": "Historial",
-    "myProfile": "Mi perfil"
+    "myProfile": "Mi perfil",
+    "vyva": "VYVA",
+    "myHealth": "Mi salud",
+    "myMind": "Mi mente",
+    "concierge": "Conserje"
   },
   "history": {
     "title": "Mi historial",
@@ -245,7 +249,7 @@
         "openLabel": "Abrir tu ayudante"
       }
     },
-    "whatNow": "¿Qué hacemos ahora?"
+    "whatNow": "o explora un tema"
   },
   "voiceHero": {
     "talkToVyva": "Hablar con VYVA",
@@ -255,7 +259,7 @@
     "active": "Activa",
     "live": "En vivo",
     "you": "Tú",
-    "endCall": "Finalizar llamada"
+    "endCall": "Pausar escucha"
   },
   "timezoneGroups": {
     "europe": "Europa",
@@ -920,7 +924,7 @@
   "brain": {
     "voiceSource": "VYVA es tu entrenador mental",
     "headline": "¿Listo para entrenar\ntu mente?",
-    "subtitle": "¡Racha de {{streak}} días — sigue así!",
+    "subtitle": "Mantén tu mente ágil",
     "startSession": "Iniciar sesión",
     "chooseActivity": "Elige una actividad",
     "doneToday": "Hecho hoy",
@@ -936,12 +940,12 @@
       "D"
     ],
     "activities": {
-      "triviaQuiz": "Trivia",
+      "triviaQuiz": "Enfoque y atención",
       "memoryGame": "Juego de memoria",
-      "scrabble": "Scrabble",
-      "logicPuzzle": "Puzzle lógico",
-      "meditation": "Meditación",
-      "breathing": "Respiración"
+      "scrabble": "Palabras y lenguaje",
+      "logicPuzzle": "Entrenamiento mental",
+      "meditation": "Relajarse y respirar",
+      "breathing": "Relajarse y respirar"
     }
   },
   "activity": {
@@ -1224,7 +1228,7 @@
       "requestSent": "¡Solicitud de conexión enviada!"
     },
     "noConnections": "Aún no tienes compañeros — ¡consulta la pestaña de Sugerencias!",
-    "activityTile": "Encuentra un compañero de juego",
+    "activityTile": "Conecta con otros",
     "activityTileSubtitle": "Conoce a otros con intereses similares",
     "sayHello": "Saluda con VYVA",
     "sayHelloPrompt": "¡Saluda a {{name}}!",
@@ -1352,7 +1356,7 @@
     "callCompanionSubtitle": "Orientación en tiempo real durante una llamada sospechosa",
     "callCompanionDesc": "Activa VYVA mientras recibes una llamada sospechosa. Pregunta qué decir, qué evitar y si debes colgar.",
     "callCompanionStart": "Iniciar Compañero de Llamada",
-    "callCompanionEnd": "Finalizar Llamada",
+    "callCompanionEnd": "Pausar ayuda",
     "callCompanionConnecting": "Conectando…"
   },
   "community": {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import AdminMenu from "./AdminMenu";
+import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
 import {
   HERO_LIMITS,
@@ -204,17 +205,13 @@ export default function HeroMessagesAdminPage() {
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
       <section className="mx-auto max-w-7xl">
-        <div className="rounded-[2rem] border border-[#eadfd5] bg-white p-6 shadow-sm">
-          <p className="text-sm font-bold uppercase tracking-[0.22em] text-purple-700">VYVA Admin</p>
-          <h1 className="mt-2 font-serif text-4xl">Hero messages</h1>
-          <p className="mt-2 max-w-3xl text-[#7d6b65]">
-            Manage approved banner copy used across the app. Built-in messages remain as fallbacks, while saved messages override them.
-          </p>
-          <div className="mt-5 flex flex-wrap gap-3">
-            <button className="rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white" onClick={() => refresh().catch((err) => setMessage(err.message))}>Refresh</button>
-            {message && <span className="rounded-2xl bg-purple-50 px-4 py-3 text-purple-800">{message}</span>}
-          </div>
-        </div>
+        <AdminPageHeader
+          title="Hero messages"
+          subtitle="Manage approved banner copy used across the app. Built-in messages remain as fallbacks, while saved messages override them."
+        >
+          <button className="rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white" onClick={() => refresh().catch((err) => setMessage(err.message))}>Refresh</button>
+          {message && <span className="rounded-2xl bg-purple-50 px-4 py-3 text-purple-800">{message}</span>}
+        </AdminPageHeader>
 
         <AdminMenu />
 

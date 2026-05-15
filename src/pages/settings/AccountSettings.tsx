@@ -6,40 +6,34 @@ import { Camera, X } from "lucide-react";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FormField, ResponsiveGrid } from "@/components/vyva-ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n";
 import { LANGUAGES, type LanguageCode } from "@/i18n/languages";
-import { detectBrowserLanguage, normalizeLanguageCode } from "@/i18n/detectLanguage";
+import { detectBrowserLanguage } from "@/i18n/detectLanguage";
 import { apiFetch, queryClient } from "@/lib/queryClient";
+import {
+  PHONE_COUNTRY_OPTIONS,
+  buildProfileIdentityPayload,
+  compressAvatarFile,
+  createEmptyIdentityForm,
+  formatPhoneLocal,
+  identityFromProfileResponse,
+  validateIdentityBasics,
+  type IdentityBasicsForm,
+  type ProfileIdentityResponse,
+} from "@/lib/profileIdentity";
 import { useToast } from "@/hooks/use-toast";
 
-type ProfileResponse = {
-  firstName: string;
-  lastName: string;
-  preferredName?: string;
-  dateOfBirth?: string;
+type ProfileResponse = ProfileIdentityResponse & {
   gender?: string;
-  email?: string;
-  phone?: string;
-  country?: string;
-  language?: string;
   timezone?: string;
-  avatarUrl: string | null;
 };
 
-type AccountForm = {
-  firstName: string;
-  lastName: string;
-  preferredName: string;
-  dateOfBirth: string;
+type AccountForm = IdentityBasicsForm & {
   gender: string;
-  phoneCountry: string;
-  phoneLocal: string;
   whatsapp: string;
-  email: string;
-  language: LanguageCode;
   timezone: string;
 };
 
@@ -161,17 +155,6 @@ const TIMEZONE_OPTIONS = [
   { value: "mexico_city", label: "Mexico - Mexico City (CST)", zone: "America/Mexico_City" },
 ];
 
-const PHONE_COUNTRY_OPTIONS = [
-  { value: "ES", dialCode: "+34", label: "ES" },
-  { value: "UK", dialCode: "+44", label: "UK" },
-  { value: "US", dialCode: "+1", label: "US" },
-  { value: "DE", dialCode: "+49", label: "DE" },
-  { value: "FR", dialCode: "+33", label: "FR" },
-  { value: "IT", dialCode: "+39", label: "IT" },
-  { value: "PT", dialCode: "+351", label: "PT" },
-  { value: "AE", dialCode: "+971", label: "AE" },
-];
-
 const COUNTRY_DEFAULTS: Record<string, { timezone: string }> = {
   ES: { timezone: "europe_central" },
   UK: { timezone: "london" },
@@ -219,87 +202,6 @@ function inferGenderFromName(firstName: string): "female" | "male" | null {
   return null;
 }
 
-function loadImageFromFile(file: File): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const objectUrl = URL.createObjectURL(file);
-    const image = new Image();
-    image.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      resolve(image);
-    };
-    image.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      reject(new Error("Could not read image"));
-    };
-    image.src = objectUrl;
-  });
-}
-
-async function compressAvatarFile(file: File): Promise<string> {
-  if (!file.type.startsWith("image/")) {
-    throw new Error("Selected file is not an image");
-  }
-
-  const image = await loadImageFromFile(file);
-  const attempts = [
-    { maxSize: 720, quality: 0.84 },
-    { maxSize: 560, quality: 0.78 },
-    { maxSize: 420, quality: 0.72 },
-  ];
-
-  let lastDataUrl = "";
-
-  for (const attempt of attempts) {
-    const scale = Math.min(1, attempt.maxSize / Math.max(image.width, image.height));
-    const width = Math.max(1, Math.round(image.width * scale));
-    const height = Math.max(1, Math.round(image.height * scale));
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("Could not prepare image");
-    ctx.drawImage(image, 0, 0, width, height);
-    lastDataUrl = canvas.toDataURL("image/jpeg", attempt.quality);
-
-    if (lastDataUrl.length <= 1_800_000) {
-      return lastDataUrl;
-    }
-  }
-
-  return lastDataUrl;
-}
-
-function splitPhoneNumber(phone: string | undefined, countryCode: string | undefined) {
-  const fallbackCountry = PHONE_COUNTRY_OPTIONS.find((option) => option.value === (countryCode || "ES"))?.value ?? "ES";
-  const rawPhone = (phone ?? "").trim();
-  if (!rawPhone) {
-    return { phoneCountry: fallbackCountry, phoneLocal: "" };
-  }
-
-  const matchedOption = PHONE_COUNTRY_OPTIONS.find((option) => rawPhone.startsWith(option.dialCode));
-  if (!matchedOption) {
-    return { phoneCountry: fallbackCountry, phoneLocal: rawPhone.replace(/[^\d\s-]/g, "").trim() };
-  }
-
-  return {
-    phoneCountry: matchedOption.value,
-    phoneLocal: rawPhone.slice(matchedOption.dialCode.length).trim(),
-  };
-}
-
-function buildPhoneNumber(phoneCountry: string, phoneLocal: string) {
-  const option = PHONE_COUNTRY_OPTIONS.find((entry) => entry.value === phoneCountry) ?? PHONE_COUNTRY_OPTIONS[0];
-  const cleanedLocal = phoneLocal.trim();
-  if (!cleanedLocal) return "";
-  return `${option.dialCode} ${cleanedLocal}`.trim();
-}
-
-function formatPhoneLocal(value: string) {
-  const digits = value.replace(/\D/g, "").slice(0, 15);
-  const groups = digits.match(/.{1,3}/g);
-  return groups ? groups.join(" ") : "";
-}
-
 function getTimezoneValue(zone: string | undefined) {
   return TIMEZONE_OPTIONS.find((option) => option.zone === zone)?.value ?? "europe_central";
 }
@@ -325,19 +227,12 @@ export default function AccountSettings() {
   const [timezoneTouched, setTimezoneTouched] = useState(false);
   const [genderTouched, setGenderTouched] = useState(false);
   const [genderWasInferred, setGenderWasInferred] = useState(false);
-  const [form, setForm] = useState<AccountForm>({
-    firstName: "",
-    lastName: "",
-    preferredName: "",
-    dateOfBirth: "",
+  const [form, setForm] = useState<AccountForm>(() => ({
+    ...createEmptyIdentityForm(language ?? browserLanguageRef.current),
     gender: "prefer_not",
-    phoneCountry: "ES",
-    phoneLocal: "",
     whatsapp: "",
-    email: "",
-    language: language ?? browserLanguageRef.current,
     timezone: "europe_central",
-  });
+  }));
   const [errors, setErrors] = useState<{ firstName?: string; lastName?: string; phone?: string }>({});
 
   const profileQuery = useQuery<ProfileResponse | null>({
@@ -346,22 +241,15 @@ export default function AccountSettings() {
 
   useEffect(() => {
     if (!profileQuery.data) return;
-    const phoneParts = splitPhoneNumber(profileQuery.data.phone, profileQuery.data.country as string | undefined);
-    const defaultForCountry = getDefaultsForCountry(phoneParts.phoneCountry);
+    const identity = identityFromProfileResponse(profileQuery.data, browserLanguageRef.current);
+    const defaultForCountry = getDefaultsForCountry(identity.phoneCountry);
     const profileGender = profileQuery.data.gender;
-    const inferredGender = inferGenderFromName(profileQuery.data.firstName ?? "");
+    const inferredGender = inferGenderFromName(identity.firstName);
     const shouldUseInferredGender = (!profileGender || profileGender === "prefer_not") && Boolean(inferredGender);
     setForm((current) => ({
       ...current,
-      firstName: profileQuery.data.firstName ?? "",
-      lastName: profileQuery.data.lastName ?? "",
-      preferredName: profileQuery.data.preferredName ?? "",
-      dateOfBirth: profileQuery.data.dateOfBirth ?? "",
+      ...identity,
       gender: shouldUseInferredGender ? inferredGender! : profileGender ?? "prefer_not",
-      phoneCountry: phoneParts.phoneCountry,
-      phoneLocal: formatPhoneLocal(phoneParts.phoneLocal),
-      email: profileQuery.data.email ?? "",
-      language: normalizeLanguageCode(profileQuery.data.language, current.language ?? browserLanguageRef.current),
       timezone: profileQuery.data.timezone ? getTimezoneValue(profileQuery.data.timezone) : defaultForCountry.timezone,
     }));
     setTimezoneTouched(Boolean(profileQuery.data.timezone));
@@ -426,18 +314,7 @@ export default function AccountSettings() {
   const initial = displayName.charAt(0).toUpperCase();
   const requiredText = accountCopy.required;
   const optionalText = accountCopy.optional;
-
-  const renderFieldLabel = (label: string, required: boolean) => (
-    <span className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 leading-tight">
-      <span className="flex min-w-0 items-start gap-1.5">
-        <span>{label}</span>
-        {required ? <span className="text-sm leading-none" style={{ color: "#B0355A" }}>*</span> : null}
-      </span>
-      <span className="text-[11px] font-medium" style={{ color: required ? "#B0355A" : "#7A7290" }}>
-        {required ? requiredText : optionalText}
-      </span>
-    </span>
-  );
+  const fieldMeta = { requiredLabel: requiredText, optionalLabel: optionalText };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -454,10 +331,11 @@ export default function AccountSettings() {
   };
 
   const handleSave = async () => {
+    const validation = validateIdentityBasics(form, { requireLastName: true, requirePhone: true });
     const nextErrors: { firstName?: string; lastName?: string; phone?: string } = {};
-    if (!form.firstName.trim()) nextErrors.firstName = accountCopy.firstNameRequired;
-    if (!form.lastName.trim()) nextErrors.lastName = accountCopy.lastNameRequired;
-    if (!form.phoneLocal.trim()) nextErrors.phone = accountCopy.phoneRequired;
+    if (validation.firstName) nextErrors.firstName = accountCopy.firstNameRequired;
+    if (validation.lastName) nextErrors.lastName = accountCopy.lastNameRequired;
+    if (validation.phone) nextErrors.phone = accountCopy.phoneRequired;
     setErrors(nextErrors);
 
     if (Object.keys(nextErrors).length > 0) {
@@ -470,18 +348,12 @@ export default function AccountSettings() {
 
     setSaving(true);
     try {
+      const identityPayload = buildProfileIdentityPayload(form);
       const res = await apiFetch("/api/profile", {
         method: "POST",
         body: JSON.stringify({
-          firstName: form.firstName.trim(),
-          lastName: form.lastName.trim(),
-          preferredName: form.preferredName.trim(),
-          dateOfBirth: form.dateOfBirth,
+          ...identityPayload,
           gender: form.gender,
-          phone: buildPhoneNumber(form.phoneCountry, form.phoneLocal),
-          email: form.email.trim(),
-          language: form.language,
-          country: form.phoneCountry,
           timezone: getTimezoneZone(form.timezone),
         }),
       });
@@ -499,9 +371,6 @@ export default function AccountSettings() {
       setSaving(false);
     }
   };
-
-  const compactLabelClass = "block min-h-[34px] text-xs font-bold text-gray-600";
-  const fieldLabelClass = "block text-xs font-bold text-gray-600";
 
   return (
     <PhoneFrame subtitle={t("settings.account.title")} showBack onBack={() => navigate("/settings")}>
@@ -575,11 +444,14 @@ export default function AccountSettings() {
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="first_name" className={compactLabelClass}>
-              {renderFieldLabel(accountCopy.firstName, true)}
-            </Label>
+        <ResponsiveGrid columns="two" gap="md">
+          <FormField
+            htmlFor="first_name"
+            label={accountCopy.firstName}
+            required
+            error={errors.firstName}
+            {...fieldMeta}
+          >
             <Input
               id="first_name"
               value={form.firstName}
@@ -594,13 +466,15 @@ export default function AccountSettings() {
               }}
               aria-required="true"
             />
-            {errors.firstName ? <p className="text-xs text-red-500">{errors.firstName}</p> : null}
-          </div>
+          </FormField>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="last_name" className={compactLabelClass}>
-              {renderFieldLabel(accountCopy.lastName, true)}
-            </Label>
+          <FormField
+            htmlFor="last_name"
+            label={accountCopy.lastName}
+            required
+            error={errors.lastName}
+            {...fieldMeta}
+          >
             <Input
               id="last_name"
               value={form.lastName}
@@ -615,34 +489,32 @@ export default function AccountSettings() {
               }}
               aria-required="true"
             />
-            {errors.lastName ? <p className="text-xs text-red-500">{errors.lastName}</p> : null}
-          </div>
-        </div>
+          </FormField>
+        </ResponsiveGrid>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="preferred_name" className={fieldLabelClass}>
-            {renderFieldLabel(t("settings.account.preferredName"), false)}
-          </Label>
+        <FormField htmlFor="preferred_name" label={t("settings.account.preferredName")} {...fieldMeta}>
           <Input
             id="preferred_name"
             value={form.preferredName}
             onChange={(e) => setForm((current) => ({ ...current, preferredName: e.target.value }))}
             className="h-11 border-purple-200"
           />
-        </div>
+        </FormField>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label className={compactLabelClass}>{renderFieldLabel(t("settings.account.dateOfBirth"), false)}</Label>
+        <ResponsiveGrid columns="two" gap="md">
+          <FormField label={t("settings.account.dateOfBirth")} {...fieldMeta}>
             <Input
               type="date"
               value={form.dateOfBirth}
               onChange={(e) => setForm((current) => ({ ...current, dateOfBirth: e.target.value }))}
               className="h-11 border-purple-200"
             />
-          </div>
-          <div className="space-y-1.5">
-            <Label className={compactLabelClass}>{renderFieldLabel(t("settings.account.gender"), false)}</Label>
+          </FormField>
+          <FormField
+            label={t("settings.account.gender")}
+            hint={genderWasInferred ? accountCopy.genderInferred : undefined}
+            {...fieldMeta}
+          >
             <Select
               value={form.gender}
               onValueChange={(value) => {
@@ -659,19 +531,17 @@ export default function AccountSettings() {
                 <SelectItem value="prefer_not">{t("settings.account.genderPreferNot")}</SelectItem>
               </SelectContent>
             </Select>
-            {genderWasInferred ? (
-              <p className="text-[11px]" style={{ color: "#7A7290" }}>
-                {accountCopy.genderInferred}
-              </p>
-            ) : null}
-          </div>
-        </div>
+          </FormField>
+        </ResponsiveGrid>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="phone" className={fieldLabelClass}>
-            {renderFieldLabel(t("settings.account.phone"), true)}
-          </Label>
-          <div className="grid grid-cols-[122px_minmax(0,1fr)] gap-3">
+        <FormField
+          htmlFor="phone"
+          label={t("settings.account.phone")}
+          required
+          error={errors.phone}
+          {...fieldMeta}
+        >
+          <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-[122px_minmax(0,1fr)]">
             <Select
               value={form.phoneCountry}
               onValueChange={(value) => setForm((current) => ({ ...current, phoneCountry: value }))}
@@ -704,13 +574,9 @@ export default function AccountSettings() {
               aria-required="true"
             />
           </div>
-          {errors.phone ? <p className="text-xs text-red-500">{errors.phone}</p> : null}
-        </div>
+        </FormField>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="whatsapp" className={fieldLabelClass}>
-            {renderFieldLabel(t("settings.account.whatsapp"), false)}
-          </Label>
+        <FormField htmlFor="whatsapp" label={t("settings.account.whatsapp")} {...fieldMeta}>
           <Input
             id="whatsapp"
             type="tel"
@@ -719,12 +585,9 @@ export default function AccountSettings() {
             placeholder={t("settings.account.whatsappPlaceholder")}
             className="h-11 border-purple-200"
           />
-        </div>
+        </FormField>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="email" className={fieldLabelClass}>
-            {renderFieldLabel(t("settings.account.email"), false)}
-          </Label>
+        <FormField htmlFor="email" label={t("settings.account.email")} {...fieldMeta}>
           <Input
             id="email"
             type="email"
@@ -733,11 +596,10 @@ export default function AccountSettings() {
             placeholder={t("settings.account.emailPlaceholder")}
             className="h-11 border-purple-200"
           />
-        </div>
+        </FormField>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label className={compactLabelClass}>{renderFieldLabel(t("settings.account.language"), false)}</Label>
+        <ResponsiveGrid columns="two" gap="md">
+          <FormField label={t("settings.account.language")} {...fieldMeta}>
             <Select
               value={form.language}
               onValueChange={(value) => {
@@ -754,9 +616,8 @@ export default function AccountSettings() {
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className={compactLabelClass}>{renderFieldLabel(t("settings.account.timezone"), false)}</Label>
+          </FormField>
+          <FormField label={t("settings.account.timezone")} {...fieldMeta}>
             <Select
               value={form.timezone}
               onValueChange={(value) => {
@@ -773,8 +634,8 @@ export default function AccountSettings() {
                 ))}
               </SelectContent>
             </Select>
-          </div>
-        </div>
+          </FormField>
+        </ResponsiveGrid>
 
         <div className="flex flex-col gap-2 pt-2">
           <Button

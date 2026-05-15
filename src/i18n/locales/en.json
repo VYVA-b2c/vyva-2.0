@@ -6,7 +6,11 @@
     "medications": "Medications",
     "cognitiveActivity": "Cognitive Activity",
     "history": "History",
-    "myProfile": "My Profile"
+    "myProfile": "My Profile",
+    "vyva": "VYVA",
+    "myHealth": "My Health",
+    "myMind": "My Mind",
+    "concierge": "Concierge"
   },
   "history": {
     "title": "My History",
@@ -257,7 +261,7 @@
         "openLabel": "Open your helper"
       }
     },
-    "whatNow": "What shall we do now?"
+    "whatNow": "or explore a topic"
   },
   "voiceHero": {
     "talkToVyva": "Talk to VYVA",
@@ -267,7 +271,7 @@
     "active": "Active",
     "live": "Live",
     "you": "You",
-    "endCall": "End call"
+    "endCall": "Pause listening"
   },
   "timezoneGroups": {
     "europe": "Europe",
@@ -932,7 +936,7 @@
   "brain": {
     "voiceSource": "VYVA is your brain coach",
     "headline": "Ready to train\nyour brain?",
-    "subtitle": "{{streak}} day streak — keep it up!",
+    "subtitle": "Keep your mind sharp",
     "startSession": "Start Session",
     "chooseActivity": "Choose an activity",
     "doneToday": "Done today",
@@ -948,12 +952,12 @@
       "S"
     ],
     "activities": {
-      "triviaQuiz": "Trivia Quiz",
+      "triviaQuiz": "Focus & Attention",
       "memoryGame": "Memory Game",
-      "scrabble": "Scrabble",
-      "logicPuzzle": "Logic Puzzle",
-      "meditation": "Meditation",
-      "breathing": "Breathing"
+      "scrabble": "Word & Language",
+      "logicPuzzle": "Brain Training",
+      "meditation": "Relax & Breathe",
+      "breathing": "Relax & Breathe"
     }
   },
   "activity": {
@@ -1236,7 +1240,7 @@
       "requestSent": "Connection request sent!"
     },
     "noConnections": "No companions yet — check the Suggestions tab!",
-    "activityTile": "Find a Play Date",
+    "activityTile": "Connect with others",
     "activityTileSubtitle": "Meet others with shared interests",
     "sayHello": "Say Hello via VYVA",
     "sayHelloPrompt": "Say hello to {{name}}!",
@@ -1364,7 +1368,7 @@
     "callCompanionSubtitle": "Get live guidance during a suspicious call",
     "callCompanionDesc": "Start VYVA on your phone while taking a suspicious call. Ask VYVA what to say, what to watch out for, and whether to hang up.",
     "callCompanionStart": "Start Call Companion",
-    "callCompanionEnd": "End Call",
+    "callCompanionEnd": "Pause guidance",
     "callCompanionConnecting": "Connecting…"
   },
   "community": {

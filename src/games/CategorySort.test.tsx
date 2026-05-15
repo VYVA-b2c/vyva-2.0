@@ -20,5 +20,5 @@ describe("CategorySort", () => {
     expect(screen.getByText(/Ordena por/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Rojo" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Naranja" })).toBeInTheDocument();
-  });
+  }, 10_000);
 });

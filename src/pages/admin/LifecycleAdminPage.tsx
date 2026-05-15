@@ -1,5 +1,6 @@
 import { useEffect, useState, type ChangeEvent, type ReactNode } from "react";
 import AdminMenu from "./AdminMenu";
+import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
 
 type Intake = {
@@ -13,6 +14,8 @@ type Intake = {
   journey_step: string;
   consent_status: string;
   tier: string;
+  intake_tier?: string | null;
+  profile_subscription_tier?: string | null;
   organization_id?: string | null;
   organization_name?: string | null;
   account_status?: "enabled" | "disabled";
@@ -79,9 +82,36 @@ type ScheduledEvent = {
 
 type JsonRecord = Record<string, unknown>;
 
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+type LoginMapping = {
+  source: "legacy" | "supabase";
+  login_uid: string;
+  login_email?: string | null;
+  login_phone?: string | null;
+  match_field?: "email" | "phone" | null;
+  active_profile_id?: string | null;
+  effective_profile_id?: string | null;
+  effective_profile_email?: string | null;
+  effective_profile_phone?: string | null;
+  effective_subscription_tier?: string | null;
+  effective_subscription_status?: string | null;
+  lifecycle_profile_id?: string | null;
+  lifecycle_profile_email?: string | null;
+  lifecycle_subscription_tier?: string | null;
+  lifecycle_subscription_status?: string | null;
+  warnings?: string[];
+};
+
 type UserDetail = {
   intake: Intake;
   profile: JsonRecord | null;
+  account_mappings?: LoginMapping[];
+  account_mapping_warnings?: string[];
+  account_match_field?: "email" | "phone" | null;
+  synced_profile_ids?: string[];
   communications: Communication[];
   lifecycle_events: JsonRecord[];
   consent_attempts: ConsentAttempt[];
@@ -135,10 +165,35 @@ type SubscriptionPlanAdmin = {
   entitlement?: PlanEntitlement | null;
 };
 
+type AccountSubscription = {
+  account_id?: string | null;
+  account_source?: "legacy" | "supabase" | null;
+  account_email?: string | null;
+  account_phone?: string | null;
+  active_profile_id?: string | null;
+  profile_id: string;
+  profile_email?: string | null;
+  full_name?: string | null;
+  preferred_name?: string | null;
+  phone_number?: string | null;
+  subscription_status: string;
+  subscription_tier: string;
+  stored_subscription_tier?: string | null;
+  account_status?: string | null;
+  profile_role?: string | null;
+  membership_role?: string | null;
+  membership_relationship?: string | null;
+  is_active_profile?: boolean;
+  synced_profile_ids?: string[];
+  source?: string;
+  updated_at?: string;
+};
+
 const entryPoints = ["", "form", "phone", "whatsapp", "admin"];
 const userTypes = ["", "elder", "family", "admin"];
 const statuses = ["", "created", "link_sent", "consent_pending", "active", "dropped"];
 const tiers = ["free", "premium"];
+const subscriptionStatusOptions = ["active", "trial", "past_due", "cancelled"];
 const languageOptions = [
   { value: "es", label: "Spanish" },
   { value: "en", label: "English" },
@@ -250,6 +305,10 @@ export default function LifecycleAdminPage() {
   const [users, setUsers] = useState<Intake[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [plans, setPlans] = useState<SubscriptionPlanAdmin[]>([]);
+  const [accountSearch, setAccountSearch] = useState("");
+  const [accountSubscriptions, setAccountSubscriptions] = useState<AccountSubscription[]>([]);
+  const [accountSearchMessage, setAccountSearchMessage] = useState("");
+  const [savingAccountProfileId, setSavingAccountProfileId] = useState<string | null>(null);
   const [orgFilter, setOrgFilter] = useState<"active" | "archived" | "all">("active");
   const [consentAttempts, setConsentAttempts] = useState<ConsentAttempt[]>([]);
   const [communications, setCommunications] = useState<Communication[]>([]);
@@ -419,21 +478,83 @@ export default function LifecycleAdminPage() {
     await refresh();
   }
 
+  async function searchAccountSubscriptions(search = accountSearch) {
+    const query = search.trim();
+    setAccountSearchMessage("");
+    if (query.length < 3) {
+      setAccountSubscriptions([]);
+      setAccountSearchMessage("Enter at least 3 characters to search accounts.");
+      return;
+    }
+
+    const data = await api(`/account-subscriptions?query=${encodeURIComponent(query)}`);
+    const accounts = (data.accounts ?? []) as AccountSubscription[];
+    setAccountSubscriptions(accounts);
+    setAccountSearchMessage(accounts.length ? `${accounts.length} matching account profile${accounts.length === 1 ? "" : "s"} found.` : "No matching account profiles found.");
+  }
+
+  function updateAccountSubscription(profileId: string, patch: Partial<AccountSubscription>) {
+    setAccountSubscriptions((current) => current.map((account) => (
+      account.profile_id === profileId ? { ...account, ...patch } : account
+    )));
+  }
+
+  async function saveAccountSubscription(account: AccountSubscription) {
+    setSavingAccountProfileId(account.profile_id);
+    setAccountSearchMessage("");
+    try {
+      const data = await api(`/account-subscriptions/${account.profile_id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          account_id: account.account_id,
+          account_source: account.account_source,
+          account_email: account.account_email,
+          subscription_tier: account.subscription_tier,
+          subscription_status: account.subscription_status || "active",
+        }),
+      });
+      const updated = data.account as AccountSubscription;
+      setAccountSubscriptions((current) => current.map((item) => (
+        item.profile_id === account.profile_id
+          ? {
+              ...item,
+              ...updated,
+              account_id: updated.account_id ?? item.account_id,
+              account_source: updated.account_source ?? item.account_source,
+              account_email: item.account_email,
+              account_phone: item.account_phone,
+              active_profile_id: updated.active_profile_id ?? item.active_profile_id,
+              is_active_profile: updated.is_active_profile ?? item.is_active_profile,
+            }
+          : item
+      )));
+      const syncedCount = updated.synced_profile_ids?.length ?? 1;
+      setAccountSearchMessage(`${account.profile_email ?? account.account_email ?? account.profile_id} updated to ${updated.subscription_tier}${account.account_id ? " and made active for that login" : ""}${syncedCount > 1 ? ` across ${syncedCount} linked profiles` : ""}.`);
+      await refresh();
+    } catch (err) {
+      setAccountSearchMessage(err instanceof Error ? err.message : "Could not update subscription.");
+    } finally {
+      setSavingAccountProfileId(null);
+    }
+  }
+
   async function openUserDetail(intake: Intake) {
     const data = await api(`/users/${intake.id}/details`);
+    const profileTier = stringValue(data.profile?.subscription_tier);
+    const primaryMapping = Array.isArray(data.account_mappings) ? data.account_mappings[0] as LoginMapping | undefined : undefined;
     setSelectedUser(data);
     setSelectedDraft({
       full_name: data.profile?.full_name ?? intake.name,
       preferred_name: data.profile?.preferred_name ?? "",
       date_of_birth: data.profile?.date_of_birth ?? "",
-      email: data.profile?.email ?? intake.email ?? "",
-      phone_number: data.profile?.phone_number ?? intake.phone,
+      email: data.profile?.email ?? intake.email ?? primaryMapping?.login_email ?? "",
+      phone_number: data.profile?.phone_number ?? intake.phone ?? primaryMapping?.login_phone ?? "",
       whatsapp_number: data.profile?.whatsapp_number ?? "",
       language: data.profile?.language ?? "es",
       timezone: data.profile?.timezone ?? "Europe/Madrid",
       caregiver_name: data.profile?.caregiver_name ?? "",
       caregiver_contact: data.profile?.caregiver_contact ?? "",
-      tier: intake.tier,
+      tier: profileTier ?? intake.tier,
       organization_id: intake.organization_id ?? "",
     });
   }
@@ -444,11 +565,23 @@ export default function LifecycleAdminPage() {
       method: "PATCH",
       body: JSON.stringify({
         ...selectedDraft,
+        sync_profile_ids: (selectedUser.account_mappings ?? [])
+          .map((mapping) => mapping.effective_profile_id)
+          .filter(Boolean),
         organization_id: selectedDraft.organization_id || null,
       }),
     });
-    setMessage("User details saved.");
-    setSelectedUser({ ...selectedUser, intake: data.intake, profile: data.profile });
+    const syncedCount = Array.isArray(data.synced_profile_ids) ? data.synced_profile_ids.length : 1;
+    setMessage(`User details saved${syncedCount > 1 ? ` across ${syncedCount} linked profiles` : ""}.`);
+    setSelectedUser({
+      ...selectedUser,
+      intake: data.intake,
+      profile: data.profile,
+      account_mappings: data.account_mappings ?? selectedUser.account_mappings,
+      account_mapping_warnings: data.account_mapping_warnings ?? selectedUser.account_mapping_warnings,
+      account_match_field: data.account_match_field ?? selectedUser.account_match_field,
+      synced_profile_ids: data.synced_profile_ids ?? selectedUser.synced_profile_ids,
+    });
     await refresh();
   }
 
@@ -547,21 +680,19 @@ export default function LifecycleAdminPage() {
   );
 
   return (
-    <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
+    <main className="min-h-screen bg-[#f7f2eb] px-4 py-4 text-[#2f2135] sm:px-6">
       <section className="mx-auto max-w-7xl">
-        <div className="rounded-[2rem] border border-[#eadfd5] bg-white p-6 shadow-sm">
-          <p className="text-sm font-bold uppercase tracking-[0.22em] text-purple-700">VYVA Admin</p>
-          <h1 className="mt-2 font-serif text-4xl">Signup, Access and Lifecycle</h1>
-          <p className="mt-2 text-[#7d6b65]">One operating layer for form, phone, WhatsApp and admin-created users.</p>
-          <div className="mt-5 flex flex-wrap gap-3">
-            <button className="rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white" onClick={() => refresh().catch((err) => setMessage(err.message))}>Refresh</button>
-            {message && <span className="rounded-2xl bg-purple-50 px-4 py-3 text-purple-800">{message}</span>}
-          </div>
-        </div>
+        <AdminPageHeader
+          title="Signup, Access and Lifecycle"
+          subtitle="One operating layer for form, phone, WhatsApp and admin-created users."
+        >
+          <button className="rounded-xl bg-purple-700 px-4 py-2 text-sm font-bold text-white" onClick={() => refresh().catch((err) => setMessage(err.message))}>Refresh</button>
+          {message && <span className="rounded-xl bg-purple-50 px-3 py-2 text-sm font-bold text-purple-800">{message}</span>}
+        </AdminPageHeader>
 
         <AdminMenu />
 
-        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-5">
+        <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5">
           {[
             ["Total", summary?.total ?? 0],
             ["Active", summary?.active ?? 0],
@@ -569,23 +700,23 @@ export default function LifecycleAdminPage() {
             ["Dropped", summary?.dropped ?? 0],
             ["Links sent", summary?.byStatus?.link_sent ?? 0],
           ].map(([label, value]) => (
-            <div key={label} className="rounded-3xl border border-[#eadfd5] bg-white p-5">
-              <p className="text-sm text-[#8b7a73]">{label}</p>
-              <p className="mt-1 text-3xl font-black">{String(value)}</p>
+            <div key={label} className="rounded-2xl border border-[#eadfd5] bg-white px-4 py-3 shadow-sm">
+              <p className="text-xs font-bold uppercase tracking-[0.06em] text-[#8b7a73]">{label}</p>
+              <p className="mt-1 text-2xl font-black leading-none">{String(value)}</p>
             </div>
           ))}
         </div>
 
-        <nav className="mt-5 flex flex-wrap gap-2">
-          {["users", "invites", "consent", "organizations", "tiers", "communications", "analytics"].map((tab) => (
-            <button key={tab} onClick={() => setActiveTab(tab)} className={`rounded-full px-5 py-3 font-bold ${activeTab === tab ? "bg-purple-700 text-white" : "border border-purple-100 bg-white text-purple-700"}`}>
+        <nav className="mt-3 flex flex-wrap gap-2">
+          {["users", "accounts", "invites", "consent", "organizations", "tiers", "communications", "analytics"].map((tab) => (
+            <button key={tab} onClick={() => setActiveTab(tab)} className={`rounded-xl px-4 py-2 text-sm font-bold shadow-sm ${activeTab === tab ? "bg-purple-700 text-white" : "border border-purple-100 bg-white text-purple-700 hover:bg-purple-50"}`}>
               {tab[0].toUpperCase() + tab.slice(1)}
             </button>
           ))}
         </nav>
 
         {activeTab === "users" && (
-          <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5">
+          <section className="mt-3 rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
             <div className="grid gap-3 md:grid-cols-4">
               {[
                 ["entry_point", entryPoints],
@@ -593,13 +724,27 @@ export default function LifecycleAdminPage() {
                 ["status", statuses],
                 ["tier", ["", ...planOptions.map((plan) => plan.value)]],
               ].map(([key, values]) => (
-                <select key={key as keyof typeof filters} className="rounded-2xl border border-[#e4d8ce] px-4 py-3" value={filters[key as keyof typeof filters]} onChange={(e) => setFilters((prev) => ({ ...prev, [key as keyof typeof filters]: e.target.value }))}>
+                <select key={key as keyof typeof filters} className="rounded-xl border border-[#e4d8ce] px-3 py-2.5 text-sm font-semibold" value={filters[key as keyof typeof filters]} onChange={(e) => setFilters((prev) => ({ ...prev, [key as keyof typeof filters]: e.target.value }))}>
                   {(values as string[]).map((value) => <option key={value} value={value}>{value || String(key).replace("_", " ")}</option>)}
                 </select>
               ))}
             </div>
             <IntakeTable users={users} onView={openUserDetail} onSendLink={sendLink} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} />
           </section>
+        )}
+
+        {activeTab === "accounts" && (
+          <AccountSubscriptionsSection
+            accounts={accountSubscriptions}
+            message={accountSearchMessage}
+            planOptions={planOptions}
+            search={accountSearch}
+            savingProfileId={savingAccountProfileId}
+            onSearchChange={setAccountSearch}
+            onSearch={() => searchAccountSubscriptions().catch((err) => setAccountSearchMessage(err.message))}
+            onChange={updateAccountSubscription}
+            onSave={saveAccountSubscription}
+          />
         )}
 
         {activeTab === "invites" && (
@@ -805,7 +950,12 @@ function IntakeTable({ users, onView, onSendLink, onTriggerConsent, onToggleEnab
               {!compact && <td className="px-3 py-3">{user.phone}</td>}
               <td className="px-3 py-3">{user.user_type}</td>
               <td className="px-3 py-3">{user.entry_point}</td>
-              <td className="px-3 py-3">{user.tier}</td>
+              <td className="px-3 py-3">
+                <span>{user.tier}</span>
+                {user.intake_tier && user.intake_tier !== user.tier && (
+                  <span className="mt-1 block text-xs text-[#8b7a73]">Intake: {user.intake_tier}</span>
+                )}
+              </td>
               <td className="px-3 py-3">{user.status}</td>
               <td className="px-3 py-3">{user.account_status ?? "enabled"}</td>
               <td className="px-3 py-3">{user.consent_status}</td>
@@ -826,6 +976,141 @@ function IntakeTable({ users, onView, onSendLink, onTriggerConsent, onToggleEnab
   );
 }
 
+function AccountSubscriptionsSection({
+  accounts,
+  message,
+  planOptions,
+  search,
+  savingProfileId,
+  onSearchChange,
+  onSearch,
+  onChange,
+  onSave,
+}: {
+  accounts: AccountSubscription[];
+  message: string;
+  planOptions: Array<{ value: string; label: string }>;
+  search: string;
+  savingProfileId: string | null;
+  onSearchChange: (value: string) => void;
+  onSearch: () => void;
+  onChange: (profileId: string, patch: Partial<AccountSubscription>) => void;
+  onSave: (account: AccountSubscription) => Promise<void>;
+}) {
+  return (
+    <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 className="font-serif text-3xl">Account subscriptions</h2>
+          <p className="mt-2 max-w-3xl text-sm text-[#7d6b65]">
+            Search by the user login email, profile email, name or phone. Updates here change the real app profile plan.
+          </p>
+        </div>
+        <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">
+          {accounts.length} result{accounts.length === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      <form
+        className="mt-5 grid gap-3 md:grid-cols-[1fr_auto]"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSearch();
+        }}
+      >
+        <input
+          className="rounded-2xl border border-[#e4d8ce] px-4 py-3"
+          value={search}
+          onChange={(event) => onSearchChange(event.target.value)}
+          placeholder="Search 040270@gmail.com, name or phone"
+        />
+        <button className="rounded-2xl bg-[#2f2135] px-5 py-3 font-bold text-white" type="submit">
+          Search accounts
+        </button>
+      </form>
+
+      {message && (
+        <p className="mt-4 rounded-2xl bg-purple-50 px-4 py-3 text-sm font-bold text-purple-800">
+          {message}
+        </p>
+      )}
+
+      <div className="mt-5 grid gap-3">
+        {accounts.map((account) => {
+          const displayName = account.preferred_name || account.full_name || account.profile_email || account.profile_id;
+          const saving = savingProfileId === account.profile_id;
+          return (
+            <article key={`${account.account_id ?? "profile"}:${account.profile_id}`} className="rounded-3xl border border-[#eadfd5] bg-[#fbf8f5] p-4">
+              <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-xl font-black">{displayName}</h3>
+                    {account.is_active_profile && (
+                      <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">{account.account_source === "supabase" ? "Supabase app profile" : "Active profile"}</span>
+                    )}
+                    {account.account_source === "supabase" && (
+                      <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700">Supabase login</span>
+                    )}
+                    {account.account_id && !account.is_active_profile && (
+                      <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800">Not active for login</span>
+                    )}
+                    {account.account_status === "disabled" && (
+                      <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700">Disabled</span>
+                    )}
+                  </div>
+                  <div className="mt-2 grid gap-1 text-sm text-[#7d6b65]">
+                    <p><span className="font-bold text-[#4d4351]">Login:</span> {account.account_email || account.account_phone || "No linked login shown"}{account.account_source ? ` (${account.account_source})` : ""}</p>
+                    <p><span className="font-bold text-[#4d4351]">Profile:</span> {account.profile_email || account.phone_number || account.profile_id}</p>
+                    <p><span className="font-bold text-[#4d4351]">Profile ID:</span> <span className="font-mono text-xs">{account.profile_id}</span></p>
+                    {account.membership_role && <p><span className="font-bold text-[#4d4351]">Relationship:</span> {account.membership_role}{account.membership_relationship ? ` - ${account.membership_relationship}` : ""}</p>}
+                    {account.account_id && !account.is_active_profile && (
+                      <p className="font-bold text-amber-800">Saving this row will make it the active profile for this login.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] xl:grid-cols-1">
+                  <Field label="Plan">
+                    <select
+                      className="w-full rounded-2xl border px-4 py-3 bg-white"
+                      value={account.subscription_tier}
+                      onChange={(event) => onChange(account.profile_id, { subscription_tier: event.target.value })}
+                    >
+                      {planOptions.map((plan) => <option key={plan.value} value={plan.value}>{plan.label}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Status">
+                    <select
+                      className="w-full rounded-2xl border px-4 py-3 bg-white"
+                      value={account.subscription_status}
+                      onChange={(event) => onChange(account.profile_id, { subscription_status: event.target.value })}
+                    >
+                      {subscriptionStatusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+                    </select>
+                  </Field>
+                  <button
+                    className="rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={saving}
+                    onClick={() => onSave(account)}
+                  >
+                    {saving ? "Saving..." : "Save account plan"}
+                  </button>
+                </div>
+              </div>
+            </article>
+          );
+        })}
+
+        {accounts.length === 0 && !message && (
+          <div className="rounded-3xl bg-[#fbf8f5] p-6 text-center text-[#7d6b65]">
+            Search for a user account to update its real app subscription.
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, onClose, onSave, onToggle, newEvent, setNewEvent, onCreateEvent, onEventStatus, onEventTime }: {
   detail: UserDetail;
   draft: JsonRecord;
@@ -842,38 +1127,66 @@ function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, 
   onEventTime: (event: ScheduledEvent, scheduledFor: string) => void;
 }) {
   const disabled = detail.profile?.account_status === "disabled" || detail.intake.account_status === "disabled";
+  const primaryMapping = detail.account_mappings?.[0];
+  const selectedTier = String(draft.tier ?? "free").toLowerCase();
+  const appTier = primaryMapping?.effective_subscription_tier?.toLowerCase() ?? null;
+  const hasTierMismatch = Boolean(appTier && selectedTier && appTier !== selectedTier);
+  const appAccessText = primaryMapping
+    ? `${primaryMapping.effective_subscription_tier ?? "Unknown"}${primaryMapping.effective_subscription_status ? ` (${primaryMapping.effective_subscription_status})` : ""}`
+    : "No login match";
   return (
-    <div className="fixed inset-0 z-50 overflow-auto bg-black/30 p-4">
-      <div className="mx-auto max-w-5xl rounded-[2rem] bg-white p-6 shadow-2xl">
-        <div className="flex items-start justify-between gap-4">
-          <div><p className="text-sm font-bold uppercase tracking-[0.22em] text-purple-700">User details</p><h2 className="font-serif text-4xl">{detail.intake.name}</h2><p className="text-[#7d6b65]">{detail.intake.user_type} - {detail.intake.status} - {disabled ? "Disabled" : "Enabled"}</p></div>
-          <button className="rounded-full border px-4 py-2 font-bold" onClick={onClose}>Close</button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-3 sm:p-5">
+      <div className="flex max-h-[calc(100vh-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-[1.5rem] bg-white shadow-2xl">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#eadfd5] px-5 py-4">
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-purple-700">User details</p>
+            <h2 className="mt-1 truncate font-serif text-3xl leading-tight">{detail.intake.name}</h2>
+            <p className="mt-1 text-sm text-[#7d6b65]">{detail.intake.user_type} - {detail.intake.status} - {disabled ? "Disabled" : "Enabled"}</p>
+          </div>
+          <button className="rounded-xl border border-[#eadfd5] px-4 py-2 text-sm font-bold" onClick={onClose}>Close</button>
         </div>
-        <div className="mt-5 grid gap-5 lg:grid-cols-2">
-          <section className="rounded-3xl border p-4">
-            <h3 className="text-xl font-black">Profile and access</h3>
-            <div className="mt-3 grid gap-3">
-              <Field label="Full name"><input className="w-full rounded-2xl border px-4 py-3" value={draft.full_name ?? ""} onChange={(e) => setDraft({ ...draft, full_name: e.target.value })} /></Field>
-              <Field label="Preferred name"><input className="w-full rounded-2xl border px-4 py-3" value={draft.preferred_name ?? ""} onChange={(e) => setDraft({ ...draft, preferred_name: e.target.value })} /></Field>
-              <div className="grid gap-3 md:grid-cols-2">
-                <Field label="Phone"><input className="w-full rounded-2xl border px-4 py-3" value={draft.phone_number ?? ""} onChange={(e) => setDraft({ ...draft, phone_number: e.target.value })} /></Field>
-                <Field label="WhatsApp"><input className="w-full rounded-2xl border px-4 py-3" value={draft.whatsapp_number ?? ""} onChange={(e) => setDraft({ ...draft, whatsapp_number: e.target.value })} /></Field>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]">
+          <section className="rounded-2xl border border-[#eadfd5] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-xl font-black">Profile and access</h3>
+                <p className="mt-1 text-sm text-[#7d6b65]">Account, contact, and plan controls.</p>
               </div>
-              <Field label="Email"><input className="w-full rounded-2xl border px-4 py-3" value={draft.email ?? ""} onChange={(e) => setDraft({ ...draft, email: e.target.value })} /></Field>
+              <span className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${hasTierMismatch ? "bg-[#fff3e8] text-[#8a4a00]" : primaryMapping ? "bg-[#ecfdf3] text-[#087443]" : "bg-[#f4eafe] text-purple-700"}`}>
+                App access: {appAccessText}
+              </span>
+            </div>
+            {primaryMapping && (
+              <p className={`mt-3 rounded-xl px-3 py-2 text-sm font-bold ${hasTierMismatch ? "bg-[#fff3e8] text-[#8a4a00]" : "bg-[#ecfdf3] text-[#087443]"}`}>
+                {hasTierMismatch ? "Save changes to sync this user to the selected tier." : "Admin and app access are aligned."}
+              </p>
+            )}
+            {!primaryMapping && (
+              <p className="mt-3 rounded-xl bg-[#f4eafe] px-3 py-2 text-sm font-bold text-purple-800">No login account matched yet. The tier will apply when the user signs in with this email or phone.</p>
+            )}
+            <div className="mt-4 grid gap-3">
+              <Field label="Full name"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.full_name ?? ""} onChange={(e) => setDraft({ ...draft, full_name: e.target.value })} /></Field>
+              <Field label="Preferred name"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.preferred_name ?? ""} onChange={(e) => setDraft({ ...draft, preferred_name: e.target.value })} /></Field>
               <div className="grid gap-3 md:grid-cols-2">
-                <Field label="Caregiver name"><input className="w-full rounded-2xl border px-4 py-3" value={draft.caregiver_name ?? ""} onChange={(e) => setDraft({ ...draft, caregiver_name: e.target.value })} /></Field>
-                <Field label="Caregiver contact"><input className="w-full rounded-2xl border px-4 py-3" value={draft.caregiver_contact ?? ""} onChange={(e) => setDraft({ ...draft, caregiver_contact: e.target.value })} /></Field>
+                <Field label="Phone"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.phone_number ?? ""} onChange={(e) => setDraft({ ...draft, phone_number: e.target.value })} /></Field>
+                <Field label="WhatsApp"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.whatsapp_number ?? ""} onChange={(e) => setDraft({ ...draft, whatsapp_number: e.target.value })} /></Field>
+              </div>
+              <Field label="Email"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.email ?? ""} onChange={(e) => setDraft({ ...draft, email: e.target.value })} /></Field>
+              <div className="grid gap-3 md:grid-cols-2">
+                <Field label="Caregiver name"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.caregiver_name ?? ""} onChange={(e) => setDraft({ ...draft, caregiver_name: e.target.value })} /></Field>
+                <Field label="Caregiver contact"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.caregiver_contact ?? ""} onChange={(e) => setDraft({ ...draft, caregiver_contact: e.target.value })} /></Field>
               </div>
               <div className="grid gap-3 md:grid-cols-3">
-                <Field label="Tier"><select className="w-full rounded-2xl border px-4 py-3" value={draft.tier ?? "free"} onChange={(e) => setDraft({ ...draft, tier: e.target.value })}>{planOptions.map((plan) => <option key={plan.value} value={plan.value}>{plan.label}</option>)}</select></Field>
-                <Field label="Language"><select className="w-full rounded-2xl border px-4 py-3" value={draft.language ?? "es"} onChange={(e) => setDraft({ ...draft, language: e.target.value })}>{languageOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
-                <Field label="Organization"><select className="w-full rounded-2xl border px-4 py-3" value={draft.organization_id ?? ""} onChange={(e) => setDraft({ ...draft, organization_id: e.target.value })}><option value="">None</option>{organizations.filter((org) => org.is_active).map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}</select></Field>
+                <Field label="Admin tier"><select className="w-full rounded-xl border px-3 py-2.5" value={draft.tier ?? "free"} onChange={(e) => setDraft({ ...draft, tier: e.target.value })}>{planOptions.map((plan) => <option key={plan.value} value={plan.value}>{plan.label}</option>)}</select></Field>
+                <Field label="Language"><select className="w-full rounded-xl border px-3 py-2.5" value={draft.language ?? "es"} onChange={(e) => setDraft({ ...draft, language: e.target.value })}>{languageOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
+                <Field label="Organization"><select className="w-full rounded-xl border px-3 py-2.5" value={draft.organization_id ?? ""} onChange={(e) => setDraft({ ...draft, organization_id: e.target.value })}><option value="">None</option>{organizations.filter((org) => org.is_active).map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}</select></Field>
               </div>
-              <div className="flex flex-wrap gap-2"><button className="rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white" onClick={onSave}>Save changes</button><button className="rounded-2xl border px-5 py-3 font-bold" onClick={onToggle}>{disabled ? "Enable user" : "Disable user"}</button></div>
+              <div className="flex flex-wrap gap-2"><button className="rounded-xl bg-purple-700 px-5 py-2.5 font-bold text-white" onClick={onSave}>Save changes</button><button className="rounded-xl border px-5 py-2.5 font-bold" onClick={onToggle}>{disabled ? "Enable user" : "Disable user"}</button></div>
             </div>
           </section>
 
-          <section className="rounded-3xl border p-4">
+          <section className="self-start rounded-2xl border border-[#eadfd5] p-4">
             <h3 className="text-xl font-black">Scheduled events</h3>
             <div className="mt-3 grid gap-2">
               {detail.scheduled_events.length === 0 && <p className="text-[#7d6b65]">No scheduled events yet.</p>}
@@ -925,14 +1238,15 @@ function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, 
               </div>
             </div>
           </section>
-        </div>
+          </div>
 
-        <section className="mt-5 grid gap-4 lg:grid-cols-3">
+        <section className="mt-4 grid gap-4 lg:grid-cols-3">
           <LogPanel title="Communications" rows={detail.communications} />
           <LogPanel title="Consent attempts" rows={detail.consent_attempts} />
           <LogPanel title="Lifecycle history" rows={detail.lifecycle_events} />
         </section>
       </div>
+    </div>
     </div>
   );
 }

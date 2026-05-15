@@ -32,10 +32,12 @@ import {
   ChevronUp,
 } from "lucide-react";
 import VoiceHero from "@/components/VoiceHero";
+import { ActionCard, ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useDoctorVoice } from "@/hooks/useDoctorVoice";
 import { serviceForPath, useServiceGate } from "@/hooks/useServiceGate";
 
 type WoundScan = {
@@ -346,9 +348,20 @@ const HealthScreen = () => {
   const { t, i18n } = useTranslation();
   const { firstName, profile } = useProfile();
   const navigate = useNavigate();
-  const { guardPath, canUseService, readiness } = useServiceGate();
+  const { guardPath, canUseService, readiness, isLoading: serviceGateLoading } = useServiceGate();
   const location = useLocation();
   const { toast } = useToast();
+  const {
+    startDoctorVoice,
+    stopDoctorVoice,
+    status: doctorVoiceStatus,
+    isVoiceLive: doctorVoiceLive,
+    isSpeaking: doctorVoiceSpeaking,
+    isConnecting: doctorVoiceConnecting,
+    transcript: doctorVoiceTranscript,
+    lastError: doctorVoiceLastError,
+    sendUserMessage: sendDoctorUserMessage,
+  } = useDoctorVoice();
 
   const [seeDoctorOpen,    setSeeDoctorOpen]    = useState(false);
   const [specialistOpen,   setSpecialistOpen]   = useState(false);
@@ -366,10 +379,13 @@ const HealthScreen = () => {
   const [woundResult,      setWoundResult]      = useState<null | { severity: string; resultTitle: string; advice: string }>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const specialistRecognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const doctorAutoStartConsumedRef = useRef(false);
 
   const headlineBase = t("health.allGoodToday", "All good today");
   const headlineText = firstName ? `${headlineBase}, ${firstName}` : headlineBase;
   const specialistLanguage = activeLanguage(profile?.language || i18n.language);
+  const autoStartDoctorVoice = Boolean((location.state as { autoStartDoctorVoice?: boolean } | null)?.autoStartDoctorVoice);
+  const doctorServiceBlocked = readiness?.services?.doctor?.ready === false;
 
   const profileLocation = useMemo(() => {
     const parts = [
@@ -513,6 +529,35 @@ const HealthScreen = () => {
       });
     }, 80);
   }, [location.search]);
+
+  useEffect(() => {
+    if (!autoStartDoctorVoice || doctorAutoStartConsumedRef.current || serviceGateLoading) return;
+
+    doctorAutoStartConsumedRef.current = true;
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+
+    if (doctorServiceBlocked || doctorVoiceLive) return;
+    void startDoctorVoice();
+  }, [
+    autoStartDoctorVoice,
+    doctorServiceBlocked,
+    doctorVoiceLive,
+    location.pathname,
+    location.search,
+    navigate,
+    serviceGateLoading,
+    startDoctorVoice,
+  ]);
+
+  useEffect(() => {
+    if (!doctorVoiceLastError) return;
+    toast({
+      description: t(
+        "health.doctorChoice.voiceError",
+        "The doctor's voice could not start. You can still tap Talk to Doctor.",
+      ),
+    });
+  }, [doctorVoiceLastError, t, toast]);
 
   const bookSpecialistMutation = useMutation({
     mutationFn: async (provider: SpecialistProvider) => {
@@ -662,11 +707,16 @@ const HealthScreen = () => {
   };
 
   const QUICK_TILES = [
-    { id: "sintomas",   Icon: HeartPulse,    iconBg: "#F5F3FF", iconColor: "#7C3AED", label: t("health.quickTiles.symptoms.label", "Symptoms"),    hint: t("health.quickTiles.symptoms.hint", "Check how I feel"), path: "/health/symptom-check", action: () => guardPath("/health/symptom-check") },
-    { id: "medicacion", Icon: Pill,          iconBg: "#FDF4FF", iconColor: "#86198F", label: t("health.quickTiles.medication.label", "Medication"),  hint: t("health.quickTiles.medication.hint", "My pills"),     path: "/meds", action: () => guardPath("/meds") },
-    { id: "signos",     Icon: Activity,      iconBg: "#FFF1F2", iconColor: "#BE123C", label: t("health.quickTiles.status.label", "Status"),      hint: t("health.quickTiles.status.hint", "Vital signs"),    path: "/health/vitals", action: () => navigate("/health/vitals") },
-    { id: "historial",  Icon: ClipboardList, iconBg: "#EFF6FF", iconColor: "#1D4ED8", label: t("health.quickTiles.reports.label", "Reports"),    hint: t("health.quickTiles.reports.hint", "View summary"),      path: "/informes", action: () => navigate("/informes") },
+    { id: "sintomas",   Icon: HeartPulse,    iconBg: "#F5F3FF", iconColor: "#7C3AED", label: t("health.quickTiles.symptoms.label", "Symptoms"),    hint: t("health.quickTiles.symptoms.hint", "Check how I feel"), path: "/health/symptom-check", agentMessage: "I want to talk about my symptoms", action: () => guardPath("/health/symptom-check") },
+    { id: "medicacion", Icon: Pill,          iconBg: "#FDF4FF", iconColor: "#86198F", label: t("health.quickTiles.medication.label", "Medication"),  hint: t("health.quickTiles.medication.hint", "My pills"),     path: "/meds", agentMessage: "I want to review my medications", action: () => guardPath("/meds") },
+    { id: "signos",     Icon: Activity,      iconBg: "#FFF1F2", iconColor: "#BE123C", label: t("health.quickTiles.status.label", "Status"),      hint: t("health.quickTiles.status.hint", "Vital signs"),    path: "/health/vitals", agentMessage: "I want to check my health status", action: () => navigate("/health/vitals") },
+    { id: "historial",  Icon: ClipboardList, iconBg: "#EFF6FF", iconColor: "#1D4ED8", label: t("health.quickTiles.reports.label", "Reports"),    hint: t("health.quickTiles.reports.hint", "View summary"),      path: "/informes", agentMessage: "I want to see my health reports", action: () => navigate("/informes") },
   ];
+
+  const handleQuickTileClick = (tile: (typeof QUICK_TILES)[number]) => {
+    sendDoctorUserMessage(tile.agentMessage);
+    tile.action();
+  };
 
   const isSubscriptionLocked = (path?: string) => {
     if (!path) return false;
@@ -686,7 +736,22 @@ const HealthScreen = () => {
           headline={<>{headlineText}</>}
           contextHint="health symptoms"
           talkLabel={t("health.talkToDoctor", "Talk to a Doctor")}
-          onTalkClick={() => guardPath("/health/doctor", { state: { autoStartVoice: true } })}
+          onTalkClick={() => {
+            if (doctorVoiceLive) {
+              stopDoctorVoice();
+              return;
+            }
+            guardPath("/health/doctor", { state: { autoStartVoice: true } });
+          }}
+          voiceControls={{
+            status: doctorVoiceStatus,
+            isSpeaking: doctorVoiceSpeaking,
+            isConnecting: doctorVoiceConnecting,
+            transcript: doctorVoiceTranscript,
+            onEnd: stopDoctorVoice,
+            showOverlay: false,
+            activeLabel: t("health.doctorChoice.stopCall", "Pause listening"),
+          }}
         />
 
         <button
@@ -710,50 +775,40 @@ const HealthScreen = () => {
 
         {/* ── 2. Acceso rápido (2×2 grid) ── */}
         <div className="mt-[20px]">
-          <p className="vyva-section-title mb-3">
-            {t("health.quickAccess", "Quick access")}
-          </p>
-          <div className="grid grid-cols-2 gap-4">
+          <SectionTitle className="mb-3" title={t("health.quickAccess", "Quick access")} />
+          <ResponsiveGrid columns="two">
             {QUICK_TILES.map((tile) => {
               const locked = isSubscriptionLocked(tile.path);
               return (
-                <button
+                <ActionCard
                   key={tile.id}
                   data-testid={`button-health-quick-${tile.id}`}
-                  onClick={tile.action}
-                  className={`vyva-tap relative flex min-h-[150px] min-w-0 flex-col items-center justify-center gap-3 rounded-[28px] border border-vyva-border bg-[#FFFCF8] px-3 py-5 text-center transition-transform active:scale-[0.99] ${locked ? "opacity-80" : ""}`}
-                  style={{ boxShadow: "0 14px 30px rgba(60,38,20,0.08)" }}
-                >
-                  {locked && (
+                  onClick={() => handleQuickTileClick(tile)}
+                  title={tile.label}
+                  description={tile.hint}
+                  icon={locked ? undefined : tile.Icon}
+                  iconNode={locked ? <Lock size={28} aria-hidden="true" /> : undefined}
+                  iconBg={tile.iconBg}
+                  iconColor={tile.iconColor}
+                  align="center"
+                  size="large"
+                  locked={locked}
+                  badge={locked ? (
                     <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-[#F4EAFE] px-2 py-1 font-body text-[11px] font-bold text-[#6B21A8]">
                       <Lock size={12} strokeWidth={2.5} />
                       Plan
                     </span>
-                  )}
-                  <div
-                    className="flex h-[58px] w-[58px] flex-shrink-0 items-center justify-center rounded-[20px]"
-                    style={{ background: tile.iconBg }}
-                  >
-                    {locked ? <Lock size={25} style={{ color: tile.iconColor }} /> : <tile.Icon size={27} style={{ color: tile.iconColor }} />}
-                  </div>
-                  <span className="font-body text-[18px] font-extrabold leading-[1.08] text-vyva-text-1 [overflow-wrap:anywhere]">
-                    {tile.label}
-                  </span>
-                  <span className="font-body text-[14px] font-medium leading-snug text-vyva-text-2 [overflow-wrap:anywhere]">
-                    {tile.hint}
-                  </span>
-                </button>
+                  ) : null}
+                />
               );
             })}
-          </div>
+          </ResponsiveGrid>
         </div>
 
 
         {/* ── 3. Acciones rápidas ── */}
         <div className="mt-[24px]">
-          <p className="vyva-section-title mb-3">
-            {t("health.quickActions", "Quick actions")}
-          </p>
+          <SectionTitle className="mb-3" title={t("health.quickActions", "Quick actions")} />
 
           <div className="flex flex-col gap-[10px]">
 
@@ -763,13 +818,13 @@ const HealthScreen = () => {
               className="vyva-card overflow-hidden"
               style={{ background: "#FFFFFF", border: "1px solid #EDE5DB", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" }}
             >
-              <div className="flex items-center gap-3 px-[18px] py-[16px]">
-                <div className="w-[48px] h-[48px] rounded-[14px] flex items-center justify-center flex-shrink-0" style={{ background: "#F0FDF4" }}>
-                  <Stethoscope size={24} style={{ color: "#0A7C4E" }} />
+              <div className="flex items-center gap-4 px-[18px] py-[18px]">
+                <div className="w-[58px] h-[58px] rounded-[20px] flex items-center justify-center flex-shrink-0" style={{ background: "#F0FDF4" }}>
+                  <Stethoscope size={30} style={{ color: "#0A7C4E" }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-body text-[15px] font-semibold text-vyva-text-1">{t("health.seeDoctor.title", "See a Doctor")}</p>
-                  <p className="font-body text-[12px] text-vyva-text-2">{t("health.seeDoctor.subtitle", "Video or phone in minutes")}</p>
+                  <p className="font-body text-[21px] font-extrabold leading-tight text-vyva-text-1">{t("health.seeDoctor.title", "See a Doctor")}</p>
+                  <p className="mt-2 font-body text-[14px] font-medium leading-snug text-vyva-text-2">{t("health.seeDoctor.subtitle", "Video or phone in minutes")}</p>
                 </div>
                 <button
                   data-testid="button-see-doctor"
@@ -806,13 +861,13 @@ const HealthScreen = () => {
               className="vyva-card overflow-hidden"
               style={{ background: "#FFFFFF", border: "1px solid #EDE5DB", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" }}
             >
-              <div className="flex items-center gap-3 px-[18px] py-[16px]">
-                <div className="w-[48px] h-[48px] rounded-[14px] flex items-center justify-center flex-shrink-0" style={{ background: "#FFFBEB" }}>
-                  <Camera size={24} style={{ color: "#C9890A" }} />
+              <div className="flex items-center gap-4 px-[18px] py-[18px]">
+                <div className="w-[58px] h-[58px] rounded-[20px] flex items-center justify-center flex-shrink-0" style={{ background: "#FFFBEB" }}>
+                  <Camera size={30} style={{ color: "#C9890A" }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-body text-[15px] font-semibold text-vyva-text-1">{t("health.scanWound.title", "Scan My Wound")}</p>
-                  <p className="font-body text-[12px] text-vyva-text-2">{t("health.scanWound.subtitle", "Take or upload a photo for AI analysis")}</p>
+                  <p className="font-body text-[21px] font-extrabold leading-tight text-vyva-text-1">{t("health.scanWound.title", "Scan My Wound")}</p>
+                  <p className="mt-2 font-body text-[14px] font-medium leading-snug text-vyva-text-2">{t("health.scanWound.subtitle", "Take or upload a photo for AI analysis")}</p>
                 </div>
                 <button
                   data-testid="button-scan-wound"
@@ -996,13 +1051,13 @@ const HealthScreen = () => {
               className="vyva-card overflow-hidden"
               style={{ background: "#FFFFFF", border: "1px solid #EDE5DB", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" }}
             >
-              <div className="flex items-center gap-3 px-[18px] py-[16px]">
-                <div className="w-[48px] h-[48px] rounded-[14px] flex items-center justify-center flex-shrink-0" style={{ background: "#F5F3FF" }}>
-                  <UserSearch size={24} style={{ color: "#7C3AED" }} />
+              <div className="flex items-center gap-4 px-[18px] py-[18px]">
+                <div className="w-[58px] h-[58px] rounded-[20px] flex items-center justify-center flex-shrink-0" style={{ background: "#F5F3FF" }}>
+                  <UserSearch size={30} style={{ color: "#7C3AED" }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-body text-[15px] font-semibold text-vyva-text-1">{t("health.findSpecialist.title", "Find a Specialist")}</p>
-                  <p className="font-body text-[12px] text-vyva-text-2">{t("health.findSpecialist.subtitle", "Connect with the right expert")}</p>
+                  <p className="font-body text-[21px] font-extrabold leading-tight text-vyva-text-1">{t("health.findSpecialist.title", "Find a Specialist")}</p>
+                  <p className="mt-2 font-body text-[14px] font-medium leading-snug text-vyva-text-2">{t("health.findSpecialist.subtitle", "Connect with the right expert")}</p>
                 </div>
                 <button
                   data-testid="button-find-specialist"

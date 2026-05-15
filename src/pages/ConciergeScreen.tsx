@@ -1,6 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Send,
@@ -9,27 +8,24 @@ import {
   Calendar,
   Search,
   Tag,
-  RefreshCw,
   Plus,
   Sparkles,
-  Home,
-  ShieldCheck,
   PhoneCall,
   CircleCheck,
-  CircleX,
-  Share2,
-  MapPin,
-  Clock,
   ExternalLink,
   Camera,
   FileUp,
   Mic,
   PencilLine,
   Zap,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import VoiceHero from "@/components/VoiceHero";
+import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
+import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
+import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { apiFetch } from "@/lib/queryClient";
 
 interface ChatMessage {
@@ -40,72 +36,6 @@ interface ChatMessage {
 interface StoredChatHistory {
   savedAt: string;
   messages: ChatMessage[];
-}
-
-interface RecommendationCard {
-  id?: string;
-  title: string;
-  description: string;
-  category: "deal" | "event" | "tip" | "activity";
-  emoji: string;
-  why?: string;
-  details?: string;
-  steps?: string[];
-  action_label?: string;
-  action_prompt?: string;
-  safety_note?: string;
-  best_time?: string;
-  effort?: "none" | "low" | "medium";
-  freshness?: string;
-  personal_signals?: string[];
-  action_kind?: "chat" | "call" | "booking" | "check" | "plan";
-  action_payload?: {
-    flow?: string;
-    needs?: string[];
-    search_terms?: string[];
-    title?: string;
-    category?: RecommendationCard["category"];
-    personal_signals?: string[];
-    location_hint?: string;
-    safety_note?: string;
-    resolved_place?: {
-      name?: string;
-      address?: string;
-      phone?: string;
-      website?: string;
-      mapsUrl?: string;
-      openingHours?: string[];
-      priceInfo?: string;
-      sourceName?: string;
-      sourceUrl?: string;
-      dateText?: string;
-      timeInfo?: string;
-      matchReason?: string;
-      priceLevel?: number;
-      rating?: number;
-      reviewCount?: number;
-    };
-  };
-  location_hint?: string;
-  score?: number;
-  reason_codes?: string[];
-}
-
-interface RecommendationActionPlan {
-  title: string;
-  summary: string;
-  place_name?: string;
-  address?: string;
-  phone?: string;
-  website?: string;
-  maps_url?: string;
-  opening_hours?: string[];
-  price_info: string;
-  travel_info: string;
-  accessibility_note: string;
-  next_steps: string[];
-  caveat: string;
-  share_text: string;
 }
 
 interface ConciergePendingItem {
@@ -119,17 +49,6 @@ interface ConciergePendingItem {
   language: string;
   confirmed_at?: string | null;
   expires_at?: string | null;
-}
-
-interface ConciergeSessionItem {
-  id: string;
-  pending_id: string | null;
-  use_case: string;
-  provider_name: string | null;
-  outcome: string;
-  outcome_payload: Record<string, unknown> | null;
-  outcome_summary: string | null;
-  completed_at?: string | null;
 }
 
 type ConciergeActionListResponse<T> = { items?: T[] };
@@ -403,111 +322,12 @@ const APPOINTMENT_TYPE_CHIPS = [
   },
 ] as const;
 
-const RECS_CACHE_BASE = "vyva_concierge_recs_v8";
-const RECS_DATE_BASE = "vyva_concierge_recs_date_v8";
 const CHAT_HISTORY_BASE = "vyva_concierge_chat";
 const CHAT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-
-function recsCacheKey(locale: string) {
-  const lang = locale.split("-")[0].toLowerCase();
-  return `${RECS_CACHE_BASE}_${lang}`;
-}
-
-function recsDateKey(locale: string) {
-  const lang = locale.split("-")[0].toLowerCase();
-  return `${RECS_DATE_BASE}_${lang}`;
-}
 
 function chatHistoryKey(locale: string) {
   const lang = locale.split("-")[0].toLowerCase();
   return `${CHAT_HISTORY_BASE}_${lang}`;
-}
-
-function getCategoryColors(category: RecommendationCard["category"]) {
-  const map: Record<RecommendationCard["category"], { bg: string; border: string }> = {
-    deal: { bg: "#FEF3C7", border: "#FCD34D" },
-    event: { bg: "#EDE9FE", border: "#C4B5FD" },
-    tip: { bg: "#ECFDF5", border: "#6EE7B7" },
-    activity: { bg: "#F5F3FF", border: "#DDD6FE" },
-  };
-  return map[category] ?? map.tip;
-}
-
-function effortLabel(effort: RecommendationCard["effort"], isSpanish: boolean) {
-  if (effort === "none") return isSpanish ? "Sin esfuerzo" : "No effort";
-  if (effort === "low") return isSpanish ? "Suave" : "Gentle";
-  if (effort === "medium") return isSpanish ? "Moderado" : "Moderate";
-  return "";
-}
-
-function buildRecommendationActionPrompt(card: RecommendationCard, isSpanish: boolean) {
-  const payload = card.action_payload;
-  const needs = payload?.needs?.length ? payload.needs.join(", ") : "";
-  const searchTerms = payload?.search_terms?.length ? payload.search_terms.join(", ") : "";
-  const signals = card.personal_signals?.length ? card.personal_signals.join(", ") : "";
-
-  if (isSpanish) {
-    return [
-      `Quiero que me ayudes con esta recomendacion: "${card.title}".`,
-      `Tipo de accion: ${card.action_kind || "plan"}.`,
-      payload?.flow ? `Flujo: ${payload.flow}.` : "",
-      needs ? `Necesito que cubras: ${needs}.` : "",
-      searchTerms ? `Si hace falta buscar, usa estos terminos: ${searchTerms}.` : "",
-      card.location_hint ? `Contexto local: ${card.location_hint}` : "",
-      signals ? `Personalizalo usando estas senales: ${signals}.` : "",
-      card.safety_note ? `Ten en cuenta esta nota de cuidado: ${card.safety_note}` : "",
-      "Responde como una conversacion natural de movil, sin titulos markdown, sin tablas y sin listas largas.",
-      "Empieza con una frase clara de lo que puedes hacer y pide solo el siguiente dato o confirmacion necesaria.",
-      "Si requiere llamar, reservar o confirmar algo, prepara primero un resumen claro y pideme confirmacion.",
-    ].filter(Boolean).join("\n");
-  }
-
-  return [
-    `Help me with this recommendation: "${card.title}".`,
-    `Action type: ${card.action_kind || "plan"}.`,
-    payload?.flow ? `Flow: ${payload.flow}.` : "",
-    needs ? `Cover these needs: ${needs}.` : "",
-    searchTerms ? `If search is needed, use these terms: ${searchTerms}.` : "",
-    card.location_hint ? `Local context: ${card.location_hint}` : "",
-    signals ? `Personalise it using these signals: ${signals}.` : "",
-    card.safety_note ? `Care note: ${card.safety_note}` : "",
-    "Respond like a natural mobile chat, with no markdown headings, no tables, and no long lists.",
-    "Start with one clear sentence about what you can do and ask only for the next needed detail or confirmation.",
-    "If it requires a call, booking, or confirmation, prepare a clear summary and ask me to confirm first.",
-  ].filter(Boolean).join("\n");
-}
-
-function buildFallbackPlan(card: RecommendationCard, isSpanish: boolean): RecommendationActionPlan {
-  const title = isSpanish ? `Plan para: ${card.title}` : `Plan for: ${card.title}`;
-  const caveat = isSpanish
-    ? "No he podido comprobar datos en vivo ahora mismo. Antes de salir, confirma horarios, precio y disponibilidad."
-    : "I could not check live details right now. Before leaving, confirm hours, price, and availability.";
-
-  return {
-    title,
-    summary: isSpanish
-      ? "No he podido verificar un lugar cercano en vivo para esta tarjeta. Actualiza recomendaciones o pide a VYVA que busque de nuevo."
-      : "I could not verify a nearby live place for this card. Refresh recommendations or ask VYVA to search again.",
-    price_info: isSpanish
-      ? "Sin lugar verificado, no conviene estimar precio."
-      : "Without a verified place, it is not useful to estimate price.",
-    travel_info: isSpanish
-      ? "Actualiza la recomendacion para encontrar una opcion cercana concreta con ruta y mapa."
-      : "Refresh the recommendation to find a concrete nearby option with route and map.",
-    accessibility_note: card.safety_note || (isSpanish
-      ? "Comprobar acceso, asientos, escaleras y distancia antes de ir."
-      : "Check access, seating, stairs, and distance before going."),
-    next_steps: isSpanish
-      ? ["Actualizar recomendaciones", "Buscar una opcion cercana verificada", "Confirmar horario, precio y acceso"]
-      : ["Refresh recommendations", "Find a verified nearby option", "Confirm hours, price, and access"],
-    caveat,
-    share_text: [
-      title,
-      card.description,
-      isSpanish ? "Pendiente: confirmar horario, precio, acceso y ruta." : "Pending: confirm hours, price, access, and route.",
-      caveat,
-    ].join("\n"),
-  };
 }
 
 const QUICK_ACTIONS = [
@@ -532,55 +352,10 @@ async function callConcierge(
   return data.response ?? "";
 }
 
-async function fetchRecommendations(locale: string, refresh = false): Promise<RecommendationCard[]> {
-  const res = await apiFetch("/api/concierge/recommendations", {
-    method: "POST",
-    body: JSON.stringify({ locale, refresh }),
-  });
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-  const data = (await res.json()) as { recommendations?: RecommendationCard[] };
-  return data.recommendations ?? [];
-}
-
-async function fetchRecommendationPlan(card: RecommendationCard, locale: string): Promise<RecommendationActionPlan> {
-  const res = await apiFetch("/api/concierge/recommendations/plan", {
-    method: "POST",
-    body: JSON.stringify({ card, locale }),
-  });
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-  const data = (await res.json()) as { plan?: RecommendationActionPlan };
-  if (!data.plan) throw new Error("Missing recommendation plan");
-  return data.plan;
-}
-
-async function sendRecommendationFeedback(
-  card: RecommendationCard,
-  action: "shown" | "opened" | "liked" | "dismissed" | "completed"
-) {
-  if (!card.id) return;
-  await apiFetch("/api/concierge/recommendations/feedback", {
-    method: "POST",
-    body: JSON.stringify({
-      recommendation_id: card.id,
-      action,
-      category: card.category,
-      title: card.title,
-      reasons: card.reason_codes ?? [],
-    }),
-  });
-}
-
 async function fetchPendingActions(): Promise<ConciergePendingItem[]> {
   const res = await apiFetch("/api/concierge/actions/pending");
   if (!res.ok) throw new Error(`Request failed: ${res.status}`);
   const data = (await res.json()) as ConciergeActionListResponse<ConciergePendingItem>;
-  return data.items ?? [];
-}
-
-async function fetchRecentSessions(): Promise<ConciergeSessionItem[]> {
-  const res = await apiFetch("/api/concierge/actions/sessions");
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-  const data = (await res.json()) as ConciergeActionListResponse<ConciergeSessionItem>;
   return data.items ?? [];
 }
 
@@ -929,24 +704,6 @@ function statusLabel(status: ConciergePendingItem["status"], locale = "es"): str
   }
 }
 
-function sessionOutcomeLabel(outcome: string, locale = "es"): string {
-  const es = locale.startsWith("es");
-  switch (outcome) {
-    case "confirmed":
-      return es ? "Confirmado" : "Confirmed";
-    case "no_answer":
-      return es ? "Sin respuesta" : "No answer";
-    case "cant_fulfil":
-      return es ? "No se pudo completar" : "Could not complete";
-    case "user_cancelled":
-      return es ? "Cancelado" : "Cancelled";
-    case "error":
-      return es ? "Problema" : "Problem";
-    default:
-      return outcome;
-  }
-}
-
 function getUseCaseLabel(useCase: string, locale = "es"): string {
   const es = locale.startsWith("es");
   switch (useCase) {
@@ -985,7 +742,7 @@ const ConciergeScreen = () => {
   const { t, i18n } = useTranslation();
   const locale = i18n.language.split("-")[0].toLowerCase();
   const isSpanish = locale === "es";
-  const navigate = useNavigate();
+  const autoStartVoice = useRouteVoiceAutoStart();
   const queryClient = useQueryClient();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -993,19 +750,16 @@ const ConciergeScreen = () => {
   const [input, setInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [visibleActionId, setVisibleActionId] = useState<string | null>(null);
+  const [isRightNowHidden, setIsRightNowHidden] = useState(false);
   const reqIdRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const chatSectionRef = useRef<HTMLElement>(null);
   const currentLocaleRef = useRef(i18n.language);
   const saveReadyRef = useRef(false);
-  const shownRecIdsRef = useRef<Set<string>>(new Set());
   const billInputRef = useRef<HTMLInputElement>(null);
+  const lastAppliedConciergeVoiceActionRef = useRef<string | null>(null);
 
-  const [recs, setRecs] = useState<RecommendationCard[]>([]);
-  const [recsLoading, setRecsLoading] = useState(false);
-  const [selectedRec, setSelectedRec] = useState<RecommendationCard | null>(null);
-  const [selectedPlan, setSelectedPlan] = useState<RecommendationActionPlan | null>(null);
-  const [planLoading, setPlanLoading] = useState(false);
   const [appointmentOpen, setAppointmentOpen] = useState(false);
   const [appointmentNote, setAppointmentNote] = useState("");
   const [offersOpen, setOffersOpen] = useState(false);
@@ -1028,16 +782,45 @@ const ConciergeScreen = () => {
   const [utilityLoading, setUtilityLoading] = useState(false);
   const [utilityError, setUtilityError] = useState<string | null>(null);
   const [utilityNotice, setUtilityNotice] = useState<string | null>(null);
+  const {
+    action: conciergeVoiceAction,
+    payloadValue: conciergePayloadValue,
+  } = useVoiceActionFulfillment({
+    domain: "concierge",
+    actionTypes: ["concierge.appointment_help", "concierge.task"],
+  });
+  const conciergeVoiceTaskType = conciergePayloadValue("task_type")
+    || (conciergeVoiceAction?.actionType === "concierge.appointment_help" ? "appointment" : "");
+  const conciergeVoiceProvider = conciergePayloadValue("provider") || conciergePayloadValue("provider_type");
+  const conciergeVoiceDate = conciergePayloadValue("date_preference");
+  const conciergeVoiceLocation = conciergePayloadValue("location");
+  const conciergeVoiceReason = conciergePayloadValue("appointment_reason") || conciergeVoiceAction?.extractedSubject || "";
+  const conciergeVoiceDraft = useMemo(() => {
+    if (!conciergeVoiceAction) return "";
+    const details = [
+      conciergeVoiceTaskType ? `${isSpanish ? "tipo" : "type"}: ${conciergeVoiceTaskType}` : "",
+      conciergeVoiceProvider ? `${isSpanish ? "proveedor" : "provider"}: ${conciergeVoiceProvider}` : "",
+      conciergeVoiceDate ? `${isSpanish ? "fecha" : "date"}: ${conciergeVoiceDate}` : "",
+      conciergeVoiceLocation ? `${isSpanish ? "zona" : "location"}: ${conciergeVoiceLocation}` : "",
+      conciergeVoiceReason ? `${isSpanish ? "motivo" : "reason"}: ${conciergeVoiceReason}` : "",
+    ].filter(Boolean).join(", ");
+    if (isSpanish) {
+      return `Ayudame con ${conciergeVoiceAction.title.toLowerCase()}${details ? ` (${details})` : ""}. Prepara el siguiente paso y pideme confirmacion antes de actuar.`;
+    }
+    return `Help me with ${conciergeVoiceAction.title.toLowerCase()}${details ? ` (${details})` : ""}. Prepare the next step and ask me to confirm before acting.`;
+  }, [
+    conciergeVoiceAction,
+    conciergeVoiceDate,
+    conciergeVoiceLocation,
+    conciergeVoiceProvider,
+    conciergeVoiceReason,
+    conciergeVoiceTaskType,
+    isSpanish,
+  ]);
 
   const { data: pendingActions = [], isLoading: pendingLoading } = useQuery({
     queryKey: ["/api/concierge/actions/pending"],
     queryFn: fetchPendingActions,
-    refetchInterval: 8000,
-  });
-
-  const { data: recentSessions = [], isLoading: sessionsLoading } = useQuery({
-    queryKey: ["/api/concierge/actions/sessions"],
-    queryFn: fetchRecentSessions,
     refetchInterval: 8000,
   });
 
@@ -1062,8 +845,44 @@ const ConciergeScreen = () => {
   });
 
   useEffect(() => {
+    if (pendingActions.length === 0) {
+      setVisibleActionId(null);
+      setIsRightNowHidden(false);
+      return;
+    }
+
+    setVisibleActionId((currentId) => {
+      if (currentId && pendingActions.some((action) => action.id === currentId)) {
+        return currentId;
+      }
+      return pendingActions[0]?.id ?? null;
+    });
+  }, [pendingActions]);
+
+  useEffect(() => {
     currentLocaleRef.current = i18n.language;
   });
+
+  useEffect(() => {
+    if (!conciergeVoiceAction || !conciergeVoiceDraft) return;
+    const actionKey = `${conciergeVoiceAction.id}:${conciergeVoiceAction.sourceText}`;
+    if (lastAppliedConciergeVoiceActionRef.current === actionKey) return;
+
+    lastAppliedConciergeVoiceActionRef.current = actionKey;
+    const isAppointmentRequest =
+      conciergeVoiceAction.actionType === "concierge.appointment_help"
+      || conciergeVoiceTaskType.toLowerCase().includes("appointment")
+      || conciergeVoiceTaskType.toLowerCase().includes("cita");
+
+    if (isAppointmentRequest) {
+      setAppointmentOpen(true);
+      setOffersOpen(false);
+      setAppointmentNote((current) => current.trim() ? current : conciergeVoiceDraft);
+    }
+
+    setInput((current) => current.trim() ? current : conciergeVoiceDraft);
+    window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  }, [conciergeVoiceAction, conciergeVoiceDraft, conciergeVoiceTaskType]);
 
   useEffect(() => {
     try {
@@ -1100,38 +919,10 @@ const ConciergeScreen = () => {
   }, [messages]);
 
   useEffect(() => {
-    const today = new Date().toDateString();
-    const cachedDate = localStorage.getItem(recsDateKey(i18n.language));
-    const cachedRecs = localStorage.getItem(recsCacheKey(i18n.language));
-    if (cachedDate === today && cachedRecs) {
-      try {
-        const parsed = JSON.parse(cachedRecs) as RecommendationCard[];
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setRecs(parsed);
-          return;
-        }
-      } catch {
-        // Fall through to fetch.
-      }
-    }
-    loadRecommendations();
-    // loadRecommendations intentionally keys all cache writes to the active language.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [i18n.language]);
-
-  useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, chatLoading]);
-
-  useEffect(() => {
-    recs.forEach((card) => {
-      if (!card.id || shownRecIdsRef.current.has(card.id)) return;
-      shownRecIdsRef.current.add(card.id);
-      sendRecommendationFeedback(card, "shown").catch(() => undefined);
-    });
-  }, [recs]);
 
   useEffect(() => {
     if (!offersOpen) return;
@@ -1140,28 +931,6 @@ const ConciergeScreen = () => {
     }, 4200);
     return () => window.clearInterval(interval);
   }, [offersOpen]);
-
-  async function loadRecommendations(refresh = false) {
-    setRecsLoading(true);
-    try {
-      const cards = await fetchRecommendations(i18n.language, refresh);
-      setRecs(cards);
-      const today = new Date().toDateString();
-      localStorage.setItem(recsDateKey(i18n.language), today);
-      localStorage.setItem(recsCacheKey(i18n.language), JSON.stringify(cards));
-    } catch {
-      // Keep the page calm; recommendations are optional.
-    } finally {
-      setRecsLoading(false);
-    }
-  }
-
-  function handleRefreshRecs() {
-    localStorage.removeItem(recsDateKey(i18n.language));
-    localStorage.removeItem(recsCacheKey(i18n.language));
-    shownRecIdsRef.current.clear();
-    loadRecommendations(true);
-  }
 
   function handleNewConversation() {
     setMessages([]);
@@ -1620,57 +1389,18 @@ const ConciergeScreen = () => {
     if (url) window.open(url, "_blank", "noopener,noreferrer");
   }
 
-  async function handleRecommendationAction(card: RecommendationCard) {
-    if (chatLoading) return;
-    sendRecommendationFeedback(card, "liked").catch(() => undefined);
-    setPlanLoading(true);
-    try {
-      const plan = await fetchRecommendationPlan(card, i18n.language);
-      setSelectedPlan(plan);
-      setSelectedRec(null);
-    } catch {
-      setSelectedPlan(buildFallbackPlan(card, isSpanish));
-      setSelectedRec(null);
-    } finally {
-      setPlanLoading(false);
-    }
-  }
-
-  function handleOpenRecommendation(card: RecommendationCard) {
-    setSelectedRec(card);
-    sendRecommendationFeedback(card, "opened").catch(() => undefined);
-  }
-
-  function handleRecommendationFeedback(
-    card: RecommendationCard,
-    action: "liked" | "dismissed" | "completed"
-  ) {
-    sendRecommendationFeedback(card, action).catch(() => undefined);
-    if (action === "dismissed") {
-      setRecs((prev) => prev.filter((item) => item !== card));
-      setSelectedRec(null);
-    }
-    if (action === "completed") {
-      setSelectedRec(null);
-    }
-  }
-
-  async function handleSharePlan(plan: RecommendationActionPlan) {
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: plan.title, text: plan.share_text });
-        return;
-      } catch {
-        // Fall back to clipboard.
-      }
-    }
-    await navigator.clipboard?.writeText(plan.share_text).catch(() => undefined);
-  }
-
-  const activeAction = pendingActions[0];
-  const queuedActionCount = Math.max(0, pendingActions.length - 1);
+  const activeAction = pendingActions.find((action) => action.id === visibleActionId) ?? pendingActions[0];
+  const queuedActions = activeAction ? pendingActions.filter((action) => action.id !== activeAction.id) : [];
+  const queuedActionCount = queuedActions.length;
   const priorityOfferIdeas = OFFER_IDEA_CHIPS.slice(0, 3);
   const visibleOfferIdeas = OFFER_IDEA_CHIPS.slice(3 + offersIdeaPage * 4, 3 + offersIdeaPage * 4 + 4);
+
+  function showNextQueuedAction() {
+    const nextAction = queuedActions[0] ?? pendingActions[0];
+    if (!nextAction) return;
+    setVisibleActionId(nextAction.id);
+    setIsRightNowHidden(false);
+  }
 
   return (
     <div className="vyva-page">
@@ -1680,7 +1410,78 @@ const ConciergeScreen = () => {
         headline={t("concierge.headline")}
         subtitle={t("concierge.subtitle")}
         contextHint="concierge"
+        autoStartVoice={autoStartVoice ? "concierge" : false}
+        showVoiceOverlay={false}
+        activeLabel={t("voiceHero.endCall", "Pause listening")}
       />
+
+      <VoiceActionFulfillmentPanel
+        domain="concierge"
+        actionTypes={["concierge.appointment_help", "concierge.task"]}
+        title={isSpanish ? "Gestion preparada" : "Task context ready"}
+        description={isSpanish
+          ? "VYVA puede usar la peticion, la fecha, el proveedor y la ubicacion antes de confirmar cualquier accion."
+          : "VYVA can use the request, date, provider, and location before confirming any action."}
+        className="mt-5"
+      />
+
+      {conciergeVoiceAction && (
+        <section
+          className="mt-4 rounded-[24px] border border-[#99F6E4] bg-[#F0FDFA] p-4"
+          style={{ boxShadow: "0 12px 32px rgba(15,118,110,0.12)" }}
+          data-testid="panel-voice-concierge-prefill"
+        >
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-[#0F766E]">
+              <Calendar size={20} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#0F766E]">
+                {isSpanish ? "Borrador preparado" : "Draft prepared"}
+              </p>
+              <h2 className="mt-1 font-body text-[17px] font-extrabold leading-tight text-vyva-text-1">
+                {conciergeVoiceAction.title}
+              </h2>
+              <p className="mt-1 font-body text-[14px] leading-[1.45] text-vyva-text-2">
+                {conciergeVoiceDraft}
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {conciergeVoiceTaskType && (
+              <span className="rounded-full bg-white px-3 py-1.5 font-body text-[12px] font-bold text-[#0F766E]">
+                {isSpanish ? "Tipo" : "Type"}: {conciergeVoiceTaskType}
+              </span>
+            )}
+            {conciergeVoiceProvider && (
+              <span className="rounded-full bg-white px-3 py-1.5 font-body text-[12px] font-bold text-vyva-text-2">
+                {isSpanish ? "Proveedor" : "Provider"}: {conciergeVoiceProvider}
+              </span>
+            )}
+            {conciergeVoiceDate && (
+              <span className="rounded-full bg-white px-3 py-1.5 font-body text-[12px] font-bold text-vyva-text-2">
+                {isSpanish ? "Fecha" : "Date"}: {conciergeVoiceDate}
+              </span>
+            )}
+            {conciergeVoiceLocation && (
+              <span className="rounded-full bg-white px-3 py-1.5 font-body text-[12px] font-bold text-vyva-text-2">
+                {isSpanish ? "Zona" : "Location"}: {conciergeVoiceLocation}
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setInput(conciergeVoiceDraft);
+              chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+            className="mt-4 inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-full bg-[#0F766E] px-4 font-body text-[15px] font-bold text-white transition active:scale-[0.98]"
+          >
+            <PencilLine size={18} />
+            {isSpanish ? "Usar este borrador" : "Use this draft"}
+          </button>
+        </section>
+      )}
 
       <section className="mt-5" data-testid="section-concierge-active-task">
         <div className="flex items-center justify-between mb-[10px]">
@@ -1688,9 +1489,14 @@ const ConciergeScreen = () => {
             {isSpanish ? "Ahora mismo" : "Right now"}
           </h2>
           {queuedActionCount > 0 && (
-            <span className="font-body text-[12px] font-medium text-vyva-text-2">
+            <button
+              type="button"
+              onClick={showNextQueuedAction}
+              className="vyva-tap rounded-full bg-[#F5F3FF] px-3 py-1 font-body text-[12px] font-semibold text-vyva-purple"
+              aria-label={isSpanish ? "Mostrar siguiente accion en cola" : "Show next queued action"}
+            >
               +{queuedActionCount} {isSpanish ? "en cola" : "queued"}
-            </span>
+            </button>
           )}
         </div>
 
@@ -1722,6 +1528,26 @@ const ConciergeScreen = () => {
               </div>
             </div>
           </div>
+        ) : isRightNowHidden && activeAction ? (
+          <button
+            type="button"
+            onClick={() => setIsRightNowHidden(false)}
+            className="vyva-tap flex w-full items-center justify-between gap-4 rounded-[22px] border border-vyva-border bg-[#FFFCF8] p-4 text-left"
+            style={{ boxShadow: "0 10px 28px rgba(60,38,20,0.08)" }}
+            data-testid="button-concierge-show-right-now"
+          >
+            <div>
+              <p className="font-body text-[15px] font-semibold text-vyva-text-1">
+                {isSpanish ? "Tarjeta oculta" : "Card hidden"}
+              </p>
+              <p className="mt-1 font-body text-[13px] text-vyva-text-2">
+                {isSpanish ? "Toca para volver a verla." : "Tap to show it again."}
+              </p>
+            </div>
+            <span className="rounded-full bg-[#F5F3FF] px-4 py-2 font-body text-[13px] font-semibold text-vyva-purple">
+              {isSpanish ? "Mostrar" : "Show"}
+            </span>
+          </button>
         ) : (
           <div
             className="vyva-card p-[18px]"
@@ -1736,15 +1562,26 @@ const ConciergeScreen = () => {
                   {activeAction.provider_name || (isSpanish ? "Proveedor seleccionado" : "Selected provider")}
                 </p>
               </div>
-              <span
-                className="rounded-full px-3 py-1 text-[12px] font-medium"
-                style={{
-                  background: activeAction.status === "calling" ? "#F5F3FF" : "#F3F4F6",
-                  color: activeAction.status === "calling" ? "#6B21A8" : "#374151",
-                }}
-              >
-                {statusLabel(activeAction.status, locale)}
-              </span>
+              <div className="flex flex-shrink-0 items-center gap-2">
+                <span
+                  className="rounded-full px-3 py-1 text-[12px] font-medium"
+                  style={{
+                    background: activeAction.status === "calling" ? "#F5F3FF" : "#F3F4F6",
+                    color: activeAction.status === "calling" ? "#6B21A8" : "#374151",
+                  }}
+                >
+                  {statusLabel(activeAction.status, locale)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsRightNowHidden(true)}
+                  className="vyva-tap flex h-9 w-9 items-center justify-center rounded-full border border-vyva-border bg-white text-vyva-text-2"
+                  aria-label={isSpanish ? "Ocultar tarjeta" : "Hide card"}
+                  title={isSpanish ? "Ocultar" : "Hide"}
+                >
+                  <X size={16} />
+                </button>
+              </div>
             </div>
 
             <p className="mt-4 font-body text-[15px] leading-relaxed text-vyva-text-1">
@@ -2490,554 +2327,6 @@ const ConciergeScreen = () => {
             )}
               </>
             )}
-          </div>
-        )}
-      </section>
-
-      <section className="mt-6">
-        <h2 className="vyva-section-title mb-[10px]">
-          {isSpanish ? "Herramientas de ayuda" : "Help tools"}
-        </h2>
-        <div className="space-y-3">
-          <div
-            className="flex items-center gap-4 rounded-[20px] border border-vyva-border bg-white p-[16px_18px]"
-            style={{ boxShadow: "0 2px 12px rgba(107,33,168,0.08)" }}
-            data-testid="banner-concierge-intro"
-          >
-            <div
-              className="w-[48px] h-[48px] rounded-[14px] flex items-center justify-center flex-shrink-0"
-              style={{ background: "#F5F3FF" }}
-            >
-              <Sparkles size={22} style={{ color: "#6B21A8" }} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-body text-[15px] font-semibold text-vyva-text-1">{t("concierge.activityTile")}</p>
-              <p className="font-body text-[13px] text-vyva-text-2 truncate">{t("concierge.activityTileSubtitle")}</p>
-            </div>
-          </div>
-
-          <button
-            data-testid="button-safe-home-teaser"
-            onClick={() => navigate("/activity")}
-            className="w-full flex items-center gap-4 rounded-[20px] border border-vyva-border bg-white p-[16px_18px] text-left"
-            style={{ boxShadow: "0 2px 12px rgba(107,33,168,0.08)" }}
-          >
-            <div
-              className="w-[48px] h-[48px] rounded-[14px] flex items-center justify-center flex-shrink-0"
-              style={{ background: "#ECFDF5" }}
-            >
-              <Home size={22} style={{ color: "#0A7C4E" }} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-body text-[15px] font-semibold text-vyva-text-1">{t("safeHome.activityTile")}</p>
-              <p className="font-body text-[13px] text-vyva-text-2 truncate">{t("safeHome.activityTileSubtitle")}</p>
-            </div>
-            <span className="font-body text-[18px] font-medium" style={{ color: "#6B21A8" }}>›</span>
-          </button>
-
-          <button
-            data-testid="button-scam-guard-teaser"
-            onClick={() => navigate("/scam-guard")}
-            className="w-full flex items-center gap-4 rounded-[20px] border border-vyva-border bg-white p-[16px_18px] text-left"
-            style={{ boxShadow: "0 2px 12px rgba(107,33,168,0.08)" }}
-          >
-            <div
-              className="w-[48px] h-[48px] rounded-[14px] flex items-center justify-center flex-shrink-0"
-              style={{ background: "#EDE9FE" }}
-            >
-              <ShieldCheck size={22} style={{ color: "#6B21A8" }} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-body text-[15px] font-semibold text-vyva-text-1">{t("scamGuard.activityTile")}</p>
-              <p className="font-body text-[13px] text-vyva-text-2 truncate">{t("scamGuard.activityTileSubtitle")}</p>
-            </div>
-            <span className="font-body text-[18px] font-medium" style={{ color: "#6B21A8" }}>›</span>
-          </button>
-        </div>
-      </section>
-
-      <section className="mt-6">
-        <div className="flex items-center justify-between mb-[10px]">
-          <h2 className="vyva-section-title">
-            {t("concierge.forYouToday")}
-          </h2>
-          <button
-            data-testid="button-concierge-refresh-recs"
-            onClick={handleRefreshRecs}
-            disabled={recsLoading}
-            className="flex items-center gap-1 text-[12px] font-medium disabled:opacity-40"
-            style={{ color: "#6B21A8" }}
-          >
-            <RefreshCw size={13} className={recsLoading ? "animate-spin" : ""} />
-            {t("concierge.refreshRecs")}
-          </button>
-        </div>
-
-        {recsLoading ? (
-          <div className="flex items-center gap-2 py-4">
-            <Loader2 size={16} className="animate-spin text-vyva-purple" />
-            <span className="font-body text-[13px] text-vyva-text-2">
-              {t("concierge.loadingRecs")}
-            </span>
-          </div>
-        ) : recs.length === 0 ? (
-          <div className="rounded-[20px] border border-vyva-border bg-white p-[16px]">
-            <p className="font-body text-[13px] text-vyva-text-2">
-              {t("concierge.noRecs")}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {recs.slice(0, 3).map((card, i) => {
-              const colors = getCategoryColors(card.category);
-              return (
-                <button
-                  key={i}
-                  data-testid={`card-concierge-rec-${i}`}
-                  onClick={() => handleOpenRecommendation(card)}
-                  className="w-full rounded-[20px] border bg-white p-[16px] text-left transition-transform active:scale-[0.99]"
-                  style={{
-                    borderColor: colors.border,
-                    boxShadow: "0 2px 12px rgba(107,33,168,0.07)",
-                  }}
-                >
-                  <div className="flex gap-4">
-                    <div
-                      className="flex h-[46px] w-[46px] flex-shrink-0 items-center justify-center rounded-[16px] text-[24px]"
-                      style={{ background: colors.bg }}
-                    >
-                      {card.emoji}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-body text-[15px] font-semibold text-vyva-text-1 leading-tight">
-                        {card.title}
-                      </p>
-                      <p className="mt-1 font-body text-[13px] text-vyva-text-2 leading-relaxed">
-                        {card.description}
-                      </p>
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        {card.best_time && (
-                          <span className="rounded-full bg-[#F5F1EC] px-2 py-1 font-body text-[11px] font-semibold text-vyva-text-2">
-                            {card.best_time}
-                          </span>
-                        )}
-                        {card.effort && (
-                          <span className="rounded-full bg-[#F5F3FF] px-2 py-1 font-body text-[11px] font-semibold text-[#6B21A8]">
-                            {effortLabel(card.effort, isSpanish)}
-                          </span>
-                        )}
-                        {card.freshness && (
-                          <span className="rounded-full bg-[#ECFDF5] px-2 py-1 font-body text-[11px] font-semibold text-[#0A7C4E]">
-                            {card.freshness}
-                          </span>
-                        )}
-                      </div>
-                      {card.personal_signals && card.personal_signals.length > 0 && (
-                        <p className="mt-2 font-body text-[12px] text-vyva-text-2 leading-relaxed">
-                          {isSpanish ? "Basado en " : "Based on "}
-                          {card.personal_signals.slice(0, 2).join(" + ")}
-                        </p>
-                      )}
-                      <p className="mt-2 font-body text-[12px] font-semibold" style={{ color: "#6B21A8" }}>
-                        {isSpanish ? "Ver guia" : "View guide"}
-                      </p>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {selectedRec && (
-          <div
-            className="fixed inset-0 z-[1000] flex items-end bg-black/35 px-[10px] sm:items-center sm:justify-center sm:px-4"
-            style={{ paddingBottom: "calc(88px + env(safe-area-inset-bottom))", paddingTop: 16 }}
-            role="dialog"
-            aria-modal="true"
-            data-testid="dialog-concierge-rec-detail"
-            onClick={() => setSelectedRec(null)}
-          >
-            <div
-              className="w-full max-w-[560px] overflow-hidden rounded-[28px] border border-vyva-border bg-white"
-              style={{
-                boxShadow: "0 18px 50px rgba(0,0,0,0.22)",
-                maxHeight: "calc(100dvh - 128px)",
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="max-h-[inherit] overflow-y-auto p-[18px] pb-0">
-                <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-[#E7DDD4]" />
-
-                <div className="flex items-start gap-3">
-                  <div
-                    className="flex h-[48px] w-[48px] flex-shrink-0 items-center justify-center rounded-[17px] text-[24px]"
-                    style={{ background: getCategoryColors(selectedRec.category).bg }}
-                  >
-                    {selectedRec.emoji}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-body text-[18px] font-semibold leading-tight text-vyva-text-1">
-                      {selectedRec.title}
-                    </p>
-                    <p className="mt-1 font-body text-[13px] leading-relaxed text-vyva-text-2">
-                      {selectedRec.why || selectedRec.description}
-                    </p>
-                  </div>
-                  <button
-                    data-testid="button-close-rec-detail"
-                    onClick={() => setSelectedRec(null)}
-                    className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#F5F1EC] font-body text-[16px] text-vyva-text-2"
-                    aria-label={isSpanish ? "Cerrar" : "Close"}
-                  >
-                    x
-                  </button>
-                </div>
-
-                {(selectedRec.best_time || selectedRec.effort || selectedRec.freshness) && (
-                  <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                    {selectedRec.best_time && (
-                      <div className="rounded-[16px] bg-[#FBF8F4] p-3">
-                        <p className="font-body text-[11px] font-semibold uppercase tracking-[0.1em] text-vyva-text-2">
-                          {isSpanish ? "Momento" : "Timing"}
-                        </p>
-                        <p className="mt-1 font-body text-[13px] font-semibold text-vyva-text-1">
-                          {selectedRec.best_time}
-                        </p>
-                      </div>
-                    )}
-                    {selectedRec.effort && (
-                      <div className="rounded-[16px] bg-[#F5F3FF] p-3">
-                        <p className="font-body text-[11px] font-semibold uppercase tracking-[0.1em] text-[#6B21A8]">
-                          {isSpanish ? "Esfuerzo" : "Effort"}
-                        </p>
-                        <p className="mt-1 font-body text-[13px] font-semibold text-vyva-text-1">
-                          {effortLabel(selectedRec.effort, isSpanish)}
-                        </p>
-                      </div>
-                    )}
-                    {selectedRec.freshness && (
-                      <div className="rounded-[16px] bg-[#ECFDF5] p-3">
-                        <p className="font-body text-[11px] font-semibold uppercase tracking-[0.1em] text-[#0A7C4E]">
-                          {isSpanish ? "Hoy" : "Today"}
-                        </p>
-                        <p className="mt-1 font-body text-[13px] font-semibold text-vyva-text-1">
-                          {selectedRec.freshness}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {selectedRec.personal_signals && selectedRec.personal_signals.length > 0 && (
-                  <div className="mt-4 rounded-[18px] border border-vyva-border bg-white p-3">
-                    <p className="font-body text-[12px] font-semibold uppercase tracking-[0.12em] text-vyva-text-2">
-                      {isSpanish ? "Por que aparece" : "Why this appears"}
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {selectedRec.personal_signals.map((signal) => (
-                        <span
-                          key={signal}
-                          className="rounded-full bg-[#F5F1EC] px-3 py-1.5 font-body text-[12px] font-semibold text-vyva-text-2"
-                        >
-                          {signal}
-                        </span>
-                      ))}
-                    </div>
-                    {selectedRec.location_hint && (
-                      <p className="mt-3 font-body text-[13px] leading-relaxed text-vyva-text-2">
-                        {selectedRec.location_hint}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {selectedRec.details && (
-                  <p className="mt-5 font-body text-[14px] leading-relaxed text-vyva-text-1">
-                    {selectedRec.details}
-                  </p>
-                )}
-
-                {selectedRec.steps && selectedRec.steps.length > 0 && (
-                  <div className="mt-5 space-y-2">
-                    <p className="font-body text-[12px] font-semibold uppercase tracking-[0.12em] text-vyva-text-2">
-                      {isSpanish ? "Como disfrutarlo" : "How to enjoy it"}
-                    </p>
-                    {selectedRec.steps.map((step, index) => (
-                      <div key={`${step}-${index}`} className="flex gap-3 rounded-[16px] bg-[#FBF8F4] p-3">
-                        <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-vyva-purple font-body text-[12px] font-semibold text-white">
-                          {index + 1}
-                        </span>
-                        <p className="font-body text-[13px] leading-relaxed text-vyva-text-1">{step}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {selectedRec.safety_note && (
-                  <div className="mt-4 rounded-[16px] border border-[#FCD34D] bg-[#FFFBEB] p-3">
-                    <p className="font-body text-[12px] font-semibold text-[#92400E]">
-                      {isSpanish ? "Nota de cuidado" : "Care note"}
-                    </p>
-                    <p className="mt-1 font-body text-[13px] leading-relaxed text-[#78350F]">
-                      {selectedRec.safety_note}
-                    </p>
-                  </div>
-                )}
-
-                <div className="mt-4 grid grid-cols-3 gap-2">
-                  <button
-                    data-testid="button-rec-like"
-                    onClick={() => handleRecommendationFeedback(selectedRec, "liked")}
-                    className="rounded-full bg-[#F5F3FF] px-2 py-2 font-body text-[12px] font-semibold"
-                    style={{ color: "#6B21A8" }}
-                  >
-                    {isSpanish ? "Me interesa" : "Interested"}
-                  </button>
-                  <button
-                    data-testid="button-rec-done"
-                    onClick={() => handleRecommendationFeedback(selectedRec, "completed")}
-                    className="rounded-full bg-[#ECFDF5] px-2 py-2 font-body text-[12px] font-semibold"
-                    style={{ color: "#0A7C4E" }}
-                  >
-                    {isSpanish ? "Hecho" : "Done"}
-                  </button>
-                  <button
-                    data-testid="button-rec-not-for-me"
-                    onClick={() => handleRecommendationFeedback(selectedRec, "dismissed")}
-                    className="rounded-full bg-[#F5F1EC] px-2 py-2 font-body text-[12px] font-semibold text-vyva-text-2"
-                  >
-                    {isSpanish ? "No es para mi" : "Not for me"}
-                  </button>
-                </div>
-
-                <div className="sticky bottom-0 -mx-[18px] mt-5 flex gap-2 border-t border-vyva-border bg-white p-[14px_18px]">
-                  <Button
-                    data-testid="button-rec-action"
-                    onClick={() => handleRecommendationAction(selectedRec)}
-                    disabled={planLoading}
-                    className="h-[46px] flex-1 rounded-full bg-vyva-purple font-body text-[14px] hover:bg-vyva-purple/90"
-                  >
-                    {planLoading ? (
-                      <Loader2 size={16} className="animate-spin text-white" />
-                    ) : (
-                      selectedRec.action_label || (isSpanish ? "Ayudame" : "Help me")
-                    )}
-                  </Button>
-                  <Button
-                    data-testid="button-rec-dismiss"
-                    onClick={() => setSelectedRec(null)}
-                    variant="outline"
-                    className="h-[46px] rounded-full px-5 font-body text-[14px]"
-                  >
-                    {isSpanish ? "Cerrar" : "Close"}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {selectedPlan && (
-          <div
-            className="fixed inset-0 z-[1000] flex items-end bg-black/35 px-[10px] sm:items-center sm:justify-center sm:px-4"
-            style={{ paddingBottom: "calc(88px + env(safe-area-inset-bottom))", paddingTop: 16 }}
-            role="dialog"
-            aria-modal="true"
-            data-testid="dialog-concierge-rec-plan"
-            onClick={() => setSelectedPlan(null)}
-          >
-            <div
-              className="w-full max-w-[600px] overflow-hidden rounded-[28px] border border-vyva-border bg-white"
-              style={{ boxShadow: "0 18px 50px rgba(0,0,0,0.22)", maxHeight: "calc(100dvh - 128px)" }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="max-h-[inherit] overflow-y-auto p-[18px] pb-0">
-                <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-[#E7DDD4]" />
-                <div className="flex items-start gap-3">
-                  <div className="flex h-[48px] w-[48px] flex-shrink-0 items-center justify-center rounded-[17px] bg-[#F5F3FF]">
-                    <Sparkles size={22} className="text-vyva-purple" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-body text-[18px] font-semibold leading-tight text-vyva-text-1">
-                      {selectedPlan.title}
-                    </p>
-                    <p className="mt-1 font-body text-[13px] leading-relaxed text-vyva-text-2">
-                      {selectedPlan.summary}
-                    </p>
-                  </div>
-                  <button
-                    data-testid="button-close-rec-plan"
-                    onClick={() => setSelectedPlan(null)}
-                    className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#F5F1EC] font-body text-[16px] text-vyva-text-2"
-                    aria-label={isSpanish ? "Cerrar" : "Close"}
-                  >
-                    x
-                  </button>
-                </div>
-
-                <div className="mt-5 grid gap-3">
-                  {(selectedPlan.place_name || selectedPlan.address) && (
-                    <div className="rounded-[18px] border border-vyva-border bg-[#FBF8F4] p-4">
-                      <div className="flex items-start gap-3">
-                        <MapPin size={18} className="mt-0.5 flex-shrink-0 text-vyva-purple" />
-                        <div>
-                          {selectedPlan.place_name && (
-                            <p className="font-body text-[15px] font-semibold text-vyva-text-1">{selectedPlan.place_name}</p>
-                          )}
-                          {selectedPlan.address && (
-                            <p className="mt-1 font-body text-[13px] leading-relaxed text-vyva-text-2">{selectedPlan.address}</p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="rounded-[18px] bg-[#F5F3FF] p-4">
-                      <p className="font-body text-[12px] font-semibold uppercase tracking-[0.12em] text-[#6B21A8]">
-                        {isSpanish ? "Precio" : "Price"}
-                      </p>
-                      <p className="mt-2 font-body text-[13px] leading-relaxed text-vyva-text-1">{selectedPlan.price_info}</p>
-                    </div>
-                    <div className="rounded-[18px] bg-[#ECFDF5] p-4">
-                      <p className="font-body text-[12px] font-semibold uppercase tracking-[0.12em] text-[#0A7C4E]">
-                        {isSpanish ? "Como llegar" : "How to get there"}
-                      </p>
-                      <p className="mt-2 font-body text-[13px] leading-relaxed text-vyva-text-1">{selectedPlan.travel_info}</p>
-                    </div>
-                  </div>
-
-                  {selectedPlan.opening_hours && selectedPlan.opening_hours.length > 0 && (
-                    <div className="rounded-[18px] border border-vyva-border bg-white p-4">
-                      <div className="flex items-center gap-2">
-                        <Clock size={16} className="text-vyva-purple" />
-                        <p className="font-body text-[12px] font-semibold uppercase tracking-[0.12em] text-vyva-text-2">
-                          {isSpanish ? "Horarios" : "Opening hours"}
-                        </p>
-                      </div>
-                      <div className="mt-2 space-y-1">
-                        {selectedPlan.opening_hours.slice(0, 4).map((hour) => (
-                          <p key={hour} className="font-body text-[13px] leading-relaxed text-vyva-text-1">{hour}</p>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="rounded-[18px] border border-vyva-border bg-white p-4">
-                    <p className="font-body text-[12px] font-semibold uppercase tracking-[0.12em] text-vyva-text-2">
-                      {isSpanish ? "Accesibilidad" : "Accessibility"}
-                    </p>
-                    <p className="mt-2 font-body text-[13px] leading-relaxed text-vyva-text-1">{selectedPlan.accessibility_note}</p>
-                  </div>
-
-                  <div className="rounded-[18px] border border-vyva-border bg-white p-4">
-                    <p className="font-body text-[12px] font-semibold uppercase tracking-[0.12em] text-vyva-text-2">
-                      {isSpanish ? "Siguientes pasos" : "Next steps"}
-                    </p>
-                    <div className="mt-3 space-y-2">
-                      {selectedPlan.next_steps.map((step, index) => (
-                        <div key={`${step}-${index}`} className="flex gap-3">
-                          <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-vyva-purple font-body text-[12px] font-semibold text-white">
-                            {index + 1}
-                          </span>
-                          <p className="font-body text-[13px] leading-relaxed text-vyva-text-1">{step}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <p className="font-body text-[12px] leading-relaxed text-vyva-text-2">{selectedPlan.caveat}</p>
-                </div>
-
-                <div className="sticky bottom-0 -mx-[18px] mt-5 grid grid-cols-2 gap-2 border-t border-vyva-border bg-white p-[14px_18px]">
-                  <Button
-                    data-testid="button-rec-plan-share"
-                    onClick={() => handleSharePlan(selectedPlan)}
-                    className="h-[46px] rounded-full bg-vyva-purple font-body text-[14px] hover:bg-vyva-purple/90"
-                  >
-                    <Share2 size={15} className="mr-2" />
-                    {isSpanish ? "Compartir" : "Share"}
-                  </Button>
-                  {(selectedPlan.maps_url || selectedPlan.website) && (
-                    <Button
-                      data-testid="button-rec-plan-open"
-                      onClick={() => window.open(selectedPlan.maps_url || selectedPlan.website, "_blank", "noopener,noreferrer")}
-                      variant="outline"
-                      className="h-[46px] rounded-full font-body text-[14px]"
-                    >
-                      <ExternalLink size={15} className="mr-2" />
-                      {selectedPlan.maps_url ? (isSpanish ? "Abrir mapa" : "Open map") : (isSpanish ? "Abrir web" : "Open site")}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </section>
-
-      <section className="mt-6">
-        <div className="flex items-center justify-between mb-[10px]">
-          <h2 className="font-display italic font-normal text-[18px] text-vyva-text-1">
-            {isSpanish ? "Resultados recientes" : "Recent concierge results"}
-          </h2>
-        </div>
-
-        {sessionsLoading ? (
-          <div className="rounded-[20px] border border-vyva-border bg-white p-[16px]">
-            <div className="flex items-center gap-2">
-              <Loader2 size={16} className="animate-spin text-vyva-purple" />
-              <span className="font-body text-[13px] text-vyva-text-2">
-                {isSpanish ? "Cargando resultados..." : "Loading recent results..."}
-              </span>
-            </div>
-          </div>
-        ) : recentSessions.length === 0 ? (
-          <div className="rounded-[20px] border border-vyva-border bg-white p-[16px]">
-            <p className="font-body text-[13px] leading-relaxed text-vyva-text-2">
-              {isSpanish
-                ? "Cuando una llamada o reserva termine, el resultado aparecera aqui en una tarjeta simple."
-                : "When a call or booking finishes, the result will appear here in a simple card."}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {recentSessions.slice(0, 4).map((item) => {
-              const success = item.outcome === "confirmed";
-              return (
-                <div
-                  key={item.id}
-                  className="rounded-[18px] border border-vyva-border bg-white p-[16px]"
-                  style={{ boxShadow: "0 2px 12px rgba(107,33,168,0.08)" }}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-body text-[12px] uppercase tracking-wide text-vyva-text-2">
-                        {getUseCaseLabel(item.use_case, locale)}
-                      </p>
-                      <p className="font-body text-[16px] font-semibold text-vyva-text-1">
-                        {item.provider_name || (isSpanish ? "Proveedor" : "Provider")}
-                      </p>
-                    </div>
-                    <span
-                      className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12px] font-medium"
-                      style={{
-                        background: success ? "#ECFDF5" : "#FEF2F2",
-                        color: success ? "#0A7C4E" : "#B91C1C",
-                      }}
-                    >
-                      {success ? <CircleCheck size={14} /> : <CircleX size={14} />}
-                      {sessionOutcomeLabel(item.outcome, locale)}
-                    </span>
-                  </div>
-
-                  <p className="mt-3 font-body text-[14px] leading-relaxed text-vyva-text-1">
-                    {item.outcome_summary || (isSpanish ? "Aun no hay resumen disponible." : "No summary available yet.")}
-                  </p>
-                </div>
-              );
-            })}
           </div>
         )}
       </section>

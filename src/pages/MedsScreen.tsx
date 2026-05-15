@@ -1,12 +1,15 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { Check, Clock, AlertCircle, Calendar, Link as LinkIcon, Mic, ChevronDown, ExternalLink, Zap, Leaf, ShoppingCart, Sparkles, BarChart2, Pencil, Trash2 } from "lucide-react";
+import { Check, Clock, AlertCircle, Calendar, Link as LinkIcon, Mic, ChevronDown, ExternalLink, Zap, Leaf, ShoppingCart, Sparkles, BarChart2, Pencil, Trash2, type LucideIcon } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
+import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import VoiceMedsModal, { type MedicationForForm } from "@/components/VoiceMedsModal";
 import MedsAssistantSheet from "@/components/MedsAssistantSheet";
+import { EmptyState, ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
 import { useToast } from "@/hooks/use-toast";
+import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { apiFetch } from "@/lib/queryClient";
 import {
   Dialog,
@@ -56,6 +59,14 @@ type DbMed = {
 
 type TodayResponse = { medications: DbMed[] };
 
+function normalizeVoiceFocus(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
 const MedsScreen = () => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -72,7 +83,7 @@ const MedsScreen = () => {
       return todayData.medications.map((m) => ({
         id: m.id,
         displayName: m.medication_name,
-        displayNote: [m.dosage, m.frequency?.replace("_", " ")].filter(Boolean).join(" · "),
+        displayNote: [m.dosage, m.frequency?.replace("_", " ")].filter(Boolean).join(" - "),
         takenCountToday: m.takenCountToday,
         scheduledCountToday: m.scheduledCountToday,
         nameForApi: m.medication_name,
@@ -81,9 +92,18 @@ const MedsScreen = () => {
         rawFrequency: m.frequency ?? "",
       }));
     }
-    // No medications from DB yet — return empty list so the UI shows an empty state.
+    // No medications from DB yet: return empty list so the UI shows an empty state.
     return [];
   })();
+  const { action: voiceAction, payloadValue: voicePayloadValue } = useVoiceActionFulfillment({
+    domain: "meds",
+    actionTypes: ["meds.management"],
+  });
+  const focusedMedicationName = voicePayloadValue("medication_name") || voiceAction?.extractedSubject || "";
+  const focusedMedicationKey = normalizeVoiceFocus(focusedMedicationName);
+  const focusedMedication = focusedMedicationKey
+    ? displayMeds.find((med) => normalizeVoiceFocus(med.displayName).includes(focusedMedicationKey))
+    : null;
 
   const medNames = (() => {
     const names = displayMeds.map((m) => m.displayName);
@@ -212,6 +232,24 @@ const MedsScreen = () => {
   const isMedTaken = (med: DisplayMed) =>
     remainingDoseCount(med) === 0;
 
+  const voiceActionHighlights = [
+    ...(focusedMedicationName
+      ? [{ label: t("meds.focusLabels.medication", "Medication"), value: focusedMedicationName, tone: focusedMedication ? "good" as const : "warning" as const }]
+      : []),
+    ...(focusedMedication
+      ? [{ label: t("meds.focusLabels.today", "Today"), value: isMedTaken(focusedMedication) ? t("meds.focusAlreadyTaken", "Already taken") : t("meds.focusLeft", { count: remainingDoseCount(focusedMedication) }), tone: isMedTaken(focusedMedication) ? "good" as const : "warning" as const }]
+      : []),
+  ];
+  const voiceRoutineFocus = voicePayloadValue("routine_focus");
+  const voiceDoseTime = voicePayloadValue("dose_time");
+  const focusedMedicationStatus = focusedMedication
+    ? isMedTaken(focusedMedication)
+      ? t("meds.focusStatusAll", "All scheduled doses taken today")
+      : t("meds.focusStatusDue", { count: remainingDoseCount(focusedMedication) })
+    : displayMeds.length > 0
+      ? t("meds.focusStatusLoaded", { count: displayMeds.length })
+      : t("meds.focusStatusEmpty", "No medication schedule loaded yet");
+
   const totalScheduledDoseCount = displayMeds.reduce(
     (sum, med) => sum + med.scheduledCountToday,
     0
@@ -220,6 +258,12 @@ const MedsScreen = () => {
     (sum, med) => sum + effectiveTakenCount(med),
     0
   );
+  const pendingMeds = displayMeds.filter((med) => !isMedTaken(med));
+  const totalRemainingDoseCount = pendingMeds.reduce(
+    (sum, med) => sum + remainingDoseCount(med),
+    0
+  );
+  const progressPercent = totalScheduledDoseCount > 0 ? (totalTakenDoseCount / totalScheduledDoseCount) * 100 : 0;
   const rawHeadlines = t("meds.headlines", { returnObjects: true });
   const headlines = Array.isArray(rawHeadlines) && rawHeadlines.length > 0 ? rawHeadlines as string[] : [];
   const currentHeadline = headlines.length > 0 ? headlines[headlineIndex] : t("meds.headline");
@@ -322,6 +366,44 @@ const MedsScreen = () => {
     }
   }
 
+  const supportActions: Array<{
+    id: string;
+    icon: LucideIcon;
+    label: string;
+    sub: string;
+    color: string;
+    bg: string;
+    onClick?: () => void;
+    testId?: string;
+  }> = [
+    {
+      id: "refill",
+      icon: Calendar,
+      label: t("meds.refillReminder"),
+      sub: t("meds.refillReminderSub"),
+      color: "#C9890A",
+      bg: "#FEF3C7",
+    },
+    {
+      id: "interactions",
+      icon: AlertCircle,
+      label: t("meds.interactions"),
+      sub: displayMeds.length > 0 ? t("meds.interactionsSubWithMeds", { count: displayMeds.length }) : t("meds.interactionsSub"),
+      color: "#0A7C4E",
+      bg: "#ECFDF5",
+    },
+    {
+      id: "adherence",
+      icon: BarChart2,
+      label: t("meds.adherenceReport"),
+      sub: t("meds.adherenceReportSub"),
+      color: "#6B21A8",
+      bg: "#EDE9FE",
+      onClick: () => navigate("/meds/adherence-report"),
+      testId: "button-adherence-report-link",
+    },
+  ];
+
   return (
     <div className="px-[22px]">
       <VoiceHero
@@ -332,246 +414,329 @@ const MedsScreen = () => {
         contextHint="medication reminder"
       >
         <div className="w-full h-[6px] rounded-full mt-3" style={{ background: "rgba(255,255,255,0.15)" }}>
-          <div className="h-full rounded-full transition-all" style={{ width: `${totalScheduledDoseCount > 0 ? (totalTakenDoseCount / totalScheduledDoseCount) * 100 : 0}%`, background: "#34D399" }} />
+          <div className="h-full rounded-full transition-all" style={{ width: `${progressPercent}%`, background: "#34D399" }} />
         </div>
       </VoiceHero>
 
-      {/* Medication info */}
-      <div className="mt-[14px] bg-white rounded-[20px] border border-vyva-border overflow-hidden" style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}>
-        <div className="px-[18px] py-[13px] border-b border-vyva-border" style={{ background: "#F5EFE4" }}>
-          <span className="font-body text-[14px] font-medium text-vyva-text-1">{t("meds.medicationInfo")}</span>
-        </div>
-        {[
-          { icon: Calendar, label: t("meds.refillReminder"), sub: t("meds.refillReminderSub"), color: "#C9890A", bg: "#FEF3C7", onClick: undefined },
-          { icon: AlertCircle, label: t("meds.interactions"), sub: displayMeds.length > 0 ? t("meds.interactionsSubWithMeds", { count: displayMeds.length }) : t("meds.interactionsSub"), color: "#0A7C4E", bg: "#ECFDF5", onClick: undefined },
-          { icon: BarChart2, label: t("meds.adherenceReport"), sub: t("meds.adherenceReportSub"), color: "#6B21A8", bg: "#EDE9FE", onClick: () => navigate("/meds/adherence-report") },
-        ].map((item, i) => (
-          <div
-            key={i}
-            className={`flex items-center gap-[14px] px-[18px] py-[14px] border-b border-vyva-border last:border-b-0${item.onClick ? " cursor-pointer active:bg-gray-50" : ""}`}
-            style={{ minHeight: 64 }}
-            onClick={item.onClick}
-            data-testid={i === 2 ? "button-adherence-report-link" : undefined}
-            role={item.onClick ? "button" : undefined}
-          >
-            <div className="w-10 h-10 rounded-[12px] flex items-center justify-center flex-shrink-0" style={{ background: item.bg }}>
-              <item.icon size={18} style={{ color: item.color }} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-body text-[15px] font-medium text-vyva-text-1">{item.label}</p>
-              <p className="font-body text-[13px] text-vyva-text-2">{item.sub}</p>
-            </div>
-            {item.onClick && <ExternalLink size={16} className="text-vyva-text-2 flex-shrink-0" />}
-          </div>
-        ))}
-      </div>
+      <VoiceActionFulfillmentPanel
+        domain="meds"
+        actionTypes={["meds.management"]}
+        title={t("meds.contextPanel.title", "Medication context ready")}
+        description={t("meds.contextPanel.description", "VYVA can use today's schedule and your medication profile on this page.")}
+        highlights={voiceActionHighlights}
+        className="mt-4"
+      />
 
-      {/* Today's schedule */}
-      <div className="mt-[14px] bg-white rounded-[20px] border border-vyva-border overflow-hidden" style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}>
-        <div className="flex items-center justify-between px-[18px] py-[13px] border-b border-vyva-border" style={{ background: "#F5EFE4" }}>
-          <span className="font-body text-[14px] font-medium text-vyva-text-1">{t("meds.todaySchedule")}</span>
-          <span className="font-body text-[12px] font-medium px-2 py-0.5 rounded-full" style={{ background: "#FEF3C7", color: "#92400E" }}>{t("meds.dueTonight")}</span>
-        </div>
-
-        {todayLoading ? (
-          <div className="flex flex-col gap-0">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="flex items-center gap-[14px] px-[18px] py-[14px] border-b border-vyva-border last:border-b-0 animate-pulse" style={{ minHeight: 64 }}>
-                <div className="w-10 h-10 rounded-full bg-gray-100 flex-shrink-0" />
-                <div className="flex-1">
-                  <div className="h-4 bg-gray-200 rounded w-1/2 mb-2" />
-                  <div className="h-3 bg-gray-100 rounded w-1/3" />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : displayMeds.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 px-[24px] py-[32px] text-center" data-testid="status-no-medications">
-            <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: "#F3E8FF" }}>
-              <Mic size={22} style={{ color: "#6B21A8" }} />
+      {voiceAction && (
+        <section
+          className="vyva-card mt-4 border-emerald-200 bg-gradient-to-br from-white to-emerald-50 p-4"
+          data-testid="panel-voice-medication-focus"
+        >
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-emerald-50 text-emerald-700">
+              <Pencil size={19} />
             </div>
-            <p className="font-body text-[16px] font-semibold text-vyva-text-1">{t("meds.noMedsTitle", "No medications added yet")}</p>
-            <p className="font-body text-[14px] text-vyva-text-2">{t("meds.noMedsSub", "Use the button below to add your medications by voice")}</p>
-          </div>
-        ) : (
-          displayMeds.map((med, i) => {
-            const taken = isMedTaken(med);
-            const takenDoseCount = effectiveTakenCount(med);
-            const showDoseProgress = med.scheduledCountToday > 1;
-            return (
-              <div key={med.id} className="flex items-center gap-[14px] px-[18px] py-[14px] border-b border-vyva-border last:border-b-0" style={{ minHeight: 64 }}>
-                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: taken ? "#ECFDF5" : "#FEF3C7" }}>
-                  {taken ? <Check size={18} style={{ color: "#0A7C4E" }} /> : <Clock size={18} style={{ color: "#C9890A" }} />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-body text-[15px] font-medium text-vyva-text-1">{med.displayName}</p>
-                  <p className="font-body text-[13px] text-vyva-text-2">{med.displayNote}</p>
-                  {showDoseProgress && (
-                    <p className="font-body text-[12px] text-vyva-text-2 mt-1">
-                      {takenDoseCount}/{med.scheduledCountToday}
-                    </p>
-                  )}
-                </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  {taken ? (
-                    <span
-                      className="font-body text-[13px] font-medium px-2.5 py-0.5 rounded-full"
-                      style={{ background: "#ECFDF5", color: "#065F46" }}
-                      data-testid={`status-med-taken-${i}`}
-                    >
-                      {t("meds.taken")}
-                    </span>
-                  ) : showDoseProgress && takenDoseCount > 0 ? (
-                    <span
-                      className="font-body text-[13px] font-medium px-2.5 py-0.5 rounded-full"
-                      style={{ background: "#FEF3C7", color: "#92400E" }}
-                    >
-                      {takenDoseCount}/{med.scheduledCountToday}
-                    </span>
-                  ) : (
-                    <button
-                      data-testid={`button-confirm-med-${i}`}
-                      onClick={() => confirmMutation.mutate(med)}
-                      disabled={confirmMutation.isPending}
-                      className="font-body text-[13px] font-semibold px-2.5 py-1 rounded-full flex items-center gap-1 transition-opacity disabled:opacity-50"
-                      style={{ background: "#6B21A8", color: "#fff" }}
-                    >
-                      <Check size={12} />
-                      {t("meds.confirm")}
-                    </button>
-                  )}
-                  <button
-                    data-testid={`button-edit-med-${i}`}
-                    onClick={() => openEditMed(med)}
-                    className="w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:bg-gray-100 active:bg-gray-200"
-                    title={t("meds.editMed", "Edit medication")}
-                  >
-                    <Pencil size={14} className="text-vyva-text-2" />
-                  </button>
-                  <button
-                    data-testid={`button-delete-med-${i}`}
-                    onClick={() => setDeleteMed(med)}
-                    className="w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:bg-red-50 active:bg-red-100"
-                    title={t("meds.deleteMed", "Remove medication")}
-                  >
-                    <Trash2 size={14} className="text-red-400" />
-                  </button>
-                </div>
-              </div>
-            );
-          })
-        )}
-
-        {voiceAddedMeds.map((med, i) => (
-          <div key={`voice-${i}`} className="flex items-center gap-[14px] px-[18px] py-[14px] border-b border-vyva-border last:border-b-0 bg-purple-50" style={{ minHeight: 64 }}>
-            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "#F3E8FF" }}>
-              <Mic size={18} style={{ color: "#6B21A8" }} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-body text-[15px] font-medium text-vyva-text-1">{med.name || t("meds.newMedication")}</p>
-              <p className="font-body text-[13px] text-vyva-text-2">
-                {[med.dosage, med.frequency?.replace("_", " ")].filter(Boolean).join(" · ")}
+            <div className="min-w-0 flex-1">
+              <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-emerald-700">
+                {t("meds.focusPanel.label", "Voice focus")}
+              </p>
+              <h2 className="mt-1 font-body text-[17px] font-extrabold leading-tight text-vyva-text-1">
+                {(focusedMedication?.displayName ?? focusedMedicationName) || t("meds.focusPanel.routine", "Medication routine")}
+              </h2>
+              <p className="mt-1 font-body text-[14px] leading-[1.45] text-vyva-text-2">
+                {focusedMedicationStatus}
               </p>
             </div>
-            <span className="font-body text-[12px] font-medium px-2 py-0.5 rounded-full" style={{ background: "#F3E8FF", color: "#6B21A8" }}>
-              {t("meds.added")}
-            </span>
           </div>
-        ))}
+          <ResponsiveGrid columns="three" gap="sm" className="mt-4">
+            <div className="rounded-[16px] bg-[#F7FBF8] p-3">
+              <p className="font-body text-[11px] font-bold uppercase tracking-[0.06em] text-vyva-text-3">{t("meds.focusLabels.schedule", "Schedule")}</p>
+              <p className="mt-1 font-body text-[14px] font-bold text-vyva-text-1">
+                {focusedMedication?.displayNote || voiceRoutineFocus || t("meds.focusPanel.dailyRoutine", "Daily routine")}
+              </p>
+            </div>
+            <div className="rounded-[16px] bg-[#F7FBF8] p-3">
+              <p className="font-body text-[11px] font-bold uppercase tracking-[0.06em] text-vyva-text-3">{t("meds.focusLabels.doseTime", "Dose time")}</p>
+              <p className="mt-1 font-body text-[14px] font-bold text-vyva-text-1">
+                {voiceDoseTime || focusedMedication?.scheduledTimeForApi || t("meds.focusPanel.askVyva", "Ask VYVA")}
+              </p>
+            </div>
+            <div className="rounded-[16px] bg-[#F7FBF8] p-3">
+              <p className="font-body text-[11px] font-bold uppercase tracking-[0.06em] text-vyva-text-3">{t("meds.focusLabels.next", "Next")}</p>
+              <p className="mt-1 font-body text-[14px] font-bold text-vyva-text-1">
+                {focusedMedication ? t("meds.focusPanel.reviewNext", "Review dose, refill, or interaction") : t("meds.focusPanel.pickMedication", "Pick a medication")}
+              </p>
+            </div>
+          </ResponsiveGrid>
+        </section>
+      )}
 
-        <div className="px-[18px] py-[14px] flex flex-col gap-3">
-          {(() => {
-            const pendingMeds = displayMeds.filter((m) => !isMedTaken(m));
-            const totalRemainingDoseCount = pendingMeds.reduce(
-              (sum, med) => sum + remainingDoseCount(med),
-              0
-            );
-            if (!todayLoading && displayMeds.length > 0 && totalRemainingDoseCount === 0) {
+      <section className="mt-6">
+        <SectionTitle
+          className="mb-3"
+          title={t("meds.todaySchedule")}
+          subtitle={t("meds.scheduleSubtitle", "Review what is due today and mark doses as taken.")}
+          titleClassName="font-body text-[22px] font-extrabold not-italic"
+          action={
+            <span
+              className="inline-flex min-h-[32px] items-center rounded-full px-3 font-body text-[12px] font-bold"
+              style={{
+                background: totalRemainingDoseCount > 0 ? "#FEF3C7" : "#ECFDF5",
+                color: totalRemainingDoseCount > 0 ? "#92400E" : "#065F46",
+              }}
+            >
+              {totalRemainingDoseCount > 0
+                ? t("meds.remainingBadge", { count: totalRemainingDoseCount })
+                : t("meds.allTakenShort", "Done")}
+            </span>
+          }
+        />
+
+        <div className="vyva-card overflow-hidden">
+          {todayLoading ? (
+            <div className="flex flex-col gap-0">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="flex min-h-[82px] items-center gap-4 border-b border-vyva-border px-4 py-4 last:border-b-0">
+                  <div className="h-12 w-12 flex-shrink-0 animate-pulse rounded-[18px] bg-gray-100" />
+                  <div className="flex-1">
+                    <div className="mb-2 h-4 w-1/2 animate-pulse rounded bg-gray-200" />
+                    <div className="h-3 w-1/3 animate-pulse rounded bg-gray-100" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : displayMeds.length === 0 ? (
+            <div data-testid="status-no-medications">
+              <EmptyState
+                className="border-0 shadow-none"
+                icon={Mic}
+                title={t("meds.noMedsTitle", "No medications added yet")}
+                description={t("meds.noMedsSub", "Use the button below to add your medications by voice")}
+                action={
+                  <button
+                    data-testid="button-meds-add-by-voice-empty"
+                    onClick={() => setVoiceModalOpen(true)}
+                    className="vyva-tap inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-5 font-body text-[15px] font-bold text-white shadow-vyva-card"
+                  >
+                    <Mic size={16} />
+                    {t("meds.addByVoice")}
+                  </button>
+                }
+              />
+            </div>
+          ) : (
+            displayMeds.map((med, i) => {
+              const taken = isMedTaken(med);
+              const takenDoseCount = effectiveTakenCount(med);
+              const showDoseProgress = med.scheduledCountToday > 1;
               return (
                 <div
-                  className="w-full flex items-center justify-center gap-2 rounded-full py-[15px] px-[20px] font-body text-[16px] font-medium min-h-[56px]"
-                  style={{ background: "#ECFDF5", color: "#065F46" }}
-                  data-testid="status-all-meds-taken"
+                  key={med.id}
+                  className={`border-b border-vyva-border px-4 py-4 last:border-b-0 ${focusedMedication?.id === med.id ? "bg-emerald-50 ring-2 ring-inset ring-emerald-200" : ""}`}
                 >
-                  <Check size={18} />
-                  {t("meds.allTaken")}
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px]" style={{ background: taken ? "#ECFDF5" : "#FEF3C7" }}>
+                      {taken ? <Check size={21} style={{ color: "#0A7C4E" }} /> : <Clock size={21} style={{ color: "#C9890A" }} />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-body text-[17px] font-extrabold leading-tight text-vyva-text-1">{med.displayName}</p>
+                          {med.displayNote ? <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">{med.displayNote}</p> : null}
+                        </div>
+                        <span
+                          className="inline-flex min-h-[28px] items-center rounded-full px-2.5 font-body text-[12px] font-bold"
+                          style={{
+                            background: taken ? "#ECFDF5" : "#FEF3C7",
+                            color: taken ? "#065F46" : "#92400E",
+                          }}
+                          data-testid={taken ? `status-med-taken-${i}` : undefined}
+                        >
+                          {taken ? t("meds.taken") : showDoseProgress ? `${takenDoseCount}/${med.scheduledCountToday}` : t("meds.tonight")}
+                        </span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {!taken ? (
+                          <button
+                            data-testid={`button-confirm-med-${i}`}
+                            onClick={() => confirmMutation.mutate(med)}
+                            disabled={confirmMutation.isPending}
+                            className="vyva-tap inline-flex min-h-[38px] items-center justify-center gap-1.5 rounded-full bg-vyva-purple px-4 font-body text-[13px] font-bold text-white transition-opacity disabled:opacity-50"
+                          >
+                            <Check size={14} />
+                            {t("meds.confirm")}
+                          </button>
+                        ) : null}
+                        <button
+                          data-testid={`button-edit-med-${i}`}
+                          onClick={() => openEditMed(med)}
+                          className="vyva-tap inline-flex min-h-[38px] items-center justify-center gap-1.5 rounded-full border border-vyva-border bg-white px-3 font-body text-[13px] font-bold text-vyva-text-2"
+                        >
+                          <Pencil size={14} />
+                          {t("meds.editMed", "Edit")}
+                        </button>
+                        <button
+                          data-testid={`button-delete-med-${i}`}
+                          onClick={() => setDeleteMed(med)}
+                          className="vyva-tap inline-flex h-[38px] w-[38px] items-center justify-center rounded-full border border-red-100 bg-red-50 text-red-500"
+                          aria-label={t("meds.deleteMed", "Remove medication")}
+                          title={t("meds.deleteMed", "Remove medication")}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               );
-            }
-            return (
+            })
+          )}
+
+          {voiceAddedMeds.map((med, i) => (
+            <div key={`voice-${i}`} className="flex min-h-[78px] items-center gap-4 border-b border-vyva-border bg-purple-50 px-4 py-4 last:border-b-0">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px]" style={{ background: "#F3E8FF" }}>
+                <Mic size={20} style={{ color: "#6B21A8" }} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-body text-[16px] font-extrabold leading-tight text-vyva-text-1">{med.name || t("meds.newMedication")}</p>
+                <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">
+                  {[med.dosage, med.frequency?.replace("_", " ")].filter(Boolean).join(" - ")}
+                </p>
+              </div>
+              <span className="rounded-full bg-[#F3E8FF] px-2.5 py-1 font-body text-[12px] font-bold text-vyva-purple">
+                {t("meds.added")}
+              </span>
+            </div>
+          ))}
+
+          <div className="flex flex-col gap-3 border-t border-vyva-border bg-[#FFFCF8] px-4 py-4">
+            {!todayLoading && displayMeds.length > 0 && totalRemainingDoseCount === 0 ? (
+              <div
+                className="flex min-h-[56px] w-full items-center justify-center gap-2 rounded-full bg-emerald-50 px-5 py-4 font-body text-[16px] font-bold text-emerald-700"
+                data-testid="status-all-meds-taken"
+              >
+                <Check size={18} />
+                {t("meds.allTaken")}
+              </div>
+            ) : (
               <button
                 data-testid="button-confirm-all-meds"
                 onClick={() => {
                   void confirmAllRemainingDoses(pendingMeds);
                 }}
                 disabled={confirmMutation.isPending || todayLoading || totalRemainingDoseCount === 0}
-                className="w-full flex items-center justify-center gap-2 rounded-full py-[15px] px-[20px] font-body text-[16px] font-medium text-white min-h-[56px] transition-opacity disabled:opacity-60"
-                style={{ background: "#6B21A8" }}
+                className="vyva-tap flex min-h-[56px] w-full items-center justify-center gap-2 rounded-full bg-vyva-purple px-5 py-4 font-body text-[16px] font-bold text-white transition-opacity disabled:opacity-60"
               >
                 <LinkIcon size={18} />
-                {t("meds.confirmTaken")}
+                {t("meds.confirmRemaining", "Confirm remaining doses")}
               </button>
-            );
-          })()}
-          <button
-            data-testid="button-meds-add-by-voice"
-            onClick={() => setVoiceModalOpen(true)}
-            className="w-full flex items-center justify-center gap-2 rounded-full py-[13px] px-[20px] font-body text-[15px] font-medium min-h-[48px] border transition-colors"
-            style={{ borderColor: "#6B21A8", color: "#6B21A8" }}
-          >
-            <Mic size={16} />
-            {t("meds.addByVoice")}
-          </button>
-        </div>
-      </div>
-
-      {/* Medication Assistant */}
-      <div className="mt-[14px] mb-6 bg-white rounded-[20px] border border-vyva-border overflow-hidden" style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}>
-        <div className="px-[18px] py-[13px] border-b border-vyva-border" style={{ background: "#F5EFE4" }}>
-          <span className="font-body text-[14px] font-medium text-vyva-text-1">{t("meds.medicationAssistant")}</span>
-        </div>
-
-        {ASSISTANT_ACTIONS.map((action, i) => {
-          const isLast = i === ASSISTANT_ACTIONS.length - 1;
-          const isLinksExpanded = action.type === "links" && expandedLinks.has(action.id);
-
-          return (
-            <div
-              key={action.id}
-              className={`${!isLast ? "border-b border-vyva-border" : ""}`}
+            )}
+            <button
+              data-testid="button-meds-add-by-voice"
+              onClick={() => setVoiceModalOpen(true)}
+              className="vyva-tap flex min-h-[50px] w-full items-center justify-center gap-2 rounded-full border border-vyva-purple bg-white px-5 py-3 font-body text-[15px] font-bold text-vyva-purple"
             >
-              <button
-                data-testid={`button-assistant-${action.id}`}
-                onClick={() => action.type === "chat" ? openAssistant(action.prompt, action.sheetTitle) : toggleLinks(action.id)}
-                className="w-full flex items-center gap-[14px] px-[18px] py-[16px] text-left min-h-[72px]"
-              >
-                <div className="w-11 h-11 rounded-[14px] flex items-center justify-center flex-shrink-0" style={{ background: action.bg }}>
-                  <action.icon size={20} style={{ color: action.color }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-body text-[15px] font-medium text-vyva-text-1">{action.label}</p>
-                  <p className="font-body text-[13px] text-vyva-text-2">{action.sub}</p>
-                </div>
-                {action.type === "chat" ? (
-                  <ExternalLink size={16} className="text-vyva-text-2" />
-                ) : (
-                  <ChevronDown size={16} className={`text-vyva-text-2 transition-transform ${isLinksExpanded ? "rotate-180" : ""}`} />
-                )}
-              </button>
+              <Mic size={16} />
+              {t("meds.addByVoice")}
+            </button>
+          </div>
+        </div>
+      </section>
 
-              {action.type === "links" && isLinksExpanded && (
-                <div className="px-[18px] pb-[14px] pl-[73px] grid gap-2">
-                  {action.links?.map((link) => (
-                    <a key={link.url} href={link.url} target="_blank" rel="noreferrer" className="font-body text-[14px] text-vyva-purple underline underline-offset-2">
-                      {link.label}
-                    </a>
-                  ))}
+      <section className="mt-6">
+        <SectionTitle
+          className="mb-3"
+          title={t("meds.supportTitle", "Medication support")}
+          subtitle={t("meds.supportSubtitle", "Quick checks for refills, interactions, and progress.")}
+          titleClassName="font-body text-[22px] font-extrabold not-italic"
+        />
+        <div className="vyva-card overflow-hidden">
+          {supportActions.map((item, i) => {
+            const Icon = item.icon;
+            const content = (
+              <>
+                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px]" style={{ background: item.bg }}>
+                  <Icon size={22} style={{ color: item.color }} />
                 </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-body text-[16px] font-extrabold leading-tight text-vyva-text-1">{item.label}</p>
+                  <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">{item.sub}</p>
+                </div>
+                {item.onClick ? <ExternalLink size={17} className="flex-shrink-0 text-vyva-purple" /> : null}
+              </>
+            );
+
+            return item.onClick ? (
+              <button
+                key={item.id}
+                data-testid={item.testId}
+                onClick={item.onClick}
+                className={`vyva-tap flex w-full items-center gap-4 px-4 py-4 text-left transition-colors active:bg-[#FFF9F1] ${i !== supportActions.length - 1 ? "border-b border-vyva-border" : ""}`}
+              >
+                {content}
+              </button>
+            ) : (
+              <div
+                key={item.id}
+                className={`flex items-center gap-4 px-4 py-4 ${i !== supportActions.length - 1 ? "border-b border-vyva-border" : ""}`}
+              >
+                {content}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="mb-6 mt-6">
+        <SectionTitle
+          className="mb-3"
+          title={t("meds.medicationAssistant")}
+          subtitle={t("meds.assistantSubtitle", "Ask about safety, ordering, natural options, or latest research.")}
+          titleClassName="font-body text-[22px] font-extrabold not-italic"
+        />
+
+        <ResponsiveGrid columns="two" gap="sm">
+          {ASSISTANT_ACTIONS.map((action) => {
+            const isLinksExpanded = action.type === "links" && expandedLinks.has(action.id);
+            const Icon = action.icon;
+
+            return (
+              <div key={action.id} className="min-w-0">
+                <button
+                  data-testid={`button-assistant-${action.id}`}
+                  onClick={() => action.type === "chat" ? openAssistant(action.prompt, action.sheetTitle) : toggleLinks(action.id)}
+                  className="vyva-tap flex min-h-[150px] w-full flex-col justify-between rounded-[26px] border border-vyva-border bg-white p-4 text-left shadow-vyva-card"
+                >
+                  <div className="flex w-full items-start justify-between gap-3">
+                    <div className="flex h-[52px] w-[52px] flex-shrink-0 items-center justify-center rounded-[18px]" style={{ background: action.bg }}>
+                      <Icon size={24} style={{ color: action.color }} />
+                    </div>
+                    {action.type === "chat" ? (
+                      <ExternalLink size={17} className="text-vyva-text-2" />
+                    ) : (
+                      <ChevronDown size={18} className={`text-vyva-text-2 transition-transform ${isLinksExpanded ? "rotate-180" : ""}`} />
+                    )}
+                  </div>
+                  <div className="mt-4 min-w-0">
+                    <p className="font-body text-[16px] font-extrabold leading-tight text-vyva-text-1">{action.label}</p>
+                    <p className="mt-1 font-body text-[13px] font-medium leading-snug text-vyva-text-2">{action.sub}</p>
+                  </div>
+                </button>
+
+                {action.type === "links" && isLinksExpanded && (
+                  <div className="mt-2 grid gap-2 rounded-[20px] border border-vyva-border bg-white p-3 shadow-vyva-card">
+                    {action.links?.map((link) => (
+                      <a key={link.url} href={link.url} target="_blank" rel="noreferrer" className="font-body text-[14px] font-bold text-vyva-purple underline underline-offset-2">
+                        {link.label}
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </ResponsiveGrid>
+      </section>
 
       <VoiceMedsModal
         open={voiceModalOpen}
@@ -647,7 +812,7 @@ const MedsScreen = () => {
               className="flex-1 py-2.5 rounded-full font-body text-[15px] font-semibold text-white transition-opacity disabled:opacity-60"
               style={{ background: "#6B21A8" }}
             >
-              {updateMutation.isPending ? t("common.saving", "Saving…") : t("common.save", "Save")}
+              {updateMutation.isPending ? t("common.saving", "Saving...") : t("common.save", "Save")}
             </button>
           </DialogFooter>
         </DialogContent>
@@ -676,7 +841,7 @@ const MedsScreen = () => {
               className="font-body text-[15px] font-semibold"
               style={{ background: "#DC2626" }}
             >
-              {deleteMutation.isPending ? t("common.removing", "Removing…") : t("meds.deleteConfirmAction", "Remove")}
+              {deleteMutation.isPending ? t("common.removing", "Removing...") : t("meds.deleteConfirmAction", "Remove")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

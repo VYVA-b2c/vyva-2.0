@@ -200,6 +200,7 @@ function hasUsableMedication(med: typeof userMedications.$inferSelect): boolean 
 router.get("/readiness", async (req: Request, res: Response) => {
   const userId = await resolveUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  const accountUserId = req.user?.id ?? null;
 
   try {
     const [profileRows, medications] = await Promise.all([
@@ -234,7 +235,8 @@ router.get("/readiness", async (req: Request, res: Response) => {
     const hasHealthContext = healthConditions.length > 0;
     const hasAllergies = Array.isArray(profile?.known_allergies) && profile.known_allergies.some(hasText);
     const hasGp = hasText(profile?.gp_name) || hasText(profile?.gp_phone);
-    const entitlements = await entitlementForTier(normalizeSubscriptionTier(profile?.subscription_tier));
+    const effectiveTier = normalizeSubscriptionTier(profile?.subscription_tier);
+    const entitlements = await entitlementForTier(effectiveTier);
 
     const medicationMissing = [
       setupStep("medications", "To make medication reminders and reports work, add at least one medication first."),
@@ -265,7 +267,11 @@ router.get("/readiness", async (req: Request, res: Response) => {
 
     return res.json({
       profile: {
+        accountUserId,
+        id: profile?.id ?? null,
         exists: !!profile,
+        subscriptionTier: effectiveTier,
+        subscriptionStatus: profile?.subscription_status ?? null,
         hasBasics,
         hasContact,
         hasDetailedAddress,
@@ -632,19 +638,37 @@ router.get("/export", async (req: Request, res: Response) => {
 router.get("/", async (req: Request, res: Response) => {
   const userId = await resolveUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  const accountUserId = req.user?.id ?? null;
 
   try {
-    const rows = await db
-      .select()
-      .from(profiles)
-      .where(eq(profiles.id, userId))
-      .limit(1);
+    const [rows, accountRows] = await Promise.all([
+      db
+        .select()
+        .from(profiles)
+        .where(eq(profiles.id, userId))
+        .limit(1),
+      accountUserId
+        ? db
+            .select({ email: users.email, phone_number: users.phone_number })
+            .from(users)
+            .where(eq(users.id, accountUserId))
+            .limit(1)
+            .catch((err) => {
+              const message = err instanceof Error ? err.message : String(err);
+              if (message.includes("does not exist")) return [];
+              throw err;
+            })
+        : Promise.resolve([]),
+    ]);
 
     if (!rows[0]) {
       return res.json(null);
     }
 
     const p = rows[0];
+    const accountEmail = typeof req.user?.email === "string"
+      ? req.user.email
+      : accountRows[0]?.email ?? null;
     const nameParts = (p.full_name ?? "").trim().split(/\s+/);
     const firstName = nameParts[0] ?? "";
     const lastName  = nameParts.slice(1).join(" ");
@@ -655,7 +679,10 @@ router.get("/", async (req: Request, res: Response) => {
       preferredName:    p.preferred_name ?? "",
       dateOfBirth:      p.date_of_birth ?? "",
       gender:           readProfileGender(p.data_sharing_consent),
-      email:            p.email ?? "",
+      email:            p.email ?? accountEmail ?? "",
+      accountEmail:     accountEmail ?? "",
+      accountUserId,
+      profileId:        p.id,
       phone:            p.phone_number ?? "",
       country:          p.country_code ?? "",
       timezone:         p.timezone ?? "",

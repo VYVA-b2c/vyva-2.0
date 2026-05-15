@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, BarChart2, Copy, AlertCircle, RefreshCw, ClipboardCheck, Flame, ShieldCheck, TriangleAlert, Sparkles, Clock3, Target, LockKeyhole, LogIn } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
+import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { ApiError } from "@/lib/queryClient";
 
 type DailyStatus = "taken" | "missed" | "none";
@@ -94,6 +96,14 @@ function SkeletonRow() {
   );
 }
 
+function normalizeVoiceFocus(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
 const AdherenceReportScreen = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -101,6 +111,10 @@ const AdherenceReportScreen = () => {
 
   const { data, isLoading, isError, refetch, error } = useQuery<AdherenceReport, ApiError>({
     queryKey: ["/api/meds/adherence-report"],
+  });
+  const { action: voiceAction, payloadValue: voicePayloadValue } = useVoiceActionFulfillment({
+    domain: "meds",
+    actionTypes: ["meds.inventory_report"],
   });
   const isAuthError = error instanceof ApiError && (error.status === 401 || error.status === 403);
 
@@ -128,6 +142,11 @@ const AdherenceReportScreen = () => {
     const adherencePct = med.scheduled > 0 ? Math.round((med.taken / med.scheduled) * 100) : 0;
     return { ...med, missedCount, adherencePct };
   });
+  const focusedMedicationName = voicePayloadValue("medication_name") || voiceAction?.extractedSubject || "";
+  const focusedMedicationKey = normalizeVoiceFocus(focusedMedicationName);
+  const focusedMedication = focusedMedicationKey
+    ? medicationInsights.find((med) => normalizeVoiceFocus(med.name).includes(focusedMedicationKey))
+    : null;
   const mostMissedMedication = [...medicationInsights].sort((a, b) => {
     if (a.missedCount !== b.missedCount) return b.missedCount - a.missedCount;
     return a.name.localeCompare(b.name);
@@ -137,12 +156,35 @@ const AdherenceReportScreen = () => {
     if (a.adherencePct !== b.adherencePct) return b.adherencePct - a.adherencePct;
     return a.name.localeCompare(b.name);
   })[0];
+  const inventoryQuestion = voicePayloadValue("inventory_question");
+  const daysRemaining = voicePayloadValue("days_remaining");
+  const inventoryFocusMedication = focusedMedication ?? mostMissedMedication ?? strongestMedication;
+  const inventoryFocusStatus = inventoryFocusMedication
+    ? inventoryFocusMedication.dailyStatus[inventoryFocusMedication.dailyStatus.length - 1] === "none"
+      ? "Still due today"
+      : inventoryFocusMedication.dailyStatus[inventoryFocusMedication.dailyStatus.length - 1] === "taken"
+        ? "Taken today"
+        : "Missed recently"
+    : todayStillDueCount > 0
+      ? `${todayStillDueCount} still due today`
+      : "No medication selected";
   const sortedMedications = [...medications].sort((a, b) => {
     const aMissed = a.dailyStatus.filter((status) => status === "missed").length;
     const bMissed = b.dailyStatus.filter((status) => status === "missed").length;
     if (aMissed !== bMissed) return bMissed - aMissed;
     return a.name.localeCompare(b.name);
   });
+  const voiceActionHighlights = [
+    ...(focusedMedicationName
+      ? [{ label: "Medication", value: focusedMedicationName, tone: focusedMedication ? "good" as const : "warning" as const }]
+      : []),
+    ...(focusedMedication
+      ? [{ label: "Adherence", value: `${focusedMedication.adherencePct}%`, tone: focusedMedication.adherencePct >= 80 ? "good" as const : "warning" as const }]
+      : []),
+    ...(todayStillDueCount > 0
+      ? [{ label: "Still due", value: todayStillDueCount, tone: "warning" as const }]
+      : []),
+  ];
 
   const insights = [
     {
@@ -328,6 +370,66 @@ const AdherenceReportScreen = () => {
             {t("meds.adherence.title")}
           </h1>
         </div>
+
+        <VoiceActionFulfillmentPanel
+          domain="meds"
+          actionTypes={["meds.inventory_report"]}
+          title="Medication report ready"
+          description="VYVA can use adherence, missed doses, streaks, and today's remaining items from this report."
+          highlights={voiceActionHighlights}
+          className="mb-[14px]"
+        />
+
+        {voiceAction && (
+          <section
+            className="mb-[14px] rounded-[22px] border border-vyva-border bg-white p-4"
+            style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}
+            data-testid="panel-voice-medication-inventory"
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#ECFDF5] text-[#0A7C4E]">
+                <ClipboardCheck size={20} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#0A7C4E]">
+                  Inventory and adherence focus
+                </p>
+                <h2 className="mt-1 font-body text-[17px] font-extrabold leading-tight text-vyva-text-1">
+                  {(inventoryFocusMedication?.name ?? focusedMedicationName) || "Medication report"}
+                </h2>
+                <p className="mt-1 font-body text-[14px] leading-[1.45] text-vyva-text-2">
+                  {inventoryQuestion || "Use this page to answer stock, refill, missed dose, and adherence questions."}
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <div className="rounded-[16px] bg-[#F8F7F4] p-3">
+                <p className="font-body text-[11px] font-bold uppercase tracking-[0.06em] text-vyva-text-3">Adherence</p>
+                <p className="mt-1 font-body text-[15px] font-bold text-vyva-text-1">
+                  {inventoryFocusMedication ? `${inventoryFocusMedication.adherencePct}%` : `${data?.weekPct ?? 0}% week`}
+                </p>
+              </div>
+              <div className="rounded-[16px] bg-[#F8F7F4] p-3">
+                <p className="font-body text-[11px] font-bold uppercase tracking-[0.06em] text-vyva-text-3">Missed</p>
+                <p className="mt-1 font-body text-[15px] font-bold text-vyva-text-1">
+                  {inventoryFocusMedication ? inventoryFocusMedication.missedCount : medicationsNeedingAttention.length}
+                </p>
+              </div>
+              <div className="rounded-[16px] bg-[#F8F7F4] p-3">
+                <p className="font-body text-[11px] font-bold uppercase tracking-[0.06em] text-vyva-text-3">Today</p>
+                <p className="mt-1 font-body text-[15px] font-bold text-vyva-text-1">
+                  {inventoryFocusStatus}
+                </p>
+              </div>
+              <div className="rounded-[16px] bg-[#F8F7F4] p-3">
+                <p className="font-body text-[11px] font-bold uppercase tracking-[0.06em] text-vyva-text-3">Stock</p>
+                <p className="mt-1 font-body text-[15px] font-bold text-vyva-text-1">
+                  {daysRemaining ? `${daysRemaining} days` : "Ask / confirm"}
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
 
         {isLoading && (
           <>
@@ -555,7 +657,7 @@ const AdherenceReportScreen = () => {
                   return (
                     <div
                       key={i}
-                      className="px-[18px] py-[16px] border-b border-vyva-border last:border-b-0"
+                      className={`px-[18px] py-[16px] border-b border-vyva-border last:border-b-0 ${focusedMedication?.name === med.name ? "bg-emerald-50 ring-2 ring-inset ring-emerald-200" : ""}`}
                       data-testid={`card-med-adherence-${i}`}
                     >
                       <div className="flex items-start justify-between gap-3 mb-3">

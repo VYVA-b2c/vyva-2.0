@@ -1,16 +1,32 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import { Mic, MicOff, PhoneOff } from "lucide-react";
 import { TranscriptEntry } from "@/hooks/useVyvaVoice";
+import type { VoiceAppAction } from "@/lib/voiceNavigation";
+import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
 
 interface VoiceCallOverlayProps {
   isSpeaking: boolean;
   isConnecting: boolean;
   transcript: TranscriptEntry[];
   onEnd: () => void;
+  activeAction?: VoiceAppAction | null;
+  voiceSessionPhase?: VoiceSessionPhase;
+  isMicMuted?: boolean;
+  onMicToggle?: (muted: boolean) => void;
 }
 
-const VoiceCallOverlay = ({ isSpeaking, isConnecting, transcript, onEnd }: VoiceCallOverlayProps) => {
+const VoiceCallOverlay = ({
+  isSpeaking,
+  isConnecting,
+  transcript,
+  onEnd,
+  activeAction,
+  voiceSessionPhase,
+  isMicMuted = false,
+  onMicToggle,
+}: VoiceCallOverlayProps) => {
   const { t } = useTranslation();
   const [visibleEntry, setVisibleEntry] = useState<TranscriptEntry | null>(null);
   const [fade, setFade] = useState(true);
@@ -29,11 +45,13 @@ const VoiceCallOverlay = ({ isSpeaking, isConnecting, transcript, onEnd }: Voice
     return () => clearTimeout(timer);
   }, [latestEntry, visibleEntry]);
 
-  const statusLabel = isConnecting
+  const fallbackStatusLabel = isConnecting
     ? t("voiceHero.connecting")
     : isSpeaking
     ? t("voiceHero.speaking")
     : t("voiceHero.listening");
+  const statusLabel = voiceSessionPhase ? voiceSessionPhaseLabel(voiceSessionPhase) : fallbackStatusLabel;
+  const canToggleMic = Boolean(onMicToggle && voiceSessionPhase !== "connecting" && voiceSessionPhase !== "transferring");
 
   const speakerLabel =
     visibleEntry?.from === "user"
@@ -110,6 +128,70 @@ const VoiceCallOverlay = ({ isSpeaking, isConnecting, transcript, onEnd }: Voice
         >
           {visibleEntry?.text ?? ""}
         </p>
+
+        {activeAction && (
+          <div
+            data-testid="voice-action-panel"
+            className="font-body"
+            style={{
+              width: "min(100%, 360px)",
+              borderRadius: 20,
+              border: "1px solid rgba(52,211,153,0.34)",
+              background: "linear-gradient(135deg, rgba(16,185,129,0.22), rgba(5,150,105,0.12))",
+              padding: "14px 16px",
+              boxShadow: "0 18px 44px rgba(0,0,0,0.16)",
+              color: "rgba(255,255,255,0.92)",
+              transition: "opacity 0.18s ease, transform 0.18s ease",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 9,
+                  height: 9,
+                  borderRadius: 999,
+                  background: "#34D399",
+                  boxShadow: "0 0 0 6px rgba(52,211,153,0.12)",
+                  flexShrink: 0,
+                }}
+              />
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  color: "rgba(209,250,229,0.9)",
+                }}
+              >
+                App context
+              </span>
+            </div>
+            <p
+              style={{
+                fontSize: 18,
+                lineHeight: 1.22,
+                fontWeight: 700,
+                margin: 0,
+                overflowWrap: "anywhere",
+              }}
+            >
+              {activeAction.title}
+            </p>
+            <p
+              style={{
+                fontSize: 13,
+                lineHeight: 1.45,
+                margin: "6px 0 0",
+                color: "rgba(236,253,245,0.82)",
+                overflowWrap: "anywhere",
+              }}
+            >
+              {activeAction.summary}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Bottom controls — absolutely anchored so they're always visible */}
@@ -188,26 +270,61 @@ const VoiceCallOverlay = ({ isSpeaking, isConnecting, transcript, onEnd }: Voice
           {statusLabel}
         </span>
 
-        {/* End call button */}
-        <button
-          data-testid="button-end-call"
-          onClick={onEnd}
-          className="font-body"
-          style={{
-            background: "rgba(255,255,255,0.12)",
-            border: "1px solid rgba(255,255,255,0.2)",
-            borderRadius: 100,
-            color: "white",
-            fontSize: 16,
-            fontWeight: 500,
-            padding: "14px 48px",
-            cursor: "pointer",
-            letterSpacing: "0.01em",
-            WebkitTapHighlightColor: "transparent",
-          }}
-        >
-          {t("voiceHero.endCall")}
-        </button>
+        <div style={{ display: "flex", gap: 12, width: "min(100%, 360px)", justifyContent: "center" }}>
+          {canToggleMic && (
+            <button
+              data-testid="button-toggle-call-mic"
+              onClick={() => onMicToggle?.(!isMicMuted)}
+              className="font-body"
+              style={{
+                minHeight: 52,
+                minWidth: 112,
+                background: isMicMuted ? "rgba(52,211,153,0.22)" : "rgba(255,255,255,0.12)",
+                border: isMicMuted ? "1px solid rgba(52,211,153,0.46)" : "1px solid rgba(255,255,255,0.2)",
+                borderRadius: 100,
+                color: "white",
+                fontSize: 15,
+                fontWeight: 700,
+                padding: "12px 18px",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                WebkitTapHighlightColor: "transparent",
+              }}
+            >
+              {isMicMuted ? <Mic size={18} /> : <MicOff size={18} />}
+              {isMicMuted ? "Talk" : "Mute"}
+            </button>
+          )}
+
+          <button
+            data-testid="button-end-call"
+            onClick={onEnd}
+            className="font-body"
+            style={{
+              minHeight: 52,
+              minWidth: 132,
+              background: "rgba(255,255,255,0.12)",
+              border: "1px solid rgba(255,255,255,0.2)",
+              borderRadius: 100,
+              color: "white",
+              fontSize: 15,
+              fontWeight: 700,
+              padding: "12px 22px",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              WebkitTapHighlightColor: "transparent",
+            }}
+          >
+            <PhoneOff size={18} />
+            {t("voiceHero.endCall", "End chat")}
+          </button>
+        </div>
       </div>
     </div>
   );

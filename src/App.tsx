@@ -8,7 +8,10 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { ProfileProvider } from "@/contexts/ProfileContext";
+import { VoiceActionProvider } from "@/contexts/VoiceActionContext";
+import { VyvaVoiceProvider } from "@/hooks/useVyvaVoice";
 import { recordAgentButtonClick, recordAgentPageChange } from "@/lib/agentAppContext";
 import LoginPage from "@/pages/LoginPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
@@ -89,6 +92,7 @@ const LifecycleAdminPage = lazy(() => import("./pages/admin/LifecycleAdminPage")
 const AdminUsersPage = lazy(() => import("./pages/admin/AdminUsersPage"));
 const HomeCardsAdminPage = lazy(() => import("./pages/admin/HomeCardsAdminPage"));
 const HeroMessagesAdminPage = lazy(() => import("./pages/admin/HeroMessagesAdminPage"));
+const VoiceReadinessAdminPage = lazy(() => import("./pages/admin/VoiceReadinessAdminPage"));
 
 const SECTION_MAP: Record<string, React.ComponentType> = {
   allergies: AllergiesSection,
@@ -154,28 +158,105 @@ function FaceNameMatchRoute() {
   );
 }
 
+function AdminLoadingScreen({ message = "Loading admin tools" }: { message?: string }) {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-[#f7f2eb] px-6 text-center text-[#2f2135]">
+      <section className="w-full max-w-md rounded-3xl border border-[#eadfd5] bg-white p-6 shadow-sm">
+        <VyvaWordmark className="mx-auto h-auto w-[132px] sm:w-[158px]" />
+        <p className="mt-4 text-sm font-bold uppercase tracking-[0.22em] text-purple-700">VYVA Admin</p>
+        <h1 className="mt-2 font-serif text-3xl">{message}</h1>
+        <p className="mt-2 text-sm text-[#7d6b65]">Preparing the admin workspace.</p>
+      </section>
+    </main>
+  );
+}
+
+function AdminErrorScreen({ message }: { message: string }) {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-[#f7f2eb] px-6 text-center text-[#2f2135]">
+      <section className="w-full max-w-md rounded-3xl border border-[#eadfd5] bg-white p-6 shadow-sm">
+        <VyvaWordmark className="mx-auto h-auto w-[132px] sm:w-[158px]" />
+        <p className="mt-4 text-sm font-bold uppercase tracking-[0.22em] text-purple-700">VYVA Admin</p>
+        <h1 className="mt-2 font-serif text-3xl">Admin page could not load</h1>
+        <p className="mt-2 text-sm leading-relaxed text-[#7d6b65]">{message}</p>
+        <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-center">
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="rounded-2xl bg-purple-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-purple-800"
+          >
+            Try again
+          </button>
+          <a
+            href="/admin/lifecycle"
+            className="rounded-2xl border border-[#eadfd5] bg-white px-5 py-3 text-sm font-bold text-[#2f2135] transition hover:border-purple-200 hover:text-purple-700"
+          >
+            Admin menu
+          </a>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+class AdminRouteErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; message: string }
+> {
+  state = { hasError: false, message: "" };
+
+  static getDerivedStateFromError(error: unknown) {
+    return {
+      hasError: true,
+      message: error instanceof Error ? error.message : "The admin page could not load.",
+    };
+  }
+
+  componentDidCatch(error: unknown, errorInfo: React.ErrorInfo) {
+    console.error("[admin-route]", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <AdminErrorScreen message={this.state.message} />;
+    }
+
+    return this.props.children;
+  }
+}
+
 function AdminRoute({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, logout } = useAuth();
   const location = useLocation();
 
-  if (isLoading) return <div className="min-h-screen bg-[#f7f2eb]" />;
+  if (isLoading) return <AdminLoadingScreen message="Checking admin access" />;
   if (!user) return <Navigate to="/admin/login" replace state={{ from: location.pathname }} />;
   if (user.role !== "admin") {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f7f2eb] px-6 text-center text-[#2f2135]">
         <section className="max-w-md rounded-3xl border border-[#eadfd5] bg-white p-6 shadow-sm">
-          <p className="text-sm font-bold uppercase tracking-[0.22em] text-purple-700">VYVA Admin</p>
+          <VyvaWordmark className="mx-auto h-auto w-[132px] sm:w-[158px]" />
+          <p className="mt-4 text-sm font-bold uppercase tracking-[0.22em] text-purple-700">VYVA Admin</p>
           <h1 className="mt-2 font-serif text-3xl">Admin access required</h1>
           <p className="mt-2 text-sm text-[#7d6b65]">Your account is signed in, but it does not have the admin role.</p>
+          <button
+            type="button"
+            onClick={logout}
+            className="mt-5 rounded-2xl bg-purple-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-purple-800"
+          >
+            Sign out
+          </button>
         </section>
       </main>
     );
   }
 
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#f7f2eb]" />}>
-      {children}
-    </Suspense>
+    <AdminRouteErrorBoundary>
+      <Suspense fallback={<AdminLoadingScreen />}>
+        {children}
+      </Suspense>
+    </AdminRouteErrorBoundary>
   );
 }
 
@@ -248,8 +329,10 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter>
-              <AgentAppContextTracker />
-              <Routes>
+              <VyvaVoiceProvider>
+                <VoiceActionProvider>
+                  <AgentAppContextTracker />
+                  <Routes>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/admin/login" element={<LoginPage adminOnly />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
@@ -261,6 +344,7 @@ const App = () => (
                 <Route path="/admin/users" element={<AdminRoute><AdminUsersPage /></AdminRoute>} />
                 <Route path="/admin/home-cards" element={<AdminRoute><HomeCardsAdminPage /></AdminRoute>} />
                 <Route path="/admin/hero-messages" element={<AdminRoute><HeroMessagesAdminPage /></AdminRoute>} />
+                <Route path="/admin/voice-readiness" element={<AdminRoute><VoiceReadinessAdminPage /></AdminRoute>} />
                 <Route element={<ProtectedRoute />}>
                   <Route element={<OnboardingGuard />}>
                     <Route path="/onboarding" element={<WelcomeScreen />} />
@@ -317,7 +401,9 @@ const App = () => (
                   <Route path="/history" element={<AppShell><HistoryScreen /></AppShell>} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
-              </Routes>
+                  </Routes>
+                </VoiceActionProvider>
+              </VyvaVoiceProvider>
             </BrowserRouter>
           </TooltipProvider>
       </ProfileProvider>

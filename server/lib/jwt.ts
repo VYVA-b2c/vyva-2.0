@@ -65,6 +65,7 @@ export async function verifyMagicLoginToken(token: string): Promise<string | nul
 }
 
 const MEDICAL_PROFILE_AUDIENCE = "elevenlabs-medical-profile";
+const VOICE_RECOMMENDATION_FEEDBACK_AUDIENCE = "elevenlabs-voice-recommendation-feedback";
 
 export async function signMedicalProfileToolToken(
   userId: string,
@@ -91,6 +92,42 @@ export async function verifyMedicalProfileToolToken(
     });
     if (
       payload.token_type !== "medical_profile_tool" ||
+      typeof payload.sub !== "string" ||
+      typeof payload.conversation_id !== "string"
+    ) {
+      return null;
+    }
+    return { userId: payload.sub, conversationId: payload.conversation_id };
+  } catch {
+    return null;
+  }
+}
+
+export async function signVoiceRecommendationFeedbackToolToken(
+  userId: string,
+  conversationId: string,
+): Promise<string> {
+  return new SignJWT({
+    sub: userId,
+    conversation_id: conversationId,
+    token_type: "voice_recommendation_feedback_tool",
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setAudience(VOICE_RECOMMENDATION_FEEDBACK_AUDIENCE)
+    .setExpirationTime("2h")
+    .sign(JWT_SECRET);
+}
+
+export async function verifyVoiceRecommendationFeedbackToolToken(
+  token: string,
+): Promise<{ userId: string; conversationId: string } | null> {
+  try {
+    const { payload } = await jwtVerify(token, JWT_SECRET, {
+      audience: VOICE_RECOMMENDATION_FEEDBACK_AUDIENCE,
+    });
+    if (
+      payload.token_type !== "voice_recommendation_feedback_tool" ||
       typeof payload.sub !== "string" ||
       typeof payload.conversation_id !== "string"
     ) {
