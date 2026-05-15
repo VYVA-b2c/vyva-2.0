@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { CheckCircle2, FlaskConical, Play, RadioTower, XCircle } from "lucide-react";
 import {
   actionForVoiceToolCall,
+  actionForVoiceUtterance,
   emitVoiceAppAction,
   emitVoiceAppActionResult,
   emitVoiceSpecialistTransfer,
@@ -17,6 +18,7 @@ export default function VoiceActionSimulator() {
   const [open, setOpen] = useState(false);
   const [actionType, setActionType] = useState(entries[0]?.actionType ?? "");
   const [subject, setSubject] = useState("paracetamol");
+  const [utterance, setUtterance] = useState("Do we need to buy Paracetamol?");
   const [evidence, setEvidence] = useState("Simulator action");
   const { activeAction } = useVoiceActionContext();
 
@@ -38,6 +40,18 @@ export default function VoiceActionSimulator() {
   const openAction = () => {
     const action = actionForVoiceToolCall(buildParams());
     if (action) emitVoiceAppAction(action);
+  };
+
+  const openUtteranceAction = () => {
+    const action = actionForVoiceUtterance(utterance);
+    if (!action) {
+      setEvidence("No app action matched that sentence.");
+      return;
+    }
+    if (action.actionType) setActionType(action.actionType);
+    setSubject(action.extractedSubject ?? subject);
+    setEvidence(action.feedbackReason);
+    emitVoiceAppAction(action);
   };
 
   const recordResult = (result: "accepted" | "completed" | "dismissed") => {
@@ -92,6 +106,28 @@ export default function VoiceActionSimulator() {
               className="flex h-9 w-9 items-center justify-center rounded-full bg-vyva-warm text-vyva-text-2 transition active:scale-95"
             >
               <XCircle size={18} />
+            </button>
+          </div>
+
+          <label className="mb-2 block text-[12px] font-bold uppercase tracking-[0.06em] text-vyva-text-3">
+            Say it like a user
+          </label>
+          <div className="mb-3 grid grid-cols-[1fr_auto] gap-2">
+            <input
+              value={utterance}
+              onChange={(event) => setUtterance(event.target.value)}
+              placeholder="Open meds inventory for paracetamol"
+              className="h-11 rounded-[16px] border border-vyva-border bg-white px-3 text-[14px] text-vyva-text-1"
+              data-testid="input-voice-simulator-utterance"
+            />
+            <button
+              type="button"
+              onClick={openUtteranceAction}
+              className="flex h-11 min-w-[88px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-3 text-[13px] font-bold text-white transition active:scale-[0.98]"
+              data-testid="button-simulate-utterance"
+            >
+              <Play size={15} />
+              Test
             </button>
           </div>
 

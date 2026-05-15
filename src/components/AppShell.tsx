@@ -88,6 +88,10 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     transcript,
     startVoice,
     stopVoice,
+    beginVoiceTransfer,
+    voiceSessionPhase,
+    isMicMuted,
+    setMicrophoneMuted,
     sendContextUpdate,
     recordRecommendationFeedback,
   } = useVyvaVoice();
@@ -102,7 +106,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     ? location.pathname === activeVoiceAction.route || location.pathname.startsWith(`${activeVoiceAction.route}/`)
     : false;
   const showInlineVoiceAction = Boolean(!isFullScreen && activeVoiceAction && voiceActionRouteMatches);
-  const showVoiceOverlay = status === "connected" || isConnecting;
+  const showVoiceOverlay = status === "connected" || isConnecting || voiceSessionPhase === "transferring";
   const toastSurfaceRef = useToastSurface<HTMLDivElement>(isFullScreen ? 24 : 128);
 
   const openVoiceAppAction = useCallback((action: VoiceAppAction) => {
@@ -193,6 +197,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
       if (request.autoStart === false || !request.agentSlug) return;
 
       const transferContext = request.contextHint || request.reason || `Transfer to ${request.domain}`;
+      beginVoiceTransfer();
       window.setTimeout(() => {
         stopVoice();
         window.setTimeout(() => {
@@ -211,7 +216,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 
     window.addEventListener(VYVA_VOICE_SPECIALIST_TRANSFER_EVENT, handleSpecialistTransfer);
     return () => window.removeEventListener(VYVA_VOICE_SPECIALIST_TRANSFER_EVENT, handleSpecialistTransfer);
-  }, [startVoice, stopVoice]);
+  }, [beginVoiceTransfer, startVoice, stopVoice]);
 
   useEffect(() => {
     if (!activeVoiceAction) return;
@@ -275,6 +280,9 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             transcript={transcript}
             onEnd={stopVoice}
             activeAction={activeVoiceAction}
+            voiceSessionPhase={voiceSessionPhase}
+            isMicMuted={isMicMuted}
+            onMicToggle={setMicrophoneMuted}
           />
         )}
       </div>

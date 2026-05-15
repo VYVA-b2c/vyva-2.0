@@ -56,6 +56,8 @@ export function useVoiceActionFulfillment(filter: VoiceActionFulfillmentFilter =
   const location = useLocation();
   const {
     activeAction,
+    isActiveActionAccepted,
+    acceptActiveAction,
     completeActiveAction,
     dismissActiveAction,
   } = useVoiceActionContext();
@@ -94,6 +96,8 @@ export function useVoiceActionFulfillment(filter: VoiceActionFulfillmentFilter =
 
   return {
     action,
+    isActiveActionAccepted: Boolean(action && isActiveActionAccepted),
+    acceptActiveAction,
     completeActiveAction,
     dismissActiveAction,
     payloadEntries: entries,

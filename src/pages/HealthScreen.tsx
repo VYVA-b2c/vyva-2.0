@@ -749,7 +749,7 @@ const HealthScreen = () => {
             transcript: doctorVoiceTranscript,
             onEnd: stopDoctorVoice,
             showOverlay: false,
-            activeLabel: t("health.doctorChoice.stopCall", "Stop call"),
+            activeLabel: t("health.doctorChoice.stopCall", "Pause listening"),
           }}
         />
 

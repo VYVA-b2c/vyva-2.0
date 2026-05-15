@@ -6,6 +6,7 @@ import { type HeroSurface } from "@/lib/heroMessages";
 import { type UseHeroMessageOptions, useHeroMessage } from "@/hooks/useHeroMessage";
 import VoiceCallOverlay from "@/components/VoiceCallOverlay";
 import VyvaAvatar from "@/components/VyvaAvatar";
+import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
 
 const WEATHER_EMOJI: Record<string, string> = {
   "weather.clear": "☀️",
@@ -53,6 +54,9 @@ interface VoiceHeroProps {
     showOverlay?: boolean;
     activeLabel?: string;
     connectingLabel?: string;
+    voiceSessionPhase?: VoiceSessionPhase;
+    isMicMuted?: boolean;
+    onMicToggle?: (muted: boolean) => void;
   };
 }
 
@@ -97,6 +101,9 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
     isSpeaking: internalIsSpeaking,
     isConnecting: internalIsConnecting,
     transcript: internalTranscript,
+    voiceSessionPhase: internalVoiceSessionPhase,
+    isMicMuted: internalIsMicMuted,
+    setMicrophoneMuted: internalSetMicrophoneMuted,
   } = internalVoice;
   const dynamicHero = useHeroMessage(heroSurface, {
     ...heroContext,
@@ -118,6 +125,9 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   const isConnecting = voiceControls?.isConnecting ?? internalIsConnecting;
   const transcript = voiceControls?.transcript ?? internalTranscript;
   const stopVoice = voiceControls?.onEnd ?? internalStopVoice;
+  const voiceSessionPhase = voiceControls?.voiceSessionPhase ?? internalVoiceSessionPhase;
+  const isMicMuted = voiceControls?.isMicMuted ?? internalIsMicMuted;
+  const onMicToggle = voiceControls?.onMicToggle ?? internalSetMicrophoneMuted;
   const shouldShowOverlay = voiceControls?.showOverlay ?? showVoiceOverlay;
   const autoStartKey = typeof autoStartVoice === "string"
     ? autoStartVoice
@@ -167,9 +177,11 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   const statusLabel = isConnecting
     ? voiceControls?.connectingLabel ?? connectingLabel ?? t("voiceHero.connecting")
     : isActive
-    ? voiceControls?.activeLabel ?? activeLabel ?? (isSpeaking
-        ? t("voiceHero.speaking")
-        : t("voiceHero.listening"))
+    ? voiceControls?.activeLabel ?? activeLabel ?? (voiceSessionPhase
+        ? voiceSessionPhaseLabel(voiceSessionPhase)
+        : isSpeaking
+          ? t("voiceHero.speaking")
+          : t("voiceHero.listening"))
     : resolvedTalkLabel ?? t("voiceHero.talkToVyva");
   const isBrainHero = heroSurface === "brain";
 
@@ -194,6 +206,9 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
             isConnecting={isConnecting}
             transcript={transcript}
             onEnd={stopVoice}
+            voiceSessionPhase={voiceSessionPhase}
+            isMicMuted={isMicMuted}
+            onMicToggle={onMicToggle}
           />
         )}
 
@@ -289,6 +304,9 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
           isConnecting={isConnecting}
           transcript={transcript}
           onEnd={stopVoice}
+          voiceSessionPhase={voiceSessionPhase}
+          isMicMuted={isMicMuted}
+          onMicToggle={onMicToggle}
         />
       )}
 

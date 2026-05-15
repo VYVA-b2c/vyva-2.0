@@ -40,18 +40,18 @@ const DoctorChoiceScreen = () => {
     const language = i18n.language?.slice(0, 2);
     switch (language) {
       case "en":
-        return "Stop call";
+        return "Pause listening";
       case "de":
-        return "Anruf beenden";
+        return "Zuhören pausieren";
       case "fr":
-        return "Terminer l'appel";
+        return "Mettre en pause";
       case "it":
-        return "Termina chiamata";
+        return "Metti in pausa";
       case "pt":
-        return "Terminar chamada";
+        return "Pausar escuta";
       case "es":
       default:
-        return "Terminar llamada";
+        return "Pausar escucha";
     }
   }, [i18n.language]);
 

@@ -21,6 +21,7 @@ type VoiceActionFeedbackMetadata = Record<string, unknown>;
 type ActiveVoiceActionState = {
   action: VoiceAppAction;
   instanceId: string;
+  acceptedAt?: number;
 };
 
 type CompleteActiveActionOptions = {
@@ -30,6 +31,8 @@ type CompleteActiveActionOptions = {
 
 type VoiceActionContextValue = {
   activeAction: VoiceAppAction | null;
+  isActiveActionAccepted: boolean;
+  acceptActiveAction: (metadata?: VoiceActionFeedbackMetadata) => void;
   completeActiveAction: (options?: CompleteActiveActionOptions) => void;
   dismissActiveAction: (metadata?: VoiceActionFeedbackMetadata) => void;
 };
@@ -65,6 +68,7 @@ export function VoiceActionProvider({ children }: { children: ReactNode }) {
     const nextState = {
       action,
       instanceId: `${action.id}:${Date.now()}`,
+      acceptedAt: undefined,
     };
     activeStateRef.current = nextState;
     setActiveState(nextState);
@@ -101,6 +105,21 @@ export function VoiceActionProvider({ children }: { children: ReactNode }) {
       if (options.clear === false) return;
       activeStateRef.current = null;
       setActiveState(null);
+    },
+    [recordActionFeedback],
+  );
+
+  const acceptActiveAction = useCallback(
+    (metadata: VoiceActionFeedbackMetadata = {}) => {
+      const current = activeStateRef.current;
+      if (!current) return;
+      recordActionFeedback(current, "accepted", metadata);
+      const nextState = {
+        ...current,
+        acceptedAt: current.acceptedAt ?? Date.now(),
+      };
+      activeStateRef.current = nextState;
+      setActiveState(nextState);
     },
     [recordActionFeedback],
   );
@@ -146,6 +165,16 @@ export function VoiceActionProvider({ children }: { children: ReactNode }) {
         reason: result.reason ?? current.action.feedbackReason,
       });
 
+      if (result.action === "accepted") {
+        const nextState = {
+          ...current,
+          acceptedAt: current.acceptedAt ?? Date.now(),
+        };
+        activeStateRef.current = nextState;
+        setActiveState(nextState);
+        return;
+      }
+
       if (result.action === "completed" || result.action === "dismissed") {
         activeStateRef.current = null;
         setActiveState(null);
@@ -169,10 +198,12 @@ export function VoiceActionProvider({ children }: { children: ReactNode }) {
   const value = useMemo<VoiceActionContextValue>(
     () => ({
       activeAction: activeState?.action ?? null,
+      isActiveActionAccepted: Boolean(activeState?.acceptedAt),
+      acceptActiveAction,
       completeActiveAction,
       dismissActiveAction,
     }),
-    [activeState?.action, completeActiveAction, dismissActiveAction],
+    [acceptActiveAction, activeState?.acceptedAt, activeState?.action, completeActiveAction, dismissActiveAction],
   );
 
   return <VoiceActionContext.Provider value={value}>{children}</VoiceActionContext.Provider>;

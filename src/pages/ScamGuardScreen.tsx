@@ -25,6 +25,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useVyvaVoice, useTtsReadout } from "@/hooks/useVyvaVoice";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
+import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 
 type ScamCheck = {
   id: string;
@@ -245,6 +246,19 @@ const ScamGuardScreen = () => {
 
   const { startVoice, stopVoice, status, isConnecting } = useVyvaVoice();
   const isCallActive = status === "connected";
+  const {
+    action: scamVoiceAction,
+    isActiveActionAccepted,
+    acceptActiveAction,
+    completeActiveAction,
+    payloadValue: scamPayloadValue,
+  } = useVoiceActionFulfillment({
+    domain: "safety",
+    actionTypes: ["safety.scam_support"],
+  });
+  const scamMessageSource = scamPayloadValue("message_source");
+  const scamRequestedAction = scamPayloadValue("requested_action");
+  const scamRiskDetail = scamPayloadValue("risk_detail");
 
   const { speakText, stopTts, isTtsSpeaking } = useTtsReadout();
 
@@ -371,6 +385,97 @@ const ScamGuardScreen = () => {
           description={t("scamGuard.voiceContextSub", "VYVA can focus on the source, requested action, and risk detail without asking for private banking information.")}
           className="mb-[14px]"
         />
+
+        {scamVoiceAction && (
+          <section
+            className="mb-[14px] rounded-[22px] border border-amber-200 bg-[#FFFBEB] p-4"
+            style={{ boxShadow: "0 12px 30px rgba(201,137,10,0.10)" }}
+            data-testid="panel-voice-scam-confirmation"
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-[#A16207]">
+                <ShieldAlert size={21} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#A16207]">
+                  {t("scamGuard.voiceConfirmTitle", "Scam safety step")}
+                </p>
+                <h2 className="mt-1 font-body text-[17px] font-extrabold leading-tight text-vyva-text-1">
+                  {isActiveActionAccepted
+                    ? t("scamGuard.voiceConfirmed", "Safe actions unlocked")
+                    : t("scamGuard.voiceNeedsConfirm", "Confirm before taking action")}
+                </h2>
+                <p className="mt-1 font-body text-[14px] leading-[1.45] text-vyva-text-2">
+                  {t("scamGuard.voiceConfirmSub", "VYVA can guide the conversation, but sharing, calling, or acting on a request needs a tap first.")}
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {scamMessageSource && (
+                <span className="rounded-full bg-white px-3 py-1.5 font-body text-[12px] font-bold text-[#A16207]">
+                  Source: {scamMessageSource}
+                </span>
+              )}
+              {scamRequestedAction && (
+                <span className="rounded-full bg-white px-3 py-1.5 font-body text-[12px] font-bold text-vyva-text-2">
+                  Request: {scamRequestedAction}
+                </span>
+              )}
+              {scamRiskDetail && (
+                <span className="rounded-full bg-white px-3 py-1.5 font-body text-[12px] font-bold text-vyva-text-2">
+                  Detail: {scamRiskDetail}
+                </span>
+              )}
+            </div>
+            {!isActiveActionAccepted ? (
+              <button
+                type="button"
+                onClick={() => acceptActiveAction({
+                  source: "scam_guard_confirm_safe_action",
+                  message_source: scamMessageSource,
+                  requested_action: scamRequestedAction,
+                })}
+                className="mt-4 inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-full bg-[#A16207] px-4 font-body text-[15px] font-bold text-white transition active:scale-[0.98]"
+              >
+                <CheckCircle size={18} />
+                {t("scamGuard.confirmSafeStep", "Confirm safe step")}
+              </button>
+            ) : (
+              <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <button
+                  type="button"
+                  onClick={handleCallCompanion}
+                  className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full bg-[#6B21A8] px-4 font-body text-[14px] font-bold text-white transition active:scale-[0.98]"
+                >
+                  <Phone size={17} />
+                  {isCallActive ? t("voiceHero.endCall", "Pause listening") : t("scamGuard.callCompanion", "Call VYVA")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full border border-amber-200 bg-white px-4 font-body text-[14px] font-bold text-[#A16207] transition active:scale-[0.98]"
+                >
+                  <Camera size={17} />
+                  {t("scamGuard.scanNow", "Scan")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => completeActiveAction({
+                    metadata: {
+                      source: "scam_guard_safe_done",
+                      message_source: scamMessageSource,
+                      requested_action: scamRequestedAction,
+                    },
+                  })}
+                  className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full border border-emerald-200 bg-white px-4 font-body text-[14px] font-bold text-emerald-700 transition active:scale-[0.98]"
+                >
+                  <CheckCircle size={17} />
+                  {t("scamGuard.safeDone", "Done")}
+                </button>
+              </div>
+            )}
+          </section>
+        )}
 
         {/* Call Companion hero card */}
         <div

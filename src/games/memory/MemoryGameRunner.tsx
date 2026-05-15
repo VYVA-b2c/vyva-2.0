@@ -21,6 +21,7 @@ import { useLocation, useNavigate, useParams, useSearchParams } from "react-rout
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n";
 import { useTtsReadout } from "@/hooks/useVyvaVoice";
+import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import BrainGameResultActions from "../shared/BrainGameResultActions";
 import { saveGameResult } from "./gameStorage";
 import {
@@ -1217,6 +1218,20 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   const GameIcon = getMemoryGameIcon(plan.gameType);
   const gameIconStyle = { background: definition.iconBg, color: definition.accentColor };
   const memoryComplete = plan.gameType === "memory_match" && memoryDeck.length > 0 && matchedIds.length === memoryDeck.length;
+  const voiceGameContextPanel = (
+    <VoiceActionFulfillmentPanel
+      domain="brain_coach"
+      actionTypes={["brain.memory_game"]}
+      title="Game context ready"
+      description="VYVA can use the current game, level, progress, and encouragement setting while keeping the user company."
+      highlights={[
+        { label: "Game", value: gameTitle, tone: "good" as const },
+        { label: "Level", value: plan.level, tone: "neutral" as const },
+        { label: "Companion", value: isMemoryAudioMuted ? "Off" : "On", tone: isMemoryAudioMuted ? "warning" as const : "good" as const },
+      ]}
+      className="mt-4"
+    />
+  );
 
   if (plan.gameType === "story_recall") {
     return (
@@ -1593,6 +1608,8 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
             <MemoryAudioToggle isMuted={isMemoryAudioMuted} onToggle={toggleMemoryAudio} copy={companionCopy} />
           </div>
 
+          {voiceGameContextPanel}
+
           {wordRecallPhase === "memorize" && (
             <>
               <div className="mt-4 rounded-[22px] border border-[#EADFF8] bg-white p-5">
@@ -1833,6 +1850,8 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
             <MemoryAudioToggle isMuted={isMemoryAudioMuted} onToggle={toggleMemoryAudio} copy={companionCopy} />
           </div>
 
+          {voiceGameContextPanel}
+
           <div className="mt-4 rounded-[22px] border border-[#EADFF8] bg-white p-5">
             <p className="text-[18px] font-semibold text-vyva-text-1">{sequenceInstruction}</p>
             <p className="mt-2 text-[15px] leading-[1.55] text-vyva-text-2">{sequenceSupportText}</p>
@@ -1988,6 +2007,8 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
         <div className="mt-4 flex flex-col gap-3 sm:flex-row">
           <MemoryAudioToggle isMuted={isMemoryAudioMuted} onToggle={toggleMemoryAudio} copy={companionCopy} />
         </div>
+
+        {voiceGameContextPanel}
 
         <div className="mt-4 rounded-[22px] border border-[#EADFF8] bg-white p-4">
           <p className="text-[15px] font-medium text-vyva-text-1">

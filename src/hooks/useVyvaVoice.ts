@@ -13,6 +13,7 @@ import {
   isVoiceAppActionDomain,
   specialistTransferFromToolCall,
 } from "@/lib/voiceNavigation";
+import { deriveVoiceSessionPhase, type VoiceSessionPhase } from "@/lib/voiceSessionState";
 
 type TtsSegment = {
   text: string;
@@ -291,6 +292,9 @@ function useVyvaVoiceController() {
   const [status, setStatus] = useState<"idle" | "connecting" | "connected">("idle");
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isUserSpeaking, setIsUserSpeaking] = useState(false);
+  const [isMicMuted, setIsMicMuted] = useState(true);
+  const [isTransferring, setIsTransferring] = useState(false);
+  const [hasEnded, setHasEnded] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
   const [hasMicrophone, setHasMicrophone] = useState(false);
   const systemPromptRef = useRef<string | undefined>(undefined);
@@ -300,6 +304,7 @@ function useVyvaVoiceController() {
   const sessionGenerationRef = useRef(0);
   const userClosingRef = useRef(false);
   const shouldMuteOnConnectRef = useRef(true);
+  const transferPendingRef = useRef(false);
   const hiddenOutgoingMessagesRef = useRef<string[]>([]);
   const voiceInstanceIdRef = useRef(createVoiceInstanceId());
   const activeRecommendationRef = useRef<ActiveVoiceRecommendation | null>(null);
@@ -341,6 +346,7 @@ function useVyvaVoiceController() {
     setHasMicrophone(false);
     setIsSpeaking(false);
     setIsUserSpeaking(false);
+    setIsMicMuted(true);
   }, []);
 
   useEffect(() => () => {
@@ -363,6 +369,9 @@ function useVyvaVoiceController() {
       setIsConnecting(false);
       setIsSpeaking(false);
       setIsUserSpeaking(false);
+      setIsMicMuted(true);
+      setIsTransferring(false);
+      transferPendingRef.current = false;
       setLastError(null);
     };
 
@@ -583,9 +592,11 @@ function useVyvaVoiceController() {
 
       setIsConnecting(true);
       setVoiceStatus("connecting");
+      setHasEnded(false);
       replaceTranscript([]);
       setLastError(null);
       setHasMicrophone(false);
+      setIsMicMuted(true);
       const shouldResolveAgentOnServer = Boolean(options?.agentSlug || options?.roomSlug);
       const routedSession = await resolveRouterSession(contextHint, systemPrompt, options);
       const activeAgentId = routedSession.agentId ?? (shouldResolveAgentOnServer ? undefined : VYVA_AGENT_ID);
@@ -754,6 +765,9 @@ function useVyvaVoiceController() {
             setVoiceStatus("connected");
             setIsConnecting(false);
             setHasMicrophone(!skipMicrophone);
+            setIsMicMuted(skipMicrophone ? true : !autoStartListening);
+            setIsTransferring(false);
+            transferPendingRef.current = false;
             if (!skipMicrophone && autoStartListening) {
               setIsUserSpeaking(true);
             }
@@ -768,7 +782,11 @@ function useVyvaVoiceController() {
             setIsConnecting(false);
             setIsSpeaking(false);
             setIsUserSpeaking(false);
+            setIsMicMuted(true);
             setHasMicrophone(false);
+            setHasEnded(true);
+            setIsTransferring(false);
+            transferPendingRef.current = false;
             if (!userClosingRef.current && message) {
               console.warn("[VYVA] Voice session closed:", details);
               setLastError(message);
@@ -780,6 +798,8 @@ function useVyvaVoiceController() {
 
             console.error("[VYVA] Voice session error:", message, context);
             setLastError(message);
+            setIsTransferring(false);
+            transferPendingRef.current = false;
           },
           onStatusChange: ({ status }) => {
             if (!isCurrentSession()) return;
@@ -842,6 +862,9 @@ function useVyvaVoiceController() {
         setLastError(err instanceof Error ? err.message : "Unable to start voice session");
         setVoiceStatus("idle");
         setIsConnecting(false);
+        setIsMicMuted(true);
+        setIsTransferring(false);
+        transferPendingRef.current = false;
         releaseVoiceInstance(voiceInstanceIdRef.current);
         teardown();
       }
@@ -852,13 +875,29 @@ function useVyvaVoiceController() {
   const beginUserTurn = useCallback(async () => {
     if (statusRef.current !== "connected" || !conversationRef.current) return false;
     conversationRef.current.setMicMuted(false);
+    setIsMicMuted(false);
     setIsUserSpeaking(true);
     return true;
   }, []);
 
   const endUserTurn = useCallback(() => {
     conversationRef.current?.setMicMuted(true);
+    setIsMicMuted(true);
     setIsUserSpeaking(false);
+  }, []);
+
+  const setMicrophoneMuted = useCallback((muted: boolean) => {
+    if (statusRef.current !== "connected" || !conversationRef.current) return false;
+    conversationRef.current.setMicMuted(muted);
+    setIsMicMuted(muted);
+    setIsUserSpeaking(!muted);
+    return true;
+  }, []);
+
+  const beginVoiceTransfer = useCallback(() => {
+    transferPendingRef.current = true;
+    setIsTransferring(true);
+    setHasEnded(false);
   }, []);
 
   const stopVoice = useCallback(() => {
@@ -868,6 +907,11 @@ function useVyvaVoiceController() {
     setVoiceStatus("idle");
     setIsSpeaking(false);
     setIsUserSpeaking(false);
+    setIsMicMuted(true);
+    setHasEnded(true);
+    if (!transferPendingRef.current) {
+      setIsTransferring(false);
+    }
     setLastError(null);
     systemPromptRef.current = undefined;
   }, [setVoiceStatus, teardown]);
@@ -902,6 +946,16 @@ function useVyvaVoiceController() {
     []
   );
 
+  const voiceSessionPhase: VoiceSessionPhase = deriveVoiceSessionPhase({
+    status,
+    isConnecting,
+    isSpeaking,
+    isMicMuted,
+    isTransferring,
+    hasEnded,
+    hasError: Boolean(lastError),
+  });
+
   return {
     startVoice,
     stopVoice,
@@ -911,6 +965,9 @@ function useVyvaVoiceController() {
     status,
     isSpeaking,
     isUserSpeaking,
+    isMicMuted,
+    isTransferring,
+    voiceSessionPhase,
     isConnecting,
     hasMicrophone,
     lastError,
@@ -918,6 +975,8 @@ function useVyvaVoiceController() {
     systemPromptRef,
     beginUserTurn,
     endUserTurn,
+    setMicrophoneMuted,
+    beginVoiceTransfer,
     interruptAgentAudio,
     recordRecommendationFeedback,
   };
