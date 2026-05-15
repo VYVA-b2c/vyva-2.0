@@ -118,19 +118,19 @@ const ActivitiesScreen = () => {
           boxShadow: "0 2px 10px rgba(43,31,24,0.05)",
         }}
       >
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-4 min-[430px]:flex-row min-[430px]:items-center min-[430px]:justify-between">
           <div>
             <p className="font-body text-[12px] font-semibold uppercase tracking-[0.06em] text-vyva-purple">{t("brain.streakThisWeek")}</p>
             <p className="mt-1 font-display text-[30px] leading-none text-vyva-text-1">{margaret.streak}</p>
           </div>
-          <div className="flex gap-[6px]">
+          <div className="grid w-full grid-cols-7 gap-[5px] min-[430px]:flex min-[430px]:w-auto min-[430px]:gap-[6px]">
             {days.map((d, i) => {
               const completed = i < mappedToday;
               const isToday = i === mappedToday;
               return (
                 <div
                   key={i}
-                  className="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] text-[12px] font-medium"
+                  className="flex h-8 min-w-0 items-center justify-center rounded-[10px] text-[12px] font-medium min-[430px]:h-[34px] min-[430px]:w-[34px]"
                   style={
                     completed
                       ? { background: "#6B21A8", color: "#FFFFFF", boxShadow: "0 8px 18px rgba(107,33,168,0.16)" }
