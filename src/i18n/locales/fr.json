@@ -6,7 +6,11 @@
     "medications": "Médicaments",
     "cognitiveActivity": "Activité Cognitive",
     "history": "Historique",
-    "myProfile": "Mon profil"
+    "myProfile": "Mon profil",
+    "vyva": "VYVA",
+    "myHealth": "Ma santé",
+    "myMind": "Mon esprit",
+    "concierge": "Concierge"
   },
   "history": {
     "title": "Mon historique",
@@ -859,7 +863,7 @@
   "brain": {
     "voiceSource": "VYVA est votre coach cérébral",
     "headline": "Prêt(e) pour l'entraînement\ncérébral ?",
-    "subtitle": "Série de {{streak}} jours — continuez !",
+    "subtitle": "Gardez l’esprit vif",
     "startSession": "Démarrer une session",
     "chooseActivity": "Choisir une activité",
     "doneToday": "Fait aujourd'hui",
@@ -875,12 +879,12 @@
       "D"
     ],
     "activities": {
-      "triviaQuiz": "Quiz",
+      "triviaQuiz": "Concentration et attention",
       "memoryGame": "Jeu de mémoire",
-      "scrabble": "Scrabble",
-      "logicPuzzle": "Puzzle logique",
-      "meditation": "Méditation",
-      "breathing": "Respiration"
+      "scrabble": "Mots et langage",
+      "logicPuzzle": "Entraînement cérébral",
+      "meditation": "Se détendre et respirer",
+      "breathing": "Se détendre et respirer"
     }
   },
   "activity": {
@@ -1163,7 +1167,7 @@
       "requestSent": "Demande de connexion envoyée !"
     },
     "noConnections": "Pas encore de compagnons — consultez l'onglet Suggestions !",
-    "activityTile": "Trouver un compagnon de jeu",
+    "activityTile": "Se connecter aux autres",
     "activityTileSubtitle": "Rencontrez des personnes aux intérêts similaires",
     "sayHello": "Dire bonjour via VYVA",
     "sayHelloPrompt": "Dites bonjour à {{name}} !",

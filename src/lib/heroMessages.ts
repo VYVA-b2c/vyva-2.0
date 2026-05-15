@@ -281,12 +281,12 @@ export const HERO_MESSAGES: HeroMessageDefinition[] = [
     priority: 10,
     cooldownHours: 8,
     copy: {
-      es: { sourceText: "Mente", headline: "Mente activa", subtitle: "Juegos para pensar", ctaLabel: "Empezar", contextHint: "brain training" },
+      es: { sourceText: "Mente", headline: "Mente activa", subtitle: "Manten tu mente agil", ctaLabel: "Empezar", contextHint: "brain training" },
       en: { sourceText: "Mind", headline: "Mind active", subtitle: "Keep your mind sharp", ctaLabel: "Start", contextHint: "brain training" },
-      de: { sourceText: "Geist", headline: "Geist aktiv", subtitle: "Spiele zum Denken", ctaLabel: "Starten", contextHint: "brain training" },
-      fr: { sourceText: "Esprit", headline: "Esprit actif", subtitle: "Jeux pour penser", ctaLabel: "Demarrer", contextHint: "brain training" },
-      it: { sourceText: "Mente", headline: "Mente attiva", subtitle: "Giochi per pensare", ctaLabel: "Inizia", contextHint: "brain training" },
-      pt: { sourceText: "Mente", headline: "Mente ativa", subtitle: "Jogos para pensar", ctaLabel: "Comecar", contextHint: "brain training" },
+      de: { sourceText: "Geist", headline: "Geist aktiv", subtitle: "Geist fit halten", ctaLabel: "Starten", contextHint: "brain training" },
+      fr: { sourceText: "Esprit", headline: "Esprit actif", subtitle: "Gardez l'esprit vif", ctaLabel: "Demarrer", contextHint: "brain training" },
+      it: { sourceText: "Mente", headline: "Mente attiva", subtitle: "Mantieni mente agile", ctaLabel: "Inizia", contextHint: "brain training" },
+      pt: { sourceText: "Mente", headline: "Mente ativa", subtitle: "Mantenha mente ativa", ctaLabel: "Comecar", contextHint: "brain training" },
     },
   },
   {
