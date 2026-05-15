@@ -1,9 +1,10 @@
 import { Router } from "express";
 import Stripe from "stripe";
 import { db } from "../db.js";
-import { profiles, billingEvents, stripeWebhooks } from "../../shared/schema.js";
-import { eq } from "drizzle-orm";
+import { profiles, billingEvents, stripeWebhooks, userIntakes } from "../../shared/schema.js";
+import { desc, eq, inArray, or } from "drizzle-orm";
 import {
+  bestSubscriptionTier,
   entitlementForTier,
   findActivePlan,
   findPlanByStripePriceId,
@@ -36,6 +37,10 @@ function subscriptionStatusFromStripe(status: Stripe.Subscription.Status) {
   if (status === "trialing") return "trial";
   if (status === "past_due") return "past_due";
   return "cancelled";
+}
+
+function hasText(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 async function planIdFromSubscription(sub: Stripe.Subscription) {
@@ -91,13 +96,37 @@ router.get("/status", async (req, res) => {
   const trialDaysRemaining = profile.trial_ends_at
     ? Math.max(0, Math.ceil((new Date(profile.trial_ends_at).getTime() - Date.now()) / 86400000))
     : 0;
-  const effectiveTier = normalizeSubscriptionTier(profile.subscription_tier);
+  const userIds = Array.from(new Set([accountUserId, profileId].filter(Boolean))) as string[];
+  const intakeFilters = [
+    ...(userIds.length ? [
+      inArray(userIntakes.user_id, userIds),
+      inArray(userIntakes.elder_user_id, userIds),
+      inArray(userIntakes.family_user_id, userIds),
+    ] : []),
+    ...(hasText(profile.email) ? [eq(userIntakes.email, profile.email)] : []),
+    ...(hasText(profile.phone_number) ? [eq(userIntakes.phone, profile.phone_number)] : []),
+    ...(hasText(profile.whatsapp_number) ? [eq(userIntakes.phone, profile.whatsapp_number)] : []),
+  ];
+  const lifecycleTiers = intakeFilters.length > 0
+    ? await db
+      .select({ tier: userIntakes.tier, status: userIntakes.status })
+      .from(userIntakes)
+      .where(intakeFilters.length === 1 ? intakeFilters[0] : or(...intakeFilters))
+      .orderBy(desc(userIntakes.updated_at))
+      .limit(12)
+    : [];
+  const storedProfileTier = normalizeSubscriptionTier(profile.subscription_tier);
+  const effectiveSubscription = bestSubscriptionTier(profile.subscription_tier, lifecycleTiers);
+  const effectiveTier = effectiveSubscription.tier;
+  const effectiveStatus = effectiveTier !== storedProfileTier
+    ? effectiveSubscription.status
+    : profile.subscription_status ?? effectiveSubscription.status;
   const plans = await listPlans();
 
   return res.json({
     account_user_id: accountUserId,
     profile_id: profileId,
-    status: profile.subscription_status,
+    status: effectiveStatus,
     tier: effectiveTier,
     stored_tier: profile.subscription_tier,
     trial_days_remaining: trialDaysRemaining,

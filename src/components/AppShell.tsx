@@ -1,13 +1,12 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Mic, MicOff, PhoneOff } from "lucide-react";
 import StatusBar from "./StatusBar";
 import BottomNav from "./BottomNav";
-import VoiceCallOverlay from "./VoiceCallOverlay";
 import VoiceActionCard from "./VoiceActionCard";
 import VoiceActionSimulator from "./VoiceActionSimulator";
-import { useVyvaVoice } from "@/hooks/useVyvaVoice";
+import { type TranscriptEntry, useVyvaVoice } from "@/hooks/useVyvaVoice";
 import {
   actionForSpecialistTransfer,
   actionForVoiceUtterance,
@@ -23,9 +22,81 @@ import { useServiceGate } from "@/hooks/useServiceGate";
 import { useToastSurface } from "@/hooks/useToastSurface";
 import { useVoiceActionContext } from "@/contexts/VoiceActionContext";
 import { recordVoiceTimelineEvent } from "@/lib/voiceTimeline";
+import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
 
 const FULL_SCREEN_ROUTES = ["/chat", "/spatial-navigator", "/face-name-match"];
 const WIDE_ROUTES = ["/social-rooms", "/spatial-navigator", "/face-name-match"];
+
+type VoiceSessionDockProps = {
+  isSpeaking: boolean;
+  isConnecting: boolean;
+  transcript: TranscriptEntry[];
+  onEnd: () => void;
+  voiceSessionPhase: VoiceSessionPhase;
+  isMicMuted: boolean;
+  onMicToggle: (muted: boolean) => void;
+};
+
+const VoiceSessionDock = ({
+  isSpeaking,
+  isConnecting,
+  transcript,
+  onEnd,
+  voiceSessionPhase,
+  isMicMuted,
+  onMicToggle,
+}: VoiceSessionDockProps) => {
+  const latestEntry = transcript[transcript.length - 1];
+  const canToggleMic = voiceSessionPhase !== "connecting" && voiceSessionPhase !== "transferring";
+  const label = isConnecting
+    ? "Connecting"
+    : voiceSessionPhase
+      ? voiceSessionPhaseLabel(voiceSessionPhase)
+      : isSpeaking
+        ? "VYVA speaking"
+        : "Listening";
+
+  return (
+    <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-[64] flex justify-center px-4">
+      <section
+        data-testid="voice-session-dock"
+        className="pointer-events-auto flex w-full max-w-[480px] items-center gap-3 rounded-[24px] border border-vyva-border bg-white/95 px-3 py-3 shadow-[0_18px_48px_rgba(47,33,53,0.2)] backdrop-blur"
+      >
+        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${isMicMuted ? "bg-emerald-50 text-emerald-700" : "bg-vyva-purple text-white"}`}>
+          {isMicMuted ? <MicOff size={20} /> : <Mic size={20} />}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-body text-[13px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+            {label}
+          </p>
+          <p className="truncate font-body text-[14px] font-semibold text-vyva-text-1">
+            {latestEntry?.text || "Voice is active. You can keep using the page."}
+          </p>
+        </div>
+        {canToggleMic && (
+          <button
+            type="button"
+            onClick={() => onMicToggle(!isMicMuted)}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-vyva-warm text-vyva-text-1 transition active:scale-95"
+            aria-label={isMicMuted ? "Turn microphone on" : "Mute microphone"}
+            title={isMicMuted ? "Talk" : "Mute"}
+          >
+            {isMicMuted ? <Mic size={19} /> : <MicOff size={19} />}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onEnd}
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FEE2E2] text-[#B91C1C] transition active:scale-95"
+          aria-label="End voice chat"
+          title="End chat"
+        >
+          <PhoneOff size={19} />
+        </button>
+      </section>
+    </div>
+  );
+};
 
 const SosSheet = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
   const { t } = useTranslation();
@@ -107,7 +178,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     ? location.pathname === activeVoiceAction.route || location.pathname.startsWith(`${activeVoiceAction.route}/`)
     : false;
   const showInlineVoiceAction = Boolean(!isFullScreen && activeVoiceAction && voiceActionRouteMatches);
-  const showVoiceOverlay = status === "connected" || isConnecting || voiceSessionPhase === "transferring";
+  const showVoiceDock = status === "connected" || isConnecting || voiceSessionPhase === "transferring";
   const toastSurfaceRef = useToastSurface<HTMLDivElement>(isFullScreen ? 24 : 128);
 
   const openVoiceAppAction = useCallback((action: VoiceAppAction) => {
@@ -282,13 +353,12 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         }} />}
         {!isFullScreen && <SosSheet open={sosOpen} onOpenChange={setSosOpen} />}
         {!isFullScreen && <VoiceActionSimulator />}
-        {showVoiceOverlay && (
-          <VoiceCallOverlay
+        {showVoiceDock && (
+          <VoiceSessionDock
             isSpeaking={isSpeaking}
             isConnecting={isConnecting}
             transcript={transcript}
             onEnd={stopVoice}
-            activeAction={activeVoiceAction}
             voiceSessionPhase={voiceSessionPhase}
             isMicMuted={isMicMuted}
             onMicToggle={setMicrophoneMuted}

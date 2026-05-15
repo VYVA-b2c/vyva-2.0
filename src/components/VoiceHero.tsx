@@ -87,7 +87,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   onChatClick,
   weatherData,
   autoStartVoice,
-  showVoiceOverlay = true,
+  showVoiceOverlay = false,
   activeLabel,
   connectingLabel,
   voiceControls,
