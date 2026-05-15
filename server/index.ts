@@ -8,6 +8,11 @@ import { conversationTokenHandler } from "./routes/conversationToken.js";
 import { voiceContextHandler } from "./routes/voiceContext.js";
 import { voiceRecommendationFeedbackHandler } from "./routes/voiceRecommendationFeedback.js";
 import {
+  listAdminVoiceTimelineEventsHandler,
+  listOwnVoiceTimelineEventsHandler,
+  recordVoiceTimelineEventsHandler,
+} from "./routes/voiceTimeline.js";
+import {
   recordVoiceRecommendationFeedbackToolHandler,
   retrieveMedicalProfileToolHandler,
 } from "./routes/elevenlabsTools.js";
@@ -85,6 +90,8 @@ app.use(express.json({ limit: "20mb" }));
 app.post("/api/router", routerHandler);
 app.post("/api/voice-context", authMiddleware, voiceContextHandler);
 app.post("/api/voice/recommendations/feedback", authMiddleware, requireUser, voiceRecommendationFeedbackHandler);
+app.get("/api/voice/timeline-events", authMiddleware, requireUser, listOwnVoiceTimelineEventsHandler);
+app.post("/api/voice/timeline-events", authMiddleware, requireUser, recordVoiceTimelineEventsHandler);
 app.post("/api/elevenlabs-conversation-token", conversationTokenHandler);
 app.post("/api/elevenlabs/tools/retrieve-medical-profile", retrieveMedicalProfileToolHandler);
 app.post("/api/elevenlabs/tools/record-voice-recommendation-feedback", recordVoiceRecommendationFeedbackToolHandler);
@@ -101,6 +108,7 @@ app.use("/api/auth", authRouter);
 app.use("/api/onboarding", authMiddleware, onboardingRouter);
 app.use("/api/billing", authMiddleware, billingRouter);
 app.use("/api/admin/lifecycle", authMiddleware, requireAdminUser, adminLifecycleRouter);
+app.get("/api/admin/voice/timeline-events", authMiddleware, requireAdminUser, listAdminVoiceTimelineEventsHandler);
 app.use("/api/admin", authMiddleware, requireAdminUser, adminRouter);
 app.use("/api/hero-messages", heroMessagesRouter);
 app.use("/api/activity", authMiddleware, activityRouter);
