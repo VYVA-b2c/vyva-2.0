@@ -71,6 +71,7 @@ const KIND_SEVERITY: Record<VoiceTimelineEventKind, VoiceTimelineEvent["severity
 };
 
 let memoryTimeline: VoiceTimelineEvent[] = EMPTY_EVENTS;
+let lastStoredTimelineRaw: string | null = null;
 let timelineSyncTimer: number | null = null;
 let timelineSyncPromise: Promise<void> | null = null;
 
@@ -89,12 +90,17 @@ function readStoredTimeline(): VoiceTimelineEvent[] {
   if (!canUseStorage()) return memoryTimeline;
   try {
     const raw = window.localStorage.getItem(TIMELINE_STORAGE_KEY);
-    if (!raw) return memoryTimeline;
+    if (!raw) {
+      lastStoredTimelineRaw = null;
+      return memoryTimeline;
+    }
+    if (raw === lastStoredTimelineRaw) return memoryTimeline;
     const parsed = JSON.parse(raw) as VoiceTimelineEvent[];
     if (!Array.isArray(parsed)) return EMPTY_EVENTS;
     memoryTimeline = parsed
       .filter((event) => event && typeof event.id === "string" && typeof event.at === "number")
       .slice(-MAX_TIMELINE_EVENTS);
+    lastStoredTimelineRaw = raw;
     return memoryTimeline;
   } catch {
     return memoryTimeline;
@@ -105,7 +111,9 @@ function writeStoredTimeline(events: VoiceTimelineEvent[]) {
   memoryTimeline = events.slice(-MAX_TIMELINE_EVENTS);
   if (canUseStorage()) {
     try {
-      window.localStorage.setItem(TIMELINE_STORAGE_KEY, JSON.stringify(memoryTimeline));
+      const raw = JSON.stringify(memoryTimeline);
+      window.localStorage.setItem(TIMELINE_STORAGE_KEY, raw);
+      lastStoredTimelineRaw = raw;
     } catch {
       // Local storage is best-effort; keep the in-memory timeline.
     }
@@ -162,6 +170,7 @@ export function clearVoiceTimeline() {
     try {
       window.localStorage.removeItem(TIMELINE_STORAGE_KEY);
       window.localStorage.removeItem(TIMELINE_SYNCED_STORAGE_KEY);
+      lastStoredTimelineRaw = null;
     } catch {
       // Ignore local storage cleanup failures.
     }
