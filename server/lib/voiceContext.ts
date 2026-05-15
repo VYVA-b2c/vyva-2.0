@@ -36,6 +36,17 @@ export type VoiceContextDomain =
   | "doctor"
   | "social";
 
+const VOICE_CONTEXT_DOMAINS: readonly VoiceContextDomain[] = [
+  "safety",
+  "meds",
+  "health",
+  "concierge",
+  "brain_coach",
+  "companion",
+  "doctor",
+  "social",
+];
+
 export type VoiceDynamicVariables = Record<string, string | number | boolean>;
 export type ConversationTurn = { role: "user" | "assistant"; content: string };
 
@@ -68,6 +79,12 @@ function asStringArray(value: unknown): string[] {
 
 function valueList(values: Array<string | null | undefined>, fallback = "") {
   return values.map((value) => value?.trim() ?? "").filter(Boolean).join(", ") || fallback;
+}
+
+function voiceContextDomainOrDefault(value: string | null | undefined): VoiceContextDomain {
+  return VOICE_CONTEXT_DOMAINS.includes(value as VoiceContextDomain)
+    ? value as VoiceContextDomain
+    : "companion";
 }
 
 function joinList(values: string[], fallback = "") {
@@ -247,16 +264,25 @@ function dosesPerDay(scheduledTimes: string[] | null | undefined) {
   return scheduledTimes && scheduledTimes.length > 0 ? scheduledTimes.length : 1;
 }
 
+function medicationAdherenceStats(
+  medications: Array<typeof userMedications.$inferSelect>,
+  adherenceRows: Array<typeof medicationAdherence.$inferSelect>,
+  now = new Date(),
+) {
+  const today = now.toISOString().slice(0, 10);
+  const activeDoseCount = medications.reduce((sum, med) => sum + dosesPerDay(med.scheduled_times), 0);
+  const todayTaken = adherenceRows.filter((row) => row.status === "taken" && dateKeyFor(row.created_at) === today).length;
+  const missed30 = adherenceRows.filter((row) => ["missed", "skipped", "late"].includes(row.status)).length;
+  return { activeDoseCount, todayTaken, missed30 };
+}
+
 function buildMedicationAdherenceSummary(
   medications: Array<typeof userMedications.$inferSelect>,
   adherenceRows: Array<typeof medicationAdherence.$inferSelect>,
 ) {
   if (medications.length === 0 && adherenceRows.length === 0) return "";
-  const today = new Date().toISOString().slice(0, 10);
-  const activeDoseCount = medications.reduce((sum, med) => sum + dosesPerDay(med.scheduled_times), 0);
-  const todayTaken = adherenceRows.filter((row) => row.status === "taken" && dateKeyFor(row.created_at) === today).length;
+  const { activeDoseCount, todayTaken, missed30 } = medicationAdherenceStats(medications, adherenceRows);
   const taken30 = adherenceRows.filter((row) => row.status === "taken").length;
-  const missed30 = adherenceRows.filter((row) => ["missed", "skipped", "late"].includes(row.status)).length;
   const latest = adherenceRows
     .slice()
     .sort((a, b) => b.created_at.getTime() - a.created_at.getTime())
@@ -412,6 +438,342 @@ function buildLocalInterestOpportunities(input: {
   ], 1200);
 }
 
+type NextBestConversationPriority = "high" | "medium" | "low";
+
+type NextBestConversationCandidate = {
+  id: string;
+  domain: VoiceContextDomain;
+  score: number;
+  priority: NextBestConversationPriority;
+  title: string;
+  reason: string;
+  openingCue: string;
+  suggestedAction: string;
+  evidence: string;
+};
+
+function daysSince(value: Date | string | null | undefined, now = new Date()) {
+  if (!value) return Number.POSITIVE_INFINITY;
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return Number.POSITIVE_INFINITY;
+  return Math.max(0, Math.floor((now.getTime() - date.getTime()) / 86400000));
+}
+
+function hoursUntil(value: Date | string | null | undefined, now = new Date()) {
+  if (!value) return Number.POSITIVE_INFINITY;
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return Number.POSITIVE_INFINITY;
+  return Math.floor((date.getTime() - now.getTime()) / 3600000);
+}
+
+function priorityForScore(score: number): NextBestConversationPriority {
+  if (score >= 78) return "high";
+  if (score >= 58) return "medium";
+  return "low";
+}
+
+function formatNextBestCandidate(candidate: NextBestConversationCandidate, index: number) {
+  return [
+    `${index + 1}. ${candidate.title}`,
+    `domain ${candidate.domain}`,
+    `priority ${candidate.priority}`,
+    `score ${candidate.score}`,
+    `reason ${candidate.reason}`,
+    `cue ${candidate.openingCue}`,
+    candidate.evidence ? `evidence ${candidate.evidence}` : "",
+  ].filter(Boolean).join("; ");
+}
+
+function buildNextBestConversation(input: {
+  priorVoiceExchangeCount: number;
+  profile: typeof profiles.$inferSelect | null;
+  activeMedicationRows: Array<typeof userMedications.$inferSelect>;
+  medicationAdherenceRows: Array<typeof medicationAdherence.$inferSelect>;
+  latestReports: Array<typeof triageReports.$inferSelect>;
+  latestVitals: Array<typeof vitalsReadings.$inferSelect>;
+  latestVitalsScanSummary: string;
+  upcomingAppointment: typeof scheduledEvents.$inferSelect | undefined;
+  scheduledEventRows: Array<typeof scheduledEvents.$inferSelect>;
+  appLastSeenAt: Date | string | null | undefined;
+  lastVoiceSessionAt: Date | string | null | undefined;
+  latestVoiceExchange: typeof sessionExchanges.$inferSelect | null;
+  allHobbies: string[];
+  allInterests: string[];
+  allPreferredActivities: string[];
+  birthday: string;
+  matchingSocialRooms: string;
+  localInterestOpportunities: string;
+  recentActivitySummary: string;
+  socialActivitySummary: string;
+  now: Date;
+}) {
+  const candidates: NextBestConversationCandidate[] = [];
+  const add = (candidate: Omit<NextBestConversationCandidate, "priority">) => {
+    candidates.push({ ...candidate, priority: priorityForScore(candidate.score) });
+  };
+
+  if (input.priorVoiceExchangeCount === 0) {
+    add({
+      id: "first_welcome_tour",
+      domain: "companion",
+      score: 100,
+      title: "Welcome and orientation",
+      reason: "No prior VYVA voice exchange is recorded.",
+      openingCue: "Welcome the user by name if possible, explain VYVA briefly, and ask whether they would like a short tour.",
+      suggestedAction: "Offer the app tour before suggesting specialist help.",
+      evidence: input.profile?.preferred_name || input.profile?.full_name ? "Profile name is available." : "Profile is minimal.",
+    });
+  }
+
+  const medicationStats = medicationAdherenceStats(
+    input.activeMedicationRows,
+    input.medicationAdherenceRows,
+    input.now,
+  );
+  if (input.activeMedicationRows.length > 0) {
+    if (medicationStats.activeDoseCount > 0 && medicationStats.todayTaken < medicationStats.activeDoseCount) {
+      add({
+        id: "medication_today_check",
+        domain: "meds",
+        score: input.priorVoiceExchangeCount === 0 ? 64 : 90,
+        title: "Medication check-in",
+        reason: `${medicationStats.todayTaken}/${medicationStats.activeDoseCount} scheduled dose confirmations are recorded today.`,
+        openingCue: "Offer a gentle medication check-in without listing medicine names unless the user wants that.",
+        suggestedAction: "Ask whether they want to review today's medication schedule or missed confirmations.",
+        evidence: `${input.activeMedicationRows.length} active medication(s); ${medicationStats.missed30} missed/skipped/late record(s) in the last 30 days.`,
+      });
+    } else if (medicationStats.missed30 > 0) {
+      add({
+        id: "medication_recent_missed",
+        domain: "meds",
+        score: input.priorVoiceExchangeCount === 0 ? 58 : 82,
+        title: "Medication adherence support",
+        reason: `${medicationStats.missed30} missed, skipped, or late medication record(s) exist in the recent history.`,
+        openingCue: "Offer practical medication support, keeping the opening calm and non-judgemental.",
+        suggestedAction: "Ask if they would like help checking the medication routine.",
+        evidence: `${input.activeMedicationRows.length} active medication(s) in profile.`,
+      });
+    } else {
+      add({
+        id: "medication_profile_available",
+        domain: "meds",
+        score: 48,
+        title: "Medication routine available",
+        reason: "The user has an active medication profile that can support useful reminders or checks.",
+        openingCue: "Mention medication help only if no stronger topic is available or the user raises it.",
+        suggestedAction: "Offer a quick medication routine review.",
+        evidence: `${input.activeMedicationRows.length} active medication(s) in profile.`,
+      });
+    }
+  }
+
+  const latestReport = input.latestReports[0];
+  if (latestReport) {
+    const reportAgeDays = daysSince(latestReport.created_at, input.now);
+    const urgentReport = /\b(urgent|high|emergency|red|acute)\b/i.test(latestReport.urgency ?? "");
+    if (urgentReport || reportAgeDays <= 7) {
+      add({
+        id: "health_recent_report",
+        domain: "health",
+        score: urgentReport ? 92 : reportAgeDays <= 2 ? 84 : 70,
+        title: "Health follow-up",
+        reason: urgentReport
+          ? "A recent health report has high urgency context."
+          : `A health report was recorded ${formatRelativeTime(latestReport.created_at, input.now)}.`,
+        openingCue: "Offer a health follow-up without revealing symptom details until the user chooses to discuss health.",
+        suggestedAction: "Ask whether they would like to review how they are feeling now or prepare a GP/health note.",
+        evidence: valueList([
+          latestReport.urgency ? `urgency ${latestReport.urgency}` : null,
+          latestReport.symptoms?.length ? `${latestReport.symptoms.length} symptom(s) recorded` : null,
+        ]),
+      });
+    }
+  }
+
+  const latestVitalsAt = input.latestVitals[0]?.recorded_at;
+  if (input.latestVitalsScanSummary) {
+    const vitalsAgeDays = daysSince(latestVitalsAt, input.now);
+    add({
+      id: vitalsAgeDays >= 7 ? "vitals_refresh" : "vitals_available",
+      domain: "health",
+      score: vitalsAgeDays >= 7 ? 68 : 52,
+      title: vitalsAgeDays >= 7 ? "Vitals refresh" : "Recent vitals context",
+      reason: vitalsAgeDays >= 7
+        ? `The latest vitals scan is ${vitalsAgeDays} days old.`
+        : "Recent vitals context is available if health comes up.",
+      openingCue: vitalsAgeDays >= 7
+        ? "Offer a simple vitals refresh if the user wants a health check."
+        : "Keep vitals quiet unless the user raises health.",
+      suggestedAction: vitalsAgeDays >= 7 ? "Ask whether they want to do or review a vitals scan." : "Keep available for a health handoff.",
+      evidence: input.latestVitalsScanSummary,
+    });
+  }
+
+  if (input.upcomingAppointment) {
+    const hours = hoursUntil(input.upcomingAppointment.scheduled_for, input.now);
+    add({
+      id: "upcoming_medical_appointment",
+      domain: "concierge",
+      score: hours <= 24 ? 88 : hours <= 72 ? 80 : hours <= 168 ? 70 : 56,
+      title: "Prepare for upcoming health appointment",
+      reason: hours <= 168
+        ? `A health appointment is coming up in about ${Math.max(1, Math.round(hours / 24))} day(s).`
+        : "A future health appointment is recorded.",
+      openingCue: "Offer to help prepare questions, transport, reminders, or notes for the appointment.",
+      suggestedAction: "Ask whether they want help preparing for the appointment.",
+      evidence: formatScheduledHealthEvent(input.upcomingAppointment),
+    });
+  }
+
+  const nextEvent = input.scheduledEventRows
+    .filter((event) => event.scheduled_for && event.scheduled_for.getTime() >= input.now.getTime() && event.status !== "cancelled")
+    .sort((a, b) => a.scheduled_for.getTime() - b.scheduled_for.getTime())[0];
+  if (nextEvent && nextEvent.id !== input.upcomingAppointment?.id) {
+    const hours = hoursUntil(nextEvent.scheduled_for, input.now);
+    add({
+      id: "upcoming_event_or_reminder",
+      domain: "concierge",
+      score: hours <= 24 ? 82 : hours <= 72 ? 72 : hours <= 168 ? 62 : 48,
+      title: "Upcoming plan or reminder",
+      reason: hours <= 168 ? `A scheduled item is coming up in about ${Math.max(1, Math.round(hours / 24))} day(s).` : "A future scheduled item is recorded.",
+      openingCue: "Offer practical help preparing for the next plan or reminder.",
+      suggestedAction: "Ask whether they want help preparing, remembering, or arranging anything.",
+      evidence: formatScheduledEvent(nextEvent),
+    });
+  }
+
+  if (input.birthday === "Birthday is today." || /Birthday is in \d+ day/.test(input.birthday)) {
+    add({
+      id: input.birthday === "Birthday is today." ? "birthday_today" : "birthday_soon",
+      domain: "companion",
+      score: input.birthday === "Birthday is today." ? 86 : 66,
+      title: input.birthday === "Birthday is today." ? "Birthday moment" : "Birthday coming up",
+      reason: input.birthday,
+      openingCue: "Use birthday context warmly only if it feels natural; do not make the whole call about it unless the user responds.",
+      suggestedAction: "Offer a small birthday-related idea, message, memory, or plan.",
+      evidence: input.birthday,
+    });
+  }
+
+  const socialGapDays = input.socialActivitySummary ? 0 : 14;
+  if (input.matchingSocialRooms) {
+    add({
+      id: "social_room_match",
+      domain: "social",
+      score: socialGapDays >= 14 ? 70 : 60,
+      title: "Interest-based social connection",
+      reason: "Saved interests match available social rooms.",
+      openingCue: "Offer one social or companion activity that fits their interests.",
+      suggestedAction: "Ask whether they would like to join or hear about one matching room.",
+      evidence: input.matchingSocialRooms,
+    });
+  }
+
+  if (input.localInterestOpportunities) {
+    add({
+      id: "nearby_interest_plan",
+      domain: "concierge",
+      score: 58,
+      title: "Nearby interest idea",
+      reason: "The user's hobbies/interests and location can be turned into a local plan.",
+      openingCue: "Offer Concierge verification before naming any live event, place, time, price, or venue.",
+      suggestedAction: "Ask if they want VYVA to check real nearby options related to their interests.",
+      evidence: input.localInterestOpportunities,
+    });
+  }
+
+  const brainInterest = [...input.allInterests, ...input.allHobbies, ...input.allPreferredActivities]
+    .some((value) => /\b(game|games|memory|puzzle|quiz|chess|scrabble|reading|word)\b/i.test(value));
+  if (brainInterest) {
+    add({
+      id: "brain_coach_interest",
+      domain: "brain_coach",
+      score: 56,
+      title: "Brain coach activity",
+      reason: "Saved interests suggest games, memory, puzzles, reading, or word activities may fit.",
+      openingCue: "Offer a light brain activity as a friendly option, not as a requirement.",
+      suggestedAction: "Ask whether they would like a short brain game or memory activity.",
+      evidence: joinList([...input.allInterests, ...input.allHobbies, ...input.allPreferredActivities]),
+    });
+  }
+
+  if (input.recentActivitySummary) {
+    add({
+      id: "activity_routine",
+      domain: "companion",
+      score: 52,
+      title: "Routine and activity check-in",
+      reason: "Recent activity history can support a useful routine, rest, or movement suggestion.",
+      openingCue: "Offer a gentle routine check-in if there is no more urgent health or medication topic.",
+      suggestedAction: "Ask whether they want a simple plan for today.",
+      evidence: input.recentActivitySummary,
+    });
+  }
+
+  const voiceGapDays = daysSince(input.lastVoiceSessionAt, input.now);
+  if (input.latestVoiceExchange?.message && voiceGapDays <= 7) {
+    add({
+      id: "continue_last_thread",
+      domain: voiceContextDomainOrDefault(input.latestVoiceExchange.agent_used),
+      score: 54,
+      title: "Continue last conversation",
+      reason: `The last voice exchange was ${formatRelativeTime(input.lastVoiceSessionAt, input.now)}.`,
+      openingCue: "Offer to continue the last thread in one sentence, without assuming they still want it.",
+      suggestedAction: "Ask whether they want to continue or switch topics.",
+      evidence: input.latestVoiceExchange.message.slice(0, 180),
+    });
+  } else if (voiceGapDays >= 3 && Number.isFinite(voiceGapDays)) {
+    add({
+      id: "relationship_reconnect",
+      domain: "companion",
+      score: 50,
+      title: "Warm reconnection",
+      reason: `It has been ${voiceGapDays} day(s) since the last VYVA voice session.`,
+      openingCue: "Open with a brief warm catch-up, then offer one useful next step.",
+      suggestedAction: "Ask how they would like to start today.",
+      evidence: input.appLastSeenAt ? `Last app visit ${formatRelativeTime(input.appLastSeenAt, input.now)}.` : "",
+    });
+  }
+
+  if (candidates.length === 0) {
+    add({
+      id: "daily_companion_checkin",
+      domain: "companion",
+      score: 40,
+      title: "Daily companion check-in",
+      reason: "No time-sensitive health, medication, social, or logistics signal is currently stronger.",
+      openingCue: "Start warmly and ask what would be most helpful today.",
+      suggestedAction: "Offer a simple choice: chat, health, medication, activities, social, or concierge help.",
+      evidence: "Fallback recommendation.",
+    });
+  }
+
+  const sortedCandidates = candidates
+    .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title))
+    .slice(0, 5);
+  const top = sortedCandidates[0];
+  const candidateList = sortedCandidates.map(formatNextBestCandidate).join("\n");
+  const brief = top
+    ? compactLines([
+        `Top recommendation: ${top.title}.`,
+        `Domain: ${top.domain}. Priority: ${top.priority}. Score: ${top.score}.`,
+        `Reason: ${top.reason}`,
+        `Opening cue: ${top.openingCue}`,
+        `Suggested action: ${top.suggestedAction}`,
+        top.evidence ? `Evidence: ${top.evidence}` : "",
+        candidateList ? `Ranked shortlist:\n${candidateList}` : "",
+        "Use this as quiet guidance. Do not mention scores, IDs, variable names, or internal ranking to the user.",
+      ], 2800)
+    : "";
+
+  return {
+    top,
+    candidates: sortedCandidates,
+    candidateList,
+    brief,
+  };
+}
+
 function profileLocation(profile: typeof profiles.$inferSelect | null) {
   if (!profile) return "";
   return valueList([
@@ -551,7 +913,8 @@ export async function buildVoiceContext(
   const mobilityLevel = asString(conditionsSection.mobility_level);
   const livingSituation = asString(conditionsSection.living_situation);
   const allergies = profile?.known_allergies?.filter(Boolean) ?? [];
-  const activeMeds = medicationRows.filter((med) => med.active).map(formatMedication);
+  const activeMedicationRows = medicationRows.filter((med) => med.active);
+  const activeMeds = activeMedicationRows.map(formatMedication);
   const careTeam = careTeamRows.map(formatCareMember).filter(Boolean);
   const providers = formatProviders(providersSection);
   const devices = asStringArray(devicesSection.devices);
@@ -575,7 +938,7 @@ export async function buildVoiceContext(
   const latestVitalsScanSummary = latestVitalsScan(latestVitals);
   const vitalsTrend = vitalsTrendSummary(latestVitals);
   const medicationAdherenceSummary = buildMedicationAdherenceSummary(
-    medicationRows.filter((med) => med.active),
+    activeMedicationRows,
     medicationAdherenceRows,
   );
   const medicationInteractionContext = buildMedicationInteractionContext(activeMeds, allergies);
@@ -614,6 +977,29 @@ export async function buildVoiceContext(
     hobbies: allHobbies,
     mobilityContext,
   });
+  const nextBestConversation = buildNextBestConversation({
+    priorVoiceExchangeCount: Number(voiceExchangeCountRows[0]?.value ?? 0),
+    profile,
+    activeMedicationRows,
+    medicationAdherenceRows,
+    latestReports,
+    latestVitals,
+    latestVitalsScanSummary,
+    upcomingAppointment,
+    scheduledEventRows,
+    appLastSeenAt,
+    lastVoiceSessionAt,
+    latestVoiceExchange,
+    allHobbies,
+    allInterests,
+    allPreferredActivities,
+    birthday,
+    matchingSocialRooms,
+    localInterestOpportunities,
+    recentActivitySummary,
+    socialActivitySummary,
+    now,
+  });
   const relationshipContinuityContext = compactLines([
     appLastSeenAt ? `Last app visit: ${formatDateTime(appLastSeenAt)} (${formatRelativeTime(appLastSeenAt, now)}).` : "",
     lastVoiceSessionAt ? `Last VYVA voice session: ${formatDateTime(lastVoiceSessionAt)} (${formatRelativeTime(lastVoiceSessionAt, now)}).` : "",
@@ -650,6 +1036,7 @@ export async function buildVoiceContext(
   ], 1400);
   const orchestratorContext = compactLines([
     relationshipContinuityContext,
+    nextBestConversation.brief ? `Next best conversation:\n${nextBestConversation.brief}` : "",
     appInsightContext,
     personalisationOpportunities,
   ], 6000);
@@ -702,6 +1089,16 @@ export async function buildVoiceContext(
     app_insight_context: appInsightContext,
     orchestrator_context: orchestratorContext,
     personalisation_opportunities: personalisationOpportunities,
+    next_best_conversation: nextBestConversation.brief,
+    next_best_conversation_id: nextBestConversation.top?.id ?? "",
+    next_best_conversation_domain: nextBestConversation.top?.domain ?? "",
+    next_best_conversation_priority: nextBestConversation.top?.priority ?? "",
+    next_best_conversation_score: nextBestConversation.top?.score ?? "",
+    next_best_conversation_title: nextBestConversation.top?.title ?? "",
+    next_best_conversation_reason: nextBestConversation.top?.reason ?? "",
+    next_best_conversation_opening_cue: nextBestConversation.top?.openingCue ?? "",
+    next_best_conversation_suggested_action: nextBestConversation.top?.suggestedAction ?? "",
+    next_best_conversation_candidates: nextBestConversation.candidateList,
     upcoming_events: joinList(upcomingEvents),
     recent_activity_summary: recentActivitySummary,
     social_activity_summary: socialActivitySummary,

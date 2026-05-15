@@ -292,6 +292,20 @@ function buildVoiceContextPromptBlock(voiceContext: VoiceDynamicVariables) {
     `Prior voice exchanges: ${contextValue(voiceContext.prior_voice_exchange_count) || "0"}`,
     contextValue(voiceContext.app_entrypoint) ? `App entrypoint: ${contextValue(voiceContext.app_entrypoint)}` : "",
     contextValue(voiceContext.memory_block) ? `Memory: ${contextValue(voiceContext.memory_block)}` : "",
+    contextValue(voiceContext.next_best_conversation)
+      ? `Next best conversation: ${contextValue(voiceContext.next_best_conversation)}`
+      : "",
+    contextValue(voiceContext.next_best_conversation_title)
+      ? `Next best opening: ${[
+          contextValue(voiceContext.next_best_conversation_title),
+          contextValue(voiceContext.next_best_conversation_reason),
+          contextValue(voiceContext.next_best_conversation_opening_cue),
+          contextValue(voiceContext.next_best_conversation_suggested_action),
+        ].filter(Boolean).join(" | ")}`
+      : "",
+    contextValue(voiceContext.next_best_conversation_candidates)
+      ? `Next best candidates: ${contextValue(voiceContext.next_best_conversation_candidates)}`
+      : "",
     contextValue(voiceContext.orchestrator_context)
       ? `Orchestrator context: ${contextValue(voiceContext.orchestrator_context)}`
       : "",
@@ -340,7 +354,7 @@ function buildVoiceContextPromptBlock(voiceContext: VoiceDynamicVariables) {
       ? `Communication preferences: ${contextValue(voiceContext.communication_preferences)}`
       : "",
     contextValue(voiceContext.safety_context) ? `Safety context: ${contextValue(voiceContext.safety_context)}` : "",
-  ].filter(Boolean).join("\n").slice(0, 8000);
+  ].filter(Boolean).join("\n").slice(0, 9000);
 }
 
 function buildMem0Messages(history: ConversationTurn[], utterance: string): ConversationTurn[] {
