@@ -9,6 +9,7 @@ import {
   voiceActionRegistryEntries,
 } from "@/lib/voiceNavigation";
 import { useVoiceActionContext } from "@/contexts/VoiceActionContext";
+import { recordVoiceTimelineEvent } from "@/lib/voiceTimeline";
 
 const simulatorEnabled =
   import.meta.env.DEV || import.meta.env.VITE_ENABLE_VOICE_ACTION_SIMULATOR === "true";
@@ -46,12 +47,27 @@ export default function VoiceActionSimulator() {
     const action = actionForVoiceUtterance(utterance);
     if (!action) {
       setEvidence("No app action matched that sentence.");
+      recordVoiceTimelineEvent({
+        kind: "simulator",
+        title: "Voice lab utterance did not match",
+        detail: utterance,
+        severity: "warning",
+      });
       return;
     }
     if (action.actionType) setActionType(action.actionType);
     setSubject(action.extractedSubject ?? subject);
     setEvidence(action.feedbackReason);
     emitVoiceAppAction(action);
+    recordVoiceTimelineEvent({
+      kind: "simulator",
+      title: "Voice lab utterance matched",
+      detail: utterance,
+      domain: action.domain,
+      route: action.route,
+      actionId: action.id,
+      ...(action.actionType ? { actionType: action.actionType } : {}),
+    });
   };
 
   const recordResult = (result: "accepted" | "completed" | "dismissed") => {

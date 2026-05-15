@@ -15,6 +15,7 @@ import {
   type VoiceAppAction,
   type VoiceAppActionResult,
 } from "@/lib/voiceNavigation";
+import { recordVoiceTimelineEvent } from "@/lib/voiceTimeline";
 
 type VoiceActionFeedbackMetadata = Record<string, unknown>;
 
@@ -72,6 +73,16 @@ export function VoiceActionProvider({ children }: { children: ReactNode }) {
     };
     activeStateRef.current = nextState;
     setActiveState(nextState);
+    recordVoiceTimelineEvent({
+      kind: "action_opened",
+      title: action.title,
+      detail: action.cue || action.summary,
+      domain: action.domain,
+      route: action.route,
+      actionId: action.id,
+      ...(action.actionType ? { actionType: action.actionType } : {}),
+      ...(action.payload ? { payload: action.payload } : {}),
+    });
   }, []);
 
   const recordActionFeedback = useCallback(
@@ -85,6 +96,19 @@ export function VoiceActionProvider({ children }: { children: ReactNode }) {
       if (feedbackKeysRef.current.has(feedbackKey)) return;
 
       feedbackKeysRef.current.add(feedbackKey);
+      recordVoiceTimelineEvent({
+        kind: feedbackAction === "accepted"
+          ? "action_accepted"
+          : feedbackAction === "completed"
+            ? "action_completed"
+            : "action_dismissed",
+        title: `${state.action.title} ${feedbackAction}`,
+        detail: typeof metadata.evidence === "string" ? metadata.evidence : state.action.feedbackReason,
+        domain: state.action.domain,
+        route: state.action.route,
+        actionId: state.action.id,
+        ...(state.action.actionType ? { actionType: state.action.actionType } : {}),
+      });
       void recordRecommendationFeedback(
         feedbackAction,
         {
