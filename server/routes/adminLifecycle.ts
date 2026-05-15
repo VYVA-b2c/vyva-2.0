@@ -15,8 +15,11 @@ import {
   organizations,
   profiles,
   profileMemberships,
+  consentAuditLogs,
+  interactionLogs,
   scheduledEventLogs,
   scheduledEvents,
+  scheduledInteractions,
   tierEntitlements,
   users,
   userIntakes,
@@ -289,6 +292,16 @@ async function scheduledItemsForUser(userId: string | null) {
     db.select().from(userMedications).where(eq(userMedications.user_id, userId)).limit(100),
   ]);
   return [...events, ...medicationEventsFromRows(medications)];
+}
+
+async function scheduledSupportForUser(userId: string | null) {
+  if (!userId) return { schedules: [], logs: [], audit_logs: [] };
+  const [schedules, logs, auditLogs] = await Promise.all([
+    db.select().from(scheduledInteractions).where(eq(scheduledInteractions.user_id, userId)).orderBy(desc(scheduledInteractions.updated_at)).limit(100),
+    db.select().from(interactionLogs).where(eq(interactionLogs.user_id, userId)).orderBy(desc(interactionLogs.created_at)).limit(50),
+    db.select().from(consentAuditLogs).where(eq(consentAuditLogs.user_id, userId)).orderBy(desc(consentAuditLogs.created_at)).limit(50),
+  ]);
+  return { schedules, logs, audit_logs: auditLogs };
 }
 
 function normalizePhone(phone: string): string {
@@ -1568,11 +1581,12 @@ adminLifecycleRouter.get("/users/:id/details", async (req: Request, res: Respons
     intake,
     lifecycleProfile: profile ?? null,
   });
-  const [communicationRows, lifecycleRows, consentRows, scheduledRows] = await Promise.all([
+  const [communicationRows, lifecycleRows, consentRows, scheduledRows, support] = await Promise.all([
     db.select().from(communicationsLog).where(eq(communicationsLog.intake_id, intake.id)).orderBy(desc(communicationsLog.created_at)).limit(100),
     db.select().from(lifecycleEvents).where(eq(lifecycleEvents.intake_id, intake.id)).orderBy(desc(lifecycleEvents.created_at)).limit(100),
     db.select().from(consentAttempts).where(eq(consentAttempts.intake_id, intake.id)).orderBy(desc(consentAttempts.created_at)).limit(50),
     scheduledItemsForUser(userId),
+    scheduledSupportForUser(userId),
   ]);
 
   return res.json({
@@ -1585,6 +1599,9 @@ adminLifecycleRouter.get("/users/:id/details", async (req: Request, res: Respons
     lifecycle_events: lifecycleRows,
     consent_attempts: consentRows,
     scheduled_events: scheduledRows,
+    scheduled_support: support.schedules,
+    interaction_logs: support.logs,
+    consent_audit_logs: support.audit_logs,
   });
 });
 

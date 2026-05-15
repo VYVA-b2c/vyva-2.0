@@ -80,6 +80,21 @@ type ScheduledEvent = {
   read_only?: boolean;
 };
 
+type ScheduledSupport = {
+  id: string;
+  interaction_type: string;
+  friendly_label?: string | null;
+  status: string;
+  frequency_type: string;
+  times_of_day?: string[] | null;
+  days_of_week?: string[] | null;
+  next_run_at?: string | null;
+  last_result?: string | null;
+  admin_edit_allowed: boolean;
+  consent_status?: string | null;
+  updated_at?: string | null;
+};
+
 type JsonRecord = Record<string, unknown>;
 
 function stringValue(value: unknown): string | null {
@@ -116,6 +131,9 @@ type UserDetail = {
   lifecycle_events: JsonRecord[];
   consent_attempts: ConsentAttempt[];
   scheduled_events: ScheduledEvent[];
+  scheduled_support?: ScheduledSupport[];
+  interaction_logs?: JsonRecord[];
+  consent_audit_logs?: JsonRecord[];
 };
 
 type HomePlanCardAdmin = {
@@ -277,6 +295,23 @@ function csvToRows(text: string) {
 function formatDate(value?: string | null) {
   if (!value) return "Not scheduled";
   return new Date(value).toLocaleString();
+}
+
+function supportLabel(type: string) {
+  if (type === "CHECK_IN") return "Check-in calls";
+  if (type === "BRAIN_COACH") return "Brain Coach";
+  if (type === "MEDICATION") return "Medication reminders";
+  if (type === "SYMPTOM_FOLLOWUP") return "Symptom follow-up";
+  if (type === "CONCIERGE_FOLLOWUP") return "Concierge follow-up";
+  return type;
+}
+
+function supportFrequency(schedule: ScheduledSupport) {
+  const times = schedule.times_of_day?.length ? schedule.times_of_day.join(", ") : "No time";
+  if (schedule.frequency_type === "DAILY") return `Daily at ${times}`;
+  if (schedule.frequency_type === "ONE_OFF") return `One-off at ${times}`;
+  const days = schedule.days_of_week?.length ? schedule.days_of_week.join(", ") : "custom days";
+  return `${days} at ${times}`;
 }
 
 function toDatetimeLocal(value?: string | null) {
@@ -1236,6 +1271,30 @@ function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, 
                 </div>
               ))}
             </div>
+            <div className="mt-4 rounded-2xl border border-[#eadfd5] bg-[#fbf8f5] p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-bold">Scheduled support</p>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-purple-700">
+                  {(detail.scheduled_support ?? []).filter((item) => item.status !== "CANCELLED").length} services
+                </span>
+              </div>
+              <div className="mt-3 grid gap-2">
+                {(detail.scheduled_support ?? []).filter((item) => item.status !== "CANCELLED").length === 0 ? (
+                  <p className="text-sm text-[#7d6b65]">No scheduled support configured yet.</p>
+                ) : (detail.scheduled_support ?? []).filter((item) => item.status !== "CANCELLED").map((item) => (
+                  <div key={item.id} className="rounded-xl bg-white p-3 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-bold">{item.friendly_label || supportLabel(item.interaction_type)}</p>
+                      <span className={`rounded-full px-2 py-1 text-xs font-bold ${item.status === "ACTIVE" ? "bg-[#ecfdf3] text-[#087443]" : "bg-[#f4eafe] text-purple-700"}`}>{item.status}</span>
+                    </div>
+                    <p className="mt-1 text-[#7d6b65]">{supportFrequency(item)}</p>
+                    <p className="text-[#7d6b65]">Next: {formatDate(item.next_run_at)}</p>
+                    <p className="text-[#7d6b65]">Last result: {item.last_result ?? "No activity yet"}</p>
+                    <p className="text-[#7d6b65]">Caregiver/admin edits: {item.admin_edit_allowed ? "Allowed" : "Not allowed"}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
             <div className="mt-4 rounded-2xl bg-purple-50 p-3">
               <p className="font-bold">Add event</p>
               <div className="mt-2 grid gap-2">
@@ -1252,9 +1311,10 @@ function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, 
           </section>
         </div>
 
-        <section className="mt-5 grid gap-4 lg:grid-cols-3">
+        <section className="mt-5 grid gap-4 lg:grid-cols-4">
           <LogPanel title="Communications" rows={detail.communications} />
           <LogPanel title="Consent attempts" rows={detail.consent_attempts} />
+          <LogPanel title="Support activity" rows={detail.interaction_logs ?? []} />
           <LogPanel title="Lifecycle history" rows={detail.lifecycle_events} />
         </section>
       </div>

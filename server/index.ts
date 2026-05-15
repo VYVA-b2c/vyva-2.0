@@ -35,6 +35,7 @@ import triageRouter from "./routes/triage.js";
 import companionsRouter from "./routes/companions.js";
 import socialRoomsRouter from "./routes/socialRooms.js";
 import medsAdherenceRouter from "./routes/medsAdherence.js";
+import scheduledSupportRouter from "./routes/scheduledSupport.js";
 import { scanHistoryHandler } from "./routes/history.js";
 import reportsRouter from "./routes/reports.js";
 import vitalsRouter from "./routes/vitals.js";
@@ -103,6 +104,7 @@ app.use("/api/triage", authMiddleware, triageRouter);
 app.use("/api/companions", authMiddleware, companionsRouter);
 app.use("/api/social", authMiddleware, socialRoomsRouter);
 app.use("/api/meds/adherence-report", authMiddleware, medsAdherenceRouter);
+app.use("/api", authMiddleware, scheduledSupportRouter);
 // Also mount at /api/meds so that PATCH /api/meds/:id and DELETE /api/meds/:id
 // work as specified. Requests to /api/meds/adherence-report/... are matched
 // by the more-specific mount above, so they never reach this one.
