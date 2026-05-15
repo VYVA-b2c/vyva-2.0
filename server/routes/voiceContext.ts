@@ -1,6 +1,10 @@
 import type { Request, Response } from "express";
 import { buildVoiceContext, type VoiceContextDomain } from "../lib/voiceContext.js";
-import { signMedicalProfileToolToken } from "../lib/jwt.js";
+import {
+  signMedicalProfileToolToken,
+  signVoiceRecommendationFeedbackToolToken,
+} from "../lib/jwt.js";
+import { recordShownVoiceRecommendation } from "../lib/voiceRecommendationFeedback.js";
 
 const KNOWN_DOMAINS = new Set<VoiceContextDomain>([
   "safety",
@@ -56,6 +60,17 @@ export async function voiceContextHandler(req: Request, res: Response) {
       (typeof body.session_id === "string" && body.session_id.trim()) ||
       createConversationId();
     const dynamicVariables = await buildVoiceContext(userId, domain, memoryQuery, { appEntrypoint });
+    const feedbackToken = await signVoiceRecommendationFeedbackToolToken(userId, conversationId);
+    dynamicVariables.conversation_id = conversationId;
+    dynamicVariables.voice_recommendation_feedback_token = feedbackToken;
+    void recordShownVoiceRecommendation({
+      userId,
+      sessionId: conversationId,
+      voiceContext: dynamicVariables,
+      source: "voice_context",
+    }).catch((err) => {
+      console.warn("[voice-context] voice recommendation shown feedback unavailable:", err);
+    });
     if (isMedicalContextDomain(domain)) {
       const token = await signMedicalProfileToolToken(userId, conversationId);
       dynamicVariables.conversation_id = conversationId;

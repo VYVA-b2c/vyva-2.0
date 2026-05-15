@@ -4,7 +4,15 @@ import type { Conversation as ElevenConversation, DisconnectionDetails, PartialO
 import { getToken } from "@/lib/auth";
 import { getAgentAppContextVariables, subscribeAgentAppContext } from "@/lib/agentAppContext";
 import { apiFetch } from "@/lib/queryClient";
-import { emitVoiceUserMessage } from "@/lib/voiceNavigation";
+import {
+  actionForVoiceToolCall,
+  emitVoiceAppAction,
+  emitVoiceAppActionResult,
+  emitVoiceSpecialistTransfer,
+  emitVoiceUserMessage,
+  isVoiceAppActionDomain,
+  specialistTransferFromToolCall,
+} from "@/lib/voiceNavigation";
 
 type TtsSegment = {
   text: string;
@@ -93,6 +101,18 @@ type StartVoiceOptions = {
 
 type SendTextOptions = {
   invisibleInTranscript?: boolean;
+};
+
+type VoiceRecommendationFeedbackAction = "accepted" | "dismissed" | "completed";
+
+type ActiveVoiceRecommendation = {
+  id: string;
+  domain: string;
+  title: string;
+  reason: string;
+  sessionId: string;
+  conversationId: string;
+  token: string;
 };
 
 const VYVA_AGENT_ID = import.meta.env.VITE_ELEVENLABS_AGENT_ID ?? "agent_0401knfndsypfmqa31ssw82h364m";
@@ -205,10 +225,64 @@ function inferVoiceContextDomain(options: StartVoiceOptions | undefined) {
   if (agentSlug === "doctor" || agentSlug === "medical-doctor") return "doctor";
   if (agentSlug === "health" || agentSlug === "health-assistant") return "health";
   if (agentSlug === "meds" || agentSlug === "medication" || agentSlug === "medications") return "meds";
+  if (agentSlug === "safety" || agentSlug === "safe-home" || agentSlug === "sos") return "safety";
   if (agentSlug === "concierge") return "concierge";
   if (agentSlug === "brain-coach" || agentSlug === "brain_coach") return "brain_coach";
   if (options?.roomSlug || agentSlug) return "social";
   return undefined;
+}
+
+function dynamicString(
+  variables: Record<string, string | number | boolean> | undefined,
+  key: string,
+) {
+  const value = variables?.[key];
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
+}
+
+function toolParameters(parameters: unknown): Record<string, unknown> {
+  return parameters && typeof parameters === "object"
+    ? parameters as Record<string, unknown>
+    : {};
+}
+
+function toolString(parameters: Record<string, unknown>, key: string) {
+  const value = parameters[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function activeRecommendationFromVariables(
+  variables: Record<string, string | number | boolean> | undefined,
+): ActiveVoiceRecommendation | null {
+  const id = dynamicString(variables, "next_best_conversation_id");
+  if (!id) return null;
+  const sessionId = dynamicString(variables, "session_id") || getVoiceSessionId();
+  return {
+    id,
+    domain: dynamicString(variables, "next_best_conversation_domain"),
+    title: dynamicString(variables, "next_best_conversation_title"),
+    reason: dynamicString(variables, "next_best_conversation_reason"),
+    sessionId,
+    conversationId: dynamicString(variables, "conversation_id") || sessionId,
+    token: dynamicString(variables, "voice_recommendation_feedback_token"),
+  };
+}
+
+function inferRecommendationFeedbackAction(text: string): VoiceRecommendationFeedbackAction | null {
+  const normalized = normalizeTranscriptText(text);
+  if (!normalized) return null;
+  if (/^(no|no thanks|not now|later|skip|cancel)\b/.test(normalized) || /\b(not now|leave it|skip it|maybe later)\b/.test(normalized)) {
+    return "dismissed";
+  }
+  if (/\b(done|completed|all set|that helped|thanks that's all|thank you that's all|sorted)\b/.test(normalized)) {
+    return "completed";
+  }
+  if (/^(yes|yeah|yep|sure|ok|okay|please|go ahead|sounds good|let's|lets|do it|start)\b/.test(normalized)) {
+    return "accepted";
+  }
+  return null;
 }
 
 function useVyvaVoiceController() {
@@ -228,6 +302,8 @@ function useVyvaVoiceController() {
   const shouldMuteOnConnectRef = useRef(true);
   const hiddenOutgoingMessagesRef = useRef<string[]>([]);
   const voiceInstanceIdRef = useRef(createVoiceInstanceId());
+  const activeRecommendationRef = useRef<ActiveVoiceRecommendation | null>(null);
+  const recordedRecommendationActionsRef = useRef<Set<string>>(new Set());
 
   const setVoiceStatus = useCallback((nextStatus: "idle" | "connecting" | "connected") => {
     statusRef.current = nextStatus;
@@ -259,6 +335,8 @@ function useVyvaVoiceController() {
       void conversation.endSession().catch(() => {});
     }
     hiddenOutgoingMessagesRef.current = [];
+    activeRecommendationRef.current = null;
+    recordedRecommendationActionsRef.current.clear();
     setIsConnecting(false);
     setHasMicrophone(false);
     setIsSpeaking(false);
@@ -357,6 +435,45 @@ function useVyvaVoiceController() {
           return { agentId: activeAgentId, connectionType: "websocket" };
         }
         throw err;
+      }
+    },
+    [],
+  );
+
+  const recordRecommendationFeedback = useCallback(
+    async (
+      action: VoiceRecommendationFeedbackAction,
+      metadata: Record<string, unknown> = {},
+      override?: Partial<ActiveVoiceRecommendation> & { id?: string },
+    ) => {
+      const current = activeRecommendationRef.current;
+      const recommendationId = override?.id ?? current?.id;
+      if (!recommendationId) return false;
+
+      const key = `${recommendationId}:${action}`;
+      if (recordedRecommendationActionsRef.current.has(key)) return true;
+      recordedRecommendationActionsRef.current.add(key);
+
+      try {
+        const res = await apiFetch("/api/voice/recommendations/feedback", {
+          method: "POST",
+          body: JSON.stringify({
+            recommendation_id: recommendationId,
+            action,
+            session_id: override?.sessionId ?? current?.sessionId ?? getVoiceSessionId(),
+            domain: override?.domain ?? current?.domain,
+            title: override?.title ?? current?.title,
+            reason: override?.reason ?? current?.reason,
+            source: String(metadata.source ?? "frontend"),
+            metadata,
+          }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        return true;
+      } catch (err) {
+        recordedRecommendationActionsRef.current.delete(key);
+        console.warn("[VYVA] Failed to record recommendation feedback:", err);
+        return false;
       }
     },
     [],
@@ -473,6 +590,8 @@ function useVyvaVoiceController() {
       const routedSession = await resolveRouterSession(contextHint, systemPrompt, options);
       const activeAgentId = routedSession.agentId ?? (shouldResolveAgentOnServer ? undefined : VYVA_AGENT_ID);
       const resolvedSystemPrompt = routedSession.systemPrompt;
+      activeRecommendationRef.current = activeRecommendationFromVariables(routedSession.dynamicVariables);
+      recordedRecommendationActionsRef.current.clear();
       const skipMicrophone = options?.skipMicrophone ?? false;
       const autoStartListening = options?.autoStartListening ?? false;
       systemPromptRef.current = resolvedSystemPrompt;
@@ -505,6 +624,115 @@ function useVyvaVoiceController() {
           dynamicVariables: {
             ...getAgentAppContextVariables(),
             ...(routedSession.dynamicVariables ?? {}),
+          },
+          clientTools: {
+            ...(sessionOptions.clientTools ?? {}),
+            open_app_action: async (parameters: unknown) => {
+              const params = toolParameters(parameters);
+              const action = actionForVoiceToolCall(params);
+              if (!action) {
+                return "App action was not opened because the route, domain, or action type was not recognised.";
+              }
+
+              emitVoiceAppAction(action);
+              return `Opening ${action.title}.`;
+            },
+            record_action_result: async (parameters: unknown) => {
+              const params = toolParameters(parameters);
+              const rawAction = toolString(params, "action");
+              if (!["accepted", "dismissed", "completed"].includes(rawAction)) {
+                return "Action result was not recorded because action must be accepted, dismissed, or completed.";
+              }
+
+              const actionId = toolString(params, "action_id") || toolString(params, "recommendation_id");
+              const domain = toolString(params, "domain");
+              const safeDomain = isVoiceAppActionDomain(domain) ? domain : undefined;
+              const title = toolString(params, "title");
+              const reason = toolString(params, "reason");
+              const evidence = toolString(params, "evidence").slice(0, 500);
+
+              emitVoiceAppActionResult({
+                action: rawAction as VoiceRecommendationFeedbackAction,
+                ...(actionId ? { actionId } : {}),
+                ...(safeDomain ? { domain: safeDomain } : {}),
+                ...(title ? { title } : {}),
+                ...(reason ? { reason } : {}),
+                ...(evidence ? { evidence } : {}),
+                source: "elevenlabs_client_tool",
+              });
+
+              const current = activeRecommendationRef.current;
+              const recommendationId = actionId || current?.id;
+              if (!recommendationId) {
+                return "Action result was shared with the app, but no recommendation id was available for analytics.";
+              }
+
+              const recorded = await recordRecommendationFeedback(
+                rawAction as VoiceRecommendationFeedbackAction,
+                {
+                  source: "elevenlabs_client_tool",
+                  evidence,
+                  outcome: toolString(params, "outcome").slice(0, 500),
+                  voice_action_id: actionId,
+                },
+                {
+                  id: recommendationId,
+                  domain: safeDomain || current?.domain,
+                  title: title || current?.title,
+                  reason: reason || current?.reason,
+                  sessionId: current?.sessionId,
+                  conversationId: current?.conversationId,
+                  token: current?.token,
+                },
+              );
+
+              return recorded
+                ? `Recorded ${rawAction} result for ${recommendationId}.`
+                : "Action result was shared with the app, but analytics could not be recorded.";
+            },
+            request_specialist_transfer: async (parameters: unknown) => {
+              const params = toolParameters(parameters);
+              const request = specialistTransferFromToolCall(params);
+              if (!request) {
+                return "Specialist transfer was not requested because the target domain was not recognised.";
+              }
+
+              emitVoiceSpecialistTransfer(request);
+              return `Transfer requested to ${request.domain}.`;
+            },
+            record_voice_recommendation_feedback: async (parameters: unknown) => {
+              const params = toolParameters(parameters);
+              const rawAction = toolString(params, "action");
+              if (!["accepted", "dismissed", "completed"].includes(rawAction)) {
+                return "Feedback was not recorded because action must be accepted, dismissed, or completed.";
+              }
+              const current = activeRecommendationRef.current;
+              const recommendationId = toolString(params, "recommendation_id")
+                ? toolString(params, "recommendation_id")
+                : current?.id;
+              if (!recommendationId) return "Feedback was not recorded because no active recommendation was available.";
+
+              const recorded = await recordRecommendationFeedback(
+                rawAction as VoiceRecommendationFeedbackAction,
+                {
+                  source: "elevenlabs_client_tool",
+                  evidence: toolString(params, "evidence").slice(0, 500),
+                  outcome: toolString(params, "outcome").slice(0, 500),
+                },
+                {
+                  id: recommendationId,
+                  domain: toolString(params, "domain") || current?.domain,
+                  title: toolString(params, "title") || current?.title,
+                  reason: toolString(params, "reason") || current?.reason,
+                  sessionId: current?.sessionId,
+                  conversationId: current?.conversationId,
+                  token: current?.token,
+                },
+              );
+              return recorded
+                ? `Recorded ${rawAction} feedback for ${recommendationId}.`
+                : "Feedback could not be recorded.";
+            },
           },
           overrides: resolvedSystemPrompt
             ? { agent: { prompt: { prompt: resolvedSystemPrompt } } }
@@ -587,6 +815,13 @@ function useVyvaVoiceController() {
               }
               const transcriptEntry = { from: "user" as const, text: message, timestamp: Date.now() };
               appendTranscript(transcriptEntry);
+              const inferredAction = inferRecommendationFeedbackAction(message);
+              if (inferredAction) {
+                void recordRecommendationFeedback(inferredAction, {
+                  source: "frontend_transcript",
+                  user_message_preview: message.slice(0, 160),
+                });
+              }
               emitVoiceUserMessage({ text: message, transcriptEntry });
               return;
             }
@@ -611,7 +846,7 @@ function useVyvaVoiceController() {
         teardown();
       }
     },
-    [appendTranscript, fetchSessionOptions, replaceTranscript, resolveRouterSession, setVoiceStatus, teardown]
+    [appendTranscript, fetchSessionOptions, recordRecommendationFeedback, replaceTranscript, resolveRouterSession, setVoiceStatus, teardown]
   );
 
   const beginUserTurn = useCallback(async () => {
@@ -684,6 +919,7 @@ function useVyvaVoiceController() {
     beginUserTurn,
     endUserTurn,
     interruptAgentAudio,
+    recordRecommendationFeedback,
   };
 }
 

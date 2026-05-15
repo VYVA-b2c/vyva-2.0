@@ -18,8 +18,17 @@ import {
 } from "../lib/mem0.js";
 import { buildAgentOperatingRules, buildConversationPlan } from "../lib/voiceAgentPolicy.js";
 import { formatConversationPlanPrompt, selectVoiceConversationPlan } from "../lib/voiceConversationPlans.js";
-import { signMedicalProfileToolToken } from "../lib/jwt.js";
+import {
+  signMedicalProfileToolToken,
+  signVoiceRecommendationFeedbackToolToken,
+} from "../lib/jwt.js";
 import { buildUserConversationContext, formatConversationContextForPrompt } from "../lib/conversationContext.js";
+import {
+  getLatestShownVoiceRecommendation,
+  inferVoiceRecommendationResponseAction,
+  recordShownVoiceRecommendation,
+  recordVoiceRecommendationFeedback,
+} from "../lib/voiceRecommendationFeedback.js";
 
 type RoutingDomain =
   | "safety"
@@ -285,6 +294,54 @@ function contextValue(value: unknown): string {
   return "";
 }
 
+async function recordRecommendationResponseFromUtterance(input: {
+  userId: string;
+  sessionId: string;
+  utterance: string;
+  routedDomain: RoutingDomain;
+}) {
+  const latestShown = await getLatestShownVoiceRecommendation(input.userId, input.sessionId).catch(() => null);
+  const action = inferVoiceRecommendationResponseAction({
+    utterance: input.utterance,
+    routedDomain: input.routedDomain,
+    latestShown,
+  });
+  if (!latestShown || !action) return;
+
+  await recordVoiceRecommendationFeedback({
+    userId: input.userId,
+    sessionId: input.sessionId,
+    recommendationId: latestShown.recommendation_id,
+    action,
+    domain: latestShown.domain,
+    title: latestShown.title,
+    reason: latestShown.reason,
+    source: "router_inferred",
+    metadata: {
+      routed_domain: input.routedDomain,
+      utterance_preview: input.utterance.slice(0, 160),
+    },
+  }).catch((err) => {
+    console.warn("[router] voice recommendation response feedback unavailable:", err);
+  });
+}
+
+function recordShownRecommendationFromContext(input: {
+  userId: string;
+  sessionId: string;
+  voiceContext: VoiceDynamicVariables;
+  source: string;
+}) {
+  void recordShownVoiceRecommendation({
+    userId: input.userId,
+    sessionId: input.sessionId,
+    voiceContext: input.voiceContext,
+    source: input.source,
+  }).catch((err) => {
+    console.warn("[router] voice recommendation shown feedback unavailable:", err);
+  });
+}
+
 function buildVoiceContextPromptBlock(voiceContext: VoiceDynamicVariables) {
   return [
     `Profile summary: ${contextValue(voiceContext.profile_summary) || "Not recorded"}`,
@@ -292,6 +349,26 @@ function buildVoiceContextPromptBlock(voiceContext: VoiceDynamicVariables) {
     `Prior voice exchanges: ${contextValue(voiceContext.prior_voice_exchange_count) || "0"}`,
     contextValue(voiceContext.app_entrypoint) ? `App entrypoint: ${contextValue(voiceContext.app_entrypoint)}` : "",
     contextValue(voiceContext.memory_block) ? `Memory: ${contextValue(voiceContext.memory_block)}` : "",
+    contextValue(voiceContext.next_best_conversation)
+      ? `Next best conversation: ${contextValue(voiceContext.next_best_conversation)}`
+      : "",
+    contextValue(voiceContext.next_best_conversation_title)
+      ? `Next best opening: ${[
+          contextValue(voiceContext.next_best_conversation_title),
+          contextValue(voiceContext.next_best_conversation_reason),
+          contextValue(voiceContext.next_best_conversation_opening_cue),
+          contextValue(voiceContext.next_best_conversation_suggested_action),
+        ].filter(Boolean).join(" | ")}`
+      : "",
+    contextValue(voiceContext.next_best_conversation_candidates)
+      ? `Next best candidates: ${contextValue(voiceContext.next_best_conversation_candidates)}`
+      : "",
+    contextValue(voiceContext.next_best_conversation_feedback)
+      ? `Next best feedback history: ${contextValue(voiceContext.next_best_conversation_feedback)}`
+      : "",
+    contextValue(voiceContext.voice_recommendation_feedback_tool)
+      ? `Voice feedback tool guidance: ${contextValue(voiceContext.voice_recommendation_feedback_tool)}`
+      : "",
     contextValue(voiceContext.orchestrator_context)
       ? `Orchestrator context: ${contextValue(voiceContext.orchestrator_context)}`
       : "",
@@ -340,7 +417,7 @@ function buildVoiceContextPromptBlock(voiceContext: VoiceDynamicVariables) {
       ? `Communication preferences: ${contextValue(voiceContext.communication_preferences)}`
       : "",
     contextValue(voiceContext.safety_context) ? `Safety context: ${contextValue(voiceContext.safety_context)}` : "",
-  ].filter(Boolean).join("\n").slice(0, 8000);
+  ].filter(Boolean).join("\n").slice(0, 9000);
 }
 
 function buildMem0Messages(history: ConversationTurn[], utterance: string): ConversationTurn[] {
@@ -505,6 +582,18 @@ export async function routerHandler(req: Request, res: Response) {
       console.warn("[router] voice context unavailable:", err);
       return {};
     });
+    await recordRecommendationResponseFromUtterance({
+      userId: user_id,
+      sessionId: session_id,
+      utterance,
+      routedDomain: "safety",
+    });
+    recordShownRecommendationFromContext({
+      userId: user_id,
+      sessionId: session_id,
+      voiceContext,
+      source: "router_safety",
+    });
 
     const system_prompt_override = [
       buildAgentOperatingRules("safety"),
@@ -540,6 +629,10 @@ export async function routerHandler(req: Request, res: Response) {
     if (mem0Key) scheduleMem0Add(mem0UserIdSafe, buildMem0Messages(history, utterance), mem0Key);
 
     const agent_id = agentIdForDomain("safety");
+    const feedbackTokenSafe = await signVoiceRecommendationFeedbackToolToken(user_id, session_id).catch((err) => {
+      console.warn("[router] voice recommendation feedback token unavailable:", err);
+      return "";
+    });
     return res.json({
       agent_id, system_prompt_override,
       dynamic_variables: {
@@ -555,6 +648,8 @@ export async function routerHandler(req: Request, res: Response) {
           firstName: firstSafe,
           memoryBlock: memoryBlockSafe,
         }),
+        conversation_id: session_id,
+        ...(feedbackTokenSafe ? { voice_recommendation_feedback_token: feedbackTokenSafe } : {}),
       },
       session_data: { domain: "safety", intent_confidence: confidence, session_id, turn_count: newTurnSafe, last_agent: lastAgentBeforeSafe },
     });
@@ -629,6 +724,18 @@ export async function routerHandler(req: Request, res: Response) {
     console.warn("[router] voice context unavailable:", err);
     return {};
   });
+  await recordRecommendationResponseFromUtterance({
+    userId: user_id,
+    sessionId: session_id,
+    utterance,
+    routedDomain: domain,
+  });
+  recordShownRecommendationFromContext({
+    userId: user_id,
+    sessionId: session_id,
+    voiceContext,
+    source: "router",
+  });
 
   const system_prompt_override = [
     buildAgentOperatingRules(domain),
@@ -672,6 +779,10 @@ export async function routerHandler(req: Request, res: Response) {
         return "";
       })
     : "";
+  const feedbackToken = await signVoiceRecommendationFeedbackToolToken(user_id, session_id).catch((err) => {
+    console.warn("[router] voice recommendation feedback token unavailable:", err);
+    return "";
+  });
 
   return res.json({
     agent_id, system_prompt_override,
@@ -700,7 +811,8 @@ export async function routerHandler(req: Request, res: Response) {
             context_token: medicalProfileToolToken,
             medical_profile_token: medicalProfileToolToken,
           }
-        : {}),
+        : { conversation_id: session_id }),
+      ...(feedbackToken ? { voice_recommendation_feedback_token: feedbackToken } : {}),
     },
     session_data: { domain, intent_confidence: confidence, session_id, turn_count: newTurn, last_agent: lastAgentBefore },
   });

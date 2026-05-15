@@ -1325,6 +1325,24 @@ export const insertConciergeRecommendationFeedbackSchema = createInsertSchema(co
 export type InsertConciergeRecommendationFeedback = z.infer<typeof insertConciergeRecommendationFeedbackSchema>;
 export type ConciergeRecommendationFeedback = typeof conciergeRecommendationFeedback.$inferSelect;
 
+export const voiceRecommendationFeedback = pgTable("voice_recommendation_feedback", {
+  id:                uuid("id").primaryKey().defaultRandom(),
+  user_id:           text("user_id").notNull(),
+  session_id:        text("session_id"),
+  recommendation_id: text("recommendation_id").notNull(),
+  action:            text("action").notNull(),
+  domain:            text("domain"),
+  title:             text("title"),
+  reason:            text("reason"),
+  source:            text("source").notNull().default("voice"),
+  metadata:          jsonb("metadata").notNull().default({}),
+  created_at:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertVoiceRecommendationFeedbackSchema = createInsertSchema(voiceRecommendationFeedback).omit({ id: true, created_at: true });
+export type InsertVoiceRecommendationFeedback = z.infer<typeof insertVoiceRecommendationFeedbackSchema>;
+export type VoiceRecommendationFeedback = typeof voiceRecommendationFeedback.$inferSelect;
+
 export const homePlanCards = pgTable("home_plan_cards", {
   id:                       uuid("id").primaryKey().defaultRandom(),
   card_id:                  text("card_id").notNull().unique(),
@@ -1419,6 +1437,7 @@ export const schema = {
   conciergeReminders,
   utilityReviewRuns,
   conciergeRecommendationFeedback,
+  voiceRecommendationFeedback,
   homePlanCards,
   heroMessages,
 };
