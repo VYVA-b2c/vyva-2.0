@@ -246,7 +246,7 @@ const SocialHub = () => {
           contextHint="social rooms"
           autoStartVoice={autoStartVoice ? "social" : false}
           showVoiceOverlay={false}
-          activeLabel={t("voiceHero.endCall", "End call")}
+          activeLabel={t("voiceHero.endCall", "Pause listening")}
         />
       </header>
 

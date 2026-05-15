@@ -109,7 +109,7 @@ const ActivitiesScreen = () => {
         contextHint="brain training"
         autoStartVoice={autoStartVoice ? "brain" : false}
         showVoiceOverlay={false}
-        activeLabel={t("voiceHero.endCall", "End call")}
+        activeLabel={t("voiceHero.endCall", "Pause listening")}
       />
 
       <VoiceActionFulfillmentPanel

@@ -51,6 +51,8 @@ export default function VoiceActionFulfillmentPanel({
 }: VoiceActionFulfillmentPanelProps) {
   const {
     action,
+    isActiveActionAccepted,
+    acceptActiveAction,
     completeActiveAction,
     dismissActiveAction,
     payloadEntries,
@@ -59,6 +61,7 @@ export default function VoiceActionFulfillmentPanel({
 
   if (!action) return null;
 
+  const needsTapConfirmation = Boolean(action.requiresConfirmation && !isActiveActionAccepted);
   const visibleHighlights = highlights.filter(hasHighlightValue);
   const visiblePayloadEntries = payloadEntries.filter((entry) =>
     !visibleHighlights.some((highlight) => highlight.label.toLowerCase() === entry.label.toLowerCase()),
@@ -107,7 +110,7 @@ export default function VoiceActionFulfillmentPanel({
         </button>
       </div>
 
-      {(subject || visibleHighlights.length > 0 || visiblePayloadEntries.length > 0 || safetyNote) && (
+      {(subject || visibleHighlights.length > 0 || visiblePayloadEntries.length > 0 || safetyNote || isActiveActionAccepted) && (
         <div className="mt-4 flex flex-wrap gap-2">
           {subject && (
             <span className="rounded-full bg-white px-3 py-1.5 font-body text-[12px] font-bold text-emerald-800 shadow-sm">
@@ -139,22 +142,40 @@ export default function VoiceActionFulfillmentPanel({
               {safetyNote}
             </span>
           )}
+          {isActiveActionAccepted && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1.5 font-body text-[12px] font-bold text-emerald-800 shadow-sm">
+              <CheckCircle2 size={13} />
+              Confirmed
+            </span>
+          )}
         </div>
       )}
 
       <button
         type="button"
-        onClick={() => completeActiveAction({
-          metadata: {
-            source: "voice_action_fulfillment_done",
-            current_action_type: action.actionType ?? action.id,
-          },
-        })}
-        className="mt-4 inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-full bg-emerald-600 px-4 font-body text-[15px] font-bold text-white transition active:scale-[0.98]"
+        onClick={() => {
+          if (needsTapConfirmation) {
+            acceptActiveAction({
+              source: "voice_action_fulfillment_confirm",
+              current_action_type: action.actionType ?? action.id,
+            });
+            return;
+          }
+          completeActiveAction({
+            metadata: {
+              source: "voice_action_fulfillment_done",
+              current_action_type: action.actionType ?? action.id,
+            },
+          });
+        }}
+        className={cn(
+          "mt-4 inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-full px-4 font-body text-[15px] font-bold text-white transition active:scale-[0.98]",
+          needsTapConfirmation ? "bg-amber-600" : "bg-emerald-600",
+        )}
         data-testid="button-complete-voice-action-fulfillment"
       >
         <CheckCircle2 size={18} />
-        {action.completion?.doneLabel ?? "Done"}
+        {needsTapConfirmation ? "Confirm next step" : action.completion?.doneLabel ?? "Done"}
       </button>
     </section>
   );

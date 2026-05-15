@@ -156,6 +156,18 @@ const AdherenceReportScreen = () => {
     if (a.adherencePct !== b.adherencePct) return b.adherencePct - a.adherencePct;
     return a.name.localeCompare(b.name);
   })[0];
+  const inventoryQuestion = voicePayloadValue("inventory_question");
+  const daysRemaining = voicePayloadValue("days_remaining");
+  const inventoryFocusMedication = focusedMedication ?? mostMissedMedication ?? strongestMedication;
+  const inventoryFocusStatus = inventoryFocusMedication
+    ? inventoryFocusMedication.dailyStatus[inventoryFocusMedication.dailyStatus.length - 1] === "none"
+      ? "Still due today"
+      : inventoryFocusMedication.dailyStatus[inventoryFocusMedication.dailyStatus.length - 1] === "taken"
+        ? "Taken today"
+        : "Missed recently"
+    : todayStillDueCount > 0
+      ? `${todayStillDueCount} still due today`
+      : "No medication selected";
   const sortedMedications = [...medications].sort((a, b) => {
     const aMissed = a.dailyStatus.filter((status) => status === "missed").length;
     const bMissed = b.dailyStatus.filter((status) => status === "missed").length;
@@ -367,6 +379,57 @@ const AdherenceReportScreen = () => {
           highlights={voiceActionHighlights}
           className="mb-[14px]"
         />
+
+        {voiceAction && (
+          <section
+            className="mb-[14px] rounded-[22px] border border-vyva-border bg-white p-4"
+            style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}
+            data-testid="panel-voice-medication-inventory"
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#ECFDF5] text-[#0A7C4E]">
+                <ClipboardCheck size={20} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#0A7C4E]">
+                  Inventory and adherence focus
+                </p>
+                <h2 className="mt-1 font-body text-[17px] font-extrabold leading-tight text-vyva-text-1">
+                  {(inventoryFocusMedication?.name ?? focusedMedicationName) || "Medication report"}
+                </h2>
+                <p className="mt-1 font-body text-[14px] leading-[1.45] text-vyva-text-2">
+                  {inventoryQuestion || "Use this page to answer stock, refill, missed dose, and adherence questions."}
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <div className="rounded-[16px] bg-[#F8F7F4] p-3">
+                <p className="font-body text-[11px] font-bold uppercase tracking-[0.06em] text-vyva-text-3">Adherence</p>
+                <p className="mt-1 font-body text-[15px] font-bold text-vyva-text-1">
+                  {inventoryFocusMedication ? `${inventoryFocusMedication.adherencePct}%` : `${data?.weekPct ?? 0}% week`}
+                </p>
+              </div>
+              <div className="rounded-[16px] bg-[#F8F7F4] p-3">
+                <p className="font-body text-[11px] font-bold uppercase tracking-[0.06em] text-vyva-text-3">Missed</p>
+                <p className="mt-1 font-body text-[15px] font-bold text-vyva-text-1">
+                  {inventoryFocusMedication ? inventoryFocusMedication.missedCount : medicationsNeedingAttention.length}
+                </p>
+              </div>
+              <div className="rounded-[16px] bg-[#F8F7F4] p-3">
+                <p className="font-body text-[11px] font-bold uppercase tracking-[0.06em] text-vyva-text-3">Today</p>
+                <p className="mt-1 font-body text-[15px] font-bold text-vyva-text-1">
+                  {inventoryFocusStatus}
+                </p>
+              </div>
+              <div className="rounded-[16px] bg-[#F8F7F4] p-3">
+                <p className="font-body text-[11px] font-bold uppercase tracking-[0.06em] text-vyva-text-3">Stock</p>
+                <p className="mt-1 font-body text-[15px] font-bold text-vyva-text-1">
+                  {daysRemaining ? `${daysRemaining} days` : "Ask / confirm"}
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
 
         {isLoading && (
           <>

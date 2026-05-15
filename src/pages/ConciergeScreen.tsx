@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
+import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { apiFetch } from "@/lib/queryClient";
 
 interface ChatMessage {
@@ -757,6 +758,7 @@ const ConciergeScreen = () => {
   const currentLocaleRef = useRef(i18n.language);
   const saveReadyRef = useRef(false);
   const billInputRef = useRef<HTMLInputElement>(null);
+  const lastAppliedConciergeVoiceActionRef = useRef<string | null>(null);
 
   const [appointmentOpen, setAppointmentOpen] = useState(false);
   const [appointmentNote, setAppointmentNote] = useState("");
@@ -780,6 +782,41 @@ const ConciergeScreen = () => {
   const [utilityLoading, setUtilityLoading] = useState(false);
   const [utilityError, setUtilityError] = useState<string | null>(null);
   const [utilityNotice, setUtilityNotice] = useState<string | null>(null);
+  const {
+    action: conciergeVoiceAction,
+    payloadValue: conciergePayloadValue,
+  } = useVoiceActionFulfillment({
+    domain: "concierge",
+    actionTypes: ["concierge.appointment_help", "concierge.task"],
+  });
+  const conciergeVoiceTaskType = conciergePayloadValue("task_type")
+    || (conciergeVoiceAction?.actionType === "concierge.appointment_help" ? "appointment" : "");
+  const conciergeVoiceProvider = conciergePayloadValue("provider") || conciergePayloadValue("provider_type");
+  const conciergeVoiceDate = conciergePayloadValue("date_preference");
+  const conciergeVoiceLocation = conciergePayloadValue("location");
+  const conciergeVoiceReason = conciergePayloadValue("appointment_reason") || conciergeVoiceAction?.extractedSubject || "";
+  const conciergeVoiceDraft = useMemo(() => {
+    if (!conciergeVoiceAction) return "";
+    const details = [
+      conciergeVoiceTaskType ? `${isSpanish ? "tipo" : "type"}: ${conciergeVoiceTaskType}` : "",
+      conciergeVoiceProvider ? `${isSpanish ? "proveedor" : "provider"}: ${conciergeVoiceProvider}` : "",
+      conciergeVoiceDate ? `${isSpanish ? "fecha" : "date"}: ${conciergeVoiceDate}` : "",
+      conciergeVoiceLocation ? `${isSpanish ? "zona" : "location"}: ${conciergeVoiceLocation}` : "",
+      conciergeVoiceReason ? `${isSpanish ? "motivo" : "reason"}: ${conciergeVoiceReason}` : "",
+    ].filter(Boolean).join(", ");
+    if (isSpanish) {
+      return `Ayudame con ${conciergeVoiceAction.title.toLowerCase()}${details ? ` (${details})` : ""}. Prepara el siguiente paso y pideme confirmacion antes de actuar.`;
+    }
+    return `Help me with ${conciergeVoiceAction.title.toLowerCase()}${details ? ` (${details})` : ""}. Prepare the next step and ask me to confirm before acting.`;
+  }, [
+    conciergeVoiceAction,
+    conciergeVoiceDate,
+    conciergeVoiceLocation,
+    conciergeVoiceProvider,
+    conciergeVoiceReason,
+    conciergeVoiceTaskType,
+    isSpanish,
+  ]);
 
   const { data: pendingActions = [], isLoading: pendingLoading } = useQuery({
     queryKey: ["/api/concierge/actions/pending"],
@@ -825,6 +862,27 @@ const ConciergeScreen = () => {
   useEffect(() => {
     currentLocaleRef.current = i18n.language;
   });
+
+  useEffect(() => {
+    if (!conciergeVoiceAction || !conciergeVoiceDraft) return;
+    const actionKey = `${conciergeVoiceAction.id}:${conciergeVoiceAction.sourceText}`;
+    if (lastAppliedConciergeVoiceActionRef.current === actionKey) return;
+
+    lastAppliedConciergeVoiceActionRef.current = actionKey;
+    const isAppointmentRequest =
+      conciergeVoiceAction.actionType === "concierge.appointment_help"
+      || conciergeVoiceTaskType.toLowerCase().includes("appointment")
+      || conciergeVoiceTaskType.toLowerCase().includes("cita");
+
+    if (isAppointmentRequest) {
+      setAppointmentOpen(true);
+      setOffersOpen(false);
+      setAppointmentNote((current) => current.trim() ? current : conciergeVoiceDraft);
+    }
+
+    setInput((current) => current.trim() ? current : conciergeVoiceDraft);
+    window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  }, [conciergeVoiceAction, conciergeVoiceDraft, conciergeVoiceTaskType]);
 
   useEffect(() => {
     try {
@@ -1354,7 +1412,7 @@ const ConciergeScreen = () => {
         contextHint="concierge"
         autoStartVoice={autoStartVoice ? "concierge" : false}
         showVoiceOverlay={false}
-        activeLabel={t("voiceHero.endCall", "End call")}
+        activeLabel={t("voiceHero.endCall", "Pause listening")}
       />
 
       <VoiceActionFulfillmentPanel
@@ -1366,6 +1424,64 @@ const ConciergeScreen = () => {
           : "VYVA can use the request, date, provider, and location before confirming any action."}
         className="mt-5"
       />
+
+      {conciergeVoiceAction && (
+        <section
+          className="mt-4 rounded-[24px] border border-[#99F6E4] bg-[#F0FDFA] p-4"
+          style={{ boxShadow: "0 12px 32px rgba(15,118,110,0.12)" }}
+          data-testid="panel-voice-concierge-prefill"
+        >
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-[#0F766E]">
+              <Calendar size={20} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#0F766E]">
+                {isSpanish ? "Borrador preparado" : "Draft prepared"}
+              </p>
+              <h2 className="mt-1 font-body text-[17px] font-extrabold leading-tight text-vyva-text-1">
+                {conciergeVoiceAction.title}
+              </h2>
+              <p className="mt-1 font-body text-[14px] leading-[1.45] text-vyva-text-2">
+                {conciergeVoiceDraft}
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {conciergeVoiceTaskType && (
+              <span className="rounded-full bg-white px-3 py-1.5 font-body text-[12px] font-bold text-[#0F766E]">
+                {isSpanish ? "Tipo" : "Type"}: {conciergeVoiceTaskType}
+              </span>
+            )}
+            {conciergeVoiceProvider && (
+              <span className="rounded-full bg-white px-3 py-1.5 font-body text-[12px] font-bold text-vyva-text-2">
+                {isSpanish ? "Proveedor" : "Provider"}: {conciergeVoiceProvider}
+              </span>
+            )}
+            {conciergeVoiceDate && (
+              <span className="rounded-full bg-white px-3 py-1.5 font-body text-[12px] font-bold text-vyva-text-2">
+                {isSpanish ? "Fecha" : "Date"}: {conciergeVoiceDate}
+              </span>
+            )}
+            {conciergeVoiceLocation && (
+              <span className="rounded-full bg-white px-3 py-1.5 font-body text-[12px] font-bold text-vyva-text-2">
+                {isSpanish ? "Zona" : "Location"}: {conciergeVoiceLocation}
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setInput(conciergeVoiceDraft);
+              chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+            className="mt-4 inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-full bg-[#0F766E] px-4 font-body text-[15px] font-bold text-white transition active:scale-[0.98]"
+          >
+            <PencilLine size={18} />
+            {isSpanish ? "Usar este borrador" : "Use this draft"}
+          </button>
+        </section>
+      )}
 
       <section className="mt-5" data-testid="section-concierge-active-task">
         <div className="flex items-center justify-between mb-[10px]">

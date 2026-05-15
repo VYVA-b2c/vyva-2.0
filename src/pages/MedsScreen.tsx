@@ -239,6 +239,15 @@ const MedsScreen = () => {
       ? [{ label: "Today", value: isMedTaken(focusedMedication) ? "Already taken" : `${remainingDoseCount(focusedMedication)} left`, tone: isMedTaken(focusedMedication) ? "good" as const : "warning" as const }]
       : []),
   ];
+  const voiceRoutineFocus = voicePayloadValue("routine_focus");
+  const voiceDoseTime = voicePayloadValue("dose_time");
+  const focusedMedicationStatus = focusedMedication
+    ? isMedTaken(focusedMedication)
+      ? "All scheduled doses taken today"
+      : `${remainingDoseCount(focusedMedication)} scheduled dose${remainingDoseCount(focusedMedication) === 1 ? "" : "s"} still due today`
+    : displayMeds.length > 0
+      ? `${displayMeds.length} medication${displayMeds.length === 1 ? "" : "s"} on today's schedule`
+      : "No medication schedule loaded yet";
 
   const totalScheduledDoseCount = displayMeds.reduce(
     (sum, med) => sum + med.scheduledCountToday,
@@ -372,6 +381,51 @@ const MedsScreen = () => {
         highlights={voiceActionHighlights}
         className="mt-4"
       />
+
+      {voiceAction && (
+        <section
+          className="mt-[14px] rounded-[22px] border border-emerald-200 bg-white p-4"
+          style={{ boxShadow: "0 12px 28px rgba(16,185,129,0.10)" }}
+          data-testid="panel-voice-medication-focus"
+        >
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-emerald-50 text-emerald-700">
+              <Pencil size={19} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-emerald-700">
+                Voice focus
+              </p>
+              <h2 className="mt-1 font-body text-[17px] font-extrabold leading-tight text-vyva-text-1">
+                {(focusedMedication?.displayName ?? focusedMedicationName) || "Medication routine"}
+              </h2>
+              <p className="mt-1 font-body text-[14px] leading-[1.45] text-vyva-text-2">
+                {focusedMedicationStatus}
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="rounded-[16px] bg-[#F7FBF8] p-3">
+              <p className="font-body text-[11px] font-bold uppercase tracking-[0.06em] text-vyva-text-3">Schedule</p>
+              <p className="mt-1 font-body text-[14px] font-bold text-vyva-text-1">
+                {focusedMedication?.displayNote || voiceRoutineFocus || "Daily routine"}
+              </p>
+            </div>
+            <div className="rounded-[16px] bg-[#F7FBF8] p-3">
+              <p className="font-body text-[11px] font-bold uppercase tracking-[0.06em] text-vyva-text-3">Dose time</p>
+              <p className="mt-1 font-body text-[14px] font-bold text-vyva-text-1">
+                {voiceDoseTime || focusedMedication?.scheduledTimeForApi || "Ask VYVA"}
+              </p>
+            </div>
+            <div className="rounded-[16px] bg-[#F7FBF8] p-3">
+              <p className="font-body text-[11px] font-bold uppercase tracking-[0.06em] text-vyva-text-3">Next</p>
+              <p className="mt-1 font-body text-[14px] font-bold text-vyva-text-1">
+                {focusedMedication ? "Review dose, refill, or interaction" : "Pick a medication"}
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Medication info */}
       <div className="mt-[14px] bg-white rounded-[20px] border border-vyva-border overflow-hidden" style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}>
