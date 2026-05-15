@@ -1,0 +1,2168 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/bcwssu",
+    "id": "bcwssu",
+    "slide": 3,
+    "layoutId": "3b575ccd-665d-468f-abdd-b62be0f58573",
+    "layoutName": "Title Slide",
+    "layoutType": "title",
+    "masterLayoutId": "a8fb2d1a-4a40-4dbc-a8ed-1b5de76052fb",
+    "masterLayoutName": "Master",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1920,
+      "height": 1080
+    }
+  },
+  "theme": {
+    "colorSchemeName": "ChatGPT",
+    "colors": {
+      "accent1": "#156082",
+      "accent2": "#E97132",
+      "accent3": "#196B24",
+      "accent4": "#0F9ED5",
+      "accent5": "#A02B93",
+      "accent6": "#4EA72E",
+      "bg1": "#FFFFFF",
+      "bg2": "#000000",
+      "tx1": "#1F1F1F",
+      "tx2": "#FFFFFF",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#0E2841",
+      "lt2": "#E8E8E8",
+      "hlink": "#467886",
+      "folHlink": "#96607D"
+    },
+    "typefaces": [
+      "+mn-lt"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "3b575ccd-665d-468f-abdd-b62be0f58573",
+      "name": "Title Slide",
+      "type": "title",
+      "parentLayoutId": "a8fb2d1a-4a40-4dbc-a8ed-1b5de76052fb",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "a8fb2d1a-4a40-4dbc-a8ed-1b5de76052fb",
+      "name": "Master",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/5o7qpg3e",
+      "id": "1",
+      "name": "slide-bg",
+      "bbox": [
+        0,
+        0,
+        1920,
+        1080
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.0"
+      },
+      "geometry": "rect",
+      "fillColor": "#FFFFFF"
+    },
+    {
+      "order": 2,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/yxobm58z",
+      "id": "2",
+      "bbox": [
+        92,
+        70,
+        1736,
+        22
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.0.0"
+      },
+      "geometry": "rect",
+      "text": "SENIOR EXPERIENCE",
+      "textPreview": "SENIOR EXPERIENCE",
+      "resolvedFontSize": 18,
+      "resolvedTextStyle": {
+        "fontSize": 18,
+        "typeface": "+mn-lt",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "SENIOR EXPERIENCE"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "SENIOR EXPERIENCE",
+          "runs": [
+            {
+              "index": 1,
+              "text": "SENIOR EXPERIENCE",
+              "fontSize": 18,
+              "color": "#8253AB",
+              "bold": true,
+              "alignment": "left"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 3,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/nih4byhg",
+      "id": "3",
+      "name": "slide-title",
+      "bbox": [
+        92,
+        106,
+        1736,
+        68
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.0.1"
+      },
+      "geometry": "rect",
+      "text": "How VYVA supports the senior day to day",
+      "textPreview": "How VYVA supports the senior day to day",
+      "resolvedFontSize": 56,
+      "resolvedTextStyle": {
+        "fontSize": 56,
+        "typeface": "+mn-lt",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "How VYVA supports the senior day to day"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "How VYVA supports the senior day to day",
+          "runs": [
+            {
+              "index": 1,
+              "text": "How VYVA supports the senior day to day",
+              "fontSize": 56,
+              "color": "#171321",
+              "bold": true,
+              "alignment": "left"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 4,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/gr2p8nqx",
+      "id": "4",
+      "name": "slide-subtitle",
+      "bbox": [
+        92,
+        186,
+        622,
+        60
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.0.2"
+      },
+      "geometry": "rect",
+      "text": "Simple voice moments that create visibility for the care team.",
+      "textPreview": "Simple voice moments that create visibility for the care team.",
+      "resolvedFontSize": 25,
+      "resolvedTextStyle": {
+        "fontSize": 25,
+        "typeface": "+mn-lt",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Simple voice moments that create visibility for the care team."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Simple voice moments that create visibility for the care team.",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Simple voice moments that create visibility for the care team.",
+              "fontSize": 25,
+              "color": "#5D5668",
+              "alignment": "left"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/9cvixcze",
+      "id": "5",
+      "name": "dot",
+      "bbox": [
+        92,
+        288,
+        14,
+        14
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.1.0.0"
+      },
+      "geometry": "ellipse",
+      "fillColor": "#8253AB"
+    },
+    {
+      "order": 6,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ylc7u54z",
+      "id": "6",
+      "bbox": [
+        122,
+        288,
+        824,
+        32
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.1.0.1.0"
+      },
+      "geometry": "rect",
+      "text": "Daily voice check-ins",
+      "textPreview": "Daily voice check-ins",
+      "resolvedFontSize": 26,
+      "resolvedTextStyle": {
+        "fontSize": 26,
+        "typeface": "+mn-lt",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Daily voice check-ins"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Daily voice check-ins",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Daily voice check-ins",
+              "fontSize": 26,
+              "color": "#171321",
+              "bold": true,
+              "alignment": "left"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 7,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/r65wjudg",
+      "id": "7",
+      "bbox": [
+        122,
+        324,
+        824,
+        24
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.1.0.1.1"
+      },
+      "geometry": "rect",
+      "text": "A friendly call asks how the senior feels and captures mood signals.",
+      "textPreview": "A friendly call asks how the senior feels and captures mood signals.",
+      "resolvedFontSize": 20,
+      "resolvedTextStyle": {
+        "fontSize": 20,
+        "typeface": "+mn-lt",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "A friendly call asks how the senior feels and captures mood signals."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "A friendly call asks how the senior feels and captures mood signals.",
+          "runs": [
+            {
+              "index": 1,
+              "text": "A friendly call asks how the senior feels and captures mood signals.",
+              "fontSize": 20,
+              "color": "#5D5668",
+              "alignment": "left"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 8,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/gfmlkjm1",
+      "id": "8",
+      "name": "dot",
+      "bbox": [
+        976,
+        288,
+        14,
+        14
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.1.1.0"
+      },
+      "geometry": "ellipse",
+      "fillColor": "#2F8A6D"
+    },
+    {
+      "order": 9,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/90je9cvi",
+      "id": "9",
+      "bbox": [
+        1006,
+        288,
+        824,
+        32
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.1.1.1.0"
+      },
+      "geometry": "rect",
+      "text": "Medication reminders",
+      "textPreview": "Medication reminders",
+      "resolvedFontSize": 26,
+      "resolvedTextStyle": {
+        "fontSize": 26,
+        "typeface": "+mn-lt",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Medication reminders"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Medication reminders",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Medication reminders",
+              "fontSize": 26,
+              "color": "#171321",
+              "bold": true,
+              "alignment": "left"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 10,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/lc7u54zi",
+      "id": "10",
+      "bbox": [
+        1006,
+        324,
+        824,
+        24
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.1.1.1.1"
+      },
+      "geometry": "rect",
+      "text": "VYVA reminds the senior, waits for confirmation, and logs the response.",
+      "textPreview": "VYVA reminds the senior, waits for confirmation, and logs the response.",
+      "resolvedFontSize": 20,
+      "resolvedTextStyle": {
+        "fontSize": 20,
+        "typeface": "+mn-lt",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "VYVA reminds the senior, waits for confirmation, and logs the response."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "VYVA reminds the senior, waits for confirmation, and logs the response.",
+          "runs": [
+            {
+              "index": 1,
+              "text": "VYVA reminds the senior, waits for confirmation, and logs the response.",
+              "fontSize": 20,
+              "color": "#5D5668",
+              "alignment": "left"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 11,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/wra5gbq1",
+      "id": "11",
+      "name": "dot",
+      "bbox": [
+        92,
+        664,
+        14,
+        14
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.1.2.0"
+      },
+      "geometry": "ellipse",
+      "fillColor": "#3266A8"
+    },
+    {
+      "order": 12,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/36hcrmhk",
+      "id": "12",
+      "bbox": [
+        122,
+        664,
+        824,
+        32
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.1.2.1.0"
+      },
+      "geometry": "rect",
+      "text": "Fall detection voice check",
+      "textPreview": "Fall detection voice check",
+      "resolvedFontSize": 26,
+      "resolvedTextStyle": {
+        "fontSize": 26,
+        "typeface": "+mn-lt",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Fall detection voice check"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Fall detection voice check",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Fall detection voice check",
+              "fontSize": 26,
+              "color": "#171321",
+              "bold": true,
+              "alignment": "left"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 13,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/eloj2t83",
+      "id": "13",
+      "bbox": [
+        122,
+        700,
+        824,
+        24
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.1.2.1.1"
+      },
+      "geometry": "rect",
+      "text": "A possible fall triggers an immediate check-in and alert if there is no answer.",
+      "textPreview": "A possible fall triggers an immediate check-in and alert if there is no answer.",
+      "resolvedFontSize": 20,
+      "resolvedTextStyle": {
+        "fontSize": 20,
+        "typeface": "+mn-lt",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "A possible fall triggers an immediate check-in and alert if there is no answer."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "A possible fall triggers an immediate check-in and alert if there is no answer.",
+          "runs": [
+            {
+              "index": 1,
+              "text": "A possible fall triggers an immediate check-in and alert if there is no answer.",
+              "fontSize": 20,
+              "color": "#5D5668",
+              "alignment": "left"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 14,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/l0rqd4vm",
+      "id": "14",
+      "name": "dot",
+      "bbox": [
+        976,
+        664,
+        14,
+        14
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.1.3.0"
+      },
+      "geometry": "ellipse",
+      "fillColor": "#B7791F"
+    },
+    {
+      "order": 15,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/wfyxobm5",
+      "id": "15",
+      "bbox": [
+        1006,
+        664,
+        824,
+        32
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.1.3.1.0"
+      },
+      "geometry": "rect",
+      "text": "Requests without a smartphone",
+      "textPreview": "Requests without a smartphone",
+      "resolvedFontSize": 26,
+      "resolvedTextStyle": {
+        "fontSize": 26,
+        "typeface": "+mn-lt",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Requests without a smartphone"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Requests without a smartphone",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Requests without a smartphone",
+              "fontSize": 26,
+              "color": "#171321",
+              "bold": true,
+              "alignment": "left"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 16,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/7u54zido",
+      "id": "16",
+      "bbox": [
+        1006,
+        700,
+        824,
+        24
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1.1.3.1.1"
+      },
+      "geometry": "rect",
+      "text": "Seniors can ask by voice for food, groceries, or supplies.",
+      "textPreview": "Seniors can ask by voice for food, groceries, or supplies.",
+      "resolvedFontSize": 20,
+      "resolvedTextStyle": {
+        "fontSize": 20,
+        "typeface": "+mn-lt",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Seniors can ask by voice for food, groceries, or supplies."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Seniors can ask by voice for food, groceries, or supplies.",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Seniors can ask by voice for food, groceries, or supplies.",
+              "fontSize": 20,
+              "color": "#5D5668",
+              "alignment": "left"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "composeRuns": [
+    {
+      "index": 1,
+      "frame": {
+        "left": 0,
+        "top": 0,
+        "width": 1920,
+        "height": 1080
+      },
+      "baseUnit": 8,
+      "root": {
+        "path": "0",
+        "kind": "layers",
+        "requestedSize": {
+          "width": {
+            "mode": "fill",
+            "value": 1
+          },
+          "height": {
+            "mode": "fill",
+            "value": 1
+          }
+        },
+        "intrinsicSize": {
+          "width": 0,
+          "height": 0
+        },
+        "frame": {
+          "left": 0,
+          "top": 0,
+          "width": 1920,
+          "height": 1080
+        },
+        "children": [
+          {
+            "path": "0.0",
+            "kind": "shape",
+            "name": "slide-bg",
+            "requestedSize": {
+              "width": {
+                "mode": "fill",
+                "value": 1
+              },
+              "height": {
+                "mode": "fill",
+                "value": 1
+              }
+            },
+            "intrinsicSize": {
+              "width": 0,
+              "height": 0
+            },
+            "frame": {
+              "left": 0,
+              "top": 0,
+              "width": 1920,
+              "height": 1080
+            },
+            "snappedFrame": {
+              "left": 0,
+              "top": 0,
+              "width": 1920,
+              "height": 1080
+            },
+            "children": [],
+            "geometry": "rect",
+            "element": {
+              "aid": "sh/5o7qpg3e",
+              "id": "1",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.1",
+            "kind": "column",
+            "requestedSize": {
+              "width": {
+                "mode": "fill",
+                "value": 1
+              },
+              "height": {
+                "mode": "fill",
+                "value": 1
+              }
+            },
+            "intrinsicSize": {
+              "width": 184,
+              "height": 328.8
+            },
+            "frame": {
+              "left": 0,
+              "top": 0,
+              "width": 1920,
+              "height": 1080
+            },
+            "children": [
+              {
+                "path": "0.1.0",
+                "kind": "column",
+                "name": "title-stack",
+                "requestedSize": {
+                  "width": {
+                    "mode": "fill",
+                    "value": 1
+                  },
+                  "height": {
+                    "mode": "hug"
+                  }
+                },
+                "intrinsicSize": {
+                  "width": 621.81,
+                  "height": 146.8
+                },
+                "frame": {
+                  "left": 92,
+                  "top": 70,
+                  "width": 1736,
+                  "height": 176.8
+                },
+                "children": [
+                  {
+                    "path": "0.1.0.0",
+                    "kind": "text",
+                    "requestedSize": {
+                      "width": {
+                        "mode": "fill",
+                        "value": 1
+                      },
+                      "height": {
+                        "mode": "hug"
+                      }
+                    },
+                    "intrinsicSize": {
+                      "width": 0,
+                      "height": 21.6
+                    },
+                    "frame": {
+                      "left": 92,
+                      "top": 70,
+                      "width": 1736,
+                      "height": 21.6
+                    },
+                    "snappedFrame": {
+                      "left": 92,
+                      "top": 70,
+                      "width": 1736,
+                      "height": 22
+                    },
+                    "children": [],
+                    "text": "SENIOR EXPERIENCE",
+                    "transform": "none",
+                    "element": {
+                      "aid": "sh/yxobm58z",
+                      "id": "2",
+                      "kind": "shape"
+                    }
+                  },
+                  {
+                    "path": "0.1.0.1",
+                    "kind": "text",
+                    "name": "slide-title",
+                    "requestedSize": {
+                      "width": {
+                        "mode": "fill",
+                        "value": 1
+                      },
+                      "height": {
+                        "mode": "hug"
+                      }
+                    },
+                    "intrinsicSize": {
+                      "width": 0,
+                      "height": 67.2
+                    },
+                    "frame": {
+                      "left": 92,
+                      "top": 105.6,
+                      "width": 1736,
+                      "height": 67.2
+                    },
+                    "snappedFrame": {
+                      "left": 92,
+                      "top": 106,
+                      "width": 1736,
+                      "height": 68
+                    },
+                    "children": [],
+                    "text": "How VYVA supports the senior day to day",
+                    "transform": "none",
+                    "element": {
+                      "aid": "sh/nih4byhg",
+                      "id": "3",
+                      "kind": "shape"
+                    }
+                  },
+                  {
+                    "path": "0.1.0.2",
+                    "kind": "text",
+                    "name": "slide-subtitle",
+                    "requestedSize": {
+                      "width": {
+                        "mode": "wrap",
+                        "max": 1120
+                      },
+                      "height": {
+                        "mode": "hug"
+                      }
+                    },
+                    "intrinsicSize": {
+                      "width": 621.81,
+                      "height": 30
+                    },
+                    "frame": {
+                      "left": 92,
+                      "top": 186.8,
+                      "width": 621.81,
+                      "height": 60
+                    },
+                    "snappedFrame": {
+                      "left": 92,
+                      "top": 186,
+                      "width": 622,
+                      "height": 60
+                    },
+                    "children": [],
+                    "text": "Simple voice moments that create visibility for the care team.",
+                    "transform": "none",
+                    "element": {
+                      "aid": "sh/gr2p8nqx",
+                      "id": "4",
+                      "kind": "shape"
+                    }
+                  }
+                ],
+                "padding": {
+                  "top": 0,
+                  "right": 0,
+                  "bottom": 0,
+                  "left": 0
+                },
+                "gap": 14,
+                "effectiveGap": 14,
+                "justifyOffset": 0,
+                "align": "start",
+                "justify": "start",
+                "contentFrame": {
+                  "left": 92,
+                  "top": 70,
+                  "width": 1736,
+                  "height": 176.8
+                },
+                "items": [
+                  {
+                    "path": "0.1.0.0",
+                    "frame": {
+                      "left": 92,
+                      "top": 70,
+                      "width": 1736,
+                      "height": 21.6
+                    }
+                  },
+                  {
+                    "path": "0.1.0.1",
+                    "frame": {
+                      "left": 92,
+                      "top": 105.6,
+                      "width": 1736,
+                      "height": 67.2
+                    }
+                  },
+                  {
+                    "path": "0.1.0.2",
+                    "frame": {
+                      "left": 92,
+                      "top": 186.8,
+                      "width": 621.81,
+                      "height": 60
+                    }
+                  }
+                ]
+              },
+              {
+                "path": "0.1.1",
+                "kind": "grid",
+                "requestedSize": {
+                  "width": {
+                    "mode": "fill",
+                    "value": 1
+                  },
+                  "height": {
+                    "mode": "fill",
+                    "value": 1
+                  }
+                },
+                "intrinsicSize": {
+                  "width": 30,
+                  "height": 30
+                },
+                "frame": {
+                  "left": 92,
+                  "top": 288.8,
+                  "width": 1736,
+                  "height": 721.2
+                },
+                "children": [
+                  {
+                    "path": "0.1.1.0",
+                    "kind": "row",
+                    "name": "value-Daily voice check-ins",
+                    "requestedSize": {
+                      "width": {
+                        "mode": "fill",
+                        "value": 1
+                      },
+                      "height": {
+                        "mode": "hug"
+                      }
+                    },
+                    "intrinsicSize": {
+                      "width": 30,
+                      "height": 59.2
+                    },
+                    "frame": {
+                      "left": 92,
+                      "top": 288.8,
+                      "width": 853,
+                      "height": 345.6
+                    },
+                    "children": [
+                      {
+                        "path": "0.1.1.0.0",
+                        "kind": "shape",
+                        "name": "dot",
+                        "requestedSize": {
+                          "width": {
+                            "mode": "fixed",
+                            "value": 14
+                          },
+                          "height": {
+                            "mode": "fixed",
+                            "value": 14
+                          }
+                        },
+                        "intrinsicSize": {
+                          "width": 14,
+                          "height": 14
+                        },
+                        "frame": {
+                          "left": 92,
+                          "top": 288.8,
+                          "width": 14,
+                          "height": 14
+                        },
+                        "snappedFrame": {
+                          "left": 92,
+                          "top": 288,
+                          "width": 14,
+                          "height": 14
+                        },
+                        "children": [],
+                        "geometry": "ellipse",
+                        "element": {
+                          "aid": "sh/9cvixcze",
+                          "id": "5",
+                          "kind": "shape"
+                        }
+                      },
+                      {
+                        "path": "0.1.1.0.1",
+                        "kind": "column",
+                        "requestedSize": {
+                          "width": {
+                            "mode": "fill",
+                            "value": 1
+                          },
+                          "height": {
+                            "mode": "hug"
+                          }
+                        },
+                        "intrinsicSize": {
+                          "width": 0,
+                          "height": 59.2
+                        },
+                        "frame": {
+                          "left": 122,
+                          "top": 288.8,
+                          "width": 823,
+                          "height": 59.2
+                        },
+                        "children": [
+                          {
+                            "path": "0.1.1.0.1.0",
+                            "kind": "text",
+                            "requestedSize": {
+                              "width": {
+                                "mode": "fill",
+                                "value": 1
+                              },
+                              "height": {
+                                "mode": "hug"
+                              }
+                            },
+                            "intrinsicSize": {
+                              "width": 0,
+                              "height": 31.2
+                            },
+                            "frame": {
+                              "left": 122,
+                              "top": 288.8,
+                              "width": 823,
+                              "height": 31.2
+                            },
+                            "snappedFrame": {
+                              "left": 122,
+                              "top": 288,
+                              "width": 824,
+                              "height": 32
+                            },
+                            "children": [],
+                            "text": "Daily voice check-ins",
+                            "transform": "none",
+                            "element": {
+                              "aid": "sh/ylc7u54z",
+                              "id": "6",
+                              "kind": "shape"
+                            }
+                          },
+                          {
+                            "path": "0.1.1.0.1.1",
+                            "kind": "text",
+                            "requestedSize": {
+                              "width": {
+                                "mode": "fill",
+                                "value": 1
+                              },
+                              "height": {
+                                "mode": "hug"
+                              }
+                            },
+                            "intrinsicSize": {
+                              "width": 0,
+                              "height": 24
+                            },
+                            "frame": {
+                              "left": 122,
+                              "top": 324,
+                              "width": 823,
+                              "height": 24
+                            },
+                            "snappedFrame": {
+                              "left": 122,
+                              "top": 324,
+                              "width": 824,
+                              "height": 24
+                            },
+                            "children": [],
+                            "text": "A friendly call asks how the senior feels and captures mood signals.",
+                            "transform": "none",
+                            "element": {
+                              "aid": "sh/r65wjudg",
+                              "id": "7",
+                              "kind": "shape"
+                            }
+                          }
+                        ],
+                        "padding": {
+                          "top": 0,
+                          "right": 0,
+                          "bottom": 0,
+                          "left": 0
+                        },
+                        "gap": 4,
+                        "effectiveGap": 4,
+                        "justifyOffset": 0,
+                        "align": "start",
+                        "justify": "start",
+                        "contentFrame": {
+                          "left": 122,
+                          "top": 288.8,
+                          "width": 823,
+                          "height": 59.2
+                        },
+                        "items": [
+                          {
+                            "path": "0.1.1.0.1.0",
+                            "frame": {
+                              "left": 122,
+                              "top": 288.8,
+                              "width": 823,
+                              "height": 31.2
+                            }
+                          },
+                          {
+                            "path": "0.1.1.0.1.1",
+                            "frame": {
+                              "left": 122,
+                              "top": 324,
+                              "width": 823,
+                              "height": 24
+                            }
+                          }
+                        ]
+                      }
+                    ],
+                    "padding": {
+                      "top": 0,
+                      "right": 0,
+                      "bottom": 0,
+                      "left": 0
+                    },
+                    "gap": 16,
+                    "effectiveGap": 16,
+                    "justifyOffset": 0,
+                    "align": "start",
+                    "justify": "start",
+                    "contentFrame": {
+                      "left": 92,
+                      "top": 288.8,
+                      "width": 853,
+                      "height": 345.6
+                    },
+                    "items": [
+                      {
+                        "path": "0.1.1.0.0",
+                        "frame": {
+                          "left": 92,
+                          "top": 288.8,
+                          "width": 14,
+                          "height": 14
+                        }
+                      },
+                      {
+                        "path": "0.1.1.0.1",
+                        "frame": {
+                          "left": 122,
+                          "top": 288.8,
+                          "width": 823,
+                          "height": 59.2
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "path": "0.1.1.1",
+                    "kind": "row",
+                    "name": "value-Medication reminders",
+                    "requestedSize": {
+                      "width": {
+                        "mode": "fill",
+                        "value": 1
+                      },
+                      "height": {
+                        "mode": "hug"
+                      }
+                    },
+                    "intrinsicSize": {
+                      "width": 30,
+                      "height": 59.2
+                    },
+                    "frame": {
+                      "left": 975,
+                      "top": 288.8,
+                      "width": 853,
+                      "height": 345.6
+                    },
+                    "children": [
+                      {
+                        "path": "0.1.1.1.0",
+                        "kind": "shape",
+                        "name": "dot",
+                        "requestedSize": {
+                          "width": {
+                            "mode": "fixed",
+                            "value": 14
+                          },
+                          "height": {
+                            "mode": "fixed",
+                            "value": 14
+                          }
+                        },
+                        "intrinsicSize": {
+                          "width": 14,
+                          "height": 14
+                        },
+                        "frame": {
+                          "left": 975,
+                          "top": 288.8,
+                          "width": 14,
+                          "height": 14
+                        },
+                        "snappedFrame": {
+                          "left": 976,
+                          "top": 288,
+                          "width": 14,
+                          "height": 14
+                        },
+                        "children": [],
+                        "geometry": "ellipse",
+                        "element": {
+                          "aid": "sh/gfmlkjm1",
+                          "id": "8",
+                          "kind": "shape"
+                        }
+                      },
+                      {
+                        "path": "0.1.1.1.1",
+                        "kind": "column",
+                        "requestedSize": {
+                          "width": {
+                            "mode": "fill",
+                            "value": 1
+                          },
+                          "height": {
+                            "mode": "hug"
+                          }
+                        },
+                        "intrinsicSize": {
+                          "width": 0,
+                          "height": 59.2
+                        },
+                        "frame": {
+                          "left": 1005,
+                          "top": 288.8,
+                          "width": 823,
+                          "height": 59.2
+                        },
+                        "children": [
+                          {
+                            "path": "0.1.1.1.1.0",
+                            "kind": "text",
+                            "requestedSize": {
+                              "width": {
+                                "mode": "fill",
+                                "value": 1
+                              },
+                              "height": {
+                                "mode": "hug"
+                              }
+                            },
+                            "intrinsicSize": {
+                              "width": 0,
+                              "height": 31.2
+                            },
+                            "frame": {
+                              "left": 1005,
+                              "top": 288.8,
+                              "width": 823,
+                              "height": 31.2
+                            },
+                            "snappedFrame": {
+                              "left": 1006,
+                              "top": 288,
+                              "width": 824,
+                              "height": 32
+                            },
+                            "children": [],
+                            "text": "Medication reminders",
+                            "transform": "none",
+                            "element": {
+                              "aid": "sh/90je9cvi",
+                              "id": "9",
+                              "kind": "shape"
+                            }
+                          },
+                          {
+                            "path": "0.1.1.1.1.1",
+                            "kind": "text",
+                            "requestedSize": {
+                              "width": {
+                                "mode": "fill",
+                                "value": 1
+                              },
+                              "height": {
+                                "mode": "hug"
+                              }
+                            },
+                            "intrinsicSize": {
+                              "width": 0,
+                              "height": 24
+                            },
+                            "frame": {
+                              "left": 1005,
+                              "top": 324,
+                              "width": 823,
+                              "height": 24
+                            },
+                            "snappedFrame": {
+                              "left": 1006,
+                              "top": 324,
+                              "width": 824,
+                              "height": 24
+                            },
+                            "children": [],
+                            "text": "VYVA reminds the senior, waits for confirmation, and logs the response.",
+                            "transform": "none",
+                            "element": {
+                              "aid": "sh/lc7u54zi",
+                              "id": "10",
+                              "kind": "shape"
+                            }
+                          }
+                        ],
+                        "padding": {
+                          "top": 0,
+                          "right": 0,
+                          "bottom": 0,
+                          "left": 0
+                        },
+                        "gap": 4,
+                        "effectiveGap": 4,
+                        "justifyOffset": 0,
+                        "align": "start",
+                        "justify": "start",
+                        "contentFrame": {
+                          "left": 1005,
+                          "top": 288.8,
+                          "width": 823,
+                          "height": 59.2
+                        },
+                        "items": [
+                          {
+                            "path": "0.1.1.1.1.0",
+                            "frame": {
+                              "left": 1005,
+                              "top": 288.8,
+                              "width": 823,
+                              "height": 31.2
+                            }
+                          },
+                          {
+                            "path": "0.1.1.1.1.1",
+                            "frame": {
+                              "left": 1005,
+                              "top": 324,
+                              "width": 823,
+                              "height": 24
+                            }
+                          }
+                        ]
+                      }
+                    ],
+                    "padding": {
+                      "top": 0,
+                      "right": 0,
+                      "bottom": 0,
+                      "left": 0
+                    },
+                    "gap": 16,
+                    "effectiveGap": 16,
+                    "justifyOffset": 0,
+                    "align": "start",
+                    "justify": "start",
+                    "contentFrame": {
+                      "left": 975,
+                      "top": 288.8,
+                      "width": 853,
+                      "height": 345.6
+                    },
+                    "items": [
+                      {
+                        "path": "0.1.1.1.0",
+                        "frame": {
+                          "left": 975,
+                          "top": 288.8,
+                          "width": 14,
+                          "height": 14
+                        }
+                      },
+                      {
+                        "path": "0.1.1.1.1",
+                        "frame": {
+                          "left": 1005,
+                          "top": 288.8,
+                          "width": 823,
+                          "height": 59.2
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "path": "0.1.1.2",
+                    "kind": "row",
+                    "name": "value-Fall detection voice check",
+                    "requestedSize": {
+                      "width": {
+                        "mode": "fill",
+                        "value": 1
+                      },
+                      "height": {
+                        "mode": "hug"
+                      }
+                    },
+                    "intrinsicSize": {
+                      "width": 30,
+                      "height": 59.2
+                    },
+                    "frame": {
+                      "left": 92,
+                      "top": 664.4,
+                      "width": 853,
+                      "height": 345.6
+                    },
+                    "children": [
+                      {
+                        "path": "0.1.1.2.0",
+                        "kind": "shape",
+                        "name": "dot",
+                        "requestedSize": {
+                          "width": {
+                            "mode": "fixed",
+                            "value": 14
+                          },
+                          "height": {
+                            "mode": "fixed",
+                            "value": 14
+                          }
+                        },
+                        "intrinsicSize": {
+                          "width": 14,
+                          "height": 14
+                        },
+                        "frame": {
+                          "left": 92,
+                          "top": 664.4,
+                          "width": 14,
+                          "height": 14
+                        },
+                        "snappedFrame": {
+                          "left": 92,
+                          "top": 664,
+                          "width": 14,
+                          "height": 14
+                        },
+                        "children": [],
+                        "geometry": "ellipse",
+                        "element": {
+                          "aid": "sh/wra5gbq1",
+                          "id": "11",
+                          "kind": "shape"
+                        }
+                      },
+                      {
+                        "path": "0.1.1.2.1",
+                        "kind": "column",
+                        "requestedSize": {
+                          "width": {
+                            "mode": "fill",
+                            "value": 1
+                          },
+                          "height": {
+                            "mode": "hug"
+                          }
+                        },
+                        "intrinsicSize": {
+                          "width": 0,
+                          "height": 59.2
+                        },
+                        "frame": {
+                          "left": 122,
+                          "top": 664.4,
+                          "width": 823,
+                          "height": 59.2
+                        },
+                        "children": [
+                          {
+                            "path": "0.1.1.2.1.0",
+                            "kind": "text",
+                            "requestedSize": {
+                              "width": {
+                                "mode": "fill",
+                                "value": 1
+                              },
+                              "height": {
+                                "mode": "hug"
+                              }
+                            },
+                            "intrinsicSize": {
+                              "width": 0,
+                              "height": 31.2
+                            },
+                            "frame": {
+                              "left": 122,
+                              "top": 664.4,
+                              "width": 823,
+                              "height": 31.2
+                            },
+                            "snappedFrame": {
+                              "left": 122,
+                              "top": 664,
+                              "width": 824,
+                              "height": 32
+                            },
+                            "children": [],
+                            "text": "Fall detection voice check",
+                            "transform": "none",
+                            "element": {
+                              "aid": "sh/36hcrmhk",
+                              "id": "12",
+                              "kind": "shape"
+                            }
+                          },
+                          {
+                            "path": "0.1.1.2.1.1",
+                            "kind": "text",
+                            "requestedSize": {
+                              "width": {
+                                "mode": "fill",
+                                "value": 1
+                              },
+                              "height": {
+                                "mode": "hug"
+                              }
+                            },
+                            "intrinsicSize": {
+                              "width": 0,
+                              "height": 24
+                            },
+                            "frame": {
+                              "left": 122,
+                              "top": 699.6,
+                              "width": 823,
+                              "height": 24
+                            },
+                            "snappedFrame": {
+                              "left": 122,
+                              "top": 700,
+                              "width": 824,
+                              "height": 24
+                            },
+                            "children": [],
+                            "text": "A possible fall triggers an immediate check-in and alert if there is no answer.",
+                            "transform": "none",
+                            "element": {
+                              "aid": "sh/eloj2t83",
+                              "id": "13",
+                              "kind": "shape"
+                            }
+                          }
+                        ],
+                        "padding": {
+                          "top": 0,
+                          "right": 0,
+                          "bottom": 0,
+                          "left": 0
+                        },
+                        "gap": 4,
+                        "effectiveGap": 4,
+                        "justifyOffset": 0,
+                        "align": "start",
+                        "justify": "start",
+                        "contentFrame": {
+                          "left": 122,
+                          "top": 664.4,
+                          "width": 823,
+                          "height": 59.2
+                        },
+                        "items": [
+                          {
+                            "path": "0.1.1.2.1.0",
+                            "frame": {
+                              "left": 122,
+                              "top": 664.4,
+                              "width": 823,
+                              "height": 31.2
+                            }
+                          },
+                          {
+                            "path": "0.1.1.2.1.1",
+                            "frame": {
+                              "left": 122,
+                              "top": 699.6,
+                              "width": 823,
+                              "height": 24
+                            }
+                          }
+                        ]
+                      }
+                    ],
+                    "padding": {
+                      "top": 0,
+                      "right": 0,
+                      "bottom": 0,
+                      "left": 0
+                    },
+                    "gap": 16,
+                    "effectiveGap": 16,
+                    "justifyOffset": 0,
+                    "align": "start",
+                    "justify": "start",
+                    "contentFrame": {
+                      "left": 92,
+                      "top": 664.4,
+                      "width": 853,
+                      "height": 345.6
+                    },
+                    "items": [
+                      {
+                        "path": "0.1.1.2.0",
+                        "frame": {
+                          "left": 92,
+                          "top": 664.4,
+                          "width": 14,
+                          "height": 14
+                        }
+                      },
+                      {
+                        "path": "0.1.1.2.1",
+                        "frame": {
+                          "left": 122,
+                          "top": 664.4,
+                          "width": 823,
+                          "height": 59.2
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "path": "0.1.1.3",
+                    "kind": "row",
+                    "name": "value-Requests without a smartphone",
+                    "requestedSize": {
+                      "width": {
+                        "mode": "fill",
+                        "value": 1
+                      },
+                      "height": {
+                        "mode": "hug"
+                      }
+                    },
+                    "intrinsicSize": {
+                      "width": 30,
+                      "height": 59.2
+                    },
+                    "frame": {
+                      "left": 975,
+                      "top": 664.4,
+                      "width": 853,
+                      "height": 345.6
+                    },
+                    "children": [
+                      {
+                        "path": "0.1.1.3.0",
+                        "kind": "shape",
+                        "name": "dot",
+                        "requestedSize": {
+                          "width": {
+                            "mode": "fixed",
+                            "value": 14
+                          },
+                          "height": {
+                            "mode": "fixed",
+                            "value": 14
+                          }
+                        },
+                        "intrinsicSize": {
+                          "width": 14,
+                          "height": 14
+                        },
+                        "frame": {
+                          "left": 975,
+                          "top": 664.4,
+                          "width": 14,
+                          "height": 14
+                        },
+                        "snappedFrame": {
+                          "left": 976,
+                          "top": 664,
+                          "width": 14,
+                          "height": 14
+                        },
+                        "children": [],
+                        "geometry": "ellipse",
+                        "element": {
+                          "aid": "sh/l0rqd4vm",
+                          "id": "14",
+                          "kind": "shape"
+                        }
+                      },
+                      {
+                        "path": "0.1.1.3.1",
+                        "kind": "column",
+                        "requestedSize": {
+                          "width": {
+                            "mode": "fill",
+                            "value": 1
+                          },
+                          "height": {
+                            "mode": "hug"
+                          }
+                        },
+                        "intrinsicSize": {
+                          "width": 0,
+                          "height": 59.2
+                        },
+                        "frame": {
+                          "left": 1005,
+                          "top": 664.4,
+                          "width": 823,
+                          "height": 59.2
+                        },
+                        "children": [
+                          {
+                            "path": "0.1.1.3.1.0",
+                            "kind": "text",
+                            "requestedSize": {
+                              "width": {
+                                "mode": "fill",
+                                "value": 1
+                              },
+                              "height": {
+                                "mode": "hug"
+                              }
+                            },
+                            "intrinsicSize": {
+                              "width": 0,
+                              "height": 31.2
+                            },
+                            "frame": {
+                              "left": 1005,
+                              "top": 664.4,
+                              "width": 823,
+                              "height": 31.2
+                            },
+                            "snappedFrame": {
+                              "left": 1006,
+                              "top": 664,
+                              "width": 824,
+                              "height": 32
+                            },
+                            "children": [],
+                            "text": "Requests without a smartphone",
+                            "transform": "none",
+                            "element": {
+                              "aid": "sh/wfyxobm5",
+                              "id": "15",
+                              "kind": "shape"
+                            }
+                          },
+                          {
+                            "path": "0.1.1.3.1.1",
+                            "kind": "text",
+                            "requestedSize": {
+                              "width": {
+                                "mode": "fill",
+                                "value": 1
+                              },
+                              "height": {
+                                "mode": "hug"
+                              }
+                            },
+                            "intrinsicSize": {
+                              "width": 0,
+                              "height": 24
+                            },
+                            "frame": {
+                              "left": 1005,
+                              "top": 699.6,
+                              "width": 823,
+                              "height": 24
+                            },
+                            "snappedFrame": {
+                              "left": 1006,
+                              "top": 700,
+                              "width": 824,
+                              "height": 24
+                            },
+                            "children": [],
+                            "text": "Seniors can ask by voice for food, groceries, or supplies.",
+                            "transform": "none",
+                            "element": {
+                              "aid": "sh/7u54zido",
+                              "id": "16",
+                              "kind": "shape"
+                            }
+                          }
+                        ],
+                        "padding": {
+                          "top": 0,
+                          "right": 0,
+                          "bottom": 0,
+                          "left": 0
+                        },
+                        "gap": 4,
+                        "effectiveGap": 4,
+                        "justifyOffset": 0,
+                        "align": "start",
+                        "justify": "start",
+                        "contentFrame": {
+                          "left": 1005,
+                          "top": 664.4,
+                          "width": 823,
+                          "height": 59.2
+                        },
+                        "items": [
+                          {
+                            "path": "0.1.1.3.1.0",
+                            "frame": {
+                              "left": 1005,
+                              "top": 664.4,
+                              "width": 823,
+                              "height": 31.2
+                            }
+                          },
+                          {
+                            "path": "0.1.1.3.1.1",
+                            "frame": {
+                              "left": 1005,
+                              "top": 699.6,
+                              "width": 823,
+                              "height": 24
+                            }
+                          }
+                        ]
+                      }
+                    ],
+                    "padding": {
+                      "top": 0,
+                      "right": 0,
+                      "bottom": 0,
+                      "left": 0
+                    },
+                    "gap": 16,
+                    "effectiveGap": 16,
+                    "justifyOffset": 0,
+                    "align": "start",
+                    "justify": "start",
+                    "contentFrame": {
+                      "left": 975,
+                      "top": 664.4,
+                      "width": 853,
+                      "height": 345.6
+                    },
+                    "items": [
+                      {
+                        "path": "0.1.1.3.0",
+                        "frame": {
+                          "left": 975,
+                          "top": 664.4,
+                          "width": 14,
+                          "height": 14
+                        }
+                      },
+                      {
+                        "path": "0.1.1.3.1",
+                        "frame": {
+                          "left": 1005,
+                          "top": 664.4,
+                          "width": 823,
+                          "height": 59.2
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "padding": {
+                  "top": 0,
+                  "right": 0,
+                  "bottom": 0,
+                  "left": 0
+                },
+                "columnGap": 30,
+                "rowGap": 30,
+                "alignItems": "stretch",
+                "justifyItems": "stretch",
+                "contentFrame": {
+                  "left": 92,
+                  "top": 288.8,
+                  "width": 1736,
+                  "height": 721.2
+                },
+                "columns": [
+                  {
+                    "mode": "fr",
+                    "value": 1
+                  },
+                  {
+                    "mode": "fr",
+                    "value": 1
+                  }
+                ],
+                "rows": [
+                  {
+                    "mode": "fr",
+                    "value": 1
+                  },
+                  {
+                    "mode": "fr",
+                    "value": 1
+                  }
+                ],
+                "autoRows": "auto",
+                "resolvedRows": [
+                  {
+                    "mode": "fr",
+                    "value": 1
+                  },
+                  {
+                    "mode": "fr",
+                    "value": 1
+                  }
+                ],
+                "columnSizes": [
+                  853,
+                  853
+                ],
+                "rowSizes": [
+                  345.6,
+                  345.6
+                ],
+                "cells": [
+                  {
+                    "path": "0.1.1.0",
+                    "column": 0,
+                    "row": 0,
+                    "columnSpan": 1,
+                    "rowSpan": 1,
+                    "cellFrame": {
+                      "left": 92,
+                      "top": 288.8,
+                      "width": 853,
+                      "height": 345.6
+                    }
+                  },
+                  {
+                    "path": "0.1.1.1",
+                    "column": 1,
+                    "row": 0,
+                    "columnSpan": 1,
+                    "rowSpan": 1,
+                    "cellFrame": {
+                      "left": 975,
+                      "top": 288.8,
+                      "width": 853,
+                      "height": 345.6
+                    }
+                  },
+                  {
+                    "path": "0.1.1.2",
+                    "column": 0,
+                    "row": 1,
+                    "columnSpan": 1,
+                    "rowSpan": 1,
+                    "cellFrame": {
+                      "left": 92,
+                      "top": 664.4,
+                      "width": 853,
+                      "height": 345.6
+                    }
+                  },
+                  {
+                    "path": "0.1.1.3",
+                    "column": 1,
+                    "row": 1,
+                    "columnSpan": 1,
+                    "rowSpan": 1,
+                    "cellFrame": {
+                      "left": 975,
+                      "top": 664.4,
+                      "width": 853,
+                      "height": 345.6
+                    }
+                  }
+                ]
+              }
+            ],
+            "padding": {
+              "top": 70,
+              "right": 92,
+              "bottom": 70,
+              "left": 92
+            },
+            "gap": 42,
+            "effectiveGap": 42,
+            "justifyOffset": 0,
+            "align": "start",
+            "justify": "start",
+            "contentFrame": {
+              "left": 92,
+              "top": 70,
+              "width": 1736,
+              "height": 940
+            },
+            "items": [
+              {
+                "path": "0.1.0",
+                "frame": {
+                  "left": 92,
+                  "top": 70,
+                  "width": 1736,
+                  "height": 176.8
+                }
+              },
+              {
+                "path": "0.1.1",
+                "frame": {
+                  "left": 92,
+                  "top": 288.8,
+                  "width": 1736,
+                  "height": 721.2
+                }
+              }
+            ]
+          }
+        ],
+        "padding": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        },
+        "alignItems": "stretch",
+        "justifyItems": "stretch",
+        "contentFrame": {
+          "left": 0,
+          "top": 0,
+          "width": 1920,
+          "height": 1080
+        },
+        "items": [
+          {
+            "path": "0.0",
+            "frame": {
+              "left": 0,
+              "top": 0,
+              "width": 1920,
+              "height": 1080
+            }
+          },
+          {
+            "path": "0.1",
+            "frame": {
+              "left": 0,
+              "top": 0,
+              "width": 1920,
+              "height": 1080
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

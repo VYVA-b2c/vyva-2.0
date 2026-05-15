@@ -2,7 +2,8 @@ import { Router } from "express";
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { pool } from "../db.js";
-import { authMiddleware } from "../middleware/auth.js";
+import { authMiddleware, requireUser } from "../middleware/auth.js";
+import { requireEntitlement } from "../middleware/entitlements.js";
 import {
   CONCIERGE_USE_CASES,
   cancelPendingConciergeAction,
@@ -38,7 +39,7 @@ const triggerSchema = z.object({
   auto_start: z.boolean().optional().default(true),
 });
 
-router.use(authMiddleware);
+router.use(authMiddleware, requireUser, requireEntitlement("concierge"));
 
 router.post("/trigger", async (req: Request, res: Response) => {
   const userId = resolveUserId(req);
