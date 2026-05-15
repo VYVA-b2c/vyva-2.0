@@ -1,20 +1,21 @@
-import { ReactNode, useEffect, useRef, useState } from "react";
+import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AlertCircle } from "lucide-react";
 import StatusBar from "./StatusBar";
 import BottomNav from "./BottomNav";
 import VoiceCallOverlay from "./VoiceCallOverlay";
+import VoiceActionCard from "./VoiceActionCard";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 import {
   actionForVoiceUtterance,
   emitVoiceAppAction,
   VYVA_VOICE_USER_MESSAGE_EVENT,
-  type VoiceAppAction,
   type VoiceUserMessageDetail,
 } from "@/lib/voiceNavigation";
 import { useServiceGate } from "@/hooks/useServiceGate";
 import { useToastSurface } from "@/hooks/useToastSurface";
+import { useVoiceActionContext } from "@/contexts/VoiceActionContext";
 
 const FULL_SCREEN_ROUTES = ["/chat", "/spatial-navigator", "/face-name-match"];
 const WIDE_ROUTES = ["/social-rooms", "/spatial-navigator", "/face-name-match"];
@@ -72,11 +73,19 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const location = useLocation();
   const { canUseService, guardPath } = useServiceGate();
   const [sosOpen, setSosOpen] = useState(false);
-  const [activeVoiceAction, setActiveVoiceAction] = useState<VoiceAppAction | null>(null);
   const lastVoiceActionRef = useRef<{ key: string; at: number } | null>(null);
   const { status, isConnecting, isSpeaking, transcript, stopVoice, sendContextUpdate, recordRecommendationFeedback } = useVyvaVoice();
+  const {
+    activeAction: activeVoiceAction,
+    completeActiveAction,
+    dismissActiveAction,
+  } = useVoiceActionContext();
   const isFullScreen = FULL_SCREEN_ROUTES.includes(location.pathname);
   const isWideRoute = WIDE_ROUTES.some((route) => location.pathname.startsWith(route));
+  const voiceActionRouteMatches = activeVoiceAction
+    ? location.pathname === activeVoiceAction.route || location.pathname.startsWith(`${activeVoiceAction.route}/`)
+    : false;
+  const showInlineVoiceAction = Boolean(!isFullScreen && activeVoiceAction && voiceActionRouteMatches);
   const showVoiceOverlay = status === "connected" || isConnecting;
   const toastSurfaceRef = useToastSurface<HTMLDivElement>(isFullScreen ? 24 : 112);
 
@@ -96,7 +105,6 @@ const AppShell = ({ children }: { children: ReactNode }) => {
       if (previous?.key === actionKey && now - previous.at < 3500) return;
 
       lastVoiceActionRef.current = { key: actionKey, at: now };
-      setActiveVoiceAction(action);
       emitVoiceAppAction(action);
       sendContextUpdate(
         `App action opened: ${action.title}. Route: ${action.route}. Context: ${action.cue}`,
@@ -136,38 +144,51 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (!activeVoiceAction) return;
-    if (location.pathname !== activeVoiceAction.route) return;
+    if (!voiceActionRouteMatches) return;
 
     const timer = window.setTimeout(() => {
-      void recordRecommendationFeedback("completed", {
-        source: "app_voice_action_route_landed",
-        voice_action_id: activeVoiceAction.id,
-        voice_action_domain: activeVoiceAction.domain,
-        voice_action_route: activeVoiceAction.route,
-        voice_action_title: activeVoiceAction.title,
-        voice_action_reason: activeVoiceAction.feedbackReason,
-      }, {
-        id: activeVoiceAction.id,
-        domain: activeVoiceAction.domain,
-        title: activeVoiceAction.title,
-        reason: activeVoiceAction.feedbackReason,
+      completeActiveAction({
+        clear: false,
+        metadata: {
+          source: "app_voice_action_route_landed",
+          current_path: location.pathname,
+        },
       });
     }, 1400);
 
     return () => window.clearTimeout(timer);
-  }, [activeVoiceAction, location.pathname, recordRecommendationFeedback]);
+  }, [activeVoiceAction, completeActiveAction, location.pathname, voiceActionRouteMatches]);
 
-  useEffect(() => {
-    if (!activeVoiceAction) return;
-    const timer = window.setTimeout(() => setActiveVoiceAction(null), 18000);
-    return () => window.clearTimeout(timer);
-  }, [activeVoiceAction]);
+  const handleCompleteVoiceAction = useCallback(() => {
+    completeActiveAction({
+      metadata: {
+        source: "voice_action_card_done",
+        current_path: location.pathname,
+      },
+    });
+  }, [completeActiveAction, location.pathname]);
+
+  const handleDismissVoiceAction = useCallback(() => {
+    dismissActiveAction({
+      source: "voice_action_card_hide",
+      current_path: location.pathname,
+    });
+  }, [dismissActiveAction, location.pathname]);
 
   return (
     <div className="flex min-h-screen justify-center bg-[radial-gradient(circle_at_top,#fffaf2_0%,#f7f1e9_42%,#f4efe8_100%)]">
       <div ref={toastSurfaceRef} className={`relative w-full ${isWideRoute ? "max-w-[768px]" : "max-w-[520px]"}`}>
         {!isFullScreen && <StatusBar />}
         <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : "pt-[76px] pb-[104px]"}`}>
+          {showInlineVoiceAction && activeVoiceAction && (
+            <div className="px-[22px] pb-3 pt-2">
+              <VoiceActionCard
+                action={activeVoiceAction}
+                onComplete={handleCompleteVoiceAction}
+                onDismiss={handleDismissVoiceAction}
+              />
+            </div>
+          )}
           {children}
         </main>
         {!isFullScreen && <BottomNav onSosClick={() => {

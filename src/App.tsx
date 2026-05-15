@@ -10,6 +10,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { ProfileProvider } from "@/contexts/ProfileContext";
+import { VoiceActionProvider } from "@/contexts/VoiceActionContext";
 import { VyvaVoiceProvider } from "@/hooks/useVyvaVoice";
 import { recordAgentButtonClick, recordAgentPageChange } from "@/lib/agentAppContext";
 import LoginPage from "@/pages/LoginPage";
@@ -259,8 +260,9 @@ const App = () => (
             <Sonner />
             <BrowserRouter>
               <VyvaVoiceProvider>
-                <AgentAppContextTracker />
-                <Routes>
+                <VoiceActionProvider>
+                  <AgentAppContextTracker />
+                  <Routes>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/admin/login" element={<LoginPage adminOnly />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
@@ -328,7 +330,8 @@ const App = () => (
                   <Route path="/history" element={<AppShell><HistoryScreen /></AppShell>} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
-                </Routes>
+                  </Routes>
+                </VoiceActionProvider>
               </VyvaVoiceProvider>
             </BrowserRouter>
           </TooltipProvider>
