@@ -389,6 +389,7 @@ async function createDefaultSchedules(userId: string) {
   if (toCreate.length) {
     await db.insert(scheduledInteractions).values(toCreate);
   }
+  return toCreate.length;
 }
 
 async function syncMedicationTimes(schedule: typeof scheduledInteractions.$inferSelect) {
@@ -464,14 +465,12 @@ router.get("/users/:userId/schedules", requireUser, async (req: Request, res: Re
   const access = await resolveAccess(req, targetUserId);
   if (!access.canView) return res.status(403).json({ error: "No tienes permiso para ver estos horarios." });
 
-  if (access.isOwnProfile) {
-    await createDefaultSchedules(targetUserId);
-  }
+  const defaultSchedulesCreated = await createDefaultSchedules(targetUserId);
   const schedules = await db.select()
     .from(scheduledInteractions)
     .where(eq(scheduledInteractions.user_id, targetUserId))
     .orderBy(desc(scheduledInteractions.updated_at));
-  return res.json({ schedules });
+  return res.json({ schedules, default_schedules_created: defaultSchedulesCreated });
 });
 
 router.post("/users/:userId/schedules", requireUser, async (req: Request, res: Response) => {
