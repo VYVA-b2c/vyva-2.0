@@ -111,20 +111,24 @@ export function AccountSubscriptionsSection({
   planOptions,
   search,
   savingProfileId,
+  repairingProfileId,
   onSearchChange,
   onSearch,
   onChange,
   onSave,
+  onRepair,
 }: {
   accounts: AccountSubscription[];
   message: string;
   planOptions: Array<{ value: string; label: string }>;
   search: string;
   savingProfileId: string | null;
+  repairingProfileId: string | null;
   onSearchChange: (value: string) => void;
   onSearch: () => void;
   onChange: (profileId: string, patch: Partial<AccountSubscription>) => void;
   onSave: (account: AccountSubscription) => Promise<void>;
+  onRepair: (account: AccountSubscription) => Promise<void>;
 }) {
   return (
     <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5">
@@ -168,6 +172,8 @@ export function AccountSubscriptionsSection({
         {accounts.map((account) => {
           const displayName = account.preferred_name || account.full_name || account.profile_email || account.profile_id;
           const saving = savingProfileId === account.profile_id;
+          const repairing = repairingProfileId === account.profile_id;
+          const canRepair = Boolean(account.subscription_mismatch && account.source !== "supabase_auth_missing_profile");
           return (
             <article key={`${account.account_id ?? "profile"}:${account.profile_id}`} className="rounded-3xl border border-[#eadfd5] bg-[#fbf8f5] p-4">
               <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
@@ -202,6 +208,11 @@ export function AccountSubscriptionsSection({
                     {account.subscription_warning && (
                       <p className="rounded-xl bg-[#fff3e8] px-3 py-2 font-bold text-[#8a4a00]">{account.subscription_warning}</p>
                     )}
+                    {account.latest_entitlement_repair_at && (
+                      <p className="rounded-xl bg-emerald-50 px-3 py-2 font-bold text-emerald-800">
+                        Last repair: {formatDate(account.latest_entitlement_repair_at)}{account.latest_entitlement_repair_summary ? ` - ${account.latest_entitlement_repair_summary}` : ""}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -231,6 +242,15 @@ export function AccountSubscriptionsSection({
                   >
                     {saving ? "Saving..." : "Save account plan"}
                   </button>
+                  {canRepair && (
+                    <button
+                      className="rounded-2xl border border-amber-300 bg-[#fff8ee] px-5 py-3 font-bold text-amber-900 disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={repairing}
+                      onClick={() => onRepair(account)}
+                    >
+                      {repairing ? "Repairing..." : "Repair access now"}
+                    </button>
+                  )}
                 </div>
               </div>
             </article>
@@ -298,6 +318,11 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
             {primaryMapping && (
               <p className={`mt-3 rounded-xl px-3 py-2 text-sm font-bold ${accessMismatch ? "bg-[#fff3e8] text-[#8a4a00]" : "bg-[#ecfdf3] text-[#087443]"}`}>
                 {primaryMapping.subscription_warning ?? (hasTierMismatch ? "Save changes to sync this user to the selected tier." : "Admin and app access are aligned.")}
+              </p>
+            )}
+            {primaryMapping?.latest_entitlement_repair_at && (
+              <p className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800">
+                Last access repair: {formatDate(primaryMapping.latest_entitlement_repair_at)}{primaryMapping.latest_entitlement_repair_summary ? ` - ${primaryMapping.latest_entitlement_repair_summary}` : ""}
               </p>
             )}
             {!primaryMapping && (

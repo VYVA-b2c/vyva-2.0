@@ -46,6 +46,7 @@ export default function LifecycleAdminPage() {
   const [accountSubscriptions, setAccountSubscriptions] = useState<AccountSubscription[]>([]);
   const [accountSearchMessage, setAccountSearchMessage] = useState("");
   const [savingAccountProfileId, setSavingAccountProfileId] = useState<string | null>(null);
+  const [repairingAccountProfileId, setRepairingAccountProfileId] = useState<string | null>(null);
   const [orgFilter, setOrgFilter] = useState<"active" | "archived" | "all">("active");
   const [consentAttempts, setConsentAttempts] = useState<ConsentAttempt[]>([]);
   const [communications, setCommunications] = useState<Communication[]>([]);
@@ -275,6 +276,45 @@ export default function LifecycleAdminPage() {
     }
   }
 
+  async function repairAccountSubscription(account: AccountSubscription) {
+    setRepairingAccountProfileId(account.profile_id);
+    setAccountSearchMessage("");
+    try {
+      const data = await api(`/account-subscriptions/${account.profile_id}/repair-entitlement`, {
+        method: "POST",
+        body: JSON.stringify({
+          account_id: account.account_id,
+          account_source: account.account_source,
+          account_email: account.account_email ?? account.profile_email,
+          account_phone: account.account_phone ?? account.phone_number,
+        }),
+      });
+      const updated = data.account as AccountSubscription;
+      setAccountSubscriptions((current) => current.map((item) => (
+        item.profile_id === account.profile_id
+          ? {
+              ...item,
+              ...updated,
+              account_id: updated.account_id ?? item.account_id,
+              account_source: updated.account_source ?? item.account_source,
+              account_email: item.account_email,
+              account_phone: item.account_phone,
+              active_profile_id: updated.active_profile_id ?? item.active_profile_id,
+              is_active_profile: updated.is_active_profile ?? item.is_active_profile,
+            }
+          : item
+      )));
+      setAccountSearchMessage(data.repaired
+        ? `${account.profile_email ?? account.account_email ?? account.profile_id} repaired to ${updated.subscription_tier}.`
+        : `${account.profile_email ?? account.account_email ?? account.profile_id} did not need a repair.`);
+      await refresh();
+    } catch (err) {
+      setAccountSearchMessage(err instanceof Error ? err.message : "Could not repair subscription.");
+    } finally {
+      setRepairingAccountProfileId(null);
+    }
+  }
+
   async function openUserDetail(intake: Intake) {
     const data = await api(`/users/${intake.id}/details`);
     const profileTier = stringValue(data.profile?.subscription_tier);
@@ -477,10 +517,12 @@ export default function LifecycleAdminPage() {
             planOptions={planOptions}
             search={accountSearch}
             savingProfileId={savingAccountProfileId}
+            repairingProfileId={repairingAccountProfileId}
             onSearchChange={setAccountSearch}
             onSearch={() => searchAccountSubscriptions().catch((err) => setAccountSearchMessage(err.message))}
             onChange={updateAccountSubscription}
             onSave={saveAccountSubscription}
+            onRepair={repairAccountSubscription}
           />
         )}
 

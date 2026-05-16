@@ -250,6 +250,13 @@ const accountSubscriptionUpdateSchema = z.object({
   message: "Subscription tier is required",
 });
 
+const accountSubscriptionRepairSchema = z.object({
+  account_id: z.string().optional().nullable(),
+  account_source: z.enum(["legacy", "supabase"]).optional().nullable(),
+  account_email: z.string().email().optional().nullable().or(z.literal("")),
+  account_phone: z.string().optional().nullable(),
+});
+
 function targetUserIdForIntake(intake: typeof userIntakes.$inferSelect): string | null {
   return intake.elder_user_id ?? intake.user_id ?? intake.family_user_id ?? null;
 }
@@ -343,6 +350,10 @@ type LoginMapping = {
   lifecycle_profile_email: string | null;
   lifecycle_subscription_tier: string | null;
   lifecycle_subscription_status: string | null;
+  latest_entitlement_repair_at: Date | null;
+  latest_entitlement_repair_channel: string | null;
+  latest_entitlement_repair_trigger: string | null;
+  latest_entitlement_repair_summary: string | null;
   warnings: string[];
 };
 
@@ -469,13 +480,6 @@ function buildMappingWarning(mapping: LoginMapping) {
   return null;
 }
 
-function buildSubscriptionWarning(lifecycleTier: string | null | undefined, profileTier: string | null | undefined) {
-  if (normalizeSubscriptionTier(lifecycleTier) === "premium" && normalizeSubscriptionTier(profileTier) !== "premium") {
-    return "Premium in lifecycle, free in profile. The app profile should self-heal to premium.";
-  }
-  return null;
-}
-
 function subscriptionAdminFields(sync: EntitlementSyncResult) {
   return {
     effective_subscription_tier: sync.effectiveTier,
@@ -487,6 +491,11 @@ function subscriptionAdminFields(sync: EntitlementSyncResult) {
     subscription_mismatch: sync.profileTierMismatch,
     subscription_warning: sync.warning,
     entitlement_repaired: sync.repaired,
+    entitlement_repair_audit_id: sync.repairAuditEventId,
+    latest_entitlement_repair_at: sync.latestRepairAt,
+    latest_entitlement_repair_channel: sync.latestRepairChannel,
+    latest_entitlement_repair_trigger: sync.latestRepairTrigger,
+    latest_entitlement_repair_summary: sync.latestRepairSummary,
   };
 }
 
@@ -516,6 +525,14 @@ async function resolveLoginMappings(input: {
     const context = await getActiveProfileContext(account.id);
     const effectiveProfileId = context.profileId ?? account.active_profile_id ?? account.id;
     const effectiveProfile = await profileById(effectiveProfileId);
+    const subscriptionSync = await syncProfileEntitlement({
+      profile: effectiveProfile,
+      profileId: effectiveProfileId,
+      accountUserId: account.id,
+      email,
+      phone,
+      repairProfile: false,
+    });
     const mapping: LoginMapping = {
       source: "legacy",
       login_uid: account.id,
@@ -526,20 +543,18 @@ async function resolveLoginMappings(input: {
       effective_profile_id: effectiveProfileId,
       effective_profile_email: effectiveProfile?.email ?? null,
       effective_profile_phone: effectiveProfile?.phone_number ?? null,
-      effective_subscription_tier: effectiveProfile ? normalizeSubscriptionTier(effectiveProfile.subscription_tier) : null,
-      effective_subscription_status: effectiveProfile?.subscription_status ?? null,
-      subscription_mismatch: Boolean(buildSubscriptionWarning(
-        input.lifecycleProfile ? input.lifecycleProfile.subscription_tier : input.intake.tier,
-        effectiveProfile?.subscription_tier,
-      )),
-      subscription_warning: buildSubscriptionWarning(
-        input.lifecycleProfile ? input.lifecycleProfile.subscription_tier : input.intake.tier,
-        effectiveProfile?.subscription_tier,
-      ),
+      effective_subscription_tier: subscriptionSync.effectiveTier,
+      effective_subscription_status: subscriptionSync.effectiveStatus,
+      subscription_mismatch: subscriptionSync.profileTierMismatch,
+      subscription_warning: subscriptionSync.warning,
       lifecycle_profile_id: lifecycleProfileId,
       lifecycle_profile_email: input.lifecycleProfile?.email ?? input.intake.email ?? null,
-      lifecycle_subscription_tier: input.lifecycleProfile ? normalizeSubscriptionTier(input.lifecycleProfile.subscription_tier) : input.intake.tier,
-      lifecycle_subscription_status: input.lifecycleProfile?.subscription_status ?? null,
+      lifecycle_subscription_tier: subscriptionSync.lifecycleSubscriptionTier ?? (input.lifecycleProfile ? normalizeSubscriptionTier(input.lifecycleProfile.subscription_tier) : input.intake.tier),
+      lifecycle_subscription_status: subscriptionSync.lifecycleSubscriptionStatus ?? input.lifecycleProfile?.subscription_status ?? null,
+      latest_entitlement_repair_at: subscriptionSync.latestRepairAt,
+      latest_entitlement_repair_channel: subscriptionSync.latestRepairChannel,
+      latest_entitlement_repair_trigger: subscriptionSync.latestRepairTrigger,
+      latest_entitlement_repair_summary: subscriptionSync.latestRepairSummary,
       warnings: [],
     };
     const warning = buildMappingWarning(mapping);
@@ -552,6 +567,14 @@ async function resolveLoginMappings(input: {
     const context = await getActiveProfileContext(account.id);
     const effectiveProfileId = context.profileId ?? account.id;
     const effectiveProfile = await profileById(effectiveProfileId);
+    const subscriptionSync = await syncProfileEntitlement({
+      profile: effectiveProfile,
+      profileId: effectiveProfileId,
+      accountUserId: account.id,
+      email,
+      phone,
+      repairProfile: false,
+    });
     const mapping: LoginMapping = {
       source: "supabase",
       login_uid: account.id,
@@ -562,20 +585,18 @@ async function resolveLoginMappings(input: {
       effective_profile_id: effectiveProfileId,
       effective_profile_email: effectiveProfile?.email ?? account.email ?? null,
       effective_profile_phone: effectiveProfile?.phone_number ?? account.phone_number ?? null,
-      effective_subscription_tier: effectiveProfile ? normalizeSubscriptionTier(effectiveProfile.subscription_tier) : null,
-      effective_subscription_status: effectiveProfile?.subscription_status ?? null,
-      subscription_mismatch: Boolean(buildSubscriptionWarning(
-        input.lifecycleProfile ? input.lifecycleProfile.subscription_tier : input.intake.tier,
-        effectiveProfile?.subscription_tier,
-      )),
-      subscription_warning: buildSubscriptionWarning(
-        input.lifecycleProfile ? input.lifecycleProfile.subscription_tier : input.intake.tier,
-        effectiveProfile?.subscription_tier,
-      ),
+      effective_subscription_tier: subscriptionSync.effectiveTier,
+      effective_subscription_status: subscriptionSync.effectiveStatus,
+      subscription_mismatch: subscriptionSync.profileTierMismatch,
+      subscription_warning: subscriptionSync.warning,
       lifecycle_profile_id: lifecycleProfileId,
       lifecycle_profile_email: input.lifecycleProfile?.email ?? input.intake.email ?? null,
-      lifecycle_subscription_tier: input.lifecycleProfile ? normalizeSubscriptionTier(input.lifecycleProfile.subscription_tier) : input.intake.tier,
-      lifecycle_subscription_status: input.lifecycleProfile?.subscription_status ?? null,
+      lifecycle_subscription_tier: subscriptionSync.lifecycleSubscriptionTier ?? (input.lifecycleProfile ? normalizeSubscriptionTier(input.lifecycleProfile.subscription_tier) : input.intake.tier),
+      lifecycle_subscription_status: subscriptionSync.lifecycleSubscriptionStatus ?? input.lifecycleProfile?.subscription_status ?? null,
+      latest_entitlement_repair_at: subscriptionSync.latestRepairAt,
+      latest_entitlement_repair_channel: subscriptionSync.latestRepairChannel,
+      latest_entitlement_repair_trigger: subscriptionSync.latestRepairTrigger,
+      latest_entitlement_repair_summary: subscriptionSync.latestRepairSummary,
       warnings: [],
     };
     const warning = buildMappingWarning(mapping);
@@ -1220,6 +1241,72 @@ adminLifecycleRouter.get("/account-subscriptions", async (req: Request, res: Res
   }));
 
   return res.json({ accounts });
+});
+
+adminLifecycleRouter.post("/account-subscriptions/:profileId/repair-entitlement", async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+
+  const parsed = accountSubscriptionRepairSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid repair request" });
+
+  const [profile] = await db
+    .select()
+    .from(profiles)
+    .where(eq(profiles.id, req.params.profileId))
+    .limit(1);
+  if (!profile) return res.status(404).json({ error: "Profile not found" });
+
+  const subscriptionEmail = normalizedEmail(parsed.data.account_email) ?? normalizedEmail(profile.email);
+  const repairSync = await syncProfileEntitlement({
+    profile,
+    profileId: profile.id,
+    accountUserId: parsed.data.account_id ?? null,
+    email: subscriptionEmail,
+    phone: parsed.data.account_phone ?? profile.phone_number,
+    whatsapp: profile.whatsapp_number,
+    repairProfile: true,
+    repairChannel: "admin",
+    repairTrigger: "admin_repair_now",
+    repairedBy: req.user?.id ?? null,
+  });
+
+  const [freshProfile] = await db
+    .select()
+    .from(profiles)
+    .where(eq(profiles.id, profile.id))
+    .limit(1);
+  const subscriptionSync = await syncProfileEntitlement({
+    profile: freshProfile ?? profile,
+    profileId: profile.id,
+    accountUserId: parsed.data.account_id ?? null,
+    email: subscriptionEmail,
+    phone: parsed.data.account_phone ?? profile.phone_number,
+    whatsapp: profile.whatsapp_number,
+    repairProfile: false,
+  });
+  const adminFields = subscriptionAdminFields(subscriptionSync);
+
+  return res.json({
+    repaired: repairSync.repaired,
+    account: {
+      account_id: parsed.data.account_id ?? null,
+      account_source: parsed.data.account_source ?? null,
+      profile_id: profile.id,
+      profile_email: freshProfile?.email ?? profile.email,
+      full_name: freshProfile?.full_name ?? profile.full_name,
+      preferred_name: freshProfile?.preferred_name ?? profile.preferred_name,
+      phone_number: freshProfile?.phone_number ?? profile.phone_number,
+      subscription_status: freshProfile?.subscription_status ?? profile.subscription_status,
+      subscription_tier: normalizeSubscriptionTier(freshProfile?.subscription_tier ?? profile.subscription_tier),
+      stored_subscription_tier: freshProfile?.subscription_tier ?? profile.subscription_tier,
+      account_status: freshProfile?.account_status ?? profile.account_status,
+      profile_role: freshProfile?.role ?? profile.role,
+      updated_at: freshProfile?.updated_at ?? profile.updated_at,
+      ...adminFields,
+      entitlement_repaired: repairSync.repaired,
+      entitlement_repair_audit_id: repairSync.repairAuditEventId ?? adminFields.entitlement_repair_audit_id,
+    },
+  });
 });
 
 adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Request, res: Response) => {
