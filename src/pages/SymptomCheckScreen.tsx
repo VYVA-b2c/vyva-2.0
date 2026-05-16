@@ -50,35 +50,30 @@ function IntroScreen({
 }) {
   const { t } = useTranslation();
   return (
-    <div className="flex flex-col items-center flex-1 px-6 py-6 text-center gap-5">
-      <div
-        className="w-20 h-20 rounded-full flex items-center justify-center"
-        style={{
-          background: "linear-gradient(135deg, hsl(var(--vyva-purple)) 0%, #7C3AED 100%)",
-          boxShadow: "0 8px 32px rgba(91,18,160,0.30)",
-        }}
-      >
-        <Heart size={34} className="text-white" />
-      </div>
+    <div className="flex flex-col flex-1 px-[18px] py-4 gap-5">
+      <section className="relative overflow-hidden rounded-[30px] bg-[#3D0D82] p-5 text-white shadow-[0_16px_36px_rgba(91,18,160,0.24)]">
+        <div className="absolute -right-14 -top-14 h-44 w-44 rounded-full bg-white/10" />
+        <div className="relative">
+          <div className="mb-7 flex h-16 w-16 items-center justify-center rounded-[22px] bg-white/15">
+            <Heart size={30} className="text-white" />
+          </div>
+          <p className="font-body text-[12px] font-bold uppercase tracking-[0.14em] text-white/64">
+            {t("health.symptomCheck.title")}
+          </p>
+          <h1 className="mt-1 font-display text-[34px] italic leading-[1.08] text-white">
+            {t("health.symptomCheck.intro.title")}
+          </h1>
+          <p className="mt-4 font-body text-[16px] font-semibold leading-relaxed text-white/84">
+            {t("health.symptomCheck.intro.subtitle")}
+          </p>
+        </div>
+      </section>
 
-      <div>
-        <h1 className="font-body text-[24px] font-bold text-vyva-text-1 mb-2 leading-tight">
-          {t("health.symptomCheck.intro.title")}
-        </h1>
-        <p className="font-body text-[15px] text-vyva-text-2 leading-relaxed">
-          {t("health.symptomCheck.intro.subtitle")}
-        </p>
-      </div>
-
-      <div className="w-full grid grid-cols-1 gap-3">
+      <div className="grid w-full grid-cols-1 gap-3">
         <button
           onClick={onStart}
           data-testid="button-symptom-check-start"
-          className="w-full rounded-full py-[16px] font-body text-[18px] font-bold text-white transition-all active:scale-95"
-          style={{
-            background: "linear-gradient(135deg, hsl(var(--vyva-purple)) 0%, #7C3AED 100%)",
-            boxShadow: "0 4px 18px rgba(91,18,160,0.35)",
-          }}
+          className="vyva-primary-action w-full min-h-[58px] shadow-[0_10px_24px_rgba(107,33,168,0.24)]"
         >
           {t("health.symptomCheck.intro.startBtn")}
         </button>
@@ -86,19 +81,14 @@ function IntroScreen({
         <button
           onClick={onStartVoice}
           data-testid="button-symptom-check-voice-start"
-          className="w-full rounded-full py-[14px] flex items-center justify-center gap-2 font-body text-[16px] font-bold transition-all active:scale-95"
-          style={{
-            background: "white",
-            color: "hsl(var(--vyva-purple))",
-            border: "1.5px solid hsl(var(--vyva-purple-light))",
-          }}
+          className="vyva-secondary-action w-full min-h-[56px] text-vyva-purple"
         >
           <Mic size={18} />
           {t("health.symptomCheck.intro.voiceBtn")}
         </button>
       </div>
 
-      <div className="w-full flex flex-col gap-3">
+      <div className="flex w-full flex-col gap-3">
         {(["vitals", "chat", "report"] as const).map((key, i) => {
           const icons = [Heart, MessageSquare, FileText];
           const Icon = icons[i];
@@ -109,15 +99,10 @@ function IntroScreen({
               type="button"
               onClick={handleClick}
               data-testid={`button-symptom-check-${key}`}
-              className="w-full flex items-center gap-4 rounded-[16px] p-4 text-left transition-all active:scale-[0.99]"
-              style={{
-                background: "hsl(var(--vyva-warm))",
-                border: "1px solid hsl(var(--vyva-border))",
-                boxShadow: "0 2px 8px rgba(24,14,38,0.04)",
-              }}
+              className="flex w-full items-center gap-4 rounded-[24px] border border-[#E8DED4] bg-white p-4 text-left shadow-[0_8px_24px_rgba(63,45,35,0.06)] transition-all active:scale-[0.99]"
             >
               <div
-                className="w-10 h-10 rounded-[12px] flex items-center justify-center flex-shrink-0"
+                className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px]"
                 style={{ background: "hsl(var(--vyva-purple-light))" }}
               >
                 <Icon size={18} style={{ color: "hsl(var(--vyva-purple))" }} />
@@ -126,7 +111,7 @@ function IntroScreen({
                 <p className="font-body text-[15px] font-bold text-vyva-text-1">
                   {t(`health.symptomCheck.intro.step${i + 1}Title`)}
                 </p>
-                <p className="font-body text-[13px] text-vyva-text-3 leading-snug">
+                <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">
                   {t(`health.symptomCheck.intro.step${i + 1}Desc`)}
                 </p>
               </div>
@@ -215,12 +200,12 @@ function ReportScreen({
   return (
     <div className="flex flex-col flex-1 overflow-y-auto">
       <div
-        className="mx-4 mt-2 mb-4 rounded-[20px] p-5 flex flex-col gap-3"
+        className="mx-[18px] mb-4 mt-4 flex flex-col gap-3 rounded-[30px] p-5 shadow-[0_16px_36px_rgba(91,18,160,0.18)]"
         style={{ background: cfg.bg }}
       >
         <div className="flex items-center gap-3">
           <div
-            className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
+            className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px]"
             style={{ background: "rgba(255,255,255,0.22)" }}
           >
             <UrgencyIcon size={24} className="text-white" />
@@ -229,7 +214,7 @@ function ReportScreen({
             <p className="font-body text-[12px] font-medium text-white/75 uppercase tracking-wider">
               {t("health.symptomCheck.report.urgencyLabel")}
             </p>
-            <p className="font-body text-[20px] font-bold text-white leading-tight">
+            <p className="font-display text-[28px] italic leading-tight text-white">
               {t(cfg.label)}
             </p>
           </div>
@@ -250,23 +235,18 @@ function ReportScreen({
         </div>
       </div>
 
-      <div className="px-4 flex flex-col gap-4 pb-6">
+      <div className="flex flex-col gap-4 px-[18px] pb-6">
         {summary.symptoms.length > 0 && (
           <div
-            className="rounded-[16px] p-4"
-            style={{ background: "white", border: "1px solid hsl(var(--vyva-border))", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}
+            className="rounded-[24px] border border-[#E8DED4] bg-white p-5 shadow-[0_8px_24px_rgba(63,45,35,0.06)]"
           >
             <p className="font-body text-[12px] font-semibold text-vyva-text-3 uppercase tracking-wider mb-3">
               {t("health.symptomCheck.report.symptoms")}
             </p>
-            <ul className="flex flex-col gap-2">
+            <ul className="flex flex-wrap gap-2">
               {summary.symptoms.map((s, i) => (
-                <li key={i} className="flex items-start gap-2">
-                  <span
-                    className="w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0"
-                    style={{ background: "hsl(var(--vyva-purple))" }}
-                  />
-                  <span className="font-body text-[15px] text-vyva-text-1">{s}</span>
+                <li key={i} className="rounded-full bg-[#F5F3FF] px-3 py-2 font-body text-[13px] font-bold text-[#6B21A8]">
+                  {s}
                 </li>
               ))}
             </ul>
@@ -274,8 +254,7 @@ function ReportScreen({
         )}
 
         <div
-          className="rounded-[16px] p-4"
-          style={{ background: "white", border: "1px solid hsl(var(--vyva-border))", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}
+          className="rounded-[24px] border border-[#E8DED4] bg-white p-5 shadow-[0_8px_24px_rgba(63,45,35,0.06)]"
         >
           <p className="font-body text-[12px] font-semibold text-vyva-text-3 uppercase tracking-wider mb-3">
             {t("health.symptomCheck.report.recommendations")}
@@ -298,12 +277,7 @@ function ReportScreen({
         <button
           onClick={handleShare}
           data-testid="button-report-share"
-          className="w-full rounded-full py-[14px] flex items-center justify-center gap-2 font-body text-[15px] font-semibold transition-all active:scale-95"
-          style={{
-            background: "linear-gradient(135deg, hsl(var(--vyva-purple)) 0%, #7C3AED 100%)",
-            color: "white",
-            boxShadow: "0 4px 18px rgba(91,18,160,0.30)",
-          }}
+          className="vyva-primary-action w-full"
         >
           <Share2 size={18} />
           {t("health.symptomCheck.report.shareBtn")}
@@ -312,12 +286,7 @@ function ReportScreen({
         <button
           onClick={onDone}
           data-testid="button-report-done"
-          className="w-full rounded-full py-[14px] font-body text-[15px] font-semibold transition-all active:scale-95"
-          style={{
-            background: "hsl(var(--vyva-warm))",
-            color: "hsl(var(--vyva-text-1))",
-            border: "1.5px solid hsl(var(--vyva-border))",
-          }}
+          className="vyva-secondary-action w-full"
         >
           {t("health.symptomCheck.report.doneBtn")}
         </button>
@@ -399,29 +368,24 @@ export default function SymptomCheckScreen() {
   };
 
   return (
-    <div
-      className="fixed inset-0 flex flex-col"
-      style={{ background: "hsl(var(--vyva-cream))" }}
-    >
+    <div className="flex min-h-[calc(100vh-204px)] w-full flex-col overflow-hidden bg-transparent">
       <div
-        className="flex items-center px-4 py-3 flex-shrink-0"
+        className="flex flex-shrink-0 items-center px-[18px] py-3"
         style={{
           paddingTop: "max(12px, env(safe-area-inset-top))",
           borderBottom: step !== "intro" ? "1px solid hsl(var(--vyva-border))" : "none",
-          background: "white",
         }}
       >
         <button
           onClick={handleBack}
           data-testid="button-symptom-check-back"
-          className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-all active:scale-95"
-          style={{ background: "hsl(var(--vyva-warm))" }}
+          className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-white shadow-[0_4px_14px_rgba(63,45,35,0.08)] transition-all active:scale-95"
         >
           <ChevronLeft size={20} style={{ color: "hsl(var(--vyva-text-1))" }} />
         </button>
 
-        <div className="flex-1 text-center">
-          <p className="font-body text-[16px] font-semibold text-vyva-text-1">
+        <div className="flex-1 text-center min-w-0">
+          <p className="font-display text-[23px] italic leading-tight text-vyva-text-1">
             {stepTitle[step]}
           </p>
         </div>
@@ -430,7 +394,7 @@ export default function SymptomCheckScreen() {
       </div>
 
       {step !== "intro" && (
-        <div className="py-3 flex-shrink-0" style={{ background: "white", borderBottom: "1px solid hsl(var(--vyva-border))" }}>
+        <div className="flex-shrink-0 py-3" style={{ borderBottom: "1px solid hsl(var(--vyva-border))" }}>
           <StepDots current={step} />
         </div>
       )}

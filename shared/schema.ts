@@ -1184,6 +1184,77 @@ export const insertScheduledEventLogSchema = createInsertSchema(scheduledEventLo
 export type InsertScheduledEventLog = z.infer<typeof insertScheduledEventLogSchema>;
 export type ScheduledEventLog = typeof scheduledEventLogs.$inferSelect;
 
+export const scheduledInteractions = pgTable("scheduled_interactions", {
+  id:                   uuid("id").primaryKey().defaultRandom(),
+  user_id:              text("user_id").notNull(),
+  interaction_type:     text("interaction_type").notNull(),
+  friendly_label:       text("friendly_label"),
+  user_description:     text("user_description"),
+  source_ref_id:        text("source_ref_id"),
+  status:               text("status").notNull().default("ACTIVE"),
+  frequency_type:       text("frequency_type").notNull().default("DAILY"),
+  frequency_value:      jsonb("frequency_value").notNull().default({}),
+  days_of_week:         text("days_of_week").array().notNull().default([]),
+  times_of_day:         text("times_of_day").array().notNull().default([]),
+  timezone:             text("timezone").notNull().default("Europe/Madrid"),
+  preferred_language:   text("preferred_language").notNull().default("es"),
+  quiet_hours_start:    text("quiet_hours_start").notNull().default("21:00"),
+  quiet_hours_end:      text("quiet_hours_end").notNull().default("08:00"),
+  escalation_contacts:  jsonb("escalation_contacts").notNull().default([]),
+  next_run_at:          timestamp("next_run_at", { withTimezone: true }),
+  last_completed_at:    timestamp("last_completed_at", { withTimezone: true }),
+  last_result:          text("last_result"),
+  is_paused:            boolean("is_paused").notNull().default(false),
+  pause_until:          timestamp("pause_until", { withTimezone: true }),
+  pause_reason:         text("pause_reason"),
+  consent_required:     boolean("consent_required").notNull().default(false),
+  consent_status:       text("consent_status").notNull().default("not_required"),
+  admin_edit_allowed:   boolean("admin_edit_allowed").notNull().default(false),
+  created_by:           text("created_by"),
+  updated_by:           text("updated_by"),
+  created_at:           timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:           timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertScheduledInteractionSchema = createInsertSchema(scheduledInteractions).omit({ id: true, created_at: true, updated_at: true });
+export type InsertScheduledInteraction = z.infer<typeof insertScheduledInteractionSchema>;
+export type ScheduledInteraction = typeof scheduledInteractions.$inferSelect;
+
+export const interactionLogs = pgTable("interaction_logs", {
+  id:                       uuid("id").primaryKey().defaultRandom(),
+  user_id:                  text("user_id").notNull(),
+  scheduled_interaction_id: uuid("scheduled_interaction_id"),
+  interaction_type:         text("interaction_type").notNull(),
+  scheduled_for:            timestamp("scheduled_for", { withTimezone: true }),
+  started_at:               timestamp("started_at", { withTimezone: true }),
+  completed_at:             timestamp("completed_at", { withTimezone: true }),
+  outcome:                  text("outcome").notNull(),
+  summary:                  text("summary"),
+  sentiment:                text("sentiment"),
+  risk_flags:               jsonb("risk_flags").notNull().default([]),
+  created_at:               timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertInteractionLogSchema = createInsertSchema(interactionLogs).omit({ id: true, created_at: true });
+export type InsertInteractionLog = z.infer<typeof insertInteractionLogSchema>;
+export type InteractionLog = typeof interactionLogs.$inferSelect;
+
+export const consentAuditLogs = pgTable("consent_audit_logs", {
+  id:              uuid("id").primaryKey().defaultRandom(),
+  user_id:         text("user_id").notNull(),
+  schedule_id:     uuid("schedule_id"),
+  changed_by:      text("changed_by").notNull(),
+  changed_by_role: text("changed_by_role").notNull(),
+  previous_value:  jsonb("previous_value").notNull().default({}),
+  new_value:       jsonb("new_value").notNull().default({}),
+  consent_source:  text("consent_source").notNull().default("app"),
+  created_at:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertConsentAuditLogSchema = createInsertSchema(consentAuditLogs).omit({ id: true, created_at: true });
+export type InsertConsentAuditLog = z.infer<typeof insertConsentAuditLogSchema>;
+export type ConsentAuditLog = typeof consentAuditLogs.$inferSelect;
+
 export const userProviders = pgTable("user_providers", {
   id:           uuid("id").primaryKey().defaultRandom(),
   user_id:      text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
@@ -1474,6 +1545,9 @@ export const schema = {
   communicationsLog,
   scheduledEvents,
   scheduledEventLogs,
+  scheduledInteractions,
+  interactionLogs,
+  consentAuditLogs,
   userProviders,
   conciergePending,
   conciergeSessions,

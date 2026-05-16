@@ -58,7 +58,7 @@ test.describe("onboarding responsive layout", () => {
     await mockSignedInOnboarding(page);
 
     await page.setViewportSize({ width: 320, height: 720 });
-    await page.goto("/onboarding/profile/health");
+    await page.goto("/onboarding/profile/health", { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("phone-frame")).toBeVisible();
     await page.getByTestId("accordion-heart").click();
 
@@ -75,7 +75,7 @@ test.describe("onboarding responsive layout", () => {
     await mockSignedInOnboarding(page);
 
     await page.setViewportSize({ width: 320, height: 720 });
-    await page.goto("/onboarding/profile/health");
+    await page.goto("/onboarding/profile/health", { waitUntil: "domcontentloaded" });
     await page.getByTestId("accordion-heart").click();
     await page.getByTestId("card-condition-hypertension").click();
 

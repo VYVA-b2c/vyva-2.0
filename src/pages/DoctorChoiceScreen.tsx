@@ -157,25 +157,26 @@ const DoctorChoiceScreen = () => {
         </button>
       </div>
 
-      <section className="rounded-[32px] border border-vyva-border bg-[#FFFCF8] p-6 shadow-vyva-card">
-        <div className="flex items-start gap-4">
-          <div className="flex h-[72px] w-[72px] flex-shrink-0 items-center justify-center rounded-[24px] bg-[#F0FDF4]">
-            <Stethoscope size={34} className="text-[#0A7C4E]" />
+      <section className="relative overflow-hidden rounded-[30px] bg-[#3D0D82] p-5 text-white shadow-[0_16px_36px_rgba(91,18,160,0.24)]">
+        <div className="absolute -right-14 -top-14 h-44 w-44 rounded-full bg-white/10" />
+        <div className="relative flex items-start gap-4">
+          <div className="flex h-[72px] w-[72px] flex-shrink-0 items-center justify-center rounded-[24px] bg-white/15">
+            <Stethoscope size={34} className="text-white" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-3">
-              <p className="font-body text-[14px] font-extrabold uppercase tracking-[0.14em] text-vyva-purple">
+              <p className="font-body text-[12px] font-bold uppercase tracking-[0.14em] text-white/65">
                 {heroMessage?.sourceText ?? t("health.doctorChoice.kicker", "Ayuda medica")}
               </p>
               {isVoiceLive ? (
-                <span className="inline-flex flex-shrink-0 items-center gap-2 rounded-full bg-[#ECFDF5] px-3 py-2 font-body text-[13px] font-extrabold text-[#0A7C4E]">
+                <span className="inline-flex flex-shrink-0 items-center gap-2 rounded-full bg-white px-3 py-2 font-body text-[13px] font-extrabold text-[#0A7C4E]">
                   <span className="h-2 w-2 rounded-full bg-[#10B981]" />
                   {t("common.live", "En vivo")}
                 </span>
               ) : null}
             </div>
             <h1
-              className="mt-1 min-w-0 break-words font-display text-[38px] leading-[1.05] text-vyva-text-1"
+              className="mt-1 min-w-0 break-words font-display text-[34px] italic leading-[1.08] text-white"
               style={{
                 display: "-webkit-box",
                 WebkitBoxOrient: "vertical",
@@ -193,10 +194,10 @@ const DoctorChoiceScreen = () => {
           type="button"
           onClick={handleHeroVoiceAction}
           aria-label={heroVoiceLabel}
-          className={`vyva-tap mt-6 inline-flex min-h-[64px] w-full items-center justify-center gap-3 rounded-full border px-5 font-body text-[20px] font-extrabold shadow-sm transition ${
+          className={`vyva-tap relative mt-6 inline-flex min-h-[60px] w-full items-center justify-center gap-3 rounded-full border px-5 font-body text-[18px] font-extrabold shadow-sm transition ${
             isVoiceLive
               ? "border-[#FDBA74] bg-[#FFF7ED] text-[#9A3412]"
-              : "border-vyva-border bg-white text-vyva-purple"
+              : "border-white bg-white text-vyva-purple"
           }`}
         >
           {isVoiceLive ? <X size={24} /> : <Mic size={24} />}
@@ -225,7 +226,7 @@ const DoctorChoiceScreen = () => {
             const firstRecommendation = doctorRecommendations[0];
             navigate(`${firstRecommendation.path}?returnTo=${encodeURIComponent("/health/doctor")}`);
           }}
-          className="mt-4 w-full rounded-[24px] border border-vyva-border bg-white px-5 py-4 text-left shadow-sm"
+          className="mt-4 w-full rounded-[24px] border border-[#E8DED4] bg-white px-5 py-4 text-left shadow-[0_8px_24px_rgba(63,45,35,0.06)]"
         >
           <p className="font-body text-[13px] font-extrabold uppercase tracking-[0.12em] text-vyva-purple">
             {t("health.doctorChoice.contextTipTitle", "Optional profile tip")}
@@ -240,7 +241,7 @@ const DoctorChoiceScreen = () => {
         <button
           type="button"
           onClick={handleDirect}
-          className="vyva-tap flex min-h-[120px] items-center gap-4 rounded-[28px] border border-[#BBF7D0] bg-[#F0FDF4] p-5 text-left shadow-vyva-card"
+          className="vyva-tap flex min-h-[120px] items-center gap-4 rounded-[28px] border border-[#BBF7D0] bg-[#F0FDF4] p-5 text-left shadow-[0_10px_26px_rgba(10,124,78,0.10)]"
         >
           <span className="flex h-[62px] w-[62px] flex-shrink-0 items-center justify-center rounded-[20px] bg-white">
             <Stethoscope size={30} className="text-[#0A7C4E]" />
@@ -259,7 +260,7 @@ const DoctorChoiceScreen = () => {
         <button
           type="button"
           onClick={handleTriage}
-          className="vyva-tap flex min-h-[120px] items-center gap-4 rounded-[28px] border border-vyva-border bg-[#FFFFFF] p-5 text-left shadow-vyva-card"
+          className="vyva-tap flex min-h-[120px] items-center gap-4 rounded-[28px] border border-[#E8DED4] bg-white p-5 text-left shadow-[0_8px_24px_rgba(63,45,35,0.06)]"
         >
           <span className="flex h-[62px] w-[62px] flex-shrink-0 items-center justify-center rounded-[20px] bg-[#F5F3FF]">
             <HeartPulse size={30} className="text-vyva-purple" />
