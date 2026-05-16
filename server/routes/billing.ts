@@ -97,6 +97,8 @@ router.get("/status", async (req, res) => {
     profileId,
     accountUserId,
     repairProfile: true,
+    repairChannel: "system",
+    repairTrigger: "billing_status",
   });
   const effectiveTier = subscriptionSync.effectiveTier;
   const effectiveStatus = subscriptionSync.effectiveStatus;

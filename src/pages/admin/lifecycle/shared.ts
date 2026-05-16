@@ -138,6 +138,10 @@ export type LoginMapping = {
   lifecycle_profile_email?: string | null;
   lifecycle_subscription_tier?: string | null;
   lifecycle_subscription_status?: string | null;
+  latest_entitlement_repair_at?: string | null;
+  latest_entitlement_repair_channel?: string | null;
+  latest_entitlement_repair_trigger?: string | null;
+  latest_entitlement_repair_summary?: string | null;
   warnings?: string[];
 };
 
@@ -227,6 +231,11 @@ export type AccountSubscription = {
   subscription_mismatch?: boolean;
   subscription_warning?: string | null;
   entitlement_repaired?: boolean;
+  entitlement_repair_audit_id?: string | null;
+  latest_entitlement_repair_at?: string | null;
+  latest_entitlement_repair_channel?: string | null;
+  latest_entitlement_repair_trigger?: string | null;
+  latest_entitlement_repair_summary?: string | null;
   account_status?: string | null;
   profile_role?: string | null;
   membership_role?: string | null;

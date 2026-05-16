@@ -244,6 +244,8 @@ router.get("/readiness", async (req: Request, res: Response) => {
       profileId: profile?.id ?? userId,
       accountUserId,
       repairProfile: true,
+      repairChannel: "system",
+      repairTrigger: "profile_readiness",
     });
     const effectiveTier = subscriptionSync.effectiveTier;
     const effectiveStatus = subscriptionSync.effectiveStatus;

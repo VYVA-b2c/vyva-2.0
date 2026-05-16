@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { authMiddleware } from "../middleware/auth.js";
 import profileRouter from "../routes/profile.js";
 import { db } from "../db.js";
-import { profiles, userMedications } from "../../shared/schema.js";
+import { lifecycleEvents, profiles, userIntakes, userMedications } from "../../shared/schema.js";
 
 function buildApp() {
   const app = express();
@@ -20,6 +20,8 @@ const app = buildApp();
 const createdUserIds = new Set<string>();
 
 async function cleanupUser(userId: string) {
+  await db.delete(lifecycleEvents).where(eq(lifecycleEvents.user_id, userId));
+  await db.delete(userIntakes).where(eq(userIntakes.user_id, userId));
   await db.delete(userMedications).where(eq(userMedications.user_id, userId));
   await db.delete(profiles).where(eq(profiles.id, userId));
 }
@@ -95,6 +97,46 @@ describe("Profile readiness", () => {
     expect(res.body.services.symptomCheck.ready).toBe(true);
     expect(res.body.services.concierge.ready).toBe(true);
     expect(res.body.services.caregiverDashboard.ready).toBe(true);
+  });
+
+  it("repairs stale free profiles when lifecycle says premium", async () => {
+    const userId = await createProfile({
+      subscription_tier: "free",
+      subscription_status: "trial",
+    });
+    await db.insert(userIntakes).values({
+      user_id: userId,
+      name: "Premium Lifecycle User",
+      phone: "+34600000001",
+      tier: "premium",
+      status: "active",
+    });
+
+    const res = await request(app)
+      .get("/api/profile/readiness")
+      .set("x-user-id", userId)
+      .expect(200);
+
+    expect(res.body.profile.subscriptionTier).toBe("premium");
+    expect(res.body.profile.storedSubscriptionTier).toBe("free");
+    expect(res.body.profile.entitlementRepaired).toBe(true);
+    expect(res.body.services.concierge.ready).toBe(true);
+
+    const [profile] = await db
+      .select({ tier: profiles.subscription_tier, status: profiles.subscription_status })
+      .from(profiles)
+      .where(eq(profiles.id, userId))
+      .limit(1);
+    expect(profile?.tier).toBe("premium");
+    expect(profile?.status).toBe("active");
+
+    const [event] = await db
+      .select()
+      .from(lifecycleEvents)
+      .where(eq(lifecycleEvents.user_id, userId))
+      .limit(1);
+    expect(event?.event_type).toBe("entitlement_self_healed");
+    expect(event?.channel).toBe("system");
   });
 
   it("keeps local services blocked when address is too partial", async () => {
