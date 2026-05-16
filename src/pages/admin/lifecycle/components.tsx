@@ -11,6 +11,7 @@ import {
   type Organization,
   type PlanEntitlement,
   type ScheduledEvent,
+  type ScheduledSupport,
   type SubscriptionPlanAdmin,
   type UserDetail,
   emptyScheduledEvent,
@@ -33,6 +34,23 @@ export function Field({ label, required, optional, children }: { label: string; 
       {children}
     </label>
   );
+}
+
+function supportLabel(type: string) {
+  if (type === "CHECK_IN") return "Check-in calls";
+  if (type === "BRAIN_COACH") return "Brain Coach";
+  if (type === "MEDICATION") return "Medication reminders";
+  if (type === "SYMPTOM_FOLLOWUP") return "Symptom follow-up";
+  if (type === "CONCIERGE_FOLLOWUP") return "Concierge follow-up";
+  return type;
+}
+
+function supportFrequency(schedule: ScheduledSupport) {
+  const times = schedule.times_of_day?.length ? schedule.times_of_day.join(", ") : "No time";
+  if (schedule.frequency_type === "DAILY") return `Daily at ${times}`;
+  if (schedule.frequency_type === "ONE_OFF") return `One-off at ${times}`;
+  const days = schedule.days_of_week?.length ? schedule.days_of_week.join(", ") : "custom days";
+  return `${days} at ${times}`;
 }
 
 export function IntakeTable({ users, onView, onSendLink, onTriggerConsent, onToggleEnabled, compact = false }: {
@@ -335,6 +353,36 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                 </div>
               ))}
             </div>
+            <div className="mt-4 rounded-2xl border border-[#eadfd5] bg-[#fbf8f5] p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-bold">Scheduled support</p>
+                <span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-black text-purple-700">
+                  {detail.scheduled_support?.length ?? 0} services
+                </span>
+              </div>
+              {(detail.scheduled_support ?? []).length === 0 ? (
+                <p className="mt-2 text-sm text-[#7d6b65]">No support schedules yet.</p>
+              ) : (
+                <div className="mt-3 grid gap-2">
+                  {(detail.scheduled_support ?? []).map((schedule) => (
+                    <div key={schedule.id} className="rounded-xl bg-white p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-black">{schedule.friendly_label || supportLabel(schedule.interaction_type)}</p>
+                        <span className={`rounded-full px-2 py-1 text-xs font-black ${schedule.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700" : "bg-[#f4eafe] text-purple-700"}`}>
+                          {schedule.status.toLowerCase()}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[#7d6b65]">{supportFrequency(schedule)}</p>
+                      <p className="text-[#7d6b65]">Next: {formatDate(schedule.next_run_at)}</p>
+                      <p className="text-[#7d6b65]">Last result: {schedule.last_result ?? "No recent result"}</p>
+                      <p className="text-[#7d6b65]">
+                        Consent: {schedule.consent_status ?? "not_required"} - Caregiver/admin edits {schedule.admin_edit_allowed ? "allowed" : "not allowed"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <div className="mt-4 rounded-2xl bg-purple-50 p-3">
               <p className="font-bold">Add event</p>
               <div className="mt-2 grid gap-2">
@@ -351,9 +399,11 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
           </section>
           </div>
 
-        <section className="mt-4 grid gap-4 lg:grid-cols-3">
+        <section className="mt-4 grid gap-4 lg:grid-cols-4">
           <LogPanel title="Communications" rows={detail.communications} />
           <LogPanel title="Consent attempts" rows={detail.consent_attempts} />
+          <LogPanel title="Support activity" rows={detail.interaction_logs ?? []} />
+          <LogPanel title="Schedule changes" rows={detail.consent_audit_logs ?? []} />
           <LogPanel title="Lifecycle history" rows={detail.lifecycle_events} />
         </section>
       </div>
@@ -369,7 +419,7 @@ export function LogPanel({ title, rows }: { title: string; rows: JsonRecord[] })
       <div className="mt-3 max-h-72 overflow-auto text-sm">
         {rows.length === 0 ? <p className="text-[#7d6b65]">No records yet.</p> : rows.map((row) => (
           <div key={row.id} className="mb-2 rounded-2xl bg-[#fbf8f5] p-3">
-            <p className="font-bold">{row.purpose ?? row.event_type ?? row.status ?? row.action ?? "Record"}</p>
+            <p className="font-bold">{row.purpose ?? row.event_type ?? row.interaction_type ?? row.outcome ?? row.status ?? row.action ?? row.changed_by_role ?? "Record"}</p>
             <p className="text-[#7d6b65]">{row.channel ? `${row.channel} - ` : ""}{row.created_at ? new Date(row.created_at).toLocaleString() : ""}</p>
           </div>
         ))}

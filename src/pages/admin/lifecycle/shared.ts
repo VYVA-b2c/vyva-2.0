@@ -75,6 +75,21 @@ export type ScheduledEvent = {
   read_only?: boolean;
 };
 
+export type ScheduledSupport = {
+  id: string;
+  interaction_type: string;
+  friendly_label?: string | null;
+  status: string;
+  frequency_type: string;
+  times_of_day?: string[] | null;
+  days_of_week?: string[] | null;
+  next_run_at?: string | null;
+  last_result?: string | null;
+  admin_edit_allowed: boolean;
+  consent_status?: string | null;
+  updated_at?: string | null;
+};
+
 export type JsonRecord = Record<string, unknown>;
 
 export type FunnelStage = {
@@ -135,6 +150,9 @@ export type UserDetail = {
   lifecycle_events: JsonRecord[];
   consent_attempts: ConsentAttempt[];
   scheduled_events: ScheduledEvent[];
+  scheduled_support?: ScheduledSupport[];
+  interaction_logs?: JsonRecord[];
+  consent_audit_logs?: JsonRecord[];
 };
 
 export type HomePlanCardAdmin = {
@@ -316,4 +334,3 @@ export function textToKeywords(value: string) {
     .map((item) => item.trim())
     .filter(Boolean);
 }
-

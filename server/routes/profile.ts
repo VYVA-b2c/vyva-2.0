@@ -44,6 +44,9 @@ import {
   utilityReviewRuns,
   conciergeRecommendationFeedback,
   userMedications,
+  scheduledInteractions,
+  interactionLogs,
+  consentAuditLogs,
 } from "../../shared/schema.js";
 import { getDoctorMedicalProfileVariables } from "../lib/doctorMedicalProfile.js";
 import { signMedicalProfileToolToken } from "../lib/jwt.js";
@@ -401,6 +404,9 @@ router.get("/export", async (req: Request, res: Response) => {
       scheduling: {
         scheduled_events: [],
         scheduled_event_logs: [],
+        scheduled_interactions: [],
+        interaction_logs: [],
+        consent_audit_logs: [],
       },
       lifecycle: {
         intakes: [],
@@ -507,6 +513,9 @@ router.get("/export", async (req: Request, res: Response) => {
       recommendationFeedbackRows,
       scheduledRows,
       scheduledLogRows,
+      scheduledInteractionRows,
+      interactionLogRows,
+      consentAuditRows,
     ] = await Promise.all([
       accountUserId
         ? safeRows("account", db.select({
@@ -577,6 +586,9 @@ router.get("/export", async (req: Request, res: Response) => {
       safeRows("recommendation_feedback", db.select().from(conciergeRecommendationFeedback).where(inArray(conciergeRecommendationFeedback.user_id, userIds))),
       safeRows("scheduled_events", db.select().from(scheduledEvents).where(inArray(scheduledEvents.user_id, userIds))),
       safeRows("scheduled_event_logs", db.select().from(scheduledEventLogs).where(inArray(scheduledEventLogs.user_id, userIds))),
+      safeRows("scheduled_interactions", db.select().from(scheduledInteractions).where(inArray(scheduledInteractions.user_id, userIds))),
+      safeRows("interaction_logs", db.select().from(interactionLogs).where(inArray(interactionLogs.user_id, userIds))),
+      safeRows("consent_audit_logs", db.select().from(consentAuditLogs).where(inArray(consentAuditLogs.user_id, userIds))),
     ]);
 
     const exportPayload = {
@@ -639,6 +651,9 @@ router.get("/export", async (req: Request, res: Response) => {
         scheduling: {
           scheduled_events: scheduledRows,
           scheduled_event_logs: scheduledLogRows,
+          scheduled_interactions: scheduledInteractionRows,
+          interaction_logs: interactionLogRows,
+          consent_audit_logs: consentAuditRows,
         },
         lifecycle: {
           intakes: intakeRows,

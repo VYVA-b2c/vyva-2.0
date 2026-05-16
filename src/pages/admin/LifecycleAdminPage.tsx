@@ -648,4 +648,3 @@ export default function LifecycleAdminPage() {
     </main>
   );
 }
-

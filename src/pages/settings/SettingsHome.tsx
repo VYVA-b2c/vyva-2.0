@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   Bell,
+  CalendarClock,
   ChevronRight,
   CreditCard,
   Download,
@@ -214,6 +215,15 @@ export default function SettingsHome() {
             title={t("settings.home.rows.notifications")}
             sub={t("settings.home.rows.notificationsSub")}
             onClick={() => navigate("/settings/notifications")}
+          />
+          <Row
+            icon={CalendarClock}
+            iconBg="#F5F0FF"
+            iconColor="#6B21A8"
+            title="Mi apoyo programado"
+            sub="Llamadas, recordatorios y horarios de apoyo"
+            onClick={() => navigate("/settings/scheduled-support")}
+            data-testid="button-settings-scheduled-support"
           />
           <Row
             icon={HeartPulse}
