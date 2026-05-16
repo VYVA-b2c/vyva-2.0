@@ -50,7 +50,8 @@ import {
 } from "../../shared/schema.js";
 import { getDoctorMedicalProfileVariables } from "../lib/doctorMedicalProfile.js";
 import { signMedicalProfileToolToken } from "../lib/jwt.js";
-import { bestSubscriptionTier, entitlementForTier, normalizeSubscriptionTier } from "../lib/plans.js";
+import { syncProfileEntitlement } from "../lib/entitlementSync.js";
+import { entitlementForTier } from "../lib/plans.js";
 import { mergeIdentityGender, readProfileGender } from "../lib/userPersonalization.js";
 import { getActiveProfileContext } from "../lib/profileAccess.js";
 
@@ -217,25 +218,6 @@ router.get("/readiness", async (req: Request, res: Response) => {
     ]);
 
     const profile = profileRows[0] ?? null;
-    const userIds = Array.from(new Set([userId, accountUserId].filter(Boolean))) as string[];
-    const intakeFilters = [
-      ...(userIds.length ? [
-        inArray(userIntakes.user_id, userIds),
-        inArray(userIntakes.elder_user_id, userIds),
-        inArray(userIntakes.family_user_id, userIds),
-      ] : []),
-      ...(hasText(profile?.email) ? [eq(userIntakes.email, profile.email)] : []),
-      ...(hasText(profile?.phone_number) ? [eq(userIntakes.phone, profile.phone_number)] : []),
-      ...(hasText(profile?.whatsapp_number) ? [eq(userIntakes.phone, profile.whatsapp_number)] : []),
-    ];
-    const lifecycleTiers = intakeFilters.length > 0
-      ? await db
-        .select({ tier: userIntakes.tier, status: userIntakes.status })
-        .from(userIntakes)
-        .where(intakeFilters.length === 1 ? intakeFilters[0] : or(...intakeFilters))
-        .orderBy(desc(userIntakes.updated_at))
-        .limit(12)
-      : [];
     const emergency = consentSection(profile?.data_sharing_consent, "emergency");
     const conditions = consentSection(profile?.data_sharing_consent, "conditions");
     const healthConditions = Array.isArray(conditions.health_conditions)
@@ -257,12 +239,14 @@ router.get("/readiness", async (req: Request, res: Response) => {
     const hasHealthContext = healthConditions.length > 0;
     const hasAllergies = Array.isArray(profile?.known_allergies) && profile.known_allergies.some(hasText);
     const hasGp = hasText(profile?.gp_name) || hasText(profile?.gp_phone);
-    const storedProfileTier = normalizeSubscriptionTier(profile?.subscription_tier);
-    const effectiveSubscription = bestSubscriptionTier(profile?.subscription_tier, lifecycleTiers);
-    const effectiveTier = effectiveSubscription.tier;
-    const effectiveStatus = effectiveTier !== storedProfileTier
-      ? effectiveSubscription.status
-      : profile?.subscription_status ?? effectiveSubscription.status;
+    const subscriptionSync = await syncProfileEntitlement({
+      profile,
+      profileId: profile?.id ?? userId,
+      accountUserId,
+      repairProfile: true,
+    });
+    const effectiveTier = subscriptionSync.effectiveTier;
+    const effectiveStatus = subscriptionSync.effectiveStatus;
     const entitlements = await entitlementForTier(effectiveTier);
 
     const medicationMissing = [
@@ -299,7 +283,13 @@ router.get("/readiness", async (req: Request, res: Response) => {
         exists: !!profile,
         subscriptionTier: effectiveTier,
         subscriptionStatus: effectiveStatus ?? null,
-        storedSubscriptionTier: profile?.subscription_tier ?? null,
+        storedSubscriptionTier: subscriptionSync.storedProfileTier,
+        lifecycleSubscriptionTier: subscriptionSync.lifecycleSubscriptionTier,
+        lifecycleSubscriptionStatus: subscriptionSync.lifecycleSubscriptionStatus,
+        billingSubscriptionTier: subscriptionSync.billingSubscriptionTier,
+        billingSubscriptionStatus: subscriptionSync.billingSubscriptionStatus,
+        subscriptionTierMismatch: subscriptionSync.profileTierMismatch,
+        entitlementRepaired: subscriptionSync.repaired,
         hasBasics,
         hasContact,
         hasDetailedAddress,

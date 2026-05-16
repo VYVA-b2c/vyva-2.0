@@ -132,6 +132,8 @@ export type LoginMapping = {
   effective_profile_phone?: string | null;
   effective_subscription_tier?: string | null;
   effective_subscription_status?: string | null;
+  subscription_mismatch?: boolean;
+  subscription_warning?: string | null;
   lifecycle_profile_id?: string | null;
   lifecycle_profile_email?: string | null;
   lifecycle_subscription_tier?: string | null;
@@ -216,6 +218,15 @@ export type AccountSubscription = {
   subscription_status: string;
   subscription_tier: string;
   stored_subscription_tier?: string | null;
+  effective_subscription_tier?: string | null;
+  effective_subscription_status?: string | null;
+  lifecycle_subscription_tier?: string | null;
+  lifecycle_subscription_status?: string | null;
+  billing_subscription_tier?: string | null;
+  billing_subscription_status?: string | null;
+  subscription_mismatch?: boolean;
+  subscription_warning?: string | null;
+  entitlement_repaired?: boolean;
   account_status?: string | null;
   profile_role?: string | null;
   membership_role?: string | null;
