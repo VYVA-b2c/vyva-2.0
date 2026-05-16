@@ -1,0 +1,215 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/7l1jx0",
+    "id": "7l1jx0",
+    "slide": 1,
+    "layoutId": "80a671ba-07cf-4fa2-9112-7e3630f06fe2",
+    "layoutName": "Title Slide",
+    "layoutType": "title",
+    "masterLayoutId": "955d156a-4166-4e4f-a04b-464418474533",
+    "masterLayoutName": "Master",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1920,
+      "height": 1080
+    }
+  },
+  "theme": {
+    "colorSchemeName": "ChatGPT",
+    "colors": {
+      "accent1": "#156082",
+      "accent2": "#E97132",
+      "accent3": "#196B24",
+      "accent4": "#0F9ED5",
+      "accent5": "#A02B93",
+      "accent6": "#4EA72E",
+      "bg1": "#FFFFFF",
+      "bg2": "#000000",
+      "tx1": "#1F1F1F",
+      "tx2": "#FFFFFF",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#0E2841",
+      "lt2": "#E8E8E8",
+      "hlink": "#467886",
+      "folHlink": "#96607D"
+    },
+    "typefaces": [
+      "+mn-lt"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "80a671ba-07cf-4fa2-9112-7e3630f06fe2",
+      "name": "Title Slide",
+      "type": "title",
+      "parentLayoutId": "955d156a-4166-4e4f-a04b-464418474533",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "955d156a-4166-4e4f-a04b-464418474533",
+      "name": "Master",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/q1orytsv",
+      "id": "1",
+      "bbox": [
+        80,
+        80,
+        1760,
+        96
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.0"
+      },
+      "geometry": "rect",
+      "text": "Hello",
+      "textPreview": "Hello",
+      "resolvedFontSize": 80,
+      "resolvedTextStyle": {
+        "fontSize": 80,
+        "typeface": "+mn-lt",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Hello"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Hello",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Hello",
+              "fontSize": 80,
+              "color": "#000000"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "composeRuns": [
+    {
+      "index": 1,
+      "frame": {
+        "left": 0,
+        "top": 0,
+        "width": 1920,
+        "height": 1080
+      },
+      "baseUnit": 8,
+      "root": {
+        "path": "0",
+        "kind": "column",
+        "requestedSize": {
+          "width": {
+            "mode": "fill",
+            "value": 1
+          },
+          "height": {
+            "mode": "fill",
+            "value": 1
+          }
+        },
+        "intrinsicSize": {
+          "width": 160,
+          "height": 256
+        },
+        "frame": {
+          "left": 0,
+          "top": 0,
+          "width": 1920,
+          "height": 1080
+        },
+        "children": [
+          {
+            "path": "0.0",
+            "kind": "text",
+            "requestedSize": {
+              "width": {
+                "mode": "fill",
+                "value": 1
+              },
+              "height": {
+                "mode": "hug"
+              }
+            },
+            "intrinsicSize": {
+              "width": 0,
+              "height": 96
+            },
+            "frame": {
+              "left": 80,
+              "top": 80,
+              "width": 1760,
+              "height": 96
+            },
+            "snappedFrame": {
+              "left": 80,
+              "top": 80,
+              "width": 1760,
+              "height": 96
+            },
+            "children": [],
+            "text": "Hello",
+            "transform": "none",
+            "element": {
+              "aid": "sh/q1orytsv",
+              "id": "1",
+              "kind": "shape"
+            }
+          }
+        ],
+        "padding": {
+          "top": 80,
+          "right": 80,
+          "bottom": 80,
+          "left": 80
+        },
+        "gap": 0,
+        "effectiveGap": 0,
+        "justifyOffset": 0,
+        "align": "start",
+        "justify": "start",
+        "contentFrame": {
+          "left": 80,
+          "top": 80,
+          "width": 1760,
+          "height": 920
+        },
+        "items": [
+          {
+            "path": "0.0",
+            "frame": {
+              "left": 80,
+              "top": 80,
+              "width": 1760,
+              "height": 96
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

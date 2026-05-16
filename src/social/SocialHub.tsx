@@ -1,8 +1,13 @@
-import { Users, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { RefreshCw, Users } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useProfile } from "@/contexts/ProfileContext";
+import VoiceHero from "@/components/VoiceHero";
+import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
+import { BottomSheet, EmptyState, ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
+import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 import AgentAvatar from "./AgentAvatar";
 import SocialStyles from "./SocialStyles";
 import {
@@ -14,6 +19,15 @@ import {
   getSocialLanguage,
 } from "./roomUtils";
 import type { SocialHubResponse, SocialLanguage, SocialRoom, SocialRoomCategory } from "./types";
+
+const ROOM_WINDOW_SIZE = 4;
+const ROOM_ROTATION_MS = 9000;
+
+function getMoreRoomsLabel(language: SocialLanguage) {
+  if (language === "es") return "Mostrar más salas";
+  if (language === "de") return "Mehr Räume zeigen";
+  return "Show more rooms";
+}
 
 type RoomPickerTileProps = {
   room: SocialRoom;
@@ -89,14 +103,8 @@ function RoomDetailSheet({ room, language, onClose, onEnter }: RoomDetailSheetPr
   const description = room.contentBody || room.opener || room.topic;
 
   return (
-    <div
-      className="fixed inset-0 z-[80] flex items-end bg-[rgba(45,31,66,0.35)] px-3 pb-[112px] pt-3 md:items-center md:justify-center md:p-6"
-      onClick={onClose}
-    >
-      <section
-        className="max-h-[calc(100vh-136px)] w-full max-w-[620px] overflow-y-auto rounded-t-[38px] border border-[#E6DCCF] bg-[#FFFCF8] p-6 shadow-[0_26px_70px_rgba(45,31,66,0.22)] md:max-h-[calc(100vh-48px)] md:rounded-[38px]"
-        onClick={(event) => event.stopPropagation()}
-      >
+    <BottomSheet open onOpenChange={(open) => { if (!open) onClose(); }} closeLabel={copy.closeDetails}>
+      <div>
         <div className="flex items-start justify-between gap-4">
           <AgentAvatar
             agentSlug={room.agentSlug}
@@ -105,14 +113,6 @@ function RoomDetailSheet({ room, language, onClose, onEnter }: RoomDetailSheetPr
             size={76}
             title={room.agentFullName}
           />
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={copy.closeDetails}
-            className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F4EEE7] text-[#7A677F]"
-          >
-            <X size={24} />
-          </button>
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -155,18 +155,21 @@ function RoomDetailSheet({ room, language, onClose, onEnter }: RoomDetailSheetPr
             {copy.enterSelectedRoom}
           </button>
         </div>
-      </section>
-    </div>
+      </div>
+    </BottomSheet>
   );
 }
 
 const SocialHub = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { profile } = useProfile();
   const language = getSocialLanguage(profile?.language);
   const copy = getSocialCopy(language);
+  const autoStartVoice = useRouteVoiceAutoStart();
   const [category, setCategory] = useState<"all" | SocialRoomCategory>("all");
   const [selectedRoomSlug, setSelectedRoomSlug] = useState<string | null>(null);
+  const [roomWindowIndex, setRoomWindowIndex] = useState(0);
 
   const { data, isLoading, isError } = useQuery<SocialHubResponse>({
     queryKey: [`/api/social/hub?lang=${language}`],
@@ -183,22 +186,67 @@ const SocialHub = () => {
     () => hubRooms.find((room) => room.slug === selectedRoomSlug) ?? null,
     [hubRooms, selectedRoomSlug],
   );
+  const roomWindowCount = Math.max(1, Math.ceil(filteredRooms.length / ROOM_WINDOW_SIZE));
+  const visibleRooms = useMemo(() => {
+    if (filteredRooms.length <= ROOM_WINDOW_SIZE) return filteredRooms;
+    const start = (roomWindowIndex * ROOM_WINDOW_SIZE) % filteredRooms.length;
+    return Array.from(
+      { length: ROOM_WINDOW_SIZE },
+      (_, index) => filteredRooms[(start + index) % filteredRooms.length],
+    );
+  }, [filteredRooms, roomWindowIndex]);
+  const moreRoomsLabel = getMoreRoomsLabel(language);
+  const canRotateRooms = filteredRooms.length > ROOM_WINDOW_SIZE;
 
   const filters: Array<"all" | SocialRoomCategory> = ["all", "activity", "social", "useful", "connection"];
+
+  const showNextRooms = useCallback(() => {
+    setRoomWindowIndex((current) => (current + 1) % roomWindowCount);
+  }, [roomWindowCount]);
+
+  useEffect(() => {
+    setRoomWindowIndex(0);
+  }, [category, language, filteredRooms.length]);
+
+  useEffect(() => {
+    if (roomWindowIndex >= roomWindowCount) {
+      setRoomWindowIndex(0);
+    }
+  }, [roomWindowCount, roomWindowIndex]);
+
+  useEffect(() => {
+    if (!canRotateRooms || selectedRoom) return undefined;
+    const timer = window.setInterval(showNextRooms, ROOM_ROTATION_MS);
+    return () => window.clearInterval(timer);
+  }, [canRotateRooms, selectedRoom, showNextRooms]);
 
   return (
     <div className="px-5 pb-10">
       <SocialStyles />
 
-      <header className="pt-6">
-        <p className="font-body text-[18px] tracking-[0.28em] text-[#8E7FAA]">{copy.dayLabel}</p>
-        <h1 className="mt-3 font-display text-[42px] leading-[1.06] text-[#2D1F42]">
-          {copy.chooseRoom}
-        </h1>
-        <p className="mt-3 font-body text-[21px] leading-[1.4] text-[#6E5A8A]">
-          {copy.chooseRoomSubtitle}
-        </p>
+      <header className="pt-4">
+        <VoiceHero
+          heroSurface="social"
+          sourceText={copy.dayLabel}
+          headline={copy.chooseRoom}
+          subtitle={copy.chooseRoomSubtitle}
+          contextHint="social rooms"
+          autoStartVoice={autoStartVoice ? "social" : false}
+          showVoiceOverlay={false}
+          activeLabel={t("voiceHero.endCall", "Pause listening")}
+        />
       </header>
+
+      <VoiceActionFulfillmentPanel
+        domain="social"
+        actionTypes={["social.rooms"]}
+        title={copy.chooseRoom}
+        description="VYVA can use interests, room context, and conversation style to suggest one warm place to start."
+        highlights={[
+          ...(filteredRooms.length > 0 ? [{ label: "Rooms", value: filteredRooms.length, tone: "good" as const }] : []),
+        ]}
+        className="mt-5"
+      />
 
       <div className="mt-6 flex gap-3 overflow-x-auto pb-2">
         {filters.map((value) => {
@@ -223,25 +271,52 @@ const SocialHub = () => {
 
       <main className="mt-6">
         {isLoading && (
-          <div className="rounded-[28px] bg-white p-6 font-body text-[22px] text-[#6E5A8A]">
-            ...
-          </div>
+          <EmptyState title="..." className="text-[#6E5A8A]" />
         )}
 
         {isError && !filteredRooms.length && (
-          <div className="rounded-[28px] bg-white p-6 font-body text-[22px] text-[#6E5A8A]">
-            {copy.noRooms}
-          </div>
+          <EmptyState icon={Users} title={copy.noRooms} />
         )}
 
         {!isLoading && !isError && !filteredRooms.length && (
-          <div className="rounded-[28px] bg-white p-6 font-body text-[22px] text-[#6E5A8A]">
-            {copy.noRooms}
-          </div>
+          <EmptyState icon={Users} title={copy.noRooms} />
         )}
 
-        <div className="grid grid-cols-2 gap-4">
-          {filteredRooms.map((room) => (
+        {filteredRooms.length > 0 && (
+          <SectionTitle
+            className="mb-3"
+            title={copy.allRooms}
+            titleClassName="font-body text-[18px] font-bold not-italic text-[#24172F]"
+            action={canRotateRooms && (
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1" aria-hidden="true">
+                  {Array.from({ length: roomWindowCount }, (_, index) => (
+                    <span
+                      key={index}
+                      className="h-1.5 rounded-full transition-all"
+                      style={{
+                        width: index === roomWindowIndex ? 18 : 7,
+                        background: index === roomWindowIndex ? "#6D28D9" : "#D9C7F8",
+                      }}
+                    />
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={showNextRooms}
+                  aria-label={moreRoomsLabel}
+                  title={moreRoomsLabel}
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#D8C8FB] bg-white text-[#6D28D9] shadow-[0_10px_22px_rgba(109,40,217,0.12)] transition-transform active:scale-95"
+                >
+                  <RefreshCw size={19} strokeWidth={2.4} aria-hidden="true" />
+                </button>
+              </div>
+            )}
+          />
+        )}
+
+        <ResponsiveGrid columns="two">
+          {visibleRooms.map((room) => (
             <RoomPickerTile
               key={room.slug}
               room={room}
@@ -249,7 +324,7 @@ const SocialHub = () => {
               onSelect={(nextRoom) => setSelectedRoomSlug(nextRoom.slug)}
             />
           ))}
-        </div>
+        </ResponsiveGrid>
       </main>
 
       {selectedRoom && (

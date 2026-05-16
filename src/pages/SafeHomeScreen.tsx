@@ -12,10 +12,14 @@ import {
   AlertTriangle,
   CheckCircle,
   ShieldAlert,
+  Phone,
+  Users,
 } from "lucide-react";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
+import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 
 type HomeScan = {
   id: string;
@@ -190,6 +194,19 @@ const SafeHomeScreen = () => {
   const [expandedScanId, setExpandedScanId] = useState<string | null>(null);
   const [fullScreenScan, setFullScreenScan] = useState<HomeScan | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const {
+    action: safetyVoiceAction,
+    isActiveActionAccepted,
+    acceptActiveAction,
+    completeActiveAction,
+    payloadValue: safetyPayloadValue,
+  } = useVoiceActionFulfillment({
+    domain: "safety",
+    actionTypes: ["safety.support"],
+  });
+  const safetyRiskType = safetyPayloadValue("risk_type");
+  const safetyLocation = safetyPayloadValue("location");
+  const safetyCareContact = safetyPayloadValue("care_contact");
 
   const cardStyle: CSSProperties = {
     background: "#FFFFFF",
@@ -320,6 +337,104 @@ const SafeHomeScreen = () => {
             </p>
           </div>
         </div>
+
+        <VoiceActionFulfillmentPanel
+          domain="safety"
+          actionTypes={["safety.support"]}
+          title={t("safeHome.voiceContextTitle", "Safety context ready")}
+          description={t("safeHome.voiceContextSub", "VYVA can focus on immediate safety, location, and caregiver escalation before taking action.")}
+          className="mb-[14px]"
+        />
+
+        {safetyVoiceAction && (
+          <section
+            className="mb-[14px] rounded-[22px] border border-red-200 bg-[#FFF7F7] p-4"
+            style={{ boxShadow: "0 12px 30px rgba(220,38,38,0.10)" }}
+            data-testid="panel-voice-safety-escalation"
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-[#B91C1C]">
+                <ShieldAlert size={21} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#B91C1C]">
+                  {t("safeHome.escalationTitle", "Safety check")}
+                </p>
+                <h2 className="mt-1 font-body text-[17px] font-extrabold leading-tight text-vyva-text-1">
+                  {isActiveActionAccepted
+                    ? t("safeHome.escalationConfirmed", "Ready for the next step")
+                    : t("safeHome.escalationNeedsConfirm", "Tap to confirm before escalation")}
+                </h2>
+                <p className="mt-1 font-body text-[14px] leading-[1.45] text-vyva-text-2">
+                  {t("safeHome.escalationSub", "VYVA can keep the conversation calm, but urgent calls or caregiver escalation need a tap first.")}
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {safetyRiskType && (
+                <span className="rounded-full bg-white px-3 py-1.5 font-body text-[12px] font-bold text-[#B91C1C]">
+                  Risk: {safetyRiskType}
+                </span>
+              )}
+              {safetyLocation && (
+                <span className="rounded-full bg-white px-3 py-1.5 font-body text-[12px] font-bold text-vyva-text-2">
+                  Location: {safetyLocation}
+                </span>
+              )}
+              {safetyCareContact && (
+                <span className="rounded-full bg-white px-3 py-1.5 font-body text-[12px] font-bold text-vyva-text-2">
+                  Contact: {safetyCareContact}
+                </span>
+              )}
+            </div>
+            {!isActiveActionAccepted ? (
+              <button
+                type="button"
+                onClick={() => acceptActiveAction({
+                  source: "safe_home_escalation_confirm",
+                  risk_type: safetyRiskType,
+                  location: safetyLocation,
+                })}
+                className="mt-4 inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-full bg-[#B91C1C] px-4 font-body text-[15px] font-bold text-white transition active:scale-[0.98]"
+              >
+                <CheckCircle size={18} />
+                {t("safeHome.confirmSafetyStep", "Confirm safety step")}
+              </button>
+            ) : (
+              <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <a
+                  href="tel:112"
+                  className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full bg-[#B91C1C] px-4 font-body text-[14px] font-bold text-white transition active:scale-[0.98]"
+                >
+                  <Phone size={17} />
+                  {t("safeHome.callEmergency", "Call 112")}
+                </a>
+                <button
+                  type="button"
+                  onClick={() => navigate("/onboarding/profile/care-team")}
+                  className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full border border-red-200 bg-white px-4 font-body text-[14px] font-bold text-[#B91C1C] transition active:scale-[0.98]"
+                >
+                  <Users size={17} />
+                  {t("safeHome.careTeam", "Care team")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => completeActiveAction({
+                    metadata: {
+                      source: "safe_home_escalation_safe_now",
+                      risk_type: safetyRiskType,
+                      location: safetyLocation,
+                    },
+                  })}
+                  className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full border border-emerald-200 bg-white px-4 font-body text-[14px] font-bold text-emerald-700 transition active:scale-[0.98]"
+                >
+                  <CheckCircle size={17} />
+                  {t("safeHome.safeNow", "Safe now")}
+                </button>
+              </div>
+            )}
+          </section>
+        )}
 
         {/* Scan a Room card */}
         <div style={cardStyle} className="mb-[14px]">

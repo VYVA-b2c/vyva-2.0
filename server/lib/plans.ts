@@ -86,6 +86,30 @@ export function normalizeSubscriptionTier(tier: string | null | undefined): stri
   return LEGACY_TIER_MAP[normalized] ?? normalized;
 }
 
+export function bestSubscriptionTier(
+  profileTier: string | null | undefined,
+  lifecycleTiers: Array<{ tier: string | null; status: string | null }>,
+) {
+  const candidates = [
+    {
+      tier: normalizeSubscriptionTier(profileTier),
+      status: "profile",
+    },
+    ...lifecycleTiers
+      .filter((row) => row.status !== "dropped")
+      .map((row) => ({
+        tier: normalizeSubscriptionTier(row.tier),
+        status: row.status ?? "lifecycle",
+      })),
+  ];
+
+  return candidates.reduce((best, candidate) => {
+    const bestRank = best.tier === "premium" ? 1 : 0;
+    const candidateRank = candidate.tier === "premium" ? 1 : 0;
+    return candidateRank > bestRank ? candidate : best;
+  }, candidates[0]);
+}
+
 export function normalizeCurrency(value: unknown): BillingCurrency {
   return typeof value === "string" && value.toLowerCase() === "gbp" ? "gbp" : "eur";
 }

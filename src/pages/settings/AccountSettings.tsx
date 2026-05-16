@@ -6,8 +6,8 @@ import { Camera, X } from "lucide-react";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FormField, ResponsiveGrid } from "@/components/vyva-ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n";
 import { LANGUAGES, type LanguageCode } from "@/i18n/languages";
@@ -314,18 +314,7 @@ export default function AccountSettings() {
   const initial = displayName.charAt(0).toUpperCase();
   const requiredText = accountCopy.required;
   const optionalText = accountCopy.optional;
-
-  const renderFieldLabel = (label: string, required: boolean) => (
-    <span className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 leading-tight">
-      <span className="flex min-w-0 items-start gap-1.5">
-        <span>{label}</span>
-        {required ? <span className="text-sm leading-none" style={{ color: "#B0355A" }}>*</span> : null}
-      </span>
-      <span className="text-[11px] font-medium" style={{ color: required ? "#B0355A" : "#7A7290" }}>
-        {required ? requiredText : optionalText}
-      </span>
-    </span>
-  );
+  const fieldMeta = { requiredLabel: requiredText, optionalLabel: optionalText };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -382,9 +371,6 @@ export default function AccountSettings() {
       setSaving(false);
     }
   };
-
-  const compactLabelClass = "block min-h-[34px] text-xs font-bold text-gray-600";
-  const fieldLabelClass = "block text-xs font-bold text-gray-600";
 
   return (
     <PhoneFrame subtitle={t("settings.account.title")} showBack onBack={() => navigate("/settings")}>
@@ -458,11 +444,14 @@ export default function AccountSettings() {
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="first_name" className={compactLabelClass}>
-              {renderFieldLabel(accountCopy.firstName, true)}
-            </Label>
+        <ResponsiveGrid columns="two" gap="md">
+          <FormField
+            htmlFor="first_name"
+            label={accountCopy.firstName}
+            required
+            error={errors.firstName}
+            {...fieldMeta}
+          >
             <Input
               id="first_name"
               value={form.firstName}
@@ -477,13 +466,15 @@ export default function AccountSettings() {
               }}
               aria-required="true"
             />
-            {errors.firstName ? <p className="text-xs text-red-500">{errors.firstName}</p> : null}
-          </div>
+          </FormField>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="last_name" className={compactLabelClass}>
-              {renderFieldLabel(accountCopy.lastName, true)}
-            </Label>
+          <FormField
+            htmlFor="last_name"
+            label={accountCopy.lastName}
+            required
+            error={errors.lastName}
+            {...fieldMeta}
+          >
             <Input
               id="last_name"
               value={form.lastName}
@@ -498,34 +489,32 @@ export default function AccountSettings() {
               }}
               aria-required="true"
             />
-            {errors.lastName ? <p className="text-xs text-red-500">{errors.lastName}</p> : null}
-          </div>
-        </div>
+          </FormField>
+        </ResponsiveGrid>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="preferred_name" className={fieldLabelClass}>
-            {renderFieldLabel(t("settings.account.preferredName"), false)}
-          </Label>
+        <FormField htmlFor="preferred_name" label={t("settings.account.preferredName")} {...fieldMeta}>
           <Input
             id="preferred_name"
             value={form.preferredName}
             onChange={(e) => setForm((current) => ({ ...current, preferredName: e.target.value }))}
             className="h-11 border-purple-200"
           />
-        </div>
+        </FormField>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label className={compactLabelClass}>{renderFieldLabel(t("settings.account.dateOfBirth"), false)}</Label>
+        <ResponsiveGrid columns="two" gap="md">
+          <FormField label={t("settings.account.dateOfBirth")} {...fieldMeta}>
             <Input
               type="date"
               value={form.dateOfBirth}
               onChange={(e) => setForm((current) => ({ ...current, dateOfBirth: e.target.value }))}
               className="h-11 border-purple-200"
             />
-          </div>
-          <div className="space-y-1.5">
-            <Label className={compactLabelClass}>{renderFieldLabel(t("settings.account.gender"), false)}</Label>
+          </FormField>
+          <FormField
+            label={t("settings.account.gender")}
+            hint={genderWasInferred ? accountCopy.genderInferred : undefined}
+            {...fieldMeta}
+          >
             <Select
               value={form.gender}
               onValueChange={(value) => {
@@ -542,19 +531,17 @@ export default function AccountSettings() {
                 <SelectItem value="prefer_not">{t("settings.account.genderPreferNot")}</SelectItem>
               </SelectContent>
             </Select>
-            {genderWasInferred ? (
-              <p className="text-[11px]" style={{ color: "#7A7290" }}>
-                {accountCopy.genderInferred}
-              </p>
-            ) : null}
-          </div>
-        </div>
+          </FormField>
+        </ResponsiveGrid>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="phone" className={fieldLabelClass}>
-            {renderFieldLabel(t("settings.account.phone"), true)}
-          </Label>
-          <div className="grid grid-cols-[122px_minmax(0,1fr)] gap-3">
+        <FormField
+          htmlFor="phone"
+          label={t("settings.account.phone")}
+          required
+          error={errors.phone}
+          {...fieldMeta}
+        >
+          <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-[122px_minmax(0,1fr)]">
             <Select
               value={form.phoneCountry}
               onValueChange={(value) => setForm((current) => ({ ...current, phoneCountry: value }))}
@@ -587,13 +574,9 @@ export default function AccountSettings() {
               aria-required="true"
             />
           </div>
-          {errors.phone ? <p className="text-xs text-red-500">{errors.phone}</p> : null}
-        </div>
+        </FormField>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="whatsapp" className={fieldLabelClass}>
-            {renderFieldLabel(t("settings.account.whatsapp"), false)}
-          </Label>
+        <FormField htmlFor="whatsapp" label={t("settings.account.whatsapp")} {...fieldMeta}>
           <Input
             id="whatsapp"
             type="tel"
@@ -602,12 +585,9 @@ export default function AccountSettings() {
             placeholder={t("settings.account.whatsappPlaceholder")}
             className="h-11 border-purple-200"
           />
-        </div>
+        </FormField>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="email" className={fieldLabelClass}>
-            {renderFieldLabel(t("settings.account.email"), false)}
-          </Label>
+        <FormField htmlFor="email" label={t("settings.account.email")} {...fieldMeta}>
           <Input
             id="email"
             type="email"
@@ -616,11 +596,10 @@ export default function AccountSettings() {
             placeholder={t("settings.account.emailPlaceholder")}
             className="h-11 border-purple-200"
           />
-        </div>
+        </FormField>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label className={compactLabelClass}>{renderFieldLabel(t("settings.account.language"), false)}</Label>
+        <ResponsiveGrid columns="two" gap="md">
+          <FormField label={t("settings.account.language")} {...fieldMeta}>
             <Select
               value={form.language}
               onValueChange={(value) => {
@@ -637,9 +616,8 @@ export default function AccountSettings() {
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className={compactLabelClass}>{renderFieldLabel(t("settings.account.timezone"), false)}</Label>
+          </FormField>
+          <FormField label={t("settings.account.timezone")} {...fieldMeta}>
             <Select
               value={form.timezone}
               onValueChange={(value) => {
@@ -656,8 +634,8 @@ export default function AccountSettings() {
                 ))}
               </SelectContent>
             </Select>
-          </div>
-        </div>
+          </FormField>
+        </ResponsiveGrid>
 
         <div className="flex flex-col gap-2 pt-2">
           <Button

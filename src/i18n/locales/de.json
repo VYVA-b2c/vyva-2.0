@@ -6,7 +6,11 @@
     "medications": "Medikamente",
     "cognitiveActivity": "Kognitive Aktivität",
     "history": "Verlauf",
-    "myProfile": "Mein Profil"
+    "myProfile": "Mein Profil",
+    "vyva": "VYVA",
+    "myHealth": "Meine Gesundheit",
+    "myMind": "Mein Geist",
+    "concierge": "Concierge"
   },
   "history": {
     "title": "Mein Verlauf",
@@ -245,7 +249,7 @@
         "openLabel": "Ihren Helfer öffnen"
       }
     },
-    "whatNow": "Was machen wir jetzt?"
+    "whatNow": "oder Thema erkunden"
   },
   "voiceHero": {
     "talkToVyva": "Mit VYVA sprechen",
@@ -255,7 +259,7 @@
     "active": "Aktiv",
     "live": "Live",
     "you": "Sie",
-    "endCall": "Anruf beenden"
+    "endCall": "Zuhören pausieren"
   },
   "timezoneGroups": {
     "europe": "Europa",
@@ -844,7 +848,7 @@
   "brain": {
     "voiceSource": "VYVA ist Ihr Gehirntrainer",
     "headline": "Bereit für das\nGehirntraining?",
-    "subtitle": "{{streak}}-Tage-Serie — weiter so!",
+    "subtitle": "Halten Sie den Geist fit",
     "startSession": "Sitzung starten",
     "chooseActivity": "Aktivität wählen",
     "doneToday": "Heute erledigt",
@@ -860,12 +864,12 @@
       "So"
     ],
     "activities": {
-      "triviaQuiz": "Quiz",
+      "triviaQuiz": "Fokus und Aufmerksamkeit",
       "memoryGame": "Gedächtnisspiel",
-      "scrabble": "Scrabble",
-      "logicPuzzle": "Logikrätsel",
-      "meditation": "Meditation",
-      "breathing": "Atemübung"
+      "scrabble": "Wörter und Sprache",
+      "logicPuzzle": "Gehirntraining",
+      "meditation": "Entspannen und atmen",
+      "breathing": "Entspannen und atmen"
     }
   },
   "activity": {
@@ -1148,7 +1152,7 @@
       "requestSent": "Verbindungsanfrage gesendet!"
     },
     "noConnections": "Noch keine Begleiter — schau in den Vorschlägen nach!",
-    "activityTile": "Spieltermin finden",
+    "activityTile": "Mit anderen verbinden",
     "activityTileSubtitle": "Lerne andere mit ähnlichen Interessen kennen",
     "sayHello": "Hallo sagen mit VYVA",
     "sayHelloPrompt": "Sage Hallo zu {{name}}!",
@@ -1276,7 +1280,7 @@
     "callCompanionSubtitle": "Live-Hilfe bei einem verdächtigen Anruf",
     "callCompanionDesc": "Starten Sie VYVA während eines verdächtigen Anrufs. Fragen Sie, was Sie sagen sollen und ob Sie auflegen sollten.",
     "callCompanionStart": "Anruf-Begleitung starten",
-    "callCompanionEnd": "Anruf beenden",
+    "callCompanionEnd": "Hilfe pausieren",
     "callCompanionConnecting": "Verbindung…"
   },
   "community": {

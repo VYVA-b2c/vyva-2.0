@@ -1,6 +1,7 @@
-import { ArrowLeft, ChevronRight, GitBranch, Layers, Route as RouteIcon, Users } from "lucide-react";
+import { ChevronRight, GitBranch, Layers, Route as RouteIcon, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n";
+import { ActionCard, PageHeader, ResponsiveGrid } from "@/components/vyva-ui";
 
 const executiveGames = [
   {
@@ -39,75 +40,52 @@ export default function ExecutiveFunctionPage() {
 
   return (
     <div className="vyva-page">
-      <button
-        type="button"
-        onClick={() => navigate("/activities")}
-        className="mt-2 inline-flex min-h-[64px] items-center gap-3 rounded-full bg-white px-5 text-[22px] font-bold text-vyva-text-1 shadow-vyva-card"
-      >
-        <ArrowLeft size={24} />
-        {t("common.back")}
-      </button>
+      <PageHeader
+        className="pt-2"
+        title={title}
+        subtitle={t("brainGames.executiveFunction.subtitle")}
+        icon={Layers}
+        iconColor="#7C3AED"
+        backLabel={t("common.back")}
+        backTo="/activities"
+      />
 
-      <section className="mt-5 rounded-[8px] border border-[#EDE2D1] bg-[#FFF9F1] p-6 shadow-vyva-card">
-        <div className="flex items-start justify-between gap-5">
-          <div className="min-w-0">
-            <h1 className="font-display text-[42px] font-bold leading-[1.05] text-vyva-text-1">
-              {title}
-            </h1>
-            <p className="mt-4 text-[24px] leading-[1.35] text-vyva-text-2">{t("brainGames.executiveFunction.subtitle")}</p>
-          </div>
-          <div className="flex h-[88px] w-[88px] flex-shrink-0 items-center justify-center rounded-[8px] bg-white shadow-vyva-card">
-            <Layers size={44} className="text-vyva-purple" />
-          </div>
-        </div>
-      </section>
-
-      <section className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <ResponsiveGrid className="mt-5" columns="two">
         {executiveGames.map((game) => {
           const Icon = game.Icon;
 
           return (
-            <button
+            <ActionCard
               key={game.route}
-              type="button"
               onClick={() => navigate(game.route)}
-              className="min-h-[220px] rounded-[8px] border-2 bg-white p-5 text-left shadow-vyva-card transition-transform active:scale-[0.99]"
+              title={t(game.titleKey)}
+              description={t(game.descriptionKey)}
+              icon={Icon}
+              iconBg={game.colors.bg}
+              iconColor={game.colors.accent}
+              surface="white"
               style={{ borderColor: game.colors.border }}
+              badge={(
+                <span
+                  className="rounded-full px-3 py-1 font-body text-[12px] font-bold"
+                  style={{ background: game.colors.bg, color: game.colors.accent }}
+                >
+                  {t(game.badgeKey)}
+                </span>
+              )}
+              trailing={(
+                <span
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-white"
+                  style={{ background: game.colors.accent }}
+                >
+                  <ChevronRight size={20} aria-hidden="true" />
+                </span>
+              )}
             >
-              <div className="flex h-full flex-col justify-between gap-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div
-                    className="flex h-[72px] w-[72px] flex-shrink-0 items-center justify-center rounded-[8px]"
-                    style={{ background: game.colors.bg, color: game.colors.accent }}
-                  >
-                    <Icon size={36} />
-                  </div>
-                  <span
-                    className="rounded-full px-4 py-2 text-[18px] font-bold"
-                    style={{ background: game.colors.bg, color: game.colors.accent }}
-                  >
-                    {t(game.badgeKey)}
-                  </span>
-                </div>
-
-                <div>
-                  <h2 className="text-[30px] font-extrabold leading-[1.1] text-vyva-text-1">{t(game.titleKey)}</h2>
-                  <p className="mt-3 text-[22px] leading-[1.35] text-vyva-text-2">{t(game.descriptionKey)}</p>
-                </div>
-
-                <div className="flex items-center justify-end">
-                  <div
-                    className="flex h-[64px] w-[64px] items-center justify-center rounded-full text-white"
-                    style={{ background: game.colors.accent }}
-                  >
-                    <ChevronRight size={34} />
-                  </div>
-                </div>
-              </div>
-            </button>
+            </ActionCard>
           );
         })}
-      </section>
+      </ResponsiveGrid>
     </div>
   );
 }

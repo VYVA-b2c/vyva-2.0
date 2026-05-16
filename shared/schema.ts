@@ -1396,6 +1396,67 @@ export const insertConciergeRecommendationFeedbackSchema = createInsertSchema(co
 export type InsertConciergeRecommendationFeedback = z.infer<typeof insertConciergeRecommendationFeedbackSchema>;
 export type ConciergeRecommendationFeedback = typeof conciergeRecommendationFeedback.$inferSelect;
 
+export const voiceRecommendationFeedback = pgTable("voice_recommendation_feedback", {
+  id:                uuid("id").primaryKey().defaultRandom(),
+  user_id:           text("user_id").notNull(),
+  session_id:        text("session_id"),
+  recommendation_id: text("recommendation_id").notNull(),
+  action:            text("action").notNull(),
+  domain:            text("domain"),
+  title:             text("title"),
+  reason:            text("reason"),
+  source:            text("source").notNull().default("voice"),
+  metadata:          jsonb("metadata").notNull().default({}),
+  created_at:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertVoiceRecommendationFeedbackSchema = createInsertSchema(voiceRecommendationFeedback).omit({ id: true, created_at: true });
+export type InsertVoiceRecommendationFeedback = z.infer<typeof insertVoiceRecommendationFeedbackSchema>;
+export type VoiceRecommendationFeedback = typeof voiceRecommendationFeedback.$inferSelect;
+
+export const voiceTimelineEvents = pgTable("voice_timeline_events", {
+  id:                   uuid("id").primaryKey().defaultRandom(),
+  user_id:              text("user_id").notNull(),
+  client_event_id:      text("client_event_id").notNull(),
+  session_id:           text("session_id"),
+  kind:                 text("kind").notNull(),
+  title:                text("title").notNull(),
+  detail:               text("detail"),
+  severity:             text("severity").notNull().default("info"),
+  domain:               text("domain"),
+  agent_id:             text("agent_id"),
+  agent_slug:           text("agent_slug"),
+  conversation_plan_id: text("conversation_plan_id"),
+  route:                text("route"),
+  action_id:            text("action_id"),
+  action_type:          text("action_type"),
+  source:               text("source").notNull().default("app"),
+  payload:              jsonb("payload").notNull().default({}),
+  client_at:            timestamp("client_at", { withTimezone: true }),
+  created_at:           timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("voice_timeline_events_user_client_event_unique").on(t.user_id, t.client_event_id),
+]);
+
+export const insertVoiceTimelineEventSchema = createInsertSchema(voiceTimelineEvents).omit({ id: true, created_at: true });
+export type InsertVoiceTimelineEvent = z.infer<typeof insertVoiceTimelineEventSchema>;
+export type VoiceTimelineEventRow = typeof voiceTimelineEvents.$inferSelect;
+
+export const voiceQaSessionReviews = pgTable("voice_qa_session_reviews", {
+  id:         uuid("id").primaryKey().defaultRandom(),
+  session_id: text("session_id").notNull().unique(),
+  status:     text("status").notNull().default("unreviewed"),
+  note:       text("note"),
+  reviewed_by: text("reviewed_by"),
+  reviewed_at: timestamp("reviewed_at", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertVoiceQaSessionReviewSchema = createInsertSchema(voiceQaSessionReviews).omit({ id: true, created_at: true, updated_at: true });
+export type InsertVoiceQaSessionReview = z.infer<typeof insertVoiceQaSessionReviewSchema>;
+export type VoiceQaSessionReviewRow = typeof voiceQaSessionReviews.$inferSelect;
+
 export const homePlanCards = pgTable("home_plan_cards", {
   id:                       uuid("id").primaryKey().defaultRandom(),
   card_id:                  text("card_id").notNull().unique(),
@@ -1493,6 +1554,7 @@ export const schema = {
   conciergeReminders,
   utilityReviewRuns,
   conciergeRecommendationFeedback,
+  voiceRecommendationFeedback,
   homePlanCards,
   heroMessages,
 };

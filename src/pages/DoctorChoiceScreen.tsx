@@ -1,59 +1,30 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ChevronRight, HeartPulse, Mic, Stethoscope, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import { useProfile } from "@/contexts/ProfileContext";
+import { useDoctorVoice } from "@/hooks/useDoctorVoice";
 import { useHeroMessage } from "@/hooks/useHeroMessage";
 import { useServiceGate } from "@/hooks/useServiceGate";
-import { useVyvaVoice } from "@/hooks/useVyvaVoice";
-import { apiFetch } from "@/lib/queryClient";
-
-const DOCTOR_AGENT_SLUG = "doctor";
-const FALLBACK_DOCTOR_USER_ID = "vyva-local-user";
-type VoiceDynamicVariables = Record<string, string | number | boolean>;
-
-function createDoctorConversationId() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  return `doctor-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-async function fetchDoctorContextVariables(conversationId: string): Promise<VoiceDynamicVariables> {
-  const params = new URLSearchParams({ conversation_id: conversationId });
-  const res = await apiFetch(`/api/profile/doctor-context?${params.toString()}`);
-  if (!res.ok) {
-    throw new Error(`Doctor context failed: ${res.status}`);
-  }
-
-  const data = await res.json() as { dynamicVariables?: VoiceDynamicVariables };
-  return data.dynamicVariables ?? {};
-}
+import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 
 const DoctorChoiceScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t, i18n } = useTranslation();
-  const { user } = useAuth();
-  const { profile, firstName } = useProfile();
   const { readiness } = useServiceGate();
   const {
-    startVoice,
-    stopVoice,
-    beginUserTurn,
-    endUserTurn,
     status,
     isSpeaking,
     isUserSpeaking,
     isConnecting,
-    hasMicrophone,
     lastError,
-  } = useVyvaVoice();
+    isVoiceLive,
+    startDoctorVoice,
+    stopDoctorVoice,
+    startAttempted,
+    userStopped,
+  } = useDoctorVoice();
   const [voiceError, setVoiceError] = useState<string | null>(null);
-  const userStoppedRef = useRef(false);
-  const attemptedStartRef = useRef(false);
-  const startListeningWhenReadyRef = useRef(false);
   const autoStartRequested = Boolean((location.state as { autoStartVoice?: boolean } | null)?.autoStartVoice);
   const doctorRecommendations = readiness?.services.doctor.recommended ?? [];
 
@@ -69,70 +40,34 @@ const DoctorChoiceScreen = () => {
     const language = i18n.language?.slice(0, 2);
     switch (language) {
       case "en":
-        return "Stop call";
+        return "Pause listening";
       case "de":
-        return "Anruf beenden";
+        return "Zuhören pausieren";
       case "fr":
-        return "Terminer l'appel";
+        return "Mettre en pause";
       case "it":
-        return "Termina chiamata";
+        return "Metti in pausa";
       case "pt":
-        return "Terminar chamada";
+        return "Pausar escuta";
       case "es":
       default:
-        return "Terminar llamada";
+        return "Pausar escucha";
     }
   }, [i18n.language]);
 
-  const isVoiceLive =
-    status === "connecting" ||
-    status === "connected" ||
-    isConnecting ||
-    isSpeaking ||
-    isUserSpeaking;
-
-  const startDoctorVoice = useCallback(async () => {
-    userStoppedRef.current = false;
-    attemptedStartRef.current = true;
-    startListeningWhenReadyRef.current = true;
+  const stopDoctorVoiceAndClearError = useCallback(() => {
+    stopDoctorVoice();
     setVoiceError(null);
-    const conversationId = createDoctorConversationId();
-    let doctorContext: VoiceDynamicVariables = {};
-    try {
-      doctorContext = await fetchDoctorContextVariables(conversationId);
-    } catch (error) {
-      console.warn("[DoctorChoice] Starting doctor voice without profile context:", error);
-      doctorContext = {
-        health_context: "The user's health profile could not be loaded before this call.",
-      };
-    }
-    await startVoice(undefined, undefined, {
-      agentSlug: DOCTOR_AGENT_SLUG,
-      dynamicVariables: {
-        ...doctorContext,
-        first_name: firstName?.trim() || profile?.firstName?.trim() || "there",
-        user_id: user?.id ?? FALLBACK_DOCTOR_USER_ID,
-        conversation_id: conversationId,
-        language: i18n.language?.slice(0, 2) || "en",
-      },
-    });
-  }, [firstName, i18n.language, profile?.firstName, startVoice, user?.id]);
-
-  const stopDoctorVoice = useCallback(() => {
-    userStoppedRef.current = true;
-    startListeningWhenReadyRef.current = false;
-    endUserTurn();
-    stopVoice();
-    setVoiceError(null);
-  }, [endUserTurn, stopVoice]);
+  }, [stopDoctorVoice]);
 
   const handleHeroVoiceAction = useCallback(() => {
     if (isVoiceLive) {
-      stopDoctorVoice();
+      stopDoctorVoiceAndClearError();
       return;
     }
+    setVoiceError(null);
     void startDoctorVoice();
-  }, [isVoiceLive, startDoctorVoice, stopDoctorVoice]);
+  }, [isVoiceLive, startDoctorVoice, stopDoctorVoiceAndClearError]);
 
   useEffect(() => {
     if (!lastError) return;
@@ -163,7 +98,7 @@ const DoctorChoiceScreen = () => {
   }, [lastError, t]);
 
   useEffect(() => {
-    if (!attemptedStartRef.current || userStoppedRef.current || lastError) return;
+    if (!startAttempted || userStopped || lastError) return;
     if (status === "idle" && !isConnecting && !isSpeaking && !isUserSpeaking) {
       setVoiceError(
         t(
@@ -172,28 +107,21 @@ const DoctorChoiceScreen = () => {
         ),
       );
     }
-  }, [isConnecting, isSpeaking, isUserSpeaking, lastError, status, t]);
+  }, [isConnecting, isSpeaking, isUserSpeaking, lastError, startAttempted, status, t, userStopped]);
 
   useEffect(() => {
-    if (!autoStartRequested || attemptedStartRef.current || isVoiceLive) return;
+    if (!autoStartRequested || startAttempted || isVoiceLive) return;
     void startDoctorVoice();
-  }, [autoStartRequested, isVoiceLive, startDoctorVoice]);
-
-  useEffect(() => {
-    if (status !== "connected" || !startListeningWhenReadyRef.current || !hasMicrophone) return;
-    startListeningWhenReadyRef.current = false;
-    void beginUserTurn();
-  }, [beginUserTurn, hasMicrophone, status]);
-
-  useEffect(() => () => stopVoice(), [stopVoice]);
+  }, [autoStartRequested, isVoiceLive, startAttempted, startDoctorVoice]);
 
   const handleDirect = () => {
     if (isVoiceLive) return;
+    setVoiceError(null);
     void startDoctorVoice();
   };
 
   const handleTriage = () => {
-    stopDoctorVoice();
+    stopDoctorVoiceAndClearError();
     navigate("/health/symptom-check");
   };
 
@@ -207,7 +135,7 @@ const DoctorChoiceScreen = () => {
         <button
           type="button"
           onClick={() => {
-            stopDoctorVoice();
+            stopDoctorVoiceAndClearError();
             navigate("/health");
           }}
           className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#FFFDF9] px-5 py-3 font-body text-[16px] font-bold text-vyva-text-1 shadow-sm"
@@ -219,7 +147,7 @@ const DoctorChoiceScreen = () => {
         <button
           type="button"
           onClick={() => {
-            stopDoctorVoice();
+            stopDoctorVoiceAndClearError();
             navigate("/health");
           }}
           className="vyva-tap inline-flex h-[48px] w-[48px] items-center justify-center rounded-full bg-[#F5F3FF] text-vyva-purple shadow-sm"
@@ -229,25 +157,26 @@ const DoctorChoiceScreen = () => {
         </button>
       </div>
 
-      <section className="rounded-[32px] border border-vyva-border bg-[#FFFCF8] p-6 shadow-vyva-card">
-        <div className="flex items-start gap-4">
-          <div className="flex h-[72px] w-[72px] flex-shrink-0 items-center justify-center rounded-[24px] bg-[#F0FDF4]">
-            <Stethoscope size={34} className="text-[#0A7C4E]" />
+      <section className="relative overflow-hidden rounded-[30px] bg-[#3D0D82] p-5 text-white shadow-[0_16px_36px_rgba(91,18,160,0.24)]">
+        <div className="absolute -right-14 -top-14 h-44 w-44 rounded-full bg-white/10" />
+        <div className="relative flex items-start gap-4">
+          <div className="flex h-[72px] w-[72px] flex-shrink-0 items-center justify-center rounded-[24px] bg-white/15">
+            <Stethoscope size={34} className="text-white" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-3">
-              <p className="font-body text-[14px] font-extrabold uppercase tracking-[0.14em] text-vyva-purple">
+              <p className="font-body text-[12px] font-bold uppercase tracking-[0.14em] text-white/65">
                 {heroMessage?.sourceText ?? t("health.doctorChoice.kicker", "Ayuda medica")}
               </p>
               {isVoiceLive ? (
-                <span className="inline-flex flex-shrink-0 items-center gap-2 rounded-full bg-[#ECFDF5] px-3 py-2 font-body text-[13px] font-extrabold text-[#0A7C4E]">
+                <span className="inline-flex flex-shrink-0 items-center gap-2 rounded-full bg-white px-3 py-2 font-body text-[13px] font-extrabold text-[#0A7C4E]">
                   <span className="h-2 w-2 rounded-full bg-[#10B981]" />
                   {t("common.live", "En vivo")}
                 </span>
               ) : null}
             </div>
             <h1
-              className="mt-1 min-w-0 break-words font-display text-[38px] leading-[1.05] text-vyva-text-1"
+              className="mt-1 min-w-0 break-words font-display text-[34px] italic leading-[1.08] text-white"
               style={{
                 display: "-webkit-box",
                 WebkitBoxOrient: "vertical",
@@ -265,10 +194,10 @@ const DoctorChoiceScreen = () => {
           type="button"
           onClick={handleHeroVoiceAction}
           aria-label={heroVoiceLabel}
-          className={`vyva-tap mt-6 inline-flex min-h-[64px] w-full items-center justify-center gap-3 rounded-full border px-5 font-body text-[20px] font-extrabold shadow-sm transition ${
+          className={`vyva-tap relative mt-6 inline-flex min-h-[60px] w-full items-center justify-center gap-3 rounded-full border px-5 font-body text-[18px] font-extrabold shadow-sm transition ${
             isVoiceLive
               ? "border-[#FDBA74] bg-[#FFF7ED] text-[#9A3412]"
-              : "border-vyva-border bg-white text-vyva-purple"
+              : "border-white bg-white text-vyva-purple"
           }`}
         >
           {isVoiceLive ? <X size={24} /> : <Mic size={24} />}
@@ -282,6 +211,14 @@ const DoctorChoiceScreen = () => {
         </div>
       ) : null}
 
+      <VoiceActionFulfillmentPanel
+        domain="health"
+        actionTypes={["health.doctor_support"]}
+        title={t("health.doctorChoice.contextReady", "Health context ready")}
+        description={t("health.doctorChoice.contextReadySub", "VYVA can use the health profile, recent symptoms, vitals, and GP context while helping here.")}
+        className="mt-4"
+      />
+
       {doctorRecommendations.length > 0 ? (
         <button
           type="button"
@@ -289,7 +226,7 @@ const DoctorChoiceScreen = () => {
             const firstRecommendation = doctorRecommendations[0];
             navigate(`${firstRecommendation.path}?returnTo=${encodeURIComponent("/health/doctor")}`);
           }}
-          className="mt-4 w-full rounded-[24px] border border-vyva-border bg-white px-5 py-4 text-left shadow-sm"
+          className="mt-4 w-full rounded-[24px] border border-[#E8DED4] bg-white px-5 py-4 text-left shadow-[0_8px_24px_rgba(63,45,35,0.06)]"
         >
           <p className="font-body text-[13px] font-extrabold uppercase tracking-[0.12em] text-vyva-purple">
             {t("health.doctorChoice.contextTipTitle", "Optional profile tip")}
@@ -304,7 +241,7 @@ const DoctorChoiceScreen = () => {
         <button
           type="button"
           onClick={handleDirect}
-          className="vyva-tap flex min-h-[120px] items-center gap-4 rounded-[28px] border border-[#BBF7D0] bg-[#F0FDF4] p-5 text-left shadow-vyva-card"
+          className="vyva-tap flex min-h-[120px] items-center gap-4 rounded-[28px] border border-[#BBF7D0] bg-[#F0FDF4] p-5 text-left shadow-[0_10px_26px_rgba(10,124,78,0.10)]"
         >
           <span className="flex h-[62px] w-[62px] flex-shrink-0 items-center justify-center rounded-[20px] bg-white">
             <Stethoscope size={30} className="text-[#0A7C4E]" />
@@ -323,7 +260,7 @@ const DoctorChoiceScreen = () => {
         <button
           type="button"
           onClick={handleTriage}
-          className="vyva-tap flex min-h-[120px] items-center gap-4 rounded-[28px] border border-vyva-border bg-[#FFFFFF] p-5 text-left shadow-vyva-card"
+          className="vyva-tap flex min-h-[120px] items-center gap-4 rounded-[28px] border border-[#E8DED4] bg-white p-5 text-left shadow-[0_8px_24px_rgba(63,45,35,0.06)]"
         >
           <span className="flex h-[62px] w-[62px] flex-shrink-0 items-center justify-center rounded-[20px] bg-[#F5F3FF]">
             <HeartPulse size={30} className="text-vyva-purple" />

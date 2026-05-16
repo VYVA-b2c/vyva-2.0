@@ -5,13 +5,30 @@ import fs from "fs/promises";
 import "dotenv/config";
 import { routerHandler } from "./routes/router.js";
 import { conversationTokenHandler } from "./routes/conversationToken.js";
-import { retrieveMedicalProfileToolHandler } from "./routes/elevenlabsTools.js";
+import { voiceContextHandler } from "./routes/voiceContext.js";
+import { voiceRecommendationFeedbackHandler } from "./routes/voiceRecommendationFeedback.js";
+import {
+  listAdminVoiceTimelineEventsHandler,
+  listOwnVoiceTimelineEventsHandler,
+  recordVoiceTimelineEventsHandler,
+} from "./routes/voiceTimeline.js";
+import {
+  listVoiceQaSessionReviewsHandler,
+  saveVoiceQaSessionReviewHandler,
+} from "./routes/voiceQaSessionReviews.js";
+import {
+  recordVoiceRecommendationFeedbackToolHandler,
+  retrieveMedicalProfileToolHandler,
+} from "./routes/elevenlabsTools.js";
 import { onboardingRouter } from "./routes/onboarding.js";
 import billingRouter from "./routes/billing.js";
 import { adminRouter } from "./routes/admin.js";
 import { adminLifecycleRouter } from "./routes/adminLifecycle.js";
+import intakeRouter from "./routes/intake.js";
+import twilioWebhooksRouter from "./routes/twilioWebhooks.js";
 import { authRouter } from "./routes/auth.js";
 import { authMiddleware, requireAdminUser, requireUser } from "./middleware/auth.js";
+import { requireEntitlement } from "./middleware/entitlements.js";
 import { medsVoiceParseHandler } from "./routes/medsVoiceParse.js";
 import { medsAssistantHandler } from "./routes/medsAssistant.js";
 import {
@@ -45,6 +62,7 @@ import utilitiesRouter from "./routes/utilities.js";
 import checkinsRouter, { analyzeCheckinHandler, checkinHistoryHandler, sharedCheckinReportHandler } from "./routes/checkins.js";
 import gamesRouter from "./routes/games.js";
 import { getGooglePlacesApiKey, getGooglePlacesApiKeySource } from "./lib/googlePlacesKey.js";
+import { startCommunicationDispatcher } from "./services/communicationDispatcher.js";
 
 const isProduction = process.env.NODE_ENV === "production";
 const app = express();
@@ -79,40 +97,50 @@ app.post("/api/bill-reader/analyze", express.json({ limit: "20mb" }), authMiddle
 app.use(express.json({ limit: "20mb" }));
 
 app.post("/api/router", routerHandler);
-app.post("/api/elevenlabs-conversation-token", conversationTokenHandler);
+app.post("/api/voice-context", authMiddleware, requireUser, requireEntitlement("voice_assistant"), voiceContextHandler);
+app.post("/api/voice/recommendations/feedback", authMiddleware, requireUser, requireEntitlement("voice_assistant"), voiceRecommendationFeedbackHandler);
+app.get("/api/voice/timeline-events", authMiddleware, requireUser, requireEntitlement("voice_assistant"), listOwnVoiceTimelineEventsHandler);
+app.post("/api/voice/timeline-events", authMiddleware, requireUser, requireEntitlement("voice_assistant"), recordVoiceTimelineEventsHandler);
+app.post("/api/elevenlabs-conversation-token", authMiddleware, requireUser, requireEntitlement("voice_assistant"), conversationTokenHandler);
 app.post("/api/elevenlabs/tools/retrieve-medical-profile", retrieveMedicalProfileToolHandler);
-app.post("/api/meds-voice-parse", medsVoiceParseHandler);
-app.post("/api/meds-assistant", medsAssistantHandler);
-app.post("/api/concierge", authMiddleware, conciergeHandler);
-app.post("/api/concierge/recommendations", authMiddleware, conciergeRecommendationsHandler);
-app.post("/api/concierge/recommendations/plan", authMiddleware, conciergeRecommendationPlanHandler);
-app.post("/api/concierge/recommendations/feedback", authMiddleware, conciergeRecommendationFeedbackHandler);
+app.post("/api/elevenlabs/tools/record-voice-recommendation-feedback", recordVoiceRecommendationFeedbackToolHandler);
+app.post("/api/meds-voice-parse", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medsVoiceParseHandler);
+app.post("/api/meds-assistant", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medsAssistantHandler);
+app.post("/api/concierge", authMiddleware, requireUser, requireEntitlement("concierge"), conciergeHandler);
+app.post("/api/concierge/recommendations", authMiddleware, requireUser, requireEntitlement("concierge"), conciergeRecommendationsHandler);
+app.post("/api/concierge/recommendations/plan", authMiddleware, requireUser, requireEntitlement("concierge"), conciergeRecommendationPlanHandler);
+app.post("/api/concierge/recommendations/feedback", authMiddleware, requireUser, requireEntitlement("concierge"), conciergeRecommendationFeedbackHandler);
 app.use("/api/concierge/actions", conciergeActionsRouter);
 app.post("/api/allergies-voice-parse", allergiesVoiceParseHandler);
 app.post("/api/address-voice-parse", addressVoiceParseHandler);
+app.use("/api/intake", express.urlencoded({ extended: false }), intakeRouter);
+app.use("/api/webhooks/twilio", express.urlencoded({ extended: false }), twilioWebhooksRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/onboarding", authMiddleware, onboardingRouter);
 app.use("/api/billing", authMiddleware, billingRouter);
 app.use("/api/admin/lifecycle", authMiddleware, requireAdminUser, adminLifecycleRouter);
+app.get("/api/admin/voice/timeline-events", authMiddleware, requireAdminUser, listAdminVoiceTimelineEventsHandler);
+app.get("/api/admin/voice/qa-reviews", authMiddleware, requireAdminUser, listVoiceQaSessionReviewsHandler);
+app.post("/api/admin/voice/qa-reviews", authMiddleware, requireAdminUser, saveVoiceQaSessionReviewHandler);
 app.use("/api/admin", authMiddleware, requireAdminUser, adminRouter);
 app.use("/api/hero-messages", heroMessagesRouter);
 app.use("/api/activity", authMiddleware, activityRouter);
 app.use("/api/profile", authMiddleware, profileRouter);
 app.use("/api/home", authMiddleware, homePlanRouter);
 app.use("/api/weather", authMiddleware, weatherRouter);
-app.use("/api/triage", authMiddleware, triageRouter);
+app.use("/api/triage", authMiddleware, requireUser, requireEntitlement("symptom_check"), triageRouter);
 app.use("/api/companions", authMiddleware, companionsRouter);
 app.use("/api/social", authMiddleware, socialRoomsRouter);
-app.use("/api/meds/adherence-report", authMiddleware, medsAdherenceRouter);
+app.use("/api/meds/adherence-report", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medsAdherenceRouter);
 app.use("/api", authMiddleware, scheduledSupportRouter);
 // Also mount at /api/meds so that PATCH /api/meds/:id and DELETE /api/meds/:id
 // work as specified. Requests to /api/meds/adherence-report/... are matched
 // by the more-specific mount above, so they never reach this one.
-app.use("/api/meds", authMiddleware, medsAdherenceRouter);
+app.use("/api/meds", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medsAdherenceRouter);
 app.get("/api/history/scans", authMiddleware, requireUser, scanHistoryHandler);
 app.use("/api/reports", authMiddleware, reportsRouter);
 app.use("/api/vitals", authMiddleware, vitalsRouter);
-app.use("/api/specialists", authMiddleware, specialistsRouter);
+app.use("/api/specialists", authMiddleware, requireUser, requireEntitlement("symptom_check"), specialistsRouter);
 app.use("/api/offers", authMiddleware, offersRouter);
 app.use("/api/utilities", authMiddleware, utilitiesRouter);
 app.use("/api/games", authMiddleware, requireUser, gamesRouter);
@@ -326,6 +354,9 @@ async function configureFrontend() {
 configureFrontend().then(() => {
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`[server] listening on port ${PORT} (${isProduction ? "production" : "development"})`);
+    if (startCommunicationDispatcher()) {
+      console.log("[communications] dispatcher enabled");
+    }
   });
 }).catch((err) => {
   console.error("[server] failed to start", err);

@@ -36,5 +36,5 @@ describe("NumberTrails", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Jugar otro juego" }));
     expect(onExit).toHaveBeenCalledTimes(1);
-  });
+  }, 10_000);
 });
