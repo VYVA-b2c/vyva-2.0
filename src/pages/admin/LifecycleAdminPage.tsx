@@ -98,6 +98,8 @@ type LoginMapping = {
   effective_profile_phone?: string | null;
   effective_subscription_tier?: string | null;
   effective_subscription_status?: string | null;
+  subscription_mismatch?: boolean;
+  subscription_warning?: string | null;
   lifecycle_profile_id?: string | null;
   lifecycle_profile_email?: string | null;
   lifecycle_subscription_tier?: string | null;
@@ -179,6 +181,15 @@ type AccountSubscription = {
   subscription_status: string;
   subscription_tier: string;
   stored_subscription_tier?: string | null;
+  effective_subscription_tier?: string | null;
+  effective_subscription_status?: string | null;
+  lifecycle_subscription_tier?: string | null;
+  lifecycle_subscription_status?: string | null;
+  billing_subscription_tier?: string | null;
+  billing_subscription_status?: string | null;
+  subscription_mismatch?: boolean;
+  subscription_warning?: string | null;
+  entitlement_repaired?: boolean;
   account_status?: string | null;
   profile_role?: string | null;
   membership_role?: string | null;
@@ -1057,14 +1068,21 @@ function AccountSubscriptionsSection({
                     {account.account_status === "disabled" && (
                       <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700">Disabled</span>
                     )}
+                    {account.subscription_mismatch && (
+                      <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800">Premium mismatch</span>
+                    )}
                   </div>
                   <div className="mt-2 grid gap-1 text-sm text-[#7d6b65]">
                     <p><span className="font-bold text-[#4d4351]">Login:</span> {account.account_email || account.account_phone || "No linked login shown"}{account.account_source ? ` (${account.account_source})` : ""}</p>
                     <p><span className="font-bold text-[#4d4351]">Profile:</span> {account.profile_email || account.phone_number || account.profile_id}</p>
                     <p><span className="font-bold text-[#4d4351]">Profile ID:</span> <span className="font-mono text-xs">{account.profile_id}</span></p>
+                    <p><span className="font-bold text-[#4d4351]">Effective app access:</span> {account.effective_subscription_tier ?? account.subscription_tier}{account.effective_subscription_status ? ` (${account.effective_subscription_status})` : ""}</p>
                     {account.membership_role && <p><span className="font-bold text-[#4d4351]">Relationship:</span> {account.membership_role}{account.membership_relationship ? ` - ${account.membership_relationship}` : ""}</p>}
                     {account.account_id && !account.is_active_profile && (
                       <p className="font-bold text-amber-800">Saving this row will make it the active profile for this login.</p>
+                    )}
+                    {account.subscription_warning && (
+                      <p className="rounded-xl bg-[#fff3e8] px-3 py-2 font-bold text-[#8a4a00]">{account.subscription_warning}</p>
                     )}
                   </div>
                 </div>
@@ -1131,6 +1149,8 @@ function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, 
   const selectedTier = String(draft.tier ?? "free").toLowerCase();
   const appTier = primaryMapping?.effective_subscription_tier?.toLowerCase() ?? null;
   const hasTierMismatch = Boolean(appTier && selectedTier && appTier !== selectedTier);
+  const hasSubscriptionMismatch = Boolean(primaryMapping?.subscription_mismatch);
+  const accessMismatch = hasTierMismatch || hasSubscriptionMismatch;
   const appAccessText = primaryMapping
     ? `${primaryMapping.effective_subscription_tier ?? "Unknown"}${primaryMapping.effective_subscription_status ? ` (${primaryMapping.effective_subscription_status})` : ""}`
     : "No login match";
@@ -1153,13 +1173,13 @@ function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, 
                 <h3 className="text-xl font-black">Profile and access</h3>
                 <p className="mt-1 text-sm text-[#7d6b65]">Account, contact, and plan controls.</p>
               </div>
-              <span className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${hasTierMismatch ? "bg-[#fff3e8] text-[#8a4a00]" : primaryMapping ? "bg-[#ecfdf3] text-[#087443]" : "bg-[#f4eafe] text-purple-700"}`}>
+              <span className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${accessMismatch ? "bg-[#fff3e8] text-[#8a4a00]" : primaryMapping ? "bg-[#ecfdf3] text-[#087443]" : "bg-[#f4eafe] text-purple-700"}`}>
                 App access: {appAccessText}
               </span>
             </div>
             {primaryMapping && (
-              <p className={`mt-3 rounded-xl px-3 py-2 text-sm font-bold ${hasTierMismatch ? "bg-[#fff3e8] text-[#8a4a00]" : "bg-[#ecfdf3] text-[#087443]"}`}>
-                {hasTierMismatch ? "Save changes to sync this user to the selected tier." : "Admin and app access are aligned."}
+              <p className={`mt-3 rounded-xl px-3 py-2 text-sm font-bold ${accessMismatch ? "bg-[#fff3e8] text-[#8a4a00]" : "bg-[#ecfdf3] text-[#087443]"}`}>
+                {primaryMapping.subscription_warning ?? (hasTierMismatch ? "Save changes to sync this user to the selected tier." : "Admin and app access are aligned.")}
               </p>
             )}
             {!primaryMapping && (
