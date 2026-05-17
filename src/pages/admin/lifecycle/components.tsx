@@ -55,10 +55,9 @@ function supportFrequency(schedule: ScheduledSupport) {
   return `${days} at ${times}`;
 }
 
-export function IntakeTable({ users, onView, onTier, onTriggerConsent, onToggleEnabled, busyAction = null, compact = false }: {
+export function IntakeTable({ users, onView, onTriggerConsent, onToggleEnabled, busyAction = null, compact = false }: {
   users: Intake[];
   onView: (intake: Intake) => void;
-  onTier: (intake: Intake) => void;
   onTriggerConsent: (intake: Intake) => void;
   onToggleEnabled: (intake: Intake) => void;
   busyAction?: string | null;
@@ -96,7 +95,7 @@ export function IntakeTable({ users, onView, onTier, onTriggerConsent, onToggleE
               <td className="rounded-r-2xl px-3 py-3">
                 <div className="flex flex-wrap gap-2">
                   <button type="button" className="rounded-full bg-[#2f2135] px-3 py-2 text-sm font-bold text-white disabled:opacity-60" disabled={isBusy("view", user)} onClick={() => onView(user)}>{isBusy("view", user) ? "Opening..." : "View"}</button>
-                  <button type="button" className="rounded-full bg-purple-700 px-3 py-2 text-sm font-bold text-white disabled:opacity-60" disabled={isBusy("tier", user)} onClick={() => onTier(user)}>{isBusy("tier", user) ? "Opening..." : "Tier"}</button>
+                  <span className="rounded-full bg-purple-50 px-3 py-2 text-sm font-black uppercase text-purple-700">Tier: {user.tier}</span>
                   <button type="button" className="rounded-full border px-3 py-2 text-sm font-bold disabled:opacity-60" disabled={isBusy("toggle", user)} onClick={() => onToggleEnabled(user)}>{isBusy("toggle", user) ? "Saving..." : user.account_status === "disabled" ? "Enable" : "Disable"}</button>
                   {user.user_type === "family" && <button type="button" className="rounded-full border px-3 py-2 text-sm font-bold disabled:opacity-60" disabled={isBusy("consent", user)} onClick={() => onTriggerConsent(user)}>{isBusy("consent", user) ? "Queueing..." : "Consent"}</button>}
                 </div>
