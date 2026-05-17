@@ -69,8 +69,19 @@ export default function LifecycleAdminPage() {
 
   async function api(path: string, options: RequestInit = {}) {
     const res = await apiFetch(`/api/admin/lifecycle${path}`, options);
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error ?? "Admin request failed");
+    const text = await res.text();
+    let data: JsonRecord = {};
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { error: text.trim() };
+      }
+    }
+    const errorMessage = typeof data.error === "string" && data.error
+      ? data.error
+      : text.trim() || `Admin request failed (${res.status})`;
+    if (!res.ok) throw new Error(errorMessage);
     return data;
   }
 

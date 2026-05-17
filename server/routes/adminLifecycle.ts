@@ -290,21 +290,35 @@ function medicationEventsFromRows(rows: Array<typeof userMedications.$inferSelec
 
 async function scheduledItemsForUser(userId: string | null) {
   if (!userId) return [];
-  const [events, medications] = await Promise.all([
-    db.select().from(scheduledEvents).where(eq(scheduledEvents.user_id, userId)).orderBy(desc(scheduledEvents.scheduled_for)).limit(100),
-    db.select().from(userMedications).where(eq(userMedications.user_id, userId)).limit(100),
-  ]);
-  return [...events, ...medicationEventsFromRows(medications)];
+  try {
+    const [events, medications] = await Promise.all([
+      db.select().from(scheduledEvents).where(eq(scheduledEvents.user_id, userId)).orderBy(desc(scheduledEvents.scheduled_for)).limit(100),
+      db.select().from(userMedications).where(eq(userMedications.user_id, userId)).limit(100),
+    ]);
+    return [...events, ...medicationEventsFromRows(medications)];
+  } catch (error) {
+    const maybeError = error as { code?: string };
+    if (isMissingRelationError(error) || maybeError?.code === "42501") return [];
+    throw error;
+  }
 }
 
 async function scheduledSupportForUser(userId: string | null) {
   if (!userId) return { schedules: [], logs: [], audit_logs: [] };
-  const [schedules, logs, auditLogs] = await Promise.all([
-    db.select().from(scheduledInteractions).where(eq(scheduledInteractions.user_id, userId)).orderBy(desc(scheduledInteractions.updated_at)).limit(100),
-    db.select().from(interactionLogs).where(eq(interactionLogs.user_id, userId)).orderBy(desc(interactionLogs.created_at)).limit(50),
-    db.select().from(consentAuditLogs).where(eq(consentAuditLogs.user_id, userId)).orderBy(desc(consentAuditLogs.created_at)).limit(50),
-  ]);
-  return { schedules, logs, audit_logs: auditLogs };
+  try {
+    const [schedules, logs, auditLogs] = await Promise.all([
+      db.select().from(scheduledInteractions).where(eq(scheduledInteractions.user_id, userId)).orderBy(desc(scheduledInteractions.updated_at)).limit(100),
+      db.select().from(interactionLogs).where(eq(interactionLogs.user_id, userId)).orderBy(desc(interactionLogs.created_at)).limit(50),
+      db.select().from(consentAuditLogs).where(eq(consentAuditLogs.user_id, userId)).orderBy(desc(consentAuditLogs.created_at)).limit(50),
+    ]);
+    return { schedules, logs, audit_logs: auditLogs };
+  } catch (error) {
+    const maybeError = error as { code?: string };
+    if (isMissingRelationError(error) || maybeError?.code === "42501") {
+      return { schedules: [], logs: [], audit_logs: [] };
+    }
+    throw error;
+  }
 }
 
 function normalizePhone(phone: string): string {
@@ -321,6 +335,16 @@ function publicBaseUrl(req: Request): string {
 function isMissingRelationError(error: unknown): boolean {
   const maybeError = error as { code?: string; message?: string };
   return maybeError?.code === "42P01" || String(maybeError?.message ?? error).includes("does not exist");
+}
+
+async function optionalAdminRows<T>(query: Promise<T[]>): Promise<T[]> {
+  try {
+    return await query;
+  } catch (error) {
+    const maybeError = error as { code?: string };
+    if (isMissingRelationError(error) || maybeError?.code === "42501") return [];
+    throw error;
+  }
 }
 
 type SupabaseAuthAccount = {
@@ -1474,39 +1498,44 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
 adminLifecycleRouter.get("/users/:id/details", async (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
 
-  const [intake] = await db.select().from(userIntakes).where(eq(userIntakes.id, req.params.id)).limit(1);
-  if (!intake) return res.status(404).json({ error: "User intake not found" });
+  try {
+    const [intake] = await db.select().from(userIntakes).where(eq(userIntakes.id, req.params.id)).limit(1);
+    if (!intake) return res.status(404).json({ error: "User intake not found" });
 
-  const userId = targetUserIdForIntake(intake);
-  const [profile] = userId
-    ? await db.select().from(profiles).where(eq(profiles.id, userId)).limit(1)
-    : [];
-  const mapping = await resolveLoginMappings({
-    intake,
-    lifecycleProfile: profile ?? null,
-  });
-  const [communicationRows, lifecycleRows, consentRows, scheduledRows, support] = await Promise.all([
-    db.select().from(communicationsLog).where(eq(communicationsLog.intake_id, intake.id)).orderBy(desc(communicationsLog.created_at)).limit(100),
-    db.select().from(lifecycleEvents).where(eq(lifecycleEvents.intake_id, intake.id)).orderBy(desc(lifecycleEvents.created_at)).limit(100),
-    db.select().from(consentAttempts).where(eq(consentAttempts.intake_id, intake.id)).orderBy(desc(consentAttempts.created_at)).limit(50),
-    scheduledItemsForUser(userId),
-    scheduledSupportForUser(userId),
-  ]);
+    const userId = targetUserIdForIntake(intake);
+    const [profile] = userId
+      ? await db.select().from(profiles).where(eq(profiles.id, userId)).limit(1)
+      : [];
+    const mapping = await resolveLoginMappings({
+      intake,
+      lifecycleProfile: profile ?? null,
+    });
+    const [communicationRows, lifecycleRows, consentRows, scheduledRows, support] = await Promise.all([
+      optionalAdminRows(db.select().from(communicationsLog).where(eq(communicationsLog.intake_id, intake.id)).orderBy(desc(communicationsLog.created_at)).limit(100)),
+      optionalAdminRows(db.select().from(lifecycleEvents).where(eq(lifecycleEvents.intake_id, intake.id)).orderBy(desc(lifecycleEvents.created_at)).limit(100)),
+      optionalAdminRows(db.select().from(consentAttempts).where(eq(consentAttempts.intake_id, intake.id)).orderBy(desc(consentAttempts.created_at)).limit(50)),
+      scheduledItemsForUser(userId),
+      scheduledSupportForUser(userId),
+    ]);
 
-  return res.json({
-    intake,
-    profile: profile ?? null,
-    account_mappings: mapping.mappings,
-    account_mapping_warnings: mapping.warnings,
-    account_match_field: mapping.match_field,
-    communications: communicationRows,
-    lifecycle_events: lifecycleRows,
-    consent_attempts: consentRows,
-    scheduled_events: scheduledRows,
-    scheduled_support: support.schedules,
-    interaction_logs: support.logs,
-    consent_audit_logs: support.audit_logs,
-  });
+    return res.json({
+      intake,
+      profile: profile ?? null,
+      account_mappings: mapping.mappings,
+      account_mapping_warnings: mapping.warnings,
+      account_match_field: mapping.match_field,
+      communications: communicationRows,
+      lifecycle_events: lifecycleRows,
+      consent_attempts: consentRows,
+      scheduled_events: scheduledRows,
+      scheduled_support: support.schedules,
+      interaction_logs: support.logs,
+      consent_audit_logs: support.audit_logs,
+    });
+  } catch (error) {
+    console.error("[admin-lifecycle] user details failed", error);
+    return res.status(500).json({ error: error instanceof Error ? error.message : "Could not load user details" });
+  }
 });
 
 adminLifecycleRouter.patch("/users/:id/profile", async (req: Request, res: Response) => {
