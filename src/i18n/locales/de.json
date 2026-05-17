@@ -516,6 +516,26 @@
     "talkToDoctor": "Mit einem Arzt sprechen",
     "headlineWithName": "Wie fühlen Sie sich,\n{{name}}?",
     "headline": "Wie fühlen Sie sich?",
+    "quickAccess": "Schnellzugriff",
+    "quickActions": "Schnellaktionen",
+    "quickTiles": {
+      "symptoms": {
+        "label": "Symptome",
+        "hint": "Befinden prüfen"
+      },
+      "medication": {
+        "label": "Medikamente",
+        "hint": "Meine Medikamente"
+      },
+      "status": {
+        "label": "Status",
+        "hint": "Vitalzeichen"
+      },
+      "reports": {
+        "label": "Berichte",
+        "hint": "Übersicht anzeigen"
+      }
+    },
     "bloodPressure": "Blutdruck",
     "mood": "Stimmung",
     "sleep": "Schlaf",

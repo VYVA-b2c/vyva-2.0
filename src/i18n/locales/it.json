@@ -516,6 +516,26 @@
     "talkToDoctor": "Parlare con un medico",
     "headlineWithName": "Come ti senti,\n{{name}}?",
     "headline": "Come ti senti?",
+    "quickAccess": "Accesso rapido",
+    "quickActions": "Azioni rapide",
+    "quickTiles": {
+      "symptoms": {
+        "label": "Sintomi",
+        "hint": "Controlla come mi sento"
+      },
+      "medication": {
+        "label": "Farmaci",
+        "hint": "Le mie medicine"
+      },
+      "status": {
+        "label": "Stato",
+        "hint": "Parametri vitali"
+      },
+      "reports": {
+        "label": "Report",
+        "hint": "Vedi riepilogo"
+      }
+    },
     "bloodPressure": "Pressione arteriosa",
     "mood": "Umore",
     "sleep": "Sonno",
