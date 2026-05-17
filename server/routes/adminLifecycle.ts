@@ -5,7 +5,7 @@ import { z } from "zod";
 import { db, pool } from "../db.js";
 import { getActiveProfileContext } from "../lib/profileAccess.js";
 import * as lifecycleService from "../services/lifecycle.js";
-import { dispatchQueuedCommunications } from "../services/communicationDispatcher.js";
+import { dispatchCommunicationsByIds, dispatchQueuedCommunications } from "../services/communicationDispatcher.js";
 import {
   communicationsLog,
   consentAttempts,
@@ -2013,9 +2013,22 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
   ];
 
   const communications = await db.insert(communicationsLog).values(rows).returning();
+  const dispatchResult = await dispatchCommunicationsByIds(communications.map((item) => item.id));
+  const sent = dispatchResult.results.filter((item) => item.status === "sent").length;
+  const failed = dispatchResult.results.filter((item) => item.status === "failed").length;
+
   return res.status(201).json({
     signup_url: loginUrl,
     queued: communications.length,
+    sent,
+    failed,
+    results: dispatchResult.results.map((item) => ({
+      id: item.id,
+      channel: item.channel,
+      recipient: item.recipient,
+      status: item.status,
+      ...(item.error ? { error: item.error } : {}),
+    })),
     communications,
   });
 });

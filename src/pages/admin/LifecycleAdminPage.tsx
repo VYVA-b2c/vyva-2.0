@@ -36,6 +36,20 @@ import {
   userTypes,
 } from "./lifecycle/shared";
 
+type SignupShareResult = {
+  id: string;
+  channel: string;
+  recipient: string;
+  status: string;
+  error?: string;
+};
+
+type SignupShareNotice = {
+  tone: "success" | "warning" | "error";
+  title: string;
+  details: string[];
+};
+
 export default function LifecycleAdminPage() {
   const [activeTab, setActiveTab] = useState("users");
   const [filters, setFilters] = useState({ entry_point: "", user_type: "", status: "", tier: "" });
@@ -58,6 +72,8 @@ export default function LifecycleAdminPage() {
     whatsapp: "",
     message: "You are invited to create your VYVA account.",
   });
+  const [sharingSignup, setSharingSignup] = useState(false);
+  const [signupShareNotice, setSignupShareNotice] = useState<SignupShareNotice | null>(null);
   const [newOrg, setNewOrg] = useState({ name: "", default_tier: "free" });
   const [selectedUser, setSelectedUser] = useState<UserDetail | null>(null);
   const [selectedDraft, setSelectedDraft] = useState<JsonRecord>({});
@@ -163,18 +179,65 @@ export default function LifecycleAdminPage() {
       .filter(Boolean);
   }
 
+  function signupShareResults(value: unknown): SignupShareResult[] {
+    if (!Array.isArray(value)) return [];
+    return value
+      .filter((item): item is JsonRecord => Boolean(item && typeof item === "object" && !Array.isArray(item)))
+      .map((item) => ({
+        id: stringValue(item.id),
+        channel: stringValue(item.channel),
+        recipient: stringValue(item.recipient),
+        status: stringValue(item.status),
+        error: stringValue(item.error) || undefined,
+      }));
+  }
+
   async function shareSignupForm() {
-    const data = await api("/signup-share", {
-      method: "POST",
-      body: JSON.stringify({
-        emails: recipientLines(signupShare.emails),
-        whatsapp_numbers: recipientLines(signupShare.whatsapp),
-        message: signupShare.message.trim() || undefined,
-      }),
-    });
-    setMessage(`Signup form queued for ${data.queued} recipient${data.queued === 1 ? "" : "s"}: ${data.signup_url}`);
-    setSignupShare({ emails: "", whatsapp: "", message: signupShare.message });
-    await refresh();
+    if (sharingSignup) return;
+    setSharingSignup(true);
+    setSignupShareNotice(null);
+    setMessage("");
+    try {
+      const data = await api("/signup-share", {
+        method: "POST",
+        body: JSON.stringify({
+          emails: recipientLines(signupShare.emails),
+          whatsapp_numbers: recipientLines(signupShare.whatsapp),
+          message: signupShare.message.trim() || undefined,
+        }),
+      });
+      const queued = Number(data.queued ?? 0);
+      const sent = Number(data.sent ?? 0);
+      const failed = Number(data.failed ?? 0);
+      const results = signupShareResults(data.results);
+      const failedDetails = results
+        .filter((item) => item.status === "failed")
+        .map((item) => `${item.channel} to ${item.recipient}: ${item.error ?? "Delivery failed."}`);
+      const sentDetails = results
+        .filter((item) => item.status === "sent")
+        .map((item) => `${item.channel} to ${item.recipient}: sent`);
+      const tone = failed === 0 ? "success" : sent > 0 ? "warning" : "error";
+      const title = failed === 0
+        ? `Signup link sent to ${sent} recipient${sent === 1 ? "" : "s"}.`
+        : sent > 0
+          ? `Signup link partially sent: ${sent} sent, ${failed} failed.`
+          : `Signup link failed for ${failed || queued} recipient${(failed || queued) === 1 ? "" : "s"}.`;
+      setSignupShareNotice({
+        tone,
+        title,
+        details: [...failedDetails, ...(failedDetails.length ? sentDetails : sentDetails.slice(0, 3))],
+      });
+      if (sent > 0) setSignupShare({ emails: "", whatsapp: "", message: signupShare.message });
+      await refresh();
+    } catch (err) {
+      setSignupShareNotice({
+        tone: "error",
+        title: "Signup link was not sent.",
+        details: [err instanceof Error ? err.message : "Could not share the signup link."],
+      });
+    } finally {
+      setSharingSignup(false);
+    }
   }
 
   async function triggerConsent(intake: Intake) {
@@ -593,7 +656,14 @@ export default function LifecycleAdminPage() {
                 <Field label="Message">
                   <textarea className="min-h-24 w-full rounded-2xl border px-4 py-3" value={signupShare.message} onChange={(e) => setSignupShare({ ...signupShare, message: e.target.value })} />
                 </Field>
-                <button className="self-end rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white disabled:opacity-50" disabled={!signupShare.emails.trim() && !signupShare.whatsapp.trim()} onClick={shareSignupForm}>Share link</button>
+                <button
+                  type="button"
+                  className="self-end rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={sharingSignup || (!signupShare.emails.trim() && !signupShare.whatsapp.trim())}
+                  onClick={shareSignupForm}
+                >
+                  {sharingSignup ? "Sending..." : "Share link"}
+                </button>
               </div>
             </section>
 
@@ -793,6 +863,48 @@ export default function LifecycleAdminPage() {
           onEventStatus={setEventStatus}
           onEventTime={updateEventTime}
         />
+      )}
+      {signupShareNotice && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#2f2135]/45 px-4 py-6" role="dialog" aria-modal="true" aria-labelledby="signup-share-result-title">
+          <div className="w-full max-w-lg rounded-[2rem] border border-[#eadfd5] bg-white p-6 text-[#2f2135] shadow-[0_24px_80px_rgba(47,33,53,0.28)]">
+            <p className={`inline-flex rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${
+              signupShareNotice.tone === "success"
+                ? "bg-emerald-50 text-emerald-800"
+                : signupShareNotice.tone === "warning"
+                  ? "bg-amber-50 text-amber-800"
+                  : "bg-red-50 text-red-700"
+            }`}>
+              {signupShareNotice.tone === "success" ? "Sent" : signupShareNotice.tone === "warning" ? "Partially sent" : "Failed"}
+            </p>
+            <h2 id="signup-share-result-title" className="mt-3 font-serif text-3xl leading-tight">{signupShareNotice.title}</h2>
+            {signupShareNotice.details.length > 0 && (
+              <ul className="mt-4 max-h-56 space-y-2 overflow-auto rounded-2xl bg-[#fbf8f5] p-3 text-sm font-semibold text-[#5f514b]">
+                {signupShareNotice.details.map((detail, index) => (
+                  <li key={`${detail}-${index}`}>{detail}</li>
+                ))}
+              </ul>
+            )}
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                className="rounded-2xl border border-[#eadfd5] bg-white px-5 py-3 text-sm font-bold text-[#2f2135] hover:border-purple-200 hover:text-purple-700"
+                onClick={() => {
+                  setSignupShareNotice(null);
+                  setActiveTab("communications");
+                }}
+              >
+                View communications
+              </button>
+              <button
+                type="button"
+                className="rounded-2xl bg-purple-700 px-5 py-3 text-sm font-bold text-white hover:bg-purple-800"
+                onClick={() => setSignupShareNotice(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );

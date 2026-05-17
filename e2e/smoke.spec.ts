@@ -80,6 +80,16 @@ async function mockApi(page: Page, signedIn = false) {
       return;
     }
 
+    if (signedIn && url.pathname === "/api/billing/status") {
+      await fulfillJson(route, 200, {
+        status: "active",
+        tier: "premium",
+        trial_days_remaining: 0,
+        plan: { plan_id: "premium", name: "Premium" },
+      });
+      return;
+    }
+
     if (signedIn && url.pathname === "/api/onboarding/state") {
       await fulfillJson(route, 200, {
         profile: { current_stage: "complete" },
@@ -124,4 +134,15 @@ test("notifications settings back returns to settings home", async ({ page }) =>
   await expect(page).toHaveURL(/\/settings$/);
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
   await expect(page.getByText("Oops! Page not found")).toHaveCount(0);
+});
+
+test("settings plan row shows the effective premium subscription", async ({ page }) => {
+  await mockApi(page, true);
+  await page.goto("/settings", { waitUntil: "domcontentloaded" });
+
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+  await expect(page.getByText("Plan & billing")).toBeVisible();
+  await expect(page.getByText("Subscription active")).toBeVisible();
+  await expect(page.getByText("Premium")).toBeVisible();
+  await expect(page.getByText("Free", { exact: true })).toHaveCount(0);
 });
