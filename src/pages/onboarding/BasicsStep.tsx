@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, ChevronLeft } from "lucide-react";
@@ -44,6 +44,7 @@ const BasicsStep = () => {
   const [languages, setLanguages] = useState<string[]>([LANGUAGE_LABEL_BY_CODE[language] ?? LANGUAGE_LABEL_BY_CODE.es]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const languageSelectedByUser = useRef(false);
 
   const profileQuery = useQuery<ProfileResponse | null>({
     queryKey: ["/api/profile"],
@@ -70,12 +71,14 @@ const BasicsStep = () => {
     if (profileQuery.data.preferredName) setPreferredName(profileQuery.data.preferredName);
     if (profileQuery.data.dateOfBirth) setDob(profileQuery.data.dateOfBirth);
 
+    if (languageSelectedByUser.current) return;
     const languageCode = (profileQuery.data.language as LanguageCode | undefined) ?? language;
     const languageLabel = LANGUAGE_LABEL_BY_CODE[languageCode] ?? LANGUAGE_LABEL_BY_CODE.es;
     setLanguages([languageLabel]);
   }, [language, profileQuery.data]);
 
   const handleLanguageChange = (nextLanguages: string[]) => {
+    languageSelectedByUser.current = true;
     setLanguages(nextLanguages);
     const nextCode = LANGUAGE_CODE_BY_LABEL[nextLanguages[0]];
     if (nextCode) setLanguage(nextCode);
