@@ -69,6 +69,15 @@ const app = express();
 const PORT = parseInt(process.env.PORT || "5000", 10);
 const SERVER_BUILD_ID = "hero-messages-admin-2026-05-04";
 
+async function fileExists(filePath: string) {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 app.use(cors());
 
 // Stripe webhook must receive the raw body before JSON parsing
@@ -321,12 +330,25 @@ app.get("/api/places/staticmap", async (req, res) => {
 });
 
 async function configureFrontend() {
-  if (isProduction) {
-    const distPath = path.resolve(process.cwd(), "dist");
+  const distPath = path.resolve(process.cwd(), "dist");
+  const distIndexPath = path.join(distPath, "index.html");
+  const shouldServeStatic = isProduction || (process.env.NODE_ENV !== "development" && await fileExists(distIndexPath));
+
+  if (shouldServeStatic) {
     console.log(`[server] serving static files from: ${distPath}`);
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, {
+      index: false,
+      setHeaders(res, filePath) {
+        if (filePath.endsWith(".html")) {
+          res.setHeader("Cache-Control", "no-store");
+          return;
+        }
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      },
+    }));
     app.get(/(.*)/, (_req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+      res.setHeader("Cache-Control", "no-store");
+      res.sendFile(distIndexPath);
     });
     return;
   }
