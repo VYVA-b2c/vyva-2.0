@@ -115,6 +115,8 @@ const contactChannelSchema = z.enum(["voice_outbound", "whatsapp_outbound", "voi
 type ContactChannel = z.infer<typeof contactChannelSchema>;
 
 const contactChannelValues: ContactChannel[] = ["voice_outbound", "whatsapp_outbound", "voice_app"];
+const contactSupportModeSchema = z.enum(["ai_powered", "human_supported"]);
+type ContactSupportMode = z.infer<typeof contactSupportModeSchema>;
 
 const channelPreferenceTimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:mm format");
 const channelPreferenceLimitSchema = z.number().int().min(0).nullable();
@@ -122,6 +124,7 @@ const channelPreferenceLimitSchema = z.number().int().min(0).nullable();
 const channelPreferencesPatchSchema = z.object({
   preferred_checkin_channel: contactChannelSchema.optional(),
   preferred_reminder_channel: contactChannelSchema.optional(),
+  support_mode: contactSupportModeSchema.optional(),
   voice_available_from: channelPreferenceTimeSchema.optional(),
   voice_available_until: channelPreferenceTimeSchema.optional(),
   whatsapp_available_from: channelPreferenceTimeSchema.optional(),
@@ -135,6 +138,7 @@ type ChannelPreferencesRow = typeof userChannelPreferences.$inferSelect;
 const channelPreferencesDefaults = {
   preferred_checkin_channel: "voice_outbound" as ContactChannel,
   preferred_reminder_channel: "whatsapp_outbound" as ContactChannel,
+  support_mode: "ai_powered" as ContactSupportMode,
   voice_available_from: "08:00",
   voice_available_until: "21:00",
   whatsapp_available_from: "07:00",
@@ -147,7 +151,33 @@ function normalizeContactChannel(value: unknown, fallback: ContactChannel): Cont
   return contactChannelValues.includes(value as ContactChannel) ? value as ContactChannel : fallback;
 }
 
-function serializeChannelPreferences(row?: ChannelPreferencesRow | null) {
+function normalizeContactSupportMode(value: unknown, fallback: ContactSupportMode): ContactSupportMode {
+  return value === "human_supported" || value === "ai_powered" ? value : fallback;
+}
+
+function objectRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function readContactSupportMode(consent: unknown): ContactSupportMode {
+  const communication = objectRecord(objectRecord(consent).communication_preferences);
+  return normalizeContactSupportMode(communication.contact_support_mode, channelPreferencesDefaults.support_mode);
+}
+
+function mergeContactSupportMode(consent: unknown, supportMode: ContactSupportMode): Record<string, unknown> {
+  const current = objectRecord(consent);
+  const communication = objectRecord(current.communication_preferences);
+
+  return {
+    ...current,
+    communication_preferences: {
+      ...communication,
+      contact_support_mode: supportMode,
+    },
+  };
+}
+
+function serializeChannelPreferences(row?: ChannelPreferencesRow | null, consent?: unknown) {
   return {
     preferred_checkin_channel: normalizeContactChannel(
       row?.preferred_checkin_channel,
@@ -157,6 +187,7 @@ function serializeChannelPreferences(row?: ChannelPreferencesRow | null) {
       row?.preferred_reminder_channel,
       channelPreferencesDefaults.preferred_reminder_channel,
     ),
+    support_mode: readContactSupportMode(consent),
     voice_available_from: row?.voice_available_from ?? channelPreferencesDefaults.voice_available_from,
     voice_available_until: row?.voice_available_until ?? channelPreferencesDefaults.voice_available_until,
     whatsapp_available_from: row?.whatsapp_available_from ?? channelPreferencesDefaults.whatsapp_available_from,
@@ -733,13 +764,20 @@ router.get("/channel-preferences", async (req: Request, res: Response) => {
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
   try {
-    const [row] = await db
-      .select()
-      .from(userChannelPreferences)
-      .where(eq(userChannelPreferences.user_id, userId))
-      .limit(1);
+    const [channelRows, profileRows] = await Promise.all([
+      db
+        .select()
+        .from(userChannelPreferences)
+        .where(eq(userChannelPreferences.user_id, userId))
+        .limit(1),
+      db
+        .select({ data_sharing_consent: profiles.data_sharing_consent })
+        .from(profiles)
+        .where(eq(profiles.id, userId))
+        .limit(1),
+    ]);
 
-    return res.json(serializeChannelPreferences(row));
+    return res.json(serializeChannelPreferences(channelRows[0], profileRows[0]?.data_sharing_consent));
   } catch (error) {
     console.error("[profile] failed to load channel preferences", error);
     return res.status(500).json({ error: "Unable to load channel preferences" });
@@ -755,30 +793,76 @@ router.patch("/channel-preferences", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Invalid request body", details: parsed.error.flatten() });
   }
 
-  const updates = Object.fromEntries(
-    Object.entries(parsed.data).filter(([, value]) => value !== undefined),
+  const { support_mode, ...channelData } = parsed.data;
+  const channelUpdates = Object.fromEntries(
+    Object.entries(channelData).filter(([, value]) => value !== undefined),
   );
+  const hasChannelUpdates = Object.keys(channelUpdates).length > 0;
+  const hasSupportModeUpdate = support_mode !== undefined;
 
   try {
-    if (Object.keys(updates).length === 0) {
-      const [row] = await db
+    if (!hasChannelUpdates && !hasSupportModeUpdate) {
+      const [channelRows, profileRows] = await Promise.all([
+        db
+          .select()
+          .from(userChannelPreferences)
+          .where(eq(userChannelPreferences.user_id, userId))
+          .limit(1),
+        db
+          .select({ data_sharing_consent: profiles.data_sharing_consent })
+          .from(profiles)
+          .where(eq(profiles.id, userId))
+          .limit(1),
+      ]);
+      return res.json(serializeChannelPreferences(channelRows[0], profileRows[0]?.data_sharing_consent));
+    }
+
+    let row: ChannelPreferencesRow | undefined;
+    let dataSharingConsent: unknown;
+
+    if (hasChannelUpdates) {
+      [row] = await db
+        .insert(userChannelPreferences)
+        .values({ user_id: userId, ...channelUpdates })
+        .onConflictDoUpdate({
+          target: userChannelPreferences.user_id,
+          set: { ...channelUpdates, updated_at: new Date() },
+        })
+        .returning();
+    } else {
+      const rows = await db
         .select()
         .from(userChannelPreferences)
         .where(eq(userChannelPreferences.user_id, userId))
         .limit(1);
-      return res.json(serializeChannelPreferences(row));
+      row = rows[0];
     }
 
-    const [row] = await db
-      .insert(userChannelPreferences)
-      .values({ user_id: userId, ...updates })
-      .onConflictDoUpdate({
-        target: userChannelPreferences.user_id,
-        set: { ...updates, updated_at: new Date() },
-      })
-      .returning();
+    if (hasSupportModeUpdate) {
+      const [existingProfile] = await db
+        .select({ data_sharing_consent: profiles.data_sharing_consent })
+        .from(profiles)
+        .where(eq(profiles.id, userId))
+        .limit(1);
+      dataSharingConsent = mergeContactSupportMode(existingProfile?.data_sharing_consent, support_mode);
 
-    return res.json(serializeChannelPreferences(row));
+      await db
+        .insert(profiles)
+        .values({ id: userId, data_sharing_consent: dataSharingConsent })
+        .onConflictDoUpdate({
+          target: profiles.id,
+          set: { data_sharing_consent: dataSharingConsent, updated_at: new Date() },
+        });
+    } else {
+      const [profileRow] = await db
+        .select({ data_sharing_consent: profiles.data_sharing_consent })
+        .from(profiles)
+        .where(eq(profiles.id, userId))
+        .limit(1);
+      dataSharingConsent = profileRow?.data_sharing_consent;
+    }
+
+    return res.json(serializeChannelPreferences(row, dataSharingConsent));
   } catch (error) {
     console.error("[profile] failed to save channel preferences", error);
     return res.status(500).json({ error: "Unable to save channel preferences" });
