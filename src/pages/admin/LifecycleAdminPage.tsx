@@ -610,7 +610,7 @@ export default function LifecycleAdminPage() {
                   </select>
                 ))}
               </div>
-              <IntakeTable users={users} onView={(intake) => openUserDetail(intake, "view")} onTier={(intake) => openUserDetail(intake, "tier")} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} busyAction={busyAction} />
+              <IntakeTable users={users} onView={(intake) => openUserDetail(intake, "view")} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} busyAction={busyAction} />
             </section>
           </div>
         )}
@@ -690,7 +690,7 @@ export default function LifecycleAdminPage() {
             </div>
             <div className="rounded-[2rem] border border-[#eadfd5] bg-white p-5">
               <h2 className="font-serif text-3xl">Recent lifecycle users</h2>
-              <IntakeTable users={users.slice(0, 8)} onView={(intake) => openUserDetail(intake, "view")} onTier={(intake) => openUserDetail(intake, "tier")} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} busyAction={busyAction} compact />
+              <IntakeTable users={users.slice(0, 8)} onView={(intake) => openUserDetail(intake, "view")} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} busyAction={busyAction} compact />
             </div>
           </section>
         )}
