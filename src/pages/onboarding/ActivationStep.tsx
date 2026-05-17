@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
-import { CheckCircle2, Sparkles } from "lucide-react";
+import { ArrowRight, CheckCircle2, Sparkles } from "lucide-react";
+import { OnboardingChrome } from "@/components/onboarding/OnboardingChrome";
 import { useLanguage } from "@/i18n";
 
 const SETUP_ITEMS = [
@@ -14,57 +15,60 @@ const ActivationStep = () => {
   const { t } = useLanguage();
 
   return (
-    <div className="min-h-screen bg-vyva-cream flex flex-col items-center justify-between px-6 py-12">
-      <div className="flex flex-col items-center gap-4 mt-8">
+    <OnboardingChrome mainClassName="-mt-4 flex min-h-[calc(100vh-76px)] max-w-[540px] flex-col justify-center pb-8 pt-2 sm:-mt-8 sm:min-h-[calc(100vh-92px)] sm:pb-10">
+      <section className="flex flex-col items-center text-center">
         <div
-          className="w-24 h-24 rounded-full flex items-center justify-center shadow-xl"
-          style={{ background: "#6B21A8" }}
+          className="relative flex h-[86px] w-[86px] items-center justify-center rounded-full bg-[linear-gradient(135deg,#6B21A8_0%,#8B3FC8_100%)] text-white shadow-[0_18px_40px_rgba(107,33,168,0.26)]"
           data-testid="icon-activation-success"
         >
-          <Sparkles size={40} className="text-white" />
+          <span className="absolute -right-1 top-3 h-4 w-4 rounded-full border-[3px] border-[#FFF9F1] bg-vyva-gold" aria-hidden="true" />
+          <Sparkles size={40} strokeWidth={2.3} />
         </div>
-        <h1 className="font-display text-[28px] font-semibold text-vyva-text-1 text-center">
+        <h1 className="mt-5 font-display text-[34px] leading-[1.02] text-[#2E1642] sm:text-[42px]">
           {t("onboarding.activation.title", "You're all set!")}
         </h1>
-        <p className="font-body text-[15px] text-vyva-text-2 text-center max-w-[280px] leading-relaxed">
+        <p className="mt-3 max-w-[410px] font-body text-[15px] leading-[1.65] text-vyva-text-2 sm:text-[16px]">
           {t(
             "onboarding.activation.subtitle",
             "VYVA is ready. You can complete your health profile whenever you like - it makes care better.",
           )}
         </p>
-      </div>
+      </section>
 
       <div
-        className="w-full max-w-[360px] bg-white rounded-[22px] border border-vyva-border p-5 space-y-3"
-        style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}
+        className="mt-8 w-full rounded-[28px] border border-[#EFE7DB] bg-white/95 p-2.5 shadow-[0_24px_70px_rgba(72,44,18,0.12)] backdrop-blur sm:mt-9"
         data-testid="list-activation-setup"
       >
         {SETUP_ITEMS.map((item) => (
-          <div key={item} className="flex items-center gap-3">
-            <CheckCircle2 size={20} className="text-vyva-green flex-shrink-0" />
-            <p className="font-body text-[14px] text-vyva-text-1">{t(item)}</p>
+          <div key={item} className="flex min-h-[54px] items-center gap-3 rounded-[20px] px-3 py-2.5 sm:px-4">
+            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-vyva-green-light text-vyva-green">
+              <CheckCircle2 size={19} strokeWidth={2.2} />
+            </span>
+            <p className="font-body text-[14px] font-semibold leading-snug text-vyva-text-1 sm:text-[15px]">
+              {t(item)}
+            </p>
           </div>
         ))}
       </div>
 
-      <div className="w-full max-w-[380px] space-y-3">
+      <div className="mt-8 w-full space-y-3 sm:mt-9">
         <button
           data-testid="button-activation-complete-profile"
           onClick={() => navigate("/onboarding/profile")}
-          className="w-full py-4 rounded-full font-body text-[17px] font-semibold text-white"
-          style={{ background: "#6B21A8" }}
+          className="vyva-primary-action min-h-[58px] w-full bg-[linear-gradient(135deg,#6B21A8_0%,#8B3FC8_100%)] px-5 py-4 text-[16px] shadow-[0_12px_30px_rgba(107,33,168,0.28)] sm:text-[17px]"
         >
           {t("onboarding.activation.completeProfile", "Complete my health profile")}
+          <ArrowRight size={18} />
         </button>
         <button
           data-testid="button-activation-skip-home"
           onClick={() => navigate("/")}
-          className="w-full py-3 rounded-full font-body text-[15px] font-medium text-vyva-text-2"
+          className="vyva-secondary-action min-h-[50px] w-full border-transparent bg-transparent py-3 text-[15px] text-vyva-text-2 shadow-none hover:border-vyva-border hover:bg-white/70"
         >
           {t("onboarding.activation.later", "I'll do this later")}
         </button>
       </div>
-    </div>
+    </OnboardingChrome>
   );
 };
 
