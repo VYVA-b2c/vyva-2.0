@@ -292,6 +292,8 @@ export const emptyScheduledEvent = {
   agent_slug: "",
   room_slug: "",
   scheduled_for: "",
+  scheduled_date: "",
+  scheduled_time: "",
   timezone: "Europe/Madrid",
   recurrence: "none",
   status: "upcoming",
@@ -342,6 +344,18 @@ export function toDatetimeLocal(value?: string | null) {
   if (Number.isNaN(date.getTime())) return "";
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return local.toISOString().slice(0, 16);
+}
+
+export function toDateInputValue(value?: string | null) {
+  return toDatetimeLocal(value).slice(0, 10);
+}
+
+export function toTimeInputValue(value?: string | null) {
+  return toDatetimeLocal(value).slice(11, 16);
+}
+
+export function combineDateTimeLocal(date: string, time: string) {
+  return date && time ? `${date}T${time}` : "";
 }
 
 export function keywordsToText(values?: string[]) {
