@@ -21,6 +21,11 @@ type TwilioMessageResponse = {
   message?: string;
 };
 
+type SendGridResponse = {
+  message?: string;
+  errors?: Array<{ message?: string }>;
+};
+
 function publicBaseUrl() {
   return process.env.APP_URL ?? `http://localhost:${process.env.PORT ?? "5000"}`;
 }
@@ -109,6 +114,37 @@ async function sendWhatsapp(item: Communication) {
   return postTwilioForm("Messages", params);
 }
 
+async function sendEmail(item: Communication) {
+  const apiKey = process.env.SENDGRID_API_KEY;
+  const from = process.env.NOTIFY_FROM_EMAIL ?? "noreply@vyva.ai";
+  if (!apiKey) throw new Error("SendGrid API key is not configured");
+
+  const metadata = metadataRecord(item.metadata);
+  const subject = typeof metadata.subject === "string" && metadata.subject.trim()
+    ? metadata.subject.trim()
+    : "Join VYVA";
+
+  const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      personalizations: [{ to: [{ email: item.recipient }], subject }],
+      from: { email: from },
+      content: [{ type: "text/plain", value: item.body ?? "" }],
+    }),
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(async () => ({ message: await response.text().catch(() => response.statusText) })) as SendGridResponse;
+    throw new Error(payload.errors?.[0]?.message ?? payload.message ?? `SendGrid request failed with ${response.status}`);
+  }
+
+  return { sid: null, status: "sent" };
+}
+
 async function sendVoiceCall(item: Communication) {
   const from = process.env.TWILIO_VOICE_FROM_NUMBER ?? process.env.TWILIO_FROM_NUMBER;
   if (!from) throw new Error("Voice sender is not configured");
@@ -155,7 +191,9 @@ async function dispatchCommunication(item: Communication): Promise<DispatchResul
       ? await sendWhatsapp(item)
       : channel === "voice"
         ? await sendVoiceCall(item)
-        : await sendSms(item);
+        : channel === "email"
+          ? await sendEmail(item)
+          : await sendSms(item);
 
     await markCommunication(item.id, {
       status: "sent",
@@ -202,7 +240,7 @@ export async function dispatchQueuedCommunications(limit = 25): Promise<{ proces
     .from(communicationsLog)
     .where(and(
       eq(communicationsLog.status, "queued"),
-      inArray(communicationsLog.channel, ["sms", "whatsapp", "voice"]),
+      inArray(communicationsLog.channel, ["sms", "whatsapp", "voice", "email"]),
     ))
     .orderBy(asc(communicationsLog.created_at))
     .limit(limit);

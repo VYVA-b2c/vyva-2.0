@@ -52,6 +52,11 @@ export default function LifecycleAdminPage() {
   const [communications, setCommunications] = useState<Communication[]>([]);
   const [message, setMessage] = useState("");
   const [newIntake, setNewIntake] = useState(emptyIntakeForm);
+  const [signupShare, setSignupShare] = useState({
+    emails: "",
+    whatsapp: "",
+    message: "You are invited to create your VYVA account.",
+  });
   const [newOrg, setNewOrg] = useState({ name: "", default_tier: "free" });
   const [selectedUser, setSelectedUser] = useState<UserDetail | null>(null);
   const [selectedDraft, setSelectedDraft] = useState<JsonRecord>({});
@@ -140,6 +145,27 @@ export default function LifecycleAdminPage() {
     const data = await api(`/intakes/${intake.id}/send-link`, { method: "POST" });
     await navigator.clipboard?.writeText(data.url).catch(() => undefined);
     setMessage(`Access link prepared and copied: ${data.url}`);
+    await refresh();
+  }
+
+  function recipientLines(value: string) {
+    return value
+      .split(/[\n,;]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  async function shareSignupForm() {
+    const data = await api("/signup-share", {
+      method: "POST",
+      body: JSON.stringify({
+        emails: recipientLines(signupShare.emails),
+        whatsapp_numbers: recipientLines(signupShare.whatsapp),
+        message: signupShare.message.trim() || undefined,
+      }),
+    });
+    setMessage(`Signup form queued for ${data.queued} recipient${data.queued === 1 ? "" : "s"}: ${data.signup_url}`);
+    setSignupShare({ emails: "", whatsapp: "", message: signupShare.message });
     await refresh();
   }
 
@@ -493,21 +519,45 @@ export default function LifecycleAdminPage() {
         </nav>
 
         {activeTab === "users" && (
-          <section className="mt-3 rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
-            <div className="grid gap-3 md:grid-cols-4">
-              {[
-                ["entry_point", entryPoints],
-                ["user_type", userTypes],
-                ["status", statuses],
-                ["tier", ["", ...planOptions.map((plan) => plan.value)]],
-              ].map(([key, values]) => (
-                <select key={key as keyof typeof filters} className="rounded-xl border border-[#e4d8ce] px-3 py-2.5 text-sm font-semibold" value={filters[key as keyof typeof filters]} onChange={(e) => setFilters((prev) => ({ ...prev, [key as keyof typeof filters]: e.target.value }))}>
-                  {(values as string[]).map((value) => <option key={value} value={value}>{value || String(key).replace("_", " ")}</option>)}
-                </select>
-              ))}
-            </div>
-            <IntakeTable users={users} onView={openUserDetail} onSendLink={sendLink} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} />
-          </section>
+          <div className="mt-3 grid gap-4">
+            <section className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="font-serif text-2xl">Share signup form</h2>
+                  <p className="mt-1 text-sm text-[#7d6b65]">Send the public VYVA signup link to external users by email or WhatsApp.</p>
+                </div>
+                <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">v2.vyva.life/login</span>
+              </div>
+              <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_1.2fr_auto]">
+                <Field label="Email recipients">
+                  <textarea className="min-h-24 w-full rounded-2xl border px-4 py-3" placeholder="name@example.com, another@example.com" value={signupShare.emails} onChange={(e) => setSignupShare({ ...signupShare, emails: e.target.value })} />
+                </Field>
+                <Field label="WhatsApp numbers">
+                  <textarea className="min-h-24 w-full rounded-2xl border px-4 py-3" placeholder="+34 612 345 678&#10;+44 7700 900123" value={signupShare.whatsapp} onChange={(e) => setSignupShare({ ...signupShare, whatsapp: e.target.value })} />
+                </Field>
+                <Field label="Message">
+                  <textarea className="min-h-24 w-full rounded-2xl border px-4 py-3" value={signupShare.message} onChange={(e) => setSignupShare({ ...signupShare, message: e.target.value })} />
+                </Field>
+                <button className="self-end rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white disabled:opacity-50" disabled={!signupShare.emails.trim() && !signupShare.whatsapp.trim()} onClick={shareSignupForm}>Share link</button>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
+              <div className="grid gap-3 md:grid-cols-4">
+                {[
+                  ["entry_point", entryPoints],
+                  ["user_type", userTypes],
+                  ["status", statuses],
+                  ["tier", ["", ...planOptions.map((plan) => plan.value)]],
+                ].map(([key, values]) => (
+                  <select key={key as keyof typeof filters} className="rounded-xl border border-[#e4d8ce] px-3 py-2.5 text-sm font-semibold" value={filters[key as keyof typeof filters]} onChange={(e) => setFilters((prev) => ({ ...prev, [key as keyof typeof filters]: e.target.value }))}>
+                    {(values as string[]).map((value) => <option key={value} value={value}>{value || String(key).replace("_", " ")}</option>)}
+                  </select>
+                ))}
+              </div>
+              <IntakeTable users={users} onView={openUserDetail} onSendLink={sendLink} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} />
+            </section>
+          </div>
         )}
 
         {activeTab === "accounts" && (
