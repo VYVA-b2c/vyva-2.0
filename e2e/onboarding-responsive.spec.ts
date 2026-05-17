@@ -181,10 +181,17 @@ test.describe("onboarding responsive layout", () => {
     await expect(page.getByTestId("select-onboarding-language")).toHaveValue("en");
     await expect(page.getByTestId("chip-english")).toHaveClass(/bg-vyva-purple/);
 
+    await page.getByTestId("chip-espa\u00f1ol").click();
+    await expect(page.getByTestId("select-onboarding-language")).toHaveValue("es");
+    await expect(page.getByRole("heading", { name: "Sobre ti" })).toBeVisible();
+    await expect(page.getByText("Nombre completo")).toBeVisible();
+    await expect(page.getByTestId("button-basics-continue")).toHaveText(/Continuar/);
+
     await page.getByTestId("chip-français").click();
     await expect(page.getByTestId("select-onboarding-language")).toHaveValue("fr");
     await expect(page.getByTestId("chip-français")).toHaveClass(/bg-vyva-purple/);
-    await expect(page.getByTestId("chip-english")).not.toHaveClass(/bg-vyva-purple/);
+    await expect(page.getByRole("heading", { name: "A propos de vous" })).toBeVisible();
+    await expect(page.getByTestId("chip-espa\u00f1ol")).not.toHaveClass(/bg-vyva-purple/);
 
     const persistedLanguage = await page.evaluate(() => ({
       language: localStorage.getItem("vyva_lang"),
