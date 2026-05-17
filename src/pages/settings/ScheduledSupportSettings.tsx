@@ -502,6 +502,11 @@ export default function ScheduledSupportSettings() {
 
         {schedulesQuery.isLoading ? (
           <div className="rounded-[24px] bg-white p-5 text-center text-vyva-text-2 shadow-vyva-card">Cargando tus horarios...</div>
+        ) : schedulesQuery.isError ? (
+          <div className="rounded-[24px] bg-white p-5 text-center text-vyva-text-2 shadow-vyva-card">
+            <p className="font-bold text-vyva-text-1">No pudimos cargar tus horarios.</p>
+            <p className="mt-2 text-[14px]">Actualiza la pagina. Si sigue pasando, avisa al equipo VYVA.</p>
+          </div>
         ) : schedules.length === 0 ? (
           <div className="rounded-[24px] bg-white p-5 text-center text-vyva-text-2 shadow-vyva-card">Aún no hay apoyo programado.</div>
         ) : (
