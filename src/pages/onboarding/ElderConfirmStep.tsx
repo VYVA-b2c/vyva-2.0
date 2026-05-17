@@ -6,9 +6,11 @@ import { queryClient, apiFetch } from "@/lib/queryClient";
 import { friendlyError } from "@/lib/apiError";
 import { CheckCircle2, UserCheck } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLanguage } from "@/i18n";
 
 export default function ElderConfirmStep() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [confirming, setConfirming] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,10 +58,10 @@ export default function ElderConfirmStep() {
         </div>
         <div>
           <h1 className="font-display text-[24px] font-semibold text-vyva-text-1 mb-2">
-            Account confirmed!
+            {t("onboarding.elderConfirm.confirmedTitle", "Account confirmed!")}
           </h1>
           <p className="font-body text-[15px] text-vyva-text-2">
-            VYVA is now set up and ready for you.
+            {t("onboarding.elderConfirm.confirmedSubtitle", "VYVA is now set up and ready for you.")}
           </p>
         </div>
         <button
@@ -68,7 +70,7 @@ export default function ElderConfirmStep() {
           className="w-full max-w-xs py-4 rounded-full font-body text-[17px] font-semibold text-white"
           style={{ background: "#6B21A8" }}
         >
-          Continue to set up
+          {t("onboarding.elderConfirm.continueSetup", "Continue to set up")}
         </button>
       </div>
     );
@@ -89,26 +91,41 @@ export default function ElderConfirmStep() {
         ) : (
           <div className="max-w-xs">
             <h1 className="font-display text-[24px] font-semibold text-vyva-text-1 mb-3">
-              Someone set up VYVA for you
+              {t("onboarding.elderConfirm.title", "Someone set up VYVA for you")}
             </h1>
             <p className="font-body text-[15px] text-vyva-text-2">
               {proxyName ? (
                 <>
-                  <strong>{proxyName}</strong> has filled in your health profile and set up your VYVA account.
+                  <strong>{proxyName}</strong>{" "}
+                  {t(
+                    "onboarding.elderConfirm.proxyBody",
+                    "has filled in your health profile and set up your VYVA account.",
+                  )}
                 </>
               ) : (
-                <>Someone close to you has filled in your health profile and set up your VYVA account.</>
+                <>
+                  {t(
+                    "onboarding.elderConfirm.defaultBody",
+                    "Someone close to you has filled in your health profile and set up your VYVA account.",
+                  )}
+                </>
               )}
             </p>
             <p className="font-body text-[14px] text-vyva-text-3 mt-3">
-              Please confirm this is your account and you're happy for VYVA to use this information.
+              {t(
+                "onboarding.elderConfirm.confirmPrompt",
+                "Please confirm this is your account and you're happy for VYVA to use this information.",
+              )}
             </p>
           </div>
         )}
 
         <div className="bg-amber-50 border border-amber-200 rounded-[14px] px-4 py-3 max-w-xs w-full text-left">
           <p className="font-body text-[13px] text-amber-800">
-            You can review and edit everything in your profile at any time. Nothing is shared without your consent.
+            {t(
+              "onboarding.elderConfirm.reviewNote",
+              "You can review and edit everything in your profile at any time. Nothing is shared without your consent.",
+            )}
           </p>
         </div>
 
@@ -127,14 +144,16 @@ export default function ElderConfirmStep() {
           className="w-full py-4 rounded-full font-body text-[17px] font-semibold text-white disabled:opacity-40"
           style={{ background: "#6B21A8" }}
         >
-          {confirming ? "Confirming…" : "Yes, this is my account"}
+          {confirming
+            ? t("onboarding.elderConfirm.confirming", "Confirming...")
+            : t("onboarding.elderConfirm.yesAccount", "Yes, this is my account")}
         </button>
         <button
           data-testid="button-elder-confirm-dismiss"
           onClick={() => navigate("/onboarding/profile")}
           className="w-full py-3 font-body text-[15px] text-vyva-text-3 text-center"
         >
-          Review my profile first
+          {t("onboarding.elderConfirm.reviewFirst", "Review my profile first")}
         </button>
       </div>
     </div>

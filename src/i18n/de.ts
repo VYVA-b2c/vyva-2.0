@@ -40,6 +40,81 @@ const de = {
       continue: "Weiter",
       saving: "Speichern...",
     },
+    channel: {
+      eyebrow: "Tagliche Unterstutzung",
+      stepLabel: "Schritt 2 von 5",
+      titleSelf: "Wahlen Sie Ihren Standardkontakt",
+      titleCaregiver: "Wahlen Sie den Standardkontakt",
+      subtitleSelf:
+        "Wahlen Sie den taglichen Kanal fur VYVA. Erinnerungen, Warnungen und Ruhezeiten konnen Sie spater anpassen.",
+      subtitleCaregiver:
+        "Wahlen Sie den taglichen Kanal fur die Person, die Unterstutzung erhalt. Erinnerungen, Warnungen und Ruhezeiten konnen Sie spater anpassen.",
+      continue: "Weiter",
+      saving: "Speichern...",
+      options: {
+        phone: { label: "Telefonanruf", sub: "Am besten fur tagliche Check-ins" },
+        whatsapp: { label: "WhatsApp", sub: "Am besten fur Erinnerungen und Sprachnotizen" },
+        app: { label: "Nur App", sub: "Standardmassig keine Anrufe oder Nachrichten" },
+      },
+      defaults: {
+        eyebrow: "Intelligente Vorgaben",
+        reminder: {
+          title: "Erinnerungsregeln spater",
+          text: "Medikamente, Termine und Check-ins konnen unterschiedliche Kanale nutzen.",
+        },
+        quiet: {
+          title: "Ruhezeiten",
+          text: "Wir konnen nicht dringende Kontakte nachts oder wahrend Ruhezeiten vermeiden.",
+        },
+        fallback: {
+          title: "Sicherheits-Fallbacks",
+          text: "Dringende Warnungen konnen zuerst Anruf, dann WhatsApp und dann eine Betreuungsperson versuchen.",
+        },
+      },
+      phoneLabel: "Beste Kontaktnummer",
+      phoneHint: "Wir verwenden diese Nummer jetzt fur den Standardkanal. Details finden Sie in den Einstellungen.",
+    },
+    consent: {
+      eyebrow: "Datenschutz und Zustimmung",
+      stepLabel: "Schritt 3 von 5",
+      title: "Ihre Daten, Ihre Wahl",
+      subtitle: "VYVA nutzt Ihre Daten nur fur die Betreuung. Sie konnen diese Auswahl jederzeit andern.",
+      agree: "Zustimmen und weiter",
+      saving: "Speichern...",
+      error: "Etwas ist schiefgelaufen - bitte versuchen Sie es erneut.",
+      required: "Erforderlich, damit VYVA funktioniert",
+      footer: "Durch DSGVO geschutzt. Wir verkaufen Ihre Daten nie.",
+      items: {
+        conversation: { label: "Gesprachszusammenfassungen", sub: "VYVA lernt aus Chats, um Betreuung zu personalisieren" },
+        health: { label: "Gesundheitsinformationen", sub: "Erkrankungen, Medikamente und Wohlbefinden" },
+        alerts: { label: "Warnungen mit Betreuung teilen", sub: "Gesundheits- oder Sicherheitswarnungen an Ihre Betreuungsperson" },
+      },
+    },
+    activation: {
+      title: "Alles bereit!",
+      subtitle: "VYVA ist bereit. Sie konnen Ihr Gesundheitsprofil jederzeit vervollstandigen.",
+      completeProfile: "Gesundheitsprofil vervollstandigen",
+      later: "Ich mache das spater",
+      items: {
+        profile: "Personliches Profil erstellt",
+        preferences: "VYVA auf Ihre Praferenzen eingestellt",
+        privacy: "Datenschutzeinstellungen angewendet",
+        checkin: "Taglicher Check-in geplant",
+      },
+    },
+    elderConfirm: {
+      title: "Jemand hat VYVA fur Sie eingerichtet",
+      confirmedTitle: "Konto bestatigt!",
+      confirmedSubtitle: "VYVA ist jetzt eingerichtet und bereit.",
+      continueSetup: "Einrichtung fortsetzen",
+      proxyBody: "hat Ihr Gesundheitsprofil ausgefullt und Ihr VYVA-Konto eingerichtet.",
+      defaultBody: "Eine nahestehende Person hat Ihr Gesundheitsprofil ausgefullt und Ihr VYVA-Konto eingerichtet.",
+      confirmPrompt: "Bitte bestatigen Sie, dass dies Ihr Konto ist und VYVA diese Informationen nutzen darf.",
+      reviewNote: "Sie konnen Ihr Profil jederzeit prufen und bearbeiten. Nichts wird ohne Ihre Zustimmung geteilt.",
+      confirming: "Bestatigen...",
+      yesAccount: "Ja, das ist mein Konto",
+      reviewFirst: "Zuerst mein Profil prufen",
+    },
   },
   meds: {
     contextPanel: {

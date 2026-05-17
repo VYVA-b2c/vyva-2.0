@@ -35,6 +35,81 @@ const fr = {
       continue: "Continuer",
       saving: "Enregistrement...",
     },
+    channel: {
+      eyebrow: "Soutien quotidien",
+      stepLabel: "Etape 2 sur 5",
+      titleSelf: "Choisissez votre contact par defaut",
+      titleCaregiver: "Choisissez son contact par defaut",
+      subtitleSelf:
+        "Choisissez le canal quotidien pour VYVA. Les rappels, alertes et heures calmes pourront etre personnalises ensuite.",
+      subtitleCaregiver:
+        "Choisissez le canal quotidien pour la personne accompagnee. Les rappels, alertes et heures calmes pourront etre personnalises ensuite.",
+      continue: "Continuer",
+      saving: "Enregistrement...",
+      options: {
+        phone: { label: "Appel telephonique", sub: "Ideal pour les controles quotidiens" },
+        whatsapp: { label: "WhatsApp", sub: "Ideal pour les rappels et messages vocaux" },
+        app: { label: "Application seule", sub: "Aucun appel ni message par defaut" },
+      },
+      defaults: {
+        eyebrow: "Reglages intelligents",
+        reminder: {
+          title: "Regles de rappel plus tard",
+          text: "Medicaments, rendez-vous et controles peuvent utiliser des canaux differents.",
+        },
+        quiet: {
+          title: "Heures calmes",
+          text: "Nous pouvons eviter les contacts non urgents la nuit ou pendant le repos.",
+        },
+        fallback: {
+          title: "Solutions de secours",
+          text: "Les alertes urgentes peuvent essayer appel, puis WhatsApp, puis un aidant.",
+        },
+      },
+      phoneLabel: "Meilleur numero de contact",
+      phoneHint: "Nous utiliserons ce numero pour le canal par defaut. Les preferences detaillees sont dans Reglages.",
+    },
+    consent: {
+      eyebrow: "Confidentialite et consentement",
+      stepLabel: "Etape 3 sur 5",
+      title: "Vos donnees, votre choix",
+      subtitle: "VYVA utilise vos donnees uniquement pour fournir le soin. Vous pouvez modifier ces choix dans Reglages.",
+      agree: "Accepter et continuer",
+      saving: "Enregistrement...",
+      error: "Une erreur est survenue - veuillez reessayer.",
+      required: "Requis pour que VYVA fonctionne",
+      footer: "Protege par le RGPD. Nous ne vendons jamais vos donnees.",
+      items: {
+        conversation: { label: "Resumes de conversation", sub: "VYVA apprend de vos echanges pour personnaliser le soin" },
+        health: { label: "Informations de sante", sub: "Pathologies, medicaments et donnees de bien-etre" },
+        alerts: { label: "Partager les alertes avec l'aidant", sub: "Alertes de sante ou de securite envoyees a votre aidant" },
+      },
+    },
+    activation: {
+      title: "Tout est pret !",
+      subtitle: "VYVA est pret. Vous pouvez completer votre profil de sante quand vous voulez.",
+      completeProfile: "Completer mon profil de sante",
+      later: "Je le ferai plus tard",
+      items: {
+        profile: "Profil personnel cree",
+        preferences: "VYVA adapte a vos preferences",
+        privacy: "Reglages de confidentialite appliques",
+        checkin: "Controle quotidien programme",
+      },
+    },
+    elderConfirm: {
+      title: "Quelqu'un a configure VYVA pour vous",
+      confirmedTitle: "Compte confirme !",
+      confirmedSubtitle: "VYVA est maintenant configure et pret pour vous.",
+      continueSetup: "Continuer la configuration",
+      proxyBody: "a rempli votre profil de sante et configure votre compte VYVA.",
+      defaultBody: "Un proche a rempli votre profil de sante et configure votre compte VYVA.",
+      confirmPrompt: "Veuillez confirmer qu'il s'agit de votre compte et que VYVA peut utiliser ces informations.",
+      reviewNote: "Vous pouvez tout verifier et modifier dans votre profil a tout moment. Rien n'est partage sans votre consentement.",
+      confirming: "Confirmation...",
+      yesAccount: "Oui, c'est mon compte",
+      reviewFirst: "Verifier mon profil d'abord",
+    },
   },
   meds: {
     contextPanel: {
