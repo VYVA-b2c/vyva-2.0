@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import { ChevronLeft, Eye, Share2, Heart, Shield, FileText } from "lucide-react";
 import { ToggleRow } from "@/components/onboarding/ToggleRow";
+import { useLanguage } from "@/i18n";
 
 const PEOPLE = [
   { id: "sarah", name: "Sarah Collins", role: "profile.roles.daughter" },
@@ -25,7 +25,7 @@ const DEFAULT_CONSENT: PersonConsent = {
 
 const PrivacySettings = () => {
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t } = useLanguage();
   const [globalToggles, setGlobalToggles] = useState({
     analytics: false,
     dataImprovement: false,

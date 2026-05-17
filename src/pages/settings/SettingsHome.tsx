@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import {
   Bell,
   CalendarClock,
@@ -21,6 +20,7 @@ import {
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/i18n";
 import { APP_VERSION } from "@/lib/appInfo";
 import { apiFetch } from "@/lib/queryClient";
 
@@ -110,7 +110,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export default function SettingsHome() {
   const navigate = useNavigate();
   const { logout } = useAuth();
-  const { t } = useTranslation();
+  const { t } = useLanguage();
   const { toast } = useToast();
   const [isDownloadingData, setIsDownloadingData] = useState(false);
 
@@ -142,7 +142,7 @@ export default function SettingsHome() {
     navigator.clipboard?.writeText(SUPPORT_EMAIL).catch(() => undefined);
     toast({
       title: t("settings.home.rows.supportEmailReady", "Opening email draft"),
-      description: t("settings.home.rows.supportEmailCopied", "Support email copied: {{email}}", { email: SUPPORT_EMAIL }),
+      description: t("settings.home.rows.supportEmailCopied", "Support email copied: {{email}}").replace("{{email}}", SUPPORT_EMAIL),
     });
     window.setTimeout(() => {
       window.location.href = buildMailtoUrl(subject, body);
@@ -220,8 +220,8 @@ export default function SettingsHome() {
             icon={CalendarClock}
             iconBg="#F5F0FF"
             iconColor="#6B21A8"
-            title="Mi apoyo programado"
-            sub="Llamadas, recordatorios y horarios de apoyo"
+            title={t("settings.home.rows.scheduledSupport")}
+            sub={t("settings.home.rows.scheduledSupportSub")}
             onClick={() => navigate("/settings/scheduled-support")}
             data-testid="button-settings-scheduled-support"
           />

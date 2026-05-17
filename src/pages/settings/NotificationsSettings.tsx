@@ -2,7 +2,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useTranslation } from "react-i18next";
 import { BellRing } from "lucide-react";
 import { ContactChannelPicker } from "@/components/ContactChannelPicker";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
@@ -10,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/i18n";
 import { friendlyError } from "@/lib/apiError";
 import { normalizeContactChannel, type ContactChannelId } from "@/lib/contactChannels";
 import { apiFetch, queryClient } from "@/lib/queryClient";
@@ -71,7 +71,7 @@ function selectToLimit(value: string): number | null {
 
 export default function NotificationsSettings() {
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t } = useLanguage();
   const { toast } = useToast();
   const [draft, setDraft] = useState<ChannelPreferences>(DEFAULT_PREFERENCES);
 

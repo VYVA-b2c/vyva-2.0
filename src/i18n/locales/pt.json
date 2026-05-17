@@ -422,6 +422,8 @@
         "myAccountSub": "Nome, telefone, idioma, senha",
         "notifications": "Notificações e contato",
         "notificationsSub": "Canais, horas silenciosas, frequência",
+        "scheduledSupport": "Apoio programado",
+        "scheduledSupportSub": "Chamadas, lembretes e horários de apoio",
         "healthProfile": "Perfil geral",
         "healthProfileSub": "Saúde, passatempos, equipa de cuidado e mais",
         "privacyConsent": "Privacidade e consentimento",

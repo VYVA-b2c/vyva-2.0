@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Camera, X } from "lucide-react";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
@@ -216,9 +215,8 @@ function getDefaultsForCountry(countryCode: string) {
 
 export default function AccountSettings() {
   const navigate = useNavigate();
-  const { t } = useTranslation();
   const { logout } = useAuth();
-  const { language, setLanguage } = useLanguage();
+  const { language, setLanguage, t } = useLanguage();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const browserLanguageRef = useRef<LanguageCode>(detectBrowserLanguage());
