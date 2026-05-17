@@ -41,6 +41,7 @@ export function PhoneFrame({
               <button
                 type="button"
                 onClick={onBack}
+                data-testid="button-phone-frame-back"
                 className="inline-flex h-[38px] w-[38px] items-center justify-center rounded-full border border-[#E7DCF8] bg-white text-vyva-purple shadow-sm"
               >
                 <ArrowLeft size={18} />
