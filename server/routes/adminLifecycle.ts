@@ -1764,6 +1764,60 @@ adminLifecycleRouter.get("/communications", async (req: Request, res: Response) 
   return res.json({ communications: rows });
 });
 
+adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+  const parsed = z.object({
+    emails: z.array(z.string().trim().email()).optional().default([]),
+    whatsapp_numbers: z.array(z.string().trim().min(3)).optional().default([]),
+    message: z.string().trim().max(500).optional(),
+  }).safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid signup share request" });
+
+  const loginUrl = `${publicBaseUrl(req)}/login`;
+  const emailRecipients = Array.from(new Set(parsed.data.emails.map((email) => email.toLowerCase())));
+  const whatsappRecipients = Array.from(new Set(parsed.data.whatsapp_numbers.map(normalizePhone).filter(Boolean)));
+  if (emailRecipients.length + whatsappRecipients.length === 0) {
+    return res.status(400).json({ error: "Add at least one email or WhatsApp number." });
+  }
+
+  const intro = parsed.data.message || "You are invited to create your VYVA account.";
+  const body = `${intro}\n\nSign up here: ${loginUrl}`;
+  const rows = [
+    ...emailRecipients.map((recipient) => ({
+      user_id: req.user?.id ?? null,
+      channel: "email",
+      recipient,
+      purpose: "share_signup_form",
+      status: "queued",
+      body,
+      metadata: {
+        url: loginUrl,
+        subject: "Create your VYVA account",
+        shared_by: req.user?.email ?? req.user?.id ?? null,
+      },
+    })),
+    ...whatsappRecipients.map((recipient) => ({
+      user_id: req.user?.id ?? null,
+      channel: "whatsapp",
+      recipient,
+      purpose: "share_signup_form",
+      status: "queued",
+      body: `${intro}\n\n${loginUrl}`,
+      metadata: {
+        url: loginUrl,
+        shared_by: req.user?.email ?? req.user?.id ?? null,
+      },
+    })),
+  ];
+
+  const communications = await db.insert(communicationsLog).values(rows).returning();
+  return res.status(201).json({
+    signup_url: loginUrl,
+    queued: communications.length,
+    communications,
+  });
+});
+
 adminLifecycleRouter.post("/communications/dispatch", async (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
   const parsed = z.object({
