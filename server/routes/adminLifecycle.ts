@@ -297,9 +297,8 @@ async function scheduledItemsForUser(userId: string | null) {
     ]);
     return [...events, ...medicationEventsFromRows(medications)];
   } catch (error) {
-    const maybeError = error as { code?: string };
-    if (isMissingRelationError(error) || maybeError?.code === "42501") return [];
-    throw error;
+    console.warn("[admin-lifecycle] optional scheduled items unavailable", error);
+    return [];
   }
 }
 
@@ -313,11 +312,8 @@ async function scheduledSupportForUser(userId: string | null) {
     ]);
     return { schedules, logs, audit_logs: auditLogs };
   } catch (error) {
-    const maybeError = error as { code?: string };
-    if (isMissingRelationError(error) || maybeError?.code === "42501") {
-      return { schedules: [], logs: [], audit_logs: [] };
-    }
-    throw error;
+    console.warn("[admin-lifecycle] optional scheduled support unavailable", error);
+    return { schedules: [], logs: [], audit_logs: [] };
   }
 }
 
@@ -341,9 +337,8 @@ async function optionalAdminRows<T>(query: Promise<T[]>): Promise<T[]> {
   try {
     return await query;
   } catch (error) {
-    const maybeError = error as { code?: string };
-    if (isMissingRelationError(error) || maybeError?.code === "42501") return [];
-    throw error;
+    console.warn("[admin-lifecycle] optional detail rows unavailable", error);
+    return [];
   }
 }
 
