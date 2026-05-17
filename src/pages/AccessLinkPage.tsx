@@ -20,6 +20,7 @@ export default function AccessLinkPage() {
       try {
         const res = await fetch("/api/auth/access-link/consume", {
           method: "POST",
+          credentials: "same-origin",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ token }),
         });

@@ -7,6 +7,7 @@ import { authRouter } from "../routes/auth.js";
 import { db } from "../db.js";
 import { users, profiles } from "../../shared/schema.js";
 import { eq } from "drizzle-orm";
+import { AUTH_SESSION_COOKIE } from "../lib/sessionCookie.js";
 
 function buildApp() {
   const app = express();
@@ -47,6 +48,7 @@ describe("Auth endpoints", () => {
   });
 
   let registeredToken: string;
+  let registeredCookie: string;
 
   it("POST /register creates a user and returns a valid JWT", async () => {
     const res = await request(app)
@@ -59,6 +61,9 @@ describe("Auth endpoints", () => {
     expect(res.body.email).toBe(TEST_EMAIL.toLowerCase());
     expect(typeof res.body.token).toBe("string");
     expect(res.body.token.length).toBeGreaterThan(0);
+    const setCookie = res.headers["set-cookie"] as unknown as string[] | undefined;
+    registeredCookie = setCookie?.find((cookie) => cookie.startsWith(`${AUTH_SESSION_COOKIE}=`))?.split(";")[0] ?? "";
+    expect(registeredCookie).toMatch(new RegExp(`^${AUTH_SESSION_COOKIE}=`));
 
     registeredToken = res.body.token;
   });
@@ -118,6 +123,27 @@ describe("Auth endpoints", () => {
     expect(res.body.email).toBe(TEST_EMAIL.toLowerCase());
   });
 
+  it("GET /me restores the user from the session cookie", async () => {
+    const res = await request(app)
+      .get("/api/auth/me")
+      .set("Cookie", registeredCookie)
+      .expect(200);
+
+    expect(res.body).toHaveProperty("id");
+    expect(res.body).toHaveProperty("token");
+    expect(res.body.email).toBe(TEST_EMAIL.toLowerCase());
+  });
+
+  it("GET /me can recover from a stale bearer token when the session cookie is valid", async () => {
+    const res = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", "Bearer this.is.not.a.valid.token")
+      .set("Cookie", registeredCookie)
+      .expect(200);
+
+    expect(res.body.email).toBe(TEST_EMAIL.toLowerCase());
+  });
+
   it("GET /me returns 401 with an invalid/expired token", async () => {
     const res = await request(app)
       .get("/api/auth/me")
@@ -125,5 +151,17 @@ describe("Auth endpoints", () => {
       .expect(401);
 
     expect(res.body).toHaveProperty("error");
+  });
+
+  it("POST /logout clears the session cookie", async () => {
+    const res = await request(app)
+      .post("/api/auth/logout")
+      .expect(200);
+
+    const setCookie = res.headers["set-cookie"] as unknown as string[] | undefined;
+    expect(setCookie?.some((cookie) => (
+      cookie.startsWith(`${AUTH_SESSION_COOKIE}=`) &&
+      cookie.includes("Max-Age=0")
+    ))).toBe(true);
   });
 });

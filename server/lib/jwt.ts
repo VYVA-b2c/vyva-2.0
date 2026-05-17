@@ -21,11 +21,11 @@ const JWT_SECRET = new TextEncoder().encode(
   rawSecret ?? "dev-only-key-do-not-use-in-production"
 );
 
-export async function signToken(userId: string): Promise<string> {
+export async function signToken(userId: string, expiresIn = "30d"): Promise<string> {
   return new SignJWT({ sub: userId })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("7d")
+    .setExpirationTime(expiresIn)
     .sign(JWT_SECRET);
 }
 
