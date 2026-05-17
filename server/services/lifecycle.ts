@@ -12,6 +12,7 @@ import {
   scheduledEvents,
   userIntakes,
   userMedications,
+  users,
 } from "../../shared/schema.js";
 
 type Database = typeof db;
@@ -122,6 +123,65 @@ function elderDetails(intake: Intake) {
   return nestedRecord(intake.metadata, "elder");
 }
 
+function lifecycleIdentityKeys(input: {
+  userId?: string | null;
+  elderUserId?: string | null;
+  familyUserId?: string | null;
+  email?: string | null;
+  phone?: string | null;
+}) {
+  const keys: string[] = [];
+  for (const id of [input.userId, input.elderUserId, input.familyUserId]) {
+    if (id) keys.push(`user:${id}`);
+  }
+  const email = normalizeEmail(input.email);
+  if (email) keys.push(`email:${email}`);
+  const phone = input.phone ? normalizePhone(input.phone) : "";
+  if (phone) keys.push(`phone:${phone}`);
+  return keys;
+}
+
+function hasLifecycleIdentity(existing: Set<string>, input: {
+  userId?: string | null;
+  email?: string | null;
+  phone?: string | null;
+}) {
+  return lifecycleIdentityKeys(input).some((key) => existing.has(key));
+}
+
+function rememberLifecycleIdentity(existing: Set<string>, input: {
+  userId?: string | null;
+  elderUserId?: string | null;
+  familyUserId?: string | null;
+  email?: string | null;
+  phone?: string | null;
+}) {
+  for (const key of lifecycleIdentityKeys(input)) existing.add(key);
+}
+
+function fallbackLifecyclePhone(input: {
+  phone?: string | null;
+  whatsapp?: string | null;
+  email?: string | null;
+  id: string;
+  prefix: string;
+}) {
+  const phone = normalizePhone(input.phone ?? "");
+  if (phone) return phone;
+  const whatsapp = normalizePhone(input.whatsapp ?? "");
+  if (whatsapp) return whatsapp;
+  const email = normalizeEmail(input.email);
+  return email || `${input.prefix}:${input.id}`;
+}
+
+function channelForIntakeLink(intake: Intake) {
+  const email = normalizeEmail(intake.email);
+  const normalizedPhone = normalizePhone(intake.phone);
+  const phoneLooksSynthetic = intake.phone.includes("@") || intake.phone.includes(":");
+  if (email && (!normalizedPhone || phoneLooksSynthetic)) return "email";
+  return intake.entry_point === "whatsapp" ? "whatsapp" : "sms";
+}
+
 export function elderPhoneForIntake(intake: Intake) {
   return normalizePhone(stringValue(elderDetails(intake).phone) || intake.phone);
 }
@@ -183,6 +243,140 @@ export async function scheduledItemsForUser(userId: string | null, database = db
     database.select().from(userMedications).where(eq(userMedications.user_id, userId)).limit(100),
   ]);
   return [...events, ...medicationEventsFromRows(medications)];
+}
+
+export async function backfillLifecycleUsers(database = db) {
+  const [existingIntakes, profileRows, accountRows] = await Promise.all([
+    database.select().from(userIntakes),
+    database.select().from(profiles),
+    database.select().from(users),
+  ]);
+  const existing = new Set<string>();
+  for (const intake of existingIntakes) {
+    rememberLifecycleIdentity(existing, {
+      userId: intake.user_id,
+      elderUserId: intake.elder_user_id,
+      familyUserId: intake.family_user_id,
+      email: intake.email,
+      phone: intake.phone,
+    });
+  }
+
+  const inserted: Intake[] = [];
+  for (const profile of profileRows) {
+    const phone = fallbackLifecyclePhone({
+      phone: profile.phone_number,
+      whatsapp: profile.whatsapp_number,
+      email: profile.email,
+      id: profile.id,
+      prefix: "profile",
+    });
+    if (hasLifecycleIdentity(existing, { userId: profile.id, email: profile.email, phone })) continue;
+
+    const isDropped = profile.account_status === "disabled";
+    const isActive = profile.onboarding_complete || profile.subscription_status === "active";
+    const status: IntakeStatus = isDropped ? "dropped" : isActive ? "active" : "created";
+    const name = profile.full_name || profile.preferred_name || profile.email || profile.phone_number || "App user";
+    const now = new Date();
+    const [intake] = await database.insert(userIntakes).values({
+      user_id: profile.id,
+      elder_user_id: profile.id,
+      family_user_id: null,
+      name,
+      phone,
+      email: profile.email ?? null,
+      user_type: "elder",
+      entry_point: "admin",
+      organization_id: null,
+      tier: normalizeSubscriptionTier(profile.subscription_tier),
+      status,
+      journey_step: profile.onboarding_complete ? "app_onboarding_complete" : "login_profile_backfilled",
+      consent_status: "not_required",
+      source_payload: { backfilled_from: "profiles" },
+      metadata: {
+        source: "login_profile_backfill",
+        profile_id: profile.id,
+        account_status: profile.account_status,
+        subscription_status: profile.subscription_status,
+        onboarding_complete: profile.onboarding_complete,
+      },
+      activated_at: status === "active" ? profile.updated_at ?? now : null,
+      dropped_at: status === "dropped" ? profile.disabled_at ?? profile.updated_at ?? now : null,
+      last_activity_at: profile.updated_at ?? profile.created_at ?? now,
+    }).returning();
+
+    rememberLifecycleIdentity(existing, {
+      userId: intake.user_id,
+      elderUserId: intake.elder_user_id,
+      familyUserId: intake.family_user_id,
+      email: intake.email,
+      phone: intake.phone,
+    });
+    inserted.push(intake);
+    await recordLifecycleEvent({
+      intakeId: intake.id,
+      userId: profile.id,
+      eventType: "lifecycle_backfilled",
+      toStatus: status,
+      channel: "login",
+      metadata: { source: "profiles" },
+    }, database);
+  }
+
+  for (const account of accountRows) {
+    const phone = fallbackLifecyclePhone({
+      phone: account.phone_number,
+      email: account.email,
+      id: account.id,
+      prefix: "login",
+    });
+    if (hasLifecycleIdentity(existing, { userId: account.id, email: account.email, phone })) continue;
+
+    const name = account.email || account.phone_number || "Login user";
+    const [intake] = await database.insert(userIntakes).values({
+      user_id: account.id,
+      elder_user_id: account.active_profile_id ?? null,
+      family_user_id: null,
+      name,
+      phone,
+      email: account.email ?? null,
+      user_type: "elder",
+      entry_point: "admin",
+      organization_id: null,
+      tier: "free",
+      status: "created",
+      journey_step: "login_registered_no_profile",
+      consent_status: "not_required",
+      source_payload: { backfilled_from: "users" },
+      metadata: {
+        source: "login_user_backfill",
+        login_user_id: account.id,
+        active_profile_id: account.active_profile_id,
+        onboarding_intent: account.onboarding_intent,
+        last_seen_at: account.last_seen_at?.toISOString() ?? null,
+      },
+      last_activity_at: account.last_seen_at ?? account.created_at ?? new Date(),
+    }).returning();
+
+    rememberLifecycleIdentity(existing, {
+      userId: intake.user_id,
+      elderUserId: intake.elder_user_id,
+      familyUserId: intake.family_user_id,
+      email: intake.email,
+      phone: intake.phone,
+    });
+    inserted.push(intake);
+    await recordLifecycleEvent({
+      intakeId: intake.id,
+      userId: account.id,
+      eventType: "lifecycle_backfilled",
+      toStatus: "created",
+      channel: "login",
+      metadata: { source: "users" },
+    }, database);
+  }
+
+  return inserted;
 }
 
 export async function recordLifecycleEvent(input: {
@@ -292,6 +486,7 @@ export function validateFamilyIntake(data: IntakeCreateInput): string | null {
 }
 
 export async function getLifecycleSummary(database = db) {
+  await backfillLifecycleUsers(database);
   const [rows, consentRows] = await Promise.all([
     database.select().from(userIntakes).orderBy(desc(userIntakes.created_at)),
     database.select().from(consentAttempts).orderBy(desc(consentAttempts.created_at)),
@@ -422,6 +617,7 @@ export async function listLifecycleUsers(filters: {
   status?: IntakeStatus;
   tier?: string;
 }, database = db) {
+  await backfillLifecycleUsers(database);
   const where = [
     filters.entry_point ? eq(userIntakes.entry_point, filters.entry_point) : undefined,
     filters.user_type ? eq(userIntakes.user_type, filters.user_type) : undefined,
@@ -469,6 +665,7 @@ export async function listLifecycleUsers(filters: {
 }
 
 export async function getLifecycleUserDetails(intakeId: string, database = db) {
+  await backfillLifecycleUsers(database);
   const [intake] = await database.select().from(userIntakes).where(eq(userIntakes.id, intakeId)).limit(1);
   if (!intake) return null;
 
@@ -640,13 +837,14 @@ export async function sendIntakeLink(intakeId: string, baseUrl: string, database
     expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
   }).returning();
   const url = `${baseUrl}/access/${token}`;
-  const channel = intake.entry_point === "whatsapp" ? "whatsapp" : "sms";
+  const channel = channelForIntakeLink(intake);
+  const recipient = channel === "email" ? normalizeEmail(intake.email) : intake.phone;
 
   const [communication] = await database.insert(communicationsLog).values({
     intake_id: intake.id,
     user_id: targetUserId ?? intake.user_id,
     channel,
-    recipient: intake.phone,
+    recipient,
     purpose: "send_app_link",
     status: "queued",
     body: `VYVA: aqui tiene su enlace seguro para continuar: ${url}`,
