@@ -15,6 +15,27 @@ const it = {
     level: "Livello",
     language: "Lingua",
   },
+  onboarding: {
+    basics: {
+      eyebrow: "Dati del profilo",
+      stepLabel: "Passo 1 di 5",
+      titleSelf: "Informazioni su di te",
+      titleCaregiver: "Informazioni sulla persona",
+      subtitleSelf: "Inizia dagli elementi essenziali. Puoi aggiornare il profilo in qualsiasi momento.",
+      subtitleCaregiver: "Indica a VYVA chi ricevera supporto. Potrai aggiungere altri dettagli di cura piu avanti.",
+      fullNameSelf: "Nome completo",
+      fullNameCaregiver: "Nome completo",
+      fullNamePlaceholder: "es. Margaret Collins",
+      preferredNameSelf: "Come vuoi che VYVA ti chiami?",
+      preferredNameCaregiver: "Come dovrebbe chiamare VYVA questa persona?",
+      preferredNamePlaceholder: "es. Margaret, Maggie...",
+      preferredNameHint: "Facoltativo - useremo il nome come impostazione predefinita",
+      dateOfBirth: "Data di nascita",
+      preferredLanguage: "Lingua preferita",
+      continue: "Continua",
+      saving: "Salvataggio...",
+    },
+  },
   meds: {
     contextPanel: {
       title: "Contesto farmaci pronto",

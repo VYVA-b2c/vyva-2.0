@@ -36,7 +36,7 @@ type ProfileResponse = {
 
 const BasicsStep = () => {
   const navigate = useNavigate();
-  const { language, setLanguage } = useLanguage();
+  const { language, setLanguage, t } = useLanguage();
   const [fullName, setFullName] = useState("");
   const [preferredName, setPreferredName] = useState("");
   const [dob, setDob] = useState("");
@@ -125,8 +125,8 @@ const BasicsStep = () => {
     <OnboardingStepLayout
       action={{
         testId: "button-basics-continue",
-        label: "Continue",
-        savingLabel: "Saving...",
+        label: t("onboarding.basics.continue", "Continue"),
+        savingLabel: t("onboarding.basics.saving", "Saving..."),
         isSaving: saving,
         disabled: !canContinue,
         onClick: handleContinue,
@@ -134,46 +134,59 @@ const BasicsStep = () => {
       back={{ testId: "button-basics-back", onClick: () => navigate("/onboarding/who-for") }}
       contentClassName="space-y-4"
       error={{ testId: "text-basics-error", message: error }}
-      eyebrow="Profile basics"
+      eyebrow={t("onboarding.basics.eyebrow", "Profile basics")}
       progressPercent={20}
-      stepLabel="Step 1 of 5"
+      stepLabel={t("onboarding.basics.stepLabel", "Step 1 of 5")}
       subtitle={
         isCaregiverSetup
-          ? "Tell VYVA who will receive support. You can add more health and care details after this."
-          : "Start with the essentials. You can update your profile any time."
+          ? t(
+              "onboarding.basics.subtitleCaregiver",
+              "Tell VYVA who will receive support. You can add more health and care details after this.",
+            )
+          : t("onboarding.basics.subtitleSelf", "Start with the essentials. You can update your profile any time.")
       }
-      title={isCaregiverSetup ? "About them" : "About you"}
+      title={
+        isCaregiverSetup
+          ? t("onboarding.basics.titleCaregiver", "About them")
+          : t("onboarding.basics.titleSelf", "About you")
+      }
     >
           <div>
             <label className="mb-1.5 block font-body text-[13px] font-bold text-vyva-text-2">
-              {isCaregiverSetup ? "Their full name" : "Full name"} <span className="text-vyva-red">*</span>
+              {isCaregiverSetup
+                ? t("onboarding.basics.fullNameCaregiver", "Their full name")
+                : t("onboarding.basics.fullNameSelf", "Full name")} <span className="text-vyva-red">*</span>
             </label>
             <Input
               data-testid="input-basics-full-name"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              placeholder="e.g. Margaret Collins"
+              placeholder={t("onboarding.basics.fullNamePlaceholder", "e.g. Margaret Collins")}
               className="h-[52px] rounded-[20px] border-vyva-border bg-white px-4 shadow-vyva-input focus-visible:ring-1 focus-visible:ring-vyva-purple/60 focus-visible:ring-offset-1 sm:h-[54px]"
             />
           </div>
 
           <div>
             <label className="mb-1.5 block font-body text-[13px] font-bold text-vyva-text-2">
-              {isCaregiverSetup ? "What should VYVA call them?" : "What should VYVA call you?"}
+              {isCaregiverSetup
+                ? t("onboarding.basics.preferredNameCaregiver", "What should VYVA call them?")
+                : t("onboarding.basics.preferredNameSelf", "What should VYVA call you?")}
             </label>
             <Input
               data-testid="input-basics-preferred-name"
               value={preferredName}
               onChange={(e) => setPreferredName(e.target.value)}
-              placeholder="e.g. Margaret, Maggie..."
+              placeholder={t("onboarding.basics.preferredNamePlaceholder", "e.g. Margaret, Maggie...")}
               className="h-[52px] rounded-[20px] border-vyva-border bg-white px-4 shadow-vyva-input focus-visible:ring-1 focus-visible:ring-vyva-purple/60 focus-visible:ring-offset-1 sm:h-[54px]"
             />
-            <p className="mt-1 font-body text-[12px] leading-snug text-vyva-text-2/75">Optional - defaults to the first name</p>
+            <p className="mt-1 font-body text-[12px] leading-snug text-vyva-text-2/75">
+              {t("onboarding.basics.preferredNameHint", "Optional - defaults to the first name")}
+            </p>
           </div>
 
           <div>
             <label className="mb-1.5 block font-body text-[13px] font-bold text-vyva-text-2">
-              Date of birth
+              {t("onboarding.basics.dateOfBirth", "Date of birth")}
             </label>
             <Input
               data-testid="input-basics-dob"
@@ -186,7 +199,7 @@ const BasicsStep = () => {
 
           <div>
             <label className="mb-2 block font-body text-[13px] font-bold text-vyva-text-2">
-              Preferred language
+              {t("onboarding.basics.preferredLanguage", "Preferred language")}
             </label>
             <ChipSelector
               options={ONBOARDING_LANGUAGE_OPTIONS}

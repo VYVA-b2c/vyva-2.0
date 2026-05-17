@@ -20,6 +20,27 @@ const en = {
     level: "Level",
     language: "Language",
   },
+  onboarding: {
+    basics: {
+      eyebrow: "Profile basics",
+      stepLabel: "Step 1 of 5",
+      titleSelf: "About you",
+      titleCaregiver: "About them",
+      subtitleSelf: "Start with the essentials. You can update your profile any time.",
+      subtitleCaregiver: "Tell VYVA who will receive support. You can add more health and care details after this.",
+      fullNameSelf: "Full name",
+      fullNameCaregiver: "Their full name",
+      fullNamePlaceholder: "e.g. Margaret Collins",
+      preferredNameSelf: "What should VYVA call you?",
+      preferredNameCaregiver: "What should VYVA call them?",
+      preferredNamePlaceholder: "e.g. Margaret, Maggie...",
+      preferredNameHint: "Optional - defaults to the first name",
+      dateOfBirth: "Date of birth",
+      preferredLanguage: "Preferred language",
+      continue: "Continue",
+      saving: "Saving...",
+    },
+  },
   meds: {
     contextPanel: {
       title: "Medication context ready",
