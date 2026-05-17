@@ -111,6 +111,67 @@ const scheduledEventBodySchema = z.object({
   metadata: z.record(z.unknown()).optional().default({}),
 });
 
+const contactChannelSchema = z.enum(["voice_outbound", "whatsapp_outbound", "voice_app"]);
+type ContactChannel = z.infer<typeof contactChannelSchema>;
+
+const contactChannelValues: ContactChannel[] = ["voice_outbound", "whatsapp_outbound", "voice_app"];
+
+const channelPreferenceTimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:mm format");
+const channelPreferenceLimitSchema = z.number().int().min(0).nullable();
+
+const channelPreferencesPatchSchema = z.object({
+  preferred_checkin_channel: contactChannelSchema.optional(),
+  preferred_reminder_channel: contactChannelSchema.optional(),
+  voice_available_from: channelPreferenceTimeSchema.optional(),
+  voice_available_until: channelPreferenceTimeSchema.optional(),
+  whatsapp_available_from: channelPreferenceTimeSchema.optional(),
+  whatsapp_available_until: channelPreferenceTimeSchema.optional(),
+  max_outbound_calls_per_day: channelPreferenceLimitSchema.optional(),
+  max_whatsapp_messages_per_day: channelPreferenceLimitSchema.optional(),
+});
+
+type ChannelPreferencesRow = typeof userChannelPreferences.$inferSelect;
+
+const channelPreferencesDefaults = {
+  preferred_checkin_channel: "voice_outbound" as ContactChannel,
+  preferred_reminder_channel: "whatsapp_outbound" as ContactChannel,
+  voice_available_from: "08:00",
+  voice_available_until: "21:00",
+  whatsapp_available_from: "07:00",
+  whatsapp_available_until: "22:00",
+  max_outbound_calls_per_day: 1,
+  max_whatsapp_messages_per_day: 5,
+};
+
+function normalizeContactChannel(value: unknown, fallback: ContactChannel): ContactChannel {
+  return contactChannelValues.includes(value as ContactChannel) ? value as ContactChannel : fallback;
+}
+
+function serializeChannelPreferences(row?: ChannelPreferencesRow | null) {
+  return {
+    preferred_checkin_channel: normalizeContactChannel(
+      row?.preferred_checkin_channel,
+      channelPreferencesDefaults.preferred_checkin_channel,
+    ),
+    preferred_reminder_channel: normalizeContactChannel(
+      row?.preferred_reminder_channel,
+      channelPreferencesDefaults.preferred_reminder_channel,
+    ),
+    voice_available_from: row?.voice_available_from ?? channelPreferencesDefaults.voice_available_from,
+    voice_available_until: row?.voice_available_until ?? channelPreferencesDefaults.voice_available_until,
+    whatsapp_available_from: row?.whatsapp_available_from ?? channelPreferencesDefaults.whatsapp_available_from,
+    whatsapp_available_until: row?.whatsapp_available_until ?? channelPreferencesDefaults.whatsapp_available_until,
+    max_outbound_calls_per_day:
+      row && row.max_outbound_calls_per_day !== undefined
+        ? row.max_outbound_calls_per_day
+        : channelPreferencesDefaults.max_outbound_calls_per_day,
+    max_whatsapp_messages_per_day:
+      row && row.max_whatsapp_messages_per_day !== undefined
+        ? row.max_whatsapp_messages_per_day
+        : channelPreferencesDefaults.max_whatsapp_messages_per_day,
+  };
+}
+
 function medicationEventsFromRows(rows: Array<typeof userMedications.$inferSelect>) {
   return rows.flatMap((med) => {
     const times = med.scheduled_times?.length ? med.scheduled_times : [];
@@ -664,6 +725,63 @@ router.get("/export", async (req: Request, res: Response) => {
   } catch (err) {
     console.error("[profile GET /export]", err);
     return res.status(500).json({ error: "Failed to export profile data" });
+  }
+});
+
+router.get("/channel-preferences", async (req: Request, res: Response) => {
+  const userId = await resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  try {
+    const [row] = await db
+      .select()
+      .from(userChannelPreferences)
+      .where(eq(userChannelPreferences.user_id, userId))
+      .limit(1);
+
+    return res.json(serializeChannelPreferences(row));
+  } catch (error) {
+    console.error("[profile] failed to load channel preferences", error);
+    return res.status(500).json({ error: "Unable to load channel preferences" });
+  }
+});
+
+router.patch("/channel-preferences", async (req: Request, res: Response) => {
+  const userId = await resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const parsed = channelPreferencesPatchSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid request body", details: parsed.error.flatten() });
+  }
+
+  const updates = Object.fromEntries(
+    Object.entries(parsed.data).filter(([, value]) => value !== undefined),
+  );
+
+  try {
+    if (Object.keys(updates).length === 0) {
+      const [row] = await db
+        .select()
+        .from(userChannelPreferences)
+        .where(eq(userChannelPreferences.user_id, userId))
+        .limit(1);
+      return res.json(serializeChannelPreferences(row));
+    }
+
+    const [row] = await db
+      .insert(userChannelPreferences)
+      .values({ user_id: userId, ...updates })
+      .onConflictDoUpdate({
+        target: userChannelPreferences.user_id,
+        set: { ...updates, updated_at: new Date() },
+      })
+      .returning();
+
+    return res.json(serializeChannelPreferences(row));
+  } catch (error) {
+    console.error("[profile] failed to save channel preferences", error);
+    return res.status(500).json({ error: "Unable to save channel preferences" });
   }
 });
 

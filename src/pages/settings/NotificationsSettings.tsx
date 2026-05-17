@@ -1,103 +1,254 @@
 // src/pages/settings/NotificationsSettings.tsx
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { BellRing } from "lucide-react";
+import { ContactChannelPicker } from "@/components/ContactChannelPicker";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import { friendlyError } from "@/lib/apiError";
+import { normalizeContactChannel, type ContactChannelId } from "@/lib/contactChannels";
+import { apiFetch, queryClient } from "@/lib/queryClient";
 
-type Channel = "call" | "whatsapp" | "app";
+type ChannelPreferences = {
+  preferred_checkin_channel: ContactChannelId;
+  preferred_reminder_channel: ContactChannelId;
+  voice_available_from: string;
+  voice_available_until: string;
+  whatsapp_available_from: string;
+  whatsapp_available_until: string;
+  max_outbound_calls_per_day: number | null;
+  max_whatsapp_messages_per_day: number | null;
+};
 
-function ChannelPicker({ label, value, onChange, opts }: {
-  label: string;
-  value: Channel;
-  onChange: (v: Channel) => void;
-  opts: { id: Channel; emoji: string; label: string }[];
-}) {
-  return (
-    <div>
-      <p className="text-xs font-bold text-gray-600 mb-2">{label}</p>
-      <div className="flex flex-col gap-2">
-        {opts.map((opt) => (
-          <button key={opt.id} type="button" onClick={() => onChange(opt.id)}
-            className={cn("flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all",
-              value === opt.id ? "border-[#6b21a8] bg-purple-50" : "border-purple-100 bg-white hover:border-purple-200"
-            )}>
-            <span className="text-base">{opt.emoji}</span>
-            <span className="text-sm font-semibold text-gray-900 flex-1">{opt.label}</span>
-            <span className={cn("w-3.5 h-3.5 rounded-full border-2 flex-shrink-0",
-              value === opt.id ? "border-[#6b21a8] bg-[#6b21a8] shadow-[inset_0_0_0_2px_white]" : "border-purple-200"
-            )} />
-          </button>
-        ))}
-      </div>
-    </div>
-  );
+const DEFAULT_PREFERENCES: ChannelPreferences = {
+  preferred_checkin_channel: "voice_outbound",
+  preferred_reminder_channel: "whatsapp_outbound",
+  voice_available_from: "08:00",
+  voice_available_until: "21:00",
+  whatsapp_available_from: "07:00",
+  whatsapp_available_until: "22:00",
+  max_outbound_calls_per_day: 1,
+  max_whatsapp_messages_per_day: 5,
+};
+
+function normalizePreferences(data?: Partial<ChannelPreferences> | null): ChannelPreferences {
+  return {
+    preferred_checkin_channel: normalizeContactChannel(
+      data?.preferred_checkin_channel,
+      DEFAULT_PREFERENCES.preferred_checkin_channel,
+    ),
+    preferred_reminder_channel: normalizeContactChannel(
+      data?.preferred_reminder_channel,
+      DEFAULT_PREFERENCES.preferred_reminder_channel,
+    ),
+    voice_available_from: data?.voice_available_from || DEFAULT_PREFERENCES.voice_available_from,
+    voice_available_until: data?.voice_available_until || DEFAULT_PREFERENCES.voice_available_until,
+    whatsapp_available_from: data?.whatsapp_available_from || DEFAULT_PREFERENCES.whatsapp_available_from,
+    whatsapp_available_until: data?.whatsapp_available_until || DEFAULT_PREFERENCES.whatsapp_available_until,
+    max_outbound_calls_per_day:
+      data && "max_outbound_calls_per_day" in data
+        ? data.max_outbound_calls_per_day ?? null
+        : DEFAULT_PREFERENCES.max_outbound_calls_per_day,
+    max_whatsapp_messages_per_day:
+      data && "max_whatsapp_messages_per_day" in data
+        ? data.max_whatsapp_messages_per_day ?? null
+        : DEFAULT_PREFERENCES.max_whatsapp_messages_per_day,
+  };
+}
+
+function limitToSelect(value: number | null): string {
+  return value === null ? "unlimited" : String(value);
+}
+
+function selectToLimit(value: string): number | null {
+  return value === "unlimited" ? null : Number(value);
 }
 
 export default function NotificationsSettings() {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const [checkinChannel, setCheckinChannel] = useState<Channel>("call");
-  const [reminderChannel, setReminderChannel] = useState<Channel>("whatsapp");
-  const [saving, setSaving] = useState(false);
+  const { toast } = useToast();
+  const [draft, setDraft] = useState<ChannelPreferences>(DEFAULT_PREFERENCES);
 
-  const channelOpts: { id: Channel; emoji: string; label: string }[] = [
-    { id: "call",     emoji: "📞", label: t("settings.notifications.channelCall") },
-    { id: "whatsapp", emoji: "💬", label: t("settings.notifications.channelWhatsapp") },
-    { id: "app",      emoji: "💻", label: t("settings.notifications.channelApp") },
-  ];
+  const preferencesQuery = useQuery<Partial<ChannelPreferences> | null>({
+    queryKey: ["/api/profile/channel-preferences"],
+  });
 
-  const handleSave = async () => {
-    setSaving(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setSaving(false);
+  useEffect(() => {
+    if (preferencesQuery.data) {
+      setDraft(normalizePreferences(preferencesQuery.data));
+    }
+  }, [preferencesQuery.data]);
+
+  const saveMutation = useMutation({
+    mutationFn: async (payload: ChannelPreferences) => {
+      const response = await apiFetch("/api/profile/channel-preferences", {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(await friendlyError(null, response));
+      }
+
+      return normalizePreferences(await response.json());
+    },
+    onSuccess: (saved) => {
+      setDraft(saved);
+      queryClient.setQueryData(["/api/profile/channel-preferences"], saved);
+      toast({ title: t("settings.notifications.saved", "Preferences saved") });
+    },
+    onError: (error) => {
+      toast({
+        title: t("settings.notifications.saveError", "Could not save preferences"),
+        description: error instanceof Error ? error.message : undefined,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const setQuietStart = (value: string) => {
+    setDraft((current) => ({
+      ...current,
+      voice_available_until: value,
+      whatsapp_available_until: value,
+    }));
   };
+
+  const setQuietEnd = (value: string) => {
+    setDraft((current) => ({
+      ...current,
+      voice_available_from: value,
+      whatsapp_available_from: value,
+    }));
+  };
+
+  const isBusy = preferencesQuery.isLoading || saveMutation.isPending;
 
   return (
     <PhoneFrame subtitle={t("settings.notifications.title")} showBack onBack={() => navigate("/settings")}>
       <div className="flex flex-col gap-5 px-4 py-5">
-        <div>
-          <h2 className="text-lg font-bold text-gray-900">🔔 {t("settings.notifications.title")}</h2>
-          <p className="text-xs text-gray-500 mt-1">{t("settings.notifications.subtitle")}</p>
-        </div>
-
-        <ChannelPicker
-          label={t("settings.notifications.channelCheckins")}
-          value={checkinChannel}
-          onChange={setCheckinChannel}
-          opts={channelOpts}
-        />
-        <ChannelPicker
-          label={t("settings.notifications.channelReminders")}
-          value={reminderChannel}
-          onChange={setReminderChannel}
-          opts={channelOpts}
-        />
-
-        <div>
-          <p className="text-xs font-bold text-gray-600 mb-2">{t("settings.notifications.quietHours")}</p>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-gray-600">{t("settings.notifications.from")}</Label>
-              <input type="time" defaultValue="22:00" className="w-full h-11 border border-purple-200 rounded-lg px-3 text-sm focus:outline-none focus:border-[#6b21a8]" />
+        <div className="rounded-[28px] border border-[#EFE7DB] bg-white p-5 shadow-[0_14px_34px_rgba(48,30,12,0.06)]">
+          <div className="flex items-start gap-3">
+            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#FFF2C7] text-[#D28A00]">
+              <BellRing size={22} />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-gray-600">{t("settings.notifications.until")}</Label>
-              <input type="time" defaultValue="08:00" className="w-full h-11 border border-purple-200 rounded-lg px-3 text-sm focus:outline-none focus:border-[#6b21a8]" />
+            <div className="min-w-0">
+              <h2 className="font-serif text-[26px] leading-[1.05] text-vyva-text-1">
+                {t("settings.notifications.title")}
+              </h2>
+              <p className="mt-2 font-body text-[14px] leading-[1.45] text-vyva-text-2">
+                {t("settings.notifications.subtitle")}
+              </p>
             </div>
           </div>
         </div>
 
-        <div>
-          <p className="text-xs font-bold text-gray-600 mb-2">{t("settings.notifications.frequencyLimits")}</p>
-          <div className="grid grid-cols-2 gap-3">
+        {preferencesQuery.isError && (
+          <div className="rounded-[20px] border border-[#F5B7B1] bg-[#FFF2F0] p-4 font-body text-[13px] font-bold text-[#B42318]">
+            {t("settings.notifications.loadError", "Could not load preferences")}
+          </div>
+        )}
+
+        <section className="rounded-[28px] border border-[#EFE7DB] bg-white p-5 shadow-[0_14px_34px_rgba(48,30,12,0.06)]">
+          <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.16em] text-vyva-purple/70">
+            {t("settings.notifications.channelCheckins")}
+          </p>
+          <p className="mt-1 font-body text-[13px] leading-[1.45] text-vyva-text-2">
+            {t("settings.notifications.checkinsHint", "Used for daily check-ins and follow-ups.")}
+          </p>
+          <div className="mt-4">
+            <ContactChannelPicker
+              ariaLabel={t("settings.notifications.channelCheckins")}
+              value={draft.preferred_checkin_channel}
+              onChange={(preferred_checkin_channel) =>
+                setDraft((current) => ({ ...current, preferred_checkin_channel }))
+              }
+              t={t}
+              testIdPrefix="button-checkin-channel"
+            />
+          </div>
+        </section>
+
+        <section className="rounded-[28px] border border-[#EFE7DB] bg-white p-5 shadow-[0_14px_34px_rgba(48,30,12,0.06)]">
+          <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.16em] text-vyva-purple/70">
+            {t("settings.notifications.channelReminders")}
+          </p>
+          <p className="mt-1 font-body text-[13px] leading-[1.45] text-vyva-text-2">
+            {t(
+              "settings.notifications.remindersHint",
+              "Used for reminders about medication, appointments, and tasks.",
+            )}
+          </p>
+          <div className="mt-4">
+            <ContactChannelPicker
+              ariaLabel={t("settings.notifications.channelReminders")}
+              value={draft.preferred_reminder_channel}
+              onChange={(preferred_reminder_channel) =>
+                setDraft((current) => ({ ...current, preferred_reminder_channel }))
+              }
+              t={t}
+              testIdPrefix="button-reminder-channel"
+            />
+          </div>
+        </section>
+
+        <section className="rounded-[28px] border border-[#EFE7DB] bg-white p-5 shadow-[0_14px_34px_rgba(48,30,12,0.06)]">
+          <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.16em] text-vyva-purple/70">
+            {t("settings.notifications.quietHours")}
+          </p>
+          <p className="mt-1 font-body text-[13px] leading-[1.45] text-vyva-text-2">
+            {t("settings.notifications.quietHoursHint", "VYVA will avoid outbound contact during this window.")}
+          </p>
+          <div className="mt-4 grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-gray-600">{t("settings.notifications.maxCalls")}</Label>
-              <Select defaultValue="1">
-                <SelectTrigger className="h-11 border-purple-200"><SelectValue /></SelectTrigger>
+              <Label className="font-body text-[12px] font-extrabold text-vyva-text-2">
+                {t("settings.notifications.from")}
+              </Label>
+              <input
+                type="time"
+                value={draft.voice_available_until}
+                onChange={(event) => setQuietStart(event.target.value)}
+                className="h-12 w-full rounded-[18px] border border-[#E4D4F4] bg-[#FFFCF7] px-3 font-body text-[14px] text-vyva-text-1 focus:border-vyva-purple focus:outline-none"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="font-body text-[12px] font-extrabold text-vyva-text-2">
+                {t("settings.notifications.until")}
+              </Label>
+              <input
+                type="time"
+                value={draft.voice_available_from}
+                onChange={(event) => setQuietEnd(event.target.value)}
+                className="h-12 w-full rounded-[18px] border border-[#E4D4F4] bg-[#FFFCF7] px-3 font-body text-[14px] text-vyva-text-1 focus:border-vyva-purple focus:outline-none"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-[28px] border border-[#EFE7DB] bg-white p-5 shadow-[0_14px_34px_rgba(48,30,12,0.06)]">
+          <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.16em] text-vyva-purple/70">
+            {t("settings.notifications.frequencyLimits")}
+          </p>
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="font-body text-[12px] font-extrabold text-vyva-text-2">
+                {t("settings.notifications.maxCalls")}
+              </Label>
+              <Select
+                value={limitToSelect(draft.max_outbound_calls_per_day)}
+                onValueChange={(value) =>
+                  setDraft((current) => ({ ...current, max_outbound_calls_per_day: selectToLimit(value) }))
+                }
+              >
+                <SelectTrigger className="h-12 rounded-[18px] border-[#E4D4F4] bg-[#FFFCF7]">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="1">1</SelectItem>
                   <SelectItem value="2">2</SelectItem>
@@ -107,9 +258,18 @@ export default function NotificationsSettings() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-gray-600">{t("settings.notifications.maxWhatsapp")}</Label>
-              <Select defaultValue="5">
-                <SelectTrigger className="h-11 border-purple-200"><SelectValue /></SelectTrigger>
+              <Label className="font-body text-[12px] font-extrabold text-vyva-text-2">
+                {t("settings.notifications.maxWhatsapp")}
+              </Label>
+              <Select
+                value={limitToSelect(draft.max_whatsapp_messages_per_day)}
+                onValueChange={(value) =>
+                  setDraft((current) => ({ ...current, max_whatsapp_messages_per_day: selectToLimit(value) }))
+                }
+              >
+                <SelectTrigger className="h-12 rounded-[18px] border-[#E4D4F4] bg-[#FFFCF7]">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="3">3</SelectItem>
                   <SelectItem value="5">5</SelectItem>
@@ -119,10 +279,14 @@ export default function NotificationsSettings() {
               </Select>
             </div>
           </div>
-        </div>
+        </section>
 
-        <Button onClick={handleSave} disabled={saving} className="w-full h-12 font-bold bg-[#6b21a8] hover:bg-[#5b1a8f]">
-          {saving ? t("settings.notifications.saving") : t("settings.notifications.savePreferences")}
+        <Button
+          onClick={() => saveMutation.mutate(draft)}
+          disabled={isBusy}
+          className="h-14 w-full rounded-full bg-vyva-purple font-body text-[16px] font-extrabold hover:bg-[#5B1A8F]"
+        >
+          {saveMutation.isPending ? t("settings.notifications.saving") : t("settings.notifications.savePreferences")}
         </Button>
       </div>
     </PhoneFrame>
