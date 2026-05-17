@@ -61,6 +61,8 @@ export default function LifecycleAdminPage() {
   const [newOrg, setNewOrg] = useState({ name: "", default_tier: "free" });
   const [selectedUser, setSelectedUser] = useState<UserDetail | null>(null);
   const [selectedDraft, setSelectedDraft] = useState<JsonRecord>({});
+  const [userDetailMessage, setUserDetailMessage] = useState("");
+  const [savingUserDetail, setSavingUserDetail] = useState(false);
   const [newEvent, setNewEvent] = useState(emptyScheduledEvent);
   const [bulkOrg, setBulkOrg] = useState<Organization | null>(null);
   const [bulkRows, setBulkRows] = useState<Record<string, string>[]>([]);
@@ -358,6 +360,7 @@ export default function LifecycleAdminPage() {
   async function openUserDetail(intake: Intake, action: "view" | "tier" = "view") {
     setBusyAction(`${action}:${intake.id}`);
     setMessage("");
+    setUserDetailMessage("");
     try {
       const data = await api(`/users/${intake.id}/details`);
       const profileTier = stringValue(data.profile?.subscription_tier);
@@ -386,28 +389,40 @@ export default function LifecycleAdminPage() {
 
   async function saveUserDetail() {
     if (!selectedUser) return;
-    const data = await api(`/users/${selectedUser.intake.id}/profile`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        ...selectedDraft,
-        sync_profile_ids: (selectedUser.account_mappings ?? [])
-          .map((mapping) => mapping.effective_profile_id)
-          .filter(Boolean),
-        organization_id: selectedDraft.organization_id || null,
-      }),
-    });
-    const syncedCount = Array.isArray(data.synced_profile_ids) ? data.synced_profile_ids.length : 1;
-    setMessage(`User details saved${syncedCount > 1 ? ` across ${syncedCount} linked profiles` : ""}.`);
-    setSelectedUser({
-      ...selectedUser,
-      intake: data.intake,
-      profile: data.profile,
-      account_mappings: data.account_mappings ?? selectedUser.account_mappings,
-      account_mapping_warnings: data.account_mapping_warnings ?? selectedUser.account_mapping_warnings,
-      account_match_field: data.account_match_field ?? selectedUser.account_match_field,
-      synced_profile_ids: data.synced_profile_ids ?? selectedUser.synced_profile_ids,
-    });
-    await refresh();
+    setSavingUserDetail(true);
+    setUserDetailMessage("");
+    try {
+      const data = await api(`/users/${selectedUser.intake.id}/profile`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          ...selectedDraft,
+          sync_profile_ids: (selectedUser.account_mappings ?? [])
+            .map((mapping) => mapping.effective_profile_id)
+            .filter(Boolean),
+          organization_id: selectedDraft.organization_id || null,
+        }),
+      });
+      const syncedCount = Array.isArray(data.synced_profile_ids) ? data.synced_profile_ids.length : 1;
+      const confirmation = `Changes saved${syncedCount > 1 ? ` across ${syncedCount} linked profiles` : ""}.`;
+      setMessage(confirmation);
+      setUserDetailMessage(confirmation);
+      setSelectedUser({
+        ...selectedUser,
+        intake: data.intake,
+        profile: data.profile,
+        account_mappings: data.account_mappings ?? selectedUser.account_mappings,
+        account_mapping_warnings: data.account_mapping_warnings ?? selectedUser.account_mapping_warnings,
+        account_match_field: data.account_match_field ?? selectedUser.account_match_field,
+        synced_profile_ids: data.synced_profile_ids ?? selectedUser.synced_profile_ids,
+      });
+      await refresh();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Could not save user details.";
+      setMessage(errorMessage);
+      setUserDetailMessage(errorMessage);
+    } finally {
+      setSavingUserDetail(false);
+    }
   }
 
   async function toggleUser(intake: Intake) {
@@ -436,6 +451,7 @@ export default function LifecycleAdminPage() {
     });
     setNewEvent(emptyScheduledEvent);
     await openUserDetail(selectedUser.intake);
+    setUserDetailMessage("Scheduled event added.");
     setMessage("Scheduled event added.");
   }
 
@@ -452,6 +468,7 @@ export default function LifecycleAdminPage() {
       body: JSON.stringify({ scheduled_for: new Date(scheduledFor).toISOString() }),
     });
     await openUserDetail(selectedUser.intake);
+    setUserDetailMessage("Scheduled event time updated.");
     setMessage("Scheduled event time updated.");
   }
 
@@ -756,6 +773,8 @@ export default function LifecycleAdminPage() {
           setDraft={setSelectedDraft}
           organizations={organizations}
           planOptions={planOptions}
+          statusMessage={userDetailMessage}
+          saving={savingUserDetail}
           onClose={() => setSelectedUser(null)}
           onSave={saveUserDetail}
           onToggle={() => toggleUser(selectedUser.intake)}
