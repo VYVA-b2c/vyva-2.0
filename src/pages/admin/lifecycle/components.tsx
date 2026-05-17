@@ -1,4 +1,4 @@
-import type { ChangeEvent, ReactNode } from "react";
+import { useState, type ChangeEvent, type ReactNode } from "react";
 import {
   type AccountSubscription,
   type Communication,
@@ -14,6 +14,7 @@ import {
   type ScheduledSupport,
   type SubscriptionPlanAdmin,
   type UserDetail,
+  combineDateTimeLocal,
   emptyScheduledEvent,
   formatDate,
   keywordsToText,
@@ -21,7 +22,8 @@ import {
   stringValue,
   subscriptionStatusOptions,
   textToKeywords,
-  toDatetimeLocal,
+  toDateInputValue,
+  toTimeInputValue,
 } from "./shared";
 
 export function Field({ label, required, optional, children }: { label: string; required?: boolean; optional?: boolean; children: ReactNode }) {
@@ -296,20 +298,44 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
   const appAccessText = primaryMapping
     ? `${primaryMapping.effective_subscription_tier ?? "Unknown"}${primaryMapping.effective_subscription_status ? ` (${primaryMapping.effective_subscription_status})` : ""}`
     : "No login match";
+  const newEventDate = newEvent.scheduled_date || toDateInputValue(newEvent.scheduled_for);
+  const newEventTime = newEvent.scheduled_time || toTimeInputValue(newEvent.scheduled_for);
+  const [activeDetailTab, setActiveDetailTab] = useState<"profile" | "schedule" | "activity">("profile");
+  const detailTabs = [
+    { id: "profile" as const, label: "Profile" },
+    { id: "schedule" as const, label: "Schedule" },
+    { id: "activity" as const, label: "Activity" },
+  ];
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-3 sm:p-5">
-      <div className="flex max-h-[calc(100vh-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-[1.5rem] bg-white shadow-2xl">
-        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#eadfd5] px-5 py-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-2 sm:p-4">
+      <div className="flex h-[calc(100dvh-1rem)] w-full max-w-6xl flex-col overflow-hidden rounded-[1.5rem] bg-white shadow-2xl">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#eadfd5] px-4 py-3 sm:px-5">
           <div className="min-w-0">
             <p className="text-xs font-black uppercase tracking-[0.2em] text-purple-700">User details</p>
-            <h2 className="mt-1 truncate font-serif text-3xl leading-tight">{detail.intake.name}</h2>
+            <h2 className="mt-1 truncate font-serif text-2xl leading-tight sm:text-3xl">{detail.intake.name}</h2>
             <p className="mt-1 text-sm text-[#7d6b65]">{detail.intake.user_type} - {detail.intake.status} - {disabled ? "Disabled" : "Enabled"}</p>
           </div>
-          <button className="rounded-xl border border-[#eadfd5] px-4 py-2 text-sm font-bold" onClick={onClose}>Close</button>
+          <button type="button" className="rounded-xl border border-[#eadfd5] px-4 py-2 text-sm font-bold" onClick={onClose}>Close</button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]">
-          <section className="rounded-2xl border border-[#eadfd5] p-4">
+        <div className="shrink-0 border-b border-[#eadfd5] px-4 py-2 sm:px-5">
+          <div className="flex gap-2 overflow-x-auto" role="tablist" aria-label="User detail sections">
+            {detailTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={activeDetailTab === tab.id}
+                className={`rounded-xl px-4 py-2 text-sm font-black ${activeDetailTab === tab.id ? "bg-purple-700 text-white" : "border border-[#eadfd5] text-purple-700"}`}
+                onClick={() => setActiveDetailTab(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+          <div className="grid items-start gap-4">
+          {activeDetailTab === "profile" && <section className="mx-auto w-full max-w-4xl rounded-2xl border border-[#eadfd5] p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h3 className="text-xl font-black">Profile and access</h3>
@@ -356,9 +382,9 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                 </p>
               )}
             </div>
-          </section>
+          </section>}
 
-          <section className="self-start rounded-2xl border border-[#eadfd5] p-4">
+          {activeDetailTab === "schedule" && <section className="mx-auto w-full max-w-4xl rounded-2xl border border-[#eadfd5] p-4">
             <h3 className="text-xl font-black">Scheduled events</h3>
             <div className="mt-3 grid gap-2">
               {detail.scheduled_events.length === 0 && <p className="text-[#7d6b65]">No scheduled events yet.</p>}
@@ -370,19 +396,31 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                   {!event.read_only && (
                     <>
                       <form
-                        className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]"
+                        className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]"
                         onSubmit={(e) => {
                           e.preventDefault();
-                          const scheduledFor = new FormData(e.currentTarget).get("scheduled_for")?.toString() ?? "";
+                          const form = new FormData(e.currentTarget);
+                          const scheduledFor = combineDateTimeLocal(
+                            form.get("scheduled_date")?.toString() ?? "",
+                            form.get("scheduled_time")?.toString() ?? "",
+                          );
                           onEventTime(event, scheduledFor);
                         }}
                       >
-                        <Field label="Date and time">
+                        <Field label="Date">
                           <input
                             className="w-full rounded-xl border px-3 py-2"
-                            name="scheduled_for"
-                            type="datetime-local"
-                            defaultValue={toDatetimeLocal(event.scheduled_for)}
+                            name="scheduled_date"
+                            type="date"
+                            defaultValue={toDateInputValue(event.scheduled_for)}
+                          />
+                        </Field>
+                        <Field label="Time">
+                          <input
+                            className="w-full rounded-xl border px-3 py-2"
+                            name="scheduled_time"
+                            type="time"
+                            defaultValue={toTimeInputValue(event.scheduled_for)}
                           />
                         </Field>
                         <button className="self-end rounded-xl bg-purple-700 px-4 py-2 text-sm font-bold text-white" type="submit">
@@ -432,9 +470,14 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
               <p className="font-bold">Add event</p>
               <div className="mt-2 grid gap-2">
                 <input className="rounded-xl border px-3 py-2" placeholder="Title" value={newEvent.title} onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })} />
-                <Field label="Date and time" required>
-                  <input className="w-full rounded-xl border px-3 py-2" type="datetime-local" value={newEvent.scheduled_for} onChange={(e) => setNewEvent({ ...newEvent, scheduled_for: e.target.value })} />
-                </Field>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Field label="Date" required>
+                    <input className="w-full rounded-xl border px-3 py-2" type="date" value={newEventDate} onChange={(e) => setNewEvent({ ...newEvent, scheduled_date: e.target.value, scheduled_for: combineDateTimeLocal(e.target.value, newEventTime) })} />
+                  </Field>
+                  <Field label="Time" required>
+                    <input className="w-full rounded-xl border px-3 py-2" type="time" value={newEventTime} onChange={(e) => setNewEvent({ ...newEvent, scheduled_time: e.target.value, scheduled_for: combineDateTimeLocal(newEventDate, e.target.value) })} />
+                  </Field>
+                </div>
                 <div className="grid gap-2 md:grid-cols-3">
                   <select className="rounded-xl border px-3 py-2" value={newEvent.event_type} onChange={(e) => setNewEvent({ ...newEvent, event_type: e.target.value })}><option value="check_in_call">Check-in call</option><option value="medication_reminder">Medication reminder</option><option value="brain_coach">Brain coach</option><option value="vyva_chat">VYVA chat</option><option value="social_room_session">Social room session</option><option value="concierge_call">Concierge call</option><option value="custom">Custom</option></select>
                   <select className="rounded-xl border px-3 py-2" value={newEvent.recurrence} onChange={(e) => setNewEvent({ ...newEvent, recurrence: e.target.value })}><option value="none">No repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select>
@@ -443,16 +486,16 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                 <button className="rounded-xl bg-purple-700 px-4 py-2 font-bold text-white" onClick={onCreateEvent}>Add scheduled event</button>
               </div>
             </div>
-          </section>
+          </section>}
           </div>
 
-        <section className="mt-4 grid gap-4 lg:grid-cols-4">
+        {activeDetailTab === "activity" && <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <LogPanel title="Communications" rows={detail.communications} />
           <LogPanel title="Consent attempts" rows={detail.consent_attempts} />
           <LogPanel title="Support activity" rows={detail.interaction_logs ?? []} />
           <LogPanel title="Schedule changes" rows={detail.consent_audit_logs ?? []} />
           <LogPanel title="Lifecycle history" rows={detail.lifecycle_events} />
-        </section>
+        </section>}
       </div>
     </div>
     </div>

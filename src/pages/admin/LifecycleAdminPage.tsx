@@ -444,10 +444,19 @@ export default function LifecycleAdminPage() {
   }
 
   async function createScheduledEventForUser() {
-    if (!selectedUser || !newEvent.title.trim() || !newEvent.scheduled_for) return;
+    if (!selectedUser) return;
+    if (!newEvent.title.trim()) {
+      setUserDetailMessage("Add a title before creating the event.");
+      return;
+    }
+    if (!newEvent.scheduled_for) {
+      setUserDetailMessage("Select both date and time before creating the event.");
+      return;
+    }
+    const { scheduled_date, scheduled_time, ...eventPayload } = newEvent;
     await api(`/users/${selectedUser.intake.id}/scheduled-events`, {
       method: "POST",
-      body: JSON.stringify(newEvent),
+      body: JSON.stringify(eventPayload),
     });
     setNewEvent(emptyScheduledEvent);
     await openUserDetail(selectedUser.intake);
