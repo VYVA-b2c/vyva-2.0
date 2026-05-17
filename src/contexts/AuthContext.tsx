@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { getToken, setToken, clearToken, isAuthenticated } from "@/lib/auth";
 import { queryClient } from "@/lib/queryClient";
-import { setLanguage as setAppLanguage } from "@/i18n";
+import { setAccountLanguage } from "@/i18n";
 import { signInWithSupabase } from "@/lib/supabaseAuth";
 
 const ONBOARDING_STATE_KEY = ["/api/onboarding/state"] as const;
@@ -99,7 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setTokenState(tok);
     setUser(u);
     setLastSeenAt(prevSeenAt);
-    if (u.language) setAppLanguage(u.language);
+    if (u.language) setAccountLanguage(u.language);
     queryClient.prefetchQuery({ queryKey: ONBOARDING_STATE_KEY });
   }, []);
 
@@ -129,7 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setTokenState(stored);
           setUser(hydratedUser);
           setLastSeenAt(data.prevSeenAt ?? null);
-          if (hydratedUser.language) setAppLanguage(hydratedUser.language);
+          if (hydratedUser.language) setAccountLanguage(hydratedUser.language);
           queryClient.prefetchQuery({ queryKey: ONBOARDING_STATE_KEY });
         } else {
           clearToken();

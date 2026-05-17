@@ -28,7 +28,7 @@ export function ChipSelector({
   return (
     <div
       data-testid="chip-selector"
-      className={`flex flex-wrap gap-2 ${className}`}
+      className={`flex flex-wrap gap-2 sm:gap-2.5 ${className}`}
     >
       {options.map((opt) => {
         const active = selected.includes(opt);
@@ -37,7 +37,7 @@ export function ChipSelector({
             key={opt}
             data-testid={`chip-${opt.toLowerCase().replace(/\s+/g, "-")}`}
             onClick={() => toggle(opt)}
-            className={`rounded-full px-4 py-2 font-body text-[14px] font-medium transition-colors border ${
+            className={`rounded-full px-3.5 py-2 font-body text-[14px] font-medium transition-colors border sm:px-4 ${
               active
                 ? "bg-vyva-purple text-white border-vyva-purple"
                 : "bg-white text-vyva-text-1 border-vyva-border hover:border-vyva-purple hover:text-vyva-purple"

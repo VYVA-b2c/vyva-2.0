@@ -24,6 +24,8 @@ type DictionaryMap = Record<LanguageCode, TranslationTree>;
 
 export const LANGUAGE_STORAGE_KEY = "vyva_lang";
 const LEGACY_LANGUAGE_STORAGE_KEY = "vyva_language";
+const LANGUAGE_SOURCE_STORAGE_KEY = "vyva_lang_source";
+type LanguageSource = "account" | "user";
 
 const overrides: DictionaryMap = {
   es: customEs,
@@ -83,9 +85,10 @@ function isLanguageCode(value: string | null | undefined): value is LanguageCode
   return Boolean(value) && supportedCodes.includes(value as LanguageCode);
 }
 
-function persistLanguage(language: LanguageCode) {
+function persistLanguage(language: LanguageCode, source: LanguageSource) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+  window.localStorage.setItem(LANGUAGE_SOURCE_STORAGE_KEY, source);
   window.localStorage.removeItem(LEGACY_LANGUAGE_STORAGE_KEY);
 }
 
@@ -108,12 +111,12 @@ function readStoredLanguage(): LanguageCode {
 
   const legacyStored = window.localStorage.getItem(LEGACY_LANGUAGE_STORAGE_KEY);
   if (isLanguageCode(legacyStored)) {
-    persistLanguage(legacyStored);
+    persistLanguage(legacyStored, "user");
     return legacyStored;
   }
 
   const detectedLanguage = detectBrowserLanguage();
-  persistLanguage(detectedLanguage);
+  persistLanguage(detectedLanguage, "user");
   return detectedLanguage;
 }
 
@@ -130,9 +133,15 @@ function notifyLanguageChange() {
   listeners.forEach((listener) => listener());
 }
 
-function applyLanguage(language: LanguageCode, syncLegacy = true) {
+function readLanguageSource(): LanguageSource | null {
+  if (typeof window === "undefined") return null;
+  const source = window.localStorage.getItem(LANGUAGE_SOURCE_STORAGE_KEY);
+  return source === "account" || source === "user" ? source : null;
+}
+
+function applyLanguage(language: LanguageCode, source: LanguageSource, syncLegacy = true) {
   currentLanguage = language;
-  persistLanguage(language);
+  persistLanguage(language, source);
 
   if (syncLegacy && i18n.isInitialized && i18n.language !== language) {
     void i18n.changeLanguage(language);
@@ -159,7 +168,7 @@ i18n.off("languageChanged");
 i18n.on("languageChanged", (language) => {
   const normalized = normalizeLanguage(language);
   if (normalized !== currentLanguage) {
-    applyLanguage(normalized, false);
+    applyLanguage(normalized, "user", false);
   }
 });
 
@@ -172,7 +181,19 @@ export function getTranslator(language: LanguageCode) {
 }
 
 export function setLanguage(language: string): LanguageCode {
-  return applyLanguage(normalizeLanguage(language));
+  return applyLanguage(normalizeLanguage(language), "user");
+}
+
+export function setAccountLanguage(language: string | null | undefined): LanguageCode {
+  return applyLanguage(normalizeLanguage(language), "account");
+}
+
+export function syncProfileLanguage(language: string | null | undefined): LanguageCode {
+  const normalized = normalizeLanguage(language);
+  if (readLanguageSource() === "user") {
+    return currentLanguage;
+  }
+  return applyLanguage(normalized, "account");
 }
 
 export function translate(language: LanguageCode, path: string, fallback?: string): string {
