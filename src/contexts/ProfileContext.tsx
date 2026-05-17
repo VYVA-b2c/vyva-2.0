@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import i18n, { LANGUAGE_STORAGE_KEY } from "@/i18n/index";
+import { syncProfileLanguage } from "@/i18n/index";
 import { SUPPORTED_LANGUAGES } from "@/i18n/detectLanguage";
 import type { LanguageCode } from "@/i18n/languages";
 
@@ -79,12 +79,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     if (!token) return;
     const lang = normalizeProfileLanguage(profile?.language);
     if (!lang) return;
-    if (lang !== i18n.language) {
-      i18n.changeLanguage(lang);
-    }
-    if (localStorage.getItem(LANGUAGE_STORAGE_KEY) !== lang) {
-      localStorage.setItem(LANGUAGE_STORAGE_KEY, lang);
-    }
+    syncProfileLanguage(lang);
   }, [profile?.language, token]);
 
   return (

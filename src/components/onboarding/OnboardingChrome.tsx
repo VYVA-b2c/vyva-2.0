@@ -12,14 +12,14 @@ export function OnboardingChrome({ children, mainClassName = "" }: OnboardingChr
   const { language, setLanguage, languages } = useLanguage();
 
   return (
-    <div className="min-h-screen overflow-hidden bg-[#FFF9F1] text-vyva-text-1">
+    <div className="min-h-screen overflow-x-hidden bg-[#FFF9F1] text-vyva-text-1">
       <div className="pointer-events-none fixed -left-24 top-10 h-72 w-72 rounded-full bg-[#F7C948]/25 blur-3xl" />
       <div className="pointer-events-none fixed -right-28 top-20 h-[24rem] w-[24rem] rounded-full bg-[#6B21A8]/14 blur-3xl" />
       <div className="pointer-events-none fixed bottom-[-12rem] left-1/2 h-[26rem] w-[26rem] -translate-x-1/2 rounded-full bg-white blur-2xl" />
 
-      <header className="relative z-10 mx-auto flex w-full max-w-[1040px] items-center justify-between gap-4 px-5 py-5 sm:px-8">
-        <VyvaWordmark className="h-auto w-[126px] sm:w-[154px]" />
-        <label className="flex items-center gap-2 rounded-full border border-[#E8DDF3] bg-white/86 px-3 py-2 shadow-[0_12px_32px_rgba(77,45,20,0.08)] backdrop-blur">
+      <header className="relative z-10 mx-auto flex w-full max-w-[1040px] items-center justify-between gap-3 px-5 py-4 sm:gap-4 sm:px-8 sm:py-5">
+        <VyvaWordmark className="h-auto w-[112px] sm:w-[154px]" />
+        <label className="flex items-center gap-2 rounded-full border border-[#E8DDF3] bg-white/86 px-3 py-2 shadow-[0_12px_32px_rgba(77,45,20,0.08)] backdrop-blur sm:px-3.5">
           <Globe2 size={15} className="text-vyva-purple" />
           <span className="sr-only">Language</span>
           <select
@@ -38,7 +38,7 @@ export function OnboardingChrome({ children, mainClassName = "" }: OnboardingChr
         </label>
       </header>
 
-      <main className={`relative z-10 mx-auto w-full px-5 pb-8 sm:px-8 ${mainClassName}`}>
+      <main className={`relative z-10 mx-auto w-full px-5 pb-6 sm:px-8 sm:pb-8 ${mainClassName}`}>
         {children}
       </main>
     </div>
