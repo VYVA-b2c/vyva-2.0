@@ -40,6 +40,81 @@ const es = {
       continue: "Continuar",
       saving: "Guardando...",
     },
+    channel: {
+      eyebrow: "Apoyo diario",
+      stepLabel: "Paso 2 de 5",
+      titleSelf: "Elige tu contacto predeterminado",
+      titleCaregiver: "Elige su contacto predeterminado",
+      subtitleSelf:
+        "Elige el canal diario para VYVA. Podras ajustar recordatorios, alertas y horas de descanso despues.",
+      subtitleCaregiver:
+        "Elige el canal diario para la persona que recibe apoyo. Podras ajustar recordatorios, alertas y horas de descanso despues.",
+      continue: "Continuar",
+      saving: "Guardando...",
+      options: {
+        phone: { label: "Llamada telefonica", sub: "Ideal para controles diarios" },
+        whatsapp: { label: "WhatsApp", sub: "Ideal para recordatorios y notas de voz" },
+        app: { label: "Solo app", sub: "Sin llamadas ni mensajes por defecto" },
+      },
+      defaults: {
+        eyebrow: "Valores inteligentes",
+        reminder: {
+          title: "Reglas de recordatorios despues",
+          text: "Medicacion, citas y controles pueden usar canales diferentes.",
+        },
+        quiet: {
+          title: "Horas de descanso",
+          text: "Podemos evitar contactos no urgentes por la noche o durante el descanso.",
+        },
+        fallback: {
+          title: "Alternativas de seguridad",
+          text: "Las alertas urgentes pueden probar llamada, luego WhatsApp y luego un cuidador.",
+        },
+      },
+      phoneLabel: "Mejor numero de contacto",
+      phoneHint: "Usaremos este numero para el canal predeterminado. Los detalles estan en Ajustes.",
+    },
+    consent: {
+      eyebrow: "Privacidad y consentimiento",
+      stepLabel: "Paso 3 de 5",
+      title: "Tus datos, tu eleccion",
+      subtitle: "VYVA solo usa tus datos para proporcionar cuidado. Puedes cambiar estas opciones en Ajustes.",
+      agree: "Aceptar y continuar",
+      saving: "Guardando...",
+      error: "Algo salio mal - intentalo de nuevo.",
+      required: "Necesario para que VYVA funcione",
+      footer: "Protegido por el RGPD. Nunca vendemos tus datos.",
+      items: {
+        conversation: { label: "Resumenes de conversaciones", sub: "VYVA aprende de tus chats para personalizar el cuidado" },
+        health: { label: "Informacion de salud", sub: "Condiciones, medicamentos y datos de bienestar" },
+        alerts: { label: "Compartir alertas con cuidador", sub: "Alertas de salud o seguridad enviadas a tu cuidador" },
+      },
+    },
+    activation: {
+      title: "Todo listo!",
+      subtitle: "VYVA esta listo. Puedes completar tu perfil de salud cuando quieras.",
+      completeProfile: "Completar mi perfil de salud",
+      later: "Lo hare mas tarde",
+      items: {
+        profile: "Perfil personal creado",
+        preferences: "VYVA adaptado a tus preferencias",
+        privacy: "Ajustes de privacidad aplicados",
+        checkin: "Control diario programado",
+      },
+    },
+    elderConfirm: {
+      title: "Alguien configuro VYVA para ti",
+      confirmedTitle: "Cuenta confirmada!",
+      confirmedSubtitle: "VYVA ya esta configurado y listo para ti.",
+      continueSetup: "Continuar configuracion",
+      proxyBody: "ha completado tu perfil de salud y configurado tu cuenta VYVA.",
+      defaultBody: "Alguien cercano ha completado tu perfil de salud y configurado tu cuenta VYVA.",
+      confirmPrompt: "Confirma que esta es tu cuenta y que aceptas que VYVA use esta informacion.",
+      reviewNote: "Puedes revisar y editar todo en tu perfil cuando quieras. Nada se comparte sin tu consentimiento.",
+      confirming: "Confirmando...",
+      yesAccount: "Si, esta es mi cuenta",
+      reviewFirst: "Revisar mi perfil primero",
+    },
   },
   meds: {
     contextPanel: {

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Shield, Lock, Eye } from "lucide-react";
 import { OnboardingStepLayout } from "@/components/onboarding/OnboardingStepLayout";
 import { apiFetch, queryClient } from "@/lib/queryClient";
+import { useLanguage } from "@/i18n";
 
 const CONSENTS = [
   {
@@ -10,8 +11,8 @@ const CONSENTS = [
     icon: Eye,
     iconBg: "#EDE9FE",
     iconColor: "#6B21A8",
-    label: "Conversation summaries",
-    sub: "VYVA learns from your chats to personalise care",
+    labelKey: "onboarding.consent.items.conversation.label",
+    subKey: "onboarding.consent.items.conversation.sub",
     required: true,
   },
   {
@@ -19,8 +20,8 @@ const CONSENTS = [
     icon: Shield,
     iconBg: "#ECFDF5",
     iconColor: "#0A7C4E",
-    label: "Health information",
-    sub: "Conditions, medications, and wellbeing data",
+    labelKey: "onboarding.consent.items.health.label",
+    subKey: "onboarding.consent.items.health.sub",
     required: false,
   },
   {
@@ -28,14 +29,15 @@ const CONSENTS = [
     icon: Lock,
     iconBg: "#FEF2F2",
     iconColor: "#B91C1C",
-    label: "Share alerts with carer",
-    sub: "Health or safety alerts sent to your caregiver",
+    labelKey: "onboarding.consent.items.alerts.label",
+    subKey: "onboarding.consent.items.alerts.sub",
     required: false,
   },
 ];
 
 const DataConsentStep = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [consents, setConsents] = useState<Record<string, boolean>>({
     conversation_summary: true,
     health_conditions: false,
@@ -80,7 +82,7 @@ const DataConsentStep = () => {
       queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
       navigate("/onboarding/activation");
     } catch {
-      setError("Something went wrong - please try again.");
+      setError(t("onboarding.consent.error", "Something went wrong - please try again."));
     } finally {
       setSubmitting(false);
     }
@@ -90,19 +92,22 @@ const DataConsentStep = () => {
     <OnboardingStepLayout
       action={{
         testId: "button-consent-agree",
-        label: "Agree & continue",
-        savingLabel: "Saving...",
+        label: t("onboarding.consent.agree", "Agree & continue"),
+        savingLabel: t("onboarding.consent.saving", "Saving..."),
         isSaving: submitting,
         disabled: submitting,
         onClick: handleAgree,
       }}
       back={{ testId: "button-consent-back", onClick: () => navigate("/onboarding/channel") }}
       error={{ testId: "text-consent-error", message: error }}
-      eyebrow="Privacy and consent"
+      eyebrow={t("onboarding.consent.eyebrow", "Privacy and consent")}
       progressPercent={60}
-      stepLabel="Step 3 of 5"
-      subtitle="VYVA only uses your data to provide care. You can change these choices at any time in Settings."
-      title="Your data, your choice"
+      stepLabel={t("onboarding.consent.stepLabel", "Step 3 of 5")}
+      subtitle={t(
+        "onboarding.consent.subtitle",
+        "VYVA only uses your data to provide care. You can change these choices at any time in Settings.",
+      )}
+      title={t("onboarding.consent.title", "Your data, your choice")}
     >
       <div
         className="overflow-hidden rounded-[18px] border border-vyva-border bg-white"
@@ -123,11 +128,11 @@ const DataConsentStep = () => {
                 <Icon size={20} style={{ color: c.iconColor }} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="font-body text-[15px] font-medium text-vyva-text-1">{c.label}</p>
-                <p className="font-body text-[12px] text-vyva-text-2">{c.sub}</p>
+                <p className="font-body text-[15px] font-medium text-vyva-text-1">{t(c.labelKey)}</p>
+                <p className="font-body text-[12px] text-vyva-text-2">{t(c.subKey)}</p>
                 {c.required && (
                   <span className="font-body text-[11px] text-vyva-gold" data-testid={`text-consent-required-${c.id}`}>
-                    Required for VYVA to work
+                    {t("onboarding.consent.required", "Required for VYVA to work")}
                   </span>
                 )}
               </div>
@@ -151,7 +156,7 @@ const DataConsentStep = () => {
       </div>
 
       <p className="mt-4 text-center font-body text-[11px] text-vyva-text-3">
-        Protected under GDPR. We never sell your data.
+        {t("onboarding.consent.footer", "Protected under GDPR. We never sell your data.")}
       </p>
     </OnboardingStepLayout>
   );
