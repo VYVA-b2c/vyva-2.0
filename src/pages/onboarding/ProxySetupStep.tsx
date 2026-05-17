@@ -2,8 +2,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, ChevronLeft } from "lucide-react";
-import { OnboardingChrome } from "@/components/onboarding/OnboardingChrome";
+import { OnboardingStepLayout } from "@/components/onboarding/OnboardingStepLayout";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -52,38 +51,24 @@ export default function ProxySetupStep() {
   };
 
   return (
-    <OnboardingChrome mainClassName="flex min-h-[calc(100vh-92px)] max-w-[560px] flex-col justify-center">
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <button
-          data-testid="button-proxy-back"
-          onClick={() => navigate("/onboarding/channel")}
-          className="flex h-11 w-11 items-center justify-center rounded-full border border-[#EFE7DB] bg-white shadow-[0_12px_30px_rgba(72,44,18,0.08)]"
-        >
-          <ChevronLeft size={20} className="text-vyva-text-1" />
-        </button>
-        <span className="rounded-full bg-white/80 px-4 py-2 font-body text-[12px] font-extrabold uppercase tracking-[0.18em] text-vyva-purple/75 shadow-[0_12px_30px_rgba(72,44,18,0.08)]">
-          {t("onboarding.proxySetup.stepLabel")}
-        </span>
-      </div>
-
-      <section className="rounded-[34px] border border-[#EFE7DB] bg-white/95 p-5 shadow-[0_24px_70px_rgba(72,44,18,0.12)] backdrop-blur sm:p-7">
-        <div className="mb-5">
-          <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.24em] text-vyva-purple/70">
-            Family setup
-          </p>
-          <h1 className="mt-2 font-display text-[42px] leading-[0.98] text-[#2E1642]">
-            {t("onboarding.proxySetup.heading")}
-          </h1>
-          <p className="mt-3 font-body text-[14px] leading-[1.55] text-vyva-text-2">
-            {t("onboarding.proxySetup.description")}
-          </p>
-        </div>
-
-        <div className="mb-6 h-1.5 overflow-hidden rounded-full bg-[#F1E9DD]">
-          <div className="h-full rounded-full bg-vyva-purple" style={{ width: "40%" }} />
-        </div>
-
-        <div className="space-y-5">
+    <OnboardingStepLayout
+      action={{
+        testId: "button-proxy-continue",
+        label: t("onboarding.proxySetup.continue"),
+        savingLabel: t("onboarding.proxySetup.saving"),
+        isSaving: saving,
+        disabled: !canContinue || saving,
+        onClick: handleContinue,
+      }}
+      back={{ testId: "button-proxy-back", onClick: () => navigate("/onboarding/channel") }}
+      contentClassName="space-y-5"
+      error={{ testId: "text-proxy-error", message: error }}
+      eyebrow="Family setup"
+      progressPercent={40}
+      stepLabel={t("onboarding.proxySetup.stepLabel")}
+      subtitle={t("onboarding.proxySetup.description")}
+      title={t("onboarding.proxySetup.heading")}
+    >
           <div className="space-y-1.5">
             <Label className="font-body text-[13px] font-bold text-vyva-text-2">
               {t("onboarding.proxySetup.labelName")} <span className="text-vyva-red">*</span>
@@ -120,24 +105,6 @@ export default function ProxySetupStep() {
               {t("onboarding.proxySetup.infoBox")}
             </p>
           </div>
-
-          {error && (
-            <p data-testid="text-proxy-error" className="rounded-[16px] bg-red-50 px-4 py-3 font-body text-[13px] text-red-700">
-              {error}
-            </p>
-          )}
-        </div>
-
-        <button
-          data-testid="button-proxy-continue"
-          onClick={handleContinue}
-          disabled={!canContinue || saving}
-          className="vyva-primary-action mt-6 w-full bg-[linear-gradient(135deg,#6B21A8_0%,#8B3FC8_100%)] py-4 shadow-vyva-fab disabled:opacity-40"
-        >
-          {saving ? t("onboarding.proxySetup.saving") : t("onboarding.proxySetup.continue")}
-          {!saving && <ArrowRight size={17} />}
-        </button>
-      </section>
-    </OnboardingChrome>
+    </OnboardingStepLayout>
   );
 }

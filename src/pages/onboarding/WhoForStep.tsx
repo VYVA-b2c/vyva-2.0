@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, HeartHandshake, UserRound, UsersRound } from "lucide-react";
-import { OnboardingChrome } from "@/components/onboarding/OnboardingChrome";
+import { HeartHandshake, UserRound, UsersRound } from "lucide-react";
+import { OnboardingStepLayout } from "@/components/onboarding/OnboardingStepLayout";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { friendlyError } from "@/lib/apiError";
 import { useLanguage } from "@/i18n";
@@ -191,23 +191,27 @@ export default function WhoForStep() {
   };
 
   return (
-    <OnboardingChrome mainClassName="flex min-h-[calc(100vh-92px)] max-w-[540px] flex-col justify-center">
-      <div className="mb-7 text-center">
+    <OnboardingStepLayout
+      action={{
+        testId: "button-who-for-continue",
+        label: copy.continue,
+        savingLabel: copy.saving,
+        isSaving: saving,
+        disabled: saving,
+        onClick: handleContinue,
+      }}
+      error={{ testId: "text-who-for-error", message: error }}
+      eyebrow={copy.eyebrow}
+      headerAlign="center"
+      headerIcon={
         <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-[24px] bg-[#F5F3FF] text-vyva-purple shadow-[0_16px_40px_rgba(107,33,168,0.12)]">
           <HeartHandshake size={30} />
         </div>
-        <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.24em] text-vyva-purple/70">
-          {copy.eyebrow}
-        </p>
-        <h1 className="mt-3 font-display text-[46px] leading-[0.96] text-[#2E1642] sm:text-[54px]">
-          {copy.title}
-        </h1>
-        <p className="mx-auto mt-4 max-w-[380px] font-body text-[15px] leading-[1.55] text-vyva-text-2">
-          {copy.subtitle}
-        </p>
-      </div>
-
-      <div className="rounded-[34px] border border-[#EFE7DB] bg-white/95 p-4 shadow-[0_24px_70px_rgba(72,44,18,0.12)] backdrop-blur">
+      }
+      maxWidthClassName="max-w-[540px]"
+      subtitle={copy.subtitle}
+      title={copy.title}
+    >
         <div className="space-y-3">
           {CHOICES.map((choice) => {
             const Icon = choice.icon;
@@ -239,24 +243,6 @@ export default function WhoForStep() {
             );
           })}
         </div>
-
-        {error && (
-          <p data-testid="text-who-for-error" className="mt-4 rounded-[16px] bg-red-50 px-4 py-3 font-body text-[13px] text-red-700">
-            {error}
-          </p>
-        )}
-
-        <button
-          type="button"
-          onClick={handleContinue}
-          disabled={saving}
-          data-testid="button-who-for-continue"
-          className="vyva-primary-action mt-5 w-full bg-[linear-gradient(135deg,#6B21A8_0%,#8B3FC8_100%)] py-4 shadow-vyva-fab disabled:opacity-40"
-        >
-          {saving ? copy.saving : copy.continue}
-          {!saving && <ArrowRight size={17} />}
-        </button>
-      </div>
-    </OnboardingChrome>
+    </OnboardingStepLayout>
   );
 }

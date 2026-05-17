@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, BellRing, CalendarClock, ChevronLeft, Globe, MessageSquare, Moon, Phone } from "lucide-react";
-import { OnboardingChrome } from "@/components/onboarding/OnboardingChrome";
+import { BellRing, CalendarClock, Globe, MessageSquare, Moon, Phone } from "lucide-react";
+import { OnboardingStepLayout } from "@/components/onboarding/OnboardingStepLayout";
 import { Input } from "@/components/ui/input";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { friendlyError } from "@/lib/apiError";
@@ -102,39 +102,27 @@ const ChannelStep = () => {
   };
 
   return (
-    <OnboardingChrome mainClassName="flex min-h-[calc(100vh-92px)] max-w-[560px] flex-col justify-center">
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <button
-          data-testid="button-channel-back"
-          onClick={() => navigate("/onboarding/basics")}
-          className="flex h-11 w-11 items-center justify-center rounded-full border border-[#EFE7DB] bg-white shadow-[0_12px_30px_rgba(72,44,18,0.08)]"
-        >
-          <ChevronLeft size={20} className="text-vyva-text-1" />
-        </button>
-        <span className="rounded-full bg-white/80 px-4 py-2 font-body text-[12px] font-extrabold uppercase tracking-[0.18em] text-vyva-purple/75 shadow-[0_12px_30px_rgba(72,44,18,0.08)]">
-          Step 2 of 5
-        </span>
-      </div>
-
-      <section className="rounded-[34px] border border-[#EFE7DB] bg-white/95 p-5 shadow-[0_24px_70px_rgba(72,44,18,0.12)] backdrop-blur sm:p-7">
-        <div className="mb-5">
-          <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.24em] text-vyva-purple/70">
-            Daily support
-          </p>
-          <h1 className="mt-2 font-display text-[42px] leading-[0.98] text-[#2E1642]">
-            {isCaregiverSetup ? "Choose their default contact" : "Choose your default contact"}
-          </h1>
-          <p className="mt-3 font-body text-[14px] leading-[1.55] text-vyva-text-2">
-            {isCaregiverSetup
-              ? "Pick the everyday channel for the person receiving support. Reminders, alerts and quiet hours can be customised later."
-              : "Pick the everyday channel for VYVA. Reminders, alerts and quiet hours can be customised later."}
-          </p>
-        </div>
-
-        <div className="mb-6 h-1.5 overflow-hidden rounded-full bg-[#F1E9DD]">
-          <div className="h-full rounded-full bg-vyva-purple" style={{ width: "40%" }} />
-        </div>
-
+    <OnboardingStepLayout
+      action={{
+        testId: "button-channel-continue",
+        label: "Continue",
+        savingLabel: "Saving...",
+        isSaving: saving,
+        disabled: !canContinue,
+        onClick: handleContinue,
+      }}
+      back={{ testId: "button-channel-back", onClick: () => navigate("/onboarding/basics") }}
+      error={{ testId: "text-channel-error", message: error }}
+      eyebrow="Daily support"
+      progressPercent={40}
+      stepLabel="Step 2 of 5"
+      subtitle={
+        isCaregiverSetup
+          ? "Pick the everyday channel for the person receiving support. Reminders, alerts and quiet hours can be customised later."
+          : "Pick the everyday channel for VYVA. Reminders, alerts and quiet hours can be customised later."
+      }
+      title={isCaregiverSetup ? "Choose their default contact" : "Choose your default contact"}
+    >
         <div className="space-y-3">
           {CHANNELS.map((ch) => {
             const Icon = ch.icon;
@@ -211,23 +199,7 @@ const ChannelStep = () => {
           </div>
         )}
 
-        {error && (
-          <p data-testid="text-channel-error" className="mt-4 rounded-[16px] bg-red-50 px-4 py-3 font-body text-[13px] text-red-700">
-            {error}
-          </p>
-        )}
-
-        <button
-          data-testid="button-channel-continue"
-          onClick={handleContinue}
-          disabled={!canContinue}
-          className="vyva-primary-action mt-6 w-full bg-[linear-gradient(135deg,#6B21A8_0%,#8B3FC8_100%)] py-4 shadow-vyva-fab disabled:opacity-40"
-        >
-          {saving ? "Saving..." : "Continue"}
-          {!saving && <ArrowRight size={17} />}
-        </button>
-      </section>
-    </OnboardingChrome>
+    </OnboardingStepLayout>
   );
 };
 
