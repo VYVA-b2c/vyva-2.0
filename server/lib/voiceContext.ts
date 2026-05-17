@@ -1069,6 +1069,7 @@ export async function buildVoiceContext(
   const providersSection = section(consent, "providers");
   const emergencySection = section(consent, "emergency");
   const cognitiveSection = section(consent, "cognitive");
+  const communicationPreferencesSection = section(consent, "communication_preferences");
 
   const conditions = asStringArray(conditionsSection.health_conditions);
   const mobilityLevel = asString(conditionsSection.mobility_level);
@@ -1085,6 +1086,8 @@ export async function buildVoiceContext(
   const companion = companionRows[0];
   const socialInterests = socialInterestRows[0];
   const channelPrefs = channelPreferenceRows[0];
+  const contactSupportMode = asString(communicationPreferencesSection.contact_support_mode);
+  const contactSupportModeLabel = contactSupportMode === "human_supported" ? "Human-supported" : "AI-powered";
   const mem0UserId = profile?.mem0_user_id?.trim() || userId;
   const memories = memoryQuery
     ? await searchMemories(memoryQuery, mem0UserId).catch(() => [])
@@ -1303,6 +1306,7 @@ export async function buildVoiceContext(
     variables.communication_preferences = compactLines([
       channelPrefs?.preferred_conversation_channel ? `Conversation: ${channelPrefs.preferred_conversation_channel}` : "",
       channelPrefs?.preferred_reminder_channel ? `Reminders: ${channelPrefs.preferred_reminder_channel}` : "",
+      `Support mode: ${contactSupportModeLabel}`,
       channelPrefs?.voice_available_from || channelPrefs?.voice_available_until
         ? `Voice availability: ${channelPrefs?.voice_available_from ?? ""}-${channelPrefs?.voice_available_until ?? ""}`
         : "",

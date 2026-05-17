@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { BellRing } from "lucide-react";
+import { BellRing, Bot, UserRound, type LucideIcon } from "lucide-react";
 import { ContactChannelPicker } from "@/components/ContactChannelPicker";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { Button } from "@/components/ui/button";
@@ -14,9 +14,12 @@ import { friendlyError } from "@/lib/apiError";
 import { normalizeContactChannel, type ContactChannelId } from "@/lib/contactChannels";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 
+type SupportMode = "ai_powered" | "human_supported";
+
 type ChannelPreferences = {
   preferred_checkin_channel: ContactChannelId;
   preferred_reminder_channel: ContactChannelId;
+  support_mode: SupportMode;
   voice_available_from: string;
   voice_available_until: string;
   whatsapp_available_from: string;
@@ -28,6 +31,7 @@ type ChannelPreferences = {
 const DEFAULT_PREFERENCES: ChannelPreferences = {
   preferred_checkin_channel: "voice_outbound",
   preferred_reminder_channel: "whatsapp_outbound",
+  support_mode: "ai_powered",
   voice_available_from: "08:00",
   voice_available_until: "21:00",
   whatsapp_available_from: "07:00",
@@ -35,6 +39,36 @@ const DEFAULT_PREFERENCES: ChannelPreferences = {
   max_outbound_calls_per_day: 1,
   max_whatsapp_messages_per_day: 5,
 };
+
+const SUPPORT_MODE_OPTIONS: Array<{
+  id: SupportMode;
+  icon: LucideIcon;
+  iconBg: string;
+  iconColor: string;
+  labelKey: string;
+  subKey: string;
+}> = [
+  {
+    id: "ai_powered",
+    icon: Bot,
+    iconBg: "#F5F3FF",
+    iconColor: "#6B21A8",
+    labelKey: "settings.notifications.supportModeAi",
+    subKey: "settings.notifications.supportModeAiSub",
+  },
+  {
+    id: "human_supported",
+    icon: UserRound,
+    iconBg: "#FFF2E8",
+    iconColor: "#C2410C",
+    labelKey: "settings.notifications.supportModeHuman",
+    subKey: "settings.notifications.supportModeHumanSub",
+  },
+];
+
+function normalizeSupportMode(value: unknown): SupportMode {
+  return value === "human_supported" || value === "ai_powered" ? value : DEFAULT_PREFERENCES.support_mode;
+}
 
 function normalizePreferences(data?: Partial<ChannelPreferences> | null): ChannelPreferences {
   return {
@@ -46,6 +80,7 @@ function normalizePreferences(data?: Partial<ChannelPreferences> | null): Channe
       data?.preferred_reminder_channel,
       DEFAULT_PREFERENCES.preferred_reminder_channel,
     ),
+    support_mode: normalizeSupportMode(data?.support_mode),
     voice_available_from: data?.voice_available_from || DEFAULT_PREFERENCES.voice_available_from,
     voice_available_until: data?.voice_available_until || DEFAULT_PREFERENCES.voice_available_until,
     whatsapp_available_from: data?.whatsapp_available_from || DEFAULT_PREFERENCES.whatsapp_available_from,
@@ -67,6 +102,58 @@ function limitToSelect(value: number | null): string {
 
 function selectToLimit(value: string): number | null {
   return value === "unlimited" ? null : Number(value);
+}
+
+function SupportModePicker({
+  value,
+  onChange,
+  t,
+}: {
+  value: SupportMode;
+  onChange: (value: SupportMode) => void;
+  t: (key: string, fallback?: string) => string;
+}) {
+  return (
+    <div className="space-y-3" role="radiogroup" aria-label={t("settings.notifications.supportMode")}>
+      {SUPPORT_MODE_OPTIONS.map((option) => {
+        const Icon = option.icon;
+        const active = value === option.id;
+
+        return (
+          <button
+            key={option.id}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            data-testid={`button-support-mode-${option.id}`}
+            onClick={() => onChange(option.id)}
+            className={`flex w-full items-center gap-3 rounded-[22px] border-2 p-4 text-left transition-colors ${
+              active ? "border-vyva-purple bg-[#F5F3FF]" : "border-[#EFE7DB] bg-white hover:border-[#E1D6C8]"
+            }`}
+          >
+            <div
+              className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[15px]"
+              style={{ background: option.iconBg }}
+            >
+              <Icon size={20} style={{ color: option.iconColor }} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-body text-[15px] font-extrabold text-vyva-text-1">{t(option.labelKey)}</p>
+              <p className="font-body text-[12px] leading-[1.4] text-vyva-text-2">{t(option.subKey)}</p>
+            </div>
+            <div
+              className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full ${
+                active ? "bg-vyva-purple" : "border-2 border-[#E4D4F4] bg-white"
+              }`}
+              aria-hidden="true"
+            >
+              {active && <div className="h-2 w-2 rounded-full bg-white" />}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 export default function NotificationsSettings() {
@@ -194,6 +281,25 @@ export default function NotificationsSettings() {
               }
               t={t}
               testIdPrefix="button-reminder-channel"
+            />
+          </div>
+        </section>
+
+        <section className="rounded-[28px] border border-[#EFE7DB] bg-white p-5 shadow-[0_14px_34px_rgba(48,30,12,0.06)]">
+          <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.16em] text-vyva-purple/70">
+            {t("settings.notifications.supportMode")}
+          </p>
+          <p className="mt-1 font-body text-[13px] leading-[1.45] text-vyva-text-2">
+            {t(
+              "settings.notifications.supportModeHint",
+              "Choose whether VYVA handles contact automatically or a person should take over.",
+            )}
+          </p>
+          <div className="mt-4">
+            <SupportModePicker
+              value={draft.support_mode}
+              onChange={(support_mode) => setDraft((current) => ({ ...current, support_mode }))}
+              t={t}
             />
           </div>
         </section>

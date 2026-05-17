@@ -104,6 +104,25 @@ describe("language persistence", () => {
     }
   });
 
+  it("keeps notification support mode labels localized for supported account languages", () => {
+    const expected = {
+      en: ["Support mode", "AI-powered", "Human-supported"],
+      es: ["Modo de apoyo", "Con IA", "Con apoyo humano"],
+      fr: ["Mode de soutien", "Avec IA", "Avec soutien humain"],
+      de: ["Betreuungsmodus", "KI-gestützt", "Menschliche Unterstützung"],
+      it: ["Modalità di supporto", "Con IA", "Con supporto umano"],
+      pt: ["Modo de apoio", "Com IA", "Com apoio humano"],
+    } as const;
+
+    for (const [language, labels] of Object.entries(expected)) {
+      expect([
+        translate(language as keyof typeof expected, "settings.notifications.supportMode"),
+        translate(language as keyof typeof expected, "settings.notifications.supportModeAi"),
+        translate(language as keyof typeof expected, "settings.notifications.supportModeHuman"),
+      ]).toEqual(labels);
+    }
+  });
+
   it("keeps settings pages on the shared app language store", () => {
     const settingsSource = collectFiles("src/pages/settings")
       .filter((file) => file.endsWith(".tsx"))

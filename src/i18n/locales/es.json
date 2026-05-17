@@ -468,7 +468,13 @@
       "savePreferences": "Guardar preferencias",
       "saved": "Preferencias guardadas",
       "saveError": "No se pudieron guardar las preferencias",
-      "loadError": "No se pudieron cargar las preferencias"
+      "loadError": "No se pudieron cargar las preferencias",
+      "supportMode": "Modo de apoyo",
+      "supportModeHint": "Elige si VYVA gestiona el contacto automáticamente o si debe hacerlo una persona.",
+      "supportModeAi": "Con IA",
+      "supportModeAiSub": "VYVA gestiona automáticamente los check-ins y recordatorios rutinarios.",
+      "supportModeHuman": "Con apoyo humano",
+      "supportModeHumanSub": "Una persona gestiona el contacto mientras VYVA mantiene el plan claro."
     },
     "privacy": {
       "title": "Privacidad y consentimiento",
