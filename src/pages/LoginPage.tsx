@@ -92,8 +92,8 @@ type LoginCopy = {
   linkSent: string;
   useWithin: string;
   backToPassword: string;
-  alreadyHaveAccount?: string;
-  dontHaveAccount?: string;
+  alreadyHaveAccount: string;
+  dontHaveAccount: string;
   guide: {
     notSure: string;
     title: string;
@@ -303,6 +303,8 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     linkSent: "Lien envoyé",
     useWithin: "À utiliser dans les 15 minutes.",
     backToPassword: "Retour au mot de passe",
+    alreadyHaveAccount: "Vous avez déjà un compte ?",
+    dontHaveAccount: "Vous n'avez pas de compte ?",
     guide: {
       notSure: "Un doute ?",
       title: "Demander à VYVA",
@@ -372,6 +374,8 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     linkSent: "Link gesendet",
     useWithin: "Innerhalb von 15 Minuten verwenden.",
     backToPassword: "Zurück zum Passwort",
+    alreadyHaveAccount: "Sie haben bereits ein Konto?",
+    dontHaveAccount: "Sie haben noch kein Konto?",
     guide: {
       notSure: "Unsicher?",
       title: "VYVA fragen",
@@ -441,6 +445,8 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     linkSent: "Link inviato",
     useWithin: "Usalo entro 15 minuti.",
     backToPassword: "Torna alla password",
+    alreadyHaveAccount: "Hai già un account?",
+    dontHaveAccount: "Non hai un account?",
     guide: {
       notSure: "Dubbi?",
       title: "Chiedi a VYVA",
@@ -510,6 +516,8 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     linkSent: "Link enviado",
     useWithin: "Use-o nos próximos 15 minutos.",
     backToPassword: "Voltar à palavra-passe",
+    alreadyHaveAccount: "Já tem uma conta?",
+    dontHaveAccount: "Ainda não tem uma conta?",
     guide: {
       notSure: "Dúvidas?",
       title: "Pergunte à VYVA",
@@ -579,6 +587,8 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     linkSent: "Dolen wedi'i hanfon",
     useWithin: "Defnyddiwch o fewn 15 munud.",
     backToPassword: "Yn ôl i gyfrinair",
+    alreadyHaveAccount: "Oes gennych gyfrif yn barod?",
+    dontHaveAccount: "Dim cyfrif gennych?",
     guide: {
       notSure: "Ddim yn siŵr?",
       title: "Gofynnwch i VYVA",
@@ -864,9 +874,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   const authSubtitle = adminOnly && activeView === "login"
     ? "Access the VYVA operations panel."
     : copy.subtitles[activeView];
-  const switchPrompt = mode === "register"
-    ? (copy.alreadyHaveAccount ?? "Already have an account?")
-    : (copy.dontHaveAccount ?? "Don't have an account?");
+  const switchPrompt = mode === "register" ? copy.alreadyHaveAccount : copy.dontHaveAccount;
   const googleButton = (
     <button
       type="button"
