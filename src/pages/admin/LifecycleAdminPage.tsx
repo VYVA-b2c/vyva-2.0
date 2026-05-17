@@ -227,7 +227,6 @@ export default function LifecycleAdminPage() {
         title,
         details: [...failedDetails, ...(failedDetails.length ? sentDetails : sentDetails.slice(0, 3))],
       });
-      setMessage(failed === 0 ? `Signup link sent: ${data.signup_url}` : "Some signup link deliveries need attention.");
       if (sent > 0) setSignupShare({ emails: "", whatsapp: "", message: signupShare.message });
       await refresh();
     } catch (err) {
@@ -666,26 +665,6 @@ export default function LifecycleAdminPage() {
                   {sharingSignup ? "Sending..." : "Share link"}
                 </button>
               </div>
-              {signupShareNotice && (
-                <div
-                  className={`mt-4 rounded-2xl px-4 py-3 text-sm font-bold ${
-                    signupShareNotice.tone === "success"
-                      ? "bg-emerald-50 text-emerald-800"
-                      : signupShareNotice.tone === "warning"
-                        ? "bg-amber-50 text-amber-800"
-                        : "bg-red-50 text-red-700"
-                  }`}
-                >
-                  <p>{signupShareNotice.title}</p>
-                  {signupShareNotice.details.length > 0 && (
-                    <ul className="mt-2 space-y-1 font-semibold">
-                      {signupShareNotice.details.map((detail, index) => (
-                        <li key={`${detail}-${index}`}>{detail}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
             </section>
 
             <section className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
@@ -884,6 +863,48 @@ export default function LifecycleAdminPage() {
           onEventStatus={setEventStatus}
           onEventTime={updateEventTime}
         />
+      )}
+      {signupShareNotice && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#2f2135]/45 px-4 py-6" role="dialog" aria-modal="true" aria-labelledby="signup-share-result-title">
+          <div className="w-full max-w-lg rounded-[2rem] border border-[#eadfd5] bg-white p-6 text-[#2f2135] shadow-[0_24px_80px_rgba(47,33,53,0.28)]">
+            <p className={`inline-flex rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${
+              signupShareNotice.tone === "success"
+                ? "bg-emerald-50 text-emerald-800"
+                : signupShareNotice.tone === "warning"
+                  ? "bg-amber-50 text-amber-800"
+                  : "bg-red-50 text-red-700"
+            }`}>
+              {signupShareNotice.tone === "success" ? "Sent" : signupShareNotice.tone === "warning" ? "Partially sent" : "Failed"}
+            </p>
+            <h2 id="signup-share-result-title" className="mt-3 font-serif text-3xl leading-tight">{signupShareNotice.title}</h2>
+            {signupShareNotice.details.length > 0 && (
+              <ul className="mt-4 max-h-56 space-y-2 overflow-auto rounded-2xl bg-[#fbf8f5] p-3 text-sm font-semibold text-[#5f514b]">
+                {signupShareNotice.details.map((detail, index) => (
+                  <li key={`${detail}-${index}`}>{detail}</li>
+                ))}
+              </ul>
+            )}
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                className="rounded-2xl border border-[#eadfd5] bg-white px-5 py-3 text-sm font-bold text-[#2f2135] hover:border-purple-200 hover:text-purple-700"
+                onClick={() => {
+                  setSignupShareNotice(null);
+                  setActiveTab("communications");
+                }}
+              >
+                View communications
+              </button>
+              <button
+                type="button"
+                className="rounded-2xl bg-purple-700 px-5 py-3 text-sm font-bold text-white hover:bg-purple-800"
+                onClick={() => setSignupShareNotice(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );
