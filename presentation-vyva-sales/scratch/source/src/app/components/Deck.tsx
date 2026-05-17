@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Maximize, Minimize } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface DeckProps {
@@ -10,23 +10,23 @@ export const Deck: React.FC<DeckProps> = ({ slides }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const nextSlide = () => {
+  const nextSlide = useCallback(() => {
     setCurrentSlide(curr => {
       if (curr < slides.length - 1) {
         return curr + 1;
       }
       return curr;
     });
-  };
+  }, [slides.length]);
 
-  const prevSlide = () => {
+  const prevSlide = useCallback(() => {
     setCurrentSlide(curr => {
       if (curr > 0) {
         return curr - 1;
       }
       return curr;
     });
-  };
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -41,7 +41,7 @@ export const Deck: React.FC<DeckProps> = ({ slides }) => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []); // Empty deps since nextSlide/prevSlide use functional updates
+  }, [nextSlide, prevSlide]);
 
   const CurrentSlideComponent = slides[currentSlide];
 

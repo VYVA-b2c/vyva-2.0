@@ -65,6 +65,7 @@ export default function LifecycleAdminPage() {
   const [bulkRows, setBulkRows] = useState<Record<string, string>[]>([]);
   const [bulkPreview, setBulkPreview] = useState<BulkPreviewResponse | null>(null);
   const [sendBulkLinks, setSendBulkLinks] = useState(false);
+  const [busyAction, setBusyAction] = useState<string | null>(null);
 
   async function api(path: string, options: RequestInit = {}) {
     const res = await apiFetch(`/api/admin/lifecycle${path}`, options);
@@ -141,13 +142,6 @@ export default function LifecycleAdminPage() {
     await refresh();
   }
 
-  async function sendLink(intake: Intake) {
-    const data = await api(`/intakes/${intake.id}/send-link`, { method: "POST" });
-    await navigator.clipboard?.writeText(data.url).catch(() => undefined);
-    setMessage(`Access link prepared and copied: ${data.url}`);
-    await refresh();
-  }
-
   function recipientLines(value: string) {
     return value
       .split(/[\n,;]+/)
@@ -170,9 +164,17 @@ export default function LifecycleAdminPage() {
   }
 
   async function triggerConsent(intake: Intake) {
-    await api(`/consent/${intake.id}/trigger`, { method: "POST" });
-    setMessage("Consent call queued.");
-    await refresh();
+    setBusyAction(`consent:${intake.id}`);
+    setMessage("");
+    try {
+      await api(`/consent/${intake.id}/trigger`, { method: "POST" });
+      setMessage("Consent call queued.");
+      await refresh();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Could not queue consent call.");
+    } finally {
+      setBusyAction(null);
+    }
   }
 
   async function markConsent(attempt: ConsentAttempt, status: string) {
@@ -341,25 +343,33 @@ export default function LifecycleAdminPage() {
     }
   }
 
-  async function openUserDetail(intake: Intake) {
-    const data = await api(`/users/${intake.id}/details`);
-    const profileTier = stringValue(data.profile?.subscription_tier);
-    const primaryMapping = Array.isArray(data.account_mappings) ? data.account_mappings[0] as LoginMapping | undefined : undefined;
-    setSelectedUser(data);
-    setSelectedDraft({
-      full_name: data.profile?.full_name ?? intake.name,
-      preferred_name: data.profile?.preferred_name ?? "",
-      date_of_birth: data.profile?.date_of_birth ?? "",
-      email: data.profile?.email ?? intake.email ?? primaryMapping?.login_email ?? "",
-      phone_number: data.profile?.phone_number ?? intake.phone ?? primaryMapping?.login_phone ?? "",
-      whatsapp_number: data.profile?.whatsapp_number ?? "",
-      language: data.profile?.language ?? "es",
-      timezone: data.profile?.timezone ?? "Europe/Madrid",
-      caregiver_name: data.profile?.caregiver_name ?? "",
-      caregiver_contact: data.profile?.caregiver_contact ?? "",
-      tier: profileTier ?? intake.tier,
-      organization_id: intake.organization_id ?? "",
-    });
+  async function openUserDetail(intake: Intake, action: "view" | "tier" = "view") {
+    setBusyAction(`${action}:${intake.id}`);
+    setMessage("");
+    try {
+      const data = await api(`/users/${intake.id}/details`);
+      const profileTier = stringValue(data.profile?.subscription_tier);
+      const primaryMapping = Array.isArray(data.account_mappings) ? data.account_mappings[0] as LoginMapping | undefined : undefined;
+      setSelectedUser(data);
+      setSelectedDraft({
+        full_name: data.profile?.full_name ?? intake.name,
+        preferred_name: data.profile?.preferred_name ?? "",
+        date_of_birth: data.profile?.date_of_birth ?? "",
+        email: data.profile?.email ?? intake.email ?? primaryMapping?.login_email ?? "",
+        phone_number: data.profile?.phone_number ?? intake.phone ?? primaryMapping?.login_phone ?? "",
+        whatsapp_number: data.profile?.whatsapp_number ?? "",
+        language: data.profile?.language ?? "es",
+        timezone: data.profile?.timezone ?? "Europe/Madrid",
+        caregiver_name: data.profile?.caregiver_name ?? "",
+        caregiver_contact: data.profile?.caregiver_contact ?? "",
+        tier: profileTier ?? intake.tier,
+        organization_id: intake.organization_id ?? "",
+      });
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Could not open this user.");
+    } finally {
+      setBusyAction(null);
+    }
   }
 
   async function saveUserDetail() {
@@ -389,14 +399,21 @@ export default function LifecycleAdminPage() {
   }
 
   async function toggleUser(intake: Intake) {
+    setBusyAction(`toggle:${intake.id}`);
     const disabled = intake.account_status === "disabled";
-    await api(`/users/${intake.id}/${disabled ? "enable" : "disable"}`, {
-      method: "POST",
-      body: JSON.stringify({ reason: disabled ? "" : "Disabled by admin" }),
-    });
-    setMessage(disabled ? "User enabled." : "User disabled.");
-    if (selectedUser?.intake.id === intake.id) await openUserDetail(intake);
-    await refresh();
+    try {
+      await api(`/users/${intake.id}/${disabled ? "enable" : "disable"}`, {
+        method: "POST",
+        body: JSON.stringify({ reason: disabled ? "" : "Disabled by admin" }),
+      });
+      setMessage(disabled ? "User enabled." : "User disabled.");
+      if (selectedUser?.intake.id === intake.id) await openUserDetail(intake);
+      await refresh();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Could not update this user.");
+    } finally {
+      setBusyAction(null);
+    }
   }
 
   async function createScheduledEventForUser() {
@@ -555,7 +572,7 @@ export default function LifecycleAdminPage() {
                   </select>
                 ))}
               </div>
-              <IntakeTable users={users} onView={openUserDetail} onSendLink={sendLink} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} />
+              <IntakeTable users={users} onView={(intake) => openUserDetail(intake, "view")} onTier={(intake) => openUserDetail(intake, "tier")} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} busyAction={busyAction} />
             </section>
           </div>
         )}
@@ -635,7 +652,7 @@ export default function LifecycleAdminPage() {
             </div>
             <div className="rounded-[2rem] border border-[#eadfd5] bg-white p-5">
               <h2 className="font-serif text-3xl">Recent lifecycle users</h2>
-              <IntakeTable users={users.slice(0, 8)} onView={openUserDetail} onSendLink={sendLink} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} compact />
+              <IntakeTable users={users.slice(0, 8)} onView={(intake) => openUserDetail(intake, "view")} onTier={(intake) => openUserDetail(intake, "tier")} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} busyAction={busyAction} compact />
             </div>
           </section>
         )}

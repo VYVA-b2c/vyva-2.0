@@ -53,14 +53,16 @@ function supportFrequency(schedule: ScheduledSupport) {
   return `${days} at ${times}`;
 }
 
-export function IntakeTable({ users, onView, onSendLink, onTriggerConsent, onToggleEnabled, compact = false }: {
+export function IntakeTable({ users, onView, onTier, onTriggerConsent, onToggleEnabled, busyAction = null, compact = false }: {
   users: Intake[];
   onView: (intake: Intake) => void;
-  onSendLink: (intake: Intake) => void;
+  onTier: (intake: Intake) => void;
   onTriggerConsent: (intake: Intake) => void;
   onToggleEnabled: (intake: Intake) => void;
+  busyAction?: string | null;
   compact?: boolean;
 }) {
+  const isBusy = (action: string, user: Intake) => busyAction === `${action}:${user.id}`;
   return (
     <div className="mt-5 overflow-auto">
       <table className="w-full min-w-[980px] border-separate border-spacing-y-2">
@@ -91,10 +93,10 @@ export function IntakeTable({ users, onView, onSendLink, onTriggerConsent, onTog
               <td className="px-3 py-3">{user.organization_name ?? "-"}</td>
               <td className="rounded-r-2xl px-3 py-3">
                 <div className="flex flex-wrap gap-2">
-                  <button className="rounded-full bg-[#2f2135] px-3 py-2 text-sm font-bold text-white" onClick={() => onView(user)}>View</button>
-                  <button className="rounded-full bg-purple-700 px-3 py-2 text-sm font-bold text-white" onClick={() => onSendLink(user)}>Send link</button>
-                  <button className="rounded-full border px-3 py-2 text-sm font-bold" onClick={() => onToggleEnabled(user)}>{user.account_status === "disabled" ? "Enable" : "Disable"}</button>
-                  {user.user_type === "family" && <button className="rounded-full border px-3 py-2 text-sm font-bold" onClick={() => onTriggerConsent(user)}>Consent</button>}
+                  <button type="button" className="rounded-full bg-[#2f2135] px-3 py-2 text-sm font-bold text-white disabled:opacity-60" disabled={isBusy("view", user)} onClick={() => onView(user)}>{isBusy("view", user) ? "Opening..." : "View"}</button>
+                  <button type="button" className="rounded-full bg-purple-700 px-3 py-2 text-sm font-bold text-white disabled:opacity-60" disabled={isBusy("tier", user)} onClick={() => onTier(user)}>{isBusy("tier", user) ? "Opening..." : "Tier"}</button>
+                  <button type="button" className="rounded-full border px-3 py-2 text-sm font-bold disabled:opacity-60" disabled={isBusy("toggle", user)} onClick={() => onToggleEnabled(user)}>{isBusy("toggle", user) ? "Saving..." : user.account_status === "disabled" ? "Enable" : "Disable"}</button>
+                  {user.user_type === "family" && <button type="button" className="rounded-full border px-3 py-2 text-sm font-bold disabled:opacity-60" disabled={isBusy("consent", user)} onClick={() => onTriggerConsent(user)}>{isBusy("consent", user) ? "Queueing..." : "Consent"}</button>}
                 </div>
               </td>
             </tr>

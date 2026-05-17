@@ -159,6 +159,64 @@ function rememberLifecycleIdentity(existing: Set<string>, input: {
   for (const key of lifecycleIdentityKeys(input)) existing.add(key);
 }
 
+function canonicalIdentityKey(intake: Intake) {
+  const userId = targetUserIdForIntake(intake) ?? intake.user_id ?? intake.elder_user_id ?? intake.family_user_id;
+  if (userId) return `user:${userId}`;
+  const email = normalizeEmail(intake.email);
+  if (email) return `email:${email}`;
+  const phone = normalizePhone(intake.phone);
+  if (phone) return `phone:${phone}`;
+  return `intake:${intake.id}`;
+}
+
+function isMergedLifecycleDuplicate(intake: Intake) {
+  const metadata = metadataRecord(intake.metadata);
+  return typeof metadata.merged_into_intake_id === "string" || metadata.hidden_from_lifecycle === true;
+}
+
+function statusRank(status: string | null | undefined) {
+  if (status === "active") return 5;
+  if (status === "link_sent") return 4;
+  if (status === "consent_pending") return 3;
+  if (status === "created") return 2;
+  if (status === "dropped") return 1;
+  return 0;
+}
+
+function timestampRank(value: Date | string | null | undefined) {
+  if (!value) return 0;
+  const time = value instanceof Date ? value.getTime() : new Date(value).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function intakeCompletenessScore(intake: Intake) {
+  return [
+    intake.elder_user_id,
+    intake.user_id,
+    intake.email,
+    normalizePhone(intake.phone),
+    intake.organization_id,
+    intake.link_sent_at,
+    intake.activated_at,
+  ].filter(Boolean).length;
+}
+
+function chooseCanonicalIntake(rows: Intake[]) {
+  return [...rows].sort((a, b) => {
+    const activeDiff = Number(!isMergedLifecycleDuplicate(b)) - Number(!isMergedLifecycleDuplicate(a));
+    if (activeDiff) return activeDiff;
+    const scoreDiff = intakeCompletenessScore(b) - intakeCompletenessScore(a);
+    if (scoreDiff) return scoreDiff;
+    const statusDiff = statusRank(b.status) - statusRank(a.status);
+    if (statusDiff) return statusDiff;
+    return timestampRank(b.last_activity_at ?? b.updated_at ?? b.created_at) - timestampRank(a.last_activity_at ?? a.updated_at ?? a.created_at);
+  })[0];
+}
+
+function strongestStatus(rows: Intake[]): IntakeStatus {
+  return rows.reduce((best, row) => statusRank(row.status) > statusRank(best) ? row.status as IntakeStatus : best, "created" as IntakeStatus);
+}
+
 function fallbackLifecyclePhone(input: {
   phone?: string | null;
   whatsapp?: string | null;
@@ -243,6 +301,115 @@ export async function scheduledItemsForUser(userId: string | null, database = db
     database.select().from(userMedications).where(eq(userMedications.user_id, userId)).limit(100),
   ]);
   return [...events, ...medicationEventsFromRows(medications)];
+}
+
+export async function repairLifecycleDuplicates(database = db) {
+  const rows = await database.select().from(userIntakes);
+  const groups: Intake[][] = [];
+  const keyToGroup = new Map<string, Intake[]>();
+  for (const row of rows) {
+    const keys = lifecycleIdentityKeys({
+      userId: row.user_id,
+      elderUserId: row.elder_user_id,
+      familyUserId: row.family_user_id,
+      email: row.email,
+      phone: row.phone,
+    });
+    if (!keys.length) keys.push(canonicalIdentityKey(row));
+    const matchingGroups = Array.from(new Set(keys.map((key) => keyToGroup.get(key)).filter(Boolean))) as Intake[][];
+    const group = matchingGroups[0] ?? [];
+    if (!matchingGroups.length) groups.push(group);
+    for (const extraGroup of matchingGroups.slice(1)) {
+      group.push(...extraGroup);
+      const index = groups.indexOf(extraGroup);
+      if (index >= 0) groups.splice(index, 1);
+    }
+    group.push(row);
+    for (const item of group) {
+      for (const key of lifecycleIdentityKeys({
+        userId: item.user_id,
+        elderUserId: item.elder_user_id,
+        familyUserId: item.family_user_id,
+        email: item.email,
+        phone: item.phone,
+      })) keyToGroup.set(key, group);
+    }
+  }
+  const repaired: Array<{ canonical_id: string; duplicate_id: string }> = [];
+
+  for (const groupRows of groups) {
+    const activeRows = groupRows.filter((row) => !isMergedLifecycleDuplicate(row));
+    if (activeRows.length <= 1) continue;
+
+    const canonical = chooseCanonicalIntake(activeRows);
+    const duplicates = activeRows.filter((row) => row.id !== canonical.id);
+    const strongest = strongestStatus(activeRows);
+    const latest = activeRows.reduce((best, row) => {
+      const candidate = timestampRank(row.last_activity_at ?? row.updated_at ?? row.created_at);
+      return candidate > timestampRank(best.last_activity_at ?? best.updated_at ?? best.created_at) ? row : best;
+    }, canonical);
+    const bestTier = latest.tier || canonical.tier;
+    const bestOrg = latest.organization_id ?? canonical.organization_id;
+    const linkSentAt = activeRows
+      .map((row) => row.link_sent_at)
+      .filter(Boolean)
+      .sort((a, b) => timestampRank(b) - timestampRank(a))[0] ?? canonical.link_sent_at;
+    const activatedAt = activeRows
+      .map((row) => row.activated_at)
+      .filter(Boolean)
+      .sort((a, b) => timestampRank(b) - timestampRank(a))[0] ?? canonical.activated_at;
+
+    await database.update(userIntakes).set({
+      status: strongest,
+      tier: bestTier,
+      organization_id: bestOrg,
+      link_sent_at: linkSentAt,
+      activated_at: activatedAt,
+      last_activity_at: latest.last_activity_at ?? latest.updated_at ?? latest.created_at,
+      metadata: {
+        ...metadataRecord(canonical.metadata),
+        duplicate_intake_ids: duplicates.map((row) => row.id),
+        duplicate_repair_at: new Date().toISOString(),
+      },
+      updated_at: new Date(),
+    }).where(eq(userIntakes.id, canonical.id));
+
+    for (const duplicate of duplicates) {
+      await database.update(userIntakes).set({
+        status: "dropped",
+        journey_step: "merged_duplicate",
+        metadata: {
+          ...metadataRecord(duplicate.metadata),
+          hidden_from_lifecycle: true,
+          merged_into_intake_id: canonical.id,
+          merged_at: new Date().toISOString(),
+        },
+        dropped_at: duplicate.dropped_at ?? new Date(),
+        updated_at: new Date(),
+      }).where(eq(userIntakes.id, duplicate.id));
+      repaired.push({ canonical_id: canonical.id, duplicate_id: duplicate.id });
+      await recordLifecycleEvent({
+        intakeId: duplicate.id,
+        userId: targetUserIdForIntake(duplicate),
+        eventType: "lifecycle_duplicate_merged",
+        fromStatus: duplicate.status,
+        toStatus: "dropped",
+        channel: "admin",
+        metadata: { canonical_intake_id: canonical.id },
+      }, database);
+    }
+
+    await recordLifecycleEvent({
+      intakeId: canonical.id,
+      userId: targetUserIdForIntake(canonical),
+      eventType: "lifecycle_duplicates_repaired",
+      toStatus: strongest,
+      channel: "admin",
+      metadata: { duplicate_intake_ids: duplicates.map((row) => row.id) },
+    }, database);
+  }
+
+  return repaired;
 }
 
 export async function backfillLifecycleUsers(database = db) {
@@ -376,6 +543,7 @@ export async function backfillLifecycleUsers(database = db) {
     }, database);
   }
 
+  await repairLifecycleDuplicates(database);
   return inserted;
 }
 
@@ -487,10 +655,11 @@ export function validateFamilyIntake(data: IntakeCreateInput): string | null {
 
 export async function getLifecycleSummary(database = db) {
   await backfillLifecycleUsers(database);
-  const [rows, consentRows] = await Promise.all([
+  const [allRows, consentRows] = await Promise.all([
     database.select().from(userIntakes).orderBy(desc(userIntakes.created_at)),
     database.select().from(consentAttempts).orderBy(desc(consentAttempts.created_at)),
   ]);
+  const rows = allRows.filter((row) => !isMergedLifecycleDuplicate(row));
   const by = (key: "entry_point" | "user_type" | "status" | "tier" | "consent_status") =>
     rows.reduce<Record<string, number>>((acc, row) => {
       const value = String(row[key] ?? "unknown");
@@ -625,7 +794,7 @@ export async function listLifecycleUsers(filters: {
     filters.tier ? eq(userIntakes.tier, filters.tier) : undefined,
   ].filter(Boolean);
 
-  const rows = await database
+  const rows = (await database
     .select({
       intake: userIntakes,
       organization_name: organizations.name,
@@ -634,7 +803,9 @@ export async function listLifecycleUsers(filters: {
     .leftJoin(organizations, eq(userIntakes.organization_id, organizations.id))
     .where(where.length ? and(...where) : undefined)
     .orderBy(desc(userIntakes.created_at))
-    .limit(200);
+    .limit(240))
+    .filter((row) => !isMergedLifecycleDuplicate(row.intake))
+    .slice(0, 200);
 
   const profileIds = Array.from(new Set(rows.map((row) => targetUserIdForIntake(row.intake)).filter(Boolean))) as string[];
   const profileRows = profileIds.length
