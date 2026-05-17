@@ -112,3 +112,16 @@ test("home screen renders core cards and navigates to concierge", async ({ page 
   await page.getByTestId("card-home-agent-concierge").click();
   await expect(page).toHaveURL(/\/concierge$/);
 });
+
+test("notifications settings back returns to settings home", async ({ page }) => {
+  await mockApi(page, true);
+  await page.goto("/settings/notifications", { waitUntil: "domcontentloaded" });
+
+  await expect(page).toHaveURL(/\/settings\/notifications$/);
+  await expect(page.getByTestId("button-phone-frame-back")).toBeVisible();
+  await page.getByTestId("button-phone-frame-back").click();
+
+  await expect(page).toHaveURL(/\/settings$/);
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+  await expect(page.getByText("Oops! Page not found")).toHaveCount(0);
+});

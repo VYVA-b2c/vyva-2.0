@@ -57,7 +57,7 @@ export default function NotificationsSettings() {
   };
 
   return (
-    <PhoneFrame subtitle={t("settings.notifications.title")} showBack onBack={() => navigate("/app/settings")}>
+    <PhoneFrame subtitle={t("settings.notifications.title")} showBack onBack={() => navigate("/settings")}>
       <div className="flex flex-col gap-5 px-4 py-5">
         <div>
           <h2 className="text-lg font-bold text-gray-900">🔔 {t("settings.notifications.title")}</h2>
