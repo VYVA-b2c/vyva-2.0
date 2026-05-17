@@ -55,6 +55,38 @@ function supportFrequency(schedule: ScheduledSupport) {
   return `${days} at ${times}`;
 }
 
+const supportDayOptions = [
+  { value: "MON", label: "Mon" },
+  { value: "TUE", label: "Tue" },
+  { value: "WED", label: "Wed" },
+  { value: "THU", label: "Thu" },
+  { value: "FRI", label: "Fri" },
+  { value: "SAT", label: "Sat" },
+  { value: "SUN", label: "Sun" },
+];
+
+type SupportScheduleDraft = {
+  frequency_type: string;
+  days_of_week: string[];
+  times_of_day: string[];
+  timezone: string;
+  preferred_language: string;
+  quiet_hours_start: string;
+  quiet_hours_end: string;
+};
+
+function supportDraftFromSchedule(schedule: ScheduledSupport): SupportScheduleDraft {
+  return {
+    frequency_type: schedule.frequency_type || "DAILY",
+    days_of_week: schedule.days_of_week ?? [],
+    times_of_day: schedule.times_of_day?.length ? schedule.times_of_day : ["09:00"],
+    timezone: schedule.timezone || "Europe/Madrid",
+    preferred_language: schedule.preferred_language || "es",
+    quiet_hours_start: schedule.quiet_hours_start || "21:00",
+    quiet_hours_end: schedule.quiet_hours_end || "08:00",
+  };
+}
+
 export function IntakeTable({ users, onView, onTriggerConsent, onToggleEnabled, busyAction = null, compact = false }: {
   users: Intake[];
   onView: (intake: Intake) => void;
@@ -270,7 +302,7 @@ export function AccountSubscriptionsSection({
   );
 }
 
-export function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, statusMessage, saving = false, onClose, onSave, onToggle, newEvent, setNewEvent, onCreateEvent, onEventStatus, onEventTime }: {
+export function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, statusMessage, saving = false, scheduleBusyAction = null, onClose, onSave, onToggle, newEvent, setNewEvent, onCreateEvent, onEventStatus, onEventTime, onSupportSave, onSupportStatus }: {
   detail: UserDetail;
   draft: JsonRecord;
   setDraft: (next: JsonRecord) => void;
@@ -278,6 +310,7 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
   planOptions: Array<{ value: string; label: string }>;
   statusMessage?: string;
   saving?: boolean;
+  scheduleBusyAction?: string | null;
   onClose: () => void;
   onSave: () => void;
   onToggle: () => void;
@@ -286,6 +319,8 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
   onCreateEvent: () => void;
   onEventStatus: (event: ScheduledEvent, action: "pause" | "resume" | "cancel") => void;
   onEventTime: (event: ScheduledEvent, scheduledFor: string) => void;
+  onSupportSave: (schedule: ScheduledSupport, draft: SupportScheduleDraft) => void;
+  onSupportStatus: (schedule: ScheduledSupport, action: "pause" | "resume") => void;
 }) {
   const disabled = detail.profile?.account_status === "disabled" || detail.intake.account_status === "disabled";
   const primaryMapping = detail.account_mappings?.[0];
@@ -300,6 +335,8 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
   const newEventDate = newEvent.scheduled_date || toDateInputValue(newEvent.scheduled_for);
   const newEventTime = newEvent.scheduled_time || toTimeInputValue(newEvent.scheduled_for);
   const [activeDetailTab, setActiveDetailTab] = useState<"profile" | "schedule" | "activity">("profile");
+  const [editingSupportId, setEditingSupportId] = useState<string | null>(null);
+  const [supportDraft, setSupportDraft] = useState<SupportScheduleDraft | null>(null);
   const detailTabs = [
     { id: "profile" as const, label: "Profile" },
     { id: "schedule" as const, label: "Schedule" },
@@ -384,60 +421,85 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
           </section>}
 
           {activeDetailTab === "schedule" && <section className="mx-auto w-full max-w-4xl rounded-2xl border border-[#eadfd5] p-4">
-            <h3 className="text-xl font-black">Scheduled events</h3>
-            <div className="mt-3 grid gap-2">
-              {detail.scheduled_events.length === 0 && <p className="text-[#7d6b65]">No scheduled events yet.</p>}
-              {detail.scheduled_events.map((event) => (
-                <div key={event.id} className="rounded-2xl bg-[#fbf8f5] p-3">
-                  <p className="font-bold">{event.title}</p>
-                  <p className="text-sm text-[#7d6b65]">{event.event_type} - {event.status} - {event.display_time ?? formatDate(event.scheduled_for)}</p>
-                  {event.description && <p className="text-sm">{event.description}</p>}
-                  {!event.read_only && (
-                    <>
-                      <form
-                        className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]"
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          const form = new FormData(e.currentTarget);
-                          const scheduledFor = combineDateTimeLocal(
-                            form.get("scheduled_date")?.toString() ?? "",
-                            form.get("scheduled_time")?.toString() ?? "",
-                          );
-                          onEventTime(event, scheduledFor);
-                        }}
-                      >
-                        <Field label="Date">
-                          <input
-                            className="w-full rounded-xl border px-3 py-2"
-                            name="scheduled_date"
-                            type="date"
-                            defaultValue={toDateInputValue(event.scheduled_for)}
-                          />
-                        </Field>
-                        <Field label="Time">
-                          <input
-                            className="w-full rounded-xl border px-3 py-2"
-                            name="scheduled_time"
-                            type="time"
-                            defaultValue={toTimeInputValue(event.scheduled_for)}
-                          />
-                        </Field>
-                        <button className="self-end rounded-xl bg-purple-700 px-4 py-2 text-sm font-bold text-white" type="submit">
-                          Save time
-                        </button>
-                      </form>
-                      <div className="mt-2 flex gap-2">
-                        <button className="rounded-full border px-3 py-1 text-sm font-bold" onClick={() => onEventStatus(event, event.status === "paused" ? "resume" : "pause")}>{event.status === "paused" ? "Resume" : "Pause"}</button>
-                        <button className="rounded-full border px-3 py-1 text-sm font-bold" onClick={() => onEventStatus(event, "cancel")}>Cancel</button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))}
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-xl font-black">Schedule</h3>
+                <p className="mt-1 text-sm text-[#7d6b65]">One-off events and recurring support for this user.</p>
+              </div>
+              <span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-black text-purple-700">
+                {(detail.scheduled_events ?? []).filter((event) => !event.read_only).length} events - {detail.scheduled_support?.length ?? 0} support services
+              </span>
             </div>
+            {statusMessage && (
+              <p className={`mt-3 rounded-xl px-3 py-2 text-sm font-bold ${statusMessage.toLowerCase().includes("could not") || statusMessage.toLowerCase().includes("not allowed") ? "bg-[#fff3e8] text-[#8a4a00]" : "bg-[#ecfdf3] text-[#087443]"}`}>
+                {statusMessage}
+              </p>
+            )}
+
+            <div className="mt-4 rounded-2xl border border-[#eadfd5] bg-[#fbf8f5] p-3">
+              <h4 className="font-black">Upcoming events</h4>
+              <p className="mt-1 text-sm text-[#7d6b65]">Specific appointments, reminders, or VYVA sessions created for this user.</p>
+              <div className="mt-3 grid gap-2">
+                {detail.scheduled_events.filter((event) => !event.read_only).length === 0 && <p className="text-[#7d6b65]">No scheduled events yet.</p>}
+                {detail.scheduled_events.filter((event) => !event.read_only).map((event) => (
+                  <div key={event.id} className="rounded-2xl bg-white p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="font-bold">{event.title}</p>
+                        <p className="text-sm text-[#7d6b65]">{event.event_type} - {event.status} - {event.display_time ?? formatDate(event.scheduled_for)}</p>
+                      </div>
+                      <span className="rounded-full bg-[#f4eafe] px-2 py-1 text-xs font-black text-purple-700">
+                        {event.source || "app"}
+                      </span>
+                    </div>
+                    {event.description && <p className="mt-2 text-sm">{event.description}</p>}
+                    <form
+                      className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        const form = new FormData(e.currentTarget);
+                        const scheduledFor = combineDateTimeLocal(
+                          form.get("scheduled_date")?.toString() ?? "",
+                          form.get("scheduled_time")?.toString() ?? "",
+                        );
+                        onEventTime(event, scheduledFor);
+                      }}
+                    >
+                      <Field label="Date">
+                        <input
+                          className="w-full rounded-xl border px-3 py-2"
+                          name="scheduled_date"
+                          type="date"
+                          defaultValue={toDateInputValue(event.scheduled_for)}
+                        />
+                      </Field>
+                      <Field label="Time">
+                        <input
+                          className="w-full rounded-xl border px-3 py-2"
+                          name="scheduled_time"
+                          type="time"
+                          defaultValue={toTimeInputValue(event.scheduled_for)}
+                        />
+                      </Field>
+                      <button className="self-end rounded-xl bg-purple-700 px-4 py-2 text-sm font-bold text-white" type="submit">
+                        Save time
+                      </button>
+                    </form>
+                    <div className="mt-2 flex gap-2">
+                      <button type="button" className="rounded-full border px-3 py-1 text-sm font-bold" onClick={() => onEventStatus(event, event.status === "paused" ? "resume" : "pause")}>{event.status === "paused" ? "Resume" : "Pause"}</button>
+                      <button type="button" className="rounded-full border px-3 py-1 text-sm font-bold" onClick={() => onEventStatus(event, "cancel")}>Cancel</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div className="mt-4 rounded-2xl border border-[#eadfd5] bg-[#fbf8f5] p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="font-bold">Scheduled support</p>
+                <div>
+                  <h4 className="font-black">Recurring support</h4>
+                  <p className="mt-1 text-sm text-[#7d6b65]">Ongoing check-ins, coaching, medication reminders, and follow-ups.</p>
+                </div>
                 <span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-black text-purple-700">
                   {detail.scheduled_support?.length ?? 0} services
                 </span>
@@ -446,22 +508,130 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                 <p className="mt-2 text-sm text-[#7d6b65]">No support schedules yet.</p>
               ) : (
                 <div className="mt-3 grid gap-2">
-                  {(detail.scheduled_support ?? []).map((schedule) => (
-                    <div key={schedule.id} className="rounded-xl bg-white p-3 text-sm">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="font-black">{schedule.friendly_label || supportLabel(schedule.interaction_type)}</p>
-                        <span className={`rounded-full px-2 py-1 text-xs font-black ${schedule.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700" : "bg-[#f4eafe] text-purple-700"}`}>
-                          {schedule.status.toLowerCase()}
-                        </span>
+                  {(detail.scheduled_support ?? []).map((schedule) => {
+                    const editing = editingSupportId === schedule.id && supportDraft;
+                    const supportBusy = scheduleBusyAction === `support:${schedule.id}` || scheduleBusyAction === `support-status:${schedule.id}`;
+                    const canEditSupport = schedule.admin_edit_allowed;
+                    return (
+                      <div key={schedule.id} className="rounded-xl bg-white p-3 text-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="font-black">{schedule.friendly_label || supportLabel(schedule.interaction_type)}</p>
+                          <span className={`rounded-full px-2 py-1 text-xs font-black ${schedule.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700" : "bg-[#f4eafe] text-purple-700"}`}>
+                            {schedule.status.toLowerCase()}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-[#7d6b65]">{supportFrequency(schedule)}</p>
+                        <p className="text-[#7d6b65]">Next: {formatDate(schedule.next_run_at)}</p>
+                        <p className="text-[#7d6b65]">Last result: {schedule.last_result ?? "No recent result"}</p>
+                        <p className="text-[#7d6b65]">
+                          Consent: {schedule.consent_status ?? "not_required"} - Admin edits {schedule.admin_edit_allowed ? "allowed" : "not allowed"}
+                        </p>
+                        {!canEditSupport && (
+                          <p className="mt-2 rounded-xl bg-[#fff3e8] px-3 py-2 font-bold text-[#8a4a00]">
+                            User has not allowed admin edits for support schedules.
+                          </p>
+                        )}
+                        {editing && canEditSupport ? (
+                          <div className="mt-3 grid gap-3 rounded-2xl border border-purple-100 bg-[#fbf8f5] p-3">
+                            <div className="grid gap-2 md:grid-cols-2">
+                              <Field label="Frequency">
+                                <select className="w-full rounded-xl border px-3 py-2" value={supportDraft.frequency_type} onChange={(e) => setSupportDraft({ ...supportDraft, frequency_type: e.target.value })}>
+                                  <option value="DAILY">Daily</option>
+                                  <option value="WEEKLY">Weekly</option>
+                                  <option value="CUSTOM">Custom</option>
+                                  <option value="ONE_OFF">One-off</option>
+                                </select>
+                              </Field>
+                              <Field label="Timezone">
+                                <input className="w-full rounded-xl border px-3 py-2" value={supportDraft.timezone} onChange={(e) => setSupportDraft({ ...supportDraft, timezone: e.target.value })} />
+                              </Field>
+                            </div>
+                            {(supportDraft.frequency_type === "WEEKLY" || supportDraft.frequency_type === "CUSTOM") && (
+                              <div>
+                                <p className="mb-2 font-bold text-[#4d4351]">Days</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {supportDayOptions.map((day) => {
+                                    const selected = supportDraft.days_of_week.includes(day.value);
+                                    return (
+                                      <button
+                                        key={day.value}
+                                        type="button"
+                                        className={`rounded-xl px-3 py-2 text-xs font-black ${selected ? "bg-purple-700 text-white" : "border border-[#eadfd5] text-purple-700"}`}
+                                        onClick={() => setSupportDraft({
+                                          ...supportDraft,
+                                          days_of_week: selected
+                                            ? supportDraft.days_of_week.filter((value) => value !== day.value)
+                                            : [...supportDraft.days_of_week, day.value],
+                                        })}
+                                      >
+                                        {day.label}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                            <div>
+                              <p className="mb-2 font-bold text-[#4d4351]">Times</p>
+                              <div className="grid gap-2">
+                                {supportDraft.times_of_day.map((time, index) => (
+                                  <div key={`${schedule.id}-${index}`} className="grid grid-cols-[1fr_auto] gap-2">
+                                    <input
+                                      className="rounded-xl border px-3 py-2"
+                                      type="time"
+                                      value={time}
+                                      onChange={(e) => {
+                                        const times = [...supportDraft.times_of_day];
+                                        times[index] = e.target.value;
+                                        setSupportDraft({ ...supportDraft, times_of_day: times });
+                                      }}
+                                    />
+                                    <button
+                                      type="button"
+                                      className="rounded-xl border px-3 py-2 font-bold"
+                                      onClick={() => setSupportDraft({ ...supportDraft, times_of_day: supportDraft.times_of_day.filter((_, itemIndex) => itemIndex !== index) })}
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                ))}
+                                <button type="button" className="rounded-xl bg-purple-50 px-3 py-2 font-bold text-purple-700" onClick={() => setSupportDraft({ ...supportDraft, times_of_day: [...supportDraft.times_of_day, "12:00"] })}>
+                                  Add another time
+                                </button>
+                              </div>
+                            </div>
+                            <div className="grid gap-2 md:grid-cols-2">
+                              <Field label="Quiet hours start">
+                                <input className="w-full rounded-xl border px-3 py-2" type="time" value={supportDraft.quiet_hours_start} onChange={(e) => setSupportDraft({ ...supportDraft, quiet_hours_start: e.target.value })} />
+                              </Field>
+                              <Field label="Quiet hours end">
+                                <input className="w-full rounded-xl border px-3 py-2" type="time" value={supportDraft.quiet_hours_end} onChange={(e) => setSupportDraft({ ...supportDraft, quiet_hours_end: e.target.value })} />
+                              </Field>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <button type="button" className="rounded-xl bg-purple-700 px-4 py-2 font-bold text-white disabled:opacity-60" disabled={supportBusy} onClick={() => onSupportSave(schedule, supportDraft)}>
+                                {supportBusy ? "Saving..." : "Save support schedule"}
+                              </button>
+                              <button type="button" className="rounded-xl border px-4 py-2 font-bold" onClick={() => { setEditingSupportId(null); setSupportDraft(null); }}>
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          canEditSupport && (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <button type="button" className="rounded-full bg-purple-700 px-3 py-1.5 font-bold text-white disabled:opacity-60" disabled={supportBusy} onClick={() => { setEditingSupportId(schedule.id); setSupportDraft(supportDraftFromSchedule(schedule)); }}>
+                                Edit support
+                              </button>
+                              <button type="button" className="rounded-full border px-3 py-1.5 font-bold disabled:opacity-60" disabled={supportBusy} onClick={() => onSupportStatus(schedule, schedule.status === "PAUSED" || schedule.is_paused ? "resume" : "pause")}>
+                                {schedule.status === "PAUSED" || schedule.is_paused ? "Resume" : "Pause"}
+                              </button>
+                            </div>
+                          )
+                        )}
                       </div>
-                      <p className="mt-1 text-[#7d6b65]">{supportFrequency(schedule)}</p>
-                      <p className="text-[#7d6b65]">Next: {formatDate(schedule.next_run_at)}</p>
-                      <p className="text-[#7d6b65]">Last result: {schedule.last_result ?? "No recent result"}</p>
-                      <p className="text-[#7d6b65]">
-                        Consent: {schedule.consent_status ?? "not_required"} - Caregiver/admin edits {schedule.admin_edit_allowed ? "allowed" : "not allowed"}
-                      </p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

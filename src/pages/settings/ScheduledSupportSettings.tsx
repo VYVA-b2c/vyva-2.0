@@ -53,6 +53,25 @@ type InteractionLog = {
   created_at: string;
 };
 
+type ScheduledEvent = {
+  id: string;
+  event_type: string;
+  title: string;
+  description?: string | null;
+  channel: string;
+  scheduled_for?: string | null;
+  display_time?: string | null;
+  timezone: string;
+  recurrence: string;
+  status: string;
+  source: string;
+  created_by?: string | null;
+  updated_by?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  read_only?: boolean;
+};
+
 const dayOptions = [
   { value: "MON", label: "L" },
   { value: "TUE", label: "M" },
@@ -98,6 +117,22 @@ function formatDate(value?: string | null) {
   });
 }
 
+function eventTypeLabel(type: string) {
+  if (type === "check_in_call") return "Llamada de seguimiento";
+  if (type === "medication_reminder") return "Recordatorio";
+  if (type === "brain_coach") return "Entrenador de memoria";
+  if (type === "vyva_chat") return "VYVA chat";
+  if (type === "social_room_session") return "Sala social";
+  if (type === "concierge_call") return "Concierge";
+  return "Evento";
+}
+
+function eventOwnerLabel(event: ScheduledEvent) {
+  if (event.created_by === "admin" || event.updated_by === "admin" || event.source === "admin") return "Programado por el equipo VYVA";
+  if (event.source === "system") return "Programado por VYVA";
+  return "Creado por ti";
+}
+
 function frequencyLabel(schedule: Schedule) {
   if (schedule.frequency_type === "ONE_OFF") return "Una sola vez";
   if (schedule.frequency_type === "DAILY") return schedule.times_of_day.length > 1 ? "Varias veces al día" : "Cada día";
@@ -106,6 +141,42 @@ function frequencyLabel(schedule: Schedule) {
     .filter(Boolean)
     .join(", ");
   return days ? `Días: ${days}` : "Días concretos";
+}
+
+function ScheduledEventCard({ event }: { event: ScheduledEvent }) {
+  return (
+    <article className="rounded-[24px] border border-vyva-border bg-white p-4 shadow-vyva-card">
+      <div className="flex items-start gap-3">
+        <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-[#EEF4FF] text-[#2563EB]">
+          <CalendarClock size={24} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="font-display text-[23px] leading-tight text-vyva-text-1">{event.title}</h3>
+            <span className="rounded-full bg-[#EEF4FF] px-2.5 py-1 text-[11px] font-bold text-[#2563EB]">
+              {event.status}
+            </span>
+          </div>
+          <p className="mt-1 text-[14px] leading-relaxed text-vyva-text-2">{eventTypeLabel(event.event_type)} - {eventOwnerLabel(event)}</p>
+          {event.description ? <p className="mt-2 text-[14px] leading-relaxed text-vyva-text-2">{event.description}</p> : null}
+        </div>
+      </div>
+      <div className="mt-4 grid gap-3 rounded-[20px] bg-[#FFF9F1] p-3 text-[14px]">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-vyva-text-2">CuÃ¡ndo</span>
+          <strong className="text-right text-vyva-text-1">{event.display_time ?? formatDate(event.scheduled_for)}</strong>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-vyva-text-2">Canal</span>
+          <strong className="text-right capitalize text-vyva-text-1">{event.channel}</strong>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-vyva-text-2">RepeticiÃ³n</span>
+          <strong className="text-right text-vyva-text-1">{event.recurrence === "none" ? "No se repite" : event.recurrence}</strong>
+        </div>
+      </div>
+    </article>
+  );
 }
 
 function lastResult(schedule: Schedule, logs: InteractionLog[]) {
@@ -389,6 +460,9 @@ export default function ScheduledSupportSettings() {
   const schedulesQuery = useQuery<{ schedules: Schedule[] }>({
     queryKey: ["/api/users/me/schedules"],
   });
+  const eventsQuery = useQuery<{ events: ScheduledEvent[] }>({
+    queryKey: ["/api/profile/scheduled-events"],
+  });
   const logsQuery = useQuery<{ logs: InteractionLog[] }>({
     queryKey: ["/api/users/me/interaction-logs"],
   });
@@ -401,6 +475,16 @@ export default function ScheduledSupportSettings() {
       .filter((schedule) => schedule.status !== "CANCELLED")
       .sort((a, b) => scheduleSort(a) - scheduleSort(b)),
     [schedulesQuery.data?.schedules],
+  );
+  const scheduledEvents = useMemo(
+    () => (eventsQuery.data?.events ?? [])
+      .filter((event) => !event.read_only && !event.id.startsWith("medication:") && event.status !== "cancelled")
+      .sort((a, b) => {
+        const left = a.scheduled_for ? new Date(a.scheduled_for).getTime() : Number.MAX_SAFE_INTEGER;
+        const right = b.scheduled_for ? new Date(b.scheduled_for).getTime() : Number.MAX_SAFE_INTEGER;
+        return left - right;
+      }),
+    [eventsQuery.data?.events],
   );
   const logs = logsQuery.data?.logs ?? [];
   const adminEditAllowed = schedules.some((schedule) => schedule.admin_edit_allowed);
@@ -499,6 +583,36 @@ export default function ScheduledSupportSettings() {
             <span className="rounded-full bg-white px-3 py-1 text-[12px]">{adminEditAllowed ? "Sí" : "No"}</span>
           </button>
         </section>
+
+        <section className="grid gap-3">
+          <div className="flex items-center justify-between gap-3 px-1">
+            <div>
+              <h2 className="font-display text-[24px] leading-tight text-vyva-text-1">PrÃ³ximos eventos</h2>
+              <p className="mt-1 text-[14px] text-vyva-text-2">Citas, recordatorios y sesiones puntuales programadas por ti o por VYVA.</p>
+            </div>
+            <span className="rounded-full bg-[#EEF4FF] px-3 py-1 text-[12px] font-bold text-[#2563EB]">{scheduledEvents.length}</span>
+          </div>
+          {eventsQuery.isLoading ? (
+            <div className="rounded-[24px] bg-white p-5 text-center text-vyva-text-2 shadow-vyva-card">Cargando eventos...</div>
+          ) : eventsQuery.isError ? (
+            <div className="rounded-[24px] bg-white p-5 text-center text-vyva-text-2 shadow-vyva-card">
+              <p className="font-bold text-vyva-text-1">No pudimos cargar tus eventos.</p>
+              <p className="mt-2 text-[14px]">Actualiza la pagina. Si sigue pasando, avisa al equipo VYVA.</p>
+            </div>
+          ) : scheduledEvents.length === 0 ? (
+            <div className="rounded-[24px] bg-white p-5 text-center text-vyva-text-2 shadow-vyva-card">No hay eventos puntuales programados.</div>
+          ) : (
+            scheduledEvents.map((event) => <ScheduledEventCard key={event.id} event={event} />)
+          )}
+        </section>
+
+        <div className="flex items-center justify-between gap-3 px-1">
+          <div>
+            <h2 className="font-display text-[24px] leading-tight text-vyva-text-1">Apoyo recurrente</h2>
+            <p className="mt-1 text-[14px] text-vyva-text-2">Rutinas que VYVA mantiene activas para acompaÃ±arte.</p>
+          </div>
+          <span className="rounded-full bg-[#F5F0FF] px-3 py-1 text-[12px] font-bold text-vyva-purple">{schedules.length}</span>
+        </div>
 
         {schedulesQuery.isLoading ? (
           <div className="rounded-[24px] bg-white p-5 text-center text-vyva-text-2 shadow-vyva-card">Cargando tus horarios...</div>

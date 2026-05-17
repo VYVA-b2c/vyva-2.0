@@ -20,7 +20,10 @@ import {
   type HomePlanCardAdmin,
   type Intake,
   type JsonRecord,
+  type LoginMapping,
   type Organization,
+  type ScheduledEvent,
+  type ScheduledSupport,
   type SubscriptionPlanAdmin,
   type UserDetail,
   countryCodeOptions,
@@ -48,6 +51,16 @@ type SignupShareNotice = {
   tone: "success" | "warning" | "error";
   title: string;
   details: string[];
+};
+
+type SupportScheduleDraft = {
+  frequency_type: string;
+  days_of_week: string[];
+  times_of_day: string[];
+  timezone: string;
+  preferred_language: string;
+  quiet_hours_start: string;
+  quiet_hours_end: string;
 };
 
 export default function LifecycleAdminPage() {
@@ -100,6 +113,24 @@ export default function LifecycleAdminPage() {
     const errorMessage = typeof data.error === "string" && data.error
       ? data.error
       : text.trim() || `Admin request failed (${res.status})`;
+    if (!res.ok) throw new Error(errorMessage);
+    return data;
+  }
+
+  async function rootApi(path: string, options: RequestInit = {}) {
+    const res = await apiFetch(path, options);
+    const text = await res.text();
+    let data: JsonRecord = {};
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { error: text.trim() };
+      }
+    }
+    const errorMessage = typeof data.error === "string" && data.error
+      ? data.error
+      : text.trim() || `Request failed (${res.status})`;
     if (!res.ok) throw new Error(errorMessage);
     return data;
   }
@@ -517,31 +548,114 @@ export default function LifecycleAdminPage() {
       return;
     }
     const { scheduled_date, scheduled_time, ...eventPayload } = newEvent;
-    await api(`/users/${selectedUser.intake.id}/scheduled-events`, {
-      method: "POST",
-      body: JSON.stringify(eventPayload),
-    });
-    setNewEvent(emptyScheduledEvent);
-    await openUserDetail(selectedUser.intake);
-    setUserDetailMessage("Scheduled event added.");
-    setMessage("Scheduled event added.");
+    setUserDetailMessage("");
+    try {
+      await api(`/users/${selectedUser.intake.id}/scheduled-events`, {
+        method: "POST",
+        body: JSON.stringify(eventPayload),
+      });
+      setNewEvent(emptyScheduledEvent);
+      await openUserDetail(selectedUser.intake);
+      setUserDetailMessage("Scheduled event added.");
+      setMessage("Scheduled event added.");
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Could not add the scheduled event.";
+      setUserDetailMessage(errorMessage);
+      setMessage(errorMessage);
+    }
   }
 
   async function setEventStatus(event: ScheduledEvent, action: "pause" | "resume" | "cancel") {
     if (event.read_only) return;
-    await api(`/scheduled-events/${event.id}/${action}`, { method: "POST" });
-    if (selectedUser) await openUserDetail(selectedUser.intake);
+    setUserDetailMessage("");
+    try {
+      await api(`/scheduled-events/${event.id}/${action}`, { method: "POST" });
+      if (selectedUser) await openUserDetail(selectedUser.intake);
+      const confirmation = `Scheduled event ${action === "cancel" ? "cancelled" : action === "pause" ? "paused" : "resumed"}.`;
+      setUserDetailMessage(confirmation);
+      setMessage(confirmation);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Could not update the scheduled event.";
+      setUserDetailMessage(errorMessage);
+      setMessage(errorMessage);
+    }
   }
 
   async function updateEventTime(event: ScheduledEvent, scheduledFor: string) {
     if (!selectedUser || event.read_only || !scheduledFor) return;
-    await api(`/scheduled-events/${event.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ scheduled_for: new Date(scheduledFor).toISOString() }),
-    });
-    await openUserDetail(selectedUser.intake);
-    setUserDetailMessage("Scheduled event time updated.");
-    setMessage("Scheduled event time updated.");
+    setUserDetailMessage("");
+    try {
+      await api(`/scheduled-events/${event.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ scheduled_for: new Date(scheduledFor).toISOString() }),
+      });
+      await openUserDetail(selectedUser.intake);
+      setUserDetailMessage("Scheduled event time updated.");
+      setMessage("Scheduled event time updated.");
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Could not update the scheduled event time.";
+      setUserDetailMessage(errorMessage);
+      setMessage(errorMessage);
+    }
+  }
+
+  async function saveSupportSchedule(schedule: ScheduledSupport, draft: SupportScheduleDraft) {
+    if (!selectedUser) return;
+    if (!schedule.admin_edit_allowed) {
+      setUserDetailMessage("User has not allowed admin edits for support schedules.");
+      return;
+    }
+    setBusyAction(`support:${schedule.id}`);
+    setUserDetailMessage("");
+    try {
+      await rootApi(`/api/schedules/${schedule.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          frequency_type: draft.frequency_type,
+          days_of_week: draft.days_of_week,
+          times_of_day: draft.times_of_day,
+          timezone: draft.timezone,
+          preferred_language: draft.preferred_language,
+          quiet_hours_start: draft.quiet_hours_start,
+          quiet_hours_end: draft.quiet_hours_end,
+        }),
+      });
+      await openUserDetail(selectedUser.intake);
+      setUserDetailMessage("Recurring support schedule updated.");
+      setMessage("Recurring support schedule updated.");
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Could not update the support schedule.";
+      setUserDetailMessage(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function setSupportStatus(schedule: ScheduledSupport, action: "pause" | "resume") {
+    if (!selectedUser) return;
+    if (!schedule.admin_edit_allowed) {
+      setUserDetailMessage("User has not allowed admin edits for support schedules.");
+      return;
+    }
+    setBusyAction(`support-status:${schedule.id}`);
+    setUserDetailMessage("");
+    try {
+      await rootApi(`/api/schedules/${schedule.id}/${action}`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      await openUserDetail(selectedUser.intake);
+      const confirmation = `Recurring support schedule ${action === "pause" ? "paused" : "resumed"}.`;
+      setUserDetailMessage(confirmation);
+      setMessage(confirmation);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Could not update the support schedule.";
+      setUserDetailMessage(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setBusyAction(null);
+    }
   }
 
   async function handleBulkFile(e: ChangeEvent<HTMLInputElement>, org: Organization) {
@@ -854,6 +968,7 @@ export default function LifecycleAdminPage() {
           planOptions={planOptions}
           statusMessage={userDetailMessage}
           saving={savingUserDetail}
+          scheduleBusyAction={busyAction}
           onClose={() => setSelectedUser(null)}
           onSave={saveUserDetail}
           onToggle={() => toggleUser(selectedUser.intake)}
@@ -862,6 +977,8 @@ export default function LifecycleAdminPage() {
           onCreateEvent={createScheduledEventForUser}
           onEventStatus={setEventStatus}
           onEventTime={updateEventTime}
+          onSupportSave={saveSupportSchedule}
+          onSupportStatus={setSupportStatus}
         />
       )}
       {signupShareNotice && (

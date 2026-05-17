@@ -61,6 +61,7 @@ export type Communication = {
 
 export type ScheduledEvent = {
   id: string;
+  user_id?: string;
   event_type: string;
   title: string;
   description?: string | null;
@@ -73,21 +74,37 @@ export type ScheduledEvent = {
   recurrence: string;
   status: string;
   source: string;
+  created_by?: string | null;
+  updated_by?: string | null;
+  created_at?: string;
+  updated_at?: string;
   read_only?: boolean;
 };
 
 export type ScheduledSupport = {
   id: string;
+  user_id?: string;
   interaction_type: string;
   friendly_label?: string | null;
+  user_description?: string | null;
+  source_ref_id?: string | null;
   status: string;
   frequency_type: string;
+  frequency_value?: JsonRecord | null;
   times_of_day?: string[] | null;
   days_of_week?: string[] | null;
+  timezone?: string | null;
+  preferred_language?: string | null;
+  quiet_hours_start?: string | null;
+  quiet_hours_end?: string | null;
+  is_paused?: boolean;
+  pause_until?: string | null;
   next_run_at?: string | null;
   last_result?: string | null;
   admin_edit_allowed: boolean;
   consent_status?: string | null;
+  created_by?: string | null;
+  updated_by?: string | null;
   updated_at?: string | null;
 };
 
