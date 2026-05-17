@@ -117,10 +117,19 @@ describe("Onboarding journey — end-to-end", () => {
       .send({
         preferred_checkin_channel: "voice_outbound",
         preferred_conversation_channel: "voice_app",
+        preferred_reminder_channel: "voice_outbound",
       })
       .expect(200);
 
     expect(res.body).toMatchObject({ ok: true });
+
+    const [preferences] = await db
+      .select()
+      .from(userChannelPreferences)
+      .where(eq(userChannelPreferences.user_id, TEST_USER_ID))
+      .limit(1);
+    expect(preferences?.preferred_checkin_channel).toBe("voice_outbound");
+    expect(preferences?.preferred_reminder_channel).toBe("voice_outbound");
   });
 
   it("GET /state reflects stage_3_health after channel step", async () => {

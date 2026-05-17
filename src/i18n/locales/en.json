@@ -458,12 +458,15 @@
     "notifications": {
       "title": "Notifications & contact",
       "subtitle": "Choose how and when VYVA contacts you.",
-      "channelCheckins": "Preferred channel for check-ins",
-      "channelReminders": "Preferred channel for reminders",
+      "channelCheckins": "Daily check-ins",
+      "channelReminders": "Reminders",
       "channelCall": "VYVA calls me",
       "channelWhatsapp": "WhatsApp message",
       "channelApp": "In the app",
+      "checkinsHint": "Used for daily check-ins and follow-ups.",
+      "remindersHint": "Used for reminders about medication, appointments, and tasks.",
       "quietHours": "Quiet hours — don't contact me between",
+      "quietHoursHint": "VYVA will avoid outbound contact during this window.",
       "from": "From",
       "until": "Until",
       "frequencyLimits": "Frequency limits",
@@ -471,7 +474,10 @@
       "maxWhatsapp": "Max WhatsApp/day",
       "noLimit": "No limit",
       "saving": "Saving...",
-      "savePreferences": "Save preferences"
+      "savePreferences": "Save preferences",
+      "saved": "Preferences saved",
+      "saveError": "Could not save preferences",
+      "loadError": "Could not load preferences"
     },
     "privacy": {
       "title": "Privacy & consent",

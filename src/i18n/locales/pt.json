@@ -446,12 +446,15 @@
     "notifications": {
       "title": "Notificações e contacto",
       "subtitle": "Escolha como e quando a VYVA o/a contacta.",
-      "channelCheckins": "Canal preferido para check-ins",
-      "channelReminders": "Canal preferido para lembretes",
+      "channelCheckins": "Check-ins diarios",
+      "channelReminders": "Lembretes",
       "channelCall": "VYVA liga-me",
       "channelWhatsapp": "Mensagem WhatsApp",
       "channelApp": "Na aplicação",
+      "checkinsHint": "Usado para check-ins diarios e acompanhamentos.",
+      "remindersHint": "Usado para lembretes de medicacao, consultas e tarefas.",
       "quietHours": "Horas silenciosas — não me contactar entre",
+      "quietHoursHint": "A VYVA evitara contacto de saida durante este periodo.",
       "from": "Das",
       "until": "Às",
       "frequencyLimits": "Limites de frequência",
@@ -459,7 +462,10 @@
       "maxWhatsapp": "Máx. WhatsApp/dia",
       "noLimit": "Sem limite",
       "saving": "A guardar...",
-      "savePreferences": "Guardar preferências"
+      "savePreferences": "Guardar preferências",
+      "saved": "Preferencias guardadas",
+      "saveError": "Nao foi possivel guardar as preferencias",
+      "loadError": "Nao foi possivel carregar as preferencias"
     },
     "privacy": {
       "title": "Privacidade e consentimento",
