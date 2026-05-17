@@ -775,7 +775,22 @@ export function CommunicationsSection({ communications }: { communications: Comm
   return (
     <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5">
       <h2 className="font-serif text-3xl">Communication log</h2>
-      <div className="mt-4 grid gap-3">{communications.map((item) => <div key={item.id} className="rounded-3xl border p-4"><p className="font-bold">{item.purpose} - {item.channel}</p><p className="text-sm text-[#7d6b65]">{item.recipient} - {item.status} - {new Date(item.created_at).toLocaleString()}</p></div>)}</div>
+      <div className="mt-4 grid gap-3">
+        {communications.map((item) => {
+          const error = item.metadata && typeof item.metadata === "object"
+            ? stringValue(item.metadata.dispatch_error)
+            : "";
+          return (
+            <div key={item.id} className="rounded-3xl border p-4">
+              <p className="font-bold">{item.purpose} - {item.channel}</p>
+              <p className="text-sm text-[#7d6b65]">{item.recipient} - {item.status} - {new Date(item.created_at).toLocaleString()}</p>
+              {item.status === "failed" && error && (
+                <p className="mt-2 rounded-2xl bg-red-50 px-3 py-2 text-sm font-bold text-red-700">{error}</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }

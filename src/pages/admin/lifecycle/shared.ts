@@ -55,6 +55,7 @@ export type Communication = {
   recipient: string;
   purpose: string;
   status: string;
+  metadata?: JsonRecord | null;
   created_at: string;
 };
 

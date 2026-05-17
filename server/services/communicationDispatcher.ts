@@ -1,4 +1,5 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
+import nodemailer from "nodemailer";
 import { db } from "../db.js";
 import { communicationsLog } from "../../shared/schema.js";
 import { queueDueConsentCalls } from "./lifecycle.js";
@@ -9,6 +10,7 @@ type DispatchStatus = "queued" | "sending" | "sent" | "failed";
 type DispatchResult = {
   id: string;
   channel: string;
+  recipient: string;
   status: DispatchStatus;
   provider_message_id?: string | null;
   error?: string;
@@ -116,13 +118,35 @@ async function sendWhatsapp(item: Communication) {
 
 async function sendEmail(item: Communication) {
   const apiKey = process.env.SENDGRID_API_KEY;
-  const from = process.env.NOTIFY_FROM_EMAIL ?? "noreply@vyva.ai";
-  if (!apiKey) throw new Error("SendGrid API key is not configured");
-
   const metadata = metadataRecord(item.metadata);
   const subject = typeof metadata.subject === "string" && metadata.subject.trim()
     ? metadata.subject.trim()
     : "Join VYVA";
+  const from = process.env.NOTIFY_FROM_EMAIL ?? process.env.SMTP_FROM ?? "noreply@vyva.ai";
+
+  if (!apiKey) {
+    const host = process.env.SMTP_HOST;
+    const port = parseInt(process.env.SMTP_PORT ?? "587", 10);
+    const user = process.env.SMTP_USER;
+    const pass = process.env.SMTP_PASS;
+    if (!host || !user || !pass) {
+      throw new Error("Email sender is not configured. Set SENDGRID_API_KEY or SMTP_HOST/SMTP_USER/SMTP_PASS.");
+    }
+
+    const transport = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
+      auth: { user, pass },
+    });
+    await transport.sendMail({
+      from,
+      to: item.recipient,
+      subject,
+      text: item.body ?? "",
+    });
+    return { sid: null, status: "sent" };
+  }
 
   const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
     method: "POST",
@@ -209,6 +233,7 @@ async function dispatchCommunication(item: Communication): Promise<DispatchResul
     return {
       id: item.id,
       channel: item.channel,
+      recipient: item.recipient,
       status: "sent",
       provider_message_id: response.sid ?? null,
     };
@@ -226,10 +251,34 @@ async function dispatchCommunication(item: Communication): Promise<DispatchResul
     return {
       id: item.id,
       channel: item.channel,
+      recipient: item.recipient,
       status: "failed",
       error: message,
     };
   }
+}
+
+export async function dispatchCommunicationsByIds(ids: string[]): Promise<{ processed: number; results: DispatchResult[] }> {
+  const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+  if (!uniqueIds.length) return { processed: 0, results: [] };
+
+  const queued = await db
+    .select()
+    .from(communicationsLog)
+    .where(and(
+      inArray(communicationsLog.id, uniqueIds),
+      eq(communicationsLog.status, "queued"),
+      inArray(communicationsLog.channel, ["sms", "whatsapp", "voice", "email"]),
+    ));
+
+  const byId = new Map(queued.map((item) => [item.id, item]));
+  const results = [];
+  for (const id of uniqueIds) {
+    const item = byId.get(id);
+    if (item) results.push(await dispatchCommunication(item));
+  }
+
+  return { processed: results.length, results };
 }
 
 export async function dispatchQueuedCommunications(limit = 25): Promise<{ processed: number; results: DispatchResult[] }> {
