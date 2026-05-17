@@ -26,7 +26,7 @@ const BottomNav = ({ onSosClick }: { onSosClick: () => void }) => {
     {
       id: "reports",
       path: "/informes",
-      label: t("informes.title", "My Reports"),
+      label: t("nav.reports", "My Reports"),
       icon: ClipboardList,
       isActive: (pathname) => pathname.startsWith("/informes"),
     },

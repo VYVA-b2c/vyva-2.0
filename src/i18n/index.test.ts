@@ -58,4 +58,19 @@ describe("language persistence", () => {
       ]).toEqual(labels);
     }
   });
+
+  it("keeps bottom navigation labels localized for supported account languages", () => {
+    const expected = {
+      en: "My Reports",
+      es: "Mis informes",
+      fr: "Mes rapports",
+      de: "Meine Berichte",
+      it: "I miei report",
+      pt: "Os meus relatórios",
+    } as const;
+
+    for (const [language, reportsLabel] of Object.entries(expected)) {
+      expect(translate(language as keyof typeof expected, "nav.reports")).toBe(reportsLabel);
+    }
+  });
 });
