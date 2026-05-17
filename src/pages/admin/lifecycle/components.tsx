@@ -269,12 +269,14 @@ export function AccountSubscriptionsSection({
   );
 }
 
-export function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, onClose, onSave, onToggle, newEvent, setNewEvent, onCreateEvent, onEventStatus, onEventTime }: {
+export function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, statusMessage, saving = false, onClose, onSave, onToggle, newEvent, setNewEvent, onCreateEvent, onEventStatus, onEventTime }: {
   detail: UserDetail;
   draft: JsonRecord;
   setDraft: (next: JsonRecord) => void;
   organizations: Organization[];
   planOptions: Array<{ value: string; label: string }>;
+  statusMessage?: string;
+  saving?: boolean;
   onClose: () => void;
   onSave: () => void;
   onToggle: () => void;
@@ -347,7 +349,12 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                 <Field label="Language"><select className="w-full rounded-xl border px-3 py-2.5" value={draft.language ?? "es"} onChange={(e) => setDraft({ ...draft, language: e.target.value })}>{languageOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
                 <Field label="Organization"><select className="w-full rounded-xl border px-3 py-2.5" value={draft.organization_id ?? ""} onChange={(e) => setDraft({ ...draft, organization_id: e.target.value })}><option value="">None</option>{organizations.filter((org) => org.is_active).map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}</select></Field>
               </div>
-              <div className="flex flex-wrap gap-2"><button className="rounded-xl bg-purple-700 px-5 py-2.5 font-bold text-white" onClick={onSave}>Save changes</button><button className="rounded-xl border px-5 py-2.5 font-bold" onClick={onToggle}>{disabled ? "Enable user" : "Disable user"}</button></div>
+              <div className="flex flex-wrap gap-2"><button type="button" className="rounded-xl bg-purple-700 px-5 py-2.5 font-bold text-white disabled:opacity-60" disabled={saving} onClick={onSave}>{saving ? "Saving..." : "Save changes"}</button><button type="button" className="rounded-xl border px-5 py-2.5 font-bold" onClick={onToggle}>{disabled ? "Enable user" : "Disable user"}</button></div>
+              {statusMessage && (
+                <p className={`rounded-xl px-3 py-2 text-sm font-bold ${statusMessage.toLowerCase().includes("could not") ? "bg-[#fff3e8] text-[#8a4a00]" : "bg-[#ecfdf3] text-[#087443]"}`}>
+                  {statusMessage}
+                </p>
+              )}
             </div>
           </section>
 
@@ -370,13 +377,15 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                           onEventTime(event, scheduledFor);
                         }}
                       >
-                        <input
-                          className="rounded-xl border px-3 py-2"
-                          name="scheduled_for"
-                          type="datetime-local"
-                          defaultValue={toDatetimeLocal(event.scheduled_for)}
-                        />
-                        <button className="rounded-xl bg-purple-700 px-4 py-2 text-sm font-bold text-white" type="submit">
+                        <Field label="Date and time">
+                          <input
+                            className="w-full rounded-xl border px-3 py-2"
+                            name="scheduled_for"
+                            type="datetime-local"
+                            defaultValue={toDatetimeLocal(event.scheduled_for)}
+                          />
+                        </Field>
+                        <button className="self-end rounded-xl bg-purple-700 px-4 py-2 text-sm font-bold text-white" type="submit">
                           Save time
                         </button>
                       </form>
@@ -423,7 +432,9 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
               <p className="font-bold">Add event</p>
               <div className="mt-2 grid gap-2">
                 <input className="rounded-xl border px-3 py-2" placeholder="Title" value={newEvent.title} onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })} />
-                <input className="rounded-xl border px-3 py-2" type="datetime-local" value={newEvent.scheduled_for} onChange={(e) => setNewEvent({ ...newEvent, scheduled_for: e.target.value })} />
+                <Field label="Date and time" required>
+                  <input className="w-full rounded-xl border px-3 py-2" type="datetime-local" value={newEvent.scheduled_for} onChange={(e) => setNewEvent({ ...newEvent, scheduled_for: e.target.value })} />
+                </Field>
                 <div className="grid gap-2 md:grid-cols-3">
                   <select className="rounded-xl border px-3 py-2" value={newEvent.event_type} onChange={(e) => setNewEvent({ ...newEvent, event_type: e.target.value })}><option value="check_in_call">Check-in call</option><option value="medication_reminder">Medication reminder</option><option value="brain_coach">Brain coach</option><option value="vyva_chat">VYVA chat</option><option value="social_room_session">Social room session</option><option value="concierge_call">Concierge call</option><option value="custom">Custom</option></select>
                   <select className="rounded-xl border px-3 py-2" value={newEvent.recurrence} onChange={(e) => setNewEvent({ ...newEvent, recurrence: e.target.value })}><option value="none">No repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select>
