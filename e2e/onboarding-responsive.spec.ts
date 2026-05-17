@@ -204,6 +204,55 @@ test.describe("onboarding responsive layout", () => {
     });
   });
 
+  test("shared onboarding step layout keeps migrated CTAs responsive", async ({ page }) => {
+    await mockSignedInOnboarding(page);
+
+    const steps = [
+      {
+        route: "/onboarding/who-for",
+        heading: "Who is VYVA for?",
+        cta: "button-who-for-continue",
+      },
+      {
+        route: "/onboarding/channel",
+        heading: "Choose your default contact",
+        cta: "button-channel-continue",
+      },
+      {
+        route: "/onboarding/consent",
+        heading: "Your data, your choice",
+        cta: "button-consent-agree",
+      },
+      {
+        route: "/onboarding/proxy-setup",
+        heading: "Who is setting this up?",
+        cta: "button-proxy-continue",
+      },
+    ];
+
+    for (const step of steps) {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(step.route, { waitUntil: "domcontentloaded" });
+      await expect(page.getByRole("heading", { name: step.heading })).toBeVisible();
+      await expectNoHorizontalOverflow(page);
+      await expectElementInsideViewport(page, step.cta);
+      await expect(
+        page.getByTestId(step.cta).locator(".."),
+        `${step.route} uses the fixed mobile CTA shell`,
+      ).toHaveCSS("position", "fixed");
+
+      await page.setViewportSize({ width: 320, height: 568 });
+      await page.goto(step.route, { waitUntil: "domcontentloaded" });
+      await page.getByTestId(step.cta).scrollIntoViewIfNeeded();
+      await expect(page.getByTestId(step.cta)).toBeVisible();
+      await expectNoHorizontalOverflow(page);
+      await expect(
+        page.getByTestId(step.cta).locator(".."),
+        `${step.route} keeps CTA in scroll flow on short screens`,
+      ).toHaveCSS("position", "static");
+    }
+  });
+
   test("health conditions step avoids cramped two-column cards on narrow phones", async ({ page }) => {
     await mockSignedInOnboarding(page);
 
