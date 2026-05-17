@@ -26,6 +26,12 @@ interface MagicLinkResponse {
   message: string;
 }
 
+interface CurrentUserResult {
+  user: AuthUser;
+  token: string | null;
+  prevSeenAt: string | null;
+}
+
 interface AuthContextValue {
   user: AuthUser | null;
   token: string | null;
@@ -39,6 +45,16 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+class AuthLoadError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "AuthLoadError";
+    this.status = status;
+  }
+}
 
 function contactPayload(identifier: string | AuthIdentifier): AuthIdentifier {
   if (typeof identifier === "string") return { identifier };
@@ -70,22 +86,27 @@ function responseUser(data: {
   };
 }
 
-async function loadCurrentUser(token: string, fallback?: { userId?: string; email?: string | null }): Promise<AuthUser> {
+async function loadCurrentUser(token?: string | null, fallback?: { userId?: string; email?: string | null }): Promise<CurrentUserResult> {
   const response = await fetch("/api/auth/me", {
-    headers: { Authorization: `Bearer ${token}` },
+    credentials: "same-origin",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new Error(body.error ?? "Could not load your account");
+    throw new AuthLoadError(response.status, body.error ?? "Could not load your account");
   }
 
   const data = await response.json();
-  return responseUser({
-    ...data,
-    id: data.id ?? fallback?.userId,
-    email: data.email ?? fallback?.email,
-  });
+  return {
+    user: responseUser({
+      ...data,
+      id: data.id ?? fallback?.userId,
+      email: data.email ?? fallback?.email,
+    }),
+    token: typeof data.token === "string" ? data.token : token ?? null,
+    prevSeenAt: data.prevSeenAt ?? null,
+  };
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -104,6 +125,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "same-origin",
+    }).catch(() => undefined);
     clearToken();
     setTokenState(null);
     setUser(null);
@@ -114,28 +139,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const stored = getToken();
-    if (!stored || !isAuthenticated()) {
-      setIsLoading(false);
-      return;
-    }
+    const usableStored = stored && isAuthenticated() ? stored : null;
 
-    fetch("/api/auth/me", {
-      headers: { Authorization: `Bearer ${stored}` },
-    })
-      .then((r) => (r.ok ? r.json() : null))
+    loadCurrentUser(usableStored)
       .then((data) => {
-        if (data?.id) {
-          const hydratedUser = responseUser(data);
-          setTokenState(stored);
-          setUser(hydratedUser);
-          setLastSeenAt(data.prevSeenAt ?? null);
-          if (hydratedUser.language) setAccountLanguage(hydratedUser.language);
-          queryClient.prefetchQuery({ queryKey: ONBOARDING_STATE_KEY });
+        if (data.token) {
+          setToken(data.token);
         } else {
           clearToken();
         }
+        setTokenState(data.token);
+        setUser(data.user);
+        setLastSeenAt(data.prevSeenAt);
+        if (data.user.language) setAccountLanguage(data.user.language);
+        queryClient.prefetchQuery({ queryKey: ONBOARDING_STATE_KEY });
       })
-      .catch(() => clearToken())
+      .catch((err) => {
+        if (err instanceof AuthLoadError && (err.status === 401 || err.status === 403)) {
+          clearToken();
+          setTokenState(null);
+        }
+      })
       .finally(() => setIsLoading(false));
   }, []);
 
@@ -145,7 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const session = await signInWithSupabase(email, password);
         const currentUser = await loadCurrentUser(session.token, { userId: session.userId, email: session.email });
-        applyToken(session.token, currentUser, null);
+        applyToken(currentUser.token ?? session.token, currentUser.user, currentUser.prevSeenAt);
         return;
       } catch {
         // Fall back to VYVA's backend auth so regular email/password accounts
@@ -155,6 +179,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const res = await fetch("/api/auth/login", {
       method: "POST",
+      credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...contactPayload(identifier), password }),
     });
@@ -166,6 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = useCallback(async (identifier: string | AuthIdentifier, password: string) => {
     const res = await fetch("/api/auth/register", {
       method: "POST",
+      credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...contactPayload(identifier), password }),
     });
@@ -177,6 +203,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const requestMagicLink = useCallback(async (identifier: string | AuthIdentifier) => {
     const res = await fetch("/api/auth/magic-link-request", {
       method: "POST",
+      credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(contactPayload(identifier)),
     });
@@ -188,6 +215,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loginWithMagicToken = useCallback(async (magicToken: string) => {
     const res = await fetch("/api/auth/magic-login", {
       method: "POST",
+      credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token: magicToken }),
     });

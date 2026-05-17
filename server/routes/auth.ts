@@ -6,11 +6,12 @@ import { promisify } from "util";
 import { z } from "zod";
 import { db } from "../db.js";
 import { accessLinks, lifecycleEvents, profiles, userIntakes, users } from "../../shared/schema.js";
-import { signMagicLoginToken, signToken, verifyMagicLoginToken } from "../lib/jwt.js";
+import { signMagicLoginToken, verifyMagicLoginToken } from "../lib/jwt.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { sendMagicLoginEmail, sendPasswordResetEmail } from "../lib/email.js";
 import { getActiveProfileContext } from "../lib/profileAccess.js";
 import { getSupabaseConfig } from "../lib/supabaseAuth.js";
+import { clearAuthSessionCookie, issueAuthSessionCookie } from "../lib/sessionCookie.js";
 
 const scryptAsync = promisify(scrypt);
 
@@ -354,7 +355,7 @@ authRouter.post("/register", async (req: Request, res: Response) => {
       .values({ email: contact.email, phone_number: contact.phone, password_hash })
       .returning();
 
-    const token = await signToken(user.id);
+    const token = await issueAuthSessionCookie(res, user.id);
     return res.status(201).json({ token, ...authResponseUser(user, null, language, "user") });
   } catch (err) {
     console.error("[auth/register]", err);
@@ -393,7 +394,7 @@ authRouter.post("/login", async (req: Request, res: Response) => {
     .set({ last_seen_at: new Date() })
     .where(eq(users.id, user.id));
 
-  const token = await signToken(user.id);
+  const token = await issueAuthSessionCookie(res, user.id);
   return res.json({
     token,
     ...authResponseUser(
@@ -421,8 +422,11 @@ authRouter.get("/me", authMiddleware, async (req: Request, res: Response) => {
         return res.status(401).json({ error: "User not found" });
       }
 
+      const token = await issueAuthSessionCookie(res, profile.id);
+
       return res.json({
         id: profile.id,
+        token,
         email: profile.email ?? (typeof req.user.email === "string" ? req.user.email : null),
         phone: profile.phone ?? null,
         activeProfileId: profile.id,
@@ -445,8 +449,11 @@ authRouter.get("/me", authMiddleware, async (req: Request, res: Response) => {
       .set({ last_seen_at: new Date() })
       .where(eq(users.id, user.id));
 
+    const token = await issueAuthSessionCookie(res, user.id);
+
     return res.json({
       id: user.id,
+      token,
       email: user.email,
       phone: user.phone_number,
       activeProfileId: user.active_profile_id ?? null,
@@ -458,6 +465,11 @@ authRouter.get("/me", authMiddleware, async (req: Request, res: Response) => {
     console.error("[auth/me]", err);
     return res.status(500).json({ error: "Could not load your account" });
   }
+});
+
+authRouter.post("/logout", (_req: Request, res: Response) => {
+  clearAuthSessionCookie(res);
+  return res.json({ ok: true });
 });
 
 /**
@@ -539,7 +551,7 @@ authRouter.post("/magic-login", async (req: Request, res: Response) => {
     .set({ last_seen_at: new Date() })
     .where(eq(users.id, user.id));
 
-  const token = await signToken(user.id);
+  const token = await issueAuthSessionCookie(res, user.id);
   return res.json({
     token,
     ...authResponseUser(
@@ -636,7 +648,7 @@ authRouter.post("/access-link/consume", async (req: Request, res: Response) => {
 
   await db.update(users).set({ last_seen_at: now }).where(eq(users.id, userId));
 
-  const token = await signToken(userId);
+  const token = await issueAuthSessionCookie(res, userId);
   return res.json({
     token,
     userId,

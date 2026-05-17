@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { verifyToken } from "../lib/jwt.js";
 import { verifySupabaseAccessToken } from "../lib/supabaseAuth.js";
+import { readAuthSessionCookie } from "../lib/sessionCookie.js";
 
 const SUPER_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL ?? "karim.assad@mokadigital.net").toLowerCase();
 
@@ -36,25 +37,43 @@ export async function authMiddleware(
   next: NextFunction
 ): Promise<void> {
   const authHeader = req.headers["authorization"] as string | undefined;
+  const cookieToken = readAuthSessionCookie(req);
 
-  if (authHeader?.startsWith("Bearer ")) {
-    const token = authHeader.slice(7);
+  async function applyToken(token: string): Promise<boolean> {
     const userId = await verifyToken(token);
     if (userId) {
       req.user = { id: userId, authProvider: "legacy" };
-      return next();
+      return true;
     }
+
     const supabaseUser = await verifySupabaseAccessToken(token);
     if (supabaseUser) {
       req.user = { id: supabaseUser.id, email: supabaseUser.email, authProvider: "supabase" };
+      return true;
+    }
+
+    return false;
+  }
+
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.slice(7);
+    if (await applyToken(token)) {
       return next();
     }
-    // Token present but invalid — reject immediately, don't fall through
+    // Prefer a still-valid cookie session if local storage has gone stale.
+    if (cookieToken && cookieToken !== token && await applyToken(cookieToken)) {
+      return next();
+    }
+
     res.status(401).json({ error: "Invalid or expired token" });
     return;
   }
 
-  // Dev/test fallback — trust x-user-id header only outside production
+  if (cookieToken && await applyToken(cookieToken)) {
+    return next();
+  }
+
+  // Dev/test fallback: trust x-user-id header only outside production.
   if (process.env.NODE_ENV !== "production") {
     const rawId = req.headers["x-user-id"] as string | undefined;
     if (rawId && rawId.trim().length > 0) {
