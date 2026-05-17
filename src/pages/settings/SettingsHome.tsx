@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
   CalendarClock,
@@ -27,6 +28,15 @@ import { apiFetch } from "@/lib/queryClient";
 const TERMS_OF_SERVICE_URL = "https://vyva.life/terms-of-service";
 const PRIVACY_POLICY_URL = "https://vyva.life/privacypolicy";
 const SUPPORT_EMAIL = "support@vyva.life";
+
+type BillingStatus = {
+  status?: string | null;
+  tier?: string | null;
+  trial_days_remaining?: number | null;
+  plan?: {
+    name?: string | null;
+  } | null;
+};
 
 function buildMailtoUrl(subject: string, body: string) {
   return `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
@@ -107,12 +117,44 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+function formatPlanLabel(value: string | null | undefined) {
+  if (!value) return "";
+  return value
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 export default function SettingsHome() {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const { t } = useTranslation();
   const { toast } = useToast();
   const [isDownloadingData, setIsDownloadingData] = useState(false);
+  const { data: billingStatus, isLoading: billingLoading } = useQuery<BillingStatus>({
+    queryKey: ["/api/billing/status"],
+    retry: false,
+  });
+
+  const planName = billingStatus?.plan?.name ?? formatPlanLabel(billingStatus?.tier);
+  const isFreePlan = !billingStatus?.tier || billingStatus.tier === "free";
+  const planBillingValue = billingLoading
+    ? undefined
+    : isFreePlan
+      ? t("settings.home.rows.planBillingValue")
+      : planName;
+  const planBillingSub = billingLoading
+    ? t("settings.home.rows.planBillingSubLoading", "Checking your plan...")
+    : billingStatus?.status === "active" && !isFreePlan
+      ? t("settings.home.rows.planBillingSubActive", "Subscription active")
+      : billingStatus?.status === "trial" && (billingStatus.trial_days_remaining ?? 0) > 0
+        ? t("settings.home.rows.planBillingSubTrial", "{{count}} trial days remaining", {
+            count: billingStatus.trial_days_remaining,
+          })
+        : billingStatus?.status === "past_due"
+          ? t("settings.home.rows.planBillingSubPastDue", "Payment needs attention")
+          : t("settings.home.rows.planBillingSub");
 
   const handleSignOut = () => {
     logout();
@@ -263,8 +305,8 @@ export default function SettingsHome() {
             iconBg="#FFF1EF"
             iconColor="#E05B4B"
             title={t("settings.home.rows.planBilling")}
-            sub={t("settings.home.rows.planBillingSub")}
-            value={t("settings.home.rows.planBillingValue")}
+            sub={planBillingSub}
+            value={planBillingValue}
             onClick={() => navigate("/settings/subscription")}
           />
         </Section>
