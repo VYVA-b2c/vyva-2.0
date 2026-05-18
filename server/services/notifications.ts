@@ -6,7 +6,7 @@
  *
  * Outbound delivery via environment variables:
  *   SMS:   TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER  (configured)
- *   Email: SENDGRID_API_KEY, NOTIFY_FROM_EMAIL  (optional fallback)
+ *   Email: SENDGRID_API_KEY, NOTIFY_FROM_EMAIL  (must be verified in SendGrid)
  *
  * Without credentials the message is logged to console and the DB row is
  * still recorded, so the flow degrades gracefully in development without
@@ -16,8 +16,9 @@
  * auth provider. Wire it in once JWT/session-based auth exposes the email.
  */
 
-import { db } from "../db.js";
 import { caregiverAlerts } from "../../shared/schema.js";
+import { db } from "../db.js";
+import { emailFromConfigError, explainEmailProviderError, resolveEmailFromAddress } from "../lib/emailSenderConfig.js";
 
 export interface ElderProxyNotificationPayload {
   elderId: string;
@@ -34,6 +35,11 @@ type DeliveryResult =
   | { ok: true; channel: "sms" | "email" }
   | { ok: false; channel: "sms" | "email"; statusCode: number; detail: string }
   | { ok: false; channel: "none"; reason: string };
+
+type SendGridResponse = {
+  message?: string;
+  errors?: Array<{ message?: string }>;
+};
 
 /**
  * Sends a notification to an elder informing them that a carer has set up
@@ -157,7 +163,7 @@ async function sendSms(to: string, body: string): Promise<DeliveryResult> {
 
 async function sendEmail(to: string, subject: string, body: string): Promise<DeliveryResult> {
   const apiKey   = process.env.SENDGRID_API_KEY;
-  const fromAddr = process.env.NOTIFY_FROM_EMAIL ?? "noreply@vyva.ai";
+  const fromAddr = resolveEmailFromAddress();
 
   if (!apiKey) {
     console.warn(
@@ -165,6 +171,12 @@ async function sendEmail(to: string, subject: string, body: string): Promise<Del
         "Email will not be sent.",
     );
     return { ok: false, channel: "email", statusCode: 0, detail: "SendGrid API key not configured" };
+  }
+
+  if (!fromAddr) {
+    const detail = emailFromConfigError();
+    console.warn(`[notifications] ${detail}`);
+    return { ok: false, channel: "email", statusCode: 0, detail };
   }
 
   let res: Response;
@@ -188,8 +200,16 @@ async function sendEmail(to: string, subject: string, body: string): Promise<Del
   }
 
   if (!res.ok) {
-    const text = await res.text().catch(() => "(unreadable body)");
-    return { ok: false, channel: "email", statusCode: res.status, detail: text };
+    const payload = await res.json().catch(async () => ({
+      message: await res.text().catch(() => "(unreadable body)"),
+    })) as SendGridResponse;
+    const message = payload.errors?.[0]?.message ?? payload.message ?? `SendGrid request failed with ${res.status}`;
+    return {
+      ok: false,
+      channel: "email",
+      statusCode: res.status,
+      detail: explainEmailProviderError(message, fromAddr),
+    };
   }
 
   return { ok: true, channel: "email" };

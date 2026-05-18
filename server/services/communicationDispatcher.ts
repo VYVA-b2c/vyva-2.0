@@ -2,6 +2,7 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import nodemailer from "nodemailer";
 import { db } from "../db.js";
 import { communicationsLog } from "../../shared/schema.js";
+import { explainEmailProviderError, requireEmailFromAddress } from "../lib/emailSenderConfig.js";
 import { queueDueConsentCalls } from "./lifecycle.js";
 
 type Communication = typeof communicationsLog.$inferSelect;
@@ -122,7 +123,7 @@ async function sendEmail(item: Communication) {
   const subject = typeof metadata.subject === "string" && metadata.subject.trim()
     ? metadata.subject.trim()
     : "Join VYVA";
-  const from = process.env.NOTIFY_FROM_EMAIL ?? process.env.SMTP_FROM ?? "noreply@vyva.ai";
+  const from = requireEmailFromAddress({ allowDevelopmentFallback: true });
 
   if (!apiKey) {
     const host = process.env.SMTP_HOST;
@@ -163,7 +164,8 @@ async function sendEmail(item: Communication) {
 
   if (!response.ok) {
     const payload = await response.json().catch(async () => ({ message: await response.text().catch(() => response.statusText) })) as SendGridResponse;
-    throw new Error(payload.errors?.[0]?.message ?? payload.message ?? `SendGrid request failed with ${response.status}`);
+    const message = payload.errors?.[0]?.message ?? payload.message ?? `SendGrid request failed with ${response.status}`;
+    throw new Error(explainEmailProviderError(message, from));
   }
 
   return { sid: null, status: "sent" };
