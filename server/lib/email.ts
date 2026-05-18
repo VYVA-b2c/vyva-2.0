@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { requireEmailFromAddress } from "./emailSenderConfig.js";
 
 const isDev = process.env.NODE_ENV !== "production";
 
@@ -31,7 +32,6 @@ export interface SendMagicLoginEmailOptions {
 }
 
 export async function sendPasswordResetEmail({ to, resetLink }: SendPasswordResetEmailOptions): Promise<void> {
-  const from = process.env.SMTP_FROM ?? "no-reply@vyva.ai";
   const subject = "Reset your Vyva password";
   const html = `
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
@@ -67,11 +67,11 @@ export async function sendPasswordResetEmail({ to, resetLink }: SendPasswordRese
     throw new Error("SMTP is not configured. Set SMTP_HOST, SMTP_USER, and SMTP_PASS.");
   }
 
+  const from = requireEmailFromAddress({ allowDevelopmentFallback: true });
   await transport.sendMail({ from, to, subject, html });
 }
 
 export async function sendMagicLoginEmail({ to, magicLink }: SendMagicLoginEmailOptions): Promise<void> {
-  const from = process.env.SMTP_FROM ?? "no-reply@vyva.ai";
   const subject = "Your secure VYVA sign-in link";
   const html = `
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
@@ -106,5 +106,6 @@ export async function sendMagicLoginEmail({ to, magicLink }: SendMagicLoginEmail
     throw new Error("SMTP is not configured. Set SMTP_HOST, SMTP_USER, and SMTP_PASS.");
   }
 
+  const from = requireEmailFromAddress({ allowDevelopmentFallback: true });
   await transport.sendMail({ from, to, subject, html });
 }

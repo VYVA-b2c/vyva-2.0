@@ -96,7 +96,8 @@ export default function LifecycleAdminPage() {
   const [signupShare, setSignupShare] = useState({
     emails: "",
     whatsapp: "",
-    message: "You are invited to create your VYVA account.",
+    message: "",
+    language: "en",
   });
   const [sharingSignup, setSharingSignup] = useState(false);
   const [signupShareNotice, setSignupShareNotice] = useState<SignupShareNotice | null>(null);
@@ -249,6 +250,7 @@ export default function LifecycleAdminPage() {
           emails: recipientLines(signupShare.emails),
           whatsapp_numbers: recipientLines(signupShare.whatsapp),
           message: signupShare.message.trim() || undefined,
+          language: signupShare.language,
         }),
       });
       const queued = Number(data.queued ?? 0);
@@ -272,7 +274,7 @@ export default function LifecycleAdminPage() {
         title,
         details: [...failedDetails, ...(failedDetails.length ? sentDetails : sentDetails.slice(0, 3))],
       });
-      if (sent > 0) setSignupShare({ emails: "", whatsapp: "", message: signupShare.message });
+      if (sent > 0) setSignupShare({ emails: "", whatsapp: "", message: signupShare.message, language: signupShare.language });
       await refresh();
     } catch (err) {
       setSignupShareNotice({
@@ -551,6 +553,28 @@ export default function LifecycleAdminPage() {
     }
   }
 
+  async function deleteUser(intake: Intake) {
+    const confirmed = window.confirm(`Permanently delete ${intake.name}? This removes the user from the admin panel and deletes linked VYVA profile records. This cannot be undone.`);
+    if (!confirmed) return;
+    setBusyAction(`delete:${intake.id}`);
+    setUserDetailMessage("");
+    try {
+      await api(`/users/${intake.id}`, {
+        method: "DELETE",
+        body: JSON.stringify({ confirm: "DELETE" }),
+      });
+      if (selectedUser?.intake.id === intake.id) setSelectedUser(null);
+      setMessage("User deleted.");
+      await refresh();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Could not delete this user.";
+      setMessage(errorMessage);
+      setUserDetailMessage(errorMessage);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function createScheduledEventForUser() {
     if (!selectedUser) return;
     if (!newEvent.title.trim()) {
@@ -772,17 +796,24 @@ export default function LifecycleAdminPage() {
                   <h2 className="font-serif text-2xl">Share signup form</h2>
                   <p className="mt-1 text-sm text-[#7d6b65]">Send the public VYVA signup link to external users by email or WhatsApp.</p>
                 </div>
-                <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">v2.vyva.life/login</span>
+                <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">v2.vyva.life/invite</span>
               </div>
-              <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_1.2fr_auto]">
+              <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_1.2fr_0.7fr_auto]">
                 <Field label="Email recipients">
                   <textarea className="min-h-24 w-full rounded-2xl border px-4 py-3" placeholder="name@example.com, another@example.com" value={signupShare.emails} onChange={(e) => setSignupShare({ ...signupShare, emails: e.target.value })} />
                 </Field>
                 <Field label="WhatsApp numbers">
                   <textarea className="min-h-24 w-full rounded-2xl border px-4 py-3" placeholder="+34 612 345 678&#10;+44 7700 900123" value={signupShare.whatsapp} onChange={(e) => setSignupShare({ ...signupShare, whatsapp: e.target.value })} />
                 </Field>
-                <Field label="Message">
-                  <textarea className="min-h-24 w-full rounded-2xl border px-4 py-3" value={signupShare.message} onChange={(e) => setSignupShare({ ...signupShare, message: e.target.value })} />
+                <Field label="Message (optional)">
+                  <textarea className="min-h-24 w-full rounded-2xl border px-4 py-3" placeholder="Leave blank to use the selected language's default invite text." value={signupShare.message} onChange={(e) => setSignupShare({ ...signupShare, message: e.target.value })} />
+                </Field>
+                <Field label="Language">
+                  <select className="min-h-24 w-full rounded-2xl border px-4 py-3 font-semibold" value={signupShare.language} onChange={(e) => setSignupShare({ ...signupShare, language: e.target.value })}>
+                    {languageOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
                 </Field>
                 <button
                   type="button"
@@ -849,7 +880,7 @@ export default function LifecycleAdminPage() {
                   </select>
                 ))}
               </div>
-              <IntakeTable users={users} onView={(intake) => openUserDetail(intake, "view")} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} busyAction={busyAction} />
+              <IntakeTable users={users} onView={(intake) => openUserDetail(intake, "view")} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} onDelete={deleteUser} busyAction={busyAction} />
             </section>
           </div>
         )}
@@ -929,7 +960,7 @@ export default function LifecycleAdminPage() {
             </div>
             <div className="rounded-[2rem] border border-[#eadfd5] bg-white p-5">
               <h2 className="font-serif text-3xl">Recent lifecycle users</h2>
-              <IntakeTable users={users.slice(0, 8)} onView={(intake) => openUserDetail(intake, "view")} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} busyAction={busyAction} compact />
+              <IntakeTable users={users.slice(0, 8)} onView={(intake) => openUserDetail(intake, "view")} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} onDelete={deleteUser} busyAction={busyAction} compact />
             </div>
           </section>
         )}
@@ -1024,9 +1055,11 @@ export default function LifecycleAdminPage() {
           statusMessage={userDetailMessage}
           saving={savingUserDetail}
           scheduleBusyAction={busyAction}
+          deleting={busyAction === `delete:${selectedUser.intake.id}`}
           onClose={() => setSelectedUser(null)}
           onSave={saveUserDetail}
           onToggle={() => toggleUser(selectedUser.intake)}
+          onDelete={() => deleteUser(selectedUser.intake)}
           newEvent={newEvent}
           setNewEvent={setNewEvent}
           onCreateEvent={createScheduledEventForUser}

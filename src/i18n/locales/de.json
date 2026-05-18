@@ -422,6 +422,8 @@
         "myAccountSub": "Name, Telefon, Sprache, Passwort",
         "notifications": "Benachrichtigungen & Kontakt",
         "notificationsSub": "Kanäle, Ruhezeiten, Häufigkeit",
+        "scheduledSupport": "Geplante Unterstützung",
+        "scheduledSupportSub": "Anrufe, Erinnerungen und Unterstützungszeiten",
         "healthProfile": "Allgemeines Profil",
         "healthProfileSub": "Gesundheit, Hobbys, Pflegeteam und mehr",
         "privacyConsent": "Datenschutz & Einwilligung",
@@ -470,7 +472,13 @@
       "savePreferences": "Einstellungen speichern",
       "saved": "Einstellungen gespeichert",
       "saveError": "Einstellungen konnten nicht gespeichert werden",
-      "loadError": "Einstellungen konnten nicht geladen werden"
+      "loadError": "Einstellungen konnten nicht geladen werden",
+      "supportMode": "Betreuungsmodus",
+      "supportModeHint": "Wählen Sie, ob VYVA den Kontakt automatisch übernimmt oder eine Person übernehmen soll.",
+      "supportModeAi": "KI-gestützt",
+      "supportModeAiSub": "VYVA übernimmt routinemäßige Check-ins und Erinnerungen automatisch.",
+      "supportModeHuman": "Menschliche Unterstützung",
+      "supportModeHumanSub": "Eine Person übernimmt den Kontakt, während VYVA den Plan klar hält."
     },
     "privacy": {
       "title": "Datenschutz & Einwilligung",

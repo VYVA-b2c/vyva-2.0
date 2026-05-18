@@ -53,6 +53,7 @@ describe("Profile channel preferences", () => {
     expect(res.body).toMatchObject({
       preferred_checkin_channel: "voice_outbound",
       preferred_reminder_channel: "whatsapp_outbound",
+      support_mode: "ai_powered",
       voice_available_from: "08:00",
       voice_available_until: "21:00",
       whatsapp_available_from: "07:00",
@@ -68,6 +69,7 @@ describe("Profile channel preferences", () => {
     const payload = {
       preferred_checkin_channel: "whatsapp_outbound",
       preferred_reminder_channel: "voice_app",
+      support_mode: "human_supported",
       voice_available_from: "09:00",
       voice_available_until: "20:30",
       whatsapp_available_from: "09:15",
@@ -99,6 +101,17 @@ describe("Profile channel preferences", () => {
     expect(row?.preferred_checkin_channel).toBe("whatsapp_outbound");
     expect(row?.preferred_reminder_channel).toBe("voice_app");
     expect(row?.max_outbound_calls_per_day).toBeNull();
+
+    const [profile] = await db
+      .select({ data_sharing_consent: profiles.data_sharing_consent })
+      .from(profiles)
+      .where(eq(profiles.id, userId))
+      .limit(1);
+    expect(profile?.data_sharing_consent).toMatchObject({
+      communication_preferences: {
+        contact_support_mode: "human_supported",
+      },
+    });
   });
 
   it("rejects invalid channel and time values", async () => {
@@ -109,6 +122,7 @@ describe("Profile channel preferences", () => {
       .set("x-user-id", userId)
       .send({
         preferred_checkin_channel: "telegram",
+        support_mode: "robots_only",
         voice_available_from: "25:00",
       })
       .expect(400);

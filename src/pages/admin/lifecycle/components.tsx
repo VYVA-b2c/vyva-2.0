@@ -87,11 +87,12 @@ function supportDraftFromSchedule(schedule: ScheduledSupport): SupportScheduleDr
   };
 }
 
-export function IntakeTable({ users, onView, onTriggerConsent, onToggleEnabled, busyAction = null, compact = false }: {
+export function IntakeTable({ users, onView, onTriggerConsent, onToggleEnabled, onDelete, busyAction = null, compact = false }: {
   users: Intake[];
   onView: (intake: Intake) => void;
   onTriggerConsent: (intake: Intake) => void;
   onToggleEnabled: (intake: Intake) => void;
+  onDelete?: (intake: Intake) => void;
   busyAction?: string | null;
   compact?: boolean;
 }) {
@@ -138,6 +139,7 @@ export function IntakeTable({ users, onView, onTriggerConsent, onToggleEnabled, 
                   <span className="rounded-full bg-purple-50 px-3 py-2 text-sm font-black uppercase text-purple-700">Tier: {user.tier}</span>
                   <button type="button" className="rounded-full border px-3 py-2 text-sm font-bold disabled:opacity-60" disabled={isBusy("toggle", user)} onClick={() => onToggleEnabled(user)}>{isBusy("toggle", user) ? "Saving..." : user.account_status === "disabled" ? "Enable" : "Disable"}</button>
                   {user.user_type === "family" && <button type="button" className="rounded-full border px-3 py-2 text-sm font-bold disabled:opacity-60" disabled={isBusy("consent", user)} onClick={() => onTriggerConsent(user)}>{isBusy("consent", user) ? "Queueing..." : "Consent"}</button>}
+                  {onDelete && <button type="button" className="rounded-full border border-red-200 bg-red-50 px-3 py-2 text-sm font-bold text-red-700 disabled:opacity-60" disabled={isBusy("delete", user)} onClick={() => onDelete(user)}>{isBusy("delete", user) ? "Deleting..." : "Delete"}</button>}
                 </div>
               </td>
             </tr>
@@ -310,7 +312,7 @@ export function AccountSubscriptionsSection({
   );
 }
 
-export function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, statusMessage, saving = false, scheduleBusyAction = null, onClose, onSave, onToggle, newEvent, setNewEvent, onCreateEvent, onEventStatus, onEventTime, onSupportSave, onSupportStatus }: {
+export function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, statusMessage, saving = false, deleting = false, scheduleBusyAction = null, onClose, onSave, onToggle, onDelete, newEvent, setNewEvent, onCreateEvent, onEventStatus, onEventTime, onSupportSave, onSupportStatus }: {
   detail: UserDetail;
   draft: JsonRecord;
   setDraft: (next: JsonRecord) => void;
@@ -319,9 +321,11 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
   statusMessage?: string;
   saving?: boolean;
   scheduleBusyAction?: string | null;
+  deleting?: boolean;
   onClose: () => void;
   onSave: () => void;
   onToggle: () => void;
+  onDelete: () => void;
   newEvent: typeof emptyScheduledEvent;
   setNewEvent: (next: typeof emptyScheduledEvent) => void;
   onCreateEvent: () => void;
@@ -419,7 +423,7 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                 <Field label="Language"><select className="w-full rounded-xl border px-3 py-2.5" value={draft.language ?? "es"} onChange={(e) => setDraft({ ...draft, language: e.target.value })}>{languageOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
                 <Field label="Organization"><select className="w-full rounded-xl border px-3 py-2.5" value={draft.organization_id ?? ""} onChange={(e) => setDraft({ ...draft, organization_id: e.target.value })}><option value="">None</option>{organizations.filter((org) => org.is_active).map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}</select></Field>
               </div>
-              <div className="flex flex-wrap gap-2"><button type="button" className="rounded-xl bg-purple-700 px-5 py-2.5 font-bold text-white disabled:opacity-60" disabled={saving} onClick={onSave}>{saving ? "Saving..." : "Save changes"}</button><button type="button" className="rounded-xl border px-5 py-2.5 font-bold" onClick={onToggle}>{disabled ? "Enable user" : "Disable user"}</button></div>
+              <div className="flex flex-wrap gap-2"><button type="button" className="rounded-xl bg-purple-700 px-5 py-2.5 font-bold text-white disabled:opacity-60" disabled={saving || deleting} onClick={onSave}>{saving ? "Saving..." : "Save changes"}</button><button type="button" className="rounded-xl border px-5 py-2.5 font-bold disabled:opacity-60" disabled={deleting} onClick={onToggle}>{disabled ? "Enable user" : "Disable user"}</button><button type="button" className="rounded-xl border border-red-200 bg-red-50 px-5 py-2.5 font-bold text-red-700 disabled:opacity-60" disabled={deleting} onClick={onDelete}>{deleting ? "Deleting..." : "Delete user"}</button></div>
               {statusMessage && (
                 <p className={`rounded-xl px-3 py-2 text-sm font-bold ${statusMessage.toLowerCase().includes("could not") ? "bg-[#fff3e8] text-[#8a4a00]" : "bg-[#ecfdf3] text-[#087443]"}`}>
                   {statusMessage}

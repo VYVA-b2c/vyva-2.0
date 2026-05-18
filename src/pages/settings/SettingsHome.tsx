@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
@@ -22,6 +21,7 @@ import {
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/i18n";
 import { APP_VERSION } from "@/lib/appInfo";
 import { apiFetch } from "@/lib/queryClient";
 
@@ -129,7 +129,7 @@ function formatPlanLabel(value: string | null | undefined) {
 export default function SettingsHome() {
   const navigate = useNavigate();
   const { logout } = useAuth();
-  const { t } = useTranslation();
+  const { t } = useLanguage();
   const { toast } = useToast();
   const [isDownloadingData, setIsDownloadingData] = useState(false);
   const { data: billingStatus, isLoading: billingLoading } = useQuery<BillingStatus>({
@@ -149,9 +149,10 @@ export default function SettingsHome() {
     : billingStatus?.status === "active" && !isFreePlan
       ? t("settings.home.rows.planBillingSubActive", "Subscription active")
       : billingStatus?.status === "trial" && (billingStatus.trial_days_remaining ?? 0) > 0
-        ? t("settings.home.rows.planBillingSubTrial", "{{count}} trial days remaining", {
-            count: billingStatus.trial_days_remaining,
-          })
+        ? t("settings.home.rows.planBillingSubTrial", "{{count}} trial days remaining").replace(
+            "{{count}}",
+            String(billingStatus.trial_days_remaining ?? 0),
+          )
         : billingStatus?.status === "past_due"
           ? t("settings.home.rows.planBillingSubPastDue", "Payment needs attention")
           : t("settings.home.rows.planBillingSub");
@@ -184,7 +185,7 @@ export default function SettingsHome() {
     navigator.clipboard?.writeText(SUPPORT_EMAIL).catch(() => undefined);
     toast({
       title: t("settings.home.rows.supportEmailReady", "Opening email draft"),
-      description: t("settings.home.rows.supportEmailCopied", "Support email copied: {{email}}", { email: SUPPORT_EMAIL }),
+      description: t("settings.home.rows.supportEmailCopied", "Support email copied: {{email}}").replace("{{email}}", SUPPORT_EMAIL),
     });
     window.setTimeout(() => {
       window.location.href = buildMailtoUrl(subject, body);
@@ -262,8 +263,8 @@ export default function SettingsHome() {
             icon={CalendarClock}
             iconBg="#F5F0FF"
             iconColor="#6B21A8"
-            title="Mi apoyo programado"
-            sub="Llamadas, recordatorios y horarios de apoyo"
+            title={t("settings.home.rows.scheduledSupport")}
+            sub={t("settings.home.rows.scheduledSupportSub")}
             onClick={() => navigate("/settings/scheduled-support")}
             data-testid="button-settings-scheduled-support"
           />
