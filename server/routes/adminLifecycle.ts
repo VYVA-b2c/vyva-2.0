@@ -1,28 +1,57 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, pool } from "../db.js";
 import { getActiveProfileContext } from "../lib/profileAccess.js";
 import * as lifecycleService from "../services/lifecycle.js";
 import { dispatchCommunicationsByIds, dispatchQueuedCommunications } from "../services/communicationDispatcher.js";
 import {
+  accessLinks,
+  agentDifficulty,
+  billingEvents,
+  caregiverAlerts,
+  companionConnections,
+  companionProfiles,
   communicationsLog,
+  conciergePending,
+  conciergeRecommendationFeedback,
+  conciergeReminders,
+  conciergeSessions,
   consentAttempts,
   heroMessages,
   homePlanCards,
+  homeScans,
   lifecycleEvents,
+  medicationAdherence,
+  onboardingState,
   profiles,
   profileMemberships,
+  scamChecks,
   consentAuditLogs,
   interactionLogs,
   scheduledEventLogs,
   scheduledEvents,
   scheduledInteractions,
+  sessionExchanges,
+  sessionState,
+  socialConnections,
+  socialRoomVisits,
+  socialUserInterests,
+  teamInvitations,
   tierEntitlements,
+  triageReports,
+  userChannelIdentity,
+  userChannelPreferences,
   users,
   userIntakes,
   userMedications,
+  userProviders,
+  utilityReviewRuns,
+  vitalsReadings,
+  voiceRecommendationFeedback,
+  voiceTimelineEvents,
+  woundScans,
 } from "../../shared/schema.js";
 import { syncProfileEntitlement, type EntitlementSyncResult } from "../lib/entitlementSync.js";
 import { listPlans, normalizeSubscriptionTier, upsertPlanWithEntitlement } from "../lib/plans.js";
@@ -901,6 +930,15 @@ async function recordEvent(input: {
   });
 }
 
+async function optionalAdminDelete(label: string, query: Promise<unknown>) {
+  try {
+    await query;
+  } catch (error) {
+    if (!isMissingRelationError(error)) throw error;
+    console.warn(`[admin-lifecycle] optional delete skipped for ${label}`, error);
+  }
+}
+
 adminLifecycleRouter.get("/summary", async (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
 
@@ -1706,6 +1744,115 @@ adminLifecycleRouter.post("/users/:id/enable", async (req: Request, res: Respons
 
   await recordEvent({ intakeId: intake.id, userId, eventType: "user_enabled", channel: "admin" });
   return res.json({ profile });
+});
+
+adminLifecycleRouter.delete("/users/:id", async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+  const parsed = z.object({ confirm: z.literal("DELETE") }).safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: "Type DELETE to confirm permanent user deletion." });
+
+  const [intake] = await db.select().from(userIntakes).where(eq(userIntakes.id, req.params.id)).limit(1);
+  if (!intake) return res.status(404).json({ error: "User intake not found" });
+
+  const userId = targetUserIdForIntake(intake);
+  const deleted = {
+    intake: false,
+    profile: false,
+    login: false,
+  };
+
+  await recordEvent({
+    intakeId: intake.id,
+    userId,
+    eventType: "user_deleted",
+    channel: "admin",
+    metadata: {
+      deleted_by: req.user?.email ?? req.user?.id ?? "admin",
+      name: intake.name,
+      email: intake.email,
+      phone: intake.phone,
+    },
+  });
+
+  await optionalAdminDelete("communications for intake", db.delete(communicationsLog).where(eq(communicationsLog.intake_id, intake.id)));
+  await optionalAdminDelete("consent attempts for intake", db.delete(consentAttempts).where(eq(consentAttempts.intake_id, intake.id)));
+  await optionalAdminDelete("access links for intake", db.delete(accessLinks).where(eq(accessLinks.intake_id, intake.id)));
+  await optionalAdminDelete("lifecycle events for intake", db.delete(lifecycleEvents).where(eq(lifecycleEvents.intake_id, intake.id)));
+
+  if (userId) {
+    await optionalAdminDelete("session state", db.delete(sessionState).where(eq(sessionState.user_id, userId)));
+    await optionalAdminDelete("session exchanges", db.delete(sessionExchanges).where(eq(sessionExchanges.user_id, userId)));
+    await optionalAdminDelete("agent difficulty", db.delete(agentDifficulty).where(eq(agentDifficulty.user_id, userId)));
+    await optionalAdminDelete("caregiver alerts", db.delete(caregiverAlerts).where(eq(caregiverAlerts.user_id, userId)));
+    await optionalAdminDelete("medication adherence", db.delete(medicationAdherence).where(eq(medicationAdherence.user_id, userId)));
+    await optionalAdminDelete("onboarding state", db.delete(onboardingState).where(eq(onboardingState.user_id, userId)));
+    await optionalAdminDelete(
+      "consent log",
+      db.delete(consentLog).where(or(eq(consentLog.user_id, userId), eq(consentLog.target_user_id, userId))),
+    );
+    await optionalAdminDelete(
+      "team invitations",
+      db.delete(teamInvitations).where(or(eq(teamInvitations.senior_id, userId), eq(teamInvitations.accepted_user_id, userId))),
+    );
+    await optionalAdminDelete("user channel identity", db.delete(userChannelIdentity).where(eq(userChannelIdentity.user_id, userId)));
+    await optionalAdminDelete("user channel preferences", db.delete(userChannelPreferences).where(eq(userChannelPreferences.user_id, userId)));
+    await optionalAdminDelete("billing events", db.delete(billingEvents).where(eq(billingEvents.user_id, userId)));
+    await optionalAdminDelete("scam checks", db.delete(scamChecks).where(eq(scamChecks.user_id, userId)));
+    await optionalAdminDelete("home scans", db.delete(homeScans).where(eq(homeScans.user_id, userId)));
+    await optionalAdminDelete("wound scans", db.delete(woundScans).where(eq(woundScans.user_id, userId)));
+    await optionalAdminDelete("companion profile", db.delete(companionProfiles).where(eq(companionProfiles.user_id, userId)));
+    await optionalAdminDelete(
+      "companion connections",
+      db.delete(companionConnections).where(or(eq(companionConnections.requester_id, userId), eq(companionConnections.recipient_id, userId))),
+    );
+    await optionalAdminDelete("social room visits", db.delete(socialRoomVisits).where(eq(socialRoomVisits.user_id, userId)));
+    await optionalAdminDelete("social interests", db.delete(socialUserInterests).where(eq(socialUserInterests.user_id, userId)));
+    await optionalAdminDelete(
+      "social connections",
+      db.delete(socialConnections).where(or(eq(socialConnections.user_id_a, userId), eq(socialConnections.user_id_b, userId))),
+    );
+    await optionalAdminDelete("triage reports", db.delete(triageReports).where(eq(triageReports.user_id, userId)));
+    await optionalAdminDelete("vitals readings", db.delete(vitalsReadings).where(eq(vitalsReadings.user_id, userId)));
+    await optionalAdminDelete("user providers", db.delete(userProviders).where(eq(userProviders.user_id, userId)));
+    await optionalAdminDelete("concierge pending", db.delete(conciergePending).where(eq(conciergePending.user_id, userId)));
+    await optionalAdminDelete("concierge sessions", db.delete(conciergeSessions).where(eq(conciergeSessions.user_id, userId)));
+    await optionalAdminDelete("concierge reminders", db.delete(conciergeReminders).where(eq(conciergeReminders.user_id, userId)));
+    await optionalAdminDelete("utility review runs", db.delete(utilityReviewRuns).where(eq(utilityReviewRuns.user_id, userId)));
+    await optionalAdminDelete("concierge feedback", db.delete(conciergeRecommendationFeedback).where(eq(conciergeRecommendationFeedback.user_id, userId)));
+    await optionalAdminDelete("voice recommendation feedback", db.delete(voiceRecommendationFeedback).where(eq(voiceRecommendationFeedback.user_id, userId)));
+    await optionalAdminDelete("voice timeline events", db.delete(voiceTimelineEvents).where(eq(voiceTimelineEvents.user_id, userId)));
+    await optionalAdminDelete("scheduled event logs", db.delete(scheduledEventLogs).where(eq(scheduledEventLogs.user_id, userId)));
+    await optionalAdminDelete("scheduled events", db.delete(scheduledEvents).where(eq(scheduledEvents.user_id, userId)));
+    await optionalAdminDelete("scheduled interactions", db.delete(scheduledInteractions).where(eq(scheduledInteractions.user_id, userId)));
+    await optionalAdminDelete("interaction logs", db.delete(interactionLogs).where(eq(interactionLogs.user_id, userId)));
+    await optionalAdminDelete("consent audit logs", db.delete(consentAuditLogs).where(eq(consentAuditLogs.user_id, userId)));
+    await optionalAdminDelete("communications for user", db.delete(communicationsLog).where(eq(communicationsLog.user_id, userId)));
+    await optionalAdminDelete("lifecycle events for user", db.delete(lifecycleEvents).where(eq(lifecycleEvents.user_id, userId)));
+    await optionalAdminDelete(
+      "consent attempts for user",
+      db.delete(consentAttempts).where(or(eq(consentAttempts.elder_user_id, userId), eq(consentAttempts.family_user_id, userId))),
+    );
+    await optionalAdminDelete("user medications", db.delete(userMedications).where(eq(userMedications.user_id, userId)));
+    await optionalAdminDelete(
+      "profile memberships",
+      db.delete(profileMemberships).where(or(eq(profileMemberships.profile_id, userId), eq(profileMemberships.user_id, userId))),
+    );
+    await optionalAdminDelete("legacy active profile links", db.update(users).set({ active_profile_id: null }).where(eq(users.active_profile_id, userId)));
+
+    const deletedProfiles = await db.delete(profiles).where(eq(profiles.id, userId)).returning({ id: profiles.id });
+    deleted.profile = deletedProfiles.length > 0;
+    const deletedLogins = await optionalAdminRows(db.delete(users).where(eq(users.id, userId)).returning({ id: users.id }));
+    deleted.login = deletedLogins.length > 0;
+  }
+
+  const deletedIntakes = await db.delete(userIntakes).where(eq(userIntakes.id, intake.id)).returning({ id: userIntakes.id });
+  deleted.intake = deletedIntakes.length > 0;
+
+  return res.json({
+    deleted,
+    user_id: userId,
+    intake_id: intake.id,
+  });
 });
 
 adminLifecycleRouter.post("/users/:id/scheduled-events", async (req: Request, res: Response) => {
