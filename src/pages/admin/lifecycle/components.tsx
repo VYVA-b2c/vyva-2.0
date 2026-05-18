@@ -110,7 +110,15 @@ export function IntakeTable({ users, onView, onTriggerConsent, onToggleEnabled, 
           )}
           {users.map((user) => (
             <tr key={user.id} className="rounded-2xl bg-[#fbf8f5]">
-              <td className="rounded-l-2xl px-3 py-3 font-bold">{user.name}</td>
+              <td className="rounded-l-2xl px-3 py-3">
+                <p className="font-bold">{user.name}</p>
+                {(user.login_email || user.login_phone || user.profile_email || user.profile_phone || user.profile_name) && (
+                  <div className="mt-1 grid gap-0.5 text-xs font-semibold text-[#7d6b65]">
+                    {(user.login_email || user.login_phone) && <span>Login: {user.login_email || user.login_phone}</span>}
+                    {(user.profile_email || user.profile_phone || user.profile_name) && <span>Profile: {user.profile_email || user.profile_phone || user.profile_name}</span>}
+                  </div>
+                )}
+              </td>
               {!compact && <td className="px-3 py-3">{user.phone}</td>}
               <td className="px-3 py-3">{user.user_type}</td>
               <td className="px-3 py-3">{user.entry_point}</td>
@@ -169,9 +177,9 @@ export function AccountSubscriptionsSection({
     <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="font-serif text-3xl">Account subscriptions</h2>
+          <h2 className="font-serif text-3xl">App Access</h2>
           <p className="mt-2 max-w-3xl text-sm text-[#7d6b65]">
-            Search by the user login email, profile email, name or phone. Updates here change the real app profile plan.
+            Real login, active profile, plan, and entitlement controls.
           </p>
         </div>
         <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">
@@ -193,7 +201,7 @@ export function AccountSubscriptionsSection({
           placeholder="Search 040270@gmail.com, name or phone"
         />
         <button className="rounded-2xl bg-[#2f2135] px-5 py-3 font-bold text-white" type="submit">
-          Search accounts
+          Search access
         </button>
       </form>
 

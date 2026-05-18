@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "crypto";
-import { and, desc, eq, inArray, isNull, lte, sql } from "drizzle-orm";
-import { db } from "../db.js";
+import { and, desc, eq, inArray, isNull, lte, or, sql, type SQL } from "drizzle-orm";
+import { db, pool } from "../db.js";
 import { normalizeSubscriptionTier } from "../lib/plans.js";
 import {
   accessLinks,
@@ -22,6 +22,12 @@ type EntryPoint = "form" | "phone" | "whatsapp" | "admin";
 type UserType = "elder" | "family" | "admin";
 type ConsentStatus = "pending" | "approved" | "rejected" | "no_answer" | "failed";
 type ConsentAttempt = typeof consentAttempts.$inferSelect;
+type SupabaseAuthAccount = {
+  id: string;
+  email: string | null;
+  phone_number: string | null;
+  created_at: Date | null;
+};
 
 export type IntakeCreateInput = {
   name: string;
@@ -84,6 +90,58 @@ export function normalizePhone(phone: string): string {
 
 function normalizeEmail(email?: string | null): string {
   return (email ?? "").trim().toLowerCase();
+}
+
+function isMissingRelationError(error: unknown): boolean {
+  const maybeError = error as { code?: string; message?: string };
+  return maybeError?.code === "42P01" || String(maybeError?.message ?? error).includes("does not exist");
+}
+
+function phoneDigits(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const digits = value.replace(/\D/g, "");
+  return digits || null;
+}
+
+async function searchSupabaseAuthAccounts(query: string): Promise<SupabaseAuthAccount[]> {
+  const like = `%${query}%`;
+  const normalizedPhone = normalizePhone(query);
+  const digits = phoneDigits(normalizedPhone);
+  const digitLike = digits ? `%${digits}%` : null;
+  try {
+    const result = await pool.query<SupabaseAuthAccount>(
+      `select id::text, email::text, phone::text as phone_number, created_at
+       from auth.users
+       where lower(coalesce(email, '')) like $1
+          or coalesce(phone, '') like $1
+          or ($2::text is not null and regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g') like $2)
+       order by created_at desc
+       limit 50`,
+      [like, digitLike],
+    );
+    return result.rows;
+  } catch (error) {
+    const maybeError = error as { code?: string };
+    if (isMissingRelationError(error) || maybeError?.code === "42501") return [];
+    throw error;
+  }
+}
+
+async function supabaseAuthAccountsByIds(ids: string[]): Promise<SupabaseAuthAccount[]> {
+  if (!ids.length) return [];
+  try {
+    const result = await pool.query<SupabaseAuthAccount>(
+      `select id::text, email::text, phone::text as phone_number, created_at
+       from auth.users
+       where id::text = any($1::text[])`,
+      [ids],
+    );
+    return result.rows;
+  } catch (error) {
+    const maybeError = error as { code?: string };
+    if (isMissingRelationError(error) || maybeError?.code === "42501") return [];
+    throw error;
+  }
 }
 
 function slugify(value: string): string {
@@ -780,18 +838,113 @@ export async function getLifecycleSummary(database = db) {
   };
 }
 
+async function canonicalIntakeIdsForDirectMatches(query: string, database: Database) {
+  const like = `%${query}%`;
+  const digits = phoneDigits(normalizePhone(query));
+  const digitLike = digits ? `%${digits}%` : null;
+  const directMatches = await database
+    .select({
+      id: userIntakes.id,
+      metadata: userIntakes.metadata,
+    })
+    .from(userIntakes)
+    .where(sql`
+      lower(coalesce(${userIntakes.name}, '')) like ${like}
+      or lower(coalesce(${userIntakes.email}, '')) like ${like}
+      or lower(coalesce(${userIntakes.phone}, '')) like ${like}
+      or (${digitLike}::text is not null and regexp_replace(coalesce(${userIntakes.phone}, ''), '[^0-9]', '', 'g') like ${digitLike})
+    `)
+    .limit(200);
+
+  return new Set(directMatches.map((row) => {
+    const metadata = metadataRecord(row.metadata);
+    return typeof metadata.merged_into_intake_id === "string" ? metadata.merged_into_intake_id : row.id;
+  }));
+}
+
+async function lifecycleUserSearchWhere(query: string, database: Database): Promise<SQL | undefined> {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return undefined;
+
+  const like = `%${normalized}%`;
+  const digits = phoneDigits(normalizePhone(query));
+  const digitLike = digits ? `%${digits}%` : null;
+  const canonicalIntakeIds = await canonicalIntakeIdsForDirectMatches(normalized, database);
+  const userIds = new Set<string>();
+
+  const [profileMatches, accountMatches, supabaseMatches] = await Promise.all([
+    database
+      .select({ id: profiles.id })
+      .from(profiles)
+      .where(sql`
+        lower(coalesce(${profiles.email}, '')) like ${like}
+        or lower(coalesce(${profiles.full_name}, '')) like ${like}
+        or lower(coalesce(${profiles.preferred_name}, '')) like ${like}
+        or lower(coalesce(${profiles.phone_number}, '')) like ${like}
+        or lower(coalesce(${profiles.whatsapp_number}, '')) like ${like}
+        or (${digitLike}::text is not null and regexp_replace(coalesce(${profiles.phone_number}, ''), '[^0-9]', '', 'g') like ${digitLike})
+        or (${digitLike}::text is not null and regexp_replace(coalesce(${profiles.whatsapp_number}, ''), '[^0-9]', '', 'g') like ${digitLike})
+      `)
+      .limit(100),
+    database
+      .select({
+        id: users.id,
+        active_profile_id: users.active_profile_id,
+      })
+      .from(users)
+      .where(sql`
+        lower(coalesce(${users.email}, '')) like ${like}
+        or lower(coalesce(${users.phone_number}, '')) like ${like}
+        or (${digitLike}::text is not null and regexp_replace(coalesce(${users.phone_number}, ''), '[^0-9]', '', 'g') like ${digitLike})
+      `)
+      .limit(100),
+    searchSupabaseAuthAccounts(normalized),
+  ]);
+
+  for (const profile of profileMatches) userIds.add(profile.id);
+  for (const account of accountMatches) {
+    userIds.add(account.id);
+    if (account.active_profile_id) userIds.add(account.active_profile_id);
+  }
+  for (const account of supabaseMatches) userIds.add(account.id);
+
+  const clauses: SQL[] = [
+    sql`
+      lower(coalesce(${userIntakes.name}, '')) like ${like}
+      or lower(coalesce(${userIntakes.email}, '')) like ${like}
+      or lower(coalesce(${userIntakes.phone}, '')) like ${like}
+      or (${digitLike}::text is not null and regexp_replace(coalesce(${userIntakes.phone}, ''), '[^0-9]', '', 'g') like ${digitLike})
+    `,
+  ];
+
+  const canonicalIds = Array.from(canonicalIntakeIds);
+  if (canonicalIds.length) clauses.push(inArray(userIntakes.id, canonicalIds));
+
+  const matchedUserIds = Array.from(userIds);
+  if (matchedUserIds.length) {
+    clauses.push(inArray(userIntakes.user_id, matchedUserIds));
+    clauses.push(inArray(userIntakes.elder_user_id, matchedUserIds));
+    clauses.push(inArray(userIntakes.family_user_id, matchedUserIds));
+  }
+
+  return clauses.length === 1 ? clauses[0] : or(...clauses);
+}
+
 export async function listLifecycleUsers(filters: {
   entry_point?: EntryPoint;
   user_type?: UserType;
   status?: IntakeStatus;
   tier?: string;
+  query?: string;
 }, database = db) {
   await backfillLifecycleUsers(database);
+  const searchWhere = filters.query ? await lifecycleUserSearchWhere(filters.query, database) : undefined;
   const where = [
     filters.entry_point ? eq(userIntakes.entry_point, filters.entry_point) : undefined,
     filters.user_type ? eq(userIntakes.user_type, filters.user_type) : undefined,
     filters.status ? eq(userIntakes.status, filters.status) : undefined,
     filters.tier ? eq(userIntakes.tier, filters.tier) : undefined,
+    searchWhere,
   ].filter(Boolean);
 
   const rows = (await database
@@ -812,6 +965,11 @@ export async function listLifecycleUsers(filters: {
     ? await database
       .select({
         id: profiles.id,
+        email: profiles.email,
+        phone_number: profiles.phone_number,
+        whatsapp_number: profiles.whatsapp_number,
+        full_name: profiles.full_name,
+        preferred_name: profiles.preferred_name,
         account_status: profiles.account_status,
         disabled_at: profiles.disabled_at,
         subscription_tier: profiles.subscription_tier,
@@ -820,14 +978,48 @@ export async function listLifecycleUsers(filters: {
       .where(inArray(profiles.id, profileIds))
     : [];
   const profileById = new Map(profileRows.map((profile) => [profile.id, profile]));
+  const relatedUserIds = Array.from(new Set([
+    ...profileIds,
+    ...rows.flatMap((row) => [row.intake.user_id, row.intake.elder_user_id, row.intake.family_user_id]).filter(Boolean),
+  ])) as string[];
+  const accountClauses: SQL[] = [];
+  if (relatedUserIds.length) accountClauses.push(inArray(users.id, relatedUserIds));
+  if (profileIds.length) accountClauses.push(inArray(users.active_profile_id, profileIds));
+  const accountRows = accountClauses.length
+    ? await database
+      .select({
+        id: users.id,
+        email: users.email,
+        phone_number: users.phone_number,
+        active_profile_id: users.active_profile_id,
+      })
+      .from(users)
+      .where(accountClauses.length === 1 ? accountClauses[0] : or(...accountClauses))
+    : [];
+  const supabaseAccounts = await supabaseAuthAccountsByIds(relatedUserIds);
+  const supabaseById = new Map(supabaseAccounts.map((account) => [account.id, account]));
 
   return rows.map((row) => {
-    const profile = profileById.get(targetUserIdForIntake(row.intake) ?? "");
+    const targetUserId = targetUserIdForIntake(row.intake);
+    const profile = profileById.get(targetUserId ?? "");
+    const intakeIds = [row.intake.user_id, row.intake.elder_user_id, row.intake.family_user_id].filter(Boolean) as string[];
+    const account = accountRows.find((item) => targetUserId && item.active_profile_id === targetUserId)
+      ?? accountRows.find((item) => row.intake.user_id && item.id === row.intake.user_id)
+      ?? accountRows.find((item) => intakeIds.includes(item.id))
+      ?? null;
+    const supabaseAccount = (targetUserId ? supabaseById.get(targetUserId) : undefined)
+      ?? intakeIds.map((id) => supabaseById.get(id)).find(Boolean)
+      ?? null;
     return {
       ...row.intake,
       intake_tier: row.intake.tier,
       profile_subscription_tier: profile?.subscription_tier ?? null,
       tier: profile?.subscription_tier ?? row.intake.tier,
+      login_email: account?.email ?? supabaseAccount?.email ?? null,
+      login_phone: account?.phone_number ?? supabaseAccount?.phone_number ?? null,
+      profile_email: profile?.email ?? null,
+      profile_phone: profile?.phone_number ?? profile?.whatsapp_number ?? null,
+      profile_name: profile?.preferred_name ?? profile?.full_name ?? null,
       organization_name: row.organization_name,
       account_status: profile?.account_status ?? "enabled",
       disabled_at: profile?.disabled_at ?? null,

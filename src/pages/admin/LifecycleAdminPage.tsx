@@ -63,9 +63,22 @@ type SupportScheduleDraft = {
   quiet_hours_end: string;
 };
 
+const adminTabs = [
+  { id: "users", label: "People" },
+  { id: "accounts", label: "App Access" },
+  { id: "invites", label: "Invites" },
+  { id: "consent", label: "Consent" },
+  { id: "organizations", label: "Organizations" },
+  { id: "tiers", label: "Tiers" },
+  { id: "communications", label: "Communications" },
+  { id: "analytics", label: "Analytics" },
+];
+
 export default function LifecycleAdminPage() {
   const [activeTab, setActiveTab] = useState("users");
   const [filters, setFilters] = useState({ entry_point: "", user_type: "", status: "", tier: "" });
+  const [peopleSearchInput, setPeopleSearchInput] = useState("");
+  const [peopleSearch, setPeopleSearch] = useState("");
   const [summary, setSummary] = useState<JsonRecord | null>(null);
   const [users, setUsers] = useState<Intake[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -138,6 +151,7 @@ export default function LifecycleAdminPage() {
   async function refresh() {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => value && params.set(key, value));
+    if (peopleSearch.trim()) params.set("query", peopleSearch.trim());
     const [summaryData, userData, orgData, consentData, commsData, planData] = await Promise.all([
       api("/summary"),
       api(`/users?${params.toString()}`),
@@ -157,7 +171,7 @@ export default function LifecycleAdminPage() {
   useEffect(() => {
     refresh().catch((err) => setMessage(err.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters]);
+  }, [filters, peopleSearch]);
 
   async function createIntake() {
     setMessage("");
@@ -357,14 +371,14 @@ export default function LifecycleAdminPage() {
     setAccountSearchMessage("");
     if (query.length < 3) {
       setAccountSubscriptions([]);
-      setAccountSearchMessage("Enter at least 3 characters to search accounts.");
+      setAccountSearchMessage("Enter at least 3 characters to search app access.");
       return;
     }
 
     const data = await api(`/account-subscriptions?query=${encodeURIComponent(query)}`);
     const accounts = (data.accounts ?? []) as AccountSubscription[];
     setAccountSubscriptions(accounts);
-    setAccountSearchMessage(accounts.length ? `${accounts.length} matching account profile${accounts.length === 1 ? "" : "s"} found.` : "No matching account profiles found.");
+    setAccountSearchMessage(accounts.length ? `${accounts.length} matching app access profile${accounts.length === 1 ? "" : "s"} found.` : "No matching app access profiles found.");
   }
 
   function updateAccountSubscription(profileId: string, patch: Partial<AccountSubscription>) {
@@ -743,9 +757,9 @@ export default function LifecycleAdminPage() {
         </div>
 
         <nav className="mt-3 flex flex-wrap gap-2">
-          {["users", "accounts", "invites", "consent", "organizations", "tiers", "communications", "analytics"].map((tab) => (
-            <button key={tab} onClick={() => setActiveTab(tab)} className={`rounded-xl px-4 py-2 text-sm font-bold shadow-sm ${activeTab === tab ? "bg-purple-700 text-white" : "border border-purple-100 bg-white text-purple-700 hover:bg-purple-50"}`}>
-              {tab[0].toUpperCase() + tab.slice(1)}
+          {adminTabs.map((tab) => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`rounded-xl px-4 py-2 text-sm font-bold shadow-sm ${activeTab === tab.id ? "bg-purple-700 text-white" : "border border-purple-100 bg-white text-purple-700 hover:bg-purple-50"}`}>
+              {tab.label}
             </button>
           ))}
         </nav>
@@ -782,7 +796,48 @@ export default function LifecycleAdminPage() {
             </section>
 
             <section className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
-              <div className="grid gap-3 md:grid-cols-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="font-serif text-2xl">People</h2>
+                  <p className="mt-1 text-sm text-[#7d6b65]">Signup, onboarding, consent, status, and organization visibility.</p>
+                </div>
+                {peopleSearch && (
+                  <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">
+                    Search: {peopleSearch}
+                  </span>
+                )}
+              </div>
+
+              <form
+                className="mt-4 grid gap-3 md:grid-cols-[1fr_auto_auto]"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  setPeopleSearch(peopleSearchInput.trim());
+                }}
+              >
+                <input
+                  className="rounded-xl border border-[#e4d8ce] px-3 py-2.5 text-sm font-semibold"
+                  value={peopleSearchInput}
+                  onChange={(event) => setPeopleSearchInput(event.target.value)}
+                  placeholder="Search by name, phone, profile email, or login email"
+                />
+                <button type="submit" className="rounded-xl bg-[#2f2135] px-4 py-2.5 text-sm font-bold text-white">
+                  Search people
+                </button>
+                <button
+                  type="button"
+                  className="rounded-xl border border-purple-100 bg-white px-4 py-2.5 text-sm font-bold text-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={!peopleSearch && !peopleSearchInput}
+                  onClick={() => {
+                    setPeopleSearchInput("");
+                    setPeopleSearch("");
+                  }}
+                >
+                  Clear
+                </button>
+              </form>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-4">
                 {[
                   ["entry_point", entryPoints],
                   ["user_type", userTypes],

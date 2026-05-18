@@ -11,6 +11,11 @@ export type Intake = {
   tier: string;
   intake_tier?: string | null;
   profile_subscription_tier?: string | null;
+  login_email?: string | null;
+  login_phone?: string | null;
+  profile_email?: string | null;
+  profile_phone?: string | null;
+  profile_name?: string | null;
   organization_id?: string | null;
   organization_name?: string | null;
   account_status?: "enabled" | "disabled";
