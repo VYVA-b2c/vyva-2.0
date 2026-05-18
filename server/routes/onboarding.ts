@@ -15,6 +15,7 @@ import {
 import { z } from "zod";
 import { notifyElderOfProxySetup } from "../services/notifications.js";
 import { getActiveProfileContext, requireActiveProfileId } from "../lib/profileAccess.js";
+import { premiumTrialEndsAt, premiumTrialProfilePatch } from "../lib/premiumTrial.js";
 
 export const onboardingRouter = Router();
 
@@ -215,6 +216,7 @@ onboardingRouter.post("/start-profile", async (req: Request, res: Response) => {
     const isSelf = parsed.data.setup_for === "self";
     const profileId = isSelf ? accountUserId : crypto.randomUUID();
     const now = new Date();
+    const trialEndsAt = premiumTrialEndsAt(now);
 
     await db
       .insert(profiles)
@@ -223,6 +225,9 @@ onboardingRouter.post("/start-profile", async (req: Request, res: Response) => {
         email: isSelf ? account.email : null,
         phone_number: isSelf ? account.phone_number : null,
         language: parsed.data.language,
+        subscription_status: "trial",
+        subscription_tier: "premium",
+        trial_ends_at: trialEndsAt,
         onboarding_channel: isSelf ? "web_form" : "proxy_web",
         current_stage: "stage_1_identity",
       })
@@ -550,18 +555,22 @@ onboardingRouter.post("/basics", async (req: Request, res: Response) => {
           email, channel_reports, channel_chats, channel_notifications, hybrid_channel_mode,
           facebook_url, instagram_url, whatsapp_number } = parsed.data;
 
-  const trialEndsAt = new Date();
-  trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+  const trialPatch = premiumTrialProfilePatch();
+  const trialEndsAt = trialPatch.trial_ends_at;
 
   try {
     // Fetch the current profile so we can preserve the stage if already advanced.
     const existing = await db
-      .select({ current_stage: profiles.current_stage })
+      .select({
+        current_stage: profiles.current_stage,
+        full_name: profiles.full_name,
+      })
       .from(profiles)
       .where(eq(profiles.id, userId))
       .limit(1);
 
     const currentStage = existing[0]?.current_stage ?? "stage_1_identity";
+    const shouldInitializePremiumTrial = !hasText(existing[0]?.full_name);
     // Only advance to stage_2 if the user hasn't progressed further yet.
     const nextStage: OnboardingStage =
       stageIndex(currentStage) > stageIndex("stage_1_identity")
@@ -585,9 +594,9 @@ onboardingRouter.post("/basics", async (req: Request, res: Response) => {
         ...(instagram_url          ? { instagram_url }          : {}),
         ...(whatsapp_number        ? { whatsapp_number }        : {}),
         language,
-        subscription_status: "trial",
-        subscription_tier:   "free",
-        trial_ends_at:       trialEndsAt,
+        subscription_status: trialPatch.subscription_status,
+        subscription_tier:   trialPatch.subscription_tier,
+        trial_ends_at:       trialPatch.trial_ends_at,
         current_stage:       "stage_2_preferences",
         stage_1_completed_at: new Date(),
       })
@@ -607,6 +616,7 @@ onboardingRouter.post("/basics", async (req: Request, res: Response) => {
           ...(instagram_url        !== undefined && { instagram_url:         instagram_url        ?? null }),
           ...(whatsapp_number      !== undefined && { whatsapp_number:       whatsapp_number      ?? null }),
           language,
+          ...(shouldInitializePremiumTrial ? trialPatch : {}),
           // Preserve stage if already past stage_1.
           current_stage:        nextStage,
           stage_1_completed_at: new Date(),

@@ -10,7 +10,7 @@ export const DEFAULT_PLAN_CATALOG = [
     price_eur: 0,
     price_gbp: 0,
     billing_interval: "month",
-    trial_days: 7,
+    trial_days: 0,
     stripe_price_id_eur: null,
     stripe_price_id_gbp: null,
     features: ["companionship", "brain_training", "daily_checkin"],

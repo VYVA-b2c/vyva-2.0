@@ -56,6 +56,7 @@ import {
 import { syncProfileEntitlement, type EntitlementSyncResult } from "../lib/entitlementSync.js";
 import { listPlans, normalizeSubscriptionTier, upsertPlanWithEntitlement } from "../lib/plans.js";
 import { buildSignupInviteUrl, normalizeSignupInviteLanguage, signupInviteCopyFor } from "../lib/signupInviteLanguage.js";
+import { premiumTrialEndsAt } from "../lib/premiumTrial.js";
 
 export const adminLifecycleRouter = Router();
 
@@ -1219,6 +1220,7 @@ adminLifecycleRouter.get("/account-subscriptions", async (req: Request, res: Res
       subscription_status: profile.subscription_status,
       subscription_tier: normalizeSubscriptionTier(profile.subscription_tier),
       stored_subscription_tier: profile.subscription_tier,
+      trial_ends_at: profile.trial_ends_at,
       account_status: profile.account_status,
       profile_role: profile.role,
       membership_role: membership?.role ?? null,
@@ -1246,6 +1248,7 @@ adminLifecycleRouter.get("/account-subscriptions", async (req: Request, res: Res
       subscription_status: profile?.subscription_status ?? "trial",
       subscription_tier: normalizeSubscriptionTier(profile?.subscription_tier),
       stored_subscription_tier: profile?.subscription_tier ?? null,
+      trial_ends_at: profile?.trial_ends_at ?? null,
       account_status: profile?.account_status ?? "enabled",
       profile_role: profile?.role ?? "user",
       membership_role: null,
@@ -1358,6 +1361,7 @@ adminLifecycleRouter.post("/account-subscriptions/:profileId/repair-entitlement"
       subscription_status: freshProfile?.subscription_status ?? profile.subscription_status,
       subscription_tier: normalizeSubscriptionTier(freshProfile?.subscription_tier ?? profile.subscription_tier),
       stored_subscription_tier: freshProfile?.subscription_tier ?? profile.subscription_tier,
+      trial_ends_at: freshProfile?.trial_ends_at ?? profile.trial_ends_at,
       account_status: freshProfile?.account_status ?? profile.account_status,
       profile_role: freshProfile?.role ?? profile.role,
       updated_at: freshProfile?.updated_at ?? profile.updated_at,
@@ -1375,12 +1379,30 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
   if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid subscription update" });
 
   const subscriptionTier = normalizeSubscriptionTier(parsed.data.subscription_tier ?? parsed.data.tier);
+  const [existingProfile] = await db
+    .select()
+    .from(profiles)
+    .where(eq(profiles.id, req.params.profileId))
+    .limit(1);
+  let subscriptionStatus = parsed.data.subscription_status;
+  let trialEndsAt: Date | null | undefined;
+  if (subscriptionTier === "free") {
+    subscriptionStatus = "active";
+    trialEndsAt = null;
+  } else if (subscriptionStatus === "trial") {
+    const existingTrialEndsAt = existingProfile?.trial_ends_at ? new Date(existingProfile.trial_ends_at) : null;
+    trialEndsAt = existingTrialEndsAt && existingTrialEndsAt.getTime() > Date.now()
+      ? existingTrialEndsAt
+      : premiumTrialEndsAt();
+  } else {
+    trialEndsAt = null;
+  }
   const profilePatch: Partial<typeof profiles.$inferInsert> = {
     subscription_tier: subscriptionTier,
-    subscription_status: parsed.data.subscription_status,
+    subscription_status: subscriptionStatus,
     updated_at: new Date(),
   };
-  if (parsed.data.subscription_status === "active") profilePatch.trial_ends_at = null;
+  if (trialEndsAt !== undefined) profilePatch.trial_ends_at = trialEndsAt;
 
   let [profile] = await db
     .update(profiles)
@@ -1489,7 +1511,7 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
       channel: "admin",
       metadata: {
         subscription_tier: subscriptionTier,
-        subscription_status: parsed.data.subscription_status,
+        subscription_status: subscriptionStatus,
         account_email: subscriptionEmail,
         synced_profile_ids: syncedProfileIds,
       },
@@ -1521,6 +1543,7 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
       subscription_status: profile.subscription_status,
       subscription_tier: normalizeSubscriptionTier(profile.subscription_tier),
       stored_subscription_tier: profile.subscription_tier,
+      trial_ends_at: profile.trial_ends_at,
       account_status: profile.account_status,
       profile_role: profile.role,
       updated_at: profile.updated_at,

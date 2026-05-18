@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from "crypto";
 import { and, desc, eq, inArray, isNull, lte, or, sql, type SQL } from "drizzle-orm";
 import { db, pool } from "../db.js";
 import { normalizeSubscriptionTier } from "../lib/plans.js";
+import { premiumTrialEndsAt } from "../lib/premiumTrial.js";
 import {
   accessLinks,
   communicationsLog,
@@ -637,7 +638,14 @@ export async function ensurePasswordlessUser(input: {
   const email = input.email ? input.email.toLowerCase() : null;
   const [existingByEmail] = email
     ? await database
-      .select({ id: profiles.id, email: profiles.email })
+      .select({
+        id: profiles.id,
+        email: profiles.email,
+        subscription_tier: profiles.subscription_tier,
+        subscription_status: profiles.subscription_status,
+        trial_ends_at: profiles.trial_ends_at,
+        stripe_subscription_id: profiles.stripe_subscription_id,
+      })
       .from(profiles)
       .where(sql`lower(${profiles.email}) = ${email}`)
       .limit(1)
@@ -645,11 +653,25 @@ export async function ensurePasswordlessUser(input: {
   const [existingByPhone] = existingByEmail
     ? []
     : await database
-      .select({ id: profiles.id, email: profiles.email })
+      .select({
+        id: profiles.id,
+        email: profiles.email,
+        subscription_tier: profiles.subscription_tier,
+        subscription_status: profiles.subscription_status,
+        trial_ends_at: profiles.trial_ends_at,
+        stripe_subscription_id: profiles.stripe_subscription_id,
+      })
       .from(profiles)
       .where(eq(profiles.phone_number, normalizedPhone))
       .limit(1);
-  const user = existingByEmail ?? existingByPhone ?? { id: randomUUID(), email };
+  const user = existingByEmail ?? existingByPhone ?? {
+    id: randomUUID(),
+    email,
+    subscription_tier: null,
+    subscription_status: null,
+    trial_ends_at: null,
+    stripe_subscription_id: null,
+  };
   const preferredName = typeof input.profile?.preferred_name === "string" && input.profile.preferred_name.trim()
     ? input.profile.preferred_name.trim()
     : input.name.split(" ")[0] ?? input.name;
@@ -661,6 +683,18 @@ export async function ensurePasswordlessUser(input: {
     ? input.profile.whatsapp_number.trim()
     : normalizePhone(input.phone);
   const subscriptionTier = normalizeSubscriptionTier(input.tier);
+  const existingTrialEndsAt = user.trial_ends_at ? new Date(user.trial_ends_at) : null;
+  const preservesPaidPremium = (
+    subscriptionTier === "premium" &&
+    normalizeSubscriptionTier(user.subscription_tier) === "premium" &&
+    (user.subscription_status === "active" || Boolean(user.stripe_subscription_id))
+  );
+  const trialEndsAt = subscriptionTier === "premium" && !preservesPaidPremium
+    ? existingTrialEndsAt && existingTrialEndsAt.getTime() > Date.now()
+      ? existingTrialEndsAt
+      : premiumTrialEndsAt()
+    : null;
+  const subscriptionStatus = subscriptionTier === "premium" && !preservesPaidPremium ? "trial" : "active";
 
   await database.insert(profiles).values({
     id: user.id,
@@ -674,7 +708,8 @@ export async function ensurePasswordlessUser(input: {
     country_code: countryCode,
     timezone,
     subscription_tier: subscriptionTier,
-    subscription_status: "active",
+    subscription_status: subscriptionStatus,
+    trial_ends_at: trialEndsAt,
   } as typeof profiles.$inferInsert).onConflictDoUpdate({
     target: profiles.id,
     set: {
@@ -688,6 +723,8 @@ export async function ensurePasswordlessUser(input: {
       country_code: countryCode,
       timezone,
       subscription_tier: subscriptionTier,
+      subscription_status: subscriptionStatus,
+      trial_ends_at: trialEndsAt,
       updated_at: new Date(),
     },
   });

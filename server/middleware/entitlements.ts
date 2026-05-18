@@ -4,6 +4,7 @@ import { db } from "../db.js";
 import { getActiveProfileContext } from "../lib/profileAccess.js";
 import { entitlementForTier, normalizeSubscriptionTier } from "../lib/plans.js";
 import { profiles } from "../../shared/schema.js";
+import { syncProfileEntitlement } from "../lib/entitlementSync.js";
 
 export type EntitlementFeature =
   | "voice_assistant"
@@ -43,11 +44,7 @@ export async function hasTierEntitlement(userId: string, feature: EntitlementFea
   const context = await getActiveProfileContext(userId);
   const profileId = context.profileId ?? userId;
   const [profile] = await db
-    .select({
-      subscription_tier: profiles.subscription_tier,
-      subscription_status: profiles.subscription_status,
-      account_status: profiles.account_status,
-    })
+    .select()
     .from(profiles)
     .where(eq(profiles.id, profileId))
     .limit(1);
@@ -56,14 +53,22 @@ export async function hasTierEntitlement(userId: string, feature: EntitlementFea
     return { allowed: false, profileId, tier: "free", reason: "profile_unavailable" as const };
   }
 
-  const tier = normalizeSubscriptionTier(profile.subscription_tier);
+  const subscriptionSync = await syncProfileEntitlement({
+    profile,
+    profileId,
+    accountUserId: userId,
+    repairProfile: true,
+    repairChannel: "system",
+    repairTrigger: "has_tier_entitlement",
+  });
+  const tier = normalizeSubscriptionTier(subscriptionSync.effectiveTier);
   const entitlement = await entitlementForTier(tier);
   const allowed = Boolean(entitlement?.is_active && entitlement[feature]);
   return {
     allowed,
     profileId,
     tier,
-    subscriptionStatus: profile.subscription_status,
+    subscriptionStatus: subscriptionSync.effectiveStatus,
     reason: allowed ? null : "feature_not_in_tier" as const,
   };
 }
@@ -86,10 +91,7 @@ export function requireEntitlement(feature: EntitlementFeature) {
       }
 
       const [profile] = await db
-        .select({
-          subscription_tier: profiles.subscription_tier,
-          account_status: profiles.account_status,
-        })
+        .select()
         .from(profiles)
         .where(eq(profiles.id, profileId))
         .limit(1);
@@ -103,7 +105,15 @@ export function requireEntitlement(feature: EntitlementFeature) {
         return;
       }
 
-      const tier = normalizeSubscriptionTier(profile.subscription_tier);
+      const subscriptionSync = await syncProfileEntitlement({
+        profile,
+        profileId,
+        accountUserId: req.user.id,
+        repairProfile: true,
+        repairChannel: "system",
+        repairTrigger: `require_entitlement:${feature}`,
+      });
+      const tier = normalizeSubscriptionTier(subscriptionSync.effectiveTier);
       const entitlement = await entitlementForTier(tier);
       if (!entitlement?.is_active || !entitlement[feature]) {
         res.status(403).json({
