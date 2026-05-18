@@ -26,6 +26,7 @@ import {
 } from "../../shared/schema.js";
 import { syncProfileEntitlement, type EntitlementSyncResult } from "../lib/entitlementSync.js";
 import { listPlans, normalizeSubscriptionTier, upsertPlanWithEntitlement } from "../lib/plans.js";
+import { buildSignupInviteUrl, normalizeSignupInviteLanguage, signupInviteCopyFor } from "../lib/signupInviteLanguage.js";
 
 export const adminLifecycleRouter = Router();
 
@@ -1972,18 +1973,21 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
     emails: z.array(z.string().trim().email()).optional().default([]),
     whatsapp_numbers: z.array(z.string().trim().min(3)).optional().default([]),
     message: z.string().trim().max(500).optional(),
+    language: z.string().trim().optional(),
   }).safeParse(req.body ?? {});
   if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid signup share request" });
 
-  const loginUrl = `${publicBaseUrl(req)}/invite`;
+  const language = normalizeSignupInviteLanguage(parsed.data.language);
+  const copy = signupInviteCopyFor(language);
+  const loginUrl = buildSignupInviteUrl(publicBaseUrl(req), language);
   const emailRecipients = Array.from(new Set(parsed.data.emails.map((email) => email.toLowerCase())));
   const whatsappRecipients = Array.from(new Set(parsed.data.whatsapp_numbers.map(normalizePhone).filter(Boolean)));
   if (emailRecipients.length + whatsappRecipients.length === 0) {
     return res.status(400).json({ error: "Add at least one email or WhatsApp number." });
   }
 
-  const intro = parsed.data.message || "You are invited to create your VYVA account.";
-  const body = `${intro}\n\nSign up here: ${loginUrl}`;
+  const intro = parsed.data.message || copy.defaultIntro;
+  const body = `${intro}\n\n${copy.startHere}: ${loginUrl}`;
   const rows = [
     ...emailRecipients.map((recipient) => ({
       user_id: req.user?.id ?? null,
@@ -1994,8 +1998,9 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
       body,
       metadata: {
         url: loginUrl,
+        language,
         intro,
-        subject: "Create your VYVA account",
+        subject: copy.subject,
         shared_by: req.user?.email ?? req.user?.id ?? null,
       },
     })),
@@ -2005,9 +2010,10 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
       recipient,
       purpose: "share_signup_form",
       status: "queued",
-      body: `${intro}\n\n${loginUrl}`,
+      body,
       metadata: {
         url: loginUrl,
+        language,
         shared_by: req.user?.email ?? req.user?.id ?? null,
       },
     })),
