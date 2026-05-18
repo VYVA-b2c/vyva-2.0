@@ -1975,7 +1975,7 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
   }).safeParse(req.body ?? {});
   if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid signup share request" });
 
-  const loginUrl = `${publicBaseUrl(req)}/login`;
+  const loginUrl = `${publicBaseUrl(req)}/invite`;
   const emailRecipients = Array.from(new Set(parsed.data.emails.map((email) => email.toLowerCase())));
   const whatsappRecipients = Array.from(new Set(parsed.data.whatsapp_numbers.map(normalizePhone).filter(Boolean)));
   if (emailRecipients.length + whatsappRecipients.length === 0) {

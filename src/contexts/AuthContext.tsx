@@ -41,7 +41,7 @@ interface AuthContextValue {
   register: (identifier: string | AuthIdentifier, password: string) => Promise<void>;
   requestMagicLink: (identifier: string | AuthIdentifier) => Promise<MagicLinkResponse>;
   loginWithMagicToken: (magicToken: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -124,17 +124,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     queryClient.prefetchQuery({ queryKey: ONBOARDING_STATE_KEY });
   }, []);
 
-  const logout = useCallback(() => {
-    fetch("/api/auth/logout", {
-      method: "POST",
-      credentials: "same-origin",
-    }).catch(() => undefined);
-    clearToken();
-    setTokenState(null);
-    setUser(null);
-    setLastSeenAt(null);
-    queryClient.removeQueries({ queryKey: ["/api/onboarding/state"] });
-    queryClient.removeQueries({ queryKey: ["/api/profile"] });
+  const logout = useCallback(async () => {
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "same-origin",
+      });
+    } catch {
+      // Local session cleanup should still happen if the network request fails.
+    } finally {
+      clearToken();
+      setTokenState(null);
+      setUser(null);
+      setLastSeenAt(null);
+      queryClient.removeQueries({ queryKey: ["/api/onboarding/state"] });
+      queryClient.removeQueries({ queryKey: ["/api/profile"] });
+    }
   }, []);
 
   useEffect(() => {
