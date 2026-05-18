@@ -14,6 +14,7 @@ import { VoiceActionProvider } from "@/contexts/VoiceActionContext";
 import { VyvaVoiceProvider } from "@/hooks/useVyvaVoice";
 import { recordAgentButtonClick, recordAgentPageChange } from "@/lib/agentAppContext";
 import LoginPage from "@/pages/LoginPage";
+import InviteLandingPage from "@/pages/InviteLandingPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import AccessLinkPage from "@/pages/AccessLinkPage";
 import AppShell from "./components/AppShell";
@@ -335,6 +336,7 @@ const App = () => (
                   <AgentAppContextTracker />
                   <Routes>
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/invite" element={<InviteLandingPage />} />
                 <Route path="/admin/login" element={<LoginPage adminOnly />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/access/:token" element={<AccessLinkPage />} />
