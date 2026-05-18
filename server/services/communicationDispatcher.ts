@@ -99,6 +99,7 @@ function buildSignupInviteEmail(metadata: Record<string, unknown>, fallbackBody:
   const loginUrl = metadataString(metadata, "url") ?? `${publicBaseUrl()}/login`;
   const intro = metadataString(metadata, "intro") ?? introFromLegacyBody(fallbackBody) ?? "You are invited to create your VYVA account.";
   const subject = metadataString(metadata, "subject") ?? "Create your VYVA account";
+  const logoUrl = `${publicBaseUrl().replace(/\/$/, "")}/assets/vyva/vyva-logo-english.png`;
   const text = [
     intro,
     "Create your secure VYVA account to manage health, support, reminders, and daily care in one place.",
@@ -120,7 +121,7 @@ function buildSignupInviteEmail(metadata: Record<string, unknown>, fallbackBody:
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#fffaf4;border:1px solid #eaded2;border-radius:24px;overflow:hidden;">
             <tr>
               <td style="padding:32px 32px 12px;">
-                <div style="display:inline-block;background:#6f22c9;color:#ffffff;border-radius:999px;padding:10px 14px;font-weight:700;letter-spacing:.03em;">VYVA</div>
+                <img src="${htmlEscape(logoUrl)}" width="112" alt="VYVA" style="display:block;width:112px;max-width:112px;height:auto;border:0;outline:none;text-decoration:none;">
                 <h1 style="margin:26px 0 12px;font-family:Georgia,'Times New Roman',serif;font-size:34px;line-height:1.05;font-weight:500;color:#2f143f;">Create your VYVA account</h1>
                 <div style="font-size:17px;line-height:1.6;color:#6f5f5a;">${paragraphHtml(intro)}</div>
               </td>
