@@ -260,8 +260,8 @@ async function sendEmail(item: Communication) {
   }
 
   const content = [
-    ...(email.html ? [{ type: "text/html", value: email.html }] : []),
     { type: "text/plain", value: email.text },
+    ...(email.html ? [{ type: "text/html", value: email.html }] : []),
   ];
 
   const response = await fetch("https://api.sendgrid.com/v3/mail/send", {

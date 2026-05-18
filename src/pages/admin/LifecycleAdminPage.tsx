@@ -644,7 +644,7 @@ export default function LifecycleAdminPage() {
                   <h2 className="font-serif text-2xl">Share signup form</h2>
                   <p className="mt-1 text-sm text-[#7d6b65]">Send the public VYVA signup link to external users by email or WhatsApp.</p>
                 </div>
-                <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">v2.vyva.life/login</span>
+                <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">v2.vyva.life/invite</span>
               </div>
               <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_1.2fr_auto]">
                 <Field label="Email recipients">
