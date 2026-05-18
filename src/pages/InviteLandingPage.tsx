@@ -20,6 +20,7 @@ type InviteCopy = {
   eyebrow: string;
   title: string;
   body: string;
+  signedInBody: string;
   checking: string;
   signedInPrefix: string;
   signedInSuffix: string;
@@ -36,7 +37,8 @@ const INVITE_COPY: Record<LanguageCode, InviteCopy> = {
     language: "Language",
     eyebrow: "VYVA invitation",
     title: "Create your VYVA account",
-    body: "This invitation opens a fresh account setup. If this browser is already signed in, choose whether to continue there or start a new signup.",
+    body: "Set up your private VYVA profile for health, medication, family support, and everyday help.",
+    signedInBody: "This browser is already signed in. Choose whether to continue with that account or start a new signup.",
     checking: "Checking this browser...",
     signedInPrefix: "You are signed in as",
     signedInSuffix: ".",
@@ -51,7 +53,8 @@ const INVITE_COPY: Record<LanguageCode, InviteCopy> = {
     language: "Idioma",
     eyebrow: "Invitacion VYVA",
     title: "Crea tu cuenta VYVA",
-    body: "Esta invitacion abre una configuracion de cuenta nueva. Si este navegador ya tiene una sesion iniciada, elige si quieres continuar ahi o empezar un registro nuevo.",
+    body: "Configura tu perfil privado de VYVA para salud, medicacion, apoyo familiar y ayuda diaria.",
+    signedInBody: "Este navegador ya tiene una sesion iniciada. Elige si quieres continuar con esa cuenta o empezar un registro nuevo.",
     checking: "Comprobando este navegador...",
     signedInPrefix: "Has iniciado sesion como",
     signedInSuffix: ".",
@@ -66,7 +69,8 @@ const INVITE_COPY: Record<LanguageCode, InviteCopy> = {
     language: "Langue",
     eyebrow: "Invitation VYVA",
     title: "Creez votre compte VYVA",
-    body: "Cette invitation ouvre une nouvelle configuration de compte. Si ce navigateur est deja connecte, choisissez de continuer avec ce compte ou de commencer une nouvelle inscription.",
+    body: "Configurez votre profil VYVA prive pour la sante, les medicaments, le soutien familial et l'aide quotidienne.",
+    signedInBody: "Ce navigateur est deja connecte. Choisissez de continuer avec ce compte ou de commencer une nouvelle inscription.",
     checking: "Verification de ce navigateur...",
     signedInPrefix: "Vous etes connecte en tant que",
     signedInSuffix: ".",
@@ -81,7 +85,8 @@ const INVITE_COPY: Record<LanguageCode, InviteCopy> = {
     language: "Sprache",
     eyebrow: "VYVA Einladung",
     title: "VYVA Konto erstellen",
-    body: "Diese Einladung offnet eine neue Kontoeinrichtung. Wenn dieser Browser bereits angemeldet ist, wahlen Sie, ob Sie dort fortfahren oder eine neue Anmeldung starten mochten.",
+    body: "Richten Sie Ihr privates VYVA Profil fur Gesundheit, Medikamente, Familienunterstutzung und Alltagshilfe ein.",
+    signedInBody: "Dieser Browser ist bereits angemeldet. Wahlen Sie, ob Sie mit diesem Konto fortfahren oder eine neue Anmeldung starten mochten.",
     checking: "Browser wird gepruft...",
     signedInPrefix: "Sie sind angemeldet als",
     signedInSuffix: ".",
@@ -96,7 +101,8 @@ const INVITE_COPY: Record<LanguageCode, InviteCopy> = {
     language: "Lingua",
     eyebrow: "Invito VYVA",
     title: "Crea il tuo account VYVA",
-    body: "Questo invito apre una nuova configurazione account. Se questo browser e gia connesso, scegli se continuare li o iniziare una nuova registrazione.",
+    body: "Configura il tuo profilo VYVA privato per salute, farmaci, supporto familiare e aiuto quotidiano.",
+    signedInBody: "Questo browser e gia connesso. Scegli se continuare con quell'account o iniziare una nuova registrazione.",
     checking: "Controllo del browser...",
     signedInPrefix: "Hai effettuato l'accesso come",
     signedInSuffix: ".",
@@ -111,7 +117,8 @@ const INVITE_COPY: Record<LanguageCode, InviteCopy> = {
     language: "Idioma",
     eyebrow: "Convite VYVA",
     title: "Crie a sua conta VYVA",
-    body: "Este convite abre uma nova configuracao de conta. Se este navegador ja tiver sessao iniciada, escolha se quer continuar nessa conta ou iniciar um novo registo.",
+    body: "Configure o seu perfil VYVA privado para saude, medicacao, apoio familiar e ajuda diaria.",
+    signedInBody: "Este navegador ja tem sessao iniciada. Escolha se quer continuar com essa conta ou iniciar um novo registo.",
     checking: "A verificar este navegador...",
     signedInPrefix: "Tem sessao iniciada como",
     signedInSuffix: ".",
@@ -126,7 +133,8 @@ const INVITE_COPY: Record<LanguageCode, InviteCopy> = {
     language: "Language",
     eyebrow: "VYVA invitation",
     title: "Create your VYVA account",
-    body: "This invitation opens a fresh account setup. If this browser is already signed in, choose whether to continue there or start a new signup.",
+    body: "Set up your private VYVA profile for health, medication, family support, and everyday help.",
+    signedInBody: "This browser is already signed in. Choose whether to continue with that account or start a new signup.",
     checking: "Checking this browser...",
     signedInPrefix: "You are signed in as",
     signedInSuffix: ".",
@@ -211,7 +219,7 @@ export default function InviteLandingPage() {
             {copy.title}
           </h1>
           <p className="mt-4 font-body text-[16px] leading-[1.65] text-vyva-text-2">
-            {copy.body}
+            {user ? copy.signedInBody : copy.body}
           </p>
 
           {isLoading ? (
