@@ -20,7 +20,10 @@ import {
   type HomePlanCardAdmin,
   type Intake,
   type JsonRecord,
+  type LoginMapping,
   type Organization,
+  type ScheduledEvent,
+  type ScheduledSupport,
   type SubscriptionPlanAdmin,
   type UserDetail,
   countryCodeOptions,
@@ -50,9 +53,32 @@ type SignupShareNotice = {
   details: string[];
 };
 
+type SupportScheduleDraft = {
+  frequency_type: string;
+  days_of_week: string[];
+  times_of_day: string[];
+  timezone: string;
+  preferred_language: string;
+  quiet_hours_start: string;
+  quiet_hours_end: string;
+};
+
+const adminTabs = [
+  { id: "users", label: "People" },
+  { id: "accounts", label: "App Access" },
+  { id: "invites", label: "Invites" },
+  { id: "consent", label: "Consent" },
+  { id: "organizations", label: "Organizations" },
+  { id: "tiers", label: "Tiers" },
+  { id: "communications", label: "Communications" },
+  { id: "analytics", label: "Analytics" },
+];
+
 export default function LifecycleAdminPage() {
   const [activeTab, setActiveTab] = useState("users");
   const [filters, setFilters] = useState({ entry_point: "", user_type: "", status: "", tier: "" });
+  const [peopleSearchInput, setPeopleSearchInput] = useState("");
+  const [peopleSearch, setPeopleSearch] = useState("");
   const [summary, setSummary] = useState<JsonRecord | null>(null);
   const [users, setUsers] = useState<Intake[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -105,9 +131,28 @@ export default function LifecycleAdminPage() {
     return data;
   }
 
+  async function rootApi(path: string, options: RequestInit = {}) {
+    const res = await apiFetch(path, options);
+    const text = await res.text();
+    let data: JsonRecord = {};
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { error: text.trim() };
+      }
+    }
+    const errorMessage = typeof data.error === "string" && data.error
+      ? data.error
+      : text.trim() || `Request failed (${res.status})`;
+    if (!res.ok) throw new Error(errorMessage);
+    return data;
+  }
+
   async function refresh() {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => value && params.set(key, value));
+    if (peopleSearch.trim()) params.set("query", peopleSearch.trim());
     const [summaryData, userData, orgData, consentData, commsData, planData] = await Promise.all([
       api("/summary"),
       api(`/users?${params.toString()}`),
@@ -127,7 +172,7 @@ export default function LifecycleAdminPage() {
   useEffect(() => {
     refresh().catch((err) => setMessage(err.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters]);
+  }, [filters, peopleSearch]);
 
   async function createIntake() {
     setMessage("");
@@ -328,14 +373,14 @@ export default function LifecycleAdminPage() {
     setAccountSearchMessage("");
     if (query.length < 3) {
       setAccountSubscriptions([]);
-      setAccountSearchMessage("Enter at least 3 characters to search accounts.");
+      setAccountSearchMessage("Enter at least 3 characters to search app access.");
       return;
     }
 
     const data = await api(`/account-subscriptions?query=${encodeURIComponent(query)}`);
     const accounts = (data.accounts ?? []) as AccountSubscription[];
     setAccountSubscriptions(accounts);
-    setAccountSearchMessage(accounts.length ? `${accounts.length} matching account profile${accounts.length === 1 ? "" : "s"} found.` : "No matching account profiles found.");
+    setAccountSearchMessage(accounts.length ? `${accounts.length} matching app access profile${accounts.length === 1 ? "" : "s"} found.` : "No matching app access profiles found.");
   }
 
   function updateAccountSubscription(profileId: string, patch: Partial<AccountSubscription>) {
@@ -541,31 +586,114 @@ export default function LifecycleAdminPage() {
       return;
     }
     const { scheduled_date, scheduled_time, ...eventPayload } = newEvent;
-    await api(`/users/${selectedUser.intake.id}/scheduled-events`, {
-      method: "POST",
-      body: JSON.stringify(eventPayload),
-    });
-    setNewEvent(emptyScheduledEvent);
-    await openUserDetail(selectedUser.intake);
-    setUserDetailMessage("Scheduled event added.");
-    setMessage("Scheduled event added.");
+    setUserDetailMessage("");
+    try {
+      await api(`/users/${selectedUser.intake.id}/scheduled-events`, {
+        method: "POST",
+        body: JSON.stringify(eventPayload),
+      });
+      setNewEvent(emptyScheduledEvent);
+      await openUserDetail(selectedUser.intake);
+      setUserDetailMessage("Scheduled event added.");
+      setMessage("Scheduled event added.");
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Could not add the scheduled event.";
+      setUserDetailMessage(errorMessage);
+      setMessage(errorMessage);
+    }
   }
 
   async function setEventStatus(event: ScheduledEvent, action: "pause" | "resume" | "cancel") {
     if (event.read_only) return;
-    await api(`/scheduled-events/${event.id}/${action}`, { method: "POST" });
-    if (selectedUser) await openUserDetail(selectedUser.intake);
+    setUserDetailMessage("");
+    try {
+      await api(`/scheduled-events/${event.id}/${action}`, { method: "POST" });
+      if (selectedUser) await openUserDetail(selectedUser.intake);
+      const confirmation = `Scheduled event ${action === "cancel" ? "cancelled" : action === "pause" ? "paused" : "resumed"}.`;
+      setUserDetailMessage(confirmation);
+      setMessage(confirmation);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Could not update the scheduled event.";
+      setUserDetailMessage(errorMessage);
+      setMessage(errorMessage);
+    }
   }
 
   async function updateEventTime(event: ScheduledEvent, scheduledFor: string) {
     if (!selectedUser || event.read_only || !scheduledFor) return;
-    await api(`/scheduled-events/${event.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ scheduled_for: new Date(scheduledFor).toISOString() }),
-    });
-    await openUserDetail(selectedUser.intake);
-    setUserDetailMessage("Scheduled event time updated.");
-    setMessage("Scheduled event time updated.");
+    setUserDetailMessage("");
+    try {
+      await api(`/scheduled-events/${event.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ scheduled_for: new Date(scheduledFor).toISOString() }),
+      });
+      await openUserDetail(selectedUser.intake);
+      setUserDetailMessage("Scheduled event time updated.");
+      setMessage("Scheduled event time updated.");
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Could not update the scheduled event time.";
+      setUserDetailMessage(errorMessage);
+      setMessage(errorMessage);
+    }
+  }
+
+  async function saveSupportSchedule(schedule: ScheduledSupport, draft: SupportScheduleDraft) {
+    if (!selectedUser) return;
+    if (!schedule.admin_edit_allowed) {
+      setUserDetailMessage("User has not allowed admin edits for support schedules.");
+      return;
+    }
+    setBusyAction(`support:${schedule.id}`);
+    setUserDetailMessage("");
+    try {
+      await rootApi(`/api/schedules/${schedule.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          frequency_type: draft.frequency_type,
+          days_of_week: draft.days_of_week,
+          times_of_day: draft.times_of_day,
+          timezone: draft.timezone,
+          preferred_language: draft.preferred_language,
+          quiet_hours_start: draft.quiet_hours_start,
+          quiet_hours_end: draft.quiet_hours_end,
+        }),
+      });
+      await openUserDetail(selectedUser.intake);
+      setUserDetailMessage("Recurring support schedule updated.");
+      setMessage("Recurring support schedule updated.");
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Could not update the support schedule.";
+      setUserDetailMessage(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function setSupportStatus(schedule: ScheduledSupport, action: "pause" | "resume") {
+    if (!selectedUser) return;
+    if (!schedule.admin_edit_allowed) {
+      setUserDetailMessage("User has not allowed admin edits for support schedules.");
+      return;
+    }
+    setBusyAction(`support-status:${schedule.id}`);
+    setUserDetailMessage("");
+    try {
+      await rootApi(`/api/schedules/${schedule.id}/${action}`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      await openUserDetail(selectedUser.intake);
+      const confirmation = `Recurring support schedule ${action === "pause" ? "paused" : "resumed"}.`;
+      setUserDetailMessage(confirmation);
+      setMessage(confirmation);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Could not update the support schedule.";
+      setUserDetailMessage(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setBusyAction(null);
+    }
   }
 
   async function handleBulkFile(e: ChangeEvent<HTMLInputElement>, org: Organization) {
@@ -653,9 +781,9 @@ export default function LifecycleAdminPage() {
         </div>
 
         <nav className="mt-3 flex flex-wrap gap-2">
-          {["users", "accounts", "invites", "consent", "organizations", "tiers", "communications", "analytics"].map((tab) => (
-            <button key={tab} onClick={() => setActiveTab(tab)} className={`rounded-xl px-4 py-2 text-sm font-bold shadow-sm ${activeTab === tab ? "bg-purple-700 text-white" : "border border-purple-100 bg-white text-purple-700 hover:bg-purple-50"}`}>
-              {tab[0].toUpperCase() + tab.slice(1)}
+          {adminTabs.map((tab) => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`rounded-xl px-4 py-2 text-sm font-bold shadow-sm ${activeTab === tab.id ? "bg-purple-700 text-white" : "border border-purple-100 bg-white text-purple-700 hover:bg-purple-50"}`}>
+              {tab.label}
             </button>
           ))}
         </nav>
@@ -699,7 +827,48 @@ export default function LifecycleAdminPage() {
             </section>
 
             <section className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
-              <div className="grid gap-3 md:grid-cols-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="font-serif text-2xl">People</h2>
+                  <p className="mt-1 text-sm text-[#7d6b65]">Signup, onboarding, consent, status, and organization visibility.</p>
+                </div>
+                {peopleSearch && (
+                  <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">
+                    Search: {peopleSearch}
+                  </span>
+                )}
+              </div>
+
+              <form
+                className="mt-4 grid gap-3 md:grid-cols-[1fr_auto_auto]"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  setPeopleSearch(peopleSearchInput.trim());
+                }}
+              >
+                <input
+                  className="rounded-xl border border-[#e4d8ce] px-3 py-2.5 text-sm font-semibold"
+                  value={peopleSearchInput}
+                  onChange={(event) => setPeopleSearchInput(event.target.value)}
+                  placeholder="Search by name, phone, profile email, or login email"
+                />
+                <button type="submit" className="rounded-xl bg-[#2f2135] px-4 py-2.5 text-sm font-bold text-white">
+                  Search people
+                </button>
+                <button
+                  type="button"
+                  className="rounded-xl border border-purple-100 bg-white px-4 py-2.5 text-sm font-bold text-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={!peopleSearch && !peopleSearchInput}
+                  onClick={() => {
+                    setPeopleSearchInput("");
+                    setPeopleSearch("");
+                  }}
+                >
+                  Clear
+                </button>
+              </form>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-4">
                 {[
                   ["entry_point", entryPoints],
                   ["user_type", userTypes],
@@ -885,6 +1054,7 @@ export default function LifecycleAdminPage() {
           planOptions={planOptions}
           statusMessage={userDetailMessage}
           saving={savingUserDetail}
+          scheduleBusyAction={busyAction}
           deleting={busyAction === `delete:${selectedUser.intake.id}`}
           onClose={() => setSelectedUser(null)}
           onSave={saveUserDetail}
@@ -895,6 +1065,8 @@ export default function LifecycleAdminPage() {
           onCreateEvent={createScheduledEventForUser}
           onEventStatus={setEventStatus}
           onEventTime={updateEventTime}
+          onSupportSave={saveSupportSchedule}
+          onSupportStatus={setSupportStatus}
         />
       )}
       {signupShareNotice && (

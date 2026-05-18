@@ -1115,6 +1115,7 @@ adminLifecycleRouter.get("/users", async (req: Request, res: Response) => {
       user_type: req.query.user_type as "elder" | "family" | "admin" | undefined,
       status: req.query.status as "created" | "link_sent" | "consent_pending" | "active" | "dropped" | undefined,
       tier: req.query.tier ? String(req.query.tier) : undefined,
+      query: req.query.query ? String(req.query.query) : undefined,
     }),
   });
 });
