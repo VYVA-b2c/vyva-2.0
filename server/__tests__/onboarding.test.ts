@@ -75,6 +75,25 @@ describe("Onboarding journey — end-to-end", () => {
 
     expect(res.body).toMatchObject({ ok: true });
     expect(res.body).toHaveProperty("trial_ends_at");
+
+    const [profile] = await db
+      .select({
+        subscription_tier: profiles.subscription_tier,
+        subscription_status: profiles.subscription_status,
+        trial_ends_at: profiles.trial_ends_at,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, TEST_USER_ID))
+      .limit(1);
+
+    expect(profile?.subscription_tier).toBe("premium");
+    expect(profile?.subscription_status).toBe("trial");
+    expect(profile?.trial_ends_at).toBeTruthy();
+    const trialDays = profile?.trial_ends_at
+      ? Math.ceil((new Date(profile.trial_ends_at).getTime() - Date.now()) / 86400000)
+      : 0;
+    expect(trialDays).toBeGreaterThanOrEqual(13);
+    expect(trialDays).toBeLessThanOrEqual(14);
   });
 
   it("POST /basics rejects missing full_name with 400", async () => {

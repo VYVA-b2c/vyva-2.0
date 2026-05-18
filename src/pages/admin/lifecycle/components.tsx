@@ -206,6 +206,9 @@ export function AccountSubscriptionsSection({
                     <p><span className="font-bold text-[#4d4351]">Profile:</span> {account.profile_email || account.phone_number || account.profile_id}</p>
                     <p><span className="font-bold text-[#4d4351]">Profile ID:</span> <span className="font-mono text-xs">{account.profile_id}</span></p>
                     <p><span className="font-bold text-[#4d4351]">Effective app access:</span> {account.effective_subscription_tier ?? account.subscription_tier}{account.effective_subscription_status ? ` (${account.effective_subscription_status})` : ""}</p>
+                    {account.subscription_status === "trial" && account.trial_ends_at && (
+                      <p><span className="font-bold text-[#4d4351]">Trial ends:</span> {formatDate(account.trial_ends_at)}</p>
+                    )}
                     {account.membership_role && <p><span className="font-bold text-[#4d4351]">Relationship:</span> {account.membership_role}{account.membership_relationship ? ` - ${account.membership_relationship}` : ""}</p>}
                     {account.account_id && !account.is_active_profile && (
                       <p className="font-bold text-amber-800">Saving this row will make it the active profile for this login.</p>
@@ -616,7 +619,7 @@ export function TierSection({
       price_eur: tier === "free" ? 0 : 2900,
       price_gbp: tier === "free" ? 0 : 2499,
       billing_interval: "month",
-      trial_days: tier === "free" ? 7 : 14,
+      trial_days: tier === "free" ? 0 : 14,
       stripe_price_id_eur: "",
       stripe_price_id_gbp: "",
       features: tier === "free"

@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "../db.js";
 import { billingEvents, lifecycleEvents, profiles, userIntakes } from "../../shared/schema.js";
 import { normalizeSubscriptionTier } from "./plans.js";
+import { asFreeActiveProfile, downgradeExpiredPremiumTrial, isExpiredNoCardPremiumTrial } from "./premiumTrial.js";
 
 type ProfileRow = typeof profiles.$inferSelect;
 
@@ -40,6 +41,7 @@ export type EntitlementSyncResult = {
   billingSubscriptionStatus: string | null;
   profileNeedsPremiumRepair: boolean;
   profileTierMismatch: boolean;
+  trialExpiredDowngraded: boolean;
   repaired: boolean;
   repairAuditEventId: string | null;
   latestRepairAt: Date | null;
@@ -226,13 +228,26 @@ async function latestRepairEventForProfile(profileId: string | null | undefined)
 }
 
 export async function syncProfileEntitlement(input: EntitlementSyncInput): Promise<EntitlementSyncResult> {
-  const [lifecycleRows, billingRows] = await Promise.all([
-    lifecycleEvidenceFor(input),
-    billingEvidenceFor(input),
-  ]);
+  const trialExpired = isExpiredNoCardPremiumTrial(input.profile);
+  let trialExpiredDowngraded = false;
+  const profileForSync = trialExpired && input.profile
+    ? asFreeActiveProfile(input.profile)
+    : input.profile;
 
-  const profileTier = normalizeSubscriptionTier(input.profile?.subscription_tier);
-  const lifecycleCandidates = lifecycleRows
+  if (trialExpired && input.repairProfile && input.profile) {
+    trialExpiredDowngraded = await downgradeExpiredPremiumTrial(input.profile);
+  }
+
+  const [lifecycleRows, billingRows] = await Promise.all([
+    lifecycleEvidenceFor({ ...input, profile: profileForSync }),
+    billingEvidenceFor({ ...input, profile: profileForSync }),
+  ]);
+  const usableLifecycleRows = trialExpired
+    ? lifecycleRows.filter((row) => normalizeSubscriptionTier(row.tier) !== "premium")
+    : lifecycleRows;
+
+  const profileTier = normalizeSubscriptionTier(profileForSync?.subscription_tier);
+  const lifecycleCandidates = usableLifecycleRows
     .filter((row) => row.status !== "dropped")
     .map((row): EntitlementEvidence => ({
       source: "lifecycle",
@@ -247,23 +262,23 @@ export async function syncProfileEntitlement(input: EntitlementSyncInput): Promi
       status: row.status ?? null,
     }));
   const candidates: EntitlementEvidence[] = [
-    { source: "profile", tier: profileTier, status: input.profile?.subscription_status ?? "profile" },
+    { source: "profile", tier: profileTier, status: profileForSync?.subscription_status ?? "profile" },
     ...lifecycleCandidates,
     ...billingCandidates,
   ];
   const best = candidates.reduce((currentBest, candidate) => (
     candidateRank(candidate) > candidateRank(currentBest) ? candidate : currentBest
   ), candidates[0]);
-  const effectiveStatus = statusForCandidate(best, input.profile);
+  const effectiveStatus = statusForCandidate(best, profileForSync);
   const lifecyclePremium = lifecycleCandidates.find((candidate) => candidate.tier === "premium") ?? null;
   const billingPremium = billingCandidates.find((candidate) => candidate.tier === "premium") ?? null;
   const hasExternalPremiumEvidence = best.tier === "premium" && best.source !== "profile";
-  const profileNeedsPremiumRepair = Boolean(input.profile) && hasExternalPremiumEvidence && profileTier !== "premium";
-  const shouldCanonicalizePremiumTier = Boolean(input.profile) && input.profile?.subscription_tier !== "premium" && best.tier === "premium";
+  const profileNeedsPremiumRepair = Boolean(profileForSync) && hasExternalPremiumEvidence && profileTier !== "premium";
+  const shouldCanonicalizePremiumTier = Boolean(profileForSync) && profileForSync?.subscription_tier !== "premium" && best.tier === "premium";
   let repaired = false;
   let repairAuditEventId: string | null = null;
 
-  if (input.repairProfile && input.profile && (profileNeedsPremiumRepair || shouldCanonicalizePremiumTier)) {
+  if (!trialExpired && input.repairProfile && input.profile && (profileNeedsPremiumRepair || shouldCanonicalizePremiumTier)) {
     await db
       .update(profiles)
       .set({
@@ -305,6 +320,7 @@ export async function syncProfileEntitlement(input: EntitlementSyncInput): Promi
     billingSubscriptionStatus: billingPremium?.status ?? billingCandidates[0]?.status ?? null,
     profileNeedsPremiumRepair,
     profileTierMismatch: profileNeedsPremiumRepair,
+    trialExpiredDowngraded,
     repaired,
     repairAuditEventId,
     latestRepairAt: latestRepair?.createdAt ?? null,

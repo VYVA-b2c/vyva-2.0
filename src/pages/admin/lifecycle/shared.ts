@@ -223,6 +223,7 @@ export type AccountSubscription = {
   subscription_status: string;
   subscription_tier: string;
   stored_subscription_tier?: string | null;
+  trial_ends_at?: string | null;
   effective_subscription_tier?: string | null;
   effective_subscription_status?: string | null;
   lifecycle_subscription_tier?: string | null;
@@ -277,7 +278,7 @@ export const emptyIntakeForm = {
   timezone: "Europe/Madrid",
   user_type: "elder",
   entry_point: "form",
-  tier: "free",
+  tier: "premium",
   organization_id: "",
   elder_first_name: "",
   elder_last_name: "",

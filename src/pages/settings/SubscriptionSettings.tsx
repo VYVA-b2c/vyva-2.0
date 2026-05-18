@@ -100,7 +100,7 @@ const SubscriptionSettings = () => {
         return;
       }
       await loadBilling();
-      setMessage("Your free trial is active.");
+      setMessage(data.status === "plan_updated" ? "Free plan is active." : "Your trial is active.");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Could not choose this plan");
     } finally {
@@ -225,7 +225,7 @@ const SubscriptionSettings = () => {
                       onClick={() => choosePlan(plan)}
                     >
                       {loadingPlan === plan.plan_id && <Loader2 size={17} className="animate-spin" />}
-                      {isFree ? `Start ${plan.trial_days ?? 14}-day trial` : `Choose ${plan.name}`}
+                      {isFree ? "Use Free" : `Choose ${plan.name}`}
                     </button>
                   )}
                 </div>

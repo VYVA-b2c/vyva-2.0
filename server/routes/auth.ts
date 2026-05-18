@@ -12,6 +12,7 @@ import { sendMagicLoginEmail, sendPasswordResetEmail } from "../lib/email.js";
 import { getActiveProfileContext } from "../lib/profileAccess.js";
 import { getSupabaseConfig } from "../lib/supabaseAuth.js";
 import { clearAuthSessionCookie, issueAuthSessionCookie } from "../lib/sessionCookie.js";
+import { premiumTrialProfilePatch } from "../lib/premiumTrial.js";
 
 const scryptAsync = promisify(scrypt);
 
@@ -169,12 +170,14 @@ async function getProfileRole(userId: string): Promise<string> {
 async function getOrCreateAuthenticatedProfile(userId: string, email?: unknown) {
   const normalizedEmail = normalizeEmail(email);
   const role = isSuperAdminEmail(normalizedEmail) ? "admin" : "user";
+  const trialPatch = premiumTrialProfilePatch();
   const [created] = await db
     .insert(profiles)
     .values({
       id: userId,
       email: normalizedEmail,
       role,
+      ...trialPatch,
     })
     .onConflictDoUpdate({
       target: profiles.id,

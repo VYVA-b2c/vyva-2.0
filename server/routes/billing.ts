@@ -89,9 +89,6 @@ router.get("/status", async (req, res) => {
   const { accountUserId, profileId, profile } = await billingProfileForAccount(userId);
   if (!profile) return res.status(404).json({ error: "Profile not found" });
 
-  const trialDaysRemaining = profile.trial_ends_at
-    ? Math.max(0, Math.ceil((new Date(profile.trial_ends_at).getTime() - Date.now()) / 86400000))
-    : 0;
   const subscriptionSync = await syncProfileEntitlement({
     profile,
     profileId,
@@ -102,6 +99,12 @@ router.get("/status", async (req, res) => {
   });
   const effectiveTier = subscriptionSync.effectiveTier;
   const effectiveStatus = subscriptionSync.effectiveStatus;
+  const trialEndsAt = effectiveTier === "premium" && effectiveStatus === "trial" && !subscriptionSync.trialExpiredDowngraded
+    ? profile.trial_ends_at
+    : null;
+  const trialDaysRemaining = trialEndsAt
+    ? Math.max(0, Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / 86400000))
+    : 0;
   const plans = await listPlans();
 
   return res.json({
@@ -117,7 +120,7 @@ router.get("/status", async (req, res) => {
     subscription_mismatch: subscriptionSync.profileTierMismatch,
     entitlement_repaired: subscriptionSync.repaired,
     trial_days_remaining: trialDaysRemaining,
-    trial_ends_at: profile.trial_ends_at,
+    trial_ends_at: trialEndsAt,
     has_billing_account: Boolean(profile.stripe_customer_id),
     plan: plans.find((plan) => plan.plan_id === effectiveTier) ?? null,
     entitlements: await entitlementForTier(effectiveTier),
@@ -148,7 +151,10 @@ router.post("/create-checkout", async (req, res) => {
       trial_ends_at: trialEndsAt,
       updated_at: new Date(),
     }).where(eq(profiles.id, profileId));
-    return res.json({ status: "trial_started", redirect_url: "/settings/subscription?trial=started" });
+    return res.json({
+      status: plan.trial_days ? "trial_started" : "plan_updated",
+      redirect_url: plan.trial_days ? "/settings/subscription?trial=started" : "/settings/subscription",
+    });
   }
 
   const stripePriceId = planStripePriceId(plan, currency);

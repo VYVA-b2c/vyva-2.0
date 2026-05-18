@@ -85,18 +85,105 @@ describe("Profile readiness", () => {
     expect(res.body.services.adherenceReport.ready).toBe(true);
   });
 
-  it("unlocks premium entitlement-only services for premium profiles", async () => {
-    const userId = await createProfile({ subscription_tier: "premium" });
+  it("unlocks premium entitlement-only services during an active premium trial", async () => {
+    const userId = await createProfile({
+      subscription_tier: "premium",
+      subscription_status: "trial",
+      trial_ends_at: new Date(Date.now() + 14 * 86400000),
+    });
 
     const res = await request(app)
       .get("/api/profile/readiness")
       .set("x-user-id", userId)
       .expect(200);
 
+    expect(res.body.profile.subscriptionTier).toBe("premium");
+    expect(res.body.profile.subscriptionStatus).toBe("trial");
     expect(res.body.services.chat.ready).toBe(true);
     expect(res.body.services.symptomCheck.ready).toBe(true);
     expect(res.body.services.concierge.ready).toBe(true);
     expect(res.body.services.caregiverDashboard.ready).toBe(true);
+  });
+
+  it("downgrades expired no-card premium trials to free active", async () => {
+    const userId = await createProfile({
+      subscription_tier: "premium",
+      subscription_status: "trial",
+      trial_ends_at: new Date(Date.now() - 86400000),
+    });
+    await db.insert(userIntakes).values({
+      user_id: userId,
+      name: "Expired Trial User",
+      phone: "+34600000002",
+      tier: "premium",
+      status: "active",
+    });
+
+    const res = await request(app)
+      .get("/api/profile/readiness")
+      .set("x-user-id", userId)
+      .expect(200);
+
+    expect(res.body.profile.subscriptionTier).toBe("free");
+    expect(res.body.profile.subscriptionStatus).toBe("active");
+    expect(res.body.services.symptomCheck.ready).toBe(false);
+    expect(res.body.services.concierge.ready).toBe(false);
+
+    const [profile] = await db
+      .select({
+        tier: profiles.subscription_tier,
+        status: profiles.subscription_status,
+        trial_ends_at: profiles.trial_ends_at,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, userId))
+      .limit(1);
+    expect(profile?.tier).toBe("free");
+    expect(profile?.status).toBe("active");
+    expect(profile?.trial_ends_at).toBeNull();
+
+    const [intake] = await db
+      .select({ tier: userIntakes.tier })
+      .from(userIntakes)
+      .where(eq(userIntakes.user_id, userId))
+      .limit(1);
+    expect(intake?.tier).toBe("free");
+  });
+
+  it("keeps free active profiles free even if old trial dates exist", async () => {
+    const userId = await createProfile({
+      subscription_tier: "free",
+      subscription_status: "active",
+      trial_ends_at: new Date(Date.now() - 86400000),
+    });
+
+    const res = await request(app)
+      .get("/api/profile/readiness")
+      .set("x-user-id", userId)
+      .expect(200);
+
+    expect(res.body.profile.subscriptionTier).toBe("free");
+    expect(res.body.profile.subscriptionStatus).toBe("active");
+    expect(res.body.services.chat.ready).toBe(true);
+    expect(res.body.services.concierge.ready).toBe(false);
+  });
+
+  it("keeps paid premium active access even if a stale trial date exists", async () => {
+    const userId = await createProfile({
+      subscription_tier: "premium",
+      subscription_status: "active",
+      trial_ends_at: new Date(Date.now() - 86400000),
+    });
+
+    const res = await request(app)
+      .get("/api/profile/readiness")
+      .set("x-user-id", userId)
+      .expect(200);
+
+    expect(res.body.profile.subscriptionTier).toBe("premium");
+    expect(res.body.profile.subscriptionStatus).toBe("active");
+    expect(res.body.services.symptomCheck.ready).toBe(true);
+    expect(res.body.services.concierge.ready).toBe(true);
   });
 
   it("repairs stale free profiles when lifecycle says premium", async () => {
