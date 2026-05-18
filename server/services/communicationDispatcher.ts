@@ -5,6 +5,7 @@ import { join } from "path";
 import { db } from "../db.js";
 import { communicationsLog } from "../../shared/schema.js";
 import { explainEmailProviderError, requireEmailFromAddress } from "../lib/emailSenderConfig.js";
+import { signupInviteCopyFor } from "../lib/signupInviteLanguage.js";
 import { queueDueConsentCalls } from "./lifecycle.js";
 
 type Communication = typeof communicationsLog.$inferSelect;
@@ -128,16 +129,17 @@ function introFromLegacyBody(body: string | null) {
 }
 
 function buildSignupInviteEmail(metadata: Record<string, unknown>, fallbackBody: string | null): EmailPayload {
+  const copy = signupInviteCopyFor(metadata.language);
   const loginUrl = metadataString(metadata, "url") ?? `${publicBaseUrl()}/login`;
-  const intro = metadataString(metadata, "intro") ?? introFromLegacyBody(fallbackBody) ?? "You are invited to create your VYVA account.";
-  const subject = metadataString(metadata, "subject") ?? "Create your VYVA account";
+  const intro = metadataString(metadata, "intro") ?? introFromLegacyBody(fallbackBody) ?? copy.defaultIntro;
+  const subject = metadataString(metadata, "subject") ?? copy.subject;
   const logoAttachment = signupEmailLogoAttachment();
   const logoSrc = logoAttachment ? `cid:${SIGNUP_EMAIL_LOGO_CID}` : `${publicBaseUrl().replace(/\/$/, "")}/assets/vyva/vyva-logo-english.png`;
   const text = [
     intro,
-    "Create your secure VYVA account to manage health, support, reminders, and daily care in one place.",
-    `Start here: ${loginUrl}`,
-    "If you were not expecting this invitation, you can ignore this email.",
+    copy.summary,
+    `${copy.startHere}: ${loginUrl}`,
+    copy.ignore,
   ].join("\n\n");
   const safeUrl = htmlEscape(loginUrl);
   const html = `<!doctype html>
@@ -155,28 +157,28 @@ function buildSignupInviteEmail(metadata: Record<string, unknown>, fallbackBody:
             <tr>
               <td style="padding:32px 32px 12px;">
                 <img src="${htmlEscape(logoSrc)}" width="112" alt="VYVA" style="display:block;width:112px;max-width:112px;height:auto;border:0;outline:none;text-decoration:none;">
-                <h1 style="margin:26px 0 12px;font-family:Georgia,'Times New Roman',serif;font-size:34px;line-height:1.05;font-weight:500;color:#2f143f;">Create your VYVA account</h1>
+                <h1 style="margin:26px 0 12px;font-family:Georgia,'Times New Roman',serif;font-size:34px;line-height:1.05;font-weight:500;color:#2f143f;">${htmlEscape(copy.title)}</h1>
                 <div style="font-size:17px;line-height:1.6;color:#6f5f5a;">${paragraphHtml(intro)}</div>
               </td>
             </tr>
             <tr>
               <td style="padding:8px 32px 8px;">
-                <p style="margin:0;font-size:16px;line-height:1.6;color:#6f5f5a;">Your account helps keep health, support, reminders, and daily care in one private place.</p>
+                <p style="margin:0;font-size:16px;line-height:1.6;color:#6f5f5a;">${htmlEscape(copy.summary)}</p>
               </td>
             </tr>
             <tr>
               <td style="padding:24px 32px 18px;">
-                <a href="${safeUrl}" style="display:block;background:#6f22c9;color:#ffffff;text-decoration:none;text-align:center;border-radius:999px;padding:17px 22px;font-size:18px;font-weight:700;">Create account</a>
+                <a href="${safeUrl}" style="display:block;background:#6f22c9;color:#ffffff;text-decoration:none;text-align:center;border-radius:999px;padding:17px 22px;font-size:18px;font-weight:700;">${htmlEscape(copy.cta)}</a>
               </td>
             </tr>
             <tr>
               <td style="padding:0 32px 28px;">
-                <p style="margin:0;font-size:13px;line-height:1.6;color:#8b7b74;">If the button does not work, copy and paste this link into your browser:<br><a href="${safeUrl}" style="color:#6f22c9;word-break:break-all;">${safeUrl}</a></p>
+                <p style="margin:0;font-size:13px;line-height:1.6;color:#8b7b74;">${htmlEscape(copy.fallback)}<br><a href="${safeUrl}" style="color:#6f22c9;word-break:break-all;">${safeUrl}</a></p>
               </td>
             </tr>
             <tr>
               <td style="border-top:1px solid #eaded2;padding:18px 32px 26px;">
-                <p style="margin:0;font-size:13px;line-height:1.6;color:#8b7b74;">You received this invitation because someone asked VYVA to send you a secure signup link. If you were not expecting it, you can ignore this email.</p>
+                <p style="margin:0;font-size:13px;line-height:1.6;color:#8b7b74;">${htmlEscape(copy.ignore)}</p>
               </td>
             </tr>
           </table>

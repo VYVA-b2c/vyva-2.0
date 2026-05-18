@@ -1,5 +1,6 @@
 import { ArrowRight, CheckCircle2, Globe2, LogIn, ShieldCheck, UserRound } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { useAuth } from "@/contexts/AuthContext";
@@ -147,6 +148,8 @@ const INVITE_COPY: Record<LanguageCode, InviteCopy> = {
   },
 };
 
+const INVITE_LANGUAGE_CODES: LanguageCode[] = ["en", "es", "fr", "de", "it", "pt"];
+
 function displayName(profile?: ProfileResponse | null, fallback?: string | null) {
   const full = [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim();
   return profile?.preferredName?.trim() || full || fallback || "this account";
@@ -154,8 +157,10 @@ function displayName(profile?: ProfileResponse | null, fallback?: string | null)
 
 export default function InviteLandingPage() {
   const { user, isLoading, logout } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
   const { language, setLanguage, languages } = useLanguage();
+  const appliedInviteLanguage = useRef(false);
   const copy = INVITE_COPY[language] ?? INVITE_COPY.en;
   const profileQuery = useQuery<ProfileResponse | null>({
     queryKey: ["/api/profile"],
@@ -163,6 +168,16 @@ export default function InviteLandingPage() {
   });
 
   const name = displayName(profileQuery.data, user?.email ?? user?.phone ?? null);
+
+  useEffect(() => {
+    if (appliedInviteLanguage.current) return;
+    appliedInviteLanguage.current = true;
+
+    const requestedLanguage = new URLSearchParams(location.search).get("lang");
+    if (requestedLanguage && INVITE_LANGUAGE_CODES.includes(requestedLanguage as LanguageCode)) {
+      setLanguage(requestedLanguage);
+    }
+  }, [location.search, setLanguage]);
 
   const startSignup = async () => {
     if (user) {
