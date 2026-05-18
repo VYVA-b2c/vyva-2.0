@@ -55,7 +55,7 @@ function supportFrequency(schedule: ScheduledSupport) {
   return `${days} at ${times}`;
 }
 
-export function IntakeTable({ users, onView, onTriggerConsent, onToggleEnabled, busyAction = null, compact = false }: {
+export function IntakeTable({ users, onView, onTriggerConsent, onToggleEnabled, onDelete, busyAction = null, compact = false }: {
   users: Intake[];
   onView: (intake: Intake) => void;
   onTriggerConsent: (intake: Intake) => void;
