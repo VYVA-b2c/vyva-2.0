@@ -1994,6 +1994,7 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
       body,
       metadata: {
         url: loginUrl,
+        intro,
         subject: "Create your VYVA account",
         shared_by: req.user?.email ?? req.user?.id ?? null,
       },
