@@ -5,7 +5,7 @@ import { join } from "path";
 import { db } from "../db.js";
 import { communicationsLog } from "../../shared/schema.js";
 import { explainEmailProviderError, requireEmailFromAddress } from "../lib/emailSenderConfig.js";
-import { signupInviteCopyFor } from "../lib/signupInviteLanguage.js";
+import { normalizeSignupInviteLanguage, signupInviteCopyFor, type SignupInviteLanguage } from "../lib/signupInviteLanguage.js";
 import { queueDueConsentCalls } from "./lifecycle.js";
 
 type Communication = typeof communicationsLog.$inferSelect;
@@ -48,8 +48,8 @@ type EmailAttachment = {
   content_id: string;
 };
 
-const SIGNUP_EMAIL_LOGO_CID = "vyva-logo";
-let cachedSignupEmailLogo: EmailAttachment | null | undefined;
+const SIGNUP_EMAIL_LOGO_CID_PREFIX = "vyva-logo";
+const cachedSignupEmailLogos = new Map<SignupInviteLanguage, EmailAttachment | null>();
 
 function publicBaseUrl() {
   return process.env.APP_URL ?? `http://localhost:${process.env.PORT ?? "5000"}`;
@@ -104,22 +104,26 @@ function metadataString(metadata: Record<string, unknown>, key: string) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function signupEmailLogoAttachment() {
-  if (cachedSignupEmailLogo !== undefined) return cachedSignupEmailLogo;
+function signupEmailLogoAttachment(languageInput: unknown) {
+  const language = normalizeSignupInviteLanguage(languageInput);
+  const cachedLogo = cachedSignupEmailLogos.get(language);
+  if (cachedSignupEmailLogos.has(language)) return cachedLogo ?? null;
   try {
-    const logoPath = join(process.cwd(), "public", "assets", "vyva", "vyva-logo-english.png");
-    cachedSignupEmailLogo = {
+    const logoPath = join(process.cwd(), "public", "assets", "vyva", `vyva-logo-${language}.png`);
+    const logoAttachment: EmailAttachment = {
       content: readFileSync(logoPath).toString("base64"),
-      filename: "vyva-logo.png",
+      filename: `vyva-logo-${language}.png`,
       type: "image/png",
       disposition: "inline",
-      content_id: SIGNUP_EMAIL_LOGO_CID,
+      content_id: `${SIGNUP_EMAIL_LOGO_CID_PREFIX}-${language}`,
     };
+    cachedSignupEmailLogos.set(language, logoAttachment);
+    return logoAttachment;
   } catch (err) {
     console.warn("[communications] signup invite logo could not be attached", err);
-    cachedSignupEmailLogo = null;
+    cachedSignupEmailLogos.set(language, null);
+    return null;
   }
-  return cachedSignupEmailLogo;
 }
 
 function introFromLegacyBody(body: string | null) {
@@ -129,12 +133,13 @@ function introFromLegacyBody(body: string | null) {
 }
 
 function buildSignupInviteEmail(metadata: Record<string, unknown>, fallbackBody: string | null): EmailPayload {
+  const language = normalizeSignupInviteLanguage(metadata.language);
   const copy = signupInviteCopyFor(metadata.language);
   const loginUrl = metadataString(metadata, "url") ?? `${publicBaseUrl()}/login`;
   const intro = metadataString(metadata, "intro") ?? introFromLegacyBody(fallbackBody) ?? copy.defaultIntro;
   const subject = metadataString(metadata, "subject") ?? copy.subject;
-  const logoAttachment = signupEmailLogoAttachment();
-  const logoSrc = logoAttachment ? `cid:${SIGNUP_EMAIL_LOGO_CID}` : `${publicBaseUrl().replace(/\/$/, "")}/assets/vyva/vyva-logo-english.png`;
+  const logoAttachment = signupEmailLogoAttachment(language);
+  const logoSrc = logoAttachment ? `cid:${logoAttachment.content_id}` : `${publicBaseUrl().replace(/\/$/, "")}/assets/vyva/vyva-logo-${language}.png`;
   const text = [
     intro,
     copy.summary,

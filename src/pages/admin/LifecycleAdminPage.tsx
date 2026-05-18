@@ -508,6 +508,28 @@ export default function LifecycleAdminPage() {
     }
   }
 
+  async function deleteUser(intake: Intake) {
+    const confirmed = window.confirm(`Permanently delete ${intake.name}? This removes the user from the admin panel and deletes linked VYVA profile records. This cannot be undone.`);
+    if (!confirmed) return;
+    setBusyAction(`delete:${intake.id}`);
+    setUserDetailMessage("");
+    try {
+      await api(`/users/${intake.id}`, {
+        method: "DELETE",
+        body: JSON.stringify({ confirm: "DELETE" }),
+      });
+      if (selectedUser?.intake.id === intake.id) setSelectedUser(null);
+      setMessage("User deleted.");
+      await refresh();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Could not delete this user.";
+      setMessage(errorMessage);
+      setUserDetailMessage(errorMessage);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function createScheduledEventForUser() {
     if (!selectedUser) return;
     if (!newEvent.title.trim()) {
@@ -689,7 +711,7 @@ export default function LifecycleAdminPage() {
                   </select>
                 ))}
               </div>
-              <IntakeTable users={users} onView={(intake) => openUserDetail(intake, "view")} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} busyAction={busyAction} />
+              <IntakeTable users={users} onView={(intake) => openUserDetail(intake, "view")} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} onDelete={deleteUser} busyAction={busyAction} />
             </section>
           </div>
         )}
@@ -769,7 +791,7 @@ export default function LifecycleAdminPage() {
             </div>
             <div className="rounded-[2rem] border border-[#eadfd5] bg-white p-5">
               <h2 className="font-serif text-3xl">Recent lifecycle users</h2>
-              <IntakeTable users={users.slice(0, 8)} onView={(intake) => openUserDetail(intake, "view")} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} busyAction={busyAction} compact />
+              <IntakeTable users={users.slice(0, 8)} onView={(intake) => openUserDetail(intake, "view")} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} onDelete={deleteUser} busyAction={busyAction} compact />
             </div>
           </section>
         )}
@@ -863,9 +885,11 @@ export default function LifecycleAdminPage() {
           planOptions={planOptions}
           statusMessage={userDetailMessage}
           saving={savingUserDetail}
+          deleting={busyAction === `delete:${selectedUser.intake.id}`}
           onClose={() => setSelectedUser(null)}
           onSave={saveUserDetail}
           onToggle={() => toggleUser(selectedUser.intake)}
+          onDelete={() => deleteUser(selectedUser.intake)}
           newEvent={newEvent}
           setNewEvent={setNewEvent}
           onCreateEvent={createScheduledEventForUser}

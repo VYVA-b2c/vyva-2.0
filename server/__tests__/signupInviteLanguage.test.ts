@@ -5,7 +5,7 @@ describe("signup invite language", () => {
   it("defaults unsupported languages to English", () => {
     expect(normalizeSignupInviteLanguage(undefined)).toBe("en");
     expect(normalizeSignupInviteLanguage("cy")).toBe("en");
-    expect(signupInviteCopyFor("unknown").subject).toBe("Create your VYVA account");
+    expect(signupInviteCopyFor("unknown").subject).toBe("Your VYVA invitation");
   });
 
   it("builds invite links with the selected language", () => {
@@ -14,7 +14,7 @@ describe("signup invite language", () => {
   });
 
   it("returns localized email copy for supported invite languages", () => {
-    expect(signupInviteCopyFor("fr").subject).toBe("Creez votre compte VYVA");
-    expect(signupInviteCopyFor("pt").cta).toBe("Criar conta");
+    expect(signupInviteCopyFor("fr").subject).toBe("Votre invitation VYVA");
+    expect(signupInviteCopyFor("pt").cta).toBe("Comecar");
   });
 });
