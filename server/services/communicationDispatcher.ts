@@ -1,5 +1,7 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import nodemailer from "nodemailer";
+import { readFileSync } from "fs";
+import { join } from "path";
 import { db } from "../db.js";
 import { communicationsLog } from "../../shared/schema.js";
 import { explainEmailProviderError, requireEmailFromAddress } from "../lib/emailSenderConfig.js";
@@ -34,7 +36,19 @@ type EmailPayload = {
   text: string;
   html?: string;
   disableTracking?: boolean;
+  attachments?: EmailAttachment[];
 };
+
+type EmailAttachment = {
+  content: string;
+  filename: string;
+  type: string;
+  disposition: "inline" | "attachment";
+  content_id: string;
+};
+
+const SIGNUP_EMAIL_LOGO_CID = "vyva-logo";
+let cachedSignupEmailLogo: EmailAttachment | null | undefined;
 
 function publicBaseUrl() {
   return process.env.APP_URL ?? `http://localhost:${process.env.PORT ?? "5000"}`;
@@ -89,6 +103,24 @@ function metadataString(metadata: Record<string, unknown>, key: string) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function signupEmailLogoAttachment() {
+  if (cachedSignupEmailLogo !== undefined) return cachedSignupEmailLogo;
+  try {
+    const logoPath = join(process.cwd(), "public", "assets", "vyva", "vyva-logo-english.png");
+    cachedSignupEmailLogo = {
+      content: readFileSync(logoPath).toString("base64"),
+      filename: "vyva-logo.png",
+      type: "image/png",
+      disposition: "inline",
+      content_id: SIGNUP_EMAIL_LOGO_CID,
+    };
+  } catch (err) {
+    console.warn("[communications] signup invite logo could not be attached", err);
+    cachedSignupEmailLogo = null;
+  }
+  return cachedSignupEmailLogo;
+}
+
 function introFromLegacyBody(body: string | null) {
   if (!body) return null;
   const [intro] = body.split(/\n\s*\nSign up here:/i);
@@ -99,7 +131,8 @@ function buildSignupInviteEmail(metadata: Record<string, unknown>, fallbackBody:
   const loginUrl = metadataString(metadata, "url") ?? `${publicBaseUrl()}/login`;
   const intro = metadataString(metadata, "intro") ?? introFromLegacyBody(fallbackBody) ?? "You are invited to create your VYVA account.";
   const subject = metadataString(metadata, "subject") ?? "Create your VYVA account";
-  const logoUrl = `${publicBaseUrl().replace(/\/$/, "")}/assets/vyva/vyva-logo-english.png`;
+  const logoAttachment = signupEmailLogoAttachment();
+  const logoSrc = logoAttachment ? `cid:${SIGNUP_EMAIL_LOGO_CID}` : `${publicBaseUrl().replace(/\/$/, "")}/assets/vyva/vyva-logo-english.png`;
   const text = [
     intro,
     "Create your secure VYVA account to manage health, support, reminders, and daily care in one place.",
@@ -121,7 +154,7 @@ function buildSignupInviteEmail(metadata: Record<string, unknown>, fallbackBody:
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#fffaf4;border:1px solid #eaded2;border-radius:24px;overflow:hidden;">
             <tr>
               <td style="padding:32px 32px 12px;">
-                <img src="${htmlEscape(logoUrl)}" width="112" alt="VYVA" style="display:block;width:112px;max-width:112px;height:auto;border:0;outline:none;text-decoration:none;">
+                <img src="${htmlEscape(logoSrc)}" width="112" alt="VYVA" style="display:block;width:112px;max-width:112px;height:auto;border:0;outline:none;text-decoration:none;">
                 <h1 style="margin:26px 0 12px;font-family:Georgia,'Times New Roman',serif;font-size:34px;line-height:1.05;font-weight:500;color:#2f143f;">Create your VYVA account</h1>
                 <div style="font-size:17px;line-height:1.6;color:#6f5f5a;">${paragraphHtml(intro)}</div>
               </td>
@@ -153,7 +186,13 @@ function buildSignupInviteEmail(metadata: Record<string, unknown>, fallbackBody:
   </body>
 </html>`;
 
-  return { subject, text, html, disableTracking: true };
+  return {
+    subject,
+    text,
+    html,
+    disableTracking: true,
+    ...(logoAttachment ? { attachments: [logoAttachment] } : {}),
+  };
 }
 
 function buildEmailPayload(item: Communication): EmailPayload {
@@ -255,6 +294,14 @@ async function sendEmail(item: Communication) {
       subject: email.subject,
       text: email.text,
       ...(email.html ? { html: email.html } : {}),
+      ...(email.attachments?.length ? {
+        attachments: email.attachments.map((attachment) => ({
+          filename: attachment.filename,
+          content: Buffer.from(attachment.content, "base64"),
+          contentType: attachment.type,
+          cid: attachment.content_id,
+        })),
+      } : {}),
     });
     return { sid: null, status: "sent" };
   }
@@ -275,6 +322,7 @@ async function sendEmail(item: Communication) {
       from: { email: from, name: "VYVA" },
       reply_to: { email: replyTo, name: "VYVA" },
       content,
+      ...(email.attachments?.length ? { attachments: email.attachments } : {}),
       ...(email.disableTracking ? {
         tracking_settings: {
           click_tracking: { enable: false, enable_text: false },
