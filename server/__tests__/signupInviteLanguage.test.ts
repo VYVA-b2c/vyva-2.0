@@ -29,7 +29,7 @@ describe("signup invite language", () => {
   it("returns localized email copy for supported invite languages", () => {
     expect(signupInviteCopyFor("fr").subject).toBe("Bienvenue sur VYVA");
     expect(signupInviteCopyFor("pt").cta).toBe("Comecar com VYVA");
-    expect(signupInviteCopyFor("es").title).toBe("Conoce VYVA, tu companera de cuidado por voz");
+    expect(signupInviteCopyFor("es").title).toBe("Conoce VYVA, tu companera de salud en casa");
   });
 
   it("renders a polished signup invite email", () => {
@@ -40,14 +40,14 @@ describe("signup invite language", () => {
     }, null, "https://v2.vyva.life");
 
     expect(email.subject).toBe("Welcome to VYVA");
-    expect(email.html).toContain("Meet VYVA, your voice-first care companion");
-    expect(email.html).toContain("How VYVA helps");
+    expect(email.html).toContain("Meet VYVA, your health companion at home");
+    expect(email.html).toContain("Your health support");
     expect(email.html).toContain("Start with VYVA");
     expect(email.html).toContain("Karim invited you to join VYVA.");
+    expect(email.html).toContain("Health services at home");
+    expect(email.html).toContain("A doctor, one click away");
     expect(email.html).toContain("Never miss a dose");
-    expect(email.html).toContain("Help with life's little things");
-    expect(email.html).toContain("Keep family close");
-    expect(email.text).toContain("Help with life's little things: Ask for support with appointments, rides, trusted services, or everyday questions.");
+    expect(email.text).toContain("A doctor, one click away: When you need extra care, VYVA helps you get to a doctor quickly.");
   });
 
   it("keeps the default email short when there is no admin message", () => {
