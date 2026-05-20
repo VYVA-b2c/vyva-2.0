@@ -7,7 +7,7 @@ describe("signup invite language", () => {
   it("defaults unsupported languages to English", () => {
     expect(normalizeSignupInviteLanguage(undefined)).toBe("en");
     expect(normalizeSignupInviteLanguage("cy")).toBe("en");
-    expect(signupInviteCopyFor("unknown").subject).toBe("You're invited to set up VYVA");
+    expect(signupInviteCopyFor("unknown").subject).toBe("Welcome to VYVA");
   });
 
   it("builds invite links with the selected language", () => {
@@ -27,8 +27,8 @@ describe("signup invite language", () => {
   });
 
   it("returns localized email copy for supported invite languages", () => {
-    expect(signupInviteCopyFor("fr").subject).toBe("Vous etes invite a configurer VYVA");
-    expect(signupInviteCopyFor("pt").cta).toBe("Configurar a minha VYVA");
+    expect(signupInviteCopyFor("fr").subject).toBe("Bienvenue sur VYVA");
+    expect(signupInviteCopyFor("pt").cta).toBe("Comecar com VYVA");
   });
 
   it("renders a polished signup invite email", () => {
@@ -38,12 +38,22 @@ describe("signup invite language", () => {
       url: "https://v2.vyva.life/invite?lang=en",
     }, null, "https://v2.vyva.life");
 
-    expect(email.subject).toBe("You're invited to set up VYVA");
-    expect(email.html).toContain("Your VYVA space is ready");
-    expect(email.html).toContain("What you can set up");
-    expect(email.html).toContain("Set up my VYVA");
+    expect(email.subject).toBe("Welcome to VYVA");
+    expect(email.html).toContain("Welcome to VYVA");
+    expect(email.html).toContain("How VYVA helps");
+    expect(email.html).toContain("Start VYVA");
     expect(email.html).toContain("Karim invited you to join VYVA.");
-    expect(email.text).toContain("Trusted family or care partners connected around the same profile");
+    expect(email.text).toContain("Trusted family support, only when you choose");
+  });
+
+  it("keeps the default email short when there is no admin message", () => {
+    const email = buildSignupInviteEmail({
+      language: "en",
+      url: "https://v2.vyva.life/invite?lang=en",
+    }, null, "https://v2.vyva.life");
+
+    expect(email.html).not.toContain("VYVA is ready for you.");
+    expect(email.text).not.toContain("VYVA is ready for you.");
   });
 
   it("renders the polished invite email for every supported language", () => {

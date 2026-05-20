@@ -99,7 +99,8 @@ export function buildSignupInviteEmail(
   const language = normalizeSignupInviteLanguage(metadata.language);
   const copy = signupInviteCopyFor(metadata.language);
   const loginUrl = metadataString(metadata, "url") ?? `${baseUrl.replace(/\/$/, "")}/login`;
-  const intro = metadataString(metadata, "intro") ?? introFromLegacyBody(fallbackBody) ?? copy.defaultIntro;
+  const customIntro = metadataString(metadata, "intro") ?? introFromLegacyBody(fallbackBody);
+  const intro = customIntro ?? copy.defaultIntro;
   const subject = metadataString(metadata, "subject") ?? copy.subject;
   const logoAttachment = signupEmailLogoAttachment(language);
   const logoSrc = logoAttachment
@@ -107,7 +108,7 @@ export function buildSignupInviteEmail(
     : `${baseUrl.replace(/\/$/, "")}/assets/vyva/vyva-logo-${language}.png`;
   const text = [
     copy.preheader,
-    intro,
+    customIntro,
     copy.summary,
     `${copy.featureTitle}:`,
     ...copy.features.map((feature) => `- ${feature}`),
@@ -115,7 +116,7 @@ export function buildSignupInviteEmail(
     `${copy.startHere}: ${loginUrl}`,
     `${copy.fallback} ${loginUrl}`,
     copy.ignore,
-  ].join("\n\n");
+  ].filter(Boolean).join("\n\n");
   const safeUrl = htmlEscape(loginUrl);
   const safePreheader = htmlEscape(copy.preheader);
   const html = `<!doctype html>
@@ -158,16 +159,16 @@ export function buildSignupInviteEmail(
                 </table>
               </td>
             </tr>
-            <tr>
-              <td style="padding:28px 36px 8px;">
+            ${customIntro ? `<tr>
+              <td style="padding:24px 36px 4px;">
                 ${paragraphHtml(intro)}
               </td>
-            </tr>
+            </tr>` : ""}
             <tr>
-              <td style="padding:10px 36px 4px;">
+              <td style="padding:${customIntro ? "10px" : "24px"} 36px 4px;">
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#ffffff;border:1px solid #eaded2;border-radius:18px;">
                   <tr>
-                    <td style="padding:22px 24px 8px;">
+                    <td style="padding:20px 22px 6px;">
                       <p style="margin:0 0 16px;font-size:13px;line-height:1.2;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#7b5a10;">${htmlEscape(copy.featureTitle)}</p>
                       <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                         ${copy.features.map((feature, index) => featureRow(index + 1, feature)).join("")}
