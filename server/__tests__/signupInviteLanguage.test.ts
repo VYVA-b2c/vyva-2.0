@@ -39,7 +39,7 @@ describe("signup invite language", () => {
     }, null, "https://v2.vyva.life");
 
     expect(email.subject).toBe("Welcome to VYVA");
-    expect(email.html).toContain("Welcome to VYVA");
+    expect(email.html).toContain("A helping hand, always close");
     expect(email.html).toContain("How VYVA helps");
     expect(email.html).toContain("Start VYVA");
     expect(email.html).toContain("Karim invited you to join VYVA.");
