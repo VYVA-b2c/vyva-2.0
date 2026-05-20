@@ -15,8 +15,9 @@ export type SignupInviteCopy = {
   title: string;
   defaultIntro: string;
   summary: string;
+  outcomeBadge?: string;
   featureTitle: string;
-  benefits: [SignupInviteBenefit, SignupInviteBenefit, SignupInviteBenefit];
+  benefits: [SignupInviteBenefit, ...SignupInviteBenefit[]];
   reassurance: string;
   cta: string;
   startHere: string;
@@ -27,30 +28,46 @@ export type SignupInviteCopy = {
 const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
   en: {
     subject: "Welcome to VYVA",
-    preheader: "Health services, medication support, and doctor access close at hand.",
-    eyebrow: "Health support by voice",
-    title: "Meet VYVA, your health companion at home",
+    preheader: "Your everyday care companion for health, doctor access, medication, memory, daily help, and companionship.",
+    eyebrow: "Everyday care companion",
+    title: "Meet VYVA, your everyday care companion",
     defaultIntro: "VYVA is ready for you.",
-    summary: "Simple 24/7 support for medications, symptom checks, vitals, daily care, and a doctor just a click away.",
-    featureTitle: "Your health support",
+    summary: "Voice-first support for health, medication, memory, daily help, companionship, and a doctor when you need one.",
+    outcomeBadge: "Peace of mind for you and your family",
+    featureTitle: "What VYVA can help with",
     benefits: [
       {
         label: "CARE",
         title: "Health services at home",
-        body: "Check symptoms, follow vitals, and get simple guidance when something feels off.",
+        body: "Check symptoms, follow vitals, and get simple guidance.",
       },
       {
         label: "DR",
-        title: "A doctor, one click away",
-        body: "When you need extra care, VYVA helps you get to a doctor quickly.",
+        title: "A doctor just a click away",
+        body: "Get help reaching a doctor when extra care is needed.",
       },
       {
         label: "DOSE",
         title: "Never miss a dose",
-        body: "Friendly reminders, confirmations, and gentle follow-ups help you stay on track.",
+        body: "Friendly medication reminders and follow-ups.",
+      },
+      {
+        label: "BRAIN",
+        title: "Brain Coach",
+        body: "Memory games, mood check-ins, and cognitive exercises.",
+      },
+      {
+        label: "HELP",
+        title: "Concierge help",
+        body: "Support with appointments, rides, services, and errands.",
+      },
+      {
+        label: "CHAT",
+        title: "Companionship",
+        body: "Friendly conversation and daily check-ins, anytime.",
       },
     ],
-    reassurance: "Family can stay informed when something needs attention, and you stay in control.",
+    reassurance: "Start when you are ready. You stay in control.",
     cta: "Start with VYVA",
     startHere: "Start here",
     fallback: "If the button does not work, copy and paste this link into your browser:",

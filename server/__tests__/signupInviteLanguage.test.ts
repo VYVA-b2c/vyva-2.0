@@ -40,14 +40,18 @@ describe("signup invite language", () => {
     }, null, "https://v2.vyva.life");
 
     expect(email.subject).toBe("Welcome to VYVA");
-    expect(email.html).toContain("Meet VYVA, your health companion at home");
-    expect(email.html).toContain("Your health support");
+    expect(email.html).toContain("Meet VYVA, your everyday care companion");
+    expect(email.html).toContain("Peace of mind for you and your family");
+    expect(email.html).toContain("What VYVA can help with");
     expect(email.html).toContain("Start with VYVA");
     expect(email.html).toContain("Karim invited you to join VYVA.");
     expect(email.html).toContain("Health services at home");
-    expect(email.html).toContain("A doctor, one click away");
+    expect(email.html).toContain("A doctor just a click away");
     expect(email.html).toContain("Never miss a dose");
-    expect(email.text).toContain("A doctor, one click away: When you need extra care, VYVA helps you get to a doctor quickly.");
+    expect(email.html).toContain("Brain Coach");
+    expect(email.html).toContain("Concierge help");
+    expect(email.html).toContain("Companionship");
+    expect(email.text).toContain("A doctor just a click away: Get help reaching a doctor when extra care is needed.");
   });
 
   it("keeps the default email short when there is no admin message", () => {
@@ -79,5 +83,20 @@ describe("signup invite language", () => {
       expect(email.text).toContain(copy.benefits[1].title);
       expect(email.text).toContain(copy.benefits[2].title);
     }
+  });
+
+  it("keeps the approved English framing broader than health only", () => {
+    const copy = signupInviteCopyFor("en");
+
+    expect(copy.title).toBe("Meet VYVA, your everyday care companion");
+    expect(copy.outcomeBadge).toBe("Peace of mind for you and your family");
+    expect(copy.benefits.map((benefit) => benefit.title)).toEqual([
+      "Health services at home",
+      "A doctor just a click away",
+      "Never miss a dose",
+      "Brain Coach",
+      "Concierge help",
+      "Companionship",
+    ]);
   });
 });

@@ -24,6 +24,9 @@ const BENEFIT_CARD_ACCENTS = [
   { background: "#14b87a", shadow: "rgba(20,184,122,0.20)" },
   { background: "#4f6bff", shadow: "rgba(79,107,255,0.20)" },
   { background: "#f04475", shadow: "rgba(240,68,117,0.20)" },
+  { background: "#ff8a00", shadow: "rgba(255,138,0,0.20)" },
+  { background: "#7d2be8", shadow: "rgba(125,43,232,0.20)" },
+  { background: "#d43bd7", shadow: "rgba(212,59,215,0.20)" },
 ] as const;
 
 function defaultPublicBaseUrl() {
@@ -123,6 +126,7 @@ export function buildSignupInviteEmail(
     copy.preheader,
     customIntro,
     copy.summary,
+    copy.outcomeBadge,
     `${copy.featureTitle}:`,
     ...copy.benefits.map((benefit) => `${benefit.title}: ${benefit.body}`),
     copy.reassurance,
@@ -141,9 +145,9 @@ export function buildSignupInviteEmail(
   </head>
   <body style="margin:0;background:#f7f3fb;color:#241133;font-family:Arial,Helvetica,sans-serif;">
     <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${safePreheader}</div>
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f7f3fb;padding:28px 12px;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f7f3fb;">
       <tr>
-        <td align="center">
+        <td align="center" style="padding:28px 6px;">
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#ffffff;border:1px solid #ebe4f4;border-radius:28px;overflow:hidden;box-shadow:0 20px 54px rgba(53,28,87,0.13);">
             <tr>
               <td style="padding:30px 36px 20px;">
@@ -167,6 +171,11 @@ export function buildSignupInviteEmail(
                       <p style="margin:0 0 12px;font-size:12px;line-height:1.2;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#ffca4b;">${htmlEscape(copy.startHere)}</p>
                       <h1 style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:37px;line-height:1.08;font-weight:600;color:#ffffff;">${htmlEscape(copy.title)}</h1>
                       <p style="margin:18px 0 0;font-size:18px;line-height:1.55;color:#f6efff;">${htmlEscape(copy.summary)}</p>
+                      ${copy.outcomeBadge ? `<table role="presentation" cellspacing="0" cellpadding="0" style="margin:20px 0 0;background:#ffffff;border-radius:999px;">
+                        <tr>
+                          <td style="padding:9px 14px;font-size:13px;line-height:1.2;font-weight:800;color:#4b1a87;">${htmlEscape(copy.outcomeBadge)}</td>
+                        </tr>
+                      </table>` : ""}
                     </td>
                   </tr>
                 </table>
