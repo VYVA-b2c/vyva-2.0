@@ -1,11 +1,9 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import nodemailer from "nodemailer";
-import { readFileSync } from "fs";
-import { join } from "path";
 import { db } from "../db.js";
 import { communicationsLog } from "../../shared/schema.js";
 import { explainEmailProviderError, requireEmailFromAddress } from "../lib/emailSenderConfig.js";
-import { normalizeSignupInviteLanguage, signupInviteCopyFor, type SignupInviteLanguage } from "../lib/signupInviteLanguage.js";
+import { buildSignupInviteEmail } from "../lib/signupInviteEmail.js";
 import { queueDueConsentCalls } from "./lifecycle.js";
 
 type Communication = typeof communicationsLog.$inferSelect;
@@ -48,9 +46,6 @@ type EmailAttachment = {
   content_id: string;
 };
 
-const SIGNUP_EMAIL_LOGO_CID_PREFIX = "vyva-logo";
-const cachedSignupEmailLogos = new Map<SignupInviteLanguage, EmailAttachment | null>();
-
 function publicBaseUrl() {
   return process.env.APP_URL ?? `http://localhost:${process.env.PORT ?? "5000"}`;
 }
@@ -82,124 +77,9 @@ function xmlEscape(value: string) {
     .replace(/'/g, "&apos;");
 }
 
-function htmlEscape(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function paragraphHtml(value: string) {
-  return htmlEscape(value)
-    .split(/\n{2,}/)
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean)
-    .map((paragraph) => `<p>${paragraph.replace(/\n/g, "<br>")}</p>`)
-    .join("");
-}
-
 function metadataString(metadata: Record<string, unknown>, key: string) {
   const value = metadata[key];
   return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function signupEmailLogoAttachment(languageInput: unknown) {
-  const language = normalizeSignupInviteLanguage(languageInput);
-  const cachedLogo = cachedSignupEmailLogos.get(language);
-  if (cachedSignupEmailLogos.has(language)) return cachedLogo ?? null;
-  try {
-    const logoPath = join(process.cwd(), "public", "assets", "vyva", `vyva-logo-${language}.png`);
-    const logoAttachment: EmailAttachment = {
-      content: readFileSync(logoPath).toString("base64"),
-      filename: `vyva-logo-${language}.png`,
-      type: "image/png",
-      disposition: "inline",
-      content_id: `${SIGNUP_EMAIL_LOGO_CID_PREFIX}-${language}`,
-    };
-    cachedSignupEmailLogos.set(language, logoAttachment);
-    return logoAttachment;
-  } catch (err) {
-    console.warn("[communications] signup invite logo could not be attached", err);
-    cachedSignupEmailLogos.set(language, null);
-    return null;
-  }
-}
-
-function introFromLegacyBody(body: string | null) {
-  if (!body) return null;
-  const [intro] = body.split(/\n\s*\nSign up here:/i);
-  return intro?.trim() || null;
-}
-
-function buildSignupInviteEmail(metadata: Record<string, unknown>, fallbackBody: string | null): EmailPayload {
-  const language = normalizeSignupInviteLanguage(metadata.language);
-  const copy = signupInviteCopyFor(metadata.language);
-  const loginUrl = metadataString(metadata, "url") ?? `${publicBaseUrl()}/login`;
-  const intro = metadataString(metadata, "intro") ?? introFromLegacyBody(fallbackBody) ?? copy.defaultIntro;
-  const subject = metadataString(metadata, "subject") ?? copy.subject;
-  const logoAttachment = signupEmailLogoAttachment(language);
-  const logoSrc = logoAttachment ? `cid:${logoAttachment.content_id}` : `${publicBaseUrl().replace(/\/$/, "")}/assets/vyva/vyva-logo-${language}.png`;
-  const text = [
-    intro,
-    copy.summary,
-    `${copy.startHere}: ${loginUrl}`,
-    copy.ignore,
-  ].join("\n\n");
-  const safeUrl = htmlEscape(loginUrl);
-  const html = `<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>${htmlEscape(subject)}</title>
-  </head>
-  <body style="margin:0;background:#f7f1e9;color:#2f2135;font-family:Arial,Helvetica,sans-serif;">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f7f1e9;padding:28px 12px;">
-      <tr>
-        <td align="center">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#fffaf4;border:1px solid #eaded2;border-radius:24px;overflow:hidden;">
-            <tr>
-              <td style="padding:32px 32px 12px;">
-                <img src="${htmlEscape(logoSrc)}" width="112" alt="VYVA" style="display:block;width:112px;max-width:112px;height:auto;border:0;outline:none;text-decoration:none;">
-                <h1 style="margin:26px 0 12px;font-family:Georgia,'Times New Roman',serif;font-size:34px;line-height:1.05;font-weight:500;color:#2f143f;">${htmlEscape(copy.title)}</h1>
-                <div style="font-size:17px;line-height:1.6;color:#6f5f5a;">${paragraphHtml(intro)}</div>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:8px 32px 8px;">
-                <p style="margin:0;font-size:16px;line-height:1.6;color:#6f5f5a;">${htmlEscape(copy.summary)}</p>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:24px 32px 18px;">
-                <a href="${safeUrl}" style="display:block;background:#6f22c9;color:#ffffff;text-decoration:none;text-align:center;border-radius:999px;padding:17px 22px;font-size:18px;font-weight:700;">${htmlEscape(copy.cta)}</a>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:0 32px 28px;">
-                <p style="margin:0;font-size:13px;line-height:1.6;color:#8b7b74;">${htmlEscape(copy.fallback)}<br><a href="${safeUrl}" style="color:#6f22c9;word-break:break-all;">${safeUrl}</a></p>
-              </td>
-            </tr>
-            <tr>
-              <td style="border-top:1px solid #eaded2;padding:18px 32px 26px;">
-                <p style="margin:0;font-size:13px;line-height:1.6;color:#8b7b74;">${htmlEscape(copy.ignore)}</p>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>`;
-
-  return {
-    subject,
-    text,
-    html,
-    disableTracking: true,
-    ...(logoAttachment ? { attachments: [logoAttachment] } : {}),
-  };
 }
 
 function buildEmailPayload(item: Communication): EmailPayload {
