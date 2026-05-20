@@ -29,6 +29,7 @@ describe("signup invite language", () => {
   it("returns localized email copy for supported invite languages", () => {
     expect(signupInviteCopyFor("fr").subject).toBe("Bienvenue sur VYVA");
     expect(signupInviteCopyFor("pt").cta).toBe("Comecar com VYVA");
+    expect(signupInviteCopyFor("es").title).toBe("Conoce VYVA, tu companera de cuidado por voz");
   });
 
   it("renders a polished signup invite email", () => {
@@ -39,14 +40,14 @@ describe("signup invite language", () => {
     }, null, "https://v2.vyva.life");
 
     expect(email.subject).toBe("Welcome to VYVA");
-    expect(email.html).toContain("A helping hand, always close");
-    expect(email.html).toContain("What VYVA can do for you");
-    expect(email.html).toContain("Start VYVA");
+    expect(email.html).toContain("Meet VYVA, your voice-first care companion");
+    expect(email.html).toContain("How VYVA helps");
+    expect(email.html).toContain("Start with VYVA");
     expect(email.html).toContain("Karim invited you to join VYVA.");
-    expect(email.html).toContain("Remember the day");
-    expect(email.html).toContain("Keep family in the loop");
-    expect(email.html).toContain("Get help faster");
-    expect(email.text).toContain("Keep family in the loop: Share support with trusted people, only when you choose.");
+    expect(email.html).toContain("Never miss a dose");
+    expect(email.html).toContain("Help with life's little things");
+    expect(email.html).toContain("Keep family close");
+    expect(email.text).toContain("Help with life's little things: Ask for support with appointments, rides, trusted services, or everyday questions.");
   });
 
   it("keeps the default email short when there is no admin message", () => {
@@ -75,6 +76,8 @@ describe("signup invite language", () => {
       expect(email.html).toContain(`vyva-logo-${language}`);
       expect(email.text).toContain(copy.benefits[0].title);
       expect(email.text).toContain(copy.benefits[0].body);
+      expect(email.text).toContain(copy.benefits[1].title);
+      expect(email.text).toContain(copy.benefits[2].title);
     }
   });
 });
