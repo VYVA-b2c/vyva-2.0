@@ -135,10 +135,33 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
   },
 };
 
+const SIGNUP_INVITE_LANGUAGE_ALIASES: Record<string, SignupInviteLanguage> = {
+  english: "en",
+  ingles: "en",
+  spanish: "es",
+  espanol: "es",
+  castellano: "es",
+  french: "fr",
+  francais: "fr",
+  german: "de",
+  deutsch: "de",
+  italian: "it",
+  italiano: "it",
+  portuguese: "pt",
+  portugues: "pt",
+};
+
 export function normalizeSignupInviteLanguage(value: unknown): SignupInviteLanguage {
-  return typeof value === "string" && SIGNUP_INVITE_LANGUAGE_CODES.includes(value as SignupInviteLanguage)
-    ? value as SignupInviteLanguage
-    : "en";
+  if (typeof value !== "string") return "en";
+  const normalized = value.trim().toLowerCase().replace(/_/g, "-");
+  if (SIGNUP_INVITE_LANGUAGE_CODES.includes(normalized as SignupInviteLanguage)) {
+    return normalized as SignupInviteLanguage;
+  }
+  const baseLanguage = normalized.split("-")[0];
+  if (SIGNUP_INVITE_LANGUAGE_CODES.includes(baseLanguage as SignupInviteLanguage)) {
+    return baseLanguage as SignupInviteLanguage;
+  }
+  return SIGNUP_INVITE_LANGUAGE_ALIASES[normalized] ?? "en";
 }
 
 export function signupInviteCopyFor(value: unknown): SignupInviteCopy {

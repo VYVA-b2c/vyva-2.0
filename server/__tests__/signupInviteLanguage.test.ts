@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { languageOptions } from "../../src/pages/admin/lifecycle/shared";
 import { buildSignupInviteEmail } from "../lib/signupInviteEmail.js";
 import { buildSignupInviteUrl, normalizeSignupInviteLanguage, signupInviteCopyFor, SIGNUP_INVITE_LANGUAGE_CODES } from "../lib/signupInviteLanguage.js";
 
@@ -12,6 +13,17 @@ describe("signup invite language", () => {
   it("builds invite links with the selected language", () => {
     expect(buildSignupInviteUrl("https://v2.vyva.life", "fr")).toBe("https://v2.vyva.life/invite?lang=fr");
     expect(buildSignupInviteUrl("https://v2.vyva.life/", "es")).toBe("https://v2.vyva.life/invite?lang=es");
+  });
+
+  it("understands admin language dropdown values, labels, and locale variants", () => {
+    for (const option of languageOptions) {
+      expect(normalizeSignupInviteLanguage(option.value)).toBe(option.value);
+      expect(normalizeSignupInviteLanguage(option.label)).toBe(option.value);
+    }
+
+    expect(normalizeSignupInviteLanguage("es-ES")).toBe("es");
+    expect(normalizeSignupInviteLanguage("PT_pt")).toBe("pt");
+    expect(normalizeSignupInviteLanguage("Italian")).toBe("it");
   });
 
   it("returns localized email copy for supported invite languages", () => {
