@@ -2,6 +2,12 @@ export const SIGNUP_INVITE_LANGUAGE_CODES = ["en", "es", "fr", "de", "it", "pt"]
 
 export type SignupInviteLanguage = (typeof SIGNUP_INVITE_LANGUAGE_CODES)[number];
 
+export type SignupInviteBenefit = {
+  label: string;
+  title: string;
+  body: string;
+};
+
 export type SignupInviteCopy = {
   subject: string;
   preheader: string;
@@ -10,7 +16,7 @@ export type SignupInviteCopy = {
   defaultIntro: string;
   summary: string;
   featureTitle: string;
-  features: [string, string, string];
+  benefits: [SignupInviteBenefit, SignupInviteBenefit, SignupInviteBenefit];
   reassurance: string;
   cta: string;
   startHere: string;
@@ -26,11 +32,23 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     title: "A helping hand, always close",
     defaultIntro: "VYVA is ready for you.",
     summary: "Remember what matters, keep family close, and get simple help when you need it.",
-    featureTitle: "How VYVA helps",
-    features: [
-      "Helpful reminders for medicines, appointments, and daily tasks",
-      "Trusted family support, only when you choose",
-      "Quick everyday help when something feels unclear",
+    featureTitle: "What VYVA can do for you",
+    benefits: [
+      {
+        label: "REMIND",
+        title: "Remember the day",
+        body: "Gentle prompts for medicines, appointments, and daily tasks.",
+      },
+      {
+        label: "FAMILY",
+        title: "Keep family in the loop",
+        body: "Share support with trusted people, only when you choose.",
+      },
+      {
+        label: "HELP",
+        title: "Get help faster",
+        body: "Simple guidance when something feels unclear.",
+      },
     ],
     reassurance: "You stay in control.",
     cta: "Start VYVA",
@@ -45,11 +63,23 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     title: "Una ayuda cercana, cuando la necesites",
     defaultIntro: "VYVA esta listo para ti.",
     summary: "Recuerda lo importante, mantente cerca de tu familia y recibe ayuda sencilla cuando la necesites.",
-    featureTitle: "Como ayuda VYVA",
-    features: [
-      "Recordatorios para medicinas, citas y tareas diarias",
-      "Apoyo de personas de confianza, solo cuando tu quieras",
-      "Ayuda rapida cuando algo no este claro",
+    featureTitle: "Lo que VYVA puede hacer por ti",
+    benefits: [
+      {
+        label: "RECORDAR",
+        title: "Recuerda tu dia",
+        body: "Avisos suaves para medicinas, citas y tareas diarias.",
+      },
+      {
+        label: "FAMILIA",
+        title: "Mantente cerca de tu familia",
+        body: "Comparte apoyo con personas de confianza, solo si tu quieres.",
+      },
+      {
+        label: "AYUDA",
+        title: "Recibe ayuda mas rapido",
+        body: "Orientacion sencilla cuando algo no este claro.",
+      },
     ],
     reassurance: "Tu tienes el control.",
     cta: "Empezar con VYVA",
@@ -64,11 +94,23 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     title: "Une aide simple, toujours proche",
     defaultIntro: "VYVA est pret pour vous.",
     summary: "Souvenez-vous de l'essentiel, gardez vos proches pres de vous et recevez une aide simple quand vous en avez besoin.",
-    featureTitle: "Comment VYVA aide",
-    features: [
-      "Rappels utiles pour medicaments, rendez-vous et taches du jour",
-      "Soutien de proches de confiance, seulement si vous le souhaitez",
-      "Aide rapide quand quelque chose n'est pas clair",
+    featureTitle: "Ce que VYVA peut faire pour vous",
+    benefits: [
+      {
+        label: "RAPPEL",
+        title: "Se souvenir de la journee",
+        body: "Des rappels doux pour medicaments, rendez-vous et taches du jour.",
+      },
+      {
+        label: "PROCHES",
+        title: "Garder les proches informes",
+        body: "Partagez le soutien avec des personnes de confiance, seulement si vous le souhaitez.",
+      },
+      {
+        label: "AIDE",
+        title: "Obtenir de l'aide plus vite",
+        body: "Une orientation simple quand quelque chose n'est pas clair.",
+      },
     ],
     reassurance: "Vous gardez le controle.",
     cta: "Commencer avec VYVA",
@@ -83,11 +125,23 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     title: "Eine helfende Hand, immer nah",
     defaultIntro: "VYVA ist fuer Sie bereit.",
     summary: "Merken Sie sich Wichtiges, halten Sie Familie nah und bekommen Sie einfache Hilfe, wenn Sie sie brauchen.",
-    featureTitle: "Wie VYVA hilft",
-    features: [
-      "Hilfreiche Erinnerungen fuer Medikamente, Termine und taegliche Aufgaben",
-      "Unterstuetzung durch vertraute Personen, nur wenn Sie es moechten",
-      "Schnelle Alltagshilfe, wenn etwas unklar ist",
+    featureTitle: "Was VYVA fuer Sie tun kann",
+    benefits: [
+      {
+        label: "MERKEN",
+        title: "Den Tag im Blick behalten",
+        body: "Sanfte Hinweise fuer Medikamente, Termine und taegliche Aufgaben.",
+      },
+      {
+        label: "FAMILIE",
+        title: "Familie einbeziehen",
+        body: "Unterstuetzung mit vertrauten Personen teilen, nur wenn Sie es moechten.",
+      },
+      {
+        label: "HILFE",
+        title: "Schneller Hilfe bekommen",
+        body: "Einfache Orientierung, wenn etwas unklar ist.",
+      },
     ],
     reassurance: "Sie behalten die Kontrolle.",
     cta: "Mit VYVA starten",
@@ -102,11 +156,23 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     title: "Un aiuto semplice, sempre vicino",
     defaultIntro: "VYVA e pronto per te.",
     summary: "Ricorda cio che conta, tieni vicina la famiglia e ricevi aiuto semplice quando serve.",
-    featureTitle: "Come aiuta VYVA",
-    features: [
-      "Promemoria utili per farmaci, appuntamenti e attivita quotidiane",
-      "Supporto di persone fidate, solo quando lo scegli tu",
-      "Aiuto rapido quando qualcosa non e chiaro",
+    featureTitle: "Cosa puo fare VYVA per te",
+    benefits: [
+      {
+        label: "RICORDA",
+        title: "Ricorda la giornata",
+        body: "Promemoria gentili per farmaci, appuntamenti e attivita quotidiane.",
+      },
+      {
+        label: "FAMIGLIA",
+        title: "Tieni vicina la famiglia",
+        body: "Condividi supporto con persone fidate, solo quando lo scegli tu.",
+      },
+      {
+        label: "AIUTO",
+        title: "Ricevi aiuto piu in fretta",
+        body: "Indicazioni semplici quando qualcosa non e chiaro.",
+      },
     ],
     reassurance: "Il controllo resta a te.",
     cta: "Inizia con VYVA",
@@ -121,11 +187,23 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     title: "Uma ajuda simples, sempre por perto",
     defaultIntro: "A VYVA esta pronta para si.",
     summary: "Lembre-se do que importa, mantenha a familia por perto e receba ajuda simples quando precisar.",
-    featureTitle: "Como a VYVA ajuda",
-    features: [
-      "Lembretes uteis para medicacao, consultas e tarefas diarias",
-      "Apoio de pessoas de confianca, apenas quando escolher",
-      "Ajuda rapida quando algo nao estiver claro",
+    featureTitle: "O que a VYVA pode fazer por si",
+    benefits: [
+      {
+        label: "LEMBRAR",
+        title: "Lembrar o dia",
+        body: "Avisos suaves para medicacao, consultas e tarefas diarias.",
+      },
+      {
+        label: "FAMILIA",
+        title: "Manter a familia por perto",
+        body: "Partilhe apoio com pessoas de confianca, apenas quando escolher.",
+      },
+      {
+        label: "AJUDA",
+        title: "Receber ajuda mais depressa",
+        body: "Orientacao simples quando algo nao estiver claro.",
+      },
     ],
     reassurance: "Mantem sempre o controlo.",
     cta: "Comecar com VYVA",

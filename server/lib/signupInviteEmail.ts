@@ -1,6 +1,6 @@
 import { readFileSync } from "fs";
 import { join } from "path";
-import { normalizeSignupInviteLanguage, signupInviteCopyFor, type SignupInviteLanguage } from "./signupInviteLanguage.js";
+import { normalizeSignupInviteLanguage, signupInviteCopyFor, type SignupInviteBenefit, type SignupInviteLanguage } from "./signupInviteLanguage.js";
 
 export type EmailAttachment = {
   content: string;
@@ -75,18 +75,23 @@ function signupEmailLogoAttachment(languageInput: unknown) {
   }
 }
 
-function featureRow(index: number, label: string) {
+function benefitCard(benefit: SignupInviteBenefit) {
   return `
                         <tr>
-                          <td width="34" valign="top" style="padding:0 12px 14px 0;">
-                            <table role="presentation" cellspacing="0" cellpadding="0" width="34" height="34" style="width:34px;height:34px;border-radius:17px;background:#efe6ff;">
+                          <td style="padding:0 0 12px;">
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#fbf8f5;border:1px solid #eaded2;border-radius:16px;">
                               <tr>
-                                <td align="center" valign="middle" style="font-size:14px;line-height:34px;font-weight:700;color:#6f22c9;">${index}</td>
+                                <td style="padding:15px 16px;">
+                                  <table role="presentation" cellspacing="0" cellpadding="0" width="70" style="width:70px;background:#efe6ff;border-radius:14px;">
+                                    <tr>
+                                      <td align="center" style="padding:9px 5px;font-size:10px;line-height:1.1;font-weight:800;letter-spacing:0.04em;color:#6f22c9;">${htmlEscape(benefit.label)}</td>
+                                    </tr>
+                                  </table>
+                                  <p style="margin:10px 0 4px;font-size:18px;line-height:1.2;font-weight:800;color:#2f143f;">${htmlEscape(benefit.title)}</p>
+                                  <p style="margin:0;font-size:14px;line-height:1.45;color:#5f514b;">${htmlEscape(benefit.body)}</p>
+                                </td>
                               </tr>
                             </table>
-                          </td>
-                          <td valign="top" style="padding:1px 0 14px;">
-                            <p style="margin:0;font-size:15px;line-height:1.45;color:#4f4355;">${htmlEscape(label)}</p>
                           </td>
                         </tr>`;
 }
@@ -111,7 +116,7 @@ export function buildSignupInviteEmail(
     customIntro,
     copy.summary,
     `${copy.featureTitle}:`,
-    ...copy.features.map((feature) => `- ${feature}`),
+    ...copy.benefits.map((benefit) => `${benefit.title}: ${benefit.body}`),
     copy.reassurance,
     `${copy.startHere}: ${loginUrl}`,
     `${copy.fallback} ${loginUrl}`,
@@ -169,9 +174,9 @@ export function buildSignupInviteEmail(
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#ffffff;border:1px solid #eaded2;border-radius:18px;">
                   <tr>
                     <td style="padding:20px 22px 6px;">
-                      <p style="margin:0 0 16px;font-size:13px;line-height:1.2;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#7b5a10;">${htmlEscape(copy.featureTitle)}</p>
+                      <p style="margin:0 0 14px;font-size:13px;line-height:1.2;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#7b5a10;">${htmlEscape(copy.featureTitle)}</p>
                       <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
-                        ${copy.features.map((feature, index) => featureRow(index + 1, feature)).join("")}
+                        ${copy.benefits.map((benefit) => benefitCard(benefit)).join("")}
                       </table>
                     </td>
                   </tr>

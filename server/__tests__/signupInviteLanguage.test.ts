@@ -40,10 +40,13 @@ describe("signup invite language", () => {
 
     expect(email.subject).toBe("Welcome to VYVA");
     expect(email.html).toContain("A helping hand, always close");
-    expect(email.html).toContain("How VYVA helps");
+    expect(email.html).toContain("What VYVA can do for you");
     expect(email.html).toContain("Start VYVA");
     expect(email.html).toContain("Karim invited you to join VYVA.");
-    expect(email.text).toContain("Trusted family support, only when you choose");
+    expect(email.html).toContain("Remember the day");
+    expect(email.html).toContain("Keep family in the loop");
+    expect(email.html).toContain("Get help faster");
+    expect(email.text).toContain("Keep family in the loop: Share support with trusted people, only when you choose.");
   });
 
   it("keeps the default email short when there is no admin message", () => {
@@ -70,7 +73,8 @@ describe("signup invite language", () => {
       expect(email.html).toContain(copy.featureTitle);
       expect(email.html).toContain(copy.cta);
       expect(email.html).toContain(`vyva-logo-${language}`);
-      expect(email.text).toContain(copy.features[0]);
+      expect(email.text).toContain(copy.benefits[0].title);
+      expect(email.text).toContain(copy.benefits[0].body);
     }
   });
 });
