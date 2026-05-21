@@ -67,7 +67,7 @@ describe("signup invite language", () => {
     expect(email.html).toContain("More confidence at home");
     expect(email.html).toContain("What you can do with VYVA");
     expect(email.html).toContain("Set up VYVA");
-    expect(email.html).toContain("Your VYVA is ready");
+    expect(email.html).toContain("VOICE ACTIVATED, NO DIGITAL SKILLS REQUIRED");
     expect(email.html).toContain("Karim invited you to join VYVA.");
     expect(email.html).toContain("Health checks");
     expect(email.html).toContain("Doctor access");
@@ -94,7 +94,7 @@ describe("signup invite language", () => {
     expect(email.html).toContain("Dear Maria &lt;Care&gt;,");
     expect(email.text).toContain("Dear Maria <Care>,");
     expect(email.html).toContain('href="https://v2.vyva.life/invite?lang=en"');
-    expect(email.text).toContain("Your VYVA is ready: https://v2.vyva.life/invite?lang=en");
+    expect(email.text).toContain("VOICE ACTIVATED, NO DIGITAL SKILLS REQUIRED: https://v2.vyva.life/invite?lang=en");
     expect(email.html).toContain('href="https://vyva.life"');
     expect(email.html).toContain('href="https://vyva.life/privacypolicy"');
     expect(email.html).toContain('href="https://vyva.life/securityencryption"');
@@ -142,7 +142,7 @@ describe("signup invite language", () => {
     expect(copy.title).toBe("Feel supported every day");
     expect(copy.greeting).toBe("Dear");
     expect(copy.outcomeBadge).toBe("More confidence at home");
-    expect(copy.startHere).toBe("Your VYVA is ready");
+    expect(copy.startHere).toBe("VOICE ACTIVATED, NO DIGITAL SKILLS REQUIRED");
     expect(copy.benefits.map((benefit) => benefit.title)).toEqual([
       "Health checks",
       "Doctor access",

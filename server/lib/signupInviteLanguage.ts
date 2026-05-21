@@ -71,7 +71,7 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     ],
     reassurance: "Set it up once. Use it anytime.",
     cta: "Set up VYVA",
-    startHere: "Your VYVA is ready",
+    startHere: "VOICE ACTIVATED, NO DIGITAL SKILLS REQUIRED",
     fallback: "Setup link:",
     ignore: "This invitation was sent using a secure VYVA signup link. If you were not expecting it, you can ignore this email.",
   },
