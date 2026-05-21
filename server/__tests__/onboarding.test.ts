@@ -210,6 +210,18 @@ describe("Onboarding journey — end-to-end", () => {
       .expect(200);
 
     expect(res.body).toMatchObject({ ok: true, section: "address" });
+
+    const [state] = await db
+      .select({
+        has_location: onboardingState.has_location,
+        has_emergency_address: onboardingState.has_emergency_address,
+      })
+      .from(onboardingState)
+      .where(eq(onboardingState.user_id, TEST_USER_ID))
+      .limit(1);
+
+    expect(state?.has_location).toBe(true);
+    expect(state?.has_emergency_address).toBe(false);
   });
 
   it("POST /section/gp saves GP details", async () => {

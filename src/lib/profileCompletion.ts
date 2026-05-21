@@ -51,7 +51,13 @@ export function deriveCompletedSections(
     completed.add("hobbies");
   }
 
-  if (state?.has_emergency_address) {
+  const emergency = consent?.emergency as Record<string, unknown> | null | undefined;
+  if (
+    typeof emergency?.emergency_name === "string" &&
+    emergency.emergency_name.trim().length > 0 &&
+    typeof emergency?.emergency_phone === "string" &&
+    emergency.emergency_phone.trim().length > 0
+  ) {
     completed.add("emergency");
   }
 
