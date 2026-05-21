@@ -223,7 +223,7 @@ export function buildSignupInviteEmail(
                 <p style="margin:0;font-size:13px;line-height:1.6;color:#70677b;"><strong style="color:#4b4254;">${htmlEscape(copy.fallback)}</strong> <a href="${safeUrl}" style="color:#6f22c9;word-break:break-all;">${safeUrl}</a></p>
                 <p style="margin:10px 0 0;font-size:13px;line-height:1.6;color:#70677b;">${htmlEscape(copy.ignore)}</p>
                 <p style="margin:14px 0 0;font-size:13px;line-height:1.8;color:#7d8fb3;">
-                  &copy; 2026 VYVA. All rights reserved.
+                  &copy; 2026 MOKA DIGITECK SL. All rights reserved.
                   <br>
                   <a href="${VYVA_WEBSITE_URL}" style="color:#6b7fab;text-decoration:none;">Website</a>
                   <span style="color:#c0b8cf;">&nbsp;&nbsp;|&nbsp;&nbsp;</span>

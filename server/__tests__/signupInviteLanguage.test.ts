@@ -99,6 +99,7 @@ describe("signup invite language", () => {
     expect(email.html).toContain('href="https://vyva.life/privacypolicy"');
     expect(email.html).toContain('href="https://vyva.life/securityencryption"');
     expect(email.html).toContain("Terms of Service");
+    expect(email.html).toContain("2026 MOKA DIGITECK SL");
     expect(email.text).toContain("Privacy Policy: https://vyva.life/privacypolicy");
   });
 
