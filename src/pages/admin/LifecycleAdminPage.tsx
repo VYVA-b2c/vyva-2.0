@@ -53,6 +53,11 @@ type SignupShareNotice = {
   details: string[];
 };
 
+type SignupShareRecipient = {
+  name?: string;
+  recipient: string;
+};
+
 type SupportScheduleDraft = {
   frequency_type: string;
   days_of_week: string[];
@@ -218,11 +223,47 @@ export default function LifecycleAdminPage() {
     await refresh();
   }
 
-  function recipientLines(value: string) {
+  function compactRecipientName(value: string) {
+    const normalized = value.replace(/\s+/g, " ").trim();
+    return normalized || undefined;
+  }
+
+  function looksLikeEmailRecipient(value: string) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+  }
+
+  function looksLikePhoneRecipient(value: string) {
+    return value.replace(/\D/g, "").length >= 3;
+  }
+
+  function parseInviteRecipients(value: string, looksLikeRecipient: (value: string) => boolean): SignupShareRecipient[] {
     return value
-      .split(/[\n,;]+/)
-      .map((item) => item.trim())
-      .filter(Boolean);
+      .split(/\n+/)
+      .flatMap((line) => {
+        const trimmed = line.trim();
+        if (!trimmed) return [];
+
+        const angleMatch = trimmed.match(/^\s*(.*?)\s*<([^<>]+)>\s*$/);
+        if (angleMatch) {
+          const name = compactRecipientName(angleMatch[1]);
+          return [{
+            ...(name ? { name } : {}),
+            recipient: angleMatch[2].trim(),
+          }];
+        }
+
+        const parts = trimmed.split(/[;,]+/).map((item) => item.trim()).filter(Boolean);
+        if (parts.length === 2 && !looksLikeRecipient(parts[0])) {
+          const name = compactRecipientName(parts[0]);
+          return [{ ...(name ? { name } : {}), recipient: parts[1] }];
+        }
+
+        if (parts.length > 1) {
+          return parts.map((recipient) => ({ recipient }));
+        }
+
+        return [{ recipient: trimmed }];
+      });
   }
 
   function signupShareResults(value: unknown): SignupShareResult[] {
@@ -244,11 +285,13 @@ export default function LifecycleAdminPage() {
     setSignupShareNotice(null);
     setMessage("");
     try {
+      const emailRecipients = parseInviteRecipients(signupShare.emails, looksLikeEmailRecipient);
+      const whatsappRecipients = parseInviteRecipients(signupShare.whatsapp, looksLikePhoneRecipient);
       const data = await api("/signup-share", {
         method: "POST",
         body: JSON.stringify({
-          emails: recipientLines(signupShare.emails),
-          whatsapp_numbers: recipientLines(signupShare.whatsapp),
+          email_recipients: emailRecipients,
+          whatsapp_recipients: whatsappRecipients,
           message: signupShare.message.trim() || undefined,
           language: signupShare.language,
         }),
@@ -800,10 +843,10 @@ export default function LifecycleAdminPage() {
               </div>
               <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_1.2fr_0.7fr_auto]">
                 <Field label="Email recipients">
-                  <textarea className="min-h-24 w-full rounded-2xl border px-4 py-3" placeholder="name@example.com, another@example.com" value={signupShare.emails} onChange={(e) => setSignupShare({ ...signupShare, emails: e.target.value })} />
+                  <textarea className="min-h-24 w-full rounded-2xl border px-4 py-3" placeholder="Maria Gomez, maria@example.com&#10;maria@example.com" value={signupShare.emails} onChange={(e) => setSignupShare({ ...signupShare, emails: e.target.value })} />
                 </Field>
                 <Field label="WhatsApp numbers">
-                  <textarea className="min-h-24 w-full rounded-2xl border px-4 py-3" placeholder="+34 612 345 678&#10;+44 7700 900123" value={signupShare.whatsapp} onChange={(e) => setSignupShare({ ...signupShare, whatsapp: e.target.value })} />
+                  <textarea className="min-h-24 w-full rounded-2xl border px-4 py-3" placeholder="Maria Gomez, +34 612 345 678&#10;+44 7700 900123" value={signupShare.whatsapp} onChange={(e) => setSignupShare({ ...signupShare, whatsapp: e.target.value })} />
                 </Field>
                 <Field label="Message (optional)">
                   <textarea className="min-h-24 w-full rounded-2xl border px-4 py-3" placeholder="Leave blank to use the selected language's default invite text." value={signupShare.message} onChange={(e) => setSignupShare({ ...signupShare, message: e.target.value })} />

@@ -13,6 +13,7 @@ export type SignupInviteCopy = {
   preheader: string;
   eyebrow: string;
   title: string;
+  greeting: string;
   defaultIntro: string;
   summary: string;
   outcomeBadge?: string;
@@ -31,6 +32,7 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     preheader: "One simple companion for health, memory, daily help, engaging chats, and doctor access.",
     eyebrow: "Everyday care companion",
     title: "Feel supported every day",
+    greeting: "Dear",
     defaultIntro: "VYVA is ready for you.",
     summary: "One simple companion for health, memory, daily help, engaging chats, and doctor access.",
     outcomeBadge: "More confidence at home",
@@ -70,7 +72,7 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     reassurance: "Set it up once. Use it anytime.",
     cta: "Set up VYVA",
     startHere: "Your VYVA is ready",
-    fallback: "If the button does not work, copy and paste this link into your browser:",
+    fallback: "Setup link:",
     ignore: "This invitation was sent using a secure VYVA signup link. If you were not expecting it, you can ignore this email.",
   },
   es: {
@@ -78,6 +80,7 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     preheader: "Servicios de salud, apoyo con medicacion y acceso a un medico siempre cerca.",
     eyebrow: "Apoyo de salud por voz",
     title: "Conoce VYVA, tu companera de salud en casa",
+    greeting: "Estimado/a",
     defaultIntro: "VYVA esta listo para ti.",
     summary: "Apoyo sencillo 24/7 para medicinas, chequeos de sintomas, constantes vitales, cuidado diario y un medico a un clic.",
     featureTitle: "Tu apoyo de salud",
@@ -101,7 +104,7 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     reassurance: "Tu familia puede recibir avisos cuando algo necesita atencion, y tu tienes el control.",
     cta: "Empezar con VYVA",
     startHere: "Empieza aqui",
-    fallback: "Si el boton no funciona, copia y pega este enlace en tu navegador:",
+    fallback: "Enlace de configuracion:",
     ignore: "Esta invitacion se envio mediante un enlace seguro de registro de VYVA. Si no la esperabas, puedes ignorar este email.",
   },
   fr: {
@@ -109,6 +112,7 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     preheader: "Services de sante, aide aux medicaments et acces a un medecin toujours a portee.",
     eyebrow: "Sante par la voix",
     title: "Decouvrez VYVA, votre compagnon de sante a domicile",
+    greeting: "Cher/Chere",
     defaultIntro: "VYVA est pret pour vous.",
     summary: "Un soutien simple 24/7 pour les medicaments, les symptomes, les constantes, le quotidien et un medecin a portee de clic.",
     featureTitle: "Votre soutien sante",
@@ -132,7 +136,7 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     reassurance: "Vos proches peuvent etre informes quand quelque chose demande de l'attention, et vous gardez le controle.",
     cta: "Commencer avec VYVA",
     startHere: "Commencer ici",
-    fallback: "Si le bouton ne fonctionne pas, copiez et collez ce lien dans votre navigateur :",
+    fallback: "Lien de configuration :",
     ignore: "Cette invitation a ete envoyee avec un lien d'inscription securise VYVA. Si vous ne l'attendiez pas, vous pouvez ignorer cet email.",
   },
   de: {
@@ -140,6 +144,7 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     preheader: "Gesundheit, Medikamente und Arztzugang immer in Reichweite.",
     eyebrow: "Gesundheit per Stimme",
     title: "VYVA begleitet Ihre Gesundheit zuhause",
+    greeting: "Guten Tag",
     defaultIntro: "VYVA ist fuer Sie bereit.",
     summary: "Einfache 24/7 Hilfe fuer Medikamente, Symptome, Werte, Alltag und einen Arzt mit nur einem Klick.",
     featureTitle: "Ihre Gesundheit",
@@ -163,7 +168,7 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     reassurance: "Ihre Familie kann informiert werden, wenn etwas Aufmerksamkeit braucht, und Sie behalten die Kontrolle.",
     cta: "Mit VYVA starten",
     startHere: "Hier starten",
-    fallback: "Wenn der Button nicht funktioniert, kopieren Sie diesen Link in Ihren Browser:",
+    fallback: "Einrichtungslink:",
     ignore: "Diese Einladung wurde mit einem sicheren VYVA Registrierungslink gesendet. Wenn Sie diese Einladung nicht erwartet haben, koennen Sie diese E-Mail ignorieren.",
   },
   it: {
@@ -171,6 +176,7 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     preheader: "Servizi sanitari, supporto per i farmaci e accesso a un medico sempre a portata di mano.",
     eyebrow: "Salute guidata dalla voce",
     title: "Conosci VYVA, la tua compagna di salute a casa",
+    greeting: "Gentile",
     defaultIntro: "VYVA e pronto per te.",
     summary: "Supporto semplice 24/7 per farmaci, sintomi, parametri vitali, cura quotidiana e un medico a un clic.",
     featureTitle: "Il tuo supporto salute",
@@ -194,7 +200,7 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     reassurance: "La famiglia puo essere avvisata quando qualcosa richiede attenzione, e il controllo resta a te.",
     cta: "Inizia con VYVA",
     startHere: "Inizia qui",
-    fallback: "Se il pulsante non funziona, copia e incolla questo link nel browser:",
+    fallback: "Link di configurazione:",
     ignore: "Questo invito e stato inviato con un link sicuro di registrazione VYVA. Se non lo aspettavi, puoi ignorare questa email.",
   },
   pt: {
@@ -202,6 +208,7 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     preheader: "Servicos de saude, apoio com medicacao e acesso a um medico sempre por perto.",
     eyebrow: "Saude por voz",
     title: "Conheca a VYVA, a sua companhia de saude em casa",
+    greeting: "Caro/a",
     defaultIntro: "A VYVA esta pronta para si.",
     summary: "Apoio simples 24/7 para medicacao, sintomas, sinais vitais, cuidado diario e um medico a um clique.",
     featureTitle: "O seu apoio de saude",
@@ -225,7 +232,7 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     reassurance: "A familia pode ser informada quando algo precisar de atencao, e mantem sempre o controlo.",
     cta: "Comecar com VYVA",
     startHere: "Comece aqui",
-    fallback: "Se o botao nao funcionar, copie e cole este link no seu navegador:",
+    fallback: "Link de configuracao:",
     ignore: "Este convite foi enviado atraves de um link seguro de registo VYVA. Se nao estava a espera, pode ignorar este email.",
   },
 };
