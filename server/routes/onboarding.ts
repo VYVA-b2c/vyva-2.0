@@ -1213,7 +1213,7 @@ const SECTION_FIELD_MAP: Record<string, string[]> = {
   conditions:  ["has_health_conditions"],
   cognitive:   [],
   diet:        [],
-  address:     ["has_emergency_address", "has_location"],
+  address:     ["has_location"],
   gp:          ["has_gp_details"],
   devices:     [],
   hobbies:     [],
