@@ -219,14 +219,14 @@ export function buildSignupInviteEmail(
               </td>
             </tr>
             <tr>
-              <td style="border-top:1px solid #ebe4f4;padding:18px 36px 24px;background:#fbf9ff;">
-                <p style="margin:0;font-size:13px;line-height:1.7;color:#7d8fb3;">
+              <td align="center" style="border-top:1px solid #ebe4f4;padding:18px 36px 24px;background:#fbf9ff;text-align:center;">
+                <p style="margin:0;text-align:center;font-size:13px;line-height:1.7;color:#7d8fb3;">
                   &copy; 2026 MOKA DIGITECK SL.
-                  <span style="color:#c0b8cf;">&nbsp;|&nbsp;</span>
+                  <span style="color:#c0b8cf;"> | </span>
                   <a href="${VYVA_WEBSITE_URL}" style="color:#6b7fab;text-decoration:none;">Website</a>
-                  <span style="color:#c0b8cf;">&nbsp;&nbsp;|&nbsp;&nbsp;</span>
+                  <span style="color:#c0b8cf;"> | </span>
                   <a href="${VYVA_PRIVACY_URL}" style="color:#6b7fab;text-decoration:none;">Privacy Policy</a>
-                  <span style="color:#c0b8cf;">&nbsp;&nbsp;|&nbsp;&nbsp;</span>
+                  <span style="color:#c0b8cf;"> | </span>
                   <a href="${VYVA_TERMS_URL}" style="color:#6b7fab;text-decoration:none;">Terms of Service</a>
                 </p>
               </td>
