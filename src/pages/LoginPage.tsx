@@ -119,8 +119,8 @@ type LoginCopy = {
 const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
   en: {
     privateDailySupport: "Private daily support",
-    heroTitle: "Care that remembers.",
-    heroSubtitle: "One secure profile for health, medication, family, and everyday help.",
+    heroTitle: "Private support for daily care.",
+    heroSubtitle: "Create one secure profile for health, medication, family support, and daily check-ins.",
     chips: ["Voice-first", "Private profile", "Family-ready"],
     language: "Language",
     createTab: "Sign up",
@@ -188,8 +188,8 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
   },
   es: {
     privateDailySupport: "Apoyo diario privado",
-    heroTitle: "Cuidado que recuerda.",
-    heroSubtitle: "Un perfil seguro para salud, medicación, familia y ayuda diaria.",
+    heroTitle: "Apoyo privado para el cuidado diario.",
+    heroSubtitle: "Crea un perfil seguro para salud, medicación, apoyo familiar y controles diarios.",
     chips: ["Primero voz", "Perfil privado", "Listo para familia"],
     language: "Idioma",
     createTab: "Registro",
@@ -261,8 +261,8 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
   },
   fr: {
     privateDailySupport: "Soutien quotidien privé",
-    heroTitle: "Un soin qui se souvient.",
-    heroSubtitle: "Un profil sécurisé pour la santé, les médicaments, la famille et l'aide quotidienne.",
+    heroTitle: "Soutien privé pour les soins quotidiens.",
+    heroSubtitle: "Créez un profil sécurisé pour la santé, les médicaments, le soutien familial et le suivi quotidien.",
     chips: ["Voix d'abord", "Profil privé", "Prêt pour la famille"],
     language: "Langue",
     createTab: "Créer",
@@ -332,8 +332,8 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
   },
   de: {
     privateDailySupport: "Private tägliche Unterstützung",
-    heroTitle: "Betreuung, die sich erinnert.",
-    heroSubtitle: "Ein sicheres Profil für Gesundheit, Medikamente, Familie und tägliche Hilfe.",
+    heroTitle: "Private Unterstützung für den Pflegealltag.",
+    heroSubtitle: "Erstellen Sie ein sicheres Profil für Gesundheit, Medikamente, familiäre Unterstützung und tägliche Check-ins.",
     chips: ["Stimme zuerst", "Privates Profil", "Familienbereit"],
     language: "Sprache",
     createTab: "Erstellen",
@@ -403,8 +403,8 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
   },
   it: {
     privateDailySupport: "Supporto quotidiano privato",
-    heroTitle: "Cura che ricorda.",
-    heroSubtitle: "Un profilo sicuro per salute, farmaci, famiglia e aiuto quotidiano.",
+    heroTitle: "Supporto privato per la cura quotidiana.",
+    heroSubtitle: "Crea un profilo sicuro per salute, farmaci, supporto familiare e controlli quotidiani.",
     chips: ["Prima la voce", "Profilo privato", "Pronto per la famiglia"],
     language: "Lingua",
     createTab: "Crea",
@@ -474,8 +474,8 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
   },
   pt: {
     privateDailySupport: "Apoio diário privado",
-    heroTitle: "Cuidado que se lembra.",
-    heroSubtitle: "Um perfil seguro para saúde, medicação, família e ajuda diária.",
+    heroTitle: "Apoio privado para o cuidado diário.",
+    heroSubtitle: "Crie um perfil seguro para saúde, medicação, apoio familiar e check-ins diários.",
     chips: ["Voz primeiro", "Perfil privado", "Pronto para família"],
     language: "Idioma",
     createTab: "Criar",
@@ -545,8 +545,8 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
   },
   cy: {
     privateDailySupport: "Cymorth dyddiol preifat",
-    heroTitle: "Gofal sy'n cofio.",
-    heroSubtitle: "Un proffil diogel ar gyfer iechyd, meddyginiaeth, teulu a chymorth bob dydd.",
+    heroTitle: "Cymorth preifat ar gyfer gofal dyddiol.",
+    heroSubtitle: "Crëwch un proffil diogel ar gyfer iechyd, meddyginiaeth, cymorth teuluol a gwiriadau dyddiol.",
     chips: ["Llais yn gyntaf", "Proffil preifat", "Yn barod i'r teulu"],
     language: "Iaith",
     createTab: "Creu",
