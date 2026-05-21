@@ -79,6 +79,19 @@ const adminTabs = [
   { id: "analytics", label: "Analytics" },
 ];
 
+function normalizeOrganizationLabel(value: string) {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function slugifyOrganizationLabel(value: string) {
+  return normalizeOrganizationLabel(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 64);
+}
+
 export default function LifecycleAdminPage() {
   const [activeTab, setActiveTab] = useState("users");
   const [filters, setFilters] = useState({ entry_point: "", user_type: "", status: "", tier: "" });
@@ -107,6 +120,8 @@ export default function LifecycleAdminPage() {
   const [sharingSignup, setSharingSignup] = useState(false);
   const [signupShareNotice, setSignupShareNotice] = useState<SignupShareNotice | null>(null);
   const [newOrg, setNewOrg] = useState({ name: "", default_tier: "free" });
+  const [editingOrgId, setEditingOrgId] = useState<string | null>(null);
+  const [orgDraft, setOrgDraft] = useState({ name: "", default_tier: "free" });
   const [selectedUser, setSelectedUser] = useState<UserDetail | null>(null);
   const [selectedDraft, setSelectedDraft] = useState<JsonRecord>({});
   const [userDetailMessage, setUserDetailMessage] = useState("");
@@ -353,14 +368,67 @@ export default function LifecycleAdminPage() {
     await refresh();
   }
 
+  function findDuplicateOrg(name: string, excludeId?: string) {
+    const normalizedName = normalizeOrganizationLabel(name);
+    const slug = slugifyOrganizationLabel(name);
+    if (!normalizedName) return null;
+    return organizations.find((org) => (
+      org.id !== excludeId
+        && (normalizeOrganizationLabel(org.name) === normalizedName || org.slug === slug)
+    )) ?? null;
+  }
+
   async function createOrg() {
-    const data = await api("/organizations", {
-      method: "POST",
-      body: JSON.stringify(newOrg),
-    });
-    setMessage(`Organization created: ${data.organization.name}.`);
-    setNewOrg({ name: "", default_tier: "free" });
-    await refresh();
+    const duplicate = findDuplicateOrg(newOrg.name);
+    if (duplicate) {
+      setMessage(`${duplicate.name} already exists and is ${duplicate.is_active ? "active" : "archived"}. Use that organization or restore it instead.`);
+      return;
+    }
+
+    try {
+      const data = await api("/organizations", {
+        method: "POST",
+        body: JSON.stringify(newOrg),
+      });
+      setMessage(`Organization created: ${data.organization.name}.`);
+      setNewOrg({ name: "", default_tier: "free" });
+      await refresh();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Could not create organization.");
+    }
+  }
+
+  function startEditOrg(org: Organization) {
+    setEditingOrgId(org.id);
+    setOrgDraft({ name: org.name, default_tier: org.default_tier });
+  }
+
+  function cancelEditOrg() {
+    setEditingOrgId(null);
+    setOrgDraft({ name: "", default_tier: "free" });
+  }
+
+  async function saveOrg(org: Organization) {
+    const duplicate = findDuplicateOrg(orgDraft.name, org.id);
+    if (duplicate) {
+      setMessage(`${duplicate.name} already exists and is ${duplicate.is_active ? "active" : "archived"}. Choose a different organization name.`);
+      return;
+    }
+
+    try {
+      const data = await api(`/organizations/${org.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: orgDraft.name,
+          default_tier: orgDraft.default_tier,
+        }),
+      });
+      setMessage(`${data.organization.name} updated. Default tier applies to new org users going forward.`);
+      cancelEditOrg();
+      await refresh();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Could not update organization.");
+    }
   }
 
   async function archiveOrg(org: Organization) {
@@ -370,9 +438,13 @@ export default function LifecycleAdminPage() {
   }
 
   async function restoreOrg(org: Organization) {
-    await api(`/organizations/${org.id}/restore`, { method: "POST" });
-    setMessage(`${org.name} restored.`);
-    await refresh();
+    try {
+      await api(`/organizations/${org.id}/restore`, { method: "POST" });
+      setMessage(`${org.name} restored.`);
+      await refresh();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Could not restore organization.");
+    }
   }
 
   async function savePlan(plan: SubscriptionPlanAdmin) {
@@ -780,6 +852,7 @@ export default function LifecycleAdminPage() {
   const visibleOrganizations = organizations.filter((org) => (
     orgFilter === "all" ? true : orgFilter === "active" ? org.is_active : !org.is_active
   ));
+  const duplicateOrg = findDuplicateOrg(newOrg.name);
   const planOptions = plans.length
     ? plans.map((plan) => ({ value: plan.plan_id, label: plan.name }))
     : tiers.map((tier) => ({ value: tier, label: tier[0].toUpperCase() + tier.slice(1) }));
@@ -1028,33 +1101,80 @@ export default function LifecycleAdminPage() {
             <div className="rounded-[2rem] border border-[#eadfd5] bg-white p-5">
               <h2 className="font-serif text-3xl">New organization</h2>
               <input className="mt-4 w-full rounded-2xl border px-4 py-3" placeholder="Organization name" value={newOrg.name} onChange={(e) => setNewOrg({ ...newOrg, name: e.target.value })} />
-              <select className="mt-3 w-full rounded-2xl border px-4 py-3" value={newOrg.default_tier} onChange={(e) => setNewOrg({ ...newOrg, default_tier: e.target.value })}>{planOptions.map((plan) => <option key={plan.value} value={plan.value}>{plan.label}</option>)}</select>
-              <button className="mt-3 rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white" onClick={createOrg}>Create organization</button>
+              <Field label="Default tier for new org users">
+                <select className="w-full rounded-2xl border px-4 py-3" value={newOrg.default_tier} onChange={(e) => setNewOrg({ ...newOrg, default_tier: e.target.value })}>{planOptions.map((plan) => <option key={plan.value} value={plan.value}>{plan.label}</option>)}</select>
+              </Field>
+              {duplicateOrg && (
+                <p className="mt-3 rounded-2xl bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">
+                  {duplicateOrg.name} already exists and is {duplicateOrg.is_active ? "active" : "archived"}. Use that organization or restore it instead of creating another copy.
+                </p>
+              )}
+              <button
+                className="mt-3 rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!newOrg.name.trim() || Boolean(duplicateOrg)}
+                onClick={createOrg}
+              >
+                Create organization
+              </button>
               <p className="mt-4 text-sm text-[#7d6b65]">Bulk upload requires CSV. Columns: first_name, last_name, phone. Optional: preferred_name, date_of_birth, gender, whatsapp, email, language, timezone, user_type, tier.</p>
             </div>
             <div className="rounded-[2rem] border border-[#eadfd5] bg-white p-5">
               <div className="mb-4 flex gap-2">
                 {(["active", "archived", "all"] as const).map((value) => <button key={value} onClick={() => setOrgFilter(value)} className={`rounded-full px-4 py-2 font-bold ${orgFilter === value ? "bg-purple-700 text-white" : "border text-purple-700"}`}>{value}</button>)}
               </div>
-              {visibleOrganizations.map((org) => (
-                <div key={org.id} className="mb-3 rounded-3xl border p-4">
-                  <p className="font-bold">{org.name}</p>
-                  <p className="text-sm text-[#7d6b65]">{org.slug} - default tier: {org.default_tier} - {org.is_active ? "Active" : "Archived"}</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {org.is_active ? (
-                      <>
-                        <label className="cursor-pointer rounded-full bg-purple-50 px-4 py-2 font-bold text-purple-700">
-                          Upload users
-                          <input type="file" accept=".csv" className="hidden" onChange={(e) => handleBulkFile(e, org)} />
-                        </label>
-                        <button className="rounded-full border px-4 py-2 font-bold" onClick={() => archiveOrg(org)}>Archive organization</button>
-                      </>
+              {visibleOrganizations.map((org) => {
+                const isEditing = editingOrgId === org.id;
+                const duplicateEditOrg = isEditing ? findDuplicateOrg(orgDraft.name, org.id) : null;
+                const canSaveOrg = Boolean(orgDraft.name.trim()) && !duplicateEditOrg;
+
+                return (
+                  <div key={org.id} className="mb-3 rounded-3xl border p-4">
+                    {isEditing ? (
+                      <div className="grid gap-3 md:grid-cols-[1fr_220px]">
+                        <Field label="Organization name">
+                          <input className="w-full rounded-2xl border px-4 py-3" value={orgDraft.name} onChange={(e) => setOrgDraft({ ...orgDraft, name: e.target.value })} />
+                        </Field>
+                        <Field label="Default tier for new users">
+                          <select className="w-full rounded-2xl border px-4 py-3" value={orgDraft.default_tier} onChange={(e) => setOrgDraft({ ...orgDraft, default_tier: e.target.value })}>{planOptions.map((plan) => <option key={plan.value} value={plan.value}>{plan.label}</option>)}</select>
+                        </Field>
+                        {duplicateEditOrg && (
+                          <p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900 md:col-span-2">
+                            {duplicateEditOrg.name} already exists and is {duplicateEditOrg.is_active ? "active" : "archived"}. Choose a different name.
+                          </p>
+                        )}
+                      </div>
                     ) : (
-                      <button className="rounded-full border px-4 py-2 font-bold" onClick={() => restoreOrg(org)}>Restore organization</button>
+                      <>
+                        <p className="font-bold">{org.name}</p>
+                        <p className="text-sm text-[#7d6b65]">{org.slug} - default tier: {org.default_tier} - {org.is_active ? "Active" : "Archived"}</p>
+                      </>
                     )}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {isEditing ? (
+                        <>
+                          <button className="rounded-full bg-purple-700 px-4 py-2 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={!canSaveOrg} onClick={() => saveOrg(org)}>Save changes</button>
+                          <button className="rounded-full border px-4 py-2 font-bold" onClick={cancelEditOrg}>Cancel</button>
+                        </>
+                      ) : (
+                        <>
+                          <button className="rounded-full border px-4 py-2 font-bold" onClick={() => startEditOrg(org)}>Edit organization</button>
+                          {org.is_active ? (
+                            <>
+                              <label className="cursor-pointer rounded-full bg-purple-50 px-4 py-2 font-bold text-purple-700">
+                                Upload users
+                                <input type="file" accept=".csv" className="hidden" onChange={(e) => handleBulkFile(e, org)} />
+                              </label>
+                              <button className="rounded-full border px-4 py-2 font-bold" onClick={() => archiveOrg(org)}>Archive organization</button>
+                            </>
+                          ) : (
+                            <button className="rounded-full border px-4 py-2 font-bold" onClick={() => restoreOrg(org)}>Restore organization</button>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
         )}

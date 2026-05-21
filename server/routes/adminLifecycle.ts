@@ -119,12 +119,16 @@ const linkSchema = z.object({
 });
 
 const orgSchema = z.object({
-  name: z.string().min(1),
-  slug: z.string().min(1).optional(),
+  name: z.string().trim().min(1),
+  slug: z.string().trim().min(1).optional(),
   contact_name: z.string().optional().nullable(),
   contact_email: z.string().email().optional().nullable().or(z.literal("")),
   contact_phone: z.string().optional().nullable(),
   default_tier: z.string().min(1).default("free"),
+});
+
+const orgUpdateSchema = orgSchema.partial().refine((value) => Object.keys(value).length > 0, {
+  message: "Organization update is empty",
 });
 
 const bulkRowSchema = z.object({
@@ -2034,8 +2038,48 @@ adminLifecycleRouter.post("/organizations", async (req: Request, res: Response) 
   if (!requireAdmin(req, res)) return;
   const parsed = orgSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid organization" });
-  const org = await lifecycleService.createOrganization(parsed.data);
-  return res.status(201).json({ organization: org });
+  try {
+    const org = await lifecycleService.createOrganization(parsed.data);
+    return res.status(201).json({ organization: org });
+  } catch (error) {
+    if (error instanceof lifecycleService.OrganizationConflictError) {
+      return res.status(409).json({
+        error: error.message,
+        organization: error.existingOrganization,
+      });
+    }
+    const databaseError = error as { code?: string };
+    if (databaseError.code === "23505") {
+      return res.status(409).json({ error: "Organization already exists. Restore or use the existing organization instead." });
+    }
+    throw error;
+  }
+});
+
+adminLifecycleRouter.patch("/organizations/:id", async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+  const parsed = orgUpdateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid organization" });
+  try {
+    const org = await lifecycleService.updateOrganization({
+      organizationId: req.params.id,
+      ...parsed.data,
+    });
+    if (!org) return res.status(404).json({ error: "Organization not found" });
+    return res.json({ organization: org });
+  } catch (error) {
+    if (error instanceof lifecycleService.OrganizationConflictError) {
+      return res.status(409).json({
+        error: error.message,
+        organization: error.existingOrganization,
+      });
+    }
+    const databaseError = error as { code?: string };
+    if (databaseError.code === "23505") {
+      return res.status(409).json({ error: "Organization already exists. Restore or use the existing organization instead." });
+    }
+    throw error;
+  }
 });
 
 adminLifecycleRouter.delete("/organizations/:id", async (req: Request, res: Response) => {
@@ -2047,9 +2091,19 @@ adminLifecycleRouter.delete("/organizations/:id", async (req: Request, res: Resp
 
 adminLifecycleRouter.post("/organizations/:id/restore", async (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
-  const org = await lifecycleService.setOrganizationActive(req.params.id, true);
-  if (!org) return res.status(404).json({ error: "Organization not found" });
-  return res.json({ organization: org });
+  try {
+    const org = await lifecycleService.setOrganizationActive(req.params.id, true);
+    if (!org) return res.status(404).json({ error: "Organization not found" });
+    return res.json({ organization: org });
+  } catch (error) {
+    if (error instanceof lifecycleService.OrganizationConflictError) {
+      return res.status(409).json({
+        error: error.message,
+        organization: error.existingOrganization,
+      });
+    }
+    throw error;
+  }
 });
 
 adminLifecycleRouter.post("/organizations/:id/bulk-intakes/preview", async (req: Request, res: Response) => {

@@ -155,6 +155,21 @@ function slugify(value: string): string {
     .slice(0, 64) || `org-${randomBytes(3).toString("hex")}`;
 }
 
+function normalizeOrganizationName(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+export class OrganizationConflictError extends Error {
+  existingOrganization: typeof organizations.$inferSelect;
+
+  constructor(name: string, existingOrganization: typeof organizations.$inferSelect) {
+    const state = existingOrganization.is_active ? "active" : "archived";
+    super(`Organization "${name}" already exists as ${state}. Restore or use the existing organization instead.`);
+    this.name = "OrganizationConflictError";
+    this.existingOrganization = existingOrganization;
+  }
+}
+
 function splitName(name: string): { firstName: string; lastName: string } {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length <= 1) return { firstName: parts[0] ?? "", lastName: "" };
@@ -1581,10 +1596,24 @@ export async function createOrganization(input: {
   contact_phone?: string | null;
   default_tier: string;
 }, database = db) {
-  const data = { ...input, default_tier: normalizeSubscriptionTier(input.default_tier) };
+  const name = normalizeOrganizationName(input.name);
+  const slug = input.slug ? slugify(input.slug) : slugify(name);
+  const normalizedName = name.toLowerCase();
+  const [existing] = await database
+    .select()
+    .from(organizations)
+    .where(or(
+      eq(organizations.slug, slug),
+      sql`lower(trim(${organizations.name})) = ${normalizedName}`,
+    ))
+    .limit(1);
+
+  if (existing) throw new OrganizationConflictError(name, existing);
+
+  const data = { ...input, name, slug, default_tier: normalizeSubscriptionTier(input.default_tier) };
   const [org] = await database.insert(organizations).values({
     name: data.name,
-    slug: data.slug ? slugify(data.slug) : slugify(data.name),
+    slug: data.slug,
     contact_name: data.contact_name ?? null,
     contact_email: data.contact_email || null,
     contact_phone: data.contact_phone ?? null,
@@ -1593,7 +1622,85 @@ export async function createOrganization(input: {
   return org;
 }
 
+export async function updateOrganization(input: {
+  organizationId: string;
+  name?: string;
+  slug?: string;
+  contact_name?: string | null;
+  contact_email?: string | null;
+  contact_phone?: string | null;
+  default_tier?: string;
+}, database = db) {
+  const [existingOrg] = await database.select().from(organizations).where(eq(organizations.id, input.organizationId)).limit(1);
+  if (!existingOrg) return null;
+
+  const name = input.name !== undefined ? normalizeOrganizationName(input.name) : existingOrg.name;
+  const slug = input.slug !== undefined ? slugify(input.slug) : input.name !== undefined ? slugify(name) : existingOrg.slug;
+  const normalizedName = name.toLowerCase();
+  const [conflict] = await database
+    .select()
+    .from(organizations)
+    .where(and(
+      sql`${organizations.id} <> ${input.organizationId}`,
+      or(
+        eq(organizations.slug, slug),
+        sql`lower(trim(${organizations.name})) = ${normalizedName}`,
+      ),
+    ))
+    .limit(1);
+
+  if (conflict) throw new OrganizationConflictError(name, conflict);
+
+  const [org] = await database
+    .update(organizations)
+    .set({
+      name,
+      slug,
+      contact_name: input.contact_name === undefined ? existingOrg.contact_name : input.contact_name,
+      contact_email: input.contact_email === undefined ? existingOrg.contact_email : input.contact_email || null,
+      contact_phone: input.contact_phone === undefined ? existingOrg.contact_phone : input.contact_phone,
+      default_tier: input.default_tier === undefined ? existingOrg.default_tier : normalizeSubscriptionTier(input.default_tier),
+      updated_at: new Date(),
+    })
+    .where(eq(organizations.id, input.organizationId))
+    .returning();
+
+  await recordLifecycleEvent({
+    eventType: "organization_updated",
+    metadata: {
+      organization_id: org.id,
+      organization_name: org.name,
+      previous_name: existingOrg.name,
+      previous_default_tier: existingOrg.default_tier,
+      default_tier: org.default_tier,
+    },
+  }, database);
+
+  return org;
+}
+
 export async function setOrganizationActive(organizationId: string, isActive: boolean, database = db) {
+  const [existingOrg] = await database.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
+  if (!existingOrg) return null;
+
+  if (isActive) {
+    const normalizedName = normalizeOrganizationName(existingOrg.name).toLowerCase();
+    const [conflict] = await database
+      .select()
+      .from(organizations)
+      .where(and(
+        eq(organizations.is_active, true),
+        sql`${organizations.id} <> ${organizationId}`,
+        or(
+          eq(organizations.slug, existingOrg.slug),
+          sql`lower(trim(${organizations.name})) = ${normalizedName}`,
+        ),
+      ))
+      .limit(1);
+
+    if (conflict) throw new OrganizationConflictError(existingOrg.name, conflict);
+  }
+
   const [org] = await database
     .update(organizations)
     .set({ is_active: isActive, updated_at: new Date() })
