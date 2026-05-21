@@ -149,6 +149,8 @@ const INVITE_COPY: Record<LanguageCode, InviteCopy> = {
 };
 
 const INVITE_LANGUAGE_CODES: LanguageCode[] = ["en", "es", "fr", "de", "it", "pt"];
+const INVITE_HERO_IMAGE =
+  "https://images.pexels.com/photos/6939460/pexels-photo-6939460.jpeg";
 
 function displayName(profile?: ProfileResponse | null, fallback?: string | null) {
   const full = [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim();
@@ -222,84 +224,101 @@ export default function InviteLandingPage() {
         </label>
       </header>
 
-      <main className="relative z-10 mx-auto flex min-h-[calc(100vh-92px)] w-full max-w-[1040px] items-center justify-center px-5 pb-8 sm:px-8">
-        <section className="w-full max-w-[560px] rounded-[34px] border border-[#EFE7DB] bg-white/94 p-6 shadow-[0_24px_70px_rgba(72,44,18,0.14)] backdrop-blur sm:p-8">
-          <div className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-[22px] bg-[#F3E8FF] text-vyva-purple">
-            <UserRound size={28} />
+      <main className="relative z-10 mx-auto flex min-h-[calc(100vh-92px)] w-full max-w-[1120px] items-center justify-center px-5 pb-8 sm:px-8">
+        <section className="grid w-full overflow-hidden rounded-[34px] border border-[#EFE7DB] bg-white/94 shadow-[0_24px_70px_rgba(72,44,18,0.14)] backdrop-blur lg:min-h-[640px] lg:grid-cols-[0.94fr_1fr]">
+          <div className="relative min-h-[270px] overflow-hidden bg-[#F3E8FF] sm:min-h-[340px] lg:order-last lg:min-h-full">
+            <img
+              src={`${INVITE_HERO_IMAGE}?auto=compress&cs=tinysrgb&w=1200`}
+              srcSet={`${INVITE_HERO_IMAGE}?auto=compress&cs=tinysrgb&w=640 640w, ${INVITE_HERO_IMAGE}?auto=compress&cs=tinysrgb&w=960 960w, ${INVITE_HERO_IMAGE}?auto=compress&cs=tinysrgb&w=1200 1200w`}
+              sizes="(min-width: 1024px) 520px, 100vw"
+              alt=""
+              aria-hidden="true"
+              className="absolute inset-0 h-full w-full object-cover object-[center_38%]"
+            />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(46,22,66,0)_35%,rgba(46,22,66,0.18)_100%)]" />
+            <div className="absolute inset-x-0 bottom-0 h-28 bg-[linear-gradient(180deg,rgba(255,249,241,0)_0%,rgba(255,249,241,0.58)_100%)]" />
           </div>
-          <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.26em] text-vyva-purple/70">
-            {copy.eyebrow}
-          </p>
-          <h1 className="mt-3 font-display text-[44px] leading-[0.98] text-[#2E1642] sm:text-[58px]">
-            {copy.title}
-          </h1>
-          <p className="mt-4 font-body text-[16px] leading-[1.65] text-vyva-text-2">
-            {user ? copy.signedInBody : copy.body}
-          </p>
 
-          {isLoading ? (
-            <div className="mt-7 rounded-[24px] border border-[#EFE7DB] bg-[#FFF9F1] px-5 py-5 font-body text-[14px] font-bold text-vyva-text-2">
-              {copy.checking}
-            </div>
-          ) : user ? (
-            <div className="mt-7 space-y-4">
-              <div className="rounded-[24px] border border-[#EFE7DB] bg-[#FFF9F1] px-5 py-5">
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 size={22} className="mt-0.5 shrink-0 text-vyva-green" />
-                  <div>
-                    <p className="font-body text-[15px] font-extrabold text-vyva-text-1">
-                      {copy.signedInPrefix} {name}{copy.signedInSuffix}
-                    </p>
-                    <p className="mt-1 font-body text-[13px] leading-[1.55] text-vyva-text-2">
-                      {copy.signedInHint}
-                    </p>
-                  </div>
-                </div>
+          <div className="p-6 sm:p-8 lg:flex lg:items-center">
+            <div className="w-full">
+              <div className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-[22px] bg-[#F3E8FF] text-vyva-purple">
+                <UserRound size={28} />
               </div>
+              <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.26em] text-vyva-purple/70">
+                {copy.eyebrow}
+              </p>
+              <h1 className="mt-3 font-display text-[44px] leading-[0.98] text-[#2E1642] sm:text-[58px]">
+                {copy.title}
+              </h1>
+              <p className="mt-4 font-body text-[16px] leading-[1.65] text-vyva-text-2">
+                {user ? copy.signedInBody : copy.body}
+              </p>
 
-              <button
-                type="button"
-                onClick={startSignup}
-                className="vyva-primary-action w-full bg-[linear-gradient(135deg,#6B21A8_0%,#8B3FC8_100%)] py-4 shadow-vyva-fab"
-              >
-                {copy.startNew}
-                <ArrowRight size={17} />
-              </button>
+              {isLoading ? (
+                <div className="mt-7 rounded-[24px] border border-[#EFE7DB] bg-[#FFF9F1] px-5 py-5 font-body text-[14px] font-bold text-vyva-text-2">
+                  {copy.checking}
+                </div>
+              ) : user ? (
+                <div className="mt-7 space-y-4">
+                  <div className="rounded-[24px] border border-[#EFE7DB] bg-[#FFF9F1] px-5 py-5">
+                    <div className="flex items-start gap-3">
+                      <CheckCircle2 size={22} className="mt-0.5 shrink-0 text-vyva-green" />
+                      <div>
+                        <p className="font-body text-[15px] font-extrabold text-vyva-text-1">
+                          {copy.signedInPrefix} {name}{copy.signedInSuffix}
+                        </p>
+                        <p className="mt-1 font-body text-[13px] leading-[1.55] text-vyva-text-2">
+                          {copy.signedInHint}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
 
-              <button
-                type="button"
-                onClick={continueCurrentAccount}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#E8DDF3] bg-white px-5 py-4 font-body text-[14px] font-extrabold text-vyva-purple"
-              >
-                {copy.continueAs} {name}
-              </button>
+                  <button
+                    type="button"
+                    onClick={startSignup}
+                    className="vyva-primary-action w-full bg-[linear-gradient(135deg,#6B21A8_0%,#8B3FC8_100%)] py-4 shadow-vyva-fab"
+                  >
+                    {copy.startNew}
+                    <ArrowRight size={17} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={continueCurrentAccount}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#E8DDF3] bg-white px-5 py-4 font-body text-[14px] font-extrabold text-vyva-purple"
+                  >
+                    {copy.continueAs} {name}
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-7 space-y-4">
+                  <button
+                    type="button"
+                    onClick={startSignup}
+                    className="vyva-primary-action w-full bg-[linear-gradient(135deg,#6B21A8_0%,#8B3FC8_100%)] py-4 shadow-vyva-fab"
+                  >
+                    {copy.startSignup}
+                    <ArrowRight size={17} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/login", { state: { from: "/" } })}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#E8DDF3] bg-white px-5 py-4 font-body text-[14px] font-extrabold text-vyva-purple"
+                  >
+                    {copy.alreadyHaveAccount}
+                    <LogIn size={16} />
+                  </button>
+                </div>
+              )}
+
+              <div className="mt-6 flex items-start gap-3 rounded-[22px] bg-[#FFF9E8] px-4 py-3">
+                <ShieldCheck size={18} className="mt-0.5 shrink-0 text-[#B98900]" />
+                <p className="font-body text-[12px] leading-[1.55] text-[#8A6500]">
+                  {copy.privacy}
+                </p>
+              </div>
             </div>
-          ) : (
-            <div className="mt-7 space-y-4">
-              <button
-                type="button"
-                onClick={startSignup}
-                className="vyva-primary-action w-full bg-[linear-gradient(135deg,#6B21A8_0%,#8B3FC8_100%)] py-4 shadow-vyva-fab"
-              >
-                {copy.startSignup}
-                <ArrowRight size={17} />
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate("/login", { state: { from: "/" } })}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#E8DDF3] bg-white px-5 py-4 font-body text-[14px] font-extrabold text-vyva-purple"
-              >
-                {copy.alreadyHaveAccount}
-                <LogIn size={16} />
-              </button>
-            </div>
-          )}
-
-          <div className="mt-6 flex items-start gap-3 rounded-[22px] bg-[#FFF9E8] px-4 py-3">
-            <ShieldCheck size={18} className="mt-0.5 shrink-0 text-[#B98900]" />
-            <p className="font-body text-[12px] leading-[1.55] text-[#8A6500]">
-              {copy.privacy}
-            </p>
           </div>
         </section>
       </main>
