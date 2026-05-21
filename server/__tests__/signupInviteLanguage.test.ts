@@ -40,23 +40,23 @@ describe("signup invite language", () => {
     }, null, "https://v2.vyva.life");
 
     expect(email.subject).toBe("Welcome to VYVA");
-    expect(email.html).toContain("Meet VYVA, your everyday care companion");
-    expect(email.html).toContain("Peace of mind for you and your family");
-    expect(email.html).toContain("What VYVA can help with");
+    expect(email.html).toContain("Your everyday care companion");
+    expect(email.html).toContain("Peace of mind for your family");
+    expect(email.html).toContain("How VYVA helps");
     expect(email.html).toContain("Start with VYVA");
     expect(email.html).toContain("Karim invited you to join VYVA.");
-    expect(email.html).toContain("Health services at home");
-    expect(email.html).toContain("A doctor just a click away");
-    expect(email.html).toContain("Never miss a dose");
+    expect(email.html).toContain("Health support");
+    expect(email.html).toContain("Doctor access");
+    expect(email.html).toContain("Medication reminders");
     expect(email.html).toContain("Brain Coach");
-    expect(email.html).toContain("Concierge help");
+    expect(email.html).toContain("Concierge");
     expect(email.html).toContain("Companionship");
     expect(email.html).toContain("&#10010;");
     expect(email.html).toContain("&#8594;");
     expect(email.html).toContain("&#9829;");
     expect(email.html).not.toContain(">CARE<");
     expect(email.html).not.toContain(">BRAIN<");
-    expect(email.text).toContain("A doctor just a click away: Get help reaching a doctor when extra care is needed.");
+    expect(email.text).toContain("Doctor access: Care when needed.");
   });
 
   it("keeps the default email short when there is no admin message", () => {
@@ -93,14 +93,14 @@ describe("signup invite language", () => {
   it("keeps the approved English framing broader than health only", () => {
     const copy = signupInviteCopyFor("en");
 
-    expect(copy.title).toBe("Meet VYVA, your everyday care companion");
-    expect(copy.outcomeBadge).toBe("Peace of mind for you and your family");
+    expect(copy.title).toBe("Your everyday care companion");
+    expect(copy.outcomeBadge).toBe("Peace of mind for your family");
     expect(copy.benefits.map((benefit) => benefit.title)).toEqual([
-      "Health services at home",
-      "A doctor just a click away",
-      "Never miss a dose",
+      "Health support",
+      "Doctor access",
+      "Medication reminders",
       "Brain Coach",
-      "Concierge help",
+      "Concierge",
       "Companionship",
     ]);
   });
