@@ -861,7 +861,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         : guideVoiceError
     : null;
   const contactLabel = copy.combinedContact ?? `${copy.mobileNumber} / ${copy.email}`;
-  const contactPlaceholder = copy.combinedContactPlaceholder ?? `${copy.phonePlaceholder} / ${copy.emailPlaceholder}`;
+  const contactPlaceholder = contactLabel;
   const contactAutocomplete = "username";
   const activeView: View = view === "forgot" || view === "magic" ? view : mode;
   const authTitle = adminOnly && activeView === "login"
@@ -909,7 +909,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
       )}
 
       <div className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top_left,#FFF8EA_0%,#FFF9F1_38%,#F7F1EA_100%)] text-vyva-text-1">
-        <header className="relative z-10 mx-auto flex w-full max-w-[1120px] items-center justify-between gap-4 px-5 py-5 sm:px-8 lg:py-7">
+        <header className="relative z-10 mx-auto flex w-full max-w-[1120px] items-center justify-between gap-4 px-5 pb-3 pt-4 sm:px-8 sm:py-5 lg:py-7">
           <VyvaWordmark className="h-auto w-[132px] sm:w-[158px]" />
           <label className="flex min-h-[44px] items-center gap-2 rounded-full border border-[#E8DDF3] bg-white/90 px-3 py-2 shadow-[0_12px_32px_rgba(77,45,20,0.08)] backdrop-blur">
             <Globe2 size={15} className="text-vyva-purple" />
@@ -930,7 +930,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
           </label>
         </header>
 
-        <main className="relative z-10 mx-auto flex min-h-[calc(100vh-108px)] w-full max-w-[1120px] items-center justify-center px-5 pb-8 sm:px-8 lg:pb-12">
+        <main className="relative z-10 mx-auto flex min-h-[calc(100vh-96px)] w-full max-w-[1120px] items-start justify-center px-5 pb-8 pt-2 sm:px-8 md:min-h-[calc(100vh-108px)] md:items-center md:pt-0 lg:pb-12">
           <section
             data-testid="auth-layout"
             className="grid w-full max-w-[540px] gap-5 md:max-w-[1000px] md:grid-cols-[minmax(0,0.9fr)_minmax(420px,500px)] md:items-center lg:max-w-[1080px] lg:gap-10"
@@ -940,7 +940,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                 <p className="mb-3 font-body text-[11px] font-extrabold uppercase tracking-[0.26em] text-vyva-purple/70">
                   VYVA Admin
                 </p>
-                <h1 className="font-display text-[42px] leading-[0.98] text-[#2E1642] sm:text-[58px] md:max-w-[430px] md:text-[48px] lg:text-[58px]">
+                <h1 className="font-display text-[38px] leading-[0.98] text-[#2E1642] sm:text-[58px] md:max-w-[430px] md:text-[48px] lg:text-[58px]">
                   Operations access
                 </h1>
                 <p className="mx-auto mt-4 max-w-[380px] font-body text-[15px] leading-[1.55] text-vyva-text-2 md:mx-0">
@@ -959,7 +959,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                 <p className="mb-3 font-body text-[11px] font-extrabold uppercase tracking-[0.26em] text-vyva-purple/70">
                   {copy.privateDailySupport}
                 </p>
-                <h1 className="font-display text-[42px] leading-[0.94] text-[#2E1642] sm:text-[66px] md:max-w-[470px] md:text-[52px] lg:text-[66px]">
+                <h1 className="font-display text-[38px] leading-[0.94] text-[#2E1642] sm:text-[66px] md:max-w-[470px] md:text-[52px] lg:text-[66px]">
                   {copy.heroTitle}
                 </h1>
                 <p className="mx-auto mt-4 max-w-[430px] font-body text-[15px] leading-[1.55] text-vyva-text-2 md:mx-0">
@@ -1005,7 +1005,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
 
             <div
               data-testid="auth-card"
-              className="w-full rounded-[30px] border border-[#EFE7DB] bg-white/96 p-5 shadow-[0_24px_70px_rgba(72,44,18,0.14)] backdrop-blur sm:p-7 md:justify-self-end"
+              className="w-full rounded-[28px] border border-[#EFE7DB] bg-white/96 p-5 shadow-[0_24px_70px_rgba(72,44,18,0.14)] backdrop-blur sm:rounded-[30px] sm:p-7 md:justify-self-end"
             >
               <div className="mb-5">
                 <h2 className="font-display text-[36px] leading-tight text-vyva-text-1">{authTitle}</h2>
