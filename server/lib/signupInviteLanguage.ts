@@ -28,43 +28,43 @@ export type SignupInviteCopy = {
 const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
   en: {
     subject: "Welcome to VYVA",
-    preheader: "Health checks, reminders, companionship, and help getting care, all in one simple companion.",
+    preheader: "One simple companion for health, memory, daily help, engaging chats, and doctor access.",
     eyebrow: "Everyday care companion",
     title: "Feel supported every day",
     defaultIntro: "VYVA is ready for you.",
-    summary: "Health support, reminders, brain coaching, concierge help, companionship, and doctor access in one simple companion.",
+    summary: "One simple companion for health, memory, daily help, engaging chats, and doctor access.",
     outcomeBadge: "More confidence at home",
     featureTitle: "What you can do with VYVA",
     benefits: [
       {
         label: "CARE",
         title: "Health checks",
-        body: "Symptoms and vitals.",
+        body: "Symptom and vital guidance.",
       },
       {
         label: "DR",
         title: "Doctor access",
-        body: "One click away.",
+        body: "A doctor, one click away.",
       },
       {
         label: "DOSE",
         title: "Medication reminders",
-        body: "Stay on track.",
+        body: "Gentle prompts to stay on track.",
       },
       {
         label: "BRAIN",
         title: "Brain Coach",
-        body: "Memory and mood.",
+        body: "Memory games and mood check-ins.",
       },
       {
         label: "HELP",
         title: "Concierge",
-        body: "Rides, errands, services.",
+        body: "Rides, errands, trusted help.",
       },
       {
         label: "CHAT",
         title: "Companionship",
-        body: "Friendly check-ins.",
+        body: "Engaging chats and friendly check-ins.",
       },
     ],
     reassurance: "Set it up once. Use it anytime.",

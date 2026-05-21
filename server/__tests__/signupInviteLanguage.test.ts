@@ -52,12 +52,13 @@ describe("signup invite language", () => {
     expect(email.html).toContain("Brain Coach");
     expect(email.html).toContain("Concierge");
     expect(email.html).toContain("Companionship");
+    expect(email.html).toContain("Engaging chats and friendly check-ins.");
     expect(email.html).toContain("&#10010;");
     expect(email.html).toContain("&#8594;");
     expect(email.html).toContain("&#9829;");
     expect(email.html).not.toContain(">CARE<");
     expect(email.html).not.toContain(">BRAIN<");
-    expect(email.text).toContain("Doctor access: One click away.");
+    expect(email.text).toContain("Doctor access: A doctor, one click away.");
   });
 
   it("keeps the default email short when there is no admin message", () => {
@@ -105,5 +106,6 @@ describe("signup invite language", () => {
       "Concierge",
       "Companionship",
     ]);
+    expect(copy.benefits[5].body).toBe("Engaging chats and friendly check-ins.");
   });
 });
