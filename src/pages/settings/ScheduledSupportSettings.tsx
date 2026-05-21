@@ -163,7 +163,7 @@ function ScheduledEventCard({ event }: { event: ScheduledEvent }) {
       </div>
       <div className="mt-4 grid gap-3 rounded-[20px] bg-[#FFF9F1] p-3 text-[14px]">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-vyva-text-2">CuÃ¡ndo</span>
+          <span className="text-vyva-text-2">Cuándo</span>
           <strong className="text-right text-vyva-text-1">{event.display_time ?? formatDate(event.scheduled_for)}</strong>
         </div>
         <div className="flex items-center justify-between gap-3">
@@ -171,7 +171,7 @@ function ScheduledEventCard({ event }: { event: ScheduledEvent }) {
           <strong className="text-right capitalize text-vyva-text-1">{event.channel}</strong>
         </div>
         <div className="flex items-center justify-between gap-3">
-          <span className="text-vyva-text-2">RepeticiÃ³n</span>
+          <span className="text-vyva-text-2">Repetición</span>
           <strong className="text-right text-vyva-text-1">{event.recurrence === "none" ? "No se repite" : event.recurrence}</strong>
         </div>
       </div>
@@ -587,7 +587,7 @@ export default function ScheduledSupportSettings() {
         <section className="grid gap-3">
           <div className="flex items-center justify-between gap-3 px-1">
             <div>
-              <h2 className="font-display text-[24px] leading-tight text-vyva-text-1">PrÃ³ximos eventos</h2>
+              <h2 className="font-display text-[24px] leading-tight text-vyva-text-1">Próximos eventos</h2>
               <p className="mt-1 text-[14px] text-vyva-text-2">Citas, recordatorios y sesiones puntuales programadas por ti o por VYVA.</p>
             </div>
             <span className="rounded-full bg-[#EEF4FF] px-3 py-1 text-[12px] font-bold text-[#2563EB]">{scheduledEvents.length}</span>
@@ -597,7 +597,7 @@ export default function ScheduledSupportSettings() {
           ) : eventsQuery.isError ? (
             <div className="rounded-[24px] bg-white p-5 text-center text-vyva-text-2 shadow-vyva-card">
               <p className="font-bold text-vyva-text-1">No pudimos cargar tus eventos.</p>
-              <p className="mt-2 text-[14px]">Actualiza la pagina. Si sigue pasando, avisa al equipo VYVA.</p>
+              <p className="mt-2 text-[14px]">Actualiza la página. Si sigue pasando, avisa al equipo VYVA.</p>
             </div>
           ) : scheduledEvents.length === 0 ? (
             <div className="rounded-[24px] bg-white p-5 text-center text-vyva-text-2 shadow-vyva-card">No hay eventos puntuales programados.</div>
@@ -609,7 +609,7 @@ export default function ScheduledSupportSettings() {
         <div className="flex items-center justify-between gap-3 px-1">
           <div>
             <h2 className="font-display text-[24px] leading-tight text-vyva-text-1">Apoyo recurrente</h2>
-            <p className="mt-1 text-[14px] text-vyva-text-2">Rutinas que VYVA mantiene activas para acompaÃ±arte.</p>
+            <p className="mt-1 text-[14px] text-vyva-text-2">Rutinas que VYVA mantiene activas para acompañarte.</p>
           </div>
           <span className="rounded-full bg-[#F5F0FF] px-3 py-1 text-[12px] font-bold text-vyva-purple">{schedules.length}</span>
         </div>
@@ -619,7 +619,7 @@ export default function ScheduledSupportSettings() {
         ) : schedulesQuery.isError ? (
           <div className="rounded-[24px] bg-white p-5 text-center text-vyva-text-2 shadow-vyva-card">
             <p className="font-bold text-vyva-text-1">No pudimos cargar tus horarios.</p>
-            <p className="mt-2 text-[14px]">Actualiza la pagina. Si sigue pasando, avisa al equipo VYVA.</p>
+            <p className="mt-2 text-[14px]">Actualiza la página. Si sigue pasando, avisa al equipo VYVA.</p>
           </div>
         ) : schedules.length === 0 ? (
           <div className="rounded-[24px] bg-white p-5 text-center text-vyva-text-2 shadow-vyva-card">Aún no hay apoyo programado.</div>
