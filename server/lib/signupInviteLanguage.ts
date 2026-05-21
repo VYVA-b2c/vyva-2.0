@@ -28,23 +28,23 @@ export type SignupInviteCopy = {
 const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
   en: {
     subject: "Welcome to VYVA",
-    preheader: "Health, memory, daily help, companionship, and a doctor when needed.",
+    preheader: "Health checks, reminders, companionship, and help getting care, all in one simple companion.",
     eyebrow: "Everyday care companion",
-    title: "Your everyday care companion",
+    title: "Feel supported every day",
     defaultIntro: "VYVA is ready for you.",
-    summary: "Health, medication, memory, daily help, companionship, and a doctor when needed.",
-    outcomeBadge: "Peace of mind for your family",
-    featureTitle: "How VYVA helps",
+    summary: "Health support, reminders, brain coaching, concierge help, companionship, and doctor access in one simple companion.",
+    outcomeBadge: "More confidence at home",
+    featureTitle: "What you can do with VYVA",
     benefits: [
       {
         label: "CARE",
-        title: "Health support",
+        title: "Health checks",
         body: "Symptoms and vitals.",
       },
       {
         label: "DR",
         title: "Doctor access",
-        body: "Care when needed.",
+        body: "One click away.",
       },
       {
         label: "DOSE",
@@ -59,17 +59,17 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
       {
         label: "HELP",
         title: "Concierge",
-        body: "Rides, services, errands.",
+        body: "Rides, errands, services.",
       },
       {
         label: "CHAT",
         title: "Companionship",
-        body: "Daily check-ins.",
+        body: "Friendly check-ins.",
       },
     ],
-    reassurance: "You stay in control.",
-    cta: "Start with VYVA",
-    startHere: "Start here",
+    reassurance: "Set it up once. Use it anytime.",
+    cta: "Set up VYVA",
+    startHere: "Your VYVA is ready",
     fallback: "If the button does not work, copy and paste this link into your browser:",
     ignore: "This invitation was sent using a secure VYVA signup link. If you were not expecting it, you can ignore this email.",
   },

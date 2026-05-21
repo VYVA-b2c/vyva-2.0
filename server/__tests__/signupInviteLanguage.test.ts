@@ -40,12 +40,13 @@ describe("signup invite language", () => {
     }, null, "https://v2.vyva.life");
 
     expect(email.subject).toBe("Welcome to VYVA");
-    expect(email.html).toContain("Your everyday care companion");
-    expect(email.html).toContain("Peace of mind for your family");
-    expect(email.html).toContain("How VYVA helps");
-    expect(email.html).toContain("Start with VYVA");
+    expect(email.html).toContain("Feel supported every day");
+    expect(email.html).toContain("More confidence at home");
+    expect(email.html).toContain("What you can do with VYVA");
+    expect(email.html).toContain("Set up VYVA");
+    expect(email.html).toContain("Your VYVA is ready");
     expect(email.html).toContain("Karim invited you to join VYVA.");
-    expect(email.html).toContain("Health support");
+    expect(email.html).toContain("Health checks");
     expect(email.html).toContain("Doctor access");
     expect(email.html).toContain("Medication reminders");
     expect(email.html).toContain("Brain Coach");
@@ -56,7 +57,7 @@ describe("signup invite language", () => {
     expect(email.html).toContain("&#9829;");
     expect(email.html).not.toContain(">CARE<");
     expect(email.html).not.toContain(">BRAIN<");
-    expect(email.text).toContain("Doctor access: Care when needed.");
+    expect(email.text).toContain("Doctor access: One click away.");
   });
 
   it("keeps the default email short when there is no admin message", () => {
@@ -93,10 +94,11 @@ describe("signup invite language", () => {
   it("keeps the approved English framing broader than health only", () => {
     const copy = signupInviteCopyFor("en");
 
-    expect(copy.title).toBe("Your everyday care companion");
-    expect(copy.outcomeBadge).toBe("Peace of mind for your family");
+    expect(copy.title).toBe("Feel supported every day");
+    expect(copy.outcomeBadge).toBe("More confidence at home");
+    expect(copy.startHere).toBe("Your VYVA is ready");
     expect(copy.benefits.map((benefit) => benefit.title)).toEqual([
-      "Health support",
+      "Health checks",
       "Doctor access",
       "Medication reminders",
       "Brain Coach",
