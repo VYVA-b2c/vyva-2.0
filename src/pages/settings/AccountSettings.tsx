@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Camera, X } from "lucide-react";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
@@ -19,6 +19,8 @@ import {
   createEmptyIdentityForm,
   formatPhoneLocal,
   identityFromProfileResponse,
+  splitFullName,
+  splitPhoneNumber,
   validateIdentityBasics,
   type IdentityBasicsForm,
   type ProfileIdentityResponse,
@@ -27,6 +29,7 @@ import { useToast } from "@/hooks/use-toast";
 
 type ProfileResponse = ProfileIdentityResponse & {
   gender?: string;
+  whatsapp?: string | null;
   timezone?: string;
 };
 
@@ -213,13 +216,58 @@ function getDefaultsForCountry(countryCode: string) {
   return COUNTRY_DEFAULTS[countryCode] ?? COUNTRY_DEFAULTS.ES;
 }
 
+const ACCOUNT_INVITE_LANGUAGE_CODES = new Set<string>(LANGUAGES.map((entry) => entry.code));
+
+type AccountInvitePrefill = {
+  firstName?: string;
+  lastName?: string;
+  preferredName?: string;
+  email?: string;
+  phone?: string;
+  whatsapp?: string;
+  language?: LanguageCode;
+};
+
+function inviteParam(params: URLSearchParams, ...keys: string[]) {
+  for (const key of keys) {
+    const value = params.get(key)?.trim();
+    if (value) return value;
+  }
+  return "";
+}
+
+function inviteLanguageParam(params: URLSearchParams): LanguageCode | undefined {
+  const normalized = inviteParam(params, "lang", "language")
+    .toLowerCase()
+    .replace(/_/g, "-")
+    .split("-")[0];
+  return ACCOUNT_INVITE_LANGUAGE_CODES.has(normalized) ? normalized as LanguageCode : undefined;
+}
+
+function accountInvitePrefillFromSearch(search: string): AccountInvitePrefill | null {
+  const params = new URLSearchParams(search);
+  const nameParts = splitFullName(inviteParam(params, "name"));
+  const prefill: AccountInvitePrefill = {
+    firstName: inviteParam(params, "first_name", "firstName") || nameParts.firstName,
+    lastName: inviteParam(params, "last_name", "lastName") || nameParts.lastName,
+    preferredName: inviteParam(params, "preferred_name", "preferredName"),
+    email: inviteParam(params, "email"),
+    phone: inviteParam(params, "phone"),
+    whatsapp: inviteParam(params, "whatsapp"),
+    language: inviteLanguageParam(params),
+  };
+  return Object.values(prefill).some(Boolean) ? prefill : null;
+}
+
 export default function AccountSettings() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { logout } = useAuth();
   const { language, setLanguage, t } = useLanguage();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const browserLanguageRef = useRef<LanguageCode>(detectBrowserLanguage());
+  const invitePrefillAppliedRef = useRef(false);
 
   const [saving, setSaving] = useState(false);
   const [timezoneTouched, setTimezoneTouched] = useState(false);
@@ -248,6 +296,7 @@ export default function AccountSettings() {
       ...current,
       ...identity,
       gender: shouldUseInferredGender ? inferredGender! : profileGender ?? "prefer_not",
+      whatsapp: profileQuery.data.whatsapp ?? "",
       timezone: profileQuery.data.timezone ? getTimezoneValue(profileQuery.data.timezone) : defaultForCountry.timezone,
     }));
     setTimezoneTouched(Boolean(profileQuery.data.timezone));
@@ -258,6 +307,33 @@ export default function AccountSettings() {
   useEffect(() => {
     setForm((current) => ({ ...current, language }));
   }, [language]);
+
+  useEffect(() => {
+    if (invitePrefillAppliedRef.current || profileQuery.isLoading) return;
+    const invitePrefill = accountInvitePrefillFromSearch(location.search);
+    if (!invitePrefill) return;
+
+    invitePrefillAppliedRef.current = true;
+    if (invitePrefill.language && invitePrefill.language !== language) {
+      setLanguage(invitePrefill.language);
+    }
+
+    setForm((current) => {
+      const phoneValue = invitePrefill.phone || invitePrefill.whatsapp || "";
+      const phoneParts = phoneValue ? splitPhoneNumber(phoneValue, current.phoneCountry) : null;
+      return {
+        ...current,
+        firstName: current.firstName || invitePrefill.firstName || "",
+        lastName: current.lastName || invitePrefill.lastName || "",
+        preferredName: current.preferredName || invitePrefill.preferredName || invitePrefill.firstName || "",
+        email: current.email || invitePrefill.email || "",
+        phoneCountry: current.phoneLocal || !phoneParts ? current.phoneCountry : phoneParts.phoneCountry,
+        phoneLocal: current.phoneLocal || phoneParts?.phoneLocal || "",
+        whatsapp: current.whatsapp || invitePrefill.whatsapp || invitePrefill.phone || "",
+        language: invitePrefill.language ?? current.language,
+      };
+    });
+  }, [language, location.search, profileQuery.isLoading, setLanguage]);
 
   useEffect(() => {
     if (genderTouched) return;
@@ -352,6 +428,7 @@ export default function AccountSettings() {
         body: JSON.stringify({
           ...identityPayload,
           gender: form.gender,
+          whatsapp: form.whatsapp.trim(),
           timezone: getTimezoneZone(form.timezone),
         }),
       });

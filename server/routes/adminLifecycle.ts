@@ -55,7 +55,7 @@ import {
 } from "../../shared/schema.js";
 import { syncProfileEntitlement, type EntitlementSyncResult } from "../lib/entitlementSync.js";
 import { listPlans, normalizeSubscriptionTier, upsertPlanWithEntitlement } from "../lib/plans.js";
-import { buildSignupInviteUrl, normalizeSignupInviteLanguage, signupInviteCopyFor } from "../lib/signupInviteLanguage.js";
+import { buildSignupInviteUrl, normalizeSignupInviteLanguage, signupInviteCopyFor, type SignupInvitePrefill } from "../lib/signupInviteLanguage.js";
 import { mergeSignupInviteRecipients } from "../lib/signupInviteRecipients.js";
 import { premiumTrialEndsAt } from "../lib/premiumTrial.js";
 
@@ -357,6 +357,38 @@ function normalizePhone(phone: string): string {
   const trimmed = phone.trim();
   if (trimmed.startsWith("+")) return trimmed.replace(/[^\d+]/g, "");
   return trimmed.replace(/\D/g, "");
+}
+
+type SignupShareRecipient = {
+  recipient: string;
+  name?: string;
+};
+
+function inviteRecipientNameKey(name: string | null | undefined): string | null {
+  const normalized = (name ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+  return normalized || null;
+}
+
+function inviteRecipientMapByName(recipients: SignupShareRecipient[]) {
+  const byName = new Map<string, SignupShareRecipient>();
+  for (const recipient of recipients) {
+    const key = inviteRecipientNameKey(recipient.name);
+    if (key && !byName.has(key)) byName.set(key, recipient);
+  }
+  return byName;
+}
+
+function matchingInviteRecipient(
+  recipient: SignupShareRecipient,
+  candidates: SignupShareRecipient[],
+  byName: Map<string, SignupShareRecipient>,
+): SignupShareRecipient | undefined {
+  const key = inviteRecipientNameKey(recipient.name);
+  if (key) {
+    const matched = byName.get(key);
+    if (matched) return matched;
+  }
+  return candidates.length === 1 ? candidates[0] : undefined;
 }
 
 function publicBaseUrl(req: Request): string {
@@ -2215,7 +2247,8 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
 
   const language = normalizeSignupInviteLanguage(parsed.data.language);
   const copy = signupInviteCopyFor(language);
-  const loginUrl = buildSignupInviteUrl(publicBaseUrl(req), language);
+  const baseUrl = publicBaseUrl(req);
+  const signupUrl = buildSignupInviteUrl(baseUrl, language);
   const emailRecipients = mergeSignupInviteRecipients(
     parsed.data.emails,
     parsed.data.email_recipients,
@@ -2230,39 +2263,62 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
     return res.status(400).json({ error: "Add at least one email or WhatsApp number." });
   }
 
+  const emailByName = inviteRecipientMapByName(emailRecipients);
+  const whatsappByName = inviteRecipientMapByName(whatsappRecipients);
   const intro = parsed.data.message || copy.defaultIntro;
-  const body = `${intro}\n\n${copy.startHere}: ${loginUrl}`;
+  const buildBody = (setupUrl: string) => `${intro}\n\n${copy.startHere}: ${setupUrl}`;
+  const buildSetupUrl = (prefill: SignupInvitePrefill) => buildSignupInviteUrl(baseUrl, language, prefill);
   const rows = [
-    ...emailRecipients.map(({ recipient, name }) => ({
-      user_id: req.user?.id ?? null,
-      channel: "email",
-      recipient,
-      purpose: "share_signup_form",
-      status: "queued",
-      body,
-      metadata: {
-        url: loginUrl,
-        language,
-        intro,
-        subject: copy.subject,
-        ...(name ? { recipient_name: name } : {}),
-        shared_by: req.user?.email ?? req.user?.id ?? null,
-      },
-    })),
-    ...whatsappRecipients.map(({ recipient, name }) => ({
-      user_id: req.user?.id ?? null,
-      channel: "whatsapp",
-      recipient,
-      purpose: "share_signup_form",
-      status: "queued",
-      body,
-      metadata: {
-        url: loginUrl,
-        language,
-        ...(name ? { recipient_name: name } : {}),
-        shared_by: req.user?.email ?? req.user?.id ?? null,
-      },
-    })),
+    ...emailRecipients.map((emailRecipient) => {
+      const { recipient, name } = emailRecipient;
+      const matchedWhatsapp = matchingInviteRecipient(emailRecipient, whatsappRecipients, whatsappByName);
+      const setupUrl = buildSetupUrl({
+        name,
+        email: recipient,
+        phone: matchedWhatsapp?.recipient,
+        whatsapp: matchedWhatsapp?.recipient,
+      });
+      return {
+        user_id: req.user?.id ?? null,
+        channel: "email",
+        recipient,
+        purpose: "share_signup_form",
+        status: "queued",
+        body: buildBody(setupUrl),
+        metadata: {
+          url: setupUrl,
+          language,
+          intro,
+          subject: copy.subject,
+          ...(name ? { recipient_name: name } : {}),
+          shared_by: req.user?.email ?? req.user?.id ?? null,
+        },
+      };
+    }),
+    ...whatsappRecipients.map((whatsappRecipient) => {
+      const { recipient, name } = whatsappRecipient;
+      const matchedEmail = matchingInviteRecipient(whatsappRecipient, emailRecipients, emailByName);
+      const setupUrl = buildSetupUrl({
+        name,
+        email: matchedEmail?.recipient,
+        phone: recipient,
+        whatsapp: recipient,
+      });
+      return {
+        user_id: req.user?.id ?? null,
+        channel: "whatsapp",
+        recipient,
+        purpose: "share_signup_form",
+        status: "queued",
+        body: buildBody(setupUrl),
+        metadata: {
+          url: setupUrl,
+          language,
+          ...(name ? { recipient_name: name } : {}),
+          shared_by: req.user?.email ?? req.user?.id ?? null,
+        },
+      };
+    }),
   ];
 
   const communications = await db.insert(communicationsLog).values(rows).returning();
@@ -2271,7 +2327,7 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
   const failed = dispatchResult.results.filter((item) => item.status === "failed").length;
 
   return res.status(201).json({
-    signup_url: loginUrl,
+    signup_url: signupUrl,
     queued: communications.length,
     sent,
     failed,

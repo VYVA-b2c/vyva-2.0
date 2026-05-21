@@ -22,7 +22,7 @@ import { queryClient } from "@/lib/queryClient";
 import { stageToRoute } from "@/lib/onboardingRoute";
 import { isSupabaseAuthAvailable, sendSupabasePasswordReset } from "@/lib/supabaseAuth";
 import { useLanguage } from "@/i18n";
-import type { LanguageCode } from "@/i18n/languages";
+import { LANGUAGES, type LanguageCode } from "@/i18n/languages";
 
 type View = "login" | "register" | "forgot" | "magic";
 type GuideTopic = "why" | "privacy" | "family";
@@ -50,6 +50,35 @@ const GUIDE_RESPONSES: Record<GuideTopic, { label: string; body: string }> = {
     body: "Family can help, but sharing stays controlled.",
   },
 };
+
+const LOGIN_LANGUAGE_CODES = new Set<string>(LANGUAGES.map((entry) => entry.code));
+
+function normalizeReturnPath(value: string | undefined): string | null {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return null;
+  if (value === "/onboarding" || value.startsWith("/login")) return null;
+  return value;
+}
+
+function setupInviteParamsFromPath(path: string | null): URLSearchParams | null {
+  if (!path?.startsWith("/settings/account")) return null;
+  const queryStart = path.indexOf("?");
+  if (queryStart === -1) return new URLSearchParams();
+  const hashStart = path.indexOf("#", queryStart);
+  return new URLSearchParams(path.slice(queryStart, hashStart === -1 ? undefined : hashStart));
+}
+
+function setupLanguageFromParams(params: URLSearchParams): LanguageCode | null {
+  const normalized = (params.get("lang") ?? params.get("language") ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, "-")
+    .split("-")[0];
+  return LOGIN_LANGUAGE_CODES.has(normalized) ? normalized as LanguageCode : null;
+}
+
+function setupContactFromParams(params: URLSearchParams): string {
+  return (params.get("email") ?? params.get("phone") ?? params.get("whatsapp") ?? "").trim();
+}
 
 type LoginCopy = {
   privateDailySupport: string;
@@ -639,7 +668,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   const navigate = useNavigate();
   const location = useLocation();
   const rawFrom = (location.state as { from?: string })?.from;
-  const from = adminOnly ? "/admin/lifecycle" : rawFrom && rawFrom !== "/onboarding" ? rawFrom : null;
+  const from = adminOnly ? "/admin/lifecycle" : normalizeReturnPath(rawFrom);
 
   const [mode, setMode] = useState<"login" | "register">(adminOnly ? "login" : "register");
   const [view, setView] = useState<View>(adminOnly ? "login" : "register");
@@ -694,10 +723,25 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   };
 
   useEffect(() => {
+    const setupParams = setupInviteParamsFromPath(from);
+    if (!setupParams) return;
+    const setupLanguage = setupLanguageFromParams(setupParams);
+    if (setupLanguage && setupLanguage !== language) setLanguage(setupLanguage);
+    if (!contact.trim()) {
+      const setupContact = setupContactFromParams(setupParams);
+      if (setupContact) setContact(setupContact);
+    }
+  }, [contact, from, language, setLanguage]);
+
+  useEffect(() => {
     if (isLoading) return;
     if (!user) return;
     if (adminOnly) {
       navigate("/admin/lifecycle", { replace: true });
+      return;
+    }
+    if (from) {
+      navigate(from, { replace: true });
       return;
     }
     queryClient
@@ -707,7 +751,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         navigate(stageToRoute(stage), { replace: true });
       })
       .catch(() => navigate("/onboarding/basics", { replace: true }));
-  }, [adminOnly, isLoading, user, navigate]);
+  }, [adminOnly, from, isLoading, user, navigate]);
 
   useEffect(() => {
     if (magicTokenHandledRef.current || user) return;
@@ -774,7 +818,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
           throw new Error("Admin accounts can only be created by the super admin after sign in.");
         }
         await register(authContactPayload(true), password);
-        navigate("/onboarding/who-for", { replace: true });
+        navigate(from ?? "/onboarding/who-for", { replace: true });
       } else {
         await login(authContactPayload(), password);
         if (from) {

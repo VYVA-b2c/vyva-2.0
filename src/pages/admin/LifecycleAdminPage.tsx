@@ -252,33 +252,47 @@ export default function LifecycleAdminPage() {
   }
 
   function parseInviteRecipients(value: string, looksLikeRecipient: (value: string) => boolean): SignupShareRecipient[] {
-    return value
-      .split(/\n+/)
-      .flatMap((line) => {
-        const trimmed = line.trim();
-        if (!trimmed) return [];
+    const recipients: SignupShareRecipient[] = [];
+    let pendingName: string | undefined;
 
-        const angleMatch = trimmed.match(/^\s*(.*?)\s*<([^<>]+)>\s*$/);
-        if (angleMatch) {
-          const name = compactRecipientName(angleMatch[1]);
-          return [{
-            ...(name ? { name } : {}),
-            recipient: angleMatch[2].trim(),
-          }];
+    function addRecipient(recipient: string, name = pendingName) {
+      const trimmedRecipient = recipient.trim();
+      if (!trimmedRecipient) return;
+      recipients.push({ ...(name ? { name } : {}), recipient: trimmedRecipient });
+    }
+
+    value.split(/\n+/).forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+
+      const angleMatch = trimmed.match(/^\s*(.*?)\s*<([^<>]+)>\s*$/);
+      if (angleMatch) {
+        const name = compactRecipientName(angleMatch[1]) ?? pendingName;
+        addRecipient(angleMatch[2], name);
+        return;
+      }
+
+      const parts = trimmed.split(/[;,]+/).map((item) => item.trim()).filter(Boolean);
+      if (parts.length > 1) {
+        if (!looksLikeRecipient(parts[0])) {
+          const name = compactRecipientName(parts[0]) ?? pendingName;
+          parts.slice(1).forEach((recipient) => addRecipient(recipient, name));
+          pendingName = name;
+          return;
         }
+        parts.forEach((recipient) => addRecipient(recipient, undefined));
+        return;
+      }
 
-        const parts = trimmed.split(/[;,]+/).map((item) => item.trim()).filter(Boolean);
-        if (parts.length === 2 && !looksLikeRecipient(parts[0])) {
-          const name = compactRecipientName(parts[0]);
-          return [{ ...(name ? { name } : {}), recipient: parts[1] }];
-        }
+      if (looksLikeRecipient(trimmed)) {
+        addRecipient(trimmed);
+        return;
+      }
 
-        if (parts.length > 1) {
-          return parts.map((recipient) => ({ recipient }));
-        }
+      pendingName = compactRecipientName(trimmed.replace(/[;,]+$/g, ""));
+    });
 
-        return [{ recipient: trimmed }];
-      });
+    return recipients;
   }
 
   function signupShareResults(value: unknown): SignupShareResult[] {
@@ -912,7 +926,7 @@ export default function LifecycleAdminPage() {
                   <h2 className="font-serif text-2xl">Share signup form</h2>
                   <p className="mt-1 text-sm text-[#7d6b65]">Send the public VYVA signup link to external users by email or WhatsApp.</p>
                 </div>
-                <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">v2.vyva.life/invite</span>
+                <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">v2.vyva.life/settings/account</span>
               </div>
               <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_1.2fr_0.7fr_auto]">
                 <Field label="Email recipients">
