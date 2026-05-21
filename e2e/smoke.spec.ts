@@ -117,7 +117,18 @@ test("login screen renders auth controls", async ({ page }) => {
 
   await expect(page.getByTestId("input-auth-contact")).toBeVisible();
   await expect(page.getByTestId("input-auth-password")).toBeVisible();
+  await expect(page.getByTestId("button-auth-intent-self")).toBeVisible();
+  await expect(page.getByTestId("button-auth-intent-caregiver")).toBeVisible();
   await expect(page.getByTestId("button-auth-submit")).toBeVisible();
+});
+
+test("login screen exposes caregiver and on-behalf account intent", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/login", { waitUntil: "domcontentloaded" });
+
+  await page.getByTestId("button-auth-intent-caregiver").click();
+  await expect(page.getByTestId("text-auth-caregiver-hint")).toBeVisible();
+  await expect(page.getByText("As a caregiver")).toBeVisible();
 });
 
 test("login screen scales from mobile card to tablet and desktop auth layout", async ({ page }) => {

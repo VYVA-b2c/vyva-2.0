@@ -11,6 +11,8 @@ import {
   Loader2,
   Mic,
   ShieldCheck,
+  UserRound,
+  UsersRound,
   X,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -26,6 +28,7 @@ import type { LanguageCode } from "@/i18n/languages";
 
 type View = "login" | "register" | "forgot" | "magic";
 type GuideTopic = "why" | "privacy" | "family";
+type SetupIntent = "self" | "caregiver";
 
 const LOGIN_GUIDE_AGENT_SLUG = "login-guide";
 
@@ -86,6 +89,9 @@ type LoginCopy = {
   usePasswordInstead: string;
   profilePrivate: string;
   privacyPolicy: string;
+  setupIntentLabel: string;
+  setupIntent: Record<SetupIntent, { title: string; subtitle: string }>;
+  caregiverHint: string;
   checkInbox: string;
   resetSentBody: string;
   backToSignIn: string;
@@ -157,6 +163,18 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     usePasswordInstead: "Use password instead",
     profilePrivate: "Your profile stays private.",
     privacyPolicy: "Privacy policy",
+    setupIntentLabel: "I am using VYVA",
+    setupIntent: {
+      self: {
+        title: "For myself",
+        subtitle: "My account and my care profile.",
+      },
+      caregiver: {
+        title: "As a caregiver",
+        subtitle: "Set up or access care on someone else's behalf.",
+      },
+    },
+    caregiverHint: "Caregiver accounts stay separate from the care profile. The person receiving support keeps consent and confirmation control.",
     checkInbox: "Check your inbox",
     resetSentBody: "If there is an account, the reset link is on its way.",
     backToSignIn: "Back to sign in",
@@ -226,6 +244,18 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     usePasswordInstead: "Usar contraseña",
     profilePrivate: "Tu perfil sigue siendo privado.",
     privacyPolicy: "Política de privacidad",
+    setupIntentLabel: "Uso VYVA",
+    setupIntent: {
+      self: {
+        title: "Para mí",
+        subtitle: "Mi cuenta y mi perfil de cuidado.",
+      },
+      caregiver: {
+        title: "Como cuidador/a",
+        subtitle: "Configurar o acceder al cuidado en nombre de otra persona.",
+      },
+    },
+    caregiverHint: "Las cuentas de cuidadores se mantienen separadas del perfil de cuidado. La persona que recibe apoyo conserva el control del consentimiento y la confirmación.",
     checkInbox: "Revisa tu bandeja",
     resetSentBody: "Si existe una cuenta, el enlace ya va en camino.",
     backToSignIn: "Volver a entrar",
@@ -297,6 +327,18 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     usePasswordInstead: "Utiliser le mot de passe",
     profilePrivate: "Votre profil reste privé.",
     privacyPolicy: "Politique de confidentialité",
+    setupIntentLabel: "J'utilise VYVA",
+    setupIntent: {
+      self: {
+        title: "Pour moi",
+        subtitle: "Mon compte et mon profil de soin.",
+      },
+      caregiver: {
+        title: "Comme aidant",
+        subtitle: "Configurer ou accéder aux soins au nom de quelqu'un.",
+      },
+    },
+    caregiverHint: "Les comptes aidants restent séparés du profil de soin. La personne accompagnée garde le contrôle du consentement et de la confirmation.",
     checkInbox: "Vérifiez votre boîte mail",
     resetSentBody: "Si le compte existe, le lien est en route.",
     backToSignIn: "Retour à la connexion",
@@ -368,6 +410,18 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     usePasswordInstead: "Passwort verwenden",
     profilePrivate: "Dein Profil bleibt privat.",
     privacyPolicy: "Datenschutzerklärung",
+    setupIntentLabel: "Ich nutze VYVA",
+    setupIntent: {
+      self: {
+        title: "Für mich",
+        subtitle: "Mein Konto und mein Pflegeprofil.",
+      },
+      caregiver: {
+        title: "Als Betreuungsperson",
+        subtitle: "Pflege für eine andere Person einrichten oder aufrufen.",
+      },
+    },
+    caregiverHint: "Konten für Betreuungspersonen bleiben vom Pflegeprofil getrennt. Die unterstützte Person behält Kontrolle über Zustimmung und Bestätigung.",
     checkInbox: "Posteingang prüfen",
     resetSentBody: "Falls ein Konto existiert, ist der Link unterwegs.",
     backToSignIn: "Zurück zur Anmeldung",
@@ -439,6 +493,18 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     usePasswordInstead: "Usa password",
     profilePrivate: "Il tuo profilo resta privato.",
     privacyPolicy: "Informativa sulla privacy",
+    setupIntentLabel: "Uso VYVA",
+    setupIntent: {
+      self: {
+        title: "Per me",
+        subtitle: "Il mio account e il mio profilo di cura.",
+      },
+      caregiver: {
+        title: "Come caregiver",
+        subtitle: "Configurare o accedere alla cura per conto di un'altra persona.",
+      },
+    },
+    caregiverHint: "Gli account caregiver restano separati dal profilo di cura. La persona assistita mantiene il controllo di consenso e conferma.",
     checkInbox: "Controlla la posta",
     resetSentBody: "Se l'account esiste, il link è in arrivo.",
     backToSignIn: "Torna all'accesso",
@@ -510,6 +576,18 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     usePasswordInstead: "Usar palavra-passe",
     profilePrivate: "O seu perfil continua privado.",
     privacyPolicy: "Política de privacidade",
+    setupIntentLabel: "Uso a VYVA",
+    setupIntent: {
+      self: {
+        title: "Para mim",
+        subtitle: "A minha conta e o meu perfil de cuidado.",
+      },
+      caregiver: {
+        title: "Como cuidador(a)",
+        subtitle: "Configurar ou aceder ao cuidado em nome de outra pessoa.",
+      },
+    },
+    caregiverHint: "As contas de cuidadores ficam separadas do perfil de cuidado. A pessoa apoiada mantém o controlo do consentimento e da confirmação.",
     checkInbox: "Verifique o email",
     resetSentBody: "Se existir uma conta, o link está a caminho.",
     backToSignIn: "Voltar ao início de sessão",
@@ -581,6 +659,18 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     usePasswordInstead: "Defnyddio cyfrinair",
     profilePrivate: "Mae eich proffil yn aros yn breifat.",
     privacyPolicy: "Polisi preifatrwydd",
+    setupIntentLabel: "Rwy'n defnyddio VYVA",
+    setupIntent: {
+      self: {
+        title: "I mi",
+        subtitle: "Fy nghyfrif a fy mhroffil gofal.",
+      },
+      caregiver: {
+        title: "Fel gofalwr",
+        subtitle: "Sefydlu neu gael mynediad at ofal ar ran rhywun arall.",
+      },
+    },
+    caregiverHint: "Mae cyfrifon gofalwyr yn aros ar wahân i'r proffil gofal. Mae'r person sy'n cael cymorth yn cadw rheolaeth dros gydsyniad a chadarnhad.",
     checkInbox: "Gwiriwch eich mewnflwch",
     resetSentBody: "Os oes cyfrif, mae'r ddolen ar ei ffordd.",
     backToSignIn: "Yn ôl i fewngofnodi",
@@ -643,6 +733,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
 
   const [mode, setMode] = useState<"login" | "register">(adminOnly ? "login" : "register");
   const [view, setView] = useState<View>(adminOnly ? "login" : "register");
+  const [setupIntent, setSetupIntent] = useState<SetupIntent>("self");
   const [contact, setContact] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -691,6 +782,12 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
       ...(trimmedContact.includes("@") ? { email: trimmedContact } : { phone: trimmedContact }),
       ...(includeLanguage ? { language } : {}),
     };
+  };
+
+  const rememberSetupIntent = () => {
+    const setupFor = setupIntent === "caregiver" ? "someone_else" : "self";
+    window.sessionStorage.setItem("vyva_setup_for", setupFor);
+    return setupFor;
   };
 
   useEffect(() => {
@@ -773,9 +870,11 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         if (adminOnly) {
           throw new Error("Admin accounts can only be created by the super admin after sign in.");
         }
+        const setupFor = rememberSetupIntent();
         await register(authContactPayload(true), password);
-        navigate("/onboarding/who-for", { replace: true });
+        navigate("/onboarding/who-for", { replace: true, state: { setupFor } });
       } else {
+        const setupFor = rememberSetupIntent();
         await login(authContactPayload(), password);
         if (from) {
           navigate(from, { replace: true });
@@ -786,7 +885,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
               ?.onboardingState?.current_stage ??
             (data as { onboardingState?: { current_stage?: string }; profile?: { current_stage?: string } } | null)
               ?.profile?.current_stage;
-          navigate(stageToRoute(stage), { replace: true });
+          navigate(stageToRoute(stage), { replace: true, state: { setupFor } });
         }
       }
     } catch (err) {
@@ -1067,6 +1166,46 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                 </div>
               ) : (
                 <div className="flex flex-col gap-4">
+                  {!adminOnly && (
+                    <div className="space-y-2" data-testid="auth-setup-intent">
+                      <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-vyva-text-3">
+                        {copy.setupIntentLabel}
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {(["self", "caregiver"] as const).map((intent) => {
+                          const active = setupIntent === intent;
+                          const Icon = intent === "self" ? UserRound : UsersRound;
+                          return (
+                            <button
+                              key={intent}
+                              type="button"
+                              onClick={() => setSetupIntent(intent)}
+                              data-testid={`button-auth-intent-${intent}`}
+                              className={`flex min-h-[58px] items-center gap-2 rounded-[18px] border px-2.5 py-2 text-left transition sm:min-h-[74px] sm:gap-3 sm:px-3 sm:py-2.5 ${
+                                active
+                                  ? "border-vyva-purple bg-[#F5F0FF] text-vyva-text-1 shadow-[0_10px_24px_rgba(107,33,168,0.10)]"
+                                  : "border-[#EFE7DB] bg-white text-vyva-text-2 hover:border-[#E1D6C8]"
+                              }`}
+                            >
+                              <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[13px] ${active ? "bg-vyva-purple text-white" : "bg-[#F8F3EA] text-vyva-purple"}`}>
+                                <Icon size={18} />
+                              </span>
+                              <span className="min-w-0">
+                                <span className="block font-body text-[12px] font-extrabold leading-tight sm:text-[13px]">{copy.setupIntent[intent].title}</span>
+                                <span className="mt-0.5 hidden font-body text-[11px] leading-[1.3] text-vyva-text-2 sm:block">{copy.setupIntent[intent].subtitle}</span>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {setupIntent === "caregiver" && (
+                        <p data-testid="text-auth-caregiver-hint" className="rounded-[16px] border border-[#E8DDF3] bg-[#FBF8FF] px-3 py-2 font-body text-[12px] leading-[1.45] text-vyva-purple">
+                          {copy.caregiverHint}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   <label className="font-body text-[13px] font-bold text-vyva-text-2">
                     {contactLabel}
                     <Input
