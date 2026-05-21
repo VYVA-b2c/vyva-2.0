@@ -121,9 +121,17 @@ describe("deriveCompletedSections", () => {
     expect(result.has("hobbies")).toBe(false);
   });
 
-  it("marks emergency complete when has_emergency_address is true", () => {
-    const result = deriveCompletedSections(null, { has_emergency_address: true });
+  it("marks emergency complete when emergency contact has a name and phone", () => {
+    const result = deriveCompletedSections(
+      { data_sharing_consent: { emergency: { emergency_name: "Mary User", emergency_phone: "07700900000" } } },
+      null
+    );
     expect(result.has("emergency")).toBe(true);
+  });
+
+  it("does not mark emergency complete from the legacy emergency address flag alone", () => {
+    const result = deriveCompletedSections(null, { has_emergency_address: true });
+    expect(result.has("emergency")).toBe(false);
   });
 
   it("handles multiple sections completed in one call", () => {
@@ -143,7 +151,10 @@ describe("isProfileComplete", () => {
     full_name: "Margaret Collins",
     city: "London",
     known_allergies: ["Penicillin"],
-    data_sharing_consent: { providers: ["NHS"] },
+    data_sharing_consent: {
+      providers: ["NHS"],
+      emergency: { emergency_name: "Mary User", emergency_phone: "07700900000" },
+    },
     hobbies: ["Gardening"],
   };
 
@@ -152,7 +163,6 @@ describe("isProfileComplete", () => {
     has_medications: true,
     has_gp_details: true,
     has_caregiver: true,
-    has_emergency_address: true,
   };
 
   it("returns true when all 9 core sections are complete", () => {
@@ -200,8 +210,8 @@ describe("isProfileComplete", () => {
   });
 
   it("returns false when emergency section is missing", () => {
-    const state = { ...FULL_STATE, has_emergency_address: false };
-    expect(isProfileComplete(FULL_PROFILE, state)).toBe(false);
+    const profile = { ...FULL_PROFILE, data_sharing_consent: { providers: ["NHS"] } };
+    expect(isProfileComplete(profile, FULL_STATE)).toBe(false);
   });
 
   it("returns false when both profile and state are null", () => {
