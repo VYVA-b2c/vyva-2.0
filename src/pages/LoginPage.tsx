@@ -18,6 +18,7 @@ import VoiceCallOverlay from "@/components/VoiceCallOverlay";
 import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { useAuth } from "@/contexts/AuthContext";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
+import { localizeAuthErrorMessage } from "@/lib/authErrorLocalization";
 import { queryClient } from "@/lib/queryClient";
 import { stageToRoute } from "@/lib/onboardingRoute";
 import { isSupabaseAuthAvailable, sendSupabasePasswordReset } from "@/lib/supabaseAuth";
@@ -765,10 +766,10 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
     setMagicError(null);
     loginWithMagicToken(magicToken)
       .catch((err) => {
-        setMagicError(err instanceof Error ? err.message : copy.errors.signInLinkFailed);
+        setMagicError(localizeAuthErrorMessage(err, language, copy.errors.signInLinkFailed));
       })
       .finally(() => setMagicLoading(false));
-  }, [copy.errors.signInLinkFailed, location.search, loginWithMagicToken, user]);
+  }, [copy.errors.signInLinkFailed, language, location.search, loginWithMagicToken, user]);
 
   useEffect(() => () => stopVoice(), [stopVoice]);
 
@@ -834,7 +835,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : copy.errors.generic);
+      setError(localizeAuthErrorMessage(err, language, copy.errors.generic));
     } finally {
       setLoading(false);
     }
@@ -861,7 +862,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
       }
       setForgotSent(true);
     } catch (err) {
-      setForgotError(err instanceof Error ? err.message : copy.errors.generic);
+      setForgotError(localizeAuthErrorMessage(err, language, copy.errors.generic));
     } finally {
       setForgotLoading(false);
     }
@@ -875,7 +876,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
       await requestMagicLink(authContactPayload());
       setMagicSent(true);
     } catch (err) {
-      setMagicError(err instanceof Error ? err.message : copy.errors.magicFailed);
+      setMagicError(localizeAuthErrorMessage(err, language, copy.errors.magicFailed));
     } finally {
       setMagicLoading(false);
     }
