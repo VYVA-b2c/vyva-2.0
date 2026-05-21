@@ -908,7 +908,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         />
       )}
 
-      <div className="min-h-screen overflow-hidden bg-[#FFF9F1] text-vyva-text-1">
+      <div className="min-h-screen overflow-x-hidden bg-[#FFF9F1] text-vyva-text-1">
         <div className="pointer-events-none fixed -left-24 top-10 h-72 w-72 rounded-full bg-[#F7C948]/30 blur-3xl" />
         <div className="pointer-events-none fixed -right-28 top-20 h-[24rem] w-[24rem] rounded-full bg-[#6B21A8]/16 blur-3xl" />
         <div className="pointer-events-none fixed bottom-[-12rem] left-1/2 h-[26rem] w-[26rem] -translate-x-1/2 rounded-full bg-white blur-2xl" />
@@ -935,32 +935,35 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         </header>
 
         <main className="relative z-10 mx-auto flex min-h-[calc(100vh-92px)] w-full max-w-[1040px] items-center justify-center px-5 pb-8 sm:px-8">
-          <section className="w-full max-w-[540px]">
+          <section
+            data-testid="auth-layout"
+            className="grid w-full max-w-[540px] gap-5 md:max-w-[980px] md:grid-cols-[minmax(0,0.88fr)_minmax(420px,1fr)] md:items-center lg:max-w-[1040px] lg:gap-8"
+          >
             {adminOnly ? (
-              <div className="mb-5 text-center">
+              <div className="text-center md:text-left">
                 <p className="mb-3 font-body text-[11px] font-extrabold uppercase tracking-[0.26em] text-vyva-purple/70">
                   VYVA Admin
                 </p>
-                <h1 className="font-display text-[46px] leading-[0.98] text-[#2E1642] sm:text-[58px]">
+                <h1 className="font-display text-[46px] leading-[0.98] text-[#2E1642] sm:text-[58px] md:max-w-[430px] md:text-[48px] lg:text-[58px]">
                   Operations access
                 </h1>
-                <p className="mx-auto mt-4 max-w-[380px] font-body text-[15px] leading-[1.55] text-vyva-text-2">
+                <p className="mx-auto mt-4 max-w-[380px] font-body text-[15px] leading-[1.55] text-vyva-text-2 md:mx-0">
                   Sign in with an approved admin account to manage lifecycle, content, and access.
                 </p>
               </div>
             ) : (
-              <div className="mb-5 text-center">
+              <div className="text-center md:text-left">
                 <p className="mb-3 font-body text-[11px] font-extrabold uppercase tracking-[0.26em] text-vyva-purple/70">
                   {copy.privateDailySupport}
                 </p>
-                <h1 className="font-display text-[50px] leading-[0.94] text-[#2E1642] sm:text-[66px]">
+                <h1 className="font-display text-[50px] leading-[0.94] text-[#2E1642] sm:text-[66px] md:max-w-[470px] md:text-[52px] lg:text-[66px]">
                   {copy.heroTitle}
                 </h1>
-                <p className="mx-auto mt-4 max-w-[430px] font-body text-[15px] leading-[1.55] text-vyva-text-2">
+                <p className="mx-auto mt-4 max-w-[430px] font-body text-[15px] leading-[1.55] text-vyva-text-2 md:mx-0">
                   {copy.heroSubtitle}
                 </p>
 
-                <div className="mt-5 flex flex-col items-center gap-2">
+                <div className="mt-5 flex flex-col items-center gap-2 md:items-start">
                   <button
                     type="button"
                     onClick={handleGuideVoiceToggle}
@@ -990,7 +993,10 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
               </div>
             )}
 
-            <div className="rounded-[34px] border border-[#EFE7DB] bg-white/94 p-5 shadow-[0_24px_70px_rgba(72,44,18,0.14)] backdrop-blur sm:p-7">
+            <div
+              data-testid="auth-card"
+              className="w-full rounded-[34px] border border-[#EFE7DB] bg-white/94 p-5 shadow-[0_24px_70px_rgba(72,44,18,0.14)] backdrop-blur sm:p-7 md:justify-self-end"
+            >
               <div className="mb-5">
                 <h2 className="font-display text-[36px] leading-tight text-vyva-text-1">{authTitle}</h2>
                 <p className="mt-1 font-body text-[14px] text-vyva-text-2">{authSubtitle}</p>

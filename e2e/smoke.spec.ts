@@ -120,6 +120,36 @@ test("login screen renders auth controls", async ({ page }) => {
   await expect(page.getByTestId("button-auth-submit")).toBeVisible();
 });
 
+test("login screen scales from mobile card to tablet and desktop auth layout", async ({ page }) => {
+  await mockApi(page);
+
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.goto("/login", { waitUntil: "domcontentloaded" });
+  await expect(page.getByTestId("input-auth-contact")).toBeVisible();
+
+  const desktopLayoutBox = await page.getByTestId("auth-layout").boundingBox();
+  expect(desktopLayoutBox).not.toBeNull();
+  expect(desktopLayoutBox!.width).toBeGreaterThan(900);
+  await expect(page.getByTestId("auth-layout")).toHaveCSS("grid-template-columns", /[0-9.]+px [0-9.]+px/);
+  await expectNoHorizontalOverflow(page);
+
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  const tabletLayoutBox = await page.getByTestId("auth-layout").boundingBox();
+  expect(tabletLayoutBox).not.toBeNull();
+  expect(tabletLayoutBox!.width).toBeGreaterThan(680);
+  await expect(page.getByTestId("auth-layout")).toHaveCSS("grid-template-columns", /[0-9.]+px [0-9.]+px/);
+  await expectNoHorizontalOverflow(page);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  const mobileLayoutBox = await page.getByTestId("auth-layout").boundingBox();
+  expect(mobileLayoutBox).not.toBeNull();
+  expect(mobileLayoutBox!.width).toBeLessThanOrEqual(350);
+  await expect(page.getByTestId("auth-card")).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+});
+
 test("home screen renders core cards and navigates to concierge", async ({ page }) => {
   await mockApi(page, true);
   await page.goto("/", { waitUntil: "domcontentloaded" });
