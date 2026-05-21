@@ -51,8 +51,9 @@ describe("signup invite language", () => {
 
   it("returns localized email copy for supported invite languages", () => {
     expect(signupInviteCopyFor("fr").subject).toBe("Bienvenue sur VYVA");
-    expect(signupInviteCopyFor("pt").cta).toBe("Comecar com VYVA");
-    expect(signupInviteCopyFor("es").title).toBe("Conoce VYVA, tu companera de salud en casa");
+    expect(signupInviteCopyFor("pt").cta).toBe("Configurar VYVA");
+    expect(signupInviteCopyFor("es").title).toBe("Sientete acompanado cada dia");
+    expect(signupInviteCopyFor("de").startHere).toBe("PER SPRACHE, OHNE APP-WISSEN");
   });
 
   it("renders a polished signup invite email", () => {
@@ -67,7 +68,7 @@ describe("signup invite language", () => {
     expect(email.html).toContain("More confidence at home");
     expect(email.html).toContain("What you can do with VYVA");
     expect(email.html).toContain("Set up VYVA");
-    expect(email.html).toContain("Your VYVA is ready");
+    expect(email.html).toContain("VOICE ACTIVATED, NO DIGITAL SKILLS REQUIRED");
     expect(email.html).toContain("Karim invited you to join VYVA.");
     expect(email.html).toContain("Health checks");
     expect(email.html).toContain("Doctor access");
@@ -94,12 +95,13 @@ describe("signup invite language", () => {
     expect(email.html).toContain("Dear Maria &lt;Care&gt;,");
     expect(email.text).toContain("Dear Maria <Care>,");
     expect(email.html).toContain('href="https://v2.vyva.life/invite?lang=en"');
-    expect(email.text).toContain("Your VYVA is ready: https://v2.vyva.life/invite?lang=en");
+    expect(email.text).toContain("VOICE ACTIVATED, NO DIGITAL SKILLS REQUIRED: https://v2.vyva.life/invite?lang=en");
     expect(email.html).toContain('href="https://vyva.life"');
     expect(email.html).toContain('href="https://vyva.life/privacypolicy"');
     expect(email.html).toContain('href="https://vyva.life/securityencryption"');
     expect(email.html).toContain("Terms of Service");
     expect(email.html).toContain("2026 MOKA DIGITECK SL");
+    expect(email.html).toContain("text-align:center");
     expect(email.text).toContain("Privacy Policy: https://vyva.life/privacypolicy");
   });
 
@@ -128,11 +130,15 @@ describe("signup invite language", () => {
       expect(email.html).toContain(`${copy.greeting} Maria,`);
       expect(email.html).toContain(copy.featureTitle);
       expect(email.html).toContain(copy.cta);
+      expect(email.html).toContain(copy.startHere);
+      if (copy.outcomeBadge) expect(email.html).toContain(copy.outcomeBadge);
       expect(email.html).toContain(`vyva-logo-${language}`);
+      expect(copy.benefits).toHaveLength(6);
       expect(email.text).toContain(copy.benefits[0].title);
       expect(email.text).toContain(copy.benefits[0].body);
       expect(email.text).toContain(copy.benefits[1].title);
       expect(email.text).toContain(copy.benefits[2].title);
+      expect(email.text).toContain(copy.benefits[5].title);
     }
   });
 
@@ -142,7 +148,7 @@ describe("signup invite language", () => {
     expect(copy.title).toBe("Feel supported every day");
     expect(copy.greeting).toBe("Dear");
     expect(copy.outcomeBadge).toBe("More confidence at home");
-    expect(copy.startHere).toBe("Your VYVA is ready");
+    expect(copy.startHere).toBe("VOICE ACTIVATED, NO DIGITAL SKILLS REQUIRED");
     expect(copy.benefits.map((benefit) => benefit.title)).toEqual([
       "Health checks",
       "Doctor access",
