@@ -232,8 +232,8 @@ export default function SettingsHome() {
 
   return (
     <PhoneFrame>
-      <div className="flex flex-col gap-4">
-        <section className="overflow-hidden rounded-[24px] border border-[#EFE7DB] bg-[#FFF9F1] p-4 shadow-vyva-card">
+      <div data-testid="settings-home-grid" className="grid gap-4 md:grid-cols-2 md:items-start">
+        <section className="overflow-hidden rounded-[24px] border border-[#EFE7DB] bg-[#FFF9F1] p-4 shadow-vyva-card md:col-span-2 md:p-5">
           <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-[12px] font-semibold uppercase tracking-[0.06em] text-vyva-purple shadow-sm">
             <Shield size={14} />
             {t("settings.home.title")}

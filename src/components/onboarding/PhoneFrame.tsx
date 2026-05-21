@@ -28,11 +28,11 @@ export function PhoneFrame({
     <div
       ref={toastSurfaceRef}
       data-testid="phone-frame"
-      className={`relative mx-auto w-full max-w-[380px] overflow-hidden rounded-[38px] border border-[#EDE2D1] bg-[#FFFCF8] shadow-[0_24px_60px_rgba(91,33,182,0.12)] ${className}`}
+      className={`relative mx-auto w-full max-w-[380px] overflow-hidden rounded-[34px] border border-[#EDE2D1] bg-[#FFFCF8] shadow-[0_24px_60px_rgba(91,33,182,0.12)] sm:max-w-[560px] md:max-w-[720px] lg:max-w-[820px] ${className}`}
       style={{ minHeight: 560 }}
     >
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[110px] bg-[linear-gradient(180deg,rgba(107,33,168,0.08)_0%,rgba(107,33,168,0)_100%)]" />
-      <div className="relative px-4 pt-3 pb-4">
+      <div className="relative px-4 pt-3 pb-4 sm:px-5 md:px-6 md:pb-6">
         <div className="mx-auto h-1.5 w-16 rounded-full bg-[#DACDBD]" />
 
         {hasTopBar ? (

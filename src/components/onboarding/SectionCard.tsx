@@ -28,11 +28,11 @@ export function SectionCard({
       data-testid={`section-card-${title.toLowerCase().replace(/\s+/g, "-")}`}
       onClick={!locked ? onClick : undefined}
       disabled={locked}
-      className={`w-full flex items-center gap-3 px-4 py-[15px] text-left transition-colors ${
+      className={`w-full flex items-center gap-3 px-4 py-[15px] text-left transition-colors md:rounded-[20px] md:border md:border-vyva-border md:bg-white md:shadow-vyva-card ${
         locked
           ? "opacity-40 cursor-not-allowed"
           : "hover:bg-[#FCF8FF] cursor-pointer"
-      } border-t border-vyva-border first:border-t-0`}
+      } border-t border-vyva-border first:border-t-0 md:first:border-t md:hover:border-vyva-purple/20`}
     >
       <div
         className="w-11 h-11 rounded-[15px] flex items-center justify-center flex-shrink-0"

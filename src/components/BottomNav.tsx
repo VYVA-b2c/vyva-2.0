@@ -10,7 +10,7 @@ type BottomNavTab = {
   isActive: (pathname: string) => boolean;
 };
 
-const BottomNav = ({ onSosClick }: { onSosClick: () => void }) => {
+const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?: boolean }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -67,10 +67,10 @@ const BottomNav = ({ onSosClick }: { onSosClick: () => void }) => {
 
   return (
     <nav
-      className="fixed bottom-0 left-1/2 z-50 w-full max-w-[520px] -translate-x-1/2 border-t border-vyva-border bg-white/95 shadow-[0_-8px_28px_rgba(63,45,35,0.08)] backdrop-blur"
+      className={`fixed bottom-0 left-1/2 z-50 w-full -translate-x-1/2 border-t border-vyva-border bg-white/95 shadow-[0_-8px_28px_rgba(63,45,35,0.08)] backdrop-blur ${wide ? "max-w-[920px]" : "max-w-[520px]"}`}
       style={{ height: "calc(96px + env(safe-area-inset-bottom))", paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <div className="grid h-full grid-cols-3 items-center gap-3 px-8">
+      <div className={`mx-auto grid h-full w-full grid-cols-3 items-center gap-3 px-8 ${wide ? "max-w-[560px]" : ""}`}>
         {renderTab(tabs[0])}
         <button
           data-testid="nav-tab-sos"

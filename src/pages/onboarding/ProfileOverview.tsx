@@ -48,7 +48,7 @@ function MilestoneStrip({ done, total }: { done: number; total: number }) {
 
   return (
     <div
-      className="mx-5 mb-4 rounded-[18px] border border-vyva-border bg-white overflow-hidden"
+      className="mb-4 rounded-[18px] border border-vyva-border bg-white overflow-hidden"
       style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}
       data-testid="banner-milestones"
     >
@@ -126,8 +126,9 @@ const ProfileOverview = () => {
 
   return (
     <div className="min-h-screen bg-vyva-cream">
-      {/* Header */}
-      <div className="px-5 pt-8 pb-4">
+      <div className="mx-auto w-full max-w-[1120px] px-5 pb-6 pt-8">
+        {/* Header */}
+        <div className="pb-4">
         <div className="rounded-[26px] border border-[#EFE7DB] bg-[#FFF9F1] p-5 shadow-vyva-card">
           <p className="text-[12px] font-semibold uppercase tracking-[0.06em] text-vyva-purple">Profile</p>
           <h1 className="mt-2 font-display text-[30px] font-semibold leading-[1.05] text-vyva-text-1">{t("profile.overview.title")}</h1>
@@ -148,18 +149,18 @@ const ProfileOverview = () => {
             />
           </div>
         </div>
-      </div>
+        </div>
 
-      {/* Proxy banner */}
-      {!isLoading && proxyName && (
-        <div
-          data-testid="banner-proxy-setup"
-          className={`mx-5 mb-4 rounded-[16px] px-4 py-3 flex items-start gap-3 ${
-            elderConfirmed
-              ? "bg-green-50 border border-green-200"
-              : "bg-amber-50 border border-amber-200"
-          }`}
-        >
+        {/* Proxy banner */}
+        {!isLoading && proxyName && (
+          <div
+            data-testid="banner-proxy-setup"
+            className={`mb-4 rounded-[16px] px-4 py-3 flex items-start gap-3 ${
+              elderConfirmed
+                ? "bg-green-50 border border-green-200"
+                : "bg-amber-50 border border-amber-200"
+            }`}
+          >
           <div className="mt-0.5 flex-shrink-0">
             {elderConfirmed
               ? <CheckCircle2 size={18} className="text-green-600" />
@@ -185,20 +186,19 @@ const ProfileOverview = () => {
               {t("profile.overview.confirmNow")}
             </button>
           )}
-        </div>
-      )}
+          </div>
+        )}
 
-      {/* Milestone strip */}
-      {!isLoading && (
-        <MilestoneStrip done={done} total={total} />
-      )}
+        {/* Milestone strip */}
+        {!isLoading && (
+          <MilestoneStrip done={done} total={total} />
+        )}
 
-      {/* Section cards */}
-      <div
-        className="mx-5 overflow-hidden rounded-[24px] border border-vyva-border bg-white"
-        style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}
-        data-testid="list-profile-sections"
-      >
+        {/* Section cards */}
+        <div
+          className="overflow-hidden rounded-[24px] border border-vyva-border bg-white shadow-vyva-card md:grid md:grid-cols-2 md:gap-3 md:overflow-visible md:border-0 md:bg-transparent md:shadow-none xl:grid-cols-3"
+          data-testid="list-profile-sections"
+        >
         {SECTIONS.map((s) => (
           <SectionCard
             key={s.id}
@@ -213,10 +213,10 @@ const ProfileOverview = () => {
             onClick={() => navigate(s.path)}
           />
         ))}
-      </div>
+        </div>
 
-      {/* Done button */}
-      <div className="px-5 py-6">
+        {/* Done button */}
+        <div className="py-6 md:mx-auto md:max-w-[420px]">
         <button
           data-testid="button-profile-go-home"
           onClick={() => navigate("/")}
@@ -225,6 +225,7 @@ const ProfileOverview = () => {
         >
           {t("profile.overview.goToVyva")}
         </button>
+        </div>
       </div>
     </div>
   );

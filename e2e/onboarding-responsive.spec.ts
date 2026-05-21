@@ -310,4 +310,24 @@ test.describe("onboarding responsive layout", () => {
     await expect(page.getByTestId("badge-count-heart")).toBeVisible();
     await expectNoHorizontalOverflow(page);
   });
+
+  test("profile section frames scale beyond phone width on larger screens", async ({ page }) => {
+    await mockSignedInOnboarding(page);
+
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await page.goto("/onboarding/profile/health", { waitUntil: "domcontentloaded" });
+
+    const frameBox = await page.getByTestId("phone-frame").boundingBox();
+    expect(frameBox).not.toBeNull();
+    expect(frameBox!.width).toBeGreaterThan(700);
+    expect(frameBox!.width).toBeLessThanOrEqual(822);
+    await expectNoHorizontalOverflow(page);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload({ waitUntil: "domcontentloaded" });
+    const mobileFrameBox = await page.getByTestId("phone-frame").boundingBox();
+    expect(mobileFrameBox).not.toBeNull();
+    expect(mobileFrameBox!.width).toBeLessThanOrEqual(390);
+    await expectNoHorizontalOverflow(page);
+  });
 });
