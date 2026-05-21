@@ -56,6 +56,7 @@ import {
 import { syncProfileEntitlement, type EntitlementSyncResult } from "../lib/entitlementSync.js";
 import { listPlans, normalizeSubscriptionTier, upsertPlanWithEntitlement } from "../lib/plans.js";
 import { buildSignupInviteUrl, normalizeSignupInviteLanguage, signupInviteCopyFor } from "../lib/signupInviteLanguage.js";
+import { mergeSignupInviteRecipients } from "../lib/signupInviteRecipients.js";
 import { premiumTrialEndsAt } from "../lib/premiumTrial.js";
 
 export const adminLifecycleRouter = Router();
@@ -2140,9 +2141,19 @@ adminLifecycleRouter.get("/communications", async (req: Request, res: Response) 
 
 adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
+  const namedInviteRecipientSchema = z.object({
+    name: z.string().trim().max(120).optional(),
+    recipient: z.string().trim().min(1),
+  });
   const parsed = z.object({
     emails: z.array(z.string().trim().email()).optional().default([]),
     whatsapp_numbers: z.array(z.string().trim().min(3)).optional().default([]),
+    email_recipients: z.array(namedInviteRecipientSchema.extend({
+      recipient: z.string().trim().email(),
+    })).optional().default([]),
+    whatsapp_recipients: z.array(namedInviteRecipientSchema.extend({
+      recipient: z.string().trim().min(3),
+    })).optional().default([]),
     message: z.string().trim().max(500).optional(),
     language: z.string().trim().optional(),
   }).safeParse(req.body ?? {});
@@ -2151,8 +2162,16 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
   const language = normalizeSignupInviteLanguage(parsed.data.language);
   const copy = signupInviteCopyFor(language);
   const loginUrl = buildSignupInviteUrl(publicBaseUrl(req), language);
-  const emailRecipients = Array.from(new Set(parsed.data.emails.map((email) => email.toLowerCase())));
-  const whatsappRecipients = Array.from(new Set(parsed.data.whatsapp_numbers.map(normalizePhone).filter(Boolean)));
+  const emailRecipients = mergeSignupInviteRecipients(
+    parsed.data.emails,
+    parsed.data.email_recipients,
+    (recipient) => recipient.trim().toLowerCase() || null,
+  );
+  const whatsappRecipients = mergeSignupInviteRecipients(
+    parsed.data.whatsapp_numbers,
+    parsed.data.whatsapp_recipients,
+    (recipient) => normalizePhone(recipient) || null,
+  );
   if (emailRecipients.length + whatsappRecipients.length === 0) {
     return res.status(400).json({ error: "Add at least one email or WhatsApp number." });
   }
@@ -2160,7 +2179,7 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
   const intro = parsed.data.message || copy.defaultIntro;
   const body = `${intro}\n\n${copy.startHere}: ${loginUrl}`;
   const rows = [
-    ...emailRecipients.map((recipient) => ({
+    ...emailRecipients.map(({ recipient, name }) => ({
       user_id: req.user?.id ?? null,
       channel: "email",
       recipient,
@@ -2172,10 +2191,11 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
         language,
         intro,
         subject: copy.subject,
+        ...(name ? { recipient_name: name } : {}),
         shared_by: req.user?.email ?? req.user?.id ?? null,
       },
     })),
-    ...whatsappRecipients.map((recipient) => ({
+    ...whatsappRecipients.map(({ recipient, name }) => ({
       user_id: req.user?.id ?? null,
       channel: "whatsapp",
       recipient,
@@ -2185,6 +2205,7 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
       metadata: {
         url: loginUrl,
         language,
+        ...(name ? { recipient_name: name } : {}),
         shared_by: req.user?.email ?? req.user?.id ?? null,
       },
     })),

@@ -13,6 +13,7 @@ export type SignupInviteCopy = {
   preheader: string;
   eyebrow: string;
   title: string;
+  greeting: string;
   defaultIntro: string;
   summary: string;
   outcomeBadge?: string;
@@ -31,6 +32,7 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     preheader: "One simple companion for health, memory, daily help, engaging chats, and doctor access.",
     eyebrow: "Everyday care companion",
     title: "Feel supported every day",
+    greeting: "Hi",
     defaultIntro: "VYVA is ready for you.",
     summary: "One simple companion for health, memory, daily help, engaging chats, and doctor access.",
     outcomeBadge: "More confidence at home",
@@ -78,6 +80,7 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     preheader: "Servicios de salud, apoyo con medicacion y acceso a un medico siempre cerca.",
     eyebrow: "Apoyo de salud por voz",
     title: "Conoce VYVA, tu companera de salud en casa",
+    greeting: "Hola",
     defaultIntro: "VYVA esta listo para ti.",
     summary: "Apoyo sencillo 24/7 para medicinas, chequeos de sintomas, constantes vitales, cuidado diario y un medico a un clic.",
     featureTitle: "Tu apoyo de salud",
@@ -109,6 +112,7 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     preheader: "Services de sante, aide aux medicaments et acces a un medecin toujours a portee.",
     eyebrow: "Sante par la voix",
     title: "Decouvrez VYVA, votre compagnon de sante a domicile",
+    greeting: "Bonjour",
     defaultIntro: "VYVA est pret pour vous.",
     summary: "Un soutien simple 24/7 pour les medicaments, les symptomes, les constantes, le quotidien et un medecin a portee de clic.",
     featureTitle: "Votre soutien sante",
@@ -140,6 +144,7 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     preheader: "Gesundheit, Medikamente und Arztzugang immer in Reichweite.",
     eyebrow: "Gesundheit per Stimme",
     title: "VYVA begleitet Ihre Gesundheit zuhause",
+    greeting: "Hallo",
     defaultIntro: "VYVA ist fuer Sie bereit.",
     summary: "Einfache 24/7 Hilfe fuer Medikamente, Symptome, Werte, Alltag und einen Arzt mit nur einem Klick.",
     featureTitle: "Ihre Gesundheit",
@@ -171,6 +176,7 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     preheader: "Servizi sanitari, supporto per i farmaci e accesso a un medico sempre a portata di mano.",
     eyebrow: "Salute guidata dalla voce",
     title: "Conosci VYVA, la tua compagna di salute a casa",
+    greeting: "Ciao",
     defaultIntro: "VYVA e pronto per te.",
     summary: "Supporto semplice 24/7 per farmaci, sintomi, parametri vitali, cura quotidiana e un medico a un clic.",
     featureTitle: "Il tuo supporto salute",
@@ -202,6 +208,7 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     preheader: "Servicos de saude, apoio com medicacao e acesso a um medico sempre por perto.",
     eyebrow: "Saude por voz",
     title: "Conheca a VYVA, a sua companhia de saude em casa",
+    greeting: "Ola",
     defaultIntro: "A VYVA esta pronta para si.",
     summary: "Apoio simples 24/7 para medicacao, sintomas, sinais vitais, cuidado diario e um medico a um clique.",
     featureTitle: "O seu apoio de saude",

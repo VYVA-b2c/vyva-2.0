@@ -120,12 +120,15 @@ export function buildSignupInviteEmail(
   const customIntro = metadataString(metadata, "intro") ?? introFromLegacyBody(fallbackBody);
   const intro = customIntro ?? copy.defaultIntro;
   const subject = metadataString(metadata, "subject") ?? copy.subject;
+  const recipientName = metadataString(metadata, "recipient_name");
+  const greeting = recipientName ? `${copy.greeting} ${recipientName},` : null;
   const logoAttachment = signupEmailLogoAttachment(language);
   const logoSrc = logoAttachment
     ? `cid:${logoAttachment.content_id}`
     : `${baseUrl.replace(/\/$/, "")}/assets/vyva/vyva-logo-${language}.png`;
   const text = [
     copy.preheader,
+    greeting,
     customIntro,
     copy.summary,
     copy.outcomeBadge,
@@ -183,9 +186,10 @@ export function buildSignupInviteEmail(
                 </table>
               </td>
             </tr>
-            ${customIntro ? `<tr>
+            ${greeting || customIntro ? `<tr>
               <td style="padding:24px 36px 4px;">
-                ${paragraphHtml(intro)}
+                ${greeting ? `<p style="margin:0 0 ${customIntro ? "10px" : "0"};font-size:19px;line-height:1.45;font-weight:800;color:#241133;">${htmlEscape(greeting)}</p>` : ""}
+                ${customIntro ? paragraphHtml(intro) : ""}
               </td>
             </tr>` : ""}
             <tr>
