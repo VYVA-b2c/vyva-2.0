@@ -33,6 +33,7 @@ export type ProfileIdentityResponse = {
   dateOfBirth?: string | null;
   email?: string | null;
   phone?: string | null;
+  whatsapp?: string | null;
   country?: string | null;
   language?: string | null;
   avatarUrl?: string | null;
