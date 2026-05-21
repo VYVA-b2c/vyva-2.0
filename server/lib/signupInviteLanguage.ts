@@ -2,6 +2,12 @@ export const SIGNUP_INVITE_LANGUAGE_CODES = ["en", "es", "fr", "de", "it", "pt"]
 
 export type SignupInviteLanguage = (typeof SIGNUP_INVITE_LANGUAGE_CODES)[number];
 
+export type SignupInviteBenefit = {
+  label: string;
+  title: string;
+  body: string;
+};
+
 export type SignupInviteCopy = {
   subject: string;
   preheader: string;
@@ -9,8 +15,9 @@ export type SignupInviteCopy = {
   title: string;
   defaultIntro: string;
   summary: string;
+  outcomeBadge?: string;
   featureTitle: string;
-  features: [string, string, string];
+  benefits: [SignupInviteBenefit, ...SignupInviteBenefit[]];
   reassurance: string;
   cta: string;
   startHere: string;
@@ -20,115 +27,203 @@ export type SignupInviteCopy = {
 
 const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
   en: {
-    subject: "You're invited to set up VYVA",
-    preheader: "Your private companion space is ready for health details, reminders, family support, and everyday help.",
-    eyebrow: "Private companion support",
-    title: "Your VYVA space is ready",
-    defaultIntro: "A secure VYVA profile has been prepared for you.",
-    summary: "Set up your account in a few minutes so VYVA can keep the essentials organised: health details, reminders, trusted family support, and everyday help when you need it.",
-    featureTitle: "What you can set up",
-    features: [
-      "Health details and medication reminders in one calm place",
-      "Trusted family or care partners connected around the same profile",
-      "Everyday help, check-ins, and support preferences tailored to you",
+    subject: "Welcome to VYVA",
+    preheader: "One simple companion for health, memory, daily help, engaging chats, and doctor access.",
+    eyebrow: "Everyday care companion",
+    title: "Feel supported every day",
+    defaultIntro: "VYVA is ready for you.",
+    summary: "One simple companion for health, memory, daily help, engaging chats, and doctor access.",
+    outcomeBadge: "More confidence at home",
+    featureTitle: "What you can do with VYVA",
+    benefits: [
+      {
+        label: "CARE",
+        title: "Health checks",
+        body: "Symptom and vital guidance.",
+      },
+      {
+        label: "DR",
+        title: "Doctor access",
+        body: "A doctor, one click away.",
+      },
+      {
+        label: "DOSE",
+        title: "Medication reminders",
+        body: "Gentle prompts to stay on track.",
+      },
+      {
+        label: "BRAIN",
+        title: "Brain Coach",
+        body: "Memory games and mood check-ins.",
+      },
+      {
+        label: "HELP",
+        title: "Concierge",
+        body: "Rides, errands, trusted help.",
+      },
+      {
+        label: "CHAT",
+        title: "Companionship",
+        body: "Engaging chats and friendly check-ins.",
+      },
     ],
-    reassurance: "You can review details, adjust preferences, and choose who is involved during setup.",
-    cta: "Set up my VYVA",
-    startHere: "Start here",
+    reassurance: "Set it up once. Use it anytime.",
+    cta: "Set up VYVA",
+    startHere: "Your VYVA is ready",
     fallback: "If the button does not work, copy and paste this link into your browser:",
     ignore: "This invitation was sent using a secure VYVA signup link. If you were not expecting it, you can ignore this email.",
   },
   es: {
-    subject: "Te invitamos a configurar VYVA",
-    preheader: "Tu espacio privado de compania esta listo para salud, recordatorios, apoyo familiar y ayuda diaria.",
-    eyebrow: "Apoyo privado de compania",
-    title: "Tu espacio VYVA esta listo",
-    defaultIntro: "Se ha preparado un perfil seguro de VYVA para ti.",
-    summary: "Configura tu cuenta en pocos minutos para que VYVA mantenga lo esencial organizado: datos de salud, recordatorios, apoyo de personas de confianza y ayuda diaria cuando la necesites.",
-    featureTitle: "Que puedes configurar",
-    features: [
-      "Datos de salud y recordatorios de medicacion en un lugar tranquilo",
-      "Familiares o cuidadores de confianza conectados al mismo perfil",
-      "Ayuda diaria, check-ins y preferencias de apoyo adaptadas a ti",
+    subject: "Bienvenido a VYVA",
+    preheader: "Servicios de salud, apoyo con medicacion y acceso a un medico siempre cerca.",
+    eyebrow: "Apoyo de salud por voz",
+    title: "Conoce VYVA, tu companera de salud en casa",
+    defaultIntro: "VYVA esta listo para ti.",
+    summary: "Apoyo sencillo 24/7 para medicinas, chequeos de sintomas, constantes vitales, cuidado diario y un medico a un clic.",
+    featureTitle: "Tu apoyo de salud",
+    benefits: [
+      {
+        label: "SALUD",
+        title: "Servicios de salud en casa",
+        body: "Revisa sintomas, sigue tus constantes y recibe orientacion sencilla cuando algo no se siente bien.",
+      },
+      {
+        label: "MEDICO",
+        title: "Un medico a un clic",
+        body: "Cuando necesites mas cuidado, VYVA te ayuda a llegar rapido a un medico.",
+      },
+      {
+        label: "DOSIS",
+        title: "No olvides una dosis",
+        body: "Recordatorios amables, confirmaciones y seguimientos suaves para ayudarte a mantenerte al dia.",
+      },
     ],
-    reassurance: "Durante la configuracion podras revisar datos, ajustar preferencias y elegir quien participa.",
-    cta: "Configurar mi VYVA",
+    reassurance: "Tu familia puede recibir avisos cuando algo necesita atencion, y tu tienes el control.",
+    cta: "Empezar con VYVA",
     startHere: "Empieza aqui",
     fallback: "Si el boton no funciona, copia y pega este enlace en tu navegador:",
     ignore: "Esta invitacion se envio mediante un enlace seguro de registro de VYVA. Si no la esperabas, puedes ignorar este email.",
   },
   fr: {
-    subject: "Vous etes invite a configurer VYVA",
-    preheader: "Votre espace compagnon prive est pret pour la sante, les rappels, le soutien familial et l'aide quotidienne.",
-    eyebrow: "Soutien compagnon prive",
-    title: "Votre espace VYVA est pret",
-    defaultIntro: "Un profil VYVA securise a ete prepare pour vous.",
-    summary: "Configurez votre compte en quelques minutes afin que VYVA garde l'essentiel organise : informations de sante, rappels, soutien de proches de confiance et aide quotidienne quand vous en avez besoin.",
-    featureTitle: "Ce que vous pouvez configurer",
-    features: [
-      "Informations de sante et rappels de medicaments dans un espace calme",
-      "Proches ou aidants de confiance connectes au meme profil",
-      "Aide quotidienne, check-ins et preferences de soutien adaptes a vous",
+    subject: "Bienvenue sur VYVA",
+    preheader: "Services de sante, aide aux medicaments et acces a un medecin toujours a portee.",
+    eyebrow: "Sante par la voix",
+    title: "Decouvrez VYVA, votre compagnon de sante a domicile",
+    defaultIntro: "VYVA est pret pour vous.",
+    summary: "Un soutien simple 24/7 pour les medicaments, les symptomes, les constantes, le quotidien et un medecin a portee de clic.",
+    featureTitle: "Votre soutien sante",
+    benefits: [
+      {
+        label: "SANTE",
+        title: "Des services de sante a domicile",
+        body: "Verifiez les symptomes, suivez les constantes et recevez une orientation simple quand quelque chose ne va pas.",
+      },
+      {
+        label: "DR",
+        title: "Un medecin a portee de clic",
+        body: "Quand vous avez besoin de soins en plus, VYVA vous aide a joindre rapidement un medecin.",
+      },
+      {
+        label: "DOSE",
+        title: "Ne manquez jamais une dose",
+        body: "Des rappels amicaux, des confirmations et des suivis doux vous aident a rester sur la bonne voie.",
+      },
     ],
-    reassurance: "Pendant la configuration, vous pourrez verifier les details, ajuster les preferences et choisir qui participe.",
-    cta: "Configurer mon VYVA",
+    reassurance: "Vos proches peuvent etre informes quand quelque chose demande de l'attention, et vous gardez le controle.",
+    cta: "Commencer avec VYVA",
     startHere: "Commencer ici",
     fallback: "Si le bouton ne fonctionne pas, copiez et collez ce lien dans votre navigateur :",
     ignore: "Cette invitation a ete envoyee avec un lien d'inscription securise VYVA. Si vous ne l'attendiez pas, vous pouvez ignorer cet email.",
   },
   de: {
-    subject: "Sie sind eingeladen, VYVA einzurichten",
-    preheader: "Ihr privater Begleiterbereich ist bereit fuer Gesundheitsdaten, Erinnerungen, Familienhilfe und Alltagshilfe.",
-    eyebrow: "Private Begleiterunterstuetzung",
-    title: "Ihr VYVA Bereich ist bereit",
-    defaultIntro: "Ein sicheres VYVA Profil wurde fuer Sie vorbereitet.",
-    summary: "Richten Sie Ihr Konto in wenigen Minuten ein, damit VYVA das Wichtige organisiert: Gesundheitsdaten, Erinnerungen, Unterstuetzung durch vertraute Personen und Alltagshilfe, wenn Sie sie brauchen.",
-    featureTitle: "Was Sie einrichten koennen",
-    features: [
-      "Gesundheitsdaten und Medikamentenerinnerungen an einem ruhigen Ort",
-      "Vertraute Familienmitglieder oder Betreuungspersonen im selben Profil",
-      "Alltagshilfe, Check-ins und Unterstuetzungswuensche passend zu Ihnen",
+    subject: "Willkommen bei VYVA",
+    preheader: "Gesundheit, Medikamente und Arztzugang immer in Reichweite.",
+    eyebrow: "Gesundheit per Stimme",
+    title: "VYVA begleitet Ihre Gesundheit zuhause",
+    defaultIntro: "VYVA ist fuer Sie bereit.",
+    summary: "Einfache 24/7 Hilfe fuer Medikamente, Symptome, Werte, Alltag und einen Arzt mit nur einem Klick.",
+    featureTitle: "Ihre Gesundheit",
+    benefits: [
+      {
+        label: "CARE",
+        title: "Gesundheit zuhause",
+        body: "Symptome pruefen, Werte verfolgen und einfache Orientierung bekommen, wenn sich etwas nicht richtig anfuehlt.",
+      },
+      {
+        label: "ARZT",
+        title: "Ein Arzt per Klick",
+        body: "Wenn Sie mehr Betreuung brauchen, hilft VYVA Ihnen, schnell einen Arzt zu erreichen.",
+      },
+      {
+        label: "DOSIS",
+        title: "Keine Dosis verpassen",
+        body: "Freundliche Erinnerungen, Bestaetigungen und sanfte Nachfragen helfen Ihnen, dranzubleiben.",
+      },
     ],
-    reassurance: "Bei der Einrichtung koennen Sie Angaben pruefen, Einstellungen anpassen und entscheiden, wer beteiligt ist.",
-    cta: "Mein VYVA einrichten",
+    reassurance: "Ihre Familie kann informiert werden, wenn etwas Aufmerksamkeit braucht, und Sie behalten die Kontrolle.",
+    cta: "Mit VYVA starten",
     startHere: "Hier starten",
     fallback: "Wenn der Button nicht funktioniert, kopieren Sie diesen Link in Ihren Browser:",
     ignore: "Diese Einladung wurde mit einem sicheren VYVA Registrierungslink gesendet. Wenn Sie diese Einladung nicht erwartet haben, koennen Sie diese E-Mail ignorieren.",
   },
   it: {
-    subject: "Sei invitato a configurare VYVA",
-    preheader: "Il tuo spazio compagno privato e pronto per salute, promemoria, supporto familiare e aiuto quotidiano.",
-    eyebrow: "Supporto compagno privato",
-    title: "Il tuo spazio VYVA e pronto",
-    defaultIntro: "E stato preparato per te un profilo VYVA sicuro.",
-    summary: "Configura il tuo account in pochi minuti cosi VYVA puo tenere organizzato l'essenziale: dati sanitari, promemoria, supporto di persone fidate e aiuto quotidiano quando serve.",
-    featureTitle: "Cosa puoi configurare",
-    features: [
-      "Dati sanitari e promemoria farmaci in un luogo tranquillo",
-      "Familiari o caregiver fidati collegati allo stesso profilo",
-      "Aiuto quotidiano, check-in e preferenze di supporto su misura per te",
+    subject: "Benvenuto in VYVA",
+    preheader: "Servizi sanitari, supporto per i farmaci e accesso a un medico sempre a portata di mano.",
+    eyebrow: "Salute guidata dalla voce",
+    title: "Conosci VYVA, la tua compagna di salute a casa",
+    defaultIntro: "VYVA e pronto per te.",
+    summary: "Supporto semplice 24/7 per farmaci, sintomi, parametri vitali, cura quotidiana e un medico a un clic.",
+    featureTitle: "Il tuo supporto salute",
+    benefits: [
+      {
+        label: "SALUTE",
+        title: "Servizi sanitari a casa",
+        body: "Controlla i sintomi, segui i parametri vitali e ricevi indicazioni semplici quando qualcosa non va.",
+      },
+      {
+        label: "MEDICO",
+        title: "Un medico a un clic",
+        body: "Quando serve piu cura, VYVA ti aiuta a raggiungere rapidamente un medico.",
+      },
+      {
+        label: "DOSE",
+        title: "Non saltare una dose",
+        body: "Promemoria amichevoli, conferme e controlli gentili ti aiutano a restare in carreggiata.",
+      },
     ],
-    reassurance: "Durante la configurazione potrai rivedere i dettagli, modificare le preferenze e scegliere chi coinvolgere.",
-    cta: "Configura il mio VYVA",
+    reassurance: "La famiglia puo essere avvisata quando qualcosa richiede attenzione, e il controllo resta a te.",
+    cta: "Inizia con VYVA",
     startHere: "Inizia qui",
     fallback: "Se il pulsante non funziona, copia e incolla questo link nel browser:",
     ignore: "Questo invito e stato inviato con un link sicuro di registrazione VYVA. Se non lo aspettavi, puoi ignorare questa email.",
   },
   pt: {
-    subject: "Tem um convite para configurar a VYVA",
-    preheader: "O seu espaco privado de companhia esta pronto para saude, lembretes, apoio familiar e ajuda diaria.",
-    eyebrow: "Apoio privado de companhia",
-    title: "O seu espaco VYVA esta pronto",
-    defaultIntro: "Foi preparado para si um perfil VYVA seguro.",
-    summary: "Configure a sua conta em poucos minutos para que a VYVA mantenha o essencial organizado: dados de saude, lembretes, apoio de pessoas de confianca e ajuda diaria quando precisar.",
-    featureTitle: "O que pode configurar",
-    features: [
-      "Dados de saude e lembretes de medicacao num local tranquilo",
-      "Familiares ou cuidadores de confianca ligados ao mesmo perfil",
-      "Ajuda diaria, check-ins e preferencias de apoio adaptadas a si",
+    subject: "Bem-vindo a VYVA",
+    preheader: "Servicos de saude, apoio com medicacao e acesso a um medico sempre por perto.",
+    eyebrow: "Saude por voz",
+    title: "Conheca a VYVA, a sua companhia de saude em casa",
+    defaultIntro: "A VYVA esta pronta para si.",
+    summary: "Apoio simples 24/7 para medicacao, sintomas, sinais vitais, cuidado diario e um medico a um clique.",
+    featureTitle: "O seu apoio de saude",
+    benefits: [
+      {
+        label: "SAUDE",
+        title: "Servicos de saude em casa",
+        body: "Verifique sintomas, acompanhe sinais vitais e receba orientacao simples quando algo nao parecer bem.",
+      },
+      {
+        label: "MEDICO",
+        title: "Um medico a um clique",
+        body: "Quando precisar de mais cuidado, a VYVA ajuda-o a chegar rapidamente a um medico.",
+      },
+      {
+        label: "DOSE",
+        title: "Nunca falhe uma dose",
+        body: "Lembretes amigaveis, confirmacoes e acompanhamentos suaves ajudam-no a manter-se no caminho certo.",
+      },
     ],
-    reassurance: "Durante a configuracao, pode rever detalhes, ajustar preferencias e escolher quem participa.",
-    cta: "Configurar a minha VYVA",
+    reassurance: "A familia pode ser informada quando algo precisar de atencao, e mantem sempre o controlo.",
+    cta: "Comecar com VYVA",
     startHere: "Comece aqui",
     fallback: "Se o botao nao funcionar, copie e cole este link no seu navegador:",
     ignore: "Este convite foi enviado atraves de um link seguro de registo VYVA. Se nao estava a espera, pode ignorar este email.",

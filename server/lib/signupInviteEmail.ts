@@ -1,6 +1,6 @@
 import { readFileSync } from "fs";
 import { join } from "path";
-import { normalizeSignupInviteLanguage, signupInviteCopyFor, type SignupInviteLanguage } from "./signupInviteLanguage.js";
+import { normalizeSignupInviteLanguage, signupInviteCopyFor, type SignupInviteBenefit, type SignupInviteLanguage } from "./signupInviteLanguage.js";
 
 export type EmailAttachment = {
   content: string;
@@ -20,6 +20,15 @@ export type SignupInviteEmailPayload = {
 
 const SIGNUP_EMAIL_LOGO_CID_PREFIX = "vyva-logo";
 const cachedSignupEmailLogos = new Map<SignupInviteLanguage, EmailAttachment | null>();
+const BENEFIT_CARD_ACCENTS = [
+  { background: "#14b87a", shadow: "rgba(20,184,122,0.20)" },
+  { background: "#4f6bff", shadow: "rgba(79,107,255,0.20)" },
+  { background: "#f04475", shadow: "rgba(240,68,117,0.20)" },
+  { background: "#ff8a00", shadow: "rgba(255,138,0,0.20)" },
+  { background: "#7d2be8", shadow: "rgba(125,43,232,0.20)" },
+  { background: "#d43bd7", shadow: "rgba(212,59,215,0.20)" },
+] as const;
+const BENEFIT_CARD_ICONS = ["&#10010;", "&#8594;", "&#10003;", "&#10022;", "&#9733;", "&#9829;"] as const;
 
 function defaultPublicBaseUrl() {
   return process.env.APP_URL ?? `http://localhost:${process.env.PORT ?? "5000"}`;
@@ -43,7 +52,7 @@ function paragraphHtml(value: string) {
     .split(/\n{2,}/)
     .map((paragraph) => paragraph.trim())
     .filter(Boolean)
-    .map((paragraph) => `<p style="margin:0 0 12px;font-size:17px;line-height:1.58;color:#4f4355;">${paragraph.replace(/\n/g, "<br>")}</p>`)
+    .map((paragraph) => `<p style="margin:0 0 12px;font-size:17px;line-height:1.58;color:#433a4b;">${paragraph.replace(/\n/g, "<br>")}</p>`)
     .join("");
 }
 
@@ -75,18 +84,27 @@ function signupEmailLogoAttachment(languageInput: unknown) {
   }
 }
 
-function featureRow(index: number, label: string) {
+function benefitCard(benefit: SignupInviteBenefit, index: number) {
+  const accent = BENEFIT_CARD_ACCENTS[index % BENEFIT_CARD_ACCENTS.length];
+  const icon = BENEFIT_CARD_ICONS[index % BENEFIT_CARD_ICONS.length];
   return `
                         <tr>
-                          <td width="34" valign="top" style="padding:0 12px 14px 0;">
-                            <table role="presentation" cellspacing="0" cellpadding="0" width="34" height="34" style="width:34px;height:34px;border-radius:17px;background:#efe6ff;">
+                          <td style="padding:0 0 14px;">
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#ffffff;border:1px solid #e6dff2;border-radius:16px;box-shadow:0 10px 24px rgba(53,28,87,0.07);">
                               <tr>
-                                <td align="center" valign="middle" style="font-size:14px;line-height:34px;font-weight:700;color:#6f22c9;">${index}</td>
+                                <td width="64" valign="top" style="width:64px;padding:18px 0 18px 18px;">
+                                  <table role="presentation" cellspacing="0" cellpadding="0" width="48" style="width:48px;background:${accent.background};border-radius:14px;box-shadow:0 8px 16px ${accent.shadow};">
+                                    <tr>
+                                      <td align="center" style="height:48px;padding:0;font-size:24px;line-height:48px;font-weight:800;color:#ffffff;">${icon}</td>
+                                    </tr>
+                                  </table>
+                                </td>
+                                <td valign="top" style="padding:17px 18px 17px 4px;">
+                                  <p style="margin:0 0 5px;font-size:20px;line-height:1.2;font-weight:800;color:#241133;">${htmlEscape(benefit.title)}</p>
+                                  <p style="margin:0;font-size:15px;line-height:1.5;color:#4b4254;">${htmlEscape(benefit.body)}</p>
+                                </td>
                               </tr>
                             </table>
-                          </td>
-                          <td valign="top" style="padding:1px 0 14px;">
-                            <p style="margin:0;font-size:15px;line-height:1.45;color:#4f4355;">${htmlEscape(label)}</p>
                           </td>
                         </tr>`;
 }
@@ -99,7 +117,8 @@ export function buildSignupInviteEmail(
   const language = normalizeSignupInviteLanguage(metadata.language);
   const copy = signupInviteCopyFor(metadata.language);
   const loginUrl = metadataString(metadata, "url") ?? `${baseUrl.replace(/\/$/, "")}/login`;
-  const intro = metadataString(metadata, "intro") ?? introFromLegacyBody(fallbackBody) ?? copy.defaultIntro;
+  const customIntro = metadataString(metadata, "intro") ?? introFromLegacyBody(fallbackBody);
+  const intro = customIntro ?? copy.defaultIntro;
   const subject = metadataString(metadata, "subject") ?? copy.subject;
   const logoAttachment = signupEmailLogoAttachment(language);
   const logoSrc = logoAttachment
@@ -107,15 +126,16 @@ export function buildSignupInviteEmail(
     : `${baseUrl.replace(/\/$/, "")}/assets/vyva/vyva-logo-${language}.png`;
   const text = [
     copy.preheader,
-    intro,
+    customIntro,
     copy.summary,
+    copy.outcomeBadge,
     `${copy.featureTitle}:`,
-    ...copy.features.map((feature) => `- ${feature}`),
+    ...copy.benefits.map((benefit) => `${benefit.title}: ${benefit.body}`),
     copy.reassurance,
     `${copy.startHere}: ${loginUrl}`,
     `${copy.fallback} ${loginUrl}`,
     copy.ignore,
-  ].join("\n\n");
+  ].filter(Boolean).join("\n\n");
   const safeUrl = htmlEscape(loginUrl);
   const safePreheader = htmlEscape(copy.preheader);
   const html = `<!doctype html>
@@ -125,12 +145,12 @@ export function buildSignupInviteEmail(
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${htmlEscape(subject)}</title>
   </head>
-  <body style="margin:0;background:#f4efe7;color:#2f2135;font-family:Arial,Helvetica,sans-serif;">
+  <body style="margin:0;background:#f7f3fb;color:#241133;font-family:Arial,Helvetica,sans-serif;">
     <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${safePreheader}</div>
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4efe7;padding:28px 12px;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f7f3fb;">
       <tr>
-        <td align="center">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#fffaf4;border:1px solid #e7d8ca;border-radius:28px;overflow:hidden;box-shadow:0 18px 50px rgba(47,20,63,0.10);">
+        <td align="center" style="padding:28px 6px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#ffffff;border:1px solid #ebe4f4;border-radius:28px;overflow:hidden;box-shadow:0 20px 54px rgba(53,28,87,0.13);">
             <tr>
               <td style="padding:30px 36px 20px;">
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
@@ -138,7 +158,7 @@ export function buildSignupInviteEmail(
                     <td align="left" valign="middle">
                       <img src="${htmlEscape(logoSrc)}" width="116" alt="VYVA" style="display:block;width:116px;max-width:116px;height:auto;border:0;outline:none;text-decoration:none;">
                     </td>
-                    <td align="right" valign="middle" style="font-size:12px;line-height:1.2;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#8f6d18;">
+                    <td align="right" valign="middle" style="font-size:12px;line-height:1.2;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#6b4bb0;">
                       ${htmlEscape(copy.eyebrow)}
                     </td>
                   </tr>
@@ -147,30 +167,35 @@ export function buildSignupInviteEmail(
             </tr>
             <tr>
               <td style="padding:0 28px 0;">
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#341344;border-radius:22px;overflow:hidden;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#5f16c9;background-image:linear-gradient(135deg,#9a14f4 0%,#5d1bc7 48%,#24185f 100%);border-radius:22px;overflow:hidden;">
                   <tr>
-                    <td style="padding:32px 32px 30px;">
-                      <p style="margin:0 0 12px;font-size:12px;line-height:1.2;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#f6b63d;">${htmlEscape(copy.startHere)}</p>
-                      <h1 style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:38px;line-height:1.08;font-weight:500;color:#ffffff;">${htmlEscape(copy.title)}</h1>
-                      <p style="margin:18px 0 0;font-size:17px;line-height:1.55;color:#f0e5f6;">${htmlEscape(copy.summary)}</p>
+                    <td style="padding:34px 32px 32px;">
+                      <p style="margin:0 0 12px;font-size:12px;line-height:1.2;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#ffca4b;">${htmlEscape(copy.startHere)}</p>
+                      <h1 style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:37px;line-height:1.08;font-weight:600;color:#ffffff;">${htmlEscape(copy.title)}</h1>
+                      <p style="margin:18px 0 0;font-size:18px;line-height:1.55;color:#f6efff;">${htmlEscape(copy.summary)}</p>
+                      ${copy.outcomeBadge ? `<table role="presentation" cellspacing="0" cellpadding="0" style="margin:20px 0 0;background:#ffffff;border-radius:999px;">
+                        <tr>
+                          <td style="padding:9px 14px;font-size:13px;line-height:1.2;font-weight:800;color:#4b1a87;">${htmlEscape(copy.outcomeBadge)}</td>
+                        </tr>
+                      </table>` : ""}
                     </td>
                   </tr>
                 </table>
               </td>
             </tr>
-            <tr>
-              <td style="padding:28px 36px 8px;">
+            ${customIntro ? `<tr>
+              <td style="padding:24px 36px 4px;">
                 ${paragraphHtml(intro)}
               </td>
-            </tr>
+            </tr>` : ""}
             <tr>
-              <td style="padding:10px 36px 4px;">
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#ffffff;border:1px solid #eaded2;border-radius:18px;">
+              <td style="padding:${customIntro ? "10px" : "24px"} 36px 4px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8f5ff;border:1px solid #e8dfff;border-radius:18px;">
                   <tr>
-                    <td style="padding:22px 24px 8px;">
-                      <p style="margin:0 0 16px;font-size:13px;line-height:1.2;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#7b5a10;">${htmlEscape(copy.featureTitle)}</p>
+                    <td style="padding:22px 22px 8px;">
+                      <p style="margin:0 0 16px;font-size:13px;line-height:1.2;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#6b4bb0;">${htmlEscape(copy.featureTitle)}</p>
                       <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
-                        ${copy.features.map((feature, index) => featureRow(index + 1, feature)).join("")}
+                        ${copy.benefits.map((benefit, index) => benefitCard(benefit, index)).join("")}
                       </table>
                     </td>
                   </tr>
@@ -179,24 +204,24 @@ export function buildSignupInviteEmail(
             </tr>
             <tr>
               <td style="padding:22px 36px 18px;">
-                <a href="${safeUrl}" style="display:block;background:#6f22c9;background-image:linear-gradient(135deg,#7d2be8,#4f46e5);color:#ffffff;text-decoration:none;text-align:center;border-radius:999px;padding:18px 24px;font-size:18px;line-height:1.2;font-weight:700;">${htmlEscape(copy.cta)}</a>
-                <p style="margin:14px 0 0;text-align:center;font-size:14px;line-height:1.5;color:#6f5f5a;">${htmlEscape(copy.reassurance)}</p>
+                <a href="${safeUrl}" style="display:block;background:#7d2be8;background-image:linear-gradient(135deg,#8f22f5,#4f46e5);color:#ffffff;text-decoration:none;text-align:center;border-radius:999px;padding:19px 24px;font-size:19px;line-height:1.2;font-weight:800;box-shadow:0 12px 24px rgba(111,34,201,0.28);">${htmlEscape(copy.cta)}</a>
+                <p style="margin:14px 0 0;text-align:center;font-size:15px;line-height:1.5;color:#5c5267;">${htmlEscape(copy.reassurance)}</p>
               </td>
             </tr>
             <tr>
               <td style="padding:0 36px 30px;">
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8f2ea;border-radius:14px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f7f3fb;border-radius:14px;">
                   <tr>
                     <td style="padding:16px 18px;">
-                      <p style="margin:0;font-size:13px;line-height:1.6;color:#806f66;">${htmlEscape(copy.fallback)}<br><a href="${safeUrl}" style="color:#6f22c9;word-break:break-all;">${safeUrl}</a></p>
+                      <p style="margin:0;font-size:13px;line-height:1.6;color:#665d70;">${htmlEscape(copy.fallback)}<br><a href="${safeUrl}" style="color:#6f22c9;word-break:break-all;">${safeUrl}</a></p>
                     </td>
                   </tr>
                 </table>
               </td>
             </tr>
             <tr>
-              <td style="border-top:1px solid #eaded2;padding:20px 36px 28px;background:#fff7ee;">
-                <p style="margin:0;font-size:13px;line-height:1.6;color:#8b7b74;">${htmlEscape(copy.ignore)}</p>
+              <td style="border-top:1px solid #ebe4f4;padding:20px 36px 28px;background:#fbf9ff;">
+                <p style="margin:0;font-size:13px;line-height:1.6;color:#70677b;">${htmlEscape(copy.ignore)}</p>
               </td>
             </tr>
           </table>
