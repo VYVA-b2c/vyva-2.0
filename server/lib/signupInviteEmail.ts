@@ -19,6 +19,9 @@ export type SignupInviteEmailPayload = {
 };
 
 const SIGNUP_EMAIL_LOGO_CID_PREFIX = "vyva-logo";
+const VYVA_WEBSITE_URL = "https://vyva.life";
+const VYVA_PRIVACY_URL = "https://vyva.life/privacypolicy";
+const VYVA_TERMS_URL = "https://vyva.life/securityencryption";
 const cachedSignupEmailLogos = new Map<SignupInviteLanguage, EmailAttachment | null>();
 const BENEFIT_CARD_ACCENTS = [
   { background: "#14b87a", shadow: "rgba(20,184,122,0.20)" },
@@ -138,6 +141,9 @@ export function buildSignupInviteEmail(
     `${copy.startHere}: ${loginUrl}`,
     `${copy.fallback} ${loginUrl}`,
     copy.ignore,
+    `VYVA: ${VYVA_WEBSITE_URL}`,
+    `Privacy Policy: ${VYVA_PRIVACY_URL}`,
+    `Terms of Service: ${VYVA_TERMS_URL}`,
   ].filter(Boolean).join("\n\n");
   const safeUrl = htmlEscape(loginUrl);
   const safePreheader = htmlEscape(copy.preheader);
@@ -226,6 +232,22 @@ export function buildSignupInviteEmail(
             <tr>
               <td style="border-top:1px solid #ebe4f4;padding:20px 36px 28px;background:#fbf9ff;">
                 <p style="margin:0;font-size:13px;line-height:1.6;color:#70677b;">${htmlEscape(copy.ignore)}</p>
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:18px;border-top:1px solid #ebe4f4;">
+                  <tr>
+                    <td style="padding:16px 0 0;font-size:13px;line-height:1.6;color:#7d8fb3;">
+                      &copy; 2026 VYVA. All rights reserved.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:8px 0 0;font-size:13px;line-height:1.6;">
+                      <a href="${VYVA_WEBSITE_URL}" style="color:#6b7fab;text-decoration:none;">Website</a>
+                      <span style="color:#c0b8cf;">&nbsp;&nbsp;|&nbsp;&nbsp;</span>
+                      <a href="${VYVA_PRIVACY_URL}" style="color:#6b7fab;text-decoration:none;">Privacy Policy</a>
+                      <span style="color:#c0b8cf;">&nbsp;&nbsp;|&nbsp;&nbsp;</span>
+                      <a href="${VYVA_TERMS_URL}" style="color:#6b7fab;text-decoration:none;">Terms of Service</a>
+                    </td>
+                  </tr>
+                </table>
               </td>
             </tr>
           </table>

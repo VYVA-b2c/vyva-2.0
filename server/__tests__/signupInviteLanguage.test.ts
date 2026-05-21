@@ -91,10 +91,15 @@ describe("signup invite language", () => {
       url: "https://v2.vyva.life/invite?lang=en",
     }, null, "https://v2.vyva.life");
 
-    expect(email.html).toContain("Hi Maria &lt;Care&gt;,");
-    expect(email.text).toContain("Hi Maria <Care>,");
+    expect(email.html).toContain("Dear Maria &lt;Care&gt;,");
+    expect(email.text).toContain("Dear Maria <Care>,");
     expect(email.html).toContain('href="https://v2.vyva.life/invite?lang=en"');
     expect(email.text).toContain("Your VYVA is ready: https://v2.vyva.life/invite?lang=en");
+    expect(email.html).toContain('href="https://vyva.life"');
+    expect(email.html).toContain('href="https://vyva.life/privacypolicy"');
+    expect(email.html).toContain('href="https://vyva.life/securityencryption"');
+    expect(email.html).toContain("Terms of Service");
+    expect(email.text).toContain("Privacy Policy: https://vyva.life/privacypolicy");
   });
 
   it("keeps the default email short when there is no admin message", () => {
@@ -134,6 +139,7 @@ describe("signup invite language", () => {
     const copy = signupInviteCopyFor("en");
 
     expect(copy.title).toBe("Feel supported every day");
+    expect(copy.greeting).toBe("Dear");
     expect(copy.outcomeBadge).toBe("More confidence at home");
     expect(copy.startHere).toBe("Your VYVA is ready");
     expect(copy.benefits.map((benefit) => benefit.title)).toEqual([
