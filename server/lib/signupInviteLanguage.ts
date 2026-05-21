@@ -72,7 +72,7 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     reassurance: "Set it up once. Use it anytime.",
     cta: "Set up VYVA",
     startHere: "Your VYVA is ready",
-    fallback: "If the button does not work, copy and paste this link into your browser:",
+    fallback: "Setup link:",
     ignore: "This invitation was sent using a secure VYVA signup link. If you were not expecting it, you can ignore this email.",
   },
   es: {
@@ -104,7 +104,7 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     reassurance: "Tu familia puede recibir avisos cuando algo necesita atencion, y tu tienes el control.",
     cta: "Empezar con VYVA",
     startHere: "Empieza aqui",
-    fallback: "Si el boton no funciona, copia y pega este enlace en tu navegador:",
+    fallback: "Enlace de configuracion:",
     ignore: "Esta invitacion se envio mediante un enlace seguro de registro de VYVA. Si no la esperabas, puedes ignorar este email.",
   },
   fr: {
@@ -136,7 +136,7 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     reassurance: "Vos proches peuvent etre informes quand quelque chose demande de l'attention, et vous gardez le controle.",
     cta: "Commencer avec VYVA",
     startHere: "Commencer ici",
-    fallback: "Si le bouton ne fonctionne pas, copiez et collez ce lien dans votre navigateur :",
+    fallback: "Lien de configuration :",
     ignore: "Cette invitation a ete envoyee avec un lien d'inscription securise VYVA. Si vous ne l'attendiez pas, vous pouvez ignorer cet email.",
   },
   de: {
@@ -168,7 +168,7 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     reassurance: "Ihre Familie kann informiert werden, wenn etwas Aufmerksamkeit braucht, und Sie behalten die Kontrolle.",
     cta: "Mit VYVA starten",
     startHere: "Hier starten",
-    fallback: "Wenn der Button nicht funktioniert, kopieren Sie diesen Link in Ihren Browser:",
+    fallback: "Einrichtungslink:",
     ignore: "Diese Einladung wurde mit einem sicheren VYVA Registrierungslink gesendet. Wenn Sie diese Einladung nicht erwartet haben, koennen Sie diese E-Mail ignorieren.",
   },
   it: {
@@ -200,7 +200,7 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     reassurance: "La famiglia puo essere avvisata quando qualcosa richiede attenzione, e il controllo resta a te.",
     cta: "Inizia con VYVA",
     startHere: "Inizia qui",
-    fallback: "Se il pulsante non funziona, copia e incolla questo link nel browser:",
+    fallback: "Link di configurazione:",
     ignore: "Questo invito e stato inviato con un link sicuro di registrazione VYVA. Se non lo aspettavi, puoi ignorare questa email.",
   },
   pt: {
@@ -232,7 +232,7 @@ const SIGNUP_INVITE_COPY: Record<SignupInviteLanguage, SignupInviteCopy> = {
     reassurance: "A familia pode ser informada quando algo precisar de atencao, e mantem sempre o controlo.",
     cta: "Comecar com VYVA",
     startHere: "Comece aqui",
-    fallback: "Se o botao nao funcionar, copie e cole este link no seu navegador:",
+    fallback: "Link de configuracao:",
     ignore: "Este convite foi enviado atraves de um link seguro de registo VYVA. Se nao estava a espera, pode ignorar este email.",
   },
 };
