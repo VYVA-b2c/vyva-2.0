@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import vyvaLogo from "@/assets/vyva-logo.png";
 
-const StatusBar = () => {
+const StatusBar = ({ wide = false }: { wide?: boolean }) => {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const now = new Date();
@@ -21,7 +21,7 @@ const StatusBar = () => {
   const date = now.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" });
 
   return (
-    <div className="fixed left-1/2 top-0 z-50 w-full max-w-[520px] -translate-x-1/2 border-b border-vyva-border bg-white/95 px-[22px] py-2.5 backdrop-blur">
+    <div className={`fixed left-1/2 top-0 z-50 w-full -translate-x-1/2 border-b border-vyva-border bg-white/95 px-[22px] py-2.5 backdrop-blur ${wide ? "max-w-[920px]" : "max-w-[520px]"}`}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <img src={vyvaLogo} alt="VYVA" className="h-[34px] w-[34px] rounded-full object-cover shadow-md" />

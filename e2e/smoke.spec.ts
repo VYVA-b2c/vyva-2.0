@@ -102,6 +102,15 @@ async function mockApi(page: Page, signedIn = false) {
   });
 }
 
+async function expectNoHorizontalOverflow(page: Page) {
+  const overflow = await page.evaluate(() => {
+    const root = document.documentElement;
+    return root.scrollWidth - root.clientWidth;
+  });
+
+  expect(overflow).toBeLessThanOrEqual(1);
+}
+
 test("login screen renders auth controls", async ({ page }) => {
   await mockApi(page);
   await page.goto("/login", { waitUntil: "domcontentloaded" });
@@ -145,4 +154,51 @@ test("settings plan row shows the effective premium subscription", async ({ page
   await expect(page.getByText("Subscription active")).toBeVisible();
   await expect(page.getByText("Premium")).toBeVisible();
   await expect(page.getByText("Free", { exact: true })).toHaveCount(0);
+});
+
+test("settings home uses a wider responsive shell on tablet and desktop", async ({ page }) => {
+  await mockApi(page, true);
+
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.goto("/settings", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+
+  const frameBox = await page.getByTestId("phone-frame").boundingBox();
+  expect(frameBox).not.toBeNull();
+  expect(frameBox!.width).toBeGreaterThan(700);
+  expect(frameBox!.width).toBeLessThanOrEqual(822);
+  await expect(page.getByTestId("settings-home-grid")).toHaveCSS("grid-template-columns", /[0-9.]+px [0-9.]+px/);
+  await expectNoHorizontalOverflow(page);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  const mobileFrameBox = await page.getByTestId("phone-frame").boundingBox();
+  expect(mobileFrameBox).not.toBeNull();
+  expect(mobileFrameBox!.width).toBeLessThanOrEqual(390);
+  await expectNoHorizontalOverflow(page);
+});
+
+test("profile overview constrains desktop width and switches section rows into cards", async ({ page }) => {
+  await mockApi(page, true);
+
+  await page.setViewportSize({ width: 1920, height: 900 });
+  await page.goto("/onboarding/profile", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "Your profile" })).toBeVisible();
+
+  const sectionListBox = await page.getByTestId("list-profile-sections").boundingBox();
+  expect(sectionListBox).not.toBeNull();
+  expect(sectionListBox!.width).toBeGreaterThan(1000);
+  expect(sectionListBox!.width).toBeLessThanOrEqual(1120);
+  await expect(page.getByTestId("list-profile-sections")).toHaveCSS(
+    "grid-template-columns",
+    /[0-9.]+px [0-9.]+px [0-9.]+px/,
+  );
+  await expectNoHorizontalOverflow(page);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  const mobileSectionListBox = await page.getByTestId("list-profile-sections").boundingBox();
+  expect(mobileSectionListBox).not.toBeNull();
+  expect(mobileSectionListBox!.width).toBeLessThanOrEqual(350);
+  await expectNoHorizontalOverflow(page);
 });
