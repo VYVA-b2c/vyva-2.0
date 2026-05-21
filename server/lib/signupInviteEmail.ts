@@ -28,6 +28,7 @@ const BENEFIT_CARD_ACCENTS = [
   { background: "#7d2be8", shadow: "rgba(125,43,232,0.20)" },
   { background: "#d43bd7", shadow: "rgba(212,59,215,0.20)" },
 ] as const;
+const BENEFIT_CARD_ICONS = ["&#10010;", "&#8594;", "&#10003;", "&#10022;", "&#9733;", "&#9829;"] as const;
 
 function defaultPublicBaseUrl() {
   return process.env.APP_URL ?? `http://localhost:${process.env.PORT ?? "5000"}`;
@@ -85,6 +86,7 @@ function signupEmailLogoAttachment(languageInput: unknown) {
 
 function benefitCard(benefit: SignupInviteBenefit, index: number) {
   const accent = BENEFIT_CARD_ACCENTS[index % BENEFIT_CARD_ACCENTS.length];
+  const icon = BENEFIT_CARD_ICONS[index % BENEFIT_CARD_ICONS.length];
   return `
                         <tr>
                           <td style="padding:0 0 14px;">
@@ -93,7 +95,7 @@ function benefitCard(benefit: SignupInviteBenefit, index: number) {
                                 <td width="64" valign="top" style="width:64px;padding:18px 0 18px 18px;">
                                   <table role="presentation" cellspacing="0" cellpadding="0" width="48" style="width:48px;background:${accent.background};border-radius:14px;box-shadow:0 8px 16px ${accent.shadow};">
                                     <tr>
-                                      <td align="center" style="height:48px;padding:0 4px;font-size:10px;line-height:1.1;font-weight:800;letter-spacing:0.04em;color:#ffffff;">${htmlEscape(benefit.label)}</td>
+                                      <td align="center" style="height:48px;padding:0;font-size:24px;line-height:48px;font-weight:800;color:#ffffff;">${icon}</td>
                                     </tr>
                                   </table>
                                 </td>

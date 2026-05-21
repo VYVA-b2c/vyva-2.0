@@ -51,6 +51,11 @@ describe("signup invite language", () => {
     expect(email.html).toContain("Brain Coach");
     expect(email.html).toContain("Concierge help");
     expect(email.html).toContain("Companionship");
+    expect(email.html).toContain("&#10010;");
+    expect(email.html).toContain("&#8594;");
+    expect(email.html).toContain("&#9829;");
+    expect(email.html).not.toContain(">CARE<");
+    expect(email.html).not.toContain(">BRAIN<");
     expect(email.text).toContain("A doctor just a click away: Get help reaching a doctor when extra care is needed.");
   });
 
