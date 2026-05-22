@@ -713,7 +713,10 @@ authRouter.post("/reset-request", async (req: Request, res: Response) => {
     await sendPasswordResetEmail({ to: user.email, resetLink });
   } catch (err) {
     console.error("[auth] Failed to send password reset email:", err);
-    return res.status(500).json({ error: "Failed to send reset email. Please try again later." });
+    const message = err instanceof Error && err.message.trim()
+      ? err.message
+      : "Failed to send reset email. Please try again later.";
+    return res.status(503).json({ error: message });
   }
 
   const response: Record<string, unknown> = { ...genericOk };
