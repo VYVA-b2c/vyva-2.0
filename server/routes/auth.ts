@@ -47,6 +47,12 @@ function buildPublicAppLink(req: Request, path: string): string {
   return `${appUrl}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
+function isLocalRequest(req: Request): boolean {
+  if (process.env.NODE_ENV === "test") return true;
+  const host = (req.get("x-forwarded-host")?.split(",")[0]?.trim() || req.get("host") || "").toLowerCase();
+  return host.startsWith("localhost") || host.startsWith("127.0.0.1") || host.startsWith("[::1]") || host.startsWith("::1");
+}
+
 type ContactIdentifier = {
   email: string | null;
   phone: string | null;
@@ -512,7 +518,7 @@ authRouter.post("/magic-link-request", async (req: Request, res: Response) => {
 
   if (user.email) {
     try {
-      await sendMagicLoginEmail({ to: user.email, magicLink });
+      await sendMagicLoginEmail({ to: user.email, magicLink, allowDevelopmentLog: isLocalRequest(req) });
     } catch (err) {
       console.error("[auth] Failed to send magic login email:", err);
       return res.status(500).json({ error: "Failed to send sign-in link. Please try again later." });
@@ -711,7 +717,7 @@ authRouter.post("/reset-request", async (req: Request, res: Response) => {
   }
 
   try {
-    await sendPasswordResetEmail({ to: user.email, resetLink });
+    await sendPasswordResetEmail({ to: user.email, resetLink, allowDevelopmentLog: isLocalRequest(req) });
   } catch (err) {
     console.error("[auth] Failed to send password reset email:", err);
     const message = err instanceof Error && err.message.trim()
@@ -724,7 +730,7 @@ authRouter.post("/reset-request", async (req: Request, res: Response) => {
 
   // Expose token only in non-production environments so tests can retrieve it
   // directly from the API without requiring a real mail server.
-  if (isDev) {
+  if (isDev && isLocalRequest(req)) {
     response._devToken = resetToken;
   }
 

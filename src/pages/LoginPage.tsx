@@ -847,9 +847,15 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
     setForgotLoading(true);
     try {
       const email = forgotEmail.trim();
+      let supabaseResetFailed = false;
       if (await isSupabaseAuthAvailable()) {
-        await sendSupabasePasswordReset(email);
-      } else {
+        try {
+          await sendSupabasePasswordReset(email);
+        } catch {
+          supabaseResetFailed = true;
+        }
+      }
+      if (supabaseResetFailed || !(await isSupabaseAuthAvailable())) {
         const res = await fetch("/api/auth/reset-request", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
