@@ -72,7 +72,7 @@ type SupportScheduleDraft = {
 const adminTabs = [
   { id: "users", label: "People" },
   { id: "accounts", label: "App Access" },
-  { id: "invites", label: "Invites" },
+  { id: "invites", label: "Forms" },
   { id: "consent", label: "Consent" },
   { id: "organizations", label: "Organizations" },
   { id: "tiers", label: "Tiers" },
@@ -1060,8 +1060,8 @@ export default function LifecycleAdminPage() {
     <main className="min-h-screen bg-[#f7f2eb] px-4 py-4 text-[#2f2135] sm:px-6">
       <section className="mx-auto max-w-7xl">
         <AdminPageHeader
-          title="Signup, Access and Lifecycle"
-          subtitle="One operating layer for form, phone, WhatsApp and admin-created users."
+          title="Lifecycle"
+          subtitle="People, forms, access."
         >
           <button className="rounded-xl bg-purple-700 px-4 py-2 text-sm font-bold text-white" onClick={() => refresh().catch((err) => setMessage(err.message))}>Refresh</button>
           {message && <span className="rounded-xl bg-purple-50 px-3 py-2 text-sm font-bold text-purple-800">{message}</span>}

@@ -4,12 +4,13 @@ import { useAuth } from "@/contexts/AuthContext";
 const SUPER_ADMIN_EMAIL = (import.meta.env.VITE_SUPER_ADMIN_EMAIL ?? "karim.assad@mokadigital.net").toLowerCase();
 
 const adminItems = [
-  { label: "Lifecycle", path: "/admin/lifecycle", description: "Users, invites, consent and orgs" },
+  { label: "Lifecycle", path: "/admin/lifecycle", description: "Users, forms, consent and orgs" },
   { label: "Admins", path: "/admin/users", description: "Manage admin access" },
+  { label: "Phone onboarding", path: "/admin/phone-onboarding", description: "Inbound caller intake" },
   { label: "Home cards", path: "/admin/home-cards", description: "Personalized Today cards" },
   { label: "Hero messages", path: "/admin/hero-messages", description: "Banner copy and rules" },
   { label: "Voice readiness", path: "/admin/voice-readiness", description: "Agent context contracts" },
-  { label: "Proxy pending", path: "/admin/proxy-pending", description: "Caregiver proxy requests" },
+  { label: "Caregivers", path: "/admin/proxy-pending", description: "Elder assignments and support" },
 ];
 
 export default function AdminMenu() {
