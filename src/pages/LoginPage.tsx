@@ -857,7 +857,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         });
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
-          throw new Error(body?.message || copy.errors.requestFailed);
+          throw new Error(body?.error || body?.message || copy.errors.requestFailed);
         }
       }
       setForgotSent(true);
