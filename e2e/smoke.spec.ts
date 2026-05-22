@@ -122,6 +122,24 @@ test("login screen renders auth controls", async ({ page }) => {
   await expect(page.getByTestId("button-auth-submit")).toBeVisible();
 });
 
+test("public landing page promotes VYVA and remains responsive", async ({ page }) => {
+  await mockApi(page);
+
+  await page.setViewportSize({ width: 1280, height: 760 });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(page.getByTestId("landing-page")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Private daily support for later life." })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Create your VYVA account" })).toBeVisible();
+  await expect(page.getByText("One private profile")).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.getByTestId("landing-page")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Get started" })).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+});
+
 test("login screen exposes caregiver and on-behalf account intent", async ({ page }) => {
   await mockApi(page);
   await page.goto("/login", { waitUntil: "domcontentloaded" });

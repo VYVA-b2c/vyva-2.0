@@ -730,9 +730,11 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   const location = useLocation();
   const rawFrom = (location.state as { from?: string })?.from;
   const from = adminOnly ? "/admin/lifecycle" : rawFrom && rawFrom !== "/onboarding" ? rawFrom : null;
+  const requestedAuthMode = new URLSearchParams(location.search).get("mode") === "login" ? "login" : "register";
+  const initialAuthMode = adminOnly ? "login" : requestedAuthMode;
 
-  const [mode, setMode] = useState<"login" | "register">(adminOnly ? "login" : "register");
-  const [view, setView] = useState<View>(adminOnly ? "login" : "register");
+  const [mode, setMode] = useState<"login" | "register">(initialAuthMode);
+  const [view, setView] = useState<View>(initialAuthMode);
   const [setupIntent, setSetupIntent] = useState<SetupIntent>("self");
   const [contact, setContact] = useState("");
   const [password, setPassword] = useState("");

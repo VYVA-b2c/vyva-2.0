@@ -14,6 +14,7 @@ import { VoiceActionProvider } from "@/contexts/VoiceActionContext";
 import { VyvaVoiceProvider } from "@/hooks/useVyvaVoice";
 import { recordAgentButtonClick, recordAgentPageChange } from "@/lib/agentAppContext";
 import LoginPage from "@/pages/LoginPage";
+import LandingPage from "@/pages/LandingPage";
 import InviteLandingPage from "@/pages/InviteLandingPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import AccessLinkPage from "@/pages/AccessLinkPage";
@@ -283,6 +284,19 @@ function NumberTrailsRoute() {
   return <NumberTrails userId={user?.id ?? ""} onExit={() => navigate("/executive-function")} />;
 }
 
+function RootRoute() {
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) return <div className="min-h-screen bg-[#F8F4EF]" />;
+  if (!user) return <LandingPage />;
+
+  return (
+    <AppShell>
+      <HomeScreen />
+    </AppShell>
+  );
+}
+
 function getInteractiveLabel(element: Element): string {
   const explicitLabel =
     element.getAttribute("aria-label") ||
@@ -335,6 +349,7 @@ const App = () => (
                 <VoiceActionProvider>
                   <AgentAppContextTracker />
                   <Routes>
+                <Route path="/" element={<RootRoute />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/invite" element={<InviteLandingPage />} />
                 <Route path="/admin/login" element={<LoginPage adminOnly />} />
@@ -369,7 +384,6 @@ const App = () => (
                   <Route path="/settings/account" element={<AppShell><AccountSettings /></AppShell>} />
                   <Route path="/settings/notifications" element={<AppShell><NotificationsSettings /></AppShell>} />
                   <Route path="/settings/scheduled-support" element={<AppShell><ScheduledSupportSettings /></AppShell>} />
-                  <Route path="/" element={<AppShell><HomeScreen /></AppShell>} />
                   <Route path="/chat" element={<AppShell><ServiceGateRoute service="chat"><ChatScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/health" element={<AppShell><HealthScreen /></AppShell>} />
                   <Route path="/health/doctor" element={<AppShell><ServiceGateRoute service="doctor"><DoctorChoiceScreen /></ServiceGateRoute></AppShell>} />
