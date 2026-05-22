@@ -42,6 +42,30 @@ function metadataString(metadata: Record<string, unknown>, key: string) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function compactName(value: string | null | undefined) {
+  const normalized = (value ?? "").replace(/\s+/g, " ").trim();
+  return normalized || null;
+}
+
+function recipientNameFromInviteUrl(value: string | null) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return compactName([
+      url.searchParams.get("first_name"),
+      url.searchParams.get("last_name"),
+    ].filter(Boolean).join(" ")) ?? compactName(url.searchParams.get("name"));
+  } catch {
+    return null;
+  }
+}
+
+export function signupInviteRecipientNameFromMetadata(metadata: Record<string, unknown>) {
+  return metadataString(metadata, "recipient_name")
+    ?? metadataString(metadata, "name")
+    ?? recipientNameFromInviteUrl(metadataString(metadata, "url"));
+}
+
 function htmlEscape(value: string) {
   return value
     .replace(/&/g, "&amp;")
@@ -123,7 +147,7 @@ export function buildSignupInviteEmail(
   const customIntro = metadataString(metadata, "intro") ?? introFromLegacyBody(fallbackBody);
   const intro = customIntro ?? copy.defaultIntro;
   const subject = metadataString(metadata, "subject") ?? copy.subject;
-  const recipientName = metadataString(metadata, "recipient_name");
+  const recipientName = signupInviteRecipientNameFromMetadata(metadata);
   const greeting = recipientName ? `${copy.greeting} ${recipientName},` : null;
   const logoAttachment = signupEmailLogoAttachment(language);
   const logoSrc = logoAttachment

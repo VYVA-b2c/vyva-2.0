@@ -3,7 +3,7 @@ import nodemailer from "nodemailer";
 import { db } from "../db.js";
 import { communicationsLog } from "../../shared/schema.js";
 import { explainEmailProviderError, requireEmailFromAddress } from "../lib/emailSenderConfig.js";
-import { buildSignupInviteEmail } from "../lib/signupInviteEmail.js";
+import { buildSignupInviteEmail, signupInviteRecipientNameFromMetadata } from "../lib/signupInviteEmail.js";
 import { queueDueConsentCalls } from "./lifecycle.js";
 
 type Communication = typeof communicationsLog.$inferSelect;
@@ -156,6 +156,8 @@ async function sendWhatsapp(item: Communication) {
 async function sendEmail(item: Communication) {
   const apiKey = process.env.SENDGRID_API_KEY;
   const email = buildEmailPayload(item);
+  const metadata = metadataRecord(item.metadata);
+  const recipientName = signupInviteRecipientNameFromMetadata(metadata);
   const from = requireEmailFromAddress({ allowDevelopmentFallback: true });
   const replyTo = process.env.NOTIFY_REPLY_TO_EMAIL?.trim() || from;
 
@@ -177,7 +179,7 @@ async function sendEmail(item: Communication) {
     await transport.sendMail({
       from: { name: "VYVA", address: from },
       replyTo,
-      to: item.recipient,
+      to: recipientName ? { name: recipientName, address: item.recipient } : item.recipient,
       subject: email.subject,
       text: email.text,
       ...(email.html ? { html: email.html } : {}),
@@ -205,7 +207,10 @@ async function sendEmail(item: Communication) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      personalizations: [{ to: [{ email: item.recipient }], subject: email.subject }],
+      personalizations: [{
+        to: [{ email: item.recipient, ...(recipientName ? { name: recipientName } : {}) }],
+        subject: email.subject,
+      }],
       from: { email: from, name: "VYVA" },
       reply_to: { email: replyTo, name: "VYVA" },
       content,
