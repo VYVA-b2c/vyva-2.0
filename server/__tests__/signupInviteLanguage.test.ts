@@ -124,6 +124,16 @@ describe("signup invite language", () => {
     expect(email.text).toContain("Privacy Policy: https://vyva.life/privacypolicy");
   });
 
+  it("uses setup link prefill details as a fallback recipient greeting", () => {
+    const email = buildSignupInviteEmail({
+      language: "en",
+      url: "https://v2.vyva.life/settings/account?lang=en&first_name=Maria&last_name=Gomez",
+    }, null, "https://v2.vyva.life");
+
+    expect(email.html).toContain("Dear Maria Gomez,");
+    expect(email.text).toContain("Dear Maria Gomez,");
+  });
+
   it("keeps the default email short when there is no admin message", () => {
     const email = buildSignupInviteEmail({
       language: "en",
