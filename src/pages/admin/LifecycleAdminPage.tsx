@@ -1,4 +1,4 @@
-import { Copy, Send } from "lucide-react";
+import { Copy, Send, Upload } from "lucide-react";
 import { useEffect, useState, type ChangeEvent } from "react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
@@ -295,6 +295,165 @@ export default function LifecycleAdminPage() {
     });
 
     return recipients;
+  }
+
+  function emailFromText(value: string) {
+    return value.match(/[^\s<,;"]+@[^\s>,;"]+\.[^\s>,;"]+/)?.[0] ?? "";
+  }
+
+  function phoneFromText(value: string) {
+    return value.match(/(?:\+\d[\d\s().-]{4,}\d|\d[\d\s().-]{4,}\d)/)?.[0].replace(/\s+/g, " ").trim() ?? "";
+  }
+
+  function uploadRowsWithHeaders(text: string, headers: string[]) {
+    const firstLine = text.replace(/^\uFEFF/, "").split(/\r?\n/).find((line) => line.trim()) ?? "";
+    const firstHeaders = firstLine.split(",").map((header) => header.trim().toLowerCase().replace(/\s+/g, "_"));
+    if (!firstHeaders.some((header) => headers.includes(header))) return [];
+    return csvToRows(text);
+  }
+
+  function emailUploadLines(text: string) {
+    const rows = uploadRowsWithHeaders(text, ["email", "email_address", "email_recipient", "recipient", "contact_email"]);
+    const fromRows = rows
+      .map((row) => {
+        const email = [
+          row.email,
+          row.email_address,
+          row.email_recipient,
+          row.recipient,
+          row.contact_email,
+          ...Object.values(row),
+        ].map((value) => emailFromText(value)).find(looksLikeEmailRecipient);
+        if (!email) return "";
+
+        const name = compactRecipientName(
+          row.name
+            || row.full_name
+            || row.recipient_name
+            || [row.first_name, row.last_name].filter(Boolean).join(" ")
+        );
+        return name ? `${name}, ${email}` : email;
+      })
+      .filter(Boolean);
+
+    if (fromRows.length) return fromRows;
+
+    return text
+      .replace(/^\uFEFF/, "")
+      .split(/\r?\n/)
+      .flatMap((line) => parseInviteRecipients(line, looksLikeEmailRecipient))
+      .filter((item) => looksLikeEmailRecipient(item.recipient))
+      .map((item) => item.name ? `${item.name}, ${item.recipient}` : item.recipient);
+  }
+
+  function whatsappUploadLines(text: string) {
+    const rows = uploadRowsWithHeaders(text, [
+      "whatsapp",
+      "whatsapp_number",
+      "whats_app",
+      "phone",
+      "phone_number",
+      "mobile",
+      "mobile_phone",
+      "recipient",
+      "contact_phone",
+    ]);
+    const fromRows = rows
+      .map((row) => [
+        row.whatsapp,
+        row.whatsapp_number,
+        row.whats_app,
+        row.phone,
+        row.phone_number,
+        row.mobile,
+        row.mobile_phone,
+        row.recipient,
+        row.contact_phone,
+        ...Object.values(row),
+      ].map((value) => phoneFromText(value)).find(looksLikePhoneRecipient) ?? "")
+      .filter(Boolean);
+
+    if (fromRows.length) return fromRows;
+
+    return text
+      .replace(/^\uFEFF/, "")
+      .split(/\r?\n/)
+      .flatMap((line) => parseInviteRecipients(line, looksLikePhoneRecipient))
+      .map((item) => phoneFromText(item.recipient) || item.recipient)
+      .filter(looksLikePhoneRecipient);
+  }
+
+  function normalizeWhatsappRecipientText(value: string) {
+    return parseInviteRecipients(value, looksLikePhoneRecipient)
+      .map((item) => phoneFromText(item.recipient) || item.recipient)
+      .filter(looksLikePhoneRecipient)
+      .join("\n");
+  }
+
+  async function uploadEmailRecipients(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const lines = emailUploadLines(await file.text());
+      const existing = parseInviteRecipients(signupShare.emails, looksLikeEmailRecipient);
+      const seen = new Set(existing.map((item) => item.recipient.toLowerCase()));
+      const uniqueLines = lines.filter((line) => {
+        const email = parseInviteRecipients(line, looksLikeEmailRecipient)[0]?.recipient ?? emailFromText(line);
+        const normalized = email.toLowerCase();
+        if (!looksLikeEmailRecipient(email) || seen.has(normalized)) return false;
+        seen.add(normalized);
+        return true;
+      });
+
+      if (!uniqueLines.length) {
+        setMessage("No new email recipients found in that file.");
+        return;
+      }
+
+      setSignupShare((current) => ({
+        ...current,
+        emails: [current.emails.trim(), ...uniqueLines].filter(Boolean).join("\n"),
+      }));
+      setMessage(`${uniqueLines.length} email recipient${uniqueLines.length === 1 ? "" : "s"} added from ${file.name}.`);
+    } catch {
+      setMessage("Could not read that email upload. Use a CSV or TXT file.");
+    } finally {
+      event.target.value = "";
+    }
+  }
+
+  async function uploadWhatsappRecipients(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const lines = whatsappUploadLines(await file.text());
+      const existing = parseInviteRecipients(signupShare.whatsapp, looksLikePhoneRecipient);
+      const seen = new Set(existing.map((item) => item.recipient.replace(/\D/g, "")));
+      const uniqueLines = lines.filter((line) => {
+        const phone = phoneFromText(line) || line;
+        const normalized = phone.replace(/\D/g, "");
+        if (!looksLikePhoneRecipient(phone) || seen.has(normalized)) return false;
+        seen.add(normalized);
+        return true;
+      });
+
+      if (!uniqueLines.length) {
+        setMessage("No new WhatsApp numbers found in that file.");
+        return;
+      }
+
+      setSignupShare((current) => ({
+        ...current,
+        whatsapp: [current.whatsapp.trim(), ...uniqueLines].filter(Boolean).join("\n"),
+      }));
+      setMessage(`${uniqueLines.length} WhatsApp number${uniqueLines.length === 1 ? "" : "s"} added from ${file.name}.`);
+    } catch {
+      setMessage("Could not read that WhatsApp upload. Use a CSV or TXT file.");
+    } finally {
+      event.target.value = "";
+    }
   }
 
   function signupShareResults(value: unknown): SignupShareResult[] {
@@ -957,9 +1116,21 @@ export default function LifecycleAdminPage() {
               <div className="mt-5 grid gap-4 xl:grid-cols-[1.25fr_0.95fr]">
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="rounded-[24px] border border-[#eadfd5] bg-[#fffaf5] p-4">
-                    <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                       <p className="text-sm font-black text-[#4d4351]">Email recipients</p>
-                      <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-purple-700">{emailShareCount}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-purple-700">{emailShareCount}</span>
+                        <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-purple-100 bg-white px-3 py-1 text-xs font-black text-purple-700 shadow-sm hover:bg-purple-50">
+                          <Upload size={13} />
+                          Upload
+                          <input
+                            type="file"
+                            accept=".csv,.txt,text/csv,text/plain"
+                            className="hidden"
+                            onChange={uploadEmailRecipients}
+                          />
+                        </label>
+                      </div>
                     </div>
                     <textarea
                       className="min-h-36 w-full resize-y rounded-2xl border border-[#e7dbd0] bg-white px-4 py-3 text-sm leading-relaxed outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100"
@@ -970,15 +1141,33 @@ export default function LifecycleAdminPage() {
                   </div>
 
                   <div className="rounded-[24px] border border-[#eadfd5] bg-[#fffaf5] p-4">
-                    <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                       <p className="text-sm font-black text-[#4d4351]">WhatsApp numbers</p>
-                      <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-purple-700">{whatsappShareCount}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-purple-700">{whatsappShareCount}</span>
+                        <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-purple-100 bg-white px-3 py-1 text-xs font-black text-purple-700 shadow-sm hover:bg-purple-50">
+                          <Upload size={13} />
+                          Upload
+                          <input
+                            type="file"
+                            accept=".csv,.txt,text/csv,text/plain"
+                            className="hidden"
+                            onChange={uploadWhatsappRecipients}
+                          />
+                        </label>
+                      </div>
                     </div>
                     <textarea
                       className="min-h-36 w-full resize-y rounded-2xl border border-[#e7dbd0] bg-white px-4 py-3 text-sm leading-relaxed outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100"
-                      placeholder="Maria Gomez, +34 612 345 678&#10;+44 7700 900123"
+                      placeholder="+34 612 345 678&#10;+44 7700 900123"
                       value={signupShare.whatsapp}
                       onChange={(e) => setSignupShare({ ...signupShare, whatsapp: e.target.value })}
+                      onBlur={(e) => {
+                        const normalized = normalizeWhatsappRecipientText(e.target.value);
+                        if (normalized !== e.target.value.trim()) {
+                          setSignupShare((current) => ({ ...current, whatsapp: normalized }));
+                        }
+                      }}
                     />
                   </div>
                 </div>
