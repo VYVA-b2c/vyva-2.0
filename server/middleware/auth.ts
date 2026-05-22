@@ -111,7 +111,7 @@ export async function requireAdminUser(
     return;
   }
 
-  const [{ eq }, { db }, { profiles }] = await Promise.all([
+  const [{ eq }, { db }, { profiles, users }] = await Promise.all([
     import("drizzle-orm"),
     import("../db.js"),
     import("../../shared/schema.js"),
@@ -123,7 +123,18 @@ export async function requireAdminUser(
     .where(eq(profiles.id, req.user.id))
     .limit(1);
 
-  const isSuperAdmin = isSuperAdminEmail(req.user.email) || isSuperAdminEmail(profile?.email);
+  const [account] = req.user.email
+    ? []
+    : await db
+        .select({ email: users.email })
+        .from(users)
+        .where(eq(users.id, req.user.id))
+        .limit(1);
+
+  const isSuperAdmin =
+    isSuperAdminEmail(req.user.email) ||
+    isSuperAdminEmail(profile?.email) ||
+    isSuperAdminEmail(account?.email);
 
   if (!profile && !isSuperAdmin) {
     res.status(403).json({ error: "Admin access required" });
@@ -136,6 +147,6 @@ export async function requireAdminUser(
   }
 
   req.user.role = "admin";
-  req.user.email = req.user.email ?? profile?.email ?? undefined;
+  req.user.email = req.user.email ?? profile?.email ?? account?.email ?? undefined;
   next();
 }

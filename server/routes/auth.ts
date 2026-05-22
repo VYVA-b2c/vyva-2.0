@@ -157,13 +157,14 @@ async function getOrCreateAuthenticatedUser(userId: string, email?: unknown) {
   return created ?? await findUserById(userId);
 }
 
-async function getProfileRole(userId: string): Promise<string> {
+async function getProfileRole(userId: string, fallbackEmail?: unknown): Promise<string> {
   const [profile] = await db
-    .select({ role: profiles.role })
+    .select({ role: profiles.role, email: profiles.email })
     .from(profiles)
     .where(eq(profiles.id, userId))
     .limit(1);
 
+  if (isSuperAdminEmail(fallbackEmail) || isSuperAdminEmail(profile?.email)) return "admin";
   return profile?.role ?? "user";
 }
 
@@ -404,7 +405,7 @@ authRouter.post("/login", async (req: Request, res: Response) => {
       user,
       prevSeenAt,
       await getUserProfileLanguage(user.id),
-      await getProfileRole(user.id),
+      await getProfileRole(user.id, user.email),
     ),
   });
 });
@@ -461,7 +462,7 @@ authRouter.get("/me", authMiddleware, async (req: Request, res: Response) => {
       phone: user.phone_number,
       activeProfileId: user.active_profile_id ?? null,
       language: await getUserProfileLanguage(user.id),
-      role: await getProfileRole(user.id),
+      role: await getProfileRole(user.id, user.email ?? req.user.email),
       prevSeenAt,
     });
   } catch (err) {
