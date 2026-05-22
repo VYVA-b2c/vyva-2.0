@@ -19,8 +19,15 @@ export type Intake = {
   organization_id?: string | null;
   organization_name?: string | null;
   account_status?: "enabled" | "disabled";
+  user_id?: string | null;
+  elder_user_id?: string | null;
+  family_user_id?: string | null;
+  source_payload?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown> | null;
   created_at: string;
   link_sent_at?: string | null;
+  activated_at?: string | null;
+  dropped_at?: string | null;
   last_activity_at?: string | null;
 };
 

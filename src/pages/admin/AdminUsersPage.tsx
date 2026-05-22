@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Search, UserPlus } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
@@ -60,6 +61,40 @@ export default function AdminUsersPage() {
     }
   }
 
+  async function inviteAdmin() {
+    const targetEmail = email.trim().toLowerCase();
+    if (targetEmail.length < 3) {
+      setMessage("Enter an email to invite an admin.");
+      return;
+    }
+
+    setIsLoading(true);
+    setMessage("");
+    try {
+      const params = new URLSearchParams({ email: targetEmail });
+      const data = await api(`/admin-users?${params.toString()}`);
+      const found = (data.matches ?? []).find((user: AdminUser) => user.email.toLowerCase() === targetEmail);
+      setAdmins(data.admins ?? []);
+      setMatches(data.matches ?? []);
+
+      if (!found) {
+        setMessage(`No account found for ${targetEmail}. Ask them to sign up first, then invite them as admin.`);
+        return;
+      }
+
+      if (found.role === "admin") {
+        setMessage(`${found.email} is already an admin.`);
+        return;
+      }
+
+      await setRole(found, "admin");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Could not invite admin");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   useEffect(() => {
     refresh().catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -82,18 +117,38 @@ export default function AdminUsersPage() {
 
         <AdminMenu />
 
-        <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5">
-          <h2 className="font-serif text-3xl">Find a user</h2>
-          <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
+        <section className="mt-5 rounded-[1.5rem] border border-[#eadfd5] bg-white p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-serif text-2xl leading-tight">Find a user</h2>
+              <p className="mt-1 text-sm text-[#7d6b65]">Search existing accounts, then invite them as admins.</p>
+            </div>
+          </div>
+          <div className="mt-4 grid max-w-4xl gap-2 md:grid-cols-[minmax(260px,420px)_auto_auto]">
             <input
-              className="rounded-2xl border border-[#e4d8ce] px-4 py-3"
+              className="rounded-xl border border-[#e4d8ce] px-4 py-2.5 text-sm"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               onKeyDown={(event) => event.key === "Enter" && refresh().catch(() => undefined)}
               placeholder="Search by email"
             />
-            <button className="rounded-2xl bg-[#2f2135] px-5 py-3 font-bold text-white disabled:opacity-50" disabled={email.trim().length < 3 || isLoading} onClick={() => refresh().catch(() => undefined)}>
+            <button
+              type="button"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#2f2135] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+              disabled={email.trim().length < 3 || isLoading}
+              onClick={() => refresh().catch(() => undefined)}
+            >
+              <Search size={15} />
               Search
+            </button>
+            <button
+              type="button"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+              disabled={email.trim().length < 3 || isLoading}
+              onClick={() => inviteAdmin().catch(() => undefined)}
+            >
+              <UserPlus size={15} />
+              Invite admin
             </button>
           </div>
 
