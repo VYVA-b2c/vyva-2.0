@@ -1,3 +1,4 @@
+import { Copy, Send } from "lucide-react";
 import { useEffect, useState, type ChangeEvent } from "react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
@@ -119,6 +120,7 @@ export default function LifecycleAdminPage() {
   });
   const [sharingSignup, setSharingSignup] = useState(false);
   const [signupShareNotice, setSignupShareNotice] = useState<SignupShareNotice | null>(null);
+  const [copiedSignupLink, setCopiedSignupLink] = useState(false);
   const [newOrg, setNewOrg] = useState({ name: "", default_tier: "free" });
   const [editingOrgId, setEditingOrgId] = useState<string | null>(null);
   const [orgDraft, setOrgDraft] = useState({ name: "", default_tier: "free" });
@@ -356,6 +358,16 @@ export default function LifecycleAdminPage() {
       });
     } finally {
       setSharingSignup(false);
+    }
+  }
+
+  async function copySignupLink() {
+    try {
+      await navigator.clipboard.writeText("https://v2.vyva.life/invite");
+      setCopiedSignupLink(true);
+      window.setTimeout(() => setCopiedSignupLink(false), 1800);
+    } catch {
+      setMessage("Could not copy the signup link.");
     }
   }
 
@@ -867,6 +879,9 @@ export default function LifecycleAdminPage() {
     orgFilter === "all" ? true : orgFilter === "active" ? org.is_active : !org.is_active
   ));
   const duplicateOrg = findDuplicateOrg(newOrg.name);
+  const emailShareCount = parseInviteRecipients(signupShare.emails, looksLikeEmailRecipient).length;
+  const whatsappShareCount = parseInviteRecipients(signupShare.whatsapp, looksLikePhoneRecipient).length;
+  const totalShareRecipients = emailShareCount + whatsappShareCount;
   const planOptions = plans.length
     ? plans.map((plan) => ({ value: plan.plan_id, label: plan.name }))
     : tiers.map((tier) => ({ value: tier, label: tier[0].toUpperCase() + tier.slice(1) }));
@@ -920,39 +935,86 @@ export default function LifecycleAdminPage() {
 
         {activeTab === "users" && (
           <div className="mt-3 grid gap-4">
-            <section className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
-              <div className="flex flex-wrap items-start justify-between gap-3">
+            <section className="rounded-2xl border border-[#eadfd5] bg-white p-5 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <h2 className="font-serif text-2xl">Share signup form</h2>
-                  <p className="mt-1 text-sm text-[#7d6b65]">Send the public VYVA signup link to external users by email or WhatsApp.</p>
+                  <h2 className="font-serif text-3xl leading-tight">Share signup invite</h2>
+                  <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[#7d6b65]">Send the public VYVA invite by email or WhatsApp. Add one recipient per line, with an optional name before the contact.</p>
                 </div>
-                <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">v2.vyva.life/settings/account</span>
+                <div className="flex items-center gap-2 rounded-full bg-purple-50 p-1 pl-4 text-sm font-bold text-purple-700">
+                  <span>v2.vyva.life/invite</span>
+                  <button
+                    type="button"
+                    className="inline-flex h-9 items-center gap-1 rounded-full bg-white px-3 text-xs font-black text-purple-700 shadow-sm"
+                    onClick={copySignupLink}
+                  >
+                    <Copy size={14} />
+                    {copiedSignupLink ? "Copied" : "Copy"}
+                  </button>
+                </div>
               </div>
-              <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_1.2fr_0.7fr_auto]">
-                <Field label="Email recipients">
-                  <textarea className="min-h-24 w-full rounded-2xl border px-4 py-3" placeholder="Maria Gomez, maria@example.com&#10;maria@example.com" value={signupShare.emails} onChange={(e) => setSignupShare({ ...signupShare, emails: e.target.value })} />
-                </Field>
-                <Field label="WhatsApp numbers">
-                  <textarea className="min-h-24 w-full rounded-2xl border px-4 py-3" placeholder="Maria Gomez, +34 612 345 678&#10;+44 7700 900123" value={signupShare.whatsapp} onChange={(e) => setSignupShare({ ...signupShare, whatsapp: e.target.value })} />
-                </Field>
-                <Field label="Message (optional)">
-                  <textarea className="min-h-24 w-full rounded-2xl border px-4 py-3" placeholder="Leave blank to use the selected language's default invite text." value={signupShare.message} onChange={(e) => setSignupShare({ ...signupShare, message: e.target.value })} />
-                </Field>
-                <Field label="Language">
-                  <select className="min-h-24 w-full rounded-2xl border px-4 py-3 font-semibold" value={signupShare.language} onChange={(e) => setSignupShare({ ...signupShare, language: e.target.value })}>
-                    {languageOptions.map((option) => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </select>
-                </Field>
-                <button
-                  type="button"
-                  className="self-end rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={sharingSignup || (!signupShare.emails.trim() && !signupShare.whatsapp.trim())}
-                  onClick={shareSignupForm}
-                >
-                  {sharingSignup ? "Sending..." : "Share link"}
-                </button>
+
+              <div className="mt-5 grid gap-4 xl:grid-cols-[1.25fr_0.95fr]">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-[24px] border border-[#eadfd5] bg-[#fffaf5] p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <p className="text-sm font-black text-[#4d4351]">Email recipients</p>
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-purple-700">{emailShareCount}</span>
+                    </div>
+                    <textarea
+                      className="min-h-36 w-full resize-y rounded-2xl border border-[#e7dbd0] bg-white px-4 py-3 text-sm leading-relaxed outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100"
+                      placeholder="Maria Gomez, maria@example.com&#10;maria@example.com"
+                      value={signupShare.emails}
+                      onChange={(e) => setSignupShare({ ...signupShare, emails: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="rounded-[24px] border border-[#eadfd5] bg-[#fffaf5] p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <p className="text-sm font-black text-[#4d4351]">WhatsApp numbers</p>
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-purple-700">{whatsappShareCount}</span>
+                    </div>
+                    <textarea
+                      className="min-h-36 w-full resize-y rounded-2xl border border-[#e7dbd0] bg-white px-4 py-3 text-sm leading-relaxed outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100"
+                      placeholder="Maria Gomez, +34 612 345 678&#10;+44 7700 900123"
+                      value={signupShare.whatsapp}
+                      onChange={(e) => setSignupShare({ ...signupShare, whatsapp: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-[1fr_220px] xl:grid-cols-1">
+                  <div className="rounded-[24px] border border-[#eadfd5] bg-white p-4">
+                    <Field label="Message override">
+                      <textarea
+                        className="min-h-28 w-full rounded-2xl border border-[#e7dbd0] px-4 py-3 text-sm leading-relaxed outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100"
+                        placeholder="Leave blank to use the selected language's default invite text."
+                        value={signupShare.message}
+                        onChange={(e) => setSignupShare({ ...signupShare, message: e.target.value })}
+                      />
+                    </Field>
+                  </div>
+
+                  <div className="rounded-[24px] bg-[#f7efff] p-4">
+                    <Field label="Invite language">
+                      <select className="w-full rounded-2xl border border-[#e4d8ce] bg-white px-4 py-3 text-sm font-black text-[#2f2135]" value={signupShare.language} onChange={(e) => setSignupShare({ ...signupShare, language: e.target.value })}>
+                        {languageOptions.map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                    </Field>
+                    <button
+                      type="button"
+                      className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-purple-700 px-5 py-3 text-sm font-black text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={sharingSignup || totalShareRecipients === 0}
+                      onClick={shareSignupForm}
+                    >
+                      <Send size={16} />
+                      {sharingSignup ? "Sending..." : totalShareRecipients > 0 ? `Send to ${totalShareRecipients}` : "Add recipients"}
+                    </button>
+                    <p className="mt-3 text-xs leading-relaxed text-[#7d6b65]">Delivery is attempted immediately and logged in Communications.</p>
+                  </div>
+                </div>
               </div>
             </section>
 
