@@ -128,9 +128,9 @@ test("public landing page promotes VYVA and remains responsive", async ({ page }
   await page.setViewportSize({ width: 1280, height: 760 });
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("landing-page")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Private daily support for later life." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Know they’re okay today.", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Create your VYVA account" })).toBeVisible();
-  await expect(page.getByText("One private profile")).toBeVisible();
+  await expect(page.locator("#support").getByRole("heading", { name: "Medication confirmation" })).toBeVisible();
   await expectNoHorizontalOverflow(page);
 
   await page.setViewportSize({ width: 390, height: 844 });
