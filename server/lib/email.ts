@@ -16,6 +16,7 @@ type EmailMessage = {
   html: string;
   debugLabel: string;
   debugLink: string;
+  allowDevelopmentLog?: boolean;
 };
 
 function createTransport() {
@@ -39,19 +40,29 @@ function createTransport() {
 export interface SendPasswordResetEmailOptions {
   to: string;
   resetLink: string;
+  allowDevelopmentLog?: boolean;
 }
 
 export interface SendMagicLoginEmailOptions {
   to: string;
   magicLink: string;
+  allowDevelopmentLog?: boolean;
 }
 
-async function sendEmailMessage({ to, subject, text, html, debugLabel, debugLink }: EmailMessage): Promise<void> {
+async function sendEmailMessage({
+  to,
+  subject,
+  text,
+  html,
+  debugLabel,
+  debugLink,
+  allowDevelopmentLog = isDev,
+}: EmailMessage): Promise<void> {
   const apiKey = process.env.SENDGRID_API_KEY?.trim();
   const transport = apiKey ? null : createTransport();
 
   if (!apiKey && !transport) {
-    if (isDev) {
+    if (allowDevelopmentLog && isDev) {
       console.log(`[email:dev] ${debugLabel} email (provider not configured - logging instead)`);
       console.log(`[email:dev] To: ${to}`);
       console.log(`[email:dev] Subject: ${subject}`);
@@ -106,7 +117,11 @@ async function sendEmailMessage({ to, subject, text, html, debugLabel, debugLink
   });
 }
 
-export async function sendPasswordResetEmail({ to, resetLink }: SendPasswordResetEmailOptions): Promise<void> {
+export async function sendPasswordResetEmail({
+  to,
+  resetLink,
+  allowDevelopmentLog,
+}: SendPasswordResetEmailOptions): Promise<void> {
   const subject = "Reset your Vyva password";
   const text = [
     "We received a request to reset the password for your Vyva account.",
@@ -135,10 +150,14 @@ export async function sendPasswordResetEmail({ to, resetLink }: SendPasswordRese
     </div>
   `;
 
-  await sendEmailMessage({ to, subject, text, html, debugLabel: "Password reset", debugLink: resetLink });
+  await sendEmailMessage({ to, subject, text, html, debugLabel: "Password reset", debugLink: resetLink, allowDevelopmentLog });
 }
 
-export async function sendMagicLoginEmail({ to, magicLink }: SendMagicLoginEmailOptions): Promise<void> {
+export async function sendMagicLoginEmail({
+  to,
+  magicLink,
+  allowDevelopmentLog,
+}: SendMagicLoginEmailOptions): Promise<void> {
   const subject = "Your secure VYVA sign-in link";
   const text = [
     "Use this secure link to open your VYVA account. It expires in 15 minutes:",
@@ -165,5 +184,5 @@ export async function sendMagicLoginEmail({ to, magicLink }: SendMagicLoginEmail
     </div>
   `;
 
-  await sendEmailMessage({ to, subject, text, html, debugLabel: "Magic login", debugLink: magicLink });
+  await sendEmailMessage({ to, subject, text, html, debugLabel: "Magic login", debugLink: magicLink, allowDevelopmentLog });
 }
