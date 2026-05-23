@@ -8,9 +8,17 @@ export type SignupInviteRecipientInput = {
   name?: string | null;
 };
 
+function looksLikeContactIdentifier(value: string) {
+  const trimmed = value.trim();
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return true;
+  const digits = trimmed.replace(/\D/g, "");
+  return digits.length >= 7 && /^[+\d\s().-]+$/.test(trimmed);
+}
+
 export function normalizeSignupInviteRecipientName(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const normalized = value.replace(/\s+/g, " ").trim();
+  if (looksLikeContactIdentifier(normalized)) return undefined;
   return normalized ? normalized.slice(0, 120) : undefined;
 }
 
