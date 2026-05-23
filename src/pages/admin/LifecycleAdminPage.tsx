@@ -242,6 +242,7 @@ export default function LifecycleAdminPage() {
 
   function compactRecipientName(value: string) {
     const normalized = value.replace(/\s+/g, " ").trim();
+    if (looksLikeEmailRecipient(normalized) || looksLikePhoneRecipient(normalized)) return undefined;
     return normalized || undefined;
   }
 

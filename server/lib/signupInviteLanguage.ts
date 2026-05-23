@@ -359,8 +359,21 @@ export type SignupInvitePrefill = {
   whatsapp?: string | null;
 };
 
+function looksLikeContactIdentifier(value: string | null | undefined) {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) return false;
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return true;
+  const digits = trimmed.replace(/\D/g, "");
+  return digits.length >= 7 && /^[+\d\s().-]+$/.test(trimmed);
+}
+
+function safeInviteNameParam(value: string | null | undefined) {
+  const trimmed = (value ?? "").replace(/\s+/g, " ").trim();
+  return trimmed && !looksLikeContactIdentifier(trimmed) ? trimmed : "";
+}
+
 function splitSignupInviteName(name: string | null | undefined) {
-  const parts = (name ?? "").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+  const parts = safeInviteNameParam(name).split(" ").filter(Boolean);
   return {
     firstName: parts[0] ?? "",
     lastName: parts.slice(1).join(" "),
@@ -377,8 +390,8 @@ export function buildSignupInviteUrl(baseUrl: string, value: unknown, prefill: S
   const url = new URL("/settings/account", `${baseUrl.replace(/\/$/, "")}/`);
   const nameParts = splitSignupInviteName(prefill.name);
   url.searchParams.set("lang", language);
-  setInviteParam(url.searchParams, "first_name", prefill.firstName ?? nameParts.firstName);
-  setInviteParam(url.searchParams, "last_name", prefill.lastName ?? nameParts.lastName);
+  setInviteParam(url.searchParams, "first_name", safeInviteNameParam(prefill.firstName) || nameParts.firstName);
+  setInviteParam(url.searchParams, "last_name", safeInviteNameParam(prefill.lastName) || nameParts.lastName);
   setInviteParam(url.searchParams, "email", prefill.email);
   setInviteParam(url.searchParams, "phone", prefill.phone);
   setInviteParam(url.searchParams, "whatsapp", prefill.whatsapp);

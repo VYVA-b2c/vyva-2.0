@@ -35,6 +35,27 @@ describe("signup invite language", () => {
     expect(parsed.searchParams.get("whatsapp")).toBe("+34 612 345 678");
   });
 
+  it("does not use email or phone contacts as invite names", () => {
+    const emailOnlyUrl = buildSignupInviteUrl("https://v2.vyva.life", "en", {
+      name: "gm@4cksa.com",
+      firstName: "gm@4cksa.com",
+      email: "gm@4cksa.com",
+    });
+    const phoneOnlyUrl = buildSignupInviteUrl("https://v2.vyva.life", "en", {
+      name: "+34 612 345 678",
+      phone: "+34 612 345 678",
+    });
+    const emailOnly = new URL(emailOnlyUrl);
+    const phoneOnly = new URL(phoneOnlyUrl);
+
+    expect(emailOnly.searchParams.get("first_name")).toBeNull();
+    expect(emailOnly.searchParams.get("last_name")).toBeNull();
+    expect(emailOnly.searchParams.get("email")).toBe("gm@4cksa.com");
+    expect(phoneOnly.searchParams.get("first_name")).toBeNull();
+    expect(phoneOnly.searchParams.get("last_name")).toBeNull();
+    expect(phoneOnly.searchParams.get("phone")).toBe("+34 612 345 678");
+  });
+
   it("normalizes named and legacy signup invite recipients", () => {
     const emailRecipients = mergeSignupInviteRecipients(
       ["legacy@example.com", "named@example.com"],
@@ -55,6 +76,24 @@ describe("signup invite language", () => {
     ]);
     expect(whatsappRecipients).toEqual([{ recipient: "+34612345678", name: "Karim" }]);
     expect(normalizeSignupInviteRecipientName("   ")).toBeUndefined();
+  });
+
+  it("drops contact-looking recipient names while preserving the recipient", () => {
+    const emailRecipients = mergeSignupInviteRecipients(
+      [],
+      [{ name: "gm@4cksa.com", recipient: "gm@4cksa.com" }],
+      (recipient) => recipient.trim().toLowerCase() || null,
+    );
+    const whatsappRecipients = mergeSignupInviteRecipients(
+      [],
+      [{ name: "+34 612 345 678", recipient: "+34 612 345 678" }],
+      (recipient) => recipient.trim().replace(/[^\d+]/g, "") || null,
+    );
+
+    expect(emailRecipients).toEqual([{ recipient: "gm@4cksa.com" }]);
+    expect(whatsappRecipients).toEqual([{ recipient: "+34612345678" }]);
+    expect(normalizeSignupInviteRecipientName("gm@4cksa.com")).toBeUndefined();
+    expect(normalizeSignupInviteRecipientName("+34 612 345 678")).toBeUndefined();
   });
 
   it("understands admin language dropdown values, labels, and locale variants", () => {

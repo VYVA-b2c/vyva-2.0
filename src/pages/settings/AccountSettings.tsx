@@ -236,6 +236,19 @@ function inviteParam(params: URLSearchParams, ...keys: string[]) {
   return "";
 }
 
+function looksLikeInviteContact(value: string | null | undefined) {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) return false;
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return true;
+  const digits = trimmed.replace(/\D/g, "");
+  return digits.length >= 7 && /^[+\d\s().-]+$/.test(trimmed);
+}
+
+function inviteNameParam(params: URLSearchParams, ...keys: string[]) {
+  const value = inviteParam(params, ...keys).replace(/\s+/g, " ").trim();
+  return value && !looksLikeInviteContact(value) ? value : "";
+}
+
 function inviteLanguageParam(params: URLSearchParams): LanguageCode | undefined {
   const normalized = inviteParam(params, "lang", "language")
     .toLowerCase()
@@ -246,11 +259,11 @@ function inviteLanguageParam(params: URLSearchParams): LanguageCode | undefined 
 
 function accountInvitePrefillFromSearch(search: string): AccountInvitePrefill | null {
   const params = new URLSearchParams(search);
-  const nameParts = splitFullName(inviteParam(params, "name"));
+  const nameParts = splitFullName(inviteNameParam(params, "name"));
   const prefill: AccountInvitePrefill = {
-    firstName: inviteParam(params, "first_name", "firstName") || nameParts.firstName,
-    lastName: inviteParam(params, "last_name", "lastName") || nameParts.lastName,
-    preferredName: inviteParam(params, "preferred_name", "preferredName"),
+    firstName: inviteNameParam(params, "first_name", "firstName") || nameParts.firstName,
+    lastName: inviteNameParam(params, "last_name", "lastName") || nameParts.lastName,
+    preferredName: inviteNameParam(params, "preferred_name", "preferredName"),
     email: inviteParam(params, "email"),
     phone: inviteParam(params, "phone"),
     whatsapp: inviteParam(params, "whatsapp"),
