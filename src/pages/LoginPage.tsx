@@ -21,7 +21,6 @@ import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 import { localizeAuthErrorMessage } from "@/lib/authErrorLocalization";
 import { queryClient } from "@/lib/queryClient";
 import { stageToRoute } from "@/lib/onboardingRoute";
-import { isSupabaseAuthAvailable, sendSupabasePasswordReset } from "@/lib/supabaseAuth";
 import { useLanguage } from "@/i18n";
 import { LANGUAGES, type LanguageCode } from "@/i18n/languages";
 
@@ -847,24 +846,14 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
     setForgotLoading(true);
     try {
       const email = forgotEmail.trim();
-      let supabaseResetFailed = false;
-      if (await isSupabaseAuthAvailable()) {
-        try {
-          await sendSupabasePasswordReset(email);
-        } catch {
-          supabaseResetFailed = true;
-        }
-      }
-      if (supabaseResetFailed || !(await isSupabaseAuthAvailable())) {
-        const res = await fetch("/api/auth/reset-request", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
-        });
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body?.error || body?.message || copy.errors.requestFailed);
-        }
+      const res = await fetch("/api/auth/reset-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || body?.message || copy.errors.requestFailed);
       }
       setForgotSent(true);
     } catch (err) {
