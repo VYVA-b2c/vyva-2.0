@@ -17,6 +17,32 @@ import { z } from "zod";
 
 export const adminRouter = Router();
 
+type ProxyAdminRow = {
+  id: string;
+  full_name: string | null;
+  preferred_name: string | null;
+  proxy_initiator_id: string | null;
+  proxy_initiated_at: Date | null;
+  elder_confirmed_at: Date | null;
+  phone_number: string | null;
+  email?: string | null;
+  whatsapp_number?: string | null;
+  caregiver_name?: string | null;
+  caregiver_contact?: string | null;
+  contact_method?: string | null;
+  channel_reports?: string | null;
+  channel_chats?: string | null;
+  channel_notifications?: string | null;
+  language?: string | null;
+  timezone?: string | null;
+  onboarding_channel?: string | null;
+  current_stage?: string | null;
+  onboarding_complete?: boolean | null;
+  subscription_tier?: string | null;
+  account_status?: string | null;
+  created_at: Date;
+};
+
 // ============================================================
 // Admin auth middleware
 // Admin routes are mounted behind authMiddleware + requireAdminUser.
@@ -31,17 +57,18 @@ function requireAdmin(req: Request, res: Response): boolean {
   return true;
 }
 
-// ============================================================
-// GET /proxy-pending
-// Returns profiles where proxy_initiator_id is set but
-// elder_confirmed_at is null, newest first.
-// ============================================================
-
-adminRouter.get("/proxy-pending", async (req: Request, res: Response) => {
-  if (!requireAdmin(req, res)) return;
-
+async function safeAdminRows<T>(label: string, query: Promise<T[]>): Promise<T[]> {
   try {
-    const rows = await db
+    return await query;
+  } catch (error) {
+    console.warn(`[admin] Optional caregivers data unavailable (${label}):`, error);
+    return [];
+  }
+}
+
+async function listProxyRows(): Promise<ProxyAdminRow[]> {
+  try {
+    return await db
       .select({
         id:                 profiles.id,
         full_name:          profiles.full_name,
@@ -70,6 +97,36 @@ adminRouter.get("/proxy-pending", async (req: Request, res: Response) => {
       .from(profiles)
       .where(isNotNull(profiles.proxy_initiator_id))
       .orderBy(desc(profiles.proxy_initiated_at));
+  } catch (error) {
+    console.warn("[admin] Falling back to core caregivers profile fields:", error);
+    return await db
+      .select({
+        id:                 profiles.id,
+        full_name:          profiles.full_name,
+        preferred_name:     profiles.preferred_name,
+        proxy_initiator_id: profiles.proxy_initiator_id,
+        proxy_initiated_at: profiles.proxy_initiated_at,
+        elder_confirmed_at: profiles.elder_confirmed_at,
+        phone_number:       profiles.phone_number,
+        created_at:         profiles.created_at,
+      })
+      .from(profiles)
+      .where(isNotNull(profiles.proxy_initiator_id))
+      .orderBy(desc(profiles.proxy_initiated_at));
+  }
+}
+
+// ============================================================
+// GET /proxy-pending
+// Returns profiles where proxy_initiator_id is set but
+// elder_confirmed_at is null, newest first.
+// ============================================================
+
+adminRouter.get("/proxy-pending", async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const rows = await listProxyRows();
 
     const profileIds = rows.map((row) => row.id);
     const [
@@ -82,7 +139,7 @@ adminRouter.get("/proxy-pending", async (req: Request, res: Response) => {
       communicationRows,
     ] = profileIds.length
       ? await Promise.all([
-        db.select({
+        safeAdminRows("team invitations", db.select({
           id: teamInvitations.id,
           senior_id: teamInvitations.senior_id,
           invitee_name: teamInvitations.invitee_name,
@@ -103,8 +160,8 @@ adminRouter.get("/proxy-pending", async (req: Request, res: Response) => {
         })
           .from(teamInvitations)
           .where(inArray(teamInvitations.senior_id, profileIds))
-          .orderBy(desc(teamInvitations.created_at)),
-        db.select({
+          .orderBy(desc(teamInvitations.created_at))),
+        safeAdminRows("profile memberships", db.select({
           id: profileMemberships.id,
           profile_id: profileMemberships.profile_id,
           user_id: profileMemberships.user_id,
@@ -123,11 +180,11 @@ adminRouter.get("/proxy-pending", async (req: Request, res: Response) => {
             inArray(profileMemberships.profile_id, profileIds),
             inArray(profileMemberships.role, ["caregiver", "family"]),
           ))
-          .orderBy(desc(profileMemberships.updated_at)),
-        db.select()
+          .orderBy(desc(profileMemberships.updated_at))),
+        safeAdminRows("channel preferences", db.select()
           .from(userChannelPreferences)
-          .where(inArray(userChannelPreferences.user_id, profileIds)),
-        db.select({
+          .where(inArray(userChannelPreferences.user_id, profileIds))),
+        safeAdminRows("scheduled events", db.select({
           id: scheduledEvents.id,
           user_id: scheduledEvents.user_id,
           title: scheduledEvents.title,
@@ -141,8 +198,8 @@ adminRouter.get("/proxy-pending", async (req: Request, res: Response) => {
           .from(scheduledEvents)
           .where(inArray(scheduledEvents.user_id, profileIds))
           .orderBy(desc(scheduledEvents.scheduled_for))
-          .limit(300),
-        db.select({
+          .limit(300)),
+        safeAdminRows("scheduled support", db.select({
           id: scheduledInteractions.id,
           user_id: scheduledInteractions.user_id,
           interaction_type: scheduledInteractions.interaction_type,
@@ -160,8 +217,8 @@ adminRouter.get("/proxy-pending", async (req: Request, res: Response) => {
           .from(scheduledInteractions)
           .where(inArray(scheduledInteractions.user_id, profileIds))
           .orderBy(desc(scheduledInteractions.updated_at))
-          .limit(300),
-        db.select({
+          .limit(300)),
+        safeAdminRows("caregiver alerts", db.select({
           id: caregiverAlerts.id,
           user_id: caregiverAlerts.user_id,
           alert_type: caregiverAlerts.alert_type,
@@ -173,8 +230,8 @@ adminRouter.get("/proxy-pending", async (req: Request, res: Response) => {
           .from(caregiverAlerts)
           .where(inArray(caregiverAlerts.user_id, profileIds))
           .orderBy(desc(caregiverAlerts.created_at))
-          .limit(300),
-        db.select({
+          .limit(300)),
+        safeAdminRows("communications", db.select({
           id: communicationsLog.id,
           user_id: communicationsLog.user_id,
           channel: communicationsLog.channel,
@@ -187,7 +244,7 @@ adminRouter.get("/proxy-pending", async (req: Request, res: Response) => {
           .from(communicationsLog)
           .where(inArray(communicationsLog.user_id, profileIds))
           .orderBy(desc(communicationsLog.created_at))
-          .limit(300),
+          .limit(300)),
       ])
       : [[], [], [], [], [], [], []];
 
