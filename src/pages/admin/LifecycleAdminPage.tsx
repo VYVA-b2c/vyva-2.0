@@ -70,7 +70,7 @@ type SupportScheduleDraft = {
 };
 
 const adminTabs = [
-  { id: "users", label: "People" },
+  { id: "users", label: "Users" },
   { id: "accounts", label: "App Access" },
   { id: "invites", label: "Forms" },
   { id: "consent", label: "Consent" },
@@ -1062,7 +1062,7 @@ export default function LifecycleAdminPage() {
       <section className="mx-auto max-w-7xl">
         <AdminPageHeader
           title="Lifecycle"
-          subtitle="People, forms, access."
+          subtitle="Users, forms, access."
         >
           <button className="rounded-xl bg-purple-700 px-4 py-2 text-sm font-bold text-white" onClick={() => refresh().catch((err) => setMessage(err.message))}>Refresh</button>
           {message && <span className="rounded-xl bg-purple-50 px-3 py-2 text-sm font-bold text-purple-800">{message}</span>}
@@ -1099,7 +1099,7 @@ export default function LifecycleAdminPage() {
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <h2 className="font-serif text-3xl leading-tight">Share signup invite</h2>
-                  <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[#7d6b65]">Send the public VYVA invite by email or WhatsApp. Add one recipient per line, with an optional name before the contact.</p>
+                  <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[#7d6b65]">Send the public VYVA invite by email or WhatsApp. Add one email or WhatsApp number per line.</p>
                 </div>
                 <div className="flex items-center gap-2 rounded-full bg-purple-50 p-1 pl-4 text-sm font-bold text-purple-700">
                   <span>v2.vyva.life/invite</span>
@@ -1135,7 +1135,7 @@ export default function LifecycleAdminPage() {
                     </div>
                     <textarea
                       className="min-h-36 w-full resize-y rounded-2xl border border-[#e7dbd0] bg-white px-4 py-3 text-sm leading-relaxed outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100"
-                      placeholder="Maria Gomez, maria@example.com&#10;maria@example.com"
+                      placeholder="user@example.com&#10;second@example.com"
                       value={signupShare.emails}
                       onChange={(e) => setSignupShare({ ...signupShare, emails: e.target.value })}
                     />
@@ -1211,7 +1211,7 @@ export default function LifecycleAdminPage() {
             <section className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h2 className="font-serif text-2xl">People</h2>
+                  <h2 className="font-serif text-2xl">Users</h2>
                   <p className="mt-1 text-sm text-[#7d6b65]">Signup, onboarding, consent, status, and organization visibility.</p>
                 </div>
                 {peopleSearch && (
@@ -1235,7 +1235,7 @@ export default function LifecycleAdminPage() {
                   placeholder="Search by name, phone, profile email, or login email"
                 />
                 <button type="submit" className="rounded-xl bg-[#2f2135] px-4 py-2.5 text-sm font-bold text-white">
-                  Search people
+                  Search users
                 </button>
                 <button
                   type="button"
@@ -1284,7 +1284,7 @@ export default function LifecycleAdminPage() {
         )}
 
         {activeTab === "invites" && (
-          <section className="mt-5 grid gap-5 lg:grid-cols-[420px_1fr]">
+          <section className="mt-5 max-w-2xl">
             <div className="rounded-[2rem] border border-[#eadfd5] bg-white p-5">
               <h2 className="font-serif text-3xl">Create intake</h2>
               <p className="mt-2 text-sm text-[#7d6b65]">{creatingFamilyIntake ? "Family contact first, then the elder who needs consent." : "Basic profile details, matching the user settings form."}</p>
@@ -1339,10 +1339,6 @@ export default function LifecycleAdminPage() {
                 </select>
                 <button className="rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white disabled:opacity-50" disabled={!canCreateIntake} onClick={createIntake}>Create intake</button>
               </div>
-            </div>
-            <div className="rounded-[2rem] border border-[#eadfd5] bg-white p-5">
-              <h2 className="font-serif text-3xl">Recent lifecycle users</h2>
-              <IntakeTable users={users.slice(0, 8)} onView={(intake) => openUserDetail(intake, "view")} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} onDelete={deleteUser} busyAction={busyAction} compact />
             </div>
           </section>
         )}
