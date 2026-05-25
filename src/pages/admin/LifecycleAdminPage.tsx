@@ -1099,7 +1099,7 @@ export default function LifecycleAdminPage() {
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <h2 className="font-serif text-3xl leading-tight">Share signup invite</h2>
-                  <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[#7d6b65]">Send the public VYVA invite by email or WhatsApp. Add one recipient per line, with an optional name before the contact.</p>
+                  <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[#7d6b65]">Send the public VYVA invite by email or WhatsApp. Add one email or WhatsApp number per line.</p>
                 </div>
                 <div className="flex items-center gap-2 rounded-full bg-purple-50 p-1 pl-4 text-sm font-bold text-purple-700">
                   <span>v2.vyva.life/invite</span>
@@ -1135,7 +1135,7 @@ export default function LifecycleAdminPage() {
                     </div>
                     <textarea
                       className="min-h-36 w-full resize-y rounded-2xl border border-[#e7dbd0] bg-white px-4 py-3 text-sm leading-relaxed outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100"
-                      placeholder="Maria Gomez, maria@example.com&#10;maria@example.com"
+                      placeholder="user@example.com&#10;second@example.com"
                       value={signupShare.emails}
                       onChange={(e) => setSignupShare({ ...signupShare, emails: e.target.value })}
                     />
