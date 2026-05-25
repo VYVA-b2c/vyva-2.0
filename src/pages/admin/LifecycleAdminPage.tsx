@@ -1284,7 +1284,7 @@ export default function LifecycleAdminPage() {
         )}
 
         {activeTab === "invites" && (
-          <section className="mt-5 grid gap-5 lg:grid-cols-[420px_1fr]">
+          <section className="mt-5 max-w-2xl">
             <div className="rounded-[2rem] border border-[#eadfd5] bg-white p-5">
               <h2 className="font-serif text-3xl">Create intake</h2>
               <p className="mt-2 text-sm text-[#7d6b65]">{creatingFamilyIntake ? "Family contact first, then the elder who needs consent." : "Basic profile details, matching the user settings form."}</p>
@@ -1339,10 +1339,6 @@ export default function LifecycleAdminPage() {
                 </select>
                 <button className="rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white disabled:opacity-50" disabled={!canCreateIntake} onClick={createIntake}>Create intake</button>
               </div>
-            </div>
-            <div className="rounded-[2rem] border border-[#eadfd5] bg-white p-5">
-              <h2 className="font-serif text-3xl">Recent lifecycle users</h2>
-              <IntakeTable users={users.slice(0, 8)} onView={(intake) => openUserDetail(intake, "view")} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} onDelete={deleteUser} busyAction={busyAction} compact />
             </div>
           </section>
         )}
