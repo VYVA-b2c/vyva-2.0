@@ -70,7 +70,7 @@ type SupportScheduleDraft = {
 };
 
 const adminTabs = [
-  { id: "users", label: "People" },
+  { id: "users", label: "Users" },
   { id: "accounts", label: "App Access" },
   { id: "invites", label: "Forms" },
   { id: "consent", label: "Consent" },
@@ -1062,7 +1062,7 @@ export default function LifecycleAdminPage() {
       <section className="mx-auto max-w-7xl">
         <AdminPageHeader
           title="Lifecycle"
-          subtitle="People, forms, access."
+          subtitle="Users, forms, access."
         >
           <button className="rounded-xl bg-purple-700 px-4 py-2 text-sm font-bold text-white" onClick={() => refresh().catch((err) => setMessage(err.message))}>Refresh</button>
           {message && <span className="rounded-xl bg-purple-50 px-3 py-2 text-sm font-bold text-purple-800">{message}</span>}
@@ -1211,7 +1211,7 @@ export default function LifecycleAdminPage() {
             <section className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h2 className="font-serif text-2xl">People</h2>
+                  <h2 className="font-serif text-2xl">Users</h2>
                   <p className="mt-1 text-sm text-[#7d6b65]">Signup, onboarding, consent, status, and organization visibility.</p>
                 </div>
                 {peopleSearch && (
@@ -1235,7 +1235,7 @@ export default function LifecycleAdminPage() {
                   placeholder="Search by name, phone, profile email, or login email"
                 />
                 <button type="submit" className="rounded-xl bg-[#2f2135] px-4 py-2.5 text-sm font-bold text-white">
-                  Search people
+                  Search users
                 </button>
                 <button
                   type="button"
