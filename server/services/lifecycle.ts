@@ -206,6 +206,20 @@ function stringValue(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function stringArray(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
+}
+
+function phoneIdentityKeys(value?: string | null) {
+  const raw = (value ?? "").trim();
+  if (!raw) return [];
+  const email = raw.includes("@") ? normalizeEmail(raw) : "";
+  if (email) return [`email:${email}`];
+  if (raw.includes(":")) return [];
+  const phone = normalizePhone(raw);
+  return phone ? [`phone:${phone}`] : [];
+}
+
 function elderDetails(intake: Intake) {
   return nestedRecord(intake.metadata, "elder");
 }
@@ -223,9 +237,58 @@ function lifecycleIdentityKeys(input: {
   }
   const email = normalizeEmail(input.email);
   if (email) keys.push(`email:${email}`);
-  const phone = input.phone ? normalizePhone(input.phone) : "";
-  if (phone) keys.push(`phone:${phone}`);
+  keys.push(...phoneIdentityKeys(input.phone));
   return keys;
+}
+
+function deletedTombstoneIdentityKeys(intake: Intake) {
+  const metadata = metadataRecord(intake.metadata);
+  const keys = lifecycleIdentityKeys({
+    userId: intake.user_id,
+    elderUserId: intake.elder_user_id,
+    familyUserId: intake.family_user_id,
+    email: intake.email,
+    phone: intake.phone,
+  });
+
+  const deletedIdentity = metadataRecord(metadata.deleted_identity);
+  const deletedScope = metadataRecord(metadata.deleted_identity_scope);
+  for (const id of [
+    stringValue(deletedIdentity.user_id),
+    stringValue(deletedIdentity.elder_user_id),
+    stringValue(deletedIdentity.family_user_id),
+    ...stringArray(deletedScope.profile_or_login_ids),
+  ]) {
+    if (id) keys.push(`user:${id}`);
+  }
+  for (const email of [
+    stringValue(deletedIdentity.email),
+    ...stringArray(deletedScope.emails),
+  ]) {
+    const normalized = normalizeEmail(email);
+    if (normalized) keys.push(`email:${normalized}`);
+  }
+  keys.push(...phoneIdentityKeys(stringValue(deletedIdentity.phone)));
+  for (const phone of stringArray(deletedScope.phones)) keys.push(...phoneIdentityKeys(phone));
+
+  return Array.from(new Set(keys));
+}
+
+function isDeletedLifecycleTombstone(intake: Intake) {
+  const metadata = metadataRecord(intake.metadata);
+  return metadata.deleted_from_lifecycle === true || (
+    metadata.hidden_from_lifecycle === true && intake.journey_step === "admin_deleted"
+  );
+}
+
+function matchesDeletedTombstone(intake: Intake, tombstoneKeys: Set<string>) {
+  return lifecycleIdentityKeys({
+    userId: intake.user_id,
+    elderUserId: intake.elder_user_id,
+    familyUserId: intake.family_user_id,
+    email: intake.email,
+    phone: intake.phone,
+  }).some((key) => tombstoneKeys.has(key));
 }
 
 function hasLifecycleIdentity(existing: Set<string>, input: {
@@ -246,13 +309,18 @@ function rememberLifecycleIdentity(existing: Set<string>, input: {
   for (const key of lifecycleIdentityKeys(input)) existing.add(key);
 }
 
+function rememberDeletedTombstoneIdentity(existing: Set<string>, intake: Intake) {
+  if (!isDeletedLifecycleTombstone(intake)) return;
+  for (const key of deletedTombstoneIdentityKeys(intake)) existing.add(key);
+}
+
 function canonicalIdentityKey(intake: Intake) {
   const userId = targetUserIdForIntake(intake) ?? intake.user_id ?? intake.elder_user_id ?? intake.family_user_id;
   if (userId) return `user:${userId}`;
   const email = normalizeEmail(intake.email);
   if (email) return `email:${email}`;
-  const phone = normalizePhone(intake.phone);
-  if (phone) return `phone:${phone}`;
+  const phoneKey = phoneIdentityKeys(intake.phone)[0];
+  if (phoneKey) return phoneKey;
   return `intake:${intake.id}`;
 }
 
@@ -392,9 +460,44 @@ export async function scheduledItemsForUser(userId: string | null, database = db
 
 export async function repairLifecycleDuplicates(database = db) {
   const rows = await database.select().from(userIntakes);
+  const deletedTombstoneKeys = new Set<string>();
+  for (const row of rows) {
+    if (!isDeletedLifecycleTombstone(row)) continue;
+    for (const key of deletedTombstoneIdentityKeys(row)) deletedTombstoneKeys.add(key);
+  }
+
+  const hiddenByTombstone = new Set<string>();
+  for (const row of rows) {
+    if (isMergedLifecycleDuplicate(row) || !matchesDeletedTombstone(row, deletedTombstoneKeys)) continue;
+    hiddenByTombstone.add(row.id);
+    await database.update(userIntakes).set({
+      status: "dropped",
+      journey_step: "admin_deleted",
+      metadata: {
+        ...metadataRecord(row.metadata),
+        hidden_from_lifecycle: true,
+        deleted_from_lifecycle: true,
+        deleted_by_tombstone_repair: true,
+        deleted_at: new Date().toISOString(),
+      },
+      dropped_at: row.dropped_at ?? new Date(),
+      updated_at: new Date(),
+    }).where(eq(userIntakes.id, row.id));
+    await recordLifecycleEvent({
+      intakeId: row.id,
+      userId: targetUserIdForIntake(row),
+      eventType: "lifecycle_deleted_tombstone_applied",
+      fromStatus: row.status,
+      toStatus: "dropped",
+      channel: "admin",
+      metadata: { reason: "matched_deleted_lifecycle_identity" },
+    }, database);
+  }
+
   const groups: Intake[][] = [];
   const keyToGroup = new Map<string, Intake[]>();
   for (const row of rows) {
+    if (hiddenByTombstone.has(row.id)) continue;
     const keys = lifecycleIdentityKeys({
       userId: row.user_id,
       elderUserId: row.elder_user_id,
@@ -514,6 +617,7 @@ export async function backfillLifecycleUsers(database = db) {
       email: intake.email,
       phone: intake.phone,
     });
+    rememberDeletedTombstoneIdentity(existing, intake);
   }
 
   const inserted: Intake[] = [];
