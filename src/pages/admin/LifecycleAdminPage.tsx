@@ -92,6 +92,46 @@ function slugifyOrganizationLabel(value: string) {
     .slice(0, 64);
 }
 
+const lifecycleRequestFailedMessage = "Lifecycle request failed. Please refresh and try again.";
+
+function isHtmlErrorResponse(text: string) {
+  const normalized = text.trim().toLowerCase();
+  return normalized.startsWith("<!doctype html")
+    || normalized.startsWith("<html")
+    || normalized.includes("<pre>internal server error</pre>");
+}
+
+async function readAdminResponse(res: Response, fallback: string) {
+  const text = await res.text();
+  let data: JsonRecord = {};
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { error: text.trim() };
+    }
+  }
+
+  if (res.ok) return data;
+
+  if (isHtmlErrorResponse(text)) {
+    console.error(`[VYVA Admin] ${fallback}`, {
+      status: res.status,
+      statusText: res.statusText,
+      url: res.url,
+      body: text,
+    });
+    throw new Error(fallback);
+  }
+
+  const errorMessage = typeof data.error === "string" && data.error
+    ? data.error
+    : typeof data.message === "string" && data.message
+      ? data.message
+      : text.trim() || `${fallback} (${res.status})`;
+  throw new Error(errorMessage);
+}
+
 export default function LifecycleAdminPage() {
   const [activeTab, setActiveTab] = useState("users");
   const [filters, setFilters] = useState({ entry_point: "", user_type: "", status: "", tier: "" });
@@ -131,38 +171,12 @@ export default function LifecycleAdminPage() {
 
   async function api(path: string, options: RequestInit = {}) {
     const res = await apiFetch(`/api/admin/lifecycle${path}`, options);
-    const text = await res.text();
-    let data: JsonRecord = {};
-    if (text) {
-      try {
-        data = JSON.parse(text);
-      } catch {
-        data = { error: text.trim() };
-      }
-    }
-    const errorMessage = typeof data.error === "string" && data.error
-      ? data.error
-      : text.trim() || `Admin request failed (${res.status})`;
-    if (!res.ok) throw new Error(errorMessage);
-    return data;
+    return readAdminResponse(res, lifecycleRequestFailedMessage);
   }
 
   async function rootApi(path: string, options: RequestInit = {}) {
     const res = await apiFetch(path, options);
-    const text = await res.text();
-    let data: JsonRecord = {};
-    if (text) {
-      try {
-        data = JSON.parse(text);
-      } catch {
-        data = { error: text.trim() };
-      }
-    }
-    const errorMessage = typeof data.error === "string" && data.error
-      ? data.error
-      : text.trim() || `Request failed (${res.status})`;
-    if (!res.ok) throw new Error(errorMessage);
-    return data;
+    return readAdminResponse(res, lifecycleRequestFailedMessage);
   }
 
   async function refresh() {

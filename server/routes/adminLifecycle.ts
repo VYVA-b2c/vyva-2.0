@@ -84,6 +84,12 @@ function requireSuperAdmin(req: Request, res: Response): boolean {
   return true;
 }
 
+function jsonRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
 const entryPointSchema = z.enum(["form", "phone", "whatsapp", "admin"]);
 const userTypeSchema = z.enum(["elder", "family", "admin"]);
 const statusSchema = z.enum(["created", "link_sent", "consent_pending", "active", "dropped"]);
@@ -1821,19 +1827,8 @@ adminLifecycleRouter.delete("/users/:id", async (req: Request, res: Response) =>
     profile: false,
     login: false,
   };
-
-  await recordEvent({
-    intakeId: intake.id,
-    userId,
-    eventType: "user_deleted",
-    channel: "admin",
-    metadata: {
-      deleted_by: req.user?.email ?? req.user?.id ?? "admin",
-      name: intake.name,
-      email: intake.email,
-      phone: intake.phone,
-    },
-  });
+  const deletedAt = new Date();
+  const deletedBy = req.user?.email ?? req.user?.id ?? "admin";
 
   await optionalAdminDelete("communications for intake", db.delete(communicationsLog).where(eq(communicationsLog.intake_id, intake.id)));
   await optionalAdminDelete("consent attempts for intake", db.delete(consentAttempts).where(eq(consentAttempts.intake_id, intake.id)));
@@ -1906,11 +1901,59 @@ adminLifecycleRouter.delete("/users/:id", async (req: Request, res: Response) =>
     deleted.login = deletedLogins.length > 0;
   }
 
-  const deletedIntakes = await db.delete(userIntakes).where(eq(userIntakes.id, intake.id)).returning({ id: userIntakes.id });
-  deleted.intake = deletedIntakes.length > 0;
+  const [hiddenIntake] = await db.update(userIntakes).set({
+    status: "dropped",
+    journey_step: "admin_deleted",
+    dropped_at: deletedAt,
+    last_activity_at: deletedAt,
+    updated_at: deletedAt,
+    metadata: {
+      ...jsonRecord(intake.metadata),
+      hidden_from_lifecycle: true,
+      deleted_from_lifecycle: true,
+      deleted_at: deletedAt.toISOString(),
+      deleted_by: deletedBy,
+      deleted_identity: {
+        user_id: intake.user_id,
+        elder_user_id: intake.elder_user_id,
+        family_user_id: intake.family_user_id,
+        name: intake.name,
+        email: intake.email,
+        phone: intake.phone,
+      },
+      delete_cleanup: {
+        profile_deleted: deleted.profile,
+        login_deleted: deleted.login,
+      },
+    },
+  }).where(eq(userIntakes.id, intake.id)).returning({ id: userIntakes.id });
+  deleted.intake = hiddenIntake != null;
+
+  if (!hiddenIntake) {
+    return res.status(500).json({ error: "User cleanup ran, but the lifecycle tombstone could not be saved." });
+  }
+
+  await recordEvent({
+    intakeId: intake.id,
+    userId,
+    eventType: "user_deleted",
+    fromStatus: intake.status,
+    toStatus: "dropped",
+    channel: "admin",
+    metadata: {
+      deleted_by: deletedBy,
+      deleted_at: deletedAt.toISOString(),
+      hidden_from_lifecycle: true,
+      name: intake.name,
+      email: intake.email,
+      phone: intake.phone,
+      cleanup: deleted,
+    },
+  });
 
   return res.json({
     deleted,
+    hidden_intake: Boolean(hiddenIntake),
     user_id: userId,
     intake_id: intake.id,
   });
