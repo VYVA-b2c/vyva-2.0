@@ -278,6 +278,16 @@ export type AccountSubscription = {
 };
 
 export const entryPoints = ["", "form", "phone", "whatsapp", "admin"];
+export const entryPointLabels: Record<string, string> = {
+  form: "Online form",
+  phone: "Phone call",
+  whatsapp: "WhatsApp",
+  admin: "Admin-created",
+};
+export function entryPointLabel(value: string | null | undefined) {
+  const key = value ?? "";
+  return entryPointLabels[key] ?? key;
+}
 export const userTypes = ["", "elder", "family", "admin"];
 export const statuses = ["", "created", "link_sent", "consent_pending", "active", "dropped"];
 export const tiers = ["free", "premium"];

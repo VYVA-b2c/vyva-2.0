@@ -4,7 +4,6 @@ import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
 import {
-  AccountSubscriptionsSection,
   AnalyticsSection,
   CommunicationsSection,
   Field,
@@ -14,7 +13,6 @@ import {
   UserDetailModal,
 } from "./lifecycle/components";
 import {
-  type AccountSubscription,
   type BulkPreviewResponse,
   type Communication,
   type ConsentAttempt,
@@ -31,6 +29,7 @@ import {
   csvToRows,
   emptyIntakeForm,
   emptyScheduledEvent,
+  entryPointLabel,
   entryPoints,
   languageOptions,
   statuses,
@@ -71,7 +70,7 @@ type SupportScheduleDraft = {
 
 const adminTabs = [
   { id: "users", label: "Users" },
-  { id: "accounts", label: "App Access" },
+  { id: "share", label: "Share Invite" },
   { id: "invites", label: "Forms" },
   { id: "consent", label: "Consent" },
   { id: "organizations", label: "Organizations" },
@@ -102,11 +101,6 @@ export default function LifecycleAdminPage() {
   const [users, setUsers] = useState<Intake[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [plans, setPlans] = useState<SubscriptionPlanAdmin[]>([]);
-  const [accountSearch, setAccountSearch] = useState("");
-  const [accountSubscriptions, setAccountSubscriptions] = useState<AccountSubscription[]>([]);
-  const [accountSearchMessage, setAccountSearchMessage] = useState("");
-  const [savingAccountProfileId, setSavingAccountProfileId] = useState<string | null>(null);
-  const [repairingAccountProfileId, setRepairingAccountProfileId] = useState<string | null>(null);
   const [orgFilter, setOrgFilter] = useState<"active" | "archived" | "all">("active");
   const [consentAttempts, setConsentAttempts] = useState<ConsentAttempt[]>([]);
   const [communications, setCommunications] = useState<Communication[]>([]);
@@ -669,105 +663,6 @@ export default function LifecycleAdminPage() {
     await refresh();
   }
 
-  async function searchAccountSubscriptions(search = accountSearch) {
-    const query = search.trim();
-    setAccountSearchMessage("");
-    if (query.length < 3) {
-      setAccountSubscriptions([]);
-      setAccountSearchMessage("Enter at least 3 characters to search app access.");
-      return;
-    }
-
-    const data = await api(`/account-subscriptions?query=${encodeURIComponent(query)}`);
-    const accounts = (data.accounts ?? []) as AccountSubscription[];
-    setAccountSubscriptions(accounts);
-    setAccountSearchMessage(accounts.length ? `${accounts.length} matching app access profile${accounts.length === 1 ? "" : "s"} found.` : "No matching app access profiles found.");
-  }
-
-  function updateAccountSubscription(profileId: string, patch: Partial<AccountSubscription>) {
-    setAccountSubscriptions((current) => current.map((account) => (
-      account.profile_id === profileId ? { ...account, ...patch } : account
-    )));
-  }
-
-  async function saveAccountSubscription(account: AccountSubscription) {
-    setSavingAccountProfileId(account.profile_id);
-    setAccountSearchMessage("");
-    try {
-      const data = await api(`/account-subscriptions/${account.profile_id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          account_id: account.account_id,
-          account_source: account.account_source,
-          account_email: account.account_email,
-          subscription_tier: account.subscription_tier,
-          subscription_status: account.subscription_status || "active",
-        }),
-      });
-      const updated = data.account as AccountSubscription;
-      setAccountSubscriptions((current) => current.map((item) => (
-        item.profile_id === account.profile_id
-          ? {
-              ...item,
-              ...updated,
-              account_id: updated.account_id ?? item.account_id,
-              account_source: updated.account_source ?? item.account_source,
-              account_email: item.account_email,
-              account_phone: item.account_phone,
-              active_profile_id: updated.active_profile_id ?? item.active_profile_id,
-              is_active_profile: updated.is_active_profile ?? item.is_active_profile,
-            }
-          : item
-      )));
-      const syncedCount = updated.synced_profile_ids?.length ?? 1;
-      setAccountSearchMessage(`${account.profile_email ?? account.account_email ?? account.profile_id} updated to ${updated.subscription_tier}${account.account_id ? " and made active for that login" : ""}${syncedCount > 1 ? ` across ${syncedCount} linked profiles` : ""}.`);
-      await refresh();
-    } catch (err) {
-      setAccountSearchMessage(err instanceof Error ? err.message : "Could not update subscription.");
-    } finally {
-      setSavingAccountProfileId(null);
-    }
-  }
-
-  async function repairAccountSubscription(account: AccountSubscription) {
-    setRepairingAccountProfileId(account.profile_id);
-    setAccountSearchMessage("");
-    try {
-      const data = await api(`/account-subscriptions/${account.profile_id}/repair-entitlement`, {
-        method: "POST",
-        body: JSON.stringify({
-          account_id: account.account_id,
-          account_source: account.account_source,
-          account_email: account.account_email ?? account.profile_email,
-          account_phone: account.account_phone ?? account.phone_number,
-        }),
-      });
-      const updated = data.account as AccountSubscription;
-      setAccountSubscriptions((current) => current.map((item) => (
-        item.profile_id === account.profile_id
-          ? {
-              ...item,
-              ...updated,
-              account_id: updated.account_id ?? item.account_id,
-              account_source: updated.account_source ?? item.account_source,
-              account_email: item.account_email,
-              account_phone: item.account_phone,
-              active_profile_id: updated.active_profile_id ?? item.active_profile_id,
-              is_active_profile: updated.is_active_profile ?? item.is_active_profile,
-            }
-          : item
-      )));
-      setAccountSearchMessage(data.repaired
-        ? `${account.profile_email ?? account.account_email ?? account.profile_id} repaired to ${updated.subscription_tier}.`
-        : `${account.profile_email ?? account.account_email ?? account.profile_id} did not need a repair.`);
-      await refresh();
-    } catch (err) {
-      setAccountSearchMessage(err instanceof Error ? err.message : "Could not repair subscription.");
-    } finally {
-      setRepairingAccountProfileId(null);
-    }
-  }
-
   async function openUserDetail(intake: Intake, action: "view" | "tier" = "view") {
     setBusyAction(`${action}:${intake.id}`);
     setMessage("");
@@ -1093,7 +988,7 @@ export default function LifecycleAdminPage() {
           ))}
         </nav>
 
-        {activeTab === "users" && (
+        {activeTab === "share" && (
           <div className="mt-3 grid gap-4">
             <section className="rounded-2xl border border-[#eadfd5] bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-4">
@@ -1207,80 +1102,70 @@ export default function LifecycleAdminPage() {
                 </div>
               </div>
             </section>
-
-            <section className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 className="font-serif text-2xl">Users</h2>
-                  <p className="mt-1 text-sm text-[#7d6b65]">Signup, onboarding, consent, status, and organization visibility.</p>
-                </div>
-                {peopleSearch && (
-                  <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">
-                    Search: {peopleSearch}
-                  </span>
-                )}
-              </div>
-
-              <form
-                className="mt-4 grid gap-3 md:grid-cols-[1fr_auto_auto]"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  setPeopleSearch(peopleSearchInput.trim());
-                }}
-              >
-                <input
-                  className="rounded-xl border border-[#e4d8ce] px-3 py-2.5 text-sm font-semibold"
-                  value={peopleSearchInput}
-                  onChange={(event) => setPeopleSearchInput(event.target.value)}
-                  placeholder="Search by name, phone, profile email, or login email"
-                />
-                <button type="submit" className="rounded-xl bg-[#2f2135] px-4 py-2.5 text-sm font-bold text-white">
-                  Search users
-                </button>
-                <button
-                  type="button"
-                  className="rounded-xl border border-purple-100 bg-white px-4 py-2.5 text-sm font-bold text-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={!peopleSearch && !peopleSearchInput}
-                  onClick={() => {
-                    setPeopleSearchInput("");
-                    setPeopleSearch("");
-                  }}
-                >
-                  Clear
-                </button>
-              </form>
-
-              <div className="mt-4 grid gap-3 md:grid-cols-4">
-                {[
-                  ["entry_point", entryPoints],
-                  ["user_type", userTypes],
-                  ["status", statuses],
-                  ["tier", ["", ...planOptions.map((plan) => plan.value)]],
-                ].map(([key, values]) => (
-                  <select key={key as keyof typeof filters} className="rounded-xl border border-[#e4d8ce] px-3 py-2.5 text-sm font-semibold" value={filters[key as keyof typeof filters]} onChange={(e) => setFilters((prev) => ({ ...prev, [key as keyof typeof filters]: e.target.value }))}>
-                    {(values as string[]).map((value) => <option key={value} value={value}>{value || String(key).replace("_", " ")}</option>)}
-                  </select>
-                ))}
-              </div>
-              <IntakeTable users={users} onView={(intake) => openUserDetail(intake, "view")} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} onDelete={deleteUser} busyAction={busyAction} />
-            </section>
           </div>
         )}
 
-        {activeTab === "accounts" && (
-          <AccountSubscriptionsSection
-            accounts={accountSubscriptions}
-            message={accountSearchMessage}
-            planOptions={planOptions}
-            search={accountSearch}
-            savingProfileId={savingAccountProfileId}
-            repairingProfileId={repairingAccountProfileId}
-            onSearchChange={setAccountSearch}
-            onSearch={() => searchAccountSubscriptions().catch((err) => setAccountSearchMessage(err.message))}
-            onChange={updateAccountSubscription}
-            onSave={saveAccountSubscription}
-            onRepair={repairAccountSubscription}
-          />
+        {activeTab === "users" && (
+          <section className="mt-3 rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="font-serif text-2xl">Users</h2>
+                <p className="mt-1 text-sm text-[#7d6b65]">Signup, onboarding, consent, status, and organization visibility.</p>
+              </div>
+              {peopleSearch && (
+                <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">
+                  Search: {peopleSearch}
+                </span>
+              )}
+            </div>
+
+            <form
+              className="mt-4 grid gap-3 md:grid-cols-[1fr_auto_auto]"
+              onSubmit={(event) => {
+                event.preventDefault();
+                setPeopleSearch(peopleSearchInput.trim());
+              }}
+            >
+              <input
+                className="rounded-xl border border-[#e4d8ce] px-3 py-2.5 text-sm font-semibold"
+                value={peopleSearchInput}
+                onChange={(event) => setPeopleSearchInput(event.target.value)}
+                placeholder="Search by name, phone, profile email, or login email"
+              />
+              <button type="submit" className="rounded-xl bg-[#2f2135] px-4 py-2.5 text-sm font-bold text-white">
+                Search users
+              </button>
+              <button
+                type="button"
+                className="rounded-xl border border-purple-100 bg-white px-4 py-2.5 text-sm font-bold text-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!peopleSearch && !peopleSearchInput}
+                onClick={() => {
+                  setPeopleSearchInput("");
+                  setPeopleSearch("");
+                }}
+              >
+                Clear
+              </button>
+            </form>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-4">
+              {[
+                ["entry_point", entryPoints],
+                ["user_type", userTypes],
+                ["status", statuses],
+                ["tier", ["", ...planOptions.map((plan) => plan.value)]],
+              ].map(([key, values]) => (
+                <select key={key as keyof typeof filters} className="rounded-xl border border-[#e4d8ce] px-3 py-2.5 text-sm font-semibold" value={filters[key as keyof typeof filters]} onChange={(e) => setFilters((prev) => ({ ...prev, [key as keyof typeof filters]: e.target.value }))}>
+                  {(values as string[]).map((value) => (
+                    <option key={value} value={value}>
+                      {key === "entry_point" && value ? entryPointLabel(value) : value || String(key).replace("_", " ")}
+                    </option>
+                  ))}
+                </select>
+              ))}
+            </div>
+            <IntakeTable users={users} onView={(intake) => openUserDetail(intake, "view")} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} onDelete={deleteUser} busyAction={busyAction} />
+          </section>
         )}
 
         {activeTab === "invites" && (
@@ -1331,7 +1216,13 @@ export default function LifecycleAdminPage() {
                     </div>
                   </div>
                 )}
-                <select className="rounded-2xl border px-4 py-3" value={newIntake.entry_point} onChange={(e) => setNewIntake({ ...newIntake, entry_point: e.target.value })}>{entryPoints.filter(Boolean).map((v) => <option key={v}>{v}</option>)}</select>
+                <Field label="How did they come in?">
+                  <select className="w-full rounded-2xl border px-4 py-3" value={newIntake.entry_point} onChange={(e) => setNewIntake({ ...newIntake, entry_point: e.target.value })}>
+                    {entryPoints.filter(Boolean).map((value) => (
+                      <option key={value} value={value}>{entryPointLabel(value)}</option>
+                    ))}
+                  </select>
+                </Field>
                 <select className="rounded-2xl border px-4 py-3" value={newIntake.tier} onChange={(e) => setNewIntake({ ...newIntake, tier: e.target.value })}>{planOptions.map((plan) => <option key={plan.value} value={plan.value}>{plan.label}</option>)}</select>
                 <select className="rounded-2xl border px-4 py-3" value={newIntake.organization_id} onChange={(e) => setNewIntake({ ...newIntake, organization_id: e.target.value })}>
                   <option value="">No organization</option>

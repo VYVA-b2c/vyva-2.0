@@ -1,5 +1,8 @@
 import type { LanguageCode } from "@/i18n/languages";
 
+const LOCAL_API_UNAVAILABLE_MESSAGE =
+  "Local API is not running. Start the backend on port 3001 and make sure DATABASE_URL is set.";
+
 type AuthErrorMessages = {
   invalidContact: string;
   invalidSignIn: string;
@@ -111,6 +114,8 @@ export function localizeAuthErrorMessage(error: unknown, language: LanguageCode,
   if (normalized.includes("email already exists")) return copy.emailExists;
   if (normalized.includes("incorrect email, mobile number, or password")) return copy.incorrectCredentials;
   if (normalized.includes("password must be at least 8 characters")) return copy.passwordTooShort;
+  if (normalized.includes("local api is not running")) return message;
+  if (normalized.includes("api proxy failed")) return LOCAL_API_UNAVAILABLE_MESSAGE;
   if (normalized === "login failed") return copy.loginFailed;
   if (normalized === "registration failed" || normalized.startsWith("registration failed:")) {
     return copy.registrationFailed;
