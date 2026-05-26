@@ -9,6 +9,8 @@ const packageJson = JSON.parse(
 ) as { version?: string };
 
 const appVersion = process.env.VITE_APP_VERSION || packageJson.version || "0.0.0";
+const localApiUnavailableMessage =
+  "Local API is not running. Start the backend on port 3001 and make sure DATABASE_URL is set.";
 
 function forwardApiRequest(req: IncomingMessage, res: ServerResponse) {
   const target = `http://127.0.0.1:3001${req.url ?? ""}`;
@@ -34,7 +36,12 @@ function forwardApiRequest(req: IncomingMessage, res: ServerResponse) {
     } catch (err) {
       res.statusCode = 502;
       res.setHeader("content-type", "application/json");
-      res.end(JSON.stringify({ error: "API proxy failed", detail: err instanceof Error ? err.message : String(err) }));
+      res.end(JSON.stringify({
+        error: "API proxy failed",
+        message: localApiUnavailableMessage,
+        code: "LOCAL_API_UNAVAILABLE",
+        detail: err instanceof Error ? err.message : String(err),
+      }));
     }
   });
 }
