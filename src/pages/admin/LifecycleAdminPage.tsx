@@ -72,6 +72,7 @@ type SupportScheduleDraft = {
 
 const adminTabs = [
   { id: "users", label: "Users" },
+  { id: "share", label: "Share Invite" },
   { id: "accounts", label: "App Access" },
   { id: "invites", label: "Forms" },
   { id: "consent", label: "Consent" },
@@ -1094,7 +1095,7 @@ export default function LifecycleAdminPage() {
           ))}
         </nav>
 
-        {activeTab === "users" && (
+        {activeTab === "share" && (
           <div className="mt-3 grid gap-4">
             <section className="rounded-2xl border border-[#eadfd5] bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-4">
@@ -1208,68 +1209,70 @@ export default function LifecycleAdminPage() {
                 </div>
               </div>
             </section>
+          </div>
+        )}
 
-            <section className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 className="font-serif text-2xl">Users</h2>
-                  <p className="mt-1 text-sm text-[#7d6b65]">Signup, onboarding, consent, status, and organization visibility.</p>
-                </div>
-                {peopleSearch && (
-                  <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">
-                    Search: {peopleSearch}
-                  </span>
-                )}
+        {activeTab === "users" && (
+          <section className="mt-3 rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="font-serif text-2xl">Users</h2>
+                <p className="mt-1 text-sm text-[#7d6b65]">Signup, onboarding, consent, status, and organization visibility.</p>
               </div>
+              {peopleSearch && (
+                <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">
+                  Search: {peopleSearch}
+                </span>
+              )}
+            </div>
 
-              <form
-                className="mt-4 grid gap-3 md:grid-cols-[1fr_auto_auto]"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  setPeopleSearch(peopleSearchInput.trim());
+            <form
+              className="mt-4 grid gap-3 md:grid-cols-[1fr_auto_auto]"
+              onSubmit={(event) => {
+                event.preventDefault();
+                setPeopleSearch(peopleSearchInput.trim());
+              }}
+            >
+              <input
+                className="rounded-xl border border-[#e4d8ce] px-3 py-2.5 text-sm font-semibold"
+                value={peopleSearchInput}
+                onChange={(event) => setPeopleSearchInput(event.target.value)}
+                placeholder="Search by name, phone, profile email, or login email"
+              />
+              <button type="submit" className="rounded-xl bg-[#2f2135] px-4 py-2.5 text-sm font-bold text-white">
+                Search users
+              </button>
+              <button
+                type="button"
+                className="rounded-xl border border-purple-100 bg-white px-4 py-2.5 text-sm font-bold text-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!peopleSearch && !peopleSearchInput}
+                onClick={() => {
+                  setPeopleSearchInput("");
+                  setPeopleSearch("");
                 }}
               >
-                <input
-                  className="rounded-xl border border-[#e4d8ce] px-3 py-2.5 text-sm font-semibold"
-                  value={peopleSearchInput}
-                  onChange={(event) => setPeopleSearchInput(event.target.value)}
-                  placeholder="Search by name, phone, profile email, or login email"
-                />
-                <button type="submit" className="rounded-xl bg-[#2f2135] px-4 py-2.5 text-sm font-bold text-white">
-                  Search users
-                </button>
-                <button
-                  type="button"
-                  className="rounded-xl border border-purple-100 bg-white px-4 py-2.5 text-sm font-bold text-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={!peopleSearch && !peopleSearchInput}
-                  onClick={() => {
-                    setPeopleSearchInput("");
-                    setPeopleSearch("");
-                  }}
-                >
-                  Clear
-                </button>
-              </form>
+                Clear
+              </button>
+            </form>
 
-              <div className="mt-4 grid gap-3 md:grid-cols-4">
-                {[
-                  ["entry_point", entryPoints],
-                  ["user_type", userTypes],
-                  ["status", statuses],
-                  ["tier", ["", ...planOptions.map((plan) => plan.value)]],
-                ].map(([key, values]) => (
-                  <select key={key as keyof typeof filters} className="rounded-xl border border-[#e4d8ce] px-3 py-2.5 text-sm font-semibold" value={filters[key as keyof typeof filters]} onChange={(e) => setFilters((prev) => ({ ...prev, [key as keyof typeof filters]: e.target.value }))}>
-                    {(values as string[]).map((value) => (
-                      <option key={value} value={value}>
-                        {key === "entry_point" && value ? entryPointLabel(value) : value || String(key).replace("_", " ")}
-                      </option>
-                    ))}
-                  </select>
-                ))}
-              </div>
-              <IntakeTable users={users} onView={(intake) => openUserDetail(intake, "view")} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} onDelete={deleteUser} busyAction={busyAction} />
-            </section>
-          </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-4">
+              {[
+                ["entry_point", entryPoints],
+                ["user_type", userTypes],
+                ["status", statuses],
+                ["tier", ["", ...planOptions.map((plan) => plan.value)]],
+              ].map(([key, values]) => (
+                <select key={key as keyof typeof filters} className="rounded-xl border border-[#e4d8ce] px-3 py-2.5 text-sm font-semibold" value={filters[key as keyof typeof filters]} onChange={(e) => setFilters((prev) => ({ ...prev, [key as keyof typeof filters]: e.target.value }))}>
+                  {(values as string[]).map((value) => (
+                    <option key={value} value={value}>
+                      {key === "entry_point" && value ? entryPointLabel(value) : value || String(key).replace("_", " ")}
+                    </option>
+                  ))}
+                </select>
+              ))}
+            </div>
+            <IntakeTable users={users} onView={(intake) => openUserDetail(intake, "view")} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} onDelete={deleteUser} busyAction={busyAction} />
+          </section>
         )}
 
         {activeTab === "accounts" && (
