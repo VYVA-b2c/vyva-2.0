@@ -483,6 +483,7 @@ function normalizedEmail(value: unknown): string | null {
 
 function normalizedPhoneOrNull(value: unknown): string | null {
   if (typeof value !== "string") return null;
+  if (value.includes("@") || value.includes(":")) return null;
   const normalized = normalizePhone(value);
   return normalized ? normalized : null;
 }
@@ -577,6 +578,7 @@ async function lifecycleIdentityScope(intake: typeof userIntakes.$inferSelect) {
   addIfPresent(ids, intake.family_user_id);
   addIfPresent(ids, targetUserIdForIntake(intake));
   addNormalizedEmail(emails, intake.email);
+  addNormalizedEmail(emails, intake.phone);
   addNormalizedPhone(phones, intake.phone);
 
   const seedProfile = await profileById(targetUserIdForIntake(intake));
@@ -657,6 +659,7 @@ async function lifecycleIdentityScope(intake: typeof userIntakes.$inferSelect) {
     addIfPresent(ids, row.elder_user_id);
     addIfPresent(ids, row.family_user_id);
     addNormalizedEmail(emails, row.email);
+    addNormalizedEmail(emails, row.phone);
     addNormalizedPhone(phones, row.phone);
   }
 
