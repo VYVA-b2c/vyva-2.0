@@ -2151,16 +2151,22 @@ adminLifecycleRouter.delete("/users/:id", async (req: Request, res: Response) =>
   }
 
   const profileWhere = profileIdentityWhere(scope);
-  const deletedProfiles = profileWhere
-    ? await optionalAdminRows(db.delete(profiles).where(profileWhere).returning({ id: profiles.id }))
+  const disabledProfiles = profileWhere
+    ? await optionalAdminRows(db.update(profiles).set({
+      account_status: "disabled",
+      disabled_at: deletedAt,
+      disabled_reason: "Deleted from lifecycle admin",
+      disabled_by: deletedBy,
+      updated_at: deletedAt,
+    }).where(profileWhere).returning({ id: profiles.id }))
     : [];
-  deleted.profile = deletedProfiles.length > 0;
+  deleted.profile = disabledProfiles.length > 0;
 
   const loginWhere = legacyUserIdentityWhere(scope);
-  const deletedLogins = loginWhere
-    ? await optionalAdminRows(db.delete(users).where(loginWhere).returning({ id: users.id }))
+  const detachedLogins = loginWhere
+    ? await optionalAdminRows(db.update(users).set({ active_profile_id: null }).where(loginWhere).returning({ id: users.id }))
     : [];
-  deleted.login = deletedLogins.length > 0;
+  deleted.login = detachedLogins.length > 0;
 
   const intakeWhere = lifecycleIntakeIdentityWhere({
     selectedIntakeId: intake.id,
@@ -2199,8 +2205,8 @@ adminLifecycleRouter.delete("/users/:id", async (req: Request, res: Response) =>
           phones: scope.phones,
         },
         delete_cleanup: {
-          profile_deleted: deleted.profile,
-          login_deleted: deleted.login,
+          profile_disabled: deleted.profile,
+          login_detached: deleted.login,
         },
       },
     }).where(eq(userIntakes.id, row.id)).returning({ id: userIntakes.id });
