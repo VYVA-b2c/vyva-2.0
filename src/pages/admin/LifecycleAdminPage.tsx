@@ -1,9 +1,9 @@
+import { Copy, Send, Upload } from "lucide-react";
 import { useEffect, useState, type ChangeEvent } from "react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
 import {
-  AccountSubscriptionsSection,
   AnalyticsSection,
   CommunicationsSection,
   Field,
@@ -13,7 +13,6 @@ import {
   UserDetailModal,
 } from "./lifecycle/components";
 import {
-  type AccountSubscription,
   type BulkPreviewResponse,
   type Communication,
   type ConsentAttempt,
@@ -30,6 +29,7 @@ import {
   csvToRows,
   emptyIntakeForm,
   emptyScheduledEvent,
+  entryPointLabel,
   entryPoints,
   languageOptions,
   statuses,
@@ -69,9 +69,9 @@ type SupportScheduleDraft = {
 };
 
 const adminTabs = [
-  { id: "users", label: "People" },
-  { id: "accounts", label: "App Access" },
-  { id: "invites", label: "Invites" },
+  { id: "users", label: "Users" },
+  { id: "share", label: "Share Invite" },
+  { id: "invites", label: "Forms" },
   { id: "consent", label: "Consent" },
   { id: "organizations", label: "Organizations" },
   { id: "tiers", label: "Tiers" },
@@ -101,11 +101,6 @@ export default function LifecycleAdminPage() {
   const [users, setUsers] = useState<Intake[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [plans, setPlans] = useState<SubscriptionPlanAdmin[]>([]);
-  const [accountSearch, setAccountSearch] = useState("");
-  const [accountSubscriptions, setAccountSubscriptions] = useState<AccountSubscription[]>([]);
-  const [accountSearchMessage, setAccountSearchMessage] = useState("");
-  const [savingAccountProfileId, setSavingAccountProfileId] = useState<string | null>(null);
-  const [repairingAccountProfileId, setRepairingAccountProfileId] = useState<string | null>(null);
   const [orgFilter, setOrgFilter] = useState<"active" | "archived" | "all">("active");
   const [consentAttempts, setConsentAttempts] = useState<ConsentAttempt[]>([]);
   const [communications, setCommunications] = useState<Communication[]>([]);
@@ -119,6 +114,7 @@ export default function LifecycleAdminPage() {
   });
   const [sharingSignup, setSharingSignup] = useState(false);
   const [signupShareNotice, setSignupShareNotice] = useState<SignupShareNotice | null>(null);
+  const [copiedSignupLink, setCopiedSignupLink] = useState(false);
   const [newOrg, setNewOrg] = useState({ name: "", default_tier: "free" });
   const [editingOrgId, setEditingOrgId] = useState<string | null>(null);
   const [orgDraft, setOrgDraft] = useState({ name: "", default_tier: "free" });
@@ -240,6 +236,7 @@ export default function LifecycleAdminPage() {
 
   function compactRecipientName(value: string) {
     const normalized = value.replace(/\s+/g, " ").trim();
+    if (looksLikeEmailRecipient(normalized) || looksLikePhoneRecipient(normalized)) return undefined;
     return normalized || undefined;
   }
 
@@ -252,33 +249,206 @@ export default function LifecycleAdminPage() {
   }
 
   function parseInviteRecipients(value: string, looksLikeRecipient: (value: string) => boolean): SignupShareRecipient[] {
-    return value
-      .split(/\n+/)
-      .flatMap((line) => {
-        const trimmed = line.trim();
-        if (!trimmed) return [];
+    const recipients: SignupShareRecipient[] = [];
+    let pendingName: string | undefined;
 
-        const angleMatch = trimmed.match(/^\s*(.*?)\s*<([^<>]+)>\s*$/);
-        if (angleMatch) {
-          const name = compactRecipientName(angleMatch[1]);
-          return [{
-            ...(name ? { name } : {}),
-            recipient: angleMatch[2].trim(),
-          }];
+    function addRecipient(recipient: string, name = pendingName) {
+      const trimmedRecipient = recipient.trim();
+      if (!trimmedRecipient) return;
+      recipients.push({ ...(name ? { name } : {}), recipient: trimmedRecipient });
+    }
+
+    value.split(/\n+/).forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+
+      const angleMatch = trimmed.match(/^\s*(.*?)\s*<([^<>]+)>\s*$/);
+      if (angleMatch) {
+        const name = compactRecipientName(angleMatch[1]) ?? pendingName;
+        addRecipient(angleMatch[2], name);
+        return;
+      }
+
+      const parts = trimmed.split(/[;,]+/).map((item) => item.trim()).filter(Boolean);
+      if (parts.length > 1) {
+        if (!looksLikeRecipient(parts[0])) {
+          const name = compactRecipientName(parts[0]) ?? pendingName;
+          parts.slice(1).forEach((recipient) => addRecipient(recipient, name));
+          pendingName = name;
+          return;
         }
+        parts.forEach((recipient) => addRecipient(recipient, undefined));
+        return;
+      }
 
-        const parts = trimmed.split(/[;,]+/).map((item) => item.trim()).filter(Boolean);
-        if (parts.length === 2 && !looksLikeRecipient(parts[0])) {
-          const name = compactRecipientName(parts[0]);
-          return [{ ...(name ? { name } : {}), recipient: parts[1] }];
-        }
+      if (looksLikeRecipient(trimmed)) {
+        addRecipient(trimmed);
+        return;
+      }
 
-        if (parts.length > 1) {
-          return parts.map((recipient) => ({ recipient }));
-        }
+      pendingName = compactRecipientName(trimmed.replace(/[;,]+$/g, ""));
+    });
 
-        return [{ recipient: trimmed }];
+    return recipients;
+  }
+
+  function emailFromText(value: string) {
+    return value.match(/[^\s<,;"]+@[^\s>,;"]+\.[^\s>,;"]+/)?.[0] ?? "";
+  }
+
+  function phoneFromText(value: string) {
+    return value.match(/(?:\+\d[\d\s().-]{4,}\d|\d[\d\s().-]{4,}\d)/)?.[0].replace(/\s+/g, " ").trim() ?? "";
+  }
+
+  function uploadRowsWithHeaders(text: string, headers: string[]) {
+    const firstLine = text.replace(/^\uFEFF/, "").split(/\r?\n/).find((line) => line.trim()) ?? "";
+    const firstHeaders = firstLine.split(",").map((header) => header.trim().toLowerCase().replace(/\s+/g, "_"));
+    if (!firstHeaders.some((header) => headers.includes(header))) return [];
+    return csvToRows(text);
+  }
+
+  function emailUploadLines(text: string) {
+    const rows = uploadRowsWithHeaders(text, ["email", "email_address", "email_recipient", "recipient", "contact_email"]);
+    const fromRows = rows
+      .map((row) => {
+        const email = [
+          row.email,
+          row.email_address,
+          row.email_recipient,
+          row.recipient,
+          row.contact_email,
+          ...Object.values(row),
+        ].map((value) => emailFromText(value)).find(looksLikeEmailRecipient);
+        if (!email) return "";
+
+        const name = compactRecipientName(
+          row.name
+            || row.full_name
+            || row.recipient_name
+            || [row.first_name, row.last_name].filter(Boolean).join(" ")
+        );
+        return name ? `${name}, ${email}` : email;
+      })
+      .filter(Boolean);
+
+    if (fromRows.length) return fromRows;
+
+    return text
+      .replace(/^\uFEFF/, "")
+      .split(/\r?\n/)
+      .flatMap((line) => parseInviteRecipients(line, looksLikeEmailRecipient))
+      .filter((item) => looksLikeEmailRecipient(item.recipient))
+      .map((item) => item.name ? `${item.name}, ${item.recipient}` : item.recipient);
+  }
+
+  function whatsappUploadLines(text: string) {
+    const rows = uploadRowsWithHeaders(text, [
+      "whatsapp",
+      "whatsapp_number",
+      "whats_app",
+      "phone",
+      "phone_number",
+      "mobile",
+      "mobile_phone",
+      "recipient",
+      "contact_phone",
+    ]);
+    const fromRows = rows
+      .map((row) => [
+        row.whatsapp,
+        row.whatsapp_number,
+        row.whats_app,
+        row.phone,
+        row.phone_number,
+        row.mobile,
+        row.mobile_phone,
+        row.recipient,
+        row.contact_phone,
+        ...Object.values(row),
+      ].map((value) => phoneFromText(value)).find(looksLikePhoneRecipient) ?? "")
+      .filter(Boolean);
+
+    if (fromRows.length) return fromRows;
+
+    return text
+      .replace(/^\uFEFF/, "")
+      .split(/\r?\n/)
+      .flatMap((line) => parseInviteRecipients(line, looksLikePhoneRecipient))
+      .map((item) => phoneFromText(item.recipient) || item.recipient)
+      .filter(looksLikePhoneRecipient);
+  }
+
+  function normalizeWhatsappRecipientText(value: string) {
+    return parseInviteRecipients(value, looksLikePhoneRecipient)
+      .map((item) => phoneFromText(item.recipient) || item.recipient)
+      .filter(looksLikePhoneRecipient)
+      .join("\n");
+  }
+
+  async function uploadEmailRecipients(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const lines = emailUploadLines(await file.text());
+      const existing = parseInviteRecipients(signupShare.emails, looksLikeEmailRecipient);
+      const seen = new Set(existing.map((item) => item.recipient.toLowerCase()));
+      const uniqueLines = lines.filter((line) => {
+        const email = parseInviteRecipients(line, looksLikeEmailRecipient)[0]?.recipient ?? emailFromText(line);
+        const normalized = email.toLowerCase();
+        if (!looksLikeEmailRecipient(email) || seen.has(normalized)) return false;
+        seen.add(normalized);
+        return true;
       });
+
+      if (!uniqueLines.length) {
+        setMessage("No new email recipients found in that file.");
+        return;
+      }
+
+      setSignupShare((current) => ({
+        ...current,
+        emails: [current.emails.trim(), ...uniqueLines].filter(Boolean).join("\n"),
+      }));
+      setMessage(`${uniqueLines.length} email recipient${uniqueLines.length === 1 ? "" : "s"} added from ${file.name}.`);
+    } catch {
+      setMessage("Could not read that email upload. Use a CSV or TXT file.");
+    } finally {
+      event.target.value = "";
+    }
+  }
+
+  async function uploadWhatsappRecipients(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const lines = whatsappUploadLines(await file.text());
+      const existing = parseInviteRecipients(signupShare.whatsapp, looksLikePhoneRecipient);
+      const seen = new Set(existing.map((item) => item.recipient.replace(/\D/g, "")));
+      const uniqueLines = lines.filter((line) => {
+        const phone = phoneFromText(line) || line;
+        const normalized = phone.replace(/\D/g, "");
+        if (!looksLikePhoneRecipient(phone) || seen.has(normalized)) return false;
+        seen.add(normalized);
+        return true;
+      });
+
+      if (!uniqueLines.length) {
+        setMessage("No new WhatsApp numbers found in that file.");
+        return;
+      }
+
+      setSignupShare((current) => ({
+        ...current,
+        whatsapp: [current.whatsapp.trim(), ...uniqueLines].filter(Boolean).join("\n"),
+      }));
+      setMessage(`${uniqueLines.length} WhatsApp number${uniqueLines.length === 1 ? "" : "s"} added from ${file.name}.`);
+    } catch {
+      setMessage("Could not read that WhatsApp upload. Use a CSV or TXT file.");
+    } finally {
+      event.target.value = "";
+    }
   }
 
   function signupShareResults(value: unknown): SignupShareResult[] {
@@ -342,6 +512,16 @@ export default function LifecycleAdminPage() {
       });
     } finally {
       setSharingSignup(false);
+    }
+  }
+
+  async function copySignupLink() {
+    try {
+      await navigator.clipboard.writeText("https://v2.vyva.life/invite");
+      setCopiedSignupLink(true);
+      window.setTimeout(() => setCopiedSignupLink(false), 1800);
+    } catch {
+      setMessage("Could not copy the signup link.");
     }
   }
 
@@ -481,105 +661,6 @@ export default function LifecycleAdminPage() {
     });
     setMessage(`${plan.name} saved.`);
     await refresh();
-  }
-
-  async function searchAccountSubscriptions(search = accountSearch) {
-    const query = search.trim();
-    setAccountSearchMessage("");
-    if (query.length < 3) {
-      setAccountSubscriptions([]);
-      setAccountSearchMessage("Enter at least 3 characters to search app access.");
-      return;
-    }
-
-    const data = await api(`/account-subscriptions?query=${encodeURIComponent(query)}`);
-    const accounts = (data.accounts ?? []) as AccountSubscription[];
-    setAccountSubscriptions(accounts);
-    setAccountSearchMessage(accounts.length ? `${accounts.length} matching app access profile${accounts.length === 1 ? "" : "s"} found.` : "No matching app access profiles found.");
-  }
-
-  function updateAccountSubscription(profileId: string, patch: Partial<AccountSubscription>) {
-    setAccountSubscriptions((current) => current.map((account) => (
-      account.profile_id === profileId ? { ...account, ...patch } : account
-    )));
-  }
-
-  async function saveAccountSubscription(account: AccountSubscription) {
-    setSavingAccountProfileId(account.profile_id);
-    setAccountSearchMessage("");
-    try {
-      const data = await api(`/account-subscriptions/${account.profile_id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          account_id: account.account_id,
-          account_source: account.account_source,
-          account_email: account.account_email,
-          subscription_tier: account.subscription_tier,
-          subscription_status: account.subscription_status || "active",
-        }),
-      });
-      const updated = data.account as AccountSubscription;
-      setAccountSubscriptions((current) => current.map((item) => (
-        item.profile_id === account.profile_id
-          ? {
-              ...item,
-              ...updated,
-              account_id: updated.account_id ?? item.account_id,
-              account_source: updated.account_source ?? item.account_source,
-              account_email: item.account_email,
-              account_phone: item.account_phone,
-              active_profile_id: updated.active_profile_id ?? item.active_profile_id,
-              is_active_profile: updated.is_active_profile ?? item.is_active_profile,
-            }
-          : item
-      )));
-      const syncedCount = updated.synced_profile_ids?.length ?? 1;
-      setAccountSearchMessage(`${account.profile_email ?? account.account_email ?? account.profile_id} updated to ${updated.subscription_tier}${account.account_id ? " and made active for that login" : ""}${syncedCount > 1 ? ` across ${syncedCount} linked profiles` : ""}.`);
-      await refresh();
-    } catch (err) {
-      setAccountSearchMessage(err instanceof Error ? err.message : "Could not update subscription.");
-    } finally {
-      setSavingAccountProfileId(null);
-    }
-  }
-
-  async function repairAccountSubscription(account: AccountSubscription) {
-    setRepairingAccountProfileId(account.profile_id);
-    setAccountSearchMessage("");
-    try {
-      const data = await api(`/account-subscriptions/${account.profile_id}/repair-entitlement`, {
-        method: "POST",
-        body: JSON.stringify({
-          account_id: account.account_id,
-          account_source: account.account_source,
-          account_email: account.account_email ?? account.profile_email,
-          account_phone: account.account_phone ?? account.phone_number,
-        }),
-      });
-      const updated = data.account as AccountSubscription;
-      setAccountSubscriptions((current) => current.map((item) => (
-        item.profile_id === account.profile_id
-          ? {
-              ...item,
-              ...updated,
-              account_id: updated.account_id ?? item.account_id,
-              account_source: updated.account_source ?? item.account_source,
-              account_email: item.account_email,
-              account_phone: item.account_phone,
-              active_profile_id: updated.active_profile_id ?? item.active_profile_id,
-              is_active_profile: updated.is_active_profile ?? item.is_active_profile,
-            }
-          : item
-      )));
-      setAccountSearchMessage(data.repaired
-        ? `${account.profile_email ?? account.account_email ?? account.profile_id} repaired to ${updated.subscription_tier}.`
-        : `${account.profile_email ?? account.account_email ?? account.profile_id} did not need a repair.`);
-      await refresh();
-    } catch (err) {
-      setAccountSearchMessage(err instanceof Error ? err.message : "Could not repair subscription.");
-    } finally {
-      setRepairingAccountProfileId(null);
-    }
   }
 
   async function openUserDetail(intake: Intake, action: "view" | "tier" = "view") {
@@ -853,6 +934,9 @@ export default function LifecycleAdminPage() {
     orgFilter === "all" ? true : orgFilter === "active" ? org.is_active : !org.is_active
   ));
   const duplicateOrg = findDuplicateOrg(newOrg.name);
+  const emailShareCount = parseInviteRecipients(signupShare.emails, looksLikeEmailRecipient).length;
+  const whatsappShareCount = parseInviteRecipients(signupShare.whatsapp, looksLikePhoneRecipient).length;
+  const totalShareRecipients = emailShareCount + whatsappShareCount;
   const planOptions = plans.length
     ? plans.map((plan) => ({ value: plan.plan_id, label: plan.name }))
     : tiers.map((tier) => ({ value: tier, label: tier[0].toUpperCase() + tier.slice(1) }));
@@ -872,8 +956,8 @@ export default function LifecycleAdminPage() {
     <main className="min-h-screen bg-[#f7f2eb] px-4 py-4 text-[#2f2135] sm:px-6">
       <section className="mx-auto max-w-7xl">
         <AdminPageHeader
-          title="Signup, Access and Lifecycle"
-          subtitle="One operating layer for form, phone, WhatsApp and admin-created users."
+          title="Lifecycle"
+          subtitle="Users, forms, access."
         >
           <button className="rounded-xl bg-purple-700 px-4 py-2 text-sm font-bold text-white" onClick={() => refresh().catch((err) => setMessage(err.message))}>Refresh</button>
           {message && <span className="rounded-xl bg-purple-50 px-3 py-2 text-sm font-bold text-purple-800">{message}</span>}
@@ -904,121 +988,188 @@ export default function LifecycleAdminPage() {
           ))}
         </nav>
 
-        {activeTab === "users" && (
+        {activeTab === "share" && (
           <div className="mt-3 grid gap-4">
-            <section className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
-              <div className="flex flex-wrap items-start justify-between gap-3">
+            <section className="rounded-2xl border border-[#eadfd5] bg-white p-5 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <h2 className="font-serif text-2xl">Share signup form</h2>
-                  <p className="mt-1 text-sm text-[#7d6b65]">Send the public VYVA signup link to external users by email or WhatsApp.</p>
+                  <h2 className="font-serif text-3xl leading-tight">Share signup invite</h2>
+                  <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[#7d6b65]">Send the public VYVA invite by email or WhatsApp. Add one email or WhatsApp number per line.</p>
                 </div>
-                <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">v2.vyva.life/invite</span>
-              </div>
-              <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_1.2fr_0.7fr_auto]">
-                <Field label="Email recipients">
-                  <textarea className="min-h-24 w-full rounded-2xl border px-4 py-3" placeholder="Maria Gomez, maria@example.com&#10;maria@example.com" value={signupShare.emails} onChange={(e) => setSignupShare({ ...signupShare, emails: e.target.value })} />
-                </Field>
-                <Field label="WhatsApp numbers">
-                  <textarea className="min-h-24 w-full rounded-2xl border px-4 py-3" placeholder="Maria Gomez, +34 612 345 678&#10;+44 7700 900123" value={signupShare.whatsapp} onChange={(e) => setSignupShare({ ...signupShare, whatsapp: e.target.value })} />
-                </Field>
-                <Field label="Message (optional)">
-                  <textarea className="min-h-24 w-full rounded-2xl border px-4 py-3" placeholder="Leave blank to use the selected language's default invite text." value={signupShare.message} onChange={(e) => setSignupShare({ ...signupShare, message: e.target.value })} />
-                </Field>
-                <Field label="Language">
-                  <select className="min-h-24 w-full rounded-2xl border px-4 py-3 font-semibold" value={signupShare.language} onChange={(e) => setSignupShare({ ...signupShare, language: e.target.value })}>
-                    {languageOptions.map((option) => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </select>
-                </Field>
-                <button
-                  type="button"
-                  className="self-end rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={sharingSignup || (!signupShare.emails.trim() && !signupShare.whatsapp.trim())}
-                  onClick={shareSignupForm}
-                >
-                  {sharingSignup ? "Sending..." : "Share link"}
-                </button>
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 className="font-serif text-2xl">People</h2>
-                  <p className="mt-1 text-sm text-[#7d6b65]">Signup, onboarding, consent, status, and organization visibility.</p>
+                <div className="flex items-center gap-2 rounded-full bg-purple-50 p-1 pl-4 text-sm font-bold text-purple-700">
+                  <span>v2.vyva.life/invite</span>
+                  <button
+                    type="button"
+                    className="inline-flex h-9 items-center gap-1 rounded-full bg-white px-3 text-xs font-black text-purple-700 shadow-sm"
+                    onClick={copySignupLink}
+                  >
+                    <Copy size={14} />
+                    {copiedSignupLink ? "Copied" : "Copy"}
+                  </button>
                 </div>
-                {peopleSearch && (
-                  <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">
-                    Search: {peopleSearch}
-                  </span>
-                )}
               </div>
 
-              <form
-                className="mt-4 grid gap-3 md:grid-cols-[1fr_auto_auto]"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  setPeopleSearch(peopleSearchInput.trim());
-                }}
-              >
-                <input
-                  className="rounded-xl border border-[#e4d8ce] px-3 py-2.5 text-sm font-semibold"
-                  value={peopleSearchInput}
-                  onChange={(event) => setPeopleSearchInput(event.target.value)}
-                  placeholder="Search by name, phone, profile email, or login email"
-                />
-                <button type="submit" className="rounded-xl bg-[#2f2135] px-4 py-2.5 text-sm font-bold text-white">
-                  Search people
-                </button>
-                <button
-                  type="button"
-                  className="rounded-xl border border-purple-100 bg-white px-4 py-2.5 text-sm font-bold text-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={!peopleSearch && !peopleSearchInput}
-                  onClick={() => {
-                    setPeopleSearchInput("");
-                    setPeopleSearch("");
-                  }}
-                >
-                  Clear
-                </button>
-              </form>
+              <div className="mt-5 grid gap-4 xl:grid-cols-[1.25fr_0.95fr]">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-[24px] border border-[#eadfd5] bg-[#fffaf5] p-4">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-black text-[#4d4351]">Email recipients</p>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-purple-700">{emailShareCount}</span>
+                        <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-purple-100 bg-white px-3 py-1 text-xs font-black text-purple-700 shadow-sm hover:bg-purple-50">
+                          <Upload size={13} />
+                          Upload
+                          <input
+                            type="file"
+                            accept=".csv,.txt,text/csv,text/plain"
+                            className="hidden"
+                            onChange={uploadEmailRecipients}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                    <textarea
+                      className="min-h-36 w-full resize-y rounded-2xl border border-[#e7dbd0] bg-white px-4 py-3 text-sm leading-relaxed outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100"
+                      placeholder="user@example.com&#10;second@example.com"
+                      value={signupShare.emails}
+                      onChange={(e) => setSignupShare({ ...signupShare, emails: e.target.value })}
+                    />
+                  </div>
 
-              <div className="mt-4 grid gap-3 md:grid-cols-4">
-                {[
-                  ["entry_point", entryPoints],
-                  ["user_type", userTypes],
-                  ["status", statuses],
-                  ["tier", ["", ...planOptions.map((plan) => plan.value)]],
-                ].map(([key, values]) => (
-                  <select key={key as keyof typeof filters} className="rounded-xl border border-[#e4d8ce] px-3 py-2.5 text-sm font-semibold" value={filters[key as keyof typeof filters]} onChange={(e) => setFilters((prev) => ({ ...prev, [key as keyof typeof filters]: e.target.value }))}>
-                    {(values as string[]).map((value) => <option key={value} value={value}>{value || String(key).replace("_", " ")}</option>)}
-                  </select>
-                ))}
+                  <div className="rounded-[24px] border border-[#eadfd5] bg-[#fffaf5] p-4">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-black text-[#4d4351]">WhatsApp numbers</p>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-purple-700">{whatsappShareCount}</span>
+                        <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-purple-100 bg-white px-3 py-1 text-xs font-black text-purple-700 shadow-sm hover:bg-purple-50">
+                          <Upload size={13} />
+                          Upload
+                          <input
+                            type="file"
+                            accept=".csv,.txt,text/csv,text/plain"
+                            className="hidden"
+                            onChange={uploadWhatsappRecipients}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                    <textarea
+                      className="min-h-36 w-full resize-y rounded-2xl border border-[#e7dbd0] bg-white px-4 py-3 text-sm leading-relaxed outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100"
+                      placeholder="+34 612 345 678&#10;+44 7700 900123"
+                      value={signupShare.whatsapp}
+                      onChange={(e) => setSignupShare({ ...signupShare, whatsapp: e.target.value })}
+                      onBlur={(e) => {
+                        const normalized = normalizeWhatsappRecipientText(e.target.value);
+                        if (normalized !== e.target.value.trim()) {
+                          setSignupShare((current) => ({ ...current, whatsapp: normalized }));
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-[1fr_220px] xl:grid-cols-1">
+                  <div className="rounded-[24px] border border-[#eadfd5] bg-white p-4">
+                    <Field label="Message override">
+                      <textarea
+                        className="min-h-28 w-full rounded-2xl border border-[#e7dbd0] px-4 py-3 text-sm leading-relaxed outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100"
+                        placeholder="Leave blank to use the selected language's default invite text."
+                        value={signupShare.message}
+                        onChange={(e) => setSignupShare({ ...signupShare, message: e.target.value })}
+                      />
+                    </Field>
+                  </div>
+
+                  <div className="rounded-[24px] bg-[#f7efff] p-4">
+                    <Field label="Invite language">
+                      <select className="w-full rounded-2xl border border-[#e4d8ce] bg-white px-4 py-3 text-sm font-black text-[#2f2135]" value={signupShare.language} onChange={(e) => setSignupShare({ ...signupShare, language: e.target.value })}>
+                        {languageOptions.map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                    </Field>
+                    <button
+                      type="button"
+                      className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-purple-700 px-5 py-3 text-sm font-black text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={sharingSignup || totalShareRecipients === 0}
+                      onClick={shareSignupForm}
+                    >
+                      <Send size={16} />
+                      {sharingSignup ? "Sending..." : totalShareRecipients > 0 ? `Send to ${totalShareRecipients}` : "Add recipients"}
+                    </button>
+                    <p className="mt-3 text-xs leading-relaxed text-[#7d6b65]">Delivery is attempted immediately and logged in Communications.</p>
+                  </div>
+                </div>
               </div>
-              <IntakeTable users={users} onView={(intake) => openUserDetail(intake, "view")} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} onDelete={deleteUser} busyAction={busyAction} />
             </section>
           </div>
         )}
 
-        {activeTab === "accounts" && (
-          <AccountSubscriptionsSection
-            accounts={accountSubscriptions}
-            message={accountSearchMessage}
-            planOptions={planOptions}
-            search={accountSearch}
-            savingProfileId={savingAccountProfileId}
-            repairingProfileId={repairingAccountProfileId}
-            onSearchChange={setAccountSearch}
-            onSearch={() => searchAccountSubscriptions().catch((err) => setAccountSearchMessage(err.message))}
-            onChange={updateAccountSubscription}
-            onSave={saveAccountSubscription}
-            onRepair={repairAccountSubscription}
-          />
+        {activeTab === "users" && (
+          <section className="mt-3 rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="font-serif text-2xl">Users</h2>
+                <p className="mt-1 text-sm text-[#7d6b65]">Signup, onboarding, consent, status, and organization visibility.</p>
+              </div>
+              {peopleSearch && (
+                <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">
+                  Search: {peopleSearch}
+                </span>
+              )}
+            </div>
+
+            <form
+              className="mt-4 grid gap-3 md:grid-cols-[1fr_auto_auto]"
+              onSubmit={(event) => {
+                event.preventDefault();
+                setPeopleSearch(peopleSearchInput.trim());
+              }}
+            >
+              <input
+                className="rounded-xl border border-[#e4d8ce] px-3 py-2.5 text-sm font-semibold"
+                value={peopleSearchInput}
+                onChange={(event) => setPeopleSearchInput(event.target.value)}
+                placeholder="Search by name, phone, profile email, or login email"
+              />
+              <button type="submit" className="rounded-xl bg-[#2f2135] px-4 py-2.5 text-sm font-bold text-white">
+                Search users
+              </button>
+              <button
+                type="button"
+                className="rounded-xl border border-purple-100 bg-white px-4 py-2.5 text-sm font-bold text-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!peopleSearch && !peopleSearchInput}
+                onClick={() => {
+                  setPeopleSearchInput("");
+                  setPeopleSearch("");
+                }}
+              >
+                Clear
+              </button>
+            </form>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-4">
+              {[
+                ["entry_point", entryPoints],
+                ["user_type", userTypes],
+                ["status", statuses],
+                ["tier", ["", ...planOptions.map((plan) => plan.value)]],
+              ].map(([key, values]) => (
+                <select key={key as keyof typeof filters} className="rounded-xl border border-[#e4d8ce] px-3 py-2.5 text-sm font-semibold" value={filters[key as keyof typeof filters]} onChange={(e) => setFilters((prev) => ({ ...prev, [key as keyof typeof filters]: e.target.value }))}>
+                  {(values as string[]).map((value) => (
+                    <option key={value} value={value}>
+                      {key === "entry_point" && value ? entryPointLabel(value) : value || String(key).replace("_", " ")}
+                    </option>
+                  ))}
+                </select>
+              ))}
+            </div>
+            <IntakeTable users={users} onView={(intake) => openUserDetail(intake, "view")} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} onDelete={deleteUser} busyAction={busyAction} />
+          </section>
         )}
 
         {activeTab === "invites" && (
-          <section className="mt-5 grid gap-5 lg:grid-cols-[420px_1fr]">
+          <section className="mt-5 max-w-2xl">
             <div className="rounded-[2rem] border border-[#eadfd5] bg-white p-5">
               <h2 className="font-serif text-3xl">Create intake</h2>
               <p className="mt-2 text-sm text-[#7d6b65]">{creatingFamilyIntake ? "Family contact first, then the elder who needs consent." : "Basic profile details, matching the user settings form."}</p>
@@ -1065,7 +1216,13 @@ export default function LifecycleAdminPage() {
                     </div>
                   </div>
                 )}
-                <select className="rounded-2xl border px-4 py-3" value={newIntake.entry_point} onChange={(e) => setNewIntake({ ...newIntake, entry_point: e.target.value })}>{entryPoints.filter(Boolean).map((v) => <option key={v}>{v}</option>)}</select>
+                <Field label="How did they come in?">
+                  <select className="w-full rounded-2xl border px-4 py-3" value={newIntake.entry_point} onChange={(e) => setNewIntake({ ...newIntake, entry_point: e.target.value })}>
+                    {entryPoints.filter(Boolean).map((value) => (
+                      <option key={value} value={value}>{entryPointLabel(value)}</option>
+                    ))}
+                  </select>
+                </Field>
                 <select className="rounded-2xl border px-4 py-3" value={newIntake.tier} onChange={(e) => setNewIntake({ ...newIntake, tier: e.target.value })}>{planOptions.map((plan) => <option key={plan.value} value={plan.value}>{plan.label}</option>)}</select>
                 <select className="rounded-2xl border px-4 py-3" value={newIntake.organization_id} onChange={(e) => setNewIntake({ ...newIntake, organization_id: e.target.value })}>
                   <option value="">No organization</option>
@@ -1073,10 +1230,6 @@ export default function LifecycleAdminPage() {
                 </select>
                 <button className="rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white disabled:opacity-50" disabled={!canCreateIntake} onClick={createIntake}>Create intake</button>
               </div>
-            </div>
-            <div className="rounded-[2rem] border border-[#eadfd5] bg-white p-5">
-              <h2 className="font-serif text-3xl">Recent lifecycle users</h2>
-              <IntakeTable users={users.slice(0, 8)} onView={(intake) => openUserDetail(intake, "view")} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} onDelete={deleteUser} busyAction={busyAction} compact />
             </div>
           </section>
         )}

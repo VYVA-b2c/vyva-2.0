@@ -27,7 +27,7 @@ export function resolveEmailFromAddress(options: ResolveEmailFromOptions = {}) {
   if (configured) return configured.value;
 
   if (options.allowDevelopmentFallback && process.env.NODE_ENV !== "production") {
-    return "noreply@vyva.ai";
+    return "noreply@vyva.life";
   }
 
   return null;
@@ -36,7 +36,7 @@ export function resolveEmailFromAddress(options: ResolveEmailFromOptions = {}) {
 export function emailFromConfigError() {
   return [
     "Email sender address is not configured.",
-    "Set NOTIFY_FROM_EMAIL to an address or domain verified in SendGrid Sender Identity.",
+    "Set NOTIFY_FROM_EMAIL to a vyva.life address or domain verified in SendGrid Sender Identity.",
     "Aliases also supported: SENDGRID_FROM_EMAIL, EMAIL_FROM, SMTP_FROM.",
   ].join(" ");
 }

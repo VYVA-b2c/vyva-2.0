@@ -12,8 +12,48 @@ describe("signup invite language", () => {
   });
 
   it("builds invite links with the selected language", () => {
-    expect(buildSignupInviteUrl("https://v2.vyva.life", "fr")).toBe("https://v2.vyva.life/invite?lang=fr");
-    expect(buildSignupInviteUrl("https://v2.vyva.life/", "es")).toBe("https://v2.vyva.life/invite?lang=es");
+    expect(buildSignupInviteUrl("https://v2.vyva.life", "fr")).toBe("https://v2.vyva.life/settings/account?lang=fr");
+    expect(buildSignupInviteUrl("https://v2.vyva.life/", "es")).toBe("https://v2.vyva.life/settings/account?lang=es");
+  });
+
+  it("builds account setup links with safe recipient prefill details", () => {
+    const setupUrl = buildSignupInviteUrl("https://v2.vyva.life", "en", {
+      name: "Maria Gomez",
+      email: "maria@example.com",
+      phone: "+34 612 345 678",
+      whatsapp: "+34 612 345 678",
+    });
+    const parsed = new URL(setupUrl);
+
+    expect(parsed.origin).toBe("https://v2.vyva.life");
+    expect(parsed.pathname).toBe("/settings/account");
+    expect(parsed.searchParams.get("lang")).toBe("en");
+    expect(parsed.searchParams.get("first_name")).toBe("Maria");
+    expect(parsed.searchParams.get("last_name")).toBe("Gomez");
+    expect(parsed.searchParams.get("email")).toBe("maria@example.com");
+    expect(parsed.searchParams.get("phone")).toBe("+34 612 345 678");
+    expect(parsed.searchParams.get("whatsapp")).toBe("+34 612 345 678");
+  });
+
+  it("does not use email or phone contacts as invite names", () => {
+    const emailOnlyUrl = buildSignupInviteUrl("https://v2.vyva.life", "en", {
+      name: "gm@4cksa.com",
+      firstName: "gm@4cksa.com",
+      email: "gm@4cksa.com",
+    });
+    const phoneOnlyUrl = buildSignupInviteUrl("https://v2.vyva.life", "en", {
+      name: "+34 612 345 678",
+      phone: "+34 612 345 678",
+    });
+    const emailOnly = new URL(emailOnlyUrl);
+    const phoneOnly = new URL(phoneOnlyUrl);
+
+    expect(emailOnly.searchParams.get("first_name")).toBeNull();
+    expect(emailOnly.searchParams.get("last_name")).toBeNull();
+    expect(emailOnly.searchParams.get("email")).toBe("gm@4cksa.com");
+    expect(phoneOnly.searchParams.get("first_name")).toBeNull();
+    expect(phoneOnly.searchParams.get("last_name")).toBeNull();
+    expect(phoneOnly.searchParams.get("phone")).toBe("+34 612 345 678");
   });
 
   it("normalizes named and legacy signup invite recipients", () => {
@@ -38,6 +78,24 @@ describe("signup invite language", () => {
     expect(normalizeSignupInviteRecipientName("   ")).toBeUndefined();
   });
 
+  it("drops contact-looking recipient names while preserving the recipient", () => {
+    const emailRecipients = mergeSignupInviteRecipients(
+      [],
+      [{ name: "gm@4cksa.com", recipient: "gm@4cksa.com" }],
+      (recipient) => recipient.trim().toLowerCase() || null,
+    );
+    const whatsappRecipients = mergeSignupInviteRecipients(
+      [],
+      [{ name: "+34 612 345 678", recipient: "+34 612 345 678" }],
+      (recipient) => recipient.trim().replace(/[^\d+]/g, "") || null,
+    );
+
+    expect(emailRecipients).toEqual([{ recipient: "gm@4cksa.com" }]);
+    expect(whatsappRecipients).toEqual([{ recipient: "+34612345678" }]);
+    expect(normalizeSignupInviteRecipientName("gm@4cksa.com")).toBeUndefined();
+    expect(normalizeSignupInviteRecipientName("+34 612 345 678")).toBeUndefined();
+  });
+
   it("understands admin language dropdown values, labels, and locale variants", () => {
     for (const option of languageOptions) {
       expect(normalizeSignupInviteLanguage(option.value)).toBe(option.value);
@@ -60,7 +118,7 @@ describe("signup invite language", () => {
     const email = buildSignupInviteEmail({
       language: "en",
       intro: "Karim invited you to join VYVA.",
-      url: "https://v2.vyva.life/invite?lang=en",
+      url: "https://v2.vyva.life/settings/account?lang=en",
     }, null, "https://v2.vyva.life");
 
     expect(email.subject).toBe("Welcome to VYVA");
@@ -89,13 +147,13 @@ describe("signup invite language", () => {
     const email = buildSignupInviteEmail({
       language: "en",
       recipient_name: "Maria <Care>",
-      url: "https://v2.vyva.life/invite?lang=en",
+      url: "https://v2.vyva.life/settings/account?lang=en",
     }, null, "https://v2.vyva.life");
 
     expect(email.html).toContain("Dear Maria &lt;Care&gt;,");
     expect(email.text).toContain("Dear Maria <Care>,");
-    expect(email.html).toContain('href="https://v2.vyva.life/invite?lang=en"');
-    expect(email.text).toContain("VOICE ACTIVATED, NO DIGITAL SKILLS REQUIRED: https://v2.vyva.life/invite?lang=en");
+    expect(email.html).toContain('href="https://v2.vyva.life/settings/account?lang=en"');
+    expect(email.text).toContain("VOICE ACTIVATED, NO DIGITAL SKILLS REQUIRED: https://v2.vyva.life/settings/account?lang=en");
     expect(email.html).toContain('href="https://vyva.life"');
     expect(email.html).toContain('href="https://vyva.life/privacypolicy"');
     expect(email.html).toContain('href="https://vyva.life/securityencryption"');
@@ -105,10 +163,20 @@ describe("signup invite language", () => {
     expect(email.text).toContain("Privacy Policy: https://vyva.life/privacypolicy");
   });
 
+  it("uses setup link prefill details as a fallback recipient greeting", () => {
+    const email = buildSignupInviteEmail({
+      language: "en",
+      url: "https://v2.vyva.life/settings/account?lang=en&first_name=Maria&last_name=Gomez",
+    }, null, "https://v2.vyva.life");
+
+    expect(email.html).toContain("Dear Maria Gomez,");
+    expect(email.text).toContain("Dear Maria Gomez,");
+  });
+
   it("keeps the default email short when there is no admin message", () => {
     const email = buildSignupInviteEmail({
       language: "en",
-      url: "https://v2.vyva.life/invite?lang=en",
+      url: "https://v2.vyva.life/settings/account?lang=en",
     }, null, "https://v2.vyva.life");
 
     expect(email.html).not.toContain("VYVA is ready for you.");
@@ -122,7 +190,7 @@ describe("signup invite language", () => {
         language,
         recipient_name: "Maria",
         intro: `Custom intro for ${language}.`,
-        url: `https://v2.vyva.life/invite?lang=${language}`,
+        url: `https://v2.vyva.life/settings/account?lang=${language}`,
       }, null, "https://v2.vyva.life");
 
       expect(email.subject).toBe(copy.subject);

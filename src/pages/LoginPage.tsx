@@ -21,11 +21,11 @@ import VoiceCallOverlay from "@/components/VoiceCallOverlay";
 import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { useAuth } from "@/contexts/AuthContext";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
+import { localizeAuthErrorMessage } from "@/lib/authErrorLocalization";
 import { queryClient } from "@/lib/queryClient";
 import { stageToRoute } from "@/lib/onboardingRoute";
-import { isSupabaseAuthAvailable, sendSupabasePasswordReset } from "@/lib/supabaseAuth";
 import { useLanguage } from "@/i18n";
-import type { LanguageCode } from "@/i18n/languages";
+import { LANGUAGES, type LanguageCode } from "@/i18n/languages";
 
 type View = "login" | "register" | "forgot" | "magic";
 type GuideTopic = "why" | "privacy" | "family";
@@ -130,7 +130,8 @@ const CALLBACK_EMAIL = "support@vyva.life";
 
 function callbackMailto({
   language,
-  name,
+  firstName,
+  lastName,
   phone,
   callbackForLabel,
   preferredDate,
@@ -164,6 +165,35 @@ function callbackMailto({
   ].join("\n");
 
   return `mailto:${CALLBACK_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+const LOGIN_LANGUAGE_CODES = new Set<string>(LANGUAGES.map((entry) => entry.code));
+
+function normalizeReturnPath(value: string | undefined): string | null {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return null;
+  if (value === "/onboarding" || value.startsWith("/login")) return null;
+  return value;
+}
+
+function setupInviteParamsFromPath(path: string | null): URLSearchParams | null {
+  if (!path?.startsWith("/settings/account")) return null;
+  const queryStart = path.indexOf("?");
+  if (queryStart === -1) return new URLSearchParams();
+  const hashStart = path.indexOf("#", queryStart);
+  return new URLSearchParams(path.slice(queryStart, hashStart === -1 ? undefined : hashStart));
+}
+
+function setupLanguageFromParams(params: URLSearchParams): LanguageCode | null {
+  const normalized = (params.get("lang") ?? params.get("language") ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, "-")
+    .split("-")[0];
+  return LOGIN_LANGUAGE_CODES.has(normalized) ? normalized as LanguageCode : null;
+}
+
+function setupContactFromParams(params: URLSearchParams): string {
+  return (params.get("email") ?? params.get("phone") ?? params.get("whatsapp") ?? "").trim();
 }
 
 type LoginCopy = {
@@ -1330,7 +1360,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   const navigate = useNavigate();
   const location = useLocation();
   const rawFrom = (location.state as { from?: string })?.from;
-  const from = adminOnly ? "/admin/lifecycle" : rawFrom && rawFrom !== "/onboarding" ? rawFrom : null;
+  const from = adminOnly ? "/admin/lifecycle" : normalizeReturnPath(rawFrom);
   const requestedAuthMode = new URLSearchParams(location.search).get("mode") === "login" ? "login" : "register";
   const initialAuthMode = adminOnly ? "login" : requestedAuthMode;
 
@@ -1409,10 +1439,25 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   };
 
   useEffect(() => {
+    const setupParams = setupInviteParamsFromPath(from);
+    if (!setupParams) return;
+    const setupLanguage = setupLanguageFromParams(setupParams);
+    if (setupLanguage && setupLanguage !== language) setLanguage(setupLanguage);
+    if (!contact.trim()) {
+      const setupContact = setupContactFromParams(setupParams);
+      if (setupContact) setContact(setupContact);
+    }
+  }, [contact, from, language, setLanguage]);
+
+  useEffect(() => {
     if (isLoading) return;
     if (!user) return;
     if (adminOnly) {
       navigate("/admin/lifecycle", { replace: true });
+      return;
+    }
+    if (from) {
+      navigate(from, { replace: true });
       return;
     }
     queryClient
@@ -1422,7 +1467,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         navigate(stageToRoute(stage), { replace: true });
       })
       .catch(() => navigate("/onboarding/basics", { replace: true }));
-  }, [adminOnly, isLoading, user, navigate]);
+  }, [adminOnly, from, isLoading, user, navigate]);
 
   useEffect(() => {
     if (magicTokenHandledRef.current || user) return;
@@ -1436,10 +1481,10 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
     setMagicError(null);
     loginWithMagicToken(magicToken)
       .catch((err) => {
-        setMagicError(err instanceof Error ? err.message : copy.errors.signInLinkFailed);
+        setMagicError(localizeAuthErrorMessage(err, language, copy.errors.signInLinkFailed));
       })
       .finally(() => setMagicLoading(false));
-  }, [copy.errors.signInLinkFailed, location.search, loginWithMagicToken, user]);
+  }, [copy.errors.signInLinkFailed, language, location.search, loginWithMagicToken, user]);
 
   useEffect(() => () => stopVoice(), [stopVoice]);
 
@@ -1519,7 +1564,11 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         }
         const setupFor = rememberSetupIntent();
         await register(authContactPayload(true), password);
-        navigate("/onboarding/who-for", { replace: true, state: { setupFor } });
+        if (from) {
+          navigate(from, { replace: true });
+        } else {
+          navigate("/onboarding/who-for", { replace: true, state: { setupFor } });
+        }
       } else {
         await login(authContactPayload(), password);
         if (from) {
@@ -1535,7 +1584,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : copy.errors.generic);
+      setError(localizeAuthErrorMessage(err, language, copy.errors.generic));
     } finally {
       setLoading(false);
     }
@@ -1547,22 +1596,18 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
     setForgotLoading(true);
     try {
       const email = forgotEmail.trim();
-      if (await isSupabaseAuthAvailable()) {
-        await sendSupabasePasswordReset(email);
-      } else {
-        const res = await fetch("/api/auth/reset-request", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
-        });
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body?.message || copy.errors.requestFailed);
-        }
+      const res = await fetch("/api/auth/reset-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.message || body?.error || copy.errors.requestFailed);
       }
       setForgotSent(true);
     } catch (err) {
-      setForgotError(err instanceof Error ? err.message : copy.errors.generic);
+      setForgotError(localizeAuthErrorMessage(err, language, copy.errors.generic));
     } finally {
       setForgotLoading(false);
     }
@@ -1576,7 +1621,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
       await requestMagicLink(authContactPayload());
       setMagicSent(true);
     } catch (err) {
-      setMagicError(err instanceof Error ? err.message : copy.errors.magicFailed);
+      setMagicError(localizeAuthErrorMessage(err, language, copy.errors.magicFailed));
     } finally {
       setMagicLoading(false);
     }

@@ -93,6 +93,7 @@ import RoomScreen from "./social/RoomScreen";
 const ProxyPendingPage = lazy(() => import("./pages/admin/ProxyPendingPage"));
 const LifecycleAdminPage = lazy(() => import("./pages/admin/LifecycleAdminPage"));
 const AdminUsersPage = lazy(() => import("./pages/admin/AdminUsersPage"));
+const PhoneOnboardingPage = lazy(() => import("./pages/admin/PhoneOnboardingPage"));
 const HomeCardsAdminPage = lazy(() => import("./pages/admin/HomeCardsAdminPage"));
 const HeroMessagesAdminPage = lazy(() => import("./pages/admin/HeroMessagesAdminPage"));
 const VoiceReadinessAdminPage = lazy(() => import("./pages/admin/VoiceReadinessAdminPage"));
@@ -360,6 +361,7 @@ const App = () => (
                 <Route path="/admin/proxy-pending" element={<AdminRoute><ProxyPendingPage /></AdminRoute>} />
                 <Route path="/admin/lifecycle" element={<AdminRoute><LifecycleAdminPage /></AdminRoute>} />
                 <Route path="/admin/users" element={<AdminRoute><AdminUsersPage /></AdminRoute>} />
+                <Route path="/admin/phone-onboarding" element={<AdminRoute><PhoneOnboardingPage /></AdminRoute>} />
                 <Route path="/admin/home-cards" element={<AdminRoute><HomeCardsAdminPage /></AdminRoute>} />
                 <Route path="/admin/hero-messages" element={<AdminRoute><HeroMessagesAdminPage /></AdminRoute>} />
                 <Route path="/admin/voice-readiness" element={<AdminRoute><VoiceReadinessAdminPage /></AdminRoute>} />

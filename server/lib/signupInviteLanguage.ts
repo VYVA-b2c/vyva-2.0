@@ -350,7 +350,50 @@ export function signupInviteCopyFor(value: unknown): SignupInviteCopy {
   return SIGNUP_INVITE_COPY[normalizeSignupInviteLanguage(value)];
 }
 
-export function buildSignupInviteUrl(baseUrl: string, value: unknown): string {
+export type SignupInvitePrefill = {
+  name?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  whatsapp?: string | null;
+};
+
+function looksLikeContactIdentifier(value: string | null | undefined) {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) return false;
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return true;
+  const digits = trimmed.replace(/\D/g, "");
+  return digits.length >= 7 && /^[+\d\s().-]+$/.test(trimmed);
+}
+
+function safeInviteNameParam(value: string | null | undefined) {
+  const trimmed = (value ?? "").replace(/\s+/g, " ").trim();
+  return trimmed && !looksLikeContactIdentifier(trimmed) ? trimmed : "";
+}
+
+function splitSignupInviteName(name: string | null | undefined) {
+  const parts = safeInviteNameParam(name).split(" ").filter(Boolean);
+  return {
+    firstName: parts[0] ?? "",
+    lastName: parts.slice(1).join(" "),
+  };
+}
+
+function setInviteParam(params: URLSearchParams, key: string, value: string | null | undefined) {
+  const trimmed = (value ?? "").trim();
+  if (trimmed) params.set(key, trimmed);
+}
+
+export function buildSignupInviteUrl(baseUrl: string, value: unknown, prefill: SignupInvitePrefill = {}): string {
   const language = normalizeSignupInviteLanguage(value);
-  return `${baseUrl.replace(/\/$/, "")}/invite?lang=${encodeURIComponent(language)}`;
+  const url = new URL("/settings/account", `${baseUrl.replace(/\/$/, "")}/`);
+  const nameParts = splitSignupInviteName(prefill.name);
+  url.searchParams.set("lang", language);
+  setInviteParam(url.searchParams, "first_name", safeInviteNameParam(prefill.firstName) || nameParts.firstName);
+  setInviteParam(url.searchParams, "last_name", safeInviteNameParam(prefill.lastName) || nameParts.lastName);
+  setInviteParam(url.searchParams, "email", prefill.email);
+  setInviteParam(url.searchParams, "phone", prefill.phone);
+  setInviteParam(url.searchParams, "whatsapp", prefill.whatsapp);
+  return url.toString();
 }

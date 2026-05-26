@@ -47,6 +47,12 @@ function buildPublicAppLink(req: Request, path: string): string {
   return `${appUrl}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
+function isLocalRequest(req: Request): boolean {
+  if (process.env.NODE_ENV === "test") return true;
+  const host = (req.get("x-forwarded-host")?.split(",")[0]?.trim() || req.get("host") || "").toLowerCase();
+  return host.startsWith("localhost") || host.startsWith("127.0.0.1") || host.startsWith("[::1]") || host.startsWith("::1");
+}
+
 type ContactIdentifier = {
   email: string | null;
   phone: string | null;
@@ -157,13 +163,14 @@ async function getOrCreateAuthenticatedUser(userId: string, email?: unknown) {
   return created ?? await findUserById(userId);
 }
 
-async function getProfileRole(userId: string): Promise<string> {
+async function getProfileRole(userId: string, fallbackEmail?: unknown): Promise<string> {
   const [profile] = await db
-    .select({ role: profiles.role })
+    .select({ role: profiles.role, email: profiles.email })
     .from(profiles)
     .where(eq(profiles.id, userId))
     .limit(1);
 
+  if (isSuperAdminEmail(fallbackEmail) || isSuperAdminEmail(profile?.email)) return "admin";
   return profile?.role ?? "user";
 }
 
@@ -404,7 +411,7 @@ authRouter.post("/login", async (req: Request, res: Response) => {
       user,
       prevSeenAt,
       await getUserProfileLanguage(user.id),
-      await getProfileRole(user.id),
+      await getProfileRole(user.id, user.email),
     ),
   });
 });
@@ -461,7 +468,7 @@ authRouter.get("/me", authMiddleware, async (req: Request, res: Response) => {
       phone: user.phone_number,
       activeProfileId: user.active_profile_id ?? null,
       language: await getUserProfileLanguage(user.id),
-      role: await getProfileRole(user.id),
+      role: await getProfileRole(user.id, user.email ?? req.user.email),
       prevSeenAt,
     });
   } catch (err) {
@@ -511,7 +518,7 @@ authRouter.post("/magic-link-request", async (req: Request, res: Response) => {
 
   if (user.email) {
     try {
-      await sendMagicLoginEmail({ to: user.email, magicLink });
+      await sendMagicLoginEmail({ to: user.email, magicLink, allowDevelopmentLog: isLocalRequest(req) });
     } catch (err) {
       console.error("[auth] Failed to send magic login email:", err);
       return res.status(500).json({ error: "Failed to send sign-in link. Please try again later." });
@@ -710,17 +717,20 @@ authRouter.post("/reset-request", async (req: Request, res: Response) => {
   }
 
   try {
-    await sendPasswordResetEmail({ to: user.email, resetLink });
+    await sendPasswordResetEmail({ to: user.email, resetLink, allowDevelopmentLog: isLocalRequest(req) });
   } catch (err) {
     console.error("[auth] Failed to send password reset email:", err);
-    return res.status(500).json({ error: "Failed to send reset email. Please try again later." });
+    const message = err instanceof Error && err.message.trim()
+      ? err.message
+      : "Failed to send reset email. Please try again later.";
+    return res.status(503).json({ error: message });
   }
 
   const response: Record<string, unknown> = { ...genericOk };
 
   // Expose token only in non-production environments so tests can retrieve it
   // directly from the API without requiring a real mail server.
-  if (isDev) {
+  if (isDev && isLocalRequest(req)) {
     response._devToken = resetToken;
   }
 

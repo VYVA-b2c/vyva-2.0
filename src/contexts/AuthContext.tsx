@@ -5,6 +5,8 @@ import { setAccountLanguage } from "@/i18n";
 import { signInWithSupabase } from "@/lib/supabaseAuth";
 
 const ONBOARDING_STATE_KEY = ["/api/onboarding/state"] as const;
+const LOCAL_API_UNAVAILABLE_MESSAGE =
+  "Local API is not running. Start the backend on port 3001 and make sure DATABASE_URL is set.";
 
 interface AuthUser {
   id: string;
@@ -67,6 +69,19 @@ function emailFromIdentifier(identifier: string | AuthIdentifier): string | null
   return raw?.trim() || null;
 }
 
+function apiErrorMessage(data: unknown, fallback: string): string {
+  if (!data || typeof data !== "object") return fallback;
+  const body = data as { error?: unknown; message?: unknown; code?: unknown };
+  if (body.code === "LOCAL_API_UNAVAILABLE" || body.error === "API proxy failed") {
+    return typeof body.message === "string" && body.message.trim()
+      ? body.message
+      : LOCAL_API_UNAVAILABLE_MESSAGE;
+  }
+  if (typeof body.error === "string" && body.error.trim()) return body.error;
+  if (typeof body.message === "string" && body.message.trim()) return body.message;
+  return fallback;
+}
+
 function responseUser(data: {
   userId?: string;
   id?: string;
@@ -94,7 +109,7 @@ async function loadCurrentUser(token?: string | null, fallback?: { userId?: stri
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new AuthLoadError(response.status, body.error ?? "Could not load your account");
+    throw new AuthLoadError(response.status, apiErrorMessage(body, "Could not load your account"));
   }
 
   const data = await response.json();
@@ -187,9 +202,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...contactPayload(identifier), password }),
+    }).catch((err) => {
+      throw new Error(err instanceof TypeError ? LOCAL_API_UNAVAILABLE_MESSAGE : "Login failed");
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error ?? "Login failed");
+    if (!res.ok) throw new Error(apiErrorMessage(data, "Login failed"));
     applyToken(data.token, responseUser(data), data.prevSeenAt ?? null);
   }, [applyToken]);
 
@@ -199,9 +216,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...contactPayload(identifier), password }),
+    }).catch((err) => {
+      throw new Error(err instanceof TypeError ? LOCAL_API_UNAVAILABLE_MESSAGE : "Registration failed");
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error ?? "Registration failed");
+    if (!res.ok) throw new Error(apiErrorMessage(data, "Registration failed"));
     applyToken(data.token, responseUser(data), null);
   }, [applyToken]);
 
@@ -211,9 +230,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(contactPayload(identifier)),
+    }).catch((err) => {
+      throw new Error(err instanceof TypeError ? LOCAL_API_UNAVAILABLE_MESSAGE : "Could not send sign-in link");
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error ?? "Could not send sign-in link");
+    if (!res.ok) throw new Error(apiErrorMessage(data, "Could not send sign-in link"));
     return data as MagicLinkResponse;
   }, []);
 
@@ -223,9 +244,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token: magicToken }),
+    }).catch((err) => {
+      throw new Error(err instanceof TypeError ? LOCAL_API_UNAVAILABLE_MESSAGE : "This sign-in link did not work");
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error ?? "This sign-in link did not work");
+    if (!res.ok) throw new Error(apiErrorMessage(data, "This sign-in link did not work"));
     applyToken(data.token, responseUser(data), data.prevSeenAt ?? null);
   }, [applyToken]);
 
