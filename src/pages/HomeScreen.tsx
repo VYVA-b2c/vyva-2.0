@@ -226,7 +226,7 @@ const HomeScreen = () => {
           title={t("home.whatNow")}
           titleClassName="font-body text-[16px] font-semibold not-italic text-vyva-text-2"
         />
-        <ResponsiveGrid columns="two" gap="sm">
+        <ResponsiveGrid columns="two" gap="sm" className="min-[340px]:grid-cols-2">
           {HOME_AGENT_CARDS.map((card) => {
             const theme = HOME_AGENT_THEMES[card.theme];
             const Icon = card.icon;
@@ -242,7 +242,7 @@ const HomeScreen = () => {
                 icon={Icon}
                 iconBg={theme.iconBg}
                 iconColor={theme.iconColor}
-                size="large"
+                size="standard"
                 locked={locked}
                 style={{
                   borderColor: "#EDE2D1",
