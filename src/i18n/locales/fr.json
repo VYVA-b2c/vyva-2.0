@@ -9,7 +9,7 @@
     "myProfile": "Mon profil",
     "vyva": "VYVA",
     "myHealth": "Ma santé",
-    "myMind": "Mon esprit",
+    "myMind": "Mon cerveau",
     "concierge": "Concierge",
     "reports": "Mes rapports"
   },
@@ -116,7 +116,7 @@
           "gamesRoom": {
             "badge": "Jeux",
             "title": "Salle de jeux",
-            "text": "Choisissez un jeu calme pour garder l'esprit actif.",
+            "text": "Choisissez un jeu calme pour garder votre cerveau actif.",
             "cta": "Jouer"
           },
           "musicSalon": {
@@ -158,7 +158,7 @@
         "healthTip": {
           "badge": "Santé",
           "title": "Conseil du jour",
-          "text": "Boire de l'eau régulièrement aide votre cœur et votre esprit à mieux fonctionner.",
+          "text": "Boire de l'eau régulièrement aide votre cœur et votre cerveau à mieux fonctionner.",
           "cta": "En savoir plus"
         },
         "wordGame": {
@@ -229,11 +229,11 @@
         "openLabel": "Ouvrir le bien-être"
       },
       "cognitive": {
-        "title": "Mon esprit",
+        "title": "Mon cerveau",
         "subtitle": "Focus et calme",
-        "bubble": "Un petit moment avec moi garde votre esprit actif.",
+        "bubble": "Un petit moment avec moi garde votre cerveau actif.",
         "micLabel": "Commencer un exercice mental",
-        "openLabel": "Ouvrir l'esprit agile"
+        "openLabel": "Ouvrir les exercices cérébraux"
       },
       "social": {
         "title": "Communauté",
@@ -902,7 +902,7 @@
   "brain": {
     "voiceSource": "VYVA est votre coach cérébral",
     "headline": "Prêt(e) pour l'entraînement\ncérébral ?",
-    "subtitle": "Gardez l’esprit vif",
+    "subtitle": "Gardez votre cerveau en forme",
     "startSession": "Démarrer une session",
     "chooseActivity": "Choisir une activité",
     "doneToday": "Fait aujourd'hui",

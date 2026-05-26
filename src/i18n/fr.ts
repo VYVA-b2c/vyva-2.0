@@ -221,7 +221,7 @@ const fr = {
     doneToday: "Fait aujourd'hui",
   },
   brain: {
-    subtitle: "Gardez l'esprit vif",
+    subtitle: "Gardez votre cerveau en forme",
   },
   companions: {
     activityTile: "Se connecter aux autres",

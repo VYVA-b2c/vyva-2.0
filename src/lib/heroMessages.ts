@@ -284,7 +284,7 @@ export const HERO_MESSAGES: HeroMessageDefinition[] = [
       es: { sourceText: "Mente", headline: "Mente activa", subtitle: "Manten tu mente agil", ctaLabel: "Empezar", contextHint: "brain training" },
       en: { sourceText: "Mind", headline: "Mind active", subtitle: "Keep your mind sharp", ctaLabel: "Start", contextHint: "brain training" },
       de: { sourceText: "Geist", headline: "Geist aktiv", subtitle: "Geist fit halten", ctaLabel: "Starten", contextHint: "brain training" },
-      fr: { sourceText: "Esprit", headline: "Esprit actif", subtitle: "Gardez l'esprit vif", ctaLabel: "Demarrer", contextHint: "brain training" },
+      fr: { sourceText: "Cerveau", headline: "Cerveau en forme", subtitle: "Gardez votre cerveau actif", ctaLabel: "Demarrer", contextHint: "brain training" },
       it: { sourceText: "Mente", headline: "Mente attiva", subtitle: "Mantieni mente agile", ctaLabel: "Inizia", contextHint: "brain training" },
       pt: { sourceText: "Mente", headline: "Mente ativa", subtitle: "Mantenha mente ativa", ctaLabel: "Comecar", contextHint: "brain training" },
     },
