@@ -32,6 +32,7 @@ import {
   emptyScheduledEvent,
   entryPointLabel,
   entryPoints,
+  isVisibleLifecycleUser,
   languageOptions,
   statuses,
   stringValue,
@@ -193,7 +194,7 @@ export default function LifecycleAdminPage() {
       api("/plans"),
     ]);
     setSummary(summaryData);
-    setUsers(userData.users ?? []);
+    setUsers((userData.users ?? []).filter(isVisibleLifecycleUser));
     setOrganizations(orgData.organizations ?? []);
     setConsentAttempts(consentData.attempts ?? []);
     setCommunications(commsData.communications ?? []);

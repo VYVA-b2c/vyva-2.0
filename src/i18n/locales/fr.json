@@ -223,28 +223,28 @@
       "helper": "Touchez une carte ou utilisez le micro pour y aller directement.",
       "health": {
         "title": "Ma santé",
-        "subtitle": "Vérifier ma santé",
+        "subtitle": "Symptômes, médicaments et bien-être",
         "bubble": "Je suis là pour vous aider à vous sentir mieux chaque jour.",
         "micLabel": "Parler de ma santé",
         "openLabel": "Ouvrir le bien-être"
       },
       "cognitive": {
         "title": "Mon esprit",
-        "subtitle": "Stimuler mon esprit",
+        "subtitle": "Attention, mémoire et calme",
         "bubble": "Un petit moment avec moi garde votre esprit actif.",
         "micLabel": "Commencer un exercice mental",
         "openLabel": "Ouvrir l'esprit agile"
       },
       "social": {
         "title": "Ma communauté",
-        "subtitle": "Rester en lien",
+        "subtitle": "Salons, échanges et moments partagés",
         "bubble": "J'aime vous écouter. Vous avez toujours quelqu'un ici.",
         "micLabel": "Parler avec VYVA",
         "openLabel": "Ouvrir la communauté"
       },
       "concierge": {
         "title": "Ma conciergerie",
-        "subtitle": "Réserver et organiser",
+        "subtitle": "Réservations, démarches et soutien",
         "bubble": "Laissez-moi m'en occuper. Je gère le plus difficile.",
         "micLabel": "Demander de l'aide par la voix",
         "openLabel": "Ouvrir la conciergerie"
@@ -253,7 +253,7 @@
     "whatNow": "ou explorez un sujet"
   },
   "voiceHero": {
-    "talkToVyva": "Parler à VYVA",
+    "talkToVyva": "Parlons",
     "speaking": "VYVA parle...",
     "listening": "En écoute...",
     "connecting": "Connexion...",

@@ -187,28 +187,28 @@
       "helper": "Tap a card or use the microphone to go straight there.",
       "health": {
         "title": "I care for myself",
-        "subtitle": "Your health, simple and up to date",
+        "subtitle": "Symptoms, meds and wellbeing",
         "bubble": "I'm here to help you feel better every day.",
         "micLabel": "Talk about my health",
         "openLabel": "Open wellbeing"
       },
       "cognitive": {
         "title": "I wake up my mind",
-        "subtitle": "Exercises to think and remember",
+        "subtitle": "Focus, memory and calm",
         "bubble": "A little time with me keeps your mind active.",
         "micLabel": "Start a mental exercise",
         "openLabel": "Open agile mind"
       },
       "social": {
         "title": "My Community",
-        "subtitle": "We chat and you tell me",
+        "subtitle": "Rooms, chats and shared moments",
         "bubble": "I love listening. You always have someone here.",
         "micLabel": "Talk to VYVA",
         "openLabel": "Open community"
       },
       "concierge": {
         "title": "My Concierge",
-        "subtitle": "Help, appointments and admin with you",
+        "subtitle": "Bookings, errands and support",
         "bubble": "Let me handle it. I take care of the difficult bits.",
         "micLabel": "Ask for help by voice",
         "openLabel": "Open concierge"
@@ -217,7 +217,7 @@
     "whatNow": "or explore a topic"
   },
   "voiceHero": {
-    "talkToVyva": "Siarad â VYVA",
+    "talkToVyva": "Let's Talk",
     "speaking": "Mae VYVA yn siarad...",
     "listening": "Yn gwrando...",
     "connecting": "Yn cysylltu...",

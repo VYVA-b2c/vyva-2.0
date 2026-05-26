@@ -31,6 +31,16 @@ export type Intake = {
   last_activity_at?: string | null;
 };
 
+export function isVisibleLifecycleUser(user: Pick<Intake, "journey_step" | "metadata">) {
+  const metadata = user.metadata && typeof user.metadata === "object" ? user.metadata : {};
+  return (
+    user.journey_step !== "merged_duplicate"
+    && user.journey_step !== "admin_deleted"
+    && metadata.hidden_from_lifecycle !== true
+    && metadata.deleted_from_lifecycle !== true
+  );
+}
+
 export type Organization = {
   id: string;
   name: string;

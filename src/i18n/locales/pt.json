@@ -223,28 +223,28 @@
       "helper": "Toque num cartão ou use o microfone para ir direto.",
       "health": {
         "title": "Minha saúde",
-        "subtitle": "Ver minha saúde",
+        "subtitle": "Sintomas, medicação e bem-estar",
         "bubble": "Estou aqui para ajudar a sentir-se melhor todos os dias.",
         "micLabel": "Falar da minha saúde",
         "openLabel": "Abrir bem-estar"
       },
       "cognitive": {
         "title": "Minha mente",
-        "subtitle": "Manter mente ativa",
+        "subtitle": "Foco, memória e calma",
         "bubble": "Um momento comigo mantém a sua mente ativa.",
         "micLabel": "Começar exercício mental",
         "openLabel": "Abrir mente ativa"
       },
       "social": {
         "title": "A minha comunidade",
-        "subtitle": "Manter contacto",
+        "subtitle": "Salas, chats e momentos partilhados",
         "bubble": "Gosto de o ouvir. Aqui tem sempre alguém.",
         "micLabel": "Falar com VYVA",
         "openLabel": "Abrir comunidade"
       },
       "concierge": {
         "title": "O meu concierge",
-        "subtitle": "Reservar e organizar",
+        "subtitle": "Reservas, tarefas e apoio",
         "bubble": "Deixe comigo. Eu trato do mais difícil.",
         "micLabel": "Pedir ajuda por voz",
         "openLabel": "Abrir concierge"
@@ -253,7 +253,7 @@
     "whatNow": "ou explore um tema"
   },
   "voiceHero": {
-    "talkToVyva": "Falar com VYVA",
+    "talkToVyva": "Vamos conversar",
     "speaking": "VYVA está a falar...",
     "listening": "A ouvir...",
     "connecting": "A ligar...",
