@@ -145,10 +145,10 @@ export const HERO_MESSAGES: HeroMessageDefinition[] = [
     copy: {
       es: { headline: "Buenos dias", headlineWithName: "Buenos dias, {name}", ctaLabel: "Hablemos" },
       en: { headline: "Good morning", headlineWithName: "Good morning, {name}", ctaLabel: "Let's Talk" },
-      de: { headline: "Guten Morgen", headlineWithName: "Guten Morgen, {name}", ctaLabel: "Lass uns reden" },
-      fr: { headline: "Bonjour", headlineWithName: "Bonjour, {name}", ctaLabel: "Parlons" },
+      de: { headline: "Guten Morgen", headlineWithName: "Guten Morgen, {name}", ctaLabel: "Reden" },
+      fr: { headline: "Bonjour", headlineWithName: "Bonjour, {name}", ctaLabel: "Discuter" },
       it: { headline: "Buongiorno", headlineWithName: "Buongiorno, {name}", ctaLabel: "Parliamo" },
-      pt: { headline: "Bom dia", headlineWithName: "Bom dia, {name}", ctaLabel: "Vamos conversar" },
+      pt: { headline: "Bom dia", headlineWithName: "Bom dia, {name}", ctaLabel: "Falar" },
     },
   },
   {
@@ -161,10 +161,10 @@ export const HERO_MESSAGES: HeroMessageDefinition[] = [
     copy: {
       es: { headline: "Buenas tardes", headlineWithName: "Buenas tardes, {name}", ctaLabel: "Hablemos" },
       en: { headline: "Good afternoon", headlineWithName: "Good afternoon, {name}", ctaLabel: "Let's Talk" },
-      de: { headline: "Guten Tag", headlineWithName: "Guten Tag, {name}", ctaLabel: "Lass uns reden" },
-      fr: { headline: "Bon apres-midi", ctaLabel: "Parlons" },
+      de: { headline: "Guten Tag", headlineWithName: "Guten Tag, {name}", ctaLabel: "Reden" },
+      fr: { headline: "Bon apres-midi", ctaLabel: "Discuter" },
       it: { headline: "Buon pomeriggio", ctaLabel: "Parliamo" },
-      pt: { headline: "Boa tarde", headlineWithName: "Boa tarde, {name}", ctaLabel: "Vamos conversar" },
+      pt: { headline: "Boa tarde", headlineWithName: "Boa tarde, {name}", ctaLabel: "Falar" },
     },
   },
   {
@@ -177,10 +177,10 @@ export const HERO_MESSAGES: HeroMessageDefinition[] = [
     copy: {
       es: { headline: "Buenas noches", headlineWithName: "Buenas noches, {name}", ctaLabel: "Hablemos" },
       en: { headline: "Good evening", headlineWithName: "Good evening, {name}", ctaLabel: "Let's Talk" },
-      de: { headline: "Guten Abend", headlineWithName: "Guten Abend, {name}", ctaLabel: "Lass uns reden" },
-      fr: { headline: "Bonsoir", headlineWithName: "Bonsoir, {name}", ctaLabel: "Parlons" },
+      de: { headline: "Guten Abend", headlineWithName: "Guten Abend, {name}", ctaLabel: "Reden" },
+      fr: { headline: "Bonsoir", headlineWithName: "Bonsoir, {name}", ctaLabel: "Discuter" },
       it: { headline: "Buona sera", headlineWithName: "Buona sera, {name}", ctaLabel: "Parliamo" },
-      pt: { headline: "Boa noite", headlineWithName: "Boa noite, {name}", ctaLabel: "Vamos conversar" },
+      pt: { headline: "Boa noite", headlineWithName: "Boa noite, {name}", ctaLabel: "Falar" },
     },
   },
   {

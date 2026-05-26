@@ -250,7 +250,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
                 onClick={handleTalk}
                 disabled={isConnecting}
                 data-testid="button-voice-hero-talk"
-                className={`mt-[24px] flex min-h-[74px] w-full items-center justify-center gap-3 rounded-full px-[24px] py-[18px] transition-all ${isActive ? (isSpeaking ? "mic-listening" : "mic-pulse-listening") : ""}`}
+                className={`relative z-10 mt-[24px] flex min-h-[74px] w-full items-center justify-start gap-3 rounded-full py-[18px] pl-[28px] pr-[82px] transition-all ${isActive ? (isSpeaking ? "mic-listening" : "mic-pulse-listening") : ""}`}
                 style={
                   isActive
                     ? {
@@ -269,7 +269,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
                   <Mic size={23} style={{ color: "#6B21A8" }} />
                 )}
                 <span
-                  className="min-w-0 max-w-full text-center font-body text-[20px] font-extrabold leading-tight"
+                  className="min-w-0 max-w-full whitespace-nowrap text-left font-body text-[clamp(17px,4.8vw,20px)] font-extrabold leading-tight"
                   style={{ color: isActive ? "#ffffff" : "#6B21A8" }}
                 >
                   {statusLabel}

@@ -222,29 +222,29 @@
     "voiceCards": {
       "helper": "Tippen Sie auf eine Karte oder nutzen Sie das Mikrofon.",
       "health": {
-        "title": "Meine Gesundheit",
-        "subtitle": "Symptome, Medikamente und Wohlbefinden",
+        "title": "Gesundheit",
+        "subtitle": "Symptome und Alltag",
         "bubble": "Ich bin da, um Ihnen jeden Tag zu helfen.",
         "micLabel": "Über meine Gesundheit sprechen",
         "openLabel": "Wohlbefinden öffnen"
       },
       "cognitive": {
-        "title": "Mein Geist",
-        "subtitle": "Fokus, Gedächtnis und Ruhe",
+        "title": "Geist",
+        "subtitle": "Fokus und Ruhe",
         "bubble": "Ein kurzer Moment mit mir hält Ihren Geist aktiv.",
         "micLabel": "Gedächtnisübung starten",
         "openLabel": "Aktiven Geist öffnen"
       },
       "social": {
-        "title": "Meine Community",
-        "subtitle": "Räume, Chats und gemeinsame Momente",
+        "title": "Community",
+        "subtitle": "Räume und Chats",
         "bubble": "Ich höre Ihnen gern zu. Hier ist immer jemand da.",
         "micLabel": "Mit VYVA sprechen",
         "openLabel": "Community öffnen"
       },
       "concierge": {
-        "title": "Mein Concierge",
-        "subtitle": "Buchungen, Erledigungen und Hilfe",
+        "title": "Concierge",
+        "subtitle": "Buchen und helfen",
         "bubble": "Lassen Sie mich das übernehmen. Ich kümmere mich darum.",
         "micLabel": "Per Sprache um Hilfe bitten",
         "openLabel": "Concierge öffnen"
@@ -253,7 +253,7 @@
     "whatNow": "oder Thema erkunden"
   },
   "voiceHero": {
-    "talkToVyva": "Lass uns reden",
+    "talkToVyva": "Reden",
     "speaking": "VYVA spricht...",
     "listening": "Hört zu...",
     "connecting": "Verbinde...",
