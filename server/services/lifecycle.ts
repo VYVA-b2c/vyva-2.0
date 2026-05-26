@@ -369,7 +369,13 @@ function canonicalIdentityKey(intake: Intake) {
 
 function isMergedLifecycleDuplicate(intake: Intake) {
   const metadata = metadataRecord(intake.metadata);
-  return typeof metadata.merged_into_intake_id === "string" || metadata.hidden_from_lifecycle === true;
+  return (
+    typeof metadata.merged_into_intake_id === "string"
+    || metadata.hidden_from_lifecycle === true
+    || metadata.deleted_from_lifecycle === true
+    || intake.journey_step === "merged_duplicate"
+    || intake.journey_step === "admin_deleted"
+  );
 }
 
 function statusRank(status: string | null | undefined) {
@@ -1181,6 +1187,9 @@ export async function listLifecycleUsers(filters: {
     filters.user_type ? eq(userIntakes.user_type, filters.user_type) : undefined,
     filters.status ? eq(userIntakes.status, filters.status) : undefined,
     filters.tier ? eq(userIntakes.tier, filters.tier) : undefined,
+    sql`${userIntakes.journey_step} not in ('merged_duplicate', 'admin_deleted')`,
+    sql`coalesce(${userIntakes.metadata}->>'hidden_from_lifecycle', 'false') <> 'true'`,
+    sql`coalesce(${userIntakes.metadata}->>'deleted_from_lifecycle', 'false') <> 'true'`,
     filters.callback_onboarding
       ? sql`(${userIntakes.metadata} ? 'callback' or ${userIntakes.journey_step} like 'callback_%')`
       : undefined,
