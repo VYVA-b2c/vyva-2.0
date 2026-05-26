@@ -30,6 +30,19 @@ type SupabaseAuthAccount = {
   created_at: Date | null;
 };
 
+function jsonRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function callbackMetadataForIntake(intake: Pick<Intake, "metadata">): Record<string, unknown> {
+  return jsonRecord(jsonRecord(intake.metadata).callback);
+}
+
+function isCallbackOnboardingIntake(intake: Pick<Intake, "metadata" | "journey_step">) {
+  const callback = callbackMetadataForIntake(intake);
+  return Boolean(callback.scheduled_for || callback.requested_at || intake.journey_step.startsWith("callback_"));
+}
+
 export type IntakeCreateInput = {
   name: string;
   phone: string;
@@ -782,6 +795,11 @@ export async function getLifecycleSummary(database = db) {
   const linkSent = countRows((row) => row.status === "link_sent" || row.status === "active" || !!row.link_sent_at);
   const active = countRows((row) => row.status === "active");
   const dropped = countRows((row) => row.status === "dropped");
+  const callbacks = rows.filter(isCallbackOnboardingIntake);
+  const callbacksScheduled = callbacks.filter((row) => row.status === "created" || row.journey_step === "callback_scheduled").length;
+  const callbacksCalling = callbacks.filter((row) => row.journey_step === "callback_calling").length;
+  const callbacksCompleted = callbacks.filter((row) => row.journey_step === "callback_complete_confirmation_queued" || row.status === "link_sent" || row.status === "active").length;
+  const callbacksFailed = callbacks.filter((row) => row.status === "dropped" || row.journey_step === "callback_call_failed" || row.journey_step === "callback_onboarding_failed").length;
   const family = countRows((row) => row.user_type === "family");
   const consentApproved = countRows((row) => row.user_type === "family" && row.consent_status === "approved");
   const consentRejected = countRows((row) => row.user_type === "family" && row.consent_status === "rejected");
@@ -811,6 +829,13 @@ export async function getLifecycleSummary(database = db) {
     byStatus: by("status"),
     byTier: by("tier"),
     byConsent: by("consent_status"),
+    callbacks: {
+      total: callbacks.length,
+      scheduled: callbacksScheduled,
+      calling: callbacksCalling,
+      completed: callbacksCompleted,
+      failed: callbacksFailed,
+    },
     funnel: {
       generated_at: new Date().toISOString(),
       stages: [
@@ -988,6 +1013,7 @@ export async function listLifecycleUsers(filters: {
   status?: IntakeStatus;
   tier?: string;
   query?: string;
+  callback_onboarding?: boolean;
 }, database = db) {
   await backfillLifecycleUsers(database);
   const searchWhere = filters.query ? await lifecycleUserSearchWhere(filters.query, database) : undefined;
@@ -996,6 +1022,9 @@ export async function listLifecycleUsers(filters: {
     filters.user_type ? eq(userIntakes.user_type, filters.user_type) : undefined,
     filters.status ? eq(userIntakes.status, filters.status) : undefined,
     filters.tier ? eq(userIntakes.tier, filters.tier) : undefined,
+    filters.callback_onboarding
+      ? sql`(${userIntakes.metadata} ? 'callback' or ${userIntakes.journey_step} like 'callback_%')`
+      : undefined,
     searchWhere,
   ].filter(Boolean);
 

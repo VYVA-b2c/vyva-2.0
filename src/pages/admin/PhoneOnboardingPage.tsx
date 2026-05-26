@@ -12,7 +12,12 @@ import {
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
-import type { Intake } from "./lifecycle/shared";
+import {
+  callbackMetadata,
+  callbackScheduledLabel,
+  cleanLabel,
+  type Intake,
+} from "./lifecycle/shared";
 
 type PhoneIntake = Intake & {
   metadata?: Record<string, unknown> | null;
@@ -27,10 +32,6 @@ function valueText(value: unknown): string {
     .filter(Boolean)
     .join("; ");
   return String(value);
-}
-
-function cleanLabel(value: string) {
-  return value.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function formatDateTime(value?: string | null) {
@@ -81,6 +82,9 @@ function statusTone(status: string) {
 
 function PhoneUserCard({ user }: { user: PhoneIntake }) {
   const dataRows = keyData(user);
+  const callback = callbackMetadata(user);
+  const callbackScheduled = callbackScheduledLabel(user);
+  const callbackStatus = typeof callback?.status === "string" ? callback.status : user.journey_step;
 
   return (
     <article className="rounded-[24px] border border-[#eadfd5] bg-white p-5 shadow-sm">
@@ -94,6 +98,11 @@ function PhoneUserCard({ user }: { user: PhoneIntake }) {
             <span className="rounded-full bg-[#fff4df] px-3 py-1 text-xs font-black text-[#8a5a00]">
               {cleanLabel(user.user_type)}
             </span>
+            {callback && (
+              <span className="rounded-full bg-[#f3e8ff] px-3 py-1 text-xs font-black text-purple-800">
+                Callback onboarding
+              </span>
+            )}
           </div>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-[#7d6b65]">
             <span className="inline-flex items-center gap-1.5"><PhoneCall size={14} /> {user.profile_phone || user.login_phone || user.phone}</span>
@@ -106,7 +115,8 @@ function PhoneUserCard({ user }: { user: PhoneIntake }) {
         </div>
         <div className="text-right text-sm text-[#7d6b65]">
           <p className="font-black text-[#2f2135]">{formatDateTime(user.created_at)}</p>
-          <p>{cleanLabel(user.journey_step)}</p>
+          <p>{callback ? cleanLabel(callbackStatus) : cleanLabel(user.journey_step)}</p>
+          {callbackScheduled && <p className="font-bold text-purple-700">Scheduled {callbackScheduled}</p>}
         </div>
       </div>
 

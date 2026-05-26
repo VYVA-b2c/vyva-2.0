@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db, pool } from "../db.js";
 import { getActiveProfileContext } from "../lib/profileAccess.js";
 import * as lifecycleService from "../services/lifecycle.js";
+import { triggerCallbackOnboardingCall } from "../services/callbackOnboarding.js";
 import { dispatchCommunicationsByIds, dispatchQueuedCommunications } from "../services/communicationDispatcher.js";
 import {
   accessLinks,
@@ -1154,8 +1155,25 @@ adminLifecycleRouter.get("/users", async (req: Request, res: Response) => {
       status: req.query.status as "created" | "link_sent" | "consent_pending" | "active" | "dropped" | undefined,
       tier: req.query.tier ? String(req.query.tier) : undefined,
       query: req.query.query ? String(req.query.query) : undefined,
+      callback_onboarding: req.query.callback_onboarding === "true",
     }),
   });
+});
+
+adminLifecycleRouter.post("/callbacks/:id/trigger", async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+
+  const [intake] = await db.select().from(userIntakes).where(eq(userIntakes.id, req.params.id)).limit(1);
+  if (!intake) return res.status(404).json({ error: "Callback intake not found" });
+  const metadata = intake.metadata && typeof intake.metadata === "object" && !Array.isArray(intake.metadata)
+    ? intake.metadata as Record<string, unknown>
+    : {};
+  if (!metadata.callback && !intake.journey_step.startsWith("callback_")) {
+    return res.status(400).json({ error: "This intake is not a callback onboarding request" });
+  }
+
+  const result = await triggerCallbackOnboardingCall(intake);
+  return res.json(result);
 });
 
 adminLifecycleRouter.get("/account-subscriptions", async (req: Request, res: Response) => {

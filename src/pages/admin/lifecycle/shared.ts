@@ -150,6 +150,32 @@ export function stringValue(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
+export function cleanLabel(value: string | null | undefined) {
+  return (value || "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+export function callbackMetadata(intake: Pick<Intake, "metadata" | "journey_step">): JsonRecord | null {
+  const callback = intake.metadata?.callback;
+  if (callback && typeof callback === "object" && !Array.isArray(callback)) return callback as JsonRecord;
+  return intake.journey_step?.startsWith("callback_") ? {} : null;
+}
+
+export function callbackScheduledLabel(intake: Pick<Intake, "metadata" | "journey_step">) {
+  const callback = callbackMetadata(intake);
+  const scheduledFor = stringValue(callback?.scheduled_for);
+  if (!scheduledFor) return null;
+  return new Date(scheduledFor).toLocaleString([], {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export type LoginMapping = {
   source: "legacy" | "supabase";
   login_uid: string;

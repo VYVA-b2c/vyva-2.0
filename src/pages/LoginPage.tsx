@@ -22,7 +22,7 @@ import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { useAuth } from "@/contexts/AuthContext";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 import { localizeAuthErrorMessage } from "@/lib/authErrorLocalization";
-import { queryClient } from "@/lib/queryClient";
+import { apiFetch, queryClient } from "@/lib/queryClient";
 import { stageToRoute } from "@/lib/onboardingRoute";
 import { useLanguage } from "@/i18n";
 import { LANGUAGES, type LanguageCode } from "@/i18n/languages";
@@ -125,47 +125,6 @@ const GUIDE_RESPONSES: Record<GuideTopic, { label: string; body: string }> = {
     body: "Family can help, but sharing stays controlled.",
   },
 };
-
-const CALLBACK_EMAIL = "support@vyva.life";
-
-function callbackMailto({
-  language,
-  firstName,
-  lastName,
-  phone,
-  callbackForLabel,
-  preferredDate,
-  preferredTime,
-  preferredPeriod,
-}: {
-  language: string;
-  firstName: string;
-  lastName: string;
-  phone: string;
-  callbackForLabel: string;
-  preferredDate: string;
-  preferredTime: string;
-  preferredPeriod: CallbackPeriod;
-}) {
-  const subject = "Schedule a VYVA callback";
-  const body = [
-    "Hi VYVA,",
-    "",
-    "I'd like to schedule a callback to learn more about setting up VYVA.",
-    "",
-    `Preferred language: ${language}`,
-    `First name: ${firstName}`,
-    `Last name: ${lastName}`,
-    `Phone number: ${phone}`,
-    `Call for: ${callbackForLabel}`,
-    `Preferred date: ${preferredDate}`,
-    `Preferred time: ${preferredTime} ${preferredPeriod}`,
-    "",
-    "Notes:",
-  ].join("\n");
-
-  return `mailto:${CALLBACK_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-}
 
 const LOGIN_LANGUAGE_CODES = new Set<string>(LANGUAGES.map((entry) => entry.code));
 
@@ -301,7 +260,7 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     emailPlaceholder: "you@example.com",
     phonePlaceholder: "+34 600 000 000",
     combinedContact: "Mobile or email",
-    combinedContactPlaceholder: "+34 600 000 000 or you@example.com",
+    combinedContactPlaceholder: "+34600111222 or you@example.com",
     createPassword: "Create password",
     yourPassword: "Your password",
     creating: "Creating...",
@@ -391,7 +350,7 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     emailPlaceholder: "tu@email.com",
     phonePlaceholder: "+34 600 000 000",
     combinedContact: "Movil o email",
-    combinedContactPlaceholder: "+34 600 000 000 o tu@email.com",
+    combinedContactPlaceholder: "+34600111222 o tu@email.com",
     createPassword: "Crear contraseña",
     yourPassword: "Tu contraseña",
     creating: "Creando...",
@@ -1069,6 +1028,7 @@ const FRIENDLY_CALLBACK_MODAL_COPY = {
     eyebrow: "Callback request",
     title: "Schedule a call with VYVA",
     subtitle: "Tell us who the call is for and when we should reach you.",
+    requiredNote: "All fields are required.",
     firstName: "First name",
     firstNamePlaceholder: "e.g. Margaret",
     lastName: "Last name",
@@ -1085,12 +1045,17 @@ const FRIENDLY_CALLBACK_MODAL_COPY = {
     },
     cancel: "Cancel",
     submit: "Request callback",
+    submitting: "Scheduling...",
+    successTitle: "Callback scheduled",
+    successBody: "VYVA will call at your selected time. The voice agent will ask a few setup questions, then send your secure confirmation link by email or WhatsApp based on your preference.",
+    closeSuccess: "Done",
     error: "Please add a first name, last name, phone number, date, and time.",
   },
   es: {
     eyebrow: "Solicitud de llamada",
     title: "Programa una llamada con VYVA",
     subtitle: "Dinos para quien es la llamada y cuando podemos contactar.",
+    requiredNote: "Todos los campos son obligatorios.",
     firstName: "Nombre",
     firstNamePlaceholder: "p. ej. Margaret",
     lastName: "Apellido",
@@ -1107,12 +1072,17 @@ const FRIENDLY_CALLBACK_MODAL_COPY = {
     },
     cancel: "Cancelar",
     submit: "Solicitar llamada",
+    submitting: "Programando...",
+    successTitle: "Llamada programada",
+    successBody: "VYVA llamara a la hora elegida. El agente de voz hara unas preguntas de configuracion y despues enviara tu enlace seguro por email o WhatsApp, segun tu preferencia.",
+    closeSuccess: "Listo",
     error: "Anade nombre, apellido, telefono, fecha y hora.",
   },
   fr: {
     eyebrow: "Demande de rappel",
     title: "Planifier un appel avec VYVA",
     subtitle: "Indiquez pour qui est l'appel et quand vous joindre.",
+    requiredNote: "Tous les champs sont obligatoires.",
     firstName: "Prenom",
     firstNamePlaceholder: "ex. Margaret",
     lastName: "Nom",
@@ -1129,12 +1099,17 @@ const FRIENDLY_CALLBACK_MODAL_COPY = {
     },
     cancel: "Annuler",
     submit: "Demander un rappel",
+    submitting: "Planification...",
+    successTitle: "Rappel planifie",
+    successBody: "VYVA appellera a l'heure choisie. L'agent vocal posera quelques questions de configuration, puis enverra votre lien securise par e-mail ou WhatsApp selon votre preference.",
+    closeSuccess: "Termine",
     error: "Ajoutez un prenom, un nom, un telephone, une date et une heure.",
   },
   de: {
     eyebrow: "Ruckrufanfrage",
     title: "Anruf mit VYVA planen",
     subtitle: "Sagen Sie uns, fur wen der Anruf ist und wann wir Sie erreichen.",
+    requiredNote: "Alle Felder sind erforderlich.",
     firstName: "Vorname",
     firstNamePlaceholder: "z. B. Margaret",
     lastName: "Nachname",
@@ -1151,12 +1126,17 @@ const FRIENDLY_CALLBACK_MODAL_COPY = {
     },
     cancel: "Abbrechen",
     submit: "Ruckruf anfragen",
+    submitting: "Wird geplant...",
+    successTitle: "Ruckruf geplant",
+    successBody: "VYVA ruft zur gewahlten Zeit an. Der Sprachagent stellt einige Einrichtungsfragen und sendet danach den sicheren Link per E-Mail oder WhatsApp, je nach Wunsch.",
+    closeSuccess: "Fertig",
     error: "Bitte Vorname, Nachname, Telefonnummer, Datum und Uhrzeit eingeben.",
   },
   it: {
     eyebrow: "Richiesta di richiamata",
     title: "Prenota una chiamata con VYVA",
     subtitle: "Dicci per chi e la chiamata e quando possiamo contattarti.",
+    requiredNote: "Tutti i campi sono obbligatori.",
     firstName: "Nome",
     firstNamePlaceholder: "es. Margaret",
     lastName: "Cognome",
@@ -1173,12 +1153,17 @@ const FRIENDLY_CALLBACK_MODAL_COPY = {
     },
     cancel: "Annulla",
     submit: "Richiedi richiamata",
+    submitting: "Programmazione...",
+    successTitle: "Richiamata programmata",
+    successBody: "VYVA chiamera all'orario scelto. L'agente vocale fara alcune domande di configurazione e poi inviera il link sicuro via email o WhatsApp, in base alla preferenza.",
+    closeSuccess: "Fatto",
     error: "Aggiungi nome, cognome, telefono, data e ora.",
   },
   pt: {
     eyebrow: "Pedido de chamada",
     title: "Agendar uma chamada com a VYVA",
     subtitle: "Diga-nos para quem e a chamada e quando podemos contactar.",
+    requiredNote: "Todos os campos sao obrigatorios.",
     firstName: "Nome",
     firstNamePlaceholder: "ex. Margaret",
     lastName: "Apelido",
@@ -1195,12 +1180,17 @@ const FRIENDLY_CALLBACK_MODAL_COPY = {
     },
     cancel: "Cancelar",
     submit: "Pedir chamada",
+    submitting: "A agendar...",
+    successTitle: "Chamada agendada",
+    successBody: "A VYVA ligara na hora escolhida. O agente de voz fara algumas perguntas de configuracao e depois enviara o link seguro por email ou WhatsApp, conforme a preferencia.",
+    closeSuccess: "Concluido",
     error: "Adicione nome, apelido, telefone, data e hora.",
   },
   cy: {
     eyebrow: "Callback request",
     title: "Schedule a call with VYVA",
     subtitle: "Tell us who the call is for and when we should reach you.",
+    requiredNote: "All fields are required.",
     firstName: "First name",
     firstNamePlaceholder: "e.g. Margaret",
     lastName: "Last name",
@@ -1217,6 +1207,10 @@ const FRIENDLY_CALLBACK_MODAL_COPY = {
     },
     cancel: "Cancel",
     submit: "Request callback",
+    submitting: "Scheduling...",
+    successTitle: "Callback scheduled",
+    successBody: "VYVA will call at your selected time. The voice agent will ask a few setup questions, then send your secure confirmation link by email or WhatsApp based on your preference.",
+    closeSuccess: "Done",
     error: "Please add a first name, last name, phone number, date, and time.",
   },
 } satisfies Record<
@@ -1225,6 +1219,7 @@ const FRIENDLY_CALLBACK_MODAL_COPY = {
     eyebrow: string;
     title: string;
     subtitle: string;
+    requiredNote: string;
     firstName: string;
     firstNamePlaceholder: string;
     lastName: string;
@@ -1238,6 +1233,10 @@ const FRIENDLY_CALLBACK_MODAL_COPY = {
     options: Record<CallbackFor, { title: string; subtitle: string }>;
     cancel: string;
     submit: string;
+    submitting: string;
+    successTitle: string;
+    successBody: string;
+    closeSuccess: string;
     error: string;
   }
 >;
@@ -1396,6 +1395,8 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   const [callbackTime, setCallbackTime] = useState("");
   const [callbackPeriod, setCallbackPeriod] = useState<CallbackPeriod>("AM");
   const [callbackError, setCallbackError] = useState<string | null>(null);
+  const [callbackLoading, setCallbackLoading] = useState(false);
+  const [callbackScheduledFor, setCallbackScheduledFor] = useState<string | null>(null);
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
   const [callCountry, setCallCountry] = useState("ES");
   const [callConfirmed, setCallConfirmed] = useState(false);
@@ -1644,16 +1645,20 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
 
   const openCallbackModal = () => {
     setCallbackError(null);
+    setCallbackScheduledFor(null);
     setIsCallbackModalOpen(true);
   };
 
   const closeCallbackModal = () => {
     setCallbackError(null);
+    setCallbackLoading(false);
+    setCallbackScheduledFor(null);
     setIsCallbackModalOpen(false);
   };
 
-  const handleCallbackSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleCallbackSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (callbackLoading) return;
     const firstName = callbackFirstName.trim();
     const lastName = callbackLastName.trim();
     const phone = callbackPhone.trim();
@@ -1665,17 +1670,35 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
     }
 
     setCallbackError(null);
-    window.location.href = callbackMailto({
-      language,
-      firstName,
-      lastName,
-      phone: `${callbackCountryCode} ${phone}`,
-      callbackForLabel: callbackCopy.options[callbackFor].title,
-      preferredDate,
-      preferredTime,
-      preferredPeriod: callbackPeriod,
-    });
-    setIsCallbackModalOpen(false);
+    setCallbackLoading(true);
+    try {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      const response = await apiFetch("/api/public/callback-onboarding/request", {
+        method: "POST",
+        body: JSON.stringify({
+          first_name: firstName,
+          last_name: lastName,
+          country_code: callbackCountryCode,
+          phone,
+          preferred_date: preferredDate,
+          preferred_time: preferredTime,
+          preferred_period: callbackPeriod,
+          callback_for: callbackFor,
+          language,
+          timezone,
+        }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null) as { error?: string } | null;
+        throw new Error(body?.error ?? callbackCopy.error);
+      }
+      const result = await response.json().catch(() => null) as { scheduled_for?: string } | null;
+      setCallbackScheduledFor(result?.scheduled_for ?? `${preferredDate} ${preferredTime} ${callbackPeriod}`);
+    } catch (err) {
+      setCallbackError(err instanceof Error ? err.message : callbackCopy.error);
+    } finally {
+      setCallbackLoading(false);
+    }
   };
 
   const trimmedContact = contact.trim();
@@ -1694,8 +1717,9 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         : guideVoiceError
     : null;
   const contactLabel = copy.combinedContact ?? `${copy.mobileNumber} / ${copy.email}`;
-  const contactPlaceholder = copy.combinedContactPlaceholder ?? `${copy.phonePlaceholder} ${copy.or} ${copy.emailPlaceholder}`;
-  const contactFormatHint = `${copy.mobileNumber}: ${copy.phonePlaceholder} ${copy.or} ${copy.email}: ${copy.emailPlaceholder}`;
+  const compactPhoneExample = copy.phonePlaceholder.replace(/\s+/g, "");
+  const contactPlaceholder = copy.combinedContactPlaceholder ?? `${compactPhoneExample} ${copy.or} ${copy.emailPlaceholder}`;
+  const contactFormatHint = `${copy.mobileNumber}: ${contactPlaceholder}`;
   const contactAutocomplete = "username";
   const todayForDateInput = new Date().toISOString().slice(0, 10);
   const selectedDialOption = COUNTRY_DIAL_OPTIONS.find((option) => option.dialCode === callbackCountryCode) ?? COUNTRY_DIAL_OPTIONS[0];
@@ -1889,6 +1913,9 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                 <p className="mt-2 font-body text-[14px] leading-6 text-vyva-text-2">
                   {callbackCopy.subtitle}
                 </p>
+                <p className="mt-2 inline-flex rounded-full bg-[#F4ECFF] px-3 py-1.5 font-body text-[12px] font-extrabold text-vyva-purple">
+                  {callbackCopy.requiredNote}
+                </p>
               </div>
               <button
                 type="button"
@@ -1901,10 +1928,40 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
               </button>
             </div>
 
+            {callbackScheduledFor ? (
+              <div className="mt-7 rounded-[26px] border border-[#D8F2E3] bg-[#F3FFF8] p-5 text-center shadow-[0_16px_36px_rgba(25,135,84,0.10)]">
+                <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#E2F8EB] text-emerald-700">
+                  <CheckCircle2 size={26} />
+                </span>
+                <h3 className="mt-4 font-body text-[24px] font-black text-[#2F183F]">
+                  {callbackCopy.successTitle}
+                </h3>
+                <p className="mt-2 font-body text-[15px] leading-6 text-vyva-text-2">
+                  {callbackCopy.successBody}
+                </p>
+                <p className="mt-3 rounded-full bg-white px-4 py-2 font-body text-[13px] font-extrabold text-emerald-800">
+                  {new Date(callbackScheduledFor).toString() === "Invalid Date"
+                    ? callbackScheduledFor
+                    : new Intl.DateTimeFormat(language, {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      }).format(new Date(callbackScheduledFor))}
+                </p>
+                <button
+                  type="button"
+                  onClick={closeCallbackModal}
+                  className="mt-6 inline-flex min-h-[52px] w-full items-center justify-center rounded-full bg-vyva-purple px-4 font-body text-sm font-black text-white shadow-[0_14px_32px_rgba(107,33,168,0.18)]"
+                  data-testid="button-callback-success-close"
+                >
+                  {callbackCopy.closeSuccess}
+                </button>
+              </div>
+            ) : (
+              <>
             <div className="mt-6 grid gap-4">
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="font-body text-[13px] font-bold text-vyva-text-2">
-                  {callbackCopy.firstName}
+                  {callbackCopy.firstName} <span className="text-red-500" aria-hidden="true">*</span>
                   <Input
                     ref={callbackNameInputRef}
                     type="text"
@@ -1917,11 +1974,12 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                     className="mt-2 h-[56px] rounded-[20px] border-vyva-border bg-white px-4 text-[16px] shadow-vyva-input"
                     autoComplete="given-name"
                     data-testid="input-callback-first-name"
+                    required
                   />
                 </label>
 
                 <label className="font-body text-[13px] font-bold text-vyva-text-2">
-                  {callbackCopy.lastName}
+                  {callbackCopy.lastName} <span className="text-red-500" aria-hidden="true">*</span>
                   <Input
                     type="text"
                     value={callbackLastName}
@@ -1933,19 +1991,21 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                     className="mt-2 h-[56px] rounded-[20px] border-vyva-border bg-white px-4 text-[16px] shadow-vyva-input"
                     autoComplete="family-name"
                     data-testid="input-callback-last-name"
+                    required
                   />
                 </label>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-[150px_1fr]">
                 <label className="font-body text-[13px] font-bold text-vyva-text-2">
-                  {callbackCopy.countryCode}
+                  {callbackCopy.countryCode} <span className="text-red-500" aria-hidden="true">*</span>
                   <select
                     value={callbackCountryCode}
                     onChange={(event) => setCallbackCountryCode(event.target.value)}
                     className="mt-2 h-[56px] w-full rounded-[20px] border border-vyva-border bg-white px-4 text-[16px] shadow-vyva-input outline-none"
                     data-testid="select-callback-country-code"
                     aria-label={callbackCopy.countryCode}
+                    required
                   >
                     {COUNTRY_DIAL_OPTIONS.map((option) => (
                       <option key={option.country} value={option.dialCode}>
@@ -1956,7 +2016,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                 </label>
 
                 <label className="font-body text-[13px] font-bold text-vyva-text-2">
-                  {callbackCopy.phone}
+                  {callbackCopy.phone} <span className="text-red-500" aria-hidden="true">*</span>
                   <Input
                     type="tel"
                     value={callbackPhone}
@@ -1968,13 +2028,14 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                     className="mt-2 h-[56px] rounded-[20px] border-vyva-border bg-white px-4 text-[16px] shadow-vyva-input"
                     autoComplete="tel-national"
                     data-testid="input-callback-phone"
+                    required
                   />
                 </label>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="font-body text-[13px] font-bold text-vyva-text-2">
-                  {callbackCopy.date}
+                  {callbackCopy.date} <span className="text-red-500" aria-hidden="true">*</span>
                   <Input
                     type="date"
                     value={callbackDate}
@@ -1985,11 +2046,12 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                     min={todayForDateInput}
                     className="mt-2 h-[56px] rounded-[20px] border-vyva-border bg-white px-4 text-[16px] shadow-vyva-input"
                     data-testid="input-callback-date"
+                    required
                   />
                 </label>
 
                 <label className="font-body text-[13px] font-bold text-vyva-text-2">
-                  {callbackCopy.time}
+                  {callbackCopy.time} <span className="text-red-500" aria-hidden="true">*</span>
                   <div className="mt-2 grid grid-cols-[1fr_96px] gap-2">
                     <Input
                       type="time"
@@ -2000,6 +2062,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                       }}
                       className="h-[56px] rounded-[20px] border-vyva-border bg-white px-4 text-[16px] shadow-vyva-input"
                       data-testid="input-callback-time"
+                      required
                     />
                     <select
                       value={callbackPeriod}
@@ -2007,6 +2070,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                       className="h-[56px] rounded-[20px] border border-vyva-border bg-white px-3 text-[16px] font-bold text-[#2F183F] shadow-vyva-input outline-none"
                       aria-label="AM or PM"
                       data-testid="select-callback-period"
+                      required
                     >
                       <option value="AM">AM</option>
                       <option value="PM">PM</option>
@@ -2017,7 +2081,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
 
               <fieldset className="grid gap-2">
                 <legend className="mb-1 font-body text-[13px] font-bold text-vyva-text-2">
-                  {callbackCopy.callFor}
+                  {callbackCopy.callFor} <span className="text-red-500" aria-hidden="true">*</span>
                 </legend>
                 {(["me", "caregiver"] as const).map((option) => {
                   const isSelected = callbackFor === option;
@@ -2069,13 +2133,25 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
               </button>
               <button
                 type="submit"
+                disabled={callbackLoading}
                 className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-sm font-black text-white shadow-[0_14px_32px_rgba(107,33,168,0.18)] transition hover:bg-vyva-purple/92"
                 data-testid="button-callback-submit"
               >
-                {callbackCopy.submit}
-                <ArrowRight size={16} />
+                {callbackLoading ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    {callbackCopy.submitting}
+                  </>
+                ) : (
+                  <>
+                    {callbackCopy.submit}
+                    <ArrowRight size={16} />
+                  </>
+                )}
               </button>
             </div>
+              </>
+            )}
           </form>
         </div>
       )}
