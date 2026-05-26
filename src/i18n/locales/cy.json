@@ -483,7 +483,7 @@
   },
   "health": {
     "voiceSource": "VYVA yn monitro eich iechyd",
-    "talkToDoctor": "Talk to a Doctor",
+    "talkToDoctor": "Cysylltu â meddyg go iawn",
     "headlineWithName": "Sut ydych chi'n teimlo,\n{{name}}?",
     "headline": "Sut ydych chi'n teimlo?",
     "bloodPressure": "Pwysedd gwaed",
@@ -494,7 +494,7 @@
     "symptomsToday": "Unrhyw symptomau heddiw?",
     "urgent": "brys",
     "doctorServices": "Meddyg a gwasanaethau",
-    "speakToDoctor": "Siarad â meddyg",
+    "speakToDoctor": "Cysylltu â meddyg go iawn",
     "speakToDoctorSub": "Cael atgyfeiriad neu gyngor meddygol",
     "nearbyClinics": "Clinigau cyfagos",
     "nearbyClinicsSub": "Dewch o hyd i ganolfannau iechyd gerllaw",

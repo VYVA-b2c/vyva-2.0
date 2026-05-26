@@ -532,7 +532,7 @@
   },
   "health": {
     "voiceSource": "VYVA monitoriza a sua saúde",
-    "talkToDoctor": "Falar com um médico",
+    "talkToDoctor": "Contactar um médico real",
     "headlineWithName": "Como se sente,\n{{name}}?",
     "headline": "Como se sente?",
     "quickAccess": "Acesso rápido",
@@ -563,7 +563,7 @@
     "symptomsToday": "Algum sintoma hoje?",
     "urgent": "urgente",
     "doctorServices": "Médico & serviços",
-    "speakToDoctor": "Falar com um médico",
+    "speakToDoctor": "Contactar um médico real",
     "speakToDoctorSub": "Obter uma referência ou conselho médico",
     "nearbyClinics": "Clínicas próximas",
     "nearbyClinicsSub": "Encontre centros de saúde perto de si",

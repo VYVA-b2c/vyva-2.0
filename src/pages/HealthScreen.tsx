@@ -554,7 +554,7 @@ const HealthScreen = () => {
     toast({
       description: t(
         "health.doctorChoice.voiceError",
-        "The doctor's voice could not start. You can still tap Talk to Doctor.",
+        "The doctor's voice could not start. You can still tap Connect with a real doctor.",
       ),
     });
   }, [doctorVoiceLastError, t, toast]);
@@ -735,7 +735,7 @@ const HealthScreen = () => {
           heroSurface="health"
           headline={<>{headlineText}</>}
           contextHint="health symptoms"
-          talkLabel={t("health.talkToDoctor", "Talk to a Doctor")}
+          talkLabel={t("health.talkToDoctor", "Connect with a real doctor")}
           onTalkClick={() => {
             if (doctorVoiceLive) {
               stopDoctorVoice();

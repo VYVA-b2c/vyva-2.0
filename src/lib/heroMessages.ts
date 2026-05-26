@@ -190,12 +190,12 @@ export const HERO_MESSAGES: HeroMessageDefinition[] = [
     priority: 10,
     cooldownHours: 8,
     copy: {
-      es: { sourceText: "Salud", headline: "Todo en orden", subtitle: "Revisa tu salud hoy", ctaLabel: "Hablar con medico", contextHint: "health doctor" },
-      en: { sourceText: "Health", headline: "All good", subtitle: "Check your health today", ctaLabel: "Talk to Doctor", contextHint: "health doctor" },
-      de: { sourceText: "Gesundheit", headline: "Alles ruhig", subtitle: "Gesundheit heute pruefen", ctaLabel: "Arzt sprechen", contextHint: "health doctor" },
-      fr: { sourceText: "Sante", headline: "Tout va bien", subtitle: "Verifier votre sante", ctaLabel: "Parler medecin", contextHint: "health doctor" },
-      it: { sourceText: "Salute", headline: "Tutto bene", subtitle: "Controlla la salute", ctaLabel: "Parla medico", contextHint: "health doctor" },
-      pt: { sourceText: "Saude", headline: "Tudo bem", subtitle: "Verificar saude hoje", ctaLabel: "Falar medico", contextHint: "health doctor" },
+      es: { sourceText: "Salud", headline: "Todo en orden", subtitle: "Revisa tu salud hoy", contextHint: "health doctor" },
+      en: { sourceText: "Health", headline: "All good", subtitle: "Check your health today", contextHint: "health doctor" },
+      de: { sourceText: "Gesundheit", headline: "Alles ruhig", subtitle: "Gesundheit heute pruefen", contextHint: "health doctor" },
+      fr: { sourceText: "Sante", headline: "Tout va bien", subtitle: "Verifier votre sante", contextHint: "health doctor" },
+      it: { sourceText: "Salute", headline: "Tutto bene", subtitle: "Controlla la salute", contextHint: "health doctor" },
+      pt: { sourceText: "Saude", headline: "Tudo bem", subtitle: "Verificar saude hoje", contextHint: "health doctor" },
     },
   },
   {
