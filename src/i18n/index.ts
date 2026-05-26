@@ -25,7 +25,7 @@ type DictionaryMap = Record<LanguageCode, TranslationTree>;
 export const LANGUAGE_STORAGE_KEY = "vyva_lang";
 const LEGACY_LANGUAGE_STORAGE_KEY = "vyva_language";
 const LANGUAGE_SOURCE_STORAGE_KEY = "vyva_lang_source";
-type LanguageSource = "account" | "user";
+type LanguageSource = "account" | "browser" | "user";
 
 const overrides: DictionaryMap = {
   es: customEs,
@@ -116,7 +116,7 @@ function readStoredLanguage(): LanguageCode {
   }
 
   const detectedLanguage = detectBrowserLanguage();
-  persistLanguage(detectedLanguage, "user");
+  persistLanguage(detectedLanguage, "browser");
   return detectedLanguage;
 }
 
@@ -136,7 +136,7 @@ function notifyLanguageChange() {
 function readLanguageSource(): LanguageSource | null {
   if (typeof window === "undefined") return null;
   const source = window.localStorage.getItem(LANGUAGE_SOURCE_STORAGE_KEY);
-  return source === "account" || source === "user" ? source : null;
+  return source === "account" || source === "browser" || source === "user" ? source : null;
 }
 
 function applyLanguage(language: LanguageCode, source: LanguageSource, syncLegacy = true) {

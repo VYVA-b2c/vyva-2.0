@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
+  CalendarClock,
   CheckCircle2,
   Eye,
   EyeOff,
@@ -9,8 +10,10 @@ import {
   KeyRound,
   Link2,
   Loader2,
-  Mic,
+  PhoneCall,
   ShieldCheck,
+  UserRound,
+  UsersRound,
   X,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -26,6 +29,78 @@ import { LANGUAGES, type LanguageCode } from "@/i18n/languages";
 
 type View = "login" | "register" | "forgot" | "magic";
 type GuideTopic = "why" | "privacy" | "family";
+type SetupIntent = "self" | "caregiver";
+type CallbackFor = "me" | "caregiver";
+type CallbackPeriod = "AM" | "PM";
+
+type CountryDialOption = {
+  country: string;
+  dialCode: string;
+  label: string;
+  phonePlaceholder: string;
+};
+
+const COUNTRY_DIAL_OPTIONS: CountryDialOption[] = [
+  { country: "ES", dialCode: "+34", label: "Spain", phonePlaceholder: "612 345 678" },
+  { country: "IT", dialCode: "+39", label: "Italy", phonePlaceholder: "312 345 6789" },
+  { country: "PT", dialCode: "+351", label: "Portugal", phonePlaceholder: "912 345 678" },
+  { country: "FR", dialCode: "+33", label: "France", phonePlaceholder: "6 12 34 56 78" },
+  { country: "GB", dialCode: "+44", label: "UK", phonePlaceholder: "7123 456789" },
+  { country: "US", dialCode: "+1", label: "US", phonePlaceholder: "415 555 0198" },
+  { country: "DE", dialCode: "+49", label: "Germany", phonePlaceholder: "151 23456789" },
+  { country: "CH", dialCode: "+41", label: "Switzerland", phonePlaceholder: "79 123 45 67" },
+  { country: "IE", dialCode: "+353", label: "Ireland", phonePlaceholder: "85 123 4567" },
+];
+
+const COUNTRY_TO_DIAL = COUNTRY_DIAL_OPTIONS.reduce<Record<string, string>>((map, option) => {
+  map[option.country] = option.dialCode;
+  return map;
+}, {});
+
+const COUNTRY_BY_CODE = COUNTRY_DIAL_OPTIONS.reduce<Record<string, CountryDialOption>>((map, option) => {
+  map[option.country] = option;
+  return map;
+}, {});
+
+const VYVA_CALL_NUMBERS: Record<string, { display: string; e164: string }> = {
+  ES: { display: "+34 900 876 003", e164: "+34900876003" },
+  IT: { display: "+39 800 984 401", e164: "+39800984401" },
+  PT: { display: "+351 800 180 044", e164: "+351800180044" },
+  FR: { display: "+33 805 980 422", e164: "+33805980422" },
+  GB: { display: "+44 808 175 7642", e164: "+448081757642" },
+  US: { display: "+1 833 982 0980", e164: "+18339820980" },
+  DE: { display: "+49 800 182 4601", e164: "+498001824601" },
+  CH: { display: "+41 800 002 443", e164: "+41800002443" },
+  IE: { display: "+353 1800 832 021", e164: "+3531800832021" },
+};
+
+const TIMEZONE_TO_COUNTRY: Record<string, string> = {
+  "Europe/Madrid": "ES",
+  "Europe/London": "GB",
+  "Europe/Paris": "FR",
+  "Europe/Berlin": "DE",
+  "Europe/Rome": "IT",
+  "Europe/Lisbon": "PT",
+  "Europe/Dublin": "IE",
+  "Europe/Amsterdam": "NL",
+  "Europe/Brussels": "BE",
+  "Europe/Zurich": "CH",
+};
+
+function inferCountryFromBrowser() {
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const timezoneCountry = timezone ? TIMEZONE_TO_COUNTRY[timezone] : null;
+  if (timezoneCountry && COUNTRY_BY_CODE[timezoneCountry]) return timezoneCountry;
+
+  const localeCountry = navigator.language.split("-")[1]?.toUpperCase();
+  if (localeCountry && COUNTRY_BY_CODE[localeCountry]) return localeCountry;
+
+  return "ES";
+}
+
+function inferDialCodeFromBrowser() {
+  return COUNTRY_TO_DIAL[inferCountryFromBrowser()] ?? "+34";
+}
 
 const LOGIN_GUIDE_AGENT_SLUG = "login-guide";
 
@@ -50,6 +125,47 @@ const GUIDE_RESPONSES: Record<GuideTopic, { label: string; body: string }> = {
     body: "Family can help, but sharing stays controlled.",
   },
 };
+
+const CALLBACK_EMAIL = "support@vyva.life";
+
+function callbackMailto({
+  language,
+  firstName,
+  lastName,
+  phone,
+  callbackForLabel,
+  preferredDate,
+  preferredTime,
+  preferredPeriod,
+}: {
+  language: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  callbackForLabel: string;
+  preferredDate: string;
+  preferredTime: string;
+  preferredPeriod: CallbackPeriod;
+}) {
+  const subject = "Schedule a VYVA callback";
+  const body = [
+    "Hi VYVA,",
+    "",
+    "I'd like to schedule a callback to learn more about setting up VYVA.",
+    "",
+    `Preferred language: ${language}`,
+    `First name: ${firstName}`,
+    `Last name: ${lastName}`,
+    `Phone number: ${phone}`,
+    `Call for: ${callbackForLabel}`,
+    `Preferred date: ${preferredDate}`,
+    `Preferred time: ${preferredTime} ${preferredPeriod}`,
+    "",
+    "Notes:",
+  ].join("\n");
+
+  return `mailto:${CALLBACK_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
 
 const LOGIN_LANGUAGE_CODES = new Set<string>(LANGUAGES.map((entry) => entry.code));
 
@@ -84,6 +200,9 @@ type LoginCopy = {
   privateDailySupport: string;
   heroTitle: string;
   heroSubtitle: string;
+  signInHeroEyebrow: string;
+  signInHeroTitle: string;
+  signInHeroSubtitle: string;
   chips: string[];
   language: string;
   createTab: string;
@@ -115,6 +234,15 @@ type LoginCopy = {
   usePasswordInstead: string;
   profilePrivate: string;
   privacyPolicy: string;
+  signupOptions: {
+    call: string;
+    callActive: string;
+    schedule: string;
+    try: string;
+  };
+  setupIntentLabel: string;
+  setupIntent: Record<SetupIntent, { title: string; subtitle: string }>;
+  caregiverHint: string;
   checkInbox: string;
   resetSentBody: string;
   backToSignIn: string;
@@ -147,10 +275,13 @@ type LoginCopy = {
 
 const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
   en: {
-    privateDailySupport: "Private daily support",
-    heroTitle: "Care that remembers.",
-    heroSubtitle: "One secure profile for health, medication, family, and everyday help.",
-    chips: ["Voice-first", "Private profile", "Family-ready"],
+    privateDailySupport: "YOUR AI COMPANION FOR LIFE",
+    heroTitle: "Start with VYVA by your side.",
+    heroSubtitle: "Create your account by filling the form, or use one of the voice-only options below and let VYVA guide you.",
+    signInHeroEyebrow: "Your health and wellness companion",
+    signInHeroTitle: "Welcome back to VYVA.",
+    signInHeroSubtitle: "Sign in to continue your health check-ins, reminders, mind activities, and everyday support.",
+    chips: ["My Health", "My Mind", "Social Club", "24/7 Concierge"],
     language: "Language",
     createTab: "Sign up",
     signInTab: "Sign in",
@@ -186,6 +317,24 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     usePasswordInstead: "Use password instead",
     profilePrivate: "Your profile stays private.",
     privacyPolicy: "Privacy policy",
+    signupOptions: {
+      call: "Call VYVA",
+      callActive: "End call",
+      schedule: "Schedule Callback",
+      try: "Try VYVA",
+    },
+    setupIntentLabel: "I am using VYVA",
+    setupIntent: {
+      self: {
+        title: "For myself",
+        subtitle: "My account and my care profile.",
+      },
+      caregiver: {
+        title: "As a caregiver",
+        subtitle: "Set up or access care on someone else's behalf.",
+      },
+    },
+    caregiverHint: "Caregiver accounts stay separate from the care profile. The person receiving support keeps consent and confirmation control.",
     checkInbox: "Check your inbox",
     resetSentBody: "If there is an account, the reset link is on its way.",
     backToSignIn: "Back to sign in",
@@ -216,9 +365,12 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     },
   },
   es: {
-    privateDailySupport: "Apoyo diario privado",
-    heroTitle: "Cuidado que recuerda.",
-    heroSubtitle: "Un perfil seguro para salud, medicación, familia y ayuda diaria.",
+    privateDailySupport: "Tu compañero de IA privado",
+    heroTitle: "Empieza con VYVA a tu lado.",
+    heroSubtitle: "Crea tu cuenta rellenando el formulario, o usa una de las opciones solo por voz de abajo y deja que VYVA te guie.",
+    signInHeroEyebrow: "Tu compañera de salud y bienestar",
+    signInHeroTitle: "Bienvenido de nuevo a VYVA.",
+    signInHeroSubtitle: "Inicia sesión para continuar con tus controles de salud, recordatorios, actividades mentales y apoyo diario.",
     chips: ["Primero voz", "Perfil privado", "Listo para familia"],
     language: "Idioma",
     createTab: "Registro",
@@ -255,6 +407,24 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     usePasswordInstead: "Usar contraseña",
     profilePrivate: "Tu perfil sigue siendo privado.",
     privacyPolicy: "Política de privacidad",
+    signupOptions: {
+      call: "Llamar a VYVA",
+      callActive: "Terminar llamada",
+      schedule: "Programar llamada",
+      try: "Probar VYVA",
+    },
+    setupIntentLabel: "Uso VYVA",
+    setupIntent: {
+      self: {
+        title: "Para mí",
+        subtitle: "Mi cuenta y mi perfil de cuidado.",
+      },
+      caregiver: {
+        title: "Como cuidador/a",
+        subtitle: "Configurar o acceder al cuidado en nombre de otra persona.",
+      },
+    },
+    caregiverHint: "Las cuentas de cuidadores se mantienen separadas del perfil de cuidado. La persona que recibe apoyo conserva el control del consentimiento y la confirmación.",
     checkInbox: "Revisa tu bandeja",
     resetSentBody: "Si existe una cuenta, el enlace ya va en camino.",
     backToSignIn: "Volver a entrar",
@@ -289,9 +459,12 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     },
   },
   fr: {
-    privateDailySupport: "Soutien quotidien privé",
-    heroTitle: "Un soin qui se souvient.",
-    heroSubtitle: "Un profil sécurisé pour la santé, les médicaments, la famille et l'aide quotidienne.",
+    privateDailySupport: "Votre compagnon IA privé",
+    heroTitle: "Commencez avec VYVA à vos côtés.",
+    heroSubtitle: "Creez votre compte avec le formulaire, ou utilisez l'une des options vocales ci-dessous et laissez VYVA vous guider.",
+    signInHeroEyebrow: "Votre compagne santé et bien-être",
+    signInHeroTitle: "Bon retour sur VYVA.",
+    signInHeroSubtitle: "Connectez-vous pour continuer vos points santé, rappels, activités pour l'esprit et soutien quotidien.",
     chips: ["Voix d'abord", "Profil privé", "Prêt pour la famille"],
     language: "Langue",
     createTab: "Créer",
@@ -326,6 +499,24 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     usePasswordInstead: "Utiliser le mot de passe",
     profilePrivate: "Votre profil reste privé.",
     privacyPolicy: "Politique de confidentialité",
+    signupOptions: {
+      call: "Appeler VYVA",
+      callActive: "Terminer l'appel",
+      schedule: "Planifier un rappel",
+      try: "Essayer VYVA",
+    },
+    setupIntentLabel: "J'utilise VYVA",
+    setupIntent: {
+      self: {
+        title: "Pour moi",
+        subtitle: "Mon compte et mon profil de soin.",
+      },
+      caregiver: {
+        title: "Comme aidant",
+        subtitle: "Configurer ou accéder aux soins au nom de quelqu'un.",
+      },
+    },
+    caregiverHint: "Les comptes aidants restent séparés du profil de soin. La personne accompagnée garde le contrôle du consentement et de la confirmation.",
     checkInbox: "Vérifiez votre boîte mail",
     resetSentBody: "Si le compte existe, le lien est en route.",
     backToSignIn: "Retour à la connexion",
@@ -360,9 +551,12 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     },
   },
   de: {
-    privateDailySupport: "Private tägliche Unterstützung",
-    heroTitle: "Betreuung, die sich erinnert.",
-    heroSubtitle: "Ein sicheres Profil für Gesundheit, Medikamente, Familie und tägliche Hilfe.",
+    privateDailySupport: "Ihr privater KI-Begleiter",
+    heroTitle: "Starten Sie mit VYVA an Ihrer Seite.",
+    heroSubtitle: "Erstellen Sie Ihr Konto uber das Formular, oder nutzen Sie eine der Sprachoptionen unten und lassen Sie sich von VYVA leiten.",
+    signInHeroEyebrow: "Ihr Begleiter für Gesundheit und Wohlbefinden",
+    signInHeroTitle: "Willkommen zurück bei VYVA.",
+    signInHeroSubtitle: "Melden Sie sich an, um Gesundheits-Check-ins, Erinnerungen, Denkübungen und tägliche Unterstützung fortzusetzen.",
     chips: ["Stimme zuerst", "Privates Profil", "Familienbereit"],
     language: "Sprache",
     createTab: "Erstellen",
@@ -397,6 +591,24 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     usePasswordInstead: "Passwort verwenden",
     profilePrivate: "Dein Profil bleibt privat.",
     privacyPolicy: "Datenschutzerklärung",
+    signupOptions: {
+      call: "VYVA anrufen",
+      callActive: "Anruf beenden",
+      schedule: "Ruckruf planen",
+      try: "VYVA testen",
+    },
+    setupIntentLabel: "Ich nutze VYVA",
+    setupIntent: {
+      self: {
+        title: "Für mich",
+        subtitle: "Mein Konto und mein Pflegeprofil.",
+      },
+      caregiver: {
+        title: "Als Betreuungsperson",
+        subtitle: "Pflege für eine andere Person einrichten oder aufrufen.",
+      },
+    },
+    caregiverHint: "Konten für Betreuungspersonen bleiben vom Pflegeprofil getrennt. Die unterstützte Person behält Kontrolle über Zustimmung und Bestätigung.",
     checkInbox: "Posteingang prüfen",
     resetSentBody: "Falls ein Konto existiert, ist der Link unterwegs.",
     backToSignIn: "Zurück zur Anmeldung",
@@ -431,9 +643,12 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     },
   },
   it: {
-    privateDailySupport: "Supporto quotidiano privato",
-    heroTitle: "Cura che ricorda.",
-    heroSubtitle: "Un profilo sicuro per salute, farmaci, famiglia e aiuto quotidiano.",
+    privateDailySupport: "Il tuo compagno IA privato",
+    heroTitle: "Inizia con VYVA al tuo fianco.",
+    heroSubtitle: "Crea il tuo account compilando il modulo, oppure usa una delle opzioni solo vocali qui sotto e lascia che VYVA ti guidi.",
+    signInHeroEyebrow: "La tua compagna per salute e benessere",
+    signInHeroTitle: "Bentornato su VYVA.",
+    signInHeroSubtitle: "Accedi per continuare con controlli di salute, promemoria, attività mentali e supporto quotidiano.",
     chips: ["Prima la voce", "Profilo privato", "Pronto per la famiglia"],
     language: "Lingua",
     createTab: "Crea",
@@ -468,6 +683,24 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     usePasswordInstead: "Usa password",
     profilePrivate: "Il tuo profilo resta privato.",
     privacyPolicy: "Informativa sulla privacy",
+    signupOptions: {
+      call: "Chiama VYVA",
+      callActive: "Termina chiamata",
+      schedule: "Prenota richiamata",
+      try: "Prova VYVA",
+    },
+    setupIntentLabel: "Uso VYVA",
+    setupIntent: {
+      self: {
+        title: "Per me",
+        subtitle: "Il mio account e il mio profilo di cura.",
+      },
+      caregiver: {
+        title: "Come caregiver",
+        subtitle: "Configurare o accedere alla cura per conto di un'altra persona.",
+      },
+    },
+    caregiverHint: "Gli account caregiver restano separati dal profilo di cura. La persona assistita mantiene il controllo di consenso e conferma.",
     checkInbox: "Controlla la posta",
     resetSentBody: "Se l'account esiste, il link è in arrivo.",
     backToSignIn: "Torna all'accesso",
@@ -502,9 +735,12 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     },
   },
   pt: {
-    privateDailySupport: "Apoio diário privado",
-    heroTitle: "Cuidado que se lembra.",
-    heroSubtitle: "Um perfil seguro para saúde, medicação, família e ajuda diária.",
+    privateDailySupport: "O seu companheiro de IA privado",
+    heroTitle: "Comece com a VYVA ao seu lado.",
+    heroSubtitle: "Crie a sua conta preenchendo o formulario, ou use uma das opcoes apenas por voz abaixo e deixe a VYVA orientar.",
+    signInHeroEyebrow: "A sua companhia de saúde e bem-estar",
+    signInHeroTitle: "Bem-vindo de volta à VYVA.",
+    signInHeroSubtitle: "Entre para continuar os check-ins de saúde, lembretes, atividades mentais e apoio diário.",
     chips: ["Voz primeiro", "Perfil privado", "Pronto para família"],
     language: "Idioma",
     createTab: "Criar",
@@ -539,6 +775,24 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     usePasswordInstead: "Usar palavra-passe",
     profilePrivate: "O seu perfil continua privado.",
     privacyPolicy: "Política de privacidade",
+    signupOptions: {
+      call: "Ligar a VYVA",
+      callActive: "Terminar chamada",
+      schedule: "Agendar chamada",
+      try: "Experimentar VYVA",
+    },
+    setupIntentLabel: "Uso a VYVA",
+    setupIntent: {
+      self: {
+        title: "Para mim",
+        subtitle: "A minha conta e o meu perfil de cuidado.",
+      },
+      caregiver: {
+        title: "Como cuidador(a)",
+        subtitle: "Configurar ou aceder ao cuidado em nome de outra pessoa.",
+      },
+    },
+    caregiverHint: "As contas de cuidadores ficam separadas do perfil de cuidado. A pessoa apoiada mantém o controlo do consentimento e da confirmação.",
     checkInbox: "Verifique o email",
     resetSentBody: "Se existir uma conta, o link está a caminho.",
     backToSignIn: "Voltar ao início de sessão",
@@ -573,9 +827,12 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     },
   },
   cy: {
-    privateDailySupport: "Cymorth dyddiol preifat",
-    heroTitle: "Gofal sy'n cofio.",
-    heroSubtitle: "Un proffil diogel ar gyfer iechyd, meddyginiaeth, teulu a chymorth bob dydd.",
+    privateDailySupport: "Eich cydymaith AI preifat",
+    heroTitle: "Dechreuwch gyda VYVA wrth eich ochr.",
+    heroSubtitle: "Create your account by filling the form, or use one of the voice-only options below and let VYVA guide you.",
+    signInHeroEyebrow: "Your health and wellness companion",
+    signInHeroTitle: "Welcome back to VYVA.",
+    signInHeroSubtitle: "Sign in to continue your health check-ins, reminders, mind activities, and everyday support.",
     chips: ["Llais yn gyntaf", "Proffil preifat", "Yn barod i'r teulu"],
     language: "Iaith",
     createTab: "Creu",
@@ -610,6 +867,24 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     usePasswordInstead: "Defnyddio cyfrinair",
     profilePrivate: "Mae eich proffil yn aros yn breifat.",
     privacyPolicy: "Polisi preifatrwydd",
+    signupOptions: {
+      call: "Call VYVA",
+      callActive: "End call",
+      schedule: "Schedule Callback",
+      try: "Try VYVA",
+    },
+    setupIntentLabel: "Rwy'n defnyddio VYVA",
+    setupIntent: {
+      self: {
+        title: "I mi",
+        subtitle: "Fy nghyfrif a fy mhroffil gofal.",
+      },
+      caregiver: {
+        title: "Fel gofalwr",
+        subtitle: "Sefydlu neu gael mynediad at ofal ar ran rhywun arall.",
+      },
+    },
+    caregiverHint: "Mae cyfrifon gofalwyr yn aros ar wahân i'r proffil gofal. Mae'r person sy'n cael cymorth yn cadw rheolaeth dros gydsyniad a chadarnhad.",
     checkInbox: "Gwiriwch eich mewnflwch",
     resetSentBody: "Os oes cyfrif, mae'r ddolen ar ei ffordd.",
     backToSignIn: "Yn ôl i fewngofnodi",
@@ -645,6 +920,421 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
   },
 };
 
+const CALLBACK_MODAL_COPY = {
+  en: {
+    eyebrow: "Callback request",
+    title: "Schedule a call with VYVA",
+    subtitle: "Tell us who the call is for and where to reach you.",
+    firstName: "First name",
+    firstNamePlaceholder: "e.g. Margaret",
+    lastName: "Last name",
+    lastNamePlaceholder: "e.g. Collins",
+    phone: "Phone number",
+    phonePlaceholder: "e.g. +44 7123 456789",
+    callFor: "Who is this call for?",
+    options: {
+      elder: { title: "For the older adult directly", subtitle: "VYVA will speak with the person receiving support." },
+      caregiver: { title: "For a caregiver or family member", subtitle: "VYVA will speak with someone helping arrange care." },
+    },
+    cancel: "Cancel",
+    submit: "Request callback",
+    error: "Please add a full name and phone number.",
+  },
+  es: {
+    eyebrow: "Solicitud de llamada",
+    title: "Programa una llamada con VYVA",
+    subtitle: "Dinos para quién es la llamada y dónde podemos contactar.",
+    fullName: "Nombre completo",
+    fullNamePlaceholder: "p. ej. Margaret Collins",
+    phone: "Número de teléfono",
+    phonePlaceholder: "p. ej. +34 612 345 678",
+    callFor: "¿Para quién es esta llamada?",
+    options: {
+      elder: { title: "Para la persona mayor directamente", subtitle: "VYVA hablará con la persona que recibirá apoyo." },
+      caregiver: { title: "Para cuidador/a o familiar", subtitle: "VYVA hablará con alguien que ayuda a organizar el cuidado." },
+    },
+    cancel: "Cancelar",
+    submit: "Solicitar llamada",
+    error: "Añade nombre completo y teléfono.",
+  },
+  fr: {
+    eyebrow: "Demande de rappel",
+    title: "Planifier un appel avec VYVA",
+    subtitle: "Indiquez pour qui est l'appel et où vous joindre.",
+    fullName: "Nom complet",
+    fullNamePlaceholder: "ex. Margaret Collins",
+    phone: "Numéro de téléphone",
+    phonePlaceholder: "ex. +33 6 12 34 56 78",
+    callFor: "Pour qui est cet appel ?",
+    options: {
+      elder: { title: "Pour la personne âgée directement", subtitle: "VYVA parlera avec la personne accompagnée." },
+      caregiver: { title: "Pour un aidant ou un membre de la famille", subtitle: "VYVA parlera avec la personne qui organise l'aide." },
+    },
+    cancel: "Annuler",
+    submit: "Demander un rappel",
+    error: "Ajoutez un nom complet et un numéro de téléphone.",
+  },
+  de: {
+    eyebrow: "Ruckrufanfrage",
+    title: "Anruf mit VYVA planen",
+    subtitle: "Sagen Sie uns, fur wen der Anruf ist und wie wir Sie erreichen.",
+    fullName: "Vollstandiger Name",
+    fullNamePlaceholder: "z. B. Margaret Collins",
+    phone: "Telefonnummer",
+    phonePlaceholder: "z. B. +49 151 23456789",
+    callFor: "Fur wen ist dieser Anruf?",
+    options: {
+      elder: { title: "Direkt fur die altere Person", subtitle: "VYVA spricht mit der Person, die Unterstutzung erhalt." },
+      caregiver: { title: "Fur Betreuungsperson oder Familie", subtitle: "VYVA spricht mit jemandem, der die Betreuung organisiert." },
+    },
+    cancel: "Abbrechen",
+    submit: "Ruckruf anfragen",
+    error: "Bitte vollstandigen Namen und Telefonnummer eingeben.",
+  },
+  it: {
+    eyebrow: "Richiesta di richiamata",
+    title: "Prenota una chiamata con VYVA",
+    subtitle: "Dicci per chi e la chiamata e dove possiamo contattarti.",
+    fullName: "Nome completo",
+    fullNamePlaceholder: "es. Margaret Collins",
+    phone: "Numero di telefono",
+    phonePlaceholder: "es. +39 312 345 6789",
+    callFor: "Per chi e questa chiamata?",
+    options: {
+      elder: { title: "Direttamente per la persona anziana", subtitle: "VYVA parlera con la persona che riceve supporto." },
+      caregiver: { title: "Per caregiver o familiare", subtitle: "VYVA parlera con chi aiuta a organizzare la cura." },
+    },
+    cancel: "Annulla",
+    submit: "Richiedi richiamata",
+    error: "Aggiungi nome completo e numero di telefono.",
+  },
+  pt: {
+    eyebrow: "Pedido de chamada",
+    title: "Agendar uma chamada com a VYVA",
+    subtitle: "Diga-nos para quem e a chamada e onde podemos contactar.",
+    fullName: "Nome completo",
+    fullNamePlaceholder: "ex. Margaret Collins",
+    phone: "Numero de telefone",
+    phonePlaceholder: "ex. +351 912 345 678",
+    callFor: "Para quem e esta chamada?",
+    options: {
+      elder: { title: "Para a pessoa mais velha diretamente", subtitle: "A VYVA falara com a pessoa que recebe apoio." },
+      caregiver: { title: "Para cuidador ou familiar", subtitle: "A VYVA falara com quem ajuda a organizar o cuidado." },
+    },
+    cancel: "Cancelar",
+    submit: "Pedir chamada",
+    error: "Adicione nome completo e numero de telefone.",
+  },
+  cy: {
+    eyebrow: "Callback request",
+    title: "Schedule a call with VYVA",
+    subtitle: "Tell us who the call is for and where to reach you.",
+    firstName: "First name",
+    firstNamePlaceholder: "e.g. Margaret",
+    lastName: "Last name",
+    lastNamePlaceholder: "e.g. Collins",
+    phone: "Phone number",
+    phonePlaceholder: "e.g. +44 7123 456789",
+    callFor: "Who is this call for?",
+    options: {
+      elder: { title: "For the older adult directly", subtitle: "VYVA will speak with the person receiving support." },
+      caregiver: { title: "For a caregiver or family member", subtitle: "VYVA will speak with someone helping arrange care." },
+    },
+    cancel: "Cancel",
+    submit: "Request callback",
+    error: "Please add a full name and phone number.",
+  },
+} satisfies Record<
+  LanguageCode,
+  {
+    eyebrow: string;
+    title: string;
+    subtitle: string;
+    firstName: string;
+    firstNamePlaceholder: string;
+    lastName: string;
+    lastNamePlaceholder: string;
+    phone: string;
+    phonePlaceholder: string;
+    callFor: string;
+    options: Record<"elder" | "caregiver", { title: string; subtitle: string }>;
+    cancel: string;
+    submit: string;
+    error: string;
+  }
+>;
+
+const FRIENDLY_CALLBACK_MODAL_COPY = {
+  en: {
+    eyebrow: "Callback request",
+    title: "Schedule a call with VYVA",
+    subtitle: "Tell us who the call is for and when we should reach you.",
+    firstName: "First name",
+    firstNamePlaceholder: "e.g. Margaret",
+    lastName: "Last name",
+    lastNamePlaceholder: "e.g. Collins",
+    countryCode: "Country code",
+    phone: "Phone number",
+    phonePlaceholder: "7123 456789",
+    date: "Preferred date",
+    time: "Preferred time",
+    callFor: "Who is this call for?",
+    options: {
+      me: { title: "For me", subtitle: "I would like VYVA to call me directly." },
+      caregiver: { title: "For someone I care for", subtitle: "I am a caregiver or family member helping arrange support." },
+    },
+    cancel: "Cancel",
+    submit: "Request callback",
+    error: "Please add a first name, last name, phone number, date, and time.",
+  },
+  es: {
+    eyebrow: "Solicitud de llamada",
+    title: "Programa una llamada con VYVA",
+    subtitle: "Dinos para quien es la llamada y cuando podemos contactar.",
+    firstName: "Nombre",
+    firstNamePlaceholder: "p. ej. Margaret",
+    lastName: "Apellido",
+    lastNamePlaceholder: "p. ej. Collins",
+    countryCode: "Codigo de pais",
+    phone: "Numero de telefono",
+    phonePlaceholder: "612 345 678",
+    date: "Fecha preferida",
+    time: "Hora preferida",
+    callFor: "Para quien es esta llamada?",
+    options: {
+      me: { title: "Para mi", subtitle: "Quiero que VYVA me llame directamente." },
+      caregiver: { title: "Para alguien a quien cuido", subtitle: "Soy cuidador/a o familiar y ayudo a organizar el apoyo." },
+    },
+    cancel: "Cancelar",
+    submit: "Solicitar llamada",
+    error: "Anade nombre, apellido, telefono, fecha y hora.",
+  },
+  fr: {
+    eyebrow: "Demande de rappel",
+    title: "Planifier un appel avec VYVA",
+    subtitle: "Indiquez pour qui est l'appel et quand vous joindre.",
+    firstName: "Prenom",
+    firstNamePlaceholder: "ex. Margaret",
+    lastName: "Nom",
+    lastNamePlaceholder: "ex. Collins",
+    countryCode: "Indicatif",
+    phone: "Numero de telephone",
+    phonePlaceholder: "6 12 34 56 78",
+    date: "Date preferee",
+    time: "Heure preferee",
+    callFor: "Pour qui est cet appel ?",
+    options: {
+      me: { title: "Pour moi", subtitle: "Je souhaite que VYVA m'appelle directement." },
+      caregiver: { title: "Pour une personne que j'aide", subtitle: "Je suis aidant ou membre de la famille et j'organise le soutien." },
+    },
+    cancel: "Annuler",
+    submit: "Demander un rappel",
+    error: "Ajoutez un prenom, un nom, un telephone, une date et une heure.",
+  },
+  de: {
+    eyebrow: "Ruckrufanfrage",
+    title: "Anruf mit VYVA planen",
+    subtitle: "Sagen Sie uns, fur wen der Anruf ist und wann wir Sie erreichen.",
+    firstName: "Vorname",
+    firstNamePlaceholder: "z. B. Margaret",
+    lastName: "Nachname",
+    lastNamePlaceholder: "z. B. Collins",
+    countryCode: "Landervorwahl",
+    phone: "Telefonnummer",
+    phonePlaceholder: "151 23456789",
+    date: "Wunschdatum",
+    time: "Wunschzeit",
+    callFor: "Fur wen ist dieser Anruf?",
+    options: {
+      me: { title: "Fur mich", subtitle: "Ich mochte, dass VYVA mich direkt anruft." },
+      caregiver: { title: "Fur jemanden, um den ich mich kummere", subtitle: "Ich helfe als Familie oder Betreuungsperson bei der Einrichtung." },
+    },
+    cancel: "Abbrechen",
+    submit: "Ruckruf anfragen",
+    error: "Bitte Vorname, Nachname, Telefonnummer, Datum und Uhrzeit eingeben.",
+  },
+  it: {
+    eyebrow: "Richiesta di richiamata",
+    title: "Prenota una chiamata con VYVA",
+    subtitle: "Dicci per chi e la chiamata e quando possiamo contattarti.",
+    firstName: "Nome",
+    firstNamePlaceholder: "es. Margaret",
+    lastName: "Cognome",
+    lastNamePlaceholder: "es. Collins",
+    countryCode: "Prefisso",
+    phone: "Numero di telefono",
+    phonePlaceholder: "312 345 6789",
+    date: "Data preferita",
+    time: "Ora preferita",
+    callFor: "Per chi e questa chiamata?",
+    options: {
+      me: { title: "Per me", subtitle: "Vorrei che VYVA mi chiamasse direttamente." },
+      caregiver: { title: "Per qualcuno di cui mi prendo cura", subtitle: "Sono caregiver o familiare e aiuto a organizzare il supporto." },
+    },
+    cancel: "Annulla",
+    submit: "Richiedi richiamata",
+    error: "Aggiungi nome, cognome, telefono, data e ora.",
+  },
+  pt: {
+    eyebrow: "Pedido de chamada",
+    title: "Agendar uma chamada com a VYVA",
+    subtitle: "Diga-nos para quem e a chamada e quando podemos contactar.",
+    firstName: "Nome",
+    firstNamePlaceholder: "ex. Margaret",
+    lastName: "Apelido",
+    lastNamePlaceholder: "ex. Collins",
+    countryCode: "Indicativo",
+    phone: "Numero de telefone",
+    phonePlaceholder: "912 345 678",
+    date: "Data preferida",
+    time: "Hora preferida",
+    callFor: "Para quem e esta chamada?",
+    options: {
+      me: { title: "Para mim", subtitle: "Quero que a VYVA me ligue diretamente." },
+      caregiver: { title: "Para alguem de quem cuido", subtitle: "Sou cuidador ou familiar e ajudo a organizar o apoio." },
+    },
+    cancel: "Cancelar",
+    submit: "Pedir chamada",
+    error: "Adicione nome, apelido, telefone, data e hora.",
+  },
+  cy: {
+    eyebrow: "Callback request",
+    title: "Schedule a call with VYVA",
+    subtitle: "Tell us who the call is for and when we should reach you.",
+    firstName: "First name",
+    firstNamePlaceholder: "e.g. Margaret",
+    lastName: "Last name",
+    lastNamePlaceholder: "e.g. Collins",
+    countryCode: "Country code",
+    phone: "Phone number",
+    phonePlaceholder: "7123 456789",
+    date: "Preferred date",
+    time: "Preferred time",
+    callFor: "Who is this call for?",
+    options: {
+      me: { title: "For me", subtitle: "I would like VYVA to call me directly." },
+      caregiver: { title: "For someone I care for", subtitle: "I am a caregiver or family member helping arrange support." },
+    },
+    cancel: "Cancel",
+    submit: "Request callback",
+    error: "Please add a first name, last name, phone number, date, and time.",
+  },
+} satisfies Record<
+  LanguageCode,
+  {
+    eyebrow: string;
+    title: string;
+    subtitle: string;
+    firstName: string;
+    firstNamePlaceholder: string;
+    lastName: string;
+    lastNamePlaceholder: string;
+    countryCode: string;
+    phone: string;
+    phonePlaceholder: string;
+    date: string;
+    time: string;
+    callFor: string;
+    options: Record<CallbackFor, { title: string; subtitle: string }>;
+    cancel: string;
+    submit: string;
+    error: string;
+  }
+>;
+
+const CALL_MODAL_COPY = {
+  en: {
+    eyebrow: "Call VYVA",
+    title: "Call VYVA",
+    subtitle: "Confirm your country and we will show the right VYVA number to call.",
+    country: "Country calling from",
+    numberLabel: "Your VYVA number",
+    cancel: "Cancel",
+    confirm: "Show number",
+    callNow: "Call now",
+    changeCountry: "Change country",
+  },
+  es: {
+    eyebrow: "Llamar a VYVA",
+    title: "Llama a VYVA",
+    subtitle: "Confirma tu pais y te mostraremos el numero correcto de VYVA.",
+    country: "Pais desde el que llamas",
+    numberLabel: "Tu numero VYVA",
+    cancel: "Cancelar",
+    confirm: "Mostrar numero",
+    callNow: "Llamar ahora",
+    changeCountry: "Cambiar pais",
+  },
+  fr: {
+    eyebrow: "Appeler VYVA",
+    title: "Appeler VYVA",
+    subtitle: "Confirmez votre pays et nous afficherons le bon numero VYVA.",
+    country: "Pays d'appel",
+    numberLabel: "Votre numero VYVA",
+    cancel: "Annuler",
+    confirm: "Afficher le numero",
+    callNow: "Appeler maintenant",
+    changeCountry: "Changer de pays",
+  },
+  de: {
+    eyebrow: "VYVA anrufen",
+    title: "VYVA anrufen",
+    subtitle: "Bestatigen Sie Ihr Land und wir zeigen die passende VYVA Nummer.",
+    country: "Land des Anrufs",
+    numberLabel: "Ihre VYVA Nummer",
+    cancel: "Abbrechen",
+    confirm: "Nummer anzeigen",
+    callNow: "Jetzt anrufen",
+    changeCountry: "Land andern",
+  },
+  it: {
+    eyebrow: "Chiama VYVA",
+    title: "Chiama VYVA",
+    subtitle: "Conferma il tuo paese e ti mostreremo il numero VYVA corretto.",
+    country: "Paese da cui chiami",
+    numberLabel: "Il tuo numero VYVA",
+    cancel: "Annulla",
+    confirm: "Mostra numero",
+    callNow: "Chiama ora",
+    changeCountry: "Cambia paese",
+  },
+  pt: {
+    eyebrow: "Ligar a VYVA",
+    title: "Ligar a VYVA",
+    subtitle: "Confirme o seu pais e mostraremos o numero VYVA correto.",
+    country: "Pais de onde liga",
+    numberLabel: "O seu numero VYVA",
+    cancel: "Cancelar",
+    confirm: "Mostrar numero",
+    callNow: "Ligar agora",
+    changeCountry: "Alterar pais",
+  },
+  cy: {
+    eyebrow: "Call VYVA",
+    title: "Call VYVA",
+    subtitle: "Confirm your country and we will show the right VYVA number to call.",
+    country: "Country calling from",
+    numberLabel: "Your VYVA number",
+    cancel: "Cancel",
+    confirm: "Show number",
+    callNow: "Call now",
+    changeCountry: "Change country",
+  },
+} satisfies Record<
+  LanguageCode,
+  {
+    eyebrow: string;
+    title: string;
+    subtitle: string;
+    country: string;
+    numberLabel: string;
+    cancel: string;
+    confirm: string;
+    callNow: string;
+    changeCountry: string;
+  }
+>;
+
 function createLoginGuideConversationId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -656,6 +1346,8 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   const { login, register, requestMagicLink, loginWithMagicToken, user, isLoading } = useAuth();
   const { language, setLanguage, languages } = useLanguage();
   const copy = LOGIN_COPY[language] ?? LOGIN_COPY.es;
+  const callbackCopy = FRIENDLY_CALLBACK_MODAL_COPY[language] ?? FRIENDLY_CALLBACK_MODAL_COPY.en;
+  const callCopy = CALL_MODAL_COPY[language] ?? CALL_MODAL_COPY.en;
   const {
     startVoice,
     stopVoice,
@@ -669,9 +1361,12 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   const location = useLocation();
   const rawFrom = (location.state as { from?: string })?.from;
   const from = adminOnly ? "/admin/lifecycle" : normalizeReturnPath(rawFrom);
+  const requestedAuthMode = new URLSearchParams(location.search).get("mode") === "login" ? "login" : "register";
+  const initialAuthMode = adminOnly ? "login" : requestedAuthMode;
 
-  const [mode, setMode] = useState<"login" | "register">(adminOnly ? "login" : "register");
-  const [view, setView] = useState<View>(adminOnly ? "login" : "register");
+  const [mode, setMode] = useState<"login" | "register">(initialAuthMode);
+  const [view, setView] = useState<View>(initialAuthMode);
+  const [setupIntent, setSetupIntent] = useState<SetupIntent>("self");
   const [contact, setContact] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -681,6 +1376,8 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   const guideTopic: GuideTopic = "why";
   const [guideSessionMode, setGuideSessionMode] = useState<"voice" | "text" | null>(null);
   const magicTokenHandledRef = useRef(false);
+  const contactInputRef = useRef<HTMLInputElement>(null);
+  const callbackNameInputRef = useRef<HTMLInputElement>(null);
 
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotSent, setForgotSent] = useState(false);
@@ -689,6 +1386,19 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   const [magicSent, setMagicSent] = useState(false);
   const [magicLoading, setMagicLoading] = useState(false);
   const [magicError, setMagicError] = useState<string | null>(null);
+  const [isCallbackModalOpen, setIsCallbackModalOpen] = useState(false);
+  const [callbackFirstName, setCallbackFirstName] = useState("");
+  const [callbackLastName, setCallbackLastName] = useState("");
+  const [callbackCountryCode, setCallbackCountryCode] = useState("+34");
+  const [callbackPhone, setCallbackPhone] = useState("");
+  const [callbackFor, setCallbackFor] = useState<CallbackFor>("me");
+  const [callbackDate, setCallbackDate] = useState("");
+  const [callbackTime, setCallbackTime] = useState("");
+  const [callbackPeriod, setCallbackPeriod] = useState<CallbackPeriod>("AM");
+  const [callbackError, setCallbackError] = useState<string | null>(null);
+  const [isCallModalOpen, setIsCallModalOpen] = useState(false);
+  const [callCountry, setCallCountry] = useState("ES");
+  const [callConfirmed, setCallConfirmed] = useState(false);
 
   const switchTab = (tab: "login" | "register") => {
     if (adminOnly && tab === "register") return;
@@ -720,6 +1430,12 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
       ...(trimmedContact.includes("@") ? { email: trimmedContact } : { phone: trimmedContact }),
       ...(includeLanguage ? { language } : {}),
     };
+  };
+
+  const rememberSetupIntent = () => {
+    const setupFor = setupIntent === "caregiver" ? "someone_else" : "self";
+    window.sessionStorage.setItem("vyva_setup_for", setupFor);
+    return setupFor;
   };
 
   useEffect(() => {
@@ -806,6 +1522,35 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
     }
   }, [guideVoiceStatus, isGuideConnecting]);
 
+  useEffect(() => {
+    if (!isCallbackModalOpen) return;
+    window.requestAnimationFrame(() => callbackNameInputRef.current?.focus());
+  }, [isCallbackModalOpen]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const browserCountry = inferCountryFromBrowser();
+    setCallCountry(browserCountry);
+    setCallbackCountryCode(COUNTRY_TO_DIAL[browserCountry] ?? "+34");
+
+    fetch("https://freeipapi.com/api/json/", { signal: AbortSignal.timeout(4000) })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { countryCode?: string } | null) => {
+        if (cancelled) return;
+        const countryCode = data?.countryCode?.toUpperCase();
+        if (!countryCode || !COUNTRY_BY_CODE[countryCode]) return;
+        setCallCountry(countryCode);
+        setCallbackCountryCode(COUNTRY_TO_DIAL[countryCode] ?? "+34");
+      })
+      .catch(() => {
+        // Browser locale/timezone fallback is already applied.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   if (isLoading || user) return null;
 
   const handleSubmit = async () => {
@@ -817,8 +1562,13 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         if (adminOnly) {
           throw new Error("Admin accounts can only be created by the super admin after sign in.");
         }
+        const setupFor = rememberSetupIntent();
         await register(authContactPayload(true), password);
-        navigate(from ?? "/onboarding/who-for", { replace: true });
+        if (from) {
+          navigate(from, { replace: true });
+        } else {
+          navigate("/onboarding/who-for", { replace: true, state: { setupFor } });
+        }
       } else {
         await login(authContactPayload(), password);
         if (from) {
@@ -877,12 +1627,55 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
     }
   };
 
-  const handleGuideVoiceToggle = () => {
-    if (guideVoiceStatus === "connected" || guideVoiceStatus === "connecting" || isGuideConnecting) {
-      stopVoice();
+  const openCallModal = () => {
+    setCallConfirmed(false);
+    setIsCallModalOpen(true);
+  };
+
+  const closeCallModal = () => {
+    setCallConfirmed(false);
+    setIsCallModalOpen(false);
+  };
+
+  const handleCallSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setCallConfirmed(true);
+  };
+
+  const openCallbackModal = () => {
+    setCallbackError(null);
+    setIsCallbackModalOpen(true);
+  };
+
+  const closeCallbackModal = () => {
+    setCallbackError(null);
+    setIsCallbackModalOpen(false);
+  };
+
+  const handleCallbackSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const firstName = callbackFirstName.trim();
+    const lastName = callbackLastName.trim();
+    const phone = callbackPhone.trim();
+    const preferredDate = callbackDate.trim();
+    const preferredTime = callbackTime.trim();
+    if (firstName.length < 2 || lastName.length < 2 || phone.length < 5 || !preferredDate || !preferredTime) {
+      setCallbackError(callbackCopy.error);
       return;
     }
-    void startLoginGuide({ textOnly: false });
+
+    setCallbackError(null);
+    window.location.href = callbackMailto({
+      language,
+      firstName,
+      lastName,
+      phone: `${callbackCountryCode} ${phone}`,
+      callbackForLabel: callbackCopy.options[callbackFor].title,
+      preferredDate,
+      preferredTime,
+      preferredPeriod: callbackPeriod,
+    });
+    setIsCallbackModalOpen(false);
   };
 
   const trimmedContact = contact.trim();
@@ -901,8 +1694,12 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         : guideVoiceError
     : null;
   const contactLabel = copy.combinedContact ?? `${copy.mobileNumber} / ${copy.email}`;
-  const contactPlaceholder = copy.combinedContactPlaceholder ?? `${copy.phonePlaceholder} / ${copy.emailPlaceholder}`;
+  const contactPlaceholder = copy.combinedContactPlaceholder ?? `${copy.phonePlaceholder} ${copy.or} ${copy.emailPlaceholder}`;
+  const contactFormatHint = `${copy.mobileNumber}: ${copy.phonePlaceholder} ${copy.or} ${copy.email}: ${copy.emailPlaceholder}`;
   const contactAutocomplete = "username";
+  const todayForDateInput = new Date().toISOString().slice(0, 10);
+  const selectedDialOption = COUNTRY_DIAL_OPTIONS.find((option) => option.dialCode === callbackCountryCode) ?? COUNTRY_DIAL_OPTIONS[0];
+  const selectedCallNumber = VYVA_CALL_NUMBERS[callCountry] ?? VYVA_CALL_NUMBERS.ES;
   const activeView: View = view === "forgot" || view === "magic" ? view : mode;
   const authTitle = adminOnly && activeView === "login"
     ? "Admin sign in"
@@ -914,6 +1711,10 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   const authSubtitle = adminOnly && activeView === "login"
     ? "Access the VYVA operations panel."
     : copy.subtitles[activeView];
+  const isSignupHero = mode === "register" && view !== "magic";
+  const heroEyebrow = isSignupHero ? copy.privateDailySupport : copy.signInHeroEyebrow;
+  const heroTitle = isSignupHero ? copy.heroTitle : copy.signInHeroTitle;
+  const heroSubtitle = isSignupHero ? copy.heroSubtitle : copy.signInHeroSubtitle;
   const switchPrompt = mode === "register" ? copy.alreadyHaveAccount : copy.dontHaveAccount;
   const googleButton = (
     <button
@@ -948,14 +1749,341 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         />
       )}
 
-      <div className="min-h-screen overflow-hidden bg-[#FFF9F1] text-vyva-text-1">
-        <div className="pointer-events-none fixed -left-24 top-10 h-72 w-72 rounded-full bg-[#F7C948]/30 blur-3xl" />
-        <div className="pointer-events-none fixed -right-28 top-20 h-[24rem] w-[24rem] rounded-full bg-[#6B21A8]/16 blur-3xl" />
-        <div className="pointer-events-none fixed bottom-[-12rem] left-1/2 h-[26rem] w-[26rem] -translate-x-1/2 rounded-full bg-white blur-2xl" />
+      {isCallModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#2F183F]/35 px-4 py-6 backdrop-blur-sm"
+          role="presentation"
+          data-testid="modal-login-call-vyva"
+        >
+          <form
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="call-modal-title"
+            className="w-full max-w-[500px] rounded-[34px] border border-[#E8DDD2] bg-[#FFFDF9] p-5 shadow-[0_32px_90px_rgba(47,24,63,0.24)] sm:p-7"
+            onSubmit={handleCallSubmit}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="font-body text-[11px] font-extrabold uppercase tracking-[0.24em] text-vyva-purple/70">
+                  {callCopy.eyebrow}
+                </p>
+                <h2 id="call-modal-title" className="mt-2 font-body text-[30px] font-black leading-tight text-[#2F183F]">
+                  {callCopy.title}
+                </h2>
+                <p className="mt-2 font-body text-[14px] leading-6 text-vyva-text-2">
+                  {callCopy.subtitle}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeCallModal}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#E8DDF3] bg-white text-vyva-purple shadow-[0_10px_24px_rgba(76,46,22,0.08)]"
+                aria-label={callCopy.cancel}
+                data-testid="button-call-close"
+              >
+                <X size={18} />
+              </button>
+            </div>
 
-        <header className="relative z-10 mx-auto flex w-full max-w-[1040px] items-center justify-between gap-4 px-5 py-5 sm:px-8">
+            {callConfirmed ? (
+              <div className="mt-6 rounded-[24px] border border-[#E8DDF3] bg-[#F4ECFF] p-5 text-center">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-vyva-purple text-white">
+                  <PhoneCall size={24} />
+                </div>
+                <p className="mt-4 font-body text-[12px] font-extrabold uppercase tracking-[0.18em] text-vyva-purple/70">
+                  {callCopy.numberLabel}
+                </p>
+                <a
+                  href={`tel:${selectedCallNumber.e164}`}
+                  className="mt-2 block font-body text-[32px] font-black leading-tight text-[#2F183F] underline-offset-4 hover:underline"
+                  data-testid="link-call-vyva-number"
+                >
+                  {selectedCallNumber.display}
+                </a>
+                <a
+                  href={`tel:${selectedCallNumber.e164}`}
+                  className="mt-5 inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-sm font-black text-white shadow-[0_14px_32px_rgba(107,33,168,0.18)] transition hover:bg-vyva-purple/92"
+                  data-testid="button-call-now"
+                >
+                  {callCopy.callNow}
+                  <PhoneCall size={16} />
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setCallConfirmed(false)}
+                  className="mt-3 font-body text-[13px] font-black text-vyva-purple"
+                  data-testid="button-call-change-country"
+                >
+                  {callCopy.changeCountry}
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="mt-6 grid gap-4">
+                  <label className="font-body text-[13px] font-bold text-vyva-text-2">
+                    {callCopy.country}
+                    <select
+                      value={callCountry}
+                      onChange={(event) => {
+                        const nextCountry = event.target.value;
+                        setCallCountry(nextCountry);
+                      }}
+                      className="mt-2 h-[56px] w-full rounded-[20px] border border-vyva-border bg-white px-4 text-[16px] shadow-vyva-input outline-none"
+                      data-testid="select-call-country"
+                      aria-label={callCopy.country}
+                    >
+                      {COUNTRY_DIAL_OPTIONS.map((option) => (
+                        <option key={option.country} value={option.country}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <div className="mt-6 grid gap-3 sm:grid-cols-[0.8fr_1.2fr]">
+                  <button
+                    type="button"
+                    onClick={closeCallModal}
+                    className="inline-flex min-h-[52px] items-center justify-center rounded-full border border-[#E8DDF3] bg-white px-4 font-body text-sm font-black text-vyva-purple"
+                    data-testid="button-call-cancel"
+                  >
+                    {callCopy.cancel}
+                  </button>
+                  <button
+                    type="submit"
+                    className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-sm font-black text-white shadow-[0_14px_32px_rgba(107,33,168,0.18)] transition hover:bg-vyva-purple/92"
+                    data-testid="button-call-submit"
+                  >
+                    {callCopy.confirm}
+                    <ArrowRight size={16} />
+                  </button>
+                </div>
+              </>
+            )}
+          </form>
+        </div>
+      )}
+
+      {isCallbackModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#2F183F]/35 px-4 py-6 backdrop-blur-sm"
+          role="presentation"
+          data-testid="modal-login-callback"
+        >
+          <form
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="callback-modal-title"
+            className="max-h-[calc(100vh-48px)] w-full max-w-[560px] overflow-y-auto rounded-[34px] border border-[#E8DDD2] bg-[#FFFDF9] p-5 shadow-[0_32px_90px_rgba(47,24,63,0.24)] sm:p-7"
+            onSubmit={handleCallbackSubmit}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="font-body text-[11px] font-extrabold uppercase tracking-[0.24em] text-vyva-purple/70">
+                  {callbackCopy.eyebrow}
+                </p>
+                <h2 id="callback-modal-title" className="mt-2 font-body text-[30px] font-black leading-tight text-[#2F183F]">
+                  {callbackCopy.title}
+                </h2>
+                <p className="mt-2 font-body text-[14px] leading-6 text-vyva-text-2">
+                  {callbackCopy.subtitle}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeCallbackModal}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#E8DDF3] bg-white text-vyva-purple shadow-[0_10px_24px_rgba(76,46,22,0.08)]"
+                aria-label={callbackCopy.cancel}
+                data-testid="button-callback-close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="font-body text-[13px] font-bold text-vyva-text-2">
+                  {callbackCopy.firstName}
+                  <Input
+                    ref={callbackNameInputRef}
+                    type="text"
+                    value={callbackFirstName}
+                    onChange={(event) => {
+                      setCallbackFirstName(event.target.value);
+                      setCallbackError(null);
+                    }}
+                    placeholder={callbackCopy.firstNamePlaceholder}
+                    className="mt-2 h-[56px] rounded-[20px] border-vyva-border bg-white px-4 text-[16px] shadow-vyva-input"
+                    autoComplete="given-name"
+                    data-testid="input-callback-first-name"
+                  />
+                </label>
+
+                <label className="font-body text-[13px] font-bold text-vyva-text-2">
+                  {callbackCopy.lastName}
+                  <Input
+                    type="text"
+                    value={callbackLastName}
+                    onChange={(event) => {
+                      setCallbackLastName(event.target.value);
+                      setCallbackError(null);
+                    }}
+                    placeholder={callbackCopy.lastNamePlaceholder}
+                    className="mt-2 h-[56px] rounded-[20px] border-vyva-border bg-white px-4 text-[16px] shadow-vyva-input"
+                    autoComplete="family-name"
+                    data-testid="input-callback-last-name"
+                  />
+                </label>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-[150px_1fr]">
+                <label className="font-body text-[13px] font-bold text-vyva-text-2">
+                  {callbackCopy.countryCode}
+                  <select
+                    value={callbackCountryCode}
+                    onChange={(event) => setCallbackCountryCode(event.target.value)}
+                    className="mt-2 h-[56px] w-full rounded-[20px] border border-vyva-border bg-white px-4 text-[16px] shadow-vyva-input outline-none"
+                    data-testid="select-callback-country-code"
+                    aria-label={callbackCopy.countryCode}
+                  >
+                    {COUNTRY_DIAL_OPTIONS.map((option) => (
+                      <option key={option.country} value={option.dialCode}>
+                        {option.label} {option.dialCode}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="font-body text-[13px] font-bold text-vyva-text-2">
+                  {callbackCopy.phone}
+                  <Input
+                    type="tel"
+                    value={callbackPhone}
+                    onChange={(event) => {
+                      setCallbackPhone(event.target.value);
+                      setCallbackError(null);
+                    }}
+                    placeholder={selectedDialOption.phonePlaceholder}
+                    className="mt-2 h-[56px] rounded-[20px] border-vyva-border bg-white px-4 text-[16px] shadow-vyva-input"
+                    autoComplete="tel-national"
+                    data-testid="input-callback-phone"
+                  />
+                </label>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="font-body text-[13px] font-bold text-vyva-text-2">
+                  {callbackCopy.date}
+                  <Input
+                    type="date"
+                    value={callbackDate}
+                    onChange={(event) => {
+                      setCallbackDate(event.target.value);
+                      setCallbackError(null);
+                    }}
+                    min={todayForDateInput}
+                    className="mt-2 h-[56px] rounded-[20px] border-vyva-border bg-white px-4 text-[16px] shadow-vyva-input"
+                    data-testid="input-callback-date"
+                  />
+                </label>
+
+                <label className="font-body text-[13px] font-bold text-vyva-text-2">
+                  {callbackCopy.time}
+                  <div className="mt-2 grid grid-cols-[1fr_96px] gap-2">
+                    <Input
+                      type="time"
+                      value={callbackTime}
+                      onChange={(event) => {
+                        setCallbackTime(event.target.value);
+                        setCallbackError(null);
+                      }}
+                      className="h-[56px] rounded-[20px] border-vyva-border bg-white px-4 text-[16px] shadow-vyva-input"
+                      data-testid="input-callback-time"
+                    />
+                    <select
+                      value={callbackPeriod}
+                      onChange={(event) => setCallbackPeriod(event.target.value as CallbackPeriod)}
+                      className="h-[56px] rounded-[20px] border border-vyva-border bg-white px-3 text-[16px] font-bold text-[#2F183F] shadow-vyva-input outline-none"
+                      aria-label="AM or PM"
+                      data-testid="select-callback-period"
+                    >
+                      <option value="AM">AM</option>
+                      <option value="PM">PM</option>
+                    </select>
+                  </div>
+                </label>
+              </div>
+
+              <fieldset className="grid gap-2">
+                <legend className="mb-1 font-body text-[13px] font-bold text-vyva-text-2">
+                  {callbackCopy.callFor}
+                </legend>
+                {(["me", "caregiver"] as const).map((option) => {
+                  const isSelected = callbackFor === option;
+                  const Icon = option === "me" ? UserRound : UsersRound;
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => setCallbackFor(option)}
+                      className={`flex items-center gap-3 rounded-[22px] border p-3 text-left transition ${
+                        isSelected
+                          ? "border-vyva-purple bg-[#F4ECFF] shadow-[0_12px_28px_rgba(107,33,168,0.12)]"
+                          : "border-[#E8DDD2] bg-white hover:border-[#D8C2EF]"
+                      }`}
+                      aria-pressed={isSelected}
+                      data-testid={`button-callback-for-${option}`}
+                    >
+                      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${isSelected ? "bg-vyva-purple text-white" : "bg-[#F8F3EA] text-vyva-purple"}`}>
+                        <Icon size={20} />
+                      </span>
+                      <span>
+                        <span className="block font-body text-[14px] font-black text-[#2F183F]">
+                          {callbackCopy.options[option].title}
+                        </span>
+                        <span className="mt-0.5 block font-body text-[12px] leading-5 text-vyva-text-2">
+                          {callbackCopy.options[option].subtitle}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </fieldset>
+            </div>
+
+            {callbackError && (
+              <p className="mt-4 rounded-[16px] bg-red-50 px-4 py-3 font-body text-[13px] text-red-700" data-testid="text-callback-error">
+                {callbackError}
+              </p>
+            )}
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-[0.8fr_1.2fr]">
+              <button
+                type="button"
+                onClick={closeCallbackModal}
+                className="inline-flex min-h-[52px] items-center justify-center rounded-full border border-[#E8DDF3] bg-white px-4 font-body text-sm font-black text-vyva-purple"
+                data-testid="button-callback-cancel"
+              >
+                {callbackCopy.cancel}
+              </button>
+              <button
+                type="submit"
+                className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-sm font-black text-white shadow-[0_14px_32px_rgba(107,33,168,0.18)] transition hover:bg-vyva-purple/92"
+                data-testid="button-callback-submit"
+              >
+                {callbackCopy.submit}
+                <ArrowRight size={16} />
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <div className="min-h-screen overflow-x-hidden bg-[#FAF7F2] text-vyva-text-1">
+        <header className="relative z-10 mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-5 pb-3 pt-4 sm:px-8 sm:py-5 lg:px-10 lg:py-7">
           <VyvaWordmark className="h-auto w-[132px] sm:w-[158px]" />
-          <label className="flex items-center gap-2 rounded-full border border-[#E8DDF3] bg-white/86 px-3 py-2 shadow-[0_12px_32px_rgba(77,45,20,0.08)] backdrop-blur">
+          <label className="flex min-h-[44px] items-center gap-2 rounded-full border border-[#E8DDF3] bg-white/90 px-3 py-2 shadow-[0_12px_32px_rgba(77,45,20,0.08)] backdrop-blur">
             <Globe2 size={15} className="text-vyva-purple" />
             <span className="sr-only">{copy.language}</span>
             <select
@@ -974,65 +2102,81 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
           </label>
         </header>
 
-        <main className="relative z-10 mx-auto flex min-h-[calc(100vh-92px)] w-full max-w-[1040px] items-center justify-center px-5 pb-8 sm:px-8">
-          <section className="w-full max-w-[540px]">
+        <main className="relative z-10 mx-auto flex min-h-[calc(100vh-96px)] w-full max-w-7xl items-start justify-center px-5 pb-8 pt-2 sm:px-8 md:min-h-[calc(100vh-108px)] md:items-center md:pt-0 lg:px-10 lg:pb-12">
+          <section
+            data-testid="auth-layout"
+            className="grid w-full max-w-[540px] gap-6 md:max-w-[1000px] md:grid-cols-[minmax(0,0.94fr)_minmax(420px,500px)] md:items-center lg:max-w-[1080px] lg:gap-12"
+          >
             {adminOnly ? (
-              <div className="mb-5 text-center">
+              <div className="text-center md:text-left">
                 <p className="mb-3 font-body text-[11px] font-extrabold uppercase tracking-[0.26em] text-vyva-purple/70">
                   VYVA Admin
                 </p>
-                <h1 className="font-display text-[46px] leading-[0.98] text-[#2E1642] sm:text-[58px]">
+                <h1 className="font-display text-[38px] leading-[0.98] text-[#2E1642] sm:text-[58px] md:max-w-[430px] md:text-[48px] lg:text-[58px]">
                   Operations access
                 </h1>
-                <p className="mx-auto mt-4 max-w-[380px] font-body text-[15px] leading-[1.55] text-vyva-text-2">
+                <p className="mx-auto mt-4 max-w-[380px] font-body text-[15px] leading-[1.55] text-vyva-text-2 md:mx-0">
                   Sign in with an approved admin account to manage lifecycle, content, and access.
                 </p>
+                <div className="mt-6 hidden flex-wrap justify-center gap-2 sm:flex md:justify-start" aria-label="VYVA account highlights">
+                  {copy.chips.map((chip) => (
+                    <span key={chip} className="rounded-full border border-[#E8DDF3] bg-white/72 px-3 py-2 font-body text-[12px] font-extrabold text-vyva-purple shadow-sm">
+                      {chip}
+                    </span>
+                  ))}
+                </div>
               </div>
             ) : (
-              <div className="mb-5 text-center">
+              <div className="text-center md:text-left">
+                <div className="mx-auto mb-5 h-1.5 w-24 rounded-full bg-[#FFDF61] md:mx-0" />
                 <p className="mb-3 font-body text-[11px] font-extrabold uppercase tracking-[0.26em] text-vyva-purple/70">
-                  {copy.privateDailySupport}
+                  {heroEyebrow}
                 </p>
-                <h1 className="font-display text-[50px] leading-[0.94] text-[#2E1642] sm:text-[66px]">
-                  {copy.heroTitle}
+                <h1 className="max-w-[540px] font-body text-[3.05rem] font-black leading-[0.96] text-[#8253AB] sm:text-[4rem] md:max-w-[190px] md:text-[2.1rem] lg:max-w-[520px] lg:text-[4.65rem]">
+                  {heroTitle}
                 </h1>
-                <p className="mx-auto mt-4 max-w-[430px] font-body text-[15px] leading-[1.55] text-vyva-text-2">
-                  {copy.heroSubtitle}
+                <p className="mx-auto mt-5 max-w-[560px] font-body text-lg leading-8 text-[#5F5768] md:mx-0 md:max-w-[190px] md:text-[15px] md:leading-7 lg:max-w-[560px] lg:text-lg lg:leading-8">
+                  {heroSubtitle}
                 </p>
+                {mode === "register" && view !== "magic" && (
+                  <div className="mt-7 grid gap-2 sm:grid-cols-2 md:max-w-[560px] md:grid-cols-1 lg:grid-cols-2" aria-label="Ways to start with VYVA">
+                    <button
+                      type="button"
+                      onClick={openCallModal}
+                      className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-sm font-black text-white shadow-[0_12px_30px_rgba(107,33,168,0.14)] transition hover:bg-vyva-purple/92"
+                      data-testid="button-login-call-vyva"
+                    >
+                      <PhoneCall size={16} />
+                      {copy.signupOptions.call}
+                    </button>
 
-                <div className="mt-5 flex flex-col items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleGuideVoiceToggle}
-                    className={`inline-flex min-h-[44px] items-center gap-2 rounded-full border px-4 py-2 font-body text-[13px] font-extrabold shadow-[0_12px_30px_rgba(107,33,168,0.12)] backdrop-blur ${
-                      isGuideLive
-                        ? "border-[#E8DDF3] bg-white text-vyva-purple"
-                        : "border-transparent bg-vyva-purple text-white"
-                    }`}
-                    data-testid="button-login-guide-voice"
-                  >
-                    {isGuideConnecting ? (
-                      <Loader2 size={15} className="animate-spin" />
-                    ) : isGuideLive ? (
-                      <X size={15} />
-                    ) : (
-                      <Mic size={15} />
-                    )}
-                    {isGuideConnecting ? copy.guide.connecting : isGuideLive ? copy.guide.end : copy.guide.title}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={openCallbackModal}
+                      className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full border border-[#E8DDF3] bg-white px-4 font-body text-sm font-black text-vyva-purple shadow-[0_10px_24px_rgba(76,46,22,0.06)] transition hover:border-vyva-purple"
+                      data-testid="button-login-schedule-callback"
+                    >
+                      <CalendarClock size={16} />
+                      {copy.signupOptions.schedule}
+                    </button>
 
-                  {guideVoiceErrorText && (
-                    <p className="max-w-[420px] rounded-[16px] bg-[#FFF9E8] px-4 py-3 text-center font-body text-[12px] leading-[1.5] text-[#855F00]">
-                      {guideVoiceErrorText}
-                    </p>
-                  )}
-                </div>
+                  </div>
+                )}
+
+                {guideVoiceErrorText && (
+                  <p className="mt-3 max-w-[520px] rounded-[16px] bg-[#FFF9E8] px-4 py-3 text-center font-body text-[12px] leading-[1.5] text-[#855F00] md:text-left">
+                    {guideVoiceErrorText}
+                  </p>
+                )}
               </div>
             )}
 
-            <div className="rounded-[34px] border border-[#EFE7DB] bg-white/94 p-5 shadow-[0_24px_70px_rgba(72,44,18,0.14)] backdrop-blur sm:p-7">
+            <div
+              data-testid="auth-card"
+              className="w-full rounded-[34px] border border-[#E8DDD2] bg-white/94 p-5 shadow-[0_28px_70px_rgba(79,43,116,0.14)] backdrop-blur sm:rounded-[42px] sm:p-7 md:justify-self-end"
+            >
               <div className="mb-5">
-                <h2 className="font-display text-[36px] leading-tight text-vyva-text-1">{authTitle}</h2>
+                <h2 className="font-body text-[34px] font-black leading-tight text-[#2F183F]">{authTitle}</h2>
                 <p className="mt-1 font-body text-[14px] text-vyva-text-2">{authSubtitle}</p>
               </div>
 
@@ -1091,9 +2235,50 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                 </div>
               ) : (
                 <div className="flex flex-col gap-4">
+                  {!adminOnly && mode === "register" && view !== "magic" && (
+                    <div className="space-y-2" data-testid="auth-setup-intent">
+                      <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-vyva-text-3">
+                        {copy.setupIntentLabel}
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {(["self", "caregiver"] as const).map((intent) => {
+                          const active = setupIntent === intent;
+                          const Icon = intent === "self" ? UserRound : UsersRound;
+                          return (
+                            <button
+                              key={intent}
+                              type="button"
+                              onClick={() => setSetupIntent(intent)}
+                              data-testid={`button-auth-intent-${intent}`}
+                              className={`flex min-h-[58px] items-center gap-2 rounded-[18px] border px-2.5 py-2 text-left transition sm:min-h-[74px] sm:gap-3 sm:px-3 sm:py-2.5 ${
+                                active
+                                  ? "border-vyva-purple bg-[#F5F0FF] text-vyva-text-1 shadow-[0_10px_24px_rgba(107,33,168,0.10)]"
+                                  : "border-[#EFE7DB] bg-white text-vyva-text-2 hover:border-[#E1D6C8]"
+                              }`}
+                            >
+                              <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[13px] ${active ? "bg-vyva-purple text-white" : "bg-[#F8F3EA] text-vyva-purple"}`}>
+                                <Icon size={18} />
+                              </span>
+                              <span className="min-w-0">
+                                <span className="block font-body text-[12px] font-extrabold leading-tight sm:text-[13px]">{copy.setupIntent[intent].title}</span>
+                                <span className="mt-0.5 hidden font-body text-[11px] leading-[1.3] text-vyva-text-2 sm:block">{copy.setupIntent[intent].subtitle}</span>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {setupIntent === "caregiver" && (
+                        <p data-testid="text-auth-caregiver-hint" className="rounded-[16px] border border-[#E8DDF3] bg-[#FBF8FF] px-3 py-2 font-body text-[12px] leading-[1.45] text-vyva-purple">
+                          {copy.caregiverHint}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   <label className="font-body text-[13px] font-bold text-vyva-text-2">
                     {contactLabel}
                     <Input
+                      ref={contactInputRef}
                       data-testid="input-auth-contact"
                       type="text"
                       value={contact}
@@ -1111,6 +2296,9 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                       className="mt-2 h-[58px] rounded-[20px] border-vyva-border bg-white px-4 text-[16px] shadow-vyva-input"
                       autoComplete={contactAutocomplete}
                     />
+                    <span className="mt-2 block font-body text-[12px] font-medium leading-[1.4] text-vyva-text-3">
+                      {contactFormatHint}
+                    </span>
                   </label>
 
                   {mode === "register" && view !== "magic" ? (

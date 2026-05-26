@@ -238,6 +238,70 @@
   }
 }
 
+.landing-voice-card {
+  background:
+    radial-gradient(circle at 50% 10%, rgba(255, 255, 255, 0.14), transparent 34%),
+    linear-gradient(145deg, #6B21A8 0%, #8253AB 56%, #9B62C8 100%);
+}
+
+@keyframes landing-mic-ring {
+  0%, 100% {
+    opacity: 0.34;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 0.1;
+    transform: scale(1.12);
+  }
+}
+
+@keyframes landing-mic-core {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 223, 97, 0.34), inset 0 0 0 1px rgba(130, 83, 171, 0.08);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(255, 223, 97, 0), inset 0 0 0 1px rgba(130, 83, 171, 0.14);
+    transform: scale(1.045);
+  }
+}
+
+@keyframes landing-wave-bar {
+  0%, 100% {
+    opacity: 0.74;
+    transform: scaleY(0.5);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleY(1.08);
+  }
+}
+
+.landing-mic-ring {
+  animation: landing-mic-ring 2.8s ease-in-out infinite;
+}
+
+.landing-mic-ring-delay {
+  animation-delay: 0.34s;
+}
+
+.landing-mic-core {
+  animation: landing-mic-core 2.2s ease-in-out infinite;
+}
+
+.landing-wave-bar {
+  animation: landing-wave-bar 1.05s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-mic-ring,
+  .landing-mic-core,
+  .landing-wave-bar {
+    animation: none;
+  }
+}
+
 .font-display {
   font-family: 'Lora', serif;
 }

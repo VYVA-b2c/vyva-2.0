@@ -117,7 +117,143 @@ test("login screen renders auth controls", async ({ page }) => {
 
   await expect(page.getByTestId("input-auth-contact")).toBeVisible();
   await expect(page.getByTestId("input-auth-password")).toBeVisible();
+  await expect(page.getByTestId("button-auth-intent-self")).toBeVisible();
+  await expect(page.getByTestId("button-auth-intent-caregiver")).toBeVisible();
   await expect(page.getByTestId("button-auth-submit")).toBeVisible();
+});
+
+test("login schedule callback collects contact and caller context", async ({ page }) => {
+  await mockApi(page);
+  await page.route("https://freeipapi.com/api/json/", async (route) => {
+    await fulfillJson(route, 200, { countryCode: "GB" });
+  });
+  await page.goto("/login", { waitUntil: "domcontentloaded" });
+
+  await page.getByTestId("button-login-schedule-callback").click();
+  await expect(page.getByTestId("modal-login-callback")).toBeVisible();
+  await expect(page.getByTestId("input-callback-first-name")).toBeFocused();
+  await expect(page.getByTestId("input-callback-last-name")).toBeVisible();
+  await expect(page.getByTestId("select-callback-country-code")).toHaveValue("+44");
+  await expect(page.getByTestId("input-callback-phone")).toBeVisible();
+  await expect(page.getByTestId("input-callback-date")).toBeVisible();
+  await expect(page.getByTestId("input-callback-time")).toBeVisible();
+  await expect(page.getByTestId("select-callback-period")).toHaveValue("AM");
+  await expect(page.getByTestId("button-callback-for-me")).toBeVisible();
+  await expect(page.getByTestId("button-callback-for-caregiver")).toBeVisible();
+
+  await page.getByTestId("button-callback-submit").click();
+  await expect(page.getByTestId("text-callback-error")).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+});
+
+test("login call vyva shows the country-specific number", async ({ page }) => {
+  await mockApi(page);
+  await page.route("https://freeipapi.com/api/json/", async (route) => {
+    await fulfillJson(route, 200, { countryCode: "IT" });
+  });
+  await page.goto("/login", { waitUntil: "domcontentloaded" });
+
+  await page.getByTestId("button-login-call-vyva").click();
+  await expect(page.getByTestId("modal-login-call-vyva")).toBeVisible();
+  await expect(page.getByTestId("select-call-country")).toHaveValue("IT");
+  await page.getByTestId("button-call-submit").click();
+  await expect(page.getByTestId("link-call-vyva-number")).toHaveText("+39 800 984 401");
+  await expect(page.getByTestId("button-call-now")).toHaveAttribute("href", "tel:+39800984401");
+  await page.getByTestId("button-call-change-country").click();
+  await page.getByTestId("select-call-country").selectOption("GB");
+  await page.getByTestId("button-call-submit").click();
+  await expect(page.getByTestId("link-call-vyva-number")).toHaveText("+44 808 175 7642");
+  await expectNoHorizontalOverflow(page);
+});
+
+test("public landing page promotes VYVA and remains responsive", async ({ page }) => {
+  await mockApi(page);
+
+  await page.setViewportSize({ width: 1280, height: 760 });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(page.getByTestId("landing-page")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your AI companion for life.", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Get started" })).toBeVisible();
+  await expect(page.locator("#support").getByRole("heading", { name: "Medication confirmation" })).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.getByTestId("landing-page")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Get started" })).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+
+  await page.getByTestId("select-landing-language").selectOption("fr");
+  await expect(page.getByRole("heading", { name: "Votre compagnon IA pour la vie.", exact: true })).toBeVisible();
+  await expect(page.locator("#features").getByRole("heading", { name: "Gestion des medicaments" })).toBeVisible();
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "Votre compagnon IA pour la vie.", exact: true })).toBeVisible();
+  await page.goto("/login", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "Commencez avec VYVA à vos côtés.", exact: true })).toBeVisible();
+});
+
+test("public pages initialize from browser language until the user changes it", async ({ browser }) => {
+  const context = await browser.newContext({ locale: "fr-FR" });
+  const page = await context.newPage();
+  await mockApi(page);
+
+  await page.goto("http://127.0.0.1:4173/", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "Votre compagnon IA pour la vie.", exact: true })).toBeVisible();
+  await expect(page.getByTestId("select-landing-language")).toHaveValue("fr");
+  await expect(page.evaluate(() => localStorage.getItem("vyva_lang_source"))).resolves.toBe("browser");
+
+  await page.goto("http://127.0.0.1:4173/login", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "Commencez avec VYVA à vos côtés.", exact: true })).toBeVisible();
+
+  await page.goto("http://127.0.0.1:4173/", { waitUntil: "domcontentloaded" });
+  await page.getByTestId("select-landing-language").selectOption("de");
+  await expect(page.getByRole("heading", { name: "Ihr KI-Begleiter furs Leben.", exact: true })).toBeVisible();
+  await expect(page.evaluate(() => localStorage.getItem("vyva_lang_source"))).resolves.toBe("user");
+
+  await page.goto("http://127.0.0.1:4173/login", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "Starten Sie mit VYVA an Ihrer Seite.", exact: true })).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+
+  await context.close();
+});
+
+test("login screen exposes caregiver and on-behalf account intent", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/login", { waitUntil: "domcontentloaded" });
+
+  await page.getByTestId("button-auth-intent-caregiver").click();
+  await expect(page.getByTestId("text-auth-caregiver-hint")).toBeVisible();
+  await expect(page.getByText("As a caregiver")).toBeVisible();
+});
+
+test("login screen scales from mobile card to tablet and desktop auth layout", async ({ page }) => {
+  await mockApi(page);
+
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.goto("/login", { waitUntil: "domcontentloaded" });
+  await expect(page.getByTestId("input-auth-contact")).toBeVisible();
+
+  const desktopLayoutBox = await page.getByTestId("auth-layout").boundingBox();
+  expect(desktopLayoutBox).not.toBeNull();
+  expect(desktopLayoutBox!.width).toBeGreaterThan(900);
+  await expect(page.getByTestId("auth-layout")).toHaveCSS("grid-template-columns", /[0-9.]+px [0-9.]+px/);
+  await expectNoHorizontalOverflow(page);
+
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  const tabletLayoutBox = await page.getByTestId("auth-layout").boundingBox();
+  expect(tabletLayoutBox).not.toBeNull();
+  expect(tabletLayoutBox!.width).toBeGreaterThan(680);
+  await expect(page.getByTestId("auth-layout")).toHaveCSS("grid-template-columns", /[0-9.]+px [0-9.]+px/);
+  await expectNoHorizontalOverflow(page);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  const mobileLayoutBox = await page.getByTestId("auth-layout").boundingBox();
+  expect(mobileLayoutBox).not.toBeNull();
+  expect(mobileLayoutBox!.width).toBeLessThanOrEqual(350);
+  await expect(page.getByTestId("auth-card")).toBeVisible();
+  await expectNoHorizontalOverflow(page);
 });
 
 test("home screen renders core cards and navigates to concierge", async ({ page }) => {

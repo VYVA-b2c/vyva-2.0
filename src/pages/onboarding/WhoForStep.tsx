@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { HeartHandshake, UserRound, UsersRound } from "lucide-react";
 import { OnboardingStepLayout } from "@/components/onboarding/OnboardingStepLayout";
 import { apiFetch, queryClient } from "@/lib/queryClient";
@@ -159,9 +159,14 @@ const CHOICES: Array<{
 
 export default function WhoForStep() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { language } = useLanguage();
   const copy = COPY[language] ?? COPY.es;
-  const [selected, setSelected] = useState<SetupChoice>("self");
+  const [selected, setSelected] = useState<SetupChoice>(() => {
+    const stateSetupFor = (location.state as { setupFor?: SetupChoice } | null)?.setupFor;
+    const storedSetupFor = window.sessionStorage.getItem("vyva_setup_for");
+    return stateSetupFor === "someone_else" || storedSetupFor === "someone_else" ? "someone_else" : "self";
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -180,6 +185,7 @@ export default function WhoForStep() {
         return;
       }
       const data = await res.json();
+      window.sessionStorage.removeItem("vyva_setup_for");
       queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
       queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
       navigate(data.nextRoute ?? "/onboarding/basics", { replace: true });

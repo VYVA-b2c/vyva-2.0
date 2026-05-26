@@ -36,6 +36,17 @@ describe("language persistence", () => {
     expect(localStorage.getItem(LANGUAGE_SOURCE_STORAGE_KEY)).toBe("user");
   });
 
+  it("lets profile hydration replace a browser-detected default", () => {
+    localStorage.setItem(LANGUAGE_STORAGE_KEY, "fr");
+    localStorage.setItem(LANGUAGE_SOURCE_STORAGE_KEY, "browser");
+
+    syncProfileLanguage("de");
+
+    expect(getLanguage()).toBe("de");
+    expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe("de");
+    expect(localStorage.getItem(LANGUAGE_SOURCE_STORAGE_KEY)).toBe("account");
+  });
+
   it("lets a later account login establish that account language", () => {
     setLanguage("de");
 
