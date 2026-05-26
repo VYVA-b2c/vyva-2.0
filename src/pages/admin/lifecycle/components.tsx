@@ -16,6 +16,7 @@ import {
   type UserDetail,
   combineDateTimeLocal,
   emptyScheduledEvent,
+  entryPointLabel,
   formatDate,
   keywordsToText,
   languageOptions,
@@ -122,7 +123,7 @@ export function IntakeTable({ users, onView, onTriggerConsent, onToggleEnabled, 
               </td>
               {!compact && <td className="px-3 py-3">{user.phone}</td>}
               <td className="px-3 py-3">{user.user_type}</td>
-              <td className="px-3 py-3">{user.entry_point}</td>
+              <td className="px-3 py-3">{entryPointLabel(user.entry_point)}</td>
               <td className="px-3 py-3">
                 <span>{user.tier}</span>
                 {user.intake_tier && user.intake_tier !== user.tier && (
@@ -1039,7 +1040,7 @@ export function AnalyticsSection({ summary }: { summary: JsonRecord | null }) {
               <tbody>
                 {entryMetrics.map((row) => (
                   <tr key={row.entry_point} className="border-t border-[#eadfd5]">
-                    <td className="py-2 font-bold">{row.entry_point}</td>
+                    <td className="py-2 font-bold">{entryPointLabel(row.entry_point)}</td>
                     <td>{row.total}</td>
                     <td>{row.link_sent}</td>
                     <td>{row.active}</td>

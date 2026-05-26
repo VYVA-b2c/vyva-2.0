@@ -31,6 +31,7 @@ import {
   csvToRows,
   emptyIntakeForm,
   emptyScheduledEvent,
+  entryPointLabel,
   entryPoints,
   languageOptions,
   statuses,
@@ -1258,7 +1259,11 @@ export default function LifecycleAdminPage() {
                   ["tier", ["", ...planOptions.map((plan) => plan.value)]],
                 ].map(([key, values]) => (
                   <select key={key as keyof typeof filters} className="rounded-xl border border-[#e4d8ce] px-3 py-2.5 text-sm font-semibold" value={filters[key as keyof typeof filters]} onChange={(e) => setFilters((prev) => ({ ...prev, [key as keyof typeof filters]: e.target.value }))}>
-                    {(values as string[]).map((value) => <option key={value} value={value}>{value || String(key).replace("_", " ")}</option>)}
+                    {(values as string[]).map((value) => (
+                      <option key={value} value={value}>
+                        {key === "entry_point" && value ? entryPointLabel(value) : value || String(key).replace("_", " ")}
+                      </option>
+                    ))}
                   </select>
                 ))}
               </div>
@@ -1331,7 +1336,13 @@ export default function LifecycleAdminPage() {
                     </div>
                   </div>
                 )}
-                <select className="rounded-2xl border px-4 py-3" value={newIntake.entry_point} onChange={(e) => setNewIntake({ ...newIntake, entry_point: e.target.value })}>{entryPoints.filter(Boolean).map((v) => <option key={v}>{v}</option>)}</select>
+                <Field label="How did they come in?">
+                  <select className="w-full rounded-2xl border px-4 py-3" value={newIntake.entry_point} onChange={(e) => setNewIntake({ ...newIntake, entry_point: e.target.value })}>
+                    {entryPoints.filter(Boolean).map((value) => (
+                      <option key={value} value={value}>{entryPointLabel(value)}</option>
+                    ))}
+                  </select>
+                </Field>
                 <select className="rounded-2xl border px-4 py-3" value={newIntake.tier} onChange={(e) => setNewIntake({ ...newIntake, tier: e.target.value })}>{planOptions.map((plan) => <option key={plan.value} value={plan.value}>{plan.label}</option>)}</select>
                 <select className="rounded-2xl border px-4 py-3" value={newIntake.organization_id} onChange={(e) => setNewIntake({ ...newIntake, organization_id: e.target.value })}>
                   <option value="">No organization</option>
