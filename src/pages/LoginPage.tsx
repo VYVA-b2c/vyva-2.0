@@ -240,7 +240,7 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     signInHeroEyebrow: "Your health and wellness companion",
     signInHeroTitle: "Welcome back to VYVA.",
     signInHeroSubtitle: "Sign in to continue your health check-ins, reminders, mind activities, and everyday support.",
-    chips: ["My Health", "My Mind", "Social Club", "24/7 Concierge"],
+    chips: ["My Health", "My Mind", "My Community", "My Concierge"],
     language: "Language",
     createTab: "Sign up",
     signInTab: "Sign in",

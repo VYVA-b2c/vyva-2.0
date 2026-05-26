@@ -211,12 +211,12 @@
         "hint": "Ejercicio rápido"
       },
       "social": {
-        "label": "Social",
+        "label": "Comunidad",
         "hint": "Hablar un rato"
       },
       "concierge": {
-        "label": "Concierge",
-        "hint": "Pedir ayuda"
+        "label": "Mi conserje",
+        "hint": "Reservar y organizar"
       }
     },
     "voiceCards": {
@@ -236,18 +236,18 @@
         "openLabel": "Abrir mente ágil"
       },
       "social": {
-        "title": "Conectar",
+        "title": "Mi comunidad",
         "subtitle": "Seguir en contacto",
         "bubble": "Me encanta escucharte. Aquí siempre tienes con quién hablar.",
         "micLabel": "Hablar con VYVA",
-        "openLabel": "Abrir compañía"
+        "openLabel": "Abrir comunidad"
       },
       "concierge": {
-        "title": "Resolver tareas",
+        "title": "Mi conserje",
         "subtitle": "Reservar y organizar",
         "bubble": "Déjame encargarme. Yo me ocupo de lo difícil.",
         "micLabel": "Pedir ayuda por voz",
-        "openLabel": "Abrir tu ayudante"
+        "openLabel": "Abrir conserje"
       }
     },
     "whatNow": "o explora un tema"

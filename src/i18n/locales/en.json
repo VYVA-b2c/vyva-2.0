@@ -223,12 +223,12 @@
         "hint": "Quick exercise"
       },
       "social": {
-        "label": "Social",
+        "label": "Community",
         "hint": "Chat a while"
       },
       "concierge": {
-        "label": "Concierge",
-        "hint": "Get help"
+        "label": "My Concierge",
+        "hint": "Book and arrange"
       }
     },
     "voiceCards": {
@@ -248,18 +248,18 @@
         "openLabel": "Open agile mind"
       },
       "social": {
-        "title": "Connect",
+        "title": "My Community",
         "subtitle": "Stay in touch",
         "bubble": "I love listening. You always have someone here.",
         "micLabel": "Talk to VYVA",
-        "openLabel": "Open companionship"
+        "openLabel": "Open community"
       },
       "concierge": {
-        "title": "Get help",
+        "title": "My Concierge",
         "subtitle": "Book and arrange",
         "bubble": "Let me handle it. I take care of the difficult bits.",
         "micLabel": "Ask for help by voice",
-        "openLabel": "Open your helper"
+        "openLabel": "Open concierge"
       }
     },
     "whatNow": "or explore a topic"
