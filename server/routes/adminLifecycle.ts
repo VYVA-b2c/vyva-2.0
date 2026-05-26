@@ -2253,6 +2253,12 @@ adminLifecycleRouter.delete("/users/:id", async (req: Request, res: Response) =>
     deleted,
     hidden_intake: true,
     hidden_intake_ids: hiddenIntakeIds,
+    identity_scope: {
+      intake_ids: scope.intakeIds,
+      profile_or_login_ids: scope.ids,
+      emails: scope.emails,
+      phones: scope.phones,
+    },
     user_id: userId,
     intake_id: intake.id,
   });
