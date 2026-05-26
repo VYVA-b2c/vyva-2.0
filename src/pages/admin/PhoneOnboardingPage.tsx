@@ -262,9 +262,10 @@ export default function PhoneOnboardingPage() {
     return data as Record<string, unknown>;
   }
 
-  async function loadPhoneUsers(tab: PhoneOnboardingTab = activeTab) {
+  async function loadPhoneUsers(tab: PhoneOnboardingTab = activeTab, options: { announce?: boolean; clearMessage?: boolean } = {}) {
+    const { announce = false, clearMessage = true } = options;
     setIsLoading(true);
-    setMessage("");
+    if (clearMessage) setMessage("");
     try {
       const params = new URLSearchParams(tab === "callbacks"
         ? { callback_onboarding: "true" }
@@ -272,8 +273,12 @@ export default function PhoneOnboardingPage() {
       if (query.trim()) params.set("query", query.trim());
       if (status) params.set("status", status);
       const data = await lifecycleApi(`/users?${params.toString()}`);
-      if (tab === "callbacks") setCallbacks((data.users ?? []) as PhoneIntake[]);
-      else setUsers((data.users ?? []) as PhoneIntake[]);
+      const nextUsers = (data.users ?? []) as PhoneIntake[];
+      if (tab === "callbacks") setCallbacks(nextUsers);
+      else setUsers(nextUsers);
+      if (announce) {
+        setMessage(`${tab === "callbacks" ? "Callbacks" : "Inbound calls"} refreshed: ${nextUsers.length} ${nextUsers.length === 1 ? "record" : "records"}.`);
+      }
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Could not load phone onboarding users");
     } finally {
@@ -289,8 +294,8 @@ export default function PhoneOnboardingPage() {
         method: "POST",
         body: JSON.stringify({ limit: 50 }),
       });
+      await loadPhoneUsers("callbacks", { clearMessage: false });
       setMessage("Due callbacks checked.");
-      await loadPhoneUsers("callbacks");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Could not check due callbacks.");
     } finally {
@@ -303,8 +308,8 @@ export default function PhoneOnboardingPage() {
     setMessage("");
     try {
       const data = await lifecycleApi(`/callbacks/${intake.id}/trigger`, { method: "POST" });
+      await loadPhoneUsers("callbacks", { clearMessage: false });
       setMessage(typeof data.message === "string" ? data.message : "Callback call started.");
-      await loadPhoneUsers("callbacks");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Could not start this callback.");
     } finally {
@@ -344,7 +349,7 @@ export default function PhoneOnboardingPage() {
             type="button"
             className="inline-flex items-center gap-2 rounded-xl bg-purple-700 px-4 py-2 text-sm font-black text-white disabled:opacity-50"
             disabled={isLoading}
-            onClick={() => loadPhoneUsers().catch(() => undefined)}
+            onClick={() => loadPhoneUsers(activeTab, { announce: true }).catch(() => undefined)}
           >
             <RefreshCw size={15} />
             Refresh
