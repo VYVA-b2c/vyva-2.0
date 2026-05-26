@@ -323,6 +323,14 @@ function isDeletedLifecycleTombstone(intake: Intake) {
   );
 }
 
+function isLifecycleAdminDeletedProfile(profile: {
+  account_status?: string | null;
+  disabled_reason?: string | null;
+}) {
+  return profile.account_status === "disabled"
+    && profile.disabled_reason === "Deleted from lifecycle admin";
+}
+
 function matchesDeletedTombstone(intake: Intake, tombstoneKeys: Set<string>) {
   if (tombstoneKeys.has(`intake:${intake.id}`)) return true;
   return lifecycleIdentityKeys({
@@ -508,7 +516,7 @@ export async function scheduledItemsForUser(userId: string | null, database = db
 }
 
 export async function repairLifecycleDuplicates(database = db) {
-  const [rows, deletedEvents] = await Promise.all([
+  const [rows, deletedEvents, deletedProfiles] = await Promise.all([
     database.select().from(userIntakes),
     database
       .select()
@@ -516,6 +524,20 @@ export async function repairLifecycleDuplicates(database = db) {
       .where(eq(lifecycleEvents.event_type, "user_deleted"))
       .orderBy(desc(lifecycleEvents.created_at))
       .limit(500),
+    database
+      .select({
+        id: profiles.id,
+        email: profiles.email,
+        phone_number: profiles.phone_number,
+        whatsapp_number: profiles.whatsapp_number,
+        account_status: profiles.account_status,
+        disabled_reason: profiles.disabled_reason,
+      })
+      .from(profiles)
+      .where(and(
+        eq(profiles.account_status, "disabled"),
+        eq(profiles.disabled_reason, "Deleted from lifecycle admin"),
+      )),
   ]);
   const deletedTombstoneKeys = new Set<string>();
   for (const row of rows) {
@@ -525,6 +547,14 @@ export async function repairLifecycleDuplicates(database = db) {
   for (const event of deletedEvents) {
     if (event.intake_id) deletedTombstoneKeys.add(`intake:${event.intake_id}`);
     for (const key of deletedEventIdentityKeys(event)) deletedTombstoneKeys.add(key);
+  }
+  for (const profile of deletedProfiles) {
+    for (const key of lifecycleIdentityKeys({
+      userId: profile.id,
+      email: profile.email,
+      phone: profile.phone_number ?? profile.whatsapp_number,
+    })) deletedTombstoneKeys.add(key);
+    for (const key of phoneIdentityKeys(profile.whatsapp_number)) deletedTombstoneKeys.add(key);
   }
 
   const hiddenByTombstone = new Set<string>();
@@ -683,6 +713,15 @@ export async function backfillLifecycleUsers(database = db) {
 
   const inserted: Intake[] = [];
   for (const profile of profileRows) {
+    if (isLifecycleAdminDeletedProfile(profile)) {
+      rememberLifecycleIdentity(existing, {
+        userId: profile.id,
+        email: profile.email,
+        phone: profile.phone_number ?? profile.whatsapp_number,
+      });
+      continue;
+    }
+
     const phone = fallbackLifecyclePhone({
       phone: profile.phone_number,
       whatsapp: profile.whatsapp_number,
@@ -1224,6 +1263,7 @@ export async function listLifecycleUsers(filters: {
         preferred_name: profiles.preferred_name,
         account_status: profiles.account_status,
         disabled_at: profiles.disabled_at,
+        disabled_reason: profiles.disabled_reason,
         subscription_tier: profiles.subscription_tier,
       })
       .from(profiles)
@@ -1275,8 +1315,9 @@ export async function listLifecycleUsers(filters: {
       organization_name: row.organization_name,
       account_status: profile?.account_status ?? "enabled",
       disabled_at: profile?.disabled_at ?? null,
+      disabled_reason: profile?.disabled_reason ?? null,
     };
-  });
+  }).filter((row) => row.disabled_reason !== "Deleted from lifecycle admin");
 }
 
 export async function getLifecycleUserDetails(intakeId: string, database = db) {

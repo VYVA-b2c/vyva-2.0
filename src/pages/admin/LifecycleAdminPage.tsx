@@ -94,6 +94,58 @@ function slugifyOrganizationLabel(value: string) {
     .slice(0, 64);
 }
 
+function normalizedContactEmail(value: unknown) {
+  return typeof value === "string" && value.includes("@") ? value.trim().toLowerCase() : "";
+}
+
+function normalizedContactPhone(value: unknown) {
+  return typeof value === "string" ? value.replace(/[^\d+]/g, "") : "";
+}
+
+function stringArray(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
+}
+
+function shouldKeepAfterDelete(user: Intake, deletedIntake: Intake, result: JsonRecord) {
+  const scope = result.identity_scope && typeof result.identity_scope === "object" ? result.identity_scope as JsonRecord : {};
+  const deletedIntakeIds = new Set([
+    deletedIntake.id,
+    typeof result.intake_id === "string" ? result.intake_id : "",
+    ...stringArray(result.hidden_intake_ids),
+    ...stringArray(scope.intake_ids),
+  ].filter(Boolean));
+  if (deletedIntakeIds.has(user.id)) return false;
+
+  const deletedIds = new Set([
+    typeof result.user_id === "string" ? result.user_id : "",
+    deletedIntake.user_id ?? "",
+    deletedIntake.elder_user_id ?? "",
+    deletedIntake.family_user_id ?? "",
+    ...stringArray(scope.profile_or_login_ids),
+  ].filter(Boolean));
+  if ([user.user_id, user.elder_user_id, user.family_user_id].some((id) => id && deletedIds.has(id))) return false;
+
+  const deletedEmails = new Set([
+    normalizedContactEmail(deletedIntake.email),
+    normalizedContactEmail(deletedIntake.login_email),
+    normalizedContactEmail(deletedIntake.profile_email),
+    ...stringArray(scope.emails).map(normalizedContactEmail),
+  ].filter(Boolean));
+  if ([user.email, user.login_email, user.profile_email, user.phone, user.login_phone, user.profile_phone]
+    .some((value) => deletedEmails.has(normalizedContactEmail(value)))) return false;
+
+  const deletedPhones = new Set([
+    normalizedContactPhone(deletedIntake.phone),
+    normalizedContactPhone(deletedIntake.login_phone),
+    normalizedContactPhone(deletedIntake.profile_phone),
+    ...stringArray(scope.phones).map(normalizedContactPhone),
+  ].filter(Boolean));
+  if ([user.phone, user.login_phone, user.profile_phone]
+    .some((value) => deletedPhones.has(normalizedContactPhone(value)))) return false;
+
+  return true;
+}
+
 const lifecycleRequestFailedMessage = "Lifecycle request failed. Please refresh and try again.";
 
 function isHtmlErrorResponse(text: string) {
@@ -771,10 +823,11 @@ export default function LifecycleAdminPage() {
     setBusyAction(`delete:${intake.id}`);
     setUserDetailMessage("");
     try {
-      await api(`/users/${intake.id}`, {
+      const result = await api(`/users/${intake.id}`, {
         method: "DELETE",
         body: JSON.stringify({ confirm: "DELETE" }),
       });
+      setUsers((current) => current.filter((user) => shouldKeepAfterDelete(user, intake, result)));
       if (selectedUser?.intake.id === intake.id) setSelectedUser(null);
       setMessage("User deleted.");
       await refresh();
