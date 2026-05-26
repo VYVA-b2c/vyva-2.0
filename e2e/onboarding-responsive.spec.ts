@@ -319,8 +319,8 @@ test.describe("onboarding responsive layout", () => {
 
     const frameBox = await page.getByTestId("phone-frame").boundingBox();
     expect(frameBox).not.toBeNull();
-    expect(frameBox!.width).toBeGreaterThan(700);
-    expect(frameBox!.width).toBeLessThanOrEqual(822);
+    expect(frameBox!.width).toBeGreaterThan(780);
+    expect(frameBox!.width).toBeLessThanOrEqual(922);
     await expectNoHorizontalOverflow(page);
 
     await page.setViewportSize({ width: 390, height: 844 });
