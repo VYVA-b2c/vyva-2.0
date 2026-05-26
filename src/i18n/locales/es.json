@@ -223,28 +223,28 @@
       "helper": "Toca una tarjeta o usa el micrófono para ir directo.",
       "health": {
         "title": "Mi salud",
-        "subtitle": "Revisar mi salud",
+        "subtitle": "Síntomas, medicación y bienestar",
         "bubble": "Estoy aquí para ayudarte a sentirte mejor cada día.",
         "micLabel": "Hablar de mi salud",
         "openLabel": "Abrir bienestar"
       },
       "cognitive": {
         "title": "Mi mente",
-        "subtitle": "Activar mi mente",
+        "subtitle": "Foco, memoria y calma",
         "bubble": "Un ratito conmigo mantiene tu mente en forma.",
         "micLabel": "Empezar ejercicio mental",
         "openLabel": "Abrir mente ágil"
       },
       "social": {
         "title": "Mi comunidad",
-        "subtitle": "Seguir en contacto",
+        "subtitle": "Salas, chats y momentos compartidos",
         "bubble": "Me encanta escucharte. Aquí siempre tienes con quién hablar.",
         "micLabel": "Hablar con VYVA",
         "openLabel": "Abrir comunidad"
       },
       "concierge": {
         "title": "Mi conserje",
-        "subtitle": "Reservar y organizar",
+        "subtitle": "Reservas, gestiones y apoyo",
         "bubble": "Déjame encargarme. Yo me ocupo de lo difícil.",
         "micLabel": "Pedir ayuda por voz",
         "openLabel": "Abrir conserje"
