@@ -23,6 +23,7 @@ type EntryPoint = "form" | "phone" | "whatsapp" | "admin";
 type UserType = "elder" | "family" | "admin";
 type ConsentStatus = "pending" | "approved" | "rejected" | "no_answer" | "failed";
 type ConsentAttempt = typeof consentAttempts.$inferSelect;
+type LifecycleEvent = typeof lifecycleEvents.$inferSelect;
 type SupabaseAuthAccount = {
   id: string;
   email: string | null;
@@ -274,6 +275,47 @@ function deletedTombstoneIdentityKeys(intake: Intake) {
   return Array.from(new Set(keys));
 }
 
+function deletedEventIdentityKeys(event: LifecycleEvent) {
+  const metadata = metadataRecord(event.metadata);
+  const deletedIdentity = metadataRecord(metadata.deleted_identity);
+  const identityScope = metadataRecord(metadata.identity_scope);
+  const deletedScope = metadataRecord(metadata.deleted_identity_scope);
+  const keys: string[] = [];
+
+  if (event.user_id) keys.push(`user:${event.user_id}`);
+  for (const id of [
+    stringValue(metadata.user_id),
+    stringValue(deletedIdentity.user_id),
+    stringValue(deletedIdentity.elder_user_id),
+    stringValue(deletedIdentity.family_user_id),
+    ...stringArray(identityScope.profile_or_login_ids),
+    ...stringArray(deletedScope.profile_or_login_ids),
+  ]) {
+    if (id) keys.push(`user:${id}`);
+  }
+
+  for (const email of [
+    stringValue(metadata.email),
+    stringValue(deletedIdentity.email),
+    ...stringArray(identityScope.emails),
+    ...stringArray(deletedScope.emails),
+  ]) {
+    const normalized = normalizeEmail(email);
+    if (normalized) keys.push(`email:${normalized}`);
+  }
+
+  keys.push(...phoneIdentityKeys(stringValue(metadata.phone)));
+  keys.push(...phoneIdentityKeys(stringValue(deletedIdentity.phone)));
+  for (const phone of [
+    ...stringArray(identityScope.phones),
+    ...stringArray(deletedScope.phones),
+  ]) {
+    keys.push(...phoneIdentityKeys(phone));
+  }
+
+  return Array.from(new Set(keys));
+}
+
 function isDeletedLifecycleTombstone(intake: Intake) {
   const metadata = metadataRecord(intake.metadata);
   return metadata.deleted_from_lifecycle === true || (
@@ -282,6 +324,7 @@ function isDeletedLifecycleTombstone(intake: Intake) {
 }
 
 function matchesDeletedTombstone(intake: Intake, tombstoneKeys: Set<string>) {
+  if (tombstoneKeys.has(`intake:${intake.id}`)) return true;
   return lifecycleIdentityKeys({
     userId: intake.user_id,
     elderUserId: intake.elder_user_id,
@@ -459,11 +502,23 @@ export async function scheduledItemsForUser(userId: string | null, database = db
 }
 
 export async function repairLifecycleDuplicates(database = db) {
-  const rows = await database.select().from(userIntakes);
+  const [rows, deletedEvents] = await Promise.all([
+    database.select().from(userIntakes),
+    database
+      .select()
+      .from(lifecycleEvents)
+      .where(eq(lifecycleEvents.event_type, "user_deleted"))
+      .orderBy(desc(lifecycleEvents.created_at))
+      .limit(500),
+  ]);
   const deletedTombstoneKeys = new Set<string>();
   for (const row of rows) {
     if (!isDeletedLifecycleTombstone(row)) continue;
     for (const key of deletedTombstoneIdentityKeys(row)) deletedTombstoneKeys.add(key);
+  }
+  for (const event of deletedEvents) {
+    if (event.intake_id) deletedTombstoneKeys.add(`intake:${event.intake_id}`);
+    for (const key of deletedEventIdentityKeys(event)) deletedTombstoneKeys.add(key);
   }
 
   const hiddenByTombstone = new Set<string>();
