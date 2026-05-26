@@ -1182,6 +1182,11 @@ export async function listLifecycleUsers(filters: {
 }, database = db) {
   await backfillLifecycleUsers(database);
   const searchWhere = filters.query ? await lifecycleUserSearchWhere(filters.query, database) : undefined;
+  const callbackOnboardingWhere = filters.callback_onboarding === true
+    ? sql`(${userIntakes.metadata} ? 'callback' or ${userIntakes.journey_step} like 'callback_%')`
+    : filters.callback_onboarding === false
+      ? sql`not (${userIntakes.metadata} ? 'callback' or ${userIntakes.journey_step} like 'callback_%')`
+      : undefined;
   const where = [
     filters.entry_point ? eq(userIntakes.entry_point, filters.entry_point) : undefined,
     filters.user_type ? eq(userIntakes.user_type, filters.user_type) : undefined,
@@ -1190,9 +1195,7 @@ export async function listLifecycleUsers(filters: {
     sql`${userIntakes.journey_step} not in ('merged_duplicate', 'admin_deleted')`,
     sql`coalesce(${userIntakes.metadata}->>'hidden_from_lifecycle', 'false') <> 'true'`,
     sql`coalesce(${userIntakes.metadata}->>'deleted_from_lifecycle', 'false') <> 'true'`,
-    filters.callback_onboarding
-      ? sql`(${userIntakes.metadata} ? 'callback' or ${userIntakes.journey_step} like 'callback_%')`
-      : undefined,
+    callbackOnboardingWhere,
     searchWhere,
   ].filter(Boolean);
 

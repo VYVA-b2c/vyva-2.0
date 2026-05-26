@@ -18,6 +18,7 @@ import {
 } from "./routes/voiceQaSessionReviews.js";
 import {
   completeCallbackOnboardingToolHandler,
+  completePhoneOnboardingToolHandler,
   failCallbackOnboardingToolHandler,
   recordVoiceRecommendationFeedbackToolHandler,
   retrieveMedicalProfileToolHandler,
@@ -118,6 +119,7 @@ app.post("/api/voice/timeline-events", authMiddleware, requireUser, requireEntit
 app.post("/api/elevenlabs-conversation-token", authMiddleware, requireUser, requireEntitlement("voice_assistant"), conversationTokenHandler);
 app.post("/api/elevenlabs/tools/retrieve-medical-profile", retrieveMedicalProfileToolHandler);
 app.post("/api/elevenlabs/tools/record-voice-recommendation-feedback", recordVoiceRecommendationFeedbackToolHandler);
+app.post("/api/elevenlabs/tools/phone-onboarding/complete", completePhoneOnboardingToolHandler);
 app.post("/api/elevenlabs/tools/callback-onboarding/save-section", saveCallbackOnboardingSectionToolHandler);
 app.post("/api/elevenlabs/tools/callback-onboarding/complete", completeCallbackOnboardingToolHandler);
 app.post("/api/elevenlabs/tools/callback-onboarding/fail", failCallbackOnboardingToolHandler);
