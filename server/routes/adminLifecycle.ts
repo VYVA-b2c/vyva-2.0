@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { db, pool } from "../db.js";
 import { getActiveProfileContext } from "../lib/profileAccess.js";
@@ -491,6 +491,183 @@ function phoneDigits(value: string | null): string | null {
   if (!value) return null;
   const digits = value.replace(/\D/g, "");
   return digits ? digits : null;
+}
+
+function addIfPresent(target: Set<string>, value: string | null | undefined) {
+  if (value) target.add(value);
+}
+
+function addNormalizedEmail(target: Set<string>, value: unknown) {
+  const email = normalizedEmail(value);
+  if (email) target.add(email);
+}
+
+function addNormalizedPhone(target: Set<string>, value: unknown) {
+  const phone = normalizedPhoneOrNull(value);
+  if (phone) target.add(phone);
+}
+
+function combineWhere(clauses: SQL[]): SQL | undefined {
+  if (!clauses.length) return undefined;
+  return clauses.length === 1 ? clauses[0] : or(...clauses);
+}
+
+function emailInClause(column: SQL, emails: string[]) {
+  if (!emails.length) return undefined;
+  return sql`${column} in (${sql.join(emails.map((email) => sql`${email}`), sql`, `)})`;
+}
+
+function phoneMatchClauses(column: SQL, phones: string[]) {
+  return phones.flatMap((phone) => {
+    const digits = phoneDigits(phone);
+    return [
+      sql`regexp_replace(coalesce(${column}, ''), '[^0-9+]', '', 'g') = ${phone}`,
+      ...(digits ? [sql`regexp_replace(coalesce(${column}, ''), '[^0-9]', '', 'g') = ${digits}`] : []),
+    ];
+  });
+}
+
+function profileIdentityWhere(input: { ids: string[]; emails: string[]; phones: string[] }) {
+  const clauses: SQL[] = [];
+  if (input.ids.length) clauses.push(inArray(profiles.id, input.ids));
+  const emailClause = emailInClause(sql`lower(coalesce(${profiles.email}, ''))`, input.emails);
+  if (emailClause) clauses.push(emailClause);
+  clauses.push(...phoneMatchClauses(sql`${profiles.phone_number}`, input.phones));
+  clauses.push(...phoneMatchClauses(sql`${profiles.whatsapp_number}`, input.phones));
+  return combineWhere(clauses);
+}
+
+function legacyUserIdentityWhere(input: { ids: string[]; emails: string[]; phones: string[] }) {
+  const clauses: SQL[] = [];
+  if (input.ids.length) clauses.push(inArray(users.id, input.ids));
+  const emailClause = emailInClause(sql`lower(coalesce(${users.email}, ''))`, input.emails);
+  if (emailClause) clauses.push(emailClause);
+  clauses.push(...phoneMatchClauses(sql`${users.phone_number}`, input.phones));
+  return combineWhere(clauses);
+}
+
+function lifecycleIntakeIdentityWhere(input: {
+  selectedIntakeId: string;
+  ids: string[];
+  emails: string[];
+  phones: string[];
+}) {
+  const clauses: SQL[] = [eq(userIntakes.id, input.selectedIntakeId)];
+  if (input.ids.length) {
+    clauses.push(or(
+      inArray(userIntakes.user_id, input.ids),
+      inArray(userIntakes.elder_user_id, input.ids),
+      inArray(userIntakes.family_user_id, input.ids),
+    )!);
+  }
+  const emailClause = emailInClause(sql`lower(coalesce(${userIntakes.email}, ''))`, input.emails);
+  if (emailClause) clauses.push(emailClause);
+  clauses.push(...phoneMatchClauses(sql`${userIntakes.phone}`, input.phones));
+  return combineWhere(clauses)!;
+}
+
+async function lifecycleIdentityScope(intake: typeof userIntakes.$inferSelect) {
+  const ids = new Set<string>();
+  const emails = new Set<string>();
+  const phones = new Set<string>();
+  const intakeIds = new Set<string>([intake.id]);
+
+  addIfPresent(ids, intake.user_id);
+  addIfPresent(ids, intake.elder_user_id);
+  addIfPresent(ids, intake.family_user_id);
+  addIfPresent(ids, targetUserIdForIntake(intake));
+  addNormalizedEmail(emails, intake.email);
+  addNormalizedPhone(phones, intake.phone);
+
+  const seedProfile = await profileById(targetUserIdForIntake(intake));
+  if (seedProfile) {
+    addIfPresent(ids, seedProfile.id);
+    addNormalizedEmail(emails, seedProfile.email);
+    addNormalizedPhone(phones, seedProfile.phone_number);
+    addNormalizedPhone(phones, seedProfile.whatsapp_number);
+  }
+
+  const addAccounts = async () => {
+    const emailValues = Array.from(emails);
+    const phoneValues = Array.from(phones);
+    const [legacyByEmail, legacyByPhone, supabaseByEmail, supabaseByPhone] = await Promise.all([
+      Promise.all(emailValues.map((email) => searchLegacyAccountsExact({ email, phone: null }))),
+      Promise.all(phoneValues.map((phone) => searchLegacyAccountsExact({ email: null, phone }))),
+      Promise.all(emailValues.map((email) => searchSupabaseAuthAccountsExact({ email, phone: null }))),
+      Promise.all(phoneValues.map((phone) => searchSupabaseAuthAccountsExact({ email: null, phone }))),
+    ]);
+
+    for (const account of legacyByEmail.flat().concat(legacyByPhone.flat())) {
+      addIfPresent(ids, account.id);
+      addIfPresent(ids, account.active_profile_id);
+      addNormalizedEmail(emails, account.email);
+      addNormalizedPhone(phones, account.phone_number);
+    }
+    for (const account of supabaseByEmail.flat().concat(supabaseByPhone.flat())) {
+      addIfPresent(ids, account.id);
+      addNormalizedEmail(emails, account.email);
+      addNormalizedPhone(phones, account.phone_number);
+    }
+  };
+
+  const addProfiles = async () => {
+    const where = profileIdentityWhere({
+      ids: Array.from(ids),
+      emails: Array.from(emails),
+      phones: Array.from(phones),
+    });
+    if (!where) return;
+    const profileRows = await db.select({
+      id: profiles.id,
+      email: profiles.email,
+      phone_number: profiles.phone_number,
+      whatsapp_number: profiles.whatsapp_number,
+    }).from(profiles).where(where);
+    for (const profile of profileRows) {
+      addIfPresent(ids, profile.id);
+      addNormalizedEmail(emails, profile.email);
+      addNormalizedPhone(phones, profile.phone_number);
+      addNormalizedPhone(phones, profile.whatsapp_number);
+    }
+  };
+
+  await addAccounts();
+  await addProfiles();
+  await addAccounts();
+  await addProfiles();
+
+  const intakeWhere = lifecycleIntakeIdentityWhere({
+    selectedIntakeId: intake.id,
+    ids: Array.from(ids),
+    emails: Array.from(emails),
+    phones: Array.from(phones),
+  });
+  const matchingIntakes = await db.select({
+    id: userIntakes.id,
+    user_id: userIntakes.user_id,
+    elder_user_id: userIntakes.elder_user_id,
+    family_user_id: userIntakes.family_user_id,
+    email: userIntakes.email,
+    phone: userIntakes.phone,
+  }).from(userIntakes).where(intakeWhere);
+
+  for (const row of matchingIntakes) {
+    intakeIds.add(row.id);
+    addIfPresent(ids, row.user_id);
+    addIfPresent(ids, row.elder_user_id);
+    addIfPresent(ids, row.family_user_id);
+    addNormalizedEmail(emails, row.email);
+    addNormalizedPhone(phones, row.phone);
+  }
+
+  await addProfiles();
+
+  return {
+    ids: Array.from(ids),
+    emails: Array.from(emails),
+    phones: Array.from(phones),
+    intakeIds: Array.from(intakeIds),
+  };
 }
 
 async function searchSupabaseAuthAccountsExact(input: { email?: string | null; phone?: string | null }): Promise<SupabaseAuthAccount[]> {
@@ -1781,17 +1958,43 @@ adminLifecycleRouter.post("/users/:id/disable", async (req: Request, res: Respon
   if (!intake) return res.status(404).json({ error: "User intake not found" });
   const userId = targetUserIdForIntake(intake);
   if (!userId) return res.status(400).json({ error: "This intake is not linked to a profile yet" });
+  const scope = await lifecycleIdentityScope(intake);
+  const disabledAt = new Date();
+  const profileWhere = profileIdentityWhere(scope);
 
-  const [profile] = await db.update(profiles).set({
-    account_status: "disabled",
-    disabled_at: new Date(),
-    disabled_reason: reason || "Disabled by admin",
-    disabled_by: "admin",
-    updated_at: new Date(),
-  }).where(eq(profiles.id, userId)).returning();
+  const disabledProfiles = profileWhere
+    ? await db.update(profiles).set({
+      account_status: "disabled",
+      disabled_at: disabledAt,
+      disabled_reason: reason || "Disabled by admin",
+      disabled_by: "admin",
+      updated_at: disabledAt,
+    }).where(profileWhere).returning()
+    : [];
 
-  await recordEvent({ intakeId: intake.id, userId, eventType: "user_disabled", channel: "admin", metadata: { reason } });
-  return res.json({ profile });
+  await db.update(userIntakes).set({
+    status: "dropped",
+    journey_step: "admin_disabled",
+    dropped_at: disabledAt,
+    last_activity_at: disabledAt,
+    updated_at: disabledAt,
+  }).where(lifecycleIntakeIdentityWhere({
+    selectedIntakeId: intake.id,
+    ids: scope.ids,
+    emails: scope.emails,
+    phones: scope.phones,
+  }));
+
+  await recordEvent({
+    intakeId: intake.id,
+    userId,
+    eventType: "user_disabled",
+    fromStatus: intake.status,
+    toStatus: "dropped",
+    channel: "admin",
+    metadata: { reason, matched_profile_ids: disabledProfiles.map((profile) => profile.id) },
+  });
+  return res.json({ profile: disabledProfiles[0] ?? null, profiles: disabledProfiles });
 });
 
 adminLifecycleRouter.post("/users/:id/enable", async (req: Request, res: Response) => {
@@ -1800,17 +2003,46 @@ adminLifecycleRouter.post("/users/:id/enable", async (req: Request, res: Respons
   if (!intake) return res.status(404).json({ error: "User intake not found" });
   const userId = targetUserIdForIntake(intake);
   if (!userId) return res.status(400).json({ error: "This intake is not linked to a profile yet" });
+  const scope = await lifecycleIdentityScope(intake);
+  const enabledAt = new Date();
+  const profileWhere = profileIdentityWhere(scope);
 
-  const [profile] = await db.update(profiles).set({
-    account_status: "enabled",
-    disabled_at: null,
-    disabled_reason: null,
-    disabled_by: null,
-    updated_at: new Date(),
-  }).where(eq(profiles.id, userId)).returning();
+  const enabledProfiles = profileWhere
+    ? await db.update(profiles).set({
+      account_status: "enabled",
+      disabled_at: null,
+      disabled_reason: null,
+      disabled_by: null,
+      updated_at: enabledAt,
+    }).where(profileWhere).returning()
+    : [];
 
-  await recordEvent({ intakeId: intake.id, userId, eventType: "user_enabled", channel: "admin" });
-  return res.json({ profile });
+  await db.update(userIntakes).set({
+    status: "active",
+    journey_step: "admin_enabled",
+    dropped_at: null,
+    last_activity_at: enabledAt,
+    updated_at: enabledAt,
+  }).where(and(
+    lifecycleIntakeIdentityWhere({
+      selectedIntakeId: intake.id,
+      ids: scope.ids,
+      emails: scope.emails,
+      phones: scope.phones,
+    }),
+    sql`coalesce((${userIntakes.metadata}->>'hidden_from_lifecycle')::boolean, false) = false`,
+  ));
+
+  await recordEvent({
+    intakeId: intake.id,
+    userId,
+    eventType: "user_enabled",
+    fromStatus: intake.status,
+    toStatus: "active",
+    channel: "admin",
+    metadata: { matched_profile_ids: enabledProfiles.map((profile) => profile.id) },
+  });
+  return res.json({ profile: enabledProfiles[0] ?? null, profiles: enabledProfiles });
 });
 
 adminLifecycleRouter.delete("/users/:id", async (req: Request, res: Response) => {
@@ -1829,6 +2061,7 @@ adminLifecycleRouter.delete("/users/:id", async (req: Request, res: Response) =>
   };
   const deletedAt = new Date();
   const deletedBy = req.user?.email ?? req.user?.id ?? "admin";
+  const scope = await lifecycleIdentityScope(intake);
 
   await optionalAdminDelete("communications for intake", db.delete(communicationsLog).where(eq(communicationsLog.intake_id, intake.id)));
   await optionalAdminDelete("consent attempts for intake", db.delete(consentAttempts).where(eq(consentAttempts.intake_id, intake.id)));
@@ -1894,42 +2127,67 @@ adminLifecycleRouter.delete("/users/:id", async (req: Request, res: Response) =>
       db.delete(profileMemberships).where(or(eq(profileMemberships.profile_id, userId), eq(profileMemberships.user_id, userId))),
     );
     await optionalAdminDelete("legacy active profile links", db.update(users).set({ active_profile_id: null }).where(eq(users.active_profile_id, userId)));
-
-    const deletedProfiles = await db.delete(profiles).where(eq(profiles.id, userId)).returning({ id: profiles.id });
-    deleted.profile = deletedProfiles.length > 0;
-    const deletedLogins = await optionalAdminRows(db.delete(users).where(eq(users.id, userId)).returning({ id: users.id }));
-    deleted.login = deletedLogins.length > 0;
   }
 
-  const [hiddenIntake] = await db.update(userIntakes).set({
-    status: "dropped",
-    journey_step: "admin_deleted",
-    dropped_at: deletedAt,
-    last_activity_at: deletedAt,
-    updated_at: deletedAt,
-    metadata: {
-      ...jsonRecord(intake.metadata),
-      hidden_from_lifecycle: true,
-      deleted_from_lifecycle: true,
-      deleted_at: deletedAt.toISOString(),
-      deleted_by: deletedBy,
-      deleted_identity: {
-        user_id: intake.user_id,
-        elder_user_id: intake.elder_user_id,
-        family_user_id: intake.family_user_id,
-        name: intake.name,
-        email: intake.email,
-        phone: intake.phone,
-      },
-      delete_cleanup: {
-        profile_deleted: deleted.profile,
-        login_deleted: deleted.login,
-      },
-    },
-  }).where(eq(userIntakes.id, intake.id)).returning({ id: userIntakes.id });
-  deleted.intake = hiddenIntake != null;
+  const profileWhere = profileIdentityWhere(scope);
+  const deletedProfiles = profileWhere
+    ? await optionalAdminRows(db.delete(profiles).where(profileWhere).returning({ id: profiles.id }))
+    : [];
+  deleted.profile = deletedProfiles.length > 0;
 
-  if (!hiddenIntake) {
+  const loginWhere = legacyUserIdentityWhere(scope);
+  const deletedLogins = loginWhere
+    ? await optionalAdminRows(db.delete(users).where(loginWhere).returning({ id: users.id }))
+    : [];
+  deleted.login = deletedLogins.length > 0;
+
+  const intakeWhere = lifecycleIntakeIdentityWhere({
+    selectedIntakeId: intake.id,
+    ids: scope.ids,
+    emails: scope.emails,
+    phones: scope.phones,
+  });
+  const intakesToHide = await db.select().from(userIntakes).where(intakeWhere);
+  const hiddenIntakeIds: string[] = [];
+
+  for (const row of intakesToHide) {
+    const [hiddenIntake] = await db.update(userIntakes).set({
+      status: "dropped",
+      journey_step: "admin_deleted",
+      dropped_at: deletedAt,
+      last_activity_at: deletedAt,
+      updated_at: deletedAt,
+      metadata: {
+        ...jsonRecord(row.metadata),
+        hidden_from_lifecycle: true,
+        deleted_from_lifecycle: true,
+        deleted_at: deletedAt.toISOString(),
+        deleted_by: deletedBy,
+        deleted_identity: {
+          user_id: row.user_id,
+          elder_user_id: row.elder_user_id,
+          family_user_id: row.family_user_id,
+          name: row.name,
+          email: row.email,
+          phone: row.phone,
+        },
+        deleted_identity_scope: {
+          intake_ids: scope.intakeIds,
+          profile_or_login_ids: scope.ids,
+          emails: scope.emails,
+          phones: scope.phones,
+        },
+        delete_cleanup: {
+          profile_deleted: deleted.profile,
+          login_deleted: deleted.login,
+        },
+      },
+    }).where(eq(userIntakes.id, row.id)).returning({ id: userIntakes.id });
+    if (hiddenIntake) hiddenIntakeIds.push(hiddenIntake.id);
+  }
+  deleted.intake = hiddenIntakeIds.length > 0;
+
+  if (!hiddenIntakeIds.length) {
     return res.status(500).json({ error: "User cleanup ran, but the lifecycle tombstone could not be saved." });
   }
 
@@ -1947,13 +2205,21 @@ adminLifecycleRouter.delete("/users/:id", async (req: Request, res: Response) =>
       name: intake.name,
       email: intake.email,
       phone: intake.phone,
+      hidden_intake_ids: hiddenIntakeIds,
+      identity_scope: {
+        intake_ids: scope.intakeIds,
+        profile_or_login_ids: scope.ids,
+        emails: scope.emails,
+        phones: scope.phones,
+      },
       cleanup: deleted,
     },
   });
 
   return res.json({
     deleted,
-    hidden_intake: Boolean(hiddenIntake),
+    hidden_intake: true,
+    hidden_intake_ids: hiddenIntakeIds,
     user_id: userId,
     intake_id: intake.id,
   });
