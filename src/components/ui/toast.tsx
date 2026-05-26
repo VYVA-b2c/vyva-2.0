@@ -19,7 +19,7 @@ const ToastViewport = React.forwardRef<
     )}
     style={{
       left: "var(--vyva-toast-center-x, 50%)",
-      bottom: "calc(env(safe-area-inset-bottom) + var(--vyva-toast-bottom, clamp(88px, 14vh, 128px)))",
+      bottom: "calc(env(safe-area-inset-bottom) + max(var(--vyva-toast-bottom, 24px), clamp(190px, 42vh, 420px)))",
       width: "min(var(--vyva-toast-width, 420px), calc(100vw - 24px))",
       ...props.style,
     }}
@@ -34,7 +34,7 @@ const toastVariants = cva(
     variants: {
       variant: {
         default: "border-vyva-border bg-white text-vyva-text-1",
-        guidance: "border-vyva-purple/35 bg-white text-vyva-text-1 shadow-[0_20px_56px_rgba(47,33,53,0.26)]",
+        guidance: "border-2 border-vyva-purple/45 bg-white text-vyva-text-1 shadow-[0_24px_70px_rgba(47,33,53,0.30)]",
         destructive: "destructive group border-destructive bg-destructive text-destructive-foreground",
       },
     },
@@ -74,7 +74,7 @@ const ToastClose = React.forwardRef<
   <ToastPrimitives.Close
     ref={ref}
     className={cn(
-      "absolute right-2 top-2 rounded-md p-1 text-foreground/50 opacity-0 transition-opacity group-hover:opacity-100 group-[.destructive]:text-red-300 hover:text-foreground group-[.destructive]:hover:text-red-50 focus:opacity-100 focus:outline-none focus:ring-2 group-[.destructive]:focus:ring-red-400 group-[.destructive]:focus:ring-offset-red-600",
+      "absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/85 p-1 text-foreground/70 opacity-80 shadow-sm transition-opacity group-hover:opacity-100 group-[.destructive]:text-red-300 hover:text-foreground group-[.destructive]:hover:text-red-50 focus:opacity-100 focus:outline-none focus:ring-2 group-[.destructive]:focus:ring-red-400 group-[.destructive]:focus:ring-offset-red-600",
       className,
     )}
     toast-close=""
