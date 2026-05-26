@@ -175,12 +175,12 @@
         "hint": "Ymarfer cyflym"
       },
       "social": {
-        "label": "Cymdeithasol",
+        "label": "My Community",
         "hint": "Sgwrsio am dipyn"
       },
       "concierge": {
-        "label": "Concierge",
-        "hint": "Gofyn am help"
+        "label": "My Concierge",
+        "hint": "Help, appointments and admin"
       }
     },
     "voiceCards": {
@@ -200,18 +200,18 @@
         "openLabel": "Open agile mind"
       },
       "social": {
-        "title": "I connect",
+        "title": "My Community",
         "subtitle": "We chat and you tell me",
         "bubble": "I love listening. You always have someone here.",
         "micLabel": "Talk to VYVA",
-        "openLabel": "Open companionship"
+        "openLabel": "Open community"
       },
       "concierge": {
-        "title": "I lend a hand",
+        "title": "My Concierge",
         "subtitle": "Help, appointments and admin with you",
         "bubble": "Let me handle it. I take care of the difficult bits.",
         "micLabel": "Ask for help by voice",
-        "openLabel": "Open your helper"
+        "openLabel": "Open concierge"
       }
     },
     "whatNow": "or explore a topic"

@@ -14,6 +14,9 @@ import {
   type ScheduledSupport,
   type SubscriptionPlanAdmin,
   type UserDetail,
+  callbackMetadata,
+  callbackScheduledLabel,
+  cleanLabel,
   combineDateTimeLocal,
   emptyScheduledEvent,
   entryPointLabel,
@@ -54,6 +57,14 @@ function supportFrequency(schedule: ScheduledSupport) {
   if (schedule.frequency_type === "ONE_OFF") return `One-off at ${times}`;
   const days = schedule.days_of_week?.length ? schedule.days_of_week.join(", ") : "custom days";
   return `${days} at ${times}`;
+}
+
+function callbackStatusLabel(user: Intake) {
+  const callback = callbackMetadata(user);
+  if (!callback) return null;
+  const status = stringValue(callback.status) || cleanLabel(user.journey_step) || "Callback";
+  const scheduled = callbackScheduledLabel(user);
+  return scheduled ? `${cleanLabel(status)} for ${scheduled}` : cleanLabel(status);
 }
 
 const supportDayOptions = [
@@ -114,6 +125,11 @@ export function IntakeTable({ users, onView, onTriggerConsent, onToggleEnabled, 
             <tr key={user.id} className="rounded-2xl bg-[#fbf8f5]">
               <td className="rounded-l-2xl px-3 py-3">
                 <p className="font-bold">{user.name}</p>
+                {callbackMetadata(user) && (
+                  <p className="mt-1 inline-flex rounded-full bg-[#f3e8ff] px-2.5 py-1 text-xs font-black text-purple-800">
+                    Callback onboarding
+                  </p>
+                )}
                 {(user.login_email || user.login_phone || user.profile_email || user.profile_phone || user.profile_name) && (
                   <div className="mt-1 grid gap-0.5 text-xs font-semibold text-[#7d6b65]">
                     {(user.login_email || user.login_phone) && <span>Login: {user.login_email || user.login_phone}</span>}
@@ -123,14 +139,22 @@ export function IntakeTable({ users, onView, onTriggerConsent, onToggleEnabled, 
               </td>
               {!compact && <td className="px-3 py-3">{user.phone}</td>}
               <td className="px-3 py-3">{user.user_type}</td>
-              <td className="px-3 py-3">{entryPointLabel(user.entry_point)}</td>
+              <td className="px-3 py-3">
+                <span>{entryPointLabel(user.entry_point)}</span>
+                {callbackMetadata(user) && <span className="mt-1 block text-xs font-bold text-purple-700">Scheduled callback</span>}
+              </td>
               <td className="px-3 py-3">
                 <span>{user.tier}</span>
                 {user.intake_tier && user.intake_tier !== user.tier && (
                   <span className="mt-1 block text-xs text-[#8b7a73]">Intake: {user.intake_tier}</span>
                 )}
               </td>
-              <td className="px-3 py-3">{user.status}</td>
+              <td className="px-3 py-3">
+                <span>{user.status}</span>
+                <span className="mt-1 block text-xs font-bold text-[#7d6b65]">
+                  {callbackStatusLabel(user) ?? cleanLabel(user.journey_step)}
+                </span>
+              </td>
               <td className="px-3 py-3">{user.account_status ?? "enabled"}</td>
               <td className="px-3 py-3">{user.consent_status}</td>
               <td className="px-3 py-3">{user.organization_name ?? "-"}</td>

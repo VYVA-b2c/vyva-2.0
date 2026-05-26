@@ -4,6 +4,7 @@ import { db } from "../db.js";
 import { communicationsLog } from "../../shared/schema.js";
 import { explainEmailProviderError, requireEmailFromAddress } from "../lib/emailSenderConfig.js";
 import { buildSignupInviteEmail, signupInviteRecipientNameFromMetadata } from "../lib/signupInviteEmail.js";
+import { queueDueCallbackOnboardingCalls } from "./callbackOnboarding.js";
 import { queueDueConsentCalls } from "./lifecycle.js";
 
 type Communication = typeof communicationsLog.$inferSelect;
@@ -347,6 +348,7 @@ export async function dispatchCommunicationsByIds(ids: string[]): Promise<{ proc
 
 export async function dispatchQueuedCommunications(limit = 25): Promise<{ processed: number; results: DispatchResult[] }> {
   await queueDueConsentCalls(limit);
+  await queueDueCallbackOnboardingCalls(limit);
 
   const queued = await db
     .select()

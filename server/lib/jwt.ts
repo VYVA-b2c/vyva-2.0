@@ -66,6 +66,7 @@ export async function verifyMagicLoginToken(token: string): Promise<string | nul
 
 const MEDICAL_PROFILE_AUDIENCE = "elevenlabs-medical-profile";
 const VOICE_RECOMMENDATION_FEEDBACK_AUDIENCE = "elevenlabs-voice-recommendation-feedback";
+const CALLBACK_ONBOARDING_AUDIENCE = "elevenlabs-callback-onboarding";
 
 export async function signMedicalProfileToolToken(
   userId: string,
@@ -134,6 +135,40 @@ export async function verifyVoiceRecommendationFeedbackToolToken(
       return null;
     }
     return { userId: payload.sub, conversationId: payload.conversation_id };
+  } catch {
+    return null;
+  }
+}
+
+export async function signCallbackOnboardingToolToken(
+  intakeId: string,
+  expiresIn = "12h",
+): Promise<string> {
+  return new SignJWT({
+    sub: intakeId,
+    token_type: "callback_onboarding_tool",
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setAudience(CALLBACK_ONBOARDING_AUDIENCE)
+    .setExpirationTime(expiresIn)
+    .sign(JWT_SECRET);
+}
+
+export async function verifyCallbackOnboardingToolToken(
+  token: string,
+): Promise<{ intakeId: string } | null> {
+  try {
+    const { payload } = await jwtVerify(token, JWT_SECRET, {
+      audience: CALLBACK_ONBOARDING_AUDIENCE,
+    });
+    if (
+      payload.token_type !== "callback_onboarding_tool" ||
+      typeof payload.sub !== "string"
+    ) {
+      return null;
+    }
+    return { intakeId: payload.sub };
   } catch {
     return null;
   }

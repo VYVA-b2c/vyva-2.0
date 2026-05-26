@@ -2,9 +2,15 @@ import type { Request, Response } from "express";
 import { z } from "zod";
 import { getDoctorMedicalProfileVariables } from "../lib/doctorMedicalProfile.js";
 import {
+  verifyCallbackOnboardingToolToken,
   verifyMedicalProfileToolToken,
   verifyVoiceRecommendationFeedbackToolToken,
 } from "../lib/jwt.js";
+import {
+  completeCallbackOnboarding,
+  failCallbackOnboarding,
+  saveCallbackOnboardingSection,
+} from "../services/callbackOnboarding.js";
 import {
   getLatestShownVoiceRecommendation,
   recordVoiceRecommendationFeedback,
@@ -31,6 +37,45 @@ const voiceRecommendationFeedbackSchema = z.object({
   evidence: z.string().optional(),
   outcome: z.string().optional(),
 });
+
+const callbackToolBaseSchema = z.object({
+  intake_id: z.string().uuid(),
+  conversation_id: z.string().min(1).optional().nullable(),
+  onboarding_tool_token: z.string().min(1).optional(),
+  tool_token: z.string().min(1).optional(),
+});
+
+const callbackSaveSectionSchema = callbackToolBaseSchema.extend({
+  section_id: z.string().trim().min(1),
+  consent_confirmed: z.boolean().optional().default(false),
+  data: z.record(z.unknown()).default({}),
+});
+
+const callbackCompleteSchema = callbackToolBaseSchema.extend({
+  consent_confirmed: z.boolean().optional().default(false),
+  confirmation_channel: z.enum(["email", "whatsapp"]),
+  email: z.string().trim().email().optional().nullable(),
+  whatsapp_number: z.string().trim().min(3).optional().nullable(),
+  profile: z.record(z.unknown()).optional().default({}),
+  caregiver: z.record(z.unknown()).optional().default({}),
+  sections: z.record(z.record(z.unknown())).optional().default({}),
+});
+
+const callbackFailSchema = callbackToolBaseSchema.extend({
+  reason: z.string().trim().optional().nullable(),
+});
+
+async function verifyCallbackToolRequest(
+  intakeId: string,
+  token?: string | null,
+) {
+  if (!token) return { ok: false as const, status: 401, error: "Missing onboarding tool token" };
+  const verified = await verifyCallbackOnboardingToolToken(token);
+  if (!verified || verified.intakeId !== intakeId) {
+    return { ok: false as const, status: 403, error: "Invalid or expired onboarding tool token" };
+  }
+  return { ok: true as const };
+}
 
 export async function retrieveMedicalProfileToolHandler(req: Request, res: Response) {
   const parsed = retrieveMedicalProfileSchema.safeParse(req.body);
@@ -151,5 +196,95 @@ export async function recordVoiceRecommendationFeedbackToolHandler(req: Request,
   } catch (err) {
     console.error("[elevenlabs tool record_voice_recommendation_feedback]", err);
     return res.status(500).json({ ok: false, error: "Failed to record recommendation feedback" });
+  }
+}
+
+export async function saveCallbackOnboardingSectionToolHandler(req: Request, res: Response) {
+  const parsed = callbackSaveSectionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ ok: false, error: "Invalid callback onboarding section payload" });
+  }
+
+  const token = parsed.data.onboarding_tool_token ?? parsed.data.tool_token;
+  const verified = await verifyCallbackToolRequest(parsed.data.intake_id, token);
+  if (!verified.ok) return res.status(verified.status).json({ ok: false, error: verified.error });
+  if (!parsed.data.consent_confirmed) {
+    return res.status(400).json({ ok: false, error: "Consent required before saving callback onboarding data" });
+  }
+
+  try {
+    const intake = await saveCallbackOnboardingSection({
+      intakeId: parsed.data.intake_id,
+      conversationId: parsed.data.conversation_id,
+      sectionId: parsed.data.section_id,
+      data: parsed.data.data,
+    });
+    if (!intake) return res.status(404).json({ ok: false, error: "Callback onboarding intake not found" });
+    return res.json({ ok: true, intake_id: intake.id, section_id: parsed.data.section_id });
+  } catch (error) {
+    console.error("[elevenlabs tool callback save-section]", error);
+    return res.status(500).json({ ok: false, error: "Failed to save onboarding section" });
+  }
+}
+
+export async function completeCallbackOnboardingToolHandler(req: Request, res: Response) {
+  const parsed = callbackCompleteSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ ok: false, error: "Invalid callback onboarding completion payload" });
+  }
+
+  const token = parsed.data.onboarding_tool_token ?? parsed.data.tool_token;
+  const verified = await verifyCallbackToolRequest(parsed.data.intake_id, token);
+  if (!verified.ok) return res.status(verified.status).json({ ok: false, error: verified.error });
+  if (!parsed.data.consent_confirmed) {
+    return res.status(400).json({ ok: false, error: "Consent required before completing callback onboarding" });
+  }
+
+  try {
+    const result = await completeCallbackOnboarding({
+      intakeId: parsed.data.intake_id,
+      conversationId: parsed.data.conversation_id,
+      confirmationChannel: parsed.data.confirmation_channel,
+      email: parsed.data.email,
+      whatsappNumber: parsed.data.whatsapp_number,
+      profile: parsed.data.profile,
+      caregiver: parsed.data.caregiver,
+      sections: parsed.data.sections,
+    });
+    if ("error" in result) return res.status(400).json({ ok: false, error: result.error });
+    return res.json({
+      ok: true,
+      intake_id: result.intake.id,
+      profile_id: result.profileId,
+      confirmation_user_id: result.confirmationUserId,
+      communication_id: result.communication.id,
+    });
+  } catch (error) {
+    console.error("[elevenlabs tool callback complete]", error);
+    return res.status(500).json({ ok: false, error: "Failed to complete callback onboarding" });
+  }
+}
+
+export async function failCallbackOnboardingToolHandler(req: Request, res: Response) {
+  const parsed = callbackFailSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ ok: false, error: "Invalid callback onboarding failure payload" });
+  }
+
+  const token = parsed.data.onboarding_tool_token ?? parsed.data.tool_token;
+  const verified = await verifyCallbackToolRequest(parsed.data.intake_id, token);
+  if (!verified.ok) return res.status(verified.status).json({ ok: false, error: verified.error });
+
+  try {
+    const intake = await failCallbackOnboarding({
+      intakeId: parsed.data.intake_id,
+      conversationId: parsed.data.conversation_id,
+      reason: parsed.data.reason,
+    });
+    if (!intake) return res.status(404).json({ ok: false, error: "Callback onboarding intake not found" });
+    return res.json({ ok: true, intake_id: intake.id, status: intake.status });
+  } catch (error) {
+    console.error("[elevenlabs tool callback fail]", error);
+    return res.status(500).json({ ok: false, error: "Failed to mark callback onboarding as failed" });
   }
 }

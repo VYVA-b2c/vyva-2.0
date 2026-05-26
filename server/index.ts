@@ -17,10 +17,14 @@ import {
   saveVoiceQaSessionReviewHandler,
 } from "./routes/voiceQaSessionReviews.js";
 import {
+  completeCallbackOnboardingToolHandler,
+  failCallbackOnboardingToolHandler,
   recordVoiceRecommendationFeedbackToolHandler,
   retrieveMedicalProfileToolHandler,
+  saveCallbackOnboardingSectionToolHandler,
 } from "./routes/elevenlabsTools.js";
 import { onboardingRouter } from "./routes/onboarding.js";
+import callbackOnboardingRouter from "./routes/callbackOnboarding.js";
 import billingRouter from "./routes/billing.js";
 import { adminRouter } from "./routes/admin.js";
 import { adminLifecycleRouter } from "./routes/adminLifecycle.js";
@@ -106,6 +110,7 @@ app.post("/api/bill-reader/analyze", express.json({ limit: "20mb" }), authMiddle
 app.use(express.json({ limit: "20mb" }));
 
 app.post("/api/router", routerHandler);
+app.use("/api/public/callback-onboarding", callbackOnboardingRouter);
 app.post("/api/voice-context", authMiddleware, requireUser, requireEntitlement("voice_assistant"), voiceContextHandler);
 app.post("/api/voice/recommendations/feedback", authMiddleware, requireUser, requireEntitlement("voice_assistant"), voiceRecommendationFeedbackHandler);
 app.get("/api/voice/timeline-events", authMiddleware, requireUser, requireEntitlement("voice_assistant"), listOwnVoiceTimelineEventsHandler);
@@ -113,6 +118,9 @@ app.post("/api/voice/timeline-events", authMiddleware, requireUser, requireEntit
 app.post("/api/elevenlabs-conversation-token", authMiddleware, requireUser, requireEntitlement("voice_assistant"), conversationTokenHandler);
 app.post("/api/elevenlabs/tools/retrieve-medical-profile", retrieveMedicalProfileToolHandler);
 app.post("/api/elevenlabs/tools/record-voice-recommendation-feedback", recordVoiceRecommendationFeedbackToolHandler);
+app.post("/api/elevenlabs/tools/callback-onboarding/save-section", saveCallbackOnboardingSectionToolHandler);
+app.post("/api/elevenlabs/tools/callback-onboarding/complete", completeCallbackOnboardingToolHandler);
+app.post("/api/elevenlabs/tools/callback-onboarding/fail", failCallbackOnboardingToolHandler);
 app.post("/api/meds-voice-parse", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medsVoiceParseHandler);
 app.post("/api/meds-assistant", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medsAssistantHandler);
 app.post("/api/concierge", authMiddleware, requireUser, requireEntitlement("concierge"), conciergeHandler);
