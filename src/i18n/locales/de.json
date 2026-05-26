@@ -223,28 +223,28 @@
       "helper": "Tippen Sie auf eine Karte oder nutzen Sie das Mikrofon.",
       "health": {
         "title": "Meine Gesundheit",
-        "subtitle": "Befinden prüfen",
+        "subtitle": "Symptome, Medikamente und Wohlbefinden",
         "bubble": "Ich bin da, um Ihnen jeden Tag zu helfen.",
         "micLabel": "Über meine Gesundheit sprechen",
         "openLabel": "Wohlbefinden öffnen"
       },
       "cognitive": {
         "title": "Mein Geist",
-        "subtitle": "Geist aktiv halten",
+        "subtitle": "Fokus, Gedächtnis und Ruhe",
         "bubble": "Ein kurzer Moment mit mir hält Ihren Geist aktiv.",
         "micLabel": "Gedächtnisübung starten",
         "openLabel": "Aktiven Geist öffnen"
       },
       "social": {
         "title": "Meine Community",
-        "subtitle": "Kontakt halten",
+        "subtitle": "Räume, Chats und gemeinsame Momente",
         "bubble": "Ich höre Ihnen gern zu. Hier ist immer jemand da.",
         "micLabel": "Mit VYVA sprechen",
         "openLabel": "Community öffnen"
       },
       "concierge": {
         "title": "Mein Concierge",
-        "subtitle": "Buchen und planen",
+        "subtitle": "Buchungen, Erledigungen und Hilfe",
         "bubble": "Lassen Sie mich das übernehmen. Ich kümmere mich darum.",
         "micLabel": "Per Sprache um Hilfe bitten",
         "openLabel": "Concierge öffnen"
