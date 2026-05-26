@@ -43,6 +43,27 @@ function withReturnTo(path: string, returnTo: string): string {
   return `${path}${separator}returnTo=${encodeURIComponent(returnTo)}`;
 }
 
+function setupToastCopy(step: MissingSetupStep) {
+  if (step.section === "subscription") {
+    return {
+      title: "Plan upgrade needed",
+      description: step.reason,
+    };
+  }
+
+  if (step.section === "medications") {
+    return {
+      title: "Add one medication first",
+      description: "Medication reminders and reports need at least one medication in your profile.",
+    };
+  }
+
+  return {
+    title: "Complete this setup step",
+    description: step.reason,
+  };
+}
+
 export function serviceForPath(path: string): ServiceId | null {
   if (path.startsWith("/chat")) return "chat";
   if (path === "/meds") return "medications";
@@ -75,10 +96,11 @@ export function useServiceGate() {
 
       const firstMissing = service.missing[0];
       if (!firstMissing) return true;
+      const toastCopy = setupToastCopy(firstMissing);
 
       toast({
-        title: firstMissing.section === "subscription" ? "Plan upgrade needed" : "A little setup first",
-        description: firstMissing.reason,
+        ...toastCopy,
+        variant: "guidance",
       });
       navigate(withReturnTo(firstMissing.path, returnTo));
       return false;

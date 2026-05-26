@@ -14,7 +14,7 @@ async function fulfillJson(route: Route, status: number, body: unknown) {
   });
 }
 
-function readyServices() {
+function readyServices(overrides: Record<string, unknown> = {}) {
   return {
     medications: { ready: true, missing: [] },
     adherenceReport: { ready: true, missing: [] },
@@ -32,10 +32,11 @@ function readyServices() {
     activities: { ready: true, missing: [] },
     brainTraining: { ready: true, missing: [] },
     chat: { ready: true, missing: [] },
+    ...overrides,
   };
 }
 
-async function mockApi(page: Page, signedIn = false) {
+async function mockApi(page: Page, signedIn = false, readinessOverrides: Record<string, unknown> = {}) {
   if (signedIn) {
     await page.addInitScript((token) => {
       localStorage.setItem("vyva_auth_token", token);
@@ -76,7 +77,7 @@ async function mockApi(page: Page, signedIn = false) {
     }
 
     if (signedIn && url.pathname === "/api/profile/readiness") {
-      await fulfillJson(route, 200, { profile: {}, services: readyServices() });
+      await fulfillJson(route, 200, { profile: {}, services: readyServices(readinessOverrides) });
       return;
     }
 
@@ -312,6 +313,41 @@ test("settings home uses a wider responsive shell on tablet and desktop", async 
   expect(mobileFrameBox).not.toBeNull();
   expect(mobileFrameBox!.width).toBeLessThanOrEqual(390);
   await expectNoHorizontalOverflow(page);
+});
+
+test("service setup guidance is visible and responsive", async ({ page }) => {
+  await mockApi(page, true, {
+    medications: {
+      ready: false,
+      missing: [{
+        section: "medications",
+        path: "/onboarding/profile/medications",
+        reason: "To make medication reminders and reports work, add at least one medication first.",
+      }],
+    },
+  });
+
+  for (const viewport of [
+    { width: 1024, height: 768 },
+    { width: 390, height: 844 },
+    { width: 320, height: 568 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/meds", { waitUntil: "domcontentloaded" });
+
+    const guidanceToast = page.getByTestId("toast-guidance");
+    await expect(guidanceToast).toBeVisible();
+    await expect(guidanceToast.getByText("Add one medication first")).toBeVisible();
+    await expect(guidanceToast.getByText("Medication reminders and reports need at least one medication in your profile.")).toBeVisible();
+
+    const toastBox = await guidanceToast.boundingBox();
+    expect(toastBox).not.toBeNull();
+    expect(toastBox!.x).toBeGreaterThanOrEqual(0);
+    expect(toastBox!.x + toastBox!.width).toBeLessThanOrEqual(viewport.width);
+    expect(toastBox!.y).toBeGreaterThanOrEqual(0);
+    expect(toastBox!.y + toastBox!.height).toBeLessThanOrEqual(viewport.height);
+    await expectNoHorizontalOverflow(page);
+  }
 });
 
 test("profile overview constrains desktop width and switches section rows into cards", async ({ page }) => {

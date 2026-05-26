@@ -19,7 +19,7 @@ const ToastViewport = React.forwardRef<
     )}
     style={{
       left: "var(--vyva-toast-center-x, 50%)",
-      bottom: "calc(env(safe-area-inset-bottom) + var(--vyva-toast-bottom, 24px))",
+      bottom: "calc(env(safe-area-inset-bottom) + var(--vyva-toast-bottom, clamp(88px, 14vh, 128px)))",
       width: "min(var(--vyva-toast-width, 420px), calc(100vw - 24px))",
       ...props.style,
     }}
@@ -33,7 +33,8 @@ const toastVariants = cva(
   {
     variants: {
       variant: {
-        default: "border bg-background text-foreground",
+        default: "border-vyva-border bg-white text-vyva-text-1",
+        guidance: "border-vyva-purple/35 bg-white text-vyva-text-1 shadow-[0_20px_56px_rgba(47,33,53,0.26)]",
         destructive: "destructive group border-destructive bg-destructive text-destructive-foreground",
       },
     },
