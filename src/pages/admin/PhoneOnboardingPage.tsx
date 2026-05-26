@@ -24,6 +24,8 @@ type PhoneIntake = Intake & {
   source_payload?: Record<string, unknown> | null;
 };
 
+type PhoneOnboardingTab = "phone" | "callbacks";
+
 function valueText(value: unknown): string {
   if (value === null || value === undefined || value === "") return "";
   if (Array.isArray(value)) return value.map(valueText).filter(Boolean).join(", ");
@@ -170,24 +172,108 @@ function SummaryCard({ label, value }: { label: string; value: number }) {
   );
 }
 
+function CallbackRequestTable({
+  callbacks,
+  busyAction,
+  onCallNow,
+}: {
+  callbacks: PhoneIntake[];
+  busyAction: string | null;
+  onCallNow: (intake: PhoneIntake) => void;
+}) {
+  return (
+    <section className="mt-4 overflow-auto rounded-[24px] border border-[#eadfd5] bg-white p-4 shadow-sm">
+      <table className="w-full min-w-[880px] border-separate border-spacing-y-2">
+        <thead>
+          <tr className="text-left text-sm uppercase tracking-wide text-[#8b7a73]">
+            <th>Name</th>
+            <th>Phone</th>
+            <th>Scheduled</th>
+            <th>For</th>
+            <th>Language</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {callbacks.length === 0 && (
+            <tr>
+              <td colSpan={7} className="rounded-2xl bg-[#fbf8f5] px-4 py-8 text-center font-bold text-[#7d6b65]">
+                No callback requests match the current filters.
+              </td>
+            </tr>
+          )}
+          {callbacks.map((intake) => {
+            const callback = callbackMetadata(intake);
+            const callbackStatus = cleanLabel(typeof callback?.status === "string" ? callback.status : intake.journey_step);
+            const callbackFor = cleanLabel(typeof callback?.callback_for === "string" ? callback.callback_for : intake.user_type);
+            const callbackLanguage = typeof callback?.language === "string" ? callback.language : "-";
+            const callBusy = busyAction === `callback:${intake.id}`;
+            const callStarted = intake.journey_step === "callback_calling" || callbackStatus === "Calling";
+            const completed = intake.journey_step === "callback_complete_confirmation_queued" || callbackStatus === "Completed";
+
+            return (
+              <tr key={intake.id} className="rounded-2xl bg-[#fbf8f5]">
+                <td className="rounded-l-2xl px-3 py-3">
+                  <p className="font-bold">{profileName(intake)}</p>
+                  <p className="mt-1 text-xs font-semibold text-[#7d6b65]">{intake.email || intake.profile_email || intake.login_email || "No email yet"}</p>
+                </td>
+                <td className="px-3 py-3 font-semibold">{intake.profile_phone || intake.login_phone || intake.phone}</td>
+                <td className="px-3 py-3">{callbackScheduledLabel(intake) ?? "Not scheduled"}</td>
+                <td className="px-3 py-3">{callbackFor}</td>
+                <td className="px-3 py-3 uppercase">{callbackLanguage}</td>
+                <td className="px-3 py-3">
+                  <span className="font-bold">{callbackStatus}</span>
+                  <span className="mt-1 block text-xs font-semibold text-[#7d6b65]">{cleanLabel(intake.status)}</span>
+                </td>
+                <td className="rounded-r-2xl px-3 py-3">
+                  <button
+                    type="button"
+                    className="rounded-full border border-purple-100 bg-white px-3 py-2 text-sm font-bold text-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={callBusy || callStarted || completed}
+                    onClick={() => onCallNow(intake)}
+                  >
+                    {callBusy ? "Calling..." : callStarted ? "Call started" : completed ? "Completed" : "Call now"}
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
 export default function PhoneOnboardingPage() {
+  const [activeTab, setActiveTab] = useState<PhoneOnboardingTab>("phone");
   const [users, setUsers] = useState<PhoneIntake[]>([]);
+  const [callbacks, setCallbacks] = useState<PhoneIntake[]>([]);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [busyAction, setBusyAction] = useState<string | null>(null);
 
-  async function loadPhoneUsers() {
+  async function lifecycleApi(path: string, options: RequestInit = {}) {
+    const res = await apiFetch(`/api/admin/lifecycle${path}`, options);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error ?? "Phone onboarding request failed");
+    return data as Record<string, unknown>;
+  }
+
+  async function loadPhoneUsers(tab: PhoneOnboardingTab = activeTab) {
     setIsLoading(true);
     setMessage("");
     try {
-      const params = new URLSearchParams({ entry_point: "phone" });
+      const params = new URLSearchParams(tab === "callbacks"
+        ? { callback_onboarding: "true" }
+        : { entry_point: "phone", callback_onboarding: "false" });
       if (query.trim()) params.set("query", query.trim());
       if (status) params.set("status", status);
-      const res = await apiFetch(`/api/admin/lifecycle/users?${params.toString()}`);
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? "Could not load phone onboarding users");
-      setUsers(data.users ?? []);
+      const data = await lifecycleApi(`/users?${params.toString()}`);
+      if (tab === "callbacks") setCallbacks((data.users ?? []) as PhoneIntake[]);
+      else setUsers((data.users ?? []) as PhoneIntake[]);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Could not load phone onboarding users");
     } finally {
@@ -195,17 +281,57 @@ export default function PhoneOnboardingPage() {
     }
   }
 
+  async function runDueCallbacks() {
+    setBusyAction("callbacks:dispatch");
+    setMessage("");
+    try {
+      await lifecycleApi("/communications/dispatch", {
+        method: "POST",
+        body: JSON.stringify({ limit: 50 }),
+      });
+      setMessage("Due callbacks checked.");
+      await loadPhoneUsers("callbacks");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Could not check due callbacks.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function triggerCallbackNow(intake: PhoneIntake) {
+    setBusyAction(`callback:${intake.id}`);
+    setMessage("");
+    try {
+      const data = await lifecycleApi(`/callbacks/${intake.id}/trigger`, { method: "POST" });
+      setMessage(typeof data.message === "string" ? data.message : "Callback call started.");
+      await loadPhoneUsers("callbacks");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Could not start this callback.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   useEffect(() => {
     loadPhoneUsers().catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
+  }, [status, activeTab]);
 
-  const summary = useMemo(() => ({
-    total: users.length,
-    active: users.filter((user) => user.status === "active").length,
-    linksSent: users.filter((user) => Boolean(user.link_sent_at) || user.status === "link_sent" || user.status === "active").length,
-    consent: users.filter((user) => user.consent_status && user.consent_status !== "not_required").length,
-  }), [users]);
+  const phoneSummary = useMemo(() => ([
+    ["Phone intakes", users.length],
+    ["Active", users.filter((user) => user.status === "active").length],
+    ["Links sent", users.filter((user) => Boolean(user.link_sent_at) || user.status === "link_sent" || user.status === "active").length],
+    ["Consent flows", users.filter((user) => user.consent_status && user.consent_status !== "not_required").length],
+  ]), [users]);
+
+  const callbackSummary = useMemo(() => ([
+    ["Callbacks", callbacks.length],
+    ["Scheduled", callbacks.filter((user) => user.status === "created" || user.journey_step === "callback_scheduled").length],
+    ["Calling", callbacks.filter((user) => user.journey_step === "callback_calling").length],
+    ["Completed", callbacks.filter((user) => user.journey_step === "callback_complete_confirmation_queued" || user.status === "link_sent" || user.status === "active").length],
+  ]), [callbacks]);
+
+  const activeUsers = activeTab === "callbacks" ? callbacks : users;
 
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-4 py-4 text-[#2f2135] sm:px-6">
@@ -229,19 +355,34 @@ export default function PhoneOnboardingPage() {
         <AdminMenu />
 
         <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-          <SummaryCard label="Phone intakes" value={summary.total} />
-          <SummaryCard label="Active" value={summary.active} />
-          <SummaryCard label="Links sent" value={summary.linksSent} />
-          <SummaryCard label="Consent flows" value={summary.consent} />
+          {(activeTab === "callbacks" ? callbackSummary : phoneSummary).map(([label, value]) => (
+            <SummaryCard key={label} label={label} value={value} />
+          ))}
         </div>
 
+        <nav className="mt-4 flex flex-wrap gap-2">
+          {[
+            { id: "phone" as const, label: "Inbound calls" },
+            { id: "callbacks" as const, label: "Callbacks" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              className={`rounded-xl px-4 py-2 text-sm font-black shadow-sm ${activeTab === tab.id ? "bg-purple-700 text-white" : "border border-purple-100 bg-white text-purple-700 hover:bg-purple-50"}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+
         <section className="mt-4 rounded-[24px] border border-[#eadfd5] bg-white p-4 shadow-sm">
-          <div className="grid gap-3 md:grid-cols-[minmax(260px,1fr)_220px_auto]">
+          <div className="grid gap-3 md:grid-cols-[minmax(260px,1fr)_220px_auto_auto]">
             <label className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#8b7a73]" size={16} />
               <input
                 className="w-full rounded-2xl border border-[#e4d8ce] bg-white py-3 pl-11 pr-4 text-sm outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100"
-                placeholder="Search name, phone or email"
+                placeholder={activeTab === "callbacks" ? "Search callback name, phone or email" : "Search name, phone or email"}
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 onKeyDown={(event) => event.key === "Enter" && loadPhoneUsers().catch(() => undefined)}
@@ -267,18 +408,32 @@ export default function PhoneOnboardingPage() {
             >
               Search
             </button>
+            {activeTab === "callbacks" && (
+              <button
+                type="button"
+                className="rounded-2xl border border-purple-100 bg-white px-5 py-3 text-sm font-black text-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={busyAction === "callbacks:dispatch"}
+                onClick={() => runDueCallbacks()}
+              >
+                {busyAction === "callbacks:dispatch" ? "Checking..." : "Check due"}
+              </button>
+            )}
           </div>
         </section>
 
-        <section className="mt-4 grid gap-4">
+        {activeTab === "callbacks" ? (
+          <CallbackRequestTable callbacks={callbacks} busyAction={busyAction} onCallNow={triggerCallbackNow} />
+        ) : (
+          <section className="mt-4 grid gap-4">
           {isLoading ? (
             <div className="rounded-[24px] border border-[#eadfd5] bg-white p-8 text-center font-bold text-[#8b7a73]">Loading phone onboarding users...</div>
-          ) : users.length === 0 ? (
+          ) : activeUsers.length === 0 ? (
             <div className="rounded-[24px] border border-[#eadfd5] bg-white p-8 text-center font-bold text-[#8b7a73]">No phone onboarding users match the current filters.</div>
           ) : (
-            users.map((user) => <PhoneUserCard key={user.id} user={user} />)
+            activeUsers.map((user) => <PhoneUserCard key={user.id} user={user} />)
           )}
-        </section>
+          </section>
+        )}
       </section>
     </main>
   );

@@ -25,8 +25,6 @@ import {
   type ScheduledSupport,
   type SubscriptionPlanAdmin,
   type UserDetail,
-  callbackMetadata,
-  callbackScheduledLabel,
   cleanLabel,
   countryCodeOptions,
   csvToRows,
@@ -73,7 +71,6 @@ type SupportScheduleDraft = {
 
 const adminTabs = [
   { id: "users", label: "Users" },
-  { id: "callbacks", label: "Callbacks" },
   { id: "share", label: "Share Invite" },
   { id: "invites", label: "Forms" },
   { id: "consent", label: "Consent" },
@@ -143,7 +140,6 @@ export default function LifecycleAdminPage() {
   const [peopleSearch, setPeopleSearch] = useState("");
   const [summary, setSummary] = useState<JsonRecord | null>(null);
   const [users, setUsers] = useState<Intake[]>([]);
-  const [callbacks, setCallbacks] = useState<Intake[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [plans, setPlans] = useState<SubscriptionPlanAdmin[]>([]);
   const [orgFilter, setOrgFilter] = useState<"active" | "archived" | "all">("active");
@@ -188,10 +184,9 @@ export default function LifecycleAdminPage() {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => value && params.set(key, value));
     if (peopleSearch.trim()) params.set("query", peopleSearch.trim());
-    const [summaryData, userData, callbackData, orgData, consentData, commsData, planData] = await Promise.all([
+    const [summaryData, userData, orgData, consentData, commsData, planData] = await Promise.all([
       api("/summary"),
       api(`/users?${params.toString()}`),
-      api("/users?callback_onboarding=true"),
       api("/organizations"),
       api("/consent"),
       api("/communications"),
@@ -199,7 +194,6 @@ export default function LifecycleAdminPage() {
     ]);
     setSummary(summaryData);
     setUsers(userData.users ?? []);
-    setCallbacks(callbackData.users ?? []);
     setOrganizations(orgData.organizations ?? []);
     setConsentAttempts(consentData.attempts ?? []);
     setCommunications(commsData.communications ?? []);
@@ -555,37 +549,6 @@ export default function LifecycleAdminPage() {
       await refresh();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Could not queue consent call.");
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
-  async function runDueCallbacks() {
-    setBusyAction("callbacks:dispatch");
-    setMessage("");
-    try {
-      await api("/communications/dispatch", {
-        method: "POST",
-        body: JSON.stringify({ limit: 50 }),
-      });
-      setMessage("Due callbacks checked. Any scheduled calls that are due have been started.");
-      await refresh();
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Could not check due callbacks.");
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
-  async function triggerCallbackNow(intake: Intake) {
-    setBusyAction(`callback:${intake.id}`);
-    setMessage("");
-    try {
-      const data = await api(`/callbacks/${intake.id}/trigger`, { method: "POST" });
-      setMessage(stringValue(data.message) || "Callback call started.");
-      await refresh();
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Could not start this callback.");
     } finally {
       setBusyAction(null);
     }
@@ -993,9 +956,6 @@ export default function LifecycleAdminPage() {
     ? plans.map((plan) => ({ value: plan.plan_id, label: plan.name }))
     : tiers.map((tier) => ({ value: tier, label: tier[0].toUpperCase() + tier.slice(1) }));
   const creatingFamilyIntake = newIntake.user_type === "family";
-  const callbackSummary = summary?.callbacks && typeof summary.callbacks === "object" && !Array.isArray(summary.callbacks)
-    ? summary.callbacks as JsonRecord
-    : null;
   const canCreateIntake = Boolean(
     newIntake.first_name.trim()
       && newIntake.last_name.trim()
@@ -1020,10 +980,9 @@ export default function LifecycleAdminPage() {
 
         <AdminMenu />
 
-        <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-6">
+        <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5">
           {[
             ["Total", summary?.total ?? 0],
-            ["Callbacks", callbackSummary?.total ?? 0],
             ["Active", summary?.active ?? 0],
             ["Consent", summary?.pendingConsent ?? 0],
             ["Dropped", summary?.dropped ?? 0],
@@ -1221,119 +1180,6 @@ export default function LifecycleAdminPage() {
               ))}
             </div>
             <IntakeTable users={users} onView={(intake) => openUserDetail(intake, "view")} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} onDelete={deleteUser} busyAction={busyAction} />
-          </section>
-        )}
-
-        {activeTab === "callbacks" && (
-          <section className="mt-3 rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h2 className="font-serif text-2xl">Callbacks</h2>
-                <p className="mt-1 text-sm text-[#7d6b65]">Scheduled onboarding calls from the callback form.</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className="rounded-xl border border-purple-100 bg-white px-4 py-2.5 text-sm font-bold text-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={busyAction === "callbacks:dispatch"}
-                  onClick={() => runDueCallbacks()}
-                >
-                  {busyAction === "callbacks:dispatch" ? "Checking..." : "Check due callbacks"}
-                </button>
-                <button
-                  type="button"
-                  className="rounded-xl bg-[#2f2135] px-4 py-2.5 text-sm font-bold text-white"
-                  onClick={() => refresh().catch((err) => setMessage(err.message))}
-                >
-                  Refresh
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4">
-              {[
-                ["Scheduled", callbackSummary?.scheduled ?? 0],
-                ["Calling", callbackSummary?.calling ?? 0],
-                ["Completed", callbackSummary?.completed ?? 0],
-                ["Failed", callbackSummary?.failed ?? 0],
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-2xl bg-[#fbf8f5] px-4 py-3">
-                  <p className="text-xs font-bold uppercase tracking-[0.06em] text-[#8b7a73]">{label}</p>
-                  <p className="mt-1 text-2xl font-black leading-none">{String(value)}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-5 overflow-auto">
-              <table className="w-full min-w-[920px] border-separate border-spacing-y-2">
-                <thead>
-                  <tr className="text-left text-sm uppercase tracking-wide text-[#8b7a73]">
-                    <th>Name</th>
-                    <th>Phone</th>
-                    <th>Scheduled</th>
-                    <th>For</th>
-                    <th>Language</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {callbacks.length === 0 && (
-                    <tr>
-                      <td colSpan={7} className="rounded-2xl bg-[#fbf8f5] px-4 py-6 text-center font-bold text-[#7d6b65]">
-                        No callback requests yet.
-                      </td>
-                    </tr>
-                  )}
-                  {callbacks.map((intake) => {
-                    const callback = callbackMetadata(intake);
-                    const callbackStatus = cleanLabel(stringValue(callback?.status) || intake.journey_step);
-                    const callbackFor = cleanLabel(stringValue(callback?.callback_for) || intake.user_type);
-                    const callbackLanguage = stringValue(callback?.language) || "-";
-                    const callBusy = busyAction === `callback:${intake.id}`;
-                    const callStarted = intake.journey_step === "callback_calling" || callbackStatus === "Calling";
-                    const completed = intake.journey_step === "callback_complete_confirmation_queued" || callbackStatus === "Completed";
-
-                    return (
-                      <tr key={intake.id} className="rounded-2xl bg-[#fbf8f5]">
-                        <td className="rounded-l-2xl px-3 py-3">
-                          <p className="font-bold">{intake.name}</p>
-                          <p className="mt-1 text-xs font-semibold text-[#7d6b65]">{intake.email || "No email yet"}</p>
-                        </td>
-                        <td className="px-3 py-3 font-semibold">{intake.phone}</td>
-                        <td className="px-3 py-3">{callbackScheduledLabel(intake) ?? "Not scheduled"}</td>
-                        <td className="px-3 py-3">{callbackFor}</td>
-                        <td className="px-3 py-3 uppercase">{callbackLanguage}</td>
-                        <td className="px-3 py-3">
-                          <span className="font-bold">{callbackStatus}</span>
-                          <span className="mt-1 block text-xs font-semibold text-[#7d6b65]">{cleanLabel(intake.status)}</span>
-                        </td>
-                        <td className="rounded-r-2xl px-3 py-3">
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              className="rounded-full bg-[#2f2135] px-3 py-2 text-sm font-bold text-white disabled:opacity-60"
-                              disabled={busyAction === `view:${intake.id}`}
-                              onClick={() => openUserDetail(intake, "view")}
-                            >
-                              {busyAction === `view:${intake.id}` ? "Opening..." : "View"}
-                            </button>
-                            <button
-                              type="button"
-                              className="rounded-full border border-purple-100 bg-white px-3 py-2 text-sm font-bold text-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
-                              disabled={callBusy || callStarted || completed}
-                              onClick={() => triggerCallbackNow(intake)}
-                            >
-                              {callBusy ? "Calling..." : callStarted ? "Call started" : completed ? "Completed" : "Call now"}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
           </section>
         )}
 

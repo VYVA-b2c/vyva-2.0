@@ -1331,6 +1331,12 @@ adminLifecycleRouter.patch("/hero-messages/:messageId", async (req: Request, res
   return res.json({ message });
 });
 
+function optionalBooleanParam(value: unknown) {
+  if (value === undefined) return undefined;
+  const normalized = Array.isArray(value) ? value[0] : value;
+  return String(normalized).toLowerCase() === "true";
+}
+
 adminLifecycleRouter.get("/users", async (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
 
@@ -1341,7 +1347,7 @@ adminLifecycleRouter.get("/users", async (req: Request, res: Response) => {
       status: req.query.status as "created" | "link_sent" | "consent_pending" | "active" | "dropped" | undefined,
       tier: req.query.tier ? String(req.query.tier) : undefined,
       query: req.query.query ? String(req.query.query) : undefined,
-      callback_onboarding: req.query.callback_onboarding === "true",
+      callback_onboarding: optionalBooleanParam(req.query.callback_onboarding),
     }),
   });
 });
