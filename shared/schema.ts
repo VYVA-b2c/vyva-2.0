@@ -20,8 +20,8 @@
 // ============================================================
 
 import {
-  pgTable, pgEnum, unique,
-  text, integer, boolean, real, timestamp, uuid, jsonb, date, time
+  pgTable, pgEnum, unique, primaryKey, index,
+  text, integer, boolean, real, timestamp, uuid, jsonb, date, time, numeric
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
@@ -202,12 +202,13 @@ export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 // ============================================================
 
 export const profiles = pgTable("profiles", {
-  id: text("id").primaryKey(),
+  id: uuid("id").primaryKey(),
 
   // Existing
   full_name:              text("full_name"),
   date_of_birth:          text("date_of_birth"),
   language:               text("language").notNull().default("en"),
+  language_preference:    text("language_preference"),
   deployment:             text("deployment").notNull().default("standard"),
   mem0_user_id:           text("mem0_user_id"),
   stripe_customer_id:     text("stripe_customer_id"),
@@ -415,12 +416,13 @@ export type MedicationAdherence = typeof medicationAdherence.$inferSelect;
 
 export const userMedications = pgTable("user_medications", {
   id:              uuid("id").primaryKey().defaultRandom(),
-  user_id:         text("user_id").notNull(),
+  user_id:         uuid("user_id").notNull(),
   medication_name: text("medication_name").notNull(),
   dosage:          text("dosage"),
   frequency:       text("frequency"),
   scheduled_times: text("scheduled_times").array(),
   active:          boolean("active").notNull().default(true),
+  is_active:       boolean("is_active").notNull().default(true),
   added_by:        text("added_by").notNull().default("user"),
   created_at:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -428,6 +430,18 @@ export const userMedications = pgTable("user_medications", {
 export const insertUserMedicationSchema = createInsertSchema(userMedications).omit({ id: true, created_at: true });
 export type InsertUserMedication = z.infer<typeof insertUserMedicationSchema>;
 export type UserMedication = typeof userMedications.$inferSelect;
+
+export const userHealthConditions = pgTable("user_health_conditions", {
+  id:         uuid("id").primaryKey().defaultRandom(),
+  user_id:    uuid("user_id").notNull(),
+  condition:  text("condition").notNull(),
+  is_active:  boolean("is_active").notNull().default(true),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertUserHealthConditionSchema = createInsertSchema(userHealthConditions).omit({ id: true, created_at: true });
+export type InsertUserHealthCondition = z.infer<typeof insertUserHealthConditionSchema>;
+export type UserHealthCondition = typeof userHealthConditions.$inferSelect;
 
 
 // ============================================================
@@ -988,6 +1002,76 @@ export const insertVitalsReadingSchema = createInsertSchema(vitalsReadings).omit
 export type InsertVitalsReading = z.infer<typeof insertVitalsReadingSchema>;
 export type VitalsReading = typeof vitalsReadings.$inferSelect;
 
+// ============================================================
+// VITALS ENGINE: signal readings, baselines, analysis windows, devices
+// ============================================================
+
+export const vyvaSignalReadings = pgTable("vyva_signal_readings", {
+  id:              uuid("id").primaryKey().defaultRandom(),
+  user_id:         uuid("user_id").notNull(),
+  signal_type:     text("signal_type").notNull(),
+  value:           numeric("value", { precision: 8, scale: 2 }).notNull(),
+  recorded_at:     timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+  source:          text("source").notNull().default("manual"),
+  context_tag:     text("context_tag").default("general"),
+  baseline_ref:    numeric("baseline_ref", { precision: 8, scale: 2 }),
+  deviation_pct:   numeric("deviation_pct", { precision: 6, scale: 2 }),
+  quality_flag:    text("quality_flag").notNull().default("clean"),
+  condition_tags:  text("condition_tags").array().default([]),
+  created_at:      timestamp("created_at", { withTimezone: true }).defaultNow(),
+}, (t) => [
+  index("idx_vsr_user_signal_time").on(t.user_id, t.signal_type, t.recorded_at.desc()),
+]);
+
+export const vyvaUserBaselines = pgTable("vyva_user_baselines", {
+  user_id:          uuid("user_id").notNull(),
+  signal_type:      text("signal_type").notNull(),
+  context_tag:      text("context_tag").notNull().default("general"),
+  baseline_mean:    numeric("baseline_mean", { precision: 8, scale: 2 }).notNull(),
+  baseline_stddev:  numeric("baseline_stddev", { precision: 8, scale: 2 }),
+  baseline_p25:     numeric("baseline_p25", { precision: 8, scale: 2 }),
+  baseline_p75:     numeric("baseline_p75", { precision: 8, scale: 2 }),
+  sample_count:     integer("sample_count").default(0),
+  window_days:      integer("window_days").default(14),
+  is_established:   boolean("is_established").default(false),
+  computed_at:      timestamp("computed_at", { withTimezone: true }).defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.user_id, t.signal_type, t.context_tag] }),
+]);
+
+export const vyvaPatternWindows = pgTable("vyva_pattern_windows", {
+  id:                    uuid("id").primaryKey().defaultRandom(),
+  user_id:               uuid("user_id"),
+  analysed_at:           timestamp("analysed_at", { withTimezone: true }).defaultNow(),
+  risk_score:            integer("risk_score"),
+  risk_tier:             text("risk_tier").notNull().default("none"),
+  contributing_signals:  jsonb("contributing_signals").default({}),
+  pattern_labels:        text("pattern_labels").array().default([]),
+  senior_message:        text("senior_message"),
+  caregiver_note:        text("caregiver_note"),
+  recommended_action:    text("recommended_action"),
+  alert_fired:           boolean("alert_fired").default(false),
+  alert_channel:         text("alert_channel"),
+  model_version:         text("model_version").default("v1"),
+}, (t) => [
+  index("idx_vpw_user_time").on(t.user_id, t.analysed_at.desc()),
+]);
+
+export const userDeviceConnections = pgTable("user_device_connections", {
+  id:              uuid("id").primaryKey().defaultRandom(),
+  user_id:         uuid("user_id"),
+  provider:        text("provider").notNull(),
+  is_active:       boolean("is_active").default(true),
+  connected_at:    timestamp("connected_at", { withTimezone: true }).defaultNow(),
+  last_synced_at:  timestamp("last_synced_at", { withTimezone: true }),
+}, (t) => [
+  unique("user_device_connections_user_provider_unique").on(t.user_id, t.provider),
+]);
+
+export const insertVyvaSignalReadingSchema = createInsertSchema(vyvaSignalReadings).omit({ id: true, created_at: true });
+export type InsertVyvaSignalReading = z.infer<typeof insertVyvaSignalReadingSchema>;
+export type VyvaSignalReading = typeof vyvaSignalReadings.$inferSelect;
+
 
 // ============================================================
 // NEW TABLE: utility_review_runs — evidence log for bill reviews
@@ -1515,6 +1599,7 @@ export const schema = {
   caregiverAlerts,
   medicationAdherence,
   userMedications,
+  userHealthConditions,
   onboardingState,
   consentLog,
   teamInvitations,
@@ -1536,6 +1621,10 @@ export const schema = {
   socialConnections,
   triageReports,
   vitalsReadings,
+  vyvaSignalReadings,
+  vyvaUserBaselines,
+  vyvaPatternWindows,
+  userDeviceConnections,
   organizations,
   tierEntitlements,
   userIntakes,

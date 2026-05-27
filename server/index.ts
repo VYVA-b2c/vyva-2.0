@@ -61,6 +61,7 @@ import scheduledSupportRouter from "./routes/scheduledSupport.js";
 import { scanHistoryHandler } from "./routes/history.js";
 import reportsRouter from "./routes/reports.js";
 import vitalsRouter from "./routes/vitals.js";
+import vitalsEngineRouter from "./routes/vitalsEngine.js";
 import specialistsRouter from "./routes/specialists.js";
 import offersRouter, { analyzeOfferDocumentHandler } from "./routes/offers.js";
 import utilitiesRouter from "./routes/utilities.js";
@@ -159,6 +160,7 @@ app.use("/api/meds", authMiddleware, requireUser, requireEntitlement("medication
 app.get("/api/history/scans", authMiddleware, requireUser, scanHistoryHandler);
 app.use("/api/reports", authMiddleware, reportsRouter);
 app.use("/api/vitals", authMiddleware, vitalsRouter);
+app.use("/api/vitals-engine", authMiddleware, requireUser, vitalsEngineRouter);
 app.use("/api/specialists", authMiddleware, requireUser, requireEntitlement("symptom_check"), specialistsRouter);
 app.use("/api/offers", authMiddleware, offersRouter);
 app.use("/api/utilities", authMiddleware, utilitiesRouter);
