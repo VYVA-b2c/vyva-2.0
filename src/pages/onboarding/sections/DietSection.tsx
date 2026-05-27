@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
+import { ProfileSectionHero, seniorTextAreaClassName } from "@/components/onboarding/ProfileSectionHero";
 import { ChipSelector } from "@/components/onboarding/ChipSelector";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -9,9 +10,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiFetch } from "@/lib/queryClient";
 import { useAutoSave } from "@/hooks/useAutoSave";
-import { AutoSaveStatusBadge } from "@/components/onboarding/AutoSaveStatusBadge";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyError } from "@/lib/apiError";
+import { Utensils } from "lucide-react";
 
 const DIET_OPTIONS = [
   "Vegetarian","Vegan","Halal","Kosher","No pork","No shellfish",
@@ -78,14 +79,20 @@ export default function DietSection() {
   };
 
   return (
-    <PhoneFrame subtitle="🥗 Dietary preferences" showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
-      <div className="flex flex-col gap-5 px-4 py-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1">
-            <p className="text-xs text-gray-500 leading-relaxed">Select everything that applies. Used by VYVA to personalise nutrition coaching.</p>
-          </div>
-          <AutoSaveStatusBadge autoSaveStatus={autoSaveStatus} savedFading={savedFading} retryCountdown={retryCountdown} onRetryNow={retryNow} testId="status-diet-autosave" />
-        </div>
+    <PhoneFrame subtitle="Dietary preferences" showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
+      <div className="flex flex-col gap-7 px-1 pb-6 pt-5 sm:px-2 md:px-3">
+        <ProfileSectionHero
+          icon={Utensils}
+          title="Food preferences"
+          kicker="Comfort at meals"
+          description="Tell VYVA what you avoid or prefer so food suggestions, reminders, and concierge help fit your daily life."
+          badges={[
+            { label: "Meal fit", color: "green" },
+            { label: "Health-aware", color: "purple" },
+            { label: "Concierge-ready", color: "amber" },
+          ]}
+          autoSave={{ autoSaveStatus, savedFading, retryCountdown, onRetryNow: retryNow, testId: "status-diet-autosave" }}
+        />
 
         {isLoading ? (
           <div className="flex flex-col gap-3" data-testid="skeleton-diet-content">
@@ -105,10 +112,10 @@ export default function DietSection() {
             />
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-gray-600">Other dietary notes (optional)</Label>
+              <Label className="text-[15px] font-extrabold text-gray-700">Other dietary notes (optional)</Label>
               <textarea
                 data-testid="input-diet-notes"
-                className="w-full border border-purple-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#6b21a8] resize-none"
+                className={seniorTextAreaClassName}
                 rows={3}
                 placeholder="e.g. soft foods only, texture modified, low fibre..."
                 value={notes}
@@ -119,10 +126,10 @@ export default function DietSection() {
         )}
 
         <div className="flex flex-col gap-2 pt-2">
-          <Button data-testid="button-diet-save" onClick={handleSave} disabled={saving || isLoading} className="w-full h-12 font-bold bg-[#6b21a8] hover:bg-[#5b1a8f]">
+          <Button data-testid="button-diet-save" onClick={handleSave} disabled={saving || isLoading} className="h-14 w-full rounded-full bg-[#6b21a8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5b1a8f]">
             {saving ? "Saving..." : "Save dietary preferences"}
           </Button>
-          <button data-testid="button-diet-skip" onClick={() => navigate("/onboarding/profile")} className="text-xs text-gray-400 py-2 text-center">Skip for now</button>
+          <button data-testid="button-diet-skip" onClick={() => navigate("/onboarding/profile")} className="py-2 text-center text-[15px] font-bold text-gray-500">Skip for now</button>
         </div>
       </div>
     </PhoneFrame>

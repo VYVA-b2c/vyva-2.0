@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ChevronLeft, Camera, CheckCircle2, ChevronDown } from "lucide-react";
+import { ChevronLeft, Camera, CheckCircle2, ChevronDown, User } from "lucide-react";
+import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
 import { SiFacebook, SiInstagram, SiWhatsapp } from "react-icons/si";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +13,6 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient, apiFetch } from "@/lib/queryClient";
 import { useAutoSave } from "@/hooks/useAutoSave";
-import { AutoSaveStatusBadge } from "@/components/onboarding/AutoSaveStatusBadge";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyError } from "@/lib/apiError";
 import { LANGUAGES } from "@/i18n/languages";
@@ -54,9 +54,9 @@ const CHANNELS = [
 type ChannelValue = "email" | "in-app" | "whatsapp" | "sms";
 
 const CHANNEL_ROWS: { key: "channel_reports" | "channel_chats" | "channel_notifications"; label: string; icon: string }[] = [
-  { key: "channel_reports",      label: "Reports",       icon: "📋" },
-  { key: "channel_chats",        label: "Chats",         icon: "💬" },
-  { key: "channel_notifications",label: "Notifications", icon: "🔔" },
+  { key: "channel_reports",      label: "Reports",       icon: "Info" },
+  { key: "channel_chats",        label: "Chats",         icon: "Info" },
+  { key: "channel_notifications",label: "Notifications", icon: "Info" },
 ];
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -326,16 +326,21 @@ export default function BasicsSection() {
         <h1 className="flex-1 font-display text-[20px] font-semibold text-vyva-text-1">
           Your basics
         </h1>
-        <AutoSaveStatusBadge
-          autoSaveStatus={autoSaveStatus}
-          savedFading={savedFading}
-          retryCountdown={retryCountdown}
-          onRetryNow={retryNow}
-          testId="status-basics-autosave"
-        />
       </div>
 
-      <div className="mx-auto flex w-full max-w-[560px] flex-1 flex-col space-y-5 overflow-y-auto px-4 pb-8 sm:px-5">
+      <div className="mx-auto flex w-full max-w-[760px] flex-1 flex-col space-y-7 overflow-y-auto px-4 pb-8 sm:px-5">
+        <ProfileSectionHero
+          icon={User}
+          title="About you"
+          kicker="Personal setup"
+          description="Add the basics VYVA needs to speak to you properly, use the right language, and keep contact details clear."
+          badges={[
+            { label: "Your name", color: "purple" },
+            { label: "Language", color: "blue" },
+            { label: "Contact", color: "green" },
+          ]}
+          autoSave={{ autoSaveStatus, savedFading, retryCountdown, onRetryNow: retryNow, testId: "status-basics-autosave" }}
+        />
         {/* Avatar + greeting card */}
         <div className="bg-white rounded-[22px] border border-vyva-border px-5 py-5 flex flex-col items-center gap-3"
              style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
@@ -380,7 +385,7 @@ export default function BasicsSection() {
                style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
             {/* Full name */}
             <div className="px-4 py-3 border-b border-vyva-border space-y-1">
-              <Label className="font-body text-[12px] font-medium text-vyva-text-2">
+              <Label className="font-body text-[15px] font-extrabold text-vyva-text-2">
                 Full name <span className="text-red-400">*</span>
               </Label>
               {isLoading ? <FieldSkeleton /> : (
@@ -389,14 +394,14 @@ export default function BasicsSection() {
                   placeholder="Your full legal name"
                   value={joinFullName(form.firstName, form.lastName)}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="border-0 shadow-none px-0 text-[15px] focus-visible:ring-0 h-9"
+                  className="h-12 rounded-[16px] border-[#DDC7FF] px-4 text-[17px] shadow-[0_8px_20px_rgba(53,28,87,0.05)] focus-visible:ring-4 focus-visible:ring-vyva-purple/15"
                 />
               )}
             </div>
 
             {/* Preferred name */}
             <div className="px-4 py-3 border-b border-vyva-border space-y-1">
-              <Label className="font-body text-[12px] font-medium text-vyva-text-2">
+              <Label className="font-body text-[15px] font-extrabold text-vyva-text-2">
                 Preferred name <span className="font-normal text-vyva-text-3">(optional)</span>
               </Label>
               {isLoading ? <FieldSkeleton /> : (
@@ -405,14 +410,14 @@ export default function BasicsSection() {
                   placeholder="What should VYVA call you?"
                   value={form.preferredName}
                   onChange={(e) => set("preferredName", e.target.value)}
-                  className="border-0 shadow-none px-0 text-[15px] focus-visible:ring-0 h-9"
+                  className="h-12 rounded-[16px] border-[#DDC7FF] px-4 text-[17px] shadow-[0_8px_20px_rgba(53,28,87,0.05)] focus-visible:ring-4 focus-visible:ring-vyva-purple/15"
                 />
               )}
             </div>
 
             {/* Email */}
             <div className="px-4 py-3 border-b border-vyva-border space-y-1">
-              <Label className="font-body text-[12px] font-medium text-vyva-text-2">
+              <Label className="font-body text-[15px] font-extrabold text-vyva-text-2">
                 Email address <span className="font-normal text-vyva-text-3">(optional)</span>
               </Label>
               {isLoading ? <FieldSkeleton /> : (
@@ -424,10 +429,10 @@ export default function BasicsSection() {
                     placeholder="you@example.com"
                     value={form.email}
                     onChange={(e) => set("email", e.target.value)}
-                    className="border-0 shadow-none px-0 text-[15px] focus-visible:ring-0 h-9"
+                    className="h-12 rounded-[16px] border-[#DDC7FF] px-4 text-[17px] shadow-[0_8px_20px_rgba(53,28,87,0.05)] focus-visible:ring-4 focus-visible:ring-vyva-purple/15"
                   />
                   <p className="font-body text-[11px] text-vyva-text-3">
-                    Optional — we'll only use this to send you updates.
+                    Optional - we'll only use this to send you updates.
                   </p>
                 </>
               )}
@@ -435,7 +440,7 @@ export default function BasicsSection() {
 
             {/* Phone */}
             <div className="px-4 py-3 space-y-1">
-              <Label className="font-body text-[12px] font-medium text-vyva-text-2">
+              <Label className="font-body text-[15px] font-extrabold text-vyva-text-2">
                 Phone number
               </Label>
               {isLoading ? <FieldSkeleton /> : (
@@ -446,7 +451,7 @@ export default function BasicsSection() {
                   placeholder="e.g. +34 612 345 678"
                   value={form.phoneLocal}
                   onChange={(e) => setPhoneNumber(e.target.value)}
-                  className="border-0 shadow-none px-0 text-[15px] focus-visible:ring-0 h-9"
+                  className="h-12 rounded-[16px] border-[#DDC7FF] px-4 text-[17px] shadow-[0_8px_20px_rgba(53,28,87,0.05)] focus-visible:ring-4 focus-visible:ring-vyva-purple/15"
                 />
               )}
             </div>
@@ -466,7 +471,7 @@ export default function BasicsSection() {
                     value={dobDay}
                     onValueChange={(v) => { setDobDay(v); handleDobChange(v, dobMonth, dobYear); }}
                   >
-                    <SelectTrigger data-testid="select-basics-dob-day" className="h-10 border-vyva-border text-[14px]">
+                    <SelectTrigger data-testid="select-basics-dob-day" className="h-12 rounded-[16px] border-[#DDC7FF] px-4 text-[16px]">
                       <SelectValue placeholder="Day" />
                     </SelectTrigger>
                     <SelectContent>
@@ -482,7 +487,7 @@ export default function BasicsSection() {
                     value={dobMonth}
                     onValueChange={(v) => { setDobMonth(v); handleDobChange(dobDay, v, dobYear); }}
                   >
-                    <SelectTrigger data-testid="select-basics-dob-month" className="h-10 border-vyva-border text-[14px]">
+                    <SelectTrigger data-testid="select-basics-dob-month" className="h-12 rounded-[16px] border-[#DDC7FF] px-4 text-[16px]">
                       <SelectValue placeholder="Month" />
                     </SelectTrigger>
                     <SelectContent>
@@ -498,7 +503,7 @@ export default function BasicsSection() {
                     value={dobYear}
                     onValueChange={(v) => { setDobYear(v); handleDobChange(dobDay, dobMonth, v); }}
                   >
-                    <SelectTrigger data-testid="select-basics-dob-year" className="h-10 border-vyva-border text-[14px]">
+                    <SelectTrigger data-testid="select-basics-dob-year" className="h-12 rounded-[16px] border-[#DDC7FF] px-4 text-[16px]">
                       <SelectValue placeholder="Year" />
                     </SelectTrigger>
                     <SelectContent>
@@ -529,7 +534,7 @@ export default function BasicsSection() {
                       key={row.key}
                       className={`px-4 py-3 ${idx < CHANNEL_ROWS.length - 1 ? "border-b border-vyva-border" : ""}`}
                     >
-                      <p className="font-body text-[12px] font-semibold text-vyva-text-2 mb-2 flex items-center gap-1.5">
+                      <p className="mb-3 flex items-center gap-1.5 font-body text-[15px] font-extrabold text-vyva-text-2">
                         <span>{row.icon}</span>
                         {row.label}
                       </p>
@@ -540,7 +545,7 @@ export default function BasicsSection() {
                             type="button"
                             data-testid={`button-basics-${row.key}-${ch.value}`}
                             onClick={() => set(row.key, ch.value)}
-                            className={`py-2 rounded-full font-body text-[13px] font-medium transition-colors ${
+                            className={`min-h-11 rounded-full px-3 font-body text-[15px] font-black transition-colors ${
                               form[row.key] === ch.value
                                 ? "bg-vyva-purple text-white"
                                 : "bg-vyva-warm text-vyva-text-2 hover:bg-vyva-warm2"
@@ -559,7 +564,7 @@ export default function BasicsSection() {
                   <div className="flex items-start gap-3">
                     <div className="flex-1 min-w-0">
                       <p className="font-body text-[14px] font-semibold text-vyva-text-1 flex items-center gap-1.5">
-                        <span>✨</span>
+                        <span>Smart</span>
                         Hybrid mode
                       </p>
                       <p className="font-body text-[12px] text-vyva-text-3 leading-[1.45] mt-0.5">
@@ -585,7 +590,7 @@ export default function BasicsSection() {
                style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
             {isLoading ? <FieldSkeleton /> : (
               <Select value={form.language} onValueChange={(v) => set("language", v as BasicsForm["language"])}>
-                <SelectTrigger data-testid="select-basics-language" className="h-11 border-0 shadow-none px-0 text-[15px] focus:ring-0">
+                <SelectTrigger data-testid="select-basics-language" className="h-12 rounded-[16px] border-[#DDC7FF] px-4 text-[17px] shadow-[0_8px_20px_rgba(53,28,87,0.05)]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -630,7 +635,7 @@ export default function BasicsSection() {
                 <div className="flex-1 min-w-0">
                   <p className="font-body text-[14px] font-medium text-vyva-text-1">Facebook</p>
                   <p className="font-body text-[12px] text-vyva-text-3 leading-[1.4] mt-0.5">
-                    Summarise a meaningful day out • Share a big life moment • Send condolences on your behalf
+                    Summarise a meaningful day out, share a big life moment, send condolences on your behalf
                   </p>
                 </div>
                 <Toggle
@@ -665,7 +670,7 @@ export default function BasicsSection() {
                 <div className="flex-1 min-w-0">
                   <p className="font-body text-[14px] font-medium text-vyva-text-1">Instagram</p>
                   <p className="font-body text-[12px] text-vyva-text-3 leading-[1.4] mt-0.5">
-                    Share your kids' big day at the hairdresser • Celebrate a grandchild's first steps
+                    Share your kids' big day at the hairdresser, celebrate a grandchild's first steps
                   </p>
                 </div>
                 <Toggle
@@ -700,7 +705,7 @@ export default function BasicsSection() {
                 <div className="flex-1 min-w-0">
                   <p className="font-body text-[14px] font-medium text-vyva-text-1">WhatsApp</p>
                   <p className="font-body text-[12px] text-vyva-text-3 leading-[1.4] mt-0.5">
-                    Pass on condolences from a friend • Wish a loved one happy birthday in your own words
+                    Pass on condolences from a friend, wish a loved one happy birthday in your own words
                   </p>
                 </div>
                 <Toggle
@@ -736,7 +741,7 @@ export default function BasicsSection() {
             type="button"
             onClick={handleSave}
             disabled={saving || isLoading || !isValid || saveSuccess}
-            className="w-full py-4 rounded-full font-body text-[17px] font-semibold text-white disabled:opacity-40 flex items-center justify-center gap-2 transition-all"
+            className="flex w-full items-center justify-center gap-2 rounded-full py-4 font-body text-[18px] font-black text-white shadow-[0_14px_28px_rgba(107,33,168,0.22)] transition-all disabled:opacity-40"
             style={{ background: saveSuccess ? "#16A34A" : "#6B21A8" }}
           >
             {saveSuccess ? (
@@ -745,7 +750,7 @@ export default function BasicsSection() {
                 Saved!
               </>
             ) : saving ? (
-              "Saving…"
+              "Saving..."
             ) : (
               "Looks good, save!"
             )}
@@ -754,7 +759,7 @@ export default function BasicsSection() {
             data-testid="button-basics-skip"
             type="button"
             onClick={() => navigate("/onboarding/profile")}
-            className="w-full text-center font-body text-[13px] text-vyva-text-3 py-2"
+            className="w-full py-2 text-center font-body text-[15px] font-bold text-vyva-text-3"
           >
             Skip for now
           </button>

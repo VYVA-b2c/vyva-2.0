@@ -28,7 +28,7 @@ export function ChipSelector({
   return (
     <div
       data-testid="chip-selector"
-      className={`flex flex-wrap gap-2 sm:gap-2.5 ${className}`}
+      className={`grid grid-cols-1 gap-3 min-[460px]:grid-cols-2 ${className}`}
     >
       {options.map((opt) => {
         const active = selected.includes(opt);
@@ -37,10 +37,10 @@ export function ChipSelector({
             key={opt}
             data-testid={`chip-${opt.toLowerCase().replace(/\s+/g, "-")}`}
             onClick={() => toggle(opt)}
-            className={`rounded-full px-3.5 py-2 font-body text-[14px] font-medium transition-colors border sm:px-4 ${
+            className={`min-h-[56px] rounded-[18px] border px-4 py-3 text-left font-body text-[16px] font-black leading-tight shadow-[0_10px_22px_rgba(53,28,87,0.05)] transition-all ${
               active
-                ? "bg-vyva-purple text-white border-vyva-purple"
-                : "bg-white text-vyva-text-1 border-vyva-border hover:border-vyva-purple hover:text-vyva-purple"
+                ? "border-vyva-purple bg-vyva-purple text-white shadow-[0_14px_26px_rgba(107,33,168,0.22)]"
+                : "border-[#E9DDF8] bg-white text-vyva-text-1 hover:border-vyva-purple hover:text-vyva-purple"
             }`}
           >
             {opt}

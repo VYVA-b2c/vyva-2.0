@@ -1,9 +1,10 @@
 // src/pages/onboarding/sections/ConditionsSection.tsx
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Mic, CheckCircle2, ChevronDown } from "lucide-react";
+import { BadgeCheck, CheckCircle2, ChevronDown, HeartPulse, Home, Mic, PersonStanding, Search } from "lucide-react";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
-import { AutoSaveStatusBadge } from "@/components/onboarding/AutoSaveStatusBadge";
+import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
+import { SeniorChoiceChips, type SeniorChoiceOption } from "@/components/onboarding/SeniorChoiceChips";
 import SpeakItOverlay from "@/components/onboarding/SpeakItOverlay";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,18 +15,18 @@ import { queryClient, apiFetch } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyError } from "@/lib/apiError";
 
-const CATEGORIES: { id: string; emoji: string; label: string }[] = [
-  { id: "heart",       emoji: "🫀", label: "Heart & circulation" },
-  { id: "metabolic",   emoji: "🩸", label: "Metabolic & hormonal" },
-  { id: "respiratory", emoji: "🫁", label: "Respiratory" },
-  { id: "musculo",     emoji: "🦴", label: "Joints, bones & muscles" },
-  { id: "neuro",       emoji: "🧠", label: "Neurological" },
-  { id: "mental",      emoji: "💙", label: "Mental health" },
-  { id: "cancer",      emoji: "🎗️", label: "Cancer & oncology" },
-  { id: "kidney",      emoji: "🫘", label: "Kidney & urinary" },
-  { id: "digestive",   emoji: "🫃", label: "Digestive & gut" },
-  { id: "sensory",     emoji: "👁️", label: "Sensory & skin" },
-  { id: "other",       emoji: "➕", label: "Other" },
+const CATEGORIES: { id: string; marker: string; label: string }[] = [
+  { id: "heart",       marker: "HEART", label: "Heart & circulation" },
+  { id: "metabolic",   marker: "MET", label: "Metabolic & hormonal" },
+  { id: "respiratory", marker: "AIR", label: "Respiratory" },
+  { id: "musculo",     marker: "MOVE", label: "Joints, bones & muscles" },
+  { id: "neuro",       marker: "BRAIN", label: "Neurological" },
+  { id: "mental",      marker: "MOOD", label: "Mental health" },
+  { id: "cancer",      marker: "CARE", label: "Cancer & oncology" },
+  { id: "kidney",      marker: "RENAL", label: "Kidney & urinary" },
+  { id: "digestive",   marker: "GUT", label: "Digestive & gut" },
+  { id: "sensory",     marker: "SENSE", label: "Sensory & skin" },
+  { id: "other",       marker: "MORE", label: "Other" },
 ];
 
 const CONDITION_GROUPS: { cat: string; items: string[] }[] = [
@@ -35,7 +36,7 @@ const CONDITION_GROUPS: { cat: string; items: string[] }[] = [
   { cat: "musculo",    items: ["Osteoarthritis","Rheumatoid arthritis","Psoriatic arthritis","Fibromyalgia","Back pain (chronic)","Hip replacement","Knee replacement","Spinal stenosis","Muscle weakness","Lupus"] },
   { cat: "neuro",      items: ["Dementia","Alzheimer's","Parkinson's disease","Epilepsy","Multiple sclerosis","Peripheral neuropathy","Tremors","Migraine (chronic)","Motor neurone disease","Balance disorder"] },
   { cat: "mental",     items: ["Depression","Anxiety","Bipolar disorder","PTSD","OCD","Loneliness / isolation","Grief / bereavement","Sleep disorder / insomnia"] },
-  { cat: "cancer",     items: ["Active cancer treatment","Cancer — in remission","Cancer — monitoring","Post-surgical recovery","Lymphoedema"] },
+  { cat: "cancer",     items: ["Active cancer treatment","Cancer - in remission","Cancer - monitoring","Post-surgical recovery","Lymphoedema"] },
   { cat: "kidney",     items: ["Chronic kidney disease","Kidney stones","Urinary incontinence","Enlarged prostate (BPH)","Recurrent UTIs","Dialysis"] },
   { cat: "digestive",  items: ["IBS","Crohn's disease","Ulcerative colitis","GERD / Acid reflux","Coeliac disease","Diverticular disease","Liver disease","Gallstones","Constipation (chronic)"] },
   { cat: "sensory",    items: ["Vision impairment","Hearing loss","Glaucoma","Cataracts","Macular degeneration","Tinnitus","Eczema / Psoriasis","Diabetic retinopathy"] },
@@ -115,18 +116,33 @@ function matchConditionsFromTranscript(transcript: string): string[] {
 }
 
 const MOBILITY_OPTIONS = [
-  { value: "independent",          label: "🚶 Fully independent",      sub: "No aids needed" },
-  { value: "stick_or_frame",       label: "🦯 Uses a stick or frame",   sub: "" },
-  { value: "wheelchair_part_time", label: "♿ Wheelchair (part-time)",  sub: "For longer distances" },
-  { value: "wheelchair_full_time", label: "♿ Wheelchair (full-time)",  sub: "Primary mode of movement" },
-  { value: "housebound",           label: "🏠 Housebound",              sub: "Unable to leave home independently" },
+  { value: "independent",          label: " Fully independent",      sub: "No aids needed" },
+  { value: "stick_or_frame",       label: " Uses a stick or frame",   sub: "" },
+  { value: "wheelchair_part_time", label: " Wheelchair (part-time)",  sub: "For longer distances" },
+  { value: "wheelchair_full_time", label: " Wheelchair (full-time)",  sub: "Primary mode of movement" },
+  { value: "housebound",           label: " Housebound",              sub: "Unable to leave home independently" },
+];
+
+const MOBILITY_CHOICES: SeniorChoiceOption[] = [
+  { value: "independent", label: "Independent", description: "No aids needed", icon: <PersonStanding size={17} /> },
+  { value: "stick_or_frame", label: "Stick or frame", icon: <PersonStanding size={17} /> },
+  { value: "wheelchair_part_time", label: "Wheelchair sometimes", description: "For longer distances", icon: <BadgeCheck size={17} /> },
+  { value: "wheelchair_full_time", label: "Wheelchair daily", description: "Primary way to move", icon: <BadgeCheck size={17} /> },
+  { value: "housebound", label: "Mostly at home", description: "Needs help to leave home", icon: <Home size={17} /> },
 ];
 
 const LIVING_OPTIONS = [
-  { value: "alone",        label: "👤 Lives alone" },
-  { value: "with_partner", label: "👫 With partner" },
-  { value: "with_family",  label: "👨‍👩‍👧 With family" },
-  { value: "care_home",    label: "🏡 Care home" },
+  { value: "alone",        label: " Lives alone" },
+  { value: "with_partner", label: " With partner" },
+  { value: "with_family",  label: " With family" },
+  { value: "care_home",    label: " Care home" },
+];
+
+const LIVING_CHOICES: SeniorChoiceOption[] = [
+  { value: "alone", label: "Lives alone", icon: <Home size={17} /> },
+  { value: "with_partner", label: "With partner", icon: <Home size={17} /> },
+  { value: "with_family", label: "With family", icon: <Home size={17} /> },
+  { value: "care_home", label: "Care home", icon: <BadgeCheck size={17} /> },
 ];
 
 type SavedCondition = { name: string; category: string };
@@ -261,34 +277,39 @@ export default function ConditionsSection() {
   };
 
   return (
-    <PhoneFrame subtitle="❤️ Health conditions" showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
-      <div className="flex flex-col gap-4 px-4 py-4">
-
-        {/* Guidance */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1">
-            <p className="text-xs text-gray-500 leading-relaxed">Select everything that applies. Tap again to remove.</p>
-          </div>
-          <AutoSaveStatusBadge autoSaveStatus={autoSaveStatus} savedFading={savedFading} retryCountdown={retryCountdown} onRetryNow={retryNow} testId="status-conditions-autosave" />
-        </div>
+    <PhoneFrame subtitle="Health conditions" showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
+      <div className="flex flex-col gap-7 px-1 pb-6 pt-5 sm:px-2 md:px-3">
+        <ProfileSectionHero
+          icon={HeartPulse}
+          title="Health profile"
+          kicker="Better guidance"
+          description="Choose the conditions VYVA should know about so reminders, doctor notes, and health conversations are safer."
+          badges={[
+            { label: "Doctor context", color: "blue" },
+            { label: "Reminder support", color: "purple" },
+            { label: "Safer triage", color: "red" },
+          ]}
+          iconBgClassName="bg-[#B0355A]"
+          autoSave={{ autoSaveStatus, savedFading, retryCountdown, onRetryNow: retryNow, testId: "status-conditions-autosave" }}
+        />
 
         {/* Speak it banner */}
         <button
           type="button"
           data-testid="button-conditions-speak-it"
           onClick={() => setSpeakItOpen(true)}
-          className="flex items-center gap-3 w-full rounded-[14px] px-4 py-3 text-left transition-colors"
+          className="flex min-h-[96px] w-full items-center gap-5 rounded-[28px] border border-[#EDE9FE] bg-[#F5F3FF] px-5 py-5 text-left shadow-[0_16px_36px_rgba(107,33,168,0.10)] transition hover:-translate-y-0.5"
           style={{ background: "#F5F3FF", border: "1px solid #EDE9FE" }}
         >
           <div
-            className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 animate-pulse-ring"
+            className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl animate-pulse-ring"
             style={{ background: "linear-gradient(135deg, #5B12A0 0%, #7C3AED 100%)" }}
           >
             <Mic size={16} className="text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-body text-[14px] font-medium" style={{ color: "#6B21A8" }}>Speak it</p>
-            <p className="font-body text-[12px]" style={{ color: "#7C3AED" }}>Narrate your health history and VYVA will select for you</p>
+            <p className="font-body text-[21px] font-black leading-tight" style={{ color: "#6B21A8" }}>Add by voice</p>
+            <p className="mt-1 font-body text-[16px] leading-snug" style={{ color: "#7C3AED" }}>Tell VYVA your health history. It will select matching conditions.</p>
           </div>
         </button>
 
@@ -337,10 +358,10 @@ export default function ConditionsSection() {
           <>
             {/* Search */}
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+              <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 data-testid="input-conditions-search"
-                className="w-full pl-9 pr-3 py-2 text-sm border border-purple-200 rounded-lg focus:outline-none focus:border-[#6b21a8]"
+                className="h-14 w-full rounded-[18px] border border-[#DDC7FF] bg-white pl-12 pr-4 text-[17px] text-vyva-text-1 shadow-[0_8px_20px_rgba(53,28,87,0.05)] placeholder:text-[#8D7D73] focus:outline-none focus:ring-4 focus:ring-vyva-purple/15"
                 placeholder="Search conditions..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -348,14 +369,14 @@ export default function ConditionsSection() {
             </div>
 
             {/* Selected chip bar */}
-            <div className="bg-purple-50 rounded-lg px-3 py-2 min-h-[36px] flex flex-wrap gap-1.5 items-center">
+            <div className="flex min-h-[64px] flex-wrap items-center gap-2 rounded-[22px] bg-purple-50 px-4 py-3">
               {selected.length === 0 ? (
-                <span className="text-xs text-purple-400 italic">Nothing selected — tap any condition below</span>
+                <span className="text-[15px] font-semibold text-purple-400">Nothing selected - tap any condition below</span>
               ) : (
                 selected.map((name) => (
-                  <span key={name} className="inline-flex items-center gap-1 bg-[#6b21a8] text-white text-[10px] px-2 py-0.5 rounded-full">
+                  <span key={name} className="inline-flex items-center gap-2 rounded-full bg-[#6b21a8] px-3 py-1.5 text-[14px] font-black text-white">
                     {name}
-                    <button onClick={() => removeSelected(name)} className="opacity-70 hover:opacity-100" data-testid={`button-remove-condition-${name.replace(/\s+/g, "-").toLowerCase()}`}>×</button>
+                    <button onClick={() => removeSelected(name)} className="opacity-70 hover:opacity-100" data-testid={`button-remove-condition-${name.replace(/\s+/g, "-").toLowerCase()}`}>x</button>
                   </span>
                 ))
               )}
@@ -377,7 +398,7 @@ export default function ConditionsSection() {
                 return (
                   <div
                     key={group.cat}
-                    className="rounded-[14px] overflow-hidden"
+                    className="overflow-hidden rounded-[22px] shadow-[0_10px_22px_rgba(53,28,87,0.04)]"
                     style={{
                       border: hasSelections ? "1px solid #A78BFA" : "1px solid #EDE5DB",
                       background: hasSelections ? "#FAF8FF" : "#FFFFFF",
@@ -388,11 +409,11 @@ export default function ConditionsSection() {
                       type="button"
                       data-testid={`accordion-${group.cat}`}
                       onClick={() => !isSearching && toggleCat(group.cat)}
-                      className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left"
+                      className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 px-4 py-4 text-left"
                     >
-                      <span className="text-[20px] leading-none">{cat.emoji}</span>
+                      <span className="rounded-full bg-[#F3E8FF] px-2.5 py-1 text-[11px] font-black leading-none text-vyva-purple">{cat.marker}</span>
                       <span className="min-w-0">
-                        <span className="block font-body text-[14px] font-semibold leading-snug text-gray-800">{cat.label}</span>
+                        <span className="block font-body text-[17px] font-black leading-snug text-gray-800">{cat.label}</span>
                         {hasSelections && (
                           <span
                             className="mt-1 inline-flex max-w-full rounded-full px-2 py-0.5 text-[11px] font-bold"
@@ -417,7 +438,7 @@ export default function ConditionsSection() {
                       className="overflow-hidden transition-all duration-300 ease-in-out"
                       style={{ maxHeight: isOpen ? "2000px" : "0px" }}
                     >
-                      <div className="grid grid-cols-1 gap-[8px] px-3 pb-3 min-[360px]:grid-cols-2">
+                      <div className="grid grid-cols-1 gap-3 px-3 pb-4 min-[560px]:grid-cols-2">
                         {visibleItems.map((item) => {
                           const isSelected = selected.includes(item);
                           return (
@@ -427,7 +448,7 @@ export default function ConditionsSection() {
                               data-testid={`card-condition-${item.replace(/\s+/g, "-").toLowerCase()}`}
                               onClick={() => toggleCondition(item)}
                               className={cn(
-                                "flex items-center gap-[10px] rounded-[12px] px-3 py-[10px] text-left transition-all min-h-[52px]",
+                                "flex min-h-[64px] items-center gap-3 rounded-[18px] px-4 py-3 text-left transition-all",
                               )}
                               style={
                                 isSelected
@@ -436,7 +457,7 @@ export default function ConditionsSection() {
                               }
                             >
                               <span
-                                className="font-body text-[12px] font-medium leading-tight flex-1 min-w-0"
+                                className="font-body text-[15px] font-bold leading-tight flex-1 min-w-0"
                                 style={{ color: isSelected ? "#5B12A0" : "#2C2320" }}
                               >
                                 {item}
@@ -456,56 +477,33 @@ export default function ConditionsSection() {
 
             {/* Mobility */}
             <div>
-              <p className="text-xs font-bold text-gray-600 mb-2">Mobility</p>
-              <div className="flex flex-col gap-2">
-                {MOBILITY_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    data-testid={`button-mobility-${opt.value}`}
-                    onClick={() => handleMobility(opt.value)}
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-lg border text-sm font-semibold text-left transition-all",
-                      mobility === opt.value ? "border-[#6b21a8] bg-purple-50" : "border-purple-100 bg-white hover:border-purple-200"
-                    )}
-                  >
-                    <span className="flex-1">{opt.label}</span>
-                    <span className={cn("w-3.5 h-3.5 rounded-full border-2 flex-shrink-0",
-                      mobility === opt.value ? "border-[#6b21a8] bg-[#6b21a8] shadow-[inset_0_0_0_2px_white]" : "border-purple-200"
-                    )} />
-                  </button>
-                ))}
-              </div>
+              <p className="mb-3 text-[15px] font-extrabold text-gray-700">Mobility</p>
+              <SeniorChoiceChips
+                options={MOBILITY_CHOICES}
+                value={mobility}
+                onChange={handleMobility}
+                testIdPrefix="button-mobility"
+              />
             </div>
 
             {/* Living situation */}
             <div>
-              <p className="text-xs font-bold text-gray-600 mb-2">Living situation</p>
-              <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2">
-                {LIVING_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    data-testid={`button-living-${opt.value}`}
-                    onClick={() => handleLiving(opt.value)}
-                    className={cn(
-                      "py-3 px-2 rounded-lg border text-xs font-bold text-center transition-all",
-                      living === opt.value ? "border-[#6b21a8] bg-purple-50" : "border-purple-100 bg-white hover:border-purple-200"
-                    )}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
+              <p className="mb-3 text-[15px] font-extrabold text-gray-700">Living situation</p>
+              <SeniorChoiceChips
+                options={LIVING_CHOICES}
+                value={living}
+                onChange={handleLiving}
+                testIdPrefix="button-living"
+              />
             </div>
           </>
         )}
 
         <div className="flex flex-col gap-2 pt-2">
-          <Button data-testid="button-conditions-save" onClick={handleSave} disabled={saving || isLoading} className="w-full h-12 font-bold bg-[#6b21a8] hover:bg-[#5b1a8f]">
+          <Button data-testid="button-conditions-save" onClick={handleSave} disabled={saving || isLoading} className="h-14 w-full rounded-full bg-[#6b21a8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5b1a8f]">
             {saving ? "Saving..." : "Save health conditions"}
           </Button>
-          <button data-testid="button-conditions-skip" onClick={() => navigate("/onboarding/profile")} className="text-xs text-gray-400 py-2 text-center">
+          <button data-testid="button-conditions-skip" onClick={() => navigate("/onboarding/profile")} className="py-2 text-center text-[15px] font-bold text-gray-500">
             Skip for now
           </button>
         </div>

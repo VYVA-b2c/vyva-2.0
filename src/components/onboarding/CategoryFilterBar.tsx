@@ -14,14 +14,14 @@ export function CategoryFilterBar({
   return (
     <div
       data-testid="category-filter-bar"
-      className={`flex gap-2 overflow-x-auto pb-1 scrollbar-hide ${className}`}
+      className={`flex gap-3 overflow-x-auto pb-1 scrollbar-hide ${className}`}
     >
       {categories.map((cat) => (
         <button
           key={cat.id}
           data-testid={`filter-${cat.id}`}
           onClick={() => onChange(cat.id)}
-          className={`flex-shrink-0 rounded-full px-4 py-1.5 font-body text-[13px] font-medium transition-colors border ${
+          className={`min-h-11 flex-shrink-0 rounded-full border px-5 py-2 font-body text-[15px] font-black transition-colors ${
             active === cat.id
               ? "bg-vyva-purple text-white border-vyva-purple"
               : "bg-white text-vyva-text-2 border-vyva-border"
