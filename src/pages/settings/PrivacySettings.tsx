@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, Eye, Share2, Heart, Shield, FileText } from "lucide-react";
+import { ChevronDown, ChevronLeft, ExternalLink, Eye, FileText, Heart, Lock, Share2, Shield, Users } from "lucide-react";
 import { ToggleRow } from "@/components/onboarding/ToggleRow";
+import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
 import { useLanguage } from "@/i18n";
 
 const PEOPLE = [
@@ -45,28 +46,37 @@ const PrivacySettings = () => {
     }));
 
   return (
-    <div className="min-h-screen bg-vyva-cream flex flex-col">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-5 pt-12 pb-4">
+    <div className="min-h-screen bg-vyva-cream">
+      <div className="mx-auto flex w-full max-w-[920px] items-center gap-3 px-5 pb-4 pt-10">
         <button
           data-testid="button-privacy-back"
           onClick={() => navigate(-1)}
-          className="w-10 h-10 rounded-full bg-white border border-vyva-border flex items-center justify-center"
+          className="flex h-12 w-12 items-center justify-center rounded-full border border-vyva-border bg-white shadow-sm"
         >
-          <ChevronLeft size={20} className="text-vyva-text-1" />
+          <ChevronLeft size={22} className="text-vyva-text-1" />
         </button>
-        <h1 className="font-display text-[22px] font-semibold text-vyva-text-1">{t("settings.privacy.title")}</h1>
+        <h1 className="font-display text-[24px] font-semibold text-vyva-text-1">{t("settings.privacy.title")}</h1>
       </div>
 
-      <div className="flex-1 px-5 space-y-4 pb-8">
-        {/* Global toggles */}
+      <div className="mx-auto w-full max-w-[920px] space-y-7 px-5 pb-10">
+        <ProfileSectionHero
+          icon={Lock}
+          title={t("settings.privacy.title")}
+          kicker="Your choice"
+          description="Keep VYVA useful while staying in control of what is shared, who sees it, and when access can change."
+          badges={[
+            { label: "You decide", color: "purple" },
+            { label: "Care team access", color: "blue" },
+            { label: "GDPR protected", color: "green" },
+          ]}
+        />
+
         <div
-          className="bg-white rounded-[18px] border border-vyva-border overflow-hidden"
-          style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}
+          className="overflow-hidden rounded-[26px] border border-[#EFE4D5] bg-white shadow-[0_14px_34px_rgba(53,28,87,0.06)]"
           data-testid="section-privacy-global"
         >
-          <div className="px-4 py-[11px] bg-vyva-warm border-b border-vyva-border">
-            <span className="font-body text-[12px] font-medium text-vyva-text-2 uppercase tracking-wider">
+          <div className="border-b border-vyva-border bg-vyva-warm px-5 py-4">
+            <span className="font-body text-[13px] font-black uppercase tracking-[0.08em] text-vyva-text-2">
               {t("settings.privacy.vyvaDataUse")}
             </span>
           </div>
@@ -94,24 +104,23 @@ const PrivacySettings = () => {
             href="https://vyva.life/privacypolicy"
             target="_blank"
             rel="noreferrer"
-            className="flex items-center justify-between gap-3 border-t border-vyva-border bg-vyva-cream/40 px-4 py-3 text-left hover:bg-vyva-warm/60"
+            className="flex min-h-[60px] items-center justify-between gap-3 border-t border-vyva-border bg-vyva-cream/40 px-5 py-4 text-left hover:bg-vyva-warm/60"
             data-testid="link-privacy-policy"
           >
-            <span className="font-body text-[13px] font-medium text-vyva-text-2">
+            <span className="font-body text-[15px] font-black text-vyva-text-2">
               {t("settings.home.rows.privacyPolicy")}
             </span>
-            <span className="font-body text-[15px] font-medium text-vyva-purple">↗</span>
+            <ExternalLink size={18} className="text-vyva-purple" />
           </a>
         </div>
 
-        {/* Per-person consents */}
         <div
-          className="bg-white rounded-[18px] border border-vyva-border overflow-hidden"
-          style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}
+          className="overflow-hidden rounded-[26px] border border-[#EFE4D5] bg-white shadow-[0_14px_34px_rgba(53,28,87,0.06)]"
           data-testid="section-privacy-per-person"
         >
-          <div className="px-4 py-[11px] bg-vyva-warm border-b border-vyva-border">
-            <span className="font-body text-[12px] font-medium text-vyva-text-2 uppercase tracking-wider">
+          <div className="flex items-center gap-3 border-b border-vyva-border bg-vyva-warm px-5 py-4">
+            <Users size={18} className="text-vyva-purple" />
+            <span className="font-body text-[13px] font-black uppercase tracking-[0.08em] text-vyva-text-2">
               {t("settings.privacy.whatIShare")}
             </span>
           </div>
@@ -128,27 +137,28 @@ const PrivacySettings = () => {
                 <button
                   data-testid={`button-privacy-expand-${person.id}`}
                   onClick={() => setExpandedPerson(isOpen ? null : person.id)}
-                  className="w-full flex items-center gap-3 px-4 py-[13px] text-left hover:bg-vyva-warm/40"
+                  className="flex w-full items-center gap-4 px-5 py-4 text-left hover:bg-vyva-warm/40"
                 >
                   <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 font-body text-[14px] font-medium text-white"
+                    className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl font-body text-[16px] font-black text-white shadow-[0_10px_22px_rgba(107,33,168,0.16)]"
                     style={{ background: "#6B21A8" }}
                     data-testid={`avatar-privacy-${person.id}`}
                   >
                     {person.name.charAt(0)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-body text-[15px] font-medium text-vyva-text-1">{person.name}</p>
-                    <p className="font-body text-[12px] text-vyva-text-2">{t(person.role)}</p>
+                    <p className="font-body text-[17px] font-black text-vyva-text-1">{person.name}</p>
+                    <p className="font-body text-[14px] text-vyva-text-2">{t(person.role)}</p>
                   </div>
-                  <span className="font-body text-[12px] text-vyva-text-3">
-                    {isOpen ? "▲" : "▼"}
-                  </span>
+                  <ChevronDown
+                    size={18}
+                    className={`text-vyva-text-3 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                  />
                 </button>
 
                 {isOpen && (
                   <div
-                    className="bg-vyva-cream/60 border-t border-vyva-border"
+                    className="border-t border-vyva-border bg-vyva-cream/60"
                     data-testid={`section-privacy-detail-${person.id}`}
                   >
                     <ToggleRow
@@ -188,7 +198,7 @@ const PrivacySettings = () => {
           })}
         </div>
 
-        <p className="font-body text-[11px] text-vyva-text-3 text-center">
+        <p className="font-body text-center text-[13px] font-semibold text-vyva-text-3">
           {t("settings.privacy.gdprFooter")}
         </p>
       </div>
