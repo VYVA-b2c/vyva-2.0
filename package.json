@@ -24,6 +24,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.99.0",
     "@dicebear/core": "^9.4.2",
     "@dicebear/micah": "^9.4.2",
     "@elevenlabs/react": "^1.0.2",
