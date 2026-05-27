@@ -5,6 +5,8 @@ import { eq } from "drizzle-orm";
 import { db } from "../db.js";
 import { profiles } from "../../shared/schema.js";
 import { genderInstruction, inferProfileGender, type GrammaticalGender } from "../lib/userPersonalization.js";
+import { getMediSearchTriageContext, type MediSearchTriageContext } from "../services/medisearch.js";
+import { getDoctorMedicalProfileVariables } from "../lib/doctorMedicalProfile.js";
 
 const router = Router();
 
@@ -31,10 +33,61 @@ interface TriageSummary {
   disclaimer: string;
 }
 
+type TriageQuickReply = {
+  id: string;
+  label: string;
+  value: string;
+  icon: "heart" | "wind" | "thermometer" | "activity" | "alert" | "help";
+  tone: "purple" | "red" | "blue" | "amber" | "green";
+  kind: "symptom" | "red_flag" | "duration" | "severity" | "trend" | "support" | "free_text";
+};
+
+type TriageWizardContext = {
+  mode?: "with_vitals" | "without_vitals";
+  vitalsScanCompleted?: boolean;
+  vitals?: { bpm?: number | null; respiratoryRate?: number | null };
+  quickAnswers?: Array<{ id: string; label: string; value: string; kind?: string }>;
+};
+
+type WizardStage = "symptom" | "red_flag" | "duration" | "severity" | "trend" | "support" | "complete";
+
+type TriageHealthMemory = {
+  healthContext?: string;
+  conditions?: string;
+  allergies?: string;
+  medications?: string;
+  latestVitals?: string;
+  latestSymptomReport?: string;
+};
+
+const CRITICAL_RED_FLAG_IDS = new Set([
+  "chest_pain",
+  "sudden_severe",
+  "breath_rest",
+  "blue_confused",
+  "high_fever",
+  "confused_fever",
+  "stiff_neck",
+  "fainted",
+  "stroke_sign",
+  "dizzy_chest",
+  "cannot_stand",
+  "new_severe",
+]);
+
+const SAFETY_ACTION_IDS = new Set([
+  "call_emergency",
+  "contact_doctor",
+  "make_report",
+  "continue_questions",
+]);
+
 interface TriageRequestBody {
   messages?: ChatMessage[];
   vitals?: { bpm: number | null };
   locale?: string;
+  wizard?: TriageWizardContext;
+  healthMemory?: TriageHealthMemory;
 }
 
 async function getRequestGender(req: Request): Promise<GrammaticalGender> {
@@ -49,7 +102,250 @@ async function getRequestGender(req: Request): Promise<GrammaticalGender> {
   return inferProfileGender(profile?.data_sharing_consent, profile?.full_name ?? "");
 }
 
-function buildSystemPrompt(language: string, bpm: number | null, gender: GrammaticalGender): string {
+function wizardContextText(wizard?: TriageWizardContext): string {
+  if (!wizard) return "";
+
+  const lines = [
+    wizard.mode === "with_vitals"
+      ? "The user chose to begin with a vitals scan."
+      : wizard.mode === "without_vitals"
+        ? "The user chose to skip the vitals scan and answer questions directly."
+        : "",
+    wizard.vitalsScanCompleted ? "The vitals scan step has been completed." : "",
+    typeof wizard.vitals?.respiratoryRate === "number" ? `Estimated respiratory rate: ${wizard.vitals.respiratoryRate} breaths per minute.` : "",
+    wizard.quickAnswers?.length
+      ? `Structured quick answers tapped so far: ${wizard.quickAnswers.map((answer) => `${answer.label} (${answer.value})`).join("; ")}.`
+      : "",
+  ].filter(Boolean);
+
+  return lines.length ? `\n\nWIZARD CONTEXT:\n${lines.join("\n")}` : "";
+}
+
+function healthMemoryText(memory?: TriageHealthMemory): string {
+  if (!memory) return "";
+  const lines = [
+    memory.healthContext ? `Health profile summary: ${memory.healthContext}` : "",
+    memory.conditions ? `Known conditions: ${memory.conditions}` : "",
+    memory.allergies ? `Known allergies: ${memory.allergies}` : "",
+    memory.medications ? `Current medications: ${memory.medications}` : "",
+    memory.latestVitals ? `Latest vitals: ${memory.latestVitals}` : "",
+    memory.latestSymptomReport ? `Latest symptom report: ${memory.latestSymptomReport}` : "",
+  ].filter(Boolean);
+
+  return lines.length
+    ? `\n\nHEALTH MEMORY:\n${lines.join("\n")}\nUse this only to avoid repeated questions and ask more relevant follow-ups. Do not assume it is complete or current.`
+    : "";
+}
+
+function isSpanishLocale(locale: string) {
+  return locale === "es";
+}
+
+function text(locale: string, english: string, spanish: string) {
+  return isSpanishLocale(locale) ? spanish : english;
+}
+
+function reply(
+  locale: string,
+  id: string,
+  kind: TriageQuickReply["kind"],
+  labelEn: string,
+  labelEs: string,
+  valueEn: string,
+  valueEs: string,
+  icon: TriageQuickReply["icon"],
+  tone: TriageQuickReply["tone"],
+): TriageQuickReply {
+  return { id, kind, label: text(locale, labelEn, labelEs), value: text(locale, valueEn, valueEs), icon, tone };
+}
+
+function selectedAnswers(wizard?: TriageWizardContext) {
+  return wizard?.quickAnswers ?? [];
+}
+
+function hasAnswer(wizard: TriageWizardContext | undefined, ids: string[]) {
+  return selectedAnswers(wizard).some((answer) => ids.includes(answer.id));
+}
+
+function firstAnswerKind(wizard: TriageWizardContext | undefined, kind: string) {
+  return selectedAnswers(wizard).find((answer) => answer.kind === kind);
+}
+
+function selectedSafetyAnswer(wizard: TriageWizardContext | undefined) {
+  if (hasAnswer(wizard, Array.from(SAFETY_ACTION_IDS))) return null;
+  return selectedAnswers(wizard).find((answer) => CRITICAL_RED_FLAG_IDS.has(answer.id));
+}
+
+function wizardStage(wizard?: TriageWizardContext): WizardStage {
+  const answers = selectedAnswers(wizard);
+  if (!answers.some((answer) => answer.kind === "symptom")) return "symptom";
+  if (!answers.some((answer) => answer.kind === "red_flag")) return "red_flag";
+  if (!answers.some((answer) => answer.kind === "duration")) return "duration";
+  if (!answers.some((answer) => answer.kind === "severity")) return "severity";
+  if (!answers.some((answer) => answer.kind === "trend")) return "trend";
+  if (!answers.some((answer) => answer.kind === "support")) return "support";
+  return "complete";
+}
+
+function wizardStageLabel(stage: WizardStage, locale: string) {
+  const labels: Record<WizardStage, { en: string; es: string }> = {
+    symptom: { en: "Step 1 of 6: What feels wrong?", es: "Paso 1 de 6: Que sientes?" },
+    red_flag: { en: "Step 2 of 6: Check warning signs", es: "Paso 2 de 6: Senales de alerta" },
+    duration: { en: "Step 3 of 6: How long?", es: "Paso 3 de 6: Desde cuando?" },
+    severity: { en: "Step 4 of 6: How strong?", es: "Paso 4 de 6: Que tan fuerte?" },
+    trend: { en: "Step 5 of 6: Is it changing?", es: "Paso 5 de 6: Esta cambiando?" },
+    support: { en: "Step 6 of 6: What help do you want?", es: "Paso 6 de 6: Que ayuda quieres?" },
+    complete: { en: "Ready to summarize", es: "Listo para resumir" },
+  };
+  return text(locale, labels[stage].en, labels[stage].es);
+}
+
+function quickRepliesFor(wizard: TriageWizardContext | undefined, locale: string): TriageQuickReply[] {
+  const stage = wizardStage(wizard);
+  const answers = selectedAnswers(wizard);
+  const symptom = firstAnswerKind(wizard, "symptom");
+
+  if (stage === "symptom") {
+    return [
+      reply(locale, "pain", "symptom", "Pain", "Dolor", "I have pain.", "Tengo dolor.", "heart", "red"),
+      reply(locale, "breathing", "symptom", "Breathing", "Respirar", "I feel short of breath.", "Me falta el aire.", "wind", "blue"),
+      reply(locale, "fever", "symptom", "Fever", "Fiebre", "I have a fever.", "Tengo fiebre.", "thermometer", "amber"),
+      reply(locale, "dizzy", "symptom", "Dizzy", "Mareo", "I feel dizzy.", "Me siento mareada o mareado.", "activity", "amber"),
+      reply(locale, "tired", "symptom", "Very tired", "Muy cansado", "I feel very tired.", "Me siento muy cansada o cansado.", "activity", "purple"),
+      reply(locale, "other", "free_text", "Something else", "Otra cosa", "Something else is bothering me.", "Me pasa otra cosa.", "help", "purple"),
+    ];
+  }
+
+  if (stage === "red_flag") {
+    if (symptom.id === "pain") {
+      return [
+        reply(locale, "chest_pain", "red_flag", "Chest pain", "Dolor pecho", "I have chest pain.", "Tengo dolor en el pecho.", "alert", "red"),
+        reply(locale, "sudden_severe", "red_flag", "Sudden/severe", "Fuerte repentino", "The pain is sudden or severe.", "El dolor es repentino o fuerte.", "alert", "red"),
+        reply(locale, "after_fall", "red_flag", "After a fall", "Tras caida", "It started after a fall or injury.", "Empezo despues de una caida o golpe.", "activity", "amber"),
+        reply(locale, "no_red_flag", "red_flag", "None of these", "Nada de esto", "None of these apply.", "Nada de esto aplica.", "help", "green"),
+      ];
+    }
+    if (symptom.id === "breathing") {
+      return [
+        reply(locale, "breath_rest", "red_flag", "At rest", "En reposo", "I am short of breath even while resting.", "Me falta el aire incluso en reposo.", "wind", "red"),
+        reply(locale, "blue_confused", "red_flag", "Blue/confused", "Azul/confuso", "I feel blue-lipped, confused, or very unwell.", "Tengo labios azulados, confusion o me siento muy mal.", "alert", "red"),
+        reply(locale, "walking_only", "red_flag", "Walking only", "Al caminar", "It mostly happens when I walk.", "Me pasa sobre todo al caminar.", "activity", "amber"),
+        reply(locale, "no_red_flag", "red_flag", "Mild now", "Leve ahora", "It is mild right now.", "Ahora es leve.", "help", "green"),
+      ];
+    }
+    if (symptom.id === "fever") {
+      return [
+        reply(locale, "high_fever", "red_flag", "Very high", "Muy alta", "My temperature is very high.", "Tengo la temperatura muy alta.", "thermometer", "red"),
+        reply(locale, "confused_fever", "red_flag", "Confused", "Confusion", "I feel confused, very drowsy, or hard to wake.", "Tengo confusion, mucho sueno o cuesta despertarme.", "alert", "red"),
+        reply(locale, "stiff_neck", "red_flag", "Stiff neck", "Cuello rigido", "I have a stiff neck or a new rash.", "Tengo el cuello rigido o una erupcion nueva.", "alert", "red"),
+        reply(locale, "no_red_flag", "red_flag", "None of these", "Nada de esto", "None of these apply.", "Nada de esto aplica.", "help", "green"),
+      ];
+    }
+    if (symptom.id === "dizzy") {
+      return [
+        reply(locale, "fainted", "red_flag", "Fainted", "Desmayo", "I fainted or nearly fainted.", "Me desmaye o casi me desmayo.", "alert", "red"),
+        reply(locale, "stroke_sign", "red_flag", "Weak one side", "Debilidad lado", "I have weakness on one side, face droop, or trouble speaking.", "Tengo debilidad en un lado, cara caida o dificultad para hablar.", "alert", "red"),
+        reply(locale, "dizzy_chest", "red_flag", "With chest pain", "Con dolor pecho", "I also have chest pain or trouble breathing.", "Tambien tengo dolor de pecho o falta de aire.", "heart", "red"),
+        reply(locale, "no_red_flag", "red_flag", "Mild now", "Leve ahora", "It is mild right now.", "Ahora es leve.", "help", "green"),
+      ];
+    }
+    return [
+      reply(locale, "cannot_stand", "red_flag", "Cannot stand", "No puedo estar de pie", "I feel too weak to stand or walk safely.", "Me siento demasiado debil para estar de pie o caminar.", "alert", "red"),
+      reply(locale, "not_drinking", "red_flag", "Not drinking", "No bebo", "I am not drinking or eating normally.", "No estoy bebiendo o comiendo normal.", "alert", "amber"),
+      reply(locale, "new_severe", "red_flag", "New/severe", "Nuevo fuerte", "This is new or much worse than usual.", "Esto es nuevo o mucho peor de lo normal.", "activity", "amber"),
+      reply(locale, "no_red_flag", "red_flag", "None of these", "Nada de esto", "None of these apply.", "Nada de esto aplica.", "help", "green"),
+    ];
+  }
+
+  if (stage === "duration") {
+    return [
+      reply(locale, "today", "duration", "Today", "Hoy", "It started today.", "Empezo hoy.", "activity", "amber"),
+      reply(locale, "few_days", "duration", "2-3 days", "2-3 dias", "It has been going on for two or three days.", "Lleva dos o tres dias.", "activity", "purple"),
+      reply(locale, "week_plus", "duration", "A week+", "Una semana+", "It has been going on for a week or more.", "Lleva una semana o mas.", "activity", "blue"),
+      reply(locale, "not_sure_duration", "duration", "Not sure", "No se", "I am not sure when it started.", "No se cuando empezo.", "help", "purple"),
+    ];
+  }
+
+  if (stage === "severity") {
+    return [
+      reply(locale, "mild", "severity", "Mild", "Leve", "It feels mild.", "Se siente leve.", "activity", "green"),
+      reply(locale, "moderate", "severity", "Moderate", "Medio", "It feels moderate.", "Se siente moderado.", "alert", "amber"),
+      reply(locale, "strong", "severity", "Strong", "Fuerte", "It feels strong.", "Se siente fuerte.", "heart", "red"),
+      reply(locale, "not_sure_severity", "severity", "Not sure", "No se", "I am not sure how strong it is.", "No se que tan fuerte es.", "help", "purple"),
+    ];
+  }
+
+  if (stage === "trend") {
+    return [
+      reply(locale, "better", "trend", "Better", "Mejor", "It is getting better.", "Esta mejorando.", "activity", "green"),
+      reply(locale, "same", "trend", "Same", "Igual", "It feels about the same.", "Se siente igual.", "help", "blue"),
+      reply(locale, "worse", "trend", "Worse", "Peor", "It is getting worse.", "Esta empeorando.", "alert", "red"),
+      reply(locale, "new_symptoms", "trend", "New symptoms", "Nuevos sintomas", "New symptoms have appeared.", "alert", "amber"),
+    ];
+  }
+
+  if (stage === "support") {
+    return [
+      reply(locale, "doctor_help", "support", "Doctor help", "Ayuda medica", "I would like help deciding whether to contact a doctor.", "Quiero ayuda para decidir si contactar a un medico.", "heart", "red"),
+      reply(locale, "watch_home", "support", "Watch at home", "Vigilar en casa", "I want to know what to watch at home.", "Quiero saber que vigilar en casa.", "activity", "green"),
+      reply(locale, "share_report", "support", "Make report", "Crear informe", "Please make a clear report I can share.", "Por favor crea un informe claro para compartir.", "help", "purple"),
+      reply(locale, "not_sure_support", "support", "Not sure", "No se", "I am not sure what I need.", "No se que necesito.", "help", "amber"),
+    ];
+  }
+
+  return [
+    reply(locale, "yes", "support", "Yes", "Si", "Yes.", "Si.", "heart", "green"),
+    reply(locale, "no", "support", "No", "No", "No.", "No.", "alert", "red"),
+    reply(locale, "not_sure", "support", "Not sure", "No se", "I am not sure.", "No estoy segura o seguro.", "help", "purple"),
+  ];
+}
+
+function safetyMessage(locale: string, warningLabel: string) {
+  return text(
+    locale,
+    `${warningLabel} can be a warning sign. If this feels severe, sudden, or unsafe, please call emergency services now or ask someone nearby to help you. Would you like help making the next step?`,
+    `${warningLabel} puede ser una senal de alerta. Si se siente fuerte, repentino o inseguro, llama a emergencias ahora o pide ayuda a alguien cercano. Quieres ayuda con el siguiente paso?`,
+  );
+}
+
+function safetyRecommendation(locale: string) {
+  return text(
+    locale,
+    "Call emergency services now if this is severe, sudden, or you feel unsafe. Otherwise, contact a doctor or trusted caregiver today.",
+    "Llama a emergencias ahora si es fuerte, repentino o no te sientes seguro. Si no, contacta hoy con un medico o cuidador de confianza.",
+  );
+}
+
+function safetyQuickReplies(locale: string): TriageQuickReply[] {
+  return [
+    reply(locale, "call_emergency", "support", "Call emergency", "Llamar emergencias", "I will call emergency services if this feels severe or sudden.", "Llamare a emergencias si se siente fuerte o repentino.", "alert", "red"),
+    reply(locale, "contact_doctor", "support", "Call doctor", "Llamar medico", "I want to contact my doctor or clinic today.", "Quiero contactar hoy con mi medico o clinica.", "heart", "amber"),
+    reply(locale, "make_report", "support", "Make report", "Crear informe", "Please make a clear report I can share.", "Por favor crea un informe claro para compartir.", "help", "purple"),
+    reply(locale, "continue_questions", "support", "Keep asking", "Seguir preguntas", "I understand. Please keep asking simple questions.", "Entiendo. Sigue haciendo preguntas simples.", "activity", "blue"),
+  ];
+}
+
+function medisearchContextText(context?: MediSearchTriageContext | null): string {
+  if (!context) return "";
+  const sourceLines = context.articles
+    .slice(0, 3)
+    .map((article, index) => `${index + 1}. ${article.title ?? "Medical source"}${article.year ? ` (${article.year})` : ""}${article.tldr ? `: ${article.tldr}` : ""}`);
+  return `\n\nMEDISEARCH EVIDENCE CONTEXT:
+${context.answer ? `Summary: ${context.answer.slice(0, 1200)}` : ""}
+${context.followups.length ? `Suggested follow-up topics: ${context.followups.slice(0, 4).join("; ")}` : ""}
+${sourceLines.length ? `Sources:\n${sourceLines.join("\n")}` : ""}
+
+Use this evidence as background only. Do not cite it as a diagnosis. Ask one simple question at a time.`;
+}
+
+function buildSystemPrompt(
+  language: string,
+  bpm: number | null,
+  gender: GrammaticalGender,
+  wizard?: TriageWizardContext,
+  medisearchContext?: MediSearchTriageContext | null,
+  healthMemory?: TriageHealthMemory,
+): string {
   const vitalsContext = bpm != null
     ? `\n\nThe user has just completed a vitals scan. Their estimated heart rate is ${bpm} bpm. Reference this gently if relevant.`
     : "";
@@ -57,13 +353,16 @@ function buildSystemPrompt(language: string, bpm: number | null, gender: Grammat
   return `You are VYVA, a warm and caring medical triage assistant helping an elderly person understand their symptoms. Your role is to ask clear, simple questions and provide a helpful triage summary.
 
 IMPORTANT: Respond entirely in ${language}.
-${genderInstruction(gender)}${vitalsContext}
+${genderInstruction(gender)}${vitalsContext}${wizardContextText(wizard)}${healthMemoryText(healthMemory)}${medisearchContextText(medisearchContext)}
 
 CONVERSATION FLOW:
-1. Begin with a warm, reassuring greeting. Ask what's bothering them today.
-2. Ask clarifying questions one at a time about: how long they've had the symptom, severity on a scale of 1-10, any other symptoms.
-3. After gathering sufficient information (typically 4-6 exchanges), gently wrap up.
-4. On your FINAL turn, you MUST end your message with this exact JSON block (replace values appropriately):
+1. The app is a senior-friendly wizard. Match the current wizard stage and ask only one very simple question.
+2. If there is no symptom category yet, ask what feels wrong today.
+3. After a symptom category, ask the most relevant red-flag question first. If a red flag is present, calmly recommend urgent help while still collecting enough summary detail.
+4. Then ask duration, severity, whether it is getting better/worse, and what help the user wants.
+5. Avoid repeating questions already answered in WIZARD CONTEXT.
+6. After gathering sufficient information (typically 4-6 user answers), gently wrap up.
+7. On your FINAL turn, you MUST end your message with this exact JSON block (replace values appropriately):
 
 TRIAGE_JSON_START
 {"done":true,"summary":{"chiefComplaint":"<one-line description>","symptoms":["<symptom 1>","<symptom 2>"],"urgency":"<urgent|routine|monitor>","recommendations":["<step 1>","<step 2>","<step 3>","<step 4>"],"disclaimer":"This assessment is for information only and is not medical advice. Always consult your doctor or call emergency services if you feel it is serious."}}
@@ -76,9 +375,10 @@ Urgency definitions:
 
 STYLE RULES:
 - Use simple, kind, non-alarming language suitable for elderly users
-- Keep each message to 2-3 sentences maximum
+- Keep each message to 1-2 short sentences maximum
 - Never use medical jargon
 - Be warm and reassuring throughout
+- Prefer questions that work with the large buttons the app shows
 - Do NOT produce the JSON block before the 4th user message`;
 }
 
@@ -107,8 +407,37 @@ function extractTriageJson(text: string): { content: string; summary: TriageSumm
   return { content: text.trim(), summary: null };
 }
 
+router.get("/context", async (req: Request, res: Response) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  try {
+    const variables = await getDoctorMedicalProfileVariables(userId);
+    const memory: TriageHealthMemory = {
+      healthContext: String(variables.health_profile_summary || variables.health_context || ""),
+      conditions: String(variables.health_conditions || ""),
+      allergies: String(variables.allergies || ""),
+      medications: String(variables.medications || ""),
+      latestVitals: String(variables.latest_vitals_scan || ""),
+      latestSymptomReport: String(variables.latest_symptom_report || ""),
+    };
+    const usedItems = [
+      memory.latestVitals ? "Latest vitals" : "",
+      memory.medications ? "Medications" : "",
+      memory.allergies ? "Allergies" : "",
+      memory.conditions ? "Conditions" : "",
+      memory.latestSymptomReport ? "Recent symptoms" : "",
+    ].filter(Boolean);
+
+    return res.json({ memory, usedItems });
+  } catch (err) {
+    console.error("[triage/context]", err);
+    return res.status(500).json({ error: "Failed to load triage context" });
+  }
+});
+
 router.post("/message", async (req: Request, res: Response) => {
-  const { messages = [], vitals, locale = "en" } = req.body as TriageRequestBody;
+  const { messages = [], vitals, locale = "en", wizard, healthMemory } = req.body as TriageRequestBody;
 
   if (!Array.isArray(messages)) {
     return res.status(400).json({ error: "messages must be an array" });
@@ -120,19 +449,46 @@ router.post("/message", async (req: Request, res: Response) => {
   const language = LOCALE_TO_LANGUAGE[normalizedLocale] ?? "English";
   const gender = await getRequestGender(req).catch(() => "neutral" as const);
 
+  const validMessages: ChatMessage[] = messages
+    .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+    .slice(-20);
+
+  const safetyAnswer = selectedSafetyAnswer(wizard);
+  if (safetyAnswer) {
+    return res.json({
+      role: "assistant",
+      content: safetyMessage(normalizedLocale, safetyAnswer.label),
+      done: false,
+      urgent: true,
+      safetyAlert: {
+        id: safetyAnswer.id,
+        label: safetyAnswer.label,
+        recommendation: safetyRecommendation(normalizedLocale),
+      },
+      quickReplies: safetyQuickReplies(normalizedLocale),
+      wizardStage: "support",
+      wizardStageLabel: wizardStageLabel("support", normalizedLocale),
+      evidenceSources: [],
+    });
+  }
+
   const apiKey = process.env.OPENAI_API_KEY ?? "";
   if (!apiKey) {
     return res.status(503).json({ error: "AI service not configured" });
   }
 
-  const validMessages: ChatMessage[] = messages
-    .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
-    .slice(-20);
-
   try {
     const client = new OpenAI({ apiKey });
+    const latestUserMessage = [...validMessages].reverse().find((message) => message.role === "user")?.content ?? "";
+    const medisearchContext = latestUserMessage
+      ? await getMediSearchTriageContext({
+          symptomText: latestUserMessage,
+          locale: normalizedLocale,
+          wizard,
+        })
+      : null;
 
-    const systemContent = buildSystemPrompt(language, vitals?.bpm ?? null, gender);
+    const systemContent = buildSystemPrompt(language, vitals?.bpm ?? null, gender, wizard, medisearchContext, healthMemory);
 
     const openaiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       { role: "system", content: systemContent },
@@ -154,6 +510,15 @@ router.post("/message", async (req: Request, res: Response) => {
       content,
       done: summary != null,
       summary: summary ?? undefined,
+      quickReplies: summary ? [] : quickRepliesFor(wizard, normalizedLocale),
+      wizardStage: wizardStage(wizard),
+      wizardStageLabel: wizardStageLabel(wizardStage(wizard), normalizedLocale),
+      evidenceSources: medisearchContext?.articles.slice(0, 3).map((article) => ({
+        title: article.title,
+        url: article.url,
+        year: article.year,
+        journal: article.journal,
+      })) ?? [],
     });
   } catch (err) {
     console.error("[triage] OpenAI error:", err);

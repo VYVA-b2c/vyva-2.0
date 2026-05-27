@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ChevronLeft, ChevronRight, Heart, MessageSquare, FileText, Share2, Copy, CheckCircle, AlertTriangle, Eye, Mic } from "lucide-react";
+import { Activity, ChevronLeft, Heart, MessageSquare, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, PhoneCall, Stethoscope } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import VitalsScan from "@/components/VitalsScan";
 import TriageChat from "@/components/TriageChat";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { useToast } from "@/hooks/use-toast";
-import { apiFetch } from "@/lib/queryClient";
+import { apiFetch, queryClient } from "@/lib/queryClient";
 
 type Step = "intro" | "vitals" | "chat" | "report";
 
@@ -19,8 +20,38 @@ interface TriageSummary {
   aiSummary?: string;
 }
 
-function StepDots({ current }: { current: Step }) {
-  const steps: Step[] = ["vitals", "chat", "report"];
+type ReportSaveState = "idle" | "saving" | "saved" | "error";
+
+type TriageHealthMemory = {
+  healthContext?: string;
+  conditions?: string;
+  allergies?: string;
+  medications?: string;
+  latestVitals?: string;
+  latestSymptomReport?: string;
+};
+
+type TriageContextResponse = {
+  memory: TriageHealthMemory;
+  usedItems: string[];
+};
+
+type SavedTriageReport = {
+  id?: string;
+  chief_complaint?: string;
+  symptoms?: string[];
+  urgency?: TriageSummary["urgency"];
+  recommendations?: string[];
+  disclaimer?: string;
+  ai_summary?: string | null;
+  bpm?: number | null;
+  respiratory_rate?: number | null;
+  duration_seconds?: number | null;
+  created_at?: string;
+};
+
+function StepDots({ current, includeVitals }: { current: Step; includeVitals: boolean }) {
+  const steps: Step[] = includeVitals ? ["vitals", "chat", "report"] : ["chat", "report"];
   const idx = steps.indexOf(current);
   return (
     <div className="flex items-center gap-2 justify-center">
@@ -40,85 +71,84 @@ function StepDots({ current }: { current: Step }) {
 }
 
 function IntroScreen({
-  onStart,
-  onStartChat,
-  onStartVoice,
+  onStartWithVitals,
+  onStartWithoutVitals,
 }: {
-  onStart: () => void;
-  onStartChat: () => void;
-  onStartVoice: () => void;
+  onStartWithVitals: () => void;
+  onStartWithoutVitals: () => void;
 }) {
   const { t } = useTranslation();
+  const choices = [
+    {
+      id: "with-vitals",
+      title: t("health.symptomCheck.intro.withVitalsTitle", "With vitals scan"),
+      body: t("health.symptomCheck.intro.withVitalsBody", "Scan pulse and breathing first."),
+      cta: t("health.symptomCheck.intro.withVitalsCta", "Scan first"),
+      Icon: Activity,
+      iconClass: "bg-white/15 text-white",
+      className: "bg-[#3D0D82] text-white shadow-[0_16px_36px_rgba(91,18,160,0.22)]",
+      ctaClass: "bg-white text-vyva-purple",
+      onClick: onStartWithVitals,
+    },
+    {
+      id: "without-vitals",
+      title: t("health.symptomCheck.intro.withoutVitalsTitle", "Without scan"),
+      body: t("health.symptomCheck.intro.withoutVitalsBody", "Go straight to simple questions."),
+      cta: t("health.symptomCheck.intro.withoutVitalsCta", "Start questions"),
+      Icon: MessageSquare,
+      iconClass: "bg-[#F5F3FF] text-[#6B21A8]",
+      className: "border border-[#E8DED4] bg-white text-vyva-text-1 shadow-[0_10px_28px_rgba(63,45,35,0.07)]",
+      ctaClass: "bg-[#F5F3FF] text-vyva-purple",
+      onClick: onStartWithoutVitals,
+    },
+  ];
+
   return (
-    <div className="flex flex-col flex-1 px-[18px] py-4 gap-5">
-      <section className="relative overflow-hidden rounded-[30px] bg-[#3D0D82] p-5 text-white shadow-[0_16px_36px_rgba(91,18,160,0.24)]">
-        <div className="absolute -right-14 -top-14 h-44 w-44 rounded-full bg-white/10" />
-        <div className="relative">
-          <div className="mb-7 flex h-16 w-16 items-center justify-center rounded-[22px] bg-white/15">
-            <Heart size={30} className="text-white" />
-          </div>
-          <p className="font-body text-[12px] font-bold uppercase tracking-[0.14em] text-white/64">
-            {t("health.symptomCheck.title")}
-          </p>
-          <h1 className="mt-1 font-display text-[34px] italic leading-[1.08] text-white">
-            {t("health.symptomCheck.intro.title")}
-          </h1>
-          <p className="mt-4 font-body text-[16px] font-semibold leading-relaxed text-white/84">
-            {t("health.symptomCheck.intro.subtitle")}
-          </p>
+    <div className="flex flex-1 flex-col gap-3 px-[18px] py-3">
+      <section className="rounded-[28px] bg-white p-4 text-center shadow-[0_10px_28px_rgba(63,45,35,0.06)]">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[20px] bg-[#F5F3FF]">
+          <Heart size={26} className="text-vyva-purple" />
         </div>
+        <h1 className="mx-auto mt-3 max-w-[300px] font-display text-[30px] italic leading-[1.05] text-vyva-text-1">
+          {t("health.symptomCheck.intro.choiceTitle", "Start with a vitals scan?")}
+        </h1>
+        <p className="mx-auto mt-2 max-w-[300px] font-body text-[15px] font-semibold leading-snug text-vyva-text-2">
+          {t("health.symptomCheck.intro.choiceSubtitle", "Choose one. Then VYVA asks simple questions.")}
+        </p>
       </section>
 
-      <div className="grid w-full grid-cols-1 gap-3">
-        <button
-          onClick={onStart}
-          data-testid="button-symptom-check-start"
-          className="vyva-primary-action w-full min-h-[58px] shadow-[0_10px_24px_rgba(107,33,168,0.24)]"
-        >
-          {t("health.symptomCheck.intro.startBtn")}
-        </button>
-
-        <button
-          onClick={onStartVoice}
-          data-testid="button-symptom-check-voice-start"
-          className="vyva-secondary-action w-full min-h-[56px] text-vyva-purple"
-        >
-          <Mic size={18} />
-          {t("health.symptomCheck.intro.voiceBtn")}
-        </button>
-      </div>
-
-      <div className="flex w-full flex-col gap-3">
-        {(["vitals", "chat", "report"] as const).map((key, i) => {
-          const icons = [Heart, MessageSquare, FileText];
-          const Icon = icons[i];
-          const handleClick = key === "chat" ? onStartChat : onStart;
-          return (
-            <button
-              key={key}
-              type="button"
-              onClick={handleClick}
-              data-testid={`button-symptom-check-${key}`}
-              className="flex w-full items-center gap-4 rounded-[24px] border border-[#E8DED4] bg-white p-4 text-left shadow-[0_8px_24px_rgba(63,45,35,0.06)] transition-all active:scale-[0.99]"
-            >
-              <div
-                className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px]"
-                style={{ background: "hsl(var(--vyva-purple-light))" }}
-              >
-                <Icon size={18} style={{ color: "hsl(var(--vyva-purple))" }} />
+      <div className="grid gap-3">
+        {choices.map(({ id, title, body, cta, Icon, iconClass, className, ctaClass, onClick }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={onClick}
+            data-testid={`button-symptom-check-${id}`}
+            className={`vyva-tap relative min-h-[154px] overflow-hidden rounded-[28px] p-4 text-left transition active:scale-[0.99] ${className}`}
+          >
+            {id === "with-vitals" ? <div className="absolute -right-14 -top-14 h-44 w-44 rounded-full bg-white/10" /> : null}
+            <div className="relative flex h-full gap-4">
+              <div className={`flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px] ${iconClass}`}>
+                <Icon size={26} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="font-body text-[15px] font-bold text-vyva-text-1">
-                  {t(`health.symptomCheck.intro.step${i + 1}Title`)}
+                <p className={`font-body text-[13px] font-bold uppercase tracking-[0.12em] ${id === "with-vitals" ? "text-white/64" : "text-vyva-text-3"}`}>
+                  {t("health.symptomCheck.intro.answerLabel", "Choose")}
                 </p>
-                <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">
-                  {t(`health.symptomCheck.intro.step${i + 1}Desc`)}
+                <p className="mt-1 font-display text-[27px] italic leading-[1.02]">
+                  {title}
                 </p>
+                <p className={`mt-2 font-body text-[15px] font-semibold leading-snug ${id === "with-vitals" ? "text-white/84" : "text-vyva-text-2"}`}>
+                  {body}
+                </p>
+                <span className={`mt-3 inline-flex min-h-[42px] items-center justify-center gap-2 rounded-full px-4 font-body text-[15px] font-extrabold ${ctaClass}`}>
+                  {cta}
+                  {id === "with-vitals" ? <ChevronLeft size={17} className="rotate-180" /> : null}
+                </span>
               </div>
-              <ChevronRight size={20} className="flex-shrink-0" style={{ color: "hsl(var(--vyva-purple))" }} />
-            </button>
-          );
-        })}
+            </div>
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -152,22 +182,61 @@ function UrgencyConfig(urgency: TriageSummary["urgency"]) {
 function ReportScreen({
   summary,
   bpm,
+  respiratoryRate,
+  durationSeconds,
+  reportId,
+  reportSaveState,
   onDone,
 }: {
   summary: TriageSummary;
   bpm: number | null;
+  respiratoryRate: number | null;
+  durationSeconds: number | null;
+  reportId: string | null;
+  reportSaveState: ReportSaveState;
   onDone: () => void;
 }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const cfg = UrgencyConfig(summary.urgency);
   const UrgencyIcon = cfg.icon;
+  const saveStatusText = reportSaveState === "saved"
+    ? t("health.symptomCheck.report.savedToReports", "Saved to Reports")
+    : reportSaveState === "saving"
+      ? t("health.symptomCheck.report.savingReport", "Saving report...")
+      : reportSaveState === "error"
+        ? t("health.symptomCheck.report.saveFailed", "Report not saved")
+        : t("health.symptomCheck.report.readyReport", "Report ready");
+  const durationText = durationSeconds != null
+    ? durationSeconds < 60
+      ? `${durationSeconds}s`
+      : `${Math.floor(durationSeconds / 60)}m ${durationSeconds % 60}s`
+    : null;
+  const doctorNote = [
+    summary.chiefComplaint,
+    summary.symptoms.length ? `${t("health.symptomCheck.report.symptoms", "Symptoms noted")}: ${summary.symptoms.join(", ")}` : "",
+    bpm != null ? `${t("health.symptomCheck.scan.heartRate", "Heart Rate")}: ${bpm} bpm` : "",
+    respiratoryRate != null ? `${t("health.symptomCheck.scan.respiratoryRate", "Resp. Rate")}: ${respiratoryRate} rpm` : "",
+    `${t("health.symptomCheck.report.urgencyLabel", "Urgency")}: ${t(cfg.label)}`,
+    summary.recommendations.length ? `${t("health.symptomCheck.report.recommendations", "What to do next")}: ${summary.recommendations.join(" ")}` : "",
+  ].filter(Boolean).join("\n");
+  const openDoctorWithContext = () => {
+    navigate("/health/doctor", {
+      state: {
+        autoStartVoice: true,
+        latestSymptomReport: doctorNote,
+      },
+    });
+  };
 
   const shareText = [
     t("health.symptomCheck.report.shareTitle"),
     "",
     `${t("health.symptomCheck.report.chiefComplaint")}: ${summary.chiefComplaint}`,
     bpm != null ? `${t("health.symptomCheck.scan.heartRate")}: ${bpm} bpm` : "",
+    respiratoryRate != null ? `${t("health.symptomCheck.scan.respiratoryRate", "Resp. Rate")}: ${respiratoryRate} rpm` : "",
+    durationText ? `${t("health.symptomCheck.report.timeTaken", "Time taken")}: ${durationText}` : "",
     "",
     `${t("health.symptomCheck.report.urgencyLabel")}: ${t(cfg.label)}`,
     "",
@@ -233,9 +302,67 @@ function ReportScreen({
             {bpm != null ? `${bpm} bpm` : `${t("health.symptomCheck.scan.heartRate")}: —`}
           </span>
         </div>
+        <div
+          className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 self-start"
+          style={{ background: cfg.pillBg }}
+        >
+          <ClipboardList size={13} className="text-white" />
+          <span className="font-body text-[13px] text-white font-semibold">
+            {saveStatusText}
+          </span>
+        </div>
       </div>
 
       <div className="flex flex-col gap-4 px-[18px] pb-6">
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              window.location.href = "tel:112";
+            }}
+            data-testid="button-report-emergency"
+            className={`vyva-tap flex min-h-[92px] flex-col justify-between rounded-[24px] p-4 text-left shadow-[0_8px_24px_rgba(63,45,35,0.06)] ${summary.urgency === "urgent" ? "bg-[#FFF1F2] text-[#BE123C]" : "border border-[#E8DED4] bg-white text-vyva-text-1"}`}
+          >
+            <PhoneCall size={22} />
+            <span className="font-body text-[16px] font-extrabold leading-tight">
+              {t("health.symptomCheck.report.callEmergency", "Call emergency")}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={openDoctorWithContext}
+            data-testid="button-report-doctor"
+            className="vyva-tap flex min-h-[92px] flex-col justify-between rounded-[24px] bg-[#F5F3FF] p-4 text-left text-vyva-purple shadow-[0_8px_24px_rgba(63,45,35,0.06)]"
+          >
+            <Stethoscope size={22} />
+            <span className="font-body text-[16px] font-extrabold leading-tight">
+              {t("health.symptomCheck.report.callDoctor", "Talk to doctor")}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate(reportId ? `/informes/${reportId}` : "/informes")}
+            data-testid="button-report-view-reports"
+            className="vyva-tap flex min-h-[92px] flex-col justify-between rounded-[24px] bg-[#EFF6FF] p-4 text-left text-[#1D4ED8] shadow-[0_8px_24px_rgba(63,45,35,0.06)]"
+          >
+            <ClipboardList size={22} />
+            <span className="font-body text-[16px] font-extrabold leading-tight">
+              {t("health.symptomCheck.report.viewReports", "View reports")}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={handleShare}
+            data-testid="button-report-share-quick"
+            className="vyva-tap flex min-h-[92px] flex-col justify-between rounded-[24px] bg-[#ECFDF5] p-4 text-left text-[#047857] shadow-[0_8px_24px_rgba(63,45,35,0.06)]"
+          >
+            <Share2 size={22} />
+            <span className="font-body text-[16px] font-extrabold leading-tight">
+              {t("health.symptomCheck.report.shareBtn", "Share Report")}
+            </span>
+          </button>
+        </div>
+
         {summary.symptoms.length > 0 && (
           <div
             className="rounded-[24px] border border-[#E8DED4] bg-white p-5 shadow-[0_8px_24px_rgba(63,45,35,0.06)]"
@@ -274,6 +401,27 @@ function ReportScreen({
           </ol>
         </div>
 
+        <div
+          className="rounded-[24px] border border-[#E8DED4] bg-white p-5 shadow-[0_8px_24px_rgba(63,45,35,0.06)]"
+        >
+          <div className="mb-3 flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-[#F5F3FF] text-vyva-purple">
+              <FileText size={20} />
+            </span>
+            <div>
+              <p className="font-body text-[12px] font-semibold uppercase tracking-wider text-vyva-text-3">
+                {t("health.symptomCheck.report.doctorNoteTitle", "Doctor-ready note")}
+              </p>
+              <p className="font-body text-[13px] font-semibold text-vyva-text-2">
+                {t("health.symptomCheck.report.doctorNoteSub", "Plain text to read, show, or share.")}
+              </p>
+            </div>
+          </div>
+          <p className="whitespace-pre-line rounded-[18px] bg-[#FAF7F3] p-4 font-body text-[14px] font-semibold leading-relaxed text-vyva-text-1">
+            {doctorNote}
+          </p>
+        </div>
+
         <button
           onClick={handleShare}
           data-testid="button-report-share"
@@ -302,6 +450,11 @@ function ReportScreen({
 export default function SymptomCheckScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { data: triageContext } = useQuery<TriageContextResponse>({
+    queryKey: ["/api/triage/context"],
+    retry: false,
+    staleTime: 2 * 60 * 1000,
+  });
   const [step, setStep] = useState<Step>("intro");
   const [bpm, setBpm] = useState<number | null>(null);
   const [respiratoryRate, setRespiratoryRate] = useState<number | null>(null);
@@ -309,6 +462,9 @@ export default function SymptomCheckScreen() {
   const [chatEntryMode, setChatEntryMode] = useState<"vitals" | "direct">("vitals");
   const [autoStartVoice, setAutoStartVoice] = useState(false);
   const [summary, setSummary] = useState<TriageSummary | null>(null);
+  const [reportSaveState, setReportSaveState] = useState<ReportSaveState>("idle");
+  const [reportId, setReportId] = useState<string | null>(null);
+  const [durationSeconds, setDurationSeconds] = useState<number | null>(null);
 
   const stepTitle: Record<Step, string> = {
     intro: t("health.symptomCheck.title"),
@@ -349,7 +505,10 @@ export default function SymptomCheckScreen() {
     const durationSeconds = chatStartTime
       ? Math.round((Date.now() - chatStartTime) / 1000)
       : null;
+    setDurationSeconds(durationSeconds);
     setSummary(triageSummary);
+    setReportId(null);
+    setReportSaveState("saving");
     setStep("report");
     apiFetch("/api/reports/triage", {
       method: "POST",
@@ -364,7 +523,28 @@ export default function SymptomCheckScreen() {
         respiratory_rate: respiratoryRate ?? null,
         duration_seconds: durationSeconds,
       }),
-    }).catch((err) => console.error("[reports/triage] save failed:", err));
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`${res.status}`);
+        const saved = await res.json().catch(() => null) as SavedTriageReport | null;
+        setReportId(saved?.id ?? null);
+        setReportSaveState("saved");
+        queryClient.invalidateQueries({ queryKey: ["/api/reports/summary"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/reports/vitals/history"] });
+        if (saved) {
+          queryClient.setQueryData(["/api/reports/summary"], (current: unknown) => ({
+            ...(current && typeof current === "object" ? current : {}),
+            latestTriage: saved,
+          }));
+          if (saved.id) {
+            queryClient.setQueryData([`/api/reports/triage/${saved.id}`], saved);
+          }
+        }
+      })
+      .catch((err) => {
+        console.error("[reports/triage] save failed:", err);
+        setReportSaveState("error");
+      });
   };
 
   return (
@@ -395,7 +575,7 @@ export default function SymptomCheckScreen() {
 
       {step !== "intro" && (
         <div className="flex-shrink-0 py-3" style={{ borderBottom: "1px solid hsl(var(--vyva-border))" }}>
-          <StepDots current={step} />
+          <StepDots current={step} includeVitals={chatEntryMode !== "direct"} />
         </div>
       )}
 
@@ -407,13 +587,33 @@ export default function SymptomCheckScreen() {
             title={t("health.symptomCheck.contextReady", "Symptom context ready")}
             description={t("health.symptomCheck.contextReadySub", "VYVA can keep the current symptom topic, scan context, and report flow together here.")}
           />
+          {triageContext?.usedItems?.length ? (
+            <div className="mt-3 rounded-[22px] border border-[#E8DED4] bg-white px-4 py-3 shadow-[0_6px_18px_rgba(63,45,35,0.05)]">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-[#F5F3FF] text-vyva-purple">
+                  <ClipboardList size={19} />
+                </span>
+                <div className="min-w-0">
+                  <p className="font-body text-[13px] font-extrabold uppercase tracking-[0.1em] text-vyva-purple">
+                    {t("health.symptomCheck.memory.title", "VYVA checked your health profile")}
+                  </p>
+                  <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
+                    {triageContext.usedItems.slice(0, 4).join(" • ")}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         {step === "intro" && (
           <IntroScreen
-            onStart={() => setStep("vitals")}
-            onStartChat={() => startChatDirectly(false)}
-            onStartVoice={() => startChatDirectly(true)}
+            onStartWithVitals={() => {
+              setChatEntryMode("vitals");
+              setAutoStartVoice(false);
+              setStep("vitals");
+            }}
+            onStartWithoutVitals={() => startChatDirectly(false)}
           />
         )}
 
@@ -424,6 +624,9 @@ export default function SymptomCheckScreen() {
         {step === "chat" && (
           <TriageChat
             bpm={bpm}
+            respiratoryRate={respiratoryRate}
+            entryMode={chatEntryMode === "vitals" ? "with_vitals" : "without_vitals"}
+            healthMemory={triageContext?.memory ?? null}
             autoStartVoice={autoStartVoice}
             onVoiceAutoStarted={() => setAutoStartVoice(false)}
             onComplete={handleChatComplete}
@@ -434,6 +637,10 @@ export default function SymptomCheckScreen() {
           <ReportScreen
             summary={summary}
             bpm={bpm}
+            respiratoryRate={respiratoryRate}
+            durationSeconds={durationSeconds}
+            reportId={reportId}
+            reportSaveState={reportSaveState}
             onDone={() => navigate("/health")}
           />
         )}

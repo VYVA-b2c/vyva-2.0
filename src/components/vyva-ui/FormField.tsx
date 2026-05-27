@@ -27,7 +27,7 @@ export function FormField({
   labelClassName,
 }: FormFieldProps) {
   const labelClass = cn(
-    "flex items-start justify-between gap-3 font-body text-[13px] font-bold leading-tight text-vyva-text-2",
+    "flex items-start justify-between gap-3 font-body text-[15px] font-extrabold leading-tight text-vyva-text-2",
     labelClassName,
   );
 
@@ -39,7 +39,7 @@ export function FormField({
       </span>
       <span
         className={cn(
-          "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold",
+          "shrink-0 rounded-full px-3 py-1 text-[12px] font-extrabold",
           required ? "bg-[#FFF1F5] text-[#B0355A]" : "bg-[#F6F1EA] text-vyva-text-3",
         )}
       >
@@ -58,8 +58,8 @@ export function FormField({
         <div className={labelClass}>{labelContent}</div>
       )}
       {children}
-      {error ? <p className="font-body text-[12px] font-medium text-red-500">{error}</p> : null}
-      {!error && hint ? <p className="font-body text-[12px] leading-snug text-vyva-text-3">{hint}</p> : null}
+      {error ? <p className="font-body text-[14px] font-semibold leading-snug text-red-500">{error}</p> : null}
+      {!error && hint ? <p className="font-body text-[14px] leading-snug text-vyva-text-3">{hint}</p> : null}
     </div>
   );
 }

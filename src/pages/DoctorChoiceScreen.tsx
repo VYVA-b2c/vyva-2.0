@@ -7,6 +7,11 @@ import { useHeroMessage } from "@/hooks/useHeroMessage";
 import { useServiceGate } from "@/hooks/useServiceGate";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 
+type DoctorLocationState = {
+  autoStartVoice?: boolean;
+  latestSymptomReport?: string;
+};
+
 const DoctorChoiceScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -25,7 +30,9 @@ const DoctorChoiceScreen = () => {
     userStopped,
   } = useDoctorVoice();
   const [voiceError, setVoiceError] = useState<string | null>(null);
-  const autoStartRequested = Boolean((location.state as { autoStartVoice?: boolean } | null)?.autoStartVoice);
+  const locationState = (location.state as DoctorLocationState | null) ?? null;
+  const autoStartRequested = Boolean(locationState?.autoStartVoice);
+  const latestSymptomReport = locationState?.latestSymptomReport?.trim() ?? "";
   const doctorRecommendations = readiness?.services.doctor.recommended ?? [];
 
   const heroMessage = useHeroMessage("doctor", {
@@ -66,8 +73,8 @@ const DoctorChoiceScreen = () => {
       return;
     }
     setVoiceError(null);
-    void startDoctorVoice();
-  }, [isVoiceLive, startDoctorVoice, stopDoctorVoiceAndClearError]);
+    void startDoctorVoice(latestSymptomReport ? { latestSymptomReport } : undefined);
+  }, [isVoiceLive, latestSymptomReport, startDoctorVoice, stopDoctorVoiceAndClearError]);
 
   useEffect(() => {
     if (!lastError) return;
@@ -111,13 +118,13 @@ const DoctorChoiceScreen = () => {
 
   useEffect(() => {
     if (!autoStartRequested || startAttempted || isVoiceLive) return;
-    void startDoctorVoice();
-  }, [autoStartRequested, isVoiceLive, startAttempted, startDoctorVoice]);
+    void startDoctorVoice(latestSymptomReport ? { latestSymptomReport } : undefined);
+  }, [autoStartRequested, isVoiceLive, latestSymptomReport, startAttempted, startDoctorVoice]);
 
   const handleDirect = () => {
     if (isVoiceLive) return;
     setVoiceError(null);
-    void startDoctorVoice();
+    void startDoctorVoice(latestSymptomReport ? { latestSymptomReport } : undefined);
   };
 
   const handleTriage = () => {
@@ -218,6 +225,17 @@ const DoctorChoiceScreen = () => {
         description={t("health.doctorChoice.contextReadySub", "VYVA can use the health profile, recent symptoms, vitals, and GP context while helping here.")}
         className="mt-4"
       />
+
+      {latestSymptomReport ? (
+        <section className="mt-4 rounded-[24px] border border-[#E8DED4] bg-white p-5 shadow-[0_8px_24px_rgba(63,45,35,0.06)]">
+          <p className="font-body text-[13px] font-extrabold uppercase tracking-[0.12em] text-vyva-purple">
+            {t("health.doctorChoice.recentSymptomTitle", "Recent symptom check")}
+          </p>
+          <p className="mt-2 line-clamp-4 whitespace-pre-line font-body text-[15px] font-semibold leading-relaxed text-vyva-text-1">
+            {latestSymptomReport}
+          </p>
+        </section>
+      ) : null}
 
       {doctorRecommendations.length > 0 ? (
         <button
