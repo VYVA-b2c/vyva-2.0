@@ -90,6 +90,12 @@ export function requireEntitlement(feature: EntitlementFeature) {
         return;
       }
 
+      if (feature === "symptom_check") {
+        req.entitlement = { profileId, tier: "core", feature };
+        next();
+        return;
+      }
+
       const [profile] = await db
         .select()
         .from(profiles)

@@ -367,7 +367,7 @@ router.get("/readiness", async (req: Request, res: Response) => {
     const medicationGate = gate(hasMedicationForServices, medicationMissing);
     const voiceEnabled = Boolean(entitlements?.is_active && entitlements.voice_assistant);
     const medicationEnabled = Boolean(entitlements?.is_active && entitlements.medication_tracking);
-    const symptomCheckEnabled = Boolean(entitlements?.is_active && entitlements.symptom_check);
+    const symptomCheckEnabled = true;
     const conciergeEnabled = Boolean(entitlements?.is_active && entitlements.concierge);
     const caregiverDashboardEnabled = Boolean(entitlements?.is_active && entitlements.caregiver_dashboard);
 
