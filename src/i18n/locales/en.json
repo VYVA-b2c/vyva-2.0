@@ -559,7 +559,7 @@
   },
   "health": {
     "voiceSource": "VYVA keeps an eye on your health",
-    "talkToDoctor": "Talk to a Doctor",
+    "talkToDoctor": "Connect with a real doctor",
     "allGoodToday": "All good today",
     "headlineWithName": "How are you feeling,\n{{name}}?",
     "headline": "How are you feeling?",
@@ -595,7 +595,7 @@
       "subtitle": "See your previous readings and recent patterns."
     },
     "doctorServices": "Doctor & Services",
-    "speakToDoctor": "Speak to a Doctor",
+    "speakToDoctor": "Connect with a real doctor",
     "speakToDoctorSub": "Get a referral or medical advice",
     "nearbyClinics": "Nearby Clinics",
     "nearbyClinicsSub": "Find care centers close to you",

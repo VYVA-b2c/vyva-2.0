@@ -547,7 +547,7 @@
   },
   "health": {
     "voiceSource": "VYVA controla tu salud",
-    "talkToDoctor": "Hablar con un médico",
+    "talkToDoctor": "Conectar con un médico real",
     "allGoodToday": "Todo en orden hoy",
     "headlineWithName": "¿Cómo te sientes,\n{{name}}?",
     "headline": "¿Cómo te sientes?",
@@ -583,7 +583,7 @@
       "subtitle": "Ver tus lecturas anteriores y patrones recientes."
     },
     "doctorServices": "Médico y servicios",
-    "speakToDoctor": "Hablar con un médico",
+    "speakToDoctor": "Conectar con un médico real",
     "speakToDoctorSub": "Obtén una derivación o consejo médico",
     "nearbyClinics": "Clínicas cercanas",
     "nearbyClinicsSub": "Encuentra centros de atención cerca de ti",

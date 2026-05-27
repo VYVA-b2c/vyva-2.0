@@ -342,10 +342,12 @@ test("service setup guidance is visible and responsive", async ({ page }) => {
 
     const toastBox = await guidanceToast.boundingBox();
     expect(toastBox).not.toBeNull();
+    const toastCenterY = toastBox!.y + toastBox!.height / 2;
     expect(toastBox!.x).toBeGreaterThanOrEqual(0);
     expect(toastBox!.x + toastBox!.width).toBeLessThanOrEqual(viewport.width);
     expect(toastBox!.y).toBeGreaterThanOrEqual(0);
     expect(toastBox!.y + toastBox!.height).toBeLessThanOrEqual(viewport.height);
+    expect(Math.abs(toastCenterY - viewport.height / 2)).toBeLessThanOrEqual(viewport.height * 0.28);
     await expectNoHorizontalOverflow(page);
   }
 });

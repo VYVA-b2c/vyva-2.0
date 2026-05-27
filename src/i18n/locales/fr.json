@@ -9,7 +9,7 @@
     "myProfile": "Mon profil",
     "vyva": "VYVA",
     "myHealth": "Ma santé",
-    "myMind": "Mon esprit",
+    "myMind": "Mon cerveau",
     "concierge": "Concierge",
     "reports": "Mes rapports"
   },
@@ -116,7 +116,7 @@
           "gamesRoom": {
             "badge": "Jeux",
             "title": "Salle de jeux",
-            "text": "Choisissez un jeu calme pour garder l'esprit actif.",
+            "text": "Choisissez un jeu calme pour garder votre cerveau actif.",
             "cta": "Jouer"
           },
           "musicSalon": {
@@ -158,7 +158,7 @@
         "healthTip": {
           "badge": "Santé",
           "title": "Conseil du jour",
-          "text": "Boire de l'eau régulièrement aide votre cœur et votre esprit à mieux fonctionner.",
+          "text": "Boire de l'eau régulièrement aide votre cœur et votre cerveau à mieux fonctionner.",
           "cta": "En savoir plus"
         },
         "wordGame": {
@@ -223,28 +223,28 @@
       "helper": "Touchez une carte ou utilisez le micro pour y aller directement.",
       "health": {
         "title": "Ma santé",
-        "subtitle": "Symptômes, médicaments et bien-être",
+        "subtitle": "Santé du jour",
         "bubble": "Je suis là pour vous aider à vous sentir mieux chaque jour.",
         "micLabel": "Parler de ma santé",
         "openLabel": "Ouvrir le bien-être"
       },
       "cognitive": {
-        "title": "Mon esprit",
-        "subtitle": "Attention, mémoire et calme",
-        "bubble": "Un petit moment avec moi garde votre esprit actif.",
+        "title": "Mon cerveau",
+        "subtitle": "Focus et calme",
+        "bubble": "Un petit moment avec moi garde votre cerveau actif.",
         "micLabel": "Commencer un exercice mental",
-        "openLabel": "Ouvrir l'esprit agile"
+        "openLabel": "Ouvrir les exercices cérébraux"
       },
       "social": {
-        "title": "Ma communauté",
-        "subtitle": "Salons, échanges et moments partagés",
+        "title": "Communauté",
+        "subtitle": "Salons et échanges",
         "bubble": "J'aime vous écouter. Vous avez toujours quelqu'un ici.",
         "micLabel": "Parler avec VYVA",
         "openLabel": "Ouvrir la communauté"
       },
       "concierge": {
-        "title": "Ma conciergerie",
-        "subtitle": "Réservations, démarches et soutien",
+        "title": "Concierge",
+        "subtitle": "Aide pratique",
         "bubble": "Laissez-moi m'en occuper. Je gère le plus difficile.",
         "micLabel": "Demander de l'aide par la voix",
         "openLabel": "Ouvrir la conciergerie"
@@ -253,7 +253,7 @@
     "whatNow": "ou explorez un sujet"
   },
   "voiceHero": {
-    "talkToVyva": "Parlons",
+    "talkToVyva": "Discuter",
     "speaking": "VYVA parle...",
     "listening": "En écoute...",
     "connecting": "Connexion...",
@@ -547,7 +547,7 @@
   },
   "health": {
     "voiceSource": "VYVA surveille votre santé",
-    "talkToDoctor": "Parler à un médecin",
+    "talkToDoctor": "Contacter un vrai médecin",
     "headlineWithName": "Comment vous sentez-vous,\n{{name}} ?",
     "headline": "Comment vous sentez-vous ?",
     "quickAccess": "Accès rapide",
@@ -578,7 +578,7 @@
     "symptomsToday": "Des symptômes aujourd'hui ?",
     "urgent": "urgent",
     "doctorServices": "Médecin & services",
-    "speakToDoctor": "Parler à un médecin",
+    "speakToDoctor": "Contacter un vrai médecin",
     "speakToDoctorSub": "Obtenir une orientation ou un conseil",
     "nearbyClinics": "Cliniques à proximité",
     "nearbyClinicsSub": "Trouver des centres de soins près de chez vous",
@@ -902,7 +902,7 @@
   "brain": {
     "voiceSource": "VYVA est votre coach cérébral",
     "headline": "Prêt(e) pour l'entraînement\ncérébral ?",
-    "subtitle": "Gardez l’esprit vif",
+    "subtitle": "Gardez votre cerveau en forme",
     "startSession": "Démarrer une session",
     "chooseActivity": "Choisir une activité",
     "doneToday": "Fait aujourd'hui",

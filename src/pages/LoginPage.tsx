@@ -1775,7 +1775,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
 
       {isCallModalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#2F183F]/35 px-4 py-6 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[#2F183F]/55 px-4 py-5 backdrop-blur-sm sm:items-center sm:py-8"
           role="presentation"
           data-testid="modal-login-call-vyva"
         >
@@ -1783,18 +1783,18 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
             role="dialog"
             aria-modal="true"
             aria-labelledby="call-modal-title"
-            className="w-full max-w-[500px] rounded-[34px] border border-[#E8DDD2] bg-[#FFFDF9] p-5 shadow-[0_32px_90px_rgba(47,24,63,0.24)] sm:p-7"
+            className="my-auto w-full max-w-[620px] rounded-[30px] border-2 border-[#E3D6C9] bg-[#FFFDF9] p-5 shadow-[0_34px_100px_rgba(47,24,63,0.34)] outline outline-1 outline-white/70 sm:rounded-[36px] sm:p-8"
             onSubmit={handleCallSubmit}
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="font-body text-[11px] font-extrabold uppercase tracking-[0.24em] text-vyva-purple/70">
+                <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.22em] text-vyva-purple">
                   {callCopy.eyebrow}
                 </p>
-                <h2 id="call-modal-title" className="mt-2 font-body text-[30px] font-black leading-tight text-[#2F183F]">
+                <h2 id="call-modal-title" className="mt-2 font-body text-[34px] font-black leading-tight text-[#2F183F] sm:text-[38px]">
                   {callCopy.title}
                 </h2>
-                <p className="mt-2 font-body text-[14px] leading-6 text-vyva-text-2">
+                <p className="mt-3 max-w-[34rem] font-body text-[17px] leading-7 text-vyva-text-2">
                   {callCopy.subtitle}
                 </p>
               </div>
@@ -1810,32 +1810,32 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
             </div>
 
             {callConfirmed ? (
-              <div className="mt-6 rounded-[24px] border border-[#E8DDF3] bg-[#F4ECFF] p-5 text-center">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-vyva-purple text-white">
-                  <PhoneCall size={24} />
+              <div className="mt-7 rounded-[28px] border-2 border-[#D8C2EF] bg-[#F4ECFF] p-5 text-center sm:p-6">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-vyva-purple text-white">
+                  <PhoneCall size={28} />
                 </div>
-                <p className="mt-4 font-body text-[12px] font-extrabold uppercase tracking-[0.18em] text-vyva-purple/70">
+                <p className="mt-5 font-body text-[13px] font-extrabold uppercase tracking-[0.18em] text-vyva-purple">
                   {callCopy.numberLabel}
                 </p>
                 <a
                   href={`tel:${selectedCallNumber.e164}`}
-                  className="mt-2 block font-body text-[32px] font-black leading-tight text-[#2F183F] underline-offset-4 hover:underline"
+                  className="mt-2 block break-words font-body text-[34px] font-black leading-tight text-[#2F183F] underline-offset-4 hover:underline sm:text-[40px]"
                   data-testid="link-call-vyva-number"
                 >
                   {selectedCallNumber.display}
                 </a>
                 <a
                   href={`tel:${selectedCallNumber.e164}`}
-                  className="mt-5 inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-sm font-black text-white shadow-[0_14px_32px_rgba(107,33,168,0.18)] transition hover:bg-vyva-purple/92"
+                  className="mt-6 inline-flex min-h-[60px] w-full items-center justify-center gap-2 rounded-full bg-vyva-purple px-5 font-body text-[17px] font-black text-white shadow-[0_16px_36px_rgba(107,33,168,0.22)] transition hover:bg-vyva-purple/92"
                   data-testid="button-call-now"
                 >
                   {callCopy.callNow}
-                  <PhoneCall size={16} />
+                  <PhoneCall size={20} />
                 </a>
                 <button
                   type="button"
                   onClick={() => setCallConfirmed(false)}
-                  className="mt-3 font-body text-[13px] font-black text-vyva-purple"
+                  className="mt-4 min-h-[44px] font-body text-[15px] font-black text-vyva-purple"
                   data-testid="button-call-change-country"
                 >
                   {callCopy.changeCountry}
@@ -1844,7 +1844,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
             ) : (
               <>
                 <div className="mt-6 grid gap-4">
-                  <label className="font-body text-[13px] font-bold text-vyva-text-2">
+                  <label className="font-body text-[16px] font-black text-vyva-text-1">
                     {callCopy.country}
                     <select
                       value={callCountry}
@@ -1852,7 +1852,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                         const nextCountry = event.target.value;
                         setCallCountry(nextCountry);
                       }}
-                      className="mt-2 h-[56px] w-full rounded-[20px] border border-vyva-border bg-white px-4 text-[16px] shadow-vyva-input outline-none"
+                      className="mt-2 h-[64px] w-full rounded-[22px] border-2 border-vyva-border bg-white px-5 text-[18px] font-bold text-[#2F183F] shadow-vyva-input outline-none"
                       data-testid="select-call-country"
                       aria-label={callCopy.country}
                     >
@@ -1869,14 +1869,14 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                   <button
                     type="button"
                     onClick={closeCallModal}
-                    className="inline-flex min-h-[52px] items-center justify-center rounded-full border border-[#E8DDF3] bg-white px-4 font-body text-sm font-black text-vyva-purple"
+                    className="inline-flex min-h-[60px] items-center justify-center rounded-full border-2 border-[#E8DDF3] bg-white px-5 font-body text-[17px] font-black text-vyva-purple"
                     data-testid="button-call-cancel"
                   >
                     {callCopy.cancel}
                   </button>
                   <button
                     type="submit"
-                    className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-sm font-black text-white shadow-[0_14px_32px_rgba(107,33,168,0.18)] transition hover:bg-vyva-purple/92"
+                    className="inline-flex min-h-[60px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-5 font-body text-[17px] font-black text-white shadow-[0_16px_36px_rgba(107,33,168,0.22)] transition hover:bg-vyva-purple/92"
                     data-testid="button-call-submit"
                   >
                     {callCopy.confirm}
@@ -1891,7 +1891,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
 
       {isCallbackModalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#2F183F]/35 px-4 py-6 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[#2F183F]/55 px-4 py-5 backdrop-blur-sm sm:items-center sm:py-8"
           role="presentation"
           data-testid="modal-login-callback"
         >
@@ -1899,47 +1899,48 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
             role="dialog"
             aria-modal="true"
             aria-labelledby="callback-modal-title"
-            className="max-h-[calc(100vh-48px)] w-full max-w-[560px] overflow-y-auto rounded-[34px] border border-[#E8DDD2] bg-[#FFFDF9] p-5 shadow-[0_32px_90px_rgba(47,24,63,0.24)] sm:p-7"
+            className="my-auto max-h-[calc(100vh-40px)] w-full max-w-[680px] overflow-y-auto rounded-[30px] border-2 border-[#E3D6C9] bg-[#FFFDF9] p-5 shadow-[0_34px_100px_rgba(47,24,63,0.34)] outline outline-1 outline-white/70 sm:max-h-[calc(100vh-64px)] sm:rounded-[36px] sm:p-8"
             onSubmit={handleCallbackSubmit}
+            noValidate
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="font-body text-[11px] font-extrabold uppercase tracking-[0.24em] text-vyva-purple/70">
+                <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.22em] text-vyva-purple">
                   {callbackCopy.eyebrow}
                 </p>
-                <h2 id="callback-modal-title" className="mt-2 font-body text-[30px] font-black leading-tight text-[#2F183F]">
+                <h2 id="callback-modal-title" className="mt-2 font-body text-[34px] font-black leading-tight text-[#2F183F] sm:text-[38px]">
                   {callbackCopy.title}
                 </h2>
-                <p className="mt-2 font-body text-[14px] leading-6 text-vyva-text-2">
+                <p className="mt-3 max-w-[36rem] font-body text-[17px] leading-7 text-vyva-text-2">
                   {callbackCopy.subtitle}
                 </p>
-                <p className="mt-2 inline-flex rounded-full bg-[#F4ECFF] px-3 py-1.5 font-body text-[12px] font-extrabold text-vyva-purple">
+                <p className="mt-3 inline-flex rounded-full bg-[#F4ECFF] px-4 py-2 font-body text-[14px] font-extrabold text-vyva-purple">
                   {callbackCopy.requiredNote}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={closeCallbackModal}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#E8DDF3] bg-white text-vyva-purple shadow-[0_10px_24px_rgba(76,46,22,0.08)]"
+                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 border-[#E8DDF3] bg-white text-vyva-purple shadow-[0_10px_24px_rgba(76,46,22,0.12)]"
                 aria-label={callbackCopy.cancel}
                 data-testid="button-callback-close"
               >
-                <X size={18} />
+                <X size={24} />
               </button>
             </div>
 
             {callbackScheduledFor ? (
-              <div className="mt-7 rounded-[26px] border border-[#D8F2E3] bg-[#F3FFF8] p-5 text-center shadow-[0_16px_36px_rgba(25,135,84,0.10)]">
-                <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#E2F8EB] text-emerald-700">
-                  <CheckCircle2 size={26} />
+              <div className="mt-7 rounded-[28px] border-2 border-[#BEEBD0] bg-[#F3FFF8] p-5 text-center shadow-[0_16px_36px_rgba(25,135,84,0.12)] sm:p-6">
+                <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#E2F8EB] text-emerald-700">
+                  <CheckCircle2 size={30} />
                 </span>
-                <h3 className="mt-4 font-body text-[24px] font-black text-[#2F183F]">
+                <h3 className="mt-4 font-body text-[28px] font-black text-[#2F183F]">
                   {callbackCopy.successTitle}
                 </h3>
-                <p className="mt-2 font-body text-[15px] leading-6 text-vyva-text-2">
+                <p className="mt-2 font-body text-[17px] leading-7 text-vyva-text-2">
                   {callbackCopy.successBody}
                 </p>
-                <p className="mt-3 rounded-full bg-white px-4 py-2 font-body text-[13px] font-extrabold text-emerald-800">
+                <p className="mt-4 rounded-full bg-white px-4 py-3 font-body text-[16px] font-extrabold text-emerald-800">
                   {new Date(callbackScheduledFor).toString() === "Invalid Date"
                     ? callbackScheduledFor
                     : new Intl.DateTimeFormat(language, {
@@ -1950,7 +1951,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                 <button
                   type="button"
                   onClick={closeCallbackModal}
-                  className="mt-6 inline-flex min-h-[52px] w-full items-center justify-center rounded-full bg-vyva-purple px-4 font-body text-sm font-black text-white shadow-[0_14px_32px_rgba(107,33,168,0.18)]"
+                  className="mt-6 inline-flex min-h-[60px] w-full items-center justify-center rounded-full bg-vyva-purple px-5 font-body text-[17px] font-black text-white shadow-[0_16px_36px_rgba(107,33,168,0.22)]"
                   data-testid="button-callback-success-close"
                 >
                   {callbackCopy.closeSuccess}
@@ -1960,7 +1961,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
               <>
             <div className="mt-6 grid gap-4">
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="font-body text-[13px] font-bold text-vyva-text-2">
+                <label className="font-body text-[16px] font-black text-vyva-text-1">
                   {callbackCopy.firstName} <span className="text-red-500" aria-hidden="true">*</span>
                   <Input
                     ref={callbackNameInputRef}
@@ -1971,14 +1972,14 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                       setCallbackError(null);
                     }}
                     placeholder={callbackCopy.firstNamePlaceholder}
-                    className="mt-2 h-[56px] rounded-[20px] border-vyva-border bg-white px-4 text-[16px] shadow-vyva-input"
+                    className="mt-2 h-[64px] rounded-[22px] border-2 border-vyva-border bg-white px-5 text-[18px] font-bold text-[#2F183F] shadow-vyva-input"
                     autoComplete="given-name"
                     data-testid="input-callback-first-name"
                     required
                   />
                 </label>
 
-                <label className="font-body text-[13px] font-bold text-vyva-text-2">
+                <label className="font-body text-[16px] font-black text-vyva-text-1">
                   {callbackCopy.lastName} <span className="text-red-500" aria-hidden="true">*</span>
                   <Input
                     type="text"
@@ -1988,7 +1989,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                       setCallbackError(null);
                     }}
                     placeholder={callbackCopy.lastNamePlaceholder}
-                    className="mt-2 h-[56px] rounded-[20px] border-vyva-border bg-white px-4 text-[16px] shadow-vyva-input"
+                    className="mt-2 h-[64px] rounded-[22px] border-2 border-vyva-border bg-white px-5 text-[18px] font-bold text-[#2F183F] shadow-vyva-input"
                     autoComplete="family-name"
                     data-testid="input-callback-last-name"
                     required
@@ -1997,12 +1998,12 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
               </div>
 
               <div className="grid gap-3 sm:grid-cols-[150px_1fr]">
-                <label className="font-body text-[13px] font-bold text-vyva-text-2">
+                <label className="font-body text-[16px] font-black text-vyva-text-1">
                   {callbackCopy.countryCode} <span className="text-red-500" aria-hidden="true">*</span>
                   <select
                     value={callbackCountryCode}
                     onChange={(event) => setCallbackCountryCode(event.target.value)}
-                    className="mt-2 h-[56px] w-full rounded-[20px] border border-vyva-border bg-white px-4 text-[16px] shadow-vyva-input outline-none"
+                    className="mt-2 h-[64px] w-full rounded-[22px] border-2 border-vyva-border bg-white px-5 text-[18px] font-bold text-[#2F183F] shadow-vyva-input outline-none"
                     data-testid="select-callback-country-code"
                     aria-label={callbackCopy.countryCode}
                     required
@@ -2015,7 +2016,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                   </select>
                 </label>
 
-                <label className="font-body text-[13px] font-bold text-vyva-text-2">
+                <label className="font-body text-[16px] font-black text-vyva-text-1">
                   {callbackCopy.phone} <span className="text-red-500" aria-hidden="true">*</span>
                   <Input
                     type="tel"
@@ -2025,7 +2026,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                       setCallbackError(null);
                     }}
                     placeholder={selectedDialOption.phonePlaceholder}
-                    className="mt-2 h-[56px] rounded-[20px] border-vyva-border bg-white px-4 text-[16px] shadow-vyva-input"
+                    className="mt-2 h-[64px] rounded-[22px] border-2 border-vyva-border bg-white px-5 text-[18px] font-bold text-[#2F183F] shadow-vyva-input"
                     autoComplete="tel-national"
                     data-testid="input-callback-phone"
                     required
@@ -2034,7 +2035,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="font-body text-[13px] font-bold text-vyva-text-2">
+                <label className="font-body text-[16px] font-black text-vyva-text-1">
                   {callbackCopy.date} <span className="text-red-500" aria-hidden="true">*</span>
                   <Input
                     type="date"
@@ -2044,15 +2045,15 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                       setCallbackError(null);
                     }}
                     min={todayForDateInput}
-                    className="mt-2 h-[56px] rounded-[20px] border-vyva-border bg-white px-4 text-[16px] shadow-vyva-input"
+                    className="mt-2 h-[64px] rounded-[22px] border-2 border-vyva-border bg-white px-5 text-[18px] font-bold text-[#2F183F] shadow-vyva-input"
                     data-testid="input-callback-date"
                     required
                   />
                 </label>
 
-                <label className="font-body text-[13px] font-bold text-vyva-text-2">
+                <label className="font-body text-[16px] font-black text-vyva-text-1">
                   {callbackCopy.time} <span className="text-red-500" aria-hidden="true">*</span>
-                  <div className="mt-2 grid grid-cols-[1fr_96px] gap-2">
+                  <div className="mt-2 grid grid-cols-[1fr_104px] gap-2">
                     <Input
                       type="time"
                       value={callbackTime}
@@ -2060,14 +2061,14 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                         setCallbackTime(event.target.value);
                         setCallbackError(null);
                       }}
-                      className="h-[56px] rounded-[20px] border-vyva-border bg-white px-4 text-[16px] shadow-vyva-input"
+                      className="h-[64px] rounded-[22px] border-2 border-vyva-border bg-white px-5 text-[18px] font-bold text-[#2F183F] shadow-vyva-input"
                       data-testid="input-callback-time"
                       required
                     />
                     <select
                       value={callbackPeriod}
                       onChange={(event) => setCallbackPeriod(event.target.value as CallbackPeriod)}
-                      className="h-[56px] rounded-[20px] border border-vyva-border bg-white px-3 text-[16px] font-bold text-[#2F183F] shadow-vyva-input outline-none"
+                      className="h-[64px] rounded-[22px] border-2 border-vyva-border bg-white px-4 text-[18px] font-black text-[#2F183F] shadow-vyva-input outline-none"
                       aria-label="AM or PM"
                       data-testid="select-callback-period"
                       required
@@ -2080,7 +2081,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
               </div>
 
               <fieldset className="grid gap-2">
-                <legend className="mb-1 font-body text-[13px] font-bold text-vyva-text-2">
+                <legend className="mb-1 font-body text-[16px] font-black text-vyva-text-1">
                   {callbackCopy.callFor} <span className="text-red-500" aria-hidden="true">*</span>
                 </legend>
                 {(["me", "caregiver"] as const).map((option) => {
@@ -2091,7 +2092,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                       key={option}
                       type="button"
                       onClick={() => setCallbackFor(option)}
-                      className={`flex items-center gap-3 rounded-[22px] border p-3 text-left transition ${
+                      className={`flex min-h-[76px] items-center gap-3 rounded-[24px] border-2 p-4 text-left transition ${
                         isSelected
                           ? "border-vyva-purple bg-[#F4ECFF] shadow-[0_12px_28px_rgba(107,33,168,0.12)]"
                           : "border-[#E8DDD2] bg-white hover:border-[#D8C2EF]"
@@ -2099,14 +2100,14 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                       aria-pressed={isSelected}
                       data-testid={`button-callback-for-${option}`}
                     >
-                      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${isSelected ? "bg-vyva-purple text-white" : "bg-[#F8F3EA] text-vyva-purple"}`}>
-                        <Icon size={20} />
+                      <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${isSelected ? "bg-vyva-purple text-white" : "bg-[#F8F3EA] text-vyva-purple"}`}>
+                        <Icon size={22} />
                       </span>
                       <span>
-                        <span className="block font-body text-[14px] font-black text-[#2F183F]">
+                        <span className="block font-body text-[17px] font-black text-[#2F183F]">
                           {callbackCopy.options[option].title}
                         </span>
-                        <span className="mt-0.5 block font-body text-[12px] leading-5 text-vyva-text-2">
+                        <span className="mt-1 block font-body text-[15px] leading-6 text-vyva-text-2">
                           {callbackCopy.options[option].subtitle}
                         </span>
                       </span>
@@ -2117,7 +2118,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
             </div>
 
             {callbackError && (
-              <p className="mt-4 rounded-[16px] bg-red-50 px-4 py-3 font-body text-[13px] text-red-700" data-testid="text-callback-error">
+              <p className="mt-4 rounded-[18px] border-2 border-red-100 bg-red-50 px-4 py-3 font-body text-[16px] font-bold text-red-700" data-testid="text-callback-error">
                 {callbackError}
               </p>
             )}
@@ -2126,7 +2127,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
               <button
                 type="button"
                 onClick={closeCallbackModal}
-                className="inline-flex min-h-[52px] items-center justify-center rounded-full border border-[#E8DDF3] bg-white px-4 font-body text-sm font-black text-vyva-purple"
+                className="inline-flex min-h-[60px] items-center justify-center rounded-full border-2 border-[#E8DDF3] bg-white px-5 font-body text-[17px] font-black text-vyva-purple"
                 data-testid="button-callback-cancel"
               >
                 {callbackCopy.cancel}
@@ -2134,18 +2135,18 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
               <button
                 type="submit"
                 disabled={callbackLoading}
-                className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-sm font-black text-white shadow-[0_14px_32px_rgba(107,33,168,0.18)] transition hover:bg-vyva-purple/92"
+                className="inline-flex min-h-[60px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-5 font-body text-[17px] font-black text-white shadow-[0_16px_36px_rgba(107,33,168,0.22)] transition hover:bg-vyva-purple/92"
                 data-testid="button-callback-submit"
               >
                 {callbackLoading ? (
                   <>
-                    <Loader2 size={16} className="animate-spin" />
+                    <Loader2 size={20} className="animate-spin" />
                     {callbackCopy.submitting}
                   </>
                 ) : (
                   <>
                     {callbackCopy.submit}
-                    <ArrowRight size={16} />
+                    <ArrowRight size={20} />
                   </>
                 )}
               </button>
