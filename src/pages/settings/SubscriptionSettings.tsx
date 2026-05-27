@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Check, CreditCard, Loader2, Sparkles } from "lucide-react";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
+import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
 import { apiFetch } from "@/lib/queryClient";
 
 type PlanEntitlement = {
@@ -110,22 +111,31 @@ const SubscriptionSettings = () => {
 
   return (
     <PhoneFrame showBack onBack={() => navigate("/settings")}>
-      <div className="space-y-4 px-1 pb-5">
-        <div>
-          <h1 className="font-display text-[28px] font-semibold leading-tight text-vyva-text-1">Your plan</h1>
-          <p className="mt-1 font-body text-[13px] leading-relaxed text-vyva-text-2">Choose the support level that fits your routine.</p>
-        </div>
+      <div className="space-y-7 px-1 pb-6 pt-5 sm:px-2 md:px-3">
+        <ProfileSectionHero
+          icon={CreditCard}
+          title="Your VYVA plan"
+          kicker="Plan & billing"
+          description="Choose the support level that fits your routine, family needs, and access to VYVA services."
+          badges={[
+            { label: "Voice support", color: "purple" },
+            { label: "Health services", color: "blue" },
+            { label: "Family reassurance", color: "green" },
+          ]}
+        />
 
         <div
-          className="rounded-[18px] px-4 py-4 bg-vyva-warm2/50 border border-vyva-border flex items-start gap-3"
+          className="flex items-start gap-4 rounded-[24px] border border-vyva-border bg-vyva-warm2/50 px-5 py-5 shadow-[0_12px_28px_rgba(53,28,87,0.06)]"
           data-testid="banner-subscription-current-plan"
         >
-          <CreditCard size={20} className="text-vyva-text-2 flex-shrink-0 mt-0.5" />
+          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white text-vyva-purple shadow-sm">
+            <CreditCard size={22} />
+          </div>
           <div>
-            <p className="font-body text-[14px] font-medium text-vyva-text-1" data-testid="text-subscription-current-plan">
+            <p className="font-body text-[17px] font-black text-vyva-text-1" data-testid="text-subscription-current-plan">
               Current plan: <span className="capitalize">{currentPlanName}</span>
             </p>
-            <p className="font-body text-[12px] text-vyva-text-2">
+            <p className="mt-1 font-body text-[14px] leading-relaxed text-vyva-text-2">
               {status?.status === "trial" && status.trial_days_remaining > 0
                 ? `${status.trial_days_remaining} trial days remaining`
                 : status?.status === "active"
@@ -141,7 +151,7 @@ const SubscriptionSettings = () => {
               key={value}
               type="button"
               onClick={() => setCurrency(value)}
-              className={`flex-1 rounded-full px-4 py-2 font-body text-[13px] font-bold ${currency === value ? "bg-vyva-purple text-white" : "text-vyva-text-2"}`}
+              className={`min-h-12 flex-1 rounded-full px-4 py-2 font-body text-[16px] font-black ${currency === value ? "bg-vyva-purple text-white" : "text-vyva-text-2"}`}
             >
               {value.toUpperCase()}
             </button>
@@ -149,77 +159,77 @@ const SubscriptionSettings = () => {
         </div>
 
         {message && (
-          <p className="rounded-[18px] bg-white border border-vyva-border px-4 py-3 font-body text-[13px] text-vyva-text-1">
+          <p className="rounded-[20px] border border-vyva-border bg-white px-5 py-4 font-body text-[15px] font-semibold text-vyva-text-1">
             {message}
           </p>
         )}
 
         <div className="space-y-4">
           {loading && (
-            <p className="rounded-[18px] bg-white border border-vyva-border px-4 py-3 font-body text-[13px] text-vyva-text-2">
+            <p className="rounded-[20px] border border-vyva-border bg-white px-5 py-4 font-body text-[15px] font-semibold text-vyva-text-2">
               Loading plans...
             </p>
           )}
           {!loading && !visiblePlans.length && (
-            <p className="rounded-[18px] bg-white border border-vyva-border px-4 py-3 font-body text-[13px] text-vyva-text-2">
+            <p className="rounded-[20px] border border-vyva-border bg-white px-5 py-4 font-body text-[15px] font-semibold text-vyva-text-2">
               No public subscription plans are configured yet.
             </p>
           )}
           {visiblePlans.map((plan) => {
             const active = currentPlanId === plan.plan_id;
             const price = formatPrice(plan, currency);
-            const features = [...(plan.features ?? []), ...entitlementLabels(plan)];
+            const features = Array.from(new Set([...(plan.features ?? []), ...entitlementLabels(plan)]));
             const isFree = plan.price_eur === 0 && plan.price_gbp === 0;
 
             return (
               <article
                 key={plan.plan_id}
-                className={`rounded-[22px] border-2 overflow-hidden bg-white ${active ? "border-vyva-purple" : "border-vyva-border"}`}
-                style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}
+                className={`overflow-hidden rounded-[28px] border-2 bg-white ${active ? "border-vyva-purple" : "border-vyva-border"}`}
+                style={{ boxShadow: active ? "0 18px 42px rgba(107,33,168,0.14)" : "0 14px 34px rgba(53,28,87,0.07)" }}
                 data-testid={`card-plan-${plan.plan_id}`}
               >
-                <div className="px-5 pt-5 pb-4">
+                <div className="px-6 pb-5 pt-6">
                   {plan.plan_id === "unlimited" && (
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="mb-2 flex items-center gap-2">
                       <Sparkles size={16} className="text-vyva-gold" />
-                      <span className="font-body text-[12px] font-medium text-vyva-gold uppercase tracking-wider">
+                      <span className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-vyva-gold">
                         Full support
                       </span>
                     </div>
                   )}
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <h2 className="font-display text-[20px] font-semibold text-vyva-text-1">{plan.name}</h2>
-                      {plan.description && <p className="mt-1 font-body text-[12px] leading-relaxed text-vyva-text-2">{plan.description}</p>}
+                      <h2 className="font-display text-[26px] font-semibold leading-tight text-vyva-text-1">{plan.name}</h2>
+                      {plan.description && <p className="mt-2 font-body text-[15px] leading-relaxed text-vyva-text-2">{plan.description}</p>}
                     </div>
                     <div className="ml-auto text-right shrink-0">
-                      <span className="font-display text-[28px] font-semibold text-vyva-text-1">{price}</span>
-                      {!isFree && <span className="font-body text-[13px] text-vyva-text-3"> / {plan.billing_interval ?? "month"}</span>}
+                      <span className="font-display text-[36px] font-semibold text-vyva-text-1">{price}</span>
+                      {!isFree && <span className="font-body text-[15px] font-semibold text-vyva-text-3"> / {plan.billing_interval ?? "month"}</span>}
                     </div>
                   </div>
                   {active && (
-                    <span className="inline-block mt-3 px-2 py-0.5 rounded-full bg-vyva-purple-light text-vyva-purple font-body text-[11px] font-medium">
+                    <span className="mt-4 inline-block rounded-full bg-vyva-purple-light px-3 py-1 font-body text-[13px] font-black text-vyva-purple">
                       Current plan
                     </span>
                   )}
                 </div>
-                <div className="px-5 pb-5 space-y-2">
+                <div className="space-y-3 px-6 pb-6">
                   {features.map((feature) => (
                     <div key={feature} className="flex items-center gap-2">
-                      <Check size={14} className="text-vyva-green flex-shrink-0" />
-                      <span className="font-body text-[13px] text-vyva-text-2">{feature}</span>
+                      <Check size={18} className="flex-shrink-0 text-vyva-green" />
+                      <span className="font-body text-[15px] font-semibold leading-snug text-vyva-text-2">{feature}</span>
                     </div>
                   ))}
                 </div>
-                <div className="px-5 pb-5">
+                <div className="px-6 pb-6">
                   {active ? (
-                    <div className="w-full py-3 rounded-full font-body text-[15px] font-medium text-center text-vyva-purple bg-vyva-purple-light">
+                    <div className="w-full rounded-full bg-vyva-purple-light py-4 text-center font-body text-[17px] font-black text-vyva-purple">
                       Active plan
                     </div>
                   ) : (
                     <button
                       data-testid={`button-subscription-choose-${plan.plan_id}`}
-                      className="w-full py-4 rounded-full font-body text-[17px] font-semibold text-white flex items-center justify-center gap-2"
+                      className="flex min-h-14 w-full items-center justify-center gap-2 rounded-full py-4 font-body text-[18px] font-black text-white shadow-[0_14px_28px_rgba(107,33,168,0.22)]"
                       style={{ background: "#6B21A8" }}
                       disabled={loadingPlan !== null}
                       onClick={() => choosePlan(plan)}
@@ -234,7 +244,7 @@ const SubscriptionSettings = () => {
           })}
         </div>
 
-        <p className="font-body text-[11px] text-vyva-text-3 text-center">
+        <p className="text-center font-body text-[13px] font-semibold leading-relaxed text-vyva-text-3">
           Cancel anytime - Secure payment by Stripe - Trial available before paid support
         </p>
       </div>

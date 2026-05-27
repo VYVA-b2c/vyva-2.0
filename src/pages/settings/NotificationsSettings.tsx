@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { BellRing, Bot, UserRound, type LucideIcon } from "lucide-react";
 import { ContactChannelPicker } from "@/components/ContactChannelPicker";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
+import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -65,6 +66,12 @@ const SUPPORT_MODE_OPTIONS: Array<{
     subKey: "settings.notifications.supportModeHumanSub",
   },
 ];
+
+const settingsPanelClassName =
+  "rounded-[28px] border border-[#EFE4D5] bg-white p-5 shadow-[0_14px_34px_rgba(53,28,87,0.06)]";
+
+const settingsKickerClassName =
+  "font-body text-[12px] font-black uppercase tracking-[0.08em] text-vyva-purple/70";
 
 function normalizeSupportMode(value: unknown): SupportMode {
   return value === "human_supported" || value === "ai_powered" ? value : DEFAULT_PREFERENCES.support_mode;
@@ -127,27 +134,27 @@ function SupportModePicker({
             aria-checked={active}
             data-testid={`button-support-mode-${option.id}`}
             onClick={() => onChange(option.id)}
-            className={`flex w-full items-center gap-3 rounded-[22px] border-2 p-4 text-left transition-colors ${
+            className={`flex min-h-[104px] w-full items-center gap-4 rounded-[24px] border-2 p-5 text-left transition-colors ${
               active ? "border-vyva-purple bg-[#F5F3FF]" : "border-[#EFE7DB] bg-white hover:border-[#E1D6C8]"
             }`}
           >
             <div
-              className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[15px]"
+              className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[18px]"
               style={{ background: option.iconBg }}
             >
-              <Icon size={20} style={{ color: option.iconColor }} />
+              <Icon size={24} style={{ color: option.iconColor }} />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="font-body text-[15px] font-extrabold text-vyva-text-1">{t(option.labelKey)}</p>
-              <p className="font-body text-[12px] leading-[1.4] text-vyva-text-2">{t(option.subKey)}</p>
+              <p className="font-body text-[18px] font-black leading-tight text-vyva-text-1">{t(option.labelKey)}</p>
+              <p className="mt-1 font-body text-[14px] leading-snug text-vyva-text-2">{t(option.subKey)}</p>
             </div>
             <div
-              className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full ${
+              className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full ${
                 active ? "bg-vyva-purple" : "border-2 border-[#E4D4F4] bg-white"
               }`}
               aria-hidden="true"
             >
-              {active && <div className="h-2 w-2 rounded-full bg-white" />}
+              {active && <div className="h-2.5 w-2.5 rounded-full bg-white" />}
             </div>
           </button>
         );
@@ -219,34 +226,30 @@ export default function NotificationsSettings() {
 
   return (
     <PhoneFrame subtitle={t("settings.notifications.title")} showBack onBack={() => navigate("/settings")}>
-      <div className="flex flex-col gap-5 px-4 py-5">
-        <div className="rounded-[28px] border border-[#EFE7DB] bg-white p-5 shadow-[0_14px_34px_rgba(48,30,12,0.06)]">
-          <div className="flex items-start gap-3">
-            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#FFF2C7] text-[#D28A00]">
-              <BellRing size={22} />
-            </div>
-            <div className="min-w-0">
-              <h2 className="font-serif text-[26px] leading-[1.05] text-vyva-text-1">
-                {t("settings.notifications.title")}
-              </h2>
-              <p className="mt-2 font-body text-[14px] leading-[1.45] text-vyva-text-2">
-                {t("settings.notifications.subtitle")}
-              </p>
-            </div>
-          </div>
-        </div>
+      <div className="flex flex-col gap-6 px-1 pb-6 pt-5 sm:px-2 md:px-3">
+        <ProfileSectionHero
+          icon={BellRing}
+          title={t("settings.notifications.title")}
+          kicker="Contact preferences"
+          description={t("settings.notifications.subtitle")}
+          badges={[
+            { label: t("settings.notifications.channelCheckins"), color: "purple" },
+            { label: t("settings.notifications.channelReminders"), color: "blue" },
+            { label: t("settings.notifications.quietHours"), color: "amber" },
+          ]}
+        />
 
         {preferencesQuery.isError && (
-          <div className="rounded-[20px] border border-[#F5B7B1] bg-[#FFF2F0] p-4 font-body text-[13px] font-bold text-[#B42318]">
+          <div className="rounded-[22px] border border-[#F5B7B1] bg-[#FFF2F0] p-4 font-body text-[15px] font-bold text-[#B42318]">
             {t("settings.notifications.loadError", "Could not load preferences")}
           </div>
         )}
 
-        <section className="rounded-[28px] border border-[#EFE7DB] bg-white p-5 shadow-[0_14px_34px_rgba(48,30,12,0.06)]">
-          <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.16em] text-vyva-purple/70">
+        <section className={settingsPanelClassName}>
+          <p className={settingsKickerClassName}>
             {t("settings.notifications.channelCheckins")}
           </p>
-          <p className="mt-1 font-body text-[13px] leading-[1.45] text-vyva-text-2">
+          <p className="mt-1 font-body text-[15px] leading-relaxed text-vyva-text-2">
             {t("settings.notifications.checkinsHint", "Used for daily check-ins and follow-ups.")}
           </p>
           <div className="mt-4">
@@ -262,11 +265,11 @@ export default function NotificationsSettings() {
           </div>
         </section>
 
-        <section className="rounded-[28px] border border-[#EFE7DB] bg-white p-5 shadow-[0_14px_34px_rgba(48,30,12,0.06)]">
-          <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.16em] text-vyva-purple/70">
+        <section className={settingsPanelClassName}>
+          <p className={settingsKickerClassName}>
             {t("settings.notifications.channelReminders")}
           </p>
-          <p className="mt-1 font-body text-[13px] leading-[1.45] text-vyva-text-2">
+          <p className="mt-1 font-body text-[15px] leading-relaxed text-vyva-text-2">
             {t(
               "settings.notifications.remindersHint",
               "Used for reminders about medication, appointments, and tasks.",
@@ -285,11 +288,11 @@ export default function NotificationsSettings() {
           </div>
         </section>
 
-        <section className="rounded-[28px] border border-[#EFE7DB] bg-white p-5 shadow-[0_14px_34px_rgba(48,30,12,0.06)]">
-          <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.16em] text-vyva-purple/70">
+        <section className={settingsPanelClassName}>
+          <p className={settingsKickerClassName}>
             {t("settings.notifications.supportMode")}
           </p>
-          <p className="mt-1 font-body text-[13px] leading-[1.45] text-vyva-text-2">
+          <p className="mt-1 font-body text-[15px] leading-relaxed text-vyva-text-2">
             {t(
               "settings.notifications.supportModeHint",
               "Choose whether VYVA handles contact automatically or a person should take over.",
@@ -304,46 +307,46 @@ export default function NotificationsSettings() {
           </div>
         </section>
 
-        <section className="rounded-[28px] border border-[#EFE7DB] bg-white p-5 shadow-[0_14px_34px_rgba(48,30,12,0.06)]">
-          <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.16em] text-vyva-purple/70">
+        <section className={settingsPanelClassName}>
+          <p className={settingsKickerClassName}>
             {t("settings.notifications.quietHours")}
           </p>
-          <p className="mt-1 font-body text-[13px] leading-[1.45] text-vyva-text-2">
+          <p className="mt-1 font-body text-[15px] leading-relaxed text-vyva-text-2">
             {t("settings.notifications.quietHoursHint", "VYVA will avoid outbound contact during this window.")}
           </p>
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="font-body text-[12px] font-extrabold text-vyva-text-2">
+              <Label className="font-body text-[14px] font-black text-vyva-text-2">
                 {t("settings.notifications.from")}
               </Label>
               <input
                 type="time"
                 value={draft.voice_available_until}
                 onChange={(event) => setQuietStart(event.target.value)}
-                className="h-12 w-full rounded-[18px] border border-[#E4D4F4] bg-[#FFFCF7] px-3 font-body text-[14px] text-vyva-text-1 focus:border-vyva-purple focus:outline-none"
+                className="h-14 w-full rounded-[18px] border border-[#DDC7FF] bg-white px-4 font-body text-[17px] text-vyva-text-1 shadow-[0_8px_20px_rgba(53,28,87,0.05)] focus:border-vyva-purple focus:outline-none focus:ring-4 focus:ring-vyva-purple/15"
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="font-body text-[12px] font-extrabold text-vyva-text-2">
+              <Label className="font-body text-[14px] font-black text-vyva-text-2">
                 {t("settings.notifications.until")}
               </Label>
               <input
                 type="time"
                 value={draft.voice_available_from}
                 onChange={(event) => setQuietEnd(event.target.value)}
-                className="h-12 w-full rounded-[18px] border border-[#E4D4F4] bg-[#FFFCF7] px-3 font-body text-[14px] text-vyva-text-1 focus:border-vyva-purple focus:outline-none"
+                className="h-14 w-full rounded-[18px] border border-[#DDC7FF] bg-white px-4 font-body text-[17px] text-vyva-text-1 shadow-[0_8px_20px_rgba(53,28,87,0.05)] focus:border-vyva-purple focus:outline-none focus:ring-4 focus:ring-vyva-purple/15"
               />
             </div>
           </div>
         </section>
 
-        <section className="rounded-[28px] border border-[#EFE7DB] bg-white p-5 shadow-[0_14px_34px_rgba(48,30,12,0.06)]">
-          <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.16em] text-vyva-purple/70">
+        <section className={settingsPanelClassName}>
+          <p className={settingsKickerClassName}>
             {t("settings.notifications.frequencyLimits")}
           </p>
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label className="font-body text-[12px] font-extrabold text-vyva-text-2">
+              <Label className="font-body text-[14px] font-black text-vyva-text-2">
                 {t("settings.notifications.maxCalls")}
               </Label>
               <Select
@@ -352,7 +355,7 @@ export default function NotificationsSettings() {
                   setDraft((current) => ({ ...current, max_outbound_calls_per_day: selectToLimit(value) }))
                 }
               >
-                <SelectTrigger className="h-12 rounded-[18px] border-[#E4D4F4] bg-[#FFFCF7]">
+                <SelectTrigger className="h-14 rounded-[18px] border-[#DDC7FF] bg-white px-4 text-[17px] shadow-[0_8px_20px_rgba(53,28,87,0.05)]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -364,7 +367,7 @@ export default function NotificationsSettings() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="font-body text-[12px] font-extrabold text-vyva-text-2">
+              <Label className="font-body text-[14px] font-black text-vyva-text-2">
                 {t("settings.notifications.maxWhatsapp")}
               </Label>
               <Select
@@ -373,7 +376,7 @@ export default function NotificationsSettings() {
                   setDraft((current) => ({ ...current, max_whatsapp_messages_per_day: selectToLimit(value) }))
                 }
               >
-                <SelectTrigger className="h-12 rounded-[18px] border-[#E4D4F4] bg-[#FFFCF7]">
+                <SelectTrigger className="h-14 rounded-[18px] border-[#DDC7FF] bg-white px-4 text-[17px] shadow-[0_8px_20px_rgba(53,28,87,0.05)]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -390,7 +393,7 @@ export default function NotificationsSettings() {
         <Button
           onClick={() => saveMutation.mutate(draft)}
           disabled={isBusy}
-          className="h-14 w-full rounded-full bg-vyva-purple font-body text-[16px] font-extrabold hover:bg-[#5B1A8F]"
+          className="h-14 w-full rounded-full bg-vyva-purple font-body text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5B1A8F]"
         >
           {saveMutation.isPending ? t("settings.notifications.saving") : t("settings.notifications.savePreferences")}
         </Button>

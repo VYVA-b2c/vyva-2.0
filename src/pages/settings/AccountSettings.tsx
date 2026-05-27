@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Camera, X } from "lucide-react";
+import { Camera, LogOut, ShieldCheck, UserRound, X } from "lucide-react";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
+import { ProfileSectionHero, seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -167,6 +168,9 @@ const COUNTRY_DEFAULTS: Record<string, { timezone: string }> = {
   PT: { timezone: "europe_central" },
   AE: { timezone: "dubai" },
 };
+
+const accountInputClassName = seniorInputClassName;
+const accountSelectClassName = seniorInputClassName;
 
 const NAME_GENDER_HINTS: Record<"female" | "male", string[]> = {
   female: [
@@ -462,28 +466,40 @@ export default function AccountSettings() {
 
   return (
     <PhoneFrame subtitle={t("settings.account.title")} showBack onBack={() => navigate("/settings")}>
-      <div className="flex flex-col gap-4 px-4 py-5">
-        <div>
-          <h2 className="text-lg font-bold text-gray-900">{t("settings.account.title")}</h2>
-          <p className="mt-1 text-xs text-gray-500">{t("settings.account.subtitle")}</p>
-        </div>
+      <div className="flex flex-col gap-6 px-1 pb-6 pt-5 sm:px-2 md:px-3">
+        <ProfileSectionHero
+          icon={UserRound}
+          title={t("settings.account.title")}
+          kicker="Your details"
+          description={t("settings.account.subtitle")}
+          badges={[
+            { label: accountCopy.firstName, color: "purple" },
+            { label: t("settings.account.phone"), color: "green" },
+            { label: t("settings.account.language"), color: "blue" },
+          ]}
+        />
 
         <div
-          className="rounded-[14px] border px-4 py-3"
+          className="flex items-start gap-4 rounded-[24px] border px-5 py-4 shadow-[0_12px_28px_rgba(53,28,87,0.06)]"
           style={{ background: "#FCF7FF", borderColor: "#E9D5FF" }}
         >
-          <p className="text-sm font-semibold" style={{ color: "#5B21B6" }}>
-            {accountCopy.minimumInfoTitle}
-          </p>
-          <p className="mt-1 text-xs" style={{ color: "#7A7290" }}>
-            {accountCopy.minimumInfoHint}
-          </p>
+          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white text-vyva-purple shadow-sm">
+            <ShieldCheck size={22} />
+          </div>
+          <div>
+            <p className="font-body text-[16px] font-black" style={{ color: "#5B21B6" }}>
+              {accountCopy.minimumInfoTitle}
+            </p>
+            <p className="mt-1 font-body text-[14px] leading-relaxed" style={{ color: "#7A7290" }}>
+              {accountCopy.minimumInfoHint}
+            </p>
+          </div>
         </div>
 
-        <div className="flex flex-col items-center gap-3 py-2">
+        <div className="flex flex-col items-center gap-3 rounded-[28px] border border-[#EFE4D5] bg-white px-5 py-6 shadow-[0_14px_34px_rgba(53,28,87,0.06)]">
           <div className="relative">
             <div
-              className="flex h-[88px] w-[88px] items-center justify-center overflow-hidden rounded-full text-[32px] font-bold text-white"
+              className="flex h-[112px] w-[112px] items-center justify-center overflow-hidden rounded-full text-[40px] font-black text-white shadow-[0_18px_34px_rgba(107,33,168,0.18)]"
               style={{ background: "#6B21A8" }}
             >
               {avatarUrl ? (
@@ -497,11 +513,11 @@ export default function AccountSettings() {
               data-testid="button-avatar-upload"
               onClick={() => fileInputRef.current?.click()}
               disabled={avatarMutation.isPending}
-              className="absolute bottom-0 right-0 flex h-[30px] w-[30px] items-center justify-center rounded-full border-2 border-white shadow-md transition-transform active:scale-90"
+              className="absolute bottom-1 right-1 flex h-10 w-10 items-center justify-center rounded-full border-2 border-white shadow-md transition-transform active:scale-90"
               style={{ background: "#6B21A8" }}
               title={t("settings.account.changePhoto", "Change photo")}
             >
-              <Camera size={14} className="text-white" />
+              <Camera size={18} className="text-white" />
             </button>
           </div>
 
@@ -510,10 +526,10 @@ export default function AccountSettings() {
               data-testid="button-avatar-remove"
               onClick={() => avatarMutation.mutate(null)}
               disabled={avatarMutation.isPending}
-              className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium"
+              className="flex items-center gap-2 rounded-full border px-4 py-2 text-[13px] font-black"
               style={{ color: "#B0355A", borderColor: "#B0355A33", background: "#FDF2F8" }}
             >
-              <X size={12} />
+              <X size={14} />
               {t("settings.account.removePhoto", "Remove photo")}
             </button>
           ) : null}
@@ -527,7 +543,7 @@ export default function AccountSettings() {
             data-testid="input-avatar-file"
           />
 
-          <p className="text-center text-xs" style={{ color: "#7A7290" }}>
+          <p className="text-center font-body text-[14px] font-semibold" style={{ color: "#7A7290" }}>
             {t("settings.account.photoHint", "This photo will appear on your community profile")}
           </p>
         </div>
@@ -547,7 +563,7 @@ export default function AccountSettings() {
                 setForm((current) => ({ ...current, firstName: e.target.value }));
                 if (errors.firstName) setErrors((current) => ({ ...current, firstName: undefined }));
               }}
-              className={`h-12 ${errors.firstName ? "border-red-400 focus-visible:ring-red-300" : ""}`}
+              className={`${accountInputClassName} ${errors.firstName ? "border-red-400 focus-visible:ring-red-300" : ""}`}
               style={{
                 borderColor: errors.firstName ? "#F87171" : "#C4B5FD",
                 background: "#FCF7FF",
@@ -570,7 +586,7 @@ export default function AccountSettings() {
                 setForm((current) => ({ ...current, lastName: e.target.value }));
                 if (errors.lastName) setErrors((current) => ({ ...current, lastName: undefined }));
               }}
-              className={`h-12 ${errors.lastName ? "border-red-400 focus-visible:ring-red-300" : ""}`}
+              className={`${accountInputClassName} ${errors.lastName ? "border-red-400 focus-visible:ring-red-300" : ""}`}
               style={{
                 borderColor: errors.lastName ? "#F87171" : "#C4B5FD",
                 background: "#FCF7FF",
@@ -585,7 +601,7 @@ export default function AccountSettings() {
             id="preferred_name"
             value={form.preferredName}
             onChange={(e) => setForm((current) => ({ ...current, preferredName: e.target.value }))}
-            className="h-11 border-purple-200"
+            className={accountInputClassName}
           />
         </FormField>
 
@@ -595,7 +611,7 @@ export default function AccountSettings() {
               type="date"
               value={form.dateOfBirth}
               onChange={(e) => setForm((current) => ({ ...current, dateOfBirth: e.target.value }))}
-              className="h-11 border-purple-200"
+              className={accountInputClassName}
             />
           </FormField>
           <FormField
@@ -611,7 +627,7 @@ export default function AccountSettings() {
                 setForm((current) => ({ ...current, gender: value }));
               }}
             >
-              <SelectTrigger className="h-11 border-purple-200"><SelectValue /></SelectTrigger>
+              <SelectTrigger className={accountSelectClassName}><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="female">{t("settings.account.genderFemale")}</SelectItem>
                 <SelectItem value="male">{t("settings.account.genderMale")}</SelectItem>
@@ -634,7 +650,7 @@ export default function AccountSettings() {
               value={form.phoneCountry}
               onValueChange={(value) => setForm((current) => ({ ...current, phoneCountry: value }))}
             >
-              <SelectTrigger className="h-12 border-purple-200 bg-[#FCF7FF]">
+              <SelectTrigger className={accountSelectClassName}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -654,7 +670,7 @@ export default function AccountSettings() {
                 if (errors.phone) setErrors((current) => ({ ...current, phone: undefined }));
               }}
               placeholder={t("settings.account.phonePlaceholder", "000 000 000")}
-              className={`h-12 ${errors.phone ? "border-red-400 focus-visible:ring-red-300" : ""}`}
+              className={`${accountInputClassName} ${errors.phone ? "border-red-400 focus-visible:ring-red-300" : ""}`}
               style={{
                 borderColor: errors.phone ? "#F87171" : "#C4B5FD",
                 background: "#FCF7FF",
@@ -671,7 +687,7 @@ export default function AccountSettings() {
             value={form.whatsapp}
             onChange={(e) => setForm((current) => ({ ...current, whatsapp: e.target.value }))}
             placeholder={t("settings.account.whatsappPlaceholder")}
-            className="h-11 border-purple-200"
+            className={accountInputClassName}
           />
         </FormField>
 
@@ -682,7 +698,7 @@ export default function AccountSettings() {
             value={form.email}
             onChange={(e) => setForm((current) => ({ ...current, email: e.target.value }))}
             placeholder={t("settings.account.emailPlaceholder")}
-            className="h-11 border-purple-200"
+            className={accountInputClassName}
           />
         </FormField>
 
@@ -695,7 +711,7 @@ export default function AccountSettings() {
                 setForm((current) => ({ ...current, language: value as LanguageCode }));
               }}
             >
-              <SelectTrigger className="h-11 border-purple-200"><SelectValue /></SelectTrigger>
+              <SelectTrigger className={accountSelectClassName}><SelectValue /></SelectTrigger>
               <SelectContent>
                 {LANGUAGES.map((entry) => (
                   <SelectItem key={entry.code} value={entry.code}>
@@ -713,7 +729,7 @@ export default function AccountSettings() {
                 setForm((current) => ({ ...current, timezone: value }));
               }}
             >
-              <SelectTrigger className="h-11 border-purple-200"><SelectValue /></SelectTrigger>
+              <SelectTrigger className={accountSelectClassName}><SelectValue /></SelectTrigger>
               <SelectContent>
                 {TIMEZONE_OPTIONS.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
@@ -729,20 +745,21 @@ export default function AccountSettings() {
           <Button
             onClick={handleSave}
             disabled={saving}
-            className="h-12 w-full bg-[#6b21a8] font-bold hover:bg-[#5b1a8f]"
+            className="h-14 w-full rounded-full bg-[#6B21A8] font-body text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5B1A8F]"
             data-testid="button-account-save"
           >
             {saving ? t("settings.account.saving") : t("settings.account.saveChanges")}
           </Button>
-          <button className="py-2 text-xs text-red-500">{t("settings.account.changePassword")}</button>
+          <button className="rounded-full py-3 text-[14px] font-black text-red-500">{t("settings.account.changePassword")}</button>
           <button
             data-testid="button-account-sign-out"
             onClick={() => {
               logout();
               navigate("/login");
             }}
-            className="py-2 text-xs font-semibold text-red-500"
+            className="inline-flex items-center justify-center gap-2 rounded-full border border-red-100 bg-red-50 py-3 text-[14px] font-black text-red-600"
           >
+            <LogOut size={16} />
             {t("settings.account.signOut")}
           </button>
         </div>

@@ -1,13 +1,24 @@
-// src/pages/onboarding/sections/CareTeamFlow.tsx
-// Roster view + 4-step add flow: Who → Details → Consent → Invite → Done
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { LucideIcon } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  HeartHandshake,
+  MessageCircle,
+  ShieldCheck,
+  Smartphone,
+  Stethoscope,
+  UserRoundPlus,
+  Users,
+} from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyError } from "@/lib/apiError";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
+import { ProfileSectionHero, seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
 import { ToggleRow } from "@/components/onboarding/ToggleRow";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,80 +66,127 @@ interface TeamMember {
 }
 
 const defaultConsent = (role: Role): ConsentState => ({
-  daily_summary:       true,
-  mood_updates:        role !== "doctor",
-  appointments:        true,
-  medication_alerts:   role === "carer",
-  health_reports:      role === "doctor",
-  vital_signs:         role === "carer" || role === "doctor",
-  cognitive_results:   false,
-  emergency_alerts:    true,
-  inactivity_alerts:   role !== "doctor",
-  dashboard_access:    false,
+  daily_summary: true,
+  mood_updates: role !== "doctor",
+  appointments: true,
+  medication_alerts: role === "carer",
+  health_reports: role === "doctor",
+  vital_signs: role === "carer" || role === "doctor",
+  cognitive_results: false,
+  emergency_alerts: true,
+  inactivity_alerts: role !== "doctor",
+  dashboard_access: false,
 });
 
 const ROLE_LABEL_KEYS: Record<string, string> = {
   family_member: "onboarding.careTeam.roles.familyMember",
-  caregiver:     "onboarding.careTeam.roles.caregiver",
-  doctor:        "onboarding.careTeam.roles.doctor",
-  family:        "onboarding.careTeam.roles.familyMember",
-  carer:         "onboarding.careTeam.roles.caregiver",
+  caregiver: "onboarding.careTeam.roles.caregiver",
+  doctor: "onboarding.careTeam.roles.doctor",
+  family: "onboarding.careTeam.roles.familyMember",
+  carer: "onboarding.careTeam.roles.caregiver",
 };
 
 const STATUS_BADGE_CLASSES: Record<string, string> = {
-  pending:  "bg-amber-100 text-amber-700",
-  accepted: "bg-green-100 text-green-700",
-  declined: "bg-red-100 text-red-600",
-  expired:  "bg-gray-100 text-gray-500",
-  revoked:  "bg-red-100 text-red-600",
+  pending: "bg-amber-100 text-amber-800",
+  accepted: "bg-green-100 text-green-800",
+  declined: "bg-red-100 text-red-700",
+  expired: "bg-gray-100 text-gray-600",
+  revoked: "bg-red-100 text-red-700",
 };
 
 const STATUS_KEY_MAP: Record<string, string> = {
-  pending:  "onboarding.careTeam.status.pending",
+  pending: "onboarding.careTeam.status.pending",
   accepted: "onboarding.careTeam.status.accepted",
   declined: "onboarding.careTeam.status.declined",
-  expired:  "onboarding.careTeam.status.expired",
-  revoked:  "onboarding.careTeam.status.revoked",
+  expired: "onboarding.careTeam.status.expired",
+  revoked: "onboarding.careTeam.status.revoked",
 };
 
-const ROLE_OPTIONS: Array<{ id: Role; emoji: string; titleKey: string; subKey: string; bg: string }> = [
-  { id: "family", emoji: "👨‍👩‍👧", titleKey: "onboarding.careTeam.roleOptions.family.title", subKey: "onboarding.careTeam.roleOptions.family.sub", bg: "#ede9fe" },
-  { id: "carer",  emoji: "👩‍⚕️", titleKey: "onboarding.careTeam.roleOptions.carer.title",  subKey: "onboarding.careTeam.roleOptions.carer.sub",  bg: "#e1f5ee" },
-  { id: "doctor", emoji: "👨‍⚕️", titleKey: "onboarding.careTeam.roleOptions.doctor.title", subKey: "onboarding.careTeam.roleOptions.doctor.sub", bg: "#faeeda" },
+const ROLE_OPTIONS: Array<{
+  id: Role;
+  icon: LucideIcon;
+  titleKey: string;
+  subKey: string;
+  bg: string;
+  iconColor: string;
+}> = [
+  {
+    id: "family",
+    icon: Users,
+    titleKey: "onboarding.careTeam.roleOptions.family.title",
+    subKey: "onboarding.careTeam.roleOptions.family.sub",
+    bg: "#F3E8FF",
+    iconColor: "#6B21A8",
+  },
+  {
+    id: "carer",
+    icon: HeartHandshake,
+    titleKey: "onboarding.careTeam.roleOptions.carer.title",
+    subKey: "onboarding.careTeam.roleOptions.carer.sub",
+    bg: "#ECFDF5",
+    iconColor: "#0A7C4E",
+  },
+  {
+    id: "doctor",
+    icon: Stethoscope,
+    titleKey: "onboarding.careTeam.roleOptions.doctor.title",
+    subKey: "onboarding.careTeam.roleOptions.doctor.sub",
+    bg: "#EFF6FF",
+    iconColor: "#1D4ED8",
+  },
 ];
 
 const CARE_TEAM_RELATIONSHIP_KEYS = [
-  { value: "son",               labelKey: "onboarding.careTeam.relationships.son" },
-  { value: "daughter",          labelKey: "onboarding.careTeam.relationships.daughter" },
-  { value: "spouse_partner",    labelKey: "onboarding.careTeam.relationships.spousePartner" },
-  { value: "sibling",           labelKey: "onboarding.careTeam.relationships.sibling" },
-  { value: "friend",            labelKey: "onboarding.careTeam.relationships.friend" },
-  { value: "neighbour",         labelKey: "onboarding.careTeam.relationships.neighbour" },
-  { value: "professional_carer",labelKey: "onboarding.careTeam.relationships.professionalCarer" },
-  { value: "gp",                labelKey: "onboarding.careTeam.relationships.gp" },
+  { value: "son", labelKey: "onboarding.careTeam.relationships.son" },
+  { value: "daughter", labelKey: "onboarding.careTeam.relationships.daughter" },
+  { value: "spouse_partner", labelKey: "onboarding.careTeam.relationships.spousePartner" },
+  { value: "sibling", labelKey: "onboarding.careTeam.relationships.sibling" },
+  { value: "friend", labelKey: "onboarding.careTeam.relationships.friend" },
+  { value: "neighbour", labelKey: "onboarding.careTeam.relationships.neighbour" },
+  { value: "professional_carer", labelKey: "onboarding.careTeam.relationships.professionalCarer" },
+  { value: "gp", labelKey: "onboarding.careTeam.relationships.gp" },
   { value: "specialist_doctor", labelKey: "onboarding.careTeam.relationships.specialistDoctor" },
-  { value: "other",             labelKey: "onboarding.careTeam.relationships.other" },
+  { value: "other", labelKey: "onboarding.careTeam.relationships.other" },
 ];
 
 function initials(name: string) {
-  return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase() || "?";
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || "?";
+}
+
+function plainLabel(value: string) {
+  return value.replace(/^[^\p{L}\p{N}]+/u, "");
 }
 
 const StepDots = ({ current }: { current: number }) => {
   const { t } = useTranslation();
   return (
-    <div className="flex items-center gap-1.5 mb-4">
-      {[1,2,3,4].map((n) => (
-        <div key={n} className={cn(
-          "h-2 rounded-full transition-all",
-          n < current ? "w-2 bg-[#c9890a]" :
-          n === current ? "w-5 bg-[#6b21a8]" : "w-2 bg-purple-100"
-        )} />
+    <div className="mb-5 flex items-center gap-2">
+      {[1, 2, 3, 4].map((n) => (
+        <div
+          key={n}
+          className={cn(
+            "h-2.5 rounded-full transition-all",
+            n < current ? "w-3 bg-[#C9890A]" : n === current ? "w-9 bg-[#6B21A8]" : "w-3 bg-purple-100",
+          )}
+        />
       ))}
-      <span className="text-[10px] text-gray-400 ml-1">{t("onboarding.careTeam.stepDots", { current })}</span>
+      <span className="ml-1 font-body text-[12px] font-bold text-vyva-text-3">
+        {t("onboarding.careTeam.stepDots", { current })}
+      </span>
     </div>
   );
 };
+
+const sectionShellClassName =
+  "overflow-hidden rounded-[24px] border border-[#EFE4D5] bg-white shadow-[0_12px_30px_rgba(53,28,87,0.06)]";
+
+const sectionHeaderClassName =
+  "bg-vyva-warm px-5 py-3 font-body text-[12px] font-black uppercase tracking-[0.08em] text-vyva-text-2";
 
 export default function CareTeamFlow() {
   const navigate = useNavigate();
@@ -151,30 +209,26 @@ export default function CareTeamFlow() {
     return key ? t(key) : status;
   };
 
-  const getStatusClass = (status: string) => {
-    return STATUS_BADGE_CLASSES[status] ?? STATUS_BADGE_CLASSES.pending;
-  };
+  const getStatusClass = (status: string) => STATUS_BADGE_CLASSES[status] ?? STATUS_BADGE_CLASSES.pending;
+  const careTeamTitle = t("profile.overview.sections.careTeam.title");
+  const careTeamStepLabel = (current: number) => `${careTeamTitle} - ${t("onboarding.careTeam.stepDots", { current })}`;
 
-  // 'roster' = show existing team list view
-  // 'adding' = show the 4-step add-person flow
   const [mode, setMode] = useState<Mode>("roster");
   const [step, setStep] = useState<Step>(1);
   const [role, setRole] = useState<Role>("family");
-  const [person, setPerson] = useState<PersonForm>({ name:"", relationship:"", phone:"", whatsapp:"", email:"" });
+  const [person, setPerson] = useState<PersonForm>({ name: "", relationship: "", phone: "", whatsapp: "", email: "" });
   const [consent, setConsent] = useState<ConsentState>(defaultConsent("family"));
   const [inviteChannel, setInviteChannel] = useState<InviteChannel>("whatsapp");
   const [saving, setSaving] = useState(false);
-  // ID of the member card currently showing inline revoke confirmation
   const [confirmingRevokeId, setConfirmingRevokeId] = useState<string | null>(null);
-  // ID of the member currently being acted on (revoke or resend in flight)
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
-  const setP = (f: keyof PersonForm, v: string) => setPerson((p) => ({ ...p, [f]: v }));
-  const setC = (f: keyof ConsentState, v: boolean) => setConsent((p) => ({ ...p, [f]: v }));
+  const setP = (field: keyof PersonForm, value: string) => setPerson((prev) => ({ ...prev, [field]: value }));
+  const setC = (field: keyof ConsentState, value: boolean) => setConsent((prev) => ({ ...prev, [field]: value }));
 
-  const selectRole = (r: Role) => {
-    setRole(r);
-    setConsent(defaultConsent(r));
+  const selectRole = (nextRole: Role) => {
+    setRole(nextRole);
+    setConsent(defaultConsent(nextRole));
   };
 
   const { data: rosterData, isLoading: rosterLoading, isError: rosterError } = useQuery<{ members: TeamMember[] }>({
@@ -184,7 +238,7 @@ export default function CareTeamFlow() {
   const members = rosterData?.members ?? [];
 
   const startAddFlow = () => {
-    setPerson({ name:"", relationship:"", phone:"", whatsapp:"", email:"" });
+    setPerson({ name: "", relationship: "", phone: "", whatsapp: "", email: "" });
     setRole("family");
     setConsent(defaultConsent("family"));
     setStep(1);
@@ -247,21 +301,14 @@ export default function CareTeamFlow() {
     }
   };
 
-  /* ═══════════════════════════════════════════════════
-     ROSTER MODE
-     Effective mode: if loading is done and no members exist,
-     we treat the mode as 'adding' automatically (skip roster).
-  ═══════════════════════════════════════════════════ */
-  const effectiveMode: Mode = mode === "roster" && !rosterLoading && !rosterError && members.length === 0
-    ? "adding"
-    : mode;
+  const effectiveMode: Mode = mode === "roster" && !rosterLoading && !rosterError && members.length === 0 ? "adding" : mode;
 
   if (effectiveMode === "roster") {
     if (rosterLoading) {
       return (
-        <PhoneFrame subtitle={t("onboarding.careTeam.frame.roster")} showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
+        <PhoneFrame subtitle={careTeamTitle} showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
           <div className="flex items-center justify-center py-20">
-            <div className="text-sm text-gray-400">{t("onboarding.careTeam.loading")}</div>
+            <div className="font-body text-[15px] font-semibold text-vyva-text-3">{t("onboarding.careTeam.loading")}</div>
           </div>
         </PhoneFrame>
       );
@@ -269,18 +316,20 @@ export default function CareTeamFlow() {
 
     if (rosterError) {
       return (
-        <PhoneFrame subtitle={t("onboarding.careTeam.frame.roster")} showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
-          <div className="flex flex-col items-center gap-4 px-4 py-16 text-center">
-            <div className="text-3xl">⚠️</div>
+        <PhoneFrame subtitle={careTeamTitle} showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
+          <div className="flex flex-col items-center gap-4 px-5 py-16 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600">
+              <AlertTriangle size={28} />
+            </div>
             <div>
-              <p className="text-sm font-bold text-gray-900">{t("onboarding.careTeam.errorTitle")}</p>
-              <p className="text-xs text-gray-500 mt-1">{t("onboarding.careTeam.errorMessage")}</p>
+              <p className="font-body text-[18px] font-black text-vyva-text-1">{t("onboarding.careTeam.errorTitle")}</p>
+              <p className="mt-1 font-body text-[14px] leading-relaxed text-vyva-text-2">{t("onboarding.careTeam.errorMessage")}</p>
             </div>
             <Button
               data-testid="button-careteam-retry"
               variant="outline"
               onClick={() => queryClient.refetchQueries({ queryKey: ["/api/onboarding/careteam"] })}
-              className="border-purple-200 text-purple-700"
+              className="h-12 rounded-full border-purple-200 px-6 text-[15px] font-black text-purple-700"
             >
               {t("onboarding.careTeam.retry")}
             </Button>
@@ -289,128 +338,132 @@ export default function CareTeamFlow() {
       );
     }
 
-    // Show the roster
     return (
-      <PhoneFrame subtitle={t("onboarding.careTeam.frame.roster")} showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
-        <div className="flex flex-col gap-4 px-4 py-4">
-          <div>
-            <p className="text-xs text-gray-500 leading-relaxed">
-              {t("onboarding.careTeam.rosterSubtitle")}
-            </p>
-          </div>
+      <PhoneFrame subtitle={careTeamTitle} showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
+        <div className="flex flex-col gap-6 px-1 pb-6 pt-5 sm:px-2 md:px-3">
+          <ProfileSectionHero
+            icon={Users}
+            title={careTeamTitle}
+            kicker={careTeamTitle}
+            description={t("onboarding.careTeam.rosterSubtitle")}
+            badges={[
+              { label: plainLabel(t("onboarding.careTeam.step3.sectionUpdates")), color: "purple" },
+              { label: plainLabel(t("onboarding.careTeam.step3.sectionSafety")), color: "amber" },
+              { label: plainLabel(t("onboarding.careTeam.step3.sectionHealth")), color: "green" },
+            ]}
+          />
 
-          <div className="flex flex-col gap-3">
-            {members.map((m) => {
-              const badgeClass = getStatusClass(m.status);
-              const badgeLabel = getStatusLabel(m.status);
-              const isLoading = actionLoadingId === m.id;
-              const isConfirming = confirmingRevokeId === m.id;
-              const canRevoke = m.status === "pending" || m.status === "accepted";
-              const canResend = m.status === "expired";
+          <div className="flex flex-col gap-4">
+            {members.map((member) => {
+              const badgeClass = getStatusClass(member.status);
+              const badgeLabel = getStatusLabel(member.status);
+              const isLoading = actionLoadingId === member.id;
+              const isConfirming = confirmingRevokeId === member.id;
+              const canRevoke = member.status === "pending" || member.status === "accepted";
+              const canResend = member.status === "expired";
+              const detailLine = [
+                getRoleLabel(member.role),
+                member.relationship ? getRelationshipLabel(member.relationship) : null,
+              ].filter(Boolean).join(" - ");
 
               return (
                 <div
-                  key={m.id}
-                  data-testid={`card-careteam-member-${m.id}`}
-                  className="flex flex-col border border-purple-100 rounded-xl bg-white overflow-hidden"
+                  key={member.id}
+                  data-testid={`card-careteam-member-${member.id}`}
+                  className="overflow-hidden rounded-[24px] border border-[#EFE4D5] bg-white shadow-[0_12px_30px_rgba(53,28,87,0.06)]"
                 >
-                  {/* Main row */}
-                  <div className="flex items-center gap-3 p-3">
-                    <div className="w-10 h-10 rounded-full bg-[#6b21a8] flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                      {initials(m.invitee_name)}
+                  <div className="flex items-center gap-4 p-4">
+                    <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-[#6B21A8] text-[15px] font-black text-white shadow-[0_12px_24px_rgba(107,33,168,0.2)]">
+                      {initials(member.invitee_name)}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-gray-900 truncate">{m.invitee_name}</p>
-                      <p className="text-[10px] text-purple-600 font-semibold">
-                        {getRoleLabel(m.role)}
-                        {m.relationship ? ` · ${getRelationshipLabel(m.relationship)}` : ""}
-                      </p>
-                      {m.invitee_phone && (
-                        <p className="text-[10px] text-gray-400 truncate">{m.invitee_phone}</p>
-                      )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-body text-[17px] font-black text-vyva-text-1">{member.invitee_name}</p>
+                      <p className="font-body text-[13px] font-bold text-purple-700">{detailLine}</p>
+                      {member.invitee_phone ? (
+                        <p className="truncate font-body text-[13px] text-vyva-text-3">{member.invitee_phone}</p>
+                      ) : null}
                     </div>
-                    <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0", badgeClass)}>
+                    <span className={cn("flex-shrink-0 rounded-full px-3 py-1 font-body text-[12px] font-black", badgeClass)}>
                       {badgeLabel}
                     </span>
                   </div>
 
-                  {/* Action buttons — shown for actionable statuses */}
-                  {(canRevoke || canResend) && !isConfirming && (
-                    <div className="border-t border-purple-50 px-3 py-2 flex justify-end">
-                      {canResend && (
+                  {(canRevoke || canResend) && !isConfirming ? (
+                    <div className="flex justify-end gap-2 border-t border-vyva-border px-4 py-3">
+                      {canResend ? (
                         <button
                           type="button"
-                          data-testid={`button-careteam-resend-${m.id}`}
+                          data-testid={`button-careteam-resend-${member.id}`}
                           disabled={isLoading}
-                          onClick={() => resendInvitation(m.id)}
-                          className="text-[11px] font-bold text-purple-700 hover:text-purple-900 disabled:opacity-40 px-2 py-1"
+                          onClick={() => resendInvitation(member.id)}
+                          className="min-h-10 rounded-full px-4 font-body text-[13px] font-black text-purple-700 hover:bg-purple-50 disabled:opacity-40"
                         >
                           {isLoading ? t("onboarding.careTeam.resending") : t("onboarding.careTeam.resendInvite")}
                         </button>
-                      )}
-                      {canRevoke && (
+                      ) : null}
+                      {canRevoke ? (
                         <button
                           type="button"
-                          data-testid={`button-careteam-revoke-${m.id}`}
+                          data-testid={`button-careteam-revoke-${member.id}`}
                           disabled={isLoading}
-                          onClick={() => setConfirmingRevokeId(m.id)}
-                          className="text-[11px] font-bold text-red-500 hover:text-red-700 disabled:opacity-40 px-2 py-1"
+                          onClick={() => setConfirmingRevokeId(member.id)}
+                          className="min-h-10 rounded-full px-4 font-body text-[13px] font-black text-red-600 hover:bg-red-50 disabled:opacity-40"
                         >
-                          {m.status === "accepted" ? t("onboarding.careTeam.removeAccess") : t("onboarding.careTeam.cancelInvite")}
+                          {member.status === "accepted" ? t("onboarding.careTeam.removeAccess") : t("onboarding.careTeam.cancelInvite")}
                         </button>
-                      )}
+                      ) : null}
                     </div>
-                  )}
+                  ) : null}
 
-                  {/* Inline revoke confirmation */}
-                  {isConfirming && (
-                    <div className="border-t border-red-100 bg-red-50 px-3 py-2.5">
-                      <p className="text-[11px] text-red-700 font-semibold mb-2">
-                        {m.status === "accepted"
-                          ? t("onboarding.careTeam.confirmRemoveAccess", { name: m.invitee_name })
-                          : t("onboarding.careTeam.confirmCancelInvite", { name: m.invitee_name })}
+                  {isConfirming ? (
+                    <div className="border-t border-red-100 bg-red-50 px-4 py-4">
+                      <p className="mb-3 font-body text-[14px] font-bold leading-relaxed text-red-700">
+                        {member.status === "accepted"
+                          ? t("onboarding.careTeam.confirmRemoveAccess", { name: member.invitee_name })
+                          : t("onboarding.careTeam.confirmCancelInvite", { name: member.invitee_name })}
                       </p>
-                      <div className="flex gap-2 justify-end">
+                      <div className="flex justify-end gap-2">
                         <button
                           type="button"
-                          data-testid={`button-careteam-revoke-cancel-${m.id}`}
+                          data-testid={`button-careteam-revoke-cancel-${member.id}`}
                           onClick={() => setConfirmingRevokeId(null)}
-                          className="text-[11px] font-bold text-gray-500 hover:text-gray-700 px-2 py-1"
+                          className="min-h-10 rounded-full px-4 font-body text-[13px] font-black text-vyva-text-2 hover:bg-white"
                         >
                           {t("onboarding.careTeam.keep")}
                         </button>
                         <button
                           type="button"
-                          data-testid={`button-careteam-revoke-confirm-${m.id}`}
+                          data-testid={`button-careteam-revoke-confirm-${member.id}`}
                           disabled={isLoading}
-                          onClick={() => revokeInvitation(m.id)}
-                          className="text-[11px] font-bold text-red-600 hover:text-red-800 disabled:opacity-40 px-2 py-1"
+                          onClick={() => revokeInvitation(member.id)}
+                          className="min-h-10 rounded-full px-4 font-body text-[13px] font-black text-red-700 hover:bg-white disabled:opacity-40"
                         >
-                          {isLoading ? t("onboarding.careTeam.removing") : m.status === "accepted" ? t("onboarding.careTeam.yesRemove") : t("onboarding.careTeam.yesCancel")}
+                          {isLoading ? t("onboarding.careTeam.removing") : member.status === "accepted" ? t("onboarding.careTeam.yesRemove") : t("onboarding.careTeam.yesCancel")}
                         </button>
                       </div>
                     </div>
-                  )}
+                  ) : null}
                 </div>
               );
             })}
           </div>
 
-          <div className="bg-purple-50 border-l-2 border-[#6b21a8] rounded-lg px-3 py-2 text-xs text-purple-700">
-            {t("onboarding.careTeam.rosterInfoBanner")}
+          <div className="flex items-start gap-3 rounded-[22px] border border-purple-100 bg-purple-50 px-4 py-4 text-purple-800">
+            <ShieldCheck size={20} className="mt-0.5 flex-shrink-0" />
+            <p className="font-body text-[14px] font-bold leading-relaxed">{t("onboarding.careTeam.rosterInfoBanner")}</p>
           </div>
 
           <Button
             data-testid="button-careteam-add-another"
             onClick={startAddFlow}
-            className="w-full h-12 font-bold bg-[#6b21a8] hover:bg-[#5b1a8f]"
+            className="h-14 w-full rounded-full bg-[#6B21A8] text-[17px] font-black hover:bg-[#5B1A8F]"
           >
             {t("onboarding.careTeam.addAnother")}
           </Button>
           <Button
             variant="outline"
             onClick={() => navigate("/onboarding/profile")}
-            className="w-full h-11 border-purple-200 text-purple-700"
+            className="h-14 w-full rounded-full border-purple-200 text-[16px] font-black text-purple-700"
           >
             {t("onboarding.careTeam.doneBack")}
           </Button>
@@ -419,321 +472,380 @@ export default function CareTeamFlow() {
     );
   }
 
-  /* ═══════════════════════════════════════════════════
-     ADDING MODE — STEP 1: Who to add
-  ═══════════════════════════════════════════════════ */
-  if (step === 1) return (
-    <PhoneFrame
-      subtitle={t("onboarding.careTeam.frame.step1")}
-      showBack
-      onBack={() => members.length > 0 ? backToRoster() : navigate("/onboarding/profile")}
-      showAllSections
-      onAllSections={() => navigate("/onboarding/profile")}
-    >
-      <div className="flex flex-col gap-4 px-4 py-5">
-        <div>
-          <h2 className="text-lg font-bold text-gray-900">{t("onboarding.careTeam.step1.heading")}</h2>
-          <p className="text-xs text-gray-500 mt-1">
-            {t("onboarding.careTeam.step1.subtitle")}
-          </p>
-        </div>
-
-        <div className="bg-purple-50 border-l-2 border-[#6b21a8] rounded-lg px-3 py-2 text-xs text-purple-700">
-          {t("onboarding.careTeam.step1.infoBanner")}
-        </div>
-
-        <div className="flex flex-col gap-3">
-          {ROLE_OPTIONS.map((opt) => (
-            <button
-              key={opt.id}
-              type="button"
-              onClick={() => selectRole(opt.id)}
-              data-testid={`button-careteam-role-${opt.id}`}
-              className={cn(
-                "flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all",
-                role === opt.id ? "border-[#6b21a8] bg-purple-50" : "border-purple-100 bg-white hover:border-purple-200"
-              )}
-            >
-              <div
-                className="w-9 h-9 rounded-lg flex items-center justify-center text-xl flex-shrink-0"
-                style={{ background: opt.bg }}
-              >{opt.emoji}</div>
-              <div>
-                <p className="text-sm font-bold text-gray-900">{t(opt.titleKey)}</p>
-                <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{t(opt.subKey)}</p>
-              </div>
-            </button>
-          ))}
-        </div>
-
-        <Button
-          data-testid="button-careteam-step1-continue"
-          onClick={() => setStep(2)}
-          className="w-full h-12 font-bold bg-[#6b21a8] hover:bg-[#5b1a8f]"
-        >
-          {t("onboarding.careTeam.step1.continue")}
-        </Button>
-      </div>
-    </PhoneFrame>
-  );
-
-  /* ═══════════════════════════════════════════════════
-     ADDING MODE — STEP 2: Their details
-  ═══════════════════════════════════════════════════ */
-  if (step === 2) return (
-    <PhoneFrame subtitle={t("onboarding.careTeam.frame.step2")} showBack onBack={() => setStep(1)}>
-      <div className="flex flex-col gap-4 px-4 py-5">
-        <StepDots current={2} />
-        <div>
-          <h2 className="text-lg font-bold text-gray-900">{t("onboarding.careTeam.step2.heading")}</h2>
-          <p className="text-xs text-gray-500 mt-1">{t("onboarding.careTeam.step2.subtitle")}</p>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label className="text-xs font-bold text-gray-600">{t("onboarding.careTeam.step2.labelName")}</Label>
-          <Input
-            data-testid="input-careteam-name"
-            placeholder={t("onboarding.careTeam.step2.placeholderName")}
-            value={person.name}
-            onChange={(e) => setP("name", e.target.value)}
-            className="h-11 border-purple-200"
+  if (step === 1) {
+    return (
+      <PhoneFrame
+        subtitle={careTeamStepLabel(1)}
+        showBack
+        onBack={() => (members.length > 0 ? backToRoster() : navigate("/onboarding/profile"))}
+        showAllSections
+        onAllSections={() => navigate("/onboarding/profile")}
+      >
+        <div className="flex flex-col gap-6 px-1 pb-6 pt-5 sm:px-2 md:px-3">
+          <ProfileSectionHero
+            icon={UserRoundPlus}
+            title={plainLabel(t("onboarding.careTeam.step1.heading"))}
+            kicker={careTeamTitle}
+            description={t("onboarding.careTeam.step1.subtitle")}
+            badges={ROLE_OPTIONS.map((opt, index) => ({
+              label: t(opt.titleKey),
+              color: index === 0 ? "purple" : index === 1 ? "green" : "blue",
+            }))}
           />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs font-bold text-gray-600">{t("onboarding.careTeam.step2.labelRelationship")}</Label>
-          <Select onValueChange={(v) => setP("relationship", v)}>
-            <SelectTrigger className="h-11 border-purple-200">
-              <SelectValue placeholder={t("onboarding.careTeam.step2.labelRelationship")} />
-            </SelectTrigger>
-            <SelectContent>
-              {CARE_TEAM_RELATIONSHIP_KEYS.map((r) => (
-                <SelectItem key={r.value} value={r.value}>{t(r.labelKey)}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs font-bold text-gray-600">{t("onboarding.careTeam.step2.labelPhone")}</Label>
-          <Input
-            data-testid="input-careteam-phone"
-            type="tel"
-            placeholder={t("onboarding.careTeam.step2.placeholderPhone")}
-            value={person.phone}
-            onChange={(e) => setP("phone", e.target.value)}
-            className="h-11 border-purple-200"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs font-bold text-gray-600">{t("onboarding.careTeam.step2.labelWhatsapp")}</Label>
-          <Input
-            type="tel"
-            placeholder={t("onboarding.careTeam.step2.placeholderWhatsapp")}
-            value={person.whatsapp}
-            onChange={(e) => setP("whatsapp", e.target.value)}
-            className="h-11 border-purple-200"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs font-bold text-gray-600">{t("onboarding.careTeam.step2.labelEmail")}</Label>
-          <Input
-            type="email"
-            placeholder={t("onboarding.careTeam.step2.placeholderEmail")}
-            value={person.email}
-            onChange={(e) => setP("email", e.target.value)}
-            className="h-11 border-purple-200"
-          />
-        </div>
 
-        <Button
-          onClick={() => setStep(3)}
-          disabled={!person.name.trim() || !person.phone.trim()}
-          className="w-full h-12 font-bold bg-[#6b21a8] hover:bg-[#5b1a8f] disabled:opacity-40"
-        >
-          {t("onboarding.careTeam.step2.continue")}
-        </Button>
-      </div>
-    </PhoneFrame>
-  );
-
-  /* ═══════════════════════════════════════════════════
-     ADDING MODE — STEP 3: Consent
-  ═══════════════════════════════════════════════════ */
-  if (step === 3) return (
-    <PhoneFrame subtitle={t("onboarding.careTeam.frame.step3")} showBack onBack={() => setStep(2)}>
-      <div className="flex flex-col gap-4 px-4 py-5">
-        <StepDots current={3} />
-        <div>
-          <h2 className="text-lg font-bold text-gray-900">{t("onboarding.careTeam.step3.heading", { name: person.name || t("onboarding.careTeam.nameFallbackSubject") })}</h2>
-          <p className="text-xs text-gray-500 mt-1">
-            {t("onboarding.careTeam.step3.subtitle")}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3 border-2 border-[#6b21a8] rounded-xl p-3 bg-purple-50">
-          <div className="w-10 h-10 rounded-full bg-[#6b21a8] flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-            {initials(person.name)}
+          <div className="flex items-start gap-3 rounded-[22px] border border-purple-100 bg-purple-50 px-4 py-4 text-purple-800">
+            <ShieldCheck size={20} className="mt-0.5 flex-shrink-0" />
+            <p className="font-body text-[14px] font-bold leading-relaxed">{t("onboarding.careTeam.step1.infoBanner")}</p>
           </div>
+
+          <div className="grid gap-4">
+            {ROLE_OPTIONS.map((opt) => {
+              const Icon = opt.icon;
+              const selected = role === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => selectRole(opt.id)}
+                  data-testid={`button-careteam-role-${opt.id}`}
+                  className={cn(
+                    "flex min-h-[118px] items-start gap-4 rounded-[24px] border-2 bg-white p-5 text-left shadow-[0_10px_28px_rgba(53,28,87,0.06)] transition-all",
+                    selected ? "border-[#6B21A8] bg-purple-50" : "border-[#EFE4D5] hover:border-purple-200",
+                  )}
+                >
+                  <div
+                    className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl"
+                    style={{ background: opt.bg }}
+                  >
+                    <Icon size={26} style={{ color: opt.iconColor }} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-body text-[18px] font-black leading-tight text-vyva-text-1">{t(opt.titleKey)}</p>
+                    <p className="mt-2 font-body text-[15px] leading-relaxed text-vyva-text-2">{t(opt.subKey)}</p>
+                  </div>
+                  {selected ? <CheckCircle2 size={22} className="flex-shrink-0 text-vyva-green" /> : null}
+                </button>
+              );
+            })}
+          </div>
+
+          <Button
+            data-testid="button-careteam-step1-continue"
+            onClick={() => setStep(2)}
+            className="h-14 w-full rounded-full bg-[#6B21A8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5B1A8F]"
+          >
+            {t("onboarding.careTeam.step1.continue")}
+          </Button>
+        </div>
+      </PhoneFrame>
+    );
+  }
+
+  if (step === 2) {
+    return (
+      <PhoneFrame subtitle={careTeamStepLabel(2)} showBack onBack={() => setStep(1)}>
+        <div className="flex flex-col gap-6 px-1 pb-6 pt-5 sm:px-2 md:px-3">
+          <StepDots current={2} />
           <div>
-            <p className="text-sm font-bold text-gray-900">{person.name || "—"}</p>
-            <p className="text-[10px] text-purple-600 font-semibold capitalize">
-              {getRoleLabel(role)}
-            </p>
-            <p className="text-[10px] text-gray-500">{getRelationshipLabel(person.relationship)} · {person.phone}</p>
+            <h2 className="font-display text-[34px] leading-tight text-vyva-text-1">{t("onboarding.careTeam.step2.heading")}</h2>
+            <p className="mt-2 font-body text-[16px] leading-relaxed text-vyva-text-2">{t("onboarding.careTeam.step2.subtitle")}</p>
           </div>
-        </div>
 
-        <div className="border border-purple-100 rounded-xl overflow-hidden">
-          <div className="bg-purple-50 px-3 py-2 text-[10px] font-bold text-purple-700 uppercase tracking-wide">{t("onboarding.careTeam.step3.sectionUpdates")}</div>
-          <div className="px-3 divide-y divide-purple-50">
-            <ToggleRow title={t("onboarding.careTeam.step3.toggleDailySummaryTitle")} description={t("onboarding.careTeam.step3.toggleDailySummaryDesc")} checked={consent.daily_summary} onChange={(v) => setC("daily_summary", v)} />
-            <ToggleRow title={t("onboarding.careTeam.step3.toggleMoodTitle")} description={t("onboarding.careTeam.step3.toggleMoodDesc")} checked={consent.mood_updates} onChange={(v) => setC("mood_updates", v)} />
-            <ToggleRow title={t("onboarding.careTeam.step3.toggleAppointmentsTitle")} description={t("onboarding.careTeam.step3.toggleAppointmentsDesc")} checked={consent.appointments} onChange={(v) => setC("appointments", v)} />
+          <div className="grid gap-5 md:grid-cols-2">
+            <div className="space-y-2 md:col-span-2">
+              <Label className="font-body text-[14px] font-black text-vyva-text-2">{t("onboarding.careTeam.step2.labelName")}</Label>
+              <Input
+                data-testid="input-careteam-name"
+                placeholder={t("onboarding.careTeam.step2.placeholderName")}
+                value={person.name}
+                onChange={(e) => setP("name", e.target.value)}
+                className={seniorInputClassName}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="font-body text-[14px] font-black text-vyva-text-2">{t("onboarding.careTeam.step2.labelRelationship")}</Label>
+              <Select value={person.relationship} onValueChange={(value) => setP("relationship", value)}>
+                <SelectTrigger className={seniorInputClassName}>
+                  <SelectValue placeholder={t("onboarding.careTeam.step2.labelRelationship")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {CARE_TEAM_RELATIONSHIP_KEYS.map((relationship) => (
+                    <SelectItem key={relationship.value} value={relationship.value}>
+                      {t(relationship.labelKey)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="font-body text-[14px] font-black text-vyva-text-2">{t("onboarding.careTeam.step2.labelPhone")}</Label>
+              <Input
+                data-testid="input-careteam-phone"
+                type="tel"
+                placeholder={t("onboarding.careTeam.step2.placeholderPhone")}
+                value={person.phone}
+                onChange={(e) => setP("phone", e.target.value)}
+                className={seniorInputClassName}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="font-body text-[14px] font-black text-vyva-text-2">{t("onboarding.careTeam.step2.labelWhatsapp")}</Label>
+              <Input
+                type="tel"
+                placeholder={t("onboarding.careTeam.step2.placeholderWhatsapp")}
+                value={person.whatsapp}
+                onChange={(e) => setP("whatsapp", e.target.value)}
+                className={seniorInputClassName}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="font-body text-[14px] font-black text-vyva-text-2">{t("onboarding.careTeam.step2.labelEmail")}</Label>
+              <Input
+                type="email"
+                placeholder={t("onboarding.careTeam.step2.placeholderEmail")}
+                value={person.email}
+                onChange={(e) => setP("email", e.target.value)}
+                className={seniorInputClassName}
+              />
+            </div>
           </div>
-        </div>
 
-        <div className="border border-purple-100 rounded-xl overflow-hidden">
-          <div className="bg-purple-50 px-3 py-2 text-[10px] font-bold text-purple-700 uppercase tracking-wide">{t("onboarding.careTeam.step3.sectionHealth")}</div>
-          <div className="px-3 divide-y divide-purple-50">
-            <ToggleRow title={t("onboarding.careTeam.step3.toggleMedicationTitle")} description={t("onboarding.careTeam.step3.toggleMedicationDesc")} checked={consent.medication_alerts} onChange={(v) => setC("medication_alerts", v)} />
-            <ToggleRow title={t("onboarding.careTeam.step3.toggleHealthReportsTitle")} description={t("onboarding.careTeam.step3.toggleHealthReportsDesc")} checked={consent.health_reports} onChange={(v) => setC("health_reports", v)} />
-            <ToggleRow title={t("onboarding.careTeam.step3.toggleVitalSignsTitle")} description={t("onboarding.careTeam.step3.toggleVitalSignsDesc")} checked={consent.vital_signs} onChange={(v) => setC("vital_signs", v)} />
-            <ToggleRow title={t("onboarding.careTeam.step3.toggleCognitiveTitle")} description={t("onboarding.careTeam.step3.toggleCognitiveDesc")} checked={consent.cognitive_results} onChange={(v) => setC("cognitive_results", v)} />
+          <Button
+            onClick={() => setStep(3)}
+            disabled={!person.name.trim() || !person.phone.trim()}
+            className="h-14 w-full rounded-full bg-[#6B21A8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5B1A8F] disabled:opacity-40"
+          >
+            {t("onboarding.careTeam.step2.continue")}
+          </Button>
+        </div>
+      </PhoneFrame>
+    );
+  }
+
+  if (step === 3) {
+    const personDetail = [
+      person.relationship ? getRelationshipLabel(person.relationship) : null,
+      person.phone,
+    ].filter(Boolean).join(" - ");
+
+    return (
+      <PhoneFrame subtitle={careTeamStepLabel(3)} showBack onBack={() => setStep(2)}>
+        <div className="flex flex-col gap-6 px-1 pb-6 pt-5 sm:px-2 md:px-3">
+          <StepDots current={3} />
+          <div>
+            <h2 className="font-display text-[34px] leading-tight text-vyva-text-1">
+              {t("onboarding.careTeam.step3.heading", { name: person.name || t("onboarding.careTeam.nameFallbackSubject") })}
+            </h2>
+            <p className="mt-2 font-body text-[16px] leading-relaxed text-vyva-text-2">{t("onboarding.careTeam.step3.subtitle")}</p>
           </div>
-        </div>
 
-        <div className="border border-purple-100 rounded-xl overflow-hidden">
-          <div className="bg-purple-50 px-3 py-2 text-[10px] font-bold text-purple-700 uppercase tracking-wide">{t("onboarding.careTeam.step3.sectionSafety")}</div>
-          <div className="px-3 divide-y divide-purple-50">
-            <ToggleRow title={t("onboarding.careTeam.step3.toggleEmergencyTitle")} description={t("onboarding.careTeam.step3.toggleEmergencyDesc")} checked={consent.emergency_alerts} onChange={(v) => setC("emergency_alerts", v)} variant="amber" />
-            <ToggleRow title={t("onboarding.careTeam.step3.toggleInactivityTitle")} description={t("onboarding.careTeam.step3.toggleInactivityDesc")} checked={consent.inactivity_alerts} onChange={(v) => setC("inactivity_alerts", v)} />
+          <div className="flex items-center gap-4 rounded-[24px] border-2 border-[#6B21A8] bg-purple-50 p-4">
+            <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-[#6B21A8] text-[15px] font-black text-white shadow-[0_12px_24px_rgba(107,33,168,0.2)]">
+              {initials(person.name)}
+            </div>
+            <div className="min-w-0">
+              <p className="font-body text-[18px] font-black text-vyva-text-1">{person.name || "-"}</p>
+              <p className="font-body text-[13px] font-black text-purple-700">{getRoleLabel(role)}</p>
+              {personDetail ? <p className="font-body text-[13px] text-vyva-text-2">{personDetail}</p> : null}
+            </div>
           </div>
-        </div>
 
-        <div className="border border-purple-100 rounded-xl overflow-hidden">
-          <div className="bg-purple-50 px-3 py-2 text-[10px] font-bold text-purple-700 uppercase tracking-wide">{t("onboarding.careTeam.step3.sectionDashboard")}</div>
-          <div className="px-3">
+          <div className={sectionShellClassName}>
+            <div className={sectionHeaderClassName}>{plainLabel(t("onboarding.careTeam.step3.sectionUpdates"))}</div>
+            <div>
+              <ToggleRow title={t("onboarding.careTeam.step3.toggleDailySummaryTitle")} description={t("onboarding.careTeam.step3.toggleDailySummaryDesc")} checked={consent.daily_summary} onChange={(value) => setC("daily_summary", value)} />
+              <ToggleRow title={t("onboarding.careTeam.step3.toggleMoodTitle")} description={t("onboarding.careTeam.step3.toggleMoodDesc")} checked={consent.mood_updates} onChange={(value) => setC("mood_updates", value)} />
+              <ToggleRow title={t("onboarding.careTeam.step3.toggleAppointmentsTitle")} description={t("onboarding.careTeam.step3.toggleAppointmentsDesc")} checked={consent.appointments} onChange={(value) => setC("appointments", value)} />
+            </div>
+          </div>
+
+          <div className={sectionShellClassName}>
+            <div className={sectionHeaderClassName}>{plainLabel(t("onboarding.careTeam.step3.sectionHealth"))}</div>
+            <div>
+              <ToggleRow title={t("onboarding.careTeam.step3.toggleMedicationTitle")} description={t("onboarding.careTeam.step3.toggleMedicationDesc")} checked={consent.medication_alerts} onChange={(value) => setC("medication_alerts", value)} />
+              <ToggleRow title={t("onboarding.careTeam.step3.toggleHealthReportsTitle")} description={t("onboarding.careTeam.step3.toggleHealthReportsDesc")} checked={consent.health_reports} onChange={(value) => setC("health_reports", value)} />
+              <ToggleRow title={t("onboarding.careTeam.step3.toggleVitalSignsTitle")} description={t("onboarding.careTeam.step3.toggleVitalSignsDesc")} checked={consent.vital_signs} onChange={(value) => setC("vital_signs", value)} />
+              <ToggleRow title={t("onboarding.careTeam.step3.toggleCognitiveTitle")} description={t("onboarding.careTeam.step3.toggleCognitiveDesc")} checked={consent.cognitive_results} onChange={(value) => setC("cognitive_results", value)} />
+            </div>
+          </div>
+
+          <div className={sectionShellClassName}>
+            <div className={sectionHeaderClassName}>{plainLabel(t("onboarding.careTeam.step3.sectionSafety"))}</div>
+            <div>
+              <ToggleRow title={t("onboarding.careTeam.step3.toggleEmergencyTitle")} description={t("onboarding.careTeam.step3.toggleEmergencyDesc")} checked={consent.emergency_alerts} onChange={(value) => setC("emergency_alerts", value)} variant="amber" />
+              <ToggleRow title={t("onboarding.careTeam.step3.toggleInactivityTitle")} description={t("onboarding.careTeam.step3.toggleInactivityDesc")} checked={consent.inactivity_alerts} onChange={(value) => setC("inactivity_alerts", value)} />
+            </div>
+          </div>
+
+          <div className={sectionShellClassName}>
+            <div className={sectionHeaderClassName}>{plainLabel(t("onboarding.careTeam.step3.sectionDashboard"))}</div>
             <ToggleRow
               title={t("onboarding.careTeam.step3.toggleDashboardTitle")}
               description={t("onboarding.careTeam.step3.toggleDashboardDesc", { name: person.name || t("onboarding.careTeam.nameFallbackSubject") })}
               checked={consent.dashboard_access}
-              onChange={(v) => setC("dashboard_access", v)}
+              onChange={(value) => setC("dashboard_access", value)}
             />
           </div>
-        </div>
 
-        <p className="text-[10px] text-gray-400 text-center">
-          {t("onboarding.careTeam.step3.footerNote")}
-        </p>
-
-        <Button
-          onClick={() => setStep(4)}
-          className="w-full h-12 font-bold bg-[#6b21a8] hover:bg-[#5b1a8f]"
-        >
-          {t("onboarding.careTeam.step3.confirm")}
-        </Button>
-      </div>
-    </PhoneFrame>
-  );
-
-  /* ═══════════════════════════════════════════════════
-     ADDING MODE — STEP 4: Send invite
-  ═══════════════════════════════════════════════════ */
-  if (step === 4) return (
-    <PhoneFrame subtitle={t("onboarding.careTeam.frame.step4")} showBack onBack={() => setStep(3)}>
-      <div className="flex flex-col gap-4 px-4 py-5">
-        <StepDots current={4} />
-        <div>
-          <h2 className="text-lg font-bold text-gray-900">{t("onboarding.careTeam.step4.heading", { name: person.name || t("onboarding.careTeam.nameFallbackObject") })}</h2>
-          <p className="text-xs text-gray-500 mt-1">
-            {t("onboarding.careTeam.step4.subtitle", { name: person.name || t("onboarding.careTeam.nameFallbackObject") })}
+          <p className="text-center font-body text-[13px] font-semibold leading-relaxed text-vyva-text-3">
+            {t("onboarding.careTeam.step3.footerNote")}
           </p>
+
+          <Button
+            onClick={() => setStep(4)}
+            className="h-14 w-full rounded-full bg-[#6B21A8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5B1A8F]"
+          >
+            {t("onboarding.careTeam.step3.confirm")}
+          </Button>
         </div>
+      </PhoneFrame>
+    );
+  }
 
-        <div className="flex flex-col gap-2">
-          {([
-            { id: "whatsapp" as InviteChannel, emoji: "💬", titleKey: "onboarding.careTeam.step4.channelWhatsapp", contact: person.whatsapp || person.phone, bg: "#e1f5ee" },
-            { id: "sms"      as InviteChannel, emoji: "📱", titleKey: "onboarding.careTeam.step4.channelSms",      contact: person.phone,                   bg: "#e6f1fb" },
-          ]).map((opt) => (
-            <button
-              key={opt.id}
-              type="button"
-              onClick={() => setInviteChannel(opt.id)}
-              className={cn(
-                "flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all",
-                inviteChannel === opt.id ? "border-[#6b21a8] bg-purple-50" : "border-purple-100 bg-white hover:border-purple-200"
-              )}
-            >
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center text-xl flex-shrink-0" style={{ background: opt.bg }}>{opt.emoji}</div>
-              <div>
-                <p className="text-sm font-bold text-gray-900">{t(opt.titleKey)}</p>
-                <p className="text-xs text-gray-500">{t("onboarding.careTeam.step4.channelTo", { contact: opt.contact })}</p>
-              </div>
-            </button>
-          ))}
+  if (step === 4) {
+    const channelOptions: Array<{
+      id: InviteChannel;
+      icon: LucideIcon;
+      titleKey: string;
+      contact: string;
+      bg: string;
+      iconColor: string;
+    }> = [
+      {
+        id: "whatsapp",
+        icon: MessageCircle,
+        titleKey: "onboarding.careTeam.step4.channelWhatsapp",
+        contact: person.whatsapp || person.phone,
+        bg: "#ECFDF5",
+        iconColor: "#0A7C4E",
+      },
+      {
+        id: "sms",
+        icon: Smartphone,
+        titleKey: "onboarding.careTeam.step4.channelSms",
+        contact: person.phone,
+        bg: "#EFF6FF",
+        iconColor: "#1D4ED8",
+      },
+    ];
+
+    return (
+      <PhoneFrame subtitle={careTeamStepLabel(4)} showBack onBack={() => setStep(3)}>
+        <div className="flex flex-col gap-6 px-1 pb-6 pt-5 sm:px-2 md:px-3">
+          <StepDots current={4} />
+          <div>
+            <h2 className="font-display text-[34px] leading-tight text-vyva-text-1">
+              {t("onboarding.careTeam.step4.heading", { name: person.name || t("onboarding.careTeam.nameFallbackObject") })}
+            </h2>
+            <p className="mt-2 font-body text-[16px] leading-relaxed text-vyva-text-2">
+              {t("onboarding.careTeam.step4.subtitle", { name: person.name || t("onboarding.careTeam.nameFallbackObject") })}
+            </p>
+          </div>
+
+          <div className="grid gap-4">
+            {channelOptions.map((opt) => {
+              const Icon = opt.icon;
+              const selected = inviteChannel === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setInviteChannel(opt.id)}
+                  className={cn(
+                    "flex min-h-[96px] items-center gap-4 rounded-[24px] border-2 bg-white p-5 text-left shadow-[0_10px_28px_rgba(53,28,87,0.06)] transition-all",
+                    selected ? "border-[#6B21A8] bg-purple-50" : "border-[#EFE4D5] hover:border-purple-200",
+                  )}
+                >
+                  <div
+                    className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl"
+                    style={{ background: opt.bg }}
+                  >
+                    <Icon size={26} style={{ color: opt.iconColor }} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-body text-[18px] font-black text-vyva-text-1">{t(opt.titleKey)}</p>
+                    <p className="mt-1 truncate font-body text-[14px] font-semibold text-vyva-text-2">
+                      {t("onboarding.careTeam.step4.channelTo", { contact: opt.contact })}
+                    </p>
+                  </div>
+                  {selected ? <CheckCircle2 size={22} className="flex-shrink-0 text-vyva-green" /> : null}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="rounded-[24px] border border-green-200 bg-green-50 px-5 py-4">
+            <p className="mb-2 font-body text-[12px] font-black uppercase tracking-[0.08em] text-green-700">
+              {t("onboarding.careTeam.step4.messagePreviewLabel")}
+            </p>
+            <p className="font-body text-[15px] font-semibold leading-relaxed text-green-900">
+              {t("onboarding.careTeam.step4.messagePreview", { name: person.name || t("onboarding.careTeam.nameFallbackGreeting") })}
+              <br />
+              <br />
+              <span className="font-black text-teal-700">vyva.ai/join/abc123 -&gt;</span>
+            </p>
+          </div>
+
+          <Button
+            onClick={handleSendInvite}
+            disabled={saving}
+            className="h-14 w-full rounded-full bg-[#6B21A8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5B1A8F]"
+          >
+            {saving ? t("onboarding.careTeam.step4.sending") : t("onboarding.careTeam.step4.sendInvitation")}
+          </Button>
         </div>
+      </PhoneFrame>
+    );
+  }
 
-        <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3">
-          <p className="text-[9px] font-bold text-green-700 uppercase tracking-wider mb-2">{t("onboarding.careTeam.step4.messagePreviewLabel")}</p>
-          <p className="text-xs text-green-800 leading-relaxed">
-            {t("onboarding.careTeam.step4.messagePreview", { name: person.name || t("onboarding.careTeam.nameFallbackGreeting") })}
-            <br /><br />
-            <span className="text-teal-700 font-semibold">vyva.ai/join/abc123 →</span>
-          </p>
-        </div>
-
-        <Button
-          onClick={handleSendInvite}
-          disabled={saving}
-          className="w-full h-12 font-bold bg-[#6b21a8] hover:bg-[#5b1a8f]"
-        >
-          {saving ? t("onboarding.careTeam.step4.sending") : t("onboarding.careTeam.step4.sendInvitation")}
-        </Button>
-      </div>
-    </PhoneFrame>
-  );
-
-  /* ═══════════════════════════════════════════════════
-     ADDING MODE — STEP 5: Done
-  ═══════════════════════════════════════════════════ */
   return (
-    <PhoneFrame subtitle={t("onboarding.careTeam.frame.roster")}>
-      <div className="flex flex-col items-center gap-4 px-4 py-10 text-center">
-        <div className="w-14 h-14 rounded-full bg-green-50 border-2 border-green-200 flex items-center justify-center text-3xl">✅</div>
+    <PhoneFrame subtitle={careTeamTitle}>
+      <div className="flex flex-col items-center gap-6 px-1 py-10 text-center sm:px-2 md:px-3">
+        <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-green-200 bg-green-50 text-green-700 shadow-[0_12px_26px_rgba(10,124,78,0.12)]">
+          <CheckCircle2 size={38} />
+        </div>
         <div>
-          <h2 className="text-xl font-bold text-gray-900">{t("onboarding.careTeam.step5.heading", { name: person.name })}</h2>
-          <p className="text-sm text-gray-500 mt-2 leading-relaxed">
+          <h2 className="font-display text-[34px] leading-tight text-vyva-text-1">
+            {t("onboarding.careTeam.step5.heading", { name: person.name })}
+          </h2>
+          <p className="mt-3 font-body text-[16px] leading-relaxed text-vyva-text-2">
             {t("onboarding.careTeam.step5.subtitle", { name: person.name })}
           </p>
         </div>
 
-        <div className="w-full flex items-center gap-3 border-2 border-[#6b21a8] rounded-xl p-3 bg-purple-50">
-          <div className="w-10 h-10 rounded-full bg-[#6b21a8] flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+        <div className="flex w-full items-center gap-4 rounded-[24px] border-2 border-[#6B21A8] bg-purple-50 p-4 text-left">
+          <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-[#6B21A8] text-[15px] font-black text-white">
             {initials(person.name)}
           </div>
-          <div className="flex-1 text-left">
-            <p className="text-sm font-bold text-gray-900">{person.name}</p>
-            <p className="text-[10px] text-purple-600 font-semibold">{getRelationshipLabel(person.relationship)}</p>
-            <p className="text-[10px] text-gray-500">{t("onboarding.careTeam.step5.invitationSent")}</p>
+          <div className="min-w-0 flex-1">
+            <p className="font-body text-[17px] font-black text-vyva-text-1">{person.name}</p>
+            <p className="font-body text-[13px] font-black text-purple-700">{getRelationshipLabel(person.relationship)}</p>
+            <p className="font-body text-[13px] font-semibold text-vyva-text-2">{t("onboarding.careTeam.step5.invitationSent")}</p>
           </div>
-          <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex-shrink-0">{t("onboarding.careTeam.status.pending")}</span>
+          <span className="flex-shrink-0 rounded-full bg-amber-100 px-3 py-1 font-body text-[12px] font-black text-amber-800">
+            {t("onboarding.careTeam.status.pending")}
+          </span>
         </div>
 
-        <div className="w-full bg-purple-50 border-l-2 border-[#6b21a8] rounded-lg px-3 py-2 text-xs text-purple-700 text-left">
-          {t("onboarding.careTeam.step5.infoBanner", { name: person.name })}
+        <div className="flex w-full items-start gap-3 rounded-[22px] border border-purple-100 bg-purple-50 px-4 py-4 text-left text-purple-800">
+          <ShieldCheck size={20} className="mt-0.5 flex-shrink-0" />
+          <p className="font-body text-[14px] font-bold leading-relaxed">
+            {t("onboarding.careTeam.step5.infoBanner", { name: person.name })}
+          </p>
         </div>
 
-        <div className="w-full flex flex-col gap-3">
+        <div className="flex w-full flex-col gap-3">
           <Button
             data-testid="button-careteam-add-another-done"
             onClick={startAddFlow}
-            className="w-full h-12 font-bold bg-[#6b21a8] hover:bg-[#5b1a8f]"
+            className="h-14 w-full rounded-full bg-[#6B21A8] text-[18px] font-black hover:bg-[#5B1A8F]"
           >
             {t("onboarding.careTeam.step5.addAnother")}
           </Button>
           <Button
             variant="outline"
             onClick={backToRoster}
-            className="w-full h-12 font-bold border-[#6b21a8] text-[#6b21a8]"
+            className="h-14 w-full rounded-full border-[#6B21A8] text-[17px] font-black text-[#6B21A8]"
           >
             {t("onboarding.careTeam.step5.done")}
           </Button>
