@@ -237,20 +237,33 @@ export default function LifecycleAdminPage() {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => value && params.set(key, value));
     if (peopleSearch.trim()) params.set("query", peopleSearch.trim());
-    const [summaryData, userData, orgData, consentData, commsData, planData] = await Promise.all([
-      api("/summary"),
-      api(`/users?${params.toString()}`),
-      api("/organizations"),
-      api("/consent"),
-      api("/communications"),
-      api("/plans"),
-    ]);
-    setSummary(summaryData);
-    setUsers((userData.users ?? []).filter(isVisibleLifecycleUser));
-    setOrganizations(orgData.organizations ?? []);
-    setConsentAttempts(consentData.attempts ?? []);
-    setCommunications(commsData.communications ?? []);
-    setPlans(planData.plans ?? []);
+    const requests = [
+      { key: "summary", label: "summary", load: () => api("/summary"), apply: (data: JsonRecord) => setSummary(data) },
+      { key: "users", label: "users", load: () => api(`/users?${params.toString()}`), apply: (data: JsonRecord) => setUsers((data.users ?? []).filter(isVisibleLifecycleUser)) },
+      { key: "organizations", label: "organizations", load: () => api("/organizations"), apply: (data: JsonRecord) => setOrganizations(data.organizations ?? []) },
+      { key: "consent", label: "consent", load: () => api("/consent"), apply: (data: JsonRecord) => setConsentAttempts(data.attempts ?? []) },
+      { key: "communications", label: "communications", load: () => api("/communications"), apply: (data: JsonRecord) => setCommunications(data.communications ?? []) },
+      { key: "plans", label: "plans", load: () => api("/plans"), apply: (data: JsonRecord) => setPlans(data.plans ?? []) },
+    ];
+    const results = await Promise.allSettled(requests.map((request) => request.load()));
+    const failed: string[] = [];
+
+    results.forEach((result, index) => {
+      const request = requests[index];
+      if (result.status === "fulfilled") {
+        request.apply(result.value);
+        return;
+      }
+      failed.push(request.label);
+      console.error(`[VYVA Admin] Could not load lifecycle ${request.key}`, result.reason);
+    });
+
+    if (failed.length) {
+      setMessage(`Could not load ${failed.join(", ")}. Other lifecycle data is still shown.`);
+      return;
+    }
+
+    setMessage((current) => current.startsWith("Could not load ") || current === lifecycleRequestFailedMessage ? "" : current);
   }
 
   useEffect(() => {

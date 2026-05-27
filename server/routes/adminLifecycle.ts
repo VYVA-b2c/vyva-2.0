@@ -1164,10 +1164,19 @@ async function optionalAdminDelete(label: string, query: Promise<unknown>) {
   }
 }
 
+function adminLifecycleLoadError(res: Response, section: string, error: unknown) {
+  console.error(`[admin-lifecycle] failed to load ${section}`, error);
+  return res.status(500).json({ error: `Could not load ${section}. Please refresh and try again.` });
+}
+
 adminLifecycleRouter.get("/summary", async (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
 
-  return res.json(await lifecycleService.getLifecycleSummary());
+  try {
+    return res.json(await lifecycleService.getLifecycleSummary());
+  } catch (error) {
+    return adminLifecycleLoadError(res, "summary", error);
+  }
 });
 
 adminLifecycleRouter.get("/home-plan-cards", async (req: Request, res: Response) => {
@@ -1340,16 +1349,20 @@ function optionalBooleanParam(value: unknown) {
 adminLifecycleRouter.get("/users", async (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
 
-  return res.json({
-    users: await lifecycleService.listLifecycleUsers({
-      entry_point: req.query.entry_point as "form" | "phone" | "whatsapp" | "admin" | undefined,
-      user_type: req.query.user_type as "elder" | "family" | "admin" | undefined,
-      status: req.query.status as "created" | "link_sent" | "consent_pending" | "active" | "dropped" | undefined,
-      tier: req.query.tier ? String(req.query.tier) : undefined,
-      query: req.query.query ? String(req.query.query) : undefined,
-      callback_onboarding: optionalBooleanParam(req.query.callback_onboarding),
-    }),
-  });
+  try {
+    return res.json({
+      users: await lifecycleService.listLifecycleUsers({
+        entry_point: req.query.entry_point as "form" | "phone" | "whatsapp" | "admin" | undefined,
+        user_type: req.query.user_type as "elder" | "family" | "admin" | undefined,
+        status: req.query.status as "created" | "link_sent" | "consent_pending" | "active" | "dropped" | undefined,
+        tier: req.query.tier ? String(req.query.tier) : undefined,
+        query: req.query.query ? String(req.query.query) : undefined,
+        callback_onboarding: optionalBooleanParam(req.query.callback_onboarding),
+      }),
+    });
+  } catch (error) {
+    return adminLifecycleLoadError(res, "users", error);
+  }
 });
 
 adminLifecycleRouter.post("/callbacks/:id/trigger", async (req: Request, res: Response) => {
@@ -2386,7 +2399,11 @@ adminLifecycleRouter.post("/intakes/:id/send-link", async (req: Request, res: Re
 
 adminLifecycleRouter.get("/consent", async (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
-  return res.json({ attempts: await lifecycleService.listConsentAttempts() });
+  try {
+    return res.json({ attempts: await lifecycleService.listConsentAttempts() });
+  } catch (error) {
+    return adminLifecycleLoadError(res, "consent", error);
+  }
 });
 
 adminLifecycleRouter.post("/consent/:intakeId/trigger", async (req: Request, res: Response) => {
@@ -2418,7 +2435,11 @@ adminLifecycleRouter.post("/consent/:attemptId/result", async (req: Request, res
 
 adminLifecycleRouter.get("/organizations", async (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
-  return res.json({ organizations: await lifecycleService.listOrganizations() });
+  try {
+    return res.json({ organizations: await lifecycleService.listOrganizations() });
+  } catch (error) {
+    return adminLifecycleLoadError(res, "organizations", error);
+  }
 });
 
 adminLifecycleRouter.post("/organizations", async (req: Request, res: Response) => {
@@ -2562,8 +2583,12 @@ adminLifecycleRouter.post("/tiers", async (req: Request, res: Response) => {
 
 adminLifecycleRouter.get("/plans", async (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
-  const plans = await listPlans();
-  return res.json({ plans });
+  try {
+    const plans = await listPlans();
+    return res.json({ plans });
+  } catch (error) {
+    return adminLifecycleLoadError(res, "plans", error);
+  }
 });
 
 adminLifecycleRouter.post("/plans", async (req: Request, res: Response) => {
@@ -2576,8 +2601,12 @@ adminLifecycleRouter.post("/plans", async (req: Request, res: Response) => {
 
 adminLifecycleRouter.get("/communications", async (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
-  const rows = await db.select().from(communicationsLog).orderBy(desc(communicationsLog.created_at)).limit(150);
-  return res.json({ communications: rows });
+  try {
+    const rows = await db.select().from(communicationsLog).orderBy(desc(communicationsLog.created_at)).limit(150);
+    return res.json({ communications: rows });
+  } catch (error) {
+    return adminLifecycleLoadError(res, "communications", error);
+  }
 });
 
 adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) => {
