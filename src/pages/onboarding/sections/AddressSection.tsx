@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
+import { ProfileSectionHero, seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiFetch } from "@/lib/queryClient";
 import { useAutoSave } from "@/hooks/useAutoSave";
-import { AutoSaveStatusBadge } from "@/components/onboarding/AutoSaveStatusBadge";
 import SpeakItOverlay from "@/components/onboarding/SpeakItOverlay";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyError } from "@/lib/apiError";
@@ -41,10 +41,10 @@ const COUNTRIES = [
   "Ireland", "United States", "Canada", "Australia", "Other",
 ];
 
-// Nominatim country → our list
+// Nominatim country to our list
 function normaliseCountry(raw: string): string {
   const map: Record<string, string> = {
-    "españa": "Spain", "spain": "Spain",
+    "espana": "Spain", "spain": "Spain",
     "united kingdom": "United Kingdom", "uk": "United Kingdom", "great britain": "United Kingdom",
     "france": "France",
     "germany": "Germany", "deutschland": "Germany",
@@ -53,13 +53,13 @@ function normaliseCountry(raw: string): string {
     "netherlands": "Netherlands", "holland": "Netherlands",
     "belgium": "Belgium", "belgique": "Belgium",
     "switzerland": "Switzerland", "schweiz": "Switzerland",
-    "austria": "Austria", "österreich": "Austria",
-    "ireland": "Ireland", "éire": "Ireland",
+    "austria": "Austria", "osterreich": "Austria",
+    "ireland": "Ireland", "eire": "Ireland",
     "united states": "United States", "usa": "United States", "us": "United States",
     "canada": "Canada",
     "australia": "Australia",
   };
-  const key = raw.toLowerCase().trim();
+  const key = raw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
   return map[key] ?? (COUNTRIES.includes(raw) ? raw : "Other");
 }
 
@@ -144,7 +144,7 @@ export default function AddressSection() {
     scheduleAutoSave();
   };
 
-  // ── Detect my location ──────────────────────────────────────────────────────
+  //  Detect my location
   const handleDetectLocation = () => {
     if (!navigator.geolocation) {
       toast({ title: "Location not supported", description: "Your browser doesn't support location detection.", variant: "destructive" });
@@ -213,7 +213,7 @@ export default function AddressSection() {
     );
   };
 
-  // ── Speak your address ──────────────────────────────────────────────────────
+  //  Speak your address
   const handleSpeakItDone = async (transcript: string) => {
     setSpeakItOpen(false);
     if (!transcript.trim()) return;
@@ -233,7 +233,7 @@ export default function AddressSection() {
       }
       if (addr.country) addr.country = normaliseCountry(addr.country);
       applyAddress(addr);
-      toast({ title: "✅ Address filled in!", description: "Please double-check the fields and adjust if needed." });
+      toast({ title: "Address filled in", description: "Please double-check the fields and adjust if needed." });
     } catch {
       toast({ title: "Couldn't process your address", description: "Please fill in the fields manually.", variant: "destructive" });
     } finally {
@@ -266,35 +266,37 @@ export default function AddressSection() {
   const FieldSkeleton = () => <Skeleton className="h-11 w-full rounded-lg" />;
 
   return (
-    <PhoneFrame subtitle="🏠 Home address" showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
-      <div className="flex flex-col gap-4 px-4 py-4">
+    <PhoneFrame subtitle="Home address" showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
+      <div className="flex flex-col gap-7 px-1 pb-6 pt-5 sm:px-2 md:px-3">
+        <ProfileSectionHero
+          icon={MapPin}
+          title="Home address"
+          kicker="Local help"
+          description="VYVA uses your address for safety features, local services, and emergency support only when needed."
+          badges={[
+            { label: "Safety", color: "red" },
+            { label: "Local services", color: "green" },
+            { label: "Private", color: "purple" },
+          ]}
+          autoSave={{ autoSaveStatus, savedFading, retryCountdown, onRetryNow: retryNow, testId: "status-address-autosave" }}
+        />
 
-        {/* Guidance */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1">
-            <p className="text-xs text-gray-500 leading-relaxed">
-              This helps VYVA with safety features and local services. It's only shared with emergency services if you need urgent help.
-            </p>
-          </div>
-          <AutoSaveStatusBadge autoSaveStatus={autoSaveStatus} savedFading={savedFading} retryCountdown={retryCountdown} onRetryNow={retryNow} testId="status-address-autosave" />
-        </div>
-
-        {/* ── Quick-fill row ───────────────────────────────────────────────── */}
-        <div className="flex gap-2">
+        {/*  Quick-fill row  */}
+        <div className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2">
           {/* Detect my location */}
           <button
             type="button"
             data-testid="button-address-detect-location"
             onClick={handleDetectLocation}
             disabled={detecting || isLoading}
-            className="flex-1 flex items-center gap-2 rounded-[14px] px-3 py-3 text-left transition-all disabled:opacity-60"
+            className="flex min-h-[86px] items-center gap-4 rounded-[24px] px-4 py-4 text-left shadow-[0_12px_28px_rgba(34,197,94,0.12)] transition-all disabled:opacity-60"
             style={{
               background: detected ? "#ECFDF5" : "#F0FDF4",
               border: detected ? "1px solid #A7F3D0" : "1px solid #BBF7D0",
             }}
           >
             <div
-              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+              className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl"
               style={{ background: detected ? "#10B981" : "#22C55E" }}
             >
               {detecting
@@ -305,14 +307,14 @@ export default function AddressSection() {
               }
             </div>
             <div className="min-w-0">
-              <p className="font-body text-[13px] font-semibold" style={{ color: "#15803D" }}>
-                {detecting ? "Detecting…" : detected ? "Location used!" : "Detect my location"}
+              <p className="font-body text-[18px] font-black leading-tight" style={{ color: "#15803D" }}>
+                {detecting ? "Detecting..." : detected ? "Location used!" : "Detect my location"}
               </p>
-              <p className="font-body text-[11px]" style={{ color: "#16A34A" }}>
+              <p className="mt-1 font-body text-[14px] font-semibold" style={{ color: "#16A34A" }}>
                 {detecting
                   ? "High-accuracy GPS"
                   : locationAccuracy
-                    ? `Approx. ±${locationAccuracy}m`
+                    ? `Approx. +/-${locationAccuracy}m`
                     : "Auto-fill from GPS"
                 }
               </p>
@@ -325,11 +327,11 @@ export default function AddressSection() {
             data-testid="button-address-speak-it"
             onClick={() => setSpeakItOpen(true)}
             disabled={parsing || isLoading}
-            className="flex-1 flex items-center gap-2 rounded-[14px] px-3 py-3 text-left transition-all disabled:opacity-60"
+            className="flex min-h-[86px] items-center gap-4 rounded-[24px] px-4 py-4 text-left shadow-[0_12px_28px_rgba(107,33,168,0.10)] transition-all disabled:opacity-60"
             style={{ background: "#F5F3FF", border: "1px solid #EDE9FE" }}
           >
             <div
-              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 animate-pulse-ring"
+              className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl animate-pulse-ring"
               style={{ background: "linear-gradient(135deg, #5B12A0 0%, #7C3AED 100%)" }}
             >
               {parsing
@@ -338,10 +340,10 @@ export default function AddressSection() {
               }
             </div>
             <div className="min-w-0">
-              <p className="font-body text-[13px] font-semibold" style={{ color: "#6B21A8" }}>
-                {parsing ? "Reading…" : "Speak it"}
+              <p className="font-body text-[18px] font-black leading-tight" style={{ color: "#6B21A8" }}>
+                {parsing ? "Reading..." : "Speak it"}
               </p>
-              <p className="font-body text-[11px]" style={{ color: "#7C3AED" }}>
+              <p className="mt-1 font-body text-[14px] font-semibold" style={{ color: "#7C3AED" }}>
                 Say your address
               </p>
             </div>
@@ -355,78 +357,78 @@ export default function AddressSection() {
           <div className="flex-1 h-px bg-gray-100" />
         </div>
 
-        {/* ── Address fields ───────────────────────────────────────────────── */}
+        {/*  Address fields  */}
         <div className="space-y-1.5">
-          <Label className="text-xs font-bold text-gray-600">🏡 Street address</Label>
+          <Label className="text-[15px] font-extrabold text-gray-700">Street address</Label>
           {isLoading ? <FieldSkeleton /> : (
             <Input
               data-testid="input-address-line1"
               placeholder="House number & street name"
               value={form.address_line_1}
               onChange={(e) => set("address_line_1", e.target.value)}
-              className="h-11 border-purple-200 text-[15px]"
+              className={seniorInputClassName}
             />
           )}
         </div>
 
         <div className="space-y-1.5">
-          <Label className="text-xs font-bold text-gray-600">Floor / apartment <span className="font-normal text-gray-400">(optional)</span></Label>
+          <Label className="text-[15px] font-extrabold text-gray-700">Floor / apartment <span className="font-normal text-gray-400">(optional)</span></Label>
           {isLoading ? <FieldSkeleton /> : (
             <Input
               data-testid="input-address-line2"
               placeholder="Floor, flat number, building name"
               value={form.address_line_2}
               onChange={(e) => set("address_line_2", e.target.value)}
-              className="h-11 border-purple-200 text-[15px]"
+              className={seniorInputClassName}
             />
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-4 min-[620px]:grid-cols-2">
           <div className="space-y-1.5">
-            <Label className="text-xs font-bold text-gray-600">🏙️ City / Town</Label>
+            <Label className="text-[15px] font-extrabold text-gray-700">City / Town</Label>
             {isLoading ? <FieldSkeleton /> : (
               <Input
                 data-testid="input-address-city"
                 placeholder="e.g. Zamora"
                 value={form.city}
                 onChange={(e) => set("city", e.target.value)}
-                className="h-11 border-purple-200 text-[15px]"
+                className={seniorInputClassName}
               />
             )}
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs font-bold text-gray-600">📮 Postcode</Label>
+            <Label className="text-[15px] font-extrabold text-gray-700">Postcode</Label>
             {isLoading ? <FieldSkeleton /> : (
               <Input
                 data-testid="input-address-postcode"
                 placeholder="e.g. 49001"
                 value={form.postcode}
                 onChange={(e) => set("postcode", e.target.value)}
-                className="h-11 border-purple-200 text-[15px]"
+                className={seniorInputClassName}
               />
             )}
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-4 min-[620px]:grid-cols-2">
           <div className="space-y-1.5">
-            <Label className="text-xs font-bold text-gray-600">Region / Province</Label>
+            <Label className="text-[15px] font-extrabold text-gray-700">Region / Province</Label>
             {isLoading ? <FieldSkeleton /> : (
               <Input
                 data-testid="input-address-region"
-                placeholder="e.g. Castilla y León"
+                placeholder="e.g. Castilla y Leon"
                 value={form.region}
                 onChange={(e) => set("region", e.target.value)}
-                className="h-11 border-purple-200 text-[15px]"
+                className={seniorInputClassName}
               />
             )}
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs font-bold text-gray-600">🌍 Country</Label>
+            <Label className="text-[15px] font-extrabold text-gray-700">Country</Label>
             {isLoading ? <FieldSkeleton /> : (
               <Select value={form.country} onValueChange={(v) => set("country", v)}>
-                <SelectTrigger data-testid="select-address-country" className="h-11 border-purple-200 text-[15px]">
+                <SelectTrigger data-testid="select-address-country" className={seniorInputClassName}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -445,14 +447,14 @@ export default function AddressSection() {
             data-testid="button-address-save"
             onClick={handleSave}
             disabled={saving || isLoading}
-            className="w-full h-12 font-bold bg-[#6b21a8] hover:bg-[#5b1a8f]"
+            className="h-14 w-full rounded-full bg-[#6b21a8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5b1a8f]"
           >
-            {saving ? "Saving…" : "Save home address"}
+            {saving ? "Saving..." : "Save home address"}
           </Button>
           <button
             data-testid="button-address-skip"
             onClick={() => navigate("/onboarding/profile")}
-            className="text-xs text-gray-400 py-2 text-center"
+            className="py-2 text-center text-[15px] font-bold text-gray-500"
           >
             Skip for now
           </button>

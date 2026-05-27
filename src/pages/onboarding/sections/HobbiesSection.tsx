@@ -2,13 +2,13 @@
 import { useState, useEffect, useRef, KeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
+import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiFetch } from "@/lib/queryClient";
 import { useAutoSave } from "@/hooks/useAutoSave";
-import { AutoSaveStatusBadge } from "@/components/onboarding/AutoSaveStatusBadge";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyError } from "@/lib/apiError";
 import SpeakItOverlay from "@/components/onboarding/SpeakItOverlay";
@@ -26,16 +26,17 @@ import {
   Check,
   Mic,
   CheckCircle2,
+  Sparkles,
 } from "lucide-react";
 
-// ─── Personality Quiz ────────────────────────────────────────────────────────
+//  Personality Quiz
 
 const PERSONALITY_QUESTIONS = [
   {
     id: "time_of_day",
     question: "Are you more of a morning person or an evening person?",
     why: "VYVA will greet you at the right time and know when you're most alert for important reminders.",
-    options: ["Morning person ☀️", "Evening person 🌙", "Somewhere in between"],
+    options: ["Morning person", "Evening person", "Somewhere in between"],
   },
   {
     id: "social_preference",
@@ -63,7 +64,7 @@ const PERSONALITY_QUESTIONS = [
   },
 ];
 
-// ─── Hobby Groups ─────────────────────────────────────────────────────────────
+//  Hobby Groups
 
 type HobbyGroup = {
   label: string;
@@ -82,7 +83,7 @@ const HOBBY_GROUPS: HobbyGroup[] = [
 
 const ALL_PRESET_ITEMS = new Set(HOBBY_GROUPS.flatMap((g) => g.items));
 
-// ─── Voice matching ───────────────────────────────────────────────────────────
+//  Voice matching
 
 const HOBBY_SYNONYMS: Record<string, string> = {
   "painting":      "Painting / Drawing",
@@ -157,7 +158,7 @@ function matchHobbiesFromTranscript(transcript: string): string[] {
   return Array.from(matched);
 }
 
-// ─── Follow-up question config ────────────────────────────────────────────────
+//  Follow-up question config
 
 type FollowUpConfig = {
   label: string;
@@ -170,7 +171,7 @@ type FollowUpConfig = {
 const FOLLOW_UP_MAP: Record<string, FollowUpConfig> = {
   "Football": {
     label: "Which football team do you support?",
-    hint: "e.g. Arsenal, Celtic, Real Madrid…",
+    hint: "e.g. Arsenal, Celtic, Real Madrid...",
     type: "chips",
     chips: ["Arsenal","Aston Villa","Celtic","Chelsea","Everton","Liverpool","Manchester City","Manchester United","Newcastle","Rangers","Tottenham","West Ham","Other"],
   },
@@ -229,8 +230,8 @@ const FOLLOW_UP_MAP: Record<string, FollowUpConfig> = {
     chips: ["Theatre", "Opera", "Musical theatre", "All of the above"],
   },
   "Travel": {
-    label: "Where in the world would you most love to go — or have been?",
-    hint: "e.g. Italy, a Scottish loch, somewhere warm…",
+    label: "Where in the world would you most love to go or have been?",
+    hint: "e.g. Italy, a Scottish loch, somewhere warm...",
     type: "text",
   },
   "Reading": {
@@ -247,7 +248,7 @@ const FOLLOW_UP_MAP: Record<string, FollowUpConfig> = {
   },
 };
 
-// ─── Main component ───────────────────────────────────────────────────────────
+//  Main component
 
 type HobbiesPayload = {
   hobbies?: string[];
@@ -320,7 +321,7 @@ export default function HobbiesSection() {
     2000,
   );
 
-  // ── Personality quiz helpers ──────────────────────────────────────────────
+  //  Personality quiz helpers
 
   const currentQuestion = PERSONALITY_QUESTIONS[quizStep];
   const totalQuizSteps = PERSONALITY_QUESTIONS.length;
@@ -344,7 +345,7 @@ export default function HobbiesSection() {
     if (quizStep < totalQuizSteps - 1) setQuizStep((s) => s + 1);
   };
 
-  // ── Hobby helpers ─────────────────────────────────────────────────────────
+  //  Hobby helpers
 
   const toggleHobby = (hobby: string) => {
     const isSelected = selected.includes(hobby);
@@ -454,61 +455,57 @@ export default function HobbiesSection() {
 
   const customSelected = selected.filter((s) => !ALL_PRESET_ITEMS.has(s));
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  //  Render
 
   return (
     <PhoneFrame
-      subtitle="⭐ Hobbies & interests"
+      subtitle="Hobbies & interests"
       showBack
       onBack={() => navigate("/onboarding/profile")}
       showAllSections
       onAllSections={() => navigate("/onboarding/profile")}
     >
-      <div className="flex flex-col gap-5 px-4 py-4">
-
-        {/* Guidance */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1">
-            <p className="text-[14px] text-vyva-text-2 leading-relaxed">
-              The more VYVA knows about what you love, the more it feels like a real companion — not just a bot. These answers shape every conversation.
-            </p>
-          </div>
-          <AutoSaveStatusBadge
-            autoSaveStatus={autoSaveStatus}
-            savedFading={savedFading}
-            retryCountdown={retryCountdown}
-            onRetryNow={retryNow}
-            testId="status-hobbies-autosave"
-          />
-        </div>
+      <div className="flex flex-col gap-7 px-1 pb-6 pt-5 sm:px-2 md:px-3">
+        <ProfileSectionHero
+          icon={Sparkles}
+          title="Companionship"
+          kicker="Real conversation"
+          description="Tell VYVA what you love so chats feel personal, curious, and worth coming back to."
+          badges={[
+            { label: "Engaging chats", color: "purple" },
+            { label: "Activities", color: "amber" },
+            { label: "Personal memory", color: "green" },
+          ]}
+          autoSave={{ autoSaveStatus, savedFading, retryCountdown, onRetryNow: retryNow, testId: "status-hobbies-autosave" }}
+        />
 
         {isLoading ? (
           <LoadingSkeleton />
         ) : (
           <>
-            {/* ── Speak it ──────────────────────────────────────────────── */}
+            {/*  Speak it  */}
             <button
               type="button"
               data-testid="button-hobbies-speak-it"
               onClick={() => setSpeakItOpen(true)}
-              className="flex items-center gap-3 w-full rounded-2xl px-4 py-3 text-left transition-colors"
+              className="flex min-h-[96px] w-full items-center gap-5 rounded-[28px] border border-[#EDE9FE] bg-[#F5F3FF] px-5 py-5 text-left shadow-[0_16px_36px_rgba(107,33,168,0.10)] transition hover:-translate-y-0.5"
               style={{ background: "#F5F3FF", border: "1px solid #EDE9FE" }}
             >
               <div
-                className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 animate-pulse-ring"
+                className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl animate-pulse-ring"
                 style={{ background: "linear-gradient(135deg, #5B12A0 0%, #7C3AED 100%)" }}
               >
                 <Mic size={18} className="text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-body text-[15px] font-semibold" style={{ color: "#6B21A8" }}>
-                  Speak it
+                <p className="font-body text-[21px] font-black leading-tight" style={{ color: "#6B21A8" }}>
+                  Add by voice
                 </p>
-                <p className="font-body text-[13px]" style={{ color: "#7C3AED" }}>
-                  Just say what you enjoy and VYVA will select for you
+                <p className="mt-1 font-body text-[16px] leading-snug" style={{ color: "#7C3AED" }}>
+                  Say what you enjoy. VYVA will turn it into better conversations.
                 </p>
               </div>
-            </button>
+        </button>
 
             {/* Confirmation panel for matched hobbies */}
             {speakItMatches.length > 0 && (
@@ -561,7 +558,7 @@ export default function HobbiesSection() {
               />
             )}
 
-            {/* ── Personality quiz ───────────────────────────────────────── */}
+            {/*  Personality quiz  */}
             <PersonalityQuiz
               questions={PERSONALITY_QUESTIONS}
               personality={personality}
@@ -575,7 +572,7 @@ export default function HobbiesSection() {
               onReopen={() => setQuizDone(false)}
             />
 
-            {/* ── Custom hobby input ─────────────────────────────────────── */}
+            {/*  Custom hobby input  */}
             <div className="bg-vyva-purple-pale border border-vyva-border rounded-2xl p-4">
               <p className="text-[13px] font-bold text-vyva-text-2 uppercase tracking-wider mb-1">
                 Add your own hobby
@@ -583,21 +580,21 @@ export default function HobbiesSection() {
               <p className="text-[14px] text-vyva-text-2 mb-3">
                 Can't find something you love? Type it here.
               </p>
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 min-[520px]:flex-row">
                 <Input
                   data-testid="input-hobbies-custom"
                   placeholder="Type a hobby and press Enter or Add"
                   value={customInput}
                   onChange={(e) => setCustomInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  className="h-12 border-vyva-border text-[15px] flex-1"
+                  className="h-12 min-w-0 flex-1 border-vyva-border text-[15px]"
                 />
                 <button
                   type="button"
                   data-testid="button-hobbies-add-custom"
                   onClick={() => addCustom(customInput)}
                   disabled={!customInput.trim()}
-                  className="flex items-center gap-1.5 px-4 h-12 rounded-xl bg-vyva-purple text-white text-[14px] font-bold disabled:opacity-40 shrink-0"
+                  className="flex h-12 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-vyva-purple px-4 text-[14px] font-bold text-white disabled:opacity-40"
                 >
                   <Plus size={16} />
                   Add
@@ -622,16 +619,14 @@ export default function HobbiesSection() {
                         onClick={() => removeItem(h)}
                         className="opacity-80 hover:opacity-100 leading-none text-[16px]"
                         aria-label={`Remove ${h}`}
-                      >
-                        ×
-                      </button>
+                      >x</button>
                     </span>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* ── Grouped hobby chips — accordion ────────────────────────── */}
+            {/*  Grouped hobby chips  accordion  */}
             <div className="flex flex-col gap-2">
               {HOBBY_GROUPS.map((group) => (
                 <HobbyGroupSection
@@ -672,7 +667,7 @@ export default function HobbiesSection() {
   );
 }
 
-// ─── Personality Quiz Card ────────────────────────────────────────────────────
+//  Personality Quiz Card
 
 type QuizQuestion = typeof PERSONALITY_QUESTIONS[number];
 
@@ -766,8 +761,7 @@ function PersonalityQuiz({
       <p className="text-[17px] font-bold text-vyva-text-1 mb-1.5 leading-snug">
         {currentQuestion.question}
       </p>
-      <p className="text-[13px] text-vyva-text-2 mb-4 italic leading-relaxed">
-        💬 {currentQuestion.why}
+      <p className="text-[13px] text-vyva-text-2 mb-4 italic leading-relaxed">Why: {currentQuestion.why}
       </p>
 
       {/* Answer options */}
@@ -826,7 +820,7 @@ function PersonalityQuiz({
   );
 }
 
-// ─── Hobby Group Section ──────────────────────────────────────────────────────
+//  Hobby Group Section
 
 function HobbyGroupSection({
   group,
@@ -930,7 +924,7 @@ function HobbyGroupSection({
   );
 }
 
-// ─── Follow-up Card ────────────────────────────────────────────────────────────
+//  Follow-up Card
 
 function FollowUpCard({
   hobby,
@@ -1033,7 +1027,7 @@ function FollowUpCard({
           {!isMulti && otherActive && (
             <Input
               data-testid={`input-followup-other-${hobbySlug}`}
-              placeholder="Please describe…"
+              placeholder="Please describe..."
               value={otherText}
               onChange={(e) => {
                 setOtherText(e.target.value);
@@ -1047,7 +1041,7 @@ function FollowUpCard({
       ) : (
         <Input
           data-testid={`input-followup-${hobbySlug}`}
-          placeholder={config.hint || "Type your answer…"}
+          placeholder={config.hint || "Type your answer..."}
           value={currentValue}
           onChange={(e) => onChange(e.target.value)}
           className="h-12 border-vyva-border text-[15px]"
@@ -1057,7 +1051,7 @@ function FollowUpCard({
   );
 }
 
-// ─── Loading skeleton ─────────────────────────────────────────────────────────
+//  Loading skeleton
 
 function LoadingSkeleton() {
   return (

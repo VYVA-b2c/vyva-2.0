@@ -2,9 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { ChevronLeft, Stethoscope } from "lucide-react";
+import { ProfileSectionHero, seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AutoSaveStatusBadge } from "@/components/onboarding/AutoSaveStatusBadge";
 import { PlacesSearch, PlaceResult } from "@/components/onboarding/PlacesSearch";
 import { useAutoSave } from "@/hooks/useAutoSave";
 import { useQuery } from "@tanstack/react-query";
@@ -203,35 +203,44 @@ const GPSection = () => {
             <h1 className="font-display text-[20px] font-semibold text-vyva-text-1">GP details</h1>
           </div>
         </div>
-        <AutoSaveStatusBadge autoSaveStatus={autoSaveStatus} savedFading={savedFading} retryCountdown={retryCountdown} onRetryNow={retryNow} testId="status-gp-autosave" />
       </div>
 
-      <div className="flex-1 px-5 space-y-5">
-        <p className="font-body text-[14px] text-vyva-text-2 leading-relaxed">
-          Search for your GP surgery or enter the details manually.
-        </p>
+      <div className="flex-1 px-5 space-y-7">
+        <ProfileSectionHero
+          icon={Stethoscope}
+          title="Doctor details"
+          kicker="One click away"
+          description="Add the GP or practice VYVA should keep handy for appointments, reports, and care conversations."
+          badges={[
+            { label: "Doctor access", color: "blue" },
+            { label: "Reports ready", color: "purple" },
+            { label: "Easy updates", color: "green" },
+          ]}
+          iconBgClassName="bg-[#1D4ED8]"
+          autoSave={{ autoSaveStatus, savedFading, retryCountdown, onRetryNow: retryNow, testId: "status-gp-autosave" }}
+        />
 
         {showSavedCard ? (
-          /* Saved GP summary card — server is not touched when navigating away */
+          /* Saved GP summary card  server is not touched when navigating away */
           <div
             className="bg-white rounded-[18px] border border-vyva-border p-4 space-y-3"
             style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}
             data-testid="card-gp-saved"
           >
             <div>
-              <p className="font-body text-[13px] font-medium text-vyva-text-2">Practice / Surgery name</p>
-              <p data-testid="text-gp-name" className="font-body text-[15px] text-vyva-text-1 mt-0.5">{initialGp.name}</p>
+              <p className="font-body text-[14px] font-extrabold text-vyva-text-2">Practice / Surgery name</p>
+              <p data-testid="text-gp-name" className="mt-1 font-body text-[20px] font-black text-vyva-text-1">{initialGp.name}</p>
             </div>
             {initialGp.full_address && (
               <div>
-                <p className="font-body text-[13px] font-medium text-vyva-text-2">Address</p>
-                <p data-testid="text-gp-address" className="font-body text-[15px] text-vyva-text-1 mt-0.5">{initialGp.full_address}</p>
+                <p className="font-body text-[14px] font-extrabold text-vyva-text-2">Address</p>
+                <p data-testid="text-gp-address" className="mt-1 font-body text-[20px] font-black text-vyva-text-1">{initialGp.full_address}</p>
               </div>
             )}
             {initialGp.phone && (
               <div>
-                <p className="font-body text-[13px] font-medium text-vyva-text-2">Phone number</p>
-                <p data-testid="text-gp-phone" className="font-body text-[15px] text-vyva-text-1 mt-0.5">{initialGp.phone}</p>
+                <p className="font-body text-[14px] font-extrabold text-vyva-text-2">Phone number</p>
+                <p data-testid="text-gp-phone" className="mt-1 font-body text-[20px] font-black text-vyva-text-1">{initialGp.phone}</p>
               </div>
             )}
             {initialGp.google_maps_url && (
@@ -240,16 +249,15 @@ const GPSection = () => {
                 href={initialGp.google_maps_url}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-block font-body text-[13px] text-vyva-purple underline"
+                className="inline-flex min-h-11 items-center rounded-full border border-[#E7DCF8] bg-white px-4 font-body text-[15px] font-black text-vyva-purple no-underline shadow-sm"
               >
-                View on Google Maps →
-              </a>
+                View on Google Maps</a>
             )}
             <div className="flex items-center gap-4 pt-1">
               <button
                 data-testid="button-gp-change"
                 onClick={handleChangeGP}
-                className="font-body text-[13px] font-medium text-vyva-purple underline"
+                className="font-body text-[15px] font-black text-vyva-purple underline"
               >
                 Change GP
               </button>
@@ -257,24 +265,24 @@ const GPSection = () => {
                 data-testid="button-gp-remove"
                 onClick={removeGP}
                 disabled={removing}
-                className="font-body text-[13px] text-red-500 underline disabled:opacity-40"
+                className="font-body text-[15px] font-bold text-red-500 underline disabled:opacity-40"
               >
-                {removing ? "Removing…" : "Remove GP"}
+                {removing ? "Removing..." : "Remove GP"}
               </button>
             </div>
           </div>
         ) : (
           <>
-            {/* Search — wrapped for testid targeting */}
+            {/* Search  wrapped for testid targeting */}
             <div>
-              <label className="font-body text-[13px] font-medium text-vyva-text-2 mb-1.5 block">
+              <label className="mb-2 block font-body text-[15px] font-extrabold text-vyva-text-2">
                 Search for your GP
               </label>
               <div data-testid="search-gp-places">
                 <PlacesSearch
                   category="doctor"
                   onSelect={handleSelect}
-                  placeholder="Search GP surgery or practice…"
+                  placeholder="Search GP surgery or practice..."
                   initialValue={isChangingGP ? null : initialGp}
                 />
               </div>
@@ -287,7 +295,7 @@ const GPSection = () => {
               data-testid="form-gp-details"
             >
               <div>
-                <label className="font-body text-[13px] font-medium text-vyva-text-2 mb-1.5 block">
+                <label className="mb-2 block font-body text-[15px] font-extrabold text-vyva-text-2">
                   Practice / Surgery name
                 </label>
                 {isLoading ? (
@@ -298,12 +306,12 @@ const GPSection = () => {
                     value={manualName}
                     onChange={(e) => { setManualName(e.target.value); setPlace(null); scheduleAutoSave(); }}
                     placeholder="e.g. Riverside Medical Centre"
-                    className="bg-white"
+                    className={seniorInputClassName}
                   />
                 )}
               </div>
               <div>
-                <label className="font-body text-[13px] font-medium text-vyva-text-2 mb-1.5 block">
+                <label className="mb-2 block font-body text-[15px] font-extrabold text-vyva-text-2">
                   Address
                 </label>
                 {isLoading ? (
@@ -314,12 +322,12 @@ const GPSection = () => {
                     value={manualAddress}
                     onChange={(e) => { setManualAddress(e.target.value); if (place) setPlace(null); scheduleAutoSave(); }}
                     placeholder="Full address"
-                    className="bg-white"
+                    className={seniorInputClassName}
                   />
                 )}
               </div>
               <div>
-                <label className="font-body text-[13px] font-medium text-vyva-text-2 mb-1.5 block">
+                <label className="mb-2 block font-body text-[15px] font-extrabold text-vyva-text-2">
                   Phone number
                 </label>
                 {isLoading ? (
@@ -331,7 +339,7 @@ const GPSection = () => {
                     value={manualPhone}
                     onChange={(e) => { setManualPhone(e.target.value); if (place) setPlace(null); scheduleAutoSave(); }}
                     placeholder="+44 1234 567890"
-                    className="bg-white"
+                    className={seniorInputClassName}
                   />
                 )}
               </div>
@@ -342,10 +350,9 @@ const GPSection = () => {
                   href={place.google_maps_url}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-block font-body text-[13px] text-vyva-purple underline"
+                  className="inline-flex min-h-11 items-center rounded-full border border-[#E7DCF8] bg-white px-4 font-body text-[15px] font-black text-vyva-purple no-underline shadow-sm"
                 >
-                  View on Google Maps →
-                </a>
+                  View on Google Maps</a>
               )}
               {usingSearch && (
                 <button
@@ -367,17 +374,17 @@ const GPSection = () => {
             data-testid="button-gp-save"
             onClick={handleSave}
             disabled={!canSave || saving}
-            className="w-full py-4 rounded-full font-body text-[17px] font-semibold text-white disabled:opacity-40"
+            className="w-full rounded-full py-4 font-body text-[18px] font-black text-white shadow-[0_14px_28px_rgba(107,33,168,0.22)] disabled:opacity-40"
             style={{ background: "#6B21A8" }}
           >
-            {saving ? "Saving…" : "Save GP details"}
+            {saving ? "Saving..." : "Save GP details"}
           </button>
         )}
         {isChangingGP && (
           <button
             data-testid="button-gp-cancel-change"
             onClick={handleCancelChange}
-            className="w-full py-3 rounded-full font-body text-[15px] font-medium text-vyva-text-2 bg-white border border-vyva-border"
+            className="w-full rounded-full border border-vyva-border bg-white py-3 font-body text-[15px] font-black text-vyva-text-2"
           >
             Cancel
           </button>
@@ -386,7 +393,7 @@ const GPSection = () => {
           <button
             data-testid="button-gp-back-to-profile"
             onClick={() => navigate("/onboarding/profile")}
-            className="w-full py-4 rounded-full font-body text-[17px] font-semibold text-white"
+            className="w-full rounded-full py-4 font-body text-[18px] font-black text-white shadow-[0_14px_28px_rgba(107,33,168,0.22)]"
             style={{ background: "#6B21A8" }}
           >
             Back to profile

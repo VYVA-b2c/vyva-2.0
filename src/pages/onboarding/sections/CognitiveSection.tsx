@@ -2,16 +2,17 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
+import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
+import { SeniorChoiceChips, type SeniorChoiceOption } from "@/components/onboarding/SeniorChoiceChips";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiFetch } from "@/lib/queryClient";
 import { useAutoSave } from "@/hooks/useAutoSave";
-import { AutoSaveStatusBadge } from "@/components/onboarding/AutoSaveStatusBadge";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyError } from "@/lib/apiError";
+import { BadgeCheck, Brain, Clock3, MessagesSquare, Moon, Repeat, Sparkles, Sun } from "lucide-react";
 
 type CognitiveForm = {
   memory_difficulties: string;
@@ -22,6 +23,51 @@ type CognitiveForm = {
   variety: string;
   communication_style: string;
 };
+
+const MEMORY_OPTIONS: SeniorChoiceOption[] = [
+  { value: "none", label: "No concerns", description: "VYVA can keep a normal pace.", icon: <BadgeCheck size={17} /> },
+  { value: "mild", label: "Mild support", description: "Helpful prompts and reminders.", icon: <Brain size={17} /> },
+  { value: "moderate", label: "More support", description: "Simpler steps and more repetition.", icon: <MessagesSquare size={17} /> },
+];
+
+const DIAGNOSIS_OPTIONS: SeniorChoiceOption[] = [
+  { value: "none", label: "None", icon: <BadgeCheck size={17} /> },
+  { value: "mci", label: "MCI", description: "Mild cognitive impairment.", icon: <Brain size={17} /> },
+  { value: "early_dementia", label: "Early dementia", icon: <Brain size={17} /> },
+  { value: "alzheimers", label: "Alzheimer's", icon: <Brain size={17} /> },
+  { value: "parkinsons", label: "Parkinson's", icon: <Brain size={17} /> },
+  { value: "other", label: "Other", icon: <Sparkles size={17} /> },
+];
+
+const SESSION_OPTIONS: SeniorChoiceOption[] = [
+  { value: "5", label: "5 min", icon: <Clock3 size={17} /> },
+  { value: "10", label: "10 min", icon: <Clock3 size={17} /> },
+  { value: "15", label: "15 min", icon: <Clock3 size={17} /> },
+  { value: "20", label: "20 min", icon: <Clock3 size={17} /> },
+];
+
+const TRAINING_TIME_OPTIONS: SeniorChoiceOption[] = [
+  { value: "morning", label: "Morning", icon: <Sun size={17} /> },
+  { value: "afternoon", label: "Afternoon", icon: <Sun size={17} /> },
+  { value: "no_preference", label: "Any time", icon: <Clock3 size={17} /> },
+];
+
+const PACE_OPTIONS: SeniorChoiceOption[] = [
+  { value: "normal", label: "Normal", icon: <BadgeCheck size={17} /> },
+  { value: "slower", label: "Slower", icon: <MessagesSquare size={17} /> },
+  { value: "very_slow", label: "Very slow", icon: <MessagesSquare size={17} /> },
+];
+
+const VARIETY_OPTIONS: SeniorChoiceOption[] = [
+  { value: "variety", label: "Prefer variety", icon: <Sparkles size={17} /> },
+  { value: "repeating", label: "Enjoy repeating", icon: <Repeat size={17} /> },
+];
+
+const STYLE_OPTIONS: SeniorChoiceOption[] = [
+  { value: "standard", label: "Standard", icon: <MessagesSquare size={17} /> },
+  { value: "simpler", label: "Simpler language", icon: <MessagesSquare size={17} /> },
+  { value: "very_simple", label: "Very simple", description: "More repetition and shorter steps.", icon: <Moon size={17} /> },
+];
 
 export default function CognitiveSection() {
   const navigate = useNavigate();
@@ -94,128 +140,112 @@ export default function CognitiveSection() {
   const SelectSkeleton = () => <Skeleton className="h-11 w-full rounded-lg" />;
 
   return (
-    <PhoneFrame subtitle="🧠 Cognitive profile" showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
-      <div className="flex flex-col gap-5 px-4 py-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1">
-            <p className="text-xs text-gray-500 leading-relaxed">Helps VYVA adjust how it communicates and personalise brain training sessions.</p>
-          </div>
-          <AutoSaveStatusBadge autoSaveStatus={autoSaveStatus} savedFading={savedFading} retryCountdown={retryCountdown} onRetryNow={retryNow} testId="status-cognitive-autosave" />
-        </div>
+    <PhoneFrame subtitle="Cognitive profile" showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
+      <div className="flex flex-col gap-7 px-1 pb-6 pt-5 sm:px-2 md:px-3">
+        <ProfileSectionHero
+          icon={Brain}
+          title="Brain coach"
+          kicker="Personal pace"
+          description="Help VYVA choose the right pace, language, and brain-training rhythm for calmer daily support."
+          badges={[
+            { label: "Memory support", color: "purple" },
+            { label: "Gentle coaching", color: "blue" },
+            { label: "Private by default", color: "green" },
+          ]}
+          autoSave={{ autoSaveStatus, savedFading, retryCountdown, onRetryNow: retryNow, testId: "status-cognitive-autosave" }}
+        />
 
-        <div className="bg-purple-50 border-l-2 border-[#6b21a8] rounded-lg px-3 py-2 text-xs text-purple-700">
-          This information is never shared with anyone unless you explicitly enable it.
-        </div>
+        <div className="flex flex-col gap-7">
+          <div className="space-y-3">
+            <Label className="text-[15px] font-extrabold text-gray-700">Memory support</Label>
+            {isLoading ? <SelectSkeleton /> : (
+              <SeniorChoiceChips
+                options={MEMORY_OPTIONS}
+                value={form.memory_difficulties}
+                onChange={(v) => set("memory_difficulties", v)}
+                testIdPrefix="chip-cognitive-memory"
+              />
+            )}
+          </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs font-bold text-gray-600">Memory difficulties</Label>
+          <div className="space-y-3">
+            <Label className="text-[15px] font-extrabold text-gray-700">Diagnosis, if any</Label>
             {isLoading ? <SelectSkeleton /> : (
-              <Select value={form.memory_difficulties} onValueChange={(v) => set("memory_difficulties", v)}>
-                <SelectTrigger data-testid="select-cognitive-memory" className="h-11 border-purple-200"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  <SelectItem value="mild">Mild</SelectItem>
-                  <SelectItem value="moderate">Moderate</SelectItem>
-                </SelectContent>
-              </Select>
+              <SeniorChoiceChips
+                options={DIAGNOSIS_OPTIONS}
+                value={form.cognitive_diagnosis}
+                onChange={(v) => set("cognitive_diagnosis", v)}
+                testIdPrefix="chip-cognitive-diagnosis"
+              />
             )}
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-bold text-gray-600">Diagnosis (if any)</Label>
-            {isLoading ? <SelectSkeleton /> : (
-              <Select value={form.cognitive_diagnosis} onValueChange={(v) => set("cognitive_diagnosis", v)}>
-                <SelectTrigger data-testid="select-cognitive-diagnosis" className="h-11 border-purple-200"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  <SelectItem value="mci">MCI</SelectItem>
-                  <SelectItem value="early_dementia">Early dementia</SelectItem>
-                  <SelectItem value="alzheimers">Alzheimer's</SelectItem>
-                  <SelectItem value="parkinsons">Parkinson's</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-        </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs font-bold text-gray-600">Session length</Label>
+          <div className="space-y-3">
+            <Label className="text-[15px] font-extrabold text-gray-700">Brain coach sessions</Label>
             {isLoading ? <SelectSkeleton /> : (
-              <Select value={String(form.session_length_mins)} onValueChange={(v) => set("session_length_mins", parseInt(v))}>
-                <SelectTrigger data-testid="select-cognitive-session" className="h-11 border-purple-200"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="5">5 min</SelectItem>
-                  <SelectItem value="10">10 min</SelectItem>
-                  <SelectItem value="15">15 min</SelectItem>
-                  <SelectItem value="20">20 min</SelectItem>
-                </SelectContent>
-              </Select>
+              <SeniorChoiceChips
+                options={SESSION_OPTIONS}
+                value={String(form.session_length_mins)}
+                onChange={(v) => set("session_length_mins", parseInt(v))}
+                testIdPrefix="chip-cognitive-session"
+              />
             )}
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-bold text-gray-600">Best time of day</Label>
-            {isLoading ? <SelectSkeleton /> : (
-              <Select value={form.training_time} onValueChange={(v) => set("training_time", v)}>
-                <SelectTrigger data-testid="select-cognitive-time" className="h-11 border-purple-200"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="morning">Morning</SelectItem>
-                  <SelectItem value="afternoon">Afternoon</SelectItem>
-                  <SelectItem value="no_preference">No preference</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-        </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs font-bold text-gray-600">Pace</Label>
+          <div className="space-y-3">
+            <Label className="text-[15px] font-extrabold text-gray-700">Best time of day</Label>
             {isLoading ? <SelectSkeleton /> : (
-              <Select value={form.pace} onValueChange={(v) => set("pace", v)}>
-                <SelectTrigger data-testid="select-cognitive-pace" className="h-11 border-purple-200"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="normal">Normal</SelectItem>
-                  <SelectItem value="slower">Slower</SelectItem>
-                  <SelectItem value="very_slow">Very slow</SelectItem>
-                </SelectContent>
-              </Select>
+              <SeniorChoiceChips
+                options={TRAINING_TIME_OPTIONS}
+                value={form.training_time}
+                onChange={(v) => set("training_time", v)}
+                testIdPrefix="chip-cognitive-time"
+              />
             )}
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-bold text-gray-600">Exercises</Label>
-            {isLoading ? <SelectSkeleton /> : (
-              <Select value={form.variety} onValueChange={(v) => set("variety", v)}>
-                <SelectTrigger data-testid="select-cognitive-variety" className="h-11 border-purple-200"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="variety">Prefer variety</SelectItem>
-                  <SelectItem value="repeating">Enjoy repeating</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-        </div>
 
-        <div className="space-y-1.5">
-          <Label className="text-xs font-bold text-gray-600">VYVA communication style</Label>
-          {isLoading ? <SelectSkeleton /> : (
-            <Select value={form.communication_style} onValueChange={(v) => set("communication_style", v)}>
-              <SelectTrigger data-testid="select-cognitive-style" className="h-11 border-purple-200"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="standard">Standard</SelectItem>
-                <SelectItem value="simpler">Simpler language</SelectItem>
-                <SelectItem value="very_simple">Very simple + more repetition</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
+          <div className="space-y-3">
+            <Label className="text-[15px] font-extrabold text-gray-700">Conversation pace</Label>
+            {isLoading ? <SelectSkeleton /> : (
+              <SeniorChoiceChips
+                options={PACE_OPTIONS}
+                value={form.pace}
+                onChange={(v) => set("pace", v)}
+                testIdPrefix="chip-cognitive-pace"
+              />
+            )}
+          </div>
+
+          <div className="space-y-3">
+            <Label className="text-[15px] font-extrabold text-gray-700">Exercises</Label>
+            {isLoading ? <SelectSkeleton /> : (
+              <SeniorChoiceChips
+                options={VARIETY_OPTIONS}
+                value={form.variety}
+                onChange={(v) => set("variety", v)}
+                testIdPrefix="chip-cognitive-variety"
+              />
+            )}
+          </div>
+
+          <div className="space-y-3">
+            <Label className="text-[15px] font-extrabold text-gray-700">VYVA communication style</Label>
+            {isLoading ? <SelectSkeleton /> : (
+              <SeniorChoiceChips
+                options={STYLE_OPTIONS}
+                value={form.communication_style}
+                onChange={(v) => set("communication_style", v)}
+                testIdPrefix="chip-cognitive-style"
+              />
+            )}
+          </div>
         </div>
 
         <div className="flex flex-col gap-2 pt-2">
-          <Button data-testid="button-cognitive-save" onClick={handleSave} disabled={saving || isLoading} className="w-full h-12 font-bold bg-[#6b21a8] hover:bg-[#5b1a8f]">
+          <Button data-testid="button-cognitive-save" onClick={handleSave} disabled={saving || isLoading} className="h-14 w-full rounded-full bg-[#6b21a8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5b1a8f]">
             {saving ? "Saving..." : "Save cognitive profile"}
           </Button>
-          <button data-testid="button-cognitive-skip" onClick={() => navigate("/onboarding/profile")} className="text-xs text-gray-400 py-2 text-center">Skip for now</button>
+          <button data-testid="button-cognitive-skip" onClick={() => navigate("/onboarding/profile")} className="py-2 text-center text-[15px] font-bold text-gray-500">Skip for now</button>
         </div>
       </div>
     </PhoneFrame>
