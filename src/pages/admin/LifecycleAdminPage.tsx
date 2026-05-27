@@ -199,6 +199,7 @@ export default function LifecycleAdminPage() {
   const [consentAttempts, setConsentAttempts] = useState<ConsentAttempt[]>([]);
   const [communications, setCommunications] = useState<Communication[]>([]);
   const [message, setMessage] = useState("");
+  const [usersLoadError, setUsersLoadError] = useState("");
   const [newIntake, setNewIntake] = useState(emptyIntakeForm);
   const [signupShare, setSignupShare] = useState({
     emails: "",
@@ -239,7 +240,10 @@ export default function LifecycleAdminPage() {
     if (peopleSearch.trim()) params.set("query", peopleSearch.trim());
     const requests = [
       { key: "summary", label: "summary", load: () => api("/summary"), apply: (data: JsonRecord) => setSummary(data) },
-      { key: "users", label: "users", load: () => api(`/users?${params.toString()}`), apply: (data: JsonRecord) => setUsers((data.users ?? []).filter(isVisibleLifecycleUser)) },
+      { key: "users", label: "users", load: () => api(`/users?${params.toString()}`), apply: (data: JsonRecord) => {
+        setUsers((data.users ?? []).filter(isVisibleLifecycleUser));
+        setUsersLoadError("");
+      } },
       { key: "organizations", label: "organizations", load: () => api("/organizations"), apply: (data: JsonRecord) => setOrganizations(data.organizations ?? []) },
       { key: "consent", label: "consent", load: () => api("/consent"), apply: (data: JsonRecord) => setConsentAttempts(data.attempts ?? []) },
       { key: "communications", label: "communications", load: () => api("/communications"), apply: (data: JsonRecord) => setCommunications(data.communications ?? []) },
@@ -255,6 +259,9 @@ export default function LifecycleAdminPage() {
         return;
       }
       failed.push(request.label);
+      if (request.key === "users") {
+        setUsersLoadError("Users could not be loaded. The admin API or database is not available.");
+      }
       console.error(`[VYVA Admin] Could not load lifecycle ${request.key}`, result.reason);
     });
 
@@ -1049,11 +1056,11 @@ export default function LifecycleAdminPage() {
 
         <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5">
           {[
-            ["Total", summary?.total ?? 0],
-            ["Active", summary?.active ?? 0],
-            ["Consent", summary?.pendingConsent ?? 0],
-            ["Dropped", summary?.dropped ?? 0],
-            ["Links sent", summary?.byStatus?.link_sent ?? 0],
+            ["Total", summary ? summary.total ?? 0 : "-"],
+            ["Active", summary ? summary.active ?? 0 : "-"],
+            ["Consent", summary ? summary.pendingConsent ?? 0 : "-"],
+            ["Dropped", summary ? summary.dropped ?? 0 : "-"],
+            ["Links sent", summary ? summary.byStatus?.link_sent ?? 0 : "-"],
           ].map(([label, value]) => (
             <div key={label} className="rounded-2xl border border-[#eadfd5] bg-white px-4 py-3 shadow-sm">
               <p className="text-xs font-bold uppercase tracking-[0.06em] text-[#8b7a73]">{label}</p>
@@ -1246,7 +1253,15 @@ export default function LifecycleAdminPage() {
                 </select>
               ))}
             </div>
-            <IntakeTable users={users} onView={(intake) => openUserDetail(intake, "view")} onTriggerConsent={triggerConsent} onToggleEnabled={toggleUser} onDelete={deleteUser} busyAction={busyAction} />
+            <IntakeTable
+              users={users}
+              emptyMessage={usersLoadError || "No users match the current filters yet."}
+              onView={(intake) => openUserDetail(intake, "view")}
+              onTriggerConsent={triggerConsent}
+              onToggleEnabled={toggleUser}
+              onDelete={deleteUser}
+              busyAction={busyAction}
+            />
           </section>
         )}
 

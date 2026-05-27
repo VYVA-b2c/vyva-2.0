@@ -77,6 +77,15 @@ export default defineConfig({
           next();
         });
       },
+      configurePreviewServer(server) {
+        server.middlewares.use((req, res, next) => {
+          if (req.url?.startsWith("/api/")) {
+            forwardApiRequest(req, res);
+            return;
+          }
+          next();
+        });
+      },
     },
     react(),
   ],
