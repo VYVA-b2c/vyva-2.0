@@ -30,6 +30,12 @@ type SupabaseAuthAccount = {
   phone_number: string | null;
   created_at: Date | null;
 };
+type DeletedLifecycleDenyList = {
+  intakeIds: Set<string>;
+  userIds: Set<string>;
+  emails: Set<string>;
+  phones: Set<string>;
+};
 
 function jsonRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -316,6 +322,20 @@ function deletedEventIdentityKeys(event: LifecycleEvent) {
   return Array.from(new Set(keys));
 }
 
+function addDeletedIdentityKeys(target: DeletedLifecycleDenyList, keys: string[]) {
+  for (const key of keys) {
+    const separator = key.indexOf(":");
+    if (separator <= 0) continue;
+    const type = key.slice(0, separator);
+    const value = key.slice(separator + 1);
+    if (!value) continue;
+    if (type === "intake") target.intakeIds.add(value);
+    if (type === "user") target.userIds.add(value);
+    if (type === "email") target.emails.add(value);
+    if (type === "phone") target.phones.add(value);
+  }
+}
+
 function isDeletedLifecycleTombstone(intake: Intake) {
   const metadata = metadataRecord(intake.metadata);
   return metadata.deleted_from_lifecycle === true || (
@@ -363,6 +383,82 @@ function rememberLifecycleIdentity(existing: Set<string>, input: {
 function rememberDeletedTombstoneIdentity(existing: Set<string>, intake: Intake) {
   if (!isDeletedLifecycleTombstone(intake)) return;
   for (const key of deletedTombstoneIdentityKeys(intake)) existing.add(key);
+}
+
+async function buildDeletedLifecycleDenyList(database = db): Promise<DeletedLifecycleDenyList> {
+  const [intakeRows, deletedEvents, deletedProfiles] = await Promise.all([
+    database.select().from(userIntakes),
+    database
+      .select()
+      .from(lifecycleEvents)
+      .where(eq(lifecycleEvents.event_type, "user_deleted"))
+      .orderBy(desc(lifecycleEvents.created_at))
+      .limit(1000),
+    database
+      .select({
+        id: profiles.id,
+        email: profiles.email,
+        phone_number: profiles.phone_number,
+        whatsapp_number: profiles.whatsapp_number,
+        account_status: profiles.account_status,
+        disabled_reason: profiles.disabled_reason,
+      })
+      .from(profiles)
+      .where(and(
+        eq(profiles.account_status, "disabled"),
+        eq(profiles.disabled_reason, "Deleted from lifecycle admin"),
+      )),
+  ]);
+  const denyList: DeletedLifecycleDenyList = {
+    intakeIds: new Set(),
+    userIds: new Set(),
+    emails: new Set(),
+    phones: new Set(),
+  };
+
+  for (const intake of intakeRows) {
+    if (!isDeletedLifecycleTombstone(intake)) continue;
+    denyList.intakeIds.add(intake.id);
+    addDeletedIdentityKeys(denyList, deletedTombstoneIdentityKeys(intake));
+  }
+  for (const event of deletedEvents) {
+    if (event.intake_id) denyList.intakeIds.add(event.intake_id);
+    addDeletedIdentityKeys(denyList, deletedEventIdentityKeys(event));
+  }
+  for (const profile of deletedProfiles) {
+    addDeletedIdentityKeys(denyList, lifecycleIdentityKeys({
+      userId: profile.id,
+      email: profile.email,
+      phone: profile.phone_number ?? profile.whatsapp_number,
+    }));
+    addDeletedIdentityKeys(denyList, phoneIdentityKeys(profile.whatsapp_number));
+  }
+
+  return denyList;
+}
+
+function matchesDeletedLifecycleDenyList(input: {
+  intakeId?: string | null;
+  userIds?: Array<string | null | undefined>;
+  emails?: Array<string | null | undefined>;
+  phones?: Array<string | null | undefined>;
+  disabledReason?: string | null;
+}, denyList: DeletedLifecycleDenyList) {
+  if (input.disabledReason === "Deleted from lifecycle admin") return true;
+  if (input.intakeId && denyList.intakeIds.has(input.intakeId)) return true;
+  for (const id of input.userIds ?? []) {
+    if (id && denyList.userIds.has(id)) return true;
+  }
+  for (const emailValue of input.emails ?? []) {
+    const email = normalizeEmail(emailValue);
+    if (email && denyList.emails.has(email)) return true;
+  }
+  for (const phoneValue of input.phones ?? []) {
+    for (const key of phoneIdentityKeys(phoneValue)) {
+      if (denyList.phones.has(key.slice("phone:".length))) return true;
+    }
+  }
+  return false;
 }
 
 function canonicalIdentityKey(intake: Intake) {
@@ -1220,6 +1316,7 @@ export async function listLifecycleUsers(filters: {
   callback_onboarding?: boolean;
 }, database = db) {
   await backfillLifecycleUsers(database);
+  const deletedDenyList = await buildDeletedLifecycleDenyList(database);
   const searchWhere = filters.query ? await lifecycleUserSearchWhere(filters.query, database) : undefined;
   const callbackOnboardingWhere = filters.callback_onboarding === true
     ? sql`(${userIntakes.metadata} ? 'callback' or ${userIntakes.journey_step} like 'callback_%')`
@@ -1249,6 +1346,12 @@ export async function listLifecycleUsers(filters: {
     .orderBy(desc(userIntakes.created_at))
     .limit(240))
     .filter((row) => !isMergedLifecycleDuplicate(row.intake))
+    .filter((row) => !matchesDeletedLifecycleDenyList({
+      intakeId: row.intake.id,
+      userIds: [row.intake.user_id, row.intake.elder_user_id, row.intake.family_user_id],
+      emails: [row.intake.email, row.intake.phone],
+      phones: [row.intake.phone],
+    }, deletedDenyList))
     .slice(0, 200);
 
   const profileIds = Array.from(new Set(rows.map((row) => targetUserIdForIntake(row.intake)).filter(Boolean))) as string[];
@@ -1317,7 +1420,13 @@ export async function listLifecycleUsers(filters: {
       disabled_at: profile?.disabled_at ?? null,
       disabled_reason: profile?.disabled_reason ?? null,
     };
-  }).filter((row) => row.disabled_reason !== "Deleted from lifecycle admin");
+  }).filter((row) => !matchesDeletedLifecycleDenyList({
+    intakeId: row.id,
+    userIds: [row.user_id, row.elder_user_id, row.family_user_id],
+    emails: [row.email, row.phone, row.login_email, row.login_phone, row.profile_email, row.profile_phone],
+    phones: [row.phone, row.login_phone, row.profile_phone],
+    disabledReason: row.disabled_reason,
+  }, deletedDenyList));
 }
 
 export async function getLifecycleUserDetails(intakeId: string, database = db) {
