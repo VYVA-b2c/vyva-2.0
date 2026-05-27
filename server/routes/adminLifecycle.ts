@@ -2085,6 +2085,7 @@ adminLifecycleRouter.delete("/users/:id", async (req: Request, res: Response) =>
     intake: false,
     profile: false,
     login: false,
+    login_account: false,
   };
   const deletedAt = new Date();
   const deletedBy = req.user?.email ?? req.user?.id ?? "admin";
@@ -2224,6 +2225,11 @@ adminLifecycleRouter.delete("/users/:id", async (req: Request, res: Response) =>
     return res.status(500).json({ error: "User cleanup ran, but the lifecycle tombstone could not be saved." });
   }
 
+  const deletedLoginAccounts = loginWhere
+    ? await optionalAdminRows(db.delete(users).where(loginWhere).returning({ id: users.id }))
+    : [];
+  deleted.login_account = deletedLoginAccounts.length > 0;
+
   await recordEvent({
     intakeId: intake.id,
     userId,
@@ -2246,6 +2252,7 @@ adminLifecycleRouter.delete("/users/:id", async (req: Request, res: Response) =>
         phones: scope.phones,
       },
       cleanup: deleted,
+      deleted_login_account_ids: deletedLoginAccounts.map((account) => account.id),
     },
   });
 
