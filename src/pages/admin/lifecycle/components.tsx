@@ -99,8 +99,9 @@ function supportDraftFromSchedule(schedule: ScheduledSupport): SupportScheduleDr
   };
 }
 
-export function IntakeTable({ users, onView, onTriggerConsent, onToggleEnabled, onDelete, busyAction = null, compact = false }: {
+export function IntakeTable({ users, emptyMessage = "No users match the current filters yet.", onView, onTriggerConsent, onToggleEnabled, onDelete, busyAction = null, compact = false }: {
   users: Intake[];
+  emptyMessage?: string;
   onView: (intake: Intake) => void;
   onTriggerConsent: (intake: Intake) => void;
   onToggleEnabled: (intake: Intake) => void;
@@ -117,7 +118,7 @@ export function IntakeTable({ users, onView, onTriggerConsent, onToggleEnabled, 
           {users.length === 0 && (
             <tr>
               <td colSpan={compact ? 9 : 10} className="rounded-2xl bg-[#fbf8f5] px-4 py-6 text-center font-bold text-[#7d6b65]">
-                No users match the current filters yet.
+                {emptyMessage}
               </td>
             </tr>
           )}
