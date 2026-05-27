@@ -29,7 +29,7 @@ function authHeaders(): HeadersInit {
 // All useQuery calls in this app should follow this URL-first key convention.
 async function defaultQueryFn({ queryKey }: { queryKey: readonly unknown[] }) {
   const url = queryKey[0] as string;
-  const res = await fetch(url, { credentials: "same-origin", headers: authHeaders() });
+  const res = await fetch(url, { credentials: "include", headers: authHeaders() });
   if (!res.ok) {
     let body: unknown = null;
     try {
@@ -64,5 +64,5 @@ export async function apiFetch(
   if (!headers.has("Content-Type") && options.body) {
     headers.set("Content-Type", "application/json");
   }
-  return fetch(url, { ...options, credentials: options.credentials ?? "same-origin", headers });
+  return fetch(url, { ...options, credentials: options.credentials ?? "include", headers });
 }

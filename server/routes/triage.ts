@@ -189,13 +189,13 @@ function wizardStage(wizard?: TriageWizardContext): WizardStage {
 
 function wizardStageLabel(stage: WizardStage, locale: string) {
   const labels: Record<WizardStage, { en: string; es: string }> = {
-    symptom: { en: "Step 1 of 6: What feels wrong?", es: "Paso 1 de 6: Que sientes?" },
-    red_flag: { en: "Step 2 of 6: Check warning signs", es: "Paso 2 de 6: Senales de alerta" },
-    duration: { en: "Step 3 of 6: How long?", es: "Paso 3 de 6: Desde cuando?" },
-    severity: { en: "Step 4 of 6: How strong?", es: "Paso 4 de 6: Que tan fuerte?" },
-    trend: { en: "Step 5 of 6: Is it changing?", es: "Paso 5 de 6: Esta cambiando?" },
-    support: { en: "Step 6 of 6: What help do you want?", es: "Paso 6 de 6: Que ayuda quieres?" },
-    complete: { en: "Ready to summarize", es: "Listo para resumir" },
+    symptom: { en: "Question 1 of 6", es: "Pregunta 1 de 6" },
+    red_flag: { en: "Question 2 of 6", es: "Pregunta 2 de 6" },
+    duration: { en: "Question 3 of 6", es: "Pregunta 3 de 6" },
+    severity: { en: "Question 4 of 6", es: "Pregunta 4 de 6" },
+    trend: { en: "Question 5 of 6", es: "Pregunta 5 de 6" },
+    support: { en: "Question 6 of 6", es: "Pregunta 6 de 6" },
+    complete: { en: "Summary", es: "Resumen" },
   };
   return text(locale, labels[stage].en, labels[stage].es);
 }
@@ -211,32 +211,32 @@ function quickRepliesFor(wizard: TriageWizardContext | undefined, locale: string
       reply(locale, "breathing", "symptom", "Breathing", "Respirar", "I feel short of breath.", "Me falta el aire.", "wind", "blue"),
       reply(locale, "fever", "symptom", "Fever", "Fiebre", "I have a fever.", "Tengo fiebre.", "thermometer", "amber"),
       reply(locale, "dizzy", "symptom", "Dizzy", "Mareo", "I feel dizzy.", "Me siento mareada o mareado.", "activity", "amber"),
-      reply(locale, "tired", "symptom", "Very tired", "Muy cansado", "I feel very tired.", "Me siento muy cansada o cansado.", "activity", "purple"),
-      reply(locale, "other", "free_text", "Something else", "Otra cosa", "Something else is bothering me.", "Me pasa otra cosa.", "help", "purple"),
+      reply(locale, "tired", "symptom", "Very tired", "Muy cansancio", "I feel very tired.", "Me siento muy cansada o cansado.", "activity", "purple"),
+      reply(locale, "other", "free_text", "Other", "Otra cosa", "Something else is bothering me.", "Me pasa otra cosa.", "help", "purple"),
     ];
   }
 
   if (stage === "red_flag") {
     if (symptom.id === "pain") {
       return [
-        reply(locale, "chest_pain", "red_flag", "Chest pain", "Dolor pecho", "I have chest pain.", "Tengo dolor en el pecho.", "alert", "red"),
-        reply(locale, "sudden_severe", "red_flag", "Sudden/severe", "Fuerte repentino", "The pain is sudden or severe.", "El dolor es repentino o fuerte.", "alert", "red"),
+        reply(locale, "chest_pain", "red_flag", "Chest pain", "Dolor en pecho", "I have chest pain.", "Tengo dolor en el pecho.", "alert", "red"),
+        reply(locale, "sudden_severe", "red_flag", "Sudden or severe", "Repentino o fuerte", "The pain is sudden or severe.", "El dolor es repentino o fuerte.", "alert", "red"),
         reply(locale, "after_fall", "red_flag", "After a fall", "Tras caida", "It started after a fall or injury.", "Empezo despues de una caida o golpe.", "activity", "amber"),
         reply(locale, "no_red_flag", "red_flag", "None of these", "Nada de esto", "None of these apply.", "Nada de esto aplica.", "help", "green"),
       ];
     }
     if (symptom.id === "breathing") {
       return [
-        reply(locale, "breath_rest", "red_flag", "At rest", "En reposo", "I am short of breath even while resting.", "Me falta el aire incluso en reposo.", "wind", "red"),
-        reply(locale, "blue_confused", "red_flag", "Blue/confused", "Azul/confuso", "I feel blue-lipped, confused, or very unwell.", "Tengo labios azulados, confusion o me siento muy mal.", "alert", "red"),
-        reply(locale, "walking_only", "red_flag", "Walking only", "Al caminar", "It mostly happens when I walk.", "Me pasa sobre todo al caminar.", "activity", "amber"),
+        reply(locale, "breath_rest", "red_flag", "Even resting", "Incluso en reposo", "I am short of breath even while resting.", "Me falta el aire incluso en reposo.", "wind", "red"),
+        reply(locale, "blue_confused", "red_flag", "Confused or blue lips", "Confusion o labios azules", "I feel blue-lipped, confused, or very unwell.", "Tengo labios azulados, confusion o me siento muy mal.", "alert", "red"),
+        reply(locale, "walking_only", "red_flag", "Only when walking", "Solo al caminar", "It mostly happens when I walk.", "Me pasa sobre todo al caminar.", "activity", "amber"),
         reply(locale, "no_red_flag", "red_flag", "Mild now", "Leve ahora", "It is mild right now.", "Ahora es leve.", "help", "green"),
       ];
     }
     if (symptom.id === "fever") {
       return [
-        reply(locale, "high_fever", "red_flag", "Very high", "Muy alta", "My temperature is very high.", "Tengo la temperatura muy alta.", "thermometer", "red"),
-        reply(locale, "confused_fever", "red_flag", "Confused", "Confusion", "I feel confused, very drowsy, or hard to wake.", "Tengo confusion, mucho sueno o cuesta despertarme.", "alert", "red"),
+        reply(locale, "high_fever", "red_flag", "Very high fever", "Fiebre muy alta", "My temperature is very high.", "Tengo la temperatura muy alta.", "thermometer", "red"),
+        reply(locale, "confused_fever", "red_flag", "Confused or very sleepy", "Confusion o mucho sueno", "I feel confused, very drowsy, or hard to wake.", "Tengo confusion, mucho sueno o cuesta despertarme.", "alert", "red"),
         reply(locale, "stiff_neck", "red_flag", "Stiff neck", "Cuello rigido", "I have a stiff neck or a new rash.", "Tengo el cuello rigido o una erupcion nueva.", "alert", "red"),
         reply(locale, "no_red_flag", "red_flag", "None of these", "Nada de esto", "None of these apply.", "Nada de esto aplica.", "help", "green"),
       ];
@@ -244,7 +244,7 @@ function quickRepliesFor(wizard: TriageWizardContext | undefined, locale: string
     if (symptom.id === "dizzy") {
       return [
         reply(locale, "fainted", "red_flag", "Fainted", "Desmayo", "I fainted or nearly fainted.", "Me desmaye o casi me desmayo.", "alert", "red"),
-        reply(locale, "stroke_sign", "red_flag", "Weak one side", "Debilidad lado", "I have weakness on one side, face droop, or trouble speaking.", "Tengo debilidad en un lado, cara caida o dificultad para hablar.", "alert", "red"),
+        reply(locale, "stroke_sign", "red_flag", "Weak on one side", "Debilidad en un lado", "I have weakness on one side, face droop, or trouble speaking.", "Tengo debilidad en un lado, cara caida o dificultad para hablar.", "alert", "red"),
         reply(locale, "dizzy_chest", "red_flag", "With chest pain", "Con dolor pecho", "I also have chest pain or trouble breathing.", "Tambien tengo dolor de pecho o falta de aire.", "heart", "red"),
         reply(locale, "no_red_flag", "red_flag", "Mild now", "Leve ahora", "It is mild right now.", "Ahora es leve.", "help", "green"),
       ];
@@ -269,7 +269,7 @@ function quickRepliesFor(wizard: TriageWizardContext | undefined, locale: string
   if (stage === "severity") {
     return [
       reply(locale, "mild", "severity", "Mild", "Leve", "It feels mild.", "Se siente leve.", "activity", "green"),
-      reply(locale, "moderate", "severity", "Moderate", "Medio", "It feels moderate.", "Se siente moderado.", "alert", "amber"),
+      reply(locale, "moderate", "severity", "Medium", "Medio", "It feels moderate.", "Se siente moderado.", "alert", "amber"),
       reply(locale, "strong", "severity", "Strong", "Fuerte", "It feels strong.", "Se siente fuerte.", "heart", "red"),
       reply(locale, "not_sure_severity", "severity", "Not sure", "No se", "I am not sure how strong it is.", "No se que tan fuerte es.", "help", "purple"),
     ];
@@ -286,9 +286,9 @@ function quickRepliesFor(wizard: TriageWizardContext | undefined, locale: string
 
   if (stage === "support") {
     return [
-      reply(locale, "doctor_help", "support", "Doctor help", "Ayuda medica", "I would like help deciding whether to contact a doctor.", "Quiero ayuda para decidir si contactar a un medico.", "heart", "red"),
-      reply(locale, "watch_home", "support", "Watch at home", "Vigilar en casa", "I want to know what to watch at home.", "Quiero saber que vigilar en casa.", "activity", "green"),
-      reply(locale, "share_report", "support", "Make report", "Crear informe", "Please make a clear report I can share.", "Por favor crea un informe claro para compartir.", "help", "purple"),
+      reply(locale, "doctor_help", "support", "Help me decide", "Ayudame a decidir", "I would like help deciding whether to contact a doctor.", "Quiero ayuda para decidir si contactar a un medico.", "heart", "red"),
+      reply(locale, "watch_home", "support", "What to watch", "Que vigilar", "I want to know what to watch at home.", "Quiero saber que vigilar en casa.", "activity", "green"),
+      reply(locale, "share_report", "support", "Make a report", "Crear informe", "Please make a clear report I can share.", "Por favor crea un informe claro para compartir.", "help", "purple"),
       reply(locale, "not_sure_support", "support", "Not sure", "No se", "I am not sure what I need.", "No se que necesito.", "help", "amber"),
     ];
   }
@@ -374,11 +374,13 @@ Urgency definitions:
 - "monitor": symptoms that are likely self-limiting and can be monitored at home (e.g. mild cold, minor ache)
 
 STYLE RULES:
-- Use simple, kind, non-alarming language suitable for elderly users
-- Keep each message to 1-2 short sentences maximum
+- Write like a calm health form, not a chat conversation
+- Use simple, kind, non-alarming language suitable for older adults
+- Ask one direct question, ideally under 14 words
+- Do not start with apologies like "I'm sorry to hear that"
+- Do not explain the wizard or mention the buttons
 - Never use medical jargon
-- Be warm and reassuring throughout
-- Prefer questions that work with the large buttons the app shows
+- Prefer plain words: "sudden", "strong", "today", "getting worse"
 - Do NOT produce the JSON block before the 4th user message`;
 }
 

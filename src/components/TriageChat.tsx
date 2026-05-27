@@ -90,12 +90,12 @@ const iconByKey: Record<QuickAnswerIcon, typeof HeartPulse> = {
   help: HelpCircle,
 };
 
-const answerTone: Record<QuickAnswerTone, { bg: string; iconBg: string; text: string }> = {
-  purple: { bg: "#F5F3FF", iconBg: "#EDE9FE", text: "#6B21A8" },
-  red: { bg: "#FFF1F2", iconBg: "#FFE4E6", text: "#BE123C" },
-  blue: { bg: "#EFF6FF", iconBg: "#DBEAFE", text: "#0369A1" },
-  amber: { bg: "#FFF7ED", iconBg: "#FFEDD5", text: "#B45309" },
-  green: { bg: "#ECFDF5", iconBg: "#D1FAE5", text: "#047857" },
+const answerTone: Record<QuickAnswerTone, { border: string; text: string }> = {
+  purple: { border: "#DDD6FE", text: "#332925" },
+  red: { border: "#FECACA", text: "#332925" },
+  blue: { border: "#BFDBFE", text: "#332925" },
+  amber: { border: "#FED7AA", text: "#332925" },
+  green: { border: "#BBF7D0", text: "#332925" },
 };
 
 declare global {
@@ -370,197 +370,165 @@ export default function TriageChat({
     }
   };
 
+  const latestAssistantEntry = messages
+    .map((msg, index) => ({ msg, index }))
+    .reverse()
+    .find(({ msg }) => msg.role === "assistant");
+  const latestQuestion = latestAssistantEntry
+    ? animatingIdx === latestAssistantEntry.index
+      ? animatedText
+      : latestAssistantEntry.msg.content
+    : t("health.symptomCheck.chat.thinking");
+  const canAnswer = !loading && animatingIdx === null && messages.length > 0;
+
   return (
-    <div className="flex flex-col flex-1 min-h-0">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3"
+        className="flex-1 overflow-y-auto px-4 py-4"
         style={{ overscrollBehavior: "contain" }}
       >
-        {wizardStageLabel && (
-          <div className="mx-auto rounded-full bg-white px-4 py-2 font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-vyva-purple shadow-[0_4px_14px_rgba(63,45,35,0.06)]">
-            {wizardStageLabel}
-          </div>
-        )}
-        {safetyAlert && (
-          <div className="mx-2 rounded-[22px] border border-[#FECDD3] bg-[#FFF1F2] px-4 py-4 shadow-[0_8px_24px_rgba(190,18,60,0.10)]">
-            <div className="flex items-start gap-3">
-              <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#FFE4E6] text-[#BE123C]">
-                <AlertCircle size={22} />
-              </span>
-              <div>
-                <p className="font-body text-[13px] font-extrabold uppercase tracking-[0.08em] text-[#BE123C]">
-                  {t("health.symptomCheck.chat.safetyAlert", "Warning sign checked")}
-                </p>
-                <p className="mt-1 font-body text-[15px] font-semibold leading-snug text-[#881337]">
+        <div className="mx-auto flex w-full max-w-[560px] flex-col gap-5">
+          {wizardStageLabel && (
+            <div className="self-start font-body text-[14px] font-extrabold uppercase tracking-[0.08em] text-vyva-purple">
+              {wizardStageLabel}
+            </div>
+          )}
+
+          {selectedQuickAnswers.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {selectedQuickAnswers.slice(-3).map((answer, index) => (
+                <span key={`${answer.id}-${index}`} className="font-body text-[15px] font-bold text-vyva-text-3">
+                  {answer.label}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {safetyAlert && (
+            <div className="rounded-[22px] border border-[#FECDD3] bg-[#FFF1F2] px-4 py-4 shadow-[0_8px_24px_rgba(190,18,60,0.10)]">
+              <div className="flex items-start gap-3">
+                <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#FFE4E6] text-[#BE123C]">
+                  <AlertCircle size={24} />
+                </span>
+                <p className="font-body text-[18px] font-bold leading-snug text-[#881337]">
                   {safetyAlert.recommendation}
                 </p>
               </div>
             </div>
-          </div>
-        )}
-        {messages.map((msg, i) => {
-          const isAnimating = animatingIdx === i;
-          const displayContent = isAnimating ? animatedText : msg.content;
+          )}
 
-          return (
-            <div
-              key={i}
-              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-            >
-              {msg.role === "assistant" && (
-                <div
-                  className="w-8 h-8 rounded-full flex-shrink-0 mr-2 flex items-center justify-center self-end mb-1"
-                  style={{ background: "hsl(var(--vyva-purple))" }}
-                >
-                  <span className="text-white text-[11px] font-bold">V</span>
-                </div>
+          <section className="px-1 py-2">
+            <h2 className="font-body text-[27px] font-bold leading-[1.14] text-vyva-text-1">
+              {latestQuestion}
+              {latestAssistantEntry && animatingIdx === latestAssistantEntry.index && (
+                <span
+                  className="ml-1 inline-block h-[1em] w-[2px] animate-pulse align-middle"
+                  style={{ background: "hsl(var(--vyva-purple))", opacity: 0.7 }}
+                />
               )}
-              <div
-                className="max-w-[78%] rounded-[18px] px-4 py-3 font-body text-[15px] leading-relaxed"
-                style={
-                  msg.role === "user"
-                    ? {
-                        background: "hsl(var(--vyva-purple))",
-                        color: "white",
-                        borderBottomRightRadius: 4,
-                      }
-                    : {
-                        background: "white",
-                        color: "hsl(var(--vyva-text-1))",
-                        border: "1px solid hsl(var(--vyva-border))",
-                        borderBottomLeftRadius: 4,
-                        boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
-                      }
-                }
-              >
-                {displayContent}
-                {isAnimating && (
-                  <span
-                    className="inline-block w-[2px] h-[1em] ml-[1px] align-middle animate-pulse"
-                    style={{ background: "hsl(var(--vyva-purple))", opacity: 0.7 }}
-                  />
-                )}
-              </div>
-            </div>
-          );
-        })}
+            </h2>
+          </section>
 
-        {loading && (
-          <div className="flex justify-start">
-            <div
-              className="w-8 h-8 rounded-full flex-shrink-0 mr-2 flex items-center justify-center self-end mb-1"
-              style={{ background: "hsl(var(--vyva-purple))" }}
-            >
-              <span className="text-white text-[11px] font-bold">V</span>
-            </div>
-            <div
-              className="rounded-[18px] px-4 py-3 flex items-center gap-2"
-              style={{
-                background: "white",
-                border: "1px solid hsl(var(--vyva-border))",
-                borderBottomLeftRadius: 4,
-                boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
-              }}
-            >
-              <Loader2 size={14} className="animate-spin" style={{ color: "hsl(var(--vyva-purple))" }} />
-              <span className="font-body text-[14px] text-vyva-text-3">
+          {loading && (
+            <div className="flex min-h-[64px] items-center justify-center gap-2 rounded-[22px] border border-[#E8DED4] bg-white px-4 py-3 shadow-[0_8px_20px_rgba(63,45,35,0.05)]">
+              <Loader2 size={20} className="animate-spin text-vyva-purple" />
+              <span className="font-body text-[18px] font-bold text-vyva-text-2">
                 {t("health.symptomCheck.chat.thinking")}
               </span>
             </div>
-          </div>
-        )}
-        {evidenceSources && evidenceSources.length > 0 && (
-          <div className="ml-10 rounded-[18px] border border-[#E8DED4] bg-white px-4 py-3 shadow-[0_1px_4px_rgba(0,0,0,0.04)]">
-            <p className="font-body text-[11px] font-bold uppercase tracking-[0.12em] text-vyva-text-3">
-              {t("health.symptomCheck.chat.evidence", "Evidence checked")}
-            </p>
-            <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">
-              {evidenceSources.slice(0, 2).map((source) => source.title).filter(Boolean).join(" - ")}
-            </p>
-          </div>
-        )}
+          )}
+
+          {evidenceSources && evidenceSources.length > 0 && (
+            <div className="rounded-[18px] border border-[#E8DED4] bg-white/80 px-4 py-3 shadow-[0_1px_4px_rgba(0,0,0,0.04)]">
+              <p className="font-body text-[13px] font-bold uppercase tracking-[0.12em] text-vyva-text-3">
+                {t("health.symptomCheck.chat.evidence", "Evidence checked")}
+              </p>
+              <p className="mt-1 font-body text-[16px] leading-snug text-vyva-text-2">
+                {evidenceSources.slice(0, 2).map((source) => source.title).filter(Boolean).join(" - ")}
+              </p>
+            </div>
+          )}
+
+          {canAnswer && (
+            <div className="grid gap-3" data-testid="triage-quick-answers">
+              {quickAnswers.map((quickAnswer) => {
+                const { label, value, tone } = quickAnswer;
+                const colors = answerTone[tone];
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => void sendText(value, quickAnswer)}
+                    className="vyva-tap flex min-h-[76px] items-center rounded-[22px] border bg-white px-5 text-left transition active:scale-[0.98]"
+                    style={{ borderColor: colors.border, color: colors.text }}
+                  >
+                    <span className="font-body text-[20px] font-bold leading-tight">{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       <div
-        className="flex flex-col gap-2 px-4 py-3"
+        className="px-4 pb-3 pt-2"
         style={{
-          borderTop: "1px solid hsl(var(--vyva-border))",
-          background: "white",
+          background: "linear-gradient(180deg, rgba(250,247,243,0) 0%, hsl(var(--vyva-bg)) 28%)",
           paddingBottom: "max(12px, env(safe-area-inset-bottom))",
         }}
       >
-        {voiceError && (
-          <p className="font-body text-[12px] text-center" style={{ color: "#B91C1C" }}>
-            {voiceError}
-          </p>
-        )}
-        {isListening && (
-          <p className="font-body text-[12px] text-center font-semibold" style={{ color: "hsl(var(--vyva-purple))" }}>
-            {t("health.symptomCheck.chat.listening")}
-          </p>
-        )}
-        {!loading && animatingIdx === null && messages.length > 0 && (
-          <div className="grid grid-cols-2 gap-2" data-testid="triage-quick-answers">
-            {quickAnswers.map((quickAnswer) => {
-              const { label, value, Icon, tone } = quickAnswer;
-              const colors = answerTone[tone];
-              return (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => void sendText(value, quickAnswer)}
-                  className="vyva-tap flex min-h-[74px] items-center gap-3 rounded-[22px] px-3 text-left transition active:scale-[0.98]"
-                  style={{ background: colors.bg, color: colors.text }}
-                >
-                  <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px]" style={{ background: colors.iconBg }}>
-                    <Icon size={21} />
-                  </span>
-                  <span className="font-body text-[16px] font-extrabold leading-tight">{label}</span>
-                </button>
-              );
-            })}
+        <div className="mx-auto flex w-full max-w-[560px] flex-col gap-2">
+          {voiceError && (
+            <p className="text-center font-body text-[14px] font-semibold" style={{ color: "#B91C1C" }}>
+              {voiceError}
+            </p>
+          )}
+          {isListening && (
+            <p className="text-center font-body text-[14px] font-extrabold" style={{ color: "hsl(var(--vyva-purple))" }}>
+              {t("health.symptomCheck.chat.listening")}
+            </p>
+          )}
+          <div className="flex items-center gap-3 rounded-[28px] border border-[#E8DED4] bg-white p-2 shadow-[0_10px_26px_rgba(63,45,35,0.08)]">
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={loading || animatingIdx !== null}
+              placeholder={t("health.symptomCheck.chat.placeholder")}
+              data-testid="input-triage-message"
+              className="min-w-0 flex-1 rounded-full px-4 py-[14px] font-body text-[18px] text-vyva-text-1 outline-none"
+              style={{
+                background: "transparent",
+              }}
+            />
+            <button
+              onClick={isListening ? stopListening : startListening}
+              disabled={!isListening && (loading || animatingIdx !== null)}
+              data-testid="button-triage-voice"
+              aria-label={t(isListening ? "health.symptomCheck.chat.voiceStop" : "health.symptomCheck.chat.voiceStart")}
+              className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full transition-all active:scale-95 disabled:opacity-40"
+              style={{
+                background: isListening ? "#FEE2E2" : "hsl(var(--vyva-purple-light))",
+                color: isListening ? "#B91C1C" : "hsl(var(--vyva-purple))",
+              }}
+            >
+              {isListening ? <Square size={18} /> : <Mic size={19} />}
+            </button>
+            <button
+              onClick={handleSend}
+              disabled={!input.trim() || loading || animatingIdx !== null}
+              data-testid="button-triage-send"
+              aria-label={t("health.symptomCheck.chat.send")}
+              className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full transition-all active:scale-95 disabled:opacity-40"
+              style={{ background: "hsl(var(--vyva-purple))" }}
+            >
+              <Send size={18} className="text-white" />
+            </button>
           </div>
-        )}
-        <div className="flex items-center gap-3 pr-[116px]">
-          <input
-            ref={inputRef}
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={loading || animatingIdx !== null}
-            placeholder={t("health.symptomCheck.chat.placeholder")}
-            data-testid="input-triage-message"
-            className="min-w-0 flex-1 rounded-full px-4 py-[10px] font-body text-[15px] text-vyva-text-1 outline-none"
-            style={{
-              background: "hsl(var(--vyva-cream))",
-              border: "1.5px solid hsl(var(--vyva-border))",
-            }}
-          />
-          <button
-            onClick={isListening ? stopListening : startListening}
-            disabled={!isListening && (loading || animatingIdx !== null)}
-            data-testid="button-triage-voice"
-            aria-label={t(isListening ? "health.symptomCheck.chat.voiceStop" : "health.symptomCheck.chat.voiceStart")}
-            className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition-all active:scale-95 disabled:opacity-40"
-            style={{
-              background: isListening ? "#FEE2E2" : "hsl(var(--vyva-purple-light))",
-              color: isListening ? "#B91C1C" : "hsl(var(--vyva-purple))",
-            }}
-          >
-            {isListening ? <Square size={16} /> : <Mic size={17} />}
-          </button>
-          <button
-            onClick={handleSend}
-            disabled={!input.trim() || loading || animatingIdx !== null}
-            data-testid="button-triage-send"
-            aria-label={t("health.symptomCheck.chat.send")}
-            className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition-all active:scale-95 disabled:opacity-40"
-            style={{ background: "hsl(var(--vyva-purple))" }}
-          >
-            <Send size={16} className="text-white" />
-          </button>
         </div>
       </div>
     </div>

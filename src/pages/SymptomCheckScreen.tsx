@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Activity, ChevronLeft, Heart, MessageSquare, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, PhoneCall, Stethoscope } from "lucide-react";
+import { ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, PhoneCall, Stethoscope } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VitalsScan from "@/components/VitalsScan";
 import TriageChat from "@/components/TriageChat";
@@ -81,72 +81,42 @@ function IntroScreen({
   const choices = [
     {
       id: "with-vitals",
-      title: t("health.symptomCheck.intro.withVitalsTitle", "With vitals scan"),
-      body: t("health.symptomCheck.intro.withVitalsBody", "Scan pulse and breathing first."),
-      cta: t("health.symptomCheck.intro.withVitalsCta", "Scan first"),
-      Icon: Activity,
-      iconClass: "bg-white/15 text-white",
-      className: "bg-[#3D0D82] text-white shadow-[0_16px_36px_rgba(91,18,160,0.22)]",
-      ctaClass: "bg-white text-vyva-purple",
+      title: t("health.symptomCheck.intro.withVitalsCta", "Check my vitals first"),
+      className: "border-[#6B21A8] bg-white text-vyva-text-1",
       onClick: onStartWithVitals,
     },
     {
       id: "without-vitals",
-      title: t("health.symptomCheck.intro.withoutVitalsTitle", "Without scan"),
-      body: t("health.symptomCheck.intro.withoutVitalsBody", "Go straight to simple questions."),
-      cta: t("health.symptomCheck.intro.withoutVitalsCta", "Start questions"),
-      Icon: MessageSquare,
-      iconClass: "bg-[#F5F3FF] text-[#6B21A8]",
-      className: "border border-[#E8DED4] bg-white text-vyva-text-1 shadow-[0_10px_28px_rgba(63,45,35,0.07)]",
-      ctaClass: "bg-[#F5F3FF] text-vyva-purple",
+      title: t("health.symptomCheck.intro.withoutVitalsCta", "Skip vitals"),
+      className: "border-[#E8DED4] bg-white text-vyva-text-1",
       onClick: onStartWithoutVitals,
     },
   ];
 
   return (
-    <div className="flex flex-1 flex-col gap-3 px-[18px] py-3">
-      <section className="rounded-[28px] bg-white p-4 text-center shadow-[0_10px_28px_rgba(63,45,35,0.06)]">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[20px] bg-[#F5F3FF]">
-          <Heart size={26} className="text-vyva-purple" />
-        </div>
-        <h1 className="mx-auto mt-3 max-w-[300px] font-display text-[30px] italic leading-[1.05] text-vyva-text-1">
-          {t("health.symptomCheck.intro.choiceTitle", "Start with a vitals scan?")}
-        </h1>
-        <p className="mx-auto mt-2 max-w-[300px] font-body text-[15px] font-semibold leading-snug text-vyva-text-2">
-          {t("health.symptomCheck.intro.choiceSubtitle", "Choose one. Then VYVA asks simple questions.")}
+    <div className="flex flex-1 flex-col justify-center gap-8 px-[22px] py-8">
+      <section className="text-left">
+        <p className="font-body text-[15px] font-extrabold uppercase tracking-[0.12em] text-vyva-purple">
+          {t("health.symptomCheck.intro.stepLabel", "Symptom check")}
         </p>
+        <h1 className="mt-3 max-w-[340px] font-body text-[30px] font-bold leading-[1.08] text-vyva-text-1">
+          {t("health.symptomCheck.intro.choiceTitle", "How do you want to start?")}
+        </h1>
       </section>
 
-      <div className="grid gap-3">
-        {choices.map(({ id, title, body, cta, Icon, iconClass, className, ctaClass, onClick }) => (
+      <div className="grid gap-4">
+        {choices.map(({ id, title, className, onClick }) => (
           <button
             key={id}
             type="button"
             onClick={onClick}
             data-testid={`button-symptom-check-${id}`}
-            className={`vyva-tap relative min-h-[154px] overflow-hidden rounded-[28px] p-4 text-left transition active:scale-[0.99] ${className}`}
+            className={`vyva-tap flex min-h-[88px] items-center rounded-[22px] border px-5 text-left transition active:scale-[0.99] ${className}`}
           >
-            {id === "with-vitals" ? <div className="absolute -right-14 -top-14 h-44 w-44 rounded-full bg-white/10" /> : null}
-            <div className="relative flex h-full gap-4">
-              <div className={`flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px] ${iconClass}`}>
-                <Icon size={26} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className={`font-body text-[13px] font-bold uppercase tracking-[0.12em] ${id === "with-vitals" ? "text-white/64" : "text-vyva-text-3"}`}>
-                  {t("health.symptomCheck.intro.answerLabel", "Choose")}
-                </p>
-                <p className="mt-1 font-display text-[27px] italic leading-[1.02]">
-                  {title}
-                </p>
-                <p className={`mt-2 font-body text-[15px] font-semibold leading-snug ${id === "with-vitals" ? "text-white/84" : "text-vyva-text-2"}`}>
-                  {body}
-                </p>
-                <span className={`mt-3 inline-flex min-h-[42px] items-center justify-center gap-2 rounded-full px-4 font-body text-[15px] font-extrabold ${ctaClass}`}>
-                  {cta}
-                  {id === "with-vitals" ? <ChevronLeft size={17} className="rotate-180" /> : null}
-                </span>
-              </div>
-            </div>
+            <span className="min-w-0 flex-1 font-body text-[22px] font-bold leading-tight">
+              {title}
+            </span>
+            <ChevronLeft size={22} className={`rotate-180 ${id === "with-vitals" ? "text-vyva-purple" : "text-vyva-text-3"}`} />
           </button>
         ))}
       </div>
