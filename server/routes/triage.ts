@@ -34,6 +34,7 @@ interface TriageSummary {
   disclaimer: string;
   nextStepLabel?: string;
   nextStepLevel?: "emergency" | "doctor_today" | "doctor_24_48" | "monitor";
+  triageReasons?: string[];
   watchSigns?: string[];
   profileConsiderations?: string[];
   vitalsNotes?: string[];
@@ -771,7 +772,7 @@ CONVERSATION FLOW:
 8. On your FINAL turn, you MUST end your message with this exact JSON block (replace values appropriately):
 
 TRIAGE_JSON_START
-{"done":true,"summary":{"chiefComplaint":"<one-line description>","symptoms":["<symptom 1>","<symptom 2>"],"urgency":"<urgent|routine|monitor>","nextStepLabel":"<plain next step>","nextStepLevel":"<emergency|doctor_today|doctor_24_48|monitor>","recommendations":["<step 1>","<step 2>","<step 3>","<step 4>"],"watchSigns":["<specific sign 1>","<specific sign 2>","<specific sign 3>"],"profileConsiderations":["<profile factor considered, if any>"],"vitalsNotes":["<vitals note, if any>"],"disclaimer":"This assessment is for information only and is not medical advice. Always consult your doctor or call emergency services if you feel it is serious."}}
+{"done":true,"summary":{"chiefComplaint":"<one-line description>","symptoms":["<symptom 1>","<symptom 2>"],"urgency":"<urgent|routine|monitor>","nextStepLabel":"<plain next step>","nextStepLevel":"<emergency|doctor_today|doctor_24_48|monitor>","triageReasons":["<plain reason 1>","<plain reason 2>"],"recommendations":["<step 1>","<step 2>","<step 3>","<step 4>"],"watchSigns":["<specific sign 1>","<specific sign 2>","<specific sign 3>"],"profileConsiderations":["<profile factor considered, if any>"],"vitalsNotes":["<vitals note, if any>"],"disclaimer":"This assessment is for information only and is not medical advice. Always consult your doctor or call emergency services if you feel it is serious."}}
 TRIAGE_JSON_END
 
 Urgency definitions:
@@ -781,6 +782,7 @@ Urgency definitions:
 
 Outcome rules:
 - Always include nextStepLabel and nextStepLevel.
+- Always include triageReasons: 1-3 plain reasons why this next step was chosen.
 - Always include 2-3 symptom-specific watchSigns.
 - Include profileConsiderations only when HEALTH MEMORY changed what you considered.
 - Include vitalsNotes when a vitals scan exists.
@@ -995,6 +997,10 @@ function applyTriageSafetyFloor(
     ...summary,
     symptoms: summary.symptoms?.length ? summary.symptoms : [symptomLabel(locale, symptom)],
     urgency: maxUrgency(summary.urgency, ruleDecision.urgency),
+    triageReasons: [
+      ...ruleDecision.reasons,
+      ...(summary.triageReasons ?? []),
+    ].filter((item, index, items) => items.findIndex((candidate) => candidate.toLowerCase() === item.toLowerCase()) === index).slice(0, 3),
     watchSigns: ruleDecision.watchSigns.length ? ruleDecision.watchSigns : summary.watchSigns?.length ? summary.watchSigns : watchSignsFor(locale, symptom),
     profileConsiderations: [
       ...(summary.profileConsiderations ?? []),

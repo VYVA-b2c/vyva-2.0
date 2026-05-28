@@ -18,6 +18,7 @@ interface TriageSummary {
   aiSummary?: string;
   nextStepLabel?: string;
   nextStepLevel?: "emergency" | "doctor_today" | "doctor_24_48" | "monitor";
+  triageReasons?: string[];
   watchSigns?: string[];
   profileConsiderations?: string[];
   vitalsNotes?: string[];
