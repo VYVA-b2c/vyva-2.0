@@ -1245,10 +1245,142 @@ async function bestEffortAdminDelete(label: string, query: Promise<unknown>, cle
   }
 }
 
+const lifecycleSchemaRequirements = [
+  {
+    table: "profiles",
+    label: "App profiles",
+    columns: [
+      "id",
+      "full_name",
+      "preferred_name",
+      "email",
+      "phone_number",
+      "whatsapp_number",
+      "deployment",
+      "subscription_tier",
+      "subscription_status",
+      "trial_ends_at",
+      "account_status",
+      "role",
+      "disabled_at",
+      "disabled_reason",
+      "disabled_by",
+      "updated_at",
+    ],
+  },
+  {
+    table: "users",
+    label: "Login accounts",
+    columns: ["id", "email", "phone_number", "active_profile_id", "last_seen_at", "created_at"],
+  },
+  {
+    table: "user_intakes",
+    label: "Lifecycle users",
+    columns: [
+      "id",
+      "user_id",
+      "elder_user_id",
+      "family_user_id",
+      "name",
+      "phone",
+      "email",
+      "entry_point",
+      "user_type",
+      "organization_id",
+      "tier",
+      "status",
+      "journey_step",
+      "consent_status",
+      "metadata",
+      "dropped_at",
+      "last_activity_at",
+      "updated_at",
+    ],
+  },
+  {
+    table: "lifecycle_events",
+    label: "Lifecycle audit",
+    columns: ["id", "intake_id", "user_id", "event_type", "from_status", "to_status", "channel", "metadata", "created_at"],
+  },
+  {
+    table: "communications_log",
+    label: "Communications",
+    columns: ["id", "intake_id", "user_id", "channel", "recipient", "status", "metadata", "created_at"],
+  },
+  {
+    table: "organizations",
+    label: "Organizations",
+    columns: ["id", "name", "slug", "default_tier", "is_active", "metadata", "updated_at"],
+  },
+  {
+    table: "tier_entitlements",
+    label: "Tier access",
+    columns: ["id", "tier", "display_name", "voice_assistant", "medication_tracking", "symptom_check", "concierge", "caregiver_dashboard", "is_active"],
+  },
+  {
+    table: "consent_attempts",
+    label: "Consent",
+    columns: ["id", "intake_id", "elder_user_id", "family_user_id", "status", "attempt_count", "created_at"],
+  },
+  {
+    table: "scheduled_events",
+    label: "Schedule events",
+    columns: ["id", "user_id", "title", "scheduled_for", "status", "created_by", "updated_at"],
+  },
+  {
+    table: "scheduled_interactions",
+    label: "Recurring support",
+    columns: ["id", "user_id", "interaction_type", "status", "admin_edit_allowed", "updated_at"],
+  },
+] as const;
+
+async function lifecycleSchemaHealth() {
+  const tables = Array.from(new Set(lifecycleSchemaRequirements.map((item) => item.table)));
+  const result = await pool.query<{ table_name: string; column_name: string }>(
+    `
+      select table_name, column_name
+      from information_schema.columns
+      where table_schema = current_schema()
+        and table_name = any($1::text[])
+    `,
+    [tables],
+  );
+  const existing = new Set(result.rows.map((row) => `${row.table_name}.${row.column_name}`));
+  const missing = lifecycleSchemaRequirements.flatMap((requirement) => (
+    requirement.columns
+      .filter((column) => !existing.has(`${requirement.table}.${column}`))
+      .map((column) => ({
+        table: requirement.table,
+        column,
+        label: requirement.label,
+      }))
+  ));
+  const requiredCount = lifecycleSchemaRequirements.reduce((total, item) => total + item.columns.length, 0);
+
+  return {
+    ok: missing.length === 0,
+    status: missing.length === 0 ? "healthy" : "warning",
+    checked_at: new Date().toISOString(),
+    required_count: requiredCount,
+    missing_count: missing.length,
+    missing,
+  };
+}
+
 function adminLifecycleLoadError(res: Response, section: string, error: unknown) {
   console.error(`[admin-lifecycle] failed to load ${section}`, error);
   return res.status(500).json({ error: `Could not load ${section}. Please refresh and try again.` });
 }
+
+adminLifecycleRouter.get("/schema-health", async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    return res.json(await lifecycleSchemaHealth());
+  } catch (error) {
+    return adminLifecycleLoadError(res, "schema health", error);
+  }
+});
 
 adminLifecycleRouter.get("/summary", async (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;

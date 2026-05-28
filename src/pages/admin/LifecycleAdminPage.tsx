@@ -66,6 +66,20 @@ type AdminActionNotice = {
   };
 };
 
+type SchemaHealth = {
+  ok: boolean;
+  status: "healthy" | "warning" | "error";
+  checked_at?: string;
+  required_count?: number;
+  missing_count?: number;
+  missing?: Array<{
+    table: string;
+    column: string;
+    label?: string;
+  }>;
+  error?: string;
+};
+
 type SignupShareRecipient = {
   name?: string;
   recipient: string;
@@ -192,6 +206,40 @@ function deleteNoticeFor(intake: Intake, result: JsonRecord): AdminActionNotice 
   };
 }
 
+function SchemaHealthBanner({ health }: { health: SchemaHealth | null }) {
+  if (!health || health.ok) return null;
+  const missing = Array.isArray(health.missing) ? health.missing : [];
+  const visibleMissing = missing.slice(0, 6);
+  const missingRemainder = Math.max(0, missing.length - visibleMissing.length);
+  const title = health.status === "error" ? "Schema check unavailable" : "Database schema needs attention";
+  const description = health.status === "error"
+    ? health.error ?? "The admin panel could not verify the database shape."
+    : `${health.missing_count ?? missing.length} expected field${(health.missing_count ?? missing.length) === 1 ? " is" : "s are"} missing. Some admin actions will use fallbacks until migrations are applied.`;
+
+  return (
+    <section className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 shadow-sm">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p className="text-sm font-black uppercase tracking-[0.08em] text-amber-700">{title}</p>
+          <p className="mt-1 text-sm font-semibold leading-relaxed">{description}</p>
+        </div>
+        {visibleMissing.length > 0 && (
+          <div className="flex max-w-2xl flex-wrap gap-2">
+            {visibleMissing.map((item) => (
+              <span key={`${item.table}.${item.column}`} className="rounded-full bg-white px-3 py-1 text-xs font-bold text-amber-800 shadow-sm">
+                {item.label ?? item.table}: {item.column}
+              </span>
+            ))}
+            {missingRemainder > 0 && (
+              <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-amber-800 shadow-sm">+{missingRemainder} more</span>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 const lifecycleRequestFailedMessage = "Lifecycle request failed. Please refresh and try again.";
 
 function isHtmlErrorResponse(text: string) {
@@ -238,6 +286,7 @@ export default function LifecycleAdminPage() {
   const [peopleSearchInput, setPeopleSearchInput] = useState("");
   const [peopleSearch, setPeopleSearch] = useState("");
   const [summary, setSummary] = useState<JsonRecord | null>(null);
+  const [schemaHealth, setSchemaHealth] = useState<SchemaHealth | null>(null);
   const [users, setUsers] = useState<Intake[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [plans, setPlans] = useState<SubscriptionPlanAdmin[]>([]);
@@ -281,11 +330,17 @@ export default function LifecycleAdminPage() {
     return readAdminResponse(res, lifecycleRequestFailedMessage);
   }
 
+  function showActionReceipt(notice: AdminActionNotice) {
+    setMessage("");
+    setAdminActionNotice(notice);
+  }
+
   async function refresh() {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => value && params.set(key, value));
     if (peopleSearch.trim()) params.set("query", peopleSearch.trim());
     const requests = [
+      { key: "schema-health", label: "schema health", optional: true, load: () => api("/schema-health"), apply: (data: JsonRecord) => setSchemaHealth(data as SchemaHealth) },
       { key: "summary", label: "summary", load: () => api("/summary"), apply: (data: JsonRecord) => setSummary(data) },
       { key: "users", label: "users", load: () => api(`/users?${params.toString()}`), apply: (data: JsonRecord) => {
         setUsers((data.users ?? []).filter(isVisibleLifecycleUser));
@@ -303,6 +358,18 @@ export default function LifecycleAdminPage() {
       const request = requests[index];
       if (result.status === "fulfilled") {
         request.apply(result.value);
+        return;
+      }
+      if ("optional" in request && request.optional) {
+        if (request.key === "schema-health") {
+          setSchemaHealth({
+            ok: false,
+            status: "error",
+            missing: [],
+            error: "The admin panel could not verify database schema health.",
+          });
+        }
+        console.error(`[VYVA Admin] Could not load lifecycle ${request.key}`, result.reason);
         return;
       }
       failed.push(request.label);
@@ -364,7 +431,15 @@ export default function LifecycleAdminPage() {
         },
       }),
     });
-    setMessage(`Intake created for ${data.intake.name}.`);
+    showActionReceipt({
+      tone: "success",
+      label: "Created",
+      title: `${data.intake.name} was added to Users.`,
+      details: [
+        `${entryPointLabel(data.intake.entry_point ?? newIntake.entry_point)} intake created.`,
+        `Tier set to ${cleanLabel(data.intake.tier ?? newIntake.tier)}.`,
+      ],
+    });
     setNewIntake(emptyIntakeForm);
     await refresh();
   }
@@ -665,7 +740,12 @@ export default function LifecycleAdminPage() {
     setMessage("");
     try {
       await api(`/consent/${intake.id}/trigger`, { method: "POST" });
-      setMessage("Consent call queued.");
+      showActionReceipt({
+        tone: "success",
+        label: "Queued",
+        title: `Consent call queued for ${intake.name}.`,
+        details: ["The elder consent flow will continue through the configured voice provider."],
+      });
       await refresh();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Could not queue consent call.");
@@ -679,7 +759,12 @@ export default function LifecycleAdminPage() {
       method: "POST",
       body: JSON.stringify({ status, result_payload: { source: "admin_panel" } }),
     });
-    setMessage(`Consent marked as ${status}.`);
+    showActionReceipt({
+      tone: status === "approved" ? "success" : status === "rejected" ? "error" : "warning",
+      label: "Consent",
+      title: `Consent marked ${cleanLabel(status)}.`,
+      details: ["The lifecycle record and consent audit have been updated."],
+    });
     await refresh();
   }
 
@@ -705,7 +790,12 @@ export default function LifecycleAdminPage() {
         method: "POST",
         body: JSON.stringify(newOrg),
       });
-      setMessage(`Organization created: ${data.organization.name}.`);
+      showActionReceipt({
+        tone: "success",
+        label: "Created",
+        title: `${data.organization.name} was created.`,
+        details: [`Default tier: ${cleanLabel(data.organization.default_tier ?? newOrg.default_tier)}.`],
+      });
       setNewOrg({ name: "", default_tier: "free" });
       await refresh();
     } catch (err) {
@@ -738,7 +828,12 @@ export default function LifecycleAdminPage() {
           default_tier: orgDraft.default_tier,
         }),
       });
-      setMessage(`${data.organization.name} updated. Default tier applies to new org users going forward.`);
+      showActionReceipt({
+        tone: "success",
+        label: "Saved",
+        title: `${data.organization.name} was updated.`,
+        details: [`Default tier now applies as ${cleanLabel(data.organization.default_tier ?? orgDraft.default_tier)} for new org users.`],
+      });
       cancelEditOrg();
       await refresh();
     } catch (err) {
@@ -748,14 +843,24 @@ export default function LifecycleAdminPage() {
 
   async function archiveOrg(org: Organization) {
     await api(`/organizations/${org.id}`, { method: "DELETE" });
-    setMessage(`${org.name} archived.`);
+    showActionReceipt({
+      tone: "warning",
+      label: "Archived",
+      title: `${org.name} was archived.`,
+      details: ["Existing users remain visible. New intake assignment to this organization is paused."],
+    });
     await refresh();
   }
 
   async function restoreOrg(org: Organization) {
     try {
       await api(`/organizations/${org.id}/restore`, { method: "POST" });
-      setMessage(`${org.name} restored.`);
+      showActionReceipt({
+        tone: "success",
+        label: "Restored",
+        title: `${org.name} was restored.`,
+        details: ["The organization is active again and can receive new users."],
+      });
       await refresh();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Could not restore organization.");
@@ -794,7 +899,12 @@ export default function LifecycleAdminPage() {
         },
       }),
     });
-    setMessage(`${plan.name} saved.`);
+    showActionReceipt({
+      tone: "success",
+      label: "Saved",
+      title: `${plan.name} access was saved.`,
+      details: ["Tier entitlements are updated for future access checks."],
+    });
     await refresh();
   }
 
@@ -847,7 +957,7 @@ export default function LifecycleAdminPage() {
       const confirmation = `Changes saved${syncedCount > 1 ? ` across ${syncedCount} linked profiles` : ""}.`;
       setMessage("");
       setUserDetailMessage(confirmation);
-      setAdminActionNotice({
+      showActionReceipt({
         tone: "success",
         label: "Saved",
         title: `Changes saved for ${selectedUser.intake.name}.`,
@@ -887,7 +997,7 @@ export default function LifecycleAdminPage() {
       const confirmation = disabled ? "User enabled." : "User disabled.";
       setMessage("");
       setUserDetailMessage(`${confirmation} ${profileCount ? `${profileCount} linked profile${profileCount === 1 ? "" : "s"} updated.` : "No linked app profile was found."}`);
-      setAdminActionNotice({
+      showActionReceipt({
         tone: profileCount ? "success" : "warning",
         label: disabled ? "Enabled" : "Disabled",
         title: `${intake.name} ${disabled ? "was enabled" : "was disabled"}.`,
@@ -919,7 +1029,7 @@ export default function LifecycleAdminPage() {
       setUsers((current) => current.filter((user) => shouldKeepAfterDelete(user, intake, result)));
       if (selectedUser?.intake.id === intake.id) setSelectedUser(null);
       setMessage("");
-      setAdminActionNotice(deleteNoticeFor(intake, result));
+      showActionReceipt(deleteNoticeFor(intake, result));
       await refresh();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Could not delete this user.";
@@ -950,7 +1060,12 @@ export default function LifecycleAdminPage() {
       setNewEvent(emptyScheduledEvent);
       await openUserDetail(selectedUser.intake);
       setUserDetailMessage("Scheduled event added.");
-      setMessage("Scheduled event added.");
+      showActionReceipt({
+        tone: "success",
+        label: "Scheduled",
+        title: "Scheduled event added.",
+        details: [`${eventPayload.title} is now on this user's schedule.`],
+      });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Could not add the scheduled event.";
       setUserDetailMessage(errorMessage);
@@ -966,7 +1081,12 @@ export default function LifecycleAdminPage() {
       if (selectedUser) await openUserDetail(selectedUser.intake);
       const confirmation = `Scheduled event ${action === "cancel" ? "cancelled" : action === "pause" ? "paused" : "resumed"}.`;
       setUserDetailMessage(confirmation);
-      setMessage(confirmation);
+      showActionReceipt({
+        tone: action === "cancel" ? "warning" : "success",
+        label: action === "cancel" ? "Cancelled" : action === "pause" ? "Paused" : "Resumed",
+        title: confirmation,
+        details: [`${event.title} was updated.`],
+      });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Could not update the scheduled event.";
       setUserDetailMessage(errorMessage);
@@ -984,7 +1104,12 @@ export default function LifecycleAdminPage() {
       });
       await openUserDetail(selectedUser.intake);
       setUserDetailMessage("Scheduled event time updated.");
-      setMessage("Scheduled event time updated.");
+      showActionReceipt({
+        tone: "success",
+        label: "Saved",
+        title: "Scheduled event time updated.",
+        details: [`${event.title} now uses the selected date and time.`],
+      });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Could not update the scheduled event time.";
       setUserDetailMessage(errorMessage);
@@ -1015,7 +1140,12 @@ export default function LifecycleAdminPage() {
       });
       await openUserDetail(selectedUser.intake);
       setUserDetailMessage("Recurring support schedule updated.");
-      setMessage("Recurring support schedule updated.");
+      showActionReceipt({
+        tone: "success",
+        label: "Saved",
+        title: "Recurring support schedule updated.",
+        details: ["The user will see the updated recurring support schedule after refresh."],
+      });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Could not update the support schedule.";
       setUserDetailMessage(errorMessage);
@@ -1041,7 +1171,12 @@ export default function LifecycleAdminPage() {
       await openUserDetail(selectedUser.intake);
       const confirmation = `Recurring support schedule ${action === "pause" ? "paused" : "resumed"}.`;
       setUserDetailMessage(confirmation);
-      setMessage(confirmation);
+      showActionReceipt({
+        tone: action === "pause" ? "warning" : "success",
+        label: action === "pause" ? "Paused" : "Resumed",
+        title: confirmation,
+        details: ["The support schedule status was saved."],
+      });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Could not update the support schedule.";
       setUserDetailMessage(errorMessage);
@@ -1081,7 +1216,15 @@ export default function LifecycleAdminPage() {
       method: "POST",
       body: JSON.stringify({ rows: bulkRows, send_links: sendBulkLinks }),
     });
-    setMessage(`Imported ${data.summary.imported} users. Skipped ${data.summary.skipped}.`);
+    showActionReceipt({
+      tone: Number(data.summary.skipped ?? 0) > 0 ? "warning" : "success",
+      label: "Imported",
+      title: `Imported ${data.summary.imported} users.`,
+      details: [
+        `${data.summary.skipped} row${Number(data.summary.skipped ?? 0) === 1 ? "" : "s"} skipped.`,
+        sendBulkLinks ? "Invite links were queued for imported users." : "Invite links were not sent.",
+      ],
+    });
     setBulkOrg(null);
     setBulkRows([]);
     setBulkPreview(null);
@@ -1123,6 +1266,8 @@ export default function LifecycleAdminPage() {
         </AdminPageHeader>
 
         <AdminMenu />
+
+        <SchemaHealthBanner health={schemaHealth} />
 
         <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5">
           {[
@@ -1608,11 +1753,11 @@ export default function LifecycleAdminPage() {
             </p>
             <h2 id="admin-action-result-title" className="mt-3 font-serif text-3xl leading-tight">{adminActionNotice.title}</h2>
             {adminActionNotice.details.length > 0 && (
-              <ul className="mt-4 max-h-56 space-y-2 overflow-auto rounded-2xl bg-[#fbf8f5] p-3 text-sm font-semibold text-[#5f514b]">
+              <div className="mt-4 space-y-2 rounded-2xl bg-[#fbf8f5] p-4 text-sm font-semibold leading-relaxed text-[#5f514b]">
                 {adminActionNotice.details.map((detail, index) => (
-                  <li key={`${detail}-${index}`}>{detail}</li>
+                  <p key={`${detail}-${index}`}>{detail}</p>
                 ))}
-              </ul>
+              </div>
             )}
             <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
               {adminActionNotice.secondaryAction && (
