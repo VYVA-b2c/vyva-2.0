@@ -60,6 +60,16 @@ type TriageHealthMemory = {
   latestSymptomReport?: string;
 };
 
+type ProfileRiskFlags = {
+  diabetes: boolean;
+  copd: boolean;
+  heartFailure: boolean;
+  hypertension: boolean;
+  bloodThinner: boolean;
+  immunosuppressed: boolean;
+  cognitiveConcern: boolean;
+};
+
 const CRITICAL_RED_FLAG_IDS = new Set([
   "chest_pain",
   "sudden_severe",
@@ -73,6 +83,14 @@ const CRITICAL_RED_FLAG_IDS = new Set([
   "dizzy_chest",
   "cannot_stand",
   "new_severe",
+  "low_sugar",
+  "high_sugar_sick",
+  "low_oxygen",
+  "head_hit_blood_thinner",
+  "unusual_bleeding",
+  "very_high_bp",
+  "immuno_fever",
+  "new_confusion",
 ]);
 
 const SAFETY_ACTION_IDS = new Set([
@@ -123,6 +141,16 @@ function wizardContextText(wizard?: TriageWizardContext): string {
 
 function healthMemoryText(memory?: TriageHealthMemory): string {
   if (!memory) return "";
+  const risks = profileRiskFlags(memory);
+  const riskLabels = [
+    risks.diabetes ? "diabetes or glucose medication" : "",
+    risks.copd ? "COPD/asthma/oxygen support" : "",
+    risks.heartFailure ? "heart failure/fluid risk" : "",
+    risks.hypertension ? "high blood pressure/stroke risk" : "",
+    risks.bloodThinner ? "blood thinner/bleeding risk" : "",
+    risks.immunosuppressed ? "low immunity" : "",
+    risks.cognitiveConcern ? "cognitive or confusion vulnerability" : "",
+  ].filter(Boolean);
   const lines = [
     memory.healthContext ? `Health profile summary: ${memory.healthContext}` : "",
     memory.conditions ? `Known conditions: ${memory.conditions}` : "",
@@ -130,11 +158,33 @@ function healthMemoryText(memory?: TriageHealthMemory): string {
     memory.medications ? `Current medications: ${memory.medications}` : "",
     memory.latestVitals ? `Latest vitals: ${memory.latestVitals}` : "",
     memory.latestSymptomReport ? `Latest symptom report: ${memory.latestSymptomReport}` : "",
+    riskLabels.length ? `Deterministic profile flags: ${riskLabels.join(", ")}` : "",
   ].filter(Boolean);
 
   return lines.length
     ? `\n\nHEALTH MEMORY:\n${lines.join("\n")}\nUse this only to avoid repeated questions and ask more relevant follow-ups. Do not assume it is complete or current.`
     : "";
+}
+
+function profileRiskFlags(memory?: TriageHealthMemory): ProfileRiskFlags {
+  const haystack = [
+    memory?.healthContext,
+    memory?.conditions,
+    memory?.allergies,
+    memory?.medications,
+    memory?.latestVitals,
+    memory?.latestSymptomReport,
+  ].filter(Boolean).join(" ").toLowerCase();
+
+  return {
+    diabetes: /\b(diabetes|diabetic|insulin|metformin|glucose|blood sugar|cgm)\b/.test(haystack),
+    copd: /\b(copd|emphysema|chronic bronchitis|oxygen therapy|home oxygen|asthma)\b/.test(haystack),
+    heartFailure: /\b(chf|heart failure|congestive|fluid retention|furosemide|diuretic)\b/.test(haystack),
+    hypertension: /\b(hypertension|high blood pressure|blood pressure|amlodipine|lisinopril|losartan|atenolol|metoprolol)\b/.test(haystack),
+    bloodThinner: /\b(warfarin|apixaban|eliquis|rivaroxaban|xarelto|dabigatran|pradaxa|edoxaban|anticoagulant|blood thinner|clopidogrel|plavix)\b/.test(haystack),
+    immunosuppressed: /\b(immunosuppressed|immunocompromised|chemotherapy|transplant|prednisone|steroid|methotrexate|biologic)\b/.test(haystack),
+    cognitiveConcern: /\b(dementia|alzheimer|memory loss|cognitive impairment|confusion)\b/.test(haystack),
+  };
 }
 
 function isSpanishLocale(locale: string) {
@@ -200,10 +250,77 @@ function wizardStageLabel(stage: WizardStage, locale: string) {
   return text(locale, labels[stage].en, labels[stage].es);
 }
 
-function quickRepliesFor(wizard: TriageWizardContext | undefined, locale: string): TriageQuickReply[] {
+function uniqueReplies(replies: TriageQuickReply[]) {
+  return [...new Map(replies.map((reply) => [reply.id, reply])).values()];
+}
+
+function withProfileReplies(
+  baseReplies: TriageQuickReply[],
+  profileReplies: TriageQuickReply[],
+  maxCount = 6,
+) {
+  return uniqueReplies([...profileReplies, ...baseReplies]).slice(0, maxCount);
+}
+
+function profileRedFlagReplies(
+  locale: string,
+  symptomId: string | undefined,
+  risks: ProfileRiskFlags,
+): TriageQuickReply[] {
+  const replies: TriageQuickReply[] = [];
+
+  if (risks.diabetes && ["dizzy", "tired", "fever", "other"].includes(symptomId ?? "")) {
+    replies.push(
+      reply(locale, "low_sugar", "red_flag", "Low sugar signs", "Senales de azucar baja", "I feel shaky, sweaty, confused, or very weak.", "Tengo temblor, sudor, confusion o mucha debilidad.", "alert", "red"),
+      reply(locale, "high_sugar_sick", "red_flag", "High sugar and sick", "Azucar alta y malestar", "My sugar is high and I feel sick, thirsty, or drowsy.", "Tengo azucar alta y malestar, mucha sed o sueno.", "alert", "red"),
+    );
+  }
+
+  if (risks.copd && symptomId === "breathing") {
+    replies.push(
+      reply(locale, "low_oxygen", "red_flag", "Low oxygen", "Oxigeno bajo", "My oxygen is low or I need more oxygen than usual.", "Tengo oxigeno bajo o necesito mas oxigeno de lo normal.", "wind", "red"),
+    );
+  }
+
+  if (risks.heartFailure && ["breathing", "tired", "other"].includes(symptomId ?? "")) {
+    replies.push(
+      reply(locale, "swelling_weight_gain", "red_flag", "Swelling or weight gain", "Hinchazon o peso subio", "My legs are more swollen or my weight went up quickly.", "heart", "amber"),
+    );
+  }
+
+  if (risks.hypertension && ["pain", "dizzy", "other"].includes(symptomId ?? "")) {
+    replies.push(
+      reply(locale, "very_high_bp", "red_flag", "Very high blood pressure", "Presion muy alta", "My blood pressure is very high or I have weakness or speech trouble.", "Tengo la presion muy alta o debilidad o dificultad para hablar.", "alert", "red"),
+    );
+  }
+
+  if (risks.bloodThinner && ["pain", "dizzy", "other"].includes(symptomId ?? "")) {
+    replies.push(
+      reply(locale, "head_hit_blood_thinner", "red_flag", "Hit my head", "Golpe en la cabeza", "I hit my head or fell while taking a blood thinner.", "Me golpee la cabeza o cai tomando anticoagulante.", "alert", "red"),
+      reply(locale, "unusual_bleeding", "red_flag", "Unusual bleeding", "Sangrado raro", "I have unusual bleeding, black stool, or a large bruise.", "Tengo sangrado raro, heces negras o moreton grande.", "alert", "red"),
+    );
+  }
+
+  if (risks.immunosuppressed && symptomId === "fever") {
+    replies.push(
+      reply(locale, "immuno_fever", "red_flag", "Fever with low immunity", "Fiebre con defensas bajas", "I have fever and low immunity or cancer treatment.", "Tengo fiebre y defensas bajas o tratamiento contra cancer.", "alert", "red"),
+    );
+  }
+
+  if (risks.cognitiveConcern && ["fever", "dizzy", "tired", "other"].includes(symptomId ?? "")) {
+    replies.push(
+      reply(locale, "new_confusion", "red_flag", "New confusion", "Confusion nueva", "I feel newly confused or not like myself.", "Tengo confusion nueva o no me siento como siempre.", "alert", "red"),
+    );
+  }
+
+  return replies;
+}
+
+function quickRepliesFor(wizard: TriageWizardContext | undefined, locale: string, healthMemory?: TriageHealthMemory): TriageQuickReply[] {
   const stage = wizardStage(wizard);
   const answers = selectedAnswers(wizard);
   const symptom = firstAnswerKind(wizard, "symptom");
+  const risks = profileRiskFlags(healthMemory);
 
   if (stage === "symptom") {
     return [
@@ -217,44 +334,51 @@ function quickRepliesFor(wizard: TriageWizardContext | undefined, locale: string
   }
 
   if (stage === "red_flag") {
+    if (!symptom) return quickRepliesFor(undefined, locale, healthMemory);
+
     if (symptom.id === "pain") {
-      return [
+      const baseReplies = [
         reply(locale, "chest_pain", "red_flag", "Chest pain", "Dolor en pecho", "I have chest pain.", "Tengo dolor en el pecho.", "alert", "red"),
         reply(locale, "sudden_severe", "red_flag", "Sudden or severe", "Repentino o fuerte", "The pain is sudden or severe.", "El dolor es repentino o fuerte.", "alert", "red"),
         reply(locale, "after_fall", "red_flag", "After a fall", "Tras caida", "It started after a fall or injury.", "Empezo despues de una caida o golpe.", "activity", "amber"),
         reply(locale, "no_red_flag", "red_flag", "None of these", "Nada de esto", "None of these apply.", "Nada de esto aplica.", "help", "green"),
       ];
+      return withProfileReplies(baseReplies, profileRedFlagReplies(locale, symptom.id, risks));
     }
     if (symptom.id === "breathing") {
-      return [
+      const baseReplies = [
         reply(locale, "breath_rest", "red_flag", "Even resting", "Incluso en reposo", "I am short of breath even while resting.", "Me falta el aire incluso en reposo.", "wind", "red"),
         reply(locale, "blue_confused", "red_flag", "Confused or blue lips", "Confusion o labios azules", "I feel blue-lipped, confused, or very unwell.", "Tengo labios azulados, confusion o me siento muy mal.", "alert", "red"),
         reply(locale, "walking_only", "red_flag", "Only when walking", "Solo al caminar", "It mostly happens when I walk.", "Me pasa sobre todo al caminar.", "activity", "amber"),
         reply(locale, "no_red_flag", "red_flag", "Mild now", "Leve ahora", "It is mild right now.", "Ahora es leve.", "help", "green"),
       ];
+      return withProfileReplies(baseReplies, profileRedFlagReplies(locale, symptom.id, risks));
     }
     if (symptom.id === "fever") {
-      return [
+      const baseReplies = [
         reply(locale, "high_fever", "red_flag", "Very high fever", "Fiebre muy alta", "My temperature is very high.", "Tengo la temperatura muy alta.", "thermometer", "red"),
         reply(locale, "confused_fever", "red_flag", "Confused or very sleepy", "Confusion o mucho sueno", "I feel confused, very drowsy, or hard to wake.", "Tengo confusion, mucho sueno o cuesta despertarme.", "alert", "red"),
         reply(locale, "stiff_neck", "red_flag", "Stiff neck", "Cuello rigido", "I have a stiff neck or a new rash.", "Tengo el cuello rigido o una erupcion nueva.", "alert", "red"),
         reply(locale, "no_red_flag", "red_flag", "None of these", "Nada de esto", "None of these apply.", "Nada de esto aplica.", "help", "green"),
       ];
+      return withProfileReplies(baseReplies, profileRedFlagReplies(locale, symptom.id, risks));
     }
     if (symptom.id === "dizzy") {
-      return [
+      const baseReplies = [
         reply(locale, "fainted", "red_flag", "Fainted", "Desmayo", "I fainted or nearly fainted.", "Me desmaye o casi me desmayo.", "alert", "red"),
         reply(locale, "stroke_sign", "red_flag", "Weak on one side", "Debilidad en un lado", "I have weakness on one side, face droop, or trouble speaking.", "Tengo debilidad en un lado, cara caida o dificultad para hablar.", "alert", "red"),
         reply(locale, "dizzy_chest", "red_flag", "With chest pain", "Con dolor pecho", "I also have chest pain or trouble breathing.", "Tambien tengo dolor de pecho o falta de aire.", "heart", "red"),
         reply(locale, "no_red_flag", "red_flag", "Mild now", "Leve ahora", "It is mild right now.", "Ahora es leve.", "help", "green"),
       ];
+      return withProfileReplies(baseReplies, profileRedFlagReplies(locale, symptom.id, risks));
     }
-    return [
+    const baseReplies = [
       reply(locale, "cannot_stand", "red_flag", "Cannot stand", "No puedo estar de pie", "I feel too weak to stand or walk safely.", "Me siento demasiado debil para estar de pie o caminar.", "alert", "red"),
       reply(locale, "not_drinking", "red_flag", "Not drinking", "No bebo", "I am not drinking or eating normally.", "No estoy bebiendo o comiendo normal.", "alert", "amber"),
       reply(locale, "new_severe", "red_flag", "New/severe", "Nuevo fuerte", "This is new or much worse than usual.", "Esto es nuevo o mucho peor de lo normal.", "activity", "amber"),
       reply(locale, "no_red_flag", "red_flag", "None of these", "Nada de esto", "None of these apply.", "Nada de esto aplica.", "help", "green"),
     ];
+    return withProfileReplies(baseReplies, profileRedFlagReplies(locale, symptom?.id, risks));
   }
 
   if (stage === "duration") {
@@ -359,10 +483,11 @@ CONVERSATION FLOW:
 1. The app is a senior-friendly wizard. Match the current wizard stage and ask only one very simple question.
 2. If there is no symptom category yet, ask what feels wrong today.
 3. After a symptom category, ask the most relevant red-flag question first. If a red flag is present, calmly recommend urgent help while still collecting enough summary detail.
-4. Then ask duration, severity, whether it is getting better/worse, and what help the user wants.
-5. Avoid repeating questions already answered in WIZARD CONTEXT.
-6. After gathering sufficient information (typically 4-6 user answers), gently wrap up.
-7. On your FINAL turn, you MUST end your message with this exact JSON block (replace values appropriately):
+4. Adapt concern level to HEALTH MEMORY. Diabetes, COPD/oxygen use, heart failure, high blood pressure, blood thinners, low immunity, and new confusion should make you more cautious.
+5. Then ask duration, severity, whether it is getting better/worse, and what help the user wants.
+6. Avoid repeating questions already answered in WIZARD CONTEXT.
+7. After gathering sufficient information (typically 4-6 user answers), gently wrap up.
+8. On your FINAL turn, you MUST end your message with this exact JSON block (replace values appropriately):
 
 TRIAGE_JSON_START
 {"done":true,"summary":{"chiefComplaint":"<one-line description>","symptoms":["<symptom 1>","<symptom 2>"],"urgency":"<urgent|routine|monitor>","recommendations":["<step 1>","<step 2>","<step 3>","<step 4>"],"disclaimer":"This assessment is for information only and is not medical advice. Always consult your doctor or call emergency services if you feel it is serious."}}
@@ -512,7 +637,7 @@ router.post("/message", async (req: Request, res: Response) => {
       content,
       done: summary != null,
       summary: summary ?? undefined,
-      quickReplies: summary ? [] : quickRepliesFor(wizard, normalizedLocale),
+      quickReplies: summary ? [] : quickRepliesFor(wizard, normalizedLocale, healthMemory),
       wizardStage: wizardStage(wizard),
       wizardStageLabel: wizardStageLabel(wizardStage(wizard), normalizedLocale),
       evidenceSources: medisearchContext?.articles.slice(0, 3).map((article) => ({
