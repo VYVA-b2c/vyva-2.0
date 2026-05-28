@@ -554,22 +554,22 @@ function quickRepliesFor(wizard: TriageWizardContext | undefined, locale: string
 function safetyMessage(locale: string, warningLabel: string) {
   return text(
     locale,
-    `${warningLabel} can be a warning sign. If this feels severe, sudden, or unsafe, please call emergency services now or ask someone nearby to help you. Would you like help making the next step?`,
-    `${warningLabel} puede ser una senal de alerta. Si se siente fuerte, repentino o inseguro, llama a emergencias ahora o pide ayuda a alguien cercano. Quieres ayuda con el siguiente paso?`,
+    `${warningLabel} can be an emergency warning sign. If this is happening now, call emergency services now or ask someone nearby to help you. Do not drive yourself.`,
+    `${warningLabel} puede ser una senal de emergencia. Si esto esta pasando ahora, llama a emergencias ahora o pide ayuda a alguien cercano. No conduzcas.`,
   );
 }
 
 function safetyRecommendation(locale: string) {
   return text(
     locale,
-    "Call emergency services now if this is severe, sudden, or you feel unsafe. Otherwise, contact a doctor or trusted caregiver today.",
-    "Llama a emergencias ahora si es fuerte, repentino o no te sientes seguro. Si no, contacta hoy con un medico o cuidador de confianza.",
+    "Call emergency services now if this is happening now. Ask someone nearby to stay with you and do not drive yourself.",
+    "Llama a emergencias ahora si esto esta pasando ahora. Pide a alguien cercano que se quede contigo y no conduzcas.",
   );
 }
 
 function safetyQuickReplies(locale: string): TriageQuickReply[] {
   return [
-    reply(locale, "call_emergency", "support", "Call emergency", "Llamar emergencias", "I will call emergency services if this feels severe or sudden.", "Llamare a emergencias si se siente fuerte o repentino.", "alert", "red"),
+    reply(locale, "call_emergency", "support", "Call emergency", "Llamar emergencias", "I will call emergency services now.", "Llamare a emergencias ahora.", "alert", "red"),
     reply(locale, "contact_doctor", "support", "Call doctor", "Llamar medico", "I want to contact my doctor or clinic today.", "Quiero contactar hoy con mi medico o clinica.", "heart", "amber"),
     reply(locale, "make_report", "support", "Make report", "Crear informe", "Please make a clear report I can share.", "Por favor crea un informe claro para compartir.", "help", "purple"),
     reply(locale, "continue_questions", "support", "Keep asking", "Seguir preguntas", "I understand. Please keep asking simple questions.", "Entiendo. Sigue haciendo preguntas simples.", "activity", "blue"),
