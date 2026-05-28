@@ -2,6 +2,7 @@ import { useState, type ChangeEvent, type ReactNode } from "react";
 import {
   type AccountSubscription,
   type Communication,
+  type CommunicationProviderStatus,
   type EntryPointMetric,
   type FunnelStage,
   type HomePlanCardAdmin,
@@ -14,20 +15,27 @@ import {
   type ScheduledSupport,
   type SubscriptionPlanAdmin,
   type UserDetail,
+  accountStatusLabel,
   callbackMetadata,
   callbackScheduledLabel,
   cleanLabel,
   combineDateTimeLocal,
+  consentStatusLabel,
   emptyScheduledEvent,
   entryPointLabel,
   formatDate,
+  isVisibleLifecycleUser,
+  journeyStepLabel,
   keywordsToText,
   languageOptions,
+  lifecycleStatusLabel,
   stringValue,
   subscriptionStatusOptions,
+  tierLabel,
   textToKeywords,
   toDateInputValue,
   toTimeInputValue,
+  userTypeLabel,
 } from "./shared";
 
 export function Field({ label, required, optional, children }: { label: string; required?: boolean; optional?: boolean; children: ReactNode }) {
@@ -124,24 +132,24 @@ function lifecycleActivityCopy(eventType: string, row: JsonRecord) {
     return {
       label: tierChanged ? "Tier changed" : "Profile updated",
       detail: tierChanged
-        ? `${cleanLabel(previousTier)} to ${cleanLabel(nextTier)}${nextStatus ? ` (${cleanLabel(nextStatus)})` : ""}`
+        ? `${tierLabel(previousTier)} to ${tierLabel(nextTier)}${nextStatus ? ` (${lifecycleStatusLabel(nextStatus)})` : ""}`
         : "Profile, contact, or organization details were updated.",
     };
   }
   if (eventType === "admin_subscription_updated") {
     return {
       label: "Tier changed",
-      detail: `${previousTier ? `${cleanLabel(previousTier)} to ` : ""}${cleanLabel(nextTier ?? "Updated")}${nextStatus ? ` (${cleanLabel(nextStatus)})` : ""}`,
+      detail: `${previousTier ? `${tierLabel(previousTier)} to ` : ""}${tierLabel(nextTier ?? "Updated")}${nextStatus ? ` (${lifecycleStatusLabel(nextStatus)})` : ""}`,
     };
   }
-  if (eventType === "user_disabled") return { label: "User disabled", detail: stringValue(metadata.reason) || "Admin disabled access." };
-  if (eventType === "user_enabled") return { label: "User enabled", detail: "Admin restored access." };
-  if (eventType === "user_deleted") return { label: "User deleted", detail: "Admin removed this user from lifecycle." };
-  if (eventType.includes("consent")) return { label: cleanLabel(eventType), detail: toStatus ? cleanLabel(toStatus) : "Consent event recorded." };
+  if (eventType === "user_disabled") return { label: "App access disabled", detail: stringValue(metadata.reason) || "Admin disabled app access." };
+  if (eventType === "user_enabled") return { label: "App access enabled", detail: "Admin restored app access." };
+  if (eventType === "user_deleted") return { label: "User removed from Users", detail: "Admin hid this user from the lifecycle Users table." };
+  if (eventType.includes("consent")) return { label: cleanLabel(eventType), detail: toStatus ? consentStatusLabel(toStatus) : "Consent event recorded." };
 
   return {
     label: cleanLabel(eventType),
-    detail: toStatus ? `${fromStatus ? `${cleanLabel(fromStatus)} to ` : ""}${cleanLabel(toStatus)}` : stringValue(metadata.summary) ?? stringValue(row.channel) ?? "Lifecycle update",
+    detail: toStatus ? `${fromStatus ? `${lifecycleStatusLabel(fromStatus)} to ` : ""}${lifecycleStatusLabel(toStatus)}` : stringValue(metadata.summary) ?? stringValue(row.channel) ?? "Lifecycle update",
   };
 }
 
@@ -153,7 +161,7 @@ function buildActivityTimeline(detail: UserDetail): ActivityItem[] {
     id: `intake-created-${intake.id}`,
     time: intake.created_at,
     label: "User intake created",
-    detail: `${entryPointLabel(intake.entry_point)} - ${cleanLabel(intake.user_type)}`,
+    detail: `${entryPointLabel(intake.entry_point)} - ${userTypeLabel(intake.user_type)}`,
     source: "Lifecycle",
     actor: "system",
   });
@@ -201,7 +209,7 @@ function buildActivityTimeline(detail: UserDetail): ActivityItem[] {
       id: `access-link-created-${link.id}`,
       time: link.created_at,
       label: "Invite created",
-      detail: `${cleanLabel(link.link_type)} link for ${cleanLabel(link.target_role)} - ${cleanLabel(link.tier)} tier`,
+      detail: `${cleanLabel(link.link_type)} link for ${userTypeLabel(link.target_role)} - ${tierLabel(link.tier)} tier`,
       source: "Invite",
       actor: "system",
       tone: link.revoked_at ? "danger" : "default",
@@ -247,7 +255,7 @@ function buildActivityTimeline(detail: UserDetail): ActivityItem[] {
     pushActivity(items, {
       id: `communication-${row.id}`,
       time: row.created_at,
-      label: `${cleanLabel(row.purpose)} ${cleanLabel(row.status)}`,
+      label: `${cleanLabel(row.purpose)} ${lifecycleStatusLabel(row.status)}`,
       detail: `${cleanLabel(row.channel)} to ${row.recipient}${stringValue(metadata.dispatch_error) ? ` - ${stringValue(metadata.dispatch_error)}` : ""}`,
       source: "Communication",
       actor: row.channel,
@@ -259,7 +267,7 @@ function buildActivityTimeline(detail: UserDetail): ActivityItem[] {
     pushActivity(items, {
       id: `consent-${row.id}`,
       time: row.created_at,
-      label: `Consent ${cleanLabel(row.status)}`,
+      label: `Consent ${consentStatusLabel(row.status)}`,
       detail: `Attempt ${row.attempt_number} by ${cleanLabel(row.channel)}`,
       source: "Consent",
       actor: row.channel,
@@ -272,7 +280,7 @@ function buildActivityTimeline(detail: UserDetail): ActivityItem[] {
       id: `scheduled-event-${event.id}`,
       time: event.updated_at ?? event.created_at ?? event.scheduled_for ?? "",
       label: event.title || cleanLabel(event.event_type),
-      detail: `${cleanLabel(event.status)} - ${event.display_time ?? formatDate(event.scheduled_for)}`,
+      detail: `${lifecycleStatusLabel(event.status)} - ${event.display_time ?? formatDate(event.scheduled_for)}`,
       source: "Schedule",
       actor: event.updated_by ?? event.created_by ?? event.source,
       tone: activityTone(event.status),
@@ -284,7 +292,7 @@ function buildActivityTimeline(detail: UserDetail): ActivityItem[] {
       id: `support-${schedule.id}`,
       time: schedule.updated_at ?? schedule.next_run_at ?? "",
       label: supportLabel(schedule.interaction_type),
-      detail: `${cleanLabel(schedule.status)} - ${supportFrequency(schedule)}`,
+      detail: `${lifecycleStatusLabel(schedule.status)} - ${supportFrequency(schedule)}`,
       source: "Recurring support",
       actor: schedule.updated_by ?? schedule.created_by ?? "user",
       tone: activityTone(schedule.status),
@@ -357,7 +365,7 @@ function AuditMilestones({ detail }: { detail: UserDetail }) {
   const profileCreatedAt = stringValue(detail.profile?.created_at);
   const tierEvent = latestTierEvent(detail);
   const tierMetadata = jsonObject(tierEvent?.metadata);
-  const disabledOrDeleted = latestLifecycleEvent(detail, ["user_disabled", "user_deleted"]);
+  const accessOrRemovalEvent = latestLifecycleEvent(detail, ["user_disabled", "user_deleted"]);
   const latestConsent = [...(detail.consent_attempts ?? [])].sort((a, b) => dateMs(b.created_at) - dateMs(a.created_at))[0] ?? null;
   const currentTier = stringValue(detail.profile?.subscription_tier) ?? detail.intake.tier;
 
@@ -384,20 +392,20 @@ function AuditMilestones({ detail }: { detail: UserDetail }) {
       label: "Tier",
       done: Boolean(tierEvent),
       detail: tierEvent
-        ? `${stringValue(tierMetadata.previous_subscription_tier) ? `${cleanLabel(stringValue(tierMetadata.previous_subscription_tier))} to ` : ""}${cleanLabel(stringValue(tierMetadata.subscription_tier) ?? currentTier)}`
-        : cleanLabel(currentTier),
+        ? `${stringValue(tierMetadata.previous_subscription_tier) ? `${tierLabel(stringValue(tierMetadata.previous_subscription_tier))} to ` : ""}${tierLabel(stringValue(tierMetadata.subscription_tier) ?? currentTier)}`
+        : tierLabel(currentTier),
       tone: "default",
     },
     {
-      label: "Disabled / deleted",
-      done: Boolean(disabledOrDeleted),
-      detail: disabledOrDeleted ? `${cleanLabel(stringValue(disabledOrDeleted.event_type) ?? "")} at ${formatDate(stringValue(disabledOrDeleted.created_at))}` : "No disable or delete event.",
-      tone: disabledOrDeleted ? "danger" : "success",
+      label: "Access / removal",
+      done: Boolean(accessOrRemovalEvent),
+      detail: accessOrRemovalEvent ? `${lifecycleEventLabel(accessOrRemovalEvent).label} at ${formatDate(stringValue(accessOrRemovalEvent.created_at))}` : "No app-access disable or user removal event.",
+      tone: accessOrRemovalEvent ? "danger" : "success",
     },
     {
       label: "Consent",
       done: Boolean(latestConsent),
-      detail: latestConsent ? `${cleanLabel(latestConsent.status)} - attempt ${latestConsent.attempt_number}` : cleanLabel(detail.intake.consent_status || "not required"),
+      detail: latestConsent ? `${consentStatusLabel(latestConsent.status)} - attempt ${latestConsent.attempt_number}` : consentStatusLabel(detail.intake.consent_status || "not_required"),
       tone: latestConsent ? activityTone(latestConsent.status) : detail.intake.consent_status === "not_required" ? "success" : "default",
     },
   ] as const;
@@ -467,9 +475,10 @@ function ActivityTimeline({ detail }: { detail: UserDetail }) {
 function callbackStatusLabel(user: Intake) {
   const callback = callbackMetadata(user);
   if (!callback) return null;
-  const status = stringValue(callback.status) || cleanLabel(user.journey_step) || "Callback";
+  const status = stringValue(callback.status) || user.journey_step || "Callback";
   const scheduled = callbackScheduledLabel(user);
-  return scheduled ? `${cleanLabel(status)} for ${scheduled}` : cleanLabel(status);
+  const label = journeyStepLabel(status);
+  return scheduled ? `${label} for ${scheduled}` : label;
 }
 
 const supportDayOptions = [
@@ -504,7 +513,7 @@ function supportDraftFromSchedule(schedule: ScheduledSupport): SupportScheduleDr
   };
 }
 
-export function IntakeTable({ users, emptyMessage = "No users match the current filters yet.", onView, onTriggerConsent, onToggleEnabled, onDelete, busyAction = null, compact = false }: {
+export function IntakeTable({ users, emptyMessage = "No users match the current filters yet.", onView, onTriggerConsent, onToggleEnabled, onDelete, busyAction = null, compact = false, selectedIds = [], onSelectionChange, onSelectAllVisible }: {
   users: Intake[];
   emptyMessage?: string;
   onView: (intake: Intake) => void;
@@ -513,27 +522,68 @@ export function IntakeTable({ users, emptyMessage = "No users match the current 
   onDelete?: (intake: Intake) => void;
   busyAction?: string | null;
   compact?: boolean;
+  selectedIds?: string[];
+  onSelectionChange?: (intakeId: string, selected: boolean) => void;
+  onSelectAllVisible?: (selected: boolean) => void;
 }) {
   const isBusy = (action: string, user: Intake) => busyAction === `${action}:${user.id}`;
+  const selectable = Boolean(onSelectionChange && onSelectAllVisible);
+  const selectedSet = new Set(selectedIds);
+  const selectableUsers = users.filter(isVisibleLifecycleUser);
+  const allVisibleSelected = selectableUsers.length > 0 && selectableUsers.every((user) => selectedSet.has(user.id));
+  const visibleSelectionCount = selectableUsers.filter((user) => selectedSet.has(user.id)).length;
+  const columnCount = (compact ? 9 : 10) + (selectable ? 1 : 0);
   return (
     <div className="mt-5 overflow-auto">
       <table className="w-full min-w-[980px] border-separate border-spacing-y-2">
-        <thead><tr className="text-left text-sm uppercase tracking-wide text-[#8b7a73]"><th>Name</th>{!compact && <th>Phone</th>}<th>Type</th><th>Entry</th><th>Tier</th><th>Status</th><th>Account</th><th>Consent</th><th>Org</th><th>Action</th></tr></thead>
+        <thead><tr className="text-left text-sm uppercase tracking-wide text-[#8b7a73]">
+          {selectable && (
+            <th className="w-10">
+              <input
+                type="checkbox"
+                aria-label="Select all visible users"
+                checked={allVisibleSelected}
+                disabled={selectableUsers.length === 0}
+                onChange={(event) => onSelectAllVisible?.(event.target.checked)}
+              />
+              {visibleSelectionCount > 0 && !allVisibleSelected && <span className="sr-only">{visibleSelectionCount} visible users selected</span>}
+            </th>
+          )}
+          <th>Name</th>{!compact && <th>Phone</th>}<th>Type</th><th>Entry</th><th>Tier</th><th>Status</th><th>Account</th><th>Consent</th><th>Org</th><th>Action</th>
+        </tr></thead>
         <tbody>
           {users.length === 0 && (
             <tr>
-              <td colSpan={compact ? 9 : 10} className="rounded-2xl bg-[#fbf8f5] px-4 py-6 text-center font-bold text-[#7d6b65]">
+              <td colSpan={columnCount} className="rounded-2xl bg-[#fbf8f5] px-4 py-6 text-center font-bold text-[#7d6b65]">
                 {emptyMessage}
               </td>
             </tr>
           )}
-          {users.map((user) => (
-            <tr key={user.id} className="rounded-2xl bg-[#fbf8f5]">
-              <td className="rounded-l-2xl px-3 py-3">
+          {users.map((user) => {
+            const removed = !isVisibleLifecycleUser(user);
+            return (
+            <tr key={user.id} className={`rounded-2xl ${removed ? "bg-amber-50" : "bg-[#fbf8f5]"}`}>
+              {selectable && (
+                <td className="rounded-l-2xl px-3 py-3 align-middle">
+                  <input
+                    type="checkbox"
+                    aria-label={`Select ${user.name}`}
+                    disabled={removed}
+                    checked={selectedSet.has(user.id)}
+                    onChange={(event) => onSelectionChange?.(user.id, event.target.checked)}
+                  />
+                </td>
+              )}
+              <td className={`${selectable ? "" : "rounded-l-2xl"} px-3 py-3`}>
                 <p className="font-bold">{user.name}</p>
                 {callbackMetadata(user) && (
                   <p className="mt-1 inline-flex rounded-full bg-[#f3e8ff] px-2.5 py-1 text-xs font-black text-purple-800">
                     Callback onboarding
+                  </p>
+                )}
+                {removed && (
+                  <p className="mt-1 inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-black uppercase text-amber-800">
+                    Removed
                   </p>
                 )}
                 {(user.login_email || user.login_phone || user.profile_email || user.profile_phone || user.profile_name) && (
@@ -544,37 +594,44 @@ export function IntakeTable({ users, emptyMessage = "No users match the current 
                 )}
               </td>
               {!compact && <td className="px-3 py-3">{user.phone}</td>}
-              <td className="px-3 py-3">{user.user_type}</td>
+              <td className="px-3 py-3">{userTypeLabel(user.user_type)}</td>
               <td className="px-3 py-3">
                 <span>{entryPointLabel(user.entry_point)}</span>
                 {callbackMetadata(user) && <span className="mt-1 block text-xs font-bold text-purple-700">Scheduled callback</span>}
               </td>
               <td className="px-3 py-3">
-                <span>{user.tier}</span>
+                <span>{tierLabel(user.tier)}</span>
                 {user.intake_tier && user.intake_tier !== user.tier && (
-                  <span className="mt-1 block text-xs text-[#8b7a73]">Intake: {user.intake_tier}</span>
+                  <span className="mt-1 block text-xs text-[#8b7a73]">Intake: {tierLabel(user.intake_tier)}</span>
                 )}
               </td>
               <td className="px-3 py-3">
-                <span>{user.status}</span>
+                <span>{lifecycleStatusLabel(user.status)}</span>
                 <span className="mt-1 block text-xs font-bold text-[#7d6b65]">
-                  {callbackStatusLabel(user) ?? cleanLabel(user.journey_step)}
+                  {callbackStatusLabel(user) ?? journeyStepLabel(user.journey_step)}
                 </span>
               </td>
-              <td className="px-3 py-3">{user.account_status ?? "enabled"}</td>
-              <td className="px-3 py-3">{user.consent_status}</td>
+              <td className="px-3 py-3">{accountStatusLabel(user.account_status)}</td>
+              <td className="px-3 py-3">{consentStatusLabel(user.consent_status)}</td>
               <td className="px-3 py-3">{user.organization_name ?? "-"}</td>
               <td className="rounded-r-2xl px-3 py-3">
                 <div className="flex flex-wrap gap-2">
                   <button type="button" className="rounded-full bg-[#2f2135] px-3 py-2 text-sm font-bold text-white disabled:opacity-60" disabled={isBusy("view", user)} onClick={() => onView(user)}>{isBusy("view", user) ? "Opening..." : "View"}</button>
-                  <span className="rounded-full bg-purple-50 px-3 py-2 text-sm font-black uppercase text-purple-700">Tier: {user.tier}</span>
-                  <button type="button" className="rounded-full border px-3 py-2 text-sm font-bold disabled:opacity-60" disabled={isBusy("toggle", user)} onClick={() => onToggleEnabled(user)}>{isBusy("toggle", user) ? "Saving..." : user.account_status === "disabled" ? "Enable" : "Disable"}</button>
-                  {user.user_type === "family" && <button type="button" className="rounded-full border px-3 py-2 text-sm font-bold disabled:opacity-60" disabled={isBusy("consent", user)} onClick={() => onTriggerConsent(user)}>{isBusy("consent", user) ? "Queueing..." : "Consent"}</button>}
-                  {onDelete && <button type="button" className="rounded-full border border-red-200 bg-red-50 px-3 py-2 text-sm font-bold text-red-700 disabled:opacity-60" disabled={isBusy("delete", user)} onClick={() => onDelete(user)}>{isBusy("delete", user) ? "Deleting..." : "Delete"}</button>}
+                  <span className="rounded-full bg-purple-50 px-3 py-2 text-sm font-black uppercase text-purple-700">Tier: {tierLabel(user.tier)}</span>
+                  {removed ? (
+                    <span className="rounded-full border border-amber-200 bg-white px-3 py-2 text-sm font-bold text-amber-800">Audit only</span>
+                  ) : (
+                    <>
+                      <button type="button" className="rounded-full border px-3 py-2 text-sm font-bold disabled:opacity-60" disabled={isBusy("toggle", user)} onClick={() => onToggleEnabled(user)}>{isBusy("toggle", user) ? "Saving..." : user.account_status === "disabled" ? "Enable app access" : "Disable app access"}</button>
+                      {user.user_type === "family" && <button type="button" className="rounded-full border px-3 py-2 text-sm font-bold disabled:opacity-60" disabled={isBusy("consent", user)} onClick={() => onTriggerConsent(user)}>{isBusy("consent", user) ? "Queueing..." : "Consent"}</button>}
+                      {onDelete && <button type="button" className="rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800 disabled:opacity-60" disabled={isBusy("delete", user)} onClick={() => onDelete(user)}>{isBusy("delete", user) ? "Removing..." : "Remove from Users"}</button>}
+                    </>
+                  )}
                 </div>
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -676,7 +733,7 @@ export function AccountSubscriptionsSection({
                     <p><span className="font-bold text-[#4d4351]">Login:</span> {account.account_email || account.account_phone || "No linked login shown"}{account.account_source ? ` (${account.account_source})` : ""}</p>
                     <p><span className="font-bold text-[#4d4351]">Profile:</span> {account.profile_email || account.phone_number || account.profile_id}</p>
                     <p><span className="font-bold text-[#4d4351]">Profile ID:</span> <span className="font-mono text-xs">{account.profile_id}</span></p>
-                    <p><span className="font-bold text-[#4d4351]">Effective app access:</span> {account.effective_subscription_tier ?? account.subscription_tier}{account.effective_subscription_status ? ` (${account.effective_subscription_status})` : ""}</p>
+                    <p><span className="font-bold text-[#4d4351]">Effective app access:</span> {tierLabel(account.effective_subscription_tier ?? account.subscription_tier)}{account.effective_subscription_status ? ` (${lifecycleStatusLabel(account.effective_subscription_status)})` : ""}</p>
                     {account.subscription_status === "trial" && account.trial_ends_at && (
                       <p><span className="font-bold text-[#4d4351]">Trial ends:</span> {formatDate(account.trial_ends_at)}</p>
                     )}
@@ -711,7 +768,7 @@ export function AccountSubscriptionsSection({
                       value={account.subscription_status}
                       onChange={(event) => onChange(account.profile_id, { subscription_status: event.target.value })}
                     >
-                      {subscriptionStatusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+                      {subscriptionStatusOptions.map((status) => <option key={status} value={status}>{lifecycleStatusLabel(status)}</option>)}
                     </select>
                   </Field>
                   <button
@@ -776,30 +833,33 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
   const hasSubscriptionMismatch = Boolean(primaryMapping?.subscription_mismatch);
   const accessMismatch = hasTierMismatch || hasSubscriptionMismatch;
   const appAccessText = primaryMapping
-    ? `${primaryMapping.effective_subscription_tier ?? "Unknown"}${primaryMapping.effective_subscription_status ? ` (${primaryMapping.effective_subscription_status})` : ""}`
+    ? `${tierLabel(primaryMapping.effective_subscription_tier ?? "Unknown")}${primaryMapping.effective_subscription_status ? ` (${lifecycleStatusLabel(primaryMapping.effective_subscription_status)})` : ""}`
     : "No login match";
   const newEventDate = newEvent.scheduled_date || toDateInputValue(newEvent.scheduled_for);
   const newEventTime = newEvent.scheduled_time || toTimeInputValue(newEvent.scheduled_for);
-  const [activeDetailTab, setActiveDetailTab] = useState<"profile" | "schedule" | "activity">("profile");
+  const [activeDetailTab, setActiveDetailTab] = useState<"profile" | "access" | "activity" | "communications" | "schedule">("profile");
   const [editingSupportId, setEditingSupportId] = useState<string | null>(null);
   const [supportDraft, setSupportDraft] = useState<SupportScheduleDraft | null>(null);
   const detailTabs = [
     { id: "profile" as const, label: "Profile" },
-    { id: "schedule" as const, label: "Schedule" },
+    { id: "access" as const, label: "Access" },
     { id: "activity" as const, label: "Activity" },
+    { id: "communications" as const, label: "Communications" },
+    { id: "schedule" as const, label: "Schedule" },
   ];
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-2 sm:p-4">
-      <div className="flex h-[calc(100dvh-1rem)] w-full max-w-6xl flex-col overflow-hidden rounded-[1.5rem] bg-white shadow-2xl">
-        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#eadfd5] px-4 py-3 sm:px-5">
+    <div className="fixed inset-0 z-50 flex justify-end bg-[#2f2135]/45" role="dialog" aria-modal="true" aria-labelledby="user-detail-drawer-title">
+      <button type="button" className="absolute inset-0 hidden cursor-default sm:block" aria-label="Close user details" onClick={onClose} />
+      <aside className="relative z-10 flex h-full w-full max-w-[820px] flex-col overflow-hidden bg-[#fffdfb] shadow-[0_24px_80px_rgba(47,33,53,0.32)] sm:rounded-l-[1.5rem]">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#eadfd5] bg-white px-4 py-3 sm:px-5">
           <div className="min-w-0">
             <p className="text-xs font-black uppercase tracking-[0.2em] text-purple-700">User details</p>
-            <h2 className="mt-1 truncate font-serif text-2xl leading-tight sm:text-3xl">{detail.intake.name}</h2>
-            <p className="mt-1 text-sm text-[#7d6b65]">{detail.intake.user_type} - {detail.intake.status} - {disabled ? "Disabled" : "Enabled"}</p>
+            <h2 id="user-detail-drawer-title" className="mt-1 truncate font-serif text-2xl leading-tight sm:text-3xl">{detail.intake.name}</h2>
+            <p className="mt-1 text-sm text-[#7d6b65]">{userTypeLabel(detail.intake.user_type)} - {lifecycleStatusLabel(detail.intake.status)} - {disabled ? "Disabled" : "Enabled"}</p>
           </div>
           <button type="button" className="rounded-xl border border-[#eadfd5] px-4 py-2 text-sm font-bold" onClick={onClose}>Close</button>
         </div>
-        <div className="shrink-0 border-b border-[#eadfd5] px-4 py-2 sm:px-5">
+        <div className="shrink-0 border-b border-[#eadfd5] bg-white px-4 py-2 sm:px-5">
           <div className="flex gap-2 overflow-x-auto" role="tablist" aria-label="User detail sections">
             {detailTabs.map((tab) => (
               <button
@@ -807,7 +867,7 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                 type="button"
                 role="tab"
                 aria-selected={activeDetailTab === tab.id}
-                className={`rounded-xl px-4 py-2 text-sm font-black ${activeDetailTab === tab.id ? "bg-purple-700 text-white" : "border border-[#eadfd5] text-purple-700"}`}
+                className={`shrink-0 rounded-xl px-4 py-2 text-sm font-black ${activeDetailTab === tab.id ? "bg-purple-700 text-white" : "border border-[#eadfd5] bg-white text-purple-700 hover:bg-purple-50"}`}
                 onClick={() => setActiveDetailTab(tab.id)}
               >
                 {tab.label}
@@ -820,26 +880,10 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
           {activeDetailTab === "profile" && <section className="mx-auto w-full max-w-4xl rounded-2xl border border-[#eadfd5] p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h3 className="text-xl font-black">Profile and access</h3>
-                <p className="mt-1 text-sm text-[#7d6b65]">Account, contact, and plan controls.</p>
+                <h3 className="text-xl font-black">Profile</h3>
+                <p className="mt-1 text-sm text-[#7d6b65]">Identity, contact, language, and caregiver details.</p>
               </div>
-              <span className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${accessMismatch ? "bg-[#fff3e8] text-[#8a4a00]" : primaryMapping ? "bg-[#ecfdf3] text-[#087443]" : "bg-[#f4eafe] text-purple-700"}`}>
-                App access: {appAccessText}
-              </span>
             </div>
-            {primaryMapping && (
-              <p className={`mt-3 rounded-xl px-3 py-2 text-sm font-bold ${accessMismatch ? "bg-[#fff3e8] text-[#8a4a00]" : "bg-[#ecfdf3] text-[#087443]"}`}>
-                {primaryMapping.subscription_warning ?? (hasTierMismatch ? "Save changes to sync this user to the selected tier." : "Admin and app access are aligned.")}
-              </p>
-            )}
-            {primaryMapping?.latest_entitlement_repair_at && (
-              <p className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800">
-                Last access repair: {formatDate(primaryMapping.latest_entitlement_repair_at)}{primaryMapping.latest_entitlement_repair_summary ? ` - ${primaryMapping.latest_entitlement_repair_summary}` : ""}
-              </p>
-            )}
-            {!primaryMapping && (
-              <p className="mt-3 rounded-xl bg-[#f4eafe] px-3 py-2 text-sm font-bold text-purple-800">No login account matched yet. The tier will apply when the user signs in with this email or phone.</p>
-            )}
             <div className="mt-4 grid gap-3">
               <Field label="Full name"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.full_name ?? ""} onChange={(e) => setDraft({ ...draft, full_name: e.target.value })} /></Field>
               <Field label="Preferred name"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.preferred_name ?? ""} onChange={(e) => setDraft({ ...draft, preferred_name: e.target.value })} /></Field>
@@ -852,18 +896,82 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                 <Field label="Caregiver name"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.caregiver_name ?? ""} onChange={(e) => setDraft({ ...draft, caregiver_name: e.target.value })} /></Field>
                 <Field label="Caregiver contact"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.caregiver_contact ?? ""} onChange={(e) => setDraft({ ...draft, caregiver_contact: e.target.value })} /></Field>
               </div>
-              <div className="grid gap-3 md:grid-cols-3">
-                <Field label="Admin tier"><select className="w-full rounded-xl border px-3 py-2.5" value={draft.tier ?? "free"} onChange={(e) => setDraft({ ...draft, tier: e.target.value })}>{planOptions.map((plan) => <option key={plan.value} value={plan.value}>{plan.label}</option>)}</select></Field>
+              <div className="grid gap-3 md:grid-cols-2">
                 <Field label="Language"><select className="w-full rounded-xl border px-3 py-2.5" value={draft.language ?? "es"} onChange={(e) => setDraft({ ...draft, language: e.target.value })}>{languageOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
-                <Field label="Organization"><select className="w-full rounded-xl border px-3 py-2.5" value={draft.organization_id ?? ""} onChange={(e) => setDraft({ ...draft, organization_id: e.target.value })}><option value="">None</option>{organizations.filter((org) => org.is_active).map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}</select></Field>
+                <Field label="Timezone"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.timezone ?? "Europe/Madrid"} onChange={(e) => setDraft({ ...draft, timezone: e.target.value })} /></Field>
               </div>
-              <div className="flex flex-wrap gap-2"><button type="button" className="rounded-xl bg-purple-700 px-5 py-2.5 font-bold text-white disabled:opacity-60" disabled={saving || deleting} onClick={onSave}>{saving ? "Saving..." : "Save changes"}</button><button type="button" className="rounded-xl border px-5 py-2.5 font-bold disabled:opacity-60" disabled={deleting} onClick={onToggle}>{disabled ? "Enable user" : "Disable user"}</button><button type="button" className="rounded-xl border border-red-200 bg-red-50 px-5 py-2.5 font-bold text-red-700 disabled:opacity-60" disabled={deleting} onClick={onDelete}>{deleting ? "Deleting..." : "Delete user"}</button></div>
+              <div className="flex flex-wrap gap-2"><button type="button" className="rounded-xl bg-purple-700 px-5 py-2.5 font-bold text-white disabled:opacity-60" disabled={saving || deleting} onClick={onSave}>{saving ? "Saving..." : "Save profile"}</button></div>
               {statusMessage && (
                 <p className={`rounded-xl px-3 py-2 text-sm font-bold ${statusMessage.toLowerCase().includes("could not") ? "bg-[#fff3e8] text-[#8a4a00]" : "bg-[#ecfdf3] text-[#087443]"}`}>
                   {statusMessage}
                 </p>
               )}
             </div>
+          </section>}
+
+          {activeDetailTab === "access" && <section className="mx-auto w-full max-w-4xl rounded-2xl border border-[#eadfd5] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-xl font-black">Access</h3>
+                <p className="mt-1 text-sm text-[#7d6b65]">Tier, organization, login mapping, and app access controls.</p>
+              </div>
+              <span className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${accessMismatch ? "bg-[#fff3e8] text-[#8a4a00]" : primaryMapping ? "bg-[#ecfdf3] text-[#087443]" : "bg-[#f4eafe] text-purple-700"}`}>
+                App access: {appAccessText}
+              </span>
+            </div>
+            {primaryMapping && (
+              <p className={`mt-3 rounded-xl px-3 py-2 text-sm font-bold ${accessMismatch ? "bg-[#fff3e8] text-[#8a4a00]" : "bg-[#ecfdf3] text-[#087443]"}`}>
+                {primaryMapping.subscription_warning ?? (hasTierMismatch ? "Save access to sync this user to the selected tier." : "Admin and app access are aligned.")}
+              </p>
+            )}
+            {!primaryMapping && (
+              <p className="mt-3 rounded-xl bg-[#f4eafe] px-3 py-2 text-sm font-bold text-purple-800">No login account matched yet. The tier will apply when the user signs in with this email or phone.</p>
+            )}
+            {primaryMapping?.latest_entitlement_repair_at && (
+              <p className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800">
+                Last access repair: {formatDate(primaryMapping.latest_entitlement_repair_at)}{primaryMapping.latest_entitlement_repair_summary ? ` - ${primaryMapping.latest_entitlement_repair_summary}` : ""}
+              </p>
+            )}
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <Field label="Admin tier"><select className="w-full rounded-xl border px-3 py-2.5" value={draft.tier ?? "free"} onChange={(e) => setDraft({ ...draft, tier: e.target.value })}>{planOptions.map((plan) => <option key={plan.value} value={plan.value}>{plan.label}</option>)}</select></Field>
+              <Field label="Organization"><select className="w-full rounded-xl border px-3 py-2.5" value={draft.organization_id ?? ""} onChange={(e) => setDraft({ ...draft, organization_id: e.target.value })}><option value="">None</option>{organizations.filter((org) => org.is_active).map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}</select></Field>
+            </div>
+            <div className="mt-4 grid gap-3">
+              {(detail.account_mappings ?? []).length === 0 && (
+                <div className="rounded-2xl bg-[#fbf8f5] p-4 text-sm font-semibold text-[#7d6b65]">No login account matched yet.</div>
+              )}
+              {(detail.account_mappings ?? []).map((mapping) => (
+                <article key={`${mapping.source}-${mapping.login_uid}-${mapping.effective_profile_id}`} className="rounded-2xl border border-[#eadfd5] bg-[#fbf8f5] p-4 text-sm">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-black">{cleanLabel(mapping.source)} account</p>
+                      <p className="mt-1 break-words text-[#7d6b65]">Login: {mapping.login_email || mapping.login_phone || mapping.login_uid}</p>
+                      <p className="break-words text-[#7d6b65]">Profile: {mapping.effective_profile_email || mapping.effective_profile_phone || mapping.effective_profile_id || "No active profile"}</p>
+                    </div>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-purple-700">
+                      {tierLabel(mapping.effective_subscription_tier ?? "unknown")}{mapping.effective_subscription_status ? ` - ${lifecycleStatusLabel(mapping.effective_subscription_status)}` : ""}
+                    </span>
+                  </div>
+                  {(mapping.warnings ?? []).length > 0 && (
+                    <div className="mt-3 grid gap-2">
+                      {(mapping.warnings ?? []).map((warning) => (
+                        <p key={warning} className="rounded-xl bg-[#fff3e8] px-3 py-2 font-bold text-[#8a4a00]">{warning}</p>
+                      ))}
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button type="button" className="rounded-xl bg-purple-700 px-5 py-2.5 font-bold text-white disabled:opacity-60" disabled={saving || deleting} onClick={onSave}>{saving ? "Saving..." : "Save access"}</button>
+              <button type="button" className="rounded-xl border px-5 py-2.5 font-bold disabled:opacity-60" disabled={deleting} onClick={onToggle}>{disabled ? "Enable app access" : "Disable app access"}</button>
+              <button type="button" className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-2.5 font-bold text-amber-800 disabled:opacity-60" disabled={deleting} onClick={onDelete}>{deleting ? "Removing..." : "Remove from Users"}</button>
+            </div>
+            {statusMessage && (
+              <p className={`mt-3 rounded-xl px-3 py-2 text-sm font-bold ${statusMessage.toLowerCase().includes("could not") ? "bg-[#fff3e8] text-[#8a4a00]" : "bg-[#ecfdf3] text-[#087443]"}`}>
+                {statusMessage}
+              </p>
+            )}
           </section>}
 
           {activeDetailTab === "schedule" && <section className="mx-auto w-full max-w-4xl rounded-2xl border border-[#eadfd5] p-4">
@@ -892,7 +1000,7 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
                         <p className="font-bold">{event.title}</p>
-                        <p className="text-sm text-[#7d6b65]">{event.event_type} - {event.status} - {event.display_time ?? formatDate(event.scheduled_for)}</p>
+                        <p className="text-sm text-[#7d6b65]">{cleanLabel(event.event_type)} - {lifecycleStatusLabel(event.status)} - {event.display_time ?? formatDate(event.scheduled_for)}</p>
                       </div>
                       <span className="rounded-full bg-[#f4eafe] px-2 py-1 text-xs font-black text-purple-700">
                         {event.source || "app"}
@@ -963,14 +1071,14 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="font-black">{schedule.friendly_label || supportLabel(schedule.interaction_type)}</p>
                           <span className={`rounded-full px-2 py-1 text-xs font-black ${schedule.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700" : "bg-[#f4eafe] text-purple-700"}`}>
-                            {schedule.status.toLowerCase()}
+                            {lifecycleStatusLabel(schedule.status)}
                           </span>
                         </div>
                         <p className="mt-1 text-[#7d6b65]">{supportFrequency(schedule)}</p>
                         <p className="text-[#7d6b65]">Next: {formatDate(schedule.next_run_at)}</p>
                         <p className="text-[#7d6b65]">Last result: {schedule.last_result ?? "No recent result"}</p>
                         <p className="text-[#7d6b65]">
-                          Consent: {schedule.consent_status ?? "not_required"} - Admin edits {schedule.admin_edit_allowed ? "allowed" : "not allowed"}
+                          Consent: {consentStatusLabel(schedule.consent_status ?? "not_required")} - Admin edits {schedule.admin_edit_allowed ? "allowed" : "not allowed"}
                         </p>
                         {!canEditSupport && (
                           <p className="mt-2 rounded-xl bg-[#fff3e8] px-3 py-2 font-bold text-[#8a4a00]">
@@ -1107,16 +1215,28 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
         {activeDetailTab === "activity" && <section className="grid gap-4">
           <AuditMilestones detail={detail} />
           <ActivityTimeline detail={detail} />
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <LogPanel title="Communications" rows={detail.communications} />
+          <div className="grid gap-4">
             <LogPanel title="Consent attempts" rows={detail.consent_attempts} />
             <LogPanel title="Support activity" rows={detail.interaction_logs ?? []} />
             <LogPanel title="Schedule changes" rows={detail.consent_audit_logs ?? []} />
             <LogPanel title="Lifecycle history" rows={detail.lifecycle_events} />
           </div>
         </section>}
+        {activeDetailTab === "communications" && <section className="grid gap-4">
+          <div className="rounded-2xl border border-[#eadfd5] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-xl font-black">Communications</h3>
+                <p className="mt-1 text-sm text-[#7d6b65]">Invite sends, reminders, delivery status, and access link activity.</p>
+              </div>
+              <span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-black text-purple-700">{detail.communications.length} messages</span>
+            </div>
+          </div>
+          <LogPanel title="Message history" rows={detail.communications} />
+          <LogPanel title="Access links" rows={detail.access_links ?? []} />
+        </section>}
       </div>
-    </div>
+    </aside>
     </div>
   );
 }
@@ -1128,8 +1248,8 @@ export function LogPanel({ title, rows }: { title: string; rows: JsonRecord[] })
       <div className="mt-3 max-h-72 overflow-auto text-sm">
         {rows.length === 0 ? <p className="text-[#7d6b65]">No records yet.</p> : rows.map((row) => (
           <div key={row.id} className="mb-2 rounded-2xl bg-[#fbf8f5] p-3">
-            <p className="font-bold">{row.purpose ?? row.event_type ?? row.interaction_type ?? row.outcome ?? row.status ?? row.action ?? row.changed_by_role ?? "Record"}</p>
-            <p className="text-[#7d6b65]">{row.channel ? `${row.channel} - ` : ""}{row.created_at ? new Date(row.created_at).toLocaleString() : ""}</p>
+            <p className="font-bold">{cleanLabel(stringValue(row.purpose) ?? stringValue(row.event_type) ?? stringValue(row.interaction_type) ?? stringValue(row.outcome) ?? stringValue(row.status) ?? stringValue(row.action) ?? stringValue(row.changed_by_role) ?? "Record")}</p>
+            <p className="text-[#7d6b65]">{row.channel ? `${cleanLabel(stringValue(row.channel))} - ` : ""}{row.created_at ? new Date(String(row.created_at)).toLocaleString() : ""}</p>
           </div>
         ))}
       </div>
@@ -1391,10 +1511,52 @@ export function TierSection({
   );
 }
 
-export function CommunicationsSection({ communications }: { communications: Communication[] }) {
+function providerStatusLabel(status: CommunicationProviderStatus["status"]) {
+  if (status === "failing") return "Failing";
+  if (status === "not_configured") return "Not configured";
+  return "Configured";
+}
+
+function providerStatusTone(status: CommunicationProviderStatus["status"]) {
+  if (status === "failing") return "border-red-200 bg-red-50 text-red-800";
+  if (status === "not_configured") return "border-amber-200 bg-amber-50 text-amber-900";
+  return "border-emerald-100 bg-emerald-50 text-emerald-800";
+}
+
+export function CommunicationsSection({ communications, providerStatus = [] }: { communications: Communication[]; providerStatus?: CommunicationProviderStatus[] }) {
   return (
     <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5">
-      <h2 className="font-serif text-3xl">Communication log</h2>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-serif text-3xl">Communication log</h2>
+          <p className="mt-1 max-w-2xl text-sm text-[#7d6b65]">Delivery health for email and WhatsApp, followed by the latest communication audit trail.</p>
+        </div>
+        <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-black text-purple-700">{communications.length} messages</span>
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2">
+        {providerStatus.map((provider) => (
+          <article key={provider.channel} className={`rounded-3xl border p-4 ${providerStatusTone(provider.status)}`}>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.08em] opacity-75">{provider.label}</p>
+                <h3 className="mt-1 text-2xl font-black">{providerStatusLabel(provider.status)}</h3>
+              </div>
+              <span className="rounded-full bg-white/70 px-3 py-1 text-xs font-black">{provider.provider}</span>
+            </div>
+            <div className="mt-4 grid gap-2 text-sm font-semibold">
+              <p>Last sent: {provider.last_sent_at ? formatDate(provider.last_sent_at) : "No sent message yet"}</p>
+              <p>Last error: {provider.last_error ?? "None recorded"}</p>
+              {provider.last_error_at && <p>Error time: {formatDate(provider.last_error_at)}</p>}
+            </div>
+          </article>
+        ))}
+        {providerStatus.length === 0 && (
+          <div className="rounded-3xl border border-[#eadfd5] bg-[#fbf8f5] p-4 text-sm font-bold text-[#7d6b65] md:col-span-2">
+            Provider health could not be loaded yet.
+          </div>
+        )}
+      </div>
       <div className="mt-4 grid gap-3">
         {communications.map((item) => {
           const error = item.metadata && typeof item.metadata === "object"
@@ -1402,8 +1564,8 @@ export function CommunicationsSection({ communications }: { communications: Comm
             : "";
           return (
             <div key={item.id} className="rounded-3xl border p-4">
-              <p className="font-bold">{item.purpose} - {item.channel}</p>
-              <p className="text-sm text-[#7d6b65]">{item.recipient} - {item.status} - {new Date(item.created_at).toLocaleString()}</p>
+              <p className="font-bold">{cleanLabel(item.purpose)} - {cleanLabel(item.channel)}</p>
+              <p className="text-sm text-[#7d6b65]">{item.recipient} - {lifecycleStatusLabel(item.status)} - {new Date(item.created_at).toLocaleString()}</p>
               {item.status === "failed" && error && (
                 <p className="mt-2 rounded-2xl bg-red-50 px-3 py-2 text-sm font-bold text-red-700">{error}</p>
               )}
@@ -1521,7 +1683,7 @@ export function AnalyticsSection({ summary }: { summary: JsonRecord | null }) {
           <div className="mt-3 grid gap-2 text-sm">
             {journeyDropoffs.length === 0 && <p className="text-[#7d6b65]">No dropped journey steps yet.</p>}
             {journeyDropoffs.map((row) => (
-              <p key={row.journey_step} className="flex justify-between gap-4"><span>{row.journey_step}</span><strong>{row.count} ({row.rate}%)</strong></p>
+              <p key={row.journey_step} className="flex justify-between gap-4"><span>{journeyStepLabel(row.journey_step)}</span><strong>{row.count} ({row.rate}%)</strong></p>
             ))}
           </div>
         </div>

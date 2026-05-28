@@ -92,6 +92,7 @@ import RoomScreen from "./social/RoomScreen";
 
 const ProxyPendingPage = lazy(() => import("./pages/admin/ProxyPendingPage"));
 const LifecycleAdminPage = lazy(() => import("./pages/admin/LifecycleAdminPage"));
+const AdminActivityPage = lazy(() => import("./pages/admin/AdminActivityPage"));
 const AdminUsersPage = lazy(() => import("./pages/admin/AdminUsersPage"));
 const PhoneOnboardingPage = lazy(() => import("./pages/admin/PhoneOnboardingPage"));
 const HomeCardsAdminPage = lazy(() => import("./pages/admin/HomeCardsAdminPage"));
@@ -360,6 +361,7 @@ const App = () => (
                 <Route path="/shared/check-in/:token" element={<SharedCheckinReport />} />
                 <Route path="/admin/proxy-pending" element={<AdminRoute><ProxyPendingPage /></AdminRoute>} />
                 <Route path="/admin/lifecycle" element={<AdminRoute><LifecycleAdminPage /></AdminRoute>} />
+                <Route path="/admin/activity" element={<AdminRoute><AdminActivityPage /></AdminRoute>} />
                 <Route path="/admin/users" element={<AdminRoute><AdminUsersPage /></AdminRoute>} />
                 <Route path="/admin/phone-onboarding" element={<AdminRoute><PhoneOnboardingPage /></AdminRoute>} />
                 <Route path="/admin/home-cards" element={<AdminRoute><HomeCardsAdminPage /></AdminRoute>} />

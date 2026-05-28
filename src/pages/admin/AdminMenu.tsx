@@ -5,6 +5,7 @@ const SUPER_ADMIN_EMAIL = (import.meta.env.VITE_SUPER_ADMIN_EMAIL ?? "karim.assa
 
 const adminItems = [
   { label: "Lifecycle", path: "/admin/lifecycle", description: "Users, forms, consent and orgs" },
+  { label: "Activity", path: "/admin/activity", description: "Admin audit trail" },
   { label: "Admins", path: "/admin/users", description: "Manage admin access" },
   { label: "Phone onboarding", path: "/admin/phone-onboarding", description: "Inbound caller intake" },
   { label: "Home cards", path: "/admin/home-cards", description: "Personalized Today cards" },

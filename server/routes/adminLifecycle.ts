@@ -163,6 +163,13 @@ const bulkImportSchema = bulkPreviewSchema.extend({
   send_links: z.boolean().optional().default(false),
 });
 
+const bulkUserActionSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(100),
+  action: z.enum(["disable", "delete_hide", "assign_org", "change_tier", "resend_invite"]),
+  organization_id: z.string().uuid().nullable().optional(),
+  tier: z.string().trim().min(1).optional(),
+});
+
 const tierSchema = z.object({
   tier: z.string().min(1),
   display_name: z.string().min(1),
@@ -402,6 +409,85 @@ function matchingInviteRecipient(
 function publicBaseUrl(req: Request): string {
   return process.env.APP_URL
     ?? `${req.protocol}://${req.get("host")}`;
+}
+
+function hasEnvValue(keys: string[]) {
+  return keys.some((key) => Boolean(process.env[key]?.trim()));
+}
+
+function communicationMetadata(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function communicationError(row: typeof communicationsLog.$inferSelect | null) {
+  if (!row) return null;
+  const metadata = communicationMetadata(row.metadata);
+  const error = [
+    metadata.dispatch_error,
+    metadata.provider_error_message,
+    metadata.provider_status,
+  ].find((value) => typeof value === "string" && value.trim());
+  return typeof error === "string" ? error.trim() : null;
+}
+
+function communicationTime(row: typeof communicationsLog.$inferSelect | null) {
+  if (!row) return null;
+  return (row.sent_at ?? row.created_at)?.toISOString?.() ?? null;
+}
+
+function communicationsProviderConfig(channel: "email" | "whatsapp") {
+  if (channel === "email") {
+    const hasSendGrid = Boolean(process.env.SENDGRID_API_KEY?.trim());
+    const hasSmtp = Boolean(process.env.SMTP_HOST?.trim() && process.env.SMTP_USER?.trim() && process.env.SMTP_PASS?.trim());
+    return {
+      provider: hasSendGrid ? "SendGrid" : hasSmtp ? "SMTP" : "Email",
+      configured: hasSendGrid || hasSmtp,
+      missing: hasSendGrid || hasSmtp ? null : "Set SENDGRID_API_KEY or SMTP_HOST/SMTP_USER/SMTP_PASS.",
+    };
+  }
+
+  const hasTwilioCredentials = hasEnvValue(["TWILIO_ACCOUNT_SID"]) && hasEnvValue(["TWILIO_AUTH_TOKEN"]);
+  const hasWhatsappSender = hasEnvValue(["TWILIO_WHATSAPP_MESSAGING_SERVICE_SID", "TWILIO_WHATSAPP_FROM", "TWILIO_WHATSAPP_FROM_NUMBER"]);
+  const missing = [
+    !hasTwilioCredentials ? "Set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN." : "",
+    !hasWhatsappSender ? "Set TWILIO_WHATSAPP_FROM or TWILIO_WHATSAPP_MESSAGING_SERVICE_SID." : "",
+  ].filter(Boolean).join(" ");
+
+  return {
+    provider: hasWhatsappSender ? "Twilio WhatsApp" : "WhatsApp",
+    configured: hasTwilioCredentials && hasWhatsappSender,
+    missing: missing || null,
+  };
+}
+
+async function communicationProviderStatus() {
+  const rows = await db
+    .select()
+    .from(communicationsLog)
+    .where(inArray(communicationsLog.channel, ["email", "whatsapp"]))
+    .orderBy(desc(communicationsLog.created_at))
+    .limit(500);
+
+  return (["email", "whatsapp"] as const).map((channel) => {
+    const config = communicationsProviderConfig(channel);
+    const sent = rows.find((row) => row.channel === channel && row.status === "sent") ?? null;
+    const failed = rows.find((row) => row.channel === channel && row.status === "failed") ?? null;
+    const sentTime = sent ? new Date(sent.sent_at ?? sent.created_at).getTime() : 0;
+    const failedTime = failed ? new Date(failed.created_at).getTime() : 0;
+    const failing = Boolean(config.configured && failed && failedTime >= sentTime);
+
+    return {
+      channel,
+      label: channel === "email" ? "Email" : "WhatsApp",
+      provider: config.provider,
+      configured: config.configured,
+      status: !config.configured ? "not_configured" : failing ? "failing" : "configured",
+      last_sent_at: communicationTime(sent),
+      last_error_at: failed?.created_at?.toISOString?.() ?? null,
+      last_error: communicationError(failed) ?? config.missing,
+      missing_config: config.missing,
+    };
+  });
 }
 
 function isMissingRelationError(error: unknown): boolean {
@@ -1190,6 +1276,101 @@ async function recordEvent(input: {
   });
 }
 
+function activityString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function activityActor(metadata: Record<string, unknown>, channel?: string | null) {
+  return (
+    activityString(metadata.changed_by)
+    ?? activityString(metadata.deleted_by)
+    ?? activityString(metadata.shared_by)
+    ?? activityString(metadata.updated_by)
+    ?? activityString(metadata.created_by)
+    ?? activityString(metadata.triggered_by)
+    ?? activityString(metadata.actor)
+    ?? (channel === "admin" ? "Admin" : null)
+    ?? activityString(channel)
+    ?? "System"
+  );
+}
+
+function activityLabel(value: string | null | undefined) {
+  return (value ?? "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function lifecycleActivityAction(eventType: string) {
+  const labels: Record<string, string> = {
+    access_link_created: "Created access link",
+    admin_role_updated: "Updated admin access",
+    admin_subscription_updated: "Changed tier",
+    consent_result_recorded: "Recorded consent result",
+    consent_triggered: "Started consent call",
+    duplicate_merged: "Merged duplicate user",
+    intake_created: "Created intake",
+    link_sent: "Sent invite link",
+    organization_archived: "Archived organization",
+    organization_assigned: "Assigned organization",
+    organization_created: "Created organization",
+    organization_restored: "Restored organization",
+    organization_updated: "Updated organization",
+    profile_updated: "Updated profile",
+    scheduled_event_cancelled: "Cancelled scheduled event",
+    scheduled_event_created: "Created scheduled event",
+    scheduled_event_paused: "Paused scheduled event",
+    scheduled_event_resumed: "Resumed scheduled event",
+    scheduled_event_updated: "Updated scheduled event",
+    user_deleted: "Removed from Users",
+    user_disabled: "Disabled app access",
+    user_enabled: "Enabled app access",
+  };
+  return labels[eventType] ?? activityLabel(eventType);
+}
+
+function lifecycleActivityResult(input: {
+  eventType: string;
+  fromStatus?: string | null;
+  toStatus?: string | null;
+  metadata: Record<string, unknown>;
+}) {
+  const error = activityString(input.metadata.dispatch_error) ?? activityString(input.metadata.error);
+  if (error) return { status: "failed" as const, label: `Failed: ${error}` };
+  if (input.eventType.includes("failed")) return { status: "failed" as const, label: "Failed" };
+  if (input.fromStatus && input.toStatus && input.fromStatus !== input.toStatus) {
+    return { status: "success" as const, label: `${activityLabel(input.fromStatus)} -> ${activityLabel(input.toStatus)}` };
+  }
+  return { status: "success" as const, label: "Completed" };
+}
+
+function lifecycleActivityDetails(metadata: Record<string, unknown>) {
+  const details = [
+    activityString(metadata.organization_name) ? `Org: ${activityString(metadata.organization_name)}` : null,
+    activityString(metadata.previous_subscription_tier) && activityString(metadata.subscription_tier)
+      ? `Tier: ${activityString(metadata.previous_subscription_tier)} -> ${activityString(metadata.subscription_tier)}`
+      : activityString(metadata.subscription_tier)
+        ? `Tier: ${activityString(metadata.subscription_tier)}`
+        : null,
+    activityString(metadata.reason) ? `Reason: ${activityString(metadata.reason)}` : null,
+    activityString(metadata.status) ? `Status: ${activityString(metadata.status)}` : null,
+  ].filter(Boolean);
+  return details.slice(0, 3).join(" - ");
+}
+
+function organizationTargetFromMetadata(metadata: Record<string, unknown>) {
+  const organizationName = activityString(metadata.organization_name);
+  const organizationId = activityString(metadata.organization_id);
+  if (!organizationName && !organizationId) return null;
+  return {
+    target_type: "organization",
+    target_name: organizationName ?? organizationId ?? "Organization",
+    target_detail: organizationName && organizationId ? organizationId : null,
+  };
+}
+
 async function optionalAdminDelete(label: string, query: Promise<unknown>) {
   try {
     await query;
@@ -1392,6 +1573,150 @@ adminLifecycleRouter.get("/summary", async (req: Request, res: Response) => {
   }
 });
 
+adminLifecycleRouter.get("/activity", async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+
+  const requestedLimit = Number(req.query.limit ?? 150);
+  const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.trunc(requestedLimit), 25), 300) : 150;
+
+  try {
+    const [eventRows, communicationRows] = await Promise.all([
+      db
+        .select({
+          id: lifecycleEvents.id,
+          intake_id: lifecycleEvents.intake_id,
+          user_id: lifecycleEvents.user_id,
+          event_type: lifecycleEvents.event_type,
+          from_status: lifecycleEvents.from_status,
+          to_status: lifecycleEvents.to_status,
+          channel: lifecycleEvents.channel,
+          metadata: lifecycleEvents.metadata,
+          created_at: lifecycleEvents.created_at,
+          intake_name: userIntakes.name,
+          intake_phone: userIntakes.phone,
+          intake_email: userIntakes.email,
+          intake_user_type: userIntakes.user_type,
+          intake_entry_point: userIntakes.entry_point,
+          organization_id: organizations.id,
+          organization_name: organizations.name,
+        })
+        .from(lifecycleEvents)
+        .leftJoin(userIntakes, eq(lifecycleEvents.intake_id, userIntakes.id))
+        .leftJoin(organizations, eq(userIntakes.organization_id, organizations.id))
+        .orderBy(desc(lifecycleEvents.created_at))
+        .limit(limit),
+      db
+        .select({
+          id: communicationsLog.id,
+          intake_id: communicationsLog.intake_id,
+          user_id: communicationsLog.user_id,
+          channel: communicationsLog.channel,
+          recipient: communicationsLog.recipient,
+          purpose: communicationsLog.purpose,
+          status: communicationsLog.status,
+          metadata: communicationsLog.metadata,
+          created_at: communicationsLog.created_at,
+          sent_at: communicationsLog.sent_at,
+          intake_name: userIntakes.name,
+          intake_phone: userIntakes.phone,
+          intake_email: userIntakes.email,
+          intake_user_type: userIntakes.user_type,
+          intake_entry_point: userIntakes.entry_point,
+          organization_id: organizations.id,
+          organization_name: organizations.name,
+        })
+        .from(communicationsLog)
+        .leftJoin(userIntakes, eq(communicationsLog.intake_id, userIntakes.id))
+        .leftJoin(organizations, eq(userIntakes.organization_id, organizations.id))
+        .orderBy(desc(communicationsLog.created_at))
+        .limit(limit),
+    ]);
+
+    const lifecycleActivity = eventRows.map((row) => {
+      const metadata = jsonRecord(row.metadata);
+      const organizationTarget = organizationTargetFromMetadata(metadata);
+      const result = lifecycleActivityResult({
+        eventType: row.event_type,
+        fromStatus: row.from_status,
+        toStatus: row.to_status,
+        metadata,
+      });
+      const userTargetName = row.intake_name || row.intake_email || row.intake_phone || row.user_id || "System";
+      const target = organizationTarget ?? (row.organization_id && row.event_type.startsWith("organization_")
+        ? {
+          target_type: "organization",
+          target_name: row.organization_name ?? row.organization_id,
+          target_detail: row.organization_name ? row.organization_id : null,
+        }
+        : {
+          target_type: row.user_id || row.intake_id ? "user" : "system",
+          target_name: userTargetName,
+          target_detail: [
+            row.intake_user_type ? activityLabel(row.intake_user_type) : null,
+            row.intake_entry_point ? activityLabel(row.intake_entry_point) : null,
+          ].filter(Boolean).join(" - ") || null,
+        });
+
+      return {
+        id: `event-${row.id}`,
+        source: "lifecycle_event",
+        actor: activityActor(metadata, row.channel),
+        action: lifecycleActivityAction(row.event_type),
+        event_type: row.event_type,
+        result: result.label,
+        result_status: result.status,
+        channel: row.channel,
+        created_at: row.created_at,
+        details: lifecycleActivityDetails(metadata),
+        metadata,
+        ...target,
+      };
+    });
+
+    const communicationActivity = communicationRows.map((row) => {
+      const metadata = jsonRecord(row.metadata);
+      const error = activityString(metadata.dispatch_error) ?? activityString(metadata.provider_error_message) ?? activityString(metadata.provider_status);
+      const failed = row.status === "failed";
+      const queued = row.status === "queued";
+      const recipientName = activityString(metadata.recipient_name);
+      return {
+        id: `communication-${row.id}`,
+        source: "communication",
+        actor: activityActor(metadata, "admin"),
+        action: row.purpose === "share_signup_form"
+          ? `Shared signup invite by ${activityLabel(row.channel)}`
+          : `${activityLabel(row.purpose)} by ${activityLabel(row.channel)}`,
+        event_type: row.purpose,
+        result: failed ? `Failed: ${error ?? "Delivery failed"}` : queued ? "Queued" : "Sent",
+        result_status: failed ? "failed" : queued ? "warning" : "success",
+        channel: row.channel,
+        created_at: row.created_at,
+        target_type: "recipient",
+        target_name: recipientName ?? row.recipient,
+        target_detail: recipientName ? row.recipient : null,
+        details: activityString(metadata.url) ?? "",
+        metadata,
+      };
+    });
+
+    const activity = [...lifecycleActivity, ...communicationActivity]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, limit);
+
+    return res.json({
+      activity,
+      summary: {
+        total: activity.length,
+        failed: activity.filter((item) => item.result_status === "failed").length,
+        warning: activity.filter((item) => item.result_status === "warning").length,
+        latest_at: activity[0]?.created_at ?? null,
+      },
+    });
+  } catch (error) {
+    return adminLifecycleLoadError(res, "activity", error);
+  }
+});
+
 adminLifecycleRouter.get("/home-plan-cards", async (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
 
@@ -1572,11 +1897,223 @@ adminLifecycleRouter.get("/users", async (req: Request, res: Response) => {
         query: req.query.query ? String(req.query.query) : undefined,
         callback_onboarding: optionalBooleanParam(req.query.callback_onboarding),
         inbound_phone_onboarding: optionalBooleanParam(req.query.inbound_phone_onboarding),
+        include_removed: optionalBooleanParam(req.query.include_removed),
       }),
     });
   } catch (error) {
     return adminLifecycleLoadError(res, "users", error);
   }
+});
+
+adminLifecycleRouter.post("/users/bulk", async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+  const parsed = bulkUserActionSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid bulk user action" });
+
+  const ids = Array.from(new Set(parsed.data.ids));
+  const actor = req.user?.email ?? req.user?.id ?? "admin";
+  const now = new Date();
+  const results: Array<{
+    id: string;
+    name?: string;
+    status: "success" | "failed";
+    message: string;
+    hidden_intake_ids?: string[];
+  }> = [];
+
+  if (parsed.data.action === "assign_org" && !parsed.data.organization_id) {
+    return res.status(400).json({ error: "Choose an organization before applying the bulk action." });
+  }
+  if (parsed.data.action === "change_tier" && !parsed.data.tier) {
+    return res.status(400).json({ error: "Choose a tier before applying the bulk action." });
+  }
+
+  const [intakeRows, targetOrg] = await Promise.all([
+    db.select().from(userIntakes).where(inArray(userIntakes.id, ids)),
+    parsed.data.organization_id
+      ? db.select().from(organizations).where(eq(organizations.id, parsed.data.organization_id)).limit(1)
+      : Promise.resolve([]),
+  ]);
+  if (parsed.data.organization_id && (!targetOrg[0] || !targetOrg[0].is_active)) {
+    return res.status(400).json({ error: "Choose an active organization." });
+  }
+
+  const intakesById = new Map(intakeRows.map((intake) => [intake.id, intake]));
+
+  for (const id of ids) {
+    const intake = intakesById.get(id);
+    if (!intake) {
+      results.push({ id, status: "failed", message: "User was not found." });
+      continue;
+    }
+
+    try {
+      const userId = targetUserIdForIntake(intake);
+
+      if (parsed.data.action === "assign_org") {
+        await db.update(userIntakes).set({
+          organization_id: parsed.data.organization_id ?? null,
+          last_activity_at: now,
+          updated_at: now,
+        }).where(eq(userIntakes.id, intake.id));
+        await recordEvent({
+          intakeId: intake.id,
+          userId,
+          eventType: "organization_assigned",
+          channel: "admin",
+          metadata: {
+            organization_id: parsed.data.organization_id,
+            organization_name: targetOrg[0]?.name ?? null,
+            changed_by: actor,
+          },
+        });
+        results.push({ id, name: intake.name, status: "success", message: `Assigned to ${targetOrg[0]?.name ?? "organization"}.` });
+        continue;
+      }
+
+      if (parsed.data.action === "resend_invite") {
+        const linkResult = await lifecycleService.sendIntakeLink(intake.id, publicBaseUrl(req));
+        if (!linkResult) {
+          results.push({ id, name: intake.name, status: "failed", message: "Invite could not be created." });
+          continue;
+        }
+        const dispatchResult = await dispatchCommunicationsByIds([linkResult.communication.id]);
+        const delivery = dispatchResult.results[0];
+        if (delivery?.status === "failed") {
+          results.push({ id, name: intake.name, status: "failed", message: delivery.error ? `Invite created, delivery failed: ${delivery.error}` : "Invite created, delivery failed." });
+          continue;
+        }
+        results.push({ id, name: intake.name, status: "success", message: "Invite sent." });
+        continue;
+      }
+
+      const { scope, errors: scopeErrors } = await safeLifecycleIdentityScope(intake);
+      const intakeWhere = lifecycleIntakeIdentityWhere({
+        selectedIntakeId: intake.id,
+        ids: scope.ids,
+        emails: scope.emails,
+        phones: scope.phones,
+      });
+      const profileWhere = profileIdentityWhere(scope);
+
+      if (parsed.data.action === "disable") {
+        const disabledProfiles = profileWhere
+          ? await optionalAdminRows(db.update(profiles).set({
+            account_status: "disabled",
+            disabled_at: now,
+            disabled_reason: "Disabled by admin bulk action",
+            disabled_by: actor,
+            updated_at: now,
+          }).where(profileWhere).returning({ id: profiles.id }))
+          : [];
+        await db.update(userIntakes).set({
+          status: "dropped",
+          journey_step: "admin_disabled",
+          dropped_at: now,
+          last_activity_at: now,
+          updated_at: now,
+        }).where(intakeWhere);
+        await recordEvent({
+          intakeId: intake.id,
+          userId,
+          eventType: "user_disabled",
+          fromStatus: intake.status,
+          toStatus: "dropped",
+          channel: "admin",
+          metadata: { changed_by: actor, bulk_action: true, matched_profile_ids: disabledProfiles.map((profile) => profile.id), scope_errors: scopeErrors },
+        });
+        results.push({ id, name: intake.name, status: "success", message: disabledProfiles.length ? `Disabled app access for ${disabledProfiles.length} linked profile${disabledProfiles.length === 1 ? "" : "s"}.` : "Lifecycle user disabled. No linked app profile was found." });
+        continue;
+      }
+
+      if (parsed.data.action === "change_tier") {
+        const tier = normalizeSubscriptionTier(parsed.data.tier);
+        const syncedProfiles = profileWhere
+          ? await optionalAdminRows(db.update(profiles).set({
+            subscription_tier: tier,
+            subscription_status: "active",
+            updated_at: now,
+          }).where(profileWhere).returning({ id: profiles.id }))
+          : [];
+        await db.update(userIntakes).set({
+          tier,
+          last_activity_at: now,
+          updated_at: now,
+        }).where(and(
+          intakeWhere,
+          sql`coalesce(${userIntakes.metadata}->>'hidden_from_lifecycle', 'false') <> 'true'`,
+          sql`coalesce(${userIntakes.metadata}->>'deleted_from_lifecycle', 'false') <> 'true'`,
+        ));
+        await recordEvent({
+          intakeId: intake.id,
+          userId,
+          eventType: "admin_subscription_updated",
+          channel: "admin",
+          metadata: {
+            changed_by: actor,
+            bulk_action: true,
+            previous_subscription_tier: intake.tier,
+            subscription_tier: tier,
+            matched_profile_ids: syncedProfiles.map((profile) => profile.id),
+            scope_errors: scopeErrors,
+          },
+        });
+        results.push({ id, name: intake.name, status: "success", message: `Tier changed to ${tier}.` });
+        continue;
+      }
+
+      const matchingIntakes = await db.select().from(userIntakes).where(intakeWhere);
+      const hiddenIds: string[] = [];
+      for (const row of matchingIntakes) {
+        const [hidden] = await db.update(userIntakes).set({
+          status: "dropped",
+          journey_step: "admin_deleted",
+          dropped_at: now,
+          last_activity_at: now,
+          updated_at: now,
+          metadata: {
+            ...jsonRecord(row.metadata),
+            hidden_from_lifecycle: true,
+            deleted_from_lifecycle: true,
+            deleted_at: now.toISOString(),
+            deleted_by: actor,
+            bulk_action: true,
+            deleted_identity_scope: {
+              intake_ids: scope.intakeIds,
+              profile_or_login_ids: scope.ids,
+              emails: scope.emails,
+              phones: scope.phones,
+            },
+          },
+        }).where(eq(userIntakes.id, row.id)).returning({ id: userIntakes.id });
+        if (hidden) hiddenIds.push(hidden.id);
+      }
+      await recordEvent({
+        intakeId: intake.id,
+        userId,
+        eventType: "user_deleted",
+        fromStatus: intake.status,
+        toStatus: "dropped",
+        channel: "admin",
+        metadata: {
+          changed_by: actor,
+          bulk_action: true,
+          hidden_from_lifecycle: true,
+          hidden_intake_ids: hiddenIds,
+          app_access_unchanged: true,
+          scope_errors: scopeErrors,
+        },
+      });
+      results.push({ id, name: intake.name, status: "success", message: "Removed from Users. App access was unchanged.", hidden_intake_ids: hiddenIds });
+    } catch (error) {
+      console.error("[admin-lifecycle] bulk user action failed", { id, action: parsed.data.action, error });
+      results.push({ id, name: intake.name, status: "failed", message: String((error as { message?: string })?.message ?? error) });
+    }
+  }
+
+  const succeeded = results.filter((result) => result.status === "success").length;
+  const failed = results.filter((result) => result.status === "failed").length;
+  return res.json({ action: parsed.data.action, total: ids.length, succeeded, failed, results });
 });
 
 adminLifecycleRouter.post("/callbacks/:id/trigger", async (req: Request, res: Response) => {
@@ -2317,8 +2854,8 @@ adminLifecycleRouter.post("/users/:id/enable", async (req: Request, res: Respons
 
 adminLifecycleRouter.delete("/users/:id", async (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
-  const parsed = z.object({ confirm: z.literal("DELETE") }).safeParse(req.body ?? {});
-  if (!parsed.success) return res.status(400).json({ error: "Type DELETE to confirm permanent user deletion." });
+  const parsed = z.object({ confirm: z.enum(["REMOVE_FROM_USERS", "DELETE"]) }).safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: "Confirm removal from the Users table." });
 
   const [intake] = await db.select().from(userIntakes).where(eq(userIntakes.id, req.params.id)).limit(1);
   if (!intake) return res.status(404).json({ error: "User intake not found" });
@@ -2382,11 +2919,8 @@ adminLifecycleRouter.delete("/users/:id", async (req: Request, res: Response) =>
             emails: scope.emails,
             phones: scope.phones,
           },
-          delete_cleanup: {
-            started: true,
-            profile_disabled: false,
-            login_detached: false,
-          },
+          remove_from_users: true,
+          app_access_unchanged: true,
         },
       }).where(eq(userIntakes.id, row.id)).returning({ id: userIntakes.id });
       if (hiddenIntake) hiddenIntakeIds.push(hiddenIntake.id);
@@ -2401,103 +2935,8 @@ adminLifecycleRouter.delete("/users/:id", async (req: Request, res: Response) =>
     return res.status(500).json({ error: "User could not be removed from the Users table. Please refresh and try again." });
   }
 
-  await bestEffortAdminDelete("communications for intake", db.delete(communicationsLog).where(eq(communicationsLog.intake_id, intake.id)), cleanupErrors);
-  await bestEffortAdminDelete("consent attempts for intake", db.delete(consentAttempts).where(eq(consentAttempts.intake_id, intake.id)), cleanupErrors);
-  await bestEffortAdminDelete("access links for intake", db.delete(accessLinks).where(eq(accessLinks.intake_id, intake.id)), cleanupErrors);
-  await bestEffortAdminDelete("lifecycle events for intake", db.delete(lifecycleEvents).where(eq(lifecycleEvents.intake_id, intake.id)), cleanupErrors);
-
-  if (userId) {
-    await bestEffortAdminDelete("session state", db.delete(sessionState).where(eq(sessionState.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("session exchanges", db.delete(sessionExchanges).where(eq(sessionExchanges.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("agent difficulty", db.delete(agentDifficulty).where(eq(agentDifficulty.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("caregiver alerts", db.delete(caregiverAlerts).where(eq(caregiverAlerts.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("medication adherence", db.delete(medicationAdherence).where(eq(medicationAdherence.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("onboarding state", db.delete(onboardingState).where(eq(onboardingState.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete(
-      "consent log",
-      db.delete(consentLog).where(or(eq(consentLog.user_id, userId), eq(consentLog.target_user_id, userId))),
-      cleanupErrors,
-    );
-    await bestEffortAdminDelete(
-      "team invitations",
-      db.delete(teamInvitations).where(or(eq(teamInvitations.senior_id, userId), eq(teamInvitations.accepted_user_id, userId))),
-      cleanupErrors,
-    );
-    await bestEffortAdminDelete("user channel identity", db.delete(userChannelIdentity).where(eq(userChannelIdentity.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("user channel preferences", db.delete(userChannelPreferences).where(eq(userChannelPreferences.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("billing events", db.delete(billingEvents).where(eq(billingEvents.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("scam checks", db.delete(scamChecks).where(eq(scamChecks.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("home scans", db.delete(homeScans).where(eq(homeScans.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("wound scans", db.delete(woundScans).where(eq(woundScans.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("companion profile", db.delete(companionProfiles).where(eq(companionProfiles.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete(
-      "companion connections",
-      db.delete(companionConnections).where(or(eq(companionConnections.requester_id, userId), eq(companionConnections.recipient_id, userId))),
-      cleanupErrors,
-    );
-    await bestEffortAdminDelete("social room visits", db.delete(socialRoomVisits).where(eq(socialRoomVisits.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("social interests", db.delete(socialUserInterests).where(eq(socialUserInterests.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete(
-      "social connections",
-      db.delete(socialConnections).where(or(eq(socialConnections.user_id_a, userId), eq(socialConnections.user_id_b, userId))),
-      cleanupErrors,
-    );
-    await bestEffortAdminDelete("triage reports", db.delete(triageReports).where(eq(triageReports.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("vitals readings", db.delete(vitalsReadings).where(eq(vitalsReadings.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("user providers", db.delete(userProviders).where(eq(userProviders.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("concierge pending", db.delete(conciergePending).where(eq(conciergePending.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("concierge sessions", db.delete(conciergeSessions).where(eq(conciergeSessions.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("concierge reminders", db.delete(conciergeReminders).where(eq(conciergeReminders.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("utility review runs", db.delete(utilityReviewRuns).where(eq(utilityReviewRuns.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("concierge feedback", db.delete(conciergeRecommendationFeedback).where(eq(conciergeRecommendationFeedback.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("voice recommendation feedback", db.delete(voiceRecommendationFeedback).where(eq(voiceRecommendationFeedback.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("voice timeline events", db.delete(voiceTimelineEvents).where(eq(voiceTimelineEvents.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("scheduled event logs", db.delete(scheduledEventLogs).where(eq(scheduledEventLogs.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("scheduled events", db.delete(scheduledEvents).where(eq(scheduledEvents.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("scheduled interactions", db.delete(scheduledInteractions).where(eq(scheduledInteractions.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("interaction logs", db.delete(interactionLogs).where(eq(interactionLogs.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("consent audit logs", db.delete(consentAuditLogs).where(eq(consentAuditLogs.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("communications for user", db.delete(communicationsLog).where(eq(communicationsLog.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete("lifecycle events for user", db.delete(lifecycleEvents).where(eq(lifecycleEvents.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete(
-      "consent attempts for user",
-      db.delete(consentAttempts).where(or(eq(consentAttempts.elder_user_id, userId), eq(consentAttempts.family_user_id, userId))),
-      cleanupErrors,
-    );
-    await bestEffortAdminDelete("user medications", db.delete(userMedications).where(eq(userMedications.user_id, userId)), cleanupErrors);
-    await bestEffortAdminDelete(
-      "profile memberships",
-      db.delete(profileMemberships).where(or(eq(profileMemberships.profile_id, userId), eq(profileMemberships.user_id, userId))),
-      cleanupErrors,
-    );
-    await bestEffortAdminDelete("legacy active profile links", db.update(users).set({ active_profile_id: null }).where(eq(users.active_profile_id, userId)), cleanupErrors);
-  }
-
-  const profileWhere = profileIdentityWhere(scope);
-  const disabledProfiles = profileWhere
-    ? await optionalAdminRows(db.update(profiles).set({
-      account_status: "disabled",
-      disabled_at: deletedAt,
-      disabled_reason: "Deleted from lifecycle admin",
-      disabled_by: deletedBy,
-      updated_at: deletedAt,
-    }).where(profileWhere).returning({ id: profiles.id }))
-    : [];
-  deleted.profile = disabledProfiles.length > 0;
-
-  const loginWhere = legacyUserIdentityWhere(scope);
-  const detachedLogins = loginWhere
-    ? await optionalAdminRows(db.update(users).set({ active_profile_id: null }).where(loginWhere).returning({ id: users.id }))
-    : [];
-  deleted.login = detachedLogins.length > 0;
-
-  const deletedLoginAccounts = loginWhere
-    ? await optionalAdminRows(db.delete(users).where(loginWhere).returning({ id: users.id }))
-    : [];
-  deleted.login_account = deletedLoginAccounts.length > 0;
-
   await bestEffortAdminDelete(
-    "user deleted lifecycle event",
+    "user removed lifecycle event",
     recordEvent({
       intakeId: intake.id,
       userId,
@@ -2513,6 +2952,7 @@ adminLifecycleRouter.delete("/users/:id", async (req: Request, res: Response) =>
         email: intake.email,
         phone: intake.phone,
         hidden_intake_ids: hiddenIntakeIds,
+        app_access_unchanged: true,
         identity_scope: {
           intake_ids: scope.intakeIds,
           profile_or_login_ids: scope.ids,
@@ -2521,7 +2961,6 @@ adminLifecycleRouter.delete("/users/:id", async (req: Request, res: Response) =>
         },
         cleanup: deleted,
         cleanup_errors: cleanupErrors,
-        deleted_login_account_ids: deletedLoginAccounts.map((account) => account.id),
       },
     }),
     cleanupErrors,
@@ -2707,6 +3146,16 @@ adminLifecycleRouter.post("/organizations", async (req: Request, res: Response) 
   if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid organization" });
   try {
     const org = await lifecycleService.createOrganization(parsed.data);
+    await recordEvent({
+      eventType: "organization_created",
+      channel: "admin",
+      metadata: {
+        organization_id: org.id,
+        organization_name: org.name,
+        default_tier: org.default_tier,
+        changed_by: req.user?.email ?? req.user?.id ?? "admin",
+      },
+    });
     return res.status(201).json({ organization: org });
   } catch (error) {
     if (error instanceof lifecycleService.OrganizationConflictError) {
@@ -2733,6 +3182,17 @@ adminLifecycleRouter.patch("/organizations/:id", async (req: Request, res: Respo
       ...parsed.data,
     });
     if (!org) return res.status(404).json({ error: "Organization not found" });
+    await recordEvent({
+      eventType: "organization_updated",
+      channel: "admin",
+      metadata: {
+        organization_id: org.id,
+        organization_name: org.name,
+        default_tier: org.default_tier,
+        changed_by: req.user?.email ?? req.user?.id ?? "admin",
+        changed_fields: Object.keys(parsed.data),
+      },
+    });
     return res.json({ organization: org });
   } catch (error) {
     if (error instanceof lifecycleService.OrganizationConflictError) {
@@ -2753,6 +3213,16 @@ adminLifecycleRouter.delete("/organizations/:id", async (req: Request, res: Resp
   if (!requireAdmin(req, res)) return;
   const org = await lifecycleService.setOrganizationActive(req.params.id, false);
   if (!org) return res.status(404).json({ error: "Organization not found" });
+  await recordEvent({
+    eventType: "organization_archived",
+    channel: "admin",
+    metadata: {
+      organization_id: org.id,
+      organization_name: org.name,
+      default_tier: org.default_tier,
+      changed_by: req.user?.email ?? req.user?.id ?? "admin",
+    },
+  });
   return res.json({ organization: org });
 });
 
@@ -2761,6 +3231,16 @@ adminLifecycleRouter.post("/organizations/:id/restore", async (req: Request, res
   try {
     const org = await lifecycleService.setOrganizationActive(req.params.id, true);
     if (!org) return res.status(404).json({ error: "Organization not found" });
+    await recordEvent({
+      eventType: "organization_restored",
+      channel: "admin",
+      metadata: {
+        organization_id: org.id,
+        organization_name: org.name,
+        default_tier: org.default_tier,
+        changed_by: req.user?.email ?? req.user?.id ?? "admin",
+      },
+    });
     return res.json({ organization: org });
   } catch (error) {
     if (error instanceof lifecycleService.OrganizationConflictError) {
@@ -2861,8 +3341,11 @@ adminLifecycleRouter.post("/plans", async (req: Request, res: Response) => {
 adminLifecycleRouter.get("/communications", async (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
   try {
-    const rows = await db.select().from(communicationsLog).orderBy(desc(communicationsLog.created_at)).limit(150);
-    return res.json({ communications: rows });
+    const [rows, providerStatus] = await Promise.all([
+      db.select().from(communicationsLog).orderBy(desc(communicationsLog.created_at)).limit(150),
+      communicationProviderStatus(),
+    ]);
+    return res.json({ communications: rows, provider_status: providerStatus });
   } catch (error) {
     return adminLifecycleLoadError(res, "communications", error);
   }
@@ -3076,7 +3559,12 @@ adminLifecycleRouter.patch("/admin-users/:userId/role", async (req: Request, res
     userId: existing.id,
     eventType: "admin_role_updated",
     channel: "admin",
-    metadata: { from_role: existing.role, to_role: parsed.data.role, email: existing.email },
+    metadata: {
+      from_role: existing.role,
+      to_role: parsed.data.role,
+      email: existing.email,
+      changed_by: req.user?.email ?? req.user?.id ?? "admin",
+    },
   });
 
   return res.json({ user });

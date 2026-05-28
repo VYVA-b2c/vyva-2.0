@@ -217,6 +217,48 @@ function stringArray(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
 }
 
+function isInboundPhoneOnboardingIntake(intake: Pick<Intake, "metadata" | "source_payload">) {
+  const metadata = metadataRecord(intake.metadata);
+  const sourcePayload = metadataRecord(intake.source_payload);
+  const metadataElevenLabs = metadataRecord(metadata.elevenlabs);
+  const sourceElevenLabs = metadataRecord(sourcePayload.elevenlabs);
+
+  return metadataElevenLabs.inbound_phone_onboarding === true
+    || stringValue(sourceElevenLabs.source) === "inbound_phone_onboarding";
+}
+
+function needsPhoneOnboardingFollowUp(intake: Intake) {
+  if (!isInboundPhoneOnboardingIntake(intake)) return false;
+  const journeyStep = intake.journey_step.toLowerCase();
+  return intake.status !== "active"
+    && intake.status !== "dropped"
+    && !intake.activated_at
+    && !journeyStep.includes("completed")
+    && !journeyStep.includes("complete");
+}
+
+async function countInviteFailures(database: Database) {
+  try {
+    const [row] = await database
+      .select({ count: sql<number>`count(*)::int` })
+      .from(communicationsLog)
+      .where(and(
+        eq(communicationsLog.status, "failed"),
+        inArray(communicationsLog.purpose, [
+          "share_signup_form",
+          "send_app_link",
+          "bulk_send_app_link",
+          "send_elder_app_link",
+          "send_caregiver_dashboard_link",
+        ]),
+      ));
+    return Number(row?.count ?? 0);
+  } catch (error) {
+    if (isMissingRelationError(error)) return 0;
+    throw error;
+  }
+}
+
 function phoneIdentityKeys(value?: string | null) {
   const raw = (value ?? "").trim();
   if (!raw) return [];
@@ -480,6 +522,12 @@ function isMergedLifecycleDuplicate(intake: Intake) {
     || intake.journey_step === "merged_duplicate"
     || intake.journey_step === "admin_deleted"
   );
+}
+
+function isLifecycleMergeDuplicate(intake: Intake) {
+  const metadata = metadataRecord(intake.metadata);
+  return typeof metadata.merged_into_intake_id === "string"
+    || intake.journey_step === "merged_duplicate";
 }
 
 function statusRank(status: string | null | undefined) {
@@ -1087,9 +1135,10 @@ export function validateFamilyIntake(data: IntakeCreateInput): string | null {
 
 export async function getLifecycleSummary(database = db) {
   await backfillLifecycleUsersForRead("summary", database);
-  const [allRows, consentRows] = await Promise.all([
+  const [allRows, consentRows, inviteFailures] = await Promise.all([
     database.select().from(userIntakes).orderBy(desc(userIntakes.created_at)),
     database.select().from(consentAttempts).orderBy(desc(consentAttempts.created_at)),
+    countInviteFailures(database),
   ]);
   const rows = allRows.filter((row) => !isMergedLifecycleDuplicate(row));
   const by = (key: "entry_point" | "user_type" | "status" | "tier" | "consent_status") =>
@@ -1100,10 +1149,16 @@ export async function getLifecycleSummary(database = db) {
     }, {});
   const percent = (part: number, total: number) => total > 0 ? Math.round((part / total) * 1000) / 10 : 0;
   const countRows = (predicate: (row: Intake) => boolean) => rows.filter(predicate).length;
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
   const total = rows.length;
   const linkSent = countRows((row) => row.status === "link_sent" || row.status === "active" || !!row.link_sent_at);
   const active = countRows((row) => row.status === "active");
   const dropped = countRows((row) => row.status === "dropped");
+  const newUsersToday = countRows((row) => timestampRank(row.created_at) >= startOfToday.getTime());
+  const deletedCount = allRows.filter(isDeletedLifecycleTombstone).length;
+  const disabledCount = rows.filter((row) => row.journey_step === "admin_disabled").length;
+  const phoneFollowUp = rows.filter(needsPhoneOnboardingFollowUp).length;
   const callbacks = rows.filter(isCallbackOnboardingIntake);
   const callbacksScheduled = callbacks.filter((row) => row.status === "created" || row.journey_step === "callback_scheduled").length;
   const callbacksCalling = callbacks.filter((row) => row.journey_step === "callback_calling").length;
@@ -1138,6 +1193,15 @@ export async function getLifecycleSummary(database = db) {
     byStatus: by("status"),
     byTier: by("tier"),
     byConsent: by("consent_status"),
+    operational: {
+      new_users_today: newUsersToday,
+      invite_failures: inviteFailures,
+      phone_follow_up: phoneFollowUp,
+      consent_pending: rows.filter((r) => r.status === "consent_pending").length,
+      deleted_count: deletedCount,
+      disabled_count: disabledCount,
+      deleted_disabled_count: deletedCount + disabledCount,
+    },
     callbacks: {
       total: callbacks.length,
       scheduled: callbacksScheduled,
@@ -1324,8 +1388,10 @@ export async function listLifecycleUsers(filters: {
   query?: string;
   callback_onboarding?: boolean;
   inbound_phone_onboarding?: boolean;
+  include_removed?: boolean;
 }, database = db) {
   await backfillLifecycleUsersForRead("users list", database);
+  const includeRemoved = filters.include_removed === true;
   const deletedDenyList = await buildDeletedLifecycleDenyList(database);
   const searchWhere = filters.query ? await lifecycleUserSearchWhere(filters.query, database) : undefined;
   const callbackOnboardingWhere = filters.callback_onboarding === true
@@ -1349,9 +1415,10 @@ export async function listLifecycleUsers(filters: {
     filters.user_type ? eq(userIntakes.user_type, filters.user_type) : undefined,
     filters.status ? eq(userIntakes.status, filters.status) : undefined,
     filters.tier ? eq(userIntakes.tier, filters.tier) : undefined,
-    sql`${userIntakes.journey_step} not in ('merged_duplicate', 'admin_deleted')`,
-    sql`coalesce(${userIntakes.metadata}->>'hidden_from_lifecycle', 'false') <> 'true'`,
-    sql`coalesce(${userIntakes.metadata}->>'deleted_from_lifecycle', 'false') <> 'true'`,
+    sql`${userIntakes.journey_step} <> 'merged_duplicate'`,
+    includeRemoved ? undefined : sql`${userIntakes.journey_step} <> 'admin_deleted'`,
+    includeRemoved ? undefined : sql`coalesce(${userIntakes.metadata}->>'hidden_from_lifecycle', 'false') <> 'true'`,
+    includeRemoved ? undefined : sql`coalesce(${userIntakes.metadata}->>'deleted_from_lifecycle', 'false') <> 'true'`,
     callbackOnboardingWhere,
     inboundPhoneOnboardingWhere,
     searchWhere,
@@ -1366,9 +1433,9 @@ export async function listLifecycleUsers(filters: {
     .leftJoin(organizations, eq(userIntakes.organization_id, organizations.id))
     .where(where.length ? and(...where) : undefined)
     .orderBy(desc(userIntakes.created_at))
-    .limit(240))
-    .filter((row) => !isMergedLifecycleDuplicate(row.intake))
-    .filter((row) => !matchesDeletedLifecycleDenyList({
+    .limit(includeRemoved ? 320 : 240))
+    .filter((row) => includeRemoved ? !isLifecycleMergeDuplicate(row.intake) : !isMergedLifecycleDuplicate(row.intake))
+    .filter((row) => includeRemoved || !matchesDeletedLifecycleDenyList({
       intakeId: row.intake.id,
       userIds: [row.intake.user_id, row.intake.elder_user_id, row.intake.family_user_id],
       emails: [row.intake.email, row.intake.phone],
@@ -1427,8 +1494,24 @@ export async function listLifecycleUsers(filters: {
     const supabaseAccount = (targetUserId ? supabaseById.get(targetUserId) : undefined)
       ?? intakeIds.map((id) => supabaseById.get(id)).find(Boolean)
       ?? null;
+    const removedByIdentity = matchesDeletedLifecycleDenyList({
+      intakeId: row.intake.id,
+      userIds: [row.intake.user_id, row.intake.elder_user_id, row.intake.family_user_id],
+      emails: [row.intake.email, row.intake.phone, account?.email, account?.phone_number, supabaseAccount?.email, supabaseAccount?.phone_number, profile?.email, profile?.phone_number, profile?.whatsapp_number],
+      phones: [row.intake.phone, account?.phone_number, supabaseAccount?.phone_number, profile?.phone_number, profile?.whatsapp_number],
+      disabledReason: profile?.disabled_reason ?? null,
+    }, deletedDenyList);
+    const intakeMetadata = removedByIdentity
+      ? {
+        ...metadataRecord(row.intake.metadata),
+        hidden_from_lifecycle: true,
+        deleted_from_lifecycle: true,
+        removed_by_identity_match: true,
+      }
+      : row.intake.metadata;
     return {
       ...row.intake,
+      metadata: intakeMetadata,
       intake_tier: row.intake.tier,
       profile_subscription_tier: profile?.subscription_tier ?? null,
       tier: profile?.subscription_tier ?? row.intake.tier,
@@ -1442,7 +1525,7 @@ export async function listLifecycleUsers(filters: {
       disabled_at: profile?.disabled_at ?? null,
       disabled_reason: profile?.disabled_reason ?? null,
     };
-  }).filter((row) => !matchesDeletedLifecycleDenyList({
+  }).filter((row) => includeRemoved || !matchesDeletedLifecycleDenyList({
     intakeId: row.id,
     userIds: [row.user_id, row.elder_user_id, row.family_user_id],
     emails: [row.email, row.phone, row.login_email, row.login_phone, row.profile_email, row.profile_phone],
