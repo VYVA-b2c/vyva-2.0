@@ -104,6 +104,47 @@ function pushActivity(items: ActivityItem[], item: ActivityItem | null) {
   if (item?.time) items.push(item);
 }
 
+function lifecycleActivityCopy(eventType: string, row: JsonRecord) {
+  const metadata = jsonObject(row.metadata);
+  const fromStatus = stringValue(row.from_status);
+  const toStatus = stringValue(row.to_status);
+  const previousTier = stringValue(metadata.previous_subscription_tier);
+  const nextTier = stringValue(metadata.subscription_tier);
+  const previousStatus = stringValue(metadata.previous_subscription_status);
+  const nextStatus = stringValue(metadata.subscription_status);
+
+  if (eventType === "access_link_clicked") {
+    return {
+      label: "Link clicked",
+      detail: `${cleanLabel(stringValue(metadata.link_type) ?? "access link")} opened${stringValue(metadata.destination) ? ` for ${stringValue(metadata.destination)}` : ""}`,
+    };
+  }
+  if (eventType === "admin_profile_updated") {
+    const tierChanged = previousTier && nextTier && previousTier !== nextTier;
+    return {
+      label: tierChanged ? "Tier changed" : "Profile updated",
+      detail: tierChanged
+        ? `${cleanLabel(previousTier)} to ${cleanLabel(nextTier)}${nextStatus ? ` (${cleanLabel(nextStatus)})` : ""}`
+        : "Profile, contact, or organization details were updated.",
+    };
+  }
+  if (eventType === "admin_subscription_updated") {
+    return {
+      label: "Tier changed",
+      detail: `${previousTier ? `${cleanLabel(previousTier)} to ` : ""}${cleanLabel(nextTier ?? "Updated")}${nextStatus ? ` (${cleanLabel(nextStatus)})` : ""}`,
+    };
+  }
+  if (eventType === "user_disabled") return { label: "User disabled", detail: stringValue(metadata.reason) || "Admin disabled access." };
+  if (eventType === "user_enabled") return { label: "User enabled", detail: "Admin restored access." };
+  if (eventType === "user_deleted") return { label: "User deleted", detail: "Admin removed this user from lifecycle." };
+  if (eventType.includes("consent")) return { label: cleanLabel(eventType), detail: toStatus ? cleanLabel(toStatus) : "Consent event recorded." };
+
+  return {
+    label: cleanLabel(eventType),
+    detail: toStatus ? `${fromStatus ? `${cleanLabel(fromStatus)} to ` : ""}${cleanLabel(toStatus)}` : stringValue(metadata.summary) ?? stringValue(row.channel) ?? "Lifecycle update",
+  };
+}
+
 function buildActivityTimeline(detail: UserDetail): ActivityItem[] {
   const items: ActivityItem[] = [];
   const intake = detail.intake;
@@ -144,16 +185,57 @@ function buildActivityTimeline(detail: UserDetail): ActivityItem[] {
     tone: "danger",
   } : null);
 
+  const profileCreatedAt = stringValue(detail.profile?.created_at);
+  pushActivity(items, profileCreatedAt ? {
+    id: `profile-created-${detail.profile?.id ?? intake.id}`,
+    time: profileCreatedAt,
+    label: "Profile created",
+    detail: "The user now has an app profile.",
+    source: "Profile",
+    actor: stringValue(detail.profile?.created_by) ?? "system",
+    tone: "success",
+  } : null);
+
+  for (const link of detail.access_links ?? []) {
+    pushActivity(items, {
+      id: `access-link-created-${link.id}`,
+      time: link.created_at,
+      label: "Invite created",
+      detail: `${cleanLabel(link.link_type)} link for ${cleanLabel(link.target_role)} - ${cleanLabel(link.tier)} tier`,
+      source: "Invite",
+      actor: "system",
+      tone: link.revoked_at ? "danger" : "default",
+    });
+    pushActivity(items, link.clicked_at ? {
+      id: `access-link-clicked-${link.id}`,
+      time: link.clicked_at,
+      label: "Link clicked",
+      detail: `${cleanLabel(link.link_type)} link opened${link.destination ? ` for ${link.destination}` : ""}`,
+      source: "Invite",
+      actor: "user",
+      tone: "success",
+    } : null);
+    pushActivity(items, link.converted_at ? {
+      id: `access-link-converted-${link.id}`,
+      time: link.converted_at,
+      label: "Link converted",
+      detail: `Used ${link.use_count || 1} time${(link.use_count || 1) === 1 ? "" : "s"}.`,
+      source: "Invite",
+      actor: "user",
+      tone: "success",
+    } : null);
+  }
+
   for (const row of detail.lifecycle_events ?? []) {
     const metadata = jsonObject(row.metadata);
     const eventType = stringValue(row.event_type) ?? "lifecycle_event";
-    const fromStatus = stringValue(row.from_status);
     const toStatus = stringValue(row.to_status);
+    const copy = lifecycleActivityCopy(eventType, row);
     pushActivity(items, {
       id: `lifecycle-${stringValue(row.id) ?? `${eventType}-${row.created_at}`}`,
       time: stringValue(row.created_at) ?? "",
-      label: cleanLabel(eventType),
-      detail: toStatus ? `${fromStatus ? `${cleanLabel(fromStatus)} to ` : ""}${cleanLabel(toStatus)}` : stringValue(metadata.summary) ?? stringValue(row.channel) ?? "Lifecycle update",
+      label: copy.label,
+      detail: copy.detail,
       source: "Lifecycle",
       actor: activityActor(row),
       tone: activityTone(toStatus ?? eventType),
@@ -239,6 +321,106 @@ function buildActivityTimeline(detail: UserDetail): ActivityItem[] {
     .filter((item) => dateMs(item.time) > 0)
     .sort((a, b) => dateMs(b.time) - dateMs(a.time))
     .slice(0, 50);
+}
+
+function latestTimestamp(values: Array<string | null | undefined>) {
+  return values.filter(Boolean).sort((a, b) => dateMs(b) - dateMs(a))[0] ?? null;
+}
+
+function latestLifecycleEvent(detail: UserDetail, eventTypes: string[]) {
+  return (detail.lifecycle_events ?? [])
+    .filter((row) => eventTypes.includes(stringValue(row.event_type) ?? ""))
+    .sort((a, b) => dateMs(stringValue(b.created_at)) - dateMs(stringValue(a.created_at)))[0] ?? null;
+}
+
+function latestTierEvent(detail: UserDetail) {
+  return (detail.lifecycle_events ?? [])
+    .filter((row) => {
+      const eventType = stringValue(row.event_type);
+      const metadata = jsonObject(row.metadata);
+      return ["admin_profile_updated", "admin_subscription_updated"].includes(eventType ?? "")
+        && Boolean(stringValue(metadata.subscription_tier));
+    })
+    .sort((a, b) => dateMs(stringValue(b.created_at)) - dateMs(stringValue(a.created_at)))[0] ?? null;
+}
+
+function AuditMilestones({ detail }: { detail: UserDetail }) {
+  const inviteAt = latestTimestamp([
+    detail.intake.link_sent_at,
+    ...(detail.access_links ?? []).map((link) => link.created_at),
+    ...(detail.communications ?? []).filter((row) => row.purpose?.includes("invite") || row.purpose?.includes("link")).map((row) => row.created_at),
+  ]);
+  const clickedAt = latestTimestamp([
+    ...(detail.access_links ?? []).map((link) => link.clicked_at),
+    stringValue(latestLifecycleEvent(detail, ["access_link_clicked"])?.created_at),
+  ]);
+  const profileCreatedAt = stringValue(detail.profile?.created_at);
+  const tierEvent = latestTierEvent(detail);
+  const tierMetadata = jsonObject(tierEvent?.metadata);
+  const disabledOrDeleted = latestLifecycleEvent(detail, ["user_disabled", "user_deleted"]);
+  const latestConsent = [...(detail.consent_attempts ?? [])].sort((a, b) => dateMs(b.created_at) - dateMs(a.created_at))[0] ?? null;
+  const currentTier = stringValue(detail.profile?.subscription_tier) ?? detail.intake.tier;
+
+  const milestones = [
+    {
+      label: "Invited",
+      done: Boolean(inviteAt),
+      detail: inviteAt ? formatDate(inviteAt) : "No invite or access link yet.",
+      tone: inviteAt ? "success" : "default",
+    },
+    {
+      label: "Link clicked",
+      done: Boolean(clickedAt),
+      detail: clickedAt ? formatDate(clickedAt) : "No click recorded yet.",
+      tone: clickedAt ? "success" : "default",
+    },
+    {
+      label: "Profile created",
+      done: Boolean(profileCreatedAt),
+      detail: profileCreatedAt ? formatDate(profileCreatedAt) : "No app profile linked yet.",
+      tone: profileCreatedAt ? "success" : "default",
+    },
+    {
+      label: "Tier",
+      done: Boolean(tierEvent),
+      detail: tierEvent
+        ? `${stringValue(tierMetadata.previous_subscription_tier) ? `${cleanLabel(stringValue(tierMetadata.previous_subscription_tier))} to ` : ""}${cleanLabel(stringValue(tierMetadata.subscription_tier) ?? currentTier)}`
+        : cleanLabel(currentTier),
+      tone: "default",
+    },
+    {
+      label: "Disabled / deleted",
+      done: Boolean(disabledOrDeleted),
+      detail: disabledOrDeleted ? `${cleanLabel(stringValue(disabledOrDeleted.event_type) ?? "")} at ${formatDate(stringValue(disabledOrDeleted.created_at))}` : "No disable or delete event.",
+      tone: disabledOrDeleted ? "danger" : "success",
+    },
+    {
+      label: "Consent",
+      done: Boolean(latestConsent),
+      detail: latestConsent ? `${cleanLabel(latestConsent.status)} - attempt ${latestConsent.attempt_number}` : cleanLabel(detail.intake.consent_status || "not required"),
+      tone: latestConsent ? activityTone(latestConsent.status) : detail.intake.consent_status === "not_required" ? "success" : "default",
+    },
+  ] as const;
+  const toneClass = {
+    default: "bg-[#f4eafe] text-purple-700",
+    success: "bg-emerald-50 text-emerald-800",
+    warning: "bg-amber-50 text-amber-800",
+    danger: "bg-red-50 text-red-700",
+  };
+
+  return (
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      {milestones.map((item) => (
+        <div key={item.label} className="rounded-3xl border border-[#eadfd5] bg-white p-4">
+          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${toneClass[item.tone ?? "default"]}`}>
+            {item.done ? "Recorded" : "Pending"}
+          </span>
+          <h3 className="mt-3 font-black">{item.label}</h3>
+          <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{item.detail}</p>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function ActivityTimeline({ detail }: { detail: UserDetail }) {
@@ -923,6 +1105,7 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
           </div>
 
         {activeDetailTab === "activity" && <section className="grid gap-4">
+          <AuditMilestones detail={detail} />
           <ActivityTimeline detail={detail} />
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <LogPanel title="Communications" rows={detail.communications} />

@@ -1323,6 +1323,7 @@ export async function listLifecycleUsers(filters: {
   tier?: string;
   query?: string;
   callback_onboarding?: boolean;
+  inbound_phone_onboarding?: boolean;
 }, database = db) {
   await backfillLifecycleUsersForRead("users list", database);
   const deletedDenyList = await buildDeletedLifecycleDenyList(database);
@@ -1331,6 +1332,17 @@ export async function listLifecycleUsers(filters: {
     ? sql`(${userIntakes.metadata} ? 'callback' or ${userIntakes.journey_step} like 'callback_%')`
     : filters.callback_onboarding === false
       ? sql`not (${userIntakes.metadata} ? 'callback' or ${userIntakes.journey_step} like 'callback_%')`
+      : undefined;
+  const inboundPhoneOnboardingWhere = filters.inbound_phone_onboarding === true
+    ? sql`(
+        coalesce(${userIntakes.metadata}->'elevenlabs'->>'inbound_phone_onboarding', 'false') = 'true'
+        or coalesce(${userIntakes.source_payload}->'elevenlabs'->>'source', '') = 'inbound_phone_onboarding'
+      )`
+    : filters.inbound_phone_onboarding === false
+      ? sql`not (
+          coalesce(${userIntakes.metadata}->'elevenlabs'->>'inbound_phone_onboarding', 'false') = 'true'
+          or coalesce(${userIntakes.source_payload}->'elevenlabs'->>'source', '') = 'inbound_phone_onboarding'
+        )`
       : undefined;
   const where = [
     filters.entry_point ? eq(userIntakes.entry_point, filters.entry_point) : undefined,
@@ -1341,6 +1353,7 @@ export async function listLifecycleUsers(filters: {
     sql`coalesce(${userIntakes.metadata}->>'hidden_from_lifecycle', 'false') <> 'true'`,
     sql`coalesce(${userIntakes.metadata}->>'deleted_from_lifecycle', 'false') <> 'true'`,
     callbackOnboardingWhere,
+    inboundPhoneOnboardingWhere,
     searchWhere,
   ].filter(Boolean);
 

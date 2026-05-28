@@ -81,6 +81,25 @@ export type Communication = {
   created_at: string;
 };
 
+export type AccessLink = {
+  id: string;
+  user_id?: string | null;
+  intake_id?: string | null;
+  organization_id?: string | null;
+  link_type: string;
+  tier: string;
+  destination: string;
+  target_role: string;
+  max_uses: number;
+  use_count: number;
+  clicked_at?: string | null;
+  converted_at?: string | null;
+  expires_at?: string | null;
+  revoked_at?: string | null;
+  metadata?: JsonRecord | null;
+  created_at: string;
+};
+
 export type ScheduledEvent = {
   id: string;
   user_id?: string;
@@ -219,6 +238,7 @@ export type UserDetail = {
   account_match_field?: "email" | "phone" | null;
   synced_profile_ids?: string[];
   communications: Communication[];
+  access_links?: AccessLink[];
   lifecycle_events: JsonRecord[];
   consent_attempts: ConsentAttempt[];
   scheduled_events: ScheduledEvent[];
