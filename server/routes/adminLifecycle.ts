@@ -1327,6 +1327,7 @@ function lifecycleActivityAction(eventType: string) {
     user_deleted: "Removed from Users",
     user_disabled: "Disabled app access",
     user_enabled: "Enabled app access",
+    user_restored: "Restored to Users",
   };
   return labels[eventType] ?? activityLabel(eventType);
 }
@@ -2979,6 +2980,80 @@ adminLifecycleRouter.delete("/users/:id", async (req: Request, res: Response) =>
     },
     user_id: userId,
     intake_id: intake.id,
+  });
+});
+
+adminLifecycleRouter.post("/users/:id/restore", async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+
+  const [intake] = await db.select().from(userIntakes).where(eq(userIntakes.id, req.params.id)).limit(1);
+  if (!intake) return res.status(404).json({ error: "User intake not found" });
+
+  const metadata = jsonRecord(intake.metadata);
+  const removed = intake.journey_step === "admin_deleted"
+    || metadata.hidden_from_lifecycle === true
+    || metadata.deleted_from_lifecycle === true;
+  if (!removed) {
+    return res.status(409).json({ error: "This user is already visible in Users." });
+  }
+
+  const restoredAt = new Date();
+  const restoredBy = req.user?.email ?? req.user?.id ?? "admin";
+  const userId = targetUserIdForIntake(intake);
+  const restoredStatus = userId ? "active" : "created";
+  const { scope, errors: scopeErrors } = await safeLifecycleIdentityScope(intake);
+
+  const [restoredIntake] = await db.update(userIntakes).set({
+    status: restoredStatus,
+    journey_step: "admin_restored",
+    dropped_at: null,
+    last_activity_at: restoredAt,
+    updated_at: restoredAt,
+    metadata: {
+      ...metadata,
+      hidden_from_lifecycle: false,
+      deleted_from_lifecycle: false,
+      remove_from_users: false,
+      restored_from_lifecycle: true,
+      restored_at: restoredAt.toISOString(),
+      restored_by: restoredBy,
+      restored_previous_status: intake.status,
+      restored_previous_journey_step: intake.journey_step,
+      app_access_unchanged: true,
+    },
+  }).where(eq(userIntakes.id, intake.id)).returning();
+
+  await recordEvent({
+    intakeId: intake.id,
+    userId,
+    eventType: "user_restored",
+    fromStatus: intake.status,
+    toStatus: restoredStatus,
+    channel: "admin",
+    metadata: {
+      changed_by: restoredBy,
+      restored_by: restoredBy,
+      restored_at: restoredAt.toISOString(),
+      name: intake.name,
+      email: intake.email,
+      phone: intake.phone,
+      app_access_unchanged: true,
+      previous_journey_step: intake.journey_step,
+      identity_scope: {
+        intake_ids: scope.intakeIds,
+        profile_or_login_ids: scope.ids,
+        emails: scope.emails,
+        phones: scope.phones,
+      },
+      scope_errors: scopeErrors,
+    },
+  });
+
+  return res.json({
+    intake: restoredIntake,
+    restored_intake: true,
+    app_access_unchanged: true,
+    scope_errors: scopeErrors,
   });
 });
 

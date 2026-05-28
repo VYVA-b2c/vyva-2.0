@@ -145,6 +145,7 @@ function lifecycleActivityCopy(eventType: string, row: JsonRecord) {
   if (eventType === "user_disabled") return { label: "App access disabled", detail: stringValue(metadata.reason) || "Admin disabled app access." };
   if (eventType === "user_enabled") return { label: "App access enabled", detail: "Admin restored app access." };
   if (eventType === "user_deleted") return { label: "User removed from Users", detail: "Admin hid this user from the lifecycle Users table." };
+  if (eventType === "user_restored") return { label: "User restored to Users", detail: "Admin made this user visible in the lifecycle Users table again." };
   if (eventType.includes("consent")) return { label: cleanLabel(eventType), detail: toStatus ? consentStatusLabel(toStatus) : "Consent event recorded." };
 
   return {
@@ -365,7 +366,11 @@ function AuditMilestones({ detail }: { detail: UserDetail }) {
   const profileCreatedAt = stringValue(detail.profile?.created_at);
   const tierEvent = latestTierEvent(detail);
   const tierMetadata = jsonObject(tierEvent?.metadata);
-  const accessOrRemovalEvent = latestLifecycleEvent(detail, ["user_disabled", "user_deleted"]);
+  const accessOrRemovalEvent = latestLifecycleEvent(detail, ["user_disabled", "user_enabled", "user_deleted", "user_restored"]);
+  const accessOrRemovalType = stringValue(accessOrRemovalEvent?.event_type);
+  const accessOrRemovalCopy = accessOrRemovalEvent
+    ? lifecycleActivityCopy(accessOrRemovalType ?? "lifecycle_event", accessOrRemovalEvent)
+    : null;
   const latestConsent = [...(detail.consent_attempts ?? [])].sort((a, b) => dateMs(b.created_at) - dateMs(a.created_at))[0] ?? null;
   const currentTier = stringValue(detail.profile?.subscription_tier) ?? detail.intake.tier;
 
@@ -399,8 +404,8 @@ function AuditMilestones({ detail }: { detail: UserDetail }) {
     {
       label: "Access / removal",
       done: Boolean(accessOrRemovalEvent),
-      detail: accessOrRemovalEvent ? `${lifecycleEventLabel(accessOrRemovalEvent).label} at ${formatDate(stringValue(accessOrRemovalEvent.created_at))}` : "No app-access disable or user removal event.",
-      tone: accessOrRemovalEvent ? "danger" : "success",
+      detail: accessOrRemovalEvent ? `${accessOrRemovalCopy?.label ?? "Lifecycle update"} at ${formatDate(stringValue(accessOrRemovalEvent.created_at))}` : "No app-access disable or user removal event.",
+      tone: accessOrRemovalEvent && ["user_disabled", "user_deleted"].includes(accessOrRemovalType ?? "") ? "danger" : "success",
     },
     {
       label: "Consent",
@@ -513,13 +518,14 @@ function supportDraftFromSchedule(schedule: ScheduledSupport): SupportScheduleDr
   };
 }
 
-export function IntakeTable({ users, emptyMessage = "No users match the current filters yet.", onView, onTriggerConsent, onToggleEnabled, onDelete, busyAction = null, compact = false, selectedIds = [], onSelectionChange, onSelectAllVisible }: {
+export function IntakeTable({ users, emptyMessage = "No users match the current filters yet.", onView, onTriggerConsent, onToggleEnabled, onDelete, onRestore, busyAction = null, compact = false, selectedIds = [], onSelectionChange, onSelectAllVisible }: {
   users: Intake[];
   emptyMessage?: string;
   onView: (intake: Intake) => void;
   onTriggerConsent: (intake: Intake) => void;
   onToggleEnabled: (intake: Intake) => void;
   onDelete?: (intake: Intake) => void;
+  onRestore?: (intake: Intake) => void;
   busyAction?: string | null;
   compact?: boolean;
   selectedIds?: string[];
@@ -619,7 +625,14 @@ export function IntakeTable({ users, emptyMessage = "No users match the current 
                   <button type="button" className="rounded-full bg-[#2f2135] px-3 py-2 text-sm font-bold text-white disabled:opacity-60" disabled={isBusy("view", user)} onClick={() => onView(user)}>{isBusy("view", user) ? "Opening..." : "View"}</button>
                   <span className="rounded-full bg-purple-50 px-3 py-2 text-sm font-black uppercase text-purple-700">Tier: {tierLabel(user.tier)}</span>
                   {removed ? (
-                    <span className="rounded-full border border-amber-200 bg-white px-3 py-2 text-sm font-bold text-amber-800">Audit only</span>
+                    <>
+                      {onRestore && (
+                        <button type="button" className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800 disabled:opacity-60" disabled={isBusy("restore", user)} onClick={() => onRestore(user)}>
+                          {isBusy("restore", user) ? "Restoring..." : "Restore to Users"}
+                        </button>
+                      )}
+                      <span className="rounded-full border border-amber-200 bg-white px-3 py-2 text-sm font-bold text-amber-800">Audit only</span>
+                    </>
                   ) : (
                     <>
                       <button type="button" className="rounded-full border px-3 py-2 text-sm font-bold disabled:opacity-60" disabled={isBusy("toggle", user)} onClick={() => onToggleEnabled(user)}>{isBusy("toggle", user) ? "Saving..." : user.account_status === "disabled" ? "Enable app access" : "Disable app access"}</button>
@@ -803,7 +816,7 @@ export function AccountSubscriptionsSection({
   );
 }
 
-export function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, statusMessage, saving = false, deleting = false, scheduleBusyAction = null, onClose, onSave, onToggle, onDelete, newEvent, setNewEvent, onCreateEvent, onEventStatus, onEventTime, onSupportSave, onSupportStatus }: {
+export function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, statusMessage, saving = false, deleting = false, restoring = false, scheduleBusyAction = null, onClose, onSave, onToggle, onDelete, onRestore, newEvent, setNewEvent, onCreateEvent, onEventStatus, onEventTime, onSupportSave, onSupportStatus }: {
   detail: UserDetail;
   draft: JsonRecord;
   setDraft: (next: JsonRecord) => void;
@@ -813,10 +826,12 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
   saving?: boolean;
   scheduleBusyAction?: string | null;
   deleting?: boolean;
+  restoring?: boolean;
   onClose: () => void;
   onSave: () => void;
   onToggle: () => void;
   onDelete: () => void;
+  onRestore?: () => void;
   newEvent: typeof emptyScheduledEvent;
   setNewEvent: (next: typeof emptyScheduledEvent) => void;
   onCreateEvent: () => void;
@@ -826,6 +841,7 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
   onSupportStatus: (schedule: ScheduledSupport, action: "pause" | "resume") => void;
 }) {
   const disabled = detail.profile?.account_status === "disabled" || detail.intake.account_status === "disabled";
+  const removed = !isVisibleLifecycleUser(detail.intake);
   const primaryMapping = detail.account_mappings?.[0];
   const selectedTier = String(draft.tier ?? "free").toLowerCase();
   const appTier = primaryMapping?.effective_subscription_tier?.toLowerCase() ?? null;
@@ -963,9 +979,13 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
               ))}
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
-              <button type="button" className="rounded-xl bg-purple-700 px-5 py-2.5 font-bold text-white disabled:opacity-60" disabled={saving || deleting} onClick={onSave}>{saving ? "Saving..." : "Save access"}</button>
-              <button type="button" className="rounded-xl border px-5 py-2.5 font-bold disabled:opacity-60" disabled={deleting} onClick={onToggle}>{disabled ? "Enable app access" : "Disable app access"}</button>
-              <button type="button" className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-2.5 font-bold text-amber-800 disabled:opacity-60" disabled={deleting} onClick={onDelete}>{deleting ? "Removing..." : "Remove from Users"}</button>
+              <button type="button" className="rounded-xl bg-purple-700 px-5 py-2.5 font-bold text-white disabled:opacity-60" disabled={saving || deleting || restoring} onClick={onSave}>{saving ? "Saving..." : "Save access"}</button>
+              {!removed && <button type="button" className="rounded-xl border px-5 py-2.5 font-bold disabled:opacity-60" disabled={deleting || restoring} onClick={onToggle}>{disabled ? "Enable app access" : "Disable app access"}</button>}
+              {removed ? (
+                <button type="button" className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-2.5 font-bold text-emerald-800 disabled:opacity-60" disabled={restoring || !onRestore} onClick={onRestore}>{restoring ? "Restoring..." : "Restore to Users"}</button>
+              ) : (
+                <button type="button" className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-2.5 font-bold text-amber-800 disabled:opacity-60" disabled={deleting || restoring} onClick={onDelete}>{deleting ? "Removing..." : "Remove from Users"}</button>
+              )}
             </div>
             {statusMessage && (
               <p className={`mt-3 rounded-xl px-3 py-2 text-sm font-bold ${statusMessage.toLowerCase().includes("could not") ? "bg-[#fff3e8] text-[#8a4a00]" : "bg-[#ecfdf3] text-[#087443]"}`}>

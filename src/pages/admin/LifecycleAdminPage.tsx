@@ -223,6 +223,20 @@ function deleteNoticeFor(intake: Intake, result: JsonRecord): AdminActionNotice 
   };
 }
 
+function restoreNoticeFor(intake: Intake, result: JsonRecord): AdminActionNotice {
+  const scopeErrors = stringArray(result.scope_errors);
+  return {
+    tone: scopeErrors.length > 0 ? "warning" : "success",
+    label: "Restored",
+    title: `${intake.name} was restored to Users.`,
+    details: [
+      "The lifecycle row is visible again.",
+      "App access was not changed.",
+      ...(scopeErrors.length ? ["Some identity cleanup checks used a fallback, but the selected row was restored."] : []),
+    ],
+  };
+}
+
 function SchemaHealthBanner({ health }: { health: SchemaHealth | null }) {
   if (!health || health.ok) return null;
   const missing = Array.isArray(health.missing) ? health.missing : [];
@@ -1078,6 +1092,28 @@ export default function LifecycleAdminPage() {
     }
   }
 
+  async function restoreUser(intake: Intake) {
+    const confirmed = window.confirm(`Restore ${intake.name} to Users? This makes the lifecycle row visible again. App access will not be changed.`);
+    if (!confirmed) return;
+    setBusyAction(`restore:${intake.id}`);
+    setUserDetailMessage("");
+    setAdminActionNotice(null);
+    try {
+      const result = await api(`/users/${intake.id}/restore`, { method: "POST" });
+      setMessage("");
+      setUserDetailMessage("Restored to Users. App access was unchanged.");
+      showActionReceipt(restoreNoticeFor(intake, result));
+      await refresh();
+      if (selectedUser?.intake.id === intake.id) await openUserDetail(intake);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Could not restore this user to Users.";
+      setMessage(errorMessage);
+      setUserDetailMessage(errorMessage);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   function setUserSelected(intakeId: string, selected: boolean) {
     setSelectedUserIds((current) => {
       if (selected) return current.includes(intakeId) ? current : [...current, intakeId];
@@ -1741,6 +1777,7 @@ export default function LifecycleAdminPage() {
               onTriggerConsent={triggerConsent}
               onToggleEnabled={toggleUser}
               onDelete={deleteUser}
+              onRestore={restoreUser}
               busyAction={busyAction}
               selectedIds={selectedUserIds}
               onSelectionChange={setUserSelected}
@@ -1953,10 +1990,12 @@ export default function LifecycleAdminPage() {
           saving={savingUserDetail}
           scheduleBusyAction={busyAction}
           deleting={busyAction === `delete:${selectedUser.intake.id}`}
+          restoring={busyAction === `restore:${selectedUser.intake.id}`}
           onClose={() => setSelectedUser(null)}
           onSave={saveUserDetail}
           onToggle={() => toggleUser(selectedUser.intake)}
           onDelete={() => deleteUser(selectedUser.intake)}
+          onRestore={() => restoreUser(selectedUser.intake)}
           newEvent={newEvent}
           setNewEvent={setNewEvent}
           onCreateEvent={createScheduledEventForUser}

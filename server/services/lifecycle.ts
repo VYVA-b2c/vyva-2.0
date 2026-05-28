@@ -378,6 +378,20 @@ function addDeletedIdentityKeys(target: DeletedLifecycleDenyList, keys: string[]
   }
 }
 
+function removeDeletedIdentityKeys(target: DeletedLifecycleDenyList, keys: string[]) {
+  for (const key of keys) {
+    const separator = key.indexOf(":");
+    if (separator <= 0) continue;
+    const type = key.slice(0, separator);
+    const value = key.slice(separator + 1);
+    if (!value) continue;
+    if (type === "intake") target.intakeIds.delete(value);
+    if (type === "user") target.userIds.delete(value);
+    if (type === "email") target.emails.delete(value);
+    if (type === "phone") target.phones.delete(value);
+  }
+}
+
 function isDeletedLifecycleTombstone(intake: Intake) {
   const metadata = metadataRecord(intake.metadata);
   return metadata.deleted_from_lifecycle === true || (
@@ -428,14 +442,14 @@ function rememberDeletedTombstoneIdentity(existing: Set<string>, intake: Intake)
 }
 
 async function buildDeletedLifecycleDenyList(database = db): Promise<DeletedLifecycleDenyList> {
-  const [intakeRows, deletedEvents, deletedProfiles] = await Promise.all([
+  const [intakeRows, visibilityEvents, deletedProfiles] = await Promise.all([
     database.select().from(userIntakes),
     database
       .select()
       .from(lifecycleEvents)
-      .where(eq(lifecycleEvents.event_type, "user_deleted"))
+      .where(inArray(lifecycleEvents.event_type, ["user_deleted", "user_restored"]))
       .orderBy(desc(lifecycleEvents.created_at))
-      .limit(1000),
+      .limit(2000),
     database
       .select({
         id: profiles.id,
@@ -463,9 +477,14 @@ async function buildDeletedLifecycleDenyList(database = db): Promise<DeletedLife
     denyList.intakeIds.add(intake.id);
     addDeletedIdentityKeys(denyList, deletedTombstoneIdentityKeys(intake));
   }
-  for (const event of deletedEvents) {
-    if (event.intake_id) denyList.intakeIds.add(event.intake_id);
-    addDeletedIdentityKeys(denyList, deletedEventIdentityKeys(event));
+  for (const event of visibilityEvents.reverse()) {
+    const keys = deletedEventIdentityKeys(event);
+    if (event.intake_id) keys.push(`intake:${event.intake_id}`);
+    if (event.event_type === "user_restored") {
+      removeDeletedIdentityKeys(denyList, keys);
+    } else {
+      addDeletedIdentityKeys(denyList, keys);
+    }
   }
   for (const profile of deletedProfiles) {
     addDeletedIdentityKeys(denyList, lifecycleIdentityKeys({
