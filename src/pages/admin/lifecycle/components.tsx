@@ -59,6 +59,229 @@ function supportFrequency(schedule: ScheduledSupport) {
   return `${days} at ${times}`;
 }
 
+type ActivityItem = {
+  id: string;
+  time: string;
+  label: string;
+  detail: string;
+  source: string;
+  actor?: string | null;
+  tone?: "default" | "success" | "warning" | "danger";
+};
+
+function dateMs(value?: string | null) {
+  if (!value) return 0;
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function jsonObject(value: unknown): JsonRecord {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as JsonRecord : {};
+}
+
+function activityActor(row: JsonRecord) {
+  const metadata = jsonObject(row.metadata);
+  return stringValue(row.created_by)
+    ?? stringValue(row.updated_by)
+    ?? stringValue(row.changed_by)
+    ?? stringValue(row.changed_by_role)
+    ?? stringValue(metadata.deleted_by)
+    ?? stringValue(metadata.updated_by)
+    ?? stringValue(metadata.created_by)
+    ?? stringValue(row.channel)
+    ?? null;
+}
+
+function activityTone(status?: string | null): ActivityItem["tone"] {
+  const normalized = (status ?? "").toLowerCase();
+  if (["active", "sent", "approved", "confirmed", "completed", "enabled"].includes(normalized)) return "success";
+  if (["failed", "rejected", "dropped", "cancelled", "disabled"].includes(normalized)) return "danger";
+  if (["pending", "consent_pending", "queued", "paused", "no_answer"].includes(normalized)) return "warning";
+  return "default";
+}
+
+function pushActivity(items: ActivityItem[], item: ActivityItem | null) {
+  if (item?.time) items.push(item);
+}
+
+function buildActivityTimeline(detail: UserDetail): ActivityItem[] {
+  const items: ActivityItem[] = [];
+  const intake = detail.intake;
+
+  pushActivity(items, {
+    id: `intake-created-${intake.id}`,
+    time: intake.created_at,
+    label: "User intake created",
+    detail: `${entryPointLabel(intake.entry_point)} - ${cleanLabel(intake.user_type)}`,
+    source: "Lifecycle",
+    actor: "system",
+  });
+  pushActivity(items, intake.link_sent_at ? {
+    id: `link-sent-${intake.id}`,
+    time: intake.link_sent_at,
+    label: "Invite link sent",
+    detail: "The user was sent an onboarding or access link.",
+    source: "Invite",
+    actor: "system",
+    tone: "success",
+  } : null);
+  pushActivity(items, intake.activated_at ? {
+    id: `activated-${intake.id}`,
+    time: intake.activated_at,
+    label: "User became active",
+    detail: "The user completed enough setup to become active.",
+    source: "Lifecycle",
+    actor: "system",
+    tone: "success",
+  } : null);
+  pushActivity(items, intake.dropped_at ? {
+    id: `dropped-${intake.id}`,
+    time: intake.dropped_at,
+    label: intake.journey_step === "admin_deleted" ? "User removed by admin" : "User dropped",
+    detail: cleanLabel(intake.journey_step || intake.status),
+    source: "Lifecycle",
+    actor: stringValue(intake.metadata?.deleted_by) ?? "admin",
+    tone: "danger",
+  } : null);
+
+  for (const row of detail.lifecycle_events ?? []) {
+    const metadata = jsonObject(row.metadata);
+    const eventType = stringValue(row.event_type) ?? "lifecycle_event";
+    const fromStatus = stringValue(row.from_status);
+    const toStatus = stringValue(row.to_status);
+    pushActivity(items, {
+      id: `lifecycle-${stringValue(row.id) ?? `${eventType}-${row.created_at}`}`,
+      time: stringValue(row.created_at) ?? "",
+      label: cleanLabel(eventType),
+      detail: toStatus ? `${fromStatus ? `${cleanLabel(fromStatus)} to ` : ""}${cleanLabel(toStatus)}` : stringValue(metadata.summary) ?? stringValue(row.channel) ?? "Lifecycle update",
+      source: "Lifecycle",
+      actor: activityActor(row),
+      tone: activityTone(toStatus ?? eventType),
+    });
+  }
+
+  for (const row of detail.communications ?? []) {
+    const metadata = jsonObject(row.metadata);
+    pushActivity(items, {
+      id: `communication-${row.id}`,
+      time: row.created_at,
+      label: `${cleanLabel(row.purpose)} ${cleanLabel(row.status)}`,
+      detail: `${cleanLabel(row.channel)} to ${row.recipient}${stringValue(metadata.dispatch_error) ? ` - ${stringValue(metadata.dispatch_error)}` : ""}`,
+      source: "Communication",
+      actor: row.channel,
+      tone: activityTone(row.status),
+    });
+  }
+
+  for (const row of detail.consent_attempts ?? []) {
+    pushActivity(items, {
+      id: `consent-${row.id}`,
+      time: row.created_at,
+      label: `Consent ${cleanLabel(row.status)}`,
+      detail: `Attempt ${row.attempt_number} by ${cleanLabel(row.channel)}`,
+      source: "Consent",
+      actor: row.channel,
+      tone: activityTone(row.status),
+    });
+  }
+
+  for (const event of detail.scheduled_events ?? []) {
+    pushActivity(items, {
+      id: `scheduled-event-${event.id}`,
+      time: event.updated_at ?? event.created_at ?? event.scheduled_for ?? "",
+      label: event.title || cleanLabel(event.event_type),
+      detail: `${cleanLabel(event.status)} - ${event.display_time ?? formatDate(event.scheduled_for)}`,
+      source: "Schedule",
+      actor: event.updated_by ?? event.created_by ?? event.source,
+      tone: activityTone(event.status),
+    });
+  }
+
+  for (const schedule of detail.scheduled_support ?? []) {
+    pushActivity(items, {
+      id: `support-${schedule.id}`,
+      time: schedule.updated_at ?? schedule.next_run_at ?? "",
+      label: supportLabel(schedule.interaction_type),
+      detail: `${cleanLabel(schedule.status)} - ${supportFrequency(schedule)}`,
+      source: "Recurring support",
+      actor: schedule.updated_by ?? schedule.created_by ?? "user",
+      tone: activityTone(schedule.status),
+    });
+  }
+
+  for (const row of detail.interaction_logs ?? []) {
+    const status = stringValue(row.status) ?? stringValue(row.result);
+    pushActivity(items, {
+      id: `interaction-${stringValue(row.id) ?? `${status}-${row.created_at}`}`,
+      time: stringValue(row.created_at) ?? stringValue(row.updated_at) ?? "",
+      label: cleanLabel(stringValue(row.interaction_type) ?? stringValue(row.event_type) ?? "Support activity"),
+      detail: cleanLabel(status ?? "Recorded"),
+      source: "Support",
+      actor: activityActor(row),
+      tone: activityTone(status),
+    });
+  }
+
+  for (const row of detail.consent_audit_logs ?? []) {
+    const status = stringValue(row.new_value) ?? stringValue(row.action) ?? stringValue(row.status);
+    pushActivity(items, {
+      id: `audit-${stringValue(row.id) ?? `${status}-${row.created_at}`}`,
+      time: stringValue(row.created_at) ?? stringValue(row.updated_at) ?? "",
+      label: cleanLabel(stringValue(row.action) ?? stringValue(row.changed_by_role) ?? "Schedule permission changed"),
+      detail: status ? cleanLabel(status) : "Audit record",
+      source: "Audit",
+      actor: activityActor(row),
+      tone: activityTone(status),
+    });
+  }
+
+  return items
+    .filter((item) => dateMs(item.time) > 0)
+    .sort((a, b) => dateMs(b.time) - dateMs(a.time))
+    .slice(0, 50);
+}
+
+function ActivityTimeline({ detail }: { detail: UserDetail }) {
+  const items = buildActivityTimeline(detail);
+  const toneClass = {
+    default: "bg-[#f4eafe] text-purple-700",
+    success: "bg-emerald-50 text-emerald-800",
+    warning: "bg-amber-50 text-amber-800",
+    danger: "bg-red-50 text-red-700",
+  };
+
+  return (
+    <div className="rounded-3xl border border-[#eadfd5] bg-white p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-xl font-black">Activity timeline</h3>
+          <p className="mt-1 text-sm text-[#7d6b65]">A chronological view of onboarding, access, consent, schedule, and communication changes.</p>
+        </div>
+        <span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-black text-purple-700">{items.length} records</span>
+      </div>
+      <div className="mt-4 grid gap-3">
+        {items.length === 0 ? (
+          <p className="rounded-2xl bg-[#fbf8f5] p-4 text-[#7d6b65]">No activity has been recorded for this user yet.</p>
+        ) : items.map((item) => (
+          <div key={item.id} className="grid gap-3 rounded-2xl bg-[#fbf8f5] p-3 sm:grid-cols-[8.5rem_1fr]">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.08em] text-[#7d6b65]">{formatDate(item.time)}</p>
+              <span className={`mt-2 inline-flex rounded-full px-2 py-1 text-xs font-black ${toneClass[item.tone ?? "default"]}`}>
+                {item.source}
+              </span>
+            </div>
+            <div>
+              <p className="font-black">{item.label}</p>
+              <p className="mt-1 text-sm text-[#5f514b]">{item.detail}</p>
+              {item.actor && <p className="mt-1 text-xs font-bold text-[#8a7770]">By {item.actor}</p>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function callbackStatusLabel(user: Intake) {
   const callback = callbackMetadata(user);
   if (!callback) return null;
@@ -699,12 +922,15 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
           </section>}
           </div>
 
-        {activeDetailTab === "activity" && <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <LogPanel title="Communications" rows={detail.communications} />
-          <LogPanel title="Consent attempts" rows={detail.consent_attempts} />
-          <LogPanel title="Support activity" rows={detail.interaction_logs ?? []} />
-          <LogPanel title="Schedule changes" rows={detail.consent_audit_logs ?? []} />
-          <LogPanel title="Lifecycle history" rows={detail.lifecycle_events} />
+        {activeDetailTab === "activity" && <section className="grid gap-4">
+          <ActivityTimeline detail={detail} />
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <LogPanel title="Communications" rows={detail.communications} />
+            <LogPanel title="Consent attempts" rows={detail.consent_attempts} />
+            <LogPanel title="Support activity" rows={detail.interaction_logs ?? []} />
+            <LogPanel title="Schedule changes" rows={detail.consent_audit_logs ?? []} />
+            <LogPanel title="Lifecycle history" rows={detail.lifecycle_events} />
+          </div>
         </section>}
       </div>
     </div>

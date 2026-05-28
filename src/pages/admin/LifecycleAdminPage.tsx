@@ -55,6 +55,17 @@ type SignupShareNotice = {
   details: string[];
 };
 
+type AdminActionNotice = {
+  tone: "success" | "warning" | "error";
+  label: string;
+  title: string;
+  details: string[];
+  secondaryAction?: {
+    label: string;
+    onClick: () => void;
+  };
+};
+
 type SignupShareRecipient = {
   name?: string;
   recipient: string;
@@ -146,6 +157,32 @@ function shouldKeepAfterDelete(user: Intake, deletedIntake: Intake, result: Json
   return true;
 }
 
+function deleteNoticeFor(intake: Intake, result: JsonRecord): AdminActionNotice {
+  const cleanupErrors = stringArray(result.cleanup_errors);
+  if (cleanupErrors.length > 0) {
+    return {
+      tone: "warning",
+      label: "Removed",
+      title: `${intake.name} was removed from Users.`,
+      details: [
+        "The lifecycle row is hidden and should not return after refresh.",
+        "Some linked cleanup needs follow-up:",
+        ...cleanupErrors.slice(0, 4),
+      ],
+    };
+  }
+
+  return {
+    tone: "success",
+    label: "Removed",
+    title: `${intake.name} was removed from Users.`,
+    details: [
+      "The lifecycle row is hidden and protected from backfill.",
+      "Linked profile and login cleanup completed where matching records were found.",
+    ],
+  };
+}
+
 const lifecycleRequestFailedMessage = "Lifecycle request failed. Please refresh and try again.";
 
 function isHtmlErrorResponse(text: string) {
@@ -209,6 +246,7 @@ export default function LifecycleAdminPage() {
   });
   const [sharingSignup, setSharingSignup] = useState(false);
   const [signupShareNotice, setSignupShareNotice] = useState<SignupShareNotice | null>(null);
+  const [adminActionNotice, setAdminActionNotice] = useState<AdminActionNotice | null>(null);
   const [copiedSignupLink, setCopiedSignupLink] = useState(false);
   const [newOrg, setNewOrg] = useState({ name: "", default_tier: "free" });
   const [editingOrgId, setEditingOrgId] = useState<string | null>(null);
@@ -798,8 +836,17 @@ export default function LifecycleAdminPage() {
       });
       const syncedCount = Array.isArray(data.synced_profile_ids) ? data.synced_profile_ids.length : 1;
       const confirmation = `Changes saved${syncedCount > 1 ? ` across ${syncedCount} linked profiles` : ""}.`;
-      setMessage(confirmation);
+      setMessage("");
       setUserDetailMessage(confirmation);
+      setAdminActionNotice({
+        tone: "success",
+        label: "Saved",
+        title: `Changes saved for ${selectedUser.intake.name}.`,
+        details: [
+          syncedCount > 1 ? `Updated ${syncedCount} linked app profiles.` : "Updated the linked app profile.",
+          "The Users table will refresh with the latest status and tier.",
+        ],
+      });
       setSelectedUser({
         ...selectedUser,
         intake: data.intake,
@@ -823,11 +870,23 @@ export default function LifecycleAdminPage() {
     setBusyAction(`toggle:${intake.id}`);
     const disabled = intake.account_status === "disabled";
     try {
-      await api(`/users/${intake.id}/${disabled ? "enable" : "disable"}`, {
+      const data = await api(`/users/${intake.id}/${disabled ? "enable" : "disable"}`, {
         method: "POST",
         body: JSON.stringify({ reason: disabled ? "" : "Disabled by admin" }),
       });
-      setMessage(disabled ? "User enabled." : "User disabled.");
+      const profileCount = Array.isArray(data.profiles) ? data.profiles.length : data.profile ? 1 : 0;
+      const confirmation = disabled ? "User enabled." : "User disabled.";
+      setMessage("");
+      setUserDetailMessage(`${confirmation} ${profileCount ? `${profileCount} linked profile${profileCount === 1 ? "" : "s"} updated.` : "No linked app profile was found."}`);
+      setAdminActionNotice({
+        tone: profileCount ? "success" : "warning",
+        label: disabled ? "Enabled" : "Disabled",
+        title: `${intake.name} ${disabled ? "was enabled" : "was disabled"}.`,
+        details: [
+          profileCount ? `${profileCount} linked app profile${profileCount === 1 ? "" : "s"} updated.` : "No linked app profile was found for this lifecycle user.",
+          disabled ? "The user can use app access again where their linked login is active." : "The user is now dropped from lifecycle and linked app access is disabled where matched.",
+        ],
+      });
       if (selectedUser?.intake.id === intake.id) await openUserDetail(intake);
       await refresh();
     } catch (err) {
@@ -838,10 +897,11 @@ export default function LifecycleAdminPage() {
   }
 
   async function deleteUser(intake: Intake) {
-    const confirmed = window.confirm(`Permanently delete ${intake.name}? This removes the user from the admin panel and deletes linked VYVA profile records. This cannot be undone.`);
+    const confirmed = window.confirm(`Remove ${intake.name} from Users? This hides the lifecycle record, prevents it from returning on refresh, and disables linked app access where matching records are found.`);
     if (!confirmed) return;
     setBusyAction(`delete:${intake.id}`);
     setUserDetailMessage("");
+    setAdminActionNotice(null);
     try {
       const result = await api(`/users/${intake.id}`, {
         method: "DELETE",
@@ -849,7 +909,8 @@ export default function LifecycleAdminPage() {
       });
       setUsers((current) => current.filter((user) => shouldKeepAfterDelete(user, intake, result)));
       if (selectedUser?.intake.id === intake.id) setSelectedUser(null);
-      setMessage("User deleted.");
+      setMessage("");
+      setAdminActionNotice(deleteNoticeFor(intake, result));
       await refresh();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Could not delete this user.";
@@ -1519,6 +1580,47 @@ export default function LifecycleAdminPage() {
                 onClick={() => setSignupShareNotice(null)}
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {adminActionNotice && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#2f2135]/45 px-4 py-6" role="dialog" aria-modal="true" aria-labelledby="admin-action-result-title">
+          <div className="w-full max-w-lg rounded-[2rem] border border-[#eadfd5] bg-white p-6 text-[#2f2135] shadow-[0_24px_80px_rgba(47,33,53,0.28)]">
+            <p className={`inline-flex rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${
+              adminActionNotice.tone === "success"
+                ? "bg-emerald-50 text-emerald-800"
+                : adminActionNotice.tone === "warning"
+                  ? "bg-amber-50 text-amber-800"
+                  : "bg-red-50 text-red-700"
+            }`}>
+              {adminActionNotice.label}
+            </p>
+            <h2 id="admin-action-result-title" className="mt-3 font-serif text-3xl leading-tight">{adminActionNotice.title}</h2>
+            {adminActionNotice.details.length > 0 && (
+              <ul className="mt-4 max-h-56 space-y-2 overflow-auto rounded-2xl bg-[#fbf8f5] p-3 text-sm font-semibold text-[#5f514b]">
+                {adminActionNotice.details.map((detail, index) => (
+                  <li key={`${detail}-${index}`}>{detail}</li>
+                ))}
+              </ul>
+            )}
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+              {adminActionNotice.secondaryAction && (
+                <button
+                  type="button"
+                  className="rounded-2xl border border-[#eadfd5] bg-white px-5 py-3 text-sm font-bold text-[#2f2135] hover:border-purple-200 hover:text-purple-700"
+                  onClick={adminActionNotice.secondaryAction.onClick}
+                >
+                  {adminActionNotice.secondaryAction.label}
+                </button>
+              )}
+              <button
+                type="button"
+                className="rounded-2xl bg-purple-700 px-5 py-3 text-sm font-bold text-white hover:bg-purple-800"
+                onClick={() => setAdminActionNotice(null)}
+              >
+                Done
               </button>
             </div>
           </div>

@@ -25,6 +25,14 @@ type PhoneIntake = Intake & {
 };
 
 type PhoneOnboardingTab = "phone" | "callbacks";
+type PhoneBucket = "new_call" | "missing_info" | "link_sent" | "completed";
+
+const phoneBucketLabels: Record<PhoneBucket, string> = {
+  new_call: "New call",
+  missing_info: "Missing info",
+  link_sent: "Link sent",
+  completed: "Completed",
+};
 
 function valueText(value: unknown): string {
   if (value === null || value === undefined || value === "") return "";
@@ -48,6 +56,15 @@ function formatDateTime(value?: string | null) {
 
 function profileName(user: PhoneIntake) {
   return user.profile_name || user.name || user.login_email || user.phone;
+}
+
+function phoneBucket(user: PhoneIntake): PhoneBucket {
+  const hasName = Boolean((user.profile_name || user.name || "").trim());
+  const hasPhone = Boolean((user.profile_phone || user.login_phone || user.phone || "").trim());
+  if (user.status === "active" || Boolean(user.activated_at)) return "completed";
+  if (user.status === "link_sent" || Boolean(user.link_sent_at)) return "link_sent";
+  if (!hasName || !hasPhone || user.journey_step.includes("collect")) return "missing_info";
+  return "new_call";
 }
 
 function keyData(user: PhoneIntake) {
@@ -87,6 +104,7 @@ function PhoneUserCard({ user }: { user: PhoneIntake }) {
   const callback = callbackMetadata(user);
   const callbackScheduled = callbackScheduledLabel(user);
   const callbackStatus = typeof callback?.status === "string" ? callback.status : user.journey_step;
+  const bucket = phoneBucket(user);
 
   return (
     <article className="rounded-[24px] border border-[#eadfd5] bg-white p-5 shadow-sm">
@@ -100,6 +118,11 @@ function PhoneUserCard({ user }: { user: PhoneIntake }) {
             <span className="rounded-full bg-[#fff4df] px-3 py-1 text-xs font-black text-[#8a5a00]">
               {cleanLabel(user.user_type)}
             </span>
+            {!callback && (
+              <span className="rounded-full bg-[#f3e8ff] px-3 py-1 text-xs font-black text-purple-800">
+                {phoneBucketLabels[bucket]}
+              </span>
+            )}
             {callback && (
               <span className="rounded-full bg-[#f3e8ff] px-3 py-1 text-xs font-black text-purple-800">
                 Callback onboarding
@@ -251,6 +274,7 @@ export default function PhoneOnboardingPage() {
   const [callbacks, setCallbacks] = useState<PhoneIntake[]>([]);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
+  const [bucketFilter, setBucketFilter] = useState<PhoneBucket | "">("");
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -323,10 +347,10 @@ export default function PhoneOnboardingPage() {
   }, [status, activeTab]);
 
   const phoneSummary = useMemo(() => ([
-    ["Phone intakes", users.length],
-    ["Active", users.filter((user) => user.status === "active").length],
-    ["Links sent", users.filter((user) => Boolean(user.link_sent_at) || user.status === "link_sent" || user.status === "active").length],
-    ["Consent flows", users.filter((user) => user.consent_status && user.consent_status !== "not_required").length],
+    [phoneBucketLabels.new_call, users.filter((user) => phoneBucket(user) === "new_call").length],
+    [phoneBucketLabels.missing_info, users.filter((user) => phoneBucket(user) === "missing_info").length],
+    [phoneBucketLabels.link_sent, users.filter((user) => phoneBucket(user) === "link_sent").length],
+    [phoneBucketLabels.completed, users.filter((user) => phoneBucket(user) === "completed").length],
   ]), [users]);
 
   const callbackSummary = useMemo(() => ([
@@ -336,7 +360,11 @@ export default function PhoneOnboardingPage() {
     ["Completed", callbacks.filter((user) => user.journey_step === "callback_complete_confirmation_queued" || user.status === "link_sent" || user.status === "active").length],
   ]), [callbacks]);
 
-  const activeUsers = activeTab === "callbacks" ? callbacks : users;
+  const visiblePhoneUsers = useMemo(
+    () => (bucketFilter ? users.filter((user) => phoneBucket(user) === bucketFilter) : users),
+    [bucketFilter, users],
+  );
+  const activeUsers = activeTab === "callbacks" ? callbacks : visiblePhoneUsers;
 
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-4 py-4 text-[#2f2135] sm:px-6">
@@ -424,6 +452,27 @@ export default function PhoneOnboardingPage() {
               </button>
             )}
           </div>
+          {activeTab === "phone" && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className={`rounded-full px-4 py-2 text-sm font-black ${bucketFilter === "" ? "bg-purple-700 text-white" : "border border-purple-100 bg-white text-purple-700"}`}
+                onClick={() => setBucketFilter("")}
+              >
+                All inbound callers
+              </button>
+              {(Object.keys(phoneBucketLabels) as PhoneBucket[]).map((bucket) => (
+                <button
+                  key={bucket}
+                  type="button"
+                  className={`rounded-full px-4 py-2 text-sm font-black ${bucketFilter === bucket ? "bg-purple-700 text-white" : "border border-purple-100 bg-white text-purple-700"}`}
+                  onClick={() => setBucketFilter(bucket)}
+                >
+                  {phoneBucketLabels[bucket]}
+                </button>
+              ))}
+            </div>
+          )}
         </section>
 
         {activeTab === "callbacks" ? (
