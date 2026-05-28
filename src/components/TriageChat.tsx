@@ -16,6 +16,11 @@ interface TriageSummary {
   recommendations: string[];
   disclaimer: string;
   aiSummary?: string;
+  nextStepLabel?: string;
+  nextStepLevel?: "emergency" | "doctor_today" | "doctor_24_48" | "monitor";
+  watchSigns?: string[];
+  profileConsiderations?: string[];
+  vitalsNotes?: string[];
 }
 
 interface TriageResponse {

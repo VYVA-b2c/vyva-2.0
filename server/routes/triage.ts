@@ -31,6 +31,11 @@ interface TriageSummary {
   urgency: "urgent" | "routine" | "monitor";
   recommendations: string[];
   disclaimer: string;
+  nextStepLabel?: string;
+  nextStepLevel?: "emergency" | "doctor_today" | "doctor_24_48" | "monitor";
+  watchSigns?: string[];
+  profileConsiderations?: string[];
+  vitalsNotes?: string[];
 }
 
 type TriageQuickReply = {
@@ -281,6 +286,10 @@ function firstAnswerKind(wizard: TriageWizardContext | undefined, kind: string) 
   return selectedAnswers(wizard).find((answer) => answer.kind === kind);
 }
 
+function selectedSymptomId(wizard: TriageWizardContext | undefined) {
+  return firstAnswerKind(wizard, "symptom")?.id;
+}
+
 function selectedSafetyAnswer(wizard: TriageWizardContext | undefined) {
   if (hasAnswer(wizard, Array.from(SAFETY_ACTION_IDS))) return null;
   return selectedAnswers(wizard).find((answer) => CRITICAL_RED_FLAG_IDS.has(answer.id));
@@ -510,6 +519,23 @@ function quickRepliesFor(wizard: TriageWizardContext | undefined, locale: string
   }
 
   if (stage === "duration") {
+    const symptomId = selectedSymptomId(wizard);
+    if (symptomId === "fever") {
+      return [
+        reply(locale, "today", "duration", "Started today", "Empezo hoy", "It started today.", "Empezo hoy.", "thermometer", "amber"),
+        reply(locale, "few_days", "duration", "2-3 days", "2-3 dias", "It has been going on for two or three days.", "Lleva dos o tres dias.", "activity", "purple"),
+        reply(locale, "week_plus", "duration", "A week+", "Una semana+", "It has been going on for a week or more.", "Lleva una semana o mas.", "activity", "blue"),
+        reply(locale, "not_sure_duration", "duration", "Not sure", "No se", "I am not sure when it started.", "No se cuando empezo.", "help", "purple"),
+      ];
+    }
+    if (symptomId === "breathing") {
+      return [
+        reply(locale, "today", "duration", "New today", "Nuevo hoy", "It started today.", "Empezo hoy.", "wind", "amber"),
+        reply(locale, "few_days", "duration", "Few days", "Pocos dias", "It has been going on for two or three days.", "Lleva dos o tres dias.", "activity", "purple"),
+        reply(locale, "week_plus", "duration", "Longer", "Mas tiempo", "It has been going on for a week or more.", "Lleva una semana o mas.", "activity", "blue"),
+        reply(locale, "not_sure_duration", "duration", "Not sure", "No se", "I am not sure when it started.", "No se cuando empezo.", "help", "purple"),
+      ];
+    }
     return [
       reply(locale, "today", "duration", "Today", "Hoy", "It started today.", "Empezo hoy.", "activity", "amber"),
       reply(locale, "few_days", "duration", "2-3 days", "2-3 dias", "It has been going on for two or three days.", "Lleva dos o tres dias.", "activity", "purple"),
@@ -519,6 +545,23 @@ function quickRepliesFor(wizard: TriageWizardContext | undefined, locale: string
   }
 
   if (stage === "severity") {
+    const symptomId = selectedSymptomId(wizard);
+    if (symptomId === "breathing") {
+      return [
+        reply(locale, "mild", "severity", "Mild", "Leve", "It feels mild.", "Se siente leve.", "activity", "green"),
+        reply(locale, "moderate", "severity", "Limits walking", "Limita caminar", "It limits my walking or normal activity.", "Limita caminar o actividad normal.", "wind", "amber"),
+        reply(locale, "strong", "severity", "Hard to speak", "Cuesta hablar", "It is hard to speak full sentences.", "Me cuesta hablar frases completas.", "alert", "red"),
+        reply(locale, "not_sure_severity", "severity", "Not sure", "No se", "I am not sure how strong it is.", "No se que tan fuerte es.", "help", "purple"),
+      ];
+    }
+    if (symptomId === "fever") {
+      return [
+        reply(locale, "mild", "severity", "Low fever", "Fiebre baja", "It feels mild.", "Se siente leve.", "thermometer", "green"),
+        reply(locale, "moderate", "severity", "Feverish", "Con fiebre", "It feels moderate.", "Se siente moderado.", "thermometer", "amber"),
+        reply(locale, "strong", "severity", "Very unwell", "Muy mal", "I feel very unwell.", "Me siento muy mal.", "alert", "red"),
+        reply(locale, "not_sure_severity", "severity", "Not sure", "No se", "I am not sure how strong it is.", "No se que tan fuerte es.", "help", "purple"),
+      ];
+    }
     return [
       reply(locale, "mild", "severity", "Mild", "Leve", "It feels mild.", "Se siente leve.", "activity", "green"),
       reply(locale, "moderate", "severity", "Medium", "Medio", "It feels moderate.", "Se siente moderado.", "alert", "amber"),
@@ -637,13 +680,19 @@ CONVERSATION FLOW:
 8. On your FINAL turn, you MUST end your message with this exact JSON block (replace values appropriately):
 
 TRIAGE_JSON_START
-{"done":true,"summary":{"chiefComplaint":"<one-line description>","symptoms":["<symptom 1>","<symptom 2>"],"urgency":"<urgent|routine|monitor>","recommendations":["<step 1>","<step 2>","<step 3>","<step 4>"],"disclaimer":"This assessment is for information only and is not medical advice. Always consult your doctor or call emergency services if you feel it is serious."}}
+{"done":true,"summary":{"chiefComplaint":"<one-line description>","symptoms":["<symptom 1>","<symptom 2>"],"urgency":"<urgent|routine|monitor>","nextStepLabel":"<plain next step>","nextStepLevel":"<emergency|doctor_today|doctor_24_48|monitor>","recommendations":["<step 1>","<step 2>","<step 3>","<step 4>"],"watchSigns":["<specific sign 1>","<specific sign 2>","<specific sign 3>"],"profileConsiderations":["<profile factor considered, if any>"],"vitalsNotes":["<vitals note, if any>"],"disclaimer":"This assessment is for information only and is not medical advice. Always consult your doctor or call emergency services if you feel it is serious."}}
 TRIAGE_JSON_END
 
 Urgency definitions:
 - "urgent": symptoms that warrant same-day or next-day GP attention (e.g. chest pain, difficulty breathing, high fever)
 - "routine": symptoms that should be discussed at the next GP appointment (e.g. mild ongoing pain, fatigue)
 - "monitor": symptoms that are likely self-limiting and can be monitored at home (e.g. mild cold, minor ache)
+
+Outcome rules:
+- Always include nextStepLabel and nextStepLevel.
+- Always include 2-3 symptom-specific watchSigns.
+- Include profileConsiderations only when HEALTH MEMORY changed what you considered.
+- Include vitalsNotes when a vitals scan exists.
 
 STYLE RULES:
 - Write like a calm health form, not a chat conversation
@@ -699,25 +748,165 @@ function prependRecommendation(recommendations: string[], recommendation: string
   return alreadyPresent ? recommendations : [recommendation, ...recommendations].slice(0, 5);
 }
 
+function symptomLabel(locale: string, symptomId: string | undefined) {
+  const labels: Record<string, { en: string; es: string }> = {
+    pain: { en: "pain or headache", es: "dolor o dolor de cabeza" },
+    breathing: { en: "breathing", es: "respiracion" },
+    fever: { en: "fever", es: "fiebre" },
+    dizzy: { en: "dizziness", es: "mareo" },
+    tired: { en: "tiredness or weakness", es: "cansancio o debilidad" },
+    other: { en: "symptoms", es: "sintomas" },
+  };
+  const label = labels[symptomId ?? "other"] ?? labels.other;
+  return text(locale, label.en, label.es);
+}
+
+function watchSignsFor(locale: string, symptomId: string | undefined): string[] {
+  if (symptomId === "breathing") {
+    return [
+      text(locale, "Breathing becomes difficult at rest.", "La respiracion cuesta incluso en reposo."),
+      text(locale, "Blue lips, confusion, fainting, or chest pressure appears.", "Aparecen labios azules, confusion, desmayo o presion en el pecho."),
+      text(locale, "Oxygen is lower than usual, if you measure it.", "El oxigeno esta mas bajo de lo habitual, si lo mides."),
+    ];
+  }
+  if (symptomId === "fever") {
+    return [
+      text(locale, "Confusion, extreme sleepiness, stiff neck, or new rash appears.", "Aparece confusion, mucho sueno, cuello rigido o erupcion nueva."),
+      text(locale, "Fever stays high or you feel suddenly much worse.", "La fiebre sigue alta o te sientes mucho peor de repente."),
+      text(locale, "You cannot drink, pass very little urine, or feel very weak.", "No puedes beber, orinas muy poco o te sientes muy debil."),
+    ];
+  }
+  if (symptomId === "dizzy") {
+    return [
+      text(locale, "You faint or nearly faint.", "Te desmayas o casi te desmayas."),
+      text(locale, "Weakness on one side, speech trouble, chest pain, or breathing trouble appears.", "Aparece debilidad en un lado, dificultad al hablar, dolor de pecho o falta de aire."),
+      text(locale, "Dizziness gets worse when standing or you cannot walk safely.", "El mareo empeora al levantarte o no puedes caminar con seguridad."),
+    ];
+  }
+  if (symptomId === "pain") {
+    return [
+      text(locale, "Pain becomes sudden, severe, or very unusual for you.", "El dolor se vuelve repentino, fuerte o muy raro para ti."),
+      text(locale, "Weakness, speech trouble, vision change, confusion, or fainting appears.", "Aparece debilidad, dificultad al hablar, cambio de vision, confusion o desmayo."),
+      text(locale, "Pain follows a fall, head hit, or chest pressure.", "El dolor aparece tras una caida, golpe en la cabeza o presion en el pecho."),
+    ];
+  }
+  return [
+    text(locale, "Symptoms get worse or new symptoms appear.", "Los sintomas empeoran o aparecen sintomas nuevos."),
+    text(locale, "You feel unsafe, confused, faint, or very weak.", "Te sientes inseguro, con confusion, desmayo o mucha debilidad."),
+    text(locale, "Breathing trouble, chest pain, or severe pain appears.", "Aparece falta de aire, dolor de pecho o dolor fuerte."),
+  ];
+}
+
+function profileConsiderationsFor(locale: string, risks: ProfileRiskFlags, symptomId: string | undefined): string[] {
+  const notes = [
+    risks.bloodThinner && ["pain", "dizzy", "other"].includes(symptomId ?? "")
+      ? text(locale, "Blood thinner in profile: falls, head hits, unusual bleeding, or severe headache need extra caution.", "Anticoagulante en el perfil: caidas, golpes en la cabeza, sangrado raro o dolor de cabeza fuerte requieren mas cuidado.")
+      : "",
+    risks.diabetes && ["dizzy", "tired", "fever", "other"].includes(symptomId ?? "")
+      ? text(locale, "Diabetes or glucose medicine in profile: sugar changes can make weakness, dizziness, or infection feel different.", "Diabetes o medicacion de azucar en el perfil: cambios de azucar pueden cambiar debilidad, mareo o infeccion.")
+      : "",
+    (risks.copd || risks.heartFailure) && ["breathing", "tired", "other"].includes(symptomId ?? "")
+      ? text(locale, "Breathing or heart condition in profile: shortness of breath should be watched more closely.", "Condicion respiratoria o cardiaca en el perfil: la falta de aire debe vigilarse mas de cerca.")
+      : "",
+    (risks.strokeHistory || risks.hypertension) && ["pain", "dizzy", "other"].includes(symptomId ?? "")
+      ? text(locale, "Blood pressure or stroke history in profile: weakness, speech trouble, or vision change matters more.", "Presion alta o antecedente de ictus en el perfil: debilidad, habla rara o cambio de vision importa mas.")
+      : "",
+    (risks.immunosuppressed || risks.cancerActive || risks.steroidMedication) && symptomId === "fever"
+      ? text(locale, "Low immunity risk in profile: fever should be handled more cautiously.", "Riesgo de defensas bajas en el perfil: la fiebre debe manejarse con mas cautela.")
+      : "",
+    risks.cognitiveConcern
+      ? text(locale, "Memory or confusion risk in profile: new confusion should be treated as important.", "Riesgo de memoria o confusion en el perfil: la confusion nueva debe tratarse como importante.")
+      : "",
+  ].filter(Boolean);
+  return notes.slice(0, 2);
+}
+
+function vitalsNotesFor(locale: string, wizard: TriageWizardContext | undefined): string[] {
+  const bpm = wizard?.vitals?.bpm;
+  const rr = wizard?.vitals?.respiratoryRate;
+  const notes: string[] = [];
+  if (typeof bpm === "number" && (bpm >= 110 || bpm <= 50)) {
+    notes.push(text(locale, `Pulse from scan was ${bpm} bpm, so the report includes it for the doctor.`, `El pulso del escaneo fue ${bpm} lpm, asi que el informe lo incluye para el medico.`));
+  } else if (typeof bpm === "number") {
+    notes.push(text(locale, `Pulse from scan was ${bpm} bpm.`, `El pulso del escaneo fue ${bpm} lpm.`));
+  }
+  if (typeof rr === "number" && (rr >= 24 || rr <= 10)) {
+    notes.push(text(locale, `Breathing rate from scan was ${rr}/min, which should be shared with a clinician.`, `La respiracion del escaneo fue ${rr}/min, y conviene compartirla con un clinico.`));
+  } else if (typeof rr === "number") {
+    notes.push(text(locale, `Breathing rate from scan was ${rr}/min.`, `La respiracion del escaneo fue ${rr}/min.`));
+  }
+  return notes.slice(0, 2);
+}
+
+function nextStepFor(
+  locale: string,
+  summary: TriageSummary,
+  wizard: TriageWizardContext | undefined,
+): Pick<TriageSummary, "nextStepLabel" | "nextStepLevel"> {
+  const answers = selectedAnswers(wizard);
+  const ids = new Set(answers.map((answer) => answer.id));
+  const hasCriticalRedFlag = answers.some((answer) => CRITICAL_RED_FLAG_IDS.has(answer.id));
+
+  if (hasCriticalRedFlag) {
+    return {
+      nextStepLevel: "emergency",
+      nextStepLabel: text(locale, "Call emergency services now", "Llama a emergencias ahora"),
+    };
+  }
+  if (summary.urgency === "urgent" || (ids.has("strong") && ids.has("worse")) || ids.has("new_symptoms")) {
+    return {
+      nextStepLevel: "doctor_today",
+      nextStepLabel: text(locale, "Talk to a doctor today", "Habla con un medico hoy"),
+    };
+  }
+  if (summary.urgency === "routine" || ids.has("strong") || ids.has("worse")) {
+    return {
+      nextStepLevel: "doctor_24_48",
+      nextStepLabel: text(locale, "Talk to a doctor within 24-48 hours", "Habla con un medico en 24-48 horas"),
+    };
+  }
+  return {
+    nextStepLevel: "monitor",
+    nextStepLabel: text(locale, "Monitor at home, with doctor access ready", "Vigila en casa, con medico disponible"),
+  };
+}
+
 function applyTriageSafetyFloor(
   summary: TriageSummary,
   wizard: TriageWizardContext | undefined,
   locale: string,
+  healthMemory?: TriageHealthMemory,
 ): TriageSummary {
   const answers = selectedAnswers(wizard);
   const ids = new Set(answers.map((answer) => answer.id));
-  const symptom = firstAnswerKind(wizard, "symptom")?.id;
+  const symptom = selectedSymptomId(wizard);
   const hasCriticalRedFlag = answers.some((answer) => CRITICAL_RED_FLAG_IDS.has(answer.id));
   const strongAndWorse = ids.has("strong") && ids.has("worse");
   const strongOrWorse = ids.has("strong") || ids.has("worse") || ids.has("new_symptoms");
   const isPainOrHeadache = symptom === "pain";
+  const risks = profileRiskFlags(healthMemory);
+  const baseSummary = {
+    ...summary,
+    symptoms: summary.symptoms?.length ? summary.symptoms : [symptomLabel(locale, symptom)],
+    watchSigns: summary.watchSigns?.length ? summary.watchSigns : watchSignsFor(locale, symptom),
+    profileConsiderations: [
+      ...(summary.profileConsiderations ?? []),
+      ...profileConsiderationsFor(locale, risks, symptom),
+    ].slice(0, 3),
+    vitalsNotes: [
+      ...(summary.vitalsNotes ?? []),
+      ...vitalsNotesFor(locale, wizard),
+    ].slice(0, 3),
+  };
+  const nextStep = nextStepFor(locale, baseSummary, wizard);
 
   if (hasCriticalRedFlag) {
     return {
-      ...summary,
-      urgency: maxUrgency(summary.urgency, "urgent"),
+      ...baseSummary,
+      ...nextStep,
+      urgency: maxUrgency(baseSummary.urgency, "urgent"),
       recommendations: prependRecommendation(
-        summary.recommendations,
+        baseSummary.recommendations,
         text(
           locale,
           "Seek urgent medical help now if this feels severe, sudden, or unsafe.",
@@ -729,10 +918,11 @@ function applyTriageSafetyFloor(
 
   if (isPainOrHeadache && strongAndWorse) {
     return {
-      ...summary,
-      urgency: maxUrgency(summary.urgency, "urgent"),
+      ...baseSummary,
+      ...nextStepFor(locale, { ...baseSummary, urgency: maxUrgency(baseSummary.urgency, "urgent") }, wizard),
+      urgency: maxUrgency(baseSummary.urgency, "urgent"),
       recommendations: prependRecommendation(
-        summary.recommendations,
+        baseSummary.recommendations,
         text(
           locale,
           "Contact a doctor or urgent care today because a strong headache that is getting worse needs medical advice.",
@@ -744,10 +934,11 @@ function applyTriageSafetyFloor(
 
   if (strongOrWorse) {
     return {
-      ...summary,
-      urgency: maxUrgency(summary.urgency, "routine"),
+      ...baseSummary,
+      ...nextStepFor(locale, { ...baseSummary, urgency: maxUrgency(baseSummary.urgency, "routine") }, wizard),
+      urgency: maxUrgency(baseSummary.urgency, "routine"),
       recommendations: prependRecommendation(
-        summary.recommendations,
+        baseSummary.recommendations,
         text(
           locale,
           "Contact your doctor or clinic within 24 hours if this stays strong, gets worse, or feels unusual for you.",
@@ -757,7 +948,10 @@ function applyTriageSafetyFloor(
     };
   }
 
-  return summary;
+  return {
+    ...baseSummary,
+    ...nextStep,
+  };
 }
 
 router.get("/context", async (req: Request, res: Response) => {
@@ -857,7 +1051,7 @@ router.post("/message", async (req: Request, res: Response) => {
 
     const rawContent = completion.choices[0]?.message?.content?.trim() ?? "";
     const { content, summary } = extractTriageJson(rawContent);
-    const safeSummary = summary ? applyTriageSafetyFloor(summary, wizard, normalizedLocale) : null;
+    const safeSummary = summary ? applyTriageSafetyFloor(summary, wizard, normalizedLocale, healthMemory) : null;
 
     return res.json({
       role: "assistant",

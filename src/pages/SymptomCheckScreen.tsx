@@ -18,6 +18,11 @@ interface TriageSummary {
   recommendations: string[];
   disclaimer: string;
   aiSummary?: string;
+  nextStepLabel?: string;
+  nextStepLevel?: "emergency" | "doctor_today" | "doctor_24_48" | "monitor";
+  watchSigns?: string[];
+  profileConsiderations?: string[];
+  vitalsNotes?: string[];
 }
 
 type ReportSaveState = "idle" | "saving" | "saved" | "error";
@@ -214,7 +219,11 @@ function ReportScreen({
     bpm != null ? `${t("health.symptomCheck.scan.heartRate", "Heart Rate")}: ${bpm} bpm` : "",
     respiratoryRate != null ? `${t("health.symptomCheck.scan.respiratoryRate", "Resp. Rate")}: ${respiratoryRate} rpm` : "",
     `${t("health.symptomCheck.report.urgencyLabel", "Urgency")}: ${t(cfg.label)}`,
+    summary.nextStepLabel ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${summary.nextStepLabel}` : "",
     summary.recommendations.length ? `${t("health.symptomCheck.report.recommendations", "What to do next")}: ${summary.recommendations.join(" ")}` : "",
+    summary.watchSigns?.length ? `${t("health.symptomCheck.report.watchSigns", "Watch signs")}: ${summary.watchSigns.join(" ")}` : "",
+    summary.profileConsiderations?.length ? `${t("health.symptomCheck.report.profileConsidered", "Profile considered")}: ${summary.profileConsiderations.join(" ")}` : "",
+    summary.vitalsNotes?.length ? `${t("health.symptomCheck.report.vitalsUsed", "Vitals used")}: ${summary.vitalsNotes.join(" ")}` : "",
   ].filter(Boolean).join("\n");
   const openDoctorWithContext = () => {
     navigate("/health/doctor", {
@@ -341,6 +350,16 @@ function ReportScreen({
               </span>
             </button>
           )}
+          {summary.nextStepLabel && (
+            <div className="col-span-2 rounded-[22px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]">
+              <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-text-3">
+                {t("health.symptomCheck.report.nextStep", "Next step")}
+              </p>
+              <p className="mt-1 font-body text-[21px] font-black leading-tight text-vyva-text-1">
+                {summary.nextStepLabel}
+              </p>
+            </div>
+          )}
           <button
             type="button"
             onClick={() => navigate(reportId ? `/informes/${reportId}` : "/informes")}
@@ -412,6 +431,40 @@ function ReportScreen({
             </div>
           )}
         </div>
+
+        {(summary.watchSigns?.length || summary.profileConsiderations?.length || summary.vitalsNotes?.length) && (
+          <div className="grid gap-3">
+            {summary.watchSigns?.length ? (
+              <div className="rounded-[24px] border border-[#FED7AA] bg-[#FFF7ED] p-5 text-[#9A3412] shadow-[0_8px_24px_rgba(63,45,35,0.05)]">
+                <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em]">
+                  {t("health.symptomCheck.report.watchSigns", "Watch for")}
+                </p>
+                <ul className="mt-3 grid gap-2">
+                  {summary.watchSigns.slice(0, 3).map((sign, index) => (
+                    <li key={index} className="font-body text-[16px] font-bold leading-snug">
+                      {sign}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {summary.profileConsiderations?.length || summary.vitalsNotes?.length ? (
+              <div className="rounded-[24px] border border-[#DDD6FE] bg-[#F5F3FF] p-5 text-vyva-purple shadow-[0_8px_24px_rgba(63,45,35,0.05)]">
+                <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em]">
+                  {t("health.symptomCheck.report.contextUsed", "What VYVA considered")}
+                </p>
+                <ul className="mt-3 grid gap-2">
+                  {[...(summary.profileConsiderations ?? []), ...(summary.vitalsNotes ?? [])].slice(0, 4).map((note, index) => (
+                    <li key={index} className="font-body text-[16px] font-bold leading-snug">
+                      {note}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        )}
 
         <div
           className="rounded-[24px] border border-[#E8DED4] bg-white p-5 shadow-[0_8px_24px_rgba(63,45,35,0.06)]"
