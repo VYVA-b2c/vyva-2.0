@@ -520,6 +520,14 @@ function quickRepliesFor(wizard: TriageWizardContext | undefined, locale: string
 
   if (stage === "duration") {
     const symptomId = selectedSymptomId(wizard);
+    if (symptomId === "pain") {
+      return [
+        reply(locale, "today", "duration", "Started today", "Empezo hoy", "The pain started today.", "El dolor empezo hoy.", "activity", "amber"),
+        reply(locale, "few_days", "duration", "2-3 days", "2-3 dias", "The pain has been there for two or three days.", "El dolor lleva dos o tres dias.", "activity", "purple"),
+        reply(locale, "week_plus", "duration", "A week+", "Una semana+", "The pain has lasted a week or more.", "El dolor lleva una semana o mas.", "activity", "blue"),
+        reply(locale, "not_sure_duration", "duration", "Not sure", "No se", "I am not sure when the pain started.", "No se cuando empezo el dolor.", "help", "purple"),
+      ];
+    }
     if (symptomId === "fever") {
       return [
         reply(locale, "today", "duration", "Started today", "Empezo hoy", "It started today.", "Empezo hoy.", "thermometer", "amber"),
@@ -536,16 +544,40 @@ function quickRepliesFor(wizard: TriageWizardContext | undefined, locale: string
         reply(locale, "not_sure_duration", "duration", "Not sure", "No se", "I am not sure when it started.", "No se cuando empezo.", "help", "purple"),
       ];
     }
+    if (symptomId === "dizzy") {
+      return [
+        reply(locale, "today", "duration", "Started today", "Empezo hoy", "The dizziness started today.", "El mareo empezo hoy.", "activity", "amber"),
+        reply(locale, "few_days", "duration", "Few days", "Pocos dias", "The dizziness has been there for a few days.", "El mareo lleva pocos dias.", "activity", "purple"),
+        reply(locale, "keeps_returning", "duration", "Keeps returning", "Vuelve a pasar", "The dizziness keeps coming back.", "El mareo vuelve a pasar.", "activity", "blue"),
+        reply(locale, "not_sure_duration", "duration", "Not sure", "No se", "I am not sure when it started.", "No se cuando empezo.", "help", "purple"),
+      ];
+    }
+    if (symptomId === "tired") {
+      return [
+        reply(locale, "today", "duration", "Today", "Hoy", "The tiredness or weakness started today.", "El cansancio o debilidad empezo hoy.", "activity", "amber"),
+        reply(locale, "few_days", "duration", "Few days", "Pocos dias", "It has been going on for a few days.", "Lleva pocos dias.", "activity", "purple"),
+        reply(locale, "week_plus", "duration", "A week+", "Una semana+", "It has lasted a week or more.", "Lleva una semana o mas.", "activity", "blue"),
+        reply(locale, "not_sure_duration", "duration", "Not sure", "No se", "I am not sure when it started.", "No se cuando empezo.", "help", "purple"),
+      ];
+    }
     return [
-      reply(locale, "today", "duration", "Today", "Hoy", "It started today.", "Empezo hoy.", "activity", "amber"),
-      reply(locale, "few_days", "duration", "2-3 days", "2-3 dias", "It has been going on for two or three days.", "Lleva dos o tres dias.", "activity", "purple"),
-      reply(locale, "week_plus", "duration", "A week+", "Una semana+", "It has been going on for a week or more.", "Lleva una semana o mas.", "activity", "blue"),
+      reply(locale, "today", "duration", "Started today", "Empezo hoy", "This started today.", "Esto empezo hoy.", "activity", "amber"),
+      reply(locale, "few_days", "duration", "Few days", "Pocos dias", "This has been going on for a few days.", "Esto lleva pocos dias.", "activity", "purple"),
+      reply(locale, "week_plus", "duration", "Longer", "Mas tiempo", "This has been going on longer.", "Esto lleva mas tiempo.", "activity", "blue"),
       reply(locale, "not_sure_duration", "duration", "Not sure", "No se", "I am not sure when it started.", "No se cuando empezo.", "help", "purple"),
     ];
   }
 
   if (stage === "severity") {
     const symptomId = selectedSymptomId(wizard);
+    if (symptomId === "pain") {
+      return [
+        reply(locale, "mild", "severity", "Mild ache", "Dolor leve", "The pain is mild.", "El dolor es leve.", "activity", "green"),
+        reply(locale, "moderate", "severity", "Hard to ignore", "Cuesta ignorarlo", "The pain is hard to ignore.", "El dolor cuesta ignorarlo.", "alert", "amber"),
+        reply(locale, "strong", "severity", "Strong pain", "Dolor fuerte", "The pain is strong.", "El dolor es fuerte.", "heart", "red"),
+        reply(locale, "not_sure_severity", "severity", "Not sure", "No se", "I am not sure how strong it is.", "No se que tan fuerte es.", "help", "purple"),
+      ];
+    }
     if (symptomId === "breathing") {
       return [
         reply(locale, "mild", "severity", "Mild", "Leve", "It feels mild.", "Se siente leve.", "activity", "green"),
@@ -562,15 +594,72 @@ function quickRepliesFor(wizard: TriageWizardContext | undefined, locale: string
         reply(locale, "not_sure_severity", "severity", "Not sure", "No se", "I am not sure how strong it is.", "No se que tan fuerte es.", "help", "purple"),
       ];
     }
+    if (symptomId === "dizzy") {
+      return [
+        reply(locale, "mild", "severity", "Lightheaded", "Aturdido", "I feel lightheaded.", "Me siento aturdido.", "activity", "green"),
+        reply(locale, "moderate", "severity", "Unsteady walking", "Camino inestable", "I feel unsteady when walking.", "Camino con inestabilidad.", "activity", "amber"),
+        reply(locale, "strong", "severity", "Need to sit", "Necesito sentarme", "I need to sit or lie down.", "Necesito sentarme o acostarme.", "alert", "red"),
+        reply(locale, "not_sure_severity", "severity", "Not sure", "No se", "I am not sure how strong it is.", "No se que tan fuerte es.", "help", "purple"),
+      ];
+    }
+    if (symptomId === "tired") {
+      return [
+        reply(locale, "mild", "severity", "Low energy", "Poca energia", "I have low energy.", "Tengo poca energia.", "activity", "green"),
+        reply(locale, "moderate", "severity", "Limits my day", "Limita mi dia", "It is hard to do my usual things.", "Me cuesta hacer mis cosas normales.", "activity", "amber"),
+        reply(locale, "strong", "severity", "Very weak", "Muy debil", "I feel very weak.", "Me siento muy debil.", "alert", "red"),
+        reply(locale, "not_sure_severity", "severity", "Not sure", "No se", "I am not sure how strong it is.", "No se que tan fuerte es.", "help", "purple"),
+      ];
+    }
     return [
       reply(locale, "mild", "severity", "Mild", "Leve", "It feels mild.", "Se siente leve.", "activity", "green"),
-      reply(locale, "moderate", "severity", "Medium", "Medio", "It feels moderate.", "Se siente moderado.", "alert", "amber"),
-      reply(locale, "strong", "severity", "Strong", "Fuerte", "It feels strong.", "Se siente fuerte.", "heart", "red"),
+      reply(locale, "moderate", "severity", "Bothers me", "Me molesta", "It is bothering me.", "Me molesta.", "alert", "amber"),
+      reply(locale, "strong", "severity", "Feels serious", "Parece serio", "It feels serious.", "Parece serio.", "heart", "red"),
       reply(locale, "not_sure_severity", "severity", "Not sure", "No se", "I am not sure how strong it is.", "No se que tan fuerte es.", "help", "purple"),
     ];
   }
 
   if (stage === "trend") {
+    const symptomId = selectedSymptomId(wizard);
+    if (symptomId === "breathing") {
+      return [
+        reply(locale, "better", "trend", "Breathing easier", "Respiro mejor", "My breathing is getting easier.", "Respiro mejor.", "activity", "green"),
+        reply(locale, "same", "trend", "Same", "Igual", "My breathing feels about the same.", "Mi respiracion esta igual.", "help", "blue"),
+        reply(locale, "worse", "trend", "Harder to breathe", "Cuesta mas respirar", "It is getting harder to breathe.", "Cada vez cuesta mas respirar.", "alert", "red"),
+        reply(locale, "new_symptoms", "trend", "New symptoms", "Nuevos sintomas", "New symptoms have appeared.", "Han aparecido sintomas nuevos.", "alert", "amber"),
+      ];
+    }
+    if (symptomId === "fever") {
+      return [
+        reply(locale, "better", "trend", "Coming down", "Esta bajando", "The fever is coming down.", "La fiebre esta bajando.", "activity", "green"),
+        reply(locale, "same", "trend", "Same", "Igual", "The fever feels about the same.", "La fiebre esta igual.", "help", "blue"),
+        reply(locale, "worse", "trend", "Higher or worse", "Mas alta o peor", "The fever is higher or I feel worse.", "La fiebre esta mas alta o me siento peor.", "alert", "red"),
+        reply(locale, "new_symptoms", "trend", "New symptoms", "Nuevos sintomas", "New symptoms have appeared.", "Han aparecido sintomas nuevos.", "alert", "amber"),
+      ];
+    }
+    if (symptomId === "dizzy") {
+      return [
+        reply(locale, "better", "trend", "Better sitting", "Mejor sentado", "It is better when I sit or rest.", "Mejora cuando me siento o descanso.", "activity", "green"),
+        reply(locale, "same", "trend", "Same", "Igual", "The dizziness feels about the same.", "El mareo esta igual.", "help", "blue"),
+        reply(locale, "worse", "trend", "More dizzy", "Mas mareo", "The dizziness is getting worse.", "El mareo esta empeorando.", "alert", "red"),
+        reply(locale, "new_symptoms", "trend", "New symptoms", "Nuevos sintomas", "New symptoms have appeared.", "Han aparecido sintomas nuevos.", "alert", "amber"),
+      ];
+    }
+    if (symptomId === "tired") {
+      return [
+        reply(locale, "better", "trend", "More energy", "Mas energia", "I have a bit more energy.", "Tengo algo mas de energia.", "activity", "green"),
+        reply(locale, "same", "trend", "Same", "Igual", "My energy feels about the same.", "Mi energia esta igual.", "help", "blue"),
+        reply(locale, "worse", "trend", "Weaker", "Mas debil", "I am feeling weaker.", "Me siento mas debil.", "alert", "red"),
+        reply(locale, "new_symptoms", "trend", "New symptoms", "Nuevos sintomas", "New symptoms have appeared.", "Han aparecido sintomas nuevos.", "alert", "amber"),
+      ];
+    }
+    if (symptomId === "pain") {
+      return [
+        reply(locale, "better", "trend", "Pain easing", "Dolor baja", "The pain is easing.", "El dolor esta bajando.", "activity", "green"),
+        reply(locale, "same", "trend", "Same", "Igual", "The pain feels about the same.", "El dolor esta igual.", "help", "blue"),
+        reply(locale, "worse", "trend", "Pain worse", "Dolor peor", "The pain is getting worse.", "El dolor esta empeorando.", "alert", "red"),
+        reply(locale, "new_symptoms", "trend", "New symptoms", "Nuevos sintomas", "New symptoms have appeared.", "Han aparecido sintomas nuevos.", "alert", "amber"),
+      ];
+    }
     return [
       reply(locale, "better", "trend", "Better", "Mejor", "It is getting better.", "Esta mejorando.", "activity", "green"),
       reply(locale, "same", "trend", "Same", "Igual", "It feels about the same.", "Se siente igual.", "help", "blue"),
@@ -630,6 +719,7 @@ SYMPTOM AND PROFILE QUESTION MATRIX:
 - Dizziness: ask about fainting, nearly fainting, one-sided weakness, speech trouble, chest pain, irregular heartbeat, dehydration, low sugar, sedating medication, or falls.
 - Very tired/weak: ask about low sugar, infection signs, low urine/dehydration, new confusion, slow breathing/opioids, swelling/heart failure, or inability to stand/walk safely.
 - Something else/free text: first ask the user to name the main symptom in a few words; then choose the closest pattern above. If unclear, ask general safety checks: cannot stand, not drinking/eating, new/severe, new confusion, chest pain, or breathing trouble.
+- Later questions must stay symptom-specific. Pain asks pain timing, strength, and whether pain is easing or worsening. Breathing asks whether breathing is easier or harder. Fever asks whether temperature/feverish feeling is coming down or getting worse. Dizziness asks standing/walking safety and whether rest helps. Tired/weak asks daily function, hydration, and whether weakness is improving or worsening. Free text should be classified first, then follow the nearest path.
 
 PROFILE-SPECIFIC SAFETY CHECKS:
 - Diabetes or glucose medication: check shaky/sweaty/confused/very weak, high sugar with sickness/thirst/drowsiness, missed insulin, vomiting, or infection signs.
@@ -788,6 +878,13 @@ function watchSignsFor(locale: string, symptomId: string | undefined): string[] 
       text(locale, "Pain becomes sudden, severe, or very unusual for you.", "El dolor se vuelve repentino, fuerte o muy raro para ti."),
       text(locale, "Weakness, speech trouble, vision change, confusion, or fainting appears.", "Aparece debilidad, dificultad al hablar, cambio de vision, confusion o desmayo."),
       text(locale, "Pain follows a fall, head hit, or chest pressure.", "El dolor aparece tras una caida, golpe en la cabeza o presion en el pecho."),
+    ];
+  }
+  if (symptomId === "tired") {
+    return [
+      text(locale, "You cannot stand, walk safely, or care for yourself.", "No puedes estar de pie, caminar con seguridad o cuidarte."),
+      text(locale, "New confusion, fever, chest pain, breathing trouble, or fainting appears.", "Aparece confusion nueva, fiebre, dolor de pecho, falta de aire o desmayo."),
+      text(locale, "You are not drinking, pass very little urine, or feel much weaker.", "No estas bebiendo, orinas muy poco o te sientes mucho mas debil."),
     ];
   }
   return [
