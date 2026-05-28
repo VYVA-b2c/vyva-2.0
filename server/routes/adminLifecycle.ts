@@ -1405,6 +1405,7 @@ adminLifecycleRouter.get("/users", async (req: Request, res: Response) => {
         tier: req.query.tier ? String(req.query.tier) : undefined,
         query: req.query.query ? String(req.query.query) : undefined,
         callback_onboarding: optionalBooleanParam(req.query.callback_onboarding),
+        inbound_phone_onboarding: optionalBooleanParam(req.query.inbound_phone_onboarding),
       }),
     });
   } catch (error) {
