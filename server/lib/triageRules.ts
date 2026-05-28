@@ -112,6 +112,41 @@ function watchSignsFor(locale: string, symptomId?: string): string[] {
       text(locale, "You are not drinking, pass very little urine, or feel much weaker.", "No estas bebiendo, orinas muy poco o te sientes mucho mas debil."),
     ];
   }
+  if (symptomId === "stomach") {
+    return [
+      text(locale, "Belly pain becomes severe, constant, hard, or swollen.", "El dolor de barriga se vuelve fuerte, constante, dura o hinchada."),
+      text(locale, "Vomiting blood, black stool, bloody stool, or fainting appears.", "Aparece vomito con sangre, heces negras, sangre en heces o desmayo."),
+      text(locale, "You cannot keep fluids down or pass very little urine.", "No puedes retener liquidos u orinas muy poco."),
+    ];
+  }
+  if (symptomId === "urinary") {
+    return [
+      text(locale, "Fever, shaking chills, back/flank pain, or new confusion appears.", "Aparece fiebre, escalofrios fuertes, dolor de espalda/lado o confusion nueva."),
+      text(locale, "You cannot pass urine or have strong lower belly pain.", "No puedes orinar o tienes dolor fuerte bajo vientre."),
+      text(locale, "Blood in urine, weakness, or feeling suddenly worse appears.", "Aparece sangre en orina, debilidad o empeoras de repente."),
+    ];
+  }
+  if (symptomId === "fall") {
+    return [
+      text(locale, "Head hit, confusion, fainting, severe headache, or vomiting appears.", "Aparece golpe en cabeza, confusion, desmayo, dolor de cabeza fuerte o vomitos."),
+      text(locale, "You cannot stand, walk, or use the injured part.", "No puedes estar de pie, caminar o usar la parte lesionada."),
+      text(locale, "Hip, back, chest pain, or swelling gets worse.", "Empeora dolor de cadera, espalda, pecho o hinchazon."),
+    ];
+  }
+  if (symptomId === "skin") {
+    return [
+      text(locale, "Redness, warmth, swelling, or pus spreads.", "Rojez, calor, hinchazon o pus se extiende."),
+      text(locale, "Fever, severe pain, red streaks, or feeling very unwell appears.", "Aparece fiebre, dolor fuerte, lineas rojas o te sientes muy mal."),
+      text(locale, "Face, lip, tongue, or throat swelling appears.", "Aparece hinchazon de cara, labios, lengua o garganta."),
+    ];
+  }
+  if (symptomId === "confusion") {
+    return [
+      text(locale, "Confusion is sudden, worse, or you are unsafe alone.", "La confusion es repentina, empeora o no estas seguro solo."),
+      text(locale, "Weakness, speech trouble, face droop, fever, or fainting appears.", "Aparece debilidad, habla rara, cara caida, fiebre o desmayo."),
+      text(locale, "Urine change, dehydration, low sugar signs, or slow breathing appears.", "Aparece cambio de orina, deshidratacion, senales de azucar baja o respiracion lenta."),
+    ];
+  }
   return [
     text(locale, "Symptoms get worse or new symptoms appear.", "Los sintomas empeoran o aparecen sintomas nuevos."),
     text(locale, "You feel unsafe, confused, faint, or very weak.", "Te sientes inseguro, con confusion, desmayo o mucha debilidad."),
@@ -180,6 +215,46 @@ export function evaluateTriageRules(input: TriageRuleInput): TriageRuleDecision 
     );
   }
 
+  if (symptomId === "stomach" && (ids.has("strong") || ids.has("worse") || ids.has("new_symptoms") || ids.has("blood_vomit_stool") || ids.has("severe_abdominal") || ids.has("rigid_belly"))) {
+    raise(
+      ids.has("blood_vomit_stool") || ids.has("severe_abdominal") || ids.has("rigid_belly") ? "emergency" : "doctor_today",
+      text(locale, "Stomach or bowel symptoms include signs that should be checked promptly.", "Sintomas de estomago o intestino incluyen senales que deben revisarse pronto."),
+      text(locale, "Seek urgent help now for severe pain, blood, black stool, fainting, or a hard swollen belly.", "Busca ayuda urgente ahora por dolor fuerte, sangre, heces negras, desmayo o barriga dura e hinchada."),
+    );
+  }
+
+  if (symptomId === "urinary" && (ids.has("strong") || ids.has("worse") || ids.has("new_symptoms") || ids.has("urine_fever_back") || ids.has("cannot_pee") || ids.has("blood_in_urine"))) {
+    raise(
+      ids.has("urine_fever_back") || ids.has("cannot_pee") ? "emergency" : "doctor_today",
+      text(locale, "Urine symptoms with fever, back pain, retention, blood, or worsening need medical advice.", "Sintomas de orina con fiebre, dolor de espalda, retencion, sangre o empeoramiento necesitan consejo medico."),
+      text(locale, "Talk to a doctor today, or seek urgent help if you cannot pass urine or have fever with back pain.", "Habla con un medico hoy, o busca urgencias si no puedes orinar o tienes fiebre con dolor de espalda."),
+    );
+  }
+
+  if (symptomId === "fall" && (ids.has("fall_head_hit") || ids.has("fall_cannot_stand") || ids.has("hip_back_after_fall") || ids.has("strong") || ids.has("worse"))) {
+    raise(
+      ids.has("fall_head_hit") || ids.has("fall_cannot_stand") || ids.has("hip_back_after_fall") ? "emergency" : "doctor_today",
+      text(locale, "Fall or injury answers include signs that may need urgent assessment.", "Respuestas de caida o golpe incluyen senales que pueden necesitar evaluacion urgente."),
+      text(locale, "Seek urgent help for head hit, confusion, fainting, hip/back pain, or inability to stand or walk.", "Busca ayuda urgente por golpe en cabeza, confusion, desmayo, dolor de cadera/espalda o no poder estar de pie o caminar."),
+    );
+  }
+
+  if (symptomId === "skin" && (ids.has("wound_spreading") || ids.has("allergic_swelling") || ids.has("fever_after_surgery") || ids.has("strong") || ids.has("worse") || ids.has("new_symptoms"))) {
+    raise(
+      ids.has("allergic_swelling") ? "emergency" : "doctor_today",
+      text(locale, "Skin or wound symptoms are spreading, severe, or linked with fever/swelling.", "Sintomas de piel o herida se extienden, son fuertes o se asocian con fiebre/hinchazon."),
+      text(locale, "Seek urgent help for face, lip, tongue, or throat swelling; otherwise talk to a doctor today if spreading or fever appears.", "Busca urgencias por hinchazon de cara, labios, lengua o garganta; si se extiende o hay fiebre, habla hoy con un medico."),
+    );
+  }
+
+  if (symptomId === "confusion" && (ids.has("sudden_confusion") || ids.has("stroke_sign") || ids.has("urine_confusion") || ids.has("strong") || ids.has("worse") || ids.has("new_symptoms"))) {
+    raise(
+      ids.has("sudden_confusion") || ids.has("stroke_sign") || ids.has("urine_confusion") ? "emergency" : "doctor_today",
+      text(locale, "Confusion that is sudden, worsening, or linked with weakness, fever, or urine change needs urgent caution.", "Confusion repentina, que empeora o con debilidad, fiebre u orina requiere mucha cautela."),
+      text(locale, "Seek urgent help now if confusion is sudden, severe, or comes with weakness, speech trouble, fever, or urine change.", "Busca ayuda urgente ahora si la confusion es repentina, fuerte o viene con debilidad, habla rara, fiebre u orina."),
+    );
+  }
+
   if (rank(level) < rank("doctor_24_48") && (ids.has("strong") || ids.has("worse") || ids.has("new_symptoms"))) {
     raise(
       "doctor_24_48",
@@ -197,7 +272,7 @@ export function evaluateTriageRules(input: TriageRuleInput): TriageRuleDecision 
     profileConsiderations.push(text(locale, "Low immunity risk was considered.", "Se considero riesgo de defensas bajas."));
   }
 
-  if ((risks.copd || risks.heartFailure || risks.heartDisease || risks.afib) && ["breathing", "tired", "dizzy"].includes(symptomId ?? "") && (ids.has("worse") || ids.has("strong") || input.abnormalPulse || input.abnormalBreathingRate)) {
+  if ((risks.copd || risks.heartFailure || risks.heartDisease || risks.afib) && ["breathing", "tired", "dizzy", "fall", "confusion"].includes(symptomId ?? "") && (ids.has("worse") || ids.has("strong") || input.abnormalPulse || input.abnormalBreathingRate)) {
     raise(
       "doctor_today",
       text(locale, "Heart or breathing history raises concern for this pattern.", "Antecedente cardiaco o respiratorio aumenta la preocupacion por este patron."),
@@ -206,7 +281,7 @@ export function evaluateTriageRules(input: TriageRuleInput): TriageRuleDecision 
     profileConsiderations.push(text(locale, "Heart or breathing condition in the profile raised the next step.", "Condicion cardiaca o respiratoria en el perfil subio el siguiente paso."));
   }
 
-  if ((risks.diabetes || risks.kidneyDisease || risks.diureticMedication) && ["dizzy", "tired", "fever", "other"].includes(symptomId ?? "") && (ids.has("not_drinking") || ids.has("dehydration_diuretic") || ids.has("strong") || ids.has("worse"))) {
+  if ((risks.diabetes || risks.kidneyDisease || risks.diureticMedication) && ["dizzy", "tired", "fever", "urinary", "stomach", "confusion", "other"].includes(symptomId ?? "") && (ids.has("not_drinking") || ids.has("dehydration_diuretic") || ids.has("strong") || ids.has("worse"))) {
     raise(
       "doctor_today",
       text(locale, "Diabetes, kidney, or water-pill risk can make weakness, dizziness, or fever more serious.", "Diabetes, rinon o diureticos pueden hacer debilidad, mareo o fiebre mas serios."),
@@ -215,7 +290,7 @@ export function evaluateTriageRules(input: TriageRuleInput): TriageRuleDecision 
     profileConsiderations.push(text(locale, "Diabetes, kidney, or diuretic risk was considered.", "Se considero diabetes, rinon o riesgo por diuretico."));
   }
 
-  if ((risks.bloodThinner || risks.strokeHistory || risks.hypertension) && ["pain", "dizzy", "other"].includes(symptomId ?? "") && (ids.has("strong") || ids.has("worse") || ids.has("new_symptoms"))) {
+  if ((risks.bloodThinner || risks.strokeHistory || risks.hypertension) && ["pain", "dizzy", "fall", "confusion", "other"].includes(symptomId ?? "") && (ids.has("strong") || ids.has("worse") || ids.has("new_symptoms"))) {
     raise(
       "doctor_today",
       text(locale, "Blood thinner, stroke, or blood pressure history raises concern for pain or dizziness changes.", "Anticoagulante, ictus o presion arterial elevan la preocupacion por cambios de dolor o mareo."),
