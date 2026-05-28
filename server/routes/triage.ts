@@ -693,6 +693,85 @@ function extractTriageJson(text: string): { content: string; summary: TriageSumm
   return { content: text.trim(), summary: null };
 }
 
+function urgencyRank(urgency: TriageSummary["urgency"]) {
+  if (urgency === "urgent") return 3;
+  if (urgency === "routine") return 2;
+  return 1;
+}
+
+function maxUrgency(
+  current: TriageSummary["urgency"],
+  floor: TriageSummary["urgency"],
+): TriageSummary["urgency"] {
+  return urgencyRank(current) >= urgencyRank(floor) ? current : floor;
+}
+
+function prependRecommendation(recommendations: string[], recommendation: string) {
+  const alreadyPresent = recommendations.some((item) => item.toLowerCase() === recommendation.toLowerCase());
+  return alreadyPresent ? recommendations : [recommendation, ...recommendations].slice(0, 5);
+}
+
+function applyTriageSafetyFloor(
+  summary: TriageSummary,
+  wizard: TriageWizardContext | undefined,
+  locale: string,
+): TriageSummary {
+  const answers = selectedAnswers(wizard);
+  const ids = new Set(answers.map((answer) => answer.id));
+  const symptom = firstAnswerKind(wizard, "symptom")?.id;
+  const hasCriticalRedFlag = answers.some((answer) => CRITICAL_RED_FLAG_IDS.has(answer.id));
+  const strongAndWorse = ids.has("strong") && ids.has("worse");
+  const strongOrWorse = ids.has("strong") || ids.has("worse") || ids.has("new_symptoms");
+  const isPainOrHeadache = symptom === "pain";
+
+  if (hasCriticalRedFlag) {
+    return {
+      ...summary,
+      urgency: maxUrgency(summary.urgency, "urgent"),
+      recommendations: prependRecommendation(
+        summary.recommendations,
+        text(
+          locale,
+          "Seek urgent medical help now if this feels severe, sudden, or unsafe.",
+          "Busca ayuda medica urgente ahora si se siente fuerte, repentino o inseguro.",
+        ),
+      ),
+    };
+  }
+
+  if (isPainOrHeadache && strongAndWorse) {
+    return {
+      ...summary,
+      urgency: maxUrgency(summary.urgency, "urgent"),
+      recommendations: prependRecommendation(
+        summary.recommendations,
+        text(
+          locale,
+          "Contact a doctor or urgent care today because a strong headache that is getting worse needs medical advice.",
+          "Contacta hoy con un medico o urgencias porque un dolor de cabeza fuerte que empeora necesita consejo medico.",
+        ),
+      ),
+    };
+  }
+
+  if (strongOrWorse) {
+    return {
+      ...summary,
+      urgency: maxUrgency(summary.urgency, "routine"),
+      recommendations: prependRecommendation(
+        summary.recommendations,
+        text(
+          locale,
+          "Contact your doctor or clinic within 24 hours if this stays strong, gets worse, or feels unusual for you.",
+          "Contacta con tu medico o clinica en 24 horas si sigue fuerte, empeora o se siente raro para ti.",
+        ),
+      ),
+    };
+  }
+
+  return summary;
+}
+
 router.get("/context", async (req: Request, res: Response) => {
   const userId = req.user?.id;
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
@@ -790,13 +869,14 @@ router.post("/message", async (req: Request, res: Response) => {
 
     const rawContent = completion.choices[0]?.message?.content?.trim() ?? "";
     const { content, summary } = extractTriageJson(rawContent);
+    const safeSummary = summary ? applyTriageSafetyFloor(summary, wizard, normalizedLocale) : null;
 
     return res.json({
       role: "assistant",
       content,
-      done: summary != null,
-      summary: summary ?? undefined,
-      quickReplies: summary ? [] : quickRepliesFor(wizard, normalizedLocale, healthMemory),
+      done: safeSummary != null,
+      summary: safeSummary ?? undefined,
+      quickReplies: safeSummary ? [] : quickRepliesFor(wizard, normalizedLocale, healthMemory),
       wizardStage: wizardStage(wizard),
       wizardStageLabel: wizardStageLabel(wizardStage(wizard), normalizedLocale),
       evidenceSources: medisearchContext?.articles.slice(0, 3).map((article) => ({
