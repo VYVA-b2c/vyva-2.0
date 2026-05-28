@@ -26,6 +26,12 @@ type TriageReport = {
   recommendations: string[];
   disclaimer: string;
   ai_summary: string | null;
+  next_step_label: string | null;
+  next_step_level: "emergency" | "doctor_today" | "doctor_24_48" | "monitor" | null;
+  triage_reasons: string[];
+  watch_signs: string[];
+  profile_considerations: string[];
+  vitals_notes: string[];
   bpm: number | null;
   respiratory_rate: number | null;
   duration_seconds: number | null;
@@ -164,6 +170,10 @@ function DetailView({ report, onBack }: { report: TriageReport; onBack: () => vo
   const navigate = useNavigate();
   const cfg = urgencyConfig(report.urgency);
   const UrgencyIcon = cfg.icon;
+  const triageReasons = report.triage_reasons ?? [];
+  const watchSigns = report.watch_signs ?? [];
+  const profileConsiderations = report.profile_considerations ?? [];
+  const vitalsNotes = report.vitals_notes ?? [];
 
   return (
     <div className="min-h-screen px-[18px] pb-10">
@@ -257,6 +267,66 @@ function DetailView({ report, onBack }: { report: TriageReport; onBack: () => vo
               </li>
             ))}
           </ol>
+        </section>
+      )}
+
+      {(report.next_step_label || triageReasons.length > 0) && (
+        <section className={`${cardShell} mt-4 p-5`}>
+          <p className="mb-3 font-body text-[13px] font-bold uppercase tracking-[0.12em] text-vyva-text-2">
+            {t("informes.reportDetail.nextStep", "Next step")}
+          </p>
+          {report.next_step_label && (
+            <p className="font-body text-[20px] font-black leading-tight text-vyva-text-1">
+              {report.next_step_label}
+            </p>
+          )}
+          {triageReasons.length > 0 && (
+            <div className="mt-4 rounded-[20px] bg-[#F5F3FF] p-4 text-[#6B21A8]">
+              <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em]">
+                {t("informes.reportDetail.whyThisStep", "Why this step")}
+              </p>
+              <ul className="mt-3 grid gap-2">
+                {triageReasons.slice(0, 3).map((reason, index) => (
+                  <li key={`${index}-${reason}`} className="font-body text-[15px] font-bold leading-snug text-vyva-text-1">
+                    {reason}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      )}
+
+      {(watchSigns.length > 0 || profileConsiderations.length > 0 || vitalsNotes.length > 0) && (
+        <section className={`${cardShell} mt-4 p-5`}>
+          {watchSigns.length > 0 && (
+            <div>
+              <p className="font-body text-[13px] font-bold uppercase tracking-[0.12em] text-[#9A3412]">
+                {t("informes.reportDetail.watchSigns", "Watch for")}
+              </p>
+              <ul className="mt-3 grid gap-2">
+                {watchSigns.slice(0, 3).map((sign, index) => (
+                  <li key={`${index}-${sign}`} className="font-body text-[15px] font-bold leading-snug text-vyva-text-1">
+                    {sign}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {[...profileConsiderations, ...vitalsNotes].length > 0 && (
+            <div className={watchSigns.length > 0 ? "mt-5 border-t border-[#EADFD5] pt-5" : ""}>
+              <p className="font-body text-[13px] font-bold uppercase tracking-[0.12em] text-[#6B21A8]">
+                {t("informes.reportDetail.contextUsed", "What VYVA considered")}
+              </p>
+              <ul className="mt-3 grid gap-2">
+                {[...profileConsiderations, ...vitalsNotes].slice(0, 4).map((note, index) => (
+                  <li key={`${index}-${note}`} className="font-body text-[15px] font-bold leading-snug text-vyva-text-1">
+                    {note}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
       )}
 
