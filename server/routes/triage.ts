@@ -609,7 +609,7 @@ ${genderInstruction(gender)}${vitalsContext}${wizardContextText(wizard)}${health
 CONVERSATION FLOW:
 1. The app is a senior-friendly wizard. Match the current wizard stage and ask only one very simple question.
 2. If there is no symptom category yet, ask what feels wrong today.
-3. After a symptom category, ask the most relevant red-flag question first. If a red flag is present, calmly recommend urgent help while still collecting enough summary detail.
+3. After a symptom category, ask the most relevant red-flag question first. Match the question to the symptom: pain can ask sudden/severe or fall; fever should ask very high fever, confusion/very sleepy, stiff neck, or rash; breathing should ask breathless at rest or blue/confused; dizziness should ask fainting, one-sided weakness, speech trouble, chest pain, or breathing trouble.
 4. Adapt concern level to HEALTH MEMORY. Be more cautious for diabetes, kidney disease, COPD/oxygen use, heart failure, heart disease/AFib, high blood pressure, stroke/TIA history, blood thinners, low immunity/cancer treatment, liver disease, recent surgery, falls/frailty, Parkinson's, osteoporosis, high-risk medications, and new confusion.
 5. Then ask duration, severity, whether it is getting better/worse, and what help the user wants.
 6. Avoid repeating questions already answered in WIZARD CONTEXT.
