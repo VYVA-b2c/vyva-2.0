@@ -133,11 +133,13 @@ export default function HeroMessagesAdminPage() {
     return data;
   }
 
-  async function refresh() {
+  async function refresh(options: { announce?: boolean } = {}) {
     setMessage("");
     const data = await api("/hero-messages");
-    setDatabaseMessages((data.messages ?? []).map(rowToAdmin));
+    const nextMessages = (data.messages ?? []).map(rowToAdmin);
+    setDatabaseMessages(nextMessages);
     setDrafts({});
+    if (options.announce) setMessage(`Loaded: ${nextMessages.length} managed hero message${nextMessages.length === 1 ? "" : "s"}.`);
   }
 
   function updateMessage(messageId: string, patch: Partial<HeroMessageAdmin>) {
@@ -176,25 +178,29 @@ export default function HeroMessagesAdminPage() {
       return;
     }
 
-    await api("/hero-messages", {
-      method: "POST",
-      body: JSON.stringify({
-        message_id: item.message_id,
-        surface: item.surface,
-        reason: item.reason,
-        priority: Number(item.priority),
-        cooldown_hours: Number(item.cooldownHours),
-        periods: item.periods ?? [],
-        safety_levels: item.safetyLevels ?? [],
-        event_types: item.eventTypes ?? [],
-        activity_types: item.activityTypes ?? [],
-        copy: item.copy,
-        is_enabled: item.is_enabled,
-        admin_notes: item.admin_notes ?? "",
-      }),
-    });
-    setMessage(`${item.message_id} saved.`);
-    await refresh();
+    try {
+      await api("/hero-messages", {
+        method: "POST",
+        body: JSON.stringify({
+          message_id: item.message_id,
+          surface: item.surface,
+          reason: item.reason,
+          priority: Number(item.priority),
+          cooldown_hours: Number(item.cooldownHours),
+          periods: item.periods ?? [],
+          safety_levels: item.safetyLevels ?? [],
+          event_types: item.eventTypes ?? [],
+          activity_types: item.activityTypes ?? [],
+          copy: item.copy,
+          is_enabled: item.is_enabled,
+          admin_notes: item.admin_notes ?? "",
+        }),
+      });
+      await refresh();
+      setMessage(`Saved: ${item.message_id} is ${item.is_enabled ? "enabled" : "disabled"} for ${item.surface}.`);
+    } catch (err) {
+      setMessage(`Failed to save ${item.message_id}: ${err instanceof Error ? err.message : "hero message update failed"}.`);
+    }
   }
 
   useEffect(() => {
@@ -209,7 +215,7 @@ export default function HeroMessagesAdminPage() {
           title="Hero messages"
           subtitle="Manage approved banner copy used across the app. Built-in messages remain as fallbacks, while saved messages override them."
         >
-          <button className="rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white" onClick={() => refresh().catch((err) => setMessage(err.message))}>Refresh</button>
+          <button className="rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white" onClick={() => refresh({ announce: true }).catch((err) => setMessage(`Failed to load hero messages: ${err.message}.`))}>Refresh</button>
           {message && <span className="rounded-2xl bg-purple-50 px-4 py-3 text-purple-800">{message}</span>}
         </AdminPageHeader>
 
@@ -323,7 +329,7 @@ export default function HeroMessagesAdminPage() {
                   </Field>
                 </div>
 
-                <button className="mt-4 rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white" onClick={() => saveMessage(item).catch((err) => setMessage(err.message))}>
+                <button className="mt-4 rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white" onClick={() => saveMessage(item)}>
                   Save hero message
                 </button>
               </article>

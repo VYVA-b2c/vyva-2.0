@@ -31,17 +31,21 @@ export default function AdminUsersPage() {
     return data;
   }
 
-  async function refresh(search = email) {
+  async function refresh(search = email, options: { announce?: boolean } = {}) {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
       if (search.trim().length >= 3) params.set("email", search.trim());
       const data = await api(`/admin-users?${params.toString()}`);
-      setAdmins(data.admins ?? []);
-      setMatches(data.matches ?? []);
-      setMessage("");
+      const nextAdmins = data.admins ?? [];
+      const nextMatches = data.matches ?? [];
+      setAdmins(nextAdmins);
+      setMatches(nextMatches);
+      setMessage(options.announce
+        ? `Loaded: ${nextAdmins.length} admin${nextAdmins.length === 1 ? "" : "s"} and ${nextMatches.length} search result${nextMatches.length === 1 ? "" : "s"}.`
+        : "");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Could not load admin users");
+      setMessage(`Failed to load admin users: ${err instanceof Error ? err.message : "admin API unavailable"}.`);
     } finally {
       setIsLoading(false);
     }
@@ -54,10 +58,12 @@ export default function AdminUsersPage() {
         method: "PATCH",
         body: JSON.stringify({ role }),
       });
-      setMessage(role === "admin" ? `${user.email} is now an admin.` : `${user.email} is now a standard user.`);
-      await refresh();
+      await refresh(email, { announce: false });
+      setMessage(role === "admin"
+        ? `Saved: ${user.email} is now an admin.`
+        : `Saved: admin access removed for ${user.email}.`);
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Could not update role");
+      setMessage(`Failed to save admin role for ${user.email}: ${err instanceof Error ? err.message : "role update failed"}.`);
     }
   }
 
@@ -89,7 +95,7 @@ export default function AdminUsersPage() {
 
       await setRole(found, "admin");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Could not invite admin");
+      setMessage(`Failed to invite admin ${targetEmail}: ${err instanceof Error ? err.message : "admin invite failed"}.`);
     } finally {
       setIsLoading(false);
     }
@@ -109,7 +115,7 @@ export default function AdminUsersPage() {
           title="Admin users"
           subtitle="Promote trusted team members and remove admin access when it is no longer needed."
         >
-          <button className="rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white disabled:opacity-50" disabled={isLoading} onClick={() => refresh().catch(() => undefined)}>
+          <button className="rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white disabled:opacity-50" disabled={isLoading} onClick={() => refresh(email, { announce: true }).catch(() => undefined)}>
             Refresh
           </button>
           {message && <span className="rounded-2xl bg-purple-50 px-4 py-3 text-purple-800">{message}</span>}
@@ -129,14 +135,14 @@ export default function AdminUsersPage() {
               className="rounded-xl border border-[#e4d8ce] px-4 py-2.5 text-sm"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              onKeyDown={(event) => event.key === "Enter" && refresh().catch(() => undefined)}
+              onKeyDown={(event) => event.key === "Enter" && refresh(email, { announce: true }).catch(() => undefined)}
               placeholder="Search by email"
             />
             <button
               type="button"
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#2f2135] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
               disabled={email.trim().length < 3 || isLoading}
-              onClick={() => refresh().catch(() => undefined)}
+              onClick={() => refresh(email, { announce: true }).catch(() => undefined)}
             >
               <Search size={15} />
               Search

@@ -257,14 +257,15 @@ function CaregiverRow({
   const confirmMutation = useMutation({
     mutationFn: async () => {
       const res = await apiFetch(`/api/admin/proxy-confirm/${profile.id}`, { method: "POST" });
-      if (!res.ok) throw new Error(`Error ${res.status}`);
-      return res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : `Error ${res.status}`);
+      return data;
     },
     onSuccess: () => {
-      setActionMsg("Caregiver confirmed.");
+      setActionMsg(`Saved: ${caregiver.name} confirmed for ${displayName(profile)}.`);
       queryClient.invalidateQueries({ queryKey: ["/api/admin/proxy-pending"] });
     },
-    onError: () => setActionMsg("Could not confirm caregiver."),
+    onError: (err) => setActionMsg(`Failed to confirm ${caregiver.name}: ${err instanceof Error ? err.message : "caregiver confirmation failed"}.`),
   });
 
   const flagMutation = useMutation({
@@ -273,15 +274,16 @@ function CaregiverRow({
         method: "POST",
         body: JSON.stringify({ reason: flagReason || undefined }),
       });
-      if (!res.ok) throw new Error(`Error ${res.status}`);
-      return res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : `Error ${res.status}`);
+      return data;
     },
     onSuccess: () => {
-      setActionMsg("Caregiver flagged for review.");
+      setActionMsg(`Saved: ${caregiver.name} flagged for review${flagReason ? ` (${flagReason})` : ""}.`);
       setShowFlagInput(false);
       queryClient.invalidateQueries({ queryKey: ["/api/admin/proxy-pending"] });
     },
-    onError: () => setActionMsg("Could not flag caregiver."),
+    onError: (err) => setActionMsg(`Failed to flag ${caregiver.name}: ${err instanceof Error ? err.message : "caregiver flag failed"}.`),
   });
 
   return (
@@ -471,6 +473,7 @@ function Section({
 
 export default function ProxyPendingPage() {
   const { logout } = useAuth();
+  const [pageMessage, setPageMessage] = useState("");
 
   const { data, isLoading, error, refetch } = useQuery<AdminData>({
     queryKey: ["/api/admin/proxy-pending"],
@@ -520,7 +523,17 @@ export default function ProxyPendingPage() {
             <button
               type="button"
               data-testid="button-admin-refresh"
-              onClick={() => refetch()}
+              onClick={() => {
+                void refetch().then((result) => {
+                  if (result.error) {
+                    setPageMessage(`Failed to load caregivers: ${result.error instanceof Error ? result.error.message : "caregiver request failed"}.`);
+                    return;
+                  }
+                  const nextPending = result.data?.pending?.length ?? 0;
+                  const nextConfirmed = result.data?.confirmed?.length ?? 0;
+                  setPageMessage(`Loaded: ${nextPending} awaiting confirmation, ${nextConfirmed} confirmed caregivers.`);
+                });
+              }}
               className="rounded-xl bg-purple-700 px-4 py-2 text-sm font-black text-white"
             >
               Refresh
@@ -538,6 +551,11 @@ export default function ProxyPendingPage() {
       </header>
 
       <div className="mx-auto max-w-6xl px-5 py-6">
+        {pageMessage && (
+          <div className="mb-5 rounded-2xl border border-purple-100 bg-purple-50 px-4 py-3 text-sm font-bold text-purple-800">
+            {pageMessage}
+          </div>
+        )}
         {error && (
           <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700" data-testid="text-admin-error">
             {(error as Error).message === "FORBIDDEN"

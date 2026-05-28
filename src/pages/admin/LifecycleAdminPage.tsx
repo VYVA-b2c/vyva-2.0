@@ -282,7 +282,24 @@ export default function LifecycleAdminPage() {
     return readAdminResponse(res, lifecycleRequestFailedMessage);
   }
 
-  async function refresh() {
+  function showActionNotice(notice: AdminActionNotice) {
+    setAdminActionNotice(notice);
+    setMessage("");
+  }
+
+  function showActionFailure(action: string, err: unknown, fallback: string) {
+    const detail = err instanceof Error ? err.message : fallback;
+    setMessage(detail);
+    setAdminActionNotice({
+      tone: "error",
+      label: "Failed",
+      title: `${action} failed.`,
+      details: [detail],
+    });
+    return detail;
+  }
+
+  async function refresh(options: { announce?: boolean } = {}) {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => value && params.set(key, value));
     if (peopleSearch.trim()) params.set("query", peopleSearch.trim());
@@ -318,6 +335,10 @@ export default function LifecycleAdminPage() {
       return;
     }
 
+    if (options.announce) {
+      setMessage("Loaded: lifecycle data refreshed.");
+      return;
+    }
     setMessage((current) => current.startsWith("Could not load ") || current === lifecycleRequestFailedMessage ? "" : current);
   }
 
@@ -332,42 +353,57 @@ export default function LifecycleAdminPage() {
     const [callingCode, countryCode = "ES"] = newIntake.country_code.split(" ");
     const phone = `${callingCode} ${newIntake.phone.trim()}`.trim();
     const elderName = `${newIntake.elder_first_name.trim()} ${newIntake.elder_last_name.trim()}`.trim();
-    const data = await api("/intakes", {
-      method: "POST",
-      body: JSON.stringify({
-        name: fullName,
-        phone,
-        organization_id: newIntake.organization_id || null,
-        email: newIntake.email || undefined,
-        user_type: newIntake.user_type,
-        entry_point: newIntake.entry_point,
-        tier: newIntake.tier,
-        elder: newIntake.user_type === "family"
-          ? {
-            name: elderName,
-            phone: newIntake.elder_phone.trim(),
-            email: newIntake.elder_email.trim(),
-          }
-          : undefined,
-        metadata: {
-          first_name: newIntake.first_name.trim(),
-          last_name: newIntake.last_name.trim(),
-          preferred_name: newIntake.preferred_name.trim(),
-          date_of_birth: newIntake.date_of_birth,
-          gender: newIntake.gender,
-          calling_code: callingCode,
-          country_code: countryCode,
-          phone_number: phone,
-          whatsapp_number: newIntake.whatsapp.trim() || phone,
-          email: newIntake.email.trim(),
-          language: newIntake.language,
-          timezone: newIntake.timezone,
-        },
-      }),
-    });
-    setMessage(`Intake created for ${data.intake.name}.`);
-    setNewIntake(emptyIntakeForm);
-    await refresh();
+    try {
+      const data = await api("/intakes", {
+        method: "POST",
+        body: JSON.stringify({
+          name: fullName,
+          phone,
+          organization_id: newIntake.organization_id || null,
+          email: newIntake.email || undefined,
+          user_type: newIntake.user_type,
+          entry_point: newIntake.entry_point,
+          tier: newIntake.tier,
+          elder: newIntake.user_type === "family"
+            ? {
+              name: elderName,
+              phone: newIntake.elder_phone.trim(),
+              email: newIntake.elder_email.trim(),
+            }
+            : undefined,
+          metadata: {
+            first_name: newIntake.first_name.trim(),
+            last_name: newIntake.last_name.trim(),
+            preferred_name: newIntake.preferred_name.trim(),
+            date_of_birth: newIntake.date_of_birth,
+            gender: newIntake.gender,
+            calling_code: callingCode,
+            country_code: countryCode,
+            phone_number: phone,
+            whatsapp_number: newIntake.whatsapp.trim() || phone,
+            email: newIntake.email.trim(),
+            language: newIntake.language,
+            timezone: newIntake.timezone,
+          },
+        }),
+      });
+      const createdIntake = data.intake && typeof data.intake === "object" ? data.intake as JsonRecord : {};
+      const intakeName = stringValue(createdIntake.name) ?? fullName;
+      setNewIntake(emptyIntakeForm);
+      showActionNotice({
+        tone: "success",
+        label: "Saved",
+        title: `Intake saved for ${intakeName}.`,
+        details: [
+          `Entry point: ${entryPointLabel(newIntake.entry_point)}.`,
+          `User type: ${cleanLabel(newIntake.user_type)}.`,
+          newIntake.user_type === "family" ? "Consent is now pending for the elder." : "The user is ready for the next onboarding step.",
+        ],
+      });
+      await refresh();
+    } catch (err) {
+      showActionFailure("Create intake", err, "Could not create intake.");
+    }
   }
 
   function compactRecipientName(value: string) {
@@ -666,22 +702,42 @@ export default function LifecycleAdminPage() {
     setMessage("");
     try {
       await api(`/consent/${intake.id}/trigger`, { method: "POST" });
-      setMessage("Consent call queued.");
+      showActionNotice({
+        tone: "success",
+        label: "Sent",
+        title: `Consent call queued for ${intake.name}.`,
+        details: [
+          "A voice consent attempt was queued for the elder.",
+          "The consent queue and communications log will show the latest attempt.",
+        ],
+      });
       await refresh();
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Could not queue consent call.");
+      showActionFailure("Consent call", err, "Could not queue consent call.");
     } finally {
       setBusyAction(null);
     }
   }
 
   async function markConsent(attempt: ConsentAttempt, status: string) {
-    await api(`/consent/${attempt.id}/result`, {
-      method: "POST",
-      body: JSON.stringify({ status, result_payload: { source: "admin_panel" } }),
-    });
-    setMessage(`Consent marked as ${status}.`);
-    await refresh();
+    try {
+      await api(`/consent/${attempt.id}/result`, {
+        method: "POST",
+        body: JSON.stringify({ status, result_payload: { source: "admin_panel" } }),
+      });
+      showActionNotice({
+        tone: status === "approved" ? "success" : "warning",
+        label: "Saved",
+        title: `Consent result saved as ${cleanLabel(status)}.`,
+        details: [
+          attempt.intake?.name ? `User: ${attempt.intake.name}.` : `Attempt ID: ${attempt.id}.`,
+          status === "approved" ? "The flow can continue to link delivery." : "The consent queue has been updated.",
+        ],
+      });
+      await refresh();
+    } catch (err) {
+      showActionFailure("Consent update", err, "Could not save consent result.");
+    }
   }
 
   function findDuplicateOrg(name: string, excludeId?: string) {
@@ -706,11 +762,21 @@ export default function LifecycleAdminPage() {
         method: "POST",
         body: JSON.stringify(newOrg),
       });
-      setMessage(`Organization created: ${data.organization.name}.`);
+      const organization = data.organization && typeof data.organization === "object" ? data.organization as JsonRecord : {};
+      const organizationName = stringValue(organization.name) ?? newOrg.name.trim();
       setNewOrg({ name: "", default_tier: "free" });
+      showActionNotice({
+        tone: "success",
+        label: "Saved",
+        title: `Organization saved: ${organizationName}.`,
+        details: [
+          `Default tier set to ${cleanLabel(newOrg.default_tier)} for future organization users.`,
+          "The organization is now available for intake and bulk upload.",
+        ],
+      });
       await refresh();
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Could not create organization.");
+      showActionFailure("Create organization", err, "Could not create organization.");
     }
   }
 
@@ -739,27 +805,57 @@ export default function LifecycleAdminPage() {
           default_tier: orgDraft.default_tier,
         }),
       });
-      setMessage(`${data.organization.name} updated. Default tier applies to new org users going forward.`);
+      const organization = data.organization && typeof data.organization === "object" ? data.organization as JsonRecord : {};
+      const organizationName = stringValue(organization.name) ?? orgDraft.name.trim();
       cancelEditOrg();
+      showActionNotice({
+        tone: "success",
+        label: "Saved",
+        title: `${organizationName} was saved.`,
+        details: [
+          `Default tier is now ${cleanLabel(orgDraft.default_tier)} for new organization users.`,
+          "Existing users keep their current tier unless changed separately.",
+        ],
+      });
       await refresh();
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Could not update organization.");
+      showActionFailure("Save organization", err, "Could not update organization.");
     }
   }
 
   async function archiveOrg(org: Organization) {
-    await api(`/organizations/${org.id}`, { method: "DELETE" });
-    setMessage(`${org.name} archived.`);
-    await refresh();
+    try {
+      await api(`/organizations/${org.id}`, { method: "DELETE" });
+      showActionNotice({
+        tone: "success",
+        label: "Deleted",
+        title: `${org.name} was archived.`,
+        details: [
+          "The organization no longer appears in active organization choices.",
+          "It can still be restored from the archived filter.",
+        ],
+      });
+      await refresh();
+    } catch (err) {
+      showActionFailure("Archive organization", err, "Could not archive organization.");
+    }
   }
 
   async function restoreOrg(org: Organization) {
     try {
       await api(`/organizations/${org.id}/restore`, { method: "POST" });
-      setMessage(`${org.name} restored.`);
+      showActionNotice({
+        tone: "success",
+        label: "Restored",
+        title: `${org.name} was restored.`,
+        details: [
+          "The organization is active again.",
+          "Admins can assign new intakes and bulk uploads to it.",
+        ],
+      });
       await refresh();
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Could not restore organization.");
+      showActionFailure("Restore organization", err, "Could not restore organization.");
     }
   }
 
@@ -777,26 +873,38 @@ export default function LifecycleAdminPage() {
       custom_features: {},
     };
 
-    await api("/plans", {
-      method: "POST",
-      body: JSON.stringify({
-        ...plan,
-        features: plan.features ?? [],
-        entitlement: {
-          display_name: entitlement.display_name ?? plan.name,
-          description: entitlement.description ?? plan.description ?? "",
-          voice_assistant: Boolean(entitlement.voice_assistant),
-          medication_tracking: Boolean(entitlement.medication_tracking),
-          symptom_check: Boolean(entitlement.symptom_check),
-          concierge: Boolean(entitlement.concierge),
-          caregiver_dashboard: Boolean(entitlement.caregiver_dashboard),
-          custom_features: entitlement.custom_features ?? {},
-          is_active: plan.is_active,
-        },
-      }),
-    });
-    setMessage(`${plan.name} saved.`);
-    await refresh();
+    try {
+      await api("/plans", {
+        method: "POST",
+        body: JSON.stringify({
+          ...plan,
+          features: plan.features ?? [],
+          entitlement: {
+            display_name: entitlement.display_name ?? plan.name,
+            description: entitlement.description ?? plan.description ?? "",
+            voice_assistant: Boolean(entitlement.voice_assistant),
+            medication_tracking: Boolean(entitlement.medication_tracking),
+            symptom_check: Boolean(entitlement.symptom_check),
+            concierge: Boolean(entitlement.concierge),
+            caregiver_dashboard: Boolean(entitlement.caregiver_dashboard),
+            custom_features: entitlement.custom_features ?? {},
+            is_active: plan.is_active,
+          },
+        }),
+      });
+      showActionNotice({
+        tone: "success",
+        label: "Saved",
+        title: `${plan.name} tier was saved.`,
+        details: [
+          `Plan ID: ${plan.plan_id}.`,
+          plan.is_active ? "This tier is active for assignments." : "This tier is inactive and cannot be assigned to new users.",
+        ],
+      });
+      await refresh();
+    } catch (err) {
+      showActionFailure("Save tier", err, "Could not save tier.");
+    }
   }
 
   async function openUserDetail(intake: Intake, action: "view" | "tier" = "view") {
@@ -868,7 +976,7 @@ export default function LifecycleAdminPage() {
       });
       await refresh();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Could not save user details.";
+      const errorMessage = showActionFailure("Save user", err, "Could not save user details.");
       setMessage(errorMessage);
       setUserDetailMessage(errorMessage);
     } finally {
@@ -900,7 +1008,7 @@ export default function LifecycleAdminPage() {
       if (selectedUser?.intake.id === intake.id) await openUserDetail(intake);
       await refresh();
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Could not update this user.");
+      showActionFailure(intake.account_status === "disabled" ? "Enable user" : "Disable user", err, "Could not update this user.");
     } finally {
       setBusyAction(null);
     }
@@ -923,7 +1031,7 @@ export default function LifecycleAdminPage() {
       setAdminActionNotice(deleteNoticeFor(intake, result));
       await refresh();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Could not delete this user.";
+      const errorMessage = showActionFailure("Delete user", err, "Could not delete this user.");
       setMessage(errorMessage);
       setUserDetailMessage(errorMessage);
     } finally {
@@ -951,9 +1059,17 @@ export default function LifecycleAdminPage() {
       setNewEvent(emptyScheduledEvent);
       await openUserDetail(selectedUser.intake);
       setUserDetailMessage("Scheduled event added.");
-      setMessage("Scheduled event added.");
+      showActionNotice({
+        tone: "success",
+        label: "Saved",
+        title: `Scheduled event saved for ${selectedUser.intake.name}.`,
+        details: [
+          `Event: ${eventPayload.title}.`,
+          `Scheduled for ${new Date(eventPayload.scheduled_for).toLocaleString()}.`,
+        ],
+      });
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Could not add the scheduled event.";
+      const errorMessage = showActionFailure("Add scheduled event", err, "Could not add the scheduled event.");
       setUserDetailMessage(errorMessage);
       setMessage(errorMessage);
     }
@@ -967,9 +1083,17 @@ export default function LifecycleAdminPage() {
       if (selectedUser) await openUserDetail(selectedUser.intake);
       const confirmation = `Scheduled event ${action === "cancel" ? "cancelled" : action === "pause" ? "paused" : "resumed"}.`;
       setUserDetailMessage(confirmation);
-      setMessage(confirmation);
+      showActionNotice({
+        tone: "success",
+        label: action === "resume" ? "Restored" : action === "cancel" ? "Deleted" : "Saved",
+        title: confirmation,
+        details: [
+          `Event: ${event.title}.`,
+          action === "cancel" ? "The event will no longer run." : action === "pause" ? "The event is paused until resumed." : "The event is active again.",
+        ],
+      });
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Could not update the scheduled event.";
+      const errorMessage = showActionFailure("Update scheduled event", err, "Could not update the scheduled event.");
       setUserDetailMessage(errorMessage);
       setMessage(errorMessage);
     }
@@ -985,9 +1109,14 @@ export default function LifecycleAdminPage() {
       });
       await openUserDetail(selectedUser.intake);
       setUserDetailMessage("Scheduled event time updated.");
-      setMessage("Scheduled event time updated.");
+      showActionNotice({
+        tone: "success",
+        label: "Saved",
+        title: `Scheduled event time saved for ${event.title}.`,
+        details: [`New time: ${new Date(scheduledFor).toLocaleString()}.`],
+      });
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Could not update the scheduled event time.";
+      const errorMessage = showActionFailure("Save scheduled event time", err, "Could not update the scheduled event time.");
       setUserDetailMessage(errorMessage);
       setMessage(errorMessage);
     }
@@ -1016,9 +1145,17 @@ export default function LifecycleAdminPage() {
       });
       await openUserDetail(selectedUser.intake);
       setUserDetailMessage("Recurring support schedule updated.");
-      setMessage("Recurring support schedule updated.");
+      showActionNotice({
+        tone: "success",
+        label: "Saved",
+        title: "Recurring support schedule saved.",
+        details: [
+          `Support: ${schedule.friendly_label ?? cleanLabel(schedule.interaction_type)}.`,
+          `Timezone: ${draft.timezone}.`,
+        ],
+      });
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Could not update the support schedule.";
+      const errorMessage = showActionFailure("Save recurring support", err, "Could not update the support schedule.");
       setUserDetailMessage(errorMessage);
       setMessage(errorMessage);
     } finally {
@@ -1042,9 +1179,17 @@ export default function LifecycleAdminPage() {
       await openUserDetail(selectedUser.intake);
       const confirmation = `Recurring support schedule ${action === "pause" ? "paused" : "resumed"}.`;
       setUserDetailMessage(confirmation);
-      setMessage(confirmation);
+      showActionNotice({
+        tone: "success",
+        label: action === "resume" ? "Restored" : "Saved",
+        title: confirmation,
+        details: [
+          `Support: ${schedule.friendly_label ?? cleanLabel(schedule.interaction_type)}.`,
+          action === "pause" ? "The recurring support schedule is paused." : "The recurring support schedule is active again.",
+        ],
+      });
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Could not update the support schedule.";
+      const errorMessage = showActionFailure("Update recurring support", err, "Could not update the support schedule.");
       setUserDetailMessage(errorMessage);
       setMessage(errorMessage);
     } finally {
@@ -1069,25 +1214,47 @@ export default function LifecycleAdminPage() {
 
   async function previewBulk() {
     if (!bulkOrg) return;
-    const data = await api(`/organizations/${bulkOrg.id}/bulk-intakes/preview`, {
-      method: "POST",
-      body: JSON.stringify({ rows: bulkRows }),
-    });
-    setBulkPreview(data);
+    try {
+      const data = await api(`/organizations/${bulkOrg.id}/bulk-intakes/preview`, {
+        method: "POST",
+        body: JSON.stringify({ rows: bulkRows }),
+      });
+      setBulkPreview(data);
+      const summary = data.summary && typeof data.summary === "object" ? data.summary as JsonRecord : {};
+      setMessage(`Bulk preview saved: ${Number(summary.valid ?? 0)} valid rows, ${Number(summary.invalid ?? 0)} invalid rows.`);
+    } catch (err) {
+      showActionFailure("Bulk preview", err, "Could not preview bulk upload.");
+    }
   }
 
   async function importBulk() {
     if (!bulkOrg) return;
-    const data = await api(`/organizations/${bulkOrg.id}/bulk-intakes/import`, {
-      method: "POST",
-      body: JSON.stringify({ rows: bulkRows, send_links: sendBulkLinks }),
-    });
-    setMessage(`Imported ${data.summary.imported} users. Skipped ${data.summary.skipped}.`);
-    setBulkOrg(null);
-    setBulkRows([]);
-    setBulkPreview(null);
-    setSendBulkLinks(false);
-    await refresh();
+    try {
+      const data = await api(`/organizations/${bulkOrg.id}/bulk-intakes/import`, {
+        method: "POST",
+        body: JSON.stringify({ rows: bulkRows, send_links: sendBulkLinks }),
+      });
+      const summary = data.summary && typeof data.summary === "object" ? data.summary as JsonRecord : {};
+      const imported = Number(summary.imported ?? 0);
+      const skipped = Number(summary.skipped ?? 0);
+      showActionNotice({
+        tone: skipped > 0 ? "warning" : "success",
+        label: "Saved",
+        title: `Bulk import saved ${imported} user${imported === 1 ? "" : "s"}.`,
+        details: [
+          `${skipped} row${skipped === 1 ? "" : "s"} skipped.`,
+          sendBulkLinks ? "Invite links were requested for imported users." : "No invite links were sent.",
+          `Organization: ${bulkOrg.name}.`,
+        ],
+      });
+      setBulkOrg(null);
+      setBulkRows([]);
+      setBulkPreview(null);
+      setSendBulkLinks(false);
+      await refresh();
+    } catch (err) {
+      showActionFailure("Bulk import", err, "Could not import bulk users.");
+    }
   }
 
   const visibleOrganizations = organizations.filter((org) => (
@@ -1119,7 +1286,7 @@ export default function LifecycleAdminPage() {
           title="Lifecycle"
           subtitle="Users, forms, access."
         >
-          <button className="rounded-xl bg-purple-700 px-4 py-2 text-sm font-bold text-white" onClick={() => refresh().catch((err) => setMessage(err.message))}>Refresh</button>
+          <button className="rounded-xl bg-purple-700 px-4 py-2 text-sm font-bold text-white" onClick={() => refresh({ announce: true }).catch((err) => setMessage(err.message))}>Refresh</button>
           {message && <span className="rounded-xl bg-purple-50 px-3 py-2 text-sm font-bold text-purple-800">{message}</span>}
         </AdminPageHeader>
 

@@ -70,10 +70,12 @@ export default function HomeCardsAdminPage() {
     return data;
   }
 
-  async function refresh() {
+  async function refresh(options: { announce?: boolean } = {}) {
     setMessage("");
     const data = await api("/home-plan-cards");
-    setCards(data.cards ?? []);
+    const nextCards = data.cards ?? [];
+    setCards(nextCards);
+    if (options.announce) setMessage(`Loaded: ${nextCards.length} home card${nextCards.length === 1 ? "" : "s"}.`);
   }
 
   function updateCard(cardId: string, patch: Partial<HomePlanCardAdmin>) {
@@ -81,24 +83,28 @@ export default function HomeCardsAdminPage() {
   }
 
   async function saveCard(card: HomePlanCardAdmin) {
-    await api(`/home-plan-cards/${card.card_id}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        is_enabled: card.is_enabled,
-        emoji: card.emoji,
-        bg: card.bg,
-        badge_bg: card.badge_bg,
-        badge_text: card.badge_text,
-        route: card.route,
-        base_priority: Number(card.base_priority),
-        condition_keywords: card.condition_keywords,
-        hobby_keywords: card.hobby_keywords,
-        avoid_condition_keywords: card.avoid_condition_keywords,
-        admin_notes: card.admin_notes ?? "",
-      }),
-    });
-    setMessage(`${card.card_id} saved.`);
-    await refresh();
+    try {
+      await api(`/home-plan-cards/${card.card_id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          is_enabled: card.is_enabled,
+          emoji: card.emoji,
+          bg: card.bg,
+          badge_bg: card.badge_bg,
+          badge_text: card.badge_text,
+          route: card.route,
+          base_priority: Number(card.base_priority),
+          condition_keywords: card.condition_keywords,
+          hobby_keywords: card.hobby_keywords,
+          avoid_condition_keywords: card.avoid_condition_keywords,
+          admin_notes: card.admin_notes ?? "",
+        }),
+      });
+      await refresh();
+      setMessage(`Saved: ${card.card_id} is ${card.is_enabled ? "enabled" : "disabled"} at priority ${Number(card.base_priority)}.`);
+    } catch (err) {
+      setMessage(`Failed to save ${card.card_id}: ${err instanceof Error ? err.message : "home card update failed"}.`);
+    }
   }
 
   async function addCard() {
@@ -107,13 +113,18 @@ export default function HomeCardsAdminPage() {
       return;
     }
 
-    const data = await api("/home-plan-cards", {
-      method: "POST",
-      body: JSON.stringify({ ...draft, card_id: draft.card_id.trim(), base_priority: Number(draft.base_priority) }),
-    });
-    setMessage(`${data.card.card_id} added.`);
-    setDraft(emptyCard);
-    await refresh();
+    try {
+      const data = await api("/home-plan-cards", {
+        method: "POST",
+        body: JSON.stringify({ ...draft, card_id: draft.card_id.trim(), base_priority: Number(draft.base_priority) }),
+      });
+      const cardId = typeof data.card?.card_id === "string" ? data.card.card_id : draft.card_id.trim();
+      setDraft(emptyCard);
+      await refresh();
+      setMessage(`Saved: ${cardId} was added to the home card library.`);
+    } catch (err) {
+      setMessage(`Failed to add home card: ${err instanceof Error ? err.message : "home card creation failed"}.`);
+    }
   }
 
   useEffect(() => {
@@ -128,7 +139,7 @@ export default function HomeCardsAdminPage() {
           title="Home card library"
           subtitle="Admins add and tune the pool behind Today for you. VYVA still chooses which cards each user sees based on profile signals."
         >
-          <button className="rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white" onClick={() => refresh().catch((err) => setMessage(err.message))}>Refresh</button>
+          <button className="rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white" onClick={() => refresh({ announce: true }).catch((err) => setMessage(`Failed to load home cards: ${err.message}.`))}>Refresh</button>
           {message && <span className="rounded-2xl bg-purple-50 px-4 py-3 text-purple-800">{message}</span>}
         </AdminPageHeader>
 
@@ -164,7 +175,7 @@ export default function HomeCardsAdminPage() {
             </Field>
           </div>
 
-          <button className="mt-4 rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white" onClick={() => addCard().catch((err) => setMessage(err.message))}>
+          <button className="mt-4 rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white" onClick={() => addCard()}>
             Add card
           </button>
         </section>
@@ -217,7 +228,7 @@ export default function HomeCardsAdminPage() {
                   </Field>
                 </div>
 
-                <button className="mt-4 rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white" onClick={() => saveCard(card).catch((err) => setMessage(err.message))}>
+                <button className="mt-4 rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white" onClick={() => saveCard(card)}>
                   Save card
                 </button>
               </article>

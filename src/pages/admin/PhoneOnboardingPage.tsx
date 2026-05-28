@@ -214,10 +214,10 @@ export default function PhoneOnboardingPage() {
       const nextUsers = (data.users ?? []) as PhoneIntake[];
       setUsers(nextUsers);
       if (announce) {
-        setMessage(`Inbound callers refreshed: ${nextUsers.length} ${nextUsers.length === 1 ? "record" : "records"}.`);
+        setMessage(`Loaded: ${nextUsers.length} inbound caller ${nextUsers.length === 1 ? "record" : "records"} found.`);
       }
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Could not load phone onboarding users");
+      setMessage(`Failed to load inbound callers: ${err instanceof Error ? err.message : "phone onboarding request failed"}.`);
     } finally {
       setIsLoading(false);
     }
@@ -288,14 +288,14 @@ export default function PhoneOnboardingPage() {
                 placeholder="Search caller name, phone or email"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => event.key === "Enter" && loadPhoneUsers().catch(() => undefined)}
+                onKeyDown={(event) => event.key === "Enter" && loadPhoneUsers({ announce: true }).catch(() => undefined)}
               />
             </label>
             <button
               type="button"
               className="rounded-2xl bg-[#2f2135] px-5 py-3 text-sm font-black text-white disabled:opacity-50"
               disabled={isLoading}
-              onClick={() => loadPhoneUsers().catch(() => undefined)}
+              onClick={() => loadPhoneUsers({ announce: true }).catch(() => undefined)}
             >
               Search
             </button>
