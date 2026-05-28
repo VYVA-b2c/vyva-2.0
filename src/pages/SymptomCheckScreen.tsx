@@ -309,15 +309,6 @@ function ReportScreen({
       </div>
 
       <div className="flex flex-col gap-4 px-[18px] pb-6">
-        {notifiedText && (
-          <div className="flex items-start gap-3 rounded-[24px] border border-[#BBF7D0] bg-[#F0FDF4] p-4 text-[#047857] shadow-[0_8px_24px_rgba(63,45,35,0.05)]">
-            <CheckCircle size={24} className="mt-0.5 flex-shrink-0" />
-            <p className="font-body text-[18px] font-extrabold leading-snug">
-              {notifiedText}
-            </p>
-          </div>
-        )}
-
         <div className="grid grid-cols-2 gap-3">
           {summary.urgency === "urgent" ? (
             <button
@@ -392,7 +383,7 @@ function ReportScreen({
         )}
 
         <div
-          className="rounded-[24px] border border-[#E8DED4] bg-white p-5 shadow-[0_8px_24px_rgba(63,45,35,0.06)]"
+          className="rounded-[24px] border border-[#E8DED4] bg-white p-5 shadow-[0_12px_30px_rgba(63,45,35,0.06)]"
         >
           <p className="font-body text-[12px] font-semibold text-vyva-text-3 uppercase tracking-wider mb-3">
             {t("health.symptomCheck.report.recommendations")}
@@ -410,6 +401,16 @@ function ReportScreen({
               </li>
             ))}
           </ol>
+          {notifiedText && (
+            <div className="mt-5 flex items-start gap-3 border-t border-[#EADFD5] pt-4 text-[#047857]">
+              <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#DCFCE7]">
+                <CheckCircle size={18} />
+              </span>
+              <p className="font-body text-[17px] font-extrabold leading-snug">
+                {notifiedText}
+              </p>
+            </div>
+          )}
         </div>
 
         <div
