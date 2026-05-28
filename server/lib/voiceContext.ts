@@ -132,6 +132,8 @@ function formatTriageReport(report: typeof triageReports.$inferSelect) {
   return valueList([
     report.chief_complaint,
     report.urgency ? `urgency ${report.urgency}` : null,
+    report.next_step_label ? `next step ${report.next_step_label}` : null,
+    report.triage_reasons?.length ? `why ${report.triage_reasons.join("; ")}` : null,
     report.symptoms?.length ? `symptoms ${report.symptoms.join(", ")}` : null,
   ], "");
 }
@@ -260,7 +262,12 @@ function formatTriageReportDetailed(report: typeof triageReports.$inferSelect) {
     report.created_at ? `recorded ${formatDateTime(report.created_at)}` : null,
     report.chief_complaint,
     report.urgency ? `urgency ${report.urgency}` : null,
+    report.next_step_label ? `next step ${report.next_step_label}` : null,
+    report.triage_reasons?.length ? `why ${report.triage_reasons.join("; ")}` : null,
     report.symptoms?.length ? `symptoms ${report.symptoms.join(", ")}` : null,
+    report.watch_signs?.length ? `watch signs ${report.watch_signs.join("; ")}` : null,
+    report.profile_considerations?.length ? `profile considered ${report.profile_considerations.join("; ")}` : null,
+    report.vitals_notes?.length ? `vitals notes ${report.vitals_notes.join("; ")}` : null,
     report.bpm ? `heart rate ${report.bpm} bpm` : null,
     report.respiratory_rate ? `respiratory rate ${report.respiratory_rate} breaths/min` : null,
   ], "");

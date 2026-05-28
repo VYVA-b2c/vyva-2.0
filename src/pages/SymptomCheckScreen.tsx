@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, PhoneCall, Stethoscope } from "lucide-react";
+import { ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, Heart, PhoneCall, Stethoscope } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VitalsScan from "@/components/VitalsScan";
 import TriageChat from "@/components/TriageChat";
@@ -20,6 +20,7 @@ interface TriageSummary {
   aiSummary?: string;
   nextStepLabel?: string;
   nextStepLevel?: "emergency" | "doctor_today" | "doctor_24_48" | "monitor";
+  triageReasons?: string[];
   watchSigns?: string[];
   profileConsiderations?: string[];
   vitalsNotes?: string[];
@@ -220,6 +221,7 @@ function ReportScreen({
     respiratoryRate != null ? `${t("health.symptomCheck.scan.respiratoryRate", "Resp. Rate")}: ${respiratoryRate} rpm` : "",
     `${t("health.symptomCheck.report.urgencyLabel", "Urgency")}: ${t(cfg.label)}`,
     summary.nextStepLabel ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${summary.nextStepLabel}` : "",
+    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why this step")}: ${summary.triageReasons.join(" ")}` : "",
     summary.recommendations.length ? `${t("health.symptomCheck.report.recommendations", "What to do next")}: ${summary.recommendations.join(" ")}` : "",
     summary.watchSigns?.length ? `${t("health.symptomCheck.report.watchSigns", "Watch signs")}: ${summary.watchSigns.join(" ")}` : "",
     summary.profileConsiderations?.length ? `${t("health.symptomCheck.report.profileConsidered", "Profile considered")}: ${summary.profileConsiderations.join(" ")}` : "",
@@ -243,6 +245,8 @@ function ReportScreen({
     durationText ? `${t("health.symptomCheck.report.timeTaken", "Time taken")}: ${durationText}` : "",
     "",
     `${t("health.symptomCheck.report.urgencyLabel")}: ${t(cfg.label)}`,
+    summary.nextStepLabel ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${summary.nextStepLabel}` : "",
+    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why this step")}: ${summary.triageReasons.join(" ")}` : "",
     "",
     t("health.symptomCheck.report.recommendations") + ":",
     ...summary.recommendations.map((r, i) => `${i + 1}. ${r}`),
@@ -360,6 +364,23 @@ function ReportScreen({
               </p>
             </div>
           )}
+          {summary.triageReasons?.length ? (
+            <div className="col-span-2 rounded-[22px] border border-[#DDD6FE] bg-[#F5F3FF] p-4 text-vyva-purple shadow-[0_8px_22px_rgba(63,45,35,0.05)]">
+              <div className="mb-3 flex items-center gap-2">
+                <AlertTriangle size={18} />
+                <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em]">
+                  {t("health.symptomCheck.report.whyThisStep", "Why this step")}
+                </p>
+              </div>
+              <ul className="grid gap-2">
+                {summary.triageReasons.slice(0, 3).map((reason, index) => (
+                  <li key={index} className="font-body text-[16px] font-bold leading-snug text-vyva-text-1">
+                    {reason}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={() => navigate(reportId ? `/informes/${reportId}` : "/informes")}
@@ -589,6 +610,12 @@ export default function SymptomCheckScreen() {
         recommendations: triageSummary.recommendations,
         disclaimer: triageSummary.disclaimer,
         ai_summary: triageSummary.aiSummary ?? null,
+        next_step_label: triageSummary.nextStepLabel ?? null,
+        next_step_level: triageSummary.nextStepLevel ?? null,
+        triage_reasons: triageSummary.triageReasons ?? [],
+        watch_signs: triageSummary.watchSigns ?? [],
+        profile_considerations: triageSummary.profileConsiderations ?? [],
+        vitals_notes: triageSummary.vitalsNotes ?? [],
         bpm: bpm ?? null,
         respiratory_rate: respiratoryRate ?? null,
         duration_seconds: durationSeconds,

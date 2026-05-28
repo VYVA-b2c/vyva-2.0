@@ -26,6 +26,12 @@ async function saveTriageReport(params: {
   recommendations: string[];
   disclaimer: string;
   ai_summary?: string | null;
+  next_step_label?: string | null;
+  next_step_level?: string | null;
+  triage_reasons?: string[];
+  watch_signs?: string[];
+  profile_considerations?: string[];
+  vitals_notes?: string[];
   bpm?: number | null;
   respiratory_rate?: number | null;
   duration_seconds?: number | null;
@@ -38,6 +44,12 @@ async function saveTriageReport(params: {
     recommendations: params.recommendations,
     disclaimer: params.disclaimer,
     ai_summary: params.ai_summary ?? null,
+    next_step_label: params.next_step_label ?? null,
+    next_step_level: params.next_step_level ?? null,
+    triage_reasons: params.triage_reasons ?? [],
+    watch_signs: params.watch_signs ?? [],
+    profile_considerations: params.profile_considerations ?? [],
+    vitals_notes: params.vitals_notes ?? [],
     bpm: params.bpm ?? null,
     respiratory_rate: params.respiratory_rate ?? null,
     duration_seconds: params.duration_seconds ?? null,
@@ -149,6 +161,12 @@ const triageSchema = z.object({
   recommendations:   z.array(z.string()).default([]),
   disclaimer:        z.string().default(""),
   ai_summary:        z.string().nullable().optional(),
+  next_step_label:   z.string().nullable().optional(),
+  next_step_level:   z.enum(["emergency", "doctor_today", "doctor_24_48", "monitor"]).nullable().optional(),
+  triage_reasons:    z.array(z.string()).default([]),
+  watch_signs:       z.array(z.string()).default([]),
+  profile_considerations: z.array(z.string()).default([]),
+  vitals_notes:      z.array(z.string()).default([]),
   bpm:               z.number().int().nullable().optional(),
   respiratory_rate:  z.number().int().nullable().optional(),
   duration_seconds:  z.number().int().nonnegative().nullable().optional(),

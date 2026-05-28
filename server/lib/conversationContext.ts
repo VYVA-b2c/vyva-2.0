@@ -265,12 +265,17 @@ export async function buildUserConversationContext(
       urgency: latestTriage.urgency,
       symptoms,
       summary: latestTriage.ai_summary,
+      nextStep: latestTriage.next_step_label,
+      triageReasons: latestTriage.triage_reasons,
+      watchSigns: latestTriage.watch_signs,
     };
 
     const triageBits = [
       latestTriage.urgency ? `urgency ${latestTriage.urgency}` : "",
+      latestTriage.next_step_label ? `next step ${cleanText(latestTriage.next_step_label, 90)}` : "",
       latestTriage.chief_complaint ? cleanText(latestTriage.chief_complaint, 70) : "",
       symptoms.length ? `symptoms ${symptoms.join(", ")}` : "",
+      latestTriage.triage_reasons?.length ? `why ${latestTriage.triage_reasons.slice(0, 2).map((item) => cleanText(item, 80)).join("; ")}` : "",
       latestTriage.ai_summary ? cleanText(latestTriage.ai_summary, 100) : "",
     ].filter(Boolean);
     if (triageBits.length) lines.push(`Latest health report: ${triageBits.join("; ")}.`);
