@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { Activity, AlertCircle, HelpCircle, HeartPulse, Loader2, Mic, Send, Square, Thermometer, Wind } from "lucide-react";
+import { Activity, AlertCircle, HelpCircle, HeartPulse, Loader2, Mic, PhoneCall, Send, Square, Thermometer, Wind } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 import i18n from "@/i18n";
 
@@ -406,20 +406,35 @@ export default function TriageChat({
           )}
 
           {safetyAlert && (
-            <div className="rounded-[22px] border border-[#FECDD3] bg-[#FFF1F2] px-4 py-4 shadow-[0_8px_24px_rgba(190,18,60,0.10)]">
+            <div className="motion-safe:animate-pulse rounded-[24px] border-2 border-[#DC2626] bg-[#DC2626] px-4 py-4 text-white shadow-[0_16px_36px_rgba(220,38,38,0.28)]">
               <div className="flex items-start gap-3">
-                <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#FFE4E6] text-[#BE123C]">
+                <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px] bg-white/16 text-white ring-2 ring-white/40">
                   <AlertCircle size={24} />
                 </span>
-                <p className="font-body text-[18px] font-bold leading-snug text-[#881337]">
-                  {safetyAlert.recommendation}
-                </p>
+                <div className="grid gap-3">
+                  <p className="font-body text-[22px] font-black leading-tight">
+                    {t("health.symptomCheck.chat.emergencyTitle", "Emergency warning")}
+                  </p>
+                  <p className="font-body text-[18px] font-bold leading-snug text-white">
+                    {safetyAlert.recommendation}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      window.location.href = "tel:112";
+                    }}
+                    className="vyva-tap mt-1 inline-flex min-h-[64px] items-center justify-center gap-3 rounded-[20px] bg-white px-5 font-body text-[19px] font-black text-[#B91C1C] shadow-[0_10px_24px_rgba(127,29,29,0.24)]"
+                  >
+                    <PhoneCall size={22} />
+                    {t("health.symptomCheck.chat.contactEmergency", "Contact emergency services")}
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
           <section className="px-1 py-2">
-            <h2 className="font-body text-[27px] font-bold leading-[1.14] text-vyva-text-1">
+            <h2 className={`font-body text-[27px] font-bold leading-[1.14] ${safetyAlert ? "motion-safe:animate-pulse text-[#B91C1C]" : "text-vyva-text-1"}`}>
               {latestQuestion}
               {latestAssistantEntry && animatingIdx === latestAssistantEntry.index && (
                 <span
