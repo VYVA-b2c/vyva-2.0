@@ -24,6 +24,8 @@ interface TriageSummary {
   watchSigns?: string[];
   profileConsiderations?: string[];
   vitalsNotes?: string[];
+  evidenceSummary?: string;
+  evidenceSources?: Array<{ title?: string; url?: string; year?: string; journal?: string }>;
 }
 
 type ReportSaveState = "idle" | "saving" | "saved" | "error";
@@ -87,35 +89,75 @@ function IntroScreen({
   onStartWithVitals,
   onStartWithoutVitals,
 }: {
-  onStartWithVitals: () => void;
-  onStartWithoutVitals: () => void;
+  onStartWithVitals: (clue: string) => void;
+  onStartWithoutVitals: (clue: string) => void;
 }) {
   const { t } = useTranslation();
+  const [clue, setClue] = useState("");
+  const cleanClue = clue.trim();
+  const canStart = cleanClue.length >= 2;
+  const quickClues = [
+    t("health.symptomCheck.intro.clueHeadache", "Bad headache"),
+    t("health.symptomCheck.intro.clueBreathing", "Short of breath"),
+    t("health.symptomCheck.intro.clueDizzy", "Dizzy"),
+    t("health.symptomCheck.intro.clueFever", "Fever"),
+    t("health.symptomCheck.intro.clueFall", "I fell"),
+    t("health.symptomCheck.intro.clueUrine", "Pain when I pee"),
+  ];
   const choices = [
     {
       id: "with-vitals",
       title: t("health.symptomCheck.intro.withVitalsCta", "Check my vitals first"),
       className: "border-[#6B21A8] bg-white text-vyva-text-1",
-      onClick: onStartWithVitals,
+      onClick: () => onStartWithVitals(cleanClue),
     },
     {
       id: "without-vitals",
       title: t("health.symptomCheck.intro.withoutVitalsCta", "Skip vitals"),
       className: "border-[#E8DED4] bg-white text-vyva-text-1",
-      onClick: onStartWithoutVitals,
+      onClick: () => onStartWithoutVitals(cleanClue),
     },
   ];
 
   return (
-    <div className="flex flex-1 flex-col justify-center gap-8 px-[22px] py-8">
+    <div className="flex flex-1 flex-col justify-center gap-7 px-[22px] py-8">
       <section className="text-left">
         <p className="font-body text-[15px] font-extrabold uppercase tracking-[0.12em] text-vyva-purple">
           {t("health.symptomCheck.intro.stepLabel", "Symptom check")}
         </p>
         <h1 className="mt-3 max-w-[340px] font-body text-[30px] font-bold leading-[1.08] text-vyva-text-1">
-          {t("health.symptomCheck.intro.choiceTitle", "How do you want to start?")}
+          {t("health.symptomCheck.intro.clueTitle", "What is bothering you?")}
         </h1>
+        <p className="mt-3 max-w-[390px] font-body text-[18px] font-semibold leading-snug text-vyva-text-2">
+          {t("health.symptomCheck.intro.clueSub", "Use a few words. VYVA will choose the right questions.")}
+        </p>
       </section>
+
+      <div className="grid gap-4">
+        <label className="sr-only" htmlFor="symptom-clue">
+          {t("health.symptomCheck.intro.clueTitle", "What is bothering you?")}
+        </label>
+        <input
+          id="symptom-clue"
+          value={clue}
+          onChange={(event) => setClue(event.target.value)}
+          placeholder={t("health.symptomCheck.intro.cluePlaceholder", "For example: bad headache...")}
+          data-testid="input-symptom-clue"
+          className="min-h-[72px] rounded-[24px] border border-[#E8DED4] bg-white px-5 font-body text-[20px] font-bold text-vyva-text-1 shadow-[0_10px_26px_rgba(63,45,35,0.06)] outline-none focus:border-[#6B21A8]"
+        />
+        <div className="flex flex-wrap gap-2">
+          {quickClues.map((quickClue) => (
+            <button
+              key={quickClue}
+              type="button"
+              onClick={() => setClue(quickClue)}
+              className="vyva-tap min-h-[64px] rounded-full border border-[#E8DED4] bg-white px-5 font-body text-[18px] font-extrabold text-vyva-text-2"
+            >
+              {quickClue}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="grid gap-4">
         {choices.map(({ id, title, className, onClick }) => (
@@ -123,8 +165,9 @@ function IntroScreen({
             key={id}
             type="button"
             onClick={onClick}
+            disabled={!canStart}
             data-testid={`button-symptom-check-${id}`}
-            className={`vyva-tap flex min-h-[88px] items-center rounded-[22px] border px-5 text-left transition active:scale-[0.99] ${className}`}
+            className={`vyva-tap flex min-h-[88px] items-center rounded-[22px] border px-5 text-left transition active:scale-[0.99] disabled:opacity-45 ${className}`}
           >
             <span className="min-w-0 flex-1 font-body text-[22px] font-bold leading-tight">
               {title}
@@ -222,6 +265,7 @@ function ReportScreen({
     `${t("health.symptomCheck.report.urgencyLabel", "Urgency")}: ${t(cfg.label)}`,
     summary.nextStepLabel ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${summary.nextStepLabel}` : "",
     summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why this step")}: ${summary.triageReasons.join(" ")}` : "",
+    summary.evidenceSummary ? `${t("health.symptomCheck.report.evidenceChecked", "Medical evidence checked")}: ${summary.evidenceSummary}` : "",
     summary.recommendations.length ? `${t("health.symptomCheck.report.recommendations", "What to do next")}: ${summary.recommendations.join(" ")}` : "",
     summary.watchSigns?.length ? `${t("health.symptomCheck.report.watchSigns", "Watch signs")}: ${summary.watchSigns.join(" ")}` : "",
     summary.profileConsiderations?.length ? `${t("health.symptomCheck.report.profileConsidered", "Profile considered")}: ${summary.profileConsiderations.join(" ")}` : "",
@@ -247,6 +291,7 @@ function ReportScreen({
     `${t("health.symptomCheck.report.urgencyLabel")}: ${t(cfg.label)}`,
     summary.nextStepLabel ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${summary.nextStepLabel}` : "",
     summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why this step")}: ${summary.triageReasons.join(" ")}` : "",
+    summary.evidenceSummary ? `${t("health.symptomCheck.report.evidenceChecked", "Medical evidence checked")}: ${summary.evidenceSummary}` : "",
     "",
     t("health.symptomCheck.report.recommendations") + ":",
     ...summary.recommendations.map((r, i) => `${i + 1}. ${r}`),
@@ -379,6 +424,23 @@ function ReportScreen({
                   </li>
                 ))}
               </ul>
+            </div>
+          ) : null}
+          {(summary.evidenceSummary || summary.evidenceSources?.length) ? (
+            <div className="col-span-2 rounded-[22px] border border-[#BFDBFE] bg-[#EFF6FF] p-4 text-[#1D4ED8] shadow-[0_8px_22px_rgba(63,45,35,0.05)]">
+              <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em]">
+                {t("health.symptomCheck.report.evidenceChecked", "Medical evidence checked")}
+              </p>
+              {summary.evidenceSummary ? (
+                <p className="mt-2 font-body text-[16px] font-bold leading-snug text-vyva-text-1">
+                  {summary.evidenceSummary}
+                </p>
+              ) : null}
+              {summary.evidenceSources?.length ? (
+                <p className="mt-2 font-body text-[14px] font-extrabold leading-snug text-[#1D4ED8]">
+                  {summary.evidenceSources.slice(0, 2).map((source) => source.title).filter(Boolean).join(" - ")}
+                </p>
+              ) : null}
             </div>
           ) : null}
           <button
@@ -551,6 +613,7 @@ export default function SymptomCheckScreen() {
   const [respiratoryRate, setRespiratoryRate] = useState<number | null>(null);
   const [chatStartTime, setChatStartTime] = useState<number | null>(null);
   const [chatEntryMode, setChatEntryMode] = useState<"vitals" | "direct">("vitals");
+  const [initialClue, setInitialClue] = useState("");
   const [autoStartVoice, setAutoStartVoice] = useState(false);
   const [summary, setSummary] = useState<TriageSummary | null>(null);
   const [reportSaveState, setReportSaveState] = useState<ReportSaveState>("idle");
@@ -585,7 +648,8 @@ export default function SymptomCheckScreen() {
     setStep("chat");
   };
 
-  const startChatDirectly = (withVoice = false) => {
+  const startChatDirectly = (clue: string, withVoice = false) => {
+    setInitialClue(clue);
     setChatStartTime(Date.now());
     setChatEntryMode("direct");
     setAutoStartVoice(withVoice);
@@ -705,12 +769,13 @@ export default function SymptomCheckScreen() {
 
         {step === "intro" && (
           <IntroScreen
-            onStartWithVitals={() => {
+            onStartWithVitals={(clue) => {
+              setInitialClue(clue);
               setChatEntryMode("vitals");
               setAutoStartVoice(false);
               setStep("vitals");
             }}
-            onStartWithoutVitals={() => startChatDirectly(false)}
+            onStartWithoutVitals={(clue) => startChatDirectly(clue, false)}
           />
         )}
 
@@ -723,6 +788,7 @@ export default function SymptomCheckScreen() {
             bpm={bpm}
             respiratoryRate={respiratoryRate}
             entryMode={chatEntryMode === "vitals" ? "with_vitals" : "without_vitals"}
+            initialClue={initialClue}
             healthMemory={triageContext?.memory ?? null}
             autoStartVoice={autoStartVoice}
             onVoiceAutoStarted={() => setAutoStartVoice(false)}

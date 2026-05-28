@@ -38,6 +38,8 @@ interface TriageSummary {
   watchSigns?: string[];
   profileConsiderations?: string[];
   vitalsNotes?: string[];
+  evidenceSummary?: string;
+  evidenceSources?: Array<{ title?: string; url?: string; year?: string; journal?: string }>;
 }
 
 type TriageQuickReply = {
@@ -285,6 +287,109 @@ function reply(
   tone: TriageQuickReply["tone"],
 ): TriageQuickReply {
   return { id, kind, label: text(locale, labelEn, labelEs), value: text(locale, valueEn, valueEs), icon, tone };
+}
+
+function normalizeClue(raw: string) {
+  return raw
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\w\s]/g, " ");
+}
+
+function firstUserClue(messages: ChatMessage[]) {
+  return messages.find((message) => message.role === "user")?.content?.trim() ?? "";
+}
+
+function inferSymptomFromClue(rawClue: string, locale: string): TriageQuickReply | null {
+  const clue = normalizeClue(rawClue);
+  if (!clue) return null;
+
+  if (/\b(breath|breathing|short of breath|air|wheeze|oxygen|spo2|blue lip|labios azul|respirar|aire|oxigeno|sibil)\b/.test(clue)) {
+    return reply(locale, "breathing", "symptom", "Breathing", "Respirar", "I feel short of breath.", "Me falta el aire.", "wind", "blue");
+  }
+  if (/\b(confus|memory|not myself|disorient|delir|forget|confund|memoria|desorient)\b/.test(clue)) {
+    return reply(locale, "confusion", "symptom", "Confusion", "Confusion", "I feel confused or not like myself.", "Tengo confusion o no me siento como siempre.", "alert", "red");
+  }
+  if (/\b(fall|fell|injur|hit|bump|bruise|caida|cai|golpe|herid|lesion)\b/.test(clue)) {
+    return reply(locale, "fall", "symptom", "Fall or injury", "Caida o golpe", "I fell or hurt myself.", "Me cai o me hice dano.", "alert", "red");
+  }
+  if (/\b(urine|pee|peeing|bladder|burning when|uti|orina|orinar|pip[iy]|vejiga|ardor)\b/.test(clue)) {
+    return reply(locale, "urinary", "symptom", "Urine problem", "Problema de orina", "I have a urine problem.", "Tengo problema de orina.", "help", "blue");
+  }
+  if (/\b(skin|rash|wound|cut|redness|swelling|pus|itch|piel|erupcion|roncha|herida|rojez|hinch|picor)\b/.test(clue)) {
+    return reply(locale, "skin", "symptom", "Skin or wound", "Piel o herida", "I have a skin or wound problem.", "Tengo problema de piel o herida.", "help", "amber");
+  }
+  if (/\b(stomach|belly|abdomen|bowel|diarrhea|vomit|nausea|constipat|barriga|estomago|vientre|diarrea|vomit|nausea|estren)\b/.test(clue)) {
+    return reply(locale, "stomach", "symptom", "Stomach or bowel", "Estomago o intestino", "I have stomach or bowel trouble.", "Tengo problema de estomago o intestino.", "activity", "amber");
+  }
+  if (/\b(fever|temperature|chills|hot|fiebre|temperatura|escalofrio|caliente)\b/.test(clue)) {
+    return reply(locale, "fever", "symptom", "Fever", "Fiebre", "I have a fever.", "Tengo fiebre.", "thermometer", "amber");
+  }
+  if (/\b(dizz|vertigo|lightheaded|faint|mareo|maread|vertigo|desmay)\b/.test(clue)) {
+    return reply(locale, "dizzy", "symptom", "Dizzy", "Mareo", "I feel dizzy.", "Me siento mareada o mareado.", "activity", "amber");
+  }
+  if (/\b(tired|weak|fatigue|exhaust|sleepy|cansad|debil|fatiga|agotad|sueno)\b/.test(clue)) {
+    return reply(locale, "tired", "symptom", "Very tired", "Muy cansancio", "I feel very tired.", "Me siento muy cansada o cansado.", "activity", "purple");
+  }
+  if (/\b(pain|ache|headache|migraine|chest|back|joint|dolor|cabeza|migrana|pecho|espalda|articul)\b/.test(clue)) {
+    return reply(locale, "pain", "symptom", "Pain", "Dolor", "I have pain.", "Tengo dolor.", "heart", "red");
+  }
+
+  return reply(locale, "other", "symptom", "Something else", "Otra cosa", "Something else is bothering me.", "Me pasa otra cosa.", "help", "purple");
+}
+
+function inferRedFlagFromClue(rawClue: string, symptomId: string | undefined, locale: string): TriageQuickReply | null {
+  const clue = normalizeClue(rawClue);
+  if (!clue) return null;
+
+  if (/\b(blue lip|blue lips|labios azul|cyanotic|confused and.*breath|breath.*confus)\b/.test(clue)) {
+    return reply(locale, "blue_confused", "red_flag", "Confused or blue lips", "Confusion o labios azules", "I feel blue-lipped, confused, or very unwell.", "Tengo labios azulados, confusion o me siento muy mal.", "alert", "red");
+  }
+  if (/\b(chest pain|pressure in chest|dolor.*pecho|presion.*pecho)\b/.test(clue)) {
+    return reply(locale, "chest_pain", "red_flag", "Chest pain", "Dolor en pecho", "I have chest pain.", "Tengo dolor en el pecho.", "alert", "red");
+  }
+  if (/\b(worst headache|worst pain|sudden severe|thunderclap|dolor.*repentino|dolor.*muy fuerte|peor dolor)\b/.test(clue)) {
+    return reply(locale, "sudden_severe", "red_flag", "Sudden or severe", "Repentino o fuerte", "The pain is sudden or severe.", "El dolor es repentino o fuerte.", "alert", "red");
+  }
+  if (/\b(faint|fainted|passed out|desmaye|desmayo|perdi.*conocimiento)\b/.test(clue)) {
+    return reply(locale, "fainted", "red_flag", "Fainted", "Desmayo", "I fainted or nearly fainted.", "Me desmaye o casi me desmayo.", "alert", "red");
+  }
+  if (/\b(one side|face droop|slurred|speech trouble|weakness.*side|un lado|cara caida|habla|dificultad.*hablar)\b/.test(clue)) {
+    return reply(locale, "stroke_sign", "red_flag", "Weak on one side", "Debilidad en un lado", "I have weakness on one side, face droop, or trouble speaking.", "Tengo debilidad en un lado, cara caida o dificultad para hablar.", "alert", "red");
+  }
+  if (/\b(cannot stand|cant stand|cannot walk|cant walk|no puedo levantar|no puedo caminar)\b/.test(clue)) {
+    return reply(locale, symptomId === "fall" ? "fall_cannot_stand" : "cannot_stand", "red_flag", "Cannot stand", "No puedo estar de pie", "I feel too weak to stand or walk safely.", "Me siento demasiado debil para estar de pie o caminar.", "alert", "red");
+  }
+  if (/\b(face.*swelling|throat.*swelling|tongue.*swelling|lip.*swelling|hinch.*cara|hinch.*garganta|hinch.*lengua|hinch.*labio)\b/.test(clue)) {
+    return reply(locale, "allergic_swelling", "red_flag", "Face or throat swelling", "Cara o garganta hinchada", "My face, lips, tongue, or throat is swelling.", "Se hincha mi cara, labios, lengua o garganta.", "alert", "red");
+  }
+
+  return null;
+}
+
+function wizardWithInferredClue(
+  wizard: TriageWizardContext | undefined,
+  messages: ChatMessage[],
+  locale: string,
+): TriageWizardContext | undefined {
+  const answers = wizard?.quickAnswers ?? [];
+  if (answers.some((answer) => answer.kind === "symptom")) return wizard;
+
+  const clue = firstUserClue(messages);
+  const symptom = inferSymptomFromClue(clue, locale);
+  if (!symptom) return wizard;
+
+  const redFlag = inferRedFlagFromClue(clue, symptom.id, locale);
+  const inferredAnswers = [
+    { id: symptom.id, label: symptom.label, value: symptom.value, kind: symptom.kind },
+    redFlag ? { id: redFlag.id, label: redFlag.label, value: redFlag.value, kind: redFlag.kind } : null,
+  ].filter(Boolean) as NonNullable<TriageWizardContext["quickAnswers"]>;
+
+  return {
+    ...wizard,
+    quickAnswers: [...inferredAnswers, ...answers],
+  };
 }
 
 function selectedAnswers(wizard?: TriageWizardContext) {
@@ -992,7 +1097,33 @@ ${context.answer ? `Summary: ${context.answer.slice(0, 1200)}` : ""}
 ${context.followups.length ? `Suggested follow-up topics: ${context.followups.slice(0, 4).join("; ")}` : ""}
 ${sourceLines.length ? `Sources:\n${sourceLines.join("\n")}` : ""}
 
-Use this evidence as background only. Do not cite it as a diagnosis. Ask one simple question at a time.`;
+Use this evidence actively:
+- Let it shape the next safety question when it names red flags relevant to this symptom.
+- Reflect its concrete red flags in watchSigns when a final summary is produced.
+- Do not cite it as a diagnosis. Do not mention article titles to the senior unless the app surfaces them separately.
+Ask one simple question at a time.`;
+}
+
+function cleanEvidenceSummary(answer: string) {
+  return answer
+    .replace(/\s+/g, " ")
+    .replace(/[*#`]/g, "")
+    .trim()
+    .slice(0, 260);
+}
+
+function evidenceSummaryFor(context?: MediSearchTriageContext | null) {
+  if (!context?.answer) return "";
+  return cleanEvidenceSummary(context.answer);
+}
+
+function evidenceSourcesFor(context?: MediSearchTriageContext | null) {
+  return context?.articles.slice(0, 3).map((article) => ({
+    title: article.title,
+    url: article.url,
+    year: article.year,
+    journal: article.journal,
+  })) ?? [];
 }
 
 function triageQuestionMatrixText() {
@@ -1045,7 +1176,9 @@ function buildSystemPrompt(
     ? `\n\nThe user has just completed a vitals scan. Their estimated heart rate is ${bpm} bpm. Reference this gently if relevant.`
     : "";
 
-  return `You are VYVA, a warm and caring medical triage assistant helping an elderly person understand their symptoms. Your role is to ask clear, simple questions and provide a helpful triage summary.
+  return `You are VYVA, a warm and caring medical triage assistant helping an elderly person understand their symptoms. Your role is to ask clear, simple questions and provide helpful wording.
+
+The app has a deterministic senior triage protocol engine. That protocol is the safety authority. You may enrich wording from MEDISEARCH EVIDENCE CONTEXT, HEALTH MEMORY, and the conversation, but do not downgrade urgency, soften red flags, or override protocol-driven next steps.
 
 IMPORTANT: Respond entirely in ${language}.
 ${genderInstruction(gender)}${vitalsContext}${wizardContextText(wizard, healthMemory)}${healthMemoryText(healthMemory)}${medisearchContextText(medisearchContext)}${triageQuestionMatrixText()}
@@ -1073,6 +1206,8 @@ Outcome rules:
 - Always include nextStepLabel and nextStepLevel.
 - Always include triageReasons: 1-3 plain reasons why this next step was chosen.
 - Always include 2-3 symptom-specific watchSigns.
+- If MEDISEARCH EVIDENCE CONTEXT is present, use its red flags and follow-up topics to make watchSigns and recommendations more specific.
+- The deterministic protocol may raise or replace your urgency after you respond. Write recommendations that remain safe if the protocol escalates the next step.
 - Include profileConsiderations only when HEALTH MEMORY changed what you considered.
 - Include vitalsNotes when a vitals scan exists.
 
@@ -1328,7 +1463,7 @@ function applyTriageSafetyFloor(
   const baseSummary = {
     ...summary,
     symptoms: summary.symptoms?.length ? summary.symptoms : [symptomLabel(locale, symptom)],
-    urgency: maxUrgency(summary.urgency, ruleDecision.urgency),
+    urgency: ruleDecision.urgency,
     triageReasons: [
       ...ruleDecision.reasons,
       ...(summary.triageReasons ?? []),
@@ -1353,16 +1488,9 @@ function applyTriageSafetyFloor(
     nextStepLabel: ruleDecision.nextStepLabel,
   } satisfies Pick<TriageSummary, "nextStepLabel" | "nextStepLevel">;
 
-  if (ruleDecision.level !== "monitor") {
-    return {
-      ...baseSummary,
-      ...nextStep,
-    };
-  }
-
   return {
     ...baseSummary,
-    ...nextStepFor(locale, baseSummary, wizard),
+    ...nextStep,
   };
 }
 
@@ -1411,8 +1539,9 @@ router.post("/message", async (req: Request, res: Response) => {
   const validMessages: ChatMessage[] = messages
     .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
     .slice(-20);
+  const effectiveWizard = wizardWithInferredClue(wizard, validMessages, normalizedLocale);
 
-  const safetyAnswer = selectedSafetyAnswer(wizard);
+  const safetyAnswer = selectedSafetyAnswer(effectiveWizard);
   if (safetyAnswer) {
     return res.json({
       role: "assistant",
@@ -1443,11 +1572,11 @@ router.post("/message", async (req: Request, res: Response) => {
       ? await getMediSearchTriageContext({
           symptomText: latestUserMessage,
           locale: normalizedLocale,
-          wizard,
+          wizard: effectiveWizard,
         })
       : null;
 
-    const systemContent = buildSystemPrompt(language, vitals?.bpm ?? null, gender, wizard, medisearchContext, healthMemory);
+    const systemContent = buildSystemPrompt(language, vitals?.bpm ?? null, gender, effectiveWizard, medisearchContext, healthMemory);
 
     const openaiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       { role: "system", content: systemContent },
@@ -1463,23 +1592,27 @@ router.post("/message", async (req: Request, res: Response) => {
 
     const rawContent = completion.choices[0]?.message?.content?.trim() ?? "";
     const { content, summary } = extractTriageJson(rawContent);
-    const safeSummary = summary ? applyTriageSafetyFloor(summary, wizard, normalizedLocale, healthMemory) : null;
+    const safeSummary = summary ? applyTriageSafetyFloor(summary, effectiveWizard, normalizedLocale, healthMemory) : null;
+    const evidenceSources = evidenceSourcesFor(medisearchContext);
+    const evidenceSummary = evidenceSummaryFor(medisearchContext);
+    const summaryWithEvidence = safeSummary
+      ? {
+          ...safeSummary,
+          evidenceSummary: evidenceSummary || undefined,
+          evidenceSources: evidenceSources.length ? evidenceSources : undefined,
+        }
+      : null;
 
-    const stage = nextAdaptiveStage(wizard, healthMemory);
+    const stage = nextAdaptiveStage(effectiveWizard, healthMemory);
     return res.json({
       role: "assistant",
       content,
-      done: safeSummary != null,
-      summary: safeSummary ?? undefined,
-      quickReplies: safeSummary ? [] : quickRepliesFor(wizard, normalizedLocale, healthMemory),
+      done: summaryWithEvidence != null,
+      summary: summaryWithEvidence ?? undefined,
+      quickReplies: summaryWithEvidence ? [] : quickRepliesFor(effectiveWizard, normalizedLocale, healthMemory),
       wizardStage: stage,
       wizardStageLabel: wizardStageLabel(stage, normalizedLocale),
-      evidenceSources: medisearchContext?.articles.slice(0, 3).map((article) => ({
-        title: article.title,
-        url: article.url,
-        year: article.year,
-        journal: article.journal,
-      })) ?? [],
+      evidenceSources,
     });
   } catch (err) {
     console.error("[triage] OpenAI error:", err);
