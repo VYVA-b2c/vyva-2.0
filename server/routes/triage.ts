@@ -589,6 +589,38 @@ ${sourceLines.length ? `Sources:\n${sourceLines.join("\n")}` : ""}
 Use this evidence as background only. Do not cite it as a diagnosis. Ask one simple question at a time.`;
 }
 
+function triageQuestionMatrixText() {
+  return `
+
+SYMPTOM AND PROFILE QUESTION MATRIX:
+- Pain/headache: ask about chest pain, sudden/severe onset, fall/injury, head hit, one-sided weakness, vision change, or speech trouble.
+- Breathing: ask about breathlessness at rest, blue lips, confusion, low oxygen, increased oxygen need, chest pressure, or one-sided calf swelling after surgery.
+- Fever: ask about very high fever, confusion/very sleepy, stiff neck, new rash, low immunity/cancer treatment, surgery wound changes, urine symptoms, or low urine/dehydration.
+- Dizziness: ask about fainting, nearly fainting, one-sided weakness, speech trouble, chest pain, irregular heartbeat, dehydration, low sugar, sedating medication, or falls.
+- Very tired/weak: ask about low sugar, infection signs, low urine/dehydration, new confusion, slow breathing/opioids, swelling/heart failure, or inability to stand/walk safely.
+- Something else/free text: first ask the user to name the main symptom in a few words; then choose the closest pattern above. If unclear, ask general safety checks: cannot stand, not drinking/eating, new/severe, new confusion, chest pain, or breathing trouble.
+
+PROFILE-SPECIFIC SAFETY CHECKS:
+- Diabetes or glucose medication: check shaky/sweaty/confused/very weak, high sugar with sickness/thirst/drowsiness, missed insulin, vomiting, or infection signs.
+- Kidney disease or diuretics: check low urine, dehydration, dizziness standing, swelling, sudden weight gain, or medication safety.
+- COPD/asthma/oxygen support: check low oxygen, needing more oxygen than usual, breathless at rest, blue lips, or confusion.
+- Heart failure: check breathlessness, swelling, fast weight gain, chest pressure, or needing to sit upright to breathe.
+- Heart disease or AFib: check chest pressure, palpitations, fainting, irregular heartbeat, or breathlessness.
+- Hypertension or stroke/TIA history: check severe headache with weakness, speech trouble, face droop, vision change, or very high blood pressure.
+- Blood thinners: check head hit/fall, unusual bleeding, black stool, vomiting blood, large bruises, or new severe headache.
+- Low immunity, steroids, cancer, or chemotherapy: treat fever, chills, wound changes, or feeling suddenly very unwell as higher priority.
+- Dementia/cognitive concern: check new confusion, behavior change, weakness, dehydration, infection signs, or not acting like usual.
+- Parkinson's/mobility/swallowing risk: check choking, coughing with food, trouble swallowing, falls, freezing, or missed Parkinson's medication timing.
+- Osteoporosis/frailty/falls: check fall with hip/back pain, cannot stand, new severe pain, or head hit.
+- Recent surgery/hospital stay: check fever, wound redness/drainage, calf swelling/pain, chest pain, or new breathlessness.
+- UTI/recurrent infection history: check burning urine, fever, new confusion, new weakness, low urine, or back/flank pain.
+- Liver disease: check confusion, yellow skin, black stool, vomiting blood, belly swelling, or unusual bleeding.
+- Sedatives/opioids: check very sleepy, confused, unsteady, slow breathing, or hard to wake.
+- Depression/anxiety: check panic-like symptoms, sleep/appetite change, isolation, and any thoughts of self-harm if mood distress is prominent.
+
+Do not use one symptom's wording for another symptom. For example, fever does not "build up" like pain; ask fever warning signs instead.`;
+}
+
 function buildSystemPrompt(
   language: string,
   bpm: number | null,
@@ -604,12 +636,12 @@ function buildSystemPrompt(
   return `You are VYVA, a warm and caring medical triage assistant helping an elderly person understand their symptoms. Your role is to ask clear, simple questions and provide a helpful triage summary.
 
 IMPORTANT: Respond entirely in ${language}.
-${genderInstruction(gender)}${vitalsContext}${wizardContextText(wizard)}${healthMemoryText(healthMemory)}${medisearchContextText(medisearchContext)}
+${genderInstruction(gender)}${vitalsContext}${wizardContextText(wizard)}${healthMemoryText(healthMemory)}${medisearchContextText(medisearchContext)}${triageQuestionMatrixText()}
 
 CONVERSATION FLOW:
 1. The app is a senior-friendly wizard. Match the current wizard stage and ask only one very simple question.
 2. If there is no symptom category yet, ask what feels wrong today.
-3. After a symptom category, ask the most relevant red-flag question first. Match the question to the symptom: pain can ask sudden/severe or fall; fever should ask very high fever, confusion/very sleepy, stiff neck, or rash; breathing should ask breathless at rest or blue/confused; dizziness should ask fainting, one-sided weakness, speech trouble, chest pain, or breathing trouble.
+3. After a symptom category, ask the most relevant red-flag question first using the SYMPTOM AND PROFILE QUESTION MATRIX.
 4. Adapt concern level to HEALTH MEMORY. Be more cautious for diabetes, kidney disease, COPD/oxygen use, heart failure, heart disease/AFib, high blood pressure, stroke/TIA history, blood thinners, low immunity/cancer treatment, liver disease, recent surgery, falls/frailty, Parkinson's, osteoporosis, high-risk medications, and new confusion.
 5. Then ask duration, severity, whether it is getting better/worse, and what help the user wants.
 6. Avoid repeating questions already answered in WIZARD CONTEXT.
