@@ -155,8 +155,9 @@ async function getRequestGender(req: Request): Promise<GrammaticalGender> {
   return inferProfileGender(profile?.data_sharing_consent, profile?.full_name ?? "");
 }
 
-function wizardContextText(wizard?: TriageWizardContext): string {
+function wizardContextText(wizard?: TriageWizardContext, healthMemory?: TriageHealthMemory): string {
   if (!wizard) return "";
+  const stage = nextAdaptiveStage(wizard, healthMemory);
 
   const lines = [
     wizard.mode === "with_vitals"
@@ -169,6 +170,8 @@ function wizardContextText(wizard?: TriageWizardContext): string {
     wizard.quickAnswers?.length
       ? `Structured quick answers tapped so far: ${wizard.quickAnswers.map((answer) => `${answer.label} (${answer.value})`).join("; ")}.`
       : "",
+    `Current adaptive wizard stage: ${stage}.`,
+    stage === "complete" ? "The app has enough structured answers. Produce the final TRIAGE_JSON summary now." : `Ask the ${stage} question only.`,
   ].filter(Boolean);
 
   return lines.length ? `\n\nWIZARD CONTEXT:\n${lines.join("\n")}` : "";
@@ -297,23 +300,105 @@ function selectedSafetyAnswer(wizard: TriageWizardContext | undefined) {
   return selectedAnswers(wizard).find((answer) => CRITICAL_RED_FLAG_IDS.has(answer.id));
 }
 
-function wizardStage(wizard?: TriageWizardContext): WizardStage {
+function hasKind(wizard: TriageWizardContext | undefined, kind: string) {
+  return selectedAnswers(wizard).some((answer) => answer.kind === kind);
+}
+
+function shouldCompleteFromRules(wizard: TriageWizardContext | undefined, healthMemory?: TriageHealthMemory) {
+  const answers = selectedAnswers(wizard);
+  if (!answers.some((answer) => answer.kind === "red_flag")) return false;
+  const ids = new Set(answers.map((answer) => answer.id));
+  const symptomId = selectedSymptomId(wizard);
+  const risks = profileRiskFlags(healthMemory);
+  const hasCriticalRedFlag = answers.some((answer) => CRITICAL_RED_FLAG_IDS.has(answer.id));
+
+  if (hasCriticalRedFlag) return true;
+
+  if (symptomId === "breathing") {
+    if (ids.has("strong")) return true;
+    if (ids.has("walking_only") && hasKind(wizard, "severity") && hasKind(wizard, "trend")) return true;
+    if (ids.has("no_red_flag") && hasKind(wizard, "severity") && hasKind(wizard, "trend")) return true;
+  }
+
+  if (symptomId === "pain") {
+    if (ids.has("after_fall") && hasKind(wizard, "severity")) return true;
+    if (ids.has("strong") && ids.has("worse")) return true;
+    if (hasKind(wizard, "severity") && hasKind(wizard, "trend")) return true;
+  }
+
+  if (symptomId === "dizzy") {
+    if ((ids.has("strong") || ids.has("worse") || ids.has("new_symptoms")) && hasKind(wizard, "severity")) return true;
+    if (hasKind(wizard, "severity") && hasKind(wizard, "trend")) return true;
+  }
+
+  if (symptomId === "fever") {
+    if ((risks.immunosuppressed || risks.cancerActive || risks.steroidMedication) && hasKind(wizard, "duration")) return true;
+    if ((ids.has("strong") || ids.has("week_plus") || ids.has("worse") || ids.has("new_symptoms")) && hasKind(wizard, "severity")) return true;
+    if (hasKind(wizard, "duration") && hasKind(wizard, "severity") && hasKind(wizard, "trend")) return true;
+  }
+
+  if (symptomId === "tired") {
+    if ((ids.has("not_drinking") || ids.has("strong") || ids.has("worse")) && hasKind(wizard, "severity")) return true;
+    if (hasKind(wizard, "duration") && hasKind(wizard, "severity") && hasKind(wizard, "trend")) return true;
+  }
+
+  return hasKind(wizard, "duration") && hasKind(wizard, "severity") && hasKind(wizard, "trend");
+}
+
+function nextAdaptiveStage(wizard: TriageWizardContext | undefined, healthMemory?: TriageHealthMemory): WizardStage {
   const answers = selectedAnswers(wizard);
   if (!answers.some((answer) => answer.kind === "symptom")) return "symptom";
   if (!answers.some((answer) => answer.kind === "red_flag")) return "red_flag";
-  if (!answers.some((answer) => answer.kind === "duration")) return "duration";
-  if (!answers.some((answer) => answer.kind === "severity")) return "severity";
-  if (!answers.some((answer) => answer.kind === "trend")) return "trend";
+  if (shouldCompleteFromRules(wizard, healthMemory)) return "complete";
+
+  const ids = new Set(answers.map((answer) => answer.id));
+  const symptomId = selectedSymptomId(wizard);
+
+  if (symptomId === "breathing") {
+    if (!hasKind(wizard, "severity")) return "severity";
+    if (!hasKind(wizard, "trend")) return "trend";
+    if (!hasKind(wizard, "duration")) return "duration";
+  }
+
+  if (symptomId === "pain") {
+    if (!hasKind(wizard, "severity")) return "severity";
+    if ((ids.has("after_fall") || ids.has("strong")) && !hasKind(wizard, "trend")) return "trend";
+    if (!hasKind(wizard, "duration")) return "duration";
+    if (!hasKind(wizard, "trend")) return "trend";
+  }
+
+  if (symptomId === "dizzy") {
+    if (!hasKind(wizard, "severity")) return "severity";
+    if (!hasKind(wizard, "trend")) return "trend";
+    if (!hasKind(wizard, "duration")) return "duration";
+  }
+
+  if (symptomId === "fever") {
+    if (!hasKind(wizard, "duration")) return "duration";
+    if (!hasKind(wizard, "severity")) return "severity";
+    if (!hasKind(wizard, "trend")) return "trend";
+  }
+
+  if (symptomId === "tired") {
+    if ((ids.has("not_drinking") || ids.has("new_severe")) && !hasKind(wizard, "severity")) return "severity";
+    if (!hasKind(wizard, "duration")) return "duration";
+    if (!hasKind(wizard, "severity")) return "severity";
+    if (!hasKind(wizard, "trend")) return "trend";
+  }
+
+  if (!hasKind(wizard, "severity")) return "severity";
+  if (!hasKind(wizard, "duration")) return "duration";
+  if (!hasKind(wizard, "trend")) return "trend";
   return "complete";
 }
 
 function wizardStageLabel(stage: WizardStage, locale: string) {
   const labels: Record<WizardStage, { en: string; es: string }> = {
-    symptom: { en: "Question 1 of 5", es: "Pregunta 1 de 5" },
-    red_flag: { en: "Question 2 of 5", es: "Pregunta 2 de 5" },
-    duration: { en: "Question 3 of 5", es: "Pregunta 3 de 5" },
-    severity: { en: "Question 4 of 5", es: "Pregunta 4 de 5" },
-    trend: { en: "Question 5 of 5", es: "Pregunta 5 de 5" },
+    symptom: { en: "Choose symptom", es: "Elige sintoma" },
+    red_flag: { en: "Safety check", es: "Chequeo de seguridad" },
+    duration: { en: "When it started", es: "Cuando empezo" },
+    severity: { en: "How it feels", es: "Como se siente" },
+    trend: { en: "What changed", es: "Que cambio" },
     support: { en: "Next step", es: "Siguiente paso" },
     complete: { en: "Summary", es: "Resumen" },
   };
@@ -454,7 +539,7 @@ function profileRedFlagReplies(
 }
 
 function quickRepliesFor(wizard: TriageWizardContext | undefined, locale: string, healthMemory?: TriageHealthMemory): TriageQuickReply[] {
-  const stage = wizardStage(wizard);
+  const stage = nextAdaptiveStage(wizard, healthMemory);
   const answers = selectedAnswers(wizard);
   const symptom = firstAnswerKind(wizard, "symptom");
   const risks = profileRiskFlags(healthMemory);
@@ -759,16 +844,16 @@ function buildSystemPrompt(
   return `You are VYVA, a warm and caring medical triage assistant helping an elderly person understand their symptoms. Your role is to ask clear, simple questions and provide a helpful triage summary.
 
 IMPORTANT: Respond entirely in ${language}.
-${genderInstruction(gender)}${vitalsContext}${wizardContextText(wizard)}${healthMemoryText(healthMemory)}${medisearchContextText(medisearchContext)}${triageQuestionMatrixText()}
+${genderInstruction(gender)}${vitalsContext}${wizardContextText(wizard, healthMemory)}${healthMemoryText(healthMemory)}${medisearchContextText(medisearchContext)}${triageQuestionMatrixText()}
 
 CONVERSATION FLOW:
 1. The app is a senior-friendly wizard. Match the current wizard stage and ask only one very simple question.
 2. If there is no symptom category yet, ask what feels wrong today.
 3. After a symptom category, ask the most relevant red-flag question first using the SYMPTOM AND PROFILE QUESTION MATRIX. If the reply buttons cover several warning signs, ask a broad matching question like "Do any of these warning signs apply?" instead of naming only one option.
 4. Adapt concern level to HEALTH MEMORY. Be more cautious for diabetes, kidney disease, COPD/oxygen use, heart failure, heart disease/AFib, high blood pressure, stroke/TIA history, blood thinners, low immunity/cancer treatment, liver disease, recent surgery, falls/frailty, Parkinson's, osteoporosis, high-risk medications, and new confusion.
-5. Then ask duration, severity, and whether it is getting better/worse. After the trend answer, do not ask what the user wants. Decide the next step for them and produce the final summary JSON.
+5. After the safety check, follow the adaptive wizard stage supplied by the app. Ask the single next question that matches the quick reply choices. You may finish once the app stage is complete, even if fewer than 5 questions were needed.
 6. Avoid repeating questions already answered in WIZARD CONTEXT.
-7. After gathering sufficient information (typically 4-5 user answers), gently wrap up.
+7. After gathering sufficient information, gently wrap up. Some high-signal paths need fewer questions.
 8. On your FINAL turn, you MUST end your message with this exact JSON block (replace values appropriately):
 
 TRIAGE_JSON_START
@@ -795,7 +880,7 @@ STYLE RULES:
 - Do not explain the wizard or mention the buttons
 - Never use medical jargon
 - Prefer plain words: "sudden", "strong", "today", "getting worse"
-- Do NOT produce the JSON block before the 4th user message`;
+- Do NOT produce the JSON block until the app stage is complete, unless an emergency safety alert is present`;
 }
 
 function extractTriageJson(text: string): { content: string; summary: TriageSummary | null } {
@@ -1133,14 +1218,15 @@ router.post("/message", async (req: Request, res: Response) => {
     const { content, summary } = extractTriageJson(rawContent);
     const safeSummary = summary ? applyTriageSafetyFloor(summary, wizard, normalizedLocale, healthMemory) : null;
 
+    const stage = nextAdaptiveStage(wizard, healthMemory);
     return res.json({
       role: "assistant",
       content,
       done: safeSummary != null,
       summary: safeSummary ?? undefined,
       quickReplies: safeSummary ? [] : quickRepliesFor(wizard, normalizedLocale, healthMemory),
-      wizardStage: wizardStage(wizard),
-      wizardStageLabel: wizardStageLabel(wizardStage(wizard), normalizedLocale),
+      wizardStage: stage,
+      wizardStageLabel: wizardStageLabel(stage, normalizedLocale),
       evidenceSources: medisearchContext?.articles.slice(0, 3).map((article) => ({
         title: article.title,
         url: article.url,
