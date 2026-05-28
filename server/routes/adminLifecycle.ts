@@ -1817,7 +1817,9 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
       eventType: "admin_subscription_updated",
       channel: "admin",
       metadata: {
+        previous_subscription_tier: existingProfile?.subscription_tier ?? null,
         subscription_tier: subscriptionTier,
+        previous_subscription_status: existingProfile?.subscription_status ?? null,
         subscription_status: subscriptionStatus,
         account_email: subscriptionEmail,
         synced_profile_ids: syncedProfileIds,
@@ -1875,10 +1877,21 @@ adminLifecycleRouter.get("/users/:id/details", async (req: Request, res: Respons
       intake,
       lifecycleProfile: profile ?? null,
     });
-    const [communicationRows, lifecycleRows, consentRows, scheduledRows, support] = await Promise.all([
-      optionalAdminRows(db.select().from(communicationsLog).where(eq(communicationsLog.intake_id, intake.id)).orderBy(desc(communicationsLog.created_at)).limit(100)),
-      optionalAdminRows(db.select().from(lifecycleEvents).where(eq(lifecycleEvents.intake_id, intake.id)).orderBy(desc(lifecycleEvents.created_at)).limit(100)),
+    const userEventWhere = userId
+      ? or(eq(lifecycleEvents.intake_id, intake.id), eq(lifecycleEvents.user_id, userId))
+      : eq(lifecycleEvents.intake_id, intake.id);
+    const userCommunicationWhere = userId
+      ? or(eq(communicationsLog.intake_id, intake.id), eq(communicationsLog.user_id, userId))
+      : eq(communicationsLog.intake_id, intake.id);
+    const userAccessLinkWhere = userId
+      ? or(eq(accessLinks.intake_id, intake.id), eq(accessLinks.user_id, userId))
+      : eq(accessLinks.intake_id, intake.id);
+
+    const [communicationRows, lifecycleRows, consentRows, accessLinkRows, scheduledRows, support] = await Promise.all([
+      optionalAdminRows(db.select().from(communicationsLog).where(userCommunicationWhere).orderBy(desc(communicationsLog.created_at)).limit(100)),
+      optionalAdminRows(db.select().from(lifecycleEvents).where(userEventWhere).orderBy(desc(lifecycleEvents.created_at)).limit(100)),
       optionalAdminRows(db.select().from(consentAttempts).where(eq(consentAttempts.intake_id, intake.id)).orderBy(desc(consentAttempts.created_at)).limit(50)),
+      optionalAdminRows(db.select().from(accessLinks).where(userAccessLinkWhere).orderBy(desc(accessLinks.created_at)).limit(50)),
       scheduledItemsForUser(userId),
       scheduledSupportForUser(userId),
     ]);
@@ -1892,6 +1905,7 @@ adminLifecycleRouter.get("/users/:id/details", async (req: Request, res: Respons
       communications: communicationRows,
       lifecycle_events: lifecycleRows,
       consent_attempts: consentRows,
+      access_links: accessLinkRows,
       scheduled_events: scheduledRows,
       scheduled_support: support.schedules,
       interaction_logs: support.logs,
@@ -2019,6 +2033,10 @@ adminLifecycleRouter.patch("/users/:id/profile", async (req: Request, res: Respo
     eventType: "admin_profile_updated",
     channel: "admin",
     metadata: {
+      previous_subscription_tier: existingProfile.subscription_tier,
+      subscription_tier: profilePatch.subscription_tier ?? existingProfile.subscription_tier,
+      previous_subscription_status: existingProfile.subscription_status,
+      subscription_status: profilePatch.subscription_status ?? existingProfile.subscription_status,
       synced_profile_ids: syncedProfileIds,
       account_mappings: freshMapping.mappings.map((item) => ({
         source: item.source,
