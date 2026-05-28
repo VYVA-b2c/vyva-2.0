@@ -22,6 +22,8 @@ interface TriageSummary {
   watchSigns?: string[];
   profileConsiderations?: string[];
   vitalsNotes?: string[];
+  evidenceSummary?: string;
+  evidenceSources?: Array<{ title?: string; url?: string; year?: string; journal?: string }>;
 }
 
 interface TriageResponse {
@@ -52,6 +54,7 @@ interface TriageChatProps {
   bpm: number | null;
   respiratoryRate?: number | null;
   entryMode: WizardEntryMode;
+  initialClue?: string;
   healthMemory?: TriageHealthMemory | null;
   autoStartVoice?: boolean;
   onVoiceAutoStarted?: () => void;
@@ -129,6 +132,7 @@ export default function TriageChat({
   bpm,
   respiratoryRate = null,
   entryMode,
+  initialClue = "",
   healthMemory = null,
   autoStartVoice = false,
   onVoiceAutoStarted,
@@ -297,7 +301,7 @@ export default function TriageChat({
         setMessages((prev) => [...prev, { role: "assistant", content: res.content }]);
 
         const triggerComplete = res.done && res.summary
-          ? { ...res.summary, aiSummary: res.content }
+          ? { ...res.summary, aiSummary: res.content, evidenceSources: res.summary.evidenceSources ?? res.evidenceSources }
           : null;
 
         animateMessage(msgIdx, res.content, () => {
@@ -323,9 +327,16 @@ export default function TriageChat({
   useEffect(() => {
     if (!initiated) {
       setInitiated(true);
-      sendToApi([]);
+      const clue = initialClue.trim();
+      if (clue) {
+        const initialMessage: ChatMessage = { role: "user", content: clue };
+        setMessages([initialMessage]);
+        sendToApi([initialMessage]);
+      } else {
+        sendToApi([]);
+      }
     }
-  }, [initiated, sendToApi]);
+  }, [initialClue, initiated, sendToApi]);
 
   useEffect(() => {
     scrollToBottom();
