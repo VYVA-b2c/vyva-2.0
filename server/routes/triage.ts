@@ -293,18 +293,17 @@ function wizardStage(wizard?: TriageWizardContext): WizardStage {
   if (!answers.some((answer) => answer.kind === "duration")) return "duration";
   if (!answers.some((answer) => answer.kind === "severity")) return "severity";
   if (!answers.some((answer) => answer.kind === "trend")) return "trend";
-  if (!answers.some((answer) => answer.kind === "support")) return "support";
   return "complete";
 }
 
 function wizardStageLabel(stage: WizardStage, locale: string) {
   const labels: Record<WizardStage, { en: string; es: string }> = {
-    symptom: { en: "Question 1 of 6", es: "Pregunta 1 de 6" },
-    red_flag: { en: "Question 2 of 6", es: "Pregunta 2 de 6" },
-    duration: { en: "Question 3 of 6", es: "Pregunta 3 de 6" },
-    severity: { en: "Question 4 of 6", es: "Pregunta 4 de 6" },
-    trend: { en: "Question 5 of 6", es: "Pregunta 5 de 6" },
-    support: { en: "Question 6 of 6", es: "Pregunta 6 de 6" },
+    symptom: { en: "Question 1 of 5", es: "Pregunta 1 de 5" },
+    red_flag: { en: "Question 2 of 5", es: "Pregunta 2 de 5" },
+    duration: { en: "Question 3 of 5", es: "Pregunta 3 de 5" },
+    severity: { en: "Question 4 of 5", es: "Pregunta 4 de 5" },
+    trend: { en: "Question 5 of 5", es: "Pregunta 5 de 5" },
+    support: { en: "Next step", es: "Siguiente paso" },
     complete: { en: "Summary", es: "Resumen" },
   };
   return text(locale, labels[stage].en, labels[stage].es);
@@ -449,6 +448,8 @@ function quickRepliesFor(wizard: TriageWizardContext | undefined, locale: string
   const symptom = firstAnswerKind(wizard, "symptom");
   const risks = profileRiskFlags(healthMemory);
 
+  if (stage === "complete") return [];
+
   if (stage === "symptom") {
     return [
       reply(locale, "pain", "symptom", "Pain", "Dolor", "I have pain.", "Tengo dolor.", "heart", "red"),
@@ -535,20 +536,7 @@ function quickRepliesFor(wizard: TriageWizardContext | undefined, locale: string
     ];
   }
 
-  if (stage === "support") {
-    return [
-      reply(locale, "doctor_help", "support", "Help me decide", "Ayudame a decidir", "I would like help deciding whether to contact a doctor.", "Quiero ayuda para decidir si contactar a un medico.", "heart", "red"),
-      reply(locale, "watch_home", "support", "What to watch", "Que vigilar", "I want to know what to watch at home.", "Quiero saber que vigilar en casa.", "activity", "green"),
-      reply(locale, "share_report", "support", "Make a report", "Crear informe", "Please make a clear report I can share.", "Por favor crea un informe claro para compartir.", "help", "purple"),
-      reply(locale, "not_sure_support", "support", "Not sure", "No se", "I am not sure what I need.", "No se que necesito.", "help", "amber"),
-    ];
-  }
-
-  return [
-    reply(locale, "yes", "support", "Yes", "Si", "Yes.", "Si.", "heart", "green"),
-    reply(locale, "no", "support", "No", "No", "No.", "No.", "alert", "red"),
-    reply(locale, "not_sure", "support", "Not sure", "No se", "I am not sure.", "No estoy segura o seguro.", "help", "purple"),
-  ];
+  return [];
 }
 
 function safetyMessage(locale: string, warningLabel: string) {
@@ -643,9 +631,9 @@ CONVERSATION FLOW:
 2. If there is no symptom category yet, ask what feels wrong today.
 3. After a symptom category, ask the most relevant red-flag question first using the SYMPTOM AND PROFILE QUESTION MATRIX. If the reply buttons cover several warning signs, ask a broad matching question like "Do any of these warning signs apply?" instead of naming only one option.
 4. Adapt concern level to HEALTH MEMORY. Be more cautious for diabetes, kidney disease, COPD/oxygen use, heart failure, heart disease/AFib, high blood pressure, stroke/TIA history, blood thinners, low immunity/cancer treatment, liver disease, recent surgery, falls/frailty, Parkinson's, osteoporosis, high-risk medications, and new confusion.
-5. Then ask duration, severity, whether it is getting better/worse, and what help the user wants.
+5. Then ask duration, severity, and whether it is getting better/worse. After the trend answer, do not ask what the user wants. Decide the next step for them and produce the final summary JSON.
 6. Avoid repeating questions already answered in WIZARD CONTEXT.
-7. After gathering sufficient information (typically 4-6 user answers), gently wrap up.
+7. After gathering sufficient information (typically 4-5 user answers), gently wrap up.
 8. On your FINAL turn, you MUST end your message with this exact JSON block (replace values appropriately):
 
 TRIAGE_JSON_START
