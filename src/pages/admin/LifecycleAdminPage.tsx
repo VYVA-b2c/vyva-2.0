@@ -175,9 +175,8 @@ function deleteNoticeFor(intake: Intake, result: JsonRecord): AdminActionNotice 
       label: "Removed",
       title: `${intake.name} was removed from Users.`,
       details: [
-        "The lifecycle row is hidden and should not return after refresh.",
-        "Some linked cleanup needs follow-up:",
-        ...cleanupErrors.slice(0, 4),
+        "The user is hidden from the Users table and protected from backfill.",
+        "Some linked app cleanup could not be verified automatically, but the user should stay removed after refresh.",
       ],
     };
   }

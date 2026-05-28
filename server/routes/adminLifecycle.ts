@@ -510,6 +510,33 @@ function addNormalizedPhone(target: Set<string>, value: unknown) {
   if (phone) target.add(phone);
 }
 
+const adminProfileSelect = {
+  id: profiles.id,
+  full_name: profiles.full_name,
+  preferred_name: profiles.preferred_name,
+  email: profiles.email,
+  phone_number: profiles.phone_number,
+  whatsapp_number: profiles.whatsapp_number,
+  stripe_subscription_id: profiles.stripe_subscription_id,
+  subscription_status: profiles.subscription_status,
+  subscription_tier: profiles.subscription_tier,
+  trial_ends_at: profiles.trial_ends_at,
+  account_status: profiles.account_status,
+  role: profiles.role,
+  disabled_at: profiles.disabled_at,
+  disabled_reason: profiles.disabled_reason,
+  disabled_by: profiles.disabled_by,
+  created_at: profiles.created_at,
+  updated_at: profiles.updated_at,
+};
+
+const identityProfileSelect = {
+  id: profiles.id,
+  email: profiles.email,
+  phone_number: profiles.phone_number,
+  whatsapp_number: profiles.whatsapp_number,
+};
+
 function combineWhere(clauses: SQL[]): SQL | undefined {
   if (!clauses.length) return undefined;
   return clauses.length === 1 ? clauses[0] : or(...clauses);
@@ -743,8 +770,15 @@ async function searchLegacyAccountsExact(input: { email?: string | null; phone?:
 
 async function profileById(profileId: string | null | undefined): Promise<typeof profiles.$inferSelect | null> {
   if (!profileId) return null;
-  const [profile] = await db.select().from(profiles).where(eq(profiles.id, profileId)).limit(1);
-  return profile ?? null;
+  try {
+    const [profile] = await db.select(adminProfileSelect).from(profiles).where(eq(profiles.id, profileId)).limit(1);
+    return (profile ?? null) as typeof profiles.$inferSelect | null;
+  } catch (error) {
+    if (!isMissingRelationError(error)) throw error;
+    console.warn("[admin-lifecycle] profile detail columns unavailable; falling back to identity-only profile lookup", error);
+    const [profile] = await db.select(identityProfileSelect).from(profiles).where(eq(profiles.id, profileId)).limit(1);
+    return (profile ?? null) as typeof profiles.$inferSelect | null;
+  }
 }
 
 function buildMappingWarning(mapping: LoginMapping) {
@@ -1871,9 +1905,7 @@ adminLifecycleRouter.get("/users/:id/details", async (req: Request, res: Respons
     if (!intake) return res.status(404).json({ error: "User intake not found" });
 
     const userId = targetUserIdForIntake(intake);
-    const [profile] = userId
-      ? await db.select().from(profiles).where(eq(profiles.id, userId)).limit(1)
-      : [];
+    const profile = await profileById(userId);
     const mapping = await resolveLoginMappings({
       intake,
       lifecycleProfile: profile ?? null,
@@ -1899,7 +1931,7 @@ adminLifecycleRouter.get("/users/:id/details", async (req: Request, res: Respons
 
     return res.json({
       intake,
-      profile: profile ?? null,
+      profile,
       account_mappings: mapping.mappings,
       account_mapping_warnings: mapping.warnings,
       account_match_field: mapping.match_field,
