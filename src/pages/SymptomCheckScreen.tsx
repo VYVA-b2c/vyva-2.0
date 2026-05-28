@@ -285,30 +285,37 @@ function ReportScreen({
 
       <div className="flex flex-col gap-4 px-[18px] pb-6">
         <div className="grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => {
-              window.location.href = "tel:112";
-            }}
-            data-testid="button-report-emergency"
-            className={`vyva-tap flex min-h-[92px] flex-col justify-between rounded-[24px] p-4 text-left shadow-[0_8px_24px_rgba(63,45,35,0.06)] ${summary.urgency === "urgent" ? "bg-[#FFF1F2] text-[#BE123C]" : "border border-[#E8DED4] bg-white text-vyva-text-1"}`}
-          >
-            <PhoneCall size={22} />
-            <span className="font-body text-[16px] font-extrabold leading-tight">
-              {t("health.symptomCheck.report.callEmergency", "Call emergency")}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={openDoctorWithContext}
-            data-testid="button-report-doctor"
-            className="vyva-tap flex min-h-[92px] flex-col justify-between rounded-[24px] bg-[#F5F3FF] p-4 text-left text-vyva-purple shadow-[0_8px_24px_rgba(63,45,35,0.06)]"
-          >
-            <Stethoscope size={22} />
-            <span className="font-body text-[16px] font-extrabold leading-tight">
-              {t("health.symptomCheck.report.callDoctor", "Talk to doctor")}
-            </span>
-          </button>
+          {summary.urgency === "urgent" ? (
+            <button
+              type="button"
+              onClick={() => {
+                window.location.href = "tel:112";
+              }}
+              data-testid="button-report-emergency"
+              className="vyva-tap col-span-2 flex min-h-[96px] items-center justify-between rounded-[24px] bg-[#DC2626] p-5 text-left text-white shadow-[0_16px_36px_rgba(220,38,38,0.28)]"
+            >
+              <span className="flex items-center gap-3">
+                <PhoneCall size={26} />
+                <span className="font-body text-[20px] font-black leading-tight">
+                  {t("health.symptomCheck.report.callEmergency", "Call emergency services")}
+                </span>
+              </span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={openDoctorWithContext}
+              data-testid="button-report-doctor"
+              className="vyva-tap col-span-2 flex min-h-[96px] items-center justify-between rounded-[24px] bg-[#6B21A8] p-5 text-left text-white shadow-[0_16px_36px_rgba(107,33,168,0.24)]"
+            >
+              <span className="flex items-center gap-3">
+                <Stethoscope size={26} />
+                <span className="font-body text-[20px] font-black leading-tight">
+                  {t("health.symptomCheck.report.callDoctor", "Talk to a real doctor")}
+                </span>
+              </span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => navigate(reportId ? `/informes/${reportId}` : "/informes")}
