@@ -20,6 +20,7 @@ import {
   conciergeReminders,
   conciergeSessions,
   consentAttempts,
+  consentLog,
   heroMessages,
   homePlanCards,
   homeScans,
@@ -1164,6 +1165,52 @@ async function optionalAdminDelete(label: string, query: Promise<unknown>) {
   }
 }
 
+function minimalLifecycleIdentityScope(intake: typeof userIntakes.$inferSelect) {
+  const ids = new Set<string>();
+  const emails = new Set<string>();
+  const phones = new Set<string>();
+
+  addIfPresent(ids, intake.user_id);
+  addIfPresent(ids, intake.elder_user_id);
+  addIfPresent(ids, intake.family_user_id);
+  addIfPresent(ids, targetUserIdForIntake(intake));
+  addNormalizedEmail(emails, intake.email);
+  addNormalizedEmail(emails, intake.phone);
+  addNormalizedPhone(phones, intake.phone);
+
+  return {
+    ids: Array.from(ids),
+    emails: Array.from(emails),
+    phones: Array.from(phones),
+    intakeIds: [intake.id],
+  };
+}
+
+async function safeLifecycleIdentityScope(intake: typeof userIntakes.$inferSelect) {
+  try {
+    return { scope: await lifecycleIdentityScope(intake), errors: [] as string[] };
+  } catch (error) {
+    console.error("[admin-lifecycle] falling back to selected intake identity for delete", error);
+    return {
+      scope: minimalLifecycleIdentityScope(intake),
+      errors: [String((error as { message?: string })?.message ?? error)],
+    };
+  }
+}
+
+async function bestEffortAdminDelete(label: string, query: Promise<unknown>, cleanupErrors: string[]) {
+  try {
+    await query;
+  } catch (error) {
+    if (isMissingRelationError(error)) {
+      console.warn(`[admin-lifecycle] optional cleanup skipped for ${label}`, error);
+      return;
+    }
+    console.error(`[admin-lifecycle] optional cleanup failed for ${label}`, error);
+    cleanupErrors.push(`${label}: ${String((error as { message?: string })?.message ?? error)}`);
+  }
+}
+
 function adminLifecycleLoadError(res: Response, section: string, error: unknown) {
   console.error(`[admin-lifecycle] failed to load ${section}`, error);
   return res.status(500).json({ error: `Could not load ${section}. Please refresh and try again.` });
@@ -2102,72 +2149,145 @@ adminLifecycleRouter.delete("/users/:id", async (req: Request, res: Response) =>
   };
   const deletedAt = new Date();
   const deletedBy = req.user?.email ?? req.user?.id ?? "admin";
-  const scope = await lifecycleIdentityScope(intake);
+  const { scope, errors: scopeErrors } = await safeLifecycleIdentityScope(intake);
+  const cleanupErrors = scopeErrors.map((error) => `identity scope: ${error}`);
 
-  await optionalAdminDelete("communications for intake", db.delete(communicationsLog).where(eq(communicationsLog.intake_id, intake.id)));
-  await optionalAdminDelete("consent attempts for intake", db.delete(consentAttempts).where(eq(consentAttempts.intake_id, intake.id)));
-  await optionalAdminDelete("access links for intake", db.delete(accessLinks).where(eq(accessLinks.intake_id, intake.id)));
-  await optionalAdminDelete("lifecycle events for intake", db.delete(lifecycleEvents).where(eq(lifecycleEvents.intake_id, intake.id)));
+  const intakeWhere = lifecycleIntakeIdentityWhere({
+    selectedIntakeId: intake.id,
+    ids: scope.ids,
+    emails: scope.emails,
+    phones: scope.phones,
+  });
+  let intakesToHide: Array<typeof userIntakes.$inferSelect> = [];
+  try {
+    intakesToHide = await db.select().from(userIntakes).where(intakeWhere);
+  } catch (error) {
+    console.error("[admin-lifecycle] failed to find matching intakes during delete", error);
+    cleanupErrors.push(`find matching intakes: ${String((error as { message?: string })?.message ?? error)}`);
+  }
+
+  const intakesById = new Map<string, typeof userIntakes.$inferSelect>();
+  for (const row of intakesToHide) intakesById.set(row.id, row);
+  intakesById.set(intake.id, intake);
+  const hiddenIntakeIds: string[] = [];
+
+  for (const row of intakesById.values()) {
+    try {
+      const [hiddenIntake] = await db.update(userIntakes).set({
+        status: "dropped",
+        journey_step: "admin_deleted",
+        dropped_at: deletedAt,
+        last_activity_at: deletedAt,
+        updated_at: deletedAt,
+        metadata: {
+          ...jsonRecord(row.metadata),
+          hidden_from_lifecycle: true,
+          deleted_from_lifecycle: true,
+          deleted_at: deletedAt.toISOString(),
+          deleted_by: deletedBy,
+          deleted_identity: {
+            user_id: row.user_id,
+            elder_user_id: row.elder_user_id,
+            family_user_id: row.family_user_id,
+            name: row.name,
+            email: row.email,
+            phone: row.phone,
+          },
+          deleted_identity_scope: {
+            intake_ids: scope.intakeIds,
+            profile_or_login_ids: scope.ids,
+            emails: scope.emails,
+            phones: scope.phones,
+          },
+          delete_cleanup: {
+            started: true,
+            profile_disabled: false,
+            login_detached: false,
+          },
+        },
+      }).where(eq(userIntakes.id, row.id)).returning({ id: userIntakes.id });
+      if (hiddenIntake) hiddenIntakeIds.push(hiddenIntake.id);
+    } catch (error) {
+      console.error("[admin-lifecycle] failed to hide lifecycle intake during delete", error);
+      cleanupErrors.push(`hide lifecycle intake ${row.id}: ${String((error as { message?: string })?.message ?? error)}`);
+    }
+  }
+  deleted.intake = hiddenIntakeIds.length > 0;
+
+  if (!hiddenIntakeIds.includes(intake.id)) {
+    return res.status(500).json({ error: "User could not be removed from the Users table. Please refresh and try again." });
+  }
+
+  await bestEffortAdminDelete("communications for intake", db.delete(communicationsLog).where(eq(communicationsLog.intake_id, intake.id)), cleanupErrors);
+  await bestEffortAdminDelete("consent attempts for intake", db.delete(consentAttempts).where(eq(consentAttempts.intake_id, intake.id)), cleanupErrors);
+  await bestEffortAdminDelete("access links for intake", db.delete(accessLinks).where(eq(accessLinks.intake_id, intake.id)), cleanupErrors);
+  await bestEffortAdminDelete("lifecycle events for intake", db.delete(lifecycleEvents).where(eq(lifecycleEvents.intake_id, intake.id)), cleanupErrors);
 
   if (userId) {
-    await optionalAdminDelete("session state", db.delete(sessionState).where(eq(sessionState.user_id, userId)));
-    await optionalAdminDelete("session exchanges", db.delete(sessionExchanges).where(eq(sessionExchanges.user_id, userId)));
-    await optionalAdminDelete("agent difficulty", db.delete(agentDifficulty).where(eq(agentDifficulty.user_id, userId)));
-    await optionalAdminDelete("caregiver alerts", db.delete(caregiverAlerts).where(eq(caregiverAlerts.user_id, userId)));
-    await optionalAdminDelete("medication adherence", db.delete(medicationAdherence).where(eq(medicationAdherence.user_id, userId)));
-    await optionalAdminDelete("onboarding state", db.delete(onboardingState).where(eq(onboardingState.user_id, userId)));
-    await optionalAdminDelete(
+    await bestEffortAdminDelete("session state", db.delete(sessionState).where(eq(sessionState.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("session exchanges", db.delete(sessionExchanges).where(eq(sessionExchanges.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("agent difficulty", db.delete(agentDifficulty).where(eq(agentDifficulty.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("caregiver alerts", db.delete(caregiverAlerts).where(eq(caregiverAlerts.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("medication adherence", db.delete(medicationAdherence).where(eq(medicationAdherence.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("onboarding state", db.delete(onboardingState).where(eq(onboardingState.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete(
       "consent log",
       db.delete(consentLog).where(or(eq(consentLog.user_id, userId), eq(consentLog.target_user_id, userId))),
+      cleanupErrors,
     );
-    await optionalAdminDelete(
+    await bestEffortAdminDelete(
       "team invitations",
       db.delete(teamInvitations).where(or(eq(teamInvitations.senior_id, userId), eq(teamInvitations.accepted_user_id, userId))),
+      cleanupErrors,
     );
-    await optionalAdminDelete("user channel identity", db.delete(userChannelIdentity).where(eq(userChannelIdentity.user_id, userId)));
-    await optionalAdminDelete("user channel preferences", db.delete(userChannelPreferences).where(eq(userChannelPreferences.user_id, userId)));
-    await optionalAdminDelete("billing events", db.delete(billingEvents).where(eq(billingEvents.user_id, userId)));
-    await optionalAdminDelete("scam checks", db.delete(scamChecks).where(eq(scamChecks.user_id, userId)));
-    await optionalAdminDelete("home scans", db.delete(homeScans).where(eq(homeScans.user_id, userId)));
-    await optionalAdminDelete("wound scans", db.delete(woundScans).where(eq(woundScans.user_id, userId)));
-    await optionalAdminDelete("companion profile", db.delete(companionProfiles).where(eq(companionProfiles.user_id, userId)));
-    await optionalAdminDelete(
+    await bestEffortAdminDelete("user channel identity", db.delete(userChannelIdentity).where(eq(userChannelIdentity.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("user channel preferences", db.delete(userChannelPreferences).where(eq(userChannelPreferences.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("billing events", db.delete(billingEvents).where(eq(billingEvents.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("scam checks", db.delete(scamChecks).where(eq(scamChecks.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("home scans", db.delete(homeScans).where(eq(homeScans.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("wound scans", db.delete(woundScans).where(eq(woundScans.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("companion profile", db.delete(companionProfiles).where(eq(companionProfiles.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete(
       "companion connections",
       db.delete(companionConnections).where(or(eq(companionConnections.requester_id, userId), eq(companionConnections.recipient_id, userId))),
+      cleanupErrors,
     );
-    await optionalAdminDelete("social room visits", db.delete(socialRoomVisits).where(eq(socialRoomVisits.user_id, userId)));
-    await optionalAdminDelete("social interests", db.delete(socialUserInterests).where(eq(socialUserInterests.user_id, userId)));
-    await optionalAdminDelete(
+    await bestEffortAdminDelete("social room visits", db.delete(socialRoomVisits).where(eq(socialRoomVisits.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("social interests", db.delete(socialUserInterests).where(eq(socialUserInterests.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete(
       "social connections",
       db.delete(socialConnections).where(or(eq(socialConnections.user_id_a, userId), eq(socialConnections.user_id_b, userId))),
+      cleanupErrors,
     );
-    await optionalAdminDelete("triage reports", db.delete(triageReports).where(eq(triageReports.user_id, userId)));
-    await optionalAdminDelete("vitals readings", db.delete(vitalsReadings).where(eq(vitalsReadings.user_id, userId)));
-    await optionalAdminDelete("user providers", db.delete(userProviders).where(eq(userProviders.user_id, userId)));
-    await optionalAdminDelete("concierge pending", db.delete(conciergePending).where(eq(conciergePending.user_id, userId)));
-    await optionalAdminDelete("concierge sessions", db.delete(conciergeSessions).where(eq(conciergeSessions.user_id, userId)));
-    await optionalAdminDelete("concierge reminders", db.delete(conciergeReminders).where(eq(conciergeReminders.user_id, userId)));
-    await optionalAdminDelete("utility review runs", db.delete(utilityReviewRuns).where(eq(utilityReviewRuns.user_id, userId)));
-    await optionalAdminDelete("concierge feedback", db.delete(conciergeRecommendationFeedback).where(eq(conciergeRecommendationFeedback.user_id, userId)));
-    await optionalAdminDelete("voice recommendation feedback", db.delete(voiceRecommendationFeedback).where(eq(voiceRecommendationFeedback.user_id, userId)));
-    await optionalAdminDelete("voice timeline events", db.delete(voiceTimelineEvents).where(eq(voiceTimelineEvents.user_id, userId)));
-    await optionalAdminDelete("scheduled event logs", db.delete(scheduledEventLogs).where(eq(scheduledEventLogs.user_id, userId)));
-    await optionalAdminDelete("scheduled events", db.delete(scheduledEvents).where(eq(scheduledEvents.user_id, userId)));
-    await optionalAdminDelete("scheduled interactions", db.delete(scheduledInteractions).where(eq(scheduledInteractions.user_id, userId)));
-    await optionalAdminDelete("interaction logs", db.delete(interactionLogs).where(eq(interactionLogs.user_id, userId)));
-    await optionalAdminDelete("consent audit logs", db.delete(consentAuditLogs).where(eq(consentAuditLogs.user_id, userId)));
-    await optionalAdminDelete("communications for user", db.delete(communicationsLog).where(eq(communicationsLog.user_id, userId)));
-    await optionalAdminDelete("lifecycle events for user", db.delete(lifecycleEvents).where(eq(lifecycleEvents.user_id, userId)));
-    await optionalAdminDelete(
+    await bestEffortAdminDelete("triage reports", db.delete(triageReports).where(eq(triageReports.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("vitals readings", db.delete(vitalsReadings).where(eq(vitalsReadings.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("user providers", db.delete(userProviders).where(eq(userProviders.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("concierge pending", db.delete(conciergePending).where(eq(conciergePending.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("concierge sessions", db.delete(conciergeSessions).where(eq(conciergeSessions.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("concierge reminders", db.delete(conciergeReminders).where(eq(conciergeReminders.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("utility review runs", db.delete(utilityReviewRuns).where(eq(utilityReviewRuns.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("concierge feedback", db.delete(conciergeRecommendationFeedback).where(eq(conciergeRecommendationFeedback.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("voice recommendation feedback", db.delete(voiceRecommendationFeedback).where(eq(voiceRecommendationFeedback.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("voice timeline events", db.delete(voiceTimelineEvents).where(eq(voiceTimelineEvents.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("scheduled event logs", db.delete(scheduledEventLogs).where(eq(scheduledEventLogs.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("scheduled events", db.delete(scheduledEvents).where(eq(scheduledEvents.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("scheduled interactions", db.delete(scheduledInteractions).where(eq(scheduledInteractions.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("interaction logs", db.delete(interactionLogs).where(eq(interactionLogs.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("consent audit logs", db.delete(consentAuditLogs).where(eq(consentAuditLogs.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("communications for user", db.delete(communicationsLog).where(eq(communicationsLog.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete("lifecycle events for user", db.delete(lifecycleEvents).where(eq(lifecycleEvents.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete(
       "consent attempts for user",
       db.delete(consentAttempts).where(or(eq(consentAttempts.elder_user_id, userId), eq(consentAttempts.family_user_id, userId))),
+      cleanupErrors,
     );
-    await optionalAdminDelete("user medications", db.delete(userMedications).where(eq(userMedications.user_id, userId)));
-    await optionalAdminDelete(
+    await bestEffortAdminDelete("user medications", db.delete(userMedications).where(eq(userMedications.user_id, userId)), cleanupErrors);
+    await bestEffortAdminDelete(
       "profile memberships",
       db.delete(profileMemberships).where(or(eq(profileMemberships.profile_id, userId), eq(profileMemberships.user_id, userId))),
+      cleanupErrors,
     );
-    await optionalAdminDelete("legacy active profile links", db.update(users).set({ active_profile_id: null }).where(eq(users.active_profile_id, userId)));
+    await bestEffortAdminDelete("legacy active profile links", db.update(users).set({ active_profile_id: null }).where(eq(users.active_profile_id, userId)), cleanupErrors);
   }
 
   const profileWhere = profileIdentityWhere(scope);
@@ -2188,91 +2308,47 @@ adminLifecycleRouter.delete("/users/:id", async (req: Request, res: Response) =>
     : [];
   deleted.login = detachedLogins.length > 0;
 
-  const intakeWhere = lifecycleIntakeIdentityWhere({
-    selectedIntakeId: intake.id,
-    ids: scope.ids,
-    emails: scope.emails,
-    phones: scope.phones,
-  });
-  const intakesToHide = await db.select().from(userIntakes).where(intakeWhere);
-  const hiddenIntakeIds: string[] = [];
-
-  for (const row of intakesToHide) {
-    const [hiddenIntake] = await db.update(userIntakes).set({
-      status: "dropped",
-      journey_step: "admin_deleted",
-      dropped_at: deletedAt,
-      last_activity_at: deletedAt,
-      updated_at: deletedAt,
-      metadata: {
-        ...jsonRecord(row.metadata),
-        hidden_from_lifecycle: true,
-        deleted_from_lifecycle: true,
-        deleted_at: deletedAt.toISOString(),
-        deleted_by: deletedBy,
-        deleted_identity: {
-          user_id: row.user_id,
-          elder_user_id: row.elder_user_id,
-          family_user_id: row.family_user_id,
-          name: row.name,
-          email: row.email,
-          phone: row.phone,
-        },
-        deleted_identity_scope: {
-          intake_ids: scope.intakeIds,
-          profile_or_login_ids: scope.ids,
-          emails: scope.emails,
-          phones: scope.phones,
-        },
-        delete_cleanup: {
-          profile_disabled: deleted.profile,
-          login_detached: deleted.login,
-        },
-      },
-    }).where(eq(userIntakes.id, row.id)).returning({ id: userIntakes.id });
-    if (hiddenIntake) hiddenIntakeIds.push(hiddenIntake.id);
-  }
-  deleted.intake = hiddenIntakeIds.length > 0;
-
-  if (!hiddenIntakeIds.length) {
-    return res.status(500).json({ error: "User cleanup ran, but the lifecycle tombstone could not be saved." });
-  }
-
   const deletedLoginAccounts = loginWhere
     ? await optionalAdminRows(db.delete(users).where(loginWhere).returning({ id: users.id }))
     : [];
   deleted.login_account = deletedLoginAccounts.length > 0;
 
-  await recordEvent({
-    intakeId: intake.id,
-    userId,
-    eventType: "user_deleted",
-    fromStatus: intake.status,
-    toStatus: "dropped",
-    channel: "admin",
-    metadata: {
-      deleted_by: deletedBy,
-      deleted_at: deletedAt.toISOString(),
-      hidden_from_lifecycle: true,
-      name: intake.name,
-      email: intake.email,
-      phone: intake.phone,
-      hidden_intake_ids: hiddenIntakeIds,
-      identity_scope: {
-        intake_ids: scope.intakeIds,
-        profile_or_login_ids: scope.ids,
-        emails: scope.emails,
-        phones: scope.phones,
+  await bestEffortAdminDelete(
+    "user deleted lifecycle event",
+    recordEvent({
+      intakeId: intake.id,
+      userId,
+      eventType: "user_deleted",
+      fromStatus: intake.status,
+      toStatus: "dropped",
+      channel: "admin",
+      metadata: {
+        deleted_by: deletedBy,
+        deleted_at: deletedAt.toISOString(),
+        hidden_from_lifecycle: true,
+        name: intake.name,
+        email: intake.email,
+        phone: intake.phone,
+        hidden_intake_ids: hiddenIntakeIds,
+        identity_scope: {
+          intake_ids: scope.intakeIds,
+          profile_or_login_ids: scope.ids,
+          emails: scope.emails,
+          phones: scope.phones,
+        },
+        cleanup: deleted,
+        cleanup_errors: cleanupErrors,
+        deleted_login_account_ids: deletedLoginAccounts.map((account) => account.id),
       },
-      cleanup: deleted,
-      deleted_login_account_ids: deletedLoginAccounts.map((account) => account.id),
-    },
-  });
+    }),
+    cleanupErrors,
+  );
 
   return res.json({
     deleted,
     hidden_intake: true,
     hidden_intake_ids: hiddenIntakeIds,
+    cleanup_errors: cleanupErrors,
     identity_scope: {
       intake_ids: scope.intakeIds,
       profile_or_login_ids: scope.ids,
