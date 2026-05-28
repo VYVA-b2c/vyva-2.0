@@ -81,12 +81,22 @@ type SupportScheduleDraft = {
   quiet_hours_end: string;
 };
 
-const adminTabs = [
+type LifecycleTabId =
+  | "users"
+  | "share"
+  | "forms"
+  | "organizations"
+  | "consent"
+  | "tiers"
+  | "communications"
+  | "analytics";
+
+const adminTabs: Array<{ id: LifecycleTabId; label: string }> = [
   { id: "users", label: "Users" },
   { id: "share", label: "Share Invite" },
-  { id: "invites", label: "Forms" },
-  { id: "consent", label: "Consent" },
+  { id: "forms", label: "Forms" },
   { id: "organizations", label: "Organizations" },
+  { id: "consent", label: "Consent" },
   { id: "tiers", label: "Tiers" },
   { id: "communications", label: "Communications" },
   { id: "analytics", label: "Analytics" },
@@ -224,7 +234,7 @@ async function readAdminResponse(res: Response, fallback: string) {
 }
 
 export default function LifecycleAdminPage() {
-  const [activeTab, setActiveTab] = useState("users");
+  const [activeTab, setActiveTab] = useState<LifecycleTabId>("users");
   const [filters, setFilters] = useState({ entry_point: "", user_type: "", status: "", tier: "" });
   const [peopleSearchInput, setPeopleSearchInput] = useState("");
   const [peopleSearch, setPeopleSearch] = useState("");
@@ -1326,7 +1336,7 @@ export default function LifecycleAdminPage() {
           </section>
         )}
 
-        {activeTab === "invites" && (
+        {activeTab === "forms" && (
           <section className="mt-5 max-w-2xl">
             <div className="rounded-[2rem] border border-[#eadfd5] bg-white p-5">
               <h2 className="font-serif text-3xl">Create intake</h2>
