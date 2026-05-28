@@ -45,10 +45,29 @@ outputType = "webview"
 [nix]
 channel = "stable-25_05"
 
+<<<<<<< Updated upstream
 [deployment]
 deploymentTarget = "autoscale"
 run = ["node", "./server-dist/index.cjs"]
 build = ["npm", "run", "build"]
+=======
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 5001
+externalPort = 3000
+
+[[ports]]
+localPort = 24678
+externalPort = 3002
+
+[userenv]
+
+[userenv.shared]
+VITE_ELEVENLABS_AGENT_ID = "agent_2901kbz1tjt5e5cs4m4hgb0krhgm"
+>>>>>>> Stashed changes
 
 [postMerge]
 path = ".local/post_merge_setup.sh"
