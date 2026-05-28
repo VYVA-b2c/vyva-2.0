@@ -36,6 +36,13 @@ type TriageContextResponse = {
   usedItems: string[];
 };
 
+type ProfileContactsResponse = {
+  caregiverName?: string | null;
+  caregiverContact?: string | null;
+  gpName?: string | null;
+  gpPhone?: string | null;
+} | null;
+
 type SavedTriageReport = {
   id?: string;
   chief_complaint?: string;
@@ -156,6 +163,7 @@ function ReportScreen({
   durationSeconds,
   reportId,
   reportSaveState,
+  profileContacts,
   onDone,
 }: {
   summary: TriageSummary;
@@ -164,6 +172,7 @@ function ReportScreen({
   durationSeconds: number | null;
   reportId: string | null;
   reportSaveState: ReportSaveState;
+  profileContacts?: ProfileContactsResponse;
   onDone: () => void;
 }) {
   const { t } = useTranslation();
@@ -183,6 +192,22 @@ function ReportScreen({
       ? `${durationSeconds}s`
       : `${Math.floor(durationSeconds / 60)}m ${durationSeconds % 60}s`
     : null;
+  const doctorContactName = profileContacts?.gpName?.trim() || (profileContacts?.gpPhone?.trim() ? t("health.symptomCheck.report.doctorContact", "your doctor") : "");
+  const caregiverContactName = profileContacts?.caregiverName?.trim() || (profileContacts?.caregiverContact?.trim() ? t("health.symptomCheck.report.caregiverContact", "your caregiver") : "");
+  const notifiedContacts = [
+    doctorContactName ? { id: "doctor", label: doctorContactName } : null,
+    caregiverContactName ? { id: "caregiver", label: caregiverContactName } : null,
+  ].filter(Boolean) as Array<{ id: string; label: string }>;
+  const notifiedText = notifiedContacts.length === 2
+    ? t("health.symptomCheck.report.sentToBoth", "A copy of this report has been sent to {{first}} and {{second}}.", {
+        first: notifiedContacts[0].label,
+        second: notifiedContacts[1].label,
+      })
+    : notifiedContacts.length === 1
+      ? t("health.symptomCheck.report.sentToOne", "A copy of this report has been sent to {{contact}}.", {
+          contact: notifiedContacts[0].label,
+        })
+      : "";
   const doctorNote = [
     summary.chiefComplaint,
     summary.symptoms.length ? `${t("health.symptomCheck.report.symptoms", "Symptoms noted")}: ${summary.symptoms.join(", ")}` : "",
@@ -284,6 +309,15 @@ function ReportScreen({
       </div>
 
       <div className="flex flex-col gap-4 px-[18px] pb-6">
+        {notifiedText && (
+          <div className="flex items-start gap-3 rounded-[24px] border border-[#BBF7D0] bg-[#F0FDF4] p-4 text-[#047857] shadow-[0_8px_24px_rgba(63,45,35,0.05)]">
+            <CheckCircle size={24} className="mt-0.5 flex-shrink-0" />
+            <p className="font-body text-[18px] font-extrabold leading-snug">
+              {notifiedText}
+            </p>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3">
           {summary.urgency === "urgent" ? (
             <button
@@ -429,6 +463,11 @@ export default function SymptomCheckScreen() {
   const navigate = useNavigate();
   const { data: triageContext } = useQuery<TriageContextResponse>({
     queryKey: ["/api/triage/context"],
+    retry: false,
+    staleTime: 2 * 60 * 1000,
+  });
+  const { data: profileContacts } = useQuery<ProfileContactsResponse>({
+    queryKey: ["/api/profile"],
     retry: false,
     staleTime: 2 * 60 * 1000,
   });
@@ -618,6 +657,7 @@ export default function SymptomCheckScreen() {
             durationSeconds={durationSeconds}
             reportId={reportId}
             reportSaveState={reportSaveState}
+            profileContacts={profileContacts}
             onDone={() => navigate("/health")}
           />
         )}

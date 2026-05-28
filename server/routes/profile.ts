@@ -928,6 +928,8 @@ router.get("/", async (req: Request, res: Response) => {
       postalCode:       p.postcode ?? "",
       caregiverName:    p.caregiver_name ?? "",
       caregiverContact: p.caregiver_contact ?? "",
+      gpName:           p.gp_name ?? "",
+      gpPhone:          p.gp_phone ?? "",
       avatarUrl:        p.avatar_url ?? null,
     });
   } catch (err) {
