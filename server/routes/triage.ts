@@ -7,6 +7,7 @@ import { profiles } from "../../shared/schema.js";
 import { genderInstruction, inferProfileGender, type GrammaticalGender } from "../lib/userPersonalization.js";
 import { getMediSearchTriageContext, type MediSearchTriageContext } from "../services/medisearch.js";
 import { getDoctorMedicalProfileVariables } from "../lib/doctorMedicalProfile.js";
+import { evaluateTriageRules } from "../lib/triageRules.js";
 
 const router = Router();
 
@@ -978,76 +979,52 @@ function applyTriageSafetyFloor(
   const ids = new Set(answers.map((answer) => answer.id));
   const symptom = selectedSymptomId(wizard);
   const hasCriticalRedFlag = answers.some((answer) => CRITICAL_RED_FLAG_IDS.has(answer.id));
-  const strongAndWorse = ids.has("strong") && ids.has("worse");
-  const strongOrWorse = ids.has("strong") || ids.has("worse") || ids.has("new_symptoms");
-  const isPainOrHeadache = symptom === "pain";
   const risks = profileRiskFlags(healthMemory);
+  const abnormalPulse = typeof wizard?.vitals?.bpm === "number" && (wizard.vitals.bpm >= 110 || wizard.vitals.bpm <= 50);
+  const abnormalBreathingRate = typeof wizard?.vitals?.respiratoryRate === "number" && (wizard.vitals.respiratoryRate >= 24 || wizard.vitals.respiratoryRate <= 10);
+  const ruleDecision = evaluateTriageRules({
+    locale,
+    symptomId: symptom,
+    answerIds: ids,
+    risks,
+    hasCriticalRedFlag,
+    abnormalPulse,
+    abnormalBreathingRate,
+  });
   const baseSummary = {
     ...summary,
     symptoms: summary.symptoms?.length ? summary.symptoms : [symptomLabel(locale, symptom)],
-    watchSigns: summary.watchSigns?.length ? summary.watchSigns : watchSignsFor(locale, symptom),
+    urgency: maxUrgency(summary.urgency, ruleDecision.urgency),
+    watchSigns: ruleDecision.watchSigns.length ? ruleDecision.watchSigns : summary.watchSigns?.length ? summary.watchSigns : watchSignsFor(locale, symptom),
     profileConsiderations: [
       ...(summary.profileConsiderations ?? []),
       ...profileConsiderationsFor(locale, risks, symptom),
+      ...ruleDecision.profileConsiderations,
     ].slice(0, 3),
     vitalsNotes: [
       ...(summary.vitalsNotes ?? []),
       ...vitalsNotesFor(locale, wizard),
     ].slice(0, 3),
+    recommendations: [
+      ...ruleDecision.recommendations,
+      ...(summary.recommendations ?? []),
+    ].filter((item, index, items) => items.findIndex((candidate) => candidate.toLowerCase() === item.toLowerCase()) === index).slice(0, 5),
   };
-  const nextStep = nextStepFor(locale, baseSummary, wizard);
+  const nextStep = {
+    nextStepLevel: ruleDecision.level,
+    nextStepLabel: ruleDecision.nextStepLabel,
+  } satisfies Pick<TriageSummary, "nextStepLabel" | "nextStepLevel">;
 
-  if (hasCriticalRedFlag) {
+  if (ruleDecision.level !== "monitor") {
     return {
       ...baseSummary,
       ...nextStep,
-      urgency: maxUrgency(baseSummary.urgency, "urgent"),
-      recommendations: prependRecommendation(
-        baseSummary.recommendations,
-        text(
-          locale,
-          "Seek urgent medical help now if this feels severe, sudden, or unsafe.",
-          "Busca ayuda medica urgente ahora si se siente fuerte, repentino o inseguro.",
-        ),
-      ),
-    };
-  }
-
-  if (isPainOrHeadache && strongAndWorse) {
-    return {
-      ...baseSummary,
-      ...nextStepFor(locale, { ...baseSummary, urgency: maxUrgency(baseSummary.urgency, "urgent") }, wizard),
-      urgency: maxUrgency(baseSummary.urgency, "urgent"),
-      recommendations: prependRecommendation(
-        baseSummary.recommendations,
-        text(
-          locale,
-          "Contact a doctor or urgent care today because a strong headache that is getting worse needs medical advice.",
-          "Contacta hoy con un medico o urgencias porque un dolor de cabeza fuerte que empeora necesita consejo medico.",
-        ),
-      ),
-    };
-  }
-
-  if (strongOrWorse) {
-    return {
-      ...baseSummary,
-      ...nextStepFor(locale, { ...baseSummary, urgency: maxUrgency(baseSummary.urgency, "routine") }, wizard),
-      urgency: maxUrgency(baseSummary.urgency, "routine"),
-      recommendations: prependRecommendation(
-        baseSummary.recommendations,
-        text(
-          locale,
-          "Contact your doctor or clinic within 24 hours if this stays strong, gets worse, or feels unusual for you.",
-          "Contacta con tu medico o clinica en 24 horas si sigue fuerte, empeora o se siente raro para ti.",
-        ),
-      ),
     };
   }
 
   return {
     ...baseSummary,
-    ...nextStep,
+    ...nextStepFor(locale, baseSummary, wizard),
   };
 }
 
