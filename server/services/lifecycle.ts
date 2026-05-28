@@ -934,6 +934,15 @@ export async function backfillLifecycleUsers(database = db) {
   return inserted;
 }
 
+async function backfillLifecycleUsersForRead(context: string, database = db) {
+  try {
+    return await backfillLifecycleUsers(database);
+  } catch (error) {
+    console.error(`[lifecycle] ${context} skipped lifecycle backfill`, error);
+    return [];
+  }
+}
+
 export async function recordLifecycleEvent(input: {
   intakeId?: string | null;
   userId?: string | null;
@@ -1077,7 +1086,7 @@ export function validateFamilyIntake(data: IntakeCreateInput): string | null {
 }
 
 export async function getLifecycleSummary(database = db) {
-  await backfillLifecycleUsers(database);
+  await backfillLifecycleUsersForRead("summary", database);
   const [allRows, consentRows] = await Promise.all([
     database.select().from(userIntakes).orderBy(desc(userIntakes.created_at)),
     database.select().from(consentAttempts).orderBy(desc(consentAttempts.created_at)),
@@ -1315,7 +1324,7 @@ export async function listLifecycleUsers(filters: {
   query?: string;
   callback_onboarding?: boolean;
 }, database = db) {
-  await backfillLifecycleUsers(database);
+  await backfillLifecycleUsersForRead("users list", database);
   const deletedDenyList = await buildDeletedLifecycleDenyList(database);
   const searchWhere = filters.query ? await lifecycleUserSearchWhere(filters.query, database) : undefined;
   const callbackOnboardingWhere = filters.callback_onboarding === true
@@ -1430,7 +1439,7 @@ export async function listLifecycleUsers(filters: {
 }
 
 export async function getLifecycleUserDetails(intakeId: string, database = db) {
-  await backfillLifecycleUsers(database);
+  await backfillLifecycleUsersForRead("user details", database);
   const [intake] = await database.select().from(userIntakes).where(eq(userIntakes.id, intakeId)).limit(1);
   if (!intake) return null;
 
