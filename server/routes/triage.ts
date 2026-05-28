@@ -64,10 +64,26 @@ type ProfileRiskFlags = {
   diabetes: boolean;
   copd: boolean;
   heartFailure: boolean;
+  heartDisease: boolean;
+  afib: boolean;
   hypertension: boolean;
   bloodThinner: boolean;
   immunosuppressed: boolean;
   cognitiveConcern: boolean;
+  kidneyDisease: boolean;
+  strokeHistory: boolean;
+  fallsFrailty: boolean;
+  parkinsonMobility: boolean;
+  osteoporosis: boolean;
+  cancerActive: boolean;
+  recentSurgery: boolean;
+  utiHistory: boolean;
+  liverDisease: boolean;
+  depressionAnxiety: boolean;
+  sedatingMedication: boolean;
+  opioidMedication: boolean;
+  diureticMedication: boolean;
+  steroidMedication: boolean;
 };
 
 const CRITICAL_RED_FLAG_IDS = new Set([
@@ -91,6 +107,18 @@ const CRITICAL_RED_FLAG_IDS = new Set([
   "very_high_bp",
   "immuno_fever",
   "new_confusion",
+  "low_urine_swelling",
+  "one_sided_weakness",
+  "irregular_heartbeat",
+  "hip_back_after_fall",
+  "cannot_swallow",
+  "fever_after_surgery",
+  "calf_swelling_surgery",
+  "urine_confusion",
+  "liver_confusion_bleeding",
+  "over_sedated",
+  "opioid_breathing",
+  "dehydration_diuretic",
 ]);
 
 const SAFETY_ACTION_IDS = new Set([
@@ -146,10 +174,26 @@ function healthMemoryText(memory?: TriageHealthMemory): string {
     risks.diabetes ? "diabetes or glucose medication" : "",
     risks.copd ? "COPD/asthma/oxygen support" : "",
     risks.heartFailure ? "heart failure/fluid risk" : "",
+    risks.heartDisease ? "heart disease" : "",
+    risks.afib ? "atrial fibrillation/irregular heartbeat" : "",
     risks.hypertension ? "high blood pressure/stroke risk" : "",
     risks.bloodThinner ? "blood thinner/bleeding risk" : "",
     risks.immunosuppressed ? "low immunity" : "",
     risks.cognitiveConcern ? "cognitive or confusion vulnerability" : "",
+    risks.kidneyDisease ? "kidney disease/dehydration medication risk" : "",
+    risks.strokeHistory ? "stroke/TIA history" : "",
+    risks.fallsFrailty ? "falls or frailty risk" : "",
+    risks.parkinsonMobility ? "Parkinson's/mobility/swallowing risk" : "",
+    risks.osteoporosis ? "osteoporosis/fracture risk" : "",
+    risks.cancerActive ? "active cancer or chemotherapy" : "",
+    risks.recentSurgery ? "recent surgery or hospital stay" : "",
+    risks.utiHistory ? "UTI/recurrent infection risk" : "",
+    risks.liverDisease ? "liver disease/bleeding or confusion risk" : "",
+    risks.depressionAnxiety ? "mood or anxiety vulnerability" : "",
+    risks.sedatingMedication ? "sedating medication/fall risk" : "",
+    risks.opioidMedication ? "opioid/breathing or oversedation risk" : "",
+    risks.diureticMedication ? "diuretic/dehydration risk" : "",
+    risks.steroidMedication ? "steroid/low immunity risk" : "",
   ].filter(Boolean);
   const lines = [
     memory.healthContext ? `Health profile summary: ${memory.healthContext}` : "",
@@ -180,10 +224,26 @@ function profileRiskFlags(memory?: TriageHealthMemory): ProfileRiskFlags {
     diabetes: /\b(diabetes|diabetic|insulin|metformin|glucose|blood sugar|cgm)\b/.test(haystack),
     copd: /\b(copd|emphysema|chronic bronchitis|oxygen therapy|home oxygen|asthma)\b/.test(haystack),
     heartFailure: /\b(chf|heart failure|congestive|fluid retention|furosemide|diuretic)\b/.test(haystack),
+    heartDisease: /\b(coronary|angina|heart attack|myocardial infarction|stent|bypass|ischemic heart|ischaemic heart|heart disease)\b/.test(haystack),
+    afib: /\b(afib|a-fib|atrial fibrillation|irregular heartbeat|arrhythmia|palpitations)\b/.test(haystack),
     hypertension: /\b(hypertension|high blood pressure|blood pressure|amlodipine|lisinopril|losartan|atenolol|metoprolol)\b/.test(haystack),
     bloodThinner: /\b(warfarin|apixaban|eliquis|rivaroxaban|xarelto|dabigatran|pradaxa|edoxaban|anticoagulant|blood thinner|clopidogrel|plavix)\b/.test(haystack),
-    immunosuppressed: /\b(immunosuppressed|immunocompromised|chemotherapy|transplant|prednisone|steroid|methotrexate|biologic)\b/.test(haystack),
+    immunosuppressed: /\b(immunosuppressed|immunocompromised|chemotherapy|transplant|prednisone|steroid|methotrexate|biologic|low immunity|neutropenia)\b/.test(haystack),
     cognitiveConcern: /\b(dementia|alzheimer|memory loss|cognitive impairment|confusion)\b/.test(haystack),
+    kidneyDisease: /\b(kidney disease|ckd|renal|dialysis|eGFR|nephropathy|kidney failure)\b/i.test(haystack),
+    strokeHistory: /\b(stroke|tia|mini stroke|cva|transient ischemic|transient ischaemic)\b/.test(haystack),
+    fallsFrailty: /\b(fall risk|falls|frail|frailty|walker|walking aid|mobility aid|unsteady|balance problem)\b/.test(haystack),
+    parkinsonMobility: /\b(parkinson|parkinson's|levodopa|carbidopa|freezing|tremor|swallowing trouble|dysphagia)\b/.test(haystack),
+    osteoporosis: /\b(osteoporosis|osteopenia|fragility fracture|hip fracture|compression fracture)\b/.test(haystack),
+    cancerActive: /\b(cancer|chemotherapy|radiotherapy|radiation therapy|oncology|tumou?r|malignan)\b/.test(haystack),
+    recentSurgery: /\b(recent surgery|post[- ]?op|operation|hospital stay|discharged|wound|incision|surgical)\b/.test(haystack),
+    utiHistory: /\b(uti|urinary tract infection|recurrent infection|bladder infection|cystitis)\b/.test(haystack),
+    liverDisease: /\b(liver disease|cirrhosis|hepatitis|hepatic|jaundice|ascites)\b/.test(haystack),
+    depressionAnxiety: /\b(depression|depressed|anxiety|panic|lonely|suicidal|self harm|self-harm)\b/.test(haystack),
+    sedatingMedication: /\b(zolpidem|ambien|benzodiazepine|diazepam|lorazepam|alprazolam|clonazepam|sleeping pill|sedative|quetiapine|gabapentin|pregabalin)\b/.test(haystack),
+    opioidMedication: /\b(opioid|morphine|oxycodone|hydrocodone|tramadol|fentanyl|codeine|buprenorphine)\b/.test(haystack),
+    diureticMedication: /\b(furosemide|lasix|bumetanide|torsemide|spironolactone|hydrochlorothiazide|bendroflumethiazide|diuretic|water pill)\b/.test(haystack),
+    steroidMedication: /\b(prednisone|prednisolone|dexamethasone|hydrocortisone|steroid)\b/.test(haystack),
   };
 }
 
@@ -284,13 +344,25 @@ function profileRedFlagReplies(
 
   if (risks.heartFailure && ["breathing", "tired", "other"].includes(symptomId ?? "")) {
     replies.push(
-      reply(locale, "swelling_weight_gain", "red_flag", "Swelling or weight gain", "Hinchazon o peso subio", "My legs are more swollen or my weight went up quickly.", "heart", "amber"),
+      reply(locale, "swelling_weight_gain", "red_flag", "Swelling or weight gain", "Hinchazon o peso subio", "My legs are more swollen or my weight went up quickly.", "Mis piernas estan mas hinchadas o subi de peso rapido.", "heart", "amber"),
+    );
+  }
+
+  if ((risks.heartDisease || risks.afib) && ["pain", "breathing", "dizzy", "tired", "other"].includes(symptomId ?? "")) {
+    replies.push(
+      reply(locale, "irregular_heartbeat", "red_flag", "Irregular heartbeat", "Latido irregular", "I have chest pressure, palpitations, fainting, or breathlessness.", "Tengo presion en el pecho, palpitaciones, desmayo o falta de aire.", "heart", "red"),
     );
   }
 
   if (risks.hypertension && ["pain", "dizzy", "other"].includes(symptomId ?? "")) {
     replies.push(
       reply(locale, "very_high_bp", "red_flag", "Very high blood pressure", "Presion muy alta", "My blood pressure is very high or I have weakness or speech trouble.", "Tengo la presion muy alta o debilidad o dificultad para hablar.", "alert", "red"),
+    );
+  }
+
+  if (risks.strokeHistory && ["pain", "dizzy", "tired", "other"].includes(symptomId ?? "")) {
+    replies.push(
+      reply(locale, "one_sided_weakness", "red_flag", "Weakness or speech trouble", "Debilidad o habla rara", "I have face droop, one-sided weakness, vision change, or speech trouble.", "Tengo cara caida, debilidad en un lado, cambio de vision o dificultad para hablar.", "alert", "red"),
     );
   }
 
@@ -301,7 +373,7 @@ function profileRedFlagReplies(
     );
   }
 
-  if (risks.immunosuppressed && symptomId === "fever") {
+  if ((risks.immunosuppressed || risks.cancerActive || risks.steroidMedication) && symptomId === "fever") {
     replies.push(
       reply(locale, "immuno_fever", "red_flag", "Fever with low immunity", "Fiebre con defensas bajas", "I have fever and low immunity or cancer treatment.", "Tengo fiebre y defensas bajas o tratamiento contra cancer.", "alert", "red"),
     );
@@ -310,6 +382,61 @@ function profileRedFlagReplies(
   if (risks.cognitiveConcern && ["fever", "dizzy", "tired", "other"].includes(symptomId ?? "")) {
     replies.push(
       reply(locale, "new_confusion", "red_flag", "New confusion", "Confusion nueva", "I feel newly confused or not like myself.", "Tengo confusion nueva o no me siento como siempre.", "alert", "red"),
+    );
+  }
+
+  if (risks.kidneyDisease && ["fever", "dizzy", "tired", "other"].includes(symptomId ?? "")) {
+    replies.push(
+      reply(locale, "low_urine_swelling", "red_flag", "Low urine or swelling", "Poca orina o hinchazon", "I am passing much less urine, very swollen, or very dehydrated.", "Orino mucho menos, estoy muy hinchado o muy deshidratado.", "alert", "red"),
+    );
+  }
+
+  if ((risks.fallsFrailty || risks.osteoporosis) && ["pain", "dizzy", "other"].includes(symptomId ?? "")) {
+    replies.push(
+      reply(locale, "hip_back_after_fall", "red_flag", "Fall with hip or back pain", "Caida con dolor cadera", "I fell and now have hip or back pain, or trouble standing.", "Me cai y ahora tengo dolor de cadera o espalda, o me cuesta estar de pie.", "alert", "red"),
+    );
+  }
+
+  if (risks.parkinsonMobility && ["breathing", "tired", "other"].includes(symptomId ?? "")) {
+    replies.push(
+      reply(locale, "cannot_swallow", "red_flag", "Trouble swallowing", "Dificultad al tragar", "I am choking, coughing with food, or cannot swallow safely.", "Me atraganto, toso al comer o no puedo tragar con seguridad.", "alert", "red"),
+    );
+  }
+
+  if (risks.recentSurgery && ["fever", "breathing", "pain", "other"].includes(symptomId ?? "")) {
+    replies.push(
+      reply(locale, "fever_after_surgery", "red_flag", "Fever after surgery", "Fiebre tras cirugia", "I have fever, redness, swelling, or drainage near a wound.", "Tengo fiebre, enrojecimiento, hinchazon o secrecion cerca de una herida.", "alert", "red"),
+      reply(locale, "calf_swelling_surgery", "red_flag", "Calf swelling", "Pantorrilla hinchada", "One calf is swollen or painful, or I am newly short of breath.", "Una pantorrilla esta hinchada o duele, o tengo nueva falta de aire.", "alert", "red"),
+    );
+  }
+
+  if (risks.utiHistory && ["fever", "dizzy", "tired", "other"].includes(symptomId ?? "")) {
+    replies.push(
+      reply(locale, "urine_confusion", "red_flag", "Urine change or confusion", "Orina o confusion", "I have burning urine, fever, new confusion, or new weakness.", "Tengo ardor al orinar, fiebre, confusion nueva o debilidad nueva.", "alert", "red"),
+    );
+  }
+
+  if (risks.liverDisease && ["dizzy", "tired", "pain", "other"].includes(symptomId ?? "")) {
+    replies.push(
+      reply(locale, "liver_confusion_bleeding", "red_flag", "Confusion or bleeding", "Confusion o sangrado", "I have new confusion, black stool, vomiting blood, or yellow skin.", "Tengo confusion nueva, heces negras, vomito sangre o piel amarilla.", "alert", "red"),
+    );
+  }
+
+  if (risks.sedatingMedication && ["dizzy", "tired", "other"].includes(symptomId ?? "")) {
+    replies.push(
+      reply(locale, "over_sedated", "red_flag", "Very sleepy or unsteady", "Mucho sueno o inestable", "I am very sleepy, confused, or more unsteady than usual.", "Tengo mucho sueno, confusion o estoy mas inestable de lo normal.", "alert", "amber"),
+    );
+  }
+
+  if (risks.opioidMedication && ["breathing", "tired", "other"].includes(symptomId ?? "")) {
+    replies.push(
+      reply(locale, "opioid_breathing", "red_flag", "Slow breathing", "Respiracion lenta", "I am very sleepy or breathing slower than usual.", "Tengo mucho sueno o respiro mas lento de lo normal.", "alert", "red"),
+    );
+  }
+
+  if ((risks.diureticMedication || risks.kidneyDisease) && ["dizzy", "tired", "other"].includes(symptomId ?? "")) {
+    replies.push(
+      reply(locale, "dehydration_diuretic", "red_flag", "Dehydration signs", "Senales de deshidratacion", "I am dizzy standing, very thirsty, or passing little urine.", "Me mareo al estar de pie, tengo mucha sed o orino poco.", "alert", "amber"),
     );
   }
 
@@ -483,7 +610,7 @@ CONVERSATION FLOW:
 1. The app is a senior-friendly wizard. Match the current wizard stage and ask only one very simple question.
 2. If there is no symptom category yet, ask what feels wrong today.
 3. After a symptom category, ask the most relevant red-flag question first. If a red flag is present, calmly recommend urgent help while still collecting enough summary detail.
-4. Adapt concern level to HEALTH MEMORY. Diabetes, COPD/oxygen use, heart failure, high blood pressure, blood thinners, low immunity, and new confusion should make you more cautious.
+4. Adapt concern level to HEALTH MEMORY. Be more cautious for diabetes, kidney disease, COPD/oxygen use, heart failure, heart disease/AFib, high blood pressure, stroke/TIA history, blood thinners, low immunity/cancer treatment, liver disease, recent surgery, falls/frailty, Parkinson's, osteoporosis, high-risk medications, and new confusion.
 5. Then ask duration, severity, whether it is getting better/worse, and what help the user wants.
 6. Avoid repeating questions already answered in WIZARD CONTEXT.
 7. After gathering sufficient information (typically 4-6 user answers), gently wrap up.
