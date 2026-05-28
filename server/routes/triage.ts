@@ -456,7 +456,7 @@ function quickRepliesFor(wizard: TriageWizardContext | undefined, locale: string
       reply(locale, "fever", "symptom", "Fever", "Fiebre", "I have a fever.", "Tengo fiebre.", "thermometer", "amber"),
       reply(locale, "dizzy", "symptom", "Dizzy", "Mareo", "I feel dizzy.", "Me siento mareada o mareado.", "activity", "amber"),
       reply(locale, "tired", "symptom", "Very tired", "Muy cansancio", "I feel very tired.", "Me siento muy cansada o cansado.", "activity", "purple"),
-      reply(locale, "other", "free_text", "Other", "Otra cosa", "Something else is bothering me.", "Me pasa otra cosa.", "help", "purple"),
+      reply(locale, "other", "symptom", "Something else", "Otra cosa", "Something else is bothering me.", "Me pasa otra cosa.", "help", "purple"),
     ];
   }
 
