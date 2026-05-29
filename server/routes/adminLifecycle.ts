@@ -165,7 +165,7 @@ const bulkImportSchema = bulkPreviewSchema.extend({
 
 const bulkUserActionSchema = z.object({
   ids: z.array(z.string().uuid()).min(1).max(100),
-  action: z.enum(["disable", "delete_hide", "assign_org", "change_tier", "resend_invite"]),
+  action: z.enum(["disable", "delete_hide", "restore", "assign_org", "change_tier", "resend_invite"]),
   organization_id: z.string().uuid().nullable().optional(),
   tier: z.string().trim().min(1).optional(),
 });
@@ -1414,6 +1414,21 @@ async function safeLifecycleIdentityScope(intake: typeof userIntakes.$inferSelec
   }
 }
 
+type LifecycleIdentityScope = Awaited<ReturnType<typeof lifecycleIdentityScope>>;
+
+async function clearLifecycleDeletedProfileMarkers(scope: LifecycleIdentityScope, updatedAt: Date) {
+  const profileWhere = profileIdentityWhere(scope);
+  if (!profileWhere) return [];
+  return optionalAdminRows(db.update(profiles).set({
+    disabled_reason: "Restored to Users; app access remains disabled",
+    updated_at: updatedAt,
+  }).where(and(
+    profileWhere,
+    eq(profiles.account_status, "disabled"),
+    eq(profiles.disabled_reason, "Deleted from lifecycle admin"),
+  )).returning({ id: profiles.id }));
+}
+
 async function bestEffortAdminDelete(label: string, query: Promise<unknown>, cleanupErrors: string[]) {
   try {
     await query;
@@ -1969,6 +1984,71 @@ adminLifecycleRouter.post("/users/bulk", async (req: Request, res: Response) => 
           },
         });
         results.push({ id, name: intake.name, status: "success", message: `Assigned to ${targetOrg[0]?.name ?? "organization"}.` });
+        continue;
+      }
+
+      if (parsed.data.action === "restore") {
+        const metadata = jsonRecord(intake.metadata);
+        const rowMarkedRemoved = intake.journey_step === "admin_deleted"
+          || metadata.hidden_from_lifecycle === true
+          || metadata.deleted_from_lifecycle === true;
+        const removed = rowMarkedRemoved || await lifecycleService.isLifecycleIntakeRemovedForAdmin(intake);
+        if (!removed) {
+          results.push({ id, name: intake.name, status: "failed", message: "User is already visible in Users." });
+          continue;
+        }
+
+        const { scope, errors: scopeErrors } = await safeLifecycleIdentityScope(intake);
+        const restoredStatus = userId ? "active" : "created";
+        const clearedProfileMarkers = await clearLifecycleDeletedProfileMarkers(scope, now);
+        await db.update(userIntakes).set({
+          status: restoredStatus,
+          journey_step: "admin_restored",
+          dropped_at: null,
+          last_activity_at: now,
+          updated_at: now,
+          metadata: {
+            ...metadata,
+            hidden_from_lifecycle: false,
+            deleted_from_lifecycle: false,
+            remove_from_users: false,
+            restored_from_lifecycle: true,
+            restored_at: now.toISOString(),
+            restored_by: actor,
+            restored_previous_status: intake.status,
+            restored_previous_journey_step: intake.journey_step,
+            app_access_unchanged: true,
+            bulk_action: true,
+          },
+        }).where(eq(userIntakes.id, intake.id));
+        await recordEvent({
+          intakeId: intake.id,
+          userId,
+          eventType: "user_restored",
+          fromStatus: intake.status,
+          toStatus: restoredStatus,
+          channel: "admin",
+          metadata: {
+            changed_by: actor,
+            restored_by: actor,
+            restored_at: now.toISOString(),
+            name: intake.name,
+            email: intake.email,
+            phone: intake.phone,
+            app_access_unchanged: true,
+            bulk_action: true,
+            previous_journey_step: intake.journey_step,
+            identity_scope: {
+              intake_ids: scope.intakeIds,
+              profile_or_login_ids: scope.ids,
+              emails: scope.emails,
+              phones: scope.phones,
+            },
+            cleared_lifecycle_deleted_profile_ids: clearedProfileMarkers.map((profile) => profile.id),
+            scope_errors: scopeErrors,
+          },
+        });
+        results.push({ id, name: intake.name, status: "success", message: "Restored to Users. App access was unchanged." });
         continue;
       }
 
@@ -2990,9 +3070,10 @@ adminLifecycleRouter.post("/users/:id/restore", async (req: Request, res: Respon
   if (!intake) return res.status(404).json({ error: "User intake not found" });
 
   const metadata = jsonRecord(intake.metadata);
-  const removed = intake.journey_step === "admin_deleted"
+  const rowMarkedRemoved = intake.journey_step === "admin_deleted"
     || metadata.hidden_from_lifecycle === true
     || metadata.deleted_from_lifecycle === true;
+  const removed = rowMarkedRemoved || await lifecycleService.isLifecycleIntakeRemovedForAdmin(intake);
   if (!removed) {
     return res.status(409).json({ error: "This user is already visible in Users." });
   }
@@ -3002,6 +3083,7 @@ adminLifecycleRouter.post("/users/:id/restore", async (req: Request, res: Respon
   const userId = targetUserIdForIntake(intake);
   const restoredStatus = userId ? "active" : "created";
   const { scope, errors: scopeErrors } = await safeLifecycleIdentityScope(intake);
+  const clearedProfileMarkers = await clearLifecycleDeletedProfileMarkers(scope, restoredAt);
 
   const [restoredIntake] = await db.update(userIntakes).set({
     status: restoredStatus,
@@ -3045,6 +3127,7 @@ adminLifecycleRouter.post("/users/:id/restore", async (req: Request, res: Respon
         emails: scope.emails,
         phones: scope.phones,
       },
+      cleared_lifecycle_deleted_profile_ids: clearedProfileMarkers.map((profile) => profile.id),
       scope_errors: scopeErrors,
     },
   });
@@ -3053,6 +3136,7 @@ adminLifecycleRouter.post("/users/:id/restore", async (req: Request, res: Respon
     intake: restoredIntake,
     restored_intake: true,
     app_access_unchanged: true,
+    cleared_lifecycle_deleted_profile_ids: clearedProfileMarkers.map((profile) => profile.id),
     scope_errors: scopeErrors,
   });
 });

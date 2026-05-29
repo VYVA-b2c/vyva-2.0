@@ -522,6 +522,17 @@ function matchesDeletedLifecycleDenyList(input: {
   return false;
 }
 
+export async function isLifecycleIntakeRemovedForAdmin(intake: Intake, database = db) {
+  if (isDeletedLifecycleTombstone(intake)) return true;
+  const denyList = await buildDeletedLifecycleDenyList(database);
+  return matchesDeletedLifecycleDenyList({
+    intakeId: intake.id,
+    userIds: [intake.user_id, intake.elder_user_id, intake.family_user_id],
+    emails: [intake.email, intake.phone],
+    phones: [intake.phone],
+  }, denyList);
+}
+
 function canonicalIdentityKey(intake: Intake) {
   const userId = targetUserIdForIntake(intake) ?? intake.user_id ?? intake.elder_user_id ?? intake.family_user_id;
   if (userId) return `user:${userId}`;
