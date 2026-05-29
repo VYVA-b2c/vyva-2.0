@@ -93,6 +93,23 @@ function twilioCredentials() {
   };
 }
 
+function firstEnvValue(keys: string[]) {
+  return keys.map((key) => process.env[key]?.trim()).find(Boolean) ?? null;
+}
+
+function twilioSmsFromNumber() {
+  return firstEnvValue([
+    "TWILIO_US_SMS_FROM_NUMBER",
+    "TWILIO_SMS_US_FROM_NUMBER",
+  ]);
+}
+
+function twilioSmsMessagingServiceSid() {
+  return firstEnvValue([
+    "TWILIO_SMS_MESSAGING_SERVICE_SID",
+  ]);
+}
+
 function metadataRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
@@ -155,17 +172,19 @@ async function postTwilioForm(resource: "Messages" | "Calls", params: URLSearchP
 }
 
 async function sendSms(item: Communication) {
-  const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
-  const from = process.env.TWILIO_SMS_FROM_NUMBER ?? process.env.TWILIO_FROM_NUMBER;
-  if (!messagingServiceSid && !from) throw new Error("SMS sender is not configured");
+  const from = twilioSmsFromNumber();
+  const messagingServiceSid = twilioSmsMessagingServiceSid();
+  if (!messagingServiceSid && !from) {
+    throw new Error("SMS sender is not configured. Set TWILIO_US_SMS_FROM_NUMBER to the US SMS-capable Twilio number.");
+  }
 
   const params = new URLSearchParams({
     To: item.recipient,
     Body: item.body ?? "",
   });
   setTwilioStatusCallback(params, "/api/webhooks/twilio/message-status");
-  if (messagingServiceSid) params.set("MessagingServiceSid", messagingServiceSid);
-  else if (from) params.set("From", from);
+  if (from) params.set("From", from);
+  else if (messagingServiceSid) params.set("MessagingServiceSid", messagingServiceSid);
 
   return postTwilioForm("Messages", params);
 }
