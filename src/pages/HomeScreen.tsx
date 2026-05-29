@@ -53,10 +53,6 @@ const HOME_AGENT_CARDS: HomeAgentCard[] = [
   { id: "concierge", icon: ConciergeBell, path: "/concierge", theme: "green" },
 ];
 
-const HEALTH_AUTO_START_OPTIONS: NavigateOptions = {
-  state: { autoStartDoctorVoice: true },
-};
-
 const SECTION_VOICE_AUTO_START_OPTIONS: NavigateOptions = {
   state: { [SECTION_VOICE_AUTO_START_KEY]: true },
 };
@@ -194,7 +190,7 @@ const HomeScreen = () => {
 
   const handleAgentCardOpen = (card: HomeAgentCard) => {
     if (card.id === "health") {
-      handleNavigate(card.path, HEALTH_AUTO_START_OPTIONS);
+      handleNavigate(card.path);
       return;
     }
     handleNavigate(card.path, SECTION_VOICE_AUTO_START_OPTIONS);

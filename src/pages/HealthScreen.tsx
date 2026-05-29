@@ -500,18 +500,16 @@ const HealthScreen = () => {
   const { t, i18n } = useTranslation();
   const { firstName, profile } = useProfile();
   const navigate = useNavigate();
-  const { guardPath, canUseService, readiness, isLoading: serviceGateLoading } = useServiceGate();
+  const { guardPath, canUseService, readiness } = useServiceGate();
   const location = useLocation();
   const { toast } = useToast();
   const {
-    startDoctorVoice,
     stopDoctorVoice,
     status: doctorVoiceStatus,
     isVoiceLive: doctorVoiceLive,
     isSpeaking: doctorVoiceSpeaking,
     isConnecting: doctorVoiceConnecting,
     transcript: doctorVoiceTranscript,
-    lastError: doctorVoiceLastError,
     sendUserMessage: sendDoctorUserMessage,
   } = useDoctorVoice();
 
@@ -531,13 +529,10 @@ const HealthScreen = () => {
   const [woundResult,      setWoundResult]      = useState<null | { severity: string; resultTitle: string; advice: string }>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const specialistRecognitionRef = useRef<BrowserSpeechRecognition | null>(null);
-  const doctorAutoStartConsumedRef = useRef(false);
 
   const headlineBase = t("health.allGoodToday", "All good today");
   const headlineText = firstName ? `${headlineBase}, ${firstName}` : headlineBase;
   const specialistLanguage = activeLanguage(profile?.language || i18n.language);
-  const autoStartDoctorVoice = Boolean((location.state as { autoStartDoctorVoice?: boolean } | null)?.autoStartDoctorVoice);
-  const doctorServiceBlocked = readiness?.services?.doctor?.ready === false;
 
   const profileLocation = useMemo(() => {
     const parts = [
@@ -712,34 +707,6 @@ const HealthScreen = () => {
     }, 80);
   }, [location.search]);
 
-  useEffect(() => {
-    if (!autoStartDoctorVoice || doctorAutoStartConsumedRef.current || serviceGateLoading) return;
-
-    doctorAutoStartConsumedRef.current = true;
-    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
-
-    if (doctorServiceBlocked || doctorVoiceLive) return;
-    void startDoctorVoice();
-  }, [
-    autoStartDoctorVoice,
-    doctorServiceBlocked,
-    doctorVoiceLive,
-    location.pathname,
-    location.search,
-    navigate,
-    serviceGateLoading,
-    startDoctorVoice,
-  ]);
-
-  useEffect(() => {
-    if (!doctorVoiceLastError) return;
-    toast({
-      description: t(
-        "health.doctorChoice.voiceError",
-        "The doctor's voice could not start. You can still tap Connect with a real doctor.",
-      ),
-    });
-  }, [doctorVoiceLastError, t, toast]);
 
   const bookSpecialistMutation = useMutation({
     mutationFn: async (provider: SpecialistProvider) => {
