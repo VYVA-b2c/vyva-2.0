@@ -518,7 +518,15 @@ function supportDraftFromSchedule(schedule: ScheduledSupport): SupportScheduleDr
   };
 }
 
-export function IntakeTable({ users, emptyMessage = "No users match the current filters yet.", onView, onTriggerConsent, onToggleEnabled, onDelete, onRestore, busyAction = null, compact = false, selectedIds = [], onSelectionChange, onSelectAllVisible }: {
+function removedUserDetails(user: Intake) {
+  const metadata = jsonObject(user.metadata);
+  const removedBy = stringValue(metadata.deleted_by);
+  const removedAt = stringValue(metadata.deleted_at) ?? user.dropped_at;
+  const reason = stringValue(metadata.deleted_reason) ?? stringValue(metadata.reason);
+  return { removedBy, removedAt, reason };
+}
+
+export function IntakeTable({ users, emptyMessage = "No users match the current filters yet.", onView, onTriggerConsent, onToggleEnabled, onDelete, onRestore, busyAction = null, compact = false, selectedIds = [], canSelectUser = isVisibleLifecycleUser, onSelectionChange, onSelectAllVisible }: {
   users: Intake[];
   emptyMessage?: string;
   onView: (intake: Intake) => void;
@@ -529,13 +537,14 @@ export function IntakeTable({ users, emptyMessage = "No users match the current 
   busyAction?: string | null;
   compact?: boolean;
   selectedIds?: string[];
+  canSelectUser?: (intake: Intake) => boolean;
   onSelectionChange?: (intakeId: string, selected: boolean) => void;
   onSelectAllVisible?: (selected: boolean) => void;
 }) {
   const isBusy = (action: string, user: Intake) => busyAction === `${action}:${user.id}`;
   const selectable = Boolean(onSelectionChange && onSelectAllVisible);
   const selectedSet = new Set(selectedIds);
-  const selectableUsers = users.filter(isVisibleLifecycleUser);
+  const selectableUsers = users.filter(canSelectUser);
   const allVisibleSelected = selectableUsers.length > 0 && selectableUsers.every((user) => selectedSet.has(user.id));
   const visibleSelectionCount = selectableUsers.filter((user) => selectedSet.has(user.id)).length;
   const columnCount = (compact ? 9 : 10) + (selectable ? 1 : 0);
@@ -567,6 +576,7 @@ export function IntakeTable({ users, emptyMessage = "No users match the current 
           )}
           {users.map((user) => {
             const removed = !isVisibleLifecycleUser(user);
+            const removedDetails = removed ? removedUserDetails(user) : null;
             return (
             <tr key={user.id} className={`rounded-2xl ${removed ? "bg-amber-50" : "bg-[#fbf8f5]"}`}>
               {selectable && (
@@ -574,7 +584,7 @@ export function IntakeTable({ users, emptyMessage = "No users match the current 
                   <input
                     type="checkbox"
                     aria-label={`Select ${user.name}`}
-                    disabled={removed}
+                    disabled={!canSelectUser(user)}
                     checked={selectedSet.has(user.id)}
                     onChange={(event) => onSelectionChange?.(user.id, event.target.checked)}
                   />
@@ -591,6 +601,13 @@ export function IntakeTable({ users, emptyMessage = "No users match the current 
                   <p className="mt-1 inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-black uppercase text-amber-800">
                     Removed
                   </p>
+                )}
+                {removedDetails && (
+                  <div className="mt-1 grid gap-0.5 text-xs font-semibold text-amber-900">
+                    {removedDetails.removedAt && <span>Removed: {formatDate(removedDetails.removedAt)}</span>}
+                    {removedDetails.removedBy && <span>By: {removedDetails.removedBy}</span>}
+                    {removedDetails.reason && <span>Reason: {removedDetails.reason}</span>}
+                  </div>
                 )}
                 {(user.login_email || user.login_phone || user.profile_email || user.profile_phone || user.profile_name) && (
                   <div className="mt-1 grid gap-0.5 text-xs font-semibold text-[#7d6b65]">

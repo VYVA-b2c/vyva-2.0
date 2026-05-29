@@ -71,7 +71,7 @@ type AdminActionNotice = {
   };
 };
 
-type BulkUserAction = "disable" | "delete_hide" | "assign_org" | "change_tier" | "resend_invite";
+type BulkUserAction = "disable" | "delete_hide" | "restore" | "assign_org" | "change_tier" | "resend_invite";
 
 type SchemaHealth = {
   ok: boolean;
@@ -1114,6 +1114,10 @@ export default function LifecycleAdminPage() {
     }
   }
 
+  function canSelectUserForBulk(user: Intake) {
+    return bulkUserAction === "restore" ? !isVisibleLifecycleUser(user) : isVisibleLifecycleUser(user);
+  }
+
   function setUserSelected(intakeId: string, selected: boolean) {
     setSelectedUserIds((current) => {
       if (selected) return current.includes(intakeId) ? current : [...current, intakeId];
@@ -1122,7 +1126,7 @@ export default function LifecycleAdminPage() {
   }
 
   function setAllVisibleUsersSelected(selected: boolean) {
-    const visibleIds = users.filter(isVisibleLifecycleUser).map((user) => user.id);
+    const visibleIds = users.filter((user) => canSelectUserForBulk(user)).map((user) => user.id);
     setSelectedUserIds((current) => {
       if (!selected) return current.filter((id) => !visibleIds.includes(id));
       const next = new Set(current);
@@ -1134,6 +1138,7 @@ export default function LifecycleAdminPage() {
   function bulkActionLabel(action: BulkUserAction) {
     if (action === "disable") return "App access disabled";
     if (action === "delete_hide") return "Removed from Users";
+    if (action === "restore") return "Restored to Users";
     if (action === "assign_org") return "Assigned";
     if (action === "change_tier") return "Tier changed";
     return "Invite sent";
@@ -1143,6 +1148,10 @@ export default function LifecycleAdminPage() {
     if (selectedUserIds.length === 0 || busyAction === "bulk-users") return;
     if (bulkUserAction === "delete_hide") {
       const confirmed = window.confirm(`Remove ${selectedUserIds.length} selected user${selectedUserIds.length === 1 ? "" : "s"} from Users? They should stay hidden after refresh. App access will not be changed.`);
+      if (!confirmed) return;
+    }
+    if (bulkUserAction === "restore") {
+      const confirmed = window.confirm(`Restore ${selectedUserIds.length} selected removed user${selectedUserIds.length === 1 ? "" : "s"} to Users? App access will not be changed.`);
       if (!confirmed) return;
     }
 
@@ -1394,8 +1403,10 @@ export default function LifecycleAdminPage() {
   const emailShareCount = parseInviteRecipients(signupShare.emails, looksLikeEmailRecipient).length;
   const whatsappShareCount = parseInviteRecipients(signupShare.whatsapp, looksLikePhoneRecipient).length;
   const totalShareRecipients = emailShareCount + whatsappShareCount;
-  const selectedVisibleUsers = users.filter((user) => selectedUserIds.includes(user.id));
+  const selectedUsers = users.filter((user) => selectedUserIds.includes(user.id));
+  const selectedSelectableUserCount = selectedUsers.filter(canSelectUserForBulk).length;
   const selectedUserCount = selectedUserIds.length;
+  const hasInvalidBulkSelection = selectedUserCount > 0 && selectedSelectableUserCount !== selectedUserCount;
   const visibleUserCount = users.filter(isVisibleLifecycleUser).length;
   const removedUserCount = users.length - visibleUserCount;
   const usersResultLabel = usersLoadError
@@ -1407,6 +1418,7 @@ export default function LifecycleAdminPage() {
     : tiers.map((tier) => ({ value: tier, label: tierLabel(tier) }));
   const canRunBulkUserAction = selectedUserCount > 0
     && busyAction !== "bulk-users"
+    && !hasInvalidBulkSelection
     && (bulkUserAction !== "assign_org" || Boolean(bulkUserOrganizationId))
     && (bulkUserAction !== "change_tier" || Boolean(bulkUserTier));
   const creatingFamilyIntake = newIntake.user_type === "family";
@@ -1664,13 +1676,17 @@ export default function LifecycleAdminPage() {
                 placeholder="Search by name, phone, profile email, or login email"
               />
               <label className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-bold ${showRemovedUsers ? "border-amber-200 bg-amber-50 text-amber-900" : "border-purple-100 bg-white text-purple-700"}`}>
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 accent-purple-700"
-                  checked={showRemovedUsers}
-                  onChange={(event) => setShowRemovedUsers(event.target.checked)}
-                />
-                Show removed users
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-purple-700"
+                    checked={showRemovedUsers}
+                    onChange={(event) => {
+                      setShowRemovedUsers(event.target.checked);
+                      setSelectedUserIds([]);
+                      if (!event.target.checked && bulkUserAction === "restore") setBulkUserAction("disable");
+                    }}
+                  />
+                  Show removed users
               </label>
               <button
                 type="button"
@@ -1715,19 +1731,23 @@ export default function LifecycleAdminPage() {
                 <div>
                   <p className="text-sm font-black text-[#2f2135]">
                     {selectedUserCount > 0
-                      ? `${selectedUserCount} selected${selectedVisibleUsers.length !== selectedUserCount ? ` (${selectedVisibleUsers.length} visible)` : ""}`
+                      ? `${selectedUserCount} selected${hasInvalidBulkSelection ? " (change action or clear selection)" : ""}`
                       : "Select users for bulk actions"}
                   </p>
-                  <p className="mt-1 text-xs font-semibold text-[#7d6b65]">Bulk disable app access, remove from Users, assign organization, change tier, or resend invites.</p>
+                  <p className="mt-1 text-xs font-semibold text-[#7d6b65]">Bulk disable app access, remove from Users, restore removed users, assign organization, change tier, or resend invites.</p>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap lg:justify-end">
                   <select
                     className="rounded-xl border border-[#e4d8ce] bg-white px-3 py-2.5 text-sm font-bold"
                     value={bulkUserAction}
-                    onChange={(event) => setBulkUserAction(event.target.value as BulkUserAction)}
+                    onChange={(event) => {
+                      setBulkUserAction(event.target.value as BulkUserAction);
+                      setSelectedUserIds([]);
+                    }}
                   >
                     <option value="disable">Disable app access</option>
                     <option value="delete_hide">Remove from Users</option>
+                    {showRemovedUsers && <option value="restore">Restore to Users</option>}
                     <option value="assign_org">Assign organization</option>
                     <option value="change_tier">Change tier</option>
                     <option value="resend_invite">Resend invite</option>
@@ -1780,6 +1800,7 @@ export default function LifecycleAdminPage() {
               onRestore={restoreUser}
               busyAction={busyAction}
               selectedIds={selectedUserIds}
+              canSelectUser={canSelectUserForBulk}
               onSelectionChange={setUserSelected}
               onSelectAllVisible={setAllVisibleUsersSelected}
             />
