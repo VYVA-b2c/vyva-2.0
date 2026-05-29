@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { and, eq, gte, desc } from "drizzle-orm";
+import { and, eq, gte, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
 import { vitalsReadings } from "../../shared/schema.js";
@@ -15,6 +15,18 @@ const postBodySchema = z.object({
   metric_type: z.enum(METRIC_TYPES),
   value: z.string().min(1).max(20),
 });
+
+const ENGINE_SIGNAL_BY_METRIC: Record<MetricType, string> = {
+  hr: "resting_hr_bpm",
+  rr: "respiratory_rate",
+  bp: "bp_systolic",
+};
+
+function numericMetricValue(metricType: MetricType, value: string): number | null {
+  const raw = metricType === "bp" ? value.split("/")[0] : value;
+  const parsed = Number.parseFloat(raw.trim());
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
 function startOfDayUTC(offsetDays: number): Date {
   const d = new Date();
@@ -38,6 +50,28 @@ function rowToMetricEntries(row: typeof vitalsReadings.$inferSelect): Array<{ me
   if (row.bpm != null) entries.push({ metric: "hr", value: String(row.bpm) });
   if (row.respiratory_rate != null) entries.push({ metric: "rr", value: String(row.respiratory_rate) });
   return entries;
+}
+
+async function mirrorToVitalsEngine(userId: string, metricType: MetricType, value: string) {
+  const numeric = numericMetricValue(metricType, value);
+  if (numeric == null) return;
+
+  await db.execute(sql`
+    INSERT INTO vyva_signal_readings (
+      user_id,
+      signal_type,
+      value,
+      source,
+      context_tag
+    )
+    VALUES (
+      ${userId},
+      ${ENGINE_SIGNAL_BY_METRIC[metricType]},
+      ${numeric},
+      'manual_vitals',
+      'general'
+    )
+  `);
 }
 
 router.get("/", requireUser, async (req: Request, res: Response) => {
@@ -128,6 +162,10 @@ router.post("/", requireUser, async (req: Request, res: Response) => {
       .insert(vitalsReadings)
       .values({ user_id: userId, metric_type, value })
       .returning();
+
+    mirrorToVitalsEngine(userId, metric_type, value).catch((mirrorErr) => {
+      console.error("[vitals POST mirror]", mirrorErr);
+    });
 
     return res.status(201).json(entry);
   } catch (err) {

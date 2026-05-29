@@ -12,6 +12,7 @@ import {
   Phone,
   Pencil,
 } from "lucide-react";
+import { ProfileSectionHero, seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PlacesSearch, PlaceResult, PlaceCategory, CATEGORY_TYPES } from "@/components/onboarding/PlacesSearch";
@@ -43,7 +44,7 @@ const GOOGLE_TYPE_LABELS: Record<string, string> = {
   book_store: "Book Store",
   bowling_alley: "Bowling Alley",
   bus_station: "Bus Station",
-  cafe: "Café",
+  cafe: "Cafe",
   campground: "Campground",
   car_dealer: "Car Dealer",
   car_rental: "Car Rental",
@@ -176,7 +177,7 @@ const PROVIDER_CATEGORIES: ProviderCategory[] = [
   { id: "physiotherapist", label: "Physio",       placesType: "physiotherapist" },
   { id: "clinic",          label: "Clinic",       placesType: "health" },
   { id: "restaurant",      label: "Restaurant",   placesType: "restaurant" },
-  { id: "cafe",            label: "Café",         placesType: "cafe" },
+  { id: "cafe",            label: "Cafe",         placesType: "cafe" },
   { id: "meal_takeaway",   label: "Takeaway",     placesType: "meal_takeaway" },
   { id: "meal_delivery",   label: "Deliveries",   placesType: "meal_delivery" },
   { id: "supermarket",     label: "Supermarket",  placesType: "supermarket" },
@@ -525,10 +526,18 @@ const ProvidersSection = () => {
         </div>
       </div>
 
-      <div className="flex-1 px-5 space-y-4 pb-4">
-        <p className="font-body text-[14px] text-vyva-text-2 leading-relaxed">
-          Add your go-to places — pharmacies, restaurants, salons, gyms and more — so VYVA always knows where to direct you.
-        </p>
+      <div className="flex-1 px-5 space-y-7 pb-4">
+        <ProfileSectionHero
+          icon={Building2}
+          title="Trusted places"
+          kicker="Concierge-ready"
+          description="Save the pharmacies, clinics, restaurants, salons, and services VYVA can help you call, book, or find again."
+          badges={[
+            { label: "Health services", color: "blue" },
+            { label: "Daily help", color: "amber" },
+            { label: "Trusted list", color: "purple" },
+          ]}
+        />
 
         <CategoryFilterBar
           categories={PROVIDER_CATEGORIES}
@@ -542,7 +551,7 @@ const ProvidersSection = () => {
         />
 
         <div data-testid="search-providers-places">
-          <label className="font-body text-[13px] font-medium text-vyva-text-2 mb-1.5 block">
+          <label className="mb-2 block font-body text-[15px] font-extrabold text-vyva-text-2">
             Search for a {categoryLabel}
           </label>
           <PlacesSearch
@@ -550,7 +559,7 @@ const ProvidersSection = () => {
             category={activeCategoryDef?.placesType}
             onSelect={handleSearchSelect}
             onSdkError={() => setShowManualForm(true)}
-            placeholder={`Search ${categoryLabel}…`}
+            placeholder={`Search ${categoryLabel}...`}
             showSelected={false}
           />
         </div>
@@ -577,7 +586,7 @@ const ProvidersSection = () => {
                     >
                       May not be a {categoryLabel}
                       {googleLabel && (
-                        <> · Google identifies this as: {googleLabel}</>
+                        <> - Google identifies this as: {googleLabel}</>
                       )}
                     </span>
                   );
@@ -591,7 +600,7 @@ const ProvidersSection = () => {
                   data-testid="input-pending-name"
                   value={pending.name}
                   onChange={(e) => setPending({ ...pending, name: e.target.value })}
-                  className="bg-white text-[14px]"
+                  className={seniorInputClassName}
                 />
               </div>
               <div>
@@ -604,7 +613,7 @@ const ProvidersSection = () => {
                   value={pending.address}
                   onChange={(e) => setPending({ ...pending, address: e.target.value })}
                   placeholder="Full address"
-                  className="bg-white text-[13px]"
+                  className={seniorInputClassName}
                 />
               </div>
               <div>
@@ -618,7 +627,7 @@ const ProvidersSection = () => {
                   value={pending.phone}
                   onChange={(e) => setPending({ ...pending, phone: e.target.value })}
                   placeholder="+44 1234 567890"
-                  className="bg-white text-[13px]"
+                  className={seniorInputClassName}
                 />
               </div>
             </div>
@@ -632,7 +641,7 @@ const ProvidersSection = () => {
                 style={{ background: "#6B21A8" }}
               >
                 {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-                {adding ? "Adding…" : "Add provider"}
+                {adding ? "Adding..." : "Add provider"}
               </button>
               <button
                 data-testid="button-pending-cancel"
@@ -649,7 +658,7 @@ const ProvidersSection = () => {
           <button
             data-testid="button-add-manually"
             onClick={() => { setShowManualForm((v) => !v); }}
-            className="flex items-center gap-1.5 font-body text-[13px] text-vyva-purple"
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[#E7DCF8] bg-white px-4 font-body text-[15px] font-black text-vyva-purple shadow-sm"
           >
             <PenLine size={14} />
             {showManualForm ? "Hide manual entry" : "Can't find it? Add manually"}
@@ -677,7 +686,7 @@ const ProvidersSection = () => {
                   value={manualName}
                   onChange={(e) => setManualName(e.target.value)}
                   placeholder={`e.g. My local ${categoryLabel}`}
-                  className="bg-white"
+                  className={seniorInputClassName}
                 />
               )}
             </div>
@@ -693,7 +702,7 @@ const ProvidersSection = () => {
                   value={manualAddress}
                   onChange={(e) => setManualAddress(e.target.value)}
                   placeholder="Full address"
-                  className="bg-white"
+                  className={seniorInputClassName}
                 />
               )}
             </div>
@@ -710,7 +719,7 @@ const ProvidersSection = () => {
                   value={manualPhone}
                   onChange={(e) => setManualPhone(e.target.value)}
                   placeholder="+44 1234 567890"
-                  className="bg-white"
+                  className={seniorInputClassName}
                 />
               )}
             </div>
@@ -721,7 +730,7 @@ const ProvidersSection = () => {
               className="flex items-center gap-2 rounded-full px-4 py-2 font-body text-[14px] font-medium text-vyva-purple border border-vyva-purple disabled:opacity-40"
             >
               <Plus size={16} />
-              {adding ? "Adding…" : "Add provider"}
+              {adding ? "Adding..." : "Add provider"}
             </button>
           </div>
         )}
@@ -802,10 +811,10 @@ const ProvidersSection = () => {
           data-testid="button-providers-save"
           onClick={handleSave}
           disabled={saving || adding || !!removingId}
-          className="w-full py-4 rounded-full font-body text-[17px] font-semibold text-white disabled:opacity-40"
+          className="w-full rounded-full py-4 font-body text-[18px] font-black text-white shadow-[0_14px_28px_rgba(107,33,168,0.22)] disabled:opacity-40"
           style={{ background: "#6B21A8" }}
         >
-          {saving ? "Saving…" : "Save providers"}
+          {saving ? "Saving..." : "Save providers"}
         </button>
       </div>
 

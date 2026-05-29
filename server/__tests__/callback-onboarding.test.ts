@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import callbackOnboardingRouter from "../routes/callbackOnboarding.js";
 import {
   completeCallbackOnboardingToolHandler,
+  completePhoneOnboardingToolHandler,
   failCallbackOnboardingToolHandler,
   saveCallbackOnboardingSectionToolHandler,
 } from "../routes/elevenlabsTools.js";
@@ -30,6 +31,7 @@ function buildApp() {
   const app = express();
   app.use(express.json());
   app.use("/api/public/callback-onboarding", callbackOnboardingRouter);
+  app.post("/api/elevenlabs/tools/phone-onboarding/complete", completePhoneOnboardingToolHandler);
   app.post("/api/elevenlabs/tools/callback-onboarding/save-section", saveCallbackOnboardingSectionToolHandler);
   app.post("/api/elevenlabs/tools/callback-onboarding/complete", completeCallbackOnboardingToolHandler);
   app.post("/api/elevenlabs/tools/callback-onboarding/fail", failCallbackOnboardingToolHandler);
@@ -44,6 +46,7 @@ const envKeys = [
   "ELEVENLABS_API_KEY",
   "ELEVENLABS_CALLBACK_ONBOARDING_AGENT_ID",
   "ELEVENLABS_CALLBACK_ONBOARDING_PHONE_NUMBER_ID",
+  "ELEVENLABS_PHONE_ONBOARDING_TOOL_TOKEN",
 ] as const;
 const originalEnv = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
 
@@ -97,6 +100,77 @@ afterEach(async () => {
 });
 
 describe("callback onboarding", () => {
+  it("creates a phone intake and app access from ElevenLabs inbound caller data", async () => {
+    process.env.ELEVENLABS_PHONE_ONBOARDING_TOOL_TOKEN = "phone-tool-token";
+    const email = `phone-onboarding-${Date.now()}@example.com`;
+
+    const res = await request(app)
+      .post("/api/elevenlabs/tools/phone-onboarding/complete")
+      .set("Authorization", "Bearer phone-tool-token")
+      .send({
+        conversation_id: "conv_phone_onboarding_test",
+        first_name: "Lola",
+        last_name: "Martin",
+        country_code: "+34",
+        phone: "612 345 679",
+        email,
+        language: "en",
+        timezone: "Europe/Madrid",
+        profile: {
+          preferred_name: "Lola",
+        },
+      })
+      .expect(201);
+
+    await trackIntake(res.body.intake_id);
+    expect(res.body.next_action).toBe("link_queued");
+    expect(res.body.communication).toMatchObject({
+      channel: "email",
+      recipient: email,
+      purpose: "send_app_link",
+    });
+
+    const [intake] = await db.select().from(userIntakes).where(eq(userIntakes.id, res.body.intake_id)).limit(1);
+    expect(intake).toMatchObject({
+      name: "Lola Martin",
+      email,
+      entry_point: "phone",
+      status: "link_sent",
+      journey_step: "link_sent",
+      consent_status: "not_required",
+    });
+    expect(intake.metadata).toMatchObject({
+      elevenlabs: {
+        inbound_phone_onboarding: true,
+        conversation_id: "conv_phone_onboarding_test",
+      },
+    });
+
+    const [profile] = await db.select().from(profiles).where(eq(profiles.id, res.body.elder_user_id)).limit(1);
+    expect(profile).toMatchObject({
+      full_name: "Lola Martin",
+      preferred_name: "Lola",
+      email,
+      language: "en",
+    });
+
+    const events = await db.select().from(lifecycleEvents).where(eq(lifecycleEvents.intake_id, res.body.intake_id));
+    expect(events.some((event) => event.event_type === "phone_onboarding_captured")).toBe(true);
+  });
+
+  it("rejects inbound phone onboarding when the ElevenLabs tool token is missing", async () => {
+    process.env.ELEVENLABS_PHONE_ONBOARDING_TOOL_TOKEN = "phone-tool-token";
+
+    await request(app)
+      .post("/api/elevenlabs/tools/phone-onboarding/complete")
+      .send({
+        conversation_id: "conv_phone_onboarding_missing_token",
+        name: "No Token",
+        phone: "+34612345679",
+      })
+      .expect(401);
+  });
+
   it("creates a scheduled intake without creating a profile", async () => {
     const res = await request(app)
       .post("/api/public/callback-onboarding/request")

@@ -598,7 +598,22 @@
         "step3Title": "Ottieni il tuo rapporto",
         "step3Desc": "Ricevi un riepilogo da condividere con il tuo medico",
         "startBtn": "Inizia controllo sintomi",
-        "voiceBtn": "Rispondi a voce"
+        "voiceBtn": "Rispondi a voce",
+        "clueHeadache": "Forte mal di testa",
+        "clueBreathing": "Fiato corto",
+        "clueDizzy": "Capogiri",
+        "clueFever": "Febbre",
+        "clueFall": "Sono caduto/a",
+        "clueUrine": "Dolore quando urino",
+        "clueChest": "Dolore al petto",
+        "clueStomach": "Mal di stomaco",
+        "clueMedicine": "Dubbi sui farmaci",
+        "clueAnxiety": "Ansia",
+        "clueTitle": "Che cosa ti dà fastidio?",
+        "clueSub": "Bastano poche parole. VYVA sceglierà le domande giuste.",
+        "cluePlaceholder": "Per esempio: forte mal di testa...",
+        "stepLabel": "Controllo sintomi",
+        "vitalsAsNextStep": "I parametri vitali possono essere controllati dopo che VYVA capisce cosa sta succedendo."
       },
       "scan": {
         "title": "Scansione dei segni vitali",

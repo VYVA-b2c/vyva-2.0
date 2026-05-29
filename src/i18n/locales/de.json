@@ -598,7 +598,22 @@
         "step3Title": "Bericht erhalten",
         "step3Desc": "Erhalten Sie eine Zusammenfassung, die Sie mit Ihrem Arzt teilen können",
         "startBtn": "Symptom-Check starten",
-        "voiceBtn": "Per Sprache antworten"
+        "voiceBtn": "Per Sprache antworten",
+        "clueHeadache": "Starke Kopfschmerzen",
+        "clueBreathing": "Kurzatmigkeit",
+        "clueDizzy": "Schwindel",
+        "clueFever": "Fieber",
+        "clueFall": "Ich bin gestürzt",
+        "clueUrine": "Schmerzen beim Wasserlassen",
+        "clueChest": "Brustschmerzen",
+        "clueStomach": "Bauchschmerzen",
+        "clueMedicine": "Frage zu Medikamenten",
+        "clueAnxiety": "Angstgefühl",
+        "clueTitle": "Was belastet Sie?",
+        "clueSub": "Ein paar Wörter genügen. VYVA wählt die passenden Fragen.",
+        "cluePlaceholder": "Zum Beispiel: starke Kopfschmerzen...",
+        "stepLabel": "Symptomcheck",
+        "vitalsAsNextStep": "Vitalwerte können geprüft werden, nachdem VYVA verstanden hat, was los ist."
       },
       "scan": {
         "title": "Vitalzeichen-Scan",

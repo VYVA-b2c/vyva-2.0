@@ -11,6 +11,10 @@ const FALLBACK_DOCTOR_USER_ID = "vyva-local-user";
 
 type VoiceDynamicVariables = Record<string, string | number | boolean>;
 
+export type DoctorVoiceContextHint = {
+  latestSymptomReport?: string;
+};
+
 function createDoctorConversationId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -56,7 +60,7 @@ export function useDoctorVoice() {
     isSpeaking ||
     isUserSpeaking;
 
-  const startDoctorVoice = useCallback(async () => {
+  const startDoctorVoice = useCallback(async (contextHint?: DoctorVoiceContextHint) => {
     setUserStopped(false);
     setStartAttempted(true);
     setStartListeningWhenReady(true);
@@ -76,6 +80,12 @@ export function useDoctorVoice() {
       agentId: DOCTOR_AGENT_ID,
       dynamicVariables: {
         ...doctorContext,
+        ...(contextHint?.latestSymptomReport
+          ? {
+              latest_symptom_report: contextHint.latestSymptomReport,
+              health_session_context: contextHint.latestSymptomReport,
+            }
+          : {}),
         first_name: firstName?.trim() || profile?.firstName?.trim() || "there",
         user_id: user?.id ?? FALLBACK_DOCTOR_USER_ID,
         conversation_id: conversationId,

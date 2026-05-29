@@ -31,6 +31,16 @@ export type Intake = {
   last_activity_at?: string | null;
 };
 
+export function isVisibleLifecycleUser(user: Pick<Intake, "journey_step" | "metadata">) {
+  const metadata = user.metadata && typeof user.metadata === "object" ? user.metadata : {};
+  return (
+    user.journey_step !== "merged_duplicate"
+    && user.journey_step !== "admin_deleted"
+    && metadata.hidden_from_lifecycle !== true
+    && metadata.deleted_from_lifecycle !== true
+  );
+}
+
 export type Organization = {
   id: string;
   name: string;
@@ -67,6 +77,37 @@ export type Communication = {
   recipient: string;
   purpose: string;
   status: string;
+  metadata?: JsonRecord | null;
+  created_at: string;
+};
+
+export type CommunicationProviderStatus = {
+  channel: "email" | "sms" | "whatsapp";
+  label: string;
+  provider: string;
+  configured: boolean;
+  status: "configured" | "failing" | "not_configured";
+  last_sent_at?: string | null;
+  last_error_at?: string | null;
+  last_error?: string | null;
+  missing_config?: string | null;
+};
+
+export type AccessLink = {
+  id: string;
+  user_id?: string | null;
+  intake_id?: string | null;
+  organization_id?: string | null;
+  link_type: string;
+  tier: string;
+  destination: string;
+  target_role: string;
+  max_uses: number;
+  use_count: number;
+  clicked_at?: string | null;
+  converted_at?: string | null;
+  expires_at?: string | null;
+  revoked_at?: string | null;
   metadata?: JsonRecord | null;
   created_at: string;
 };
@@ -209,6 +250,7 @@ export type UserDetail = {
   account_match_field?: "email" | "phone" | null;
   synced_profile_ids?: string[];
   communications: Communication[];
+  access_links?: AccessLink[];
   lifecycle_events: JsonRecord[];
   consent_attempts: ConsentAttempt[];
   scheduled_events: ScheduledEvent[];
@@ -318,6 +360,81 @@ export const userTypes = ["", "elder", "family", "admin"];
 export const statuses = ["", "created", "link_sent", "consent_pending", "active", "dropped"];
 export const tiers = ["free", "premium"];
 export const subscriptionStatusOptions = ["active", "trial", "past_due", "cancelled"];
+
+export const userTypeLabels: Record<string, string> = {
+  elder: "Elder",
+  family: "Family",
+  admin: "Admin",
+};
+
+export const lifecycleStatusLabels: Record<string, string> = {
+  created: "Created",
+  link_sent: "Link sent",
+  consent_pending: "Consent pending",
+  active: "Active",
+  dropped: "Dropped",
+};
+
+export const journeyStepLabels: Record<string, string> = {
+  created: "Created",
+  link_sent: "Link sent",
+  access_link_created: "Access link created",
+  consent_pending: "Consent pending",
+  consent_approved: "Consent approved",
+  consent_rejected: "Consent rejected",
+  admin_created: "Admin-created",
+  admin_enabled: "Enabled by admin",
+  admin_disabled: "Disabled by admin",
+  admin_deleted: "Removed by admin",
+  merged_duplicate: "Merged duplicate",
+  callback_scheduled: "Callback scheduled",
+  inbound_phone_onboarding: "Phone onboarding",
+  app_onboarding_complete: "App onboarding complete",
+};
+
+export const consentStatusLabels: Record<string, string> = {
+  not_required: "Not required",
+  pending: "Pending",
+  approved: "Approved",
+  rejected: "Rejected",
+  no_answer: "No answer",
+  failed: "Failed",
+};
+
+export const accountStatusLabels: Record<string, string> = {
+  enabled: "Enabled",
+  disabled: "Disabled",
+};
+
+export function userTypeLabel(value: string | null | undefined) {
+  const key = value ?? "";
+  return userTypeLabels[key] ?? cleanLabel(key);
+}
+
+export function lifecycleStatusLabel(value: string | null | undefined) {
+  const key = value ?? "";
+  return lifecycleStatusLabels[key] ?? cleanLabel(key);
+}
+
+export function journeyStepLabel(value: string | null | undefined) {
+  const key = value ?? "";
+  return journeyStepLabels[key] ?? cleanLabel(key);
+}
+
+export function consentStatusLabel(value: string | null | undefined) {
+  const key = value ?? "";
+  return consentStatusLabels[key] ?? cleanLabel(key);
+}
+
+export function accountStatusLabel(value: string | null | undefined) {
+  const key = value ?? "";
+  return accountStatusLabels[key] ?? cleanLabel(key || "enabled");
+}
+
+export function tierLabel(value: string | null | undefined) {
+  return cleanLabel(value || "");
+}
+
 export const languageOptions = [
   { value: "es", label: "Spanish" },
   { value: "en", label: "English" },

@@ -598,7 +598,22 @@
         "step3Title": "Obtenha o seu relatório",
         "step3Desc": "Receba um resumo para partilhar com o seu médico",
         "startBtn": "Iniciar verificação",
-        "voiceBtn": "Responder por voz"
+        "voiceBtn": "Responder por voz",
+        "clueHeadache": "Dor de cabeça forte",
+        "clueBreathing": "Falta de ar",
+        "clueDizzy": "Tonturas",
+        "clueFever": "Febre",
+        "clueFall": "Caí",
+        "clueUrine": "Dor ao urinar",
+        "clueChest": "Dor no peito",
+        "clueStomach": "Dor de estômago",
+        "clueMedicine": "Dúvida sobre medicação",
+        "clueAnxiety": "Ansiedade",
+        "clueTitle": "O que está a incomodar?",
+        "clueSub": "Use poucas palavras. A VYVA escolherá as perguntas certas.",
+        "cluePlaceholder": "Por exemplo: dor de cabeça forte...",
+        "stepLabel": "Verificação de sintomas",
+        "vitalsAsNextStep": "Os sinais vitais podem ser verificados depois de a VYVA entender o que está a acontecer."
       },
       "scan": {
         "title": "Scan de sinais vitais",

@@ -630,7 +630,22 @@
         "step3Title": "Get your report",
         "step3Desc": "Receive a summary you can share with your doctor",
         "startBtn": "Start symptom check",
-        "voiceBtn": "Answer by voice"
+        "voiceBtn": "Answer by voice",
+        "clueHeadache": "Bad headache",
+        "clueBreathing": "Short of breath",
+        "clueDizzy": "Dizzy",
+        "clueFever": "Fever",
+        "clueFall": "I fell",
+        "clueUrine": "Pain when I pee",
+        "clueChest": "Chest pain",
+        "clueStomach": "Stomach pain",
+        "clueMedicine": "Medication concern",
+        "clueAnxiety": "Feeling anxious",
+        "clueTitle": "What is bothering you?",
+        "clueSub": "Use a few words. VYVA will choose the right questions.",
+        "cluePlaceholder": "For example: bad headache...",
+        "stepLabel": "Symptom check",
+        "vitalsAsNextStep": "Vitals can be checked after VYVA understands what is happening."
       },
       "scan": {
         "title": "Vitals Scan",

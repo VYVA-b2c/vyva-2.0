@@ -618,7 +618,22 @@
         "step3Title": "Obtén tu informe",
         "step3Desc": "Recibe un resumen que puedes compartir con tu médico",
         "startBtn": "Iniciar revisión de síntomas",
-        "voiceBtn": "Responder por voz"
+        "voiceBtn": "Responder por voz",
+        "clueHeadache": "Dolor de cabeza fuerte",
+        "clueBreathing": "Me falta el aire",
+        "clueDizzy": "Mareo",
+        "clueFever": "Fiebre",
+        "clueFall": "Me he caído",
+        "clueUrine": "Dolor al orinar",
+        "clueChest": "Dolor en el pecho",
+        "clueStomach": "Dolor de estómago",
+        "clueMedicine": "Duda con medicación",
+        "clueAnxiety": "Ansiedad",
+        "clueTitle": "¿Qué te preocupa?",
+        "clueSub": "Usa pocas palabras. VYVA elegirá las preguntas adecuadas.",
+        "cluePlaceholder": "Por ejemplo: dolor de cabeza fuerte...",
+        "stepLabel": "Revisión de síntomas",
+        "vitalsAsNextStep": "Los signos vitales se pueden revisar después de que VYVA entienda qué ocurre."
       },
       "scan": {
         "title": "Escáner de signos vitales",

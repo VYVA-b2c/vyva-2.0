@@ -1,0 +1,539 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>VYVA Symptom Wizard Preview</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #faf9f6; color: #332925; font-family: "DM Sans", system-ui, sans-serif; }
+    button, input { font: inherit; }
+    .phone { width: min(100vw, 430px); min-height: 100vh; margin: 0 auto; background: #faf9f6; display: flex; flex-direction: column; }
+    .top { display: flex; align-items: center; gap: 12px; padding: 18px 22px 4px; }
+    .back { width: 48px; height: 48px; border: 0; border-radius: 18px; background: #fff; color: #6b21a8; font-size: 28px; box-shadow: 0 6px 16px rgba(63,45,35,.06); }
+    .title { font-weight: 800; font-size: 22px; }
+    .screen { flex: 1; padding: 28px 22px 22px; display: none; flex-direction: column; gap: 22px; }
+    .screen.active { display: flex; }
+    .center { justify-content: center; }
+    .kicker, .stage { margin: 0; color: #6b21a8; font-size: 15px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+    h1, .qtext { font-size: 31px; line-height: 1.08; margin: 0; font-weight: 900; max-width: 360px; letter-spacing: 0; }
+    .helper { margin: -8px 0 0; color: #776b64; font-size: 18px; line-height: 1.35; font-weight: 700; }
+    .clue { min-height: 74px; border: 1px solid #e8ded4; border-radius: 24px; background: white; padding: 0 20px; color: #332925; font-size: 20px; font-weight: 800; outline: none; box-shadow: 0 10px 26px rgba(63,45,35,.06); }
+    .clue:focus { border-color: #6b21a8; box-shadow: 0 0 0 4px #ede9fe; }
+    .chips { display: flex; flex-wrap: wrap; gap: 10px; }
+    .chip-btn { min-height: 64px; border: 1px solid #e8ded4; border-radius: 999px; background: white; padding: 0 18px; color: #584b45; font-size: 18px; font-weight: 900; }
+    .choice, .answer { min-height: 82px; border-radius: 22px; border: 1px solid #e8ded4; background: white; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 17px 20px; font-size: 21px; font-weight: 900; text-align: left; cursor: pointer; color: #332925; }
+    .choice { min-height: 90px; font-size: 22px; }
+    .choice:disabled { opacity: .42; cursor: not-allowed; }
+    .primary { border-color: #6b21a8; }
+    .warn { border-color: #fecaca; }
+    .ok { border-color: #bfdbfe; }
+    .soft { border-color: #ddd6fe; }
+    .amber { border-color: #fed7aa; }
+    .arrow { color: #6b21a8; font-size: 24px; }
+    .answers { display: grid; gap: 14px; }
+    .selected { display: flex; gap: 8px; flex-wrap: wrap; min-height: 28px; }
+    .selected span { font-size: 16px; font-weight: 900; color: #776b64; }
+    .vital-card { border: 1px solid #e8ded4; border-radius: 28px; background: white; padding: 22px; display: grid; gap: 18px; box-shadow: 0 12px 32px rgba(63,45,35,.06); }
+    .pulse-ring { width: 190px; height: 190px; border-radius: 50%; border: 8px solid #ede9fe; margin: 0 auto; display: grid; place-items: center; color: #6b21a8; font-size: 42px; font-weight: 900; }
+    .vitals-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .vital-box { border-radius: 18px; background: #faf9f6; padding: 14px; }
+    .vital-label { margin: 0; font-size: 13px; color: #7a6d66; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
+    .vital-value { margin: 6px 0 0; font-size: 22px; font-weight: 900; }
+    .primary-action { min-height: 72px; border: 0; border-radius: 24px; background: #6b21a8; color: white; font-size: 21px; font-weight: 900; box-shadow: 0 16px 34px rgba(107,33,168,.22); }
+    .report-card { border: 1px solid #e8ded4; border-radius: 24px; background: white; padding: 20px; display: grid; gap: 14px; box-shadow: 0 12px 32px rgba(63,45,35,.06); }
+    .report-card h2 { margin: 0; font-size: 27px; line-height: 1.12; }
+    .report-card p, .report-card li { margin: 0; font-size: 18px; line-height: 1.35; color: #584b45; font-weight: 700; }
+    .report-card ul { margin: 0; padding-left: 22px; display: grid; gap: 8px; }
+    .mini-label { margin: 0 0 -4px; color: #6b21a8; font-size: 13px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+    .reason { border-radius: 18px; background: #faf7f3; padding: 14px; color: #584b45; font-size: 17px; line-height: 1.35; font-weight: 800; }
+    .notice { border-top: 1px solid #eadfd5; color: #047857; padding-top: 14px; font-size: 17px; line-height: 1.32; font-weight: 900; }
+    .evidence { border: 1px solid #bfdbfe; border-radius: 22px; background: #eff6ff; padding: 16px; color: #1d4ed8; display: grid; gap: 8px; }
+    .evidence h3 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: .1em; }
+    .evidence p { margin: 0; color: #332925; font-size: 16px; line-height: 1.35; font-weight: 750; }
+    .emergency .stage { color: #b91c1c; }
+    .emergency .report-card { background: #dc2626; border: 2px solid #991b1b; color: white; box-shadow: 0 18px 44px rgba(220,38,38,.28); animation: pulse 1.05s ease-in-out infinite; }
+    .emergency .report-card h2, .emergency .report-card p, .emergency .report-card li, .emergency .notice { color: white; border-top-color: rgba(255,255,255,.34); }
+    .emergency .primary-action { background: #dc2626; animation: pulse 1.05s ease-in-out infinite; }
+    @keyframes pulse { 50% { transform: scale(1.015); box-shadow: 0 22px 56px rgba(220,38,38,.42); } }
+    @media (prefers-reduced-motion: reduce) { .emergency .report-card, .emergency .primary-action { animation: none; } }
+  </style>
+</head>
+<body>
+  <div class="phone">
+    <div class="top"><button class="back" onclick="back()">‹</button><div class="title">Symptom Check</div></div>
+
+    <section id="intro" class="screen center active">
+      <p class="kicker">Symptom check</p>
+      <h1>What is bothering you?</h1>
+      <p class="helper">Use a few words. VYVA will choose the right questions.</p>
+      <input id="clueInput" class="clue" placeholder="For example: bad headache..." oninput="syncButtons()" onkeydown="if(event.key==='Enter') start(false)" />
+      <div class="chips">
+        <button class="chip-btn" onclick="setClue('Bad headache')">Bad headache</button>
+        <button class="chip-btn" onclick="setClue('Chest pressure')">Chest pressure</button>
+        <button class="chip-btn" onclick="setClue('Short of breath')">Short of breath</button>
+        <button class="chip-btn" onclick="setClue('Dizzy')">Dizzy</button>
+        <button class="chip-btn" onclick="setClue('Fever')">Fever</button>
+        <button class="chip-btn" onclick="setClue('I fell')">I fell</button>
+        <button class="chip-btn" onclick="setClue('Pain when I pee')">Pain when I pee</button>
+      </div>
+      <button id="withVitals" class="choice primary" onclick="start(true)" disabled><span>Check my vitals first</span><span class="arrow">›</span></button>
+      <button id="skipVitals" class="choice" onclick="start(false)" disabled><span>Skip vitals</span><span class="arrow">›</span></button>
+    </section>
+
+    <section id="vitals" class="screen">
+      <p class="stage">Vitals scan</p>
+      <p class="qtext">Let’s check your pulse and breathing first.</p>
+      <p class="helper">In the real app, this opens the camera scan. This preview shows the result state.</p>
+      <div class="vital-card">
+        <div class="pulse-ring">72</div>
+        <div class="vitals-grid">
+          <div class="vital-box"><p class="vital-label">Pulse</p><p class="vital-value">72 bpm</p></div>
+          <div class="vital-box"><p class="vital-label">Breathing</p><p class="vital-value">16/min</p></div>
+        </div>
+      </div>
+      <button class="primary-action" onclick="routeFromClue()">Continue to questions</button>
+    </section>
+
+    <section id="safety" class="screen">
+      <div class="selected"><span id="selectedSymptom">Headache</span></div>
+      <p class="stage">Safety check</p>
+      <p id="safetyQuestion" class="qtext">Do any of these apply?</p>
+      <div id="safetyAnswers" class="answers"></div>
+    </section>
+
+    <section id="severity" class="screen">
+      <div class="selected"><span id="selectedSymptom2">Headache</span></div>
+      <p class="stage">How it feels</p>
+      <p id="severityQuestion" class="qtext">How strong is it?</p>
+      <div class="answers">
+        <button class="answer ok" onclick="finish('monitor')">Mild</button>
+        <button class="answer amber" onclick="finish('doctor')">Hard to ignore</button>
+        <button class="answer warn" onclick="finish('doctor')">Strong or getting worse</button>
+      </div>
+    </section>
+
+    <section id="report" class="screen">
+      <p class="stage">Summary</p>
+      <h1>Your next step</h1>
+      <div class="report-card">
+        <h2 id="reportTitle">Talk to a doctor today</h2>
+        <p id="reportBody">VYVA used your first clue and answers to choose this next step.</p>
+        <p class="mini-label">Why this step</p>
+        <div id="reportReason" class="reason">No emergency signs were selected.</div>
+        <p class="mini-label">Do now</p>
+        <ul id="reportList"></ul>
+        <div class="notice">A copy of this report has been sent to Dr. Garcia and Maria.</div>
+      </div>
+      <div class="evidence">
+        <h3>Medical evidence checked</h3>
+        <p id="evidenceText">MediSearch context is used in the real app to shape red flags, watch signs, and doctor-ready notes.</p>
+      </div>
+      <button id="reportAction" class="primary-action" onclick="go('intro')">Talk to a real doctor</button>
+    </section>
+  </div>
+
+  <script>
+    let current = "intro";
+    let clue = "";
+    let symptom = "Headache";
+    function go(id) {
+      document.getElementById(current).classList.remove("active");
+      current = id;
+      document.getElementById(current).classList.add("active");
+    }
+    function syncButtons() {
+      clue = document.getElementById("clueInput").value.trim();
+      const ok = clue.length >= 2;
+      document.getElementById("withVitals").disabled = !ok;
+      document.getElementById("skipVitals").disabled = !ok;
+    }
+    function setClue(value) {
+      document.getElementById("clueInput").value = value;
+      syncButtons();
+    }
+    function start(withVitals) {
+      syncButtons();
+      if (!clue) return;
+      if (withVitals) go("vitals");
+      else routeFromClue();
+    }
+    function infer() {
+      const text = clue.toLowerCase();
+      if (/(blue lip|confus.*breath|breath.*confus|worst headache|one side|speech trouble|fainted|cannot stand|face.*swelling|throat.*swelling)/.test(text)) return { symptom: "Emergency sign", emergency: true };
+      if (/(chest|pressure.*chest|tight.*chest)/.test(text)) return { symptom: "Chest discomfort", emergency: false };
+      if (/(breath|short of breath|oxygen|wheeze|air)/.test(text)) return { symptom: "Breathing", emergency: false };
+      if (/(urine|pee|bladder|burning|uti)/.test(text)) return { symptom: "Urine problem", emergency: false };
+      if (/(fall|fell|injury|hit|bruise)/.test(text)) return { symptom: "Fall or injury", emergency: false };
+      if (/(fever|temperature|chills)/.test(text)) return { symptom: "Fever", emergency: false };
+      if (/(dizz|vertigo|lightheaded)/.test(text)) return { symptom: "Dizziness", emergency: false };
+      if (/(stomach|belly|bowel|vomit|diarrhea)/.test(text)) return { symptom: "Stomach or bowel", emergency: false };
+      if (/(skin|rash|wound|swelling|pus)/.test(text)) return { symptom: "Skin or wound", emergency: false };
+      if (/(confus|memory|not myself)/.test(text)) return { symptom: "Confusion", emergency: false };
+      if (/(tired|weak|fatigue)/.test(text)) return { symptom: "Very tired", emergency: false };
+      return { symptom: "Pain or headache", emergency: false };
+    }
+    function routeFromClue() {
+      const result = infer();
+      symptom = result.symptom;
+      if (result.emergency) {
+        emergency(`Your clue mentions: ${clue}`);
+        return;
+      }
+      document.getElementById("selectedSymptom").textContent = symptom;
+      document.getElementById("selectedSymptom2").textContent = symptom;
+      setSafetyFor(symptom);
+      go("safety");
+    }
+    function setSafetyFor(name) {
+      const q = document.getElementById("safetyQuestion");
+      const a = document.getElementById("safetyAnswers");
+      document.getElementById("severityQuestion").textContent = "How strong is it?";
+      document.querySelector("#severity .answers").innerHTML = [
+        `<button class="answer ok" onclick="finish('monitor')">Mild</button>`,
+        `<button class="answer amber" onclick="finish('doctor')">Hard to ignore</button>`,
+        `<button class="answer warn" onclick="finish('doctor')">Strong or getting worse</button>`,
+      ].join("");
+      if (name === "Chest discomfort") {
+        q.textContent = "Do you have chest discomfort right now, or did it happen today?";
+        a.innerHTML = [
+          `<button class="answer warn" onclick="emergency('Tight, heavy, crushing, or spreading chest discomfort')">Tight, heavy, crushing, or spreading</button>`,
+          `<button class="answer warn" onclick="emergency('Sweaty, sick, faint, or hard to breathe')">Sweaty, sick, faint, or hard to breathe</button>`,
+          `<button class="answer amber" onclick="setChestDetails()">It happened today but stopped</button>`,
+          `<button class="answer amber" onclick="setChestDetails()">Mild sore spot / not sure</button>`,
+        ].join("");
+        return;
+      }
+      const rows = {
+        "Breathing": ["How is your breathing right now?", ["Gasping / cannot speak", "Blue, grey, pale, or confused", "Worse than usual, but I can speak", "Mild / only with activity"]],
+        "Fever": ["Do you feel feverish, very chilled, or have a measured temperature?", ["Confused, sleepy, fast breathing, blue/pale, or little urine", "Cancer treatment or weak immune system", "38 C or higher / shaking chills", "Mild feverish feeling only"]],
+        "Dizziness": ["Did you faint, nearly faint, or feel like you might fall today?", ["Fainted and not fully normal", "Fainted with chest, breathing, heartbeat, seizure, or injury", "Very dizzy now / might fall", "Light-headed but steady"]],
+        "Stomach or bowel": ["Do you have stomach or bowel symptoms with any of these serious signs?", ["Sudden or severe belly pain", "Vomiting blood, black/bloody stool, or collapsed", "Cannot pee, cannot pass stool/gas, or cannot keep fluids down", "None of these"]],
+        "Urine problem": ["What urine problem is happening?", ["Cannot pass urine", "Burning with fever, side pain, vomiting, or confusion", "Blood in urine or clots", "Burning, urgency, cloudy, or smelly only"]],
+        "Fall or injury": ["Did you hit your head, pass out, or hurt yourself badly?", ["Head hit plus vomiting, sleepy, confused, seizure, weak, or trouble walking/speaking", "Head hit and blood thinner", "Cannot stand, use a limb, severe pain, deformity, or heavy bleeding", "Minor bump or bruise, walking normally"]],
+        "Skin or wound": ["Do you have swelling, breathing trouble, fever, or spreading redness?", ["Swollen lips, mouth, throat, or tongue, or hard breathing", "Hot red skin with fever, confusion, fast breathing, or dizziness", "Open wound, drainage, surgery wound, or spreading redness", "Small itchy rash or minor wound"]],
+        "Confusion": ["Is this a sudden change from your usual self?", ["Suddenly confused, not making sense, or hard to wake", "Face droop, arm weakness, speech or vision trouble", "With fever, fast breathing, low urine, or sugar problem", "Slow memory change over weeks or months"]],
+        "Very tired": ["Is the weakness sudden or making you unsafe right now?", ["Sudden face, arm, or leg weakness, speech or vision trouble", "Too weak to stand, walk, stay awake, or think clearly", "Weak with chest pain or hard breathing", "Tired or weak, but alert and safe"]],
+        "Something else": ["Are any of these happening right now?", ["Chest pain, trouble breathing, or blue/grey/pale skin", "Face/arm weakness, speech/vision trouble, seizure, or fainted", "Very confused, hard to wake, heavy bleeding, severe pain, or allergic swelling", "None of these"]],
+      };
+      const fallback = ["Is this a new very bad headache or pain with any of these signs?", ["Sudden worst headache", "Weakness, speech, vision, confusion, or seizure", "Back pain with bladder, bowel, or leg weakness", "None of these"]];
+      const [question, labels] = rows[name] || fallback;
+      q.textContent = question;
+      a.innerHTML = labels.map((label, i) => {
+        const safeChoices = ["Mild / only with activity", "Mild feverish feeling only", "Light-headed but steady", "Burning, urgency, cloudy, or smelly only", "Minor bump or bruise, walking normally", "Small itchy rash or minor wound", "Slow memory change over weeks or months", "Tired or weak, but alert and safe", "None of these"];
+        const doctorChoices = ["Burning with fever, side pain, vomiting, or confusion", "Blood in urine or clots", "Head hit and blood thinner", "Open wound, drainage, surgery wound, or spreading redness", "Slow memory change over weeks or months"];
+        const emergencyChoice = i < 3 && !safeChoices.includes(label) && !doctorChoices.includes(label);
+        const doctorChoice = doctorChoices.includes(label);
+        if (doctorChoice) return `<button class="answer amber" onclick="setFollowup('${name}')">${label}</button>`;
+        return `<button class="answer ${emergencyChoice ? "warn" : i === labels.length - 1 ? "ok" : "amber"}" onclick="${emergencyChoice ? `emergency('${label}')` : `setFollowup('${name}')`}">${label}</button>`;
+      }).join("");
+    }
+    function setFollowup(name) {
+      const question = document.getElementById("severityQuestion");
+      const container = document.querySelector("#severity .answers");
+      const followups = {
+        "Breathing": [
+          "Do you have any of these with the breathing problem?",
+          [
+            ["Chest tightness, heaviness, or spreading pain", "emergency"],
+            ["Coughing blood or one swollen calf", "emergency"],
+            ["Fast heartbeat, fainting, or severe weakness", "emergency"],
+            ["No", "trend"]
+          ]
+        ],
+        "Fever": [
+          "Do you have symptoms pointing to an infection?",
+          [
+            ["Cough, chest pain, or shortness of breath", "doctor"],
+            ["Burning pee, side pain, vomiting, or confusion", "doctor"],
+            ["Red painful skin, wound, or surgery cut", "doctor"],
+            ["No clear source", "trend"]
+          ]
+        ],
+        "Dizziness": [
+          "Do you have any of these with the dizziness?",
+          [
+            ["Face, arm, speech, or vision change", "emergency"],
+            ["Chest pain, hard breathing, or fast heartbeat", "emergency"],
+            ["Low sugar symptoms or diabetes medicine", "doctor"],
+            ["No", "trend"]
+          ]
+        ],
+        "Very tired": [
+          "Do you have any of these today?",
+          [
+            ["Fever, chills, cough, wound, or urine pain", "doctor"],
+            ["Vomiting, diarrhea, not drinking, or hardly peeing", "doctor"],
+            ["Diabetes medicine or possible sugar problem", "doctor"],
+            ["No", "monitor"]
+          ]
+        ],
+        "Pain or headache": [
+          "Where is the pain mainly?",
+          [
+            ["Head or neck", "doctor"],
+            ["Back", "doctor"],
+            ["Belly or side", "doctor"],
+            ["Arm, leg, joint, or other", "doctor"]
+          ]
+        ],
+        "Stomach or bowel": [
+          "Do you have dehydration or infection signs?",
+          [
+            ["Very weak, dizzy, confused, dry mouth, or hardly peeing", "doctor"],
+            ["Fever or severe pain", "doctor"],
+            ["Diabetes and vomiting or high sugar", "doctor"],
+            ["No", "trend"]
+          ]
+        ],
+        "Urine problem": [
+          "Do you have any whole-body symptoms?",
+          [
+            ["Fever or shaking chills", "doctor"],
+            ["Back or side pain", "doctor"],
+            ["New confusion or very weak", "emergency"],
+            ["No", "trend"]
+          ]
+        ],
+        "Fall or injury": [
+          "Did any of these happen with the fall?",
+          [
+            ["Knocked out, even briefly", "doctor"],
+            ["Fell from stairs, height, or high speed", "doctor"],
+            ["I live alone and no one can check on me", "doctor"],
+            ["No", "trend"]
+          ]
+        ],
+        "Skin or wound": [
+          "Does it look like painful blisters or shingles?",
+          [
+            ["Near eye/nose or vision changes", "doctor"],
+            ["Painful blisters and weak immune system", "doctor"],
+            ["Painful blisters started within 3 days", "doctor"],
+            ["No", "trend"]
+          ]
+        ],
+        "Confusion": [
+          "Is there any immediate safety concern?",
+          [
+            ["Stove, wandering, fall, or medicine safety problem", "doctor"],
+            ["New medicine or dose change", "doctor"],
+            ["Very low mood or self-harm talk", "emergency"],
+            ["No immediate safety concern", "doctor"]
+          ]
+        ],
+        "Something else": [
+          "Where is the main problem?",
+          [
+            ["Chest or breathing", "doctor"],
+            ["Head, weakness, dizziness, confusion, or fall", "doctor"],
+            ["Fever, urine, stomach, skin, or wound", "doctor"],
+            ["Other / not sure", "trend"]
+          ]
+        ]
+      };
+      const [q, answers] = followups[name] || [
+        "How strong is it?",
+        [["Mild", "monitor"], ["Hard to ignore", "doctor"], ["Strong or getting worse", "doctor"]]
+      ];
+      question.textContent = q;
+      container.innerHTML = answers.map(([label, action]) => {
+        if (action === "emergency") return `<button class="answer warn" onclick="emergency('${label}')">${label}</button>`;
+        if (action === "doctor") return `<button class="answer amber" onclick="finish('doctor')">${label}</button>`;
+        if (action === "trend") return `<button class="answer ok" onclick="finish('monitor')">${label}</button>`;
+        return `<button class="answer ok" onclick="finish('monitor')">${label}</button>`;
+      }).join("");
+      go("severity");
+    }
+    function setChestDetails() {
+      document.getElementById("severityQuestion").textContent = "Which best describes the chest discomfort?";
+      const container = document.querySelector("#severity .answers");
+      container.innerHTML = [
+        `<button class="answer warn" onclick="emergency('At rest, woke me, or over 5 minutes')">At rest, woke me, or over 5 minutes</button>`,
+        `<button class="answer amber" onclick="finish('doctor')">With walking, stairs, or activity</button>`,
+        `<button class="answer ok" onclick="finish('doctor')">Only when I press, twist, cough, or lift</button>`,
+        `<button class="answer amber" onclick="finish('doctor')">I'm not sure</button>`,
+      ].join("");
+      go("severity");
+    }
+    function finish(level) {
+      const urgent = level === "doctor";
+      document.getElementById("report").classList.remove("emergency");
+      const monitorPlans = {
+        "Urine problem": {
+          title: "Track urine symptoms for 24 hours",
+          body: "No fever, back pain, urine blockage, or blood was selected. That makes this lower concern, but urine symptoms in older adults deserve clear watching.",
+          reason: "This looks lower concern only because the serious urinary warning signs were not selected.",
+          evidence: "Evidence context for urinary symptoms highlights fever, back/flank pain, blocked urine, blood in urine, weakness, and new confusion as reasons to seek care sooner.",
+          items: [
+            "Drink water today unless your doctor told you to limit fluids.",
+            "Write down burning, urgency, urine color, smell, and how often you go.",
+            "Call a doctor within 24-48 hours if burning or urgency continues.",
+            "Call sooner today if you feel weak, confused, feverish, diabetic, or have kidney disease."
+          ],
+        },
+        "Pain or headache": {
+          title: "Track the pain pattern",
+          body: "No emergency pain signs were selected. The useful next step is tracking whether it changes.",
+          reason: "Pain becomes more concerning when it is sudden, severe, after a fall, or comes with weakness, speech trouble, vision change, or confusion.",
+          evidence: "Evidence context for headache/pain highlights sudden severe pain, weakness, speech trouble, vision change, confusion, fainting, chest pain, or head injury.",
+          items: [
+            "Rest the painful area and avoid what makes it worse.",
+            "Use your usual pain medicine only if it is safe for you.",
+            "Write down where it hurts, when it started, and what changes it.",
+            "Call a doctor if it gets stronger, lasts, or feels unusual."
+          ],
+        },
+        "Chest discomfort": {
+          title: "Talk to a doctor today",
+          body: "Chest discomfort in an older adult deserves same-day advice, even when the strongest warning signs were not selected.",
+          reason: "The urgent signs are chest pressure happening now, breathing trouble, sweating, faintness, nausea, or pain spreading to arm, jaw, back, or neck.",
+          evidence: "Evidence context for chest symptoms highlights current pressure/tightness, shortness of breath, sweating, faintness, nausea, and spreading pain as reasons to seek urgent help.",
+          items: [
+            "Stop activity and sit upright for now.",
+            "Call emergency services now if chest pressure is present, worsening, or comes with breathing trouble, sweating, faintness, or nausea.",
+            "If the feeling is mild and has passed, contact a doctor today.",
+            "Do not drive yourself while chest symptoms are being checked."
+          ],
+        },
+        "Dizziness": {
+          title: "Prevent a fall first",
+          body: "No fainting, one-sided weakness, speech trouble, chest pain, or breathing trouble was selected. The main job now is staying steady and watching whether it returns.",
+          reason: "For dizziness, safety depends less on the word “mild” and more on whether you can stand, walk, and think clearly.",
+          evidence: "Evidence context for dizziness highlights fainting, stroke-like signs, chest pain, breathing trouble, dehydration, low sugar, and medication effects.",
+          items: [
+            "Sit down now and stand up slowly when you move.",
+            "Use a wall, cane, walker, or another person for support today.",
+            "Drink water if you are allowed to and have not been drinking well.",
+            "Call a doctor today if dizziness returns, walking feels unsafe, or medicines recently changed."
+          ],
+        },
+        "Breathing": {
+          title: "Rest upright and re-check breathing",
+          body: "No breathlessness at rest, blue lips, confusion, or severe breathing trouble was selected. Mild breathing changes still need close attention.",
+          reason: "Breathing can change quickly, especially with heart or lung conditions, so the next step is a short re-check rather than vague monitoring.",
+          evidence: "Evidence context for breathing highlights breathlessness at rest, blue lips, confusion, chest pressure, low oxygen, and increased oxygen needs.",
+          items: [
+            "Sit upright and avoid exertion for now.",
+            "Use prescribed inhaler or oxygen only as directed.",
+            "Re-check breathing after 10-15 minutes of rest.",
+            "Get urgent help if breathing becomes difficult at rest, lips turn blue, or confusion appears."
+          ],
+        },
+        "Fever": {
+          title: "Check temperature and hydration",
+          body: "No confusion, stiff neck, new rash, or very high fever was selected. The useful next step is measuring and watching for infection warning signs.",
+          reason: "For fever, the important details are temperature, drinking, urine amount, and whether confusion or severe weakness appears.",
+          evidence: "Evidence context for fever highlights confusion, severe sleepiness, stiff neck, new rash, dehydration, low immunity, and feeling suddenly worse.",
+          items: [
+            "Take your temperature again later and write it down.",
+            "Drink fluids unless your doctor told you to limit fluids.",
+            "Use fever medicine only if it is normally safe for you.",
+            "Call a doctor if fever rises, lasts more than a day, or you feel weaker."
+          ],
+        },
+        "Stomach or bowel": {
+          title: "Watch fluids and bowel changes",
+          body: "No severe belly pain, blood, black stool, or hard swollen belly was selected. The next step is preventing dehydration and tracking the pattern.",
+          reason: "Stomach symptoms become more urgent when fluids cannot stay down, stool changes to black/bloody, or pain becomes severe.",
+          evidence: "Evidence context for stomach symptoms highlights severe pain, vomiting blood, black stool, bloody stool, dehydration, and a hard swollen belly.",
+          items: [
+            "Sip fluids slowly and keep food simple if you can eat.",
+            "Write down vomiting, diarrhea, constipation, and last bowel movement.",
+            "Avoid new stomach medicines unless directed.",
+            "Call a doctor if symptoms continue, worsen, or fluids will not stay down."
+          ],
+        },
+        "Fall or injury": {
+          title: "Tell someone and check movement",
+          body: "No head hit, confusion, inability to stand, or hip/back severe pain was selected. A fall still deserves a check-in today.",
+          reason: "After a fall, the key question is whether pain, walking, or thinking changes over the next few hours.",
+          evidence: "Evidence context for falls highlights head hit, confusion, fainting, blood thinners, hip/back pain, and inability to stand or walk.",
+          items: [
+            "Tell a caregiver or family member about the fall today.",
+            "Avoid walking alone until you feel steady.",
+            "Check for swelling, bruising, and increasing pain.",
+            "Call a doctor if pain increases or walking becomes harder."
+          ],
+        },
+        "Skin or wound": {
+          title: "Mark the edge and check spread",
+          body: "No face/throat swelling, fever with wound, or fast-spreading redness was selected. The practical next step is checking whether the area grows.",
+          reason: "Skin symptoms become more concerning when redness spreads, warmth/pus increases, or fever appears.",
+          evidence: "Evidence context for skin/wounds highlights spreading redness, warmth, swelling, pus, fever, and face/tongue/throat swelling.",
+          items: [
+            "Keep the area clean and dry.",
+            "Mark or photograph the edge of redness.",
+            "Do not scratch or open the area.",
+            "Call a doctor if redness, warmth, swelling, pain, or pus increases."
+          ],
+        },
+        "Confusion": {
+          title: "Do not stay alone if this is new",
+          body: "No sudden confusion, weakness, speech trouble, fever, or urine-change warning was selected. Confusion still needs another person involved.",
+          reason: "For older adults, even mild confusion is useful only if someone can compare it with your normal state.",
+          evidence: "Evidence context for confusion highlights sudden change, stroke-like signs, fever, urine changes, low sugar, dehydration, and sedating medicines.",
+          items: [
+            "Ask someone you trust to check on you today.",
+            "Review fluids, food, medicines taken today, and urine changes.",
+            "Do not stay alone if you feel unsafe or more confused.",
+            "Call a doctor if this is new, continues, or someone else notices it."
+          ],
+        },
+      };
+      const plan = urgent
+        ? {
+            title: "Talk to a doctor today",
+            body: `${symptom} that feels strong, unusual, or changing should be checked.`,
+            reason: "A stronger or changing symptom crosses the threshold for clinician review.",
+            evidence: "MediSearch context is used in the real app to cross-check symptom-specific red flags and useful follow-up questions.",
+            items: [
+              "Contact your doctor, clinic, or urgent care today.",
+              "Tell them when it started, what changed, and which warning signs were checked.",
+              "Seek emergency help sooner if a red warning sign appears.",
+              "Keep this report ready to share."
+            ],
+          }
+        : monitorPlans[symptom] || {
+            title: "Make a simple 24-hour note",
+            body: `${symptom} has no emergency signs selected. The useful next step is to capture what changes, not to guess.`,
+            reason: "Unclear or mild symptoms become useful to a doctor when you can say when it started, what changed, and what helped.",
+            evidence: "MediSearch context is used in the real app to cross-check symptom-specific red flags and useful follow-up questions.",
+            items: [
+              "Write down when it started and what makes it better or worse.",
+              "Keep normal routines as much as you safely can.",
+              "Call a doctor if it continues, worsens, or feels unusual for you.",
+              "Seek emergency help if symptoms become severe, sudden, or unsafe."
+            ],
+          };
+      document.getElementById("reportTitle").textContent = plan.title;
+      document.getElementById("reportBody").textContent = plan.body;
+      document.getElementById("reportReason").textContent = plan.reason;
+      document.getElementById("evidenceText").textContent = plan.evidence;
+      document.getElementById("reportList").innerHTML = plan.items.map(x => `<li>${x}</li>`).join("");
+      document.getElementById("reportAction").textContent = "Talk to a real doctor";
+      go("report");
+    }
+    function emergency(reason) {
+      document.getElementById("report").classList.add("emergency");
+      document.getElementById("reportTitle").textContent = "Contact emergency services now";
+      document.getElementById("reportBody").textContent = `${reason} can be an emergency warning sign.`;
+      document.getElementById("reportList").innerHTML = [
+        "Call emergency services now.",
+        "Ask someone nearby to stay with you.",
+        "Do not drive yourself.",
+        "Show this summary to the responder or clinician."
+      ].map(x => `<li>${x}</li>`).join("");
+      document.getElementById("reportAction").textContent = "Contact emergency services";
+      document.getElementById("reportAction").onclick = () => { window.location.href = "tel:112"; };
+      go("report");
+    }
+    function back() {
+      if (current === "intro") return;
+      document.getElementById(current).classList.remove("active");
+      current = "intro";
+      document.getElementById(current).classList.add("active");
+    }
+  </script>
+</body>
+</html>

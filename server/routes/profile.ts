@@ -367,7 +367,7 @@ router.get("/readiness", async (req: Request, res: Response) => {
     const medicationGate = gate(hasMedicationForServices, medicationMissing);
     const voiceEnabled = Boolean(entitlements?.is_active && entitlements.voice_assistant);
     const medicationEnabled = Boolean(entitlements?.is_active && entitlements.medication_tracking);
-    const symptomCheckEnabled = Boolean(entitlements?.is_active && entitlements.symptom_check);
+    const symptomCheckEnabled = true;
     const conciergeEnabled = Boolean(entitlements?.is_active && entitlements.concierge);
     const caregiverDashboardEnabled = Boolean(entitlements?.is_active && entitlements.caregiver_dashboard);
 
@@ -928,6 +928,8 @@ router.get("/", async (req: Request, res: Response) => {
       postalCode:       p.postcode ?? "",
       caregiverName:    p.caregiver_name ?? "",
       caregiverContact: p.caregiver_contact ?? "",
+      gpName:           p.gp_name ?? "",
+      gpPhone:          p.gp_phone ?? "",
       avatarUrl:        p.avatar_url ?? null,
     });
   } catch (err) {

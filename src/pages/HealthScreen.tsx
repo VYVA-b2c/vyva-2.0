@@ -30,6 +30,8 @@ import {
   Square,
   RefreshCw,
   ChevronUp,
+  AlertTriangle,
+  CheckCircle2,
 } from "lucide-react";
 import VoiceHero from "@/components/VoiceHero";
 import { ActionCard, ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
@@ -47,6 +49,23 @@ type WoundScan = {
   advice: string;
   image_data?: string | null;
   scanned_at: string;
+};
+
+type TriageReport = {
+  id: string;
+  chief_complaint: string;
+  symptoms: string[];
+  urgency: "urgent" | "routine" | "monitor";
+  recommendations: string[];
+  bpm: number | null;
+  respiratory_rate: number | null;
+  created_at: string;
+};
+
+type ReportsSummary = {
+  latestTriage: TriageReport | null;
+  latestVitals: { bpm: number; respiratory_rate: number | null; recorded_at: string } | null;
+  todayMeds: { taken: number; total: number; adherencePct: number | null };
 };
 
 type SpecialistProvider = {
@@ -423,6 +442,31 @@ const HealthScreen = () => {
     queryKey: ["/api/wound-scan/history"],
     retry: false,
   });
+  const { data: reportsSummary } = useQuery<ReportsSummary>({
+    queryKey: ["/api/reports/summary"],
+    retry: false,
+    staleTime: 60 * 1000,
+  });
+  const latestTriage = reportsSummary?.latestTriage ?? null;
+  const latestTriageDate = latestTriage?.created_at
+    ? new Date(latestTriage.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short" })
+    : "";
+  const latestTriageTone = latestTriage?.urgency === "urgent"
+    ? { icon: AlertTriangle, bg: "#FFF1F2", text: "#BE123C", label: t("informes.urgency.urgent", "Urgent") }
+    : latestTriage?.urgency === "routine"
+      ? { icon: AlertTriangle, bg: "#FFF7ED", text: "#B45309", label: t("informes.urgency.routine", "Routine") }
+      : { icon: CheckCircle2, bg: "#ECFDF5", text: "#047857", label: t("informes.urgency.monitor", "Monitor") };
+  const LatestTriageIcon = latestTriageTone.icon;
+  const latestTriageDoctorContext = latestTriage
+    ? [
+        `${t("health.latestSymptomCheck.kicker", "Recent symptom check")}: ${latestTriage.chief_complaint}`,
+        `${t("health.symptomCheck.report.urgencyLabel", "Urgency")}: ${latestTriageTone.label}`,
+        latestTriage.symptoms?.length ? `${t("health.symptomCheck.report.symptoms", "Symptoms noted")}: ${latestTriage.symptoms.join(", ")}` : "",
+        latestTriage.bpm != null ? `${t("health.symptomCheck.scan.heartRate", "Heart Rate")}: ${latestTriage.bpm} bpm` : "",
+        latestTriage.respiratory_rate != null ? `${t("health.symptomCheck.scan.respiratoryRate", "Resp. Rate")}: ${latestTriage.respiratory_rate} rpm` : "",
+        latestTriage.recommendations?.length ? `${t("health.symptomCheck.report.recommendations", "What to do next")}: ${latestTriage.recommendations.join(" ")}` : "",
+      ].filter(Boolean).join("\n")
+    : "";
 
   const deleteScanMutation = useMutation({
     mutationFn: (id: string) =>
@@ -741,7 +785,7 @@ const HealthScreen = () => {
               stopDoctorVoice();
               return;
             }
-            guardPath("/health/doctor", { state: { autoStartVoice: true } });
+            guardPath("/health/doctor", { state: { autoStartVoice: true, latestSymptomReport: latestTriageDoctorContext || undefined } });
           }}
           voiceControls={{
             status: doctorVoiceStatus,
@@ -774,6 +818,38 @@ const HealthScreen = () => {
         </button>
 
         {/* ── 2. Acceso rápido (2×2 grid) ── */}
+        {latestTriage ? (
+          <section className="mt-[18px] rounded-[26px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_24px_rgba(63,45,35,0.06)]">
+            <button
+              type="button"
+              onClick={() => navigate(`/informes/${latestTriage.id}`)}
+              data-testid="button-health-latest-symptom-report"
+              className="vyva-tap flex w-full items-center gap-4 text-left"
+            >
+              <span
+                className="flex h-[56px] w-[56px] flex-shrink-0 items-center justify-center rounded-[20px]"
+                style={{ background: latestTriageTone.bg, color: latestTriageTone.text }}
+              >
+                <LatestTriageIcon size={27} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-body text-[12px] font-extrabold uppercase tracking-[0.12em] text-vyva-text-3">
+                  {t("health.latestSymptomCheck.kicker", "Recent symptom check")}
+                </span>
+                <span className="mt-1 line-clamp-1 block font-body text-[18px] font-extrabold leading-tight text-vyva-text-1">
+                  {latestTriage.chief_complaint}
+                </span>
+                <span className="mt-1 flex flex-wrap items-center gap-2 font-body text-[13px] font-bold" style={{ color: latestTriageTone.text }}>
+                  <span>{latestTriageTone.label}</span>
+                  {latestTriageDate ? <span className="text-vyva-text-3">{latestTriageDate}</span> : null}
+                  {latestTriage.bpm != null ? <span className="text-vyva-text-3">{latestTriage.bpm} bpm</span> : null}
+                </span>
+              </span>
+              <ChevronRight size={24} className="flex-shrink-0 text-vyva-purple" />
+            </button>
+          </section>
+        ) : null}
+
         <div className="mt-[20px]">
           <SectionTitle className="mb-3" title={t("health.quickAccess", "Quick access")} />
           <ResponsiveGrid columns="two">

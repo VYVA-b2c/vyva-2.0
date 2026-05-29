@@ -1,22 +1,15 @@
-modules = ["nodejs-20", "postgresql-16"]
+modules = ["nodejs-20", "web", "postgresql-16"]
 [agent]
 expertMode = true
+integrations = ["javascript_database:1.0.0"]
 
-[[ports]]
-localPort = 3001
-externalPort = 3002
+[nix]
+channel = "stable-25_05"
 
-[[ports]]
-localPort = 5000
-externalPort = 80
-
-[[ports]]
-localPort = 5001
-externalPort = 3000
-
-[[ports]]
-localPort = 24678
-externalPort = 3001
+[deployment]
+deploymentTarget = "autoscale"
+run = ["node", "./server-dist/index.cjs"]
+build = ["npm", "run", "build"]
 
 [workflows]
 runButton = "Project"
@@ -42,14 +35,14 @@ waitForPort = 5000
 [workflows.workflow.metadata]
 outputType = "webview"
 
-[nix]
-channel = "stable-25_05"
+[[ports]]
+localPort = 3001
+externalPort = 3001
 
-[deployment]
-deploymentTarget = "autoscale"
-run = ["node", "./server-dist/index.cjs"]
-build = ["npm", "run", "build"]
+[[ports]]
+localPort = 5000
+externalPort = 5000
 
-[postMerge]
-path = ".local/post_merge_setup.sh"
-timeoutMs = 180000
+[[ports]]
+localPort = 8080
+externalPort = 80

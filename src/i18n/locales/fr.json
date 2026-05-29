@@ -613,7 +613,22 @@
         "step3Title": "Obtenez votre rapport",
         "step3Desc": "Recevez un résumé à partager avec votre médecin",
         "startBtn": "Commencer le contrôle",
-        "voiceBtn": "Répondre par voix"
+        "voiceBtn": "Répondre par voix",
+        "clueHeadache": "Fort mal de tête",
+        "clueBreathing": "Essoufflement",
+        "clueDizzy": "Vertiges",
+        "clueFever": "Fièvre",
+        "clueFall": "Je suis tombé(e)",
+        "clueUrine": "Douleur en urinant",
+        "clueChest": "Douleur thoracique",
+        "clueStomach": "Mal au ventre",
+        "clueMedicine": "Question sur un médicament",
+        "clueAnxiety": "Anxiété",
+        "clueTitle": "Qu’est-ce qui vous gêne ?",
+        "clueSub": "Quelques mots suffisent. VYVA choisira les bonnes questions.",
+        "cluePlaceholder": "Par exemple : fort mal de tête...",
+        "stepLabel": "Vérification des symptômes",
+        "vitalsAsNextStep": "Les constantes peuvent être vérifiées après que VYVA comprend ce qui se passe."
       },
       "scan": {
         "title": "Scan des constantes vitales",

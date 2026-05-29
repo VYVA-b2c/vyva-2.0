@@ -25,7 +25,10 @@ import {
 } from "lucide-react";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import VoiceHero from "@/components/VoiceHero";
+import VitalsTracker from "@/components/VitalsTracker";
 import VitalsScan from "@/components/VitalsScan";
+import { useAuth } from "@/contexts/AuthContext";
+import { useProfile } from "@/contexts/ProfileContext";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { apiFetch } from "@/lib/queryClient";
@@ -268,6 +271,7 @@ function LogReadingModal({ onClose }: { onClose: () => void }) {
     mutationFn: async () => {
       const response = await apiFetch("/api/vitals", {
         method: "POST",
+        credentials: "include",
         body: JSON.stringify({ metric_type: metricType, value: value.trim() }),
       });
       if (!response.ok) throw new Error("Failed to save reading");
@@ -413,6 +417,8 @@ const SignosScreen = () => {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const { profile } = useProfile();
   const [showLogModal, setShowLogModal] = useState(false);
   const [showScanModal, setShowScanModal] = useState(false);
   const { action: voiceAction, payloadValue: voicePayloadValue } = useVoiceActionFulfillment({
@@ -422,6 +428,15 @@ const SignosScreen = () => {
 
   const { data: vitalsData, isLoading } = useQuery<VitalsResponse>({
     queryKey: ["/api/vitals"],
+    retry: false,
+  });
+  const { data: personalisationData } = useQuery<{
+    conditions: string[];
+    hobbies: string[];
+    hasMedications: boolean;
+  }>({
+    queryKey: ["/api/profile/personalisation"],
+    staleTime: 10 * 60 * 1000,
     retry: false,
   });
 
@@ -550,6 +565,16 @@ const SignosScreen = () => {
         highlights={voiceActionHighlights}
         className="mt-4"
       />
+
+      {user?.id && (
+        <div className="mt-5">
+          <VitalsTracker
+            userId={user.id}
+            userConditions={personalisationData?.conditions ?? []}
+            language={profile?.language === "de" || profile?.language === "en" || profile?.language === "es" ? profile.language : "es"}
+          />
+        </div>
+      )}
 
       <section
         className="mt-5 rounded-[26px] border border-[#E4D9CE] bg-white p-4 shadow-[0_10px_28px_rgba(63,45,35,0.07)]"

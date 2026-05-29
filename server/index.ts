@@ -18,6 +18,7 @@ import {
 } from "./routes/voiceQaSessionReviews.js";
 import {
   completeCallbackOnboardingToolHandler,
+  completePhoneOnboardingToolHandler,
   failCallbackOnboardingToolHandler,
   recordVoiceRecommendationFeedbackToolHandler,
   retrieveMedicalProfileToolHandler,
@@ -30,6 +31,7 @@ import { adminRouter } from "./routes/admin.js";
 import { adminLifecycleRouter } from "./routes/adminLifecycle.js";
 import intakeRouter from "./routes/intake.js";
 import twilioWebhooksRouter from "./routes/twilioWebhooks.js";
+import sendgridWebhooksRouter from "./routes/sendgridWebhooks.js";
 import { authRouter } from "./routes/auth.js";
 import { authMiddleware, requireAdminUser, requireUser } from "./middleware/auth.js";
 import { requireEntitlement } from "./middleware/entitlements.js";
@@ -60,6 +62,7 @@ import scheduledSupportRouter from "./routes/scheduledSupport.js";
 import { scanHistoryHandler } from "./routes/history.js";
 import reportsRouter from "./routes/reports.js";
 import vitalsRouter from "./routes/vitals.js";
+import vitalsEngineRouter from "./routes/vitalsEngine.js";
 import specialistsRouter from "./routes/specialists.js";
 import offersRouter, { analyzeOfferDocumentHandler } from "./routes/offers.js";
 import utilitiesRouter from "./routes/utilities.js";
@@ -107,6 +110,17 @@ app.delete("/api/scam-check/:id", authMiddleware, scamCheckDeleteHandler);
 app.post("/api/offers/analyze-document", express.json({ limit: "20mb" }), authMiddleware, analyzeOfferDocumentHandler);
 app.post("/api/bill-reader/analyze", express.json({ limit: "20mb" }), authMiddleware, analyzeOfferDocumentHandler);
 
+app.use(
+  "/api/webhooks/sendgrid",
+  express.json({
+    limit: "5mb",
+    verify: (req, _res, buf) => {
+      (req as typeof req & { rawBody?: string }).rawBody = buf.toString("utf-8");
+    },
+  }),
+  sendgridWebhooksRouter,
+);
+
 app.use(express.json({ limit: "20mb" }));
 
 app.post("/api/router", routerHandler);
@@ -118,6 +132,7 @@ app.post("/api/voice/timeline-events", authMiddleware, requireUser, requireEntit
 app.post("/api/elevenlabs-conversation-token", authMiddleware, requireUser, requireEntitlement("voice_assistant"), conversationTokenHandler);
 app.post("/api/elevenlabs/tools/retrieve-medical-profile", retrieveMedicalProfileToolHandler);
 app.post("/api/elevenlabs/tools/record-voice-recommendation-feedback", recordVoiceRecommendationFeedbackToolHandler);
+app.post("/api/elevenlabs/tools/phone-onboarding/complete", completePhoneOnboardingToolHandler);
 app.post("/api/elevenlabs/tools/callback-onboarding/save-section", saveCallbackOnboardingSectionToolHandler);
 app.post("/api/elevenlabs/tools/callback-onboarding/complete", completeCallbackOnboardingToolHandler);
 app.post("/api/elevenlabs/tools/callback-onboarding/fail", failCallbackOnboardingToolHandler);
@@ -157,6 +172,7 @@ app.use("/api/meds", authMiddleware, requireUser, requireEntitlement("medication
 app.get("/api/history/scans", authMiddleware, requireUser, scanHistoryHandler);
 app.use("/api/reports", authMiddleware, reportsRouter);
 app.use("/api/vitals", authMiddleware, vitalsRouter);
+app.use("/api/vitals-engine", authMiddleware, requireUser, vitalsEngineRouter);
 app.use("/api/specialists", authMiddleware, requireUser, requireEntitlement("symptom_check"), specialistsRouter);
 app.use("/api/offers", authMiddleware, offersRouter);
 app.use("/api/utilities", authMiddleware, utilitiesRouter);

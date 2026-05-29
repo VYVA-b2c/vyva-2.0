@@ -1,13 +1,13 @@
 // src/pages/onboarding/sections/MedicationsSection.tsx
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FormField, ResponsiveGrid } from "@/components/vyva-ui";
-import { Trash2, Loader2, Plus, CheckCircle2, AlertCircle, Mic } from "lucide-react";
+import { SeniorChoiceChips, type SeniorChoiceOption } from "@/components/onboarding/SeniorChoiceChips";
+import { Trash2, Loader2, Plus, CheckCircle2, AlertCircle, Mic, Pill, Clock3, Utensils, Stethoscope, Sparkles, ShieldCheck, ChevronDown, ChevronUp, Pencil, Sun, Moon, Coffee, CalendarClock, BadgeCheck } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiFetch } from "@/lib/queryClient";
@@ -30,7 +30,36 @@ const emptyMed = (id: string): Medication => ({
   id, name: "", dosage: "", frequency: "", times: "", with_food: "", prescribed_by: "",
 });
 
-const STANDARD_FREQUENCIES = ["once_daily", "twice_daily", "three_daily"];
+const STANDARD_FREQUENCIES = ["once_daily", "twice_daily", "three_daily", "as_needed"];
+const FREQUENCY_LABELS: Record<string, string> = {
+  once_daily: "Once daily",
+  twice_daily: "Twice daily",
+  three_daily: "3x daily",
+  as_needed: "As needed",
+};
+const FOOD_LABELS: Record<string, string> = {
+  with_food: "With food",
+  without_food: "Without food",
+  doesnt_matter: "Doesn't matter",
+};
+const TIME_PRESETS: SeniorChoiceOption[] = [
+  { label: "Morning", value: "Morning", icon: <Sun size={17} /> },
+  { label: "Evening", value: "Evening", icon: <Moon size={17} /> },
+  { label: "Bedtime", value: "Bedtime", icon: <Moon size={17} /> },
+  { label: "Morning and evening", value: "Morning and evening", icon: <CalendarClock size={17} /> },
+];
+const FREQUENCY_OPTIONS: SeniorChoiceOption[] = [
+  { label: "Once daily", value: "once_daily", icon: <BadgeCheck size={17} /> },
+  { label: "Twice daily", value: "twice_daily", icon: <BadgeCheck size={17} /> },
+  { label: "3x daily", value: "three_daily", icon: <BadgeCheck size={17} /> },
+  { label: "As needed", value: "as_needed", icon: <CalendarClock size={17} /> },
+  { label: "Other", value: "other", description: "Type it in your own words", icon: <Pencil size={17} /> },
+];
+const FOOD_OPTIONS: SeniorChoiceOption[] = [
+  { label: "With food", value: "with_food", icon: <Utensils size={17} /> },
+  { label: "Without food", value: "without_food", icon: <Coffee size={17} /> },
+  { label: "Doesn't matter", value: "doesnt_matter", icon: <BadgeCheck size={17} /> },
+];
 
 function isCustomFrequency(value: string): boolean {
   return Boolean(value && !STANDARD_FREQUENCIES.includes(value));
@@ -47,6 +76,44 @@ function parseMedicationTimes(raw: string): string[] | undefined {
     .filter(Boolean);
 
   return times.length > 0 ? times : undefined;
+}
+
+function FieldLabel({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+  return (
+    <span className="inline-flex min-w-0 items-center gap-2">
+      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#F3E8FF] text-vyva-purple">
+        {icon}
+      </span>
+      <span className="min-w-0">{children}</span>
+    </span>
+  );
+}
+
+function medicationSummary(med: Medication) {
+  const details = [
+    med.dosage.trim(),
+    med.times.trim(),
+    FREQUENCY_LABELS[med.frequency] ?? med.frequency.trim(),
+    FOOD_LABELS[med.with_food] ?? "",
+  ].filter(Boolean);
+
+  return details.length ? details.join(" • ") : "Ready for simple reminders";
+}
+
+function hasAdvancedMedicationDetails(med: Medication) {
+  return Boolean(med.frequency || med.with_food || med.prescribed_by.trim());
+}
+
+function cloneSetWith(value: Set<string>, id: string) {
+  const next = new Set(value);
+  next.add(id);
+  return next;
+}
+
+function cloneSetWithout(value: Set<string>, id: string) {
+  const next = new Set(value);
+  next.delete(id);
+  return next;
 }
 
 async function saveMedsToServer(meds: Medication[]): Promise<Response> {
@@ -91,6 +158,9 @@ export default function MedicationsSection() {
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [voiceModalOpen, setVoiceModalOpen] = useState(false);
   const [customFrequencyMedIds, setCustomFrequencyMedIds] = useState<Set<string>>(() => new Set());
+  const [expandedMedIds, setExpandedMedIds] = useState<Set<string>>(() => new Set([initialMed.id]));
+  const [detailsOpenMedIds, setDetailsOpenMedIds] = useState<Set<string>>(() => new Set());
+  const [showMobileActionBar, setShowMobileActionBar] = useState(false);
 
   // Refs so auto-save closure always sees the latest values
   const medsRef = useRef(meds);
@@ -100,6 +170,12 @@ export default function MedicationsSection() {
   useEffect(() => { medsRef.current = meds; }, [meds]);
   useEffect(() => { busyRef.current = saving || autoSaving || adding || !!removingId; }, [saving, autoSaving, adding, removingId]);
   useEffect(() => () => { if (navTimerRef.current) clearTimeout(navTimerRef.current); }, []);
+  useEffect(() => {
+    const updateActionBar = () => setShowMobileActionBar(window.scrollY > 260);
+    updateActionBar();
+    window.addEventListener("scroll", updateActionBar, { passive: true });
+    return () => window.removeEventListener("scroll", updateActionBar);
+  }, []);
 
   const completePath = () => {
     const returnTo = searchParams.get("returnTo");
@@ -121,6 +197,8 @@ export default function MedicationsSection() {
       const withIds = saved.map((m, i) => ({ ...m, id: `med-${i + 1}` }));
       setMeds(withIds);
       setSavedMeds(withIds);
+      setExpandedMedIds(new Set());
+      setDetailsOpenMedIds(new Set());
     } else if (data && !isLoading) {
       loadedRef.current = true;
     }
@@ -171,6 +249,27 @@ export default function MedicationsSection() {
     updateMed(id, "frequency", value);
   };
 
+  const updateTimePreset = (id: string, value: string) => {
+    updateMed(id, "times", value);
+  };
+
+  const toggleDetails = (id: string) => {
+    setDetailsOpenMedIds((prev) => (
+      prev.has(id) ? cloneSetWithout(prev, id) : cloneSetWith(prev, id)
+    ));
+  };
+
+  const editMed = (med: Medication) => {
+    setExpandedMedIds((prev) => cloneSetWith(prev, med.id));
+    if (hasAdvancedMedicationDetails(med)) {
+      setDetailsOpenMedIds((prev) => cloneSetWith(prev, med.id));
+    }
+  };
+
+  const collapseMed = (id: string) => {
+    setExpandedMedIds((prev) => cloneSetWithout(prev, id));
+  };
+
   const addMed = async () => {
     if (adding || removingId || saving) return;
     setAdding(true);
@@ -179,6 +278,8 @@ export default function MedicationsSection() {
     const newMed = emptyMed(`med-${counterRef.current}`);
     const updated = [...previous, newMed];
     setMeds(updated);
+    setExpandedMedIds((prev) => cloneSetWith(prev, newMed.id));
+    setDetailsOpenMedIds((prev) => cloneSetWithout(prev, newMed.id));
     let res: Response | undefined;
     try {
       res = await saveMedsToServer(updated);
@@ -202,9 +303,15 @@ export default function MedicationsSection() {
     const previous = meds;
     const filtered = previous.filter((m) => m.id !== id);
     counterRef.current += 1;
-    const updated = filtered.length > 0 ? filtered : [emptyMed(`med-${counterRef.current}`)];
-    setMeds(updated);
-    let res: Response | undefined;
+      const updated = filtered.length > 0 ? filtered : [emptyMed(`med-${counterRef.current}`)];
+      setMeds(updated);
+      setExpandedMedIds((prev) => {
+        const next = cloneSetWithout(prev, id);
+        if (updated.length === 1 && !updated[0].name.trim()) next.add(updated[0].id);
+        return next;
+      });
+      setDetailsOpenMedIds((prev) => cloneSetWithout(prev, id));
+      let res: Response | undefined;
     try {
       res = await saveMedsToServer(updated);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -239,6 +346,10 @@ export default function MedicationsSection() {
       };
       const updated = [...previous, newMed];
       setMeds(updated);
+      setExpandedMedIds((prev) => cloneSetWith(prev, newId));
+      if (hasAdvancedMedicationDetails(newMed)) {
+        setDetailsOpenMedIds((prev) => cloneSetWith(prev, newId));
+      }
       let res: Response | undefined;
       try {
         res = await saveMedsToServer(updated);
@@ -305,6 +416,7 @@ export default function MedicationsSection() {
   const isMedSaved = (idx: number): boolean => {
     if (savedMeds.length === 0) return false;
     if (idx >= savedMeds.length) return false;
+    if (!meds[idx]?.name.trim()) return false;
     return medsAreEqual(meds[idx], savedMeds[idx]);
   };
 
@@ -315,33 +427,55 @@ export default function MedicationsSection() {
   };
 
   const MedSkeleton = () => (
-    <div className="flex flex-col gap-4 rounded-[24px] border border-purple-100 bg-white p-5">
-      <Skeleton className="h-11 w-full rounded-lg" />
-      <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
-        <Skeleton className="h-11 w-full rounded-lg" />
-        <Skeleton className="h-11 w-full rounded-lg" />
+    <div className="flex flex-col gap-5 rounded-[30px] border border-purple-100 bg-white p-6 shadow-[0_18px_40px_rgba(53,28,87,0.08)]">
+      <Skeleton className="h-14 w-full rounded-[18px]" />
+      <div className="grid grid-cols-1 gap-4 min-[520px]:grid-cols-2">
+        <Skeleton className="h-14 w-full rounded-[18px]" />
+        <Skeleton className="h-14 w-full rounded-[18px]" />
       </div>
-      <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
-        <Skeleton className="h-11 w-full rounded-lg" />
-        <Skeleton className="h-11 w-full rounded-lg" />
+      <div className="grid grid-cols-1 gap-4 min-[520px]:grid-cols-2">
+        <Skeleton className="h-14 w-full rounded-[18px]" />
+        <Skeleton className="h-14 w-full rounded-[18px]" />
       </div>
-      <Skeleton className="h-11 w-full rounded-lg" />
+      <Skeleton className="h-14 w-full rounded-[18px]" />
     </div>
   );
 
   const busy = saving || autoSaving || adding || !!removingId;
-  const inputClassName = "h-12 rounded-[16px] border-purple-200 bg-[#FFFCF8] text-[15px]";
-  const selectClassName = "h-12 rounded-[16px] border-purple-200 bg-[#FFFCF8] text-[15px]";
+  const inputClassName = "h-14 rounded-[18px] border-[#DDC7FF] bg-white px-4 text-[17px] text-vyva-text-1 shadow-[0_8px_20px_rgba(53,28,87,0.05)] placeholder:text-[#8D7D73] focus-visible:ring-4 focus-visible:ring-vyva-purple/15";
 
   return (
     <PhoneFrame subtitle="💊 Medications" showBack onBack={() => confirmNavigation("/onboarding/profile")} showAllSections onAllSections={() => confirmNavigation("/onboarding/profile")}>
-      <div className="flex flex-col gap-6 px-4 py-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1">
-            <h2 className="font-display text-[24px] leading-tight text-vyva-text-1">Medications</h2>
-            <p className="mt-1 text-[14px] leading-relaxed text-vyva-text-2">Add the details you know. You can leave optional fields blank.</p>
+      <div className="flex flex-col gap-7 px-1 pb-28 pt-5 sm:px-2 sm:pb-5 md:px-3">
+        <div className="rounded-[30px] border border-[#EFE4D5] bg-[linear-gradient(135deg,#FFF8EF_0%,#FFFFFF_58%,#F5ECFF_100%)] p-5 shadow-[0_18px_45px_rgba(53,28,87,0.07)] sm:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex min-w-0 flex-1 gap-4">
+              <div className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#7D2BE8] text-white shadow-[0_12px_24px_rgba(125,43,232,0.22)] min-[520px]:flex">
+                <Pill size={26} />
+              </div>
+              <div className="min-w-0">
+                <p className="mb-2 inline-flex rounded-full bg-[#FFF1B8] px-3 py-1 text-[12px] font-black uppercase tracking-[0.08em] text-[#7A4C00]">
+                  Voice-friendly setup
+                </p>
+                <h2 className="font-display text-[34px] leading-[1.05] text-vyva-text-1 sm:text-[38px]">Medications</h2>
+                <p className="mt-2 max-w-2xl text-[17px] leading-relaxed text-vyva-text-2">
+                  Add the medicine name first. VYVA saves as you go, and the extra details help reminders feel clear and reliable.
+                </p>
+              </div>
+            </div>
+            <AutoSaveStatusBadge autoSaveStatus={autoSaveStatus} savedFading={savedFading} retryCountdown={retryCountdown} onRetryNow={retryNow} testId="status-meds-autosave" />
           </div>
-          <AutoSaveStatusBadge autoSaveStatus={autoSaveStatus} savedFading={savedFading} retryCountdown={retryCountdown} onRetryNow={retryNow} testId="status-meds-autosave" />
+          <div className="mt-5 grid gap-3 min-[520px]:grid-cols-3">
+            <div className="flex items-center gap-2 rounded-2xl border border-white bg-white/80 px-4 py-3 text-[15px] font-extrabold text-[#4B3B58] shadow-sm">
+              <span className="h-2.5 w-2.5 rounded-full bg-[#14B87A]" aria-hidden="true" /> Autosaves
+            </div>
+            <div className="flex items-center gap-2 rounded-2xl border border-white bg-white/80 px-4 py-3 text-[15px] font-extrabold text-[#4B3B58] shadow-sm">
+              <span className="h-2.5 w-2.5 rounded-full bg-[#F59E0B]" aria-hidden="true" /> Voice option
+            </div>
+            <div className="flex items-center gap-2 rounded-2xl border border-white bg-white/80 px-4 py-3 text-[15px] font-extrabold text-[#4B3B58] shadow-sm">
+              <span className="h-2.5 w-2.5 rounded-full bg-[#7D2BE8]" aria-hidden="true" /> Name is enough
+            </div>
+          </div>
         </div>
 
         {/* Add by voice banner */}
@@ -349,21 +483,23 @@ export default function MedicationsSection() {
           type="button"
           data-testid="button-meds-voice"
           onClick={() => setVoiceModalOpen(true)}
-          className="flex w-full items-center gap-4 rounded-[22px] px-4 py-4 text-left"
-          style={{ background: "#FFFBEB", border: "1px solid #FDE68A" }}
+          className="group flex w-full items-center gap-5 rounded-[28px] border border-[#F9D66A] bg-[#FFF8DB] px-5 py-5 text-left shadow-[0_16px_36px_rgba(245,158,11,0.13)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_42px_rgba(245,158,11,0.18)] sm:px-6"
         >
           <div
-            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full"
+            className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl shadow-[0_10px_20px_rgba(245,158,11,0.24)]"
             style={{ background: "#F59E0B" }}
           >
-            <Mic size={18} className="text-white" />
+            <Mic size={24} className="text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-body text-[16px] font-bold" style={{ color: "#92400E" }}>
+            <p className="mb-1 inline-flex rounded-full bg-white/75 px-3 py-1 font-body text-[12px] font-black uppercase tracking-[0.08em]" style={{ color: "#92400E" }}>
+              Easiest option
+            </p>
+            <p className="font-body text-[21px] font-black leading-tight" style={{ color: "#7A3100" }}>
               Add by voice
             </p>
-            <p className="mt-0.5 font-body text-[13px] leading-snug" style={{ color: "#B45309" }}>
-              Speak your medications and VYVA will fill in the details
+            <p className="mt-1 font-body text-[16px] leading-snug" style={{ color: "#9A4A00" }}>
+              Say: "I take Metformin 500mg every morning." VYVA will fill in the details.
             </p>
           </div>
         </button>
@@ -375,6 +511,10 @@ export default function MedicationsSection() {
             {meds.map((med, idx) => {
               const saved = isMedSaved(idx);
               const dirty = isMedDirty(idx);
+              const hasName = Boolean(med.name.trim());
+              const expanded = expandedMedIds.has(med.id) || !hasName || dirty;
+              const summaryOnly = hasName && saved && !dirty && !expanded;
+              const detailsOpen = detailsOpenMedIds.has(med.id);
               const showCustomFrequency =
                 customFrequencyMedIds.has(med.id) || isCustomFrequency(med.frequency);
 
@@ -382,7 +522,7 @@ export default function MedicationsSection() {
                 <div
                   key={med.id}
                   data-testid={`card-med-${med.id}`}
-                  className={`flex flex-col gap-4 rounded-[24px] border bg-white p-5 ${
+                  className={`relative flex flex-col gap-6 overflow-hidden rounded-[30px] border bg-white p-5 shadow-[0_20px_48px_rgba(53,28,87,0.08)] sm:p-6 ${
                     dirty
                       ? "border-amber-300 ring-1 ring-amber-200"
                       : saved
@@ -390,31 +530,90 @@ export default function MedicationsSection() {
                       : "border-purple-100"
                   }`}
                 >
-                  <div className="flex min-h-[32px] items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-vyva-purple">
-                        Medication {idx + 1}
-                      </p>
-                      <p className="mt-0.5 font-body text-[13px] text-vyva-text-3">
-                        Name is enough to save. The rest helps reminders feel smarter.
-                      </p>
+                  <div
+                    className={`pointer-events-none absolute inset-x-0 top-0 h-1.5 ${
+                      dirty ? "bg-[#F59E0B]" : saved ? "bg-[#14B87A]" : "bg-[#7D2BE8]"
+                    }`}
+                  />
+                  {summaryOnly ? (
+                    <div className="flex flex-col gap-4 min-[560px]:flex-row min-[560px]:items-center min-[560px]:justify-between">
+                      <div className="flex min-w-0 items-start gap-4">
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#ECFDF5] text-[#0A7C4E]">
+                          <Pill size={24} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-body text-[22px] font-black leading-tight text-vyva-text-1">
+                            {med.name.trim()}
+                          </p>
+                          <p className="mt-1 font-body text-[16px] leading-snug text-vyva-text-2">
+                            {medicationSummary(med)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span
+                          data-testid={`status-med-saved-${idx}`}
+                          className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-[12px] font-extrabold text-green-600"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Saved
+                        </span>
+                        <button
+                          type="button"
+                          data-testid={`button-meds-edit-${med.id}`}
+                          onClick={() => editMed(med)}
+                          className="inline-flex h-11 items-center gap-2 rounded-full border border-[#E7DCF8] bg-white px-4 text-[14px] font-black text-vyva-purple shadow-sm"
+                        >
+                          <Pencil size={16} />
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          data-testid={`button-meds-remove-${med.id}`}
+                          onClick={() => removeMed(med.id)}
+                          disabled={busy}
+                          className="flex h-11 w-11 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          {removingId === med.id ? (
+                            <Loader2 size={18} className="animate-spin" />
+                          ) : (
+                            <Trash2 size={18} />
+                          )}
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
+                  ) : (
+                    <>
+                  <div className="flex min-h-[48px] flex-col gap-3 min-[520px]:flex-row min-[520px]:items-start min-[520px]:justify-between min-[520px]:gap-4">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#F3E8FF] text-[18px] font-black text-vyva-purple">
+                        {idx + 1}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-body text-[19px] font-black leading-tight text-vyva-text-1">
+                          Medication {idx + 1}
+                        </p>
+                        <p className="mt-1 font-body text-[15px] leading-snug text-vyva-text-3">
+                          The name is enough to save. Details make reminders smarter.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center justify-end gap-2 min-[520px]:justify-start">
                       {saved && (
                         <span
                           data-testid={`status-med-saved-${idx}`}
-                          className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-green-600"
+                          className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-[12px] font-extrabold text-green-600"
                         >
-                          <CheckCircle2 className="w-3 h-3" />
+                          <CheckCircle2 className="h-3.5 w-3.5" />
                           Saved
                         </span>
                       )}
                       {dirty && (
                         <span
                           data-testid={`status-med-unsaved-${idx}`}
-                          className="flex items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-600"
+                          className="flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-[12px] font-extrabold text-amber-600"
                         >
-                          <AlertCircle className="w-3 h-3" />
+                          <AlertCircle className="h-3.5 w-3.5" />
                           Unsaved
                         </span>
                       )}
@@ -423,65 +622,96 @@ export default function MedicationsSection() {
                         data-testid={`button-meds-remove-${med.id}`}
                         onClick={() => removeMed(med.id)}
                         disabled={busy}
-                        className="flex h-9 w-9 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="flex h-11 w-11 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         {removingId === med.id ? (
-                          <Loader2 size={15} className="animate-spin" />
+                          <Loader2 size={18} className="animate-spin" />
                         ) : (
-                          <Trash2 size={15} />
+                          <Trash2 size={18} />
                         )}
                       </button>
                     </div>
                   </div>
-                  <FormField label="Medication name" required optionalLabel="Optional" requiredLabel="Needed">
+                  <FormField label={<FieldLabel icon={<Pill size={16} />}>Medication name</FieldLabel>} required optionalLabel="Optional" requiredLabel="Needed">
                     <Input data-testid={`input-med-name-${idx}`} placeholder="e.g. Metformin" value={med.name} onChange={(e) => updateMed(med.id, "name", e.target.value)} className={inputClassName} />
                   </FormField>
-                  <ResponsiveGrid columns="two" gap="md">
-                    <FormField label="Dosage" hint="Strength or amount, if you know it.">
+                  <ResponsiveGrid columns="two" gap="lg">
+                    <FormField label={<FieldLabel icon={<Sparkles size={16} />}>Dosage</FieldLabel>} hint="Strength or amount, if you know it.">
                       <Input data-testid={`input-med-dosage-${idx}`} placeholder="e.g. 500mg" value={med.dosage} onChange={(e) => updateMed(med.id, "dosage", e.target.value)} className={inputClassName} />
                     </FormField>
-                    <FormField label="Frequency" hint={showCustomFrequency ? "Type it in your own words." : "Choose Other if none of these fit."}>
-                      <Select
-                        value={showCustomFrequency ? "other" : med.frequency || undefined}
-                        onValueChange={(v) => updateFrequency(med.id, v)}
-                      >
-                        <SelectTrigger data-testid={`select-med-frequency-${idx}`} className={selectClassName}><SelectValue placeholder="Select" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="once_daily">Once daily</SelectItem>
-                          <SelectItem value="twice_daily">Twice daily</SelectItem>
-                          <SelectItem value="three_daily">3x daily</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {showCustomFrequency && (
-                        <Input
-                          data-testid={`input-med-frequency-other-${idx}`}
-                          placeholder="Type frequency"
-                          value={customFrequencyDisplayValue(med.frequency)}
-                          onChange={(e) => updateMed(med.id, "frequency", e.target.value)}
-                          className={inputClassName}
-                        />
-                      )}
-                    </FormField>
-                  </ResponsiveGrid>
-                  <ResponsiveGrid columns="two" gap="md">
-                    <FormField label="Time or routine" hint="Examples: morning and evening, bedtime, or 08:00, 20:00.">
+                    <FormField label={<FieldLabel icon={<Clock3 size={16} />}>Time or routine</FieldLabel>} hint="Examples: morning and evening, bedtime, or 08:00, 20:00.">
+                      <SeniorChoiceChips
+                        options={TIME_PRESETS}
+                        value={med.times}
+                        onChange={(value) => updateTimePreset(med.id, value)}
+                        testIdPrefix={`chip-med-time-${idx}`}
+                      />
                       <Input data-testid={`input-med-times-${idx}`} placeholder="Morning and evening" value={med.times} onChange={(e) => updateMed(med.id, "times", e.target.value)} className={inputClassName} />
                     </FormField>
-                    <FormField label="With food?">
-                      <Select value={med.with_food || undefined} onValueChange={(v) => updateMed(med.id, "with_food", v)}>
-                        <SelectTrigger data-testid={`select-med-food-${idx}`} className={selectClassName}><SelectValue placeholder="Select" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="with_food">With food</SelectItem>
-                          <SelectItem value="without_food">Without food</SelectItem>
-                          <SelectItem value="doesnt_matter">Doesn't matter</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FormField>
                   </ResponsiveGrid>
-                  <FormField label="Prescribed by" hint="Optional, but helpful for future reports.">
-                    <Input data-testid={`input-med-prescribed-${idx}`} placeholder="GP, specialist, or clinic name" value={med.prescribed_by} onChange={(e) => updateMed(med.id, "prescribed_by", e.target.value)} className={inputClassName} />
-                  </FormField>
+                  <div className="rounded-[24px] border border-[#EDE2F8] bg-[#FBF8FF] p-4">
+                    <button
+                      type="button"
+                      data-testid={`button-meds-details-${med.id}`}
+                      onClick={() => toggleDetails(med.id)}
+                      className="flex w-full items-center justify-between gap-3 text-left"
+                    >
+                      <span>
+                        <span className="block text-[17px] font-black text-vyva-text-1">More details</span>
+                        <span className="mt-0.5 block text-[14px] leading-snug text-vyva-text-3">
+                          Add frequency, food notes, or prescriber only if useful.
+                        </span>
+                      </span>
+                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-vyva-purple shadow-sm">
+                        {detailsOpen ? <ChevronUp size={19} /> : <ChevronDown size={19} />}
+                      </span>
+                    </button>
+                    {detailsOpen ? (
+                      <div className="mt-5 flex flex-col gap-5">
+                        <FormField label={<FieldLabel icon={<Clock3 size={16} />}>Frequency</FieldLabel>} hint={showCustomFrequency ? "Type it in your own words." : "Choose the closest option."}>
+                          <SeniorChoiceChips
+                            options={FREQUENCY_OPTIONS}
+                            value={showCustomFrequency ? "other" : med.frequency}
+                            onChange={(value) => updateFrequency(med.id, value)}
+                            testIdPrefix={`chip-med-frequency-${idx}`}
+                          />
+                          {showCustomFrequency && (
+                            <Input
+                              data-testid={`input-med-frequency-other-${idx}`}
+                              placeholder="Type frequency"
+                              value={customFrequencyDisplayValue(med.frequency)}
+                              onChange={(e) => updateMed(med.id, "frequency", e.target.value)}
+                              className={inputClassName}
+                            />
+                          )}
+                        </FormField>
+                        <FormField label={<FieldLabel icon={<Utensils size={16} />}>With food?</FieldLabel>}>
+                          <SeniorChoiceChips
+                            options={FOOD_OPTIONS}
+                            value={med.with_food}
+                            onChange={(value) => updateMed(med.id, "with_food", value)}
+                            testIdPrefix={`chip-med-food-${idx}`}
+                          />
+                        </FormField>
+                        <FormField label={<FieldLabel icon={<Stethoscope size={16} />}>Prescribed by</FieldLabel>} hint="Optional, but helpful for future reports.">
+                          <Input data-testid={`input-med-prescribed-${idx}`} placeholder="GP, specialist, or clinic name" value={med.prescribed_by} onChange={(e) => updateMed(med.id, "prescribed_by", e.target.value)} className={inputClassName} />
+                        </FormField>
+                      </div>
+                    ) : null}
+                  </div>
+                  {saved && !dirty && hasName ? (
+                    <button
+                      type="button"
+                      data-testid={`button-meds-collapse-${med.id}`}
+                      onClick={() => collapseMed(med.id)}
+                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-[#E7DCF8] bg-white px-5 text-[15px] font-black text-vyva-purple shadow-sm"
+                    >
+                      <CheckCircle2 size={17} />
+                      Show as summary
+                    </button>
+                  ) : null}
+                    </>
+                  )}
                 </div>
               );
             })}
@@ -491,23 +721,24 @@ export default function MedicationsSection() {
               data-testid="button-meds-add"
               onClick={addMed}
               disabled={busy || isLoading}
-              className="flex min-h-[52px] items-center justify-center gap-2 rounded-full border border-dashed border-vyva-purple/40 bg-white text-[15px] font-bold text-[#6b21a8] disabled:opacity-40"
+              className="flex min-h-[58px] items-center justify-center gap-2 rounded-full border-2 border-dashed border-vyva-purple/40 bg-white text-[17px] font-black text-[#6b21a8] shadow-[0_12px_26px_rgba(53,28,87,0.06)] disabled:opacity-40"
             >
               {adding ? (
-                <Loader2 size={14} className="animate-spin" />
+                <Loader2 size={18} className="animate-spin" />
               ) : (
-                <Plus size={14} />
+                <Plus size={18} />
               )}
-              {adding ? "Adding…" : "Add another medication"}
+              {adding ? "Adding..." : "Add another medication"}
             </button>
           </>
         )}
 
-        <div className="flex flex-col gap-2 pt-2">
-          <Button data-testid="button-meds-save" onClick={handleSave} disabled={busy || isLoading} className="w-full h-12 font-bold bg-[#6b21a8] hover:bg-[#5b1a8f]">
+        <div className={`fixed bottom-0 left-1/2 z-50 flex w-[min(100vw,410px)] -translate-x-1/2 flex-col gap-3 rounded-t-[28px] border-t border-[#EDE2D1] bg-[#FFFCF8] px-4 pb-3 pt-4 shadow-[0_-18px_40px_rgba(53,28,87,0.16)] transition duration-200 sm:sticky sm:bottom-0 sm:left-auto sm:z-20 sm:-mx-2 sm:w-auto sm:translate-x-0 sm:px-5 sm:opacity-100 ${showMobileActionBar ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-[120%] opacity-0 sm:pointer-events-auto"}`}>
+          <Button data-testid="button-meds-save" onClick={handleSave} disabled={busy || isLoading} className="h-14 w-full gap-2 rounded-full bg-[#6b21a8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5b1a8f]">
+            {saving ? <Loader2 size={19} className="animate-spin" /> : <ShieldCheck size={19} />}
             {saving ? "Saving..." : "Save medications"}
           </Button>
-          <button data-testid="button-meds-skip" onClick={() => confirmNavigation("/onboarding/profile")} className="text-xs text-gray-400 py-2 text-center">Skip for now</button>
+          <button data-testid="button-meds-skip" onClick={() => confirmNavigation("/onboarding/profile")} className="py-2 text-center text-[15px] font-bold text-gray-500">Skip for now</button>
         </div>
       </div>
 

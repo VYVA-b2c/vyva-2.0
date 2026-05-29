@@ -13,8 +13,6 @@ import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
 import {
-  callbackMetadata,
-  callbackScheduledLabel,
   cleanLabel,
   type Intake,
 } from "./lifecycle/shared";
@@ -22,6 +20,15 @@ import {
 type PhoneIntake = Intake & {
   metadata?: Record<string, unknown> | null;
   source_payload?: Record<string, unknown> | null;
+};
+
+type PhoneBucket = "new_call" | "missing_info" | "link_sent" | "completed";
+
+const phoneBucketLabels: Record<PhoneBucket, string> = {
+  new_call: "New call",
+  missing_info: "Missing info",
+  link_sent: "Link sent",
+  completed: "Completed",
 };
 
 function valueText(value: unknown): string {
@@ -46,6 +53,16 @@ function formatDateTime(value?: string | null) {
 
 function profileName(user: PhoneIntake) {
   return user.profile_name || user.name || user.login_email || user.phone;
+}
+
+function phoneBucket(user: PhoneIntake): PhoneBucket {
+  const hasName = Boolean((user.profile_name || user.name || "").trim());
+  const hasPhone = Boolean((user.profile_phone || user.login_phone || user.phone || "").trim());
+  const normalizedStep = user.journey_step.toLowerCase();
+  if (user.status === "active" || Boolean(user.activated_at) || normalizedStep.includes("completed")) return "completed";
+  if (user.status === "link_sent" || Boolean(user.link_sent_at)) return "link_sent";
+  if (!hasName || !hasPhone || normalizedStep.includes("collect") || normalizedStep.includes("missing")) return "missing_info";
+  return "new_call";
 }
 
 function keyData(user: PhoneIntake) {
@@ -82,9 +99,7 @@ function statusTone(status: string) {
 
 function PhoneUserCard({ user }: { user: PhoneIntake }) {
   const dataRows = keyData(user);
-  const callback = callbackMetadata(user);
-  const callbackScheduled = callbackScheduledLabel(user);
-  const callbackStatus = typeof callback?.status === "string" ? callback.status : user.journey_step;
+  const bucket = phoneBucket(user);
 
   return (
     <article className="rounded-[24px] border border-[#eadfd5] bg-white p-5 shadow-sm">
@@ -98,11 +113,12 @@ function PhoneUserCard({ user }: { user: PhoneIntake }) {
             <span className="rounded-full bg-[#fff4df] px-3 py-1 text-xs font-black text-[#8a5a00]">
               {cleanLabel(user.user_type)}
             </span>
-            {callback && (
-              <span className="rounded-full bg-[#f3e8ff] px-3 py-1 text-xs font-black text-purple-800">
-                Callback onboarding
-              </span>
-            )}
+            <span className="rounded-full bg-[#f3e8ff] px-3 py-1 text-xs font-black text-purple-800">
+              {phoneBucketLabels[bucket]}
+            </span>
+            <span className="rounded-full bg-[#eef8ff] px-3 py-1 text-xs font-black text-blue-800">
+              Inbound call
+            </span>
           </div>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-[#7d6b65]">
             <span className="inline-flex items-center gap-1.5"><PhoneCall size={14} /> {user.profile_phone || user.login_phone || user.phone}</span>
@@ -115,8 +131,7 @@ function PhoneUserCard({ user }: { user: PhoneIntake }) {
         </div>
         <div className="text-right text-sm text-[#7d6b65]">
           <p className="font-black text-[#2f2135]">{formatDateTime(user.created_at)}</p>
-          <p>{callback ? cleanLabel(callbackStatus) : cleanLabel(user.journey_step)}</p>
-          {callbackScheduled && <p className="font-bold text-purple-700">Scheduled {callbackScheduled}</p>}
+          <p>{cleanLabel(user.journey_step)}</p>
         </div>
       </div>
 
@@ -173,21 +188,34 @@ function SummaryCard({ label, value }: { label: string; value: number }) {
 export default function PhoneOnboardingPage() {
   const [users, setUsers] = useState<PhoneIntake[]>([]);
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState("");
+  const [bucketFilter, setBucketFilter] = useState<PhoneBucket | "">("");
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  async function loadPhoneUsers() {
+  async function lifecycleApi(path: string, options: RequestInit = {}) {
+    const res = await apiFetch(`/api/admin/lifecycle${path}`, options);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error ?? "Phone onboarding request failed");
+    return data as Record<string, unknown>;
+  }
+
+  async function loadPhoneUsers(options: { announce?: boolean; clearMessage?: boolean } = {}) {
+    const { announce = false, clearMessage = true } = options;
     setIsLoading(true);
-    setMessage("");
+    if (clearMessage) setMessage("");
     try {
-      const params = new URLSearchParams({ entry_point: "phone" });
+      const params = new URLSearchParams({
+        entry_point: "phone",
+        callback_onboarding: "false",
+        inbound_phone_onboarding: "true",
+      });
       if (query.trim()) params.set("query", query.trim());
-      if (status) params.set("status", status);
-      const res = await apiFetch(`/api/admin/lifecycle/users?${params.toString()}`);
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? "Could not load phone onboarding users");
-      setUsers(data.users ?? []);
+      const data = await lifecycleApi(`/users?${params.toString()}`);
+      const nextUsers = (data.users ?? []) as PhoneIntake[];
+      setUsers(nextUsers);
+      if (announce) {
+        setMessage(`Inbound callers refreshed: ${nextUsers.length} ${nextUsers.length === 1 ? "record" : "records"}.`);
+      }
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Could not load phone onboarding users");
     } finally {
@@ -198,27 +226,32 @@ export default function PhoneOnboardingPage() {
   useEffect(() => {
     loadPhoneUsers().catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
+  }, []);
 
-  const summary = useMemo(() => ({
-    total: users.length,
-    active: users.filter((user) => user.status === "active").length,
-    linksSent: users.filter((user) => Boolean(user.link_sent_at) || user.status === "link_sent" || user.status === "active").length,
-    consent: users.filter((user) => user.consent_status && user.consent_status !== "not_required").length,
-  }), [users]);
+  const phoneSummary = useMemo(() => ([
+    [phoneBucketLabels.new_call, users.filter((user) => phoneBucket(user) === "new_call").length],
+    [phoneBucketLabels.missing_info, users.filter((user) => phoneBucket(user) === "missing_info").length],
+    [phoneBucketLabels.link_sent, users.filter((user) => phoneBucket(user) === "link_sent").length],
+    [phoneBucketLabels.completed, users.filter((user) => phoneBucket(user) === "completed").length],
+  ]), [users]);
+
+  const visiblePhoneUsers = useMemo(
+    () => (bucketFilter ? users.filter((user) => phoneBucket(user) === bucketFilter) : users),
+    [bucketFilter, users],
+  );
 
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-4 py-4 text-[#2f2135] sm:px-6">
       <section className="mx-auto max-w-7xl">
         <AdminPageHeader
           title="Phone onboarding"
-          subtitle="Inbound caller intake and follow-up."
+          subtitle="Inbound callers who start VYVA setup by phone."
         >
           <button
             type="button"
             className="inline-flex items-center gap-2 rounded-xl bg-purple-700 px-4 py-2 text-sm font-black text-white disabled:opacity-50"
             disabled={isLoading}
-            onClick={() => loadPhoneUsers().catch(() => undefined)}
+            onClick={() => loadPhoneUsers({ announce: true }).catch(() => undefined)}
           >
             <RefreshCw size={15} />
             Refresh
@@ -229,36 +262,35 @@ export default function PhoneOnboardingPage() {
         <AdminMenu />
 
         <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-          <SummaryCard label="Phone intakes" value={summary.total} />
-          <SummaryCard label="Active" value={summary.active} />
-          <SummaryCard label="Links sent" value={summary.linksSent} />
-          <SummaryCard label="Consent flows" value={summary.consent} />
+          {phoneSummary.map(([label, value]) => (
+            <SummaryCard key={label} label={label} value={value} />
+          ))}
         </div>
 
         <section className="mt-4 rounded-[24px] border border-[#eadfd5] bg-white p-4 shadow-sm">
-          <div className="grid gap-3 md:grid-cols-[minmax(260px,1fr)_220px_auto]">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="font-serif text-3xl leading-tight">Inbound caller intake</h2>
+              <p className="mt-1 max-w-2xl text-sm text-[#7d6b65]">
+                Records captured from the VYVA phone agent only. Callback requests live outside this queue.
+              </p>
+            </div>
+            <span className="rounded-full bg-[#f3e8ff] px-4 py-2 text-sm font-black text-purple-800">
+              {users.length} callers
+            </span>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-[minmax(260px,1fr)_auto]">
             <label className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#8b7a73]" size={16} />
               <input
                 className="w-full rounded-2xl border border-[#e4d8ce] bg-white py-3 pl-11 pr-4 text-sm outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100"
-                placeholder="Search name, phone or email"
+                placeholder="Search caller name, phone or email"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 onKeyDown={(event) => event.key === "Enter" && loadPhoneUsers().catch(() => undefined)}
               />
             </label>
-            <select
-              className="rounded-2xl border border-[#e4d8ce] bg-white px-4 py-3 text-sm font-bold outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100"
-              value={status}
-              onChange={(event) => setStatus(event.target.value)}
-            >
-              <option value="">all statuses</option>
-              <option value="created">created</option>
-              <option value="link_sent">link sent</option>
-              <option value="consent_pending">consent pending</option>
-              <option value="active">active</option>
-              <option value="dropped">dropped</option>
-            </select>
             <button
               type="button"
               className="rounded-2xl bg-[#2f2135] px-5 py-3 text-sm font-black text-white disabled:opacity-50"
@@ -268,15 +300,34 @@ export default function PhoneOnboardingPage() {
               Search
             </button>
           </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              className={`rounded-full px-4 py-2 text-sm font-black ${bucketFilter === "" ? "bg-purple-700 text-white" : "border border-purple-100 bg-white text-purple-700"}`}
+              onClick={() => setBucketFilter("")}
+            >
+              All inbound callers
+            </button>
+            {(Object.keys(phoneBucketLabels) as PhoneBucket[]).map((bucket) => (
+              <button
+                key={bucket}
+                type="button"
+                className={`rounded-full px-4 py-2 text-sm font-black ${bucketFilter === bucket ? "bg-purple-700 text-white" : "border border-purple-100 bg-white text-purple-700"}`}
+                onClick={() => setBucketFilter(bucket)}
+              >
+                {phoneBucketLabels[bucket]}
+              </button>
+            ))}
+          </div>
         </section>
 
         <section className="mt-4 grid gap-4">
           {isLoading ? (
-            <div className="rounded-[24px] border border-[#eadfd5] bg-white p-8 text-center font-bold text-[#8b7a73]">Loading phone onboarding users...</div>
-          ) : users.length === 0 ? (
-            <div className="rounded-[24px] border border-[#eadfd5] bg-white p-8 text-center font-bold text-[#8b7a73]">No phone onboarding users match the current filters.</div>
+            <div className="rounded-[24px] border border-[#eadfd5] bg-white p-8 text-center font-bold text-[#8b7a73]">Loading inbound callers...</div>
+          ) : visiblePhoneUsers.length === 0 ? (
+            <div className="rounded-[24px] border border-[#eadfd5] bg-white p-8 text-center font-bold text-[#8b7a73]">No inbound caller intake records match the current filters.</div>
           ) : (
-            users.map((user) => <PhoneUserCard key={user.id} user={user} />)
+            visiblePhoneUsers.map((user) => <PhoneUserCard key={user.id} user={user} />)
           )}
         </section>
       </section>

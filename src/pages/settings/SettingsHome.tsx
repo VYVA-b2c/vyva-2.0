@@ -19,6 +19,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
+import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/i18n";
@@ -70,17 +71,17 @@ function Row({
   const rowContent = (
     <>
       <div
-        className="flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-[14px]"
+        className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[18px] shadow-[0_10px_24px_rgba(53,28,87,0.08)]"
         style={{ background: iconBg, color: iconColor }}
       >
-        <Icon size={20} />
+        <Icon size={24} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className={`text-[15px] font-semibold ${danger ? "text-[#B0355A]" : "text-vyva-text-1"}`}>{title}</p>
-        {sub ? <p className="mt-0.5 text-[12px] leading-[1.45] text-vyva-text-2">{sub}</p> : null}
+        <p className={`text-[18px] font-black leading-tight ${danger ? "text-[#B0355A]" : "text-vyva-text-1"}`}>{title}</p>
+        {sub ? <p className="mt-1 text-[14px] leading-snug text-vyva-text-2">{sub}</p> : null}
       </div>
-      {value ? <span className="rounded-full bg-[#F5F0FF] px-2.5 py-1 text-[11px] font-semibold text-vyva-purple">{value}</span> : null}
-      {onClick ? <ChevronRight className="h-4 w-4 flex-shrink-0 text-[#C4B5D8]" /> : null}
+      {value ? <span className="rounded-full bg-[#F5F0FF] px-3 py-1 text-[12px] font-black text-vyva-purple">{value}</span> : null}
+      {onClick ? <ChevronRight className="h-5 w-5 flex-shrink-0 text-[#C4B5D8]" /> : null}
     </>
   );
 
@@ -88,7 +89,7 @@ function Row({
     return (
       <div
         data-testid={testId}
-        className="flex w-full items-center gap-3 rounded-[18px] px-3 py-3 text-left"
+        className="flex min-h-[86px] w-full items-center gap-4 rounded-[22px] px-4 py-4 text-left"
       >
         {rowContent}
       </div>
@@ -101,7 +102,7 @@ function Row({
       onClick={onClick}
       disabled={disabled}
       data-testid={testId}
-      className="flex w-full items-center gap-3 rounded-[18px] px-3 py-3 text-left transition-colors hover:bg-[#FCF8FF] disabled:cursor-wait disabled:opacity-70"
+      className="flex min-h-[86px] w-full items-center gap-4 rounded-[22px] px-4 py-4 text-left transition-colors hover:bg-[#FCF8FF] disabled:cursor-wait disabled:opacity-70"
     >
       {rowContent}
     </button>
@@ -110,9 +111,9 @@ function Row({
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-[22px] border border-vyva-border bg-white p-2 shadow-vyva-card">
-      <div className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-vyva-text-2">{title}</div>
-      <div className="flex flex-col gap-1">{children}</div>
+    <div className="rounded-[28px] border border-[#EFE4D5] bg-white p-3 shadow-[0_14px_34px_rgba(53,28,87,0.06)]">
+      <div className="px-3 pb-3 pt-2 text-[12px] font-black uppercase tracking-[0.08em] text-vyva-text-2">{title}</div>
+      <div className="flex flex-col gap-2">{children}</div>
     </div>
   );
 }
@@ -232,15 +233,19 @@ export default function SettingsHome() {
 
   return (
     <PhoneFrame>
-      <div data-testid="settings-home-grid" className="grid gap-4 md:grid-cols-2 md:items-start">
-        <section className="overflow-hidden rounded-[24px] border border-[#EFE7DB] bg-[#FFF9F1] p-4 shadow-vyva-card md:col-span-2 md:p-5">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-[12px] font-semibold uppercase tracking-[0.06em] text-vyva-purple shadow-sm">
-            <Shield size={14} />
-            {t("settings.home.title")}
-          </div>
-          <h2 className="mt-4 font-display text-[28px] leading-[1.05] text-vyva-text-1">{t("settings.home.title")}</h2>
-          <p className="mt-2 text-[14px] leading-[1.55] text-vyva-text-2">{t("settings.home.subtitle")}</p>
-        </section>
+      <div data-testid="settings-home-grid" className="grid gap-5 px-1 pb-6 pt-5 sm:px-2 md:grid-cols-2 md:items-start md:px-3">
+        <ProfileSectionHero
+          icon={Shield}
+          title={t("settings.home.title")}
+          kicker="VYVA settings"
+          description={t("settings.home.subtitle")}
+          badges={[
+            { label: t("settings.home.sections.account"), color: "purple" },
+            { label: t("settings.home.sections.privacy"), color: "green" },
+            { label: t("settings.home.sections.subscription"), color: "amber" },
+          ]}
+          className="md:col-span-2"
+        />
 
         <Section title={t("settings.home.sections.account")}>
           <Row
