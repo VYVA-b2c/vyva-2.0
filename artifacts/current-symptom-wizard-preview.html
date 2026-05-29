@@ -51,6 +51,22 @@
     .evidence { border: 1px solid #bfdbfe; border-radius: 22px; background: #eff6ff; padding: 16px; color: #1d4ed8; display: grid; gap: 8px; }
     .evidence h3 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: .1em; }
     .evidence p { margin: 0; color: #332925; font-size: 16px; line-height: 1.35; font-weight: 750; }
+    .action-card { border: 2px solid #6b21a8; border-radius: 26px; background: white; padding: 18px; display: none; gap: 14px; box-shadow: 0 16px 36px rgba(107,33,168,.16); }
+    .action-card.active { display: grid; }
+    .action-head { display: flex; gap: 13px; align-items: flex-start; }
+    .action-icon { width: 56px; height: 56px; border-radius: 20px; background: #f5f3ff; color: #6b21a8; display: grid; place-items: center; font-size: 28px; font-weight: 900; }
+    .action-title { margin: 0; color: #332925; font-size: 25px; line-height: 1.08; font-weight: 900; }
+    .action-sub { margin: 6px 0 0; color: #665952; font-size: 16px; line-height: 1.3; font-weight: 800; }
+    .action-buttons { display: grid; gap: 10px; }
+    .action-btn { min-height: 74px; border-radius: 22px; border: 1px solid #e8ded4; background: #faf9f6; color: #332925; padding: 0 18px; text-align: left; font-size: 18px; font-weight: 900; display: flex; justify-content: space-between; align-items: center; }
+    .action-btn.primary-action-btn { border: 0; background: #6b21a8; color: white; box-shadow: 0 12px 26px rgba(107,33,168,.22); }
+    .manual-panel { display: none; gap: 12px; border-top: 1px solid #eadfd5; padding-top: 14px; }
+    .manual-panel.active { display: grid; }
+    .glucose-entry { min-height: 86px; border: 2px solid #ddd6fe; border-radius: 24px; background: #fff; padding: 0 18px; display: flex; align-items: baseline; gap: 10px; }
+    .glucose-entry input { min-width: 0; flex: 1; border: 0; outline: none; color: #332925; font-size: 50px; font-weight: 900; background: transparent; }
+    .glucose-entry span { color: #6b5b52; font-size: 20px; font-weight: 900; }
+    .save-glucose { min-height: 68px; border: 0; border-radius: 22px; background: #0a7c4e; color: white; font-size: 20px; font-weight: 900; }
+    .glucose-status { margin: 0; color: #0a7c4e; font-size: 17px; line-height: 1.3; font-weight: 900; }
     .emergency .stage { color: #b91c1c; }
     .emergency .report-card { background: #dc2626; border: 2px solid #991b1b; color: white; box-shadow: 0 18px 44px rgba(220,38,38,.28); animation: pulse 1.05s ease-in-out infinite; }
     .emergency .report-card h2, .emergency .report-card p, .emergency .report-card li, .emergency .notice { color: white; border-top-color: rgba(255,255,255,.34); }
@@ -119,15 +135,37 @@
       <div class="report-card">
         <h2 id="reportTitle">Talk to a doctor today</h2>
         <p id="reportBody">VYVA used your first clue and answers to choose this next step.</p>
-        <p class="mini-label">Why this step</p>
+        <p class="mini-label">Why VYVA chose this</p>
         <div id="reportReason" class="reason">No emergency signs were selected.</div>
         <p class="mini-label">Do now</p>
         <ul id="reportList"></ul>
         <div class="notice">A copy of this report has been sent to Dr. Garcia and Maria.</div>
       </div>
+      <div id="glucoseAction" class="action-card">
+        <div class="action-head">
+          <div class="action-icon">⌁</div>
+          <div>
+            <p class="mini-label">Action now</p>
+            <h2 class="action-title">Check glucose now</h2>
+            <p class="action-sub">Add the number to this report before you speak to a doctor.</p>
+          </div>
+        </div>
+        <div class="action-buttons">
+          <button class="action-btn primary-action-btn" onclick="showSensorReading()">Read from connected sensor <span>›</span></button>
+          <button class="action-btn" onclick="showManualGlucose()">Enter glucose manually <span>›</span></button>
+        </div>
+        <div id="manualGlucosePanel" class="manual-panel">
+          <label class="glucose-entry">
+            <input id="manualGlucoseInput" type="number" inputmode="numeric" placeholder="86" />
+            <span>mg/dL</span>
+          </label>
+          <p id="glucoseStatus" class="glucose-status"></p>
+          <button id="saveGlucoseButton" class="save-glucose" onclick="saveManualGlucose()">Save and refine result</button>
+        </div>
+      </div>
       <div class="evidence">
-        <h3>Medical evidence checked</h3>
-        <p id="evidenceText">MediSearch context is used in the real app to shape red flags, watch signs, and doctor-ready notes.</p>
+        <h3>Science-based source check</h3>
+        <p id="evidenceText">Checked against reliable medical sources through MediSearch. This is not a diagnosis.</p>
       </div>
       <button id="reportAction" class="primary-action" onclick="go('intro')">Talk to a real doctor</button>
     </section>
@@ -137,6 +175,7 @@
     let current = "intro";
     let clue = "";
     let symptom = "Headache";
+    let selectedReason = "";
     function go(id) {
       document.getElementById(current).classList.remove("active");
       current = id;
@@ -151,6 +190,81 @@
     function setClue(value) {
       document.getElementById("clueInput").value = value;
       syncButtons();
+    }
+    function reasonDetail(label) {
+      const text = label.toLowerCase();
+      if (text.includes("low sugar") || text.includes("diabetes medicine")) {
+        return "Low blood sugar or diabetes medicine can cause dizziness, weakness, sweating, confusion, or falls. Add a glucose reading now if you have a meter or sensor; get advice today if this does not settle.";
+      }
+      if (text.includes("chest pain") || text.includes("hard breathing") || text.includes("fast heartbeat")) {
+        return "Dizziness with chest pain, hard breathing, or a fast heartbeat can point to a heart, breathing, or circulation problem. That should not be watched at home.";
+      }
+      if (text.includes("standing")) {
+        return "Dizziness when standing can come from blood pressure, dehydration, medicine effects, or fall risk. Sit down, avoid walking alone, and get advice if it repeats.";
+      }
+      if (text.includes("fever") || text.includes("chills") || text.includes("infection")) {
+        return "Infection can make older adults weak, confused, dehydrated, or unsteady. Same-day advice helps decide whether treatment is needed.";
+      }
+      if (text.includes("blood")) {
+        return "Blood needs prompt review, especially if there are clots, weakness, pain, or blood-thinner medicine.";
+      }
+      if (text.includes("back") || text.includes("side pain")) {
+        return "Urine symptoms with back or side pain can mean the problem may be beyond the bladder, so same-day advice is safer.";
+      }
+      if (text.includes("strong") || text.includes("worse") || text.includes("new")) {
+        return "A strong, worsening, or new symptom is less safe to watch without a clear clinical plan.";
+      }
+      return `This answer matters because it changes the safest next step for ${symptom.toLowerCase()}.`;
+    }
+    function showSensorReading() {
+      document.querySelector("#glucoseAction .action-sub").textContent = "Connected sensor reading found: 86 mg/dL.";
+      document.getElementById("manualGlucoseInput").value = "86";
+      document.getElementById("manualGlucosePanel").classList.add("active");
+      saveManualGlucose();
+    }
+    function showManualGlucose() {
+      document.querySelector("#glucoseAction .action-sub").textContent = "Type the glucose number from your meter.";
+      document.getElementById("manualGlucosePanel").classList.add("active");
+      document.getElementById("manualGlucoseInput").focus();
+    }
+    function saveManualGlucose() {
+      const value = document.getElementById("manualGlucoseInput").value.trim();
+      const status = document.getElementById("glucoseStatus");
+      const button = document.getElementById("saveGlucoseButton");
+      if (!value) {
+        status.style.color = "#b91c1c";
+        status.textContent = "Enter the glucose number first.";
+        return;
+      }
+      status.style.color = "#0a7c4e";
+      status.textContent = `Saving glucose ${value} mg/dL...`;
+      button.textContent = "Saving...";
+      setTimeout(() => {
+        status.textContent = "Updating your result with this reading...";
+        button.textContent = "Refining result...";
+      }, 500);
+      setTimeout(() => {
+        const numeric = Number(value);
+        let detail = "This reading is not dangerously low or high. It helps the doctor understand the dizziness and diabetes context more clearly.";
+        if (numeric < 54) {
+          detail = "This glucose is dangerously low. Because low sugar can cause confusion, falls, seizure, or loss of consciousness, this result should be treated as urgent.";
+          document.getElementById("reportTitle").textContent = "Get emergency help now";
+          document.getElementById("reportAction").textContent = "Contact emergency services";
+        } else if (numeric < 70) {
+          detail = "This glucose is low. Follow your clinician's low-sugar plan now and contact medical help today, especially if symptoms continue or you feel unsafe.";
+          document.getElementById("reportTitle").textContent = "Speak to a doctor today";
+          document.getElementById("reportAction").textContent = "Talk to a real doctor";
+        } else if (numeric >= 300) {
+          detail = "This glucose is very high. If there is vomiting, belly pain, deep breathing, drowsiness, dehydration, or ketones, get emergency help.";
+          document.getElementById("reportTitle").textContent = "Speak to a doctor today";
+          document.getElementById("reportAction").textContent = "Talk to a real doctor";
+        }
+        document.getElementById("reportBody").textContent = `Updated with glucose ${value} mg/dL. The report now includes this reading for the doctor-ready handoff.`;
+        document.getElementById("reportReason").textContent = detail;
+        status.textContent = `Updated with glucose ${value} mg/dL. Next step stayed the same. Report updated and ready to share.`;
+        button.textContent = "Result refined";
+        document.getElementById("report").scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 1100);
     }
     function start(withVitals) {
       syncButtons();
@@ -176,6 +290,7 @@
     function routeFromClue() {
       const result = infer();
       symptom = result.symptom;
+      selectedReason = "";
       if (result.emergency) {
         emergency(`Your clue mentions: ${clue}`);
         return;
@@ -338,10 +453,11 @@
       ];
       question.textContent = q;
       container.innerHTML = answers.map(([label, action]) => {
+        const safeLabel = label.replace(/'/g, "\\'");
         if (action === "emergency") return `<button class="answer warn" onclick="emergency('${label}')">${label}</button>`;
-        if (action === "doctor") return `<button class="answer amber" onclick="finish('doctor')">${label}</button>`;
-        if (action === "trend") return `<button class="answer ok" onclick="finish('monitor')">${label}</button>`;
-        return `<button class="answer ok" onclick="finish('monitor')">${label}</button>`;
+        if (action === "doctor") return `<button class="answer amber" onclick="selectedReason='${safeLabel}'; finish('doctor')">${label}</button>`;
+        if (action === "trend") return `<button class="answer ok" onclick="selectedReason='${safeLabel}'; finish('monitor')">${label}</button>`;
+        return `<button class="answer ok" onclick="selectedReason='${safeLabel}'; finish('monitor')">${label}</button>`;
       }).join("");
       go("severity");
     }
@@ -350,14 +466,16 @@
       const container = document.querySelector("#severity .answers");
       container.innerHTML = [
         `<button class="answer warn" onclick="emergency('At rest, woke me, or over 5 minutes')">At rest, woke me, or over 5 minutes</button>`,
-        `<button class="answer amber" onclick="finish('doctor')">With walking, stairs, or activity</button>`,
-        `<button class="answer ok" onclick="finish('doctor')">Only when I press, twist, cough, or lift</button>`,
-        `<button class="answer amber" onclick="finish('doctor')">I'm not sure</button>`,
+        `<button class="answer amber" onclick="selectedReason='With walking, stairs, or activity'; finish('doctor')">With walking, stairs, or activity</button>`,
+        `<button class="answer ok" onclick="selectedReason='Only when I press, twist, cough, or lift'; finish('doctor')">Only when I press, twist, cough, or lift</button>`,
+        `<button class="answer amber" onclick="selectedReason='I am not sure'; finish('doctor')">I'm not sure</button>`,
       ].join("");
       go("severity");
     }
     function finish(level) {
       const urgent = level === "doctor";
+      const reasonText = selectedReason || `${symptom} feels strong, unusual, or changing`;
+      const reasonWhy = reasonDetail(reasonText);
       document.getElementById("report").classList.remove("emergency");
       const monitorPlans = {
         "Urine problem": {
@@ -484,9 +602,9 @@
       const plan = urgent
         ? {
             title: "Talk to a doctor today",
-            body: `${symptom} that feels strong, unusual, or changing should be checked.`,
-            reason: "A stronger or changing symptom crosses the threshold for clinician review.",
-            evidence: "MediSearch context is used in the real app to cross-check symptom-specific red flags and useful follow-up questions.",
+            body: `${symptom} needs same-day advice because of this answer: ${reasonText}.`,
+            reason: reasonWhy,
+            evidence: "Checked against reliable medical sources through MediSearch. This is not a diagnosis.",
             items: [
               "Contact your doctor, clinic, or urgent care today.",
               "Tell them when it started, what changed, and which warning signs were checked.",
@@ -497,8 +615,8 @@
         : monitorPlans[symptom] || {
             title: "Make a simple 24-hour note",
             body: `${symptom} has no emergency signs selected. The useful next step is to capture what changes, not to guess.`,
-            reason: "Unclear or mild symptoms become useful to a doctor when you can say when it started, what changed, and what helped.",
-            evidence: "MediSearch context is used in the real app to cross-check symptom-specific red flags and useful follow-up questions.",
+            reason: "Because this is mild or unclear, the useful next step is to track concrete changes: start time, what makes it worse, and any new warning sign.",
+            evidence: "Checked against reliable medical sources through MediSearch. This is not a diagnosis.",
             items: [
               "Write down when it started and what makes it better or worse.",
               "Keep normal routines as much as you safely can.",
@@ -512,6 +630,8 @@
       document.getElementById("evidenceText").textContent = plan.evidence;
       document.getElementById("reportList").innerHTML = plan.items.map(x => `<li>${x}</li>`).join("");
       document.getElementById("reportAction").textContent = "Talk to a real doctor";
+      const glucoseNeeded = /glucose|sugar|diabetes|insulin|cgm/i.test(`${reasonText} ${plan.reason} ${plan.body}`);
+      document.getElementById("glucoseAction").classList.toggle("active", glucoseNeeded);
       go("report");
     }
     function emergency(reason) {

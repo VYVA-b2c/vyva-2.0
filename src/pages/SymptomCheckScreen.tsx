@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, Heart, PhoneCall, Stethoscope } from "lucide-react";
+import { Activity, ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, Heart, Loader2, PhoneCall, Stethoscope } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VitalsScan from "@/components/VitalsScan";
 import TriageChat from "@/components/TriageChat";
@@ -26,7 +26,30 @@ interface TriageSummary {
   vitalsNotes?: string[];
   evidenceSummary?: string;
   evidenceSources?: Array<{ title?: string; url?: string; year?: string; journal?: string }>;
+  refinementContext?: {
+    messages: Array<{ role: "user" | "assistant"; content: string }>;
+    quickAnswers: Array<{ id: string; label: string; value: string; kind: string }>;
+    entryMode: "with_vitals" | "without_vitals";
+    initialClue: string;
+  };
 }
+
+type RefinementVitalKey = "glucose" | "bloodPressure" | "oxygen" | "respiratoryRate" | "temperature" | "pulse";
+
+type RefinementVitalConfig = {
+  key: RefinementVitalKey;
+  title: string;
+  unit: string;
+  placeholder: string;
+  helper: string;
+  signalType: string;
+  parse: (raw: string) => { value: number; extraValue?: number; display: string; vitals: Record<string, number> } | null;
+};
+
+type RefinementStatus = {
+  state: "idle" | "saving" | "refining" | "done" | "error";
+  message?: string;
+};
 
 type ReportSaveState = "idle" | "saving" | "saved" | "error";
 
@@ -229,6 +252,30 @@ function uniqueLines(lines: string[]) {
     .filter((line, index, list) => list.findIndex((item) => item.toLowerCase() === line.toLowerCase()) === index);
 }
 
+function parseNumber(raw: string) {
+  const value = Number(raw.replace(",", ".").trim());
+  return Number.isFinite(value) ? value : null;
+}
+
+function parseBloodPressure(raw: string) {
+  const match = raw.trim().match(/^(\d{2,3})\s*[/ ]\s*(\d{2,3})$/);
+  if (!match) return null;
+  const systolic = Number(match[1]);
+  const diastolic = Number(match[2]);
+  if (!Number.isFinite(systolic) || !Number.isFinite(diastolic)) return null;
+  return { systolic, diastolic };
+}
+
+function reportText(summary: TriageSummary) {
+  return [
+    summary.chiefComplaint,
+    ...summary.symptoms,
+    ...(summary.triageReasons ?? []),
+    ...(summary.profileConsiderations ?? []),
+    ...(summary.vitalsNotes ?? []),
+  ].join(" ").toLowerCase();
+}
+
 function ReportScreen({
   summary,
   bpm,
@@ -237,6 +284,8 @@ function ReportScreen({
   reportId,
   reportSaveState,
   profileContacts,
+  refinementStatus,
+  onRefineVital,
   onDone,
 }: {
   summary: TriageSummary;
@@ -246,6 +295,8 @@ function ReportScreen({
   reportId: string | null;
   reportSaveState: ReportSaveState;
   profileContacts?: ProfileContactsResponse;
+  refinementStatus: RefinementStatus;
+  onRefineVital: (config: RefinementVitalConfig, rawValue: string) => Promise<void>;
   onDone: () => void;
 }) {
   const { t } = useTranslation();
@@ -254,6 +305,15 @@ function ReportScreen({
   const cfg = ReportConfig(summary);
   const UrgencyIcon = cfg.icon;
   const isEmergency = cfg.level === "emergency";
+  const [openVitalKey, setOpenVitalKey] = useState<RefinementVitalKey | null>(null);
+  const [vitalInputs, setVitalInputs] = useState<Record<string, string>>({});
+  const [vitalInputError, setVitalInputError] = useState<string | null>(null);
+  const reportTopRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (refinementStatus.state === "done") {
+      reportTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [refinementStatus.state]);
   const saveStatusText = reportSaveState === "saved"
     ? t("health.symptomCheck.report.savedToReports", "Saved to Reports")
     : reportSaveState === "saving"
@@ -283,11 +343,98 @@ function ReportScreen({
         })
       : "";
   const contactStatusText = notifiedText || t("health.symptomCheck.report.noContactsConfigured", "No doctor or caregiver contact is set yet.");
+  const actionText = reportText(summary);
+  const vitalActions: RefinementVitalConfig[] = [
+    /\b(glucose|sugar|diabetes|diabetic|insulin|cgm)\b/.test(actionText)
+      ? {
+          key: "glucose",
+          title: t("health.symptomCheck.report.checkGlucoseNow", "Check glucose now"),
+          unit: "mg/dL",
+          placeholder: "92",
+          helper: t("health.symptomCheck.report.checkGlucoseReason", "Add the number to this report before you speak to a doctor."),
+          signalType: "glucose_mgdl",
+          parse: (raw) => {
+            const value = parseNumber(raw);
+            return value == null ? null : { value, display: `${value} mg/dL`, vitals: { glucoseMgdl: value } };
+          },
+        }
+      : null,
+    /\b(blood pressure|bp|hypertension|180\/120|pressure)\b/.test(actionText)
+      ? {
+          key: "bloodPressure",
+          title: t("health.symptomCheck.report.checkBloodPressureNow", "Check blood pressure now"),
+          unit: "",
+          placeholder: "120/80",
+          helper: t("health.symptomCheck.report.checkBloodPressureReason", "Enter both numbers, for example 120/80."),
+          signalType: "bp_systolic",
+          parse: (raw) => {
+            const bp = parseBloodPressure(raw);
+            return bp ? { value: bp.systolic, extraValue: bp.diastolic, display: `${bp.systolic}/${bp.diastolic}`, vitals: { systolicBp: bp.systolic, diastolicBp: bp.diastolic } } : null;
+          },
+        }
+      : null,
+    /\b(oxygen|spo2|short of breath|breathing|breathless|blue lips)\b/.test(actionText)
+      ? {
+          key: "oxygen",
+          title: t("health.symptomCheck.report.checkOxygenNow", "Check oxygen now"),
+          unit: "%",
+          placeholder: "96",
+          helper: t("health.symptomCheck.report.checkOxygenReason", "Add your oxygen reading if you have a pulse oximeter."),
+          signalType: "spo2_pct",
+          parse: (raw) => {
+            const value = parseNumber(raw);
+            return value == null ? null : { value, display: `${value}%`, vitals: { oxygenSaturation: value } };
+          },
+        }
+      : null,
+    /\b(respiratory rate|breathing rate|breaths per minute|fast breathing)\b/.test(actionText)
+      ? {
+          key: "respiratoryRate",
+          title: t("health.symptomCheck.report.checkBreathingRateNow", "Check breathing rate now"),
+          unit: "/min",
+          placeholder: "16",
+          helper: t("health.symptomCheck.report.checkBreathingRateReason", "Count breaths for one minute, or use the scan result."),
+          signalType: "respiratory_rate",
+          parse: (raw) => {
+            const value = parseNumber(raw);
+            return value == null ? null : { value, display: `${value}/min`, vitals: { respiratoryRate: value } };
+          },
+        }
+      : null,
+    /\b(fever|temperature|chills|infection)\b/.test(actionText)
+      ? {
+          key: "temperature",
+          title: t("health.symptomCheck.report.checkTemperatureNow", "Check temperature now"),
+          unit: "C",
+          placeholder: "37.8",
+          helper: t("health.symptomCheck.report.checkTemperatureReason", "Add the thermometer reading."),
+          signalType: "temperature_c",
+          parse: (raw) => {
+            const value = parseNumber(raw);
+            return value == null ? null : { value, display: `${value} C`, vitals: { temperatureC: value } };
+          },
+        }
+      : null,
+    /\b(pulse|heart rate|heartbeat|afib|irregular)\b/.test(actionText)
+      ? {
+          key: "pulse",
+          title: t("health.symptomCheck.report.checkPulseNow", "Check pulse now"),
+          unit: "bpm",
+          placeholder: "72",
+          helper: t("health.symptomCheck.report.checkPulseReason", "Add pulse from a device or count it manually."),
+          signalType: "resting_hr_bpm",
+          parse: (raw) => {
+            const value = parseNumber(raw);
+            return value == null ? null : { value, display: `${value} bpm`, vitals: { pulseBpm: value } };
+          },
+        }
+      : null,
+  ].filter(Boolean) as RefinementVitalConfig[];
   const doctorTellItems = uniqueLines([
     `${t("health.symptomCheck.report.tellMainSymptom", "Main symptom")}: ${summary.chiefComplaint}`,
     summary.symptoms.length ? `${t("health.symptomCheck.report.symptoms", "Symptoms noted")}: ${summary.symptoms.join(", ")}` : "",
     summary.nextStepLabel ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${summary.nextStepLabel}` : "",
-    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why this step")}: ${summary.triageReasons.join(" ")}` : "",
+    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why VYVA chose this")}: ${summary.triageReasons.join(" ")}` : "",
     summary.vitalsNotes?.length ? `${t("health.symptomCheck.report.vitalsUsed", "Vitals used")}: ${summary.vitalsNotes.join(" ")}` : "",
     summary.profileConsiderations?.length ? `${t("health.symptomCheck.report.profileConsidered", "Profile considered")}: ${summary.profileConsiderations.join(" ")}` : "",
     summary.watchSigns?.length ? `${t("health.symptomCheck.report.watchSigns", "Watch signs")}: ${summary.watchSigns.join(" ")}` : "",
@@ -299,8 +446,8 @@ function ReportScreen({
     respiratoryRate != null ? `${t("health.symptomCheck.scan.respiratoryRate", "Resp. Rate")}: ${respiratoryRate} rpm` : "",
     `${t("health.symptomCheck.report.urgencyLabel", "Urgency")}: ${t(cfg.label, cfg.fallbackLabel)}`,
     summary.nextStepLabel ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${summary.nextStepLabel}` : "",
-    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why this step")}: ${summary.triageReasons.join(" ")}` : "",
-    summary.evidenceSummary ? `${t("health.symptomCheck.report.evidenceChecked", "Medical evidence checked")}: ${summary.evidenceSummary}` : "",
+    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why VYVA chose this")}: ${summary.triageReasons.join(" ")}` : "",
+    summary.evidenceSummary ? `${t("health.symptomCheck.report.evidenceChecked", "Science-based source check")}: ${summary.evidenceSummary}` : "",
     summary.recommendations.length ? `${t("health.symptomCheck.report.recommendations", "What to do next")}: ${summary.recommendations.join(" ")}` : "",
     summary.watchSigns?.length ? `${t("health.symptomCheck.report.watchSigns", "Watch signs")}: ${summary.watchSigns.join(" ")}` : "",
     summary.profileConsiderations?.length ? `${t("health.symptomCheck.report.profileConsidered", "Profile considered")}: ${summary.profileConsiderations.join(" ")}` : "",
@@ -315,6 +462,16 @@ function ReportScreen({
     });
   };
 
+  const handleRefineVital = async (config: RefinementVitalConfig, rawValue: string) => {
+    const parsed = config.parse(rawValue);
+    if (!parsed) {
+      setVitalInputError(t("health.symptomCheck.report.enterValidReading", "Enter a valid reading first."));
+      return;
+    }
+    setVitalInputError(null);
+    await onRefineVital(config, rawValue);
+  };
+
   const shareText = [
     t("health.symptomCheck.report.shareTitle"),
     "",
@@ -325,8 +482,8 @@ function ReportScreen({
     "",
     `${t("health.symptomCheck.report.urgencyLabel")}: ${t(cfg.label, cfg.fallbackLabel)}`,
     summary.nextStepLabel ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${summary.nextStepLabel}` : "",
-    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why this step")}: ${summary.triageReasons.join(" ")}` : "",
-    summary.evidenceSummary ? `${t("health.symptomCheck.report.evidenceChecked", "Medical evidence checked")}: ${summary.evidenceSummary}` : "",
+    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why VYVA chose this")}: ${summary.triageReasons.join(" ")}` : "",
+    summary.evidenceSummary ? `${t("health.symptomCheck.report.evidenceChecked", "Science-based source check")}: ${summary.evidenceSummary}` : "",
     "",
     t("health.symptomCheck.report.recommendations") + ":",
     ...summary.recommendations.map((r, i) => `${i + 1}. ${r}`),
@@ -356,6 +513,7 @@ function ReportScreen({
 
   return (
     <div className="flex flex-col flex-1 overflow-y-auto">
+      <div ref={reportTopRef} />
       <div
         className={`mx-[18px] mb-4 mt-4 flex flex-col gap-3 rounded-[30px] p-5 shadow-[0_16px_36px_rgba(91,18,160,0.18)] ${isEmergency ? "motion-safe:animate-pulse" : ""}`}
         style={{ background: cfg.bg }}
@@ -452,7 +610,7 @@ function ReportScreen({
               <div className="mb-3 flex items-center gap-2">
                 <AlertTriangle size={18} />
                 <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em]">
-                  {t("health.symptomCheck.report.whyThisStep", "Why this step")}
+                  {t("health.symptomCheck.report.whyThisStep", "Why VYVA chose this")}
                 </p>
               </div>
               <ul className="grid gap-2">
@@ -462,6 +620,112 @@ function ReportScreen({
                   </li>
                 ))}
               </ul>
+            </div>
+          ) : null}
+          {vitalActions.map((action) => {
+            const open = openVitalKey === action.key;
+            const value = vitalInputs[action.key] ?? "";
+            const busy = refinementStatus.state === "saving" || refinementStatus.state === "refining";
+            const statusTone = refinementStatus.state === "error"
+              ? "border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]"
+              : "border-[#BBF7D0] bg-[#ECFDF5] text-[#047857]";
+            return (
+              <div key={action.key} className="col-span-2 rounded-[26px] border-2 border-[#6B21A8] bg-white p-4 shadow-[0_14px_34px_rgba(107,33,168,0.16)]">
+                <div className="mb-4 flex items-start gap-3">
+                  <span className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px] bg-[#F5F3FF] text-vyva-purple">
+                    <Activity size={28} />
+                  </span>
+                  <div>
+                    <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-purple">
+                      {t("health.symptomCheck.report.actionNeeded", "Action now")}
+                    </p>
+                    <p className="mt-1 font-body text-[22px] font-black leading-tight text-vyva-text-1">
+                      {action.title}
+                    </p>
+                    <p className="mt-1 font-body text-[16px] font-bold leading-snug text-vyva-text-2">
+                      {action.helper}
+                    </p>
+                  </div>
+                </div>
+                <div className="grid gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenVitalKey(action.key);
+                      setVitalInputs((current) => ({
+                        ...current,
+                        [action.key]: action.key === "glucose" ? "92" : action.placeholder,
+                      }));
+                      setVitalInputError(null);
+                    }}
+                    disabled={busy}
+                    className="vyva-tap flex min-h-[76px] items-center justify-between rounded-[22px] bg-[#6B21A8] px-5 text-left text-white shadow-[0_12px_26px_rgba(107,33,168,0.22)]"
+                  >
+                    <span className="font-body text-[18px] font-black leading-tight">
+                      {t("health.symptomCheck.report.readConnectedSensor", "Read from connected sensor")}
+                    </span>
+                    <ChevronLeft size={22} className="rotate-180" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenVitalKey(action.key);
+                      setVitalInputError(null);
+                    }}
+                    disabled={busy}
+                    className="vyva-tap flex min-h-[76px] items-center justify-between rounded-[22px] border border-[#E8DED4] bg-[#FAF9F6] px-5 text-left text-vyva-text-1"
+                  >
+                    <span className="font-body text-[18px] font-black leading-tight">
+                      {t("health.symptomCheck.report.enterManualReading", "Enter manually")}
+                    </span>
+                    <ChevronLeft size={22} className="rotate-180 text-vyva-purple" />
+                  </button>
+                  {open ? (
+                    <div className="grid min-w-0 gap-3 overflow-hidden border-t border-[#EADFD5] pt-3">
+                      <label className="flex min-h-[86px] w-full min-w-0 max-w-full items-baseline gap-3 overflow-hidden rounded-[24px] border-2 border-[#DDD6FE] bg-white px-4">
+                        <input
+                          type="text"
+                          inputMode={action.key === "bloodPressure" ? "text" : "decimal"}
+                          value={value}
+                          onChange={(event) => setVitalInputs((current) => ({ ...current, [action.key]: event.target.value }))}
+                          placeholder={action.placeholder}
+                          className="w-full min-w-0 flex-1 bg-transparent font-body text-[44px] font-black leading-none text-vyva-text-1 outline-none placeholder:text-[#D6C7BA] sm:text-[48px]"
+                        />
+                        <span className="flex-shrink-0 font-body text-[18px] font-black text-vyva-text-2 sm:text-[20px]">{action.unit}</span>
+                      </label>
+                      {vitalInputError ? (
+                        <p className="font-body text-[16px] font-black text-[#B91C1C]">{vitalInputError}</p>
+                      ) : null}
+                      {refinementStatus.message ? (
+                        <div className={`rounded-[18px] border p-3 font-body text-[16px] font-black leading-snug ${statusTone}`} aria-live="polite">
+                          {busy ? <Loader2 className="mr-2 inline h-5 w-5 animate-spin align-[-3px]" /> : null}
+                          {refinementStatus.message}
+                        </div>
+                      ) : null}
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => handleRefineVital(action, value)}
+                        className="vyva-tap flex min-h-[74px] w-full min-w-0 max-w-full items-center justify-center gap-3 overflow-hidden rounded-[22px] bg-[#0A7C4E] px-4 text-center font-body text-[18px] font-black leading-tight text-white disabled:opacity-60 sm:text-[20px]"
+                      >
+                        {busy ? <Loader2 size={22} className="animate-spin" /> : <CheckCircle size={22} />}
+                        {busy
+                          ? t("health.symptomCheck.report.refining", "Updating your result...")
+                          : t("health.symptomCheck.report.saveAndRefine", "Save and refine result")}
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
+          {refinementStatus.message ? (
+            <div className={`col-span-2 rounded-[22px] border p-4 font-body text-[17px] font-black leading-snug ${
+              refinementStatus.state === "error"
+                ? "border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]"
+                : "border-[#BBF7D0] bg-[#ECFDF5] text-[#047857]"
+            }`}>
+              {refinementStatus.message}
             </div>
           ) : null}
           <div className="col-span-2 rounded-[22px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]">
@@ -482,7 +746,7 @@ function ReportScreen({
           {(summary.evidenceSummary || summary.evidenceSources?.length) ? (
             <div className="col-span-2 rounded-[22px] border border-[#BFDBFE] bg-[#EFF6FF] p-4 text-[#1D4ED8] shadow-[0_8px_22px_rgba(63,45,35,0.05)]">
               <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em]">
-                {t("health.symptomCheck.report.evidenceChecked", "Medical evidence checked")}
+                {t("health.symptomCheck.report.evidenceChecked", "Science-based source check")}
               </p>
               {summary.evidenceSummary ? (
                 <p className="mt-2 font-body text-[16px] font-bold leading-snug text-vyva-text-1">
@@ -686,6 +950,7 @@ export default function SymptomCheckScreen() {
   const [reportSaveState, setReportSaveState] = useState<ReportSaveState>("idle");
   const [reportId, setReportId] = useState<string | null>(null);
   const [durationSeconds, setDurationSeconds] = useState<number | null>(null);
+  const [refinementStatus, setRefinementStatus] = useState<RefinementStatus>({ state: "idle" });
 
   const stepTitle: Record<Step, string> = {
     intro: t("health.symptomCheck.title"),
@@ -723,16 +988,12 @@ export default function SymptomCheckScreen() {
     setStep("chat");
   };
 
-  const handleChatComplete = (triageSummary: TriageSummary) => {
-    const durationSeconds = chatStartTime
-      ? Math.round((Date.now() - chatStartTime) / 1000)
-      : null;
-    setDurationSeconds(durationSeconds);
-    setSummary(triageSummary);
-    setReportId(null);
-    setReportSaveState("saving");
-    setStep("report");
-    apiFetch("/api/reports/triage", {
+  const saveTriageReport = async (
+    triageSummary: TriageSummary,
+    reportDurationSeconds: number | null,
+    vitalOverrides?: { bpm?: number | null; respiratoryRate?: number | null },
+  ) => {
+    const res = await apiFetch("/api/reports/triage", {
       method: "POST",
       body: JSON.stringify({
         chief_complaint: triageSummary.chiefComplaint,
@@ -747,32 +1008,154 @@ export default function SymptomCheckScreen() {
         watch_signs: triageSummary.watchSigns ?? [],
         profile_considerations: triageSummary.profileConsiderations ?? [],
         vitals_notes: triageSummary.vitalsNotes ?? [],
-        bpm: bpm ?? null,
-        respiratory_rate: respiratoryRate ?? null,
-        duration_seconds: durationSeconds,
+        bpm: vitalOverrides?.bpm ?? bpm ?? null,
+        respiratory_rate: vitalOverrides?.respiratoryRate ?? respiratoryRate ?? null,
+        duration_seconds: reportDurationSeconds,
       }),
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`${res.status}`);
-        const saved = await res.json().catch(() => null) as SavedTriageReport | null;
-        setReportId(saved?.id ?? null);
-        setReportSaveState("saved");
-        queryClient.invalidateQueries({ queryKey: ["/api/reports/summary"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/reports/vitals/history"] });
-        if (saved) {
-          queryClient.setQueryData(["/api/reports/summary"], (current: unknown) => ({
-            ...(current && typeof current === "object" ? current : {}),
-            latestTriage: saved,
-          }));
-          if (saved.id) {
-            queryClient.setQueryData([`/api/reports/triage/${saved.id}`], saved);
-          }
-        }
-      })
+    });
+    if (!res.ok) throw new Error(`${res.status}`);
+    return res.json().catch(() => null) as Promise<SavedTriageReport | null>;
+  };
+
+  const applySavedReport = (saved: SavedTriageReport | null) => {
+    setReportId(saved?.id ?? null);
+    setReportSaveState("saved");
+    queryClient.invalidateQueries({ queryKey: ["/api/reports/summary"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/reports/vitals/history"] });
+    if (saved) {
+      queryClient.setQueryData(["/api/reports/summary"], (current: unknown) => ({
+        ...(current && typeof current === "object" ? current : {}),
+        latestTriage: saved,
+      }));
+      if (saved.id) {
+        queryClient.setQueryData([`/api/reports/triage/${saved.id}`], saved);
+      }
+    }
+  };
+
+  const handleChatComplete = (triageSummary: TriageSummary) => {
+    const durationSeconds = chatStartTime
+      ? Math.round((Date.now() - chatStartTime) / 1000)
+      : null;
+    setDurationSeconds(durationSeconds);
+    setSummary(triageSummary);
+    setReportId(null);
+    setRefinementStatus({ state: "idle" });
+    setReportSaveState("saving");
+    setStep("report");
+    saveTriageReport(triageSummary, durationSeconds)
+      .then(applySavedReport)
       .catch((err) => {
         console.error("[reports/triage] save failed:", err);
         setReportSaveState("error");
       });
+  };
+
+  const handleRefineVital = async (config: RefinementVitalConfig, rawValue: string) => {
+    if (!summary) return;
+    const parsed = config.parse(rawValue);
+    if (!parsed) return;
+
+    const previousNextStep = summary.nextStepLabel ?? "";
+    try {
+      setRefinementStatus({ state: "saving", message: `Saving ${parsed.display}...` });
+
+      const readings = config.key === "bloodPressure"
+        ? [
+            { signal_type: "bp_systolic", value: parsed.value },
+            { signal_type: "bp_diastolic", value: parsed.extraValue },
+          ]
+        : [{ signal_type: config.signalType, value: parsed.value }];
+
+      for (const reading of readings) {
+        if (reading.value == null) continue;
+        const saveReading = await apiFetch("/api/vitals-engine/reading", {
+          method: "POST",
+          body: JSON.stringify({
+            signal_type: reading.signal_type,
+            value: reading.value,
+            source: "manual",
+            context_tag: "general",
+          }),
+        });
+        if (!saveReading.ok) throw new Error(`vitals ${saveReading.status}`);
+      }
+
+      setRefinementStatus({ state: "refining", message: "Updating your result with this reading..." });
+
+      const refinedVitals = {
+        bpm: parsed.vitals.pulseBpm ?? bpm ?? undefined,
+        respiratoryRate: parsed.vitals.respiratoryRate ?? respiratoryRate ?? undefined,
+        ...parsed.vitals,
+      };
+      const context = summary.refinementContext;
+      const baseMessages = context?.messages?.length
+        ? context.messages
+        : [{ role: "user" as const, content: initialClue || summary.chiefComplaint }];
+
+      const refineResponse = await apiFetch("/api/triage/message", {
+        method: "POST",
+        body: JSON.stringify({
+          messages: [
+            ...baseMessages,
+            {
+              role: "user",
+              content: `New vital added after the first report: ${config.title}: ${parsed.display}. Refine the triage result with this new reading. Vitals can increase or clarify urgency, but must not downgrade emergency red flags.`,
+            },
+          ],
+          vitals: refinedVitals,
+          locale: navigator.language || "en",
+          wizard: {
+            mode: context?.entryMode ?? (chatEntryMode === "vitals" ? "with_vitals" : "without_vitals"),
+            vitalsScanCompleted: chatEntryMode === "vitals",
+            vitals: refinedVitals,
+            quickAnswers: context?.quickAnswers ?? [],
+            refineRequested: true,
+            previousSummary: summary,
+          },
+          healthMemory: triageContext?.memory ?? null,
+        }),
+      });
+      if (!refineResponse.ok) throw new Error(`triage ${refineResponse.status}`);
+      const refinedPayload = await refineResponse.json();
+      if (!refinedPayload?.done || !refinedPayload?.summary) {
+        throw new Error("refinement did not return a report");
+      }
+
+      const refinedSummary = {
+        ...refinedPayload.summary,
+        aiSummary: refinedPayload.content,
+        evidenceSources: refinedPayload.summary.evidenceSources ?? refinedPayload.evidenceSources,
+        refinementContext: context,
+      } as TriageSummary;
+
+      if (parsed.vitals.pulseBpm != null) setBpm(parsed.vitals.pulseBpm);
+      if (parsed.vitals.respiratoryRate != null) setRespiratoryRate(parsed.vitals.respiratoryRate);
+      setSummary(refinedSummary);
+      setReportSaveState("saving");
+
+      const saved = await saveTriageReport(refinedSummary, durationSeconds, {
+        bpm: parsed.vitals.pulseBpm ?? bpm,
+        respiratoryRate: parsed.vitals.respiratoryRate ?? respiratoryRate,
+      });
+      applySavedReport(saved);
+
+      const nextStepChanged = Boolean(
+        previousNextStep &&
+        refinedSummary.nextStepLabel &&
+        refinedSummary.nextStepLabel !== previousNextStep,
+      );
+      setRefinementStatus({
+        state: "done",
+        message: `Updated with ${parsed.display}. ${nextStepChanged ? "Next step changed." : "Next step stayed the same."} Report updated and ready to share.`,
+      });
+    } catch (err) {
+      console.error("[symptom-check] refinement failed:", err);
+      setRefinementStatus({
+        state: "error",
+        message: "Could not update with this reading. The original report is still available.",
+      });
+    }
   };
 
   return (
@@ -872,6 +1255,8 @@ export default function SymptomCheckScreen() {
             reportId={reportId}
             reportSaveState={reportSaveState}
             profileContacts={profileContacts}
+            refinementStatus={refinementStatus}
+            onRefineVital={handleRefineVital}
             onDone={() => navigate("/health")}
           />
         )}
