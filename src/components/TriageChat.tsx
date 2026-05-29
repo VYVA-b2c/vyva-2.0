@@ -9,6 +9,13 @@ interface ChatMessage {
   content: string;
 }
 
+type TriageRefinementAnswer = {
+  id: string;
+  label: string;
+  value: string;
+  kind: string;
+};
+
 interface TriageSummary {
   chiefComplaint: string;
   symptoms: string[];
@@ -24,6 +31,12 @@ interface TriageSummary {
   vitalsNotes?: string[];
   evidenceSummary?: string;
   evidenceSources?: Array<{ title?: string; url?: string; year?: string; journal?: string }>;
+  refinementContext?: {
+    messages: ChatMessage[];
+    quickAnswers: TriageRefinementAnswer[];
+    entryMode: WizardEntryMode;
+    initialClue: string;
+  };
 }
 
 interface TriageResponse {
@@ -302,7 +315,17 @@ export default function TriageChat({
         setMessages((prev) => [...prev, { role: "assistant", content: res.content }]);
 
         const triggerComplete = res.done && res.summary
-          ? { ...res.summary, aiSummary: res.content, evidenceSources: res.summary.evidenceSources ?? res.evidenceSources }
+          ? {
+              ...res.summary,
+              aiSummary: res.content,
+              evidenceSources: res.summary.evidenceSources ?? res.evidenceSources,
+              refinementContext: {
+                messages: history,
+                quickAnswers: quickAnswerTrail,
+                entryMode,
+                initialClue,
+              },
+            }
           : null;
 
         animateMessage(msgIdx, res.content, () => {
