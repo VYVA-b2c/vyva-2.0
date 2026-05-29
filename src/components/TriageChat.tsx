@@ -345,7 +345,7 @@ export default function TriageChat({
         setLoading(false);
       }
     },
-    [animateMessage, bpm, entryMode, healthMemory, messages.length, onComplete, respiratoryRate, selectedQuickAnswers, t]
+    [animateMessage, bpm, entryMode, healthMemory, initialClue, messages.length, onComplete, respiratoryRate, selectedQuickAnswers, t]
   );
 
   useEffect(() => {
