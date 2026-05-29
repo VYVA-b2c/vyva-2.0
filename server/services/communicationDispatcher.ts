@@ -101,15 +101,12 @@ function twilioSmsFromNumber() {
   return firstEnvValue([
     "TWILIO_US_SMS_FROM_NUMBER",
     "TWILIO_SMS_US_FROM_NUMBER",
-    "TWILIO_SMS_FROM_NUMBER",
-    "TWILIO_FROM_NUMBER",
   ]);
 }
 
 function twilioSmsMessagingServiceSid() {
   return firstEnvValue([
     "TWILIO_SMS_MESSAGING_SERVICE_SID",
-    "TWILIO_MESSAGING_SERVICE_SID",
   ]);
 }
 
@@ -177,7 +174,9 @@ async function postTwilioForm(resource: "Messages" | "Calls", params: URLSearchP
 async function sendSms(item: Communication) {
   const from = twilioSmsFromNumber();
   const messagingServiceSid = twilioSmsMessagingServiceSid();
-  if (!messagingServiceSid && !from) throw new Error("SMS sender is not configured");
+  if (!messagingServiceSid && !from) {
+    throw new Error("SMS sender is not configured. Set TWILIO_US_SMS_FROM_NUMBER to the US SMS-capable Twilio number.");
+  }
 
   const params = new URLSearchParams({
     To: item.recipient,
