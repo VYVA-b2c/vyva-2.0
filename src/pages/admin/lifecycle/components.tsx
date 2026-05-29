@@ -1566,12 +1566,12 @@ export function CommunicationsSection({ communications, providerStatus = [] }: {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="font-serif text-3xl">Communication log</h2>
-          <p className="mt-1 max-w-2xl text-sm text-[#7d6b65]">Delivery health for email and WhatsApp, followed by the latest communication audit trail.</p>
+          <p className="mt-1 max-w-2xl text-sm text-[#7d6b65]">Delivery health for email, SMS, and WhatsApp, followed by the latest communication audit trail.</p>
         </div>
         <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-black text-purple-700">{communications.length} messages</span>
       </div>
 
-      <div className="mt-5 grid gap-3 md:grid-cols-2">
+      <div className="mt-5 grid gap-3 md:grid-cols-3">
         {providerStatus.map((provider) => (
           <article key={provider.channel} className={`rounded-3xl border p-4 ${providerStatusTone(provider.status)}`}>
             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -1589,7 +1589,7 @@ export function CommunicationsSection({ communications, providerStatus = [] }: {
           </article>
         ))}
         {providerStatus.length === 0 && (
-          <div className="rounded-3xl border border-[#eadfd5] bg-[#fbf8f5] p-4 text-sm font-bold text-[#7d6b65] md:col-span-2">
+          <div className="rounded-3xl border border-[#eadfd5] bg-[#fbf8f5] p-4 text-sm font-bold text-[#7d6b65] md:col-span-3">
             Provider health could not be loaded yet.
           </div>
         )}

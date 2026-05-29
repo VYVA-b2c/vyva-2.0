@@ -697,7 +697,7 @@ export default function LifecycleAdminPage() {
       });
 
       if (!uniqueLines.length) {
-        setMessage("No new WhatsApp numbers found in that file.");
+        setMessage("No new phone numbers found in that file.");
         return;
       }
 
@@ -705,9 +705,9 @@ export default function LifecycleAdminPage() {
         ...current,
         whatsapp: [current.whatsapp.trim(), ...uniqueLines].filter(Boolean).join("\n"),
       }));
-      setMessage(`${uniqueLines.length} WhatsApp number${uniqueLines.length === 1 ? "" : "s"} added from ${file.name}.`);
+      setMessage(`${uniqueLines.length} phone number${uniqueLines.length === 1 ? "" : "s"} added from ${file.name}.`);
     } catch {
-      setMessage("Could not read that WhatsApp upload. Use a CSV or TXT file.");
+      setMessage("Could not read that phone upload. Use a CSV or TXT file.");
     } finally {
       event.target.value = "";
     }
@@ -1532,7 +1532,7 @@ export default function LifecycleAdminPage() {
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <h2 className="font-serif text-3xl leading-tight">Share signup invite</h2>
-                  <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[#7d6b65]">Send the public VYVA invite by email or WhatsApp. Add one email or WhatsApp number per line.</p>
+                  <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[#7d6b65]">Send the public VYVA invite by email, SMS, or WhatsApp. Add one email or phone number per line.</p>
                 </div>
                 <div className="flex items-center gap-2 rounded-full bg-purple-50 p-1 pl-4 text-sm font-bold text-purple-700">
                   <span>v2.vyva.life/invite</span>
@@ -1576,7 +1576,7 @@ export default function LifecycleAdminPage() {
 
                   <div className="rounded-[24px] border border-[#eadfd5] bg-[#fffaf5] p-4">
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm font-black text-[#4d4351]">WhatsApp numbers</p>
+                      <p className="text-sm font-black text-[#4d4351]">Phone numbers</p>
                       <div className="flex items-center gap-2">
                         <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-purple-700">{whatsappShareCount}</span>
                         <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-purple-100 bg-white px-3 py-1 text-xs font-black text-purple-700 shadow-sm hover:bg-purple-50">
