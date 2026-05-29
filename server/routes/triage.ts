@@ -54,6 +54,8 @@ type TriageQuickReply = {
 type TriageWizardContext = {
   mode?: "with_vitals" | "without_vitals";
   vitalsScanCompleted?: boolean;
+  refineRequested?: boolean;
+  previousSummary?: TriageSummary;
   vitals?: {
     bpm?: number | null;
     respiratoryRate?: number | null;
@@ -227,6 +229,9 @@ function wizardContextText(wizard?: TriageWizardContext, healthMemory?: TriageHe
     wizard.quickAnswers?.length
       ? `Structured quick answers tapped so far: ${wizard.quickAnswers.map((answer) => `${answer.label} (${answer.value})`).join("; ")}.`
       : "",
+    wizard.refineRequested ? "A new post-report vital was added. Re-run the summary now and explain whether the next step changed or stayed the same." : "",
+    wizard.previousSummary?.nextStepLabel ? `Previous next step: ${wizard.previousSummary.nextStepLabel}.` : "",
+    wizard.previousSummary?.triageReasons?.length ? `Previous reasons: ${wizard.previousSummary.triageReasons.join("; ")}.` : "",
     `Current adaptive wizard stage: ${stage}.`,
     stage === "complete" ? "The app has enough structured answers. Produce the final TRIAGE_JSON summary now." : `Ask the ${stage} question only.`,
   ].filter(Boolean);
@@ -546,6 +551,7 @@ function nextAdaptiveStage(wizard: TriageWizardContext | undefined, healthMemory
   const answers = selectedAnswers(wizard);
   if (!answers.some((answer) => answer.kind === "symptom")) return "symptom";
   if (!answers.some((answer) => answer.kind === "red_flag")) return "red_flag";
+  if (wizard?.refineRequested) return "complete";
   if (shouldCompleteFromRules(wizard, healthMemory)) return "complete";
 
   const ids = new Set(answers.map((answer) => answer.id));

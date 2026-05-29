@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Activity, AlertTriangle, ArrowLeft, Bell, Check, HeartPulse, Loader2, Moon, PhoneCall, Pill, Plus, RefreshCw, Share2, ShieldCheck, Smile, Sparkles, Stethoscope } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 
@@ -288,6 +289,7 @@ function relativeTime(iso: string | null | undefined, language: Language) {
 }
 
 export default function VitalsTracker({ userId, userConditions, language = "es" }: Props) {
+  const [searchParams] = useSearchParams();
   const [screen, setScreen] = useState<Screen>("dashboard");
   const [analysis, setAnalysis] = useState<LatestAnalysis | null>(null);
   const [recentReadings, setRecentReadings] = useState<RecentReading[]>([]);
@@ -308,9 +310,20 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
   const riskScore = analysis?.risk_score ?? 0;
   const riskColor = getRiskColor(riskScore);
   const safetyStatus = normalizeSafetyStatus(analysis?.recommended_action ?? analysis?.safety_status);
+  const addSource = searchParams.get("source");
+  const openedFromGlucoseAction = (searchParams.get("add") === "glucose" || searchParams.get("add") === "glucose_mgdl") && selectedSignal === "glucose_mgdl";
   const safety = safetyTone(safetyStatus);
   const SafetyIcon = safety.Icon;
   const safetyAcknowledged = Boolean(analysis?.acknowledged_at);
+
+  useEffect(() => {
+    const signalParam = searchParams.get("add");
+    if (signalParam === "glucose" || signalParam === "glucose_mgdl") {
+      setSelectedSignal("glucose_mgdl");
+      setSelectedContext("general");
+      setScreen("add");
+    }
+  }, [searchParams]);
 
   const loadDashboard = useCallback(async () => {
     if (!userId) return;
@@ -468,6 +481,32 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
         <h2 className="font-display text-[30px] italic leading-tight text-[#2F241F]">
           {selectedConfig.question[language]}
         </h2>
+
+        {openedFromGlucoseAction ? (
+          <div className="mt-5 rounded-[24px] border border-[#DDD6FE] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]">
+            <div className="flex items-start gap-3">
+              <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#F5F3FF] text-[#6B21A8]">
+                <Activity className="h-6 w-6" />
+              </span>
+              <div>
+                <p className="font-body text-[19px] font-black leading-tight text-[#2F241F]">
+                  {addSource === "connected"
+                    ? language === "es" ? "Buscar sensor conectado" : "Check connected sensor"
+                    : language === "es" ? "Entrada manual de glucosa" : "Manual glucose entry"}
+                </p>
+                <p className="mt-1 font-body text-[16px] font-bold leading-snug text-[#6B5B52]">
+                  {addSource === "connected"
+                    ? language === "es"
+                      ? "Si no hay lectura automatica disponible, introduce el numero del glucometro aqui."
+                      : "If no automatic reading is available, enter the number from the glucose meter here."
+                    : language === "es"
+                      ? "Escribe el numero del glucometro para guardarlo con tus signos."
+                      : "Type the number from the glucose meter to save it with your vitals."}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {isBinary ? (
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
