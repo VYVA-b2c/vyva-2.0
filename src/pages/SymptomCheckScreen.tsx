@@ -1,14 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ChevronLeft, ChevronRight, Heart, MessageSquare, FileText, Share2, Copy, CheckCircle, AlertTriangle, Eye, Mic } from "lucide-react";
-import VitalsScan from "@/components/VitalsScan";
+import { Activity, ChevronLeft, ChevronRight, FileText, Heart, MessageSquare, Mic, Pill, Share2, CheckCircle, AlertTriangle, Eye, Stethoscope } from "lucide-react";
 import TriageChat from "@/components/TriageChat";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/queryClient";
 
-type Step = "intro" | "vitals" | "chat" | "report";
+type Step = "intro" | "chat" | "report";
 
 interface TriageSummary {
   chiefComplaint: string;
@@ -20,7 +19,7 @@ interface TriageSummary {
 }
 
 function StepDots({ current }: { current: Step }) {
-  const steps: Step[] = ["vitals", "chat", "report"];
+  const steps: Step[] = ["chat", "report"];
   const idx = steps.indexOf(current);
   return (
     <div className="flex items-center gap-2 justify-center">
@@ -41,11 +40,9 @@ function StepDots({ current }: { current: Step }) {
 
 function IntroScreen({
   onStart,
-  onStartChat,
   onStartVoice,
 }: {
   onStart: () => void;
-  onStartChat: () => void;
   onStartVoice: () => void;
 }) {
   const { t } = useTranslation();
@@ -89,15 +86,14 @@ function IntroScreen({
       </div>
 
       <div className="flex w-full flex-col gap-3">
-        {(["vitals", "chat", "report"] as const).map((key, i) => {
-          const icons = [Heart, MessageSquare, FileText];
+        {(["chat", "next", "report"] as const).map((key, i) => {
+          const icons = [MessageSquare, Activity, FileText];
           const Icon = icons[i];
-          const handleClick = key === "chat" ? onStartChat : onStart;
           return (
             <button
               key={key}
               type="button"
-              onClick={handleClick}
+              onClick={onStart}
               data-testid={`button-symptom-check-${key}`}
               className="flex w-full items-center gap-4 rounded-[24px] border border-[#E8DED4] bg-white p-4 text-left shadow-[0_8px_24px_rgba(63,45,35,0.06)] transition-all active:scale-[0.99]"
             >
@@ -160,8 +156,15 @@ function ReportScreen({
 }) {
   const { t } = useTranslation();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const cfg = UrgencyConfig(summary.urgency);
   const UrgencyIcon = cfg.icon;
+  const nextSteps = [
+    { key: "vitals", Icon: Activity, label: t("health.symptomCheck.report.nextStepVitals"), to: "/health/vitals", primary: true },
+    { key: "doctor", Icon: Stethoscope, label: t("health.symptomCheck.report.nextStepDoctor"), to: "/health/doctor" },
+    { key: "meds", Icon: Pill, label: t("health.symptomCheck.report.nextStepMeds"), to: "/meds" },
+    { key: "reports", Icon: FileText, label: t("health.symptomCheck.report.nextStepReports"), to: "/informes" },
+  ];
 
   const shareText = [
     t("health.symptomCheck.report.shareTitle"),
@@ -274,6 +277,33 @@ function ReportScreen({
           </ol>
         </div>
 
+        <div className="rounded-[24px] border border-[#E8DED4] bg-white p-5 shadow-[0_8px_24px_rgba(63,45,35,0.06)]">
+          <p className="font-body text-[12px] font-semibold text-vyva-text-3 uppercase tracking-wider">
+            {t("health.symptomCheck.report.nextStepsTitle")}
+          </p>
+          <p className="mt-2 font-body text-[15px] leading-relaxed text-vyva-text-2">
+            {t("health.symptomCheck.report.nextStepsSubtitle")}
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {nextSteps.map(({ key, Icon, label, to, primary }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => navigate(to)}
+                data-testid={`button-report-next-step-${key}`}
+                className={`vyva-tap inline-flex min-h-[46px] items-center gap-2 rounded-full border px-4 py-2 font-body text-[14px] font-bold ${
+                  primary
+                    ? "border-vyva-purple bg-vyva-purple text-white shadow-[0_10px_22px_rgba(107,33,168,0.16)]"
+                    : "border-vyva-border bg-[#FAF9F6] text-vyva-text-1"
+                }`}
+              >
+                <Icon size={17} className={primary ? "text-white" : "text-vyva-purple"} />
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <button
           onClick={handleShare}
           data-testid="button-report-share"
@@ -303,16 +333,13 @@ export default function SymptomCheckScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>("intro");
-  const [bpm, setBpm] = useState<number | null>(null);
-  const [respiratoryRate, setRespiratoryRate] = useState<number | null>(null);
+  const bpm: number | null = null;
   const [chatStartTime, setChatStartTime] = useState<number | null>(null);
-  const [chatEntryMode, setChatEntryMode] = useState<"vitals" | "direct">("vitals");
   const [autoStartVoice, setAutoStartVoice] = useState(false);
   const [summary, setSummary] = useState<TriageSummary | null>(null);
 
   const stepTitle: Record<Step, string> = {
     intro: t("health.symptomCheck.title"),
-    vitals: t("health.symptomCheck.scan.title"),
     chat: t("health.symptomCheck.chat.title"),
     report: t("health.symptomCheck.report.title"),
   };
@@ -320,27 +347,15 @@ export default function SymptomCheckScreen() {
   const handleBack = () => {
     if (step === "intro") {
       navigate("/health");
-    } else if (step === "vitals") {
-      setStep("intro");
     } else if (step === "chat") {
-      setStep(chatEntryMode === "direct" ? "intro" : "vitals");
+      setStep("intro");
     } else {
       navigate("/health");
     }
   };
 
-  const handleScanComplete = (detectedBpm: number | null, detectedResp: number | null) => {
-    setBpm(detectedBpm);
-    setRespiratoryRate(detectedResp);
-    setChatStartTime(Date.now());
-    setChatEntryMode("vitals");
-    setAutoStartVoice(false);
-    setStep("chat");
-  };
-
   const startChatDirectly = (withVoice = false) => {
     setChatStartTime(Date.now());
-    setChatEntryMode("direct");
     setAutoStartVoice(withVoice);
     setStep("chat");
   };
@@ -361,7 +376,7 @@ export default function SymptomCheckScreen() {
         disclaimer: triageSummary.disclaimer,
         ai_summary: triageSummary.aiSummary ?? null,
         bpm: bpm ?? null,
-        respiratory_rate: respiratoryRate ?? null,
+        respiratory_rate: null,
         duration_seconds: durationSeconds,
       }),
     }).catch((err) => console.error("[reports/triage] save failed:", err));
@@ -411,14 +426,9 @@ export default function SymptomCheckScreen() {
 
         {step === "intro" && (
           <IntroScreen
-            onStart={() => setStep("vitals")}
-            onStartChat={() => startChatDirectly(false)}
+            onStart={() => startChatDirectly(false)}
             onStartVoice={() => startChatDirectly(true)}
           />
-        )}
-
-        {step === "vitals" && (
-          <VitalsScan onComplete={handleScanComplete} />
         )}
 
         {step === "chat" && (
