@@ -47,8 +47,40 @@ type EmailAttachment = {
   content_id: string;
 };
 
-function publicBaseUrl() {
-  return process.env.APP_URL ?? `http://localhost:${process.env.PORT ?? "5000"}`;
+function twilioStatusCallbackUrl(path: string) {
+  const baseUrl = [
+    process.env.TWILIO_WEBHOOK_BASE_URL,
+    process.env.WEBHOOK_BASE_URL,
+    process.env.PUBLIC_APP_URL,
+    process.env.APP_URL,
+  ].map((value) => value?.trim()).find(Boolean);
+
+  if (!baseUrl) return null;
+
+  try {
+    const url = new URL(baseUrl);
+    const hostname = url.hostname.toLowerCase();
+    const isLocalhost = hostname === "localhost"
+      || hostname === "127.0.0.1"
+      || hostname === "::1"
+      || hostname.endsWith(".localhost");
+
+    if (url.protocol !== "https:" || isLocalhost) return null;
+
+    url.pathname = `${url.pathname.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function setTwilioStatusCallback(params: URLSearchParams, path: string) {
+  const statusCallback = twilioStatusCallbackUrl(path);
+  if (statusCallback) {
+    params.set("StatusCallback", statusCallback);
+  }
 }
 
 function twilioCredentials() {
@@ -130,8 +162,8 @@ async function sendSms(item: Communication) {
   const params = new URLSearchParams({
     To: item.recipient,
     Body: item.body ?? "",
-    StatusCallback: `${publicBaseUrl()}/api/webhooks/twilio/message-status`,
   });
+  setTwilioStatusCallback(params, "/api/webhooks/twilio/message-status");
   if (messagingServiceSid) params.set("MessagingServiceSid", messagingServiceSid);
   else if (from) params.set("From", from);
 
@@ -146,8 +178,8 @@ async function sendWhatsapp(item: Communication) {
   const params = new URLSearchParams({
     To: withWhatsappPrefix(item.recipient),
     Body: item.body ?? "",
-    StatusCallback: `${publicBaseUrl()}/api/webhooks/twilio/message-status`,
   });
+  setTwilioStatusCallback(params, "/api/webhooks/twilio/message-status");
   if (messagingServiceSid) params.set("MessagingServiceSid", messagingServiceSid);
   else if (from) params.set("From", withWhatsappPrefix(from));
 
@@ -251,9 +283,9 @@ async function sendVoiceCall(item: Communication) {
   const params = new URLSearchParams({
     To: item.recipient,
     From: from,
-    StatusCallback: `${publicBaseUrl()}/api/webhooks/twilio/voice-status`,
-    StatusCallbackMethod: "POST",
   });
+  setTwilioStatusCallback(params, "/api/webhooks/twilio/voice-status");
+  if (params.has("StatusCallback")) params.set("StatusCallbackMethod", "POST");
   if (url) params.set("Url", url);
   else params.set("Twiml", twiml);
 
