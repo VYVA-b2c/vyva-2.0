@@ -31,6 +31,7 @@ import { adminRouter } from "./routes/admin.js";
 import { adminLifecycleRouter } from "./routes/adminLifecycle.js";
 import intakeRouter from "./routes/intake.js";
 import twilioWebhooksRouter from "./routes/twilioWebhooks.js";
+import sendgridWebhooksRouter from "./routes/sendgridWebhooks.js";
 import { authRouter } from "./routes/auth.js";
 import { authMiddleware, requireAdminUser, requireUser } from "./middleware/auth.js";
 import { requireEntitlement } from "./middleware/entitlements.js";
@@ -108,6 +109,17 @@ app.delete("/api/scam-check/:id", authMiddleware, scamCheckDeleteHandler);
 
 app.post("/api/offers/analyze-document", express.json({ limit: "20mb" }), authMiddleware, analyzeOfferDocumentHandler);
 app.post("/api/bill-reader/analyze", express.json({ limit: "20mb" }), authMiddleware, analyzeOfferDocumentHandler);
+
+app.use(
+  "/api/webhooks/sendgrid",
+  express.json({
+    limit: "5mb",
+    verify: (req, _res, buf) => {
+      (req as typeof req & { rawBody?: string }).rawBody = buf.toString("utf-8");
+    },
+  }),
+  sendgridWebhooksRouter,
+);
 
 app.use(express.json({ limit: "20mb" }));
 

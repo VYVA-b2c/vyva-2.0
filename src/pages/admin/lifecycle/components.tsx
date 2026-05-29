@@ -102,7 +102,7 @@ function activityActor(row: JsonRecord) {
 
 function activityTone(status?: string | null): ActivityItem["tone"] {
   const normalized = (status ?? "").toLowerCase();
-  if (["active", "sent", "approved", "confirmed", "completed", "enabled"].includes(normalized)) return "success";
+  if (["active", "sent", "delivered", "approved", "confirmed", "completed", "enabled"].includes(normalized)) return "success";
   if (["failed", "rejected", "dropped", "cancelled", "disabled"].includes(normalized)) return "danger";
   if (["pending", "consent_pending", "queued", "paused", "no_answer"].includes(normalized)) return "warning";
   return "default";

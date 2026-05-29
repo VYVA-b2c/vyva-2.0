@@ -3,8 +3,23 @@ import { eq } from "drizzle-orm";
 import { db } from "../db.js";
 import { communicationsLog } from "../../shared/schema.js";
 import * as lifecycleService from "../services/lifecycle.js";
+import { verifyTwilioSignature } from "../lib/webhookVerification.js";
 
 const router = Router();
+
+function twilioSignatureValid(req: { header(name: string): string | undefined; originalUrl: string; protocol: string; get(name: string): string | undefined; body: Record<string, unknown> }) {
+  const authToken = process.env.TWILIO_AUTH_TOKEN?.trim();
+  if (!authToken) {
+    console.warn("[twilio-webhook] TWILIO_AUTH_TOKEN not configured — accepting callback without signature verification");
+    return true;
+  }
+  return verifyTwilioSignature({
+    authToken,
+    signature: req.header("X-Twilio-Signature"),
+    url: `${publicBaseUrl(req)}${req.originalUrl}`,
+    params: req.body,
+  });
+}
 
 function metadataRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -52,7 +67,9 @@ async function updateByProviderId(providerMessageId: string | undefined, patch: 
 }
 
 function finalMessageStatus(status: string | undefined) {
-  if (status === "delivered" || status === "sent") return "sent";
+  if (status === "delivered") return "delivered";
+  if (status === "sent") return "sent";
+  if (status === "queued" || status === "sending" || status === "accepted") return "queued";
   if (status === "failed" || status === "undelivered") return "failed";
   return undefined;
 }
@@ -70,19 +87,39 @@ function consentStatusFromCallStatus(status: string | undefined) {
 }
 
 router.post("/message-status", async (req, res) => {
+  if (!twilioSignatureValid(req)) {
+    console.warn("[twilio-webhook] rejected message-status with invalid signature");
+    return res.sendStatus(403);
+  }
+
   const providerId = req.body.MessageSid ?? req.body.SmsSid;
   const providerStatus = req.body.MessageStatus ?? req.body.SmsStatus;
   const status = finalMessageStatus(providerStatus);
 
-  await updateByProviderId(providerId, {
-    ...(status ? { status } : {}),
-    metadata: {
-      provider_status: providerStatus ?? null,
-      provider_error_code: req.body.ErrorCode ?? null,
-      provider_error_message: req.body.ErrorMessage ?? null,
-      status_callback_at: new Date().toISOString(),
-    },
-  });
+  const metadata: Record<string, unknown> = {
+    provider_status: providerStatus ?? null,
+    provider_error_code: req.body.ErrorCode ?? null,
+    provider_error_message: req.body.ErrorMessage ?? null,
+    status_callback_at: new Date().toISOString(),
+  };
+
+  const patch: Partial<typeof communicationsLog.$inferInsert> = {};
+  if (status) patch.status = status;
+
+  if (status === "delivered") {
+    patch.sent_at = new Date();
+    metadata.delivered_at = new Date().toISOString();
+  } else if (status === "failed") {
+    const errorText = req.body.ErrorMessage
+      ? `${req.body.ErrorMessage}${req.body.ErrorCode ? ` (${req.body.ErrorCode})` : ""}`
+      : `Twilio ${providerStatus ?? "delivery failure"}`;
+    metadata.dispatch_error = errorText;
+    metadata.provider_error = errorText;
+  }
+
+  patch.metadata = metadata;
+
+  await updateByProviderId(providerId, patch);
 
   return res.sendStatus(204);
 });

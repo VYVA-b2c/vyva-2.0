@@ -231,7 +231,11 @@ async function sendEmail(item: Communication) {
     throw new Error(explainEmailProviderError(message, from));
   }
 
-  return { sid: null, status: "sent" };
+  // SendGrid returns the message id in the X-Message-Id header. The Event
+  // Webhook later reports `sg_message_id` as `<X-Message-Id>.<suffix>`, so we
+  // persist this to match delivery/bounce events back to this row.
+  const messageId = response.headers.get("x-message-id");
+  return { sid: messageId ?? null, status: "sent" };
 }
 
 async function sendVoiceCall(item: Communication) {

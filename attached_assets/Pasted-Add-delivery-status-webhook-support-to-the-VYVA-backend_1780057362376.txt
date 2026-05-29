@@ -1,0 +1,73 @@
+Add delivery status webhook support to the VYVA backend.
+
+Context:
+The live app is hosted on Replit at https://v2.vyva.life. We need SendGrid and Twilio to report real delivery status back into the VYVA communications log.
+
+Add two public POST endpoints:
+
+1. POST /api/webhooks/sendgrid/events
+- Accept SendGrid Event Webhook payloads.
+- Payload is an array of events.
+- For each event, read:
+  - email
+  - event
+  - sg_message_id
+  - sg_event_id
+  - reason
+  - status
+  - url
+  - timestamp
+- Match the communication row by provider message id if possible:
+  - communications_log.provider_message_id
+  - or metadata.sg_message_id / metadata.sendgrid_message_id fallback
+- Update communications_log:
+  - delivered -> status delivered, delivered_at
+  - bounce/dropped/spamreport -> status failed, metadata.dispatch_error / provider_error
+  - deferred -> status queued or retrying, metadata.provider_event
+  - open/click -> keep delivery status, add metadata engagement events
+- Store raw/latest webhook event in metadata without deleting existing metadata.
+- Return 200 quickly.
+
+2. POST /api/webhooks/twilio/message-status
+- Accept Twilio status callback form payloads.
+- Read:
+  - MessageSid
+  - MessageStatus
+  - ErrorCode
+  - ErrorMessage
+  - To
+  - From
+- Match communications_log.provider_message_id = MessageSid.
+- Update communications_log:
+  - delivered -> status delivered, delivered_at
+  - failed/undelivered -> status failed, metadata.dispatch_error/provider_error
+  - queued/sending/sent -> status sent or queued depending existing enum support
+- Store latest Twilio callback in metadata.
+- Return 204.
+
+Security:
+- Verify Twilio requests with X-Twilio-Signature using TWILIO_AUTH_TOKEN.
+- Verify SendGrid signed webhook if SENDGRID_WEBHOOK_PUBLIC_KEY is configured.
+- If SendGrid public key is not configured, allow events but log a warning so we can test first.
+- Never expose secrets in responses.
+
+Integration:
+- Add routes in server/routes/webhooks.ts or the existing route structure.
+- Mount them under /api/webhooks.
+- Make sure body parsing works:
+  - SendGrid needs JSON.
+  - Twilio needs URL-encoded form data.
+- Keep existing admin/auth routes unchanged.
+- Do not break local dev.
+
+Admin impact:
+- Communications tab should display failed dispatch error text if it already reads metadata.dispatch_error.
+- If needed, add small helper mapping so webhook-updated statuses appear clearly.
+
+Validation:
+- Run npm run typecheck
+- Run npm run build:server
+- Run npm run build:client
+- Add a short note in the PR/summary with the exact provider callback URLs:
+  - https://v2.vyva.life/api/webhooks/sendgrid/events
+  - https://v2.vyva.life/api/webhooks/twilio/message-status
