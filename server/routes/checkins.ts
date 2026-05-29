@@ -5,6 +5,11 @@ import OpenAI from "openai";
 import { z } from "zod";
 import { pool } from "../db.js";
 import { requireUser } from "../middleware/auth.js";
+import { getActiveProfileContext } from "../lib/profileAccess.js";
+import {
+  getDailyCheckinTodayStatus,
+  markDailyCheckinCompleted,
+} from "../services/dailyCheckinMonitor.js";
 import {
   genderInstruction,
   gendered,
@@ -40,6 +45,16 @@ const shareBodySchema = z.object({
   result: z.object({}).passthrough(),
   text: z.string().max(12000).optional().default(""),
 });
+
+async function resolveCheckinUserId(accountUserId: string): Promise<string> {
+  try {
+    const context = await getActiveProfileContext(accountUserId);
+    return context.profileId ?? accountUserId;
+  } catch (err) {
+    console.warn("[checkins] active profile resolution failed; using account id:", err);
+    return accountUserId;
+  }
+}
 
 type CheckinAnswers = z.infer<typeof checkinBodySchema>["answers"];
 
@@ -760,11 +775,11 @@ async function saveSession(userId: string, language: string, answers: CheckinAns
   try {
     const inserted = await pool.query(
       `insert into checkin_sessions (
-        user_id, energy_level, mood, body_areas, sleep_quality, symptoms, social_contact,
+        user_id, energy_level, mood, body_areas, sleep_quality, symptoms, symptom_details, safety_flags, social_contact,
         feeling_label, overall_state, vyva_reading, right_now, today_actions, highlight,
         flag_caregiver, watch_for, language, completed, duration_seconds
       ) values (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13,$14,$15,$16,true,$17
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14::jsonb,$15,$16,$17,$18,true,$19
       )
       returning id`,
       [
@@ -774,6 +789,8 @@ async function saveSession(userId: string, language: string, answers: CheckinAns
         answers.body_areas,
         answers.sleep_quality,
         answers.symptoms,
+        answers.symptom_details,
+        answers.safety_flags,
         answers.social_contact,
         result.feeling_label,
         result.overall_state,
@@ -860,7 +877,7 @@ export async function analyzeCheckinHandler(req: Request, res: Response) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
 
-  const userId = req.user!.id;
+  const userId = await resolveCheckinUserId(req.user!.id);
   const { answers, language, duration_seconds } = parsed.data;
 
   try {
@@ -876,6 +893,9 @@ export async function analyzeCheckinHandler(req: Request, res: Response) {
     const result = await generateResult(profile, answers, language || profile.language);
     const sessionId = await saveSession(userId, language || profile.language, answers, result, duration_seconds ?? null);
     await updateTrend(userId, answers, result);
+    await markDailyCheckinCompleted(userId, new Date(), { resolveAlerts: true }).catch((err) => {
+      console.warn("[checkins] scheduled check-in completion not updated:", err);
+    });
 
     return res.json({ result, session_id: sessionId ?? null, meta: { used_minimal_profile: usedMinimalProfile } });
   } catch (err) {
@@ -913,7 +933,7 @@ function publicReportPayload(name: string, language: string, result: Record<stri
 }
 
 export async function checkinHistoryHandler(req: Request, res: Response) {
-  const userId = req.user!.id;
+  const userId = await resolveCheckinUserId(req.user!.id);
 
   try {
     const result = await pool.query(
@@ -963,7 +983,7 @@ export async function createCheckinShareHandler(req: Request, res: Response) {
   }
 
   const token = randomUUID();
-  const userId = req.user!.id;
+  const userId = await resolveCheckinUserId(req.user!.id);
   const { name, language, result, text } = parsed.data;
 
   try {
@@ -1016,6 +1036,16 @@ export async function sharedCheckinReportHandler(req: Request, res: Response) {
 router.post("/analyze", requireUser, analyzeCheckinHandler);
 router.get("/history", requireUser, checkinHistoryHandler);
 router.post("/share", requireUser, createCheckinShareHandler);
+router.get("/today", requireUser, async (req: Request, res: Response) => {
+  try {
+    const userId = await resolveCheckinUserId(req.user!.id);
+    const status = await getDailyCheckinTodayStatus(userId, { createDefaultSchedule: true });
+    return res.json(status);
+  } catch (err) {
+    console.error("[checkins] today status failed:", err);
+    return res.status(500).json({ error: "Failed to load today's check-in status" });
+  }
+});
 
 router.post("/abandon", requireUser, async (req: Request, res: Response) => {
   const parsed = abandonBodySchema.safeParse(req.body);
@@ -1024,10 +1054,11 @@ router.post("/abandon", requireUser, async (req: Request, res: Response) => {
   }
 
   try {
+    const userId = await resolveCheckinUserId(req.user!.id);
     await pool.query(
       `insert into checkin_sessions (user_id, language, completed, abandoned, duration_seconds)
        values ($1, $2, false, true, $3)`,
-      [req.user!.id, parsed.data.language, parsed.data.duration_seconds ?? null],
+      [userId, parsed.data.language, parsed.data.duration_seconds ?? null],
     );
   } catch (err) {
     console.warn("[checkins] abandoned session not saved; has the checkin schema been applied?", err);

@@ -34,7 +34,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/contexts/ProfileContext";
-import { apiFetch } from "@/lib/queryClient";
+import { apiFetch, queryClient } from "@/lib/queryClient";
 import { ListenButton } from "@/components/ListenButton";
 
 type StepId = "welcome" | "energy" | "mood" | "body" | "sleep" | "symptoms" | "details" | "safety" | "social" | "analyzing" | "result";
@@ -1792,6 +1792,8 @@ const CheckHowIFeelScreen = () => {
       }
       const data = await res.json() as { result: CheckinResult };
       setResult(forceHealthPriorityResult(data.result, answers, name, gender, copy));
+      queryClient.invalidateQueries({ queryKey: ["/api/checkins/today"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/checkins/history"] });
     } catch (err) {
       console.warn("[check-in] falling back locally", err);
       setResult(forceHealthPriorityResult(localizedLocalResult(name, answers, gender, copy), answers, name, gender, copy));
