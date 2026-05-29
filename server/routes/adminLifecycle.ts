@@ -1537,7 +1537,7 @@ const lifecycleSchemaRequirements = [
   {
     table: "consent_attempts",
     label: "Consent",
-    columns: ["id", "intake_id", "elder_user_id", "family_user_id", "status", "attempt_count", "created_at"],
+    columns: ["id", "intake_id", "elder_user_id", "family_user_id", "status", "attempt_number", "created_at"],
   },
   {
     table: "scheduled_events",
