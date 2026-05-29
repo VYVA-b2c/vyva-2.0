@@ -450,10 +450,14 @@ function communicationsProviderConfig(channel: CommunicationsProviderChannel) {
 
   const hasTwilioCredentials = hasEnvValue(["TWILIO_ACCOUNT_SID"]) && hasEnvValue(["TWILIO_AUTH_TOKEN"]);
   if (channel === "sms") {
-    const hasSmsSender = hasEnvValue(["TWILIO_MESSAGING_SERVICE_SID", "TWILIO_SMS_FROM_NUMBER", "TWILIO_FROM_NUMBER"]);
+    const hasSmsSender = hasEnvValue([
+      "TWILIO_US_SMS_FROM_NUMBER",
+      "TWILIO_SMS_US_FROM_NUMBER",
+      "TWILIO_SMS_MESSAGING_SERVICE_SID",
+    ]);
     const missing = [
       !hasTwilioCredentials ? "Set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN." : "",
-      !hasSmsSender ? "Set TWILIO_MESSAGING_SERVICE_SID or TWILIO_FROM_NUMBER." : "",
+      !hasSmsSender ? "Set TWILIO_US_SMS_FROM_NUMBER to the US SMS-capable Twilio number." : "",
     ].filter(Boolean).join(" ");
 
     return {
