@@ -180,29 +180,53 @@ function IntroScreen({
   );
 }
 
-function UrgencyConfig(urgency: TriageSummary["urgency"]) {
-  if (urgency === "urgent") {
+function ReportConfig(summary: TriageSummary) {
+  const level = summary.nextStepLevel ?? (summary.urgency === "urgent" ? "doctor_today" : summary.urgency === "routine" ? "doctor_24_48" : "monitor");
+  if (level === "emergency") {
     return {
       bg: "linear-gradient(135deg, #B91C1C 0%, #EF4444 100%)",
       icon: AlertTriangle,
-      label: "health.symptomCheck.report.urgentLabel",
+      label: "health.symptomCheck.report.emergencyLabel",
+      fallbackLabel: "Emergency now",
       pillBg: "rgba(255,255,255,0.25)",
+      level,
     };
   }
-  if (urgency === "routine") {
+  if (level === "doctor_today") {
     return {
       bg: "linear-gradient(135deg, #B45309 0%, #F59E0B 100%)",
+      icon: Stethoscope,
+      label: "health.symptomCheck.report.doctorTodayLabel",
+      fallbackLabel: "Doctor today",
+      pillBg: "rgba(255,255,255,0.25)",
+      level,
+    };
+  }
+  if (level === "doctor_24_48") {
+    return {
+      bg: "linear-gradient(135deg, #5B21B6 0%, #7C3AED 100%)",
       icon: Eye,
       label: "health.symptomCheck.report.routineLabel",
+      fallbackLabel: "Doctor within 24-48 hours",
       pillBg: "rgba(255,255,255,0.25)",
+      level,
     };
   }
   return {
     bg: "linear-gradient(135deg, #0A7C4E 0%, #10B981 100%)",
     icon: CheckCircle,
     label: "health.symptomCheck.report.monitorLabel",
+    fallbackLabel: "Monitor at home",
     pillBg: "rgba(255,255,255,0.25)",
+    level,
   };
+}
+
+function uniqueLines(lines: string[]) {
+  return lines
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line, index, list) => list.findIndex((item) => item.toLowerCase() === line.toLowerCase()) === index);
 }
 
 function ReportScreen({
@@ -227,8 +251,9 @@ function ReportScreen({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const cfg = UrgencyConfig(summary.urgency);
+  const cfg = ReportConfig(summary);
   const UrgencyIcon = cfg.icon;
+  const isEmergency = cfg.level === "emergency";
   const saveStatusText = reportSaveState === "saved"
     ? t("health.symptomCheck.report.savedToReports", "Saved to Reports")
     : reportSaveState === "saving"
@@ -257,12 +282,22 @@ function ReportScreen({
           contact: notifiedContacts[0].label,
         })
       : "";
+  const contactStatusText = notifiedText || t("health.symptomCheck.report.noContactsConfigured", "No doctor or caregiver contact is set yet.");
+  const doctorTellItems = uniqueLines([
+    `${t("health.symptomCheck.report.tellMainSymptom", "Main symptom")}: ${summary.chiefComplaint}`,
+    summary.symptoms.length ? `${t("health.symptomCheck.report.symptoms", "Symptoms noted")}: ${summary.symptoms.join(", ")}` : "",
+    summary.nextStepLabel ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${summary.nextStepLabel}` : "",
+    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why this step")}: ${summary.triageReasons.join(" ")}` : "",
+    summary.vitalsNotes?.length ? `${t("health.symptomCheck.report.vitalsUsed", "Vitals used")}: ${summary.vitalsNotes.join(" ")}` : "",
+    summary.profileConsiderations?.length ? `${t("health.symptomCheck.report.profileConsidered", "Profile considered")}: ${summary.profileConsiderations.join(" ")}` : "",
+    summary.watchSigns?.length ? `${t("health.symptomCheck.report.watchSigns", "Watch signs")}: ${summary.watchSigns.join(" ")}` : "",
+  ]).slice(0, 6);
   const doctorNote = [
     summary.chiefComplaint,
     summary.symptoms.length ? `${t("health.symptomCheck.report.symptoms", "Symptoms noted")}: ${summary.symptoms.join(", ")}` : "",
     bpm != null ? `${t("health.symptomCheck.scan.heartRate", "Heart Rate")}: ${bpm} bpm` : "",
     respiratoryRate != null ? `${t("health.symptomCheck.scan.respiratoryRate", "Resp. Rate")}: ${respiratoryRate} rpm` : "",
-    `${t("health.symptomCheck.report.urgencyLabel", "Urgency")}: ${t(cfg.label)}`,
+    `${t("health.symptomCheck.report.urgencyLabel", "Urgency")}: ${t(cfg.label, cfg.fallbackLabel)}`,
     summary.nextStepLabel ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${summary.nextStepLabel}` : "",
     summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why this step")}: ${summary.triageReasons.join(" ")}` : "",
     summary.evidenceSummary ? `${t("health.symptomCheck.report.evidenceChecked", "Medical evidence checked")}: ${summary.evidenceSummary}` : "",
@@ -288,7 +323,7 @@ function ReportScreen({
     respiratoryRate != null ? `${t("health.symptomCheck.scan.respiratoryRate", "Resp. Rate")}: ${respiratoryRate} rpm` : "",
     durationText ? `${t("health.symptomCheck.report.timeTaken", "Time taken")}: ${durationText}` : "",
     "",
-    `${t("health.symptomCheck.report.urgencyLabel")}: ${t(cfg.label)}`,
+    `${t("health.symptomCheck.report.urgencyLabel")}: ${t(cfg.label, cfg.fallbackLabel)}`,
     summary.nextStepLabel ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${summary.nextStepLabel}` : "",
     summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why this step")}: ${summary.triageReasons.join(" ")}` : "",
     summary.evidenceSummary ? `${t("health.symptomCheck.report.evidenceChecked", "Medical evidence checked")}: ${summary.evidenceSummary}` : "",
@@ -322,7 +357,7 @@ function ReportScreen({
   return (
     <div className="flex flex-col flex-1 overflow-y-auto">
       <div
-        className="mx-[18px] mb-4 mt-4 flex flex-col gap-3 rounded-[30px] p-5 shadow-[0_16px_36px_rgba(91,18,160,0.18)]"
+        className={`mx-[18px] mb-4 mt-4 flex flex-col gap-3 rounded-[30px] p-5 shadow-[0_16px_36px_rgba(91,18,160,0.18)] ${isEmergency ? "motion-safe:animate-pulse" : ""}`}
         style={{ background: cfg.bg }}
       >
         <div className="flex items-center gap-3">
@@ -337,12 +372,15 @@ function ReportScreen({
               {t("health.symptomCheck.report.urgencyLabel")}
             </p>
             <p className="font-display text-[28px] italic leading-tight text-white">
-              {t(cfg.label)}
+              {t(cfg.label, cfg.fallbackLabel)}
             </p>
           </div>
         </div>
 
-        <p className="font-body text-[15px] text-white/90 leading-relaxed">
+        <p className="font-body text-[21px] font-black leading-tight text-white">
+          {summary.nextStepLabel ?? t(cfg.label, cfg.fallbackLabel)}
+        </p>
+        <p className="font-body text-[16px] font-bold text-white/90 leading-relaxed">
           {summary.chiefComplaint}
         </p>
 
@@ -368,7 +406,7 @@ function ReportScreen({
 
       <div className="flex flex-col gap-4 px-[18px] pb-6">
         <div className="grid grid-cols-2 gap-3">
-          {summary.urgency === "urgent" ? (
+          {isEmergency ? (
             <button
               type="button"
               onClick={() => {
@@ -426,6 +464,21 @@ function ReportScreen({
               </ul>
             </div>
           ) : null}
+          <div className="col-span-2 rounded-[22px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]">
+            <div className="mb-3 flex items-center gap-2 text-vyva-purple">
+              <Stethoscope size={19} />
+              <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em]">
+                {t("health.symptomCheck.report.tellDoctorTitle", "Tell the doctor")}
+              </p>
+            </div>
+            <ul className="grid gap-2">
+              {doctorTellItems.map((item, index) => (
+                <li key={index} className="font-body text-[16px] font-bold leading-snug text-vyva-text-1">
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
           {(summary.evidenceSummary || summary.evidenceSources?.length) ? (
             <div className="col-span-2 rounded-[22px] border border-[#BFDBFE] bg-[#EFF6FF] p-4 text-[#1D4ED8] shadow-[0_8px_22px_rgba(63,45,35,0.05)]">
               <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em]">
@@ -503,17 +556,31 @@ function ReportScreen({
               </li>
             ))}
           </ol>
-          {notifiedText && (
-            <div className="mt-5 flex items-start gap-3 border-t border-[#EADFD5] pt-4 text-[#047857]">
-              <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#DCFCE7]">
-                <CheckCircle size={18} />
+          <div className={`mt-5 flex items-start gap-3 border-t border-[#EADFD5] pt-4 ${notifiedText ? "text-[#047857]" : "text-vyva-text-2"}`}>
+            <span className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${notifiedText ? "bg-[#DCFCE7]" : "bg-[#F5F3FF]"}`}>
+              {notifiedText ? <CheckCircle size={18} /> : <ClipboardList size={18} />}
+            </span>
+            <p className="font-body text-[17px] font-extrabold leading-snug">
+              {contactStatusText}
+            </p>
+          </div>
+        </div>
+
+        {isEmergency ? (
+          <div className="rounded-[24px] border-2 border-[#DC2626] bg-[#FEF2F2] p-5 text-[#991B1B] shadow-[0_12px_30px_rgba(220,38,38,0.14)]">
+            <div className="mb-3 flex items-center gap-3">
+              <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#DC2626] text-white">
+                <AlertTriangle size={24} />
               </span>
-              <p className="font-body text-[17px] font-extrabold leading-snug">
-                {notifiedText}
+              <p className="font-body text-[22px] font-black leading-tight">
+                {t("health.symptomCheck.report.emergencyDoNotWait", "Do not wait")}
               </p>
             </div>
-          )}
-        </div>
+            <p className="font-body text-[18px] font-bold leading-snug">
+              {t("health.symptomCheck.report.emergencyBody", "Call emergency services now. Do not drive yourself. Keep this report open for the responder.")}
+            </p>
+          </div>
+        ) : null}
 
         {(summary.watchSigns?.length || summary.profileConsiderations?.length || summary.vitalsNotes?.length) && (
           <div className="grid gap-3">
