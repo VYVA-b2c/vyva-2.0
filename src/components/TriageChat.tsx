@@ -160,6 +160,7 @@ export default function TriageChat({
   const fallbackQuickAnswers: QuickAnswer[] = userMessageCount === 0
     ? [
         { id: "pain", label: t("health.symptomCheck.chat.quickPain", "Pain"), value: t("health.symptomCheck.chat.quickPainValue", "I have pain."), Icon: HeartPulse, tone: "red", kind: "symptom" },
+        { id: "chest", label: t("health.symptomCheck.chat.quickChest", "Chest discomfort"), value: t("health.symptomCheck.chat.quickChestValue", "I have chest discomfort."), Icon: HeartPulse, tone: "red", kind: "symptom" },
         { id: "breathing", label: t("health.symptomCheck.chat.quickBreathing", "Breathing"), value: t("health.symptomCheck.chat.quickBreathingValue", "I feel short of breath."), Icon: Wind, tone: "blue", kind: "symptom" },
         { id: "fever", label: t("health.symptomCheck.chat.quickFever", "Fever"), value: t("health.symptomCheck.chat.quickFeverValue", "I have a fever."), Icon: Thermometer, tone: "amber", kind: "symptom" },
         { id: "tired", label: t("health.symptomCheck.chat.quickTired", "Very tired"), value: t("health.symptomCheck.chat.quickTiredValue", "I feel very tired."), Icon: Activity, tone: "purple", kind: "symptom" },

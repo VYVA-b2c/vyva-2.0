@@ -70,6 +70,7 @@
       <input id="clueInput" class="clue" placeholder="For example: bad headache..." oninput="syncButtons()" onkeydown="if(event.key==='Enter') start(false)" />
       <div class="chips">
         <button class="chip-btn" onclick="setClue('Bad headache')">Bad headache</button>
+        <button class="chip-btn" onclick="setClue('Chest pressure')">Chest pressure</button>
         <button class="chip-btn" onclick="setClue('Short of breath')">Short of breath</button>
         <button class="chip-btn" onclick="setClue('Dizzy')">Dizzy</button>
         <button class="chip-btn" onclick="setClue('Fever')">Fever</button>
@@ -159,7 +160,8 @@
     }
     function infer() {
       const text = clue.toLowerCase();
-      if (/(blue lip|confus.*breath|breath.*confus|chest pain|worst headache|one side|speech trouble|fainted|cannot stand|face.*swelling|throat.*swelling)/.test(text)) return { symptom: "Emergency sign", emergency: true };
+      if (/(blue lip|confus.*breath|breath.*confus|worst headache|one side|speech trouble|fainted|cannot stand|face.*swelling|throat.*swelling)/.test(text)) return { symptom: "Emergency sign", emergency: true };
+      if (/(chest|pressure.*chest|tight.*chest)/.test(text)) return { symptom: "Chest discomfort", emergency: false };
       if (/(breath|short of breath|oxygen|wheeze|air)/.test(text)) return { symptom: "Breathing", emergency: false };
       if (/(urine|pee|bladder|burning|uti)/.test(text)) return { symptom: "Urine problem", emergency: false };
       if (/(fall|fell|injury|hit|bruise)/.test(text)) return { symptom: "Fall or injury", emergency: false };
@@ -186,22 +188,173 @@
     function setSafetyFor(name) {
       const q = document.getElementById("safetyQuestion");
       const a = document.getElementById("safetyAnswers");
+      document.getElementById("severityQuestion").textContent = "How strong is it?";
+      document.querySelector("#severity .answers").innerHTML = [
+        `<button class="answer ok" onclick="finish('monitor')">Mild</button>`,
+        `<button class="answer amber" onclick="finish('doctor')">Hard to ignore</button>`,
+        `<button class="answer warn" onclick="finish('doctor')">Strong or getting worse</button>`,
+      ].join("");
+      if (name === "Chest discomfort") {
+        q.textContent = "Do you have chest discomfort right now, or did it happen today?";
+        a.innerHTML = [
+          `<button class="answer warn" onclick="emergency('Tight, heavy, crushing, or spreading chest discomfort')">Tight, heavy, crushing, or spreading</button>`,
+          `<button class="answer warn" onclick="emergency('Sweaty, sick, faint, or hard to breathe')">Sweaty, sick, faint, or hard to breathe</button>`,
+          `<button class="answer amber" onclick="setChestDetails()">It happened today but stopped</button>`,
+          `<button class="answer amber" onclick="setChestDetails()">Mild sore spot / not sure</button>`,
+        ].join("");
+        return;
+      }
       const rows = {
-        "Breathing": ["Are you short of breath while resting?", ["Even resting", "Confused or blue lips", "Only when walking", "Mild now"]],
-        "Fever": ["Do any of these apply?", ["Very high fever", "Confused or very sleepy", "Stiff neck or new rash", "None of these"]],
-        "Dizziness": ["Do any warning signs apply?", ["Fainted or nearly fainted", "Weakness or speech trouble", "Chest pain or breathing trouble", "Mild now"]],
-        "Urine problem": ["Do any of these apply?", ["Fever or back pain", "Cannot pass urine", "Blood in urine", "Burning only"]],
-        "Fall or injury": ["Do any of these apply?", ["Hit head", "Cannot stand", "Hip or back pain", "Small bruise"]],
-        "Skin or wound": ["Do any of these apply?", ["Spreading redness", "Face or throat swelling", "Fever with wound", "Small skin issue"]],
-        "Confusion": ["Do any of these apply?", ["Sudden confusion", "Weakness or speech trouble", "Fever or urine change", "Mild forgetfulness"]],
+        "Breathing": ["How is your breathing right now?", ["Gasping / cannot speak", "Blue, grey, pale, or confused", "Worse than usual, but I can speak", "Mild / only with activity"]],
+        "Fever": ["Do you feel feverish, very chilled, or have a measured temperature?", ["Confused, sleepy, fast breathing, blue/pale, or little urine", "Cancer treatment or weak immune system", "38 C or higher / shaking chills", "Mild feverish feeling only"]],
+        "Dizziness": ["Did you faint, nearly faint, or feel like you might fall today?", ["Fainted and not fully normal", "Fainted with chest, breathing, heartbeat, seizure, or injury", "Very dizzy now / might fall", "Light-headed but steady"]],
+        "Stomach or bowel": ["Do you have stomach or bowel symptoms with any of these serious signs?", ["Sudden or severe belly pain", "Vomiting blood, black/bloody stool, or collapsed", "Cannot pee, cannot pass stool/gas, or cannot keep fluids down", "None of these"]],
+        "Urine problem": ["What urine problem is happening?", ["Cannot pass urine", "Burning with fever, side pain, vomiting, or confusion", "Blood in urine or clots", "Burning, urgency, cloudy, or smelly only"]],
+        "Fall or injury": ["Did you hit your head, pass out, or hurt yourself badly?", ["Head hit plus vomiting, sleepy, confused, seizure, weak, or trouble walking/speaking", "Head hit and blood thinner", "Cannot stand, use a limb, severe pain, deformity, or heavy bleeding", "Minor bump or bruise, walking normally"]],
+        "Skin or wound": ["Do you have swelling, breathing trouble, fever, or spreading redness?", ["Swollen lips, mouth, throat, or tongue, or hard breathing", "Hot red skin with fever, confusion, fast breathing, or dizziness", "Open wound, drainage, surgery wound, or spreading redness", "Small itchy rash or minor wound"]],
+        "Confusion": ["Is this a sudden change from your usual self?", ["Suddenly confused, not making sense, or hard to wake", "Face droop, arm weakness, speech or vision trouble", "With fever, fast breathing, low urine, or sugar problem", "Slow memory change over weeks or months"]],
+        "Very tired": ["Is the weakness sudden or making you unsafe right now?", ["Sudden face, arm, or leg weakness, speech or vision trouble", "Too weak to stand, walk, stay awake, or think clearly", "Weak with chest pain or hard breathing", "Tired or weak, but alert and safe"]],
+        "Something else": ["Are any of these happening right now?", ["Chest pain, trouble breathing, or blue/grey/pale skin", "Face/arm weakness, speech/vision trouble, seizure, or fainted", "Very confused, hard to wake, heavy bleeding, severe pain, or allergic swelling", "None of these"]],
       };
-      const fallback = ["Do any of these apply?", ["Chest pain", "Sudden or severe", "After a fall", "None of these"]];
+      const fallback = ["Is this a new very bad headache or pain with any of these signs?", ["Sudden worst headache", "Weakness, speech, vision, confusion, or seizure", "Back pain with bladder, bowel, or leg weakness", "None of these"]];
       const [question, labels] = rows[name] || fallback;
       q.textContent = question;
       a.innerHTML = labels.map((label, i) => {
-        const emergencyChoice = i < (label.includes("Blood") || label.includes("Spreading") ? 1 : 3) && !["Only when walking", "Mild now", "Burning only", "Small bruise", "Small skin issue", "Mild forgetfulness", "None of these"].includes(label);
-        return `<button class="answer ${emergencyChoice ? "warn" : i === labels.length - 1 ? "ok" : "amber"}" onclick="${emergencyChoice ? `emergency('${label}')` : "go('severity')"}">${label}</button>`;
+        const safeChoices = ["Mild / only with activity", "Mild feverish feeling only", "Light-headed but steady", "Burning, urgency, cloudy, or smelly only", "Minor bump or bruise, walking normally", "Small itchy rash or minor wound", "Slow memory change over weeks or months", "Tired or weak, but alert and safe", "None of these"];
+        const doctorChoices = ["Burning with fever, side pain, vomiting, or confusion", "Blood in urine or clots", "Head hit and blood thinner", "Open wound, drainage, surgery wound, or spreading redness", "Slow memory change over weeks or months"];
+        const emergencyChoice = i < 3 && !safeChoices.includes(label) && !doctorChoices.includes(label);
+        const doctorChoice = doctorChoices.includes(label);
+        if (doctorChoice) return `<button class="answer amber" onclick="setFollowup('${name}')">${label}</button>`;
+        return `<button class="answer ${emergencyChoice ? "warn" : i === labels.length - 1 ? "ok" : "amber"}" onclick="${emergencyChoice ? `emergency('${label}')` : `setFollowup('${name}')`}">${label}</button>`;
       }).join("");
+    }
+    function setFollowup(name) {
+      const question = document.getElementById("severityQuestion");
+      const container = document.querySelector("#severity .answers");
+      const followups = {
+        "Breathing": [
+          "Do you have any of these with the breathing problem?",
+          [
+            ["Chest tightness, heaviness, or spreading pain", "emergency"],
+            ["Coughing blood or one swollen calf", "emergency"],
+            ["Fast heartbeat, fainting, or severe weakness", "emergency"],
+            ["No", "trend"]
+          ]
+        ],
+        "Fever": [
+          "Do you have symptoms pointing to an infection?",
+          [
+            ["Cough, chest pain, or shortness of breath", "doctor"],
+            ["Burning pee, side pain, vomiting, or confusion", "doctor"],
+            ["Red painful skin, wound, or surgery cut", "doctor"],
+            ["No clear source", "trend"]
+          ]
+        ],
+        "Dizziness": [
+          "Do you have any of these with the dizziness?",
+          [
+            ["Face, arm, speech, or vision change", "emergency"],
+            ["Chest pain, hard breathing, or fast heartbeat", "emergency"],
+            ["Low sugar symptoms or diabetes medicine", "doctor"],
+            ["No", "trend"]
+          ]
+        ],
+        "Very tired": [
+          "Do you have any of these today?",
+          [
+            ["Fever, chills, cough, wound, or urine pain", "doctor"],
+            ["Vomiting, diarrhea, not drinking, or hardly peeing", "doctor"],
+            ["Diabetes medicine or possible sugar problem", "doctor"],
+            ["No", "monitor"]
+          ]
+        ],
+        "Pain or headache": [
+          "Where is the pain mainly?",
+          [
+            ["Head or neck", "doctor"],
+            ["Back", "doctor"],
+            ["Belly or side", "doctor"],
+            ["Arm, leg, joint, or other", "doctor"]
+          ]
+        ],
+        "Stomach or bowel": [
+          "Do you have dehydration or infection signs?",
+          [
+            ["Very weak, dizzy, confused, dry mouth, or hardly peeing", "doctor"],
+            ["Fever or severe pain", "doctor"],
+            ["Diabetes and vomiting or high sugar", "doctor"],
+            ["No", "trend"]
+          ]
+        ],
+        "Urine problem": [
+          "Do you have any whole-body symptoms?",
+          [
+            ["Fever or shaking chills", "doctor"],
+            ["Back or side pain", "doctor"],
+            ["New confusion or very weak", "emergency"],
+            ["No", "trend"]
+          ]
+        ],
+        "Fall or injury": [
+          "Did any of these happen with the fall?",
+          [
+            ["Knocked out, even briefly", "doctor"],
+            ["Fell from stairs, height, or high speed", "doctor"],
+            ["I live alone and no one can check on me", "doctor"],
+            ["No", "trend"]
+          ]
+        ],
+        "Skin or wound": [
+          "Does it look like painful blisters or shingles?",
+          [
+            ["Near eye/nose or vision changes", "doctor"],
+            ["Painful blisters and weak immune system", "doctor"],
+            ["Painful blisters started within 3 days", "doctor"],
+            ["No", "trend"]
+          ]
+        ],
+        "Confusion": [
+          "Is there any immediate safety concern?",
+          [
+            ["Stove, wandering, fall, or medicine safety problem", "doctor"],
+            ["New medicine or dose change", "doctor"],
+            ["Very low mood or self-harm talk", "emergency"],
+            ["No immediate safety concern", "doctor"]
+          ]
+        ],
+        "Something else": [
+          "Where is the main problem?",
+          [
+            ["Chest or breathing", "doctor"],
+            ["Head, weakness, dizziness, confusion, or fall", "doctor"],
+            ["Fever, urine, stomach, skin, or wound", "doctor"],
+            ["Other / not sure", "trend"]
+          ]
+        ]
+      };
+      const [q, answers] = followups[name] || [
+        "How strong is it?",
+        [["Mild", "monitor"], ["Hard to ignore", "doctor"], ["Strong or getting worse", "doctor"]]
+      ];
+      question.textContent = q;
+      container.innerHTML = answers.map(([label, action]) => {
+        if (action === "emergency") return `<button class="answer warn" onclick="emergency('${label}')">${label}</button>`;
+        if (action === "doctor") return `<button class="answer amber" onclick="finish('doctor')">${label}</button>`;
+        if (action === "trend") return `<button class="answer ok" onclick="finish('monitor')">${label}</button>`;
+        return `<button class="answer ok" onclick="finish('monitor')">${label}</button>`;
+      }).join("");
+      go("severity");
+    }
+    function setChestDetails() {
+      document.getElementById("severityQuestion").textContent = "Which best describes the chest discomfort?";
+      const container = document.querySelector("#severity .answers");
+      container.innerHTML = [
+        `<button class="answer warn" onclick="emergency('At rest, woke me, or over 5 minutes')">At rest, woke me, or over 5 minutes</button>`,
+        `<button class="answer amber" onclick="finish('doctor')">With walking, stairs, or activity</button>`,
+        `<button class="answer ok" onclick="finish('doctor')">Only when I press, twist, cough, or lift</button>`,
+        `<button class="answer amber" onclick="finish('doctor')">I'm not sure</button>`,
+      ].join("");
+      go("severity");
     }
     function finish(level) {
       const urgent = level === "doctor";
@@ -229,6 +382,18 @@
             "Use your usual pain medicine only if it is safe for you.",
             "Write down where it hurts, when it started, and what changes it.",
             "Call a doctor if it gets stronger, lasts, or feels unusual."
+          ],
+        },
+        "Chest discomfort": {
+          title: "Talk to a doctor today",
+          body: "Chest discomfort in an older adult deserves same-day advice, even when the strongest warning signs were not selected.",
+          reason: "The urgent signs are chest pressure happening now, breathing trouble, sweating, faintness, nausea, or pain spreading to arm, jaw, back, or neck.",
+          evidence: "Evidence context for chest symptoms highlights current pressure/tightness, shortness of breath, sweating, faintness, nausea, and spreading pain as reasons to seek urgent help.",
+          items: [
+            "Stop activity and sit upright for now.",
+            "Call emergency services now if chest pressure is present, worsening, or comes with breathing trouble, sweating, faintness, or nausea.",
+            "If the feeling is mild and has passed, contact a doctor today.",
+            "Do not drive yourself while chest symptoms are being checked."
           ],
         },
         "Dizziness": {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, ArrowLeft, Check, HeartPulse, Loader2, Moon, Pill, Plus, Smile, Sparkles, Stethoscope } from "lucide-react";
+import { Activity, AlertTriangle, ArrowLeft, Bell, Check, HeartPulse, Loader2, Moon, PhoneCall, Pill, Plus, RefreshCw, Share2, ShieldCheck, Smile, Sparkles, Stethoscope } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 
 type Language = "es" | "de" | "en";
@@ -15,9 +15,26 @@ interface Props {
 interface LatestAnalysis {
   id?: string | null;
   analysed_at?: string | null;
+  safety_status?: SafetyStatus | null;
+  recommended_action?: SafetyStatus | string | null;
   risk_score?: number | null;
   risk_tier?: string | null;
   senior_message?: string | null;
+  caregiver_note?: string | null;
+  acknowledged_action?: string | null;
+  acknowledged_at?: string | null;
+  rule_version?: string | null;
+  model_version?: string | null;
+}
+
+type SafetyStatus = "steady" | "recheck" | "share_with_caregiver" | "contact_doctor" | "urgent_help";
+
+interface LatestAlert {
+  id: string;
+  severity: string;
+  message: string;
+  created_at?: string | null;
+  resolved_at?: string | null;
 }
 
 interface RecentReading {
@@ -27,6 +44,12 @@ interface RecentReading {
   source: string;
   deviation_pct: string | number | null;
   context_tag: string | null;
+}
+
+interface LatestResponse {
+  analysis: LatestAnalysis | null;
+  recent_readings: RecentReading[];
+  latest_alert?: LatestAlert | null;
 }
 
 const COPY = {
@@ -48,6 +71,12 @@ const COPY = {
     no: "No todavía",
     valuePlaceholder: "142",
     messageFallback: "Buenos días. VYVA está lista para revisar tus señales contigo.",
+    safetyTitle: "Chequeo diario",
+    safetyAck: "Guardado",
+    recheck: "Repetir",
+    share: "Compartir",
+    doctor: "Medico",
+    urgent: "Urgente",
   },
   de: {
     logo: "VYVA",
@@ -67,6 +96,12 @@ const COPY = {
     no: "Noch nicht",
     valuePlaceholder: "142",
     messageFallback: "Guten Morgen. VYVA ist bereit, deine Werte mit dir anzusehen.",
+    safetyTitle: "Taglicher Check",
+    safetyAck: "Gespeichert",
+    recheck: "Erneut prufen",
+    share: "Teilen",
+    doctor: "Arzt",
+    urgent: "Dringend",
   },
   en: {
     logo: "VYVA",
@@ -86,6 +121,12 @@ const COPY = {
     no: "Not yet",
     valuePlaceholder: "142",
     messageFallback: "Good morning. VYVA is ready to review your signals with you.",
+    safetyTitle: "Daily safety check",
+    safetyAck: "Recorded",
+    recheck: "Recheck",
+    share: "Share",
+    doctor: "Doctor",
+    urgent: "Urgent",
   },
 };
 
@@ -192,6 +233,50 @@ function getRiskLabel(score: number, language: Language) {
   return lang[3];
 }
 
+function normalizeSafetyStatus(value: unknown): SafetyStatus {
+  const raw = String(value ?? "").toLowerCase();
+  if (raw === "urgent_help" || raw === "urgent") return "urgent_help";
+  if (raw === "contact_doctor" || raw === "doctor_today") return "contact_doctor";
+  if (raw === "share_with_caregiver" || raw === "notify") return "share_with_caregiver";
+  if (raw === "recheck" || raw === "watch") return "recheck";
+  return "steady";
+}
+
+function safetyTone(status: SafetyStatus) {
+  if (status === "urgent_help") return { color: "#DC2626", bg: "#FEF2F2", Icon: AlertTriangle };
+  if (status === "contact_doctor") return { color: "#B45309", bg: "#FFF7ED", Icon: PhoneCall };
+  if (status === "share_with_caregiver") return { color: "#6B21A8", bg: "#F5F3FF", Icon: Bell };
+  if (status === "recheck") return { color: "#0369A1", bg: "#EFF6FF", Icon: RefreshCw };
+  return { color: "#047857", bg: "#ECFDF5", Icon: ShieldCheck };
+}
+
+function safetyLabel(status: SafetyStatus, language: Language) {
+  const labels: Record<Language, Record<SafetyStatus, string>> = {
+    es: {
+      steady: "Estable",
+      recheck: "Repetir medicion",
+      share_with_caregiver: "Compartir con cuidador",
+      contact_doctor: "Consultar medico",
+      urgent_help: "Ayuda urgente",
+    },
+    de: {
+      steady: "Stabil",
+      recheck: "Erneut prufen",
+      share_with_caregiver: "Mit Betreuung teilen",
+      contact_doctor: "Arzt kontaktieren",
+      urgent_help: "Dringende Hilfe",
+    },
+    en: {
+      steady: "Steady",
+      recheck: "Recheck",
+      share_with_caregiver: "Share with caregiver",
+      contact_doctor: "Contact doctor",
+      urgent_help: "Urgent help",
+    },
+  };
+  return labels[language][status];
+}
+
 function relativeTime(iso: string | null | undefined, language: Language) {
   if (!iso) return COPY[language].noAnalysis;
   const diffMinutes = Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
@@ -206,6 +291,7 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
   const [screen, setScreen] = useState<Screen>("dashboard");
   const [analysis, setAnalysis] = useState<LatestAnalysis | null>(null);
   const [recentReadings, setRecentReadings] = useState<RecentReading[]>([]);
+  const [latestAlert, setLatestAlert] = useState<LatestAlert | null>(null);
   const [loading, setLoading] = useState(true);
   const [analysing, setAnalysing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -214,23 +300,29 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
   const [inputValue, setInputValue] = useState("");
   const [selectedContext, setSelectedContext] = useState("general");
   const [saving, setSaving] = useState(false);
+  const [acknowledging, setAcknowledging] = useState<string | null>(null);
 
   const copy = COPY[language];
   const visibleSignals = useMemo(() => getVisibleSignals(userConditions), [userConditions]);
   const selectedConfig = SIGNAL_CONFIG[selectedSignal];
   const riskScore = analysis?.risk_score ?? 0;
   const riskColor = getRiskColor(riskScore);
+  const safetyStatus = normalizeSafetyStatus(analysis?.recommended_action ?? analysis?.safety_status);
+  const safety = safetyTone(safetyStatus);
+  const SafetyIcon = safety.Icon;
+  const safetyAcknowledged = Boolean(analysis?.acknowledged_at);
 
   const loadDashboard = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
     setError(null);
     try {
-      const response = await apiFetch(`/api/vitals/latest/${encodeURIComponent(userId)}`);
+      const response = await apiFetch("/api/vitals-engine/latest");
       if (!response.ok) throw new Error("Dashboard load failed");
-      const data = await response.json() as { analysis: LatestAnalysis | null; recent_readings: RecentReading[] };
+      const data = await response.json() as LatestResponse;
       setAnalysis(data.analysis ?? null);
       setRecentReadings(data.recent_readings ?? []);
+      setLatestAlert(data.latest_alert ?? null);
     } catch {
       setError(language === "es" ? "No pude cargar tus signos ahora." : "Could not load vitals right now.");
     } finally {
@@ -245,10 +337,10 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
     setSaving(true);
     setError(null);
     try {
-      const response = await apiFetch("/api/vitals/reading", {
+      const response = await apiFetch("/api/vitals-engine/reading", {
         method: "POST",
+        credentials: "include",
         body: JSON.stringify({
-          user_id: userId,
           signal_type: selectedSignal,
           value: numeric,
           source: "manual",
@@ -275,9 +367,10 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
     setAnalysing(true);
     setError(null);
     try {
-      const response = await apiFetch("/api/vitals/analyse", {
+      const response = await apiFetch("/api/vitals-engine/analyse", {
         method: "POST",
-        body: JSON.stringify({ user_id: userId }),
+        credentials: "include",
+        body: JSON.stringify({}),
       });
       if (!response.ok) throw new Error("Analysis failed");
       await loadDashboard();
@@ -285,6 +378,29 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
       setError(language === "es" ? "El análisis no se pudo completar." : "The analysis could not finish.");
     } finally {
       setAnalysing(false);
+    }
+  }
+
+  async function acknowledgeSafety(action: "recheck" | "dismissed" | "shared" | "contacted_doctor" | "urgent_guidance_followed") {
+    setAcknowledging(action);
+    setError(null);
+    try {
+      const response = await apiFetch("/api/vitals-engine/acknowledge", {
+        method: "POST",
+        credentials: "include",
+        body: JSON.stringify({
+          analysis_id: analysis?.id ?? undefined,
+          action,
+        }),
+      });
+      if (!response.ok) throw new Error("Acknowledge failed");
+      const updated = await response.json() as LatestAnalysis;
+      setAnalysis((current) => ({ ...(current ?? {}), ...updated }));
+      await loadDashboard();
+    } catch {
+      setError(language === "es" ? "No pude guardar esta accion." : "Could not record this action.");
+    } finally {
+      setAcknowledging(null);
     }
   }
 
@@ -476,6 +592,94 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
             </p>
           </div>
 
+          <div className="mt-4 rounded-[26px] border border-[#EDE5DB] bg-white p-5 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="daily-safety-check">
+            <div className="flex items-start gap-4">
+              <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px]" style={{ background: safety.bg, color: safety.color }}>
+                <SafetyIcon className="h-7 w-7" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-body text-[13px] font-bold uppercase tracking-[0.12em] text-[#7A6A60]">{copy.safetyTitle}</p>
+                  <span className="rounded-full px-3 py-1 font-body text-[12px] font-bold" style={{ background: safety.bg, color: safety.color }}>
+                    {safetyLabel(safetyStatus, language)}
+                  </span>
+                  {safetyAcknowledged && (
+                    <span className="rounded-full bg-[#ECFDF5] px-3 py-1 font-body text-[12px] font-bold text-[#047857]">
+                      {copy.safetyAck}
+                    </span>
+                  )}
+                </div>
+                <p className="mt-3 font-body text-[20px] font-bold leading-relaxed text-[#2F241F]">
+                  {analysis?.senior_message ?? copy.messageFallback}
+                </p>
+                {latestAlert && !latestAlert.resolved_at && (
+                  <p className="mt-3 rounded-[18px] bg-[#FFF7ED] p-3 font-body text-[15px] font-bold text-[#92400E]">
+                    {latestAlert.message}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {!safetyAcknowledged && (
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                {safetyStatus === "urgent_help" ? (
+                  <button
+                    type="button"
+                    onClick={() => acknowledgeSafety("urgent_guidance_followed")}
+                    disabled={acknowledging !== null}
+                    className="flex min-h-[58px] items-center justify-center gap-2 rounded-[18px] bg-[#DC2626] px-4 font-body text-[17px] font-bold text-white disabled:opacity-60"
+                    data-testid="button-safety-urgent"
+                  >
+                    {acknowledging === "urgent_guidance_followed" ? <Loader2 className="h-5 w-5 animate-spin" /> : <AlertTriangle className="h-5 w-5" />}
+                    {copy.urgent}
+                  </button>
+                ) : safetyStatus === "contact_doctor" ? (
+                  <button
+                    type="button"
+                    onClick={() => acknowledgeSafety("contacted_doctor")}
+                    disabled={acknowledging !== null}
+                    className="flex min-h-[58px] items-center justify-center gap-2 rounded-[18px] bg-[#B45309] px-4 font-body text-[17px] font-bold text-white disabled:opacity-60"
+                    data-testid="button-safety-doctor"
+                  >
+                    {acknowledging === "contacted_doctor" ? <Loader2 className="h-5 w-5 animate-spin" /> : <PhoneCall className="h-5 w-5" />}
+                    {copy.doctor}
+                  </button>
+                ) : safetyStatus === "share_with_caregiver" ? (
+                  <button
+                    type="button"
+                    onClick={() => acknowledgeSafety("shared")}
+                    disabled={acknowledging !== null}
+                    className="flex min-h-[58px] items-center justify-center gap-2 rounded-[18px] bg-[#6B21A8] px-4 font-body text-[17px] font-bold text-white disabled:opacity-60"
+                    data-testid="button-safety-share"
+                  >
+                    {acknowledging === "shared" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Share2 className="h-5 w-5" />}
+                    {copy.share}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => acknowledgeSafety("recheck")}
+                    disabled={acknowledging !== null}
+                    className="flex min-h-[58px] items-center justify-center gap-2 rounded-[18px] bg-[#0369A1] px-4 font-body text-[17px] font-bold text-white disabled:opacity-60"
+                    data-testid="button-safety-recheck"
+                  >
+                    {acknowledging === "recheck" ? <Loader2 className="h-5 w-5 animate-spin" /> : <RefreshCw className="h-5 w-5" />}
+                    {copy.recheck}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => acknowledgeSafety("dismissed")}
+                  disabled={acknowledging !== null}
+                  className="min-h-[58px] rounded-[18px] border border-[#E8DED4] bg-[#FAF9F6] px-4 font-body text-[17px] font-bold text-[#6B5B52] disabled:opacity-60"
+                  data-testid="button-safety-dismiss"
+                >
+                  {acknowledging === "dismissed" ? copy.safetyAck : "OK"}
+                </button>
+              </div>
+            )}
+          </div>
+
           <div className="mt-4 grid grid-cols-2 gap-3">
             {DASHBOARD_SIGNALS.map((key) => (
               <SignalCard
@@ -488,15 +692,6 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
               />
             ))}
           </div>
-
-          {analysis?.senior_message && (
-            <div className="mt-5 rounded-[26px] border border-[#EDE5DB] bg-white p-5 shadow-[0_8px_24px_rgba(63,45,35,0.06)]">
-              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-[18px] bg-[#F5F3FF] text-[#6B21A8]">
-                <Sparkles className="h-6 w-6" />
-              </div>
-              <p className="font-body text-[20px] font-bold leading-relaxed text-[#2F241F]">{analysis.senior_message}</p>
-            </div>
-          )}
 
           {!analysis?.senior_message && recentReadings.length === 0 && (
             <div className="mt-5 rounded-[26px] border border-[#EDE5DB] bg-white p-5">
