@@ -82,7 +82,7 @@ export type Communication = {
 };
 
 export type CommunicationProviderStatus = {
-  channel: "email" | "whatsapp";
+  channel: "email" | "sms" | "whatsapp";
   label: string;
   provider: string;
   configured: boolean;

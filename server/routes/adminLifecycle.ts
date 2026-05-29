@@ -435,7 +435,9 @@ function communicationTime(row: typeof communicationsLog.$inferSelect | null) {
   return (row.sent_at ?? row.created_at)?.toISOString?.() ?? null;
 }
 
-function communicationsProviderConfig(channel: "email" | "whatsapp") {
+type CommunicationsProviderChannel = "email" | "sms" | "whatsapp";
+
+function communicationsProviderConfig(channel: CommunicationsProviderChannel) {
   if (channel === "email") {
     const hasSendGrid = Boolean(process.env.SENDGRID_API_KEY?.trim());
     const hasSmtp = Boolean(process.env.SMTP_HOST?.trim() && process.env.SMTP_USER?.trim() && process.env.SMTP_PASS?.trim());
@@ -447,6 +449,20 @@ function communicationsProviderConfig(channel: "email" | "whatsapp") {
   }
 
   const hasTwilioCredentials = hasEnvValue(["TWILIO_ACCOUNT_SID"]) && hasEnvValue(["TWILIO_AUTH_TOKEN"]);
+  if (channel === "sms") {
+    const hasSmsSender = hasEnvValue(["TWILIO_MESSAGING_SERVICE_SID", "TWILIO_SMS_FROM_NUMBER", "TWILIO_FROM_NUMBER"]);
+    const missing = [
+      !hasTwilioCredentials ? "Set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN." : "",
+      !hasSmsSender ? "Set TWILIO_MESSAGING_SERVICE_SID or TWILIO_FROM_NUMBER." : "",
+    ].filter(Boolean).join(" ");
+
+    return {
+      provider: hasSmsSender ? "Twilio SMS" : "SMS",
+      configured: hasTwilioCredentials && hasSmsSender,
+      missing: missing || null,
+    };
+  }
+
   const hasWhatsappSender = hasEnvValue(["TWILIO_WHATSAPP_MESSAGING_SERVICE_SID", "TWILIO_WHATSAPP_FROM", "TWILIO_WHATSAPP_FROM_NUMBER"]);
   const missing = [
     !hasTwilioCredentials ? "Set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN." : "",
@@ -464,13 +480,13 @@ async function communicationProviderStatus() {
   const rows = await db
     .select()
     .from(communicationsLog)
-    .where(inArray(communicationsLog.channel, ["email", "whatsapp"]))
+    .where(inArray(communicationsLog.channel, ["email", "sms", "whatsapp"]))
     .orderBy(desc(communicationsLog.created_at))
     .limit(500);
 
-  return (["email", "whatsapp"] as const).map((channel) => {
+  return (["email", "sms", "whatsapp"] as const).map((channel) => {
     const config = communicationsProviderConfig(channel);
-    const sent = rows.find((row) => row.channel === channel && row.status === "sent") ?? null;
+    const sent = rows.find((row) => row.channel === channel && ["sent", "delivered"].includes(row.status)) ?? null;
     const failed = rows.find((row) => row.channel === channel && row.status === "failed") ?? null;
     const sentTime = sent ? new Date(sent.sent_at ?? sent.created_at).getTime() : 0;
     const failedTime = failed ? new Date(failed.created_at).getTime() : 0;
@@ -478,7 +494,7 @@ async function communicationProviderStatus() {
 
     return {
       channel,
-      label: channel === "email" ? "Email" : "WhatsApp",
+      label: channel === "email" ? "Email" : channel === "sms" ? "SMS" : "WhatsApp",
       provider: config.provider,
       configured: config.configured,
       status: !config.configured ? "not_configured" : failing ? "failing" : "configured",
@@ -488,6 +504,10 @@ async function communicationProviderStatus() {
       missing_config: config.missing,
     };
   });
+}
+
+function signupPhoneInviteChannel(): "sms" | "whatsapp" {
+  return communicationsProviderConfig("whatsapp").configured ? "whatsapp" : "sms";
 }
 
 function isMissingRelationError(error: unknown): boolean {
@@ -3545,11 +3565,12 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
     (recipient) => normalizePhone(recipient) || null,
   );
   if (emailRecipients.length + whatsappRecipients.length === 0) {
-    return res.status(400).json({ error: "Add at least one email or WhatsApp number." });
+    return res.status(400).json({ error: "Add at least one email or phone number." });
   }
 
   const emailByName = inviteRecipientMapByName(emailRecipients);
   const whatsappByName = inviteRecipientMapByName(whatsappRecipients);
+  const phoneInviteChannel = signupPhoneInviteChannel();
   const intro = parsed.data.message || copy.defaultIntro;
   const buildBody = (setupUrl: string) => `${intro}\n\n${copy.startHere}: ${setupUrl}`;
   const buildSetupUrl = (prefill: SignupInvitePrefill) => buildSignupInviteUrl(baseUrl, language, prefill);
@@ -3591,7 +3612,7 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
       });
       return {
         user_id: req.user?.id ?? null,
-        channel: "whatsapp",
+        channel: phoneInviteChannel,
         recipient,
         purpose: "share_signup_form",
         status: "queued",
@@ -3599,6 +3620,9 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
         metadata: {
           url: setupUrl,
           language,
+          requested_channel: "phone",
+          delivery_channel: phoneInviteChannel,
+          whatsapp_fallback_to_sms: phoneInviteChannel === "sms",
           ...(name ? { recipient_name: name } : {}),
           shared_by: req.user?.email ?? req.user?.id ?? null,
         },
