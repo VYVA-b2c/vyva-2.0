@@ -1049,6 +1049,7 @@ export const vyvaPatternWindows = pgTable("vyva_pattern_windows", {
   id:                    uuid("id").primaryKey().defaultRandom(),
   user_id:               uuid("user_id"),
   analysed_at:           timestamp("analysed_at", { withTimezone: true }).defaultNow(),
+  safety_status:         text("safety_status").notNull().default("steady"),
   risk_score:            integer("risk_score"),
   risk_tier:             text("risk_tier").notNull().default("none"),
   contributing_signals:  jsonb("contributing_signals").default({}),
@@ -1059,6 +1060,10 @@ export const vyvaPatternWindows = pgTable("vyva_pattern_windows", {
   alert_fired:           boolean("alert_fired").default(false),
   alert_channel:         text("alert_channel"),
   model_version:         text("model_version").default("v1"),
+  rule_version:          text("rule_version").notNull().default("daily-safety-v1"),
+  acknowledged_action:   text("acknowledged_action"),
+  acknowledged_at:       timestamp("acknowledged_at", { withTimezone: true }),
+  resolved_at:           timestamp("resolved_at", { withTimezone: true }),
 }, (t) => [
   index("idx_vpw_user_time").on(t.user_id, t.analysed_at.desc()),
 ]);

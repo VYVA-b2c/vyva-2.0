@@ -271,6 +271,7 @@ function LogReadingModal({ onClose }: { onClose: () => void }) {
     mutationFn: async () => {
       const response = await apiFetch("/api/vitals", {
         method: "POST",
+        credentials: "include",
         body: JSON.stringify({ metric_type: metricType, value: value.trim() }),
       });
       if (!response.ok) throw new Error("Failed to save reading");

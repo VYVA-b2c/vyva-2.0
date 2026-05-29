@@ -43,6 +43,13 @@ type TriageRuleInput = {
   hasCriticalRedFlag: boolean;
   abnormalPulse?: boolean;
   abnormalBreathingRate?: boolean;
+  pulseBpm?: number;
+  respiratoryRate?: number;
+  oxygenSaturation?: number;
+  temperatureC?: number;
+  systolicBp?: number;
+  diastolicBp?: number;
+  glucoseMgdl?: number;
 };
 
 type ProtocolRule = {
@@ -129,13 +136,28 @@ function protocolProfileModifier(
 }
 
 export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
+  chest: {
+    symptomId: "chest",
+    emergency: [
+      protocolRule(["chest_pressure", "chest_rest_long", "chest_breathing", "chest_sweaty_faint", "chest_spreading", "chest_cough_blood", "one_calf_swollen", "strong", "worse"], "emergency", "Chest symptoms include a possible heart, clot, or breathing warning sign.", "Sintomas de pecho incluyen una posible senal de corazon, coagulo o respiracion.", "Call emergency services now for chest pressure, breathing trouble, faintness, sweating, spreading pain, coughing blood, one swollen calf, or worsening chest symptoms.", "Llama a emergencias ahora por presion de pecho, falta de aire, desmayo, sudor, dolor que se extiende, tos con sangre, una pantorrilla hinchada o sintomas de pecho que empeoran."),
+    ],
+    doctorToday: [
+      protocolRule(["chest_now", "chest_comes_goes", "chest_stopped", "chest_not_sure", "chest_activity", "chest_sore_not_sure", "no_chest_extra", "no_red_flag", "mild", "same", "today", "few_days"], "doctor_today", "Chest discomfort in an older adult should be discussed with a clinician even when severe warning signs are not selected.", "Molestia de pecho en una persona mayor debe hablarse con un clinico aunque no se elijan senales graves.", "Talk to a doctor today about new or unexplained chest discomfort.", "Habla con un medico hoy por molestia de pecho nueva o sin explicacion."),
+    ],
+    doctor24_48: [],
+    monitorCriteriaEn: ["No current chest pressure", "No breathing trouble", "No sweating, faintness, nausea, or spreading pain", "Clinician advice is still available today"],
+    monitorCriteriaEs: ["Sin presion de pecho actual", "Sin falta de aire", "Sin sudor, desmayo, nausea o dolor que se extiende", "Consejo clinico disponible hoy"],
+    profileModifiers: [
+      protocolProfileModifier(["heartDisease", "afib", "heartFailure", "hypertension", "diabetes", "strokeHistory"], undefined, "doctor_today", "Heart, blood pressure, stroke, or diabetes history makes chest symptoms higher priority.", "Antecedente cardiaco, presion, ictus o diabetes hace sintomas de pecho mas prioritarios.", "Use same-day clinical advice for any new chest symptom with this profile.", "Usa consejo clinico el mismo dia por cualquier sintoma nuevo de pecho con este perfil."),
+    ],
+  },
   pain: {
     symptomId: "pain",
     emergency: [
-      protocolRule(["chest_pain", "sudden_severe", "stroke_sign"], "emergency", "Pain includes a possible emergency warning sign.", "El dolor incluye una posible senal de emergencia.", "Call emergency services now if this is happening now.", "Llama a emergencias ahora si esto esta pasando ahora."),
+      protocolRule(["chest_pain", "sudden_severe", "stroke_sign", "back_bladder_weakness", "headache_fever_stiff", "limb_cold_blue"], "emergency", "Pain includes a possible emergency warning sign.", "El dolor incluye una posible senal de emergencia.", "Call emergency services now if this is happening now.", "Llama a emergencias ahora si esto esta pasando ahora."),
     ],
     doctorToday: [
-      protocolRule(["after_fall"], "doctor_today", "Pain after a fall or injury should be checked promptly in an older adult.", "Dolor tras una caida o golpe debe revisarse pronto en una persona mayor.", "Talk to a doctor today, sooner if pain is severe or walking is unsafe.", "Habla con un medico hoy, antes si el dolor es fuerte o caminar no es seguro."),
+      protocolRule(["after_fall", "new_headache_after_50", "night_back_pain", "deformed_limb"], "doctor_today", "Pain after a fall, new headache after 50, severe back pain, or limb injury should be checked promptly in an older adult.", "Dolor tras caida, dolor de cabeza nuevo despues de 50, dolor de espalda fuerte o lesion de extremidad debe revisarse pronto en una persona mayor.", "Talk to a doctor today, sooner if pain is severe or walking is unsafe.", "Habla con un medico hoy, antes si el dolor es fuerte o caminar no es seguro."),
     ],
     doctor24_48: [],
     monitorCriteriaEn: ["No chest pain", "No sudden severe pain", "No weakness, speech trouble, vision change, or head injury"],
@@ -147,25 +169,25 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
   breathing: {
     symptomId: "breathing",
     emergency: [
-      protocolRule(["breath_rest", "blue_confused", "low_oxygen", "strong"], "emergency", "Breathing symptoms include a high-risk warning sign.", "Sintomas respiratorios incluyen una senal de alto riesgo.", "Call emergency services now if breathing is difficult at rest, lips are blue, confusion appears, or speaking is hard.", "Llama a emergencias ahora si cuesta respirar en reposo, labios azules, confusion o cuesta hablar."),
+      protocolRule(["cannot_speak_breathing", "breath_rest", "blue_confused", "breathing_chest_pain", "coughing_blood", "one_calf_swollen", "low_oxygen", "strong"], "emergency", "Breathing symptoms include a high-risk warning sign.", "Sintomas respiratorios incluyen una senal de alto riesgo.", "Call emergency services now if breathing is difficult at rest, lips are blue, confusion appears, speaking is hard, chest pain appears, coughing blood occurs, or one calf is swollen.", "Llama a emergencias ahora si cuesta respirar en reposo, labios azules, confusion, cuesta hablar, aparece dolor de pecho, tos con sangre o una pantorrilla hinchada."),
     ],
     doctorToday: [
-      protocolRule(["walking_only", "worse", "new_symptoms"], "doctor_today", "Breathing symptoms with activity limitation or worsening need same-day advice.", "Sintomas respiratorios con limitacion o empeoramiento necesitan consejo el mismo dia.", "Talk to a doctor today if breathing is worse than usual.", "Habla con un medico hoy si respiras peor de lo habitual."),
+      protocolRule(["worse_but_speaking", "worse_lying_flat", "fever_cough_phlegm", "worse", "new_symptoms"], "doctor_today", "Breathing symptoms that are worse than usual, linked with fever/cough, worse lying flat, or worsening need same-day advice.", "Sintomas respiratorios peores de lo habitual, con fiebre/tos, peor acostado o empeoramiento necesitan consejo el mismo dia.", "Talk to a doctor today if breathing is worse than usual.", "Habla con un medico hoy si respiras peor de lo habitual."),
     ],
     doctor24_48: [],
     monitorCriteriaEn: ["Mild now", "No breathlessness at rest", "No blue lips, confusion, chest pressure, or low oxygen"],
     monitorCriteriaEs: ["Leve ahora", "Sin falta de aire en reposo", "Sin labios azules, confusion, presion de pecho u oxigeno bajo"],
     profileModifiers: [
-      protocolProfileModifier(["copd", "heartFailure", "heartDisease", "afib"], ["walking_only", "worse", "strong"], "doctor_today", "Heart or breathing history makes breathing changes more important.", "Antecedente cardiaco o respiratorio hace mas importantes los cambios de respiracion.", "Share this report with a doctor today.", "Comparte este informe con un medico hoy."),
+      protocolProfileModifier(["copd", "heartFailure", "heartDisease", "afib"], ["worse_but_speaking", "worse_lying_flat", "fever_cough_phlegm", "worse", "strong"], "doctor_today", "Heart or breathing history makes breathing changes more important.", "Antecedente cardiaco o respiratorio hace mas importantes los cambios de respiracion.", "Share this report with a doctor today.", "Comparte este informe con un medico hoy."),
     ],
   },
   fever: {
     symptomId: "fever",
     emergency: [
-      protocolRule(["high_fever", "confused_fever", "stiff_neck", "immuno_fever"], "emergency", "Fever includes an emergency warning sign.", "La fiebre incluye una senal de emergencia.", "Seek urgent help now for very high fever, confusion, stiff neck, new rash, or fever with low immunity.", "Busca ayuda urgente por fiebre muy alta, confusion, cuello rigido, erupcion nueva o fiebre con defensas bajas."),
+      protocolRule(["confused_fever", "sepsis_signs", "stiff_neck", "immuno_fever", "cancer_fever"], "emergency", "Fever includes an emergency warning sign.", "La fiebre incluye una senal de emergencia.", "Seek urgent help now for confusion, fast breathing, blue/pale/blotchy skin, very low urine, stiff neck, new rash, or fever with low immunity.", "Busca ayuda urgente por confusion, respiracion rapida, piel azul/palida/manchada, muy poca orina, cuello rigido, erupcion nueva o fiebre con defensas bajas."),
     ],
     doctorToday: [
-      protocolRule(["week_plus", "worse", "new_symptoms", "strong"], "doctor_today", "Fever that is prolonged, worsening, or making the person very unwell needs medical advice.", "Fiebre prolongada, que empeora o causa mucho malestar necesita consejo medico.", "Contact a doctor today if fever stays high or you feel worse.", "Contacta hoy con un medico si la fiebre sigue alta o te sientes peor."),
+      protocolRule(["high_fever", "fever_urine_back", "fever_breathing", "fever_wound", "less_urine_weak", "not_sure_trend", "week_plus", "worse", "new_symptoms", "strong"], "doctor_today", "Fever that is 38 C or higher, prolonged, uncertain, worsening, linked with infection symptoms, low urine, or making the person very unwell needs medical advice.", "Fiebre de 38 C o mas, prolongada, incierta, que empeora, con sintomas de infeccion, poca orina o mucho malestar necesita consejo medico.", "Contact a doctor today if fever stays high or you feel worse.", "Contacta hoy con un medico si la fiebre sigue alta o te sientes peor."),
     ],
     doctor24_48: [],
     monitorCriteriaEn: ["No confusion", "No stiff neck or new rash", "No low-immunity risk", "Able to drink"],
@@ -177,10 +199,10 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
   dizzy: {
     symptomId: "dizzy",
     emergency: [
-      protocolRule(["fainted", "stroke_sign", "dizzy_chest", "cannot_stand"], "emergency", "Dizziness includes fainting, stroke-like signs, chest pain, breathing trouble, or unsafe walking.", "El mareo incluye desmayo, senales tipo ictus, dolor de pecho, falta de aire o caminar inseguro.", "Seek urgent help now if this is happening now.", "Busca ayuda urgente ahora si esto esta pasando."),
+      protocolRule(["fainted_not_normal", "fainted_with_chest", "fainted", "stroke_sign", "dizzy_chest", "cannot_stand"], "emergency", "Dizziness includes fainting that has not fully resolved, stroke-like signs, chest pain, breathing trouble, or unsafe walking.", "El mareo incluye desmayo no recuperado, senales tipo ictus, dolor de pecho, falta de aire o caminar inseguro.", "Seek urgent help now if this is happening now.", "Busca ayuda urgente ahora si esto esta pasando."),
     ],
     doctorToday: [
-      protocolRule(["strong", "worse", "new_symptoms"], "doctor_today", "Dizziness affecting walking, worsening, or changing needs prompt advice.", "Mareo que afecta caminar, empeora o cambia necesita consejo pronto.", "Talk to a doctor today, especially if walking feels unsafe.", "Habla con un medico hoy, especialmente si caminar no se siente seguro."),
+      protocolRule(["very_dizzy_fall", "standing_dizziness", "head_movement_dizzy", "strong", "worse", "new_symptoms"], "doctor_today", "Dizziness affecting walking, fall risk, standing, head movement, worsening, or changing needs prompt advice.", "Mareo que afecta caminar, riesgo de caida, levantarse, movimiento de cabeza, empeora o cambia necesita consejo pronto.", "Talk to a doctor today, especially if walking feels unsafe.", "Habla con un medico hoy, especialmente si caminar no se siente seguro."),
     ],
     doctor24_48: [],
     monitorCriteriaEn: ["No fainting", "No weakness or speech trouble", "No chest pain or breathing trouble", "Walking is safe"],
@@ -192,10 +214,10 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
   tired: {
     symptomId: "tired",
     emergency: [
-      protocolRule(["cannot_stand", "new_confusion", "opioid_breathing", "low_sugar", "high_sugar_sick"], "emergency", "Weakness includes unsafe standing, new confusion, breathing/sedation risk, or glucose danger signs.", "La debilidad incluye no poder estar de pie, confusion nueva, riesgo por respiracion/sedacion o azucar.", "Seek urgent help now if unsafe, confused, hard to wake, or glucose is dangerously abnormal.", "Busca ayuda urgente si no estas seguro, hay confusion, cuesta despertar o el azucar esta peligroso."),
+      protocolRule(["one_sided_weakness", "cannot_stand", "hard_to_wake", "new_confusion", "chest_breathing", "opioid_breathing", "low_sugar", "high_sugar_sick"], "emergency", "Weakness includes stroke-like signs, unsafe standing, hard-to-wake alertness change, breathing/sedation risk, or glucose danger signs.", "La debilidad incluye senales tipo ictus, no poder estar de pie, cuesta despertar, riesgo por respiracion/sedacion o azucar.", "Seek urgent help now if unsafe, confused, hard to wake, or glucose is dangerously abnormal.", "Busca ayuda urgente si no estas seguro, hay confusion, cuesta despertar o el azucar esta peligroso."),
     ],
     doctorToday: [
-      protocolRule(["not_drinking", "strong", "worse", "new_symptoms"], "doctor_today", "Weakness that limits the day, worsens, or affects drinking should be checked.", "Debilidad que limita el dia, empeora o afecta beber debe revisarse.", "Talk to a doctor today if weakness is new, worsening, or linked with poor intake.", "Habla con un medico hoy si la debilidad es nueva, empeora o se asocia con mala ingesta."),
+      protocolRule(["infection_signs", "not_drinking", "strong", "worse", "new_symptoms"], "doctor_today", "Weakness that limits the day, worsens, suggests infection, or affects drinking should be checked.", "Debilidad que limita el dia, empeora, sugiere infeccion o afecta beber debe revisarse.", "Talk to a doctor today if weakness is new, worsening, linked with infection signs, or linked with poor intake.", "Habla con un medico hoy si la debilidad es nueva, empeora, se asocia con infeccion o mala ingesta."),
     ],
     doctor24_48: [],
     monitorCriteriaEn: ["Able to stand and walk safely", "No new confusion", "Drinking normally", "No chest pain or breathing trouble"],
@@ -207,12 +229,14 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
   stomach: {
     symptomId: "stomach",
     emergency: [
-      protocolRule(["severe_abdominal", "blood_vomit_stool", "rigid_belly"], "emergency", "Stomach or bowel symptoms include severe pain, blood, black stool, or hard swollen belly.", "Sintomas de estomago o intestino incluyen dolor fuerte, sangre, heces negras o barriga dura hinchada.", "Seek urgent help now for these signs.", "Busca ayuda urgente ahora por estas senales."),
+      protocolRule(["severe_abdominal", "blood_vomit_stool", "rigid_belly", "cannot_stool_gas", "cannot_pee", "collapsed_stomach"], "emergency", "Stomach or bowel symptoms include severe pain, blood, black stool, blocked urine, blocked stool/gas, collapse, or hard swollen belly.", "Sintomas de estomago o intestino incluyen dolor fuerte, sangre, heces negras, bloqueo de orina, bloqueo de heces/gases, colapso o barriga dura hinchada.", "Seek urgent help now for these signs.", "Busca ayuda urgente ahora por estas senales."),
     ],
     doctorToday: [
-      protocolRule(["strong", "worse", "new_symptoms", "not_drinking"], "doctor_today", "Stomach symptoms that are strong, worsening, or affecting fluids need medical advice.", "Sintomas de estomago fuertes, que empeoran o afectan liquidos necesitan consejo medico.", "Talk to a doctor today if symptoms worsen or fluids are difficult.", "Habla con un medico hoy si empeora o cuesta tomar liquidos."),
+      protocolRule(["cannot_keep_fluids", "fever_or_severe_pain", "diabetes_vomiting", "getting_worse_today", "vomit_diarrhea_24h", "strong", "worse", "new_symptoms", "not_drinking"], "doctor_today", "Stomach symptoms that are strong, worsening, linked with fever/diabetes, or affecting fluids need medical advice.", "Sintomas de estomago fuertes, que empeoran, con fiebre/diabetes o afectan liquidos necesitan consejo medico.", "Talk to a doctor today if symptoms worsen or fluids are difficult.", "Habla con un medico hoy si empeora o cuesta tomar liquidos."),
     ],
-    doctor24_48: [],
+    doctor24_48: [
+      protocolRule(["constipation_passing_gas", "ongoing_not_improving"], "doctor_24_48", "Constipation or ongoing stomach symptoms should have a clear follow-up window in older adults.", "Estrenimiento o sintomas de estomago persistentes necesitan un plazo claro en mayores.", "Book medical advice within 24-48 hours if it does not clearly improve.", "Reserva consejo medico en 24-48 horas si no mejora claramente."),
+    ],
     monitorCriteriaEn: ["No severe belly pain", "No blood or black stool", "No hard swollen belly", "Can keep fluids down"],
     monitorCriteriaEs: ["Sin dolor fuerte de barriga", "Sin sangre o heces negras", "Sin barriga dura hinchada", "Puede retener liquidos"],
     profileModifiers: [
@@ -222,13 +246,13 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
   urinary: {
     symptomId: "urinary",
     emergency: [
-      protocolRule(["urine_fever_back", "cannot_pee", "urine_confusion"], "emergency", "Urine symptoms include fever/back pain, blocked urine, or confusion.", "Sintomas de orina incluyen fiebre/dolor de espalda, no poder orinar o confusion.", "Seek urgent help now if fever with back pain, blocked urine, or confusion is present.", "Busca ayuda urgente ahora si hay fiebre con dolor de espalda, no puedes orinar o hay confusion."),
+      protocolRule(["cannot_pee", "urine_confusion", "urine_confusion_weak", "urine_heavy_blood"], "emergency", "Urine symptoms include blocked urine, heavy bleeding, or new confusion/marked weakness.", "Sintomas de orina incluyen no poder orinar, sangrado fuerte o confusion/debilidad nueva.", "Seek urgent help now if blocked urine, heavy blood/clots, or confusion is present.", "Busca ayuda urgente ahora si no puedes orinar, hay sangre/coagulos fuertes o confusion."),
     ],
     doctorToday: [
-      protocolRule(["blood_in_urine", "strong", "worse", "new_symptoms"], "doctor_today", "Urine symptoms with blood, severe discomfort, or worsening need medical advice.", "Sintomas de orina con sangre, mucha molestia o empeoramiento necesitan consejo medico.", "Talk to a doctor today.", "Habla con un medico hoy."),
+      protocolRule(["urine_fever_back", "urine_fever_chills", "urine_side_pain", "blood_in_urine", "catheter_symptoms", "strong", "worse", "new_symptoms"], "doctor_today", "Urine symptoms with fever, side/back pain, blood, catheter concerns, severe discomfort, or worsening need medical advice.", "Sintomas de orina con fiebre, dolor de lado/espalda, sangre, cateter, mucha molestia o empeoramiento necesitan consejo medico.", "Talk to a doctor today.", "Habla con un medico hoy."),
     ],
     doctor24_48: [
-      protocolRule(["no_red_flag", "mild", "same", "today"], "doctor_24_48", "Even mild urine symptoms in older adults should have a clear follow-up threshold.", "Incluso sintomas urinarios leves en mayores necesitan un umbral claro de seguimiento.", "Call a doctor within 24-48 hours if burning, urgency, or discomfort continues.", "Llama a un medico en 24-48 horas si ardor, urgencia o molestia continua."),
+      protocolRule(["mild", "same", "today", "urine_frequency", "burning_urgency"], "doctor_24_48", "Even mild urine symptoms in older adults should have a clear follow-up threshold.", "Incluso sintomas urinarios leves en mayores necesitan un umbral claro de seguimiento.", "Call a doctor within 24-48 hours if burning, urgency, or discomfort continues.", "Llama a un medico en 24-48 horas si ardor, urgencia o molestia continua."),
     ],
     monitorCriteriaEn: ["No fever or back/flank pain", "Able to pass urine", "No blood in urine", "No new confusion"],
     monitorCriteriaEs: ["Sin fiebre o dolor de espalda/lado", "Puede orinar", "Sin sangre en orina", "Sin confusion nueva"],
@@ -239,12 +263,14 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
   fall: {
     symptomId: "fall",
     emergency: [
-      protocolRule(["fall_head_hit", "fall_cannot_stand", "hip_back_after_fall"], "emergency", "Fall or injury includes head hit, confusion, inability to stand, or hip/back pain.", "Caida o golpe incluye golpe en cabeza, confusion, no poder estar de pie o dolor cadera/espalda.", "Seek urgent help for these signs.", "Busca ayuda urgente por estas senales."),
+      protocolRule(["fall_head_hit", "head_injury_red_flags", "fall_cannot_stand", "heavy_bleeding", "deformed_limb", "hip_back_after_fall"], "emergency", "Fall or injury includes head hit with red flags, confusion, inability to stand, deformity, heavy bleeding, or hip/back pain.", "Caida o golpe incluye golpe en cabeza con alertas, confusion, no poder estar de pie, deformidad, sangrado fuerte o dolor cadera/espalda.", "Seek urgent help for these signs.", "Busca ayuda urgente por estas senales."),
     ],
     doctorToday: [
-      protocolRule(["strong", "worse"], "doctor_today", "Pain or function change after a fall should be checked promptly.", "Dolor o cambio de funcion tras una caida debe revisarse pronto.", "Talk to a doctor today if pain increases or movement is limited.", "Habla con un medico hoy si aumenta el dolor o limita moverse."),
+      protocolRule(["head_hit_blood_thinner", "lost_consciousness", "fell_from_height", "alone_after_fall", "not_sure_trend", "strong", "worse"], "doctor_today", "Head injury on blood thinners, loss of consciousness, fall from height, being alone after a fall, pain, or function change should be checked promptly.", "Golpe en cabeza con anticoagulantes, perdida de conocimiento, caida desde altura, estar solo tras una caida, dolor o cambio de funcion debe revisarse pronto.", "Talk to a doctor today if pain increases or movement is limited.", "Habla con un medico hoy si aumenta el dolor o limita moverse."),
     ],
-    doctor24_48: [],
+    doctor24_48: [
+      protocolRule(["moderate"], "doctor_24_48", "Painful but usable injuries should still have a clear follow-up window in older adults.", "Lesiones dolorosas pero usables aun necesitan un plazo claro en mayores.", "Book medical advice within 24-48 hours if pain or movement is not clearly improving.", "Reserva consejo medico en 24-48 horas si dolor o movimiento no mejora claramente."),
+    ],
     monitorCriteriaEn: ["No head hit", "No confusion or fainting", "Can stand and walk", "No hip/back severe pain"],
     monitorCriteriaEs: ["Sin golpe en cabeza", "Sin confusion o desmayo", "Puede estar de pie y caminar", "Sin dolor fuerte de cadera/espalda"],
     profileModifiers: [
@@ -254,10 +280,10 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
   skin: {
     symptomId: "skin",
     emergency: [
-      protocolRule(["allergic_swelling"], "emergency", "Face, lip, tongue, or throat swelling can threaten breathing.", "Hinchazon de cara, labios, lengua o garganta puede amenazar la respiracion.", "Call emergency services now if swelling is happening now.", "Llama a emergencias ahora si la hinchazon esta pasando ahora."),
+      protocolRule(["allergic_swelling", "skin_sepsis_signs", "non_fading_rash"], "emergency", "Face, lip, tongue, or throat swelling or skin infection with whole-body danger signs can threaten life.", "Hinchazon de cara, labios, lengua o garganta o infeccion de piel con senales generales puede amenazar la vida.", "Call emergency services now if swelling, hard breathing, confusion, severe infection signs, or non-fading rash are happening now.", "Llama a emergencias ahora si hay hinchazon, cuesta respirar, confusion, senales graves de infeccion o erupcion que no desaparece a la presion."),
     ],
     doctorToday: [
-      protocolRule(["wound_spreading", "fever_after_surgery", "strong", "worse", "new_symptoms"], "doctor_today", "Skin or wound changes that spread, hurt, drain pus, or come with fever should be checked today.", "Cambios de piel o herida que se extienden, duelen, tienen pus o fiebre deben revisarse hoy.", "Talk to a doctor today if spreading, fever, pus, warmth, or increasing pain appears.", "Habla con un medico hoy si se extiende, hay fiebre, pus, calor o mas dolor."),
+      protocolRule(["wound_spreading", "fever_after_surgery", "shingles_eye", "shingles_immune", "shingles_early", "pus_bad_smell", "not_sure_trend", "strong", "worse", "new_symptoms"], "doctor_today", "Skin or wound changes that spread, hurt, drain pus, involve shingles near the eye, or come with fever should be checked today.", "Cambios de piel o herida que se extienden, duelen, tienen pus, posible culebrilla cerca del ojo o fiebre deben revisarse hoy.", "Talk to a doctor today if spreading, fever, pus, warmth, eye-area shingles, or increasing pain appears.", "Habla con un medico hoy si se extiende, hay fiebre, pus, calor, culebrilla cerca del ojo o mas dolor."),
     ],
     doctor24_48: [],
     monitorCriteriaEn: ["Small area", "Not spreading", "No fever", "No face/throat swelling"],
@@ -269,12 +295,14 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
   confusion: {
     symptomId: "confusion",
     emergency: [
-      protocolRule(["sudden_confusion", "stroke_sign", "urine_confusion", "new_confusion"], "emergency", "New or sudden confusion can signal urgent illness in older adults.", "Confusion nueva o repentina puede indicar enfermedad urgente en mayores.", "Seek urgent help now if confusion is sudden, worse, or linked with weakness, fever, or urine change.", "Busca ayuda urgente ahora si la confusion es repentina, peor o con debilidad, fiebre u orina."),
+      protocolRule(["sudden_confusion", "hard_to_wake", "stroke_sign", "urine_confusion", "urine_confusion_weak", "sepsis_signs", "new_confusion", "self_harm"], "emergency", "New or sudden confusion can signal urgent illness in older adults.", "Confusion nueva o repentina puede indicar enfermedad urgente en mayores.", "Seek urgent help now if confusion is sudden, hard to wake, worse, or linked with weakness, fever, urine change, glucose danger signs, or self-harm concern.", "Busca ayuda urgente ahora si la confusion es repentina, cuesta despertar, peor o con debilidad, fiebre, orina, azucar peligrosa o riesgo de autolesion."),
     ],
     doctorToday: [
-      protocolRule(["strong", "worse", "new_symptoms"], "doctor_today", "Confusion that persists or changes should be checked promptly.", "Confusion que persiste o cambia debe revisarse pronto.", "Talk to a doctor today if confusion continues or someone else notices it.", "Habla con un medico hoy si la confusion continua o alguien mas la nota."),
+      protocolRule(["unsafe_behavior", "new_medicine_confusion", "strong", "worse", "new_symptoms"], "doctor_today", "Confusion that affects safety, follows a medicine change, persists, or changes should be checked promptly.", "Confusion que afecta seguridad, sigue un cambio de medicina, persiste o cambia debe revisarse pronto.", "Talk to a doctor today if confusion continues or someone else notices it.", "Habla con un medico hoy si la confusion continua o alguien mas la nota."),
     ],
-    doctor24_48: [],
+    doctor24_48: [
+      protocolRule(["no_red_flag", "mild", "week_plus"], "doctor_24_48", "Slow memory or thinking change should still be reviewed and should involve a trusted contact.", "Cambio lento de memoria o pensamiento aun debe revisarse e involucrar a un contacto de confianza.", "Book medical advice within 24-48 hours for slow memory or thinking changes.", "Reserva consejo medico en 24-48 horas por cambios lentos de memoria o pensamiento."),
+    ],
     monitorCriteriaEn: ["Not sudden", "Mild and familiar", "Safe with support", "No weakness, fever, urine change, or fainting"],
     monitorCriteriaEs: ["No repentina", "Leve y conocida", "Seguro con apoyo", "Sin debilidad, fiebre, cambio de orina o desmayo"],
     profileModifiers: [
@@ -284,13 +312,13 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
   other: {
     symptomId: "other",
     emergency: [
-      protocolRule(["cannot_stand", "new_severe", "new_confusion", "chest_pain", "breath_rest"], "emergency", "The symptom is unclear but includes a serious warning sign.", "El sintoma no esta claro pero incluye una senal seria.", "Seek urgent help now if this warning sign is happening now.", "Busca ayuda urgente ahora si esta senal esta pasando."),
+      protocolRule(["cannot_stand", "new_severe", "new_confusion", "hard_to_wake", "chest_pain", "breath_rest", "stroke_sign", "fainted_not_normal", "severe_bleeding", "allergic_swelling"], "emergency", "The symptom is unclear but includes a serious warning sign.", "El sintoma no esta claro pero incluye una senal seria.", "Seek urgent help now if this warning sign is happening now.", "Busca ayuda urgente ahora si esta senal esta pasando."),
     ],
     doctorToday: [
-      protocolRule(["strong", "worse", "new_symptoms", "not_drinking"], "doctor_today", "An unclear symptom that is strong, worsening, or affecting intake should be checked.", "Un sintoma poco claro que es fuerte, empeora o afecta ingesta debe revisarse.", "Talk to a doctor today if this feels unusual or unsafe.", "Habla con un medico hoy si esto se siente raro o inseguro."),
+      protocolRule(["main_chest_breathing", "main_neuro_fall", "main_infection", "sudden_worse_today", "after_medicine_surgery_fall", "strong", "worse", "new_symptoms", "not_drinking"], "doctor_today", "An unclear symptom that is new, worsening, linked to a high-risk body area, or affecting intake should be checked.", "Un sintoma poco claro nuevo, que empeora, ligado a una zona de riesgo o afecta ingesta debe revisarse.", "Talk to a doctor today if this feels unusual or unsafe.", "Habla con un medico hoy si esto se siente raro o inseguro."),
     ],
     doctor24_48: [
-      protocolRule(["not_sure_severity", "not_sure_duration"], "doctor_24_48", "When the symptom remains unclear, it is safer to involve a clinician than to guess.", "Cuando el sintoma sigue poco claro, es mas seguro involucrar a un clinico que adivinar.", "Talk to a doctor within 24-48 hours if this remains unclear.", "Habla con un medico en 24-48 horas si esto sigue poco claro."),
+      protocolRule(["not_sure_severity", "not_sure_duration", "ongoing_not_improving"], "doctor_24_48", "When the symptom remains unclear or is not improving, it is safer to involve a clinician than to guess.", "Cuando el sintoma sigue poco claro o no mejora, es mas seguro involucrar a un clinico que adivinar.", "Talk to a doctor within 24-48 hours if this remains unclear.", "Habla con un medico en 24-48 horas si esto sigue poco claro."),
     ],
     monitorCriteriaEn: ["No serious warning sign", "Clear symptom is mild", "Safe at home with support"],
     monitorCriteriaEs: ["Sin senal seria", "Sintoma claro y leve", "Seguro en casa con apoyo"],
@@ -299,6 +327,13 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
 };
 
 function watchSignsFor(locale: string, symptomId?: string): string[] {
+  if (symptomId === "chest") {
+    return [
+      text(locale, "Chest pressure, tightness, or pain is happening now or getting worse.", "Presion, opresion o dolor de pecho ocurre ahora o empeora."),
+      text(locale, "Breathing trouble, sweating, faintness, nausea, or pain spreading to arm, jaw, back, or neck appears.", "Aparece falta de aire, sudor, desmayo, nausea o dolor hacia brazo, mandibula, espalda o cuello."),
+      text(locale, "Pulse feels very fast, irregular, or very slow.", "El pulso se siente muy rapido, irregular o muy lento."),
+    ];
+  }
   if (symptomId === "breathing") {
     return [
       text(locale, "Breathing becomes difficult at rest.", "La respiracion cuesta incluso en reposo."),
@@ -378,6 +413,7 @@ function watchSignsFor(locale: string, symptomId?: string): string[] {
 
 function monitorReasonFor(locale: string, symptomId?: string): string {
   const reasons: Record<string, string> = {
+    chest: text(locale, "Chest symptoms are lower concern only when there is no current pressure, breathing trouble, faintness, sweating, nausea, or spreading pain.", "Sintomas de pecho son de menor preocupacion solo si no hay presion actual, falta de aire, desmayo, sudor, nausea o dolor que se extiende."),
     breathing: text(locale, "Breathing is lower concern only because it is not happening at rest and there are no blue lips, confusion, or chest pressure.", "Respiracion es de menor preocupacion solo porque no ocurre en reposo y no hay labios azules, confusion o presion de pecho."),
     fever: text(locale, "Fever is lower concern only because there is no confusion, stiff neck, new rash, or severe weakness.", "La fiebre es de menor preocupacion solo porque no hay confusion, cuello rigido, erupcion nueva o debilidad fuerte."),
     dizzy: text(locale, "Dizziness is lower concern only if standing, walking, speech, breathing, and thinking remain normal.", "El mareo es de menor preocupacion solo si estar de pie, caminar, hablar, respirar y pensar siguen normales."),
@@ -418,6 +454,15 @@ function recommendationsFor(locale: string, symptomId: string | undefined, level
       text(locale, "Use this report to explain the symptom clearly.", "Usa este informe para explicar el sintoma claramente."),
       text(locale, "Seek same-day help if it gets worse or feels unusual for you.", "Busca ayuda el mismo dia si empeora o se siente raro para ti."),
       text(locale, "Keep watching for the warning signs below.", "Sigue vigilando las senales de alerta de abajo."),
+    ];
+  }
+
+  if (symptomId === "chest") {
+    return [
+      text(locale, "Stop activity and sit upright while you decide the next step.", "Para la actividad y sientate erguido mientras decides el siguiente paso."),
+      text(locale, "Call emergency services now if chest pressure is present, worsening, or comes with breathing trouble, sweating, faintness, nausea, or spreading pain.", "Llama a emergencias ahora si hay presion de pecho, empeora, o viene con falta de aire, sudor, desmayo, nausea o dolor que se extiende."),
+      text(locale, "If the feeling is mild and has passed, contact a doctor today for advice.", "Si la sensacion es leve y ya paso, contacta hoy con un medico para consejo."),
+      text(locale, "Do not drive yourself while chest symptoms are being checked.", "No conduzcas tu mismo mientras se revisan sintomas de pecho."),
     ];
   }
 
@@ -516,6 +561,9 @@ export function evaluateTriageRules(input: TriageRuleInput): TriageRuleDecision 
   const reasons: string[] = [];
   const recommendations: string[] = [];
   const profileConsiderations: string[] = [];
+  const infectionLikeSymptoms = ["fever", "skin", "urinary", "stomach", "confusion"];
+  const cardioRespNeuroSymptoms = ["chest", "breathing", "dizzy", "tired", "confusion"];
+  const bpEmergencySymptoms = ["chest", "pain", "dizzy", "confusion", "breathing"];
 
   function raise(nextLevel: TriageRuleLevel, reason: string, recommendation?: string) {
     if (rank(nextLevel) > rank(level)) level = nextLevel;
@@ -559,11 +607,167 @@ export function evaluateTriageRules(input: TriageRuleInput): TriageRuleDecision 
     );
   }
 
+  if (typeof input.oxygenSaturation === "number") {
+    if (input.oxygenSaturation <= 88 && ["chest", "breathing", "tired", "confusion", "fever"].includes(symptomId ?? "")) {
+      raise(
+        "emergency",
+        text(locale, "Oxygen saturation is very low for this symptom pattern.", "La saturacion de oxigeno es muy baja para este patron de sintomas."),
+        text(locale, "Call emergency services now if oxygen is 88% or lower or breathing feels unsafe.", "Llama a emergencias ahora si el oxigeno es 88% o menos o respirar se siente inseguro."),
+      );
+    } else if (input.oxygenSaturation <= 92 && ["chest", "breathing", "tired", "fever"].includes(symptomId ?? "")) {
+      raise(
+        "doctor_today",
+        text(locale, "Oxygen saturation is low enough to share with a clinician today.", "La saturacion de oxigeno es lo bastante baja para compartirla hoy con un clinico."),
+        text(locale, "Talk to a doctor today and seek urgent help sooner if breathing worsens.", "Habla con un medico hoy y busca ayuda urgente antes si respirar empeora."),
+      );
+    }
+  }
+
+  if (typeof input.respiratoryRate === "number" && infectionLikeSymptoms.includes(symptomId ?? "")) {
+    if (input.respiratoryRate >= 25) {
+      raise(
+        "emergency",
+        text(locale, "Breathing rate is high in a possible infection pattern.", "La frecuencia respiratoria es alta en un posible patron de infeccion."),
+        text(locale, "Seek urgent help now for fast breathing with possible infection.", "Busca ayuda urgente ahora por respiracion rapida con posible infeccion."),
+      );
+    } else if (input.respiratoryRate >= 21) {
+      raise(
+        "doctor_today",
+        text(locale, "Breathing rate is raised in a possible infection pattern.", "La frecuencia respiratoria esta elevada en un posible patron de infeccion."),
+        text(locale, "Talk to a doctor today and share the breathing rate.", "Habla con un medico hoy y comparte la frecuencia respiratoria."),
+      );
+    }
+  }
+
+  if (typeof input.pulseBpm === "number") {
+    if (input.pulseBpm > 130 && infectionLikeSymptoms.includes(symptomId ?? "")) {
+      raise(
+        "emergency",
+        text(locale, "Pulse is very high in a possible infection pattern.", "El pulso es muy alto en un posible patron de infeccion."),
+        text(locale, "Seek urgent help now for very fast pulse with possible infection.", "Busca ayuda urgente ahora por pulso muy rapido con posible infeccion."),
+      );
+    } else if (input.pulseBpm >= 91 && input.pulseBpm <= 130 && infectionLikeSymptoms.includes(symptomId ?? "")) {
+      raise(
+        "doctor_today",
+        text(locale, "Pulse is raised in a possible infection pattern.", "El pulso esta elevado en un posible patron de infeccion."),
+        text(locale, "Talk to a doctor today and share the pulse reading.", "Habla con un medico hoy y comparte el pulso."),
+      );
+    }
+
+    if ((input.pulseBpm >= 130 || input.pulseBpm <= 45) && cardioRespNeuroSymptoms.includes(symptomId ?? "")) {
+      raise(
+        "emergency",
+        text(locale, "Pulse is very high or very low with a concerning symptom.", "El pulso es muy alto o muy bajo con un sintoma preocupante."),
+        text(locale, "Seek urgent help now for a very abnormal pulse with chest, breathing, fainting, confusion, or severe weakness symptoms.", "Busca ayuda urgente ahora por pulso muy anormal con pecho, respiracion, desmayo, confusion o debilidad fuerte."),
+      );
+    }
+  }
+
+  if (typeof input.temperatureC === "number") {
+    if (symptomId === "fever" && risks.cancerActive && input.temperatureC >= 38) {
+      raise(
+        "emergency",
+        text(locale, "Fever during cancer treatment can be an emergency.", "La fiebre durante tratamiento contra cancer puede ser una emergencia."),
+        text(locale, "Call emergency services or the oncology emergency number now for fever during cancer treatment.", "Llama a emergencias o al numero de urgencias oncologicas ahora por fiebre durante tratamiento contra cancer."),
+      );
+    } else if (infectionLikeSymptoms.includes(symptomId ?? "") && input.temperatureC >= 38) {
+      raise(
+        "doctor_today",
+        text(locale, "Temperature confirms fever in a possible infection pattern.", "La temperatura confirma fiebre en un posible patron de infeccion."),
+        text(locale, "Talk to a doctor today, sooner if confusion, fast breathing, or severe weakness appears.", "Habla con un medico hoy, antes si aparece confusion, respiracion rapida o debilidad fuerte."),
+      );
+    } else if (infectionLikeSymptoms.includes(symptomId ?? "") && input.temperatureC < 36) {
+      raise(
+        "doctor_today",
+        text(locale, "Low temperature can still be concerning when infection is possible.", "Temperatura baja aun puede preocupar cuando una infeccion es posible."),
+        text(locale, "Talk to a doctor today, and seek urgent help if confusion or fast breathing appears.", "Habla con un medico hoy y busca ayuda urgente si aparece confusion o respiracion rapida."),
+      );
+    }
+  }
+
+  if (typeof input.systolicBp === "number" || typeof input.diastolicBp === "number") {
+    const systolic = input.systolicBp ?? 0;
+    const diastolic = input.diastolicBp ?? 0;
+    if ((systolic >= 180 || diastolic >= 120) && bpEmergencySymptoms.includes(symptomId ?? "")) {
+      raise(
+        "emergency",
+        text(locale, "Blood pressure is very high with symptoms that can be urgent.", "La presion arterial es muy alta con sintomas que pueden ser urgentes."),
+        text(locale, "Seek urgent help now for very high blood pressure with chest pain, breathing trouble, weakness, vision change, or speech trouble.", "Busca ayuda urgente ahora por presion muy alta con dolor de pecho, falta de aire, debilidad, cambio de vision o habla rara."),
+      );
+    } else if (systolic >= 180 || diastolic >= 120) {
+      raise(
+        "doctor_today",
+        text(locale, "Blood pressure is very high and should be discussed today.", "La presion arterial es muy alta y debe hablarse hoy."),
+        text(locale, "Repeat the reading if safe and talk to a doctor today.", "Repite la medicion si es seguro y habla con un medico hoy."),
+      );
+    }
+
+    if (systolic > 0 && systolic < 90 && ["fever", "dizzy", "tired", "confusion", "fall"].includes(symptomId ?? "")) {
+      raise(
+        "emergency",
+        text(locale, "Blood pressure is very low with a concerning symptom.", "La presion arterial es muy baja con un sintoma preocupante."),
+        text(locale, "Seek urgent help now for very low blood pressure with weakness, dizziness, confusion, fever, or a fall.", "Busca ayuda urgente ahora por presion muy baja con debilidad, mareo, confusion, fiebre o caida."),
+      );
+    } else if (systolic >= 91 && systolic <= 100 && ["fever", "dizzy", "tired", "confusion"].includes(symptomId ?? "")) {
+      raise(
+        "doctor_today",
+        text(locale, "Blood pressure is low for this symptom pattern.", "La presion arterial es baja para este patron de sintomas."),
+        text(locale, "Talk to a doctor today and seek urgent help if you feel faint, confused, or much weaker.", "Habla con un medico hoy y busca ayuda urgente si sientes desmayo, confusion o mucha mas debilidad."),
+      );
+    }
+  }
+
+  if (typeof input.glucoseMgdl === "number" && ["dizzy", "tired", "confusion", "stomach", "fever", "other"].includes(symptomId ?? "")) {
+    if (input.glucoseMgdl < 54 || (input.glucoseMgdl < 70 && (ids.has("new_confusion") || ids.has("cannot_stand") || ids.has("fainted")))) {
+      raise(
+        "emergency",
+        text(locale, "Glucose is dangerously low or low with unsafe symptoms.", "La glucosa esta peligrosamente baja o baja con sintomas inseguros."),
+        text(locale, "Use the person's diabetes plan if available and seek urgent help if confused, collapsed, unable to swallow, or not improving.", "Usa el plan de diabetes si existe y busca ayuda urgente si hay confusion, colapso, no puede tragar o no mejora."),
+      );
+    } else if (input.glucoseMgdl < 70) {
+      raise(
+        "doctor_today",
+        text(locale, "Glucose is low and should be followed up, especially if medication-related.", "La glucosa esta baja y debe revisarse, especialmente si se relaciona con medicacion."),
+        text(locale, "Treat low glucose according to the diabetes plan and talk to a doctor today if it recurs or medicines may be involved.", "Trata la glucosa baja segun el plan de diabetes y habla con un medico hoy si se repite o puede estar relacionada con medicinas."),
+      );
+    } else if (input.glucoseMgdl >= 300 && (ids.has("not_drinking") || ids.has("strong") || ids.has("new_confusion") || symptomId === "stomach")) {
+      raise(
+        "emergency",
+        text(locale, "Glucose is very high with illness, dehydration, stomach symptoms, or alertness change.", "La glucosa esta muy alta con enfermedad, deshidratacion, sintomas de estomago o cambio de alerta."),
+        text(locale, "Seek urgent help now for very high glucose with vomiting, dehydration, breathing trouble, or reduced alertness.", "Busca ayuda urgente ahora por glucosa muy alta con vomitos, deshidratacion, falta de aire o menos alerta."),
+      );
+    }
+  }
+
   if (symptomId === "breathing" && ids.has("strong")) {
     raise(
       "emergency",
       text(locale, "Breathing is hard enough to affect speaking.", "La respiracion cuesta tanto que afecta al habla."),
       text(locale, "Call emergency services now if speaking or resting is difficult.", "Llama a emergencias ahora si cuesta hablar o respirar en reposo."),
+    );
+  }
+
+  if (symptomId === "chest" && (input.abnormalPulse || input.abnormalBreathingRate)) {
+    raise(
+      "doctor_today",
+      text(locale, "The vitals scan adds concern because pulse or breathing rate is outside the expected range.", "El escaneo de signos vitales aumenta la preocupacion porque pulso o respiracion estan fuera del rango esperado."),
+      text(locale, "Use same-day medical advice, and seek emergency help if chest pressure, breathlessness, faintness, or sweating is present.", "Usa consejo medico el mismo dia y busca urgencias si hay presion de pecho, falta de aire, desmayo o sudor."),
+    );
+  }
+
+  if (symptomId === "breathing" && input.abnormalBreathingRate) {
+    raise(
+      "doctor_today",
+      text(locale, "The vitals scan suggests the breathing rate is outside the expected range.", "El escaneo sugiere que la frecuencia respiratoria esta fuera del rango esperado."),
+      text(locale, "Talk to a doctor today if breathing feels different from usual.", "Habla con un medico hoy si respirar se siente diferente de lo habitual."),
+    );
+  }
+
+  if (["dizzy", "tired", "confusion", "fall"].includes(symptomId ?? "") && input.abnormalPulse) {
+    raise(
+      "doctor_today",
+      text(locale, "The vitals scan suggests the pulse is outside the expected range for this symptom.", "El escaneo sugiere que el pulso esta fuera del rango esperado para este sintoma."),
+      text(locale, "Share the pulse result with a doctor today, especially if this is new or worsening.", "Comparte hoy el pulso con un medico, especialmente si esto es nuevo o empeora."),
     );
   }
 
@@ -599,7 +803,7 @@ export function evaluateTriageRules(input: TriageRuleInput): TriageRuleDecision 
     );
   }
 
-  if (symptomId === "stomach" && (ids.has("strong") || ids.has("worse") || ids.has("new_symptoms") || ids.has("blood_vomit_stool") || ids.has("severe_abdominal") || ids.has("rigid_belly"))) {
+  if (symptomId === "stomach" && (ids.has("strong") || ids.has("worse") || ids.has("new_symptoms") || ids.has("blood_vomit_stool") || ids.has("severe_abdominal") || ids.has("rigid_belly") || ids.has("getting_worse_today") || ids.has("vomit_diarrhea_24h") || ids.has("not_drinking"))) {
     raise(
       ids.has("blood_vomit_stool") || ids.has("severe_abdominal") || ids.has("rigid_belly") ? "emergency" : "doctor_today",
       text(locale, "Stomach or bowel symptoms include signs that should be checked promptly.", "Sintomas de estomago o intestino incluyen senales que deben revisarse pronto."),
@@ -607,15 +811,15 @@ export function evaluateTriageRules(input: TriageRuleInput): TriageRuleDecision 
     );
   }
 
-  if (symptomId === "urinary" && (ids.has("strong") || ids.has("worse") || ids.has("new_symptoms") || ids.has("urine_fever_back") || ids.has("cannot_pee") || ids.has("blood_in_urine"))) {
+  if (symptomId === "urinary" && (ids.has("strong") || ids.has("worse") || ids.has("new_symptoms") || ids.has("urine_fever_back") || ids.has("urine_fever_chills") || ids.has("urine_side_pain") || ids.has("urine_confusion_weak") || ids.has("cannot_pee") || ids.has("blood_in_urine"))) {
     raise(
-      ids.has("urine_fever_back") || ids.has("cannot_pee") ? "emergency" : "doctor_today",
+      ids.has("urine_confusion_weak") || ids.has("cannot_pee") ? "emergency" : "doctor_today",
       text(locale, "Urine symptoms with fever, back pain, retention, blood, or worsening need medical advice.", "Sintomas de orina con fiebre, dolor de espalda, retencion, sangre o empeoramiento necesitan consejo medico."),
       text(locale, "Talk to a doctor today, or seek urgent help if you cannot pass urine or have fever with back pain.", "Habla con un medico hoy, o busca urgencias si no puedes orinar o tienes fiebre con dolor de espalda."),
     );
   }
 
-  if (symptomId === "fall" && (ids.has("fall_head_hit") || ids.has("fall_cannot_stand") || ids.has("hip_back_after_fall") || ids.has("strong") || ids.has("worse"))) {
+  if (symptomId === "fall" && (ids.has("fall_head_hit") || ids.has("fall_cannot_stand") || ids.has("hip_back_after_fall") || ids.has("lost_consciousness") || ids.has("fell_from_height") || ids.has("not_sure_trend") || ids.has("strong") || ids.has("worse"))) {
     raise(
       ids.has("fall_head_hit") || ids.has("fall_cannot_stand") || ids.has("hip_back_after_fall") ? "emergency" : "doctor_today",
       text(locale, "Fall or injury answers include signs that may need urgent assessment.", "Respuestas de caida o golpe incluyen senales que pueden necesitar evaluacion urgente."),
@@ -623,7 +827,7 @@ export function evaluateTriageRules(input: TriageRuleInput): TriageRuleDecision 
     );
   }
 
-  if (symptomId === "skin" && (ids.has("wound_spreading") || ids.has("allergic_swelling") || ids.has("fever_after_surgery") || ids.has("strong") || ids.has("worse") || ids.has("new_symptoms"))) {
+  if (symptomId === "skin" && (ids.has("wound_spreading") || ids.has("allergic_swelling") || ids.has("fever_after_surgery") || ids.has("shingles_eye") || ids.has("shingles_immune") || ids.has("shingles_early") || ids.has("pus_bad_smell") || ids.has("not_sure_trend") || ids.has("strong") || ids.has("worse") || ids.has("new_symptoms"))) {
     raise(
       ids.has("allergic_swelling") ? "emergency" : "doctor_today",
       text(locale, "Skin or wound symptoms are spreading, severe, or linked with fever/swelling.", "Sintomas de piel o herida se extienden, son fuertes o se asocian con fiebre/hinchazon."),
@@ -631,9 +835,9 @@ export function evaluateTriageRules(input: TriageRuleInput): TriageRuleDecision 
     );
   }
 
-  if (symptomId === "confusion" && (ids.has("sudden_confusion") || ids.has("stroke_sign") || ids.has("urine_confusion") || ids.has("strong") || ids.has("worse") || ids.has("new_symptoms"))) {
+  if (symptomId === "confusion" && (ids.has("sudden_confusion") || ids.has("stroke_sign") || ids.has("urine_confusion") || ids.has("urine_confusion_weak") || ids.has("self_harm") || ids.has("strong") || ids.has("worse") || ids.has("new_symptoms"))) {
     raise(
-      ids.has("sudden_confusion") || ids.has("stroke_sign") || ids.has("urine_confusion") ? "emergency" : "doctor_today",
+      ids.has("sudden_confusion") || ids.has("stroke_sign") || ids.has("urine_confusion") || ids.has("urine_confusion_weak") || ids.has("self_harm") ? "emergency" : "doctor_today",
       text(locale, "Confusion that is sudden, worsening, or linked with weakness, fever, or urine change needs urgent caution.", "Confusion repentina, que empeora o con debilidad, fiebre u orina requiere mucha cautela."),
       text(locale, "Seek urgent help now if confusion is sudden, severe, or comes with weakness, speech trouble, fever, or urine change.", "Busca ayuda urgente ahora si la confusion es repentina, fuerte o viene con debilidad, habla rara, fiebre u orina."),
     );
