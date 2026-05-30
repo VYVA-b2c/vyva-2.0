@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Activity, ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, Heart, Loader2, PhoneCall, Stethoscope } from "lucide-react";
+import { Activity, ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, Heart, Loader2, PhoneCall, Sparkles, Stethoscope } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import TriageChat, { type TriageChatDraft } from "@/components/TriageChat";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
@@ -421,6 +421,7 @@ function ReportScreen({
     doctorContactName ? { id: "doctor", label: doctorContactName } : null,
     caregiverContactName ? { id: "caregiver", label: caregiverContactName } : null,
   ].filter(Boolean) as Array<{ id: string; label: string }>;
+  const isFamilyInformed = notifiedContacts.some((contact) => contact.id === "caregiver");
   const notifiedText = notifiedContacts.length === 2
     ? t("health.symptomCheck.report.sentToBoth", "A copy of this report has been sent to {{first}} and {{second}}.", {
         first: notifiedContacts[0].label,
@@ -674,6 +675,17 @@ function ReportScreen({
         </p>
 
         <div className="mt-4 flex flex-wrap gap-2">
+          {isFamilyInformed ? (
+            <span
+              className="inline-flex items-center gap-2 rounded-full px-3 py-1.5"
+              style={{ background: cfg.pillBg }}
+            >
+              <Sparkles size={13} className="text-white" />
+              <span className="font-body text-[13px] font-semibold text-white">
+                {t("health.symptomCheck.report.familyInformed", "Family informed")}
+              </span>
+            </span>
+          ) : null}
           {bpm != null ? (
             <span
               className="inline-flex items-center gap-2 rounded-full px-3 py-1.5"
