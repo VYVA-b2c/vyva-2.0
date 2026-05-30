@@ -37,7 +37,13 @@ function readyServices(overrides: Record<string, unknown> = {}) {
   };
 }
 
-async function mockApi(page: Page, signedIn = false, readinessOverrides: Record<string, unknown> = {}) {
+async function mockApi(
+  page: Page,
+  signedIn = false,
+  readinessOverrides: Record<string, unknown> = {},
+  profileOverrides: Record<string, unknown> = {},
+  careTeamMembers: unknown[] = [],
+) {
   if (signedIn) {
     await page.addInitScript((token) => {
       localStorage.setItem("vyva_auth_token", token);
@@ -73,6 +79,9 @@ async function mockApi(page: Page, signedIn = false, readinessOverrides: Record<
         postalCode: "",
         caregiverName: "",
         caregiverContact: "",
+        gpName: "",
+        gpPhone: "",
+        ...profileOverrides,
       });
       return;
     }
@@ -135,6 +144,11 @@ async function mockApi(page: Page, signedIn = false, readinessOverrides: Record<
         profile: { current_stage: "complete" },
         onboardingState: { current_stage: "complete" },
       });
+      return;
+    }
+
+    if (signedIn && url.pathname === "/api/onboarding/careteam") {
+      await fulfillJson(route, 200, { members: careTeamMembers });
       return;
     }
 
@@ -610,6 +624,8 @@ test("symptom check restores a completed report until done", async ({ page }) =>
   await page.getByTestId("input-symptom-clue").fill("bad headache");
   await page.getByTestId("button-symptom-check-start").click();
   await expect(page.getByTestId("button-report-done")).toBeVisible();
+  await expect(page.getByTestId("button-report-share-doctor-disabled")).toBeVisible();
+  await expect(page.getByTestId("button-report-share-doctor-disabled")).toBeDisabled();
   await expect.poll(async () => page.evaluate((key) => JSON.parse(sessionStorage.getItem(key) ?? "null")?.step, symptomCheckDraftKey)).toBe("report");
 
   await page.goto("/health", { waitUntil: "domcontentloaded" });
@@ -621,6 +637,52 @@ test("symptom check restores a completed report until done", async ({ page }) =>
   await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("input-symptom-clue")).toBeVisible();
   await expect.poll(async () => page.evaluate((key) => sessionStorage.getItem(key), symptomCheckDraftKey)).toBeNull();
+});
+
+test("symptom check prepares a direct doctor share link when a doctor contact is saved", async ({ page }) => {
+  await mockApi(page, true, {}, { gpName: "Dr Smoke", gpPhone: "+34123456789" });
+  await page.evaluate((key) => sessionStorage.removeItem(key), symptomCheckDraftKey).catch(() => undefined);
+  await page.route("**/api/triage/context", async (route) => {
+    await fulfillJson(route, 200, { memory: {}, usedItems: [] });
+  });
+  await page.route("**/api/reports/triage", async (route) => {
+    await fulfillJson(route, 200, {
+      id: "triage-share-smoke",
+      chief_complaint: "Bad headache",
+      symptoms: ["Headache"],
+      urgency: "monitor",
+      recommendations: ["Rest and monitor symptoms."],
+      disclaimer: "Informational only.",
+    });
+  });
+  await page.route("**/api/triage/message", async (route) => {
+    await fulfillJson(route, 200, {
+      role: "assistant",
+      content: "Monitor at home unless symptoms worsen.",
+      done: true,
+      summary: {
+        chiefComplaint: "Bad headache",
+        symptoms: ["Headache"],
+        urgency: "monitor",
+        recommendations: ["Rest and monitor symptoms."],
+        disclaimer: "Informational only.",
+        nextStepLabel: "Monitor at home",
+        nextStepLevel: "monitor",
+      },
+    });
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
+  await page.getByTestId("input-symptom-clue").fill("bad headache");
+  await page.getByTestId("button-symptom-check-start").click();
+
+  const shareDoctorLink = page.getByTestId("link-report-share-doctor");
+  await expect(shareDoctorLink).toBeVisible();
+  await expect(shareDoctorLink).toContainText("Share with doctor");
+  await expect(shareDoctorLink).toHaveAttribute("href", /^sms:\+34123456789\?body=.*Bad%20headache/);
+  await expect(page.getByTestId("button-report-share-doctor-disabled")).toHaveCount(0);
+  await expectNoHorizontalOverflow(page);
 });
 
 test("profile overview constrains desktop width and switches section rows into cards", async ({ page }) => {

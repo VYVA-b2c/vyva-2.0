@@ -294,6 +294,8 @@ const fr = {
         refinePrompt: "Nouvelle constante ajoutee apres le premier rapport : {{title}} : {{display}}. Affinez le triage avec cette mesure. Les constantes peuvent augmenter ou clarifier l'urgence, mais ne doivent pas reduire les signaux d'urgence.",
         emergencyDoNotWait: "N'attendez pas",
         doctorNoteSub: "Texte simple a lire, montrer ou partager.",
+        shareWithDoctor: "Partager avec le medecin",
+        noDoctorToShare: "Aucun contact medecin dans le profil",
         contextUsed: "Ce que VYVA a pris en compte",
       },
     },

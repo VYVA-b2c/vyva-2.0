@@ -298,6 +298,8 @@ const en = {
         refinePrompt: "New vital added after the first report: {{title}}: {{display}}. Refine the triage result with this new reading. Vitals can increase or clarify urgency, but must not downgrade emergency red flags.",
         emergencyDoNotWait: "Do not wait",
         doctorNoteSub: "Plain text to read, show, or share.",
+        shareWithDoctor: "Share with doctor",
+        noDoctorToShare: "No doctor contact in profile",
         contextUsed: "What VYVA considered",
       },
     },
