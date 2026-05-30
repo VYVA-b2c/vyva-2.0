@@ -387,7 +387,7 @@ function setInviteParam(params: URLSearchParams, key: string, value: string | nu
 
 export function buildSignupInviteUrl(baseUrl: string, value: unknown, prefill: SignupInvitePrefill = {}): string {
   const language = normalizeSignupInviteLanguage(value);
-  const url = new URL("/settings/account", `${baseUrl.replace(/\/$/, "")}/`);
+  const url = new URL("/invite", `${baseUrl.replace(/\/$/, "")}/`);
   const nameParts = splitSignupInviteName(prefill.name);
   url.searchParams.set("lang", language);
   setInviteParam(url.searchParams, "first_name", safeInviteNameParam(prefill.firstName) || nameParts.firstName);
