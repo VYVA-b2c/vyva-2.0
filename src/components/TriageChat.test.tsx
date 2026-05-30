@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import TriageChat from "./TriageChat";
@@ -39,6 +39,7 @@ describe("TriageChat MediSearch follow-ups", () => {
   afterEach(() => {
     apiFetchMock.mockReset();
     setLanguage("en");
+    vi.useRealTimers();
   });
 
   it("sends the selected app language to the triage service", async () => {
@@ -88,6 +89,26 @@ describe("TriageChat MediSearch follow-ups", () => {
     const request = JSON.parse((apiFetchMock.mock.calls[0][1] as RequestInit).body as string);
     expect(request.locale).toBe("es");
     await screen.findByText("Bien");
+  });
+
+  it("rotates the review headline through VYVA thinking steps", async () => {
+    vi.useFakeTimers();
+
+    renderTriageChat({ languageReady: false });
+
+    expect(screen.getByTestId("triage-review-headline")).toHaveTextContent("VYVA is checking the safest next step");
+
+    act(() => {
+      vi.advanceTimersByTime(2200);
+    });
+
+    expect(screen.getByTestId("triage-review-headline")).toHaveTextContent("Reviewing trusted medical guidance");
+
+    act(() => {
+      vi.advanceTimersByTime(2200);
+    });
+
+    expect(screen.getByTestId("triage-review-headline")).toHaveTextContent("Checking your answers for red flags");
   });
 
   it("renders follow-up chips below the primary answer tiles", async () => {

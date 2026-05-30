@@ -190,6 +190,7 @@ const speechLangFor = (language: string) => {
 
 function TriageReviewPanel() {
   const { t } = useTranslation();
+  const [headlineIndex, setHeadlineIndex] = useState(0);
   const reviewSteps = [
     {
       key: "medical",
@@ -216,6 +217,19 @@ function TriageReviewPanel() {
       className: "bg-[#ECFDF5] text-[#047857]",
     },
   ];
+  const reviewHeadlines = [
+    t("health.symptomCheck.chat.reviewTitle", "VYVA is checking the safest next step"),
+    ...reviewSteps.map((step) => step.label),
+  ];
+  const activeHeadline = reviewHeadlines[headlineIndex % reviewHeadlines.length];
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setHeadlineIndex((current) => (current + 1) % reviewHeadlines.length);
+    }, 2200);
+
+    return () => clearInterval(timer);
+  }, [reviewHeadlines.length]);
 
   return (
     <section
@@ -233,8 +247,11 @@ function TriageReviewPanel() {
           <p className="font-body text-[11px] font-black uppercase tracking-[0.16em] text-vyva-purple">
             {t("health.symptomCheck.chat.reviewEyebrow", "VYVA is reviewing")}
           </p>
-          <h2 className="mt-1 font-body text-[21px] font-black leading-tight text-vyva-text-1 sm:text-[23px]">
-            {t("health.symptomCheck.chat.reviewTitle", "VYVA is checking the safest next step")}
+          <h2
+            className="mt-1 min-h-[54px] font-body text-[21px] font-black leading-tight text-vyva-text-1 sm:min-h-[58px] sm:text-[23px]"
+            data-testid="triage-review-headline"
+          >
+            {activeHeadline}
           </h2>
           <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
             {t("health.symptomCheck.chat.reviewSubtitle", "VYVA checks your answers against trusted guidance and your profile before suggesting what to do next.")}
