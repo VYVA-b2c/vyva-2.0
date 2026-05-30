@@ -689,6 +689,7 @@
         "highUrgencyLabel": "High urgency",
         "emergencyUrgencyLabel": "Emergency urgency",
         "urgentLabel": "Seek Care Now",
+        "doctorTodayLabel": "Same-day care",
         "routineLabel": "Arrange a Visit",
         "monitorLabel": "Monitor at Home",
         "chiefComplaint": "Your concern",

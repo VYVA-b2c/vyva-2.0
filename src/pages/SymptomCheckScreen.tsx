@@ -284,7 +284,7 @@ function ReportConfig(summary: TriageSummary) {
       urgencyLabel: "health.symptomCheck.report.highUrgencyLabel",
       fallbackUrgencyLabel: "High urgency",
       label: "health.symptomCheck.report.doctorTodayLabel",
-      fallbackLabel: "Doctor today",
+      fallbackLabel: "Same-day care",
       pillBg: "rgba(255,255,255,0.25)",
       level,
     };
