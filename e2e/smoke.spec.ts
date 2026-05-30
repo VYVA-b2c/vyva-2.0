@@ -352,6 +352,67 @@ test("service setup guidance is visible and responsive", async ({ page }) => {
   }
 });
 
+test("symptom check replaces repeated thinking with review guidance", async ({ page }) => {
+  await mockApi(page, true);
+  await page.route("**/api/triage/context", async (route) => {
+    await fulfillJson(route, 200, {
+      memory: {
+        healthContext: "Lives independently",
+        medications: "Amlodipine",
+      },
+      usedItems: ["Health profile", "Medications"],
+    });
+  });
+
+  let releaseTriage: (() => void) | null = null;
+  let triageRequestCount = 0;
+  await page.route("**/api/triage/message", async (route) => {
+    triageRequestCount += 1;
+    await new Promise<void>((resolve) => {
+      releaseTriage = resolve;
+    });
+    await fulfillJson(route, 200, {
+      role: "assistant",
+      content: "How strong is it?",
+      quickReplies: [
+        {
+          id: "mild",
+          label: "Mild",
+          value: "It feels mild.",
+          icon: "activity",
+          tone: "green",
+          kind: "severity",
+        },
+      ],
+    });
+  });
+
+  for (const viewport of [
+    { width: 1280, height: 720 },
+    { width: 390, height: 844 },
+  ]) {
+    releaseTriage = null;
+    triageRequestCount = 0;
+    await page.setViewportSize(viewport);
+    await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
+
+    await page.getByTestId("input-symptom-clue").fill("bad headache");
+    await page.getByTestId("button-symptom-check-start").click();
+    await expect.poll(() => triageRequestCount).toBe(1);
+
+    const reviewPanel = page.getByTestId("triage-review-panel");
+    await expect(reviewPanel).toBeVisible();
+    await expect(page.getByText("VYVA is checking the safest next step")).toHaveCount(1);
+    await expect(reviewPanel).toContainText("Reviewing trusted medical guidance");
+    await expect(reviewPanel).toContainText("Checking your answers for red flags");
+    await expect(page.getByText("VYVA is thinking…")).toHaveCount(0);
+    await expectNoHorizontalOverflow(page);
+
+    releaseTriage?.();
+    await expect(page.getByText("How strong is it?")).toBeVisible();
+  }
+});
+
 test("profile overview constrains desktop width and switches section rows into cards", async ({ page }) => {
   await mockApi(page, true);
 

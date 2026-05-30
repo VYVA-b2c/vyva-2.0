@@ -21,6 +21,7 @@ import {
   MessageCircle,
   Music,
   Palette,
+  Plus,
   Send,
   ShieldCheck,
   Share2,
@@ -568,6 +569,43 @@ const CHECKIN_LAUNCH_TEXT = {
 function copyFor(language?: string) {
   const base = (language ?? "es").split("-")[0].toLowerCase() as WizardLocale;
   return CHECKIN_LAUNCH_TEXT[base] ?? CHECKIN_LAUNCH_TEXT.es;
+}
+
+function careContactPromptFor(copy: ReturnType<typeof copyFor>) {
+  if (copy === CHECKIN_LAUNCH_TEXT.es) {
+    return {
+      title: "Aun no hay un medico o cuidador guardado.",
+      action: "Anadir",
+    };
+  }
+  if (copy === CHECKIN_LAUNCH_TEXT.fr) {
+    return {
+      title: "Aucun medecin ou aidant n'est encore ajoute.",
+      action: "Ajouter",
+    };
+  }
+  if (copy === CHECKIN_LAUNCH_TEXT.de) {
+    return {
+      title: "Noch kein Arzt oder Betreuer hinzugefuegt.",
+      action: "Hinzufuegen",
+    };
+  }
+  if (copy === CHECKIN_LAUNCH_TEXT.it) {
+    return {
+      title: "Nessun medico o caregiver ancora salvato.",
+      action: "Aggiungi",
+    };
+  }
+  if (copy === CHECKIN_LAUNCH_TEXT.pt) {
+    return {
+      title: "Ainda nao ha medico ou cuidador guardado.",
+      action: "Adicionar",
+    };
+  }
+  return {
+    title: "No doctor or caregiver contact is set yet.",
+    action: "Add",
+  };
 }
 
 function inferGender(profile: { gender?: string } | null, firstName: string): GrammaticalGender {
@@ -1702,6 +1740,8 @@ const CheckHowIFeelScreen = () => {
   const symptomDetailOptions = symptomDetailOptionsFor(answers, copy);
   const socialOptions = localizedSocialOptionsFor(gender, copy);
   const shareTargets = buildShareTargets(profile, careTeamData?.members ?? [], onboardingState?.profile, shareLabels);
+  const hasSavedCareContact = shareTargets.some((target) => target.kind === "caregiver" || target.kind === "doctor");
+  const careContactPrompt = careContactPromptFor(copy);
 
   const loadingMessage = useMemo(() => {
     const messages = copy.loading;
@@ -2122,6 +2162,27 @@ const CheckHowIFeelScreen = () => {
             actionLabel={todayAction?.title}
             onAction={todayAction ? () => navigate(todayAction.to) : undefined}
           />
+          {!hasSavedCareContact && (
+            <button
+              type="button"
+              onClick={() => navigate("/onboarding/profile/care-team")}
+              className="vyva-tap mt-4 flex min-h-[74px] w-full items-center gap-4 rounded-[22px] border border-vyva-border bg-white p-4 text-left shadow-[0_8px_20px_rgba(63,45,35,0.06)]"
+              data-testid="button-add-care-contact"
+            >
+              <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[17px] bg-[#F5F3FF] text-vyva-text-2">
+                <ClipboardList size={23} />
+              </span>
+              <span className="min-w-0 flex-1 font-body text-[18px] font-bold leading-snug text-vyva-text-2">
+                {careContactPrompt.title}
+              </span>
+              <span
+                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-vyva-purple text-white shadow-[0_8px_18px_rgba(107,33,168,0.18)]"
+                aria-label={careContactPrompt.action}
+              >
+                <Plus size={24} strokeWidth={3} />
+              </span>
+            </button>
+          )}
           {result.watch_for && (
             <div className="mt-4 flex gap-3 rounded-[24px] border border-[#F59E0B]/30 bg-[#FFFBEB] p-5">
               <span className="text-[24px]">🔎</span>
