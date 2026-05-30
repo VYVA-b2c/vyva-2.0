@@ -5,7 +5,7 @@ import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
 import { z } from "zod";
 import { db } from "../db.js";
-import { accessLinks, lifecycleEvents, profiles, userIntakes, users } from "../../shared/schema.js";
+import { accessLinks, lifecycleEvents, profileMemberships, profiles, userIntakes, users } from "../../shared/schema.js";
 import { signMagicLoginToken, verifyMagicLoginToken } from "../lib/jwt.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { sendMagicLoginEmail, sendPasswordResetEmail } from "../lib/email.js";
@@ -249,6 +249,63 @@ function authResponseUser(
   };
 }
 
+async function seedRegistrationProfile(user: typeof users.$inferSelect, language: ProfileLanguage) {
+  const trialPatch = premiumTrialProfilePatch();
+  const now = new Date();
+
+  await db
+    .insert(profiles)
+    .values({
+      id: user.id,
+      email: user.email,
+      phone_number: user.phone_number,
+      language,
+      onboarding_channel: "web_form",
+      current_stage: "stage_1_identity",
+      ...trialPatch,
+    })
+    .onConflictDoUpdate({
+      target: profiles.id,
+      set: {
+        ...(user.email ? { email: user.email } : {}),
+        ...(user.phone_number ? { phone_number: user.phone_number } : {}),
+        language,
+        updated_at: now,
+      },
+    });
+
+  await db
+    .insert(profileMemberships)
+    .values({
+      user_id: user.id,
+      profile_id: user.id,
+      role: "elder",
+      relationship: "self",
+      is_primary: true,
+      status: "active",
+      accepted_at: now,
+    })
+    .onConflictDoUpdate({
+      target: [profileMemberships.user_id, profileMemberships.profile_id],
+      set: {
+        role: "elder",
+        relationship: "self",
+        status: "active",
+        is_primary: true,
+        accepted_at: now,
+        updated_at: now,
+      },
+    });
+
+  await db
+    .update(users)
+    .set({
+      active_profile_id: user.id,
+      onboarding_intent: "self",
+    })
+    .where(eq(users.id, user.id));
+}
+
 async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16).toString("hex");
   const derived = (await scryptAsync(password, salt, 64)) as Buffer;
@@ -365,8 +422,11 @@ authRouter.post("/register", async (req: Request, res: Response) => {
       .values({ email: contact.email, phone_number: contact.phone, password_hash })
       .returning();
 
+    await seedRegistrationProfile(user, language);
+    const registeredUser = { ...user, active_profile_id: user.id, onboarding_intent: "self" };
+
     const token = await issueAuthSessionCookie(res, user.id);
-    return res.status(201).json({ token, ...authResponseUser(user, null, language, "user") });
+    return res.status(201).json({ token, ...authResponseUser(registeredUser, null, language, "user") });
   } catch (err) {
     console.error("[auth/register]", err);
     return res.status(500).json({ error: friendlyAuthWriteError(err) });

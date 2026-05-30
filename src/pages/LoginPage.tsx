@@ -24,7 +24,7 @@ import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 import { localizeAuthErrorMessage } from "@/lib/authErrorLocalization";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { stageToRoute } from "@/lib/onboardingRoute";
-import { useLanguage } from "@/i18n";
+import { setAccountLanguage, useLanguage } from "@/i18n";
 import { LANGUAGES, type LanguageCode } from "@/i18n/languages";
 
 type View = "login" | "register" | "forgot" | "magic";
@@ -140,6 +140,27 @@ function setupInviteParamsFromPath(path: string | null): URLSearchParams | null 
   if (queryStart === -1) return new URLSearchParams();
   const hashStart = path.indexOf("#", queryStart);
   return new URLSearchParams(path.slice(queryStart, hashStart === -1 ? undefined : hashStart));
+}
+
+function setupInviteParamsFromSearch(search: string): URLSearchParams | null {
+  const params = new URLSearchParams(search);
+  const hasInviteSetup =
+    params.get("invite") === "1" ||
+    params.has("lang") ||
+    params.has("language") ||
+    params.has("email") ||
+    params.has("phone") ||
+    params.has("whatsapp") ||
+    params.has("first_name") ||
+    params.has("last_name");
+  return hasInviteSetup ? params : null;
+}
+
+function inviteReturnPathFromSearch(search: string): string | null {
+  const params = new URLSearchParams(search);
+  const returnTo = normalizeReturnPath(params.get("returnTo") ?? undefined);
+  if (returnTo) return returnTo;
+  return params.get("invite") === "1" ? "/" : null;
 }
 
 function setupLanguageFromParams(params: URLSearchParams): LanguageCode | null {
@@ -1440,21 +1461,26 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   };
 
   useEffect(() => {
-    const setupParams = setupInviteParamsFromPath(from);
+    const setupParams = setupInviteParamsFromPath(from) ?? setupInviteParamsFromSearch(location.search);
     if (!setupParams) return;
     const setupLanguage = setupLanguageFromParams(setupParams);
-    if (setupLanguage && setupLanguage !== language) setLanguage(setupLanguage);
+    if (setupLanguage && setupLanguage !== language) setAccountLanguage(setupLanguage);
     if (!contact.trim()) {
       const setupContact = setupContactFromParams(setupParams);
       if (setupContact) setContact(setupContact);
     }
-  }, [contact, from, language, setLanguage]);
+  }, [contact, from, language, location.search]);
 
   useEffect(() => {
     if (isLoading) return;
     if (!user) return;
+    const inviteReturnPath = adminOnly ? null : inviteReturnPathFromSearch(location.search);
     if (adminOnly) {
       navigate("/admin/lifecycle", { replace: true });
+      return;
+    }
+    if (inviteReturnPath) {
+      navigate(inviteReturnPath, { replace: true });
       return;
     }
     if (from) {
@@ -1468,7 +1494,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         navigate(stageToRoute(stage), { replace: true });
       })
       .catch(() => navigate("/onboarding/basics", { replace: true }));
-  }, [adminOnly, from, isLoading, user, navigate]);
+  }, [adminOnly, from, isLoading, location.search, user, navigate]);
 
   useEffect(() => {
     if (magicTokenHandledRef.current || user) return;
@@ -1558,6 +1584,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
     if (loading) return;
     setError(null);
     setLoading(true);
+    const inviteReturnPath = adminOnly ? null : inviteReturnPathFromSearch(location.search);
     try {
       if (mode === "register") {
         if (adminOnly) {
@@ -1565,14 +1592,18 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         }
         const setupFor = rememberSetupIntent();
         await register(authContactPayload(true), password);
-        if (from) {
+        if (inviteReturnPath) {
+          navigate(inviteReturnPath, { replace: true });
+        } else if (from) {
           navigate(from, { replace: true });
         } else {
           navigate("/onboarding/who-for", { replace: true, state: { setupFor } });
         }
       } else {
         await login(authContactPayload(), password);
-        if (from) {
+        if (inviteReturnPath) {
+          navigate(inviteReturnPath, { replace: true });
+        } else if (from) {
           navigate(from, { replace: true });
         } else {
           const data = await queryClient.fetchQuery({ queryKey: ["/api/onboarding/state"] }).catch(() => null);

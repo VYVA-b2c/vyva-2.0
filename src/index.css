@@ -362,11 +362,12 @@
     transform: none;
   }
 
+  .triage-review-line:not(:first-child) {
+    display: none;
+  }
+
   .triage-review-lines {
-    display: grid;
-    gap: 0.35rem;
     overflow: visible;
-    border-radius: 1.25rem;
   }
 }
 

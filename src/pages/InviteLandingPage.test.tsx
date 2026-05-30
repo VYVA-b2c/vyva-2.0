@@ -1,7 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { queryClient } from "@/lib/queryClient";
 import InviteLandingPage, { inviteSetupPath } from "./InviteLandingPage";
 
 const mocks = vi.hoisted(() => ({
@@ -13,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   language: {
     language: "en",
     setLanguage: vi.fn(),
+    setAccountLanguage: vi.fn(),
   },
 }));
 
@@ -21,6 +21,7 @@ vi.mock("@/contexts/AuthContext", () => ({
 }));
 
 vi.mock("@/i18n", () => ({
+  setAccountLanguage: (language: string) => mocks.language.setAccountLanguage(language),
   useLanguage: () => ({
     language: mocks.language.language,
     setLanguage: mocks.language.setLanguage,
@@ -41,7 +42,8 @@ function renderInvite(initialEntry: string) {
     <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/invite" element={<InviteLandingPage />} />
-        <Route path="/settings/account" element={<LocationSpy />} />
+        <Route path="/login" element={<LocationSpy />} />
+        <Route path="/" element={<LocationSpy />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -53,7 +55,7 @@ beforeEach(() => {
   mocks.auth.logout = vi.fn().mockResolvedValue(undefined);
   mocks.language.language = "en";
   mocks.language.setLanguage = vi.fn();
-  vi.spyOn(queryClient, "clear").mockImplementation(() => undefined);
+  mocks.language.setAccountLanguage = vi.fn();
 });
 
 afterEach(() => {
@@ -61,35 +63,31 @@ afterEach(() => {
 });
 
 describe("invite landing compatibility redirect", () => {
-  it("builds the account setup path with the original query string", () => {
+  it("builds the login setup path with the original query string", () => {
     expect(inviteSetupPath("?lang=es&email=maria%40example.com&phone=%2B34%20612")).toBe(
-      "/settings/account?lang=es&email=maria%40example.com&phone=%2B34%20612",
+      "/login?lang=es&email=maria%40example.com&phone=%2B34+612&mode=register&invite=1&returnTo=%2F",
     );
   });
 
-  it("redirects signed-out legacy invite links to account setup", async () => {
+  it("redirects signed-out invite links to account creation", async () => {
     renderInvite("/invite?lang=fr&email=maria%40example.com");
 
     await waitFor(() => {
-      expect(screen.getByTestId("location")).toHaveTextContent("/settings/account?lang=fr&email=maria%40example.com");
+      expect(screen.getByTestId("location")).toHaveTextContent(
+        "/login?lang=fr&email=maria%40example.com&mode=register&invite=1&returnTo=%2F",
+      );
     });
-    expect(mocks.language.setLanguage).toHaveBeenCalledWith("fr");
+    expect(mocks.language.setAccountLanguage).toHaveBeenCalledWith("fr");
     expect(mocks.auth.logout).not.toHaveBeenCalled();
-    expect(queryClient.clear).not.toHaveBeenCalled();
   });
 
-  it("signs out before redirecting signed-in legacy invite links", async () => {
+  it("sends signed-in invite links to the home page", async () => {
     mocks.auth.user = { id: "user-1", email: "karim@example.com" };
     renderInvite("/invite?lang=en&first_name=Maria&last_name=Gomez");
 
     await waitFor(() => {
-      expect(mocks.auth.logout).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("location")).toHaveTextContent("/");
     });
-    expect(queryClient.clear).toHaveBeenCalledTimes(1);
-    await waitFor(() => {
-      expect(screen.getByTestId("location")).toHaveTextContent(
-        "/settings/account?lang=en&first_name=Maria&last_name=Gomez",
-      );
-    });
+    expect(mocks.auth.logout).not.toHaveBeenCalled();
   });
 });

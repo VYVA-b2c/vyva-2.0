@@ -231,7 +231,13 @@ onboardingRouter.post("/start-profile", async (req: Request, res: Response) => {
         onboarding_channel: isSelf ? "web_form" : "proxy_web",
         current_stage: "stage_1_identity",
       })
-      .onConflictDoNothing();
+      .onConflictDoUpdate({
+        target: profiles.id,
+        set: {
+          language: parsed.data.language,
+          updated_at: now,
+        },
+      });
 
     await db
       .insert(profileMemberships)

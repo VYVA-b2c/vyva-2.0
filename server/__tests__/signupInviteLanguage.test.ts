@@ -12,11 +12,11 @@ describe("signup invite language", () => {
   });
 
   it("builds invite links with the selected language", () => {
-    expect(buildSignupInviteUrl("https://v2.vyva.life", "fr")).toBe("https://v2.vyva.life/settings/account?lang=fr");
-    expect(buildSignupInviteUrl("https://v2.vyva.life/", "es")).toBe("https://v2.vyva.life/settings/account?lang=es");
+    expect(buildSignupInviteUrl("https://v2.vyva.life", "fr")).toBe("https://v2.vyva.life/invite?lang=fr");
+    expect(buildSignupInviteUrl("https://v2.vyva.life/", "es")).toBe("https://v2.vyva.life/invite?lang=es");
   });
 
-  it("builds account setup links with safe recipient prefill details", () => {
+  it("builds invite links with safe recipient prefill details", () => {
     const setupUrl = buildSignupInviteUrl("https://v2.vyva.life", "en", {
       name: "Maria Gomez",
       email: "maria@example.com",
@@ -26,7 +26,7 @@ describe("signup invite language", () => {
     const parsed = new URL(setupUrl);
 
     expect(parsed.origin).toBe("https://v2.vyva.life");
-    expect(parsed.pathname).toBe("/settings/account");
+    expect(parsed.pathname).toBe("/invite");
     expect(parsed.searchParams.get("lang")).toBe("en");
     expect(parsed.searchParams.get("first_name")).toBe("Maria");
     expect(parsed.searchParams.get("last_name")).toBe("Gomez");
@@ -118,7 +118,7 @@ describe("signup invite language", () => {
     const email = buildSignupInviteEmail({
       language: "en",
       intro: "Karim invited you to join VYVA.",
-      url: "https://v2.vyva.life/settings/account?lang=en",
+      url: "https://v2.vyva.life/invite?lang=en",
     }, null, "https://v2.vyva.life");
 
     expect(email.subject).toBe("Welcome to VYVA");
@@ -147,13 +147,13 @@ describe("signup invite language", () => {
     const email = buildSignupInviteEmail({
       language: "en",
       recipient_name: "Maria <Care>",
-      url: "https://v2.vyva.life/settings/account?lang=en",
+      url: "https://v2.vyva.life/invite?lang=en",
     }, null, "https://v2.vyva.life");
 
     expect(email.html).toContain("Dear Maria &lt;Care&gt;,");
     expect(email.text).toContain("Dear Maria <Care>,");
-    expect(email.html).toContain('href="https://v2.vyva.life/settings/account?lang=en"');
-    expect(email.text).toContain("VOICE ACTIVATED, NO DIGITAL SKILLS REQUIRED: https://v2.vyva.life/settings/account?lang=en");
+    expect(email.html).toContain('href="https://v2.vyva.life/invite?lang=en"');
+    expect(email.text).toContain("VOICE ACTIVATED, NO DIGITAL SKILLS REQUIRED: https://v2.vyva.life/invite?lang=en");
     expect(email.html).toContain('href="https://vyva.life"');
     expect(email.html).toContain('href="https://vyva.life/privacypolicy"');
     expect(email.html).toContain('href="https://vyva.life/securityencryption"');
@@ -166,7 +166,7 @@ describe("signup invite language", () => {
   it("uses setup link prefill details as a fallback recipient greeting", () => {
     const email = buildSignupInviteEmail({
       language: "en",
-      url: "https://v2.vyva.life/settings/account?lang=en&first_name=Maria&last_name=Gomez",
+      url: "https://v2.vyva.life/invite?lang=en&first_name=Maria&last_name=Gomez",
     }, null, "https://v2.vyva.life");
 
     expect(email.html).toContain("Dear Maria Gomez,");
@@ -176,7 +176,7 @@ describe("signup invite language", () => {
   it("keeps the default email short when there is no admin message", () => {
     const email = buildSignupInviteEmail({
       language: "en",
-      url: "https://v2.vyva.life/settings/account?lang=en",
+      url: "https://v2.vyva.life/invite?lang=en",
     }, null, "https://v2.vyva.life");
 
     expect(email.html).not.toContain("VYVA is ready for you.");
@@ -190,7 +190,7 @@ describe("signup invite language", () => {
         language,
         recipient_name: "Maria",
         intro: `Custom intro for ${language}.`,
-        url: `https://v2.vyva.life/settings/account?lang=${language}`,
+        url: `https://v2.vyva.life/invite?lang=${language}`,
       }, null, "https://v2.vyva.life");
 
       expect(email.subject).toBe(copy.subject);
