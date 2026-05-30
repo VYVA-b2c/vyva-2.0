@@ -7,6 +7,7 @@ import {
   UserSearch,
   Video,
   Phone,
+  MessageCircle,
   MapPin,
   Share2,
   ChevronRight,
@@ -1027,7 +1028,7 @@ const HealthScreen = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-body text-[21px] font-extrabold leading-tight text-vyva-text-1">{t("health.seeDoctor.title", "See a Doctor")}</p>
-                  <p className="mt-2 font-body text-[14px] font-medium leading-snug text-vyva-text-2">{t("health.seeDoctor.subtitle", "Video or phone in minutes")}</p>
+                  <p className="mt-2 font-body text-[14px] font-medium leading-snug text-vyva-text-2">{t("health.seeDoctor.subtitle", "Phone, video, or live chat")}</p>
                 </div>
                 <button
                   data-testid="button-see-doctor"
@@ -1035,7 +1036,7 @@ const HealthScreen = () => {
                   className="vyva-tap flex-shrink-0 rounded-full px-[16px] py-[8px] font-body text-[14px] font-semibold transition-all"
                   style={{ background: "#F0FDF4", color: "#0A7C4E", border: "1px solid #BBF7D0" }}
                 >
-                  {t("health.seeDoctor.cta", "Book Now")}
+                  {t("health.seeDoctor.cta", "Choose")}
                 </button>
               </div>
 
@@ -1044,6 +1045,7 @@ const HealthScreen = () => {
                   {[
                     { Icon: Video, label: t("health.seeDoctor.videoCall", "Video Call"), testId: "button-video-call" },
                     { Icon: Phone, label: t("health.seeDoctor.phoneCall", "Phone Call"), testId: "button-phone-call" },
+                    { Icon: MessageCircle, label: t("health.seeDoctor.liveChat", "Live Chat"), testId: "button-live-chat" },
                   ].map(({ Icon, label, testId }) => (
                     <div key={label} className="flex items-center gap-3 rounded-[12px] px-[14px] py-[11px] mt-2" style={{ background: "#F9FAFB", border: "1px solid #E5E7EB" }}>
                       <div className="w-[34px] h-[34px] rounded-[10px] flex items-center justify-center flex-shrink-0" style={{ background: "#F0FDF4" }}>
