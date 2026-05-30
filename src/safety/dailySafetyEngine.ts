@@ -20,6 +20,27 @@ export type MedicationSafetyContext = {
   missedOrLate30: number;
 };
 
+export type SafetySymptomPattern = {
+  chestPain?: boolean;
+  breathingTrouble?: boolean;
+  severeHeadache?: boolean;
+  visionChange?: boolean;
+  newWeakness?: boolean;
+  newConfusion?: boolean;
+  confusion?: boolean;
+  illness?: boolean;
+  dehydration?: boolean;
+  vomiting?: boolean;
+  symptoms?: string[];
+  notes?: string[];
+};
+
+export type CaregiverEscalationContext = {
+  livesAlone?: boolean;
+  caregiverConsent?: boolean;
+  caregiverAvailable?: boolean;
+};
+
 export type TriageSafetyContext = {
   chief_complaint?: string | null;
   urgency?: string | null;
@@ -34,6 +55,8 @@ export type DailySafetyInput = {
   signalSummary: SignalSummary[];
   latestTriage?: TriageSafetyContext | null;
   medication?: MedicationSafetyContext | null;
+  symptomPattern?: SafetySymptomPattern | null;
+  caregiver?: CaregiverEscalationContext | null;
   language?: string | null;
 };
 
@@ -117,7 +140,80 @@ function latestValue(summary: SignalSummary): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
-function signalRule(summary: SignalSummary): { status: SafetyStatus; reason: string; label: string } | null {
+type RuleContext = {
+  hasBpCrisisSymptoms: boolean;
+  hasDkaHhsPattern: boolean;
+};
+
+function textParts(input: DailySafetyInput): string[] {
+  return [
+    ...(input.symptomPattern?.symptoms ?? []),
+    ...(input.symptomPattern?.notes ?? []),
+    input.latestTriage?.chief_complaint,
+    input.latestTriage?.next_step_label,
+    ...(input.latestTriage?.triage_reasons ?? []),
+    ...(input.latestTriage?.watch_signs ?? []),
+  ].filter((part): part is string => typeof part === "string" && part.trim().length > 0);
+}
+
+function mentionsAny(input: DailySafetyInput, terms: string[]): boolean {
+  const text = textParts(input).join(" ").toLowerCase();
+  return terms.some((term) => text.includes(term));
+}
+
+function hasBpCrisisSymptoms(input: DailySafetyInput): boolean {
+  const pattern = input.symptomPattern;
+  return Boolean(
+    pattern?.chestPain ||
+    pattern?.breathingTrouble ||
+    pattern?.severeHeadache ||
+    pattern?.visionChange ||
+    pattern?.newWeakness ||
+    pattern?.newConfusion ||
+    pattern?.confusion ||
+    mentionsAny(input, [
+      "chest pain",
+      "chest pressure",
+      "shortness of breath",
+      "breathless",
+      "difficulty breathing",
+      "severe headache",
+      "vision",
+      "blurred",
+      "confusion",
+      "weakness",
+      "numbness",
+      "speech",
+      "face droop",
+    ])
+  );
+}
+
+function hasDkaHhsPattern(input: DailySafetyInput): boolean {
+  const pattern = input.symptomPattern;
+  return Boolean(
+    pattern?.illness ||
+    pattern?.dehydration ||
+    pattern?.vomiting ||
+    pattern?.newConfusion ||
+    pattern?.confusion ||
+    mentionsAny(input, [
+      "illness",
+      "infection",
+      "fever",
+      "dehydration",
+      "dehydrated",
+      "vomiting",
+      "cannot keep fluids",
+      "confusion",
+      "drowsy",
+      "very thirsty",
+      "dry mouth",
+    ])
+  );
+}
+
+function signalRule(summary: SignalSummary, context: RuleContext): { status: SafetyStatus; reason: string; label: string } | null {
   const value = latestValue(summary);
   if (value == null) return null;
   const signal = summary.signal;
@@ -129,19 +225,35 @@ function signalRule(summary: SignalSummary): { status: SafetyStatus; reason: str
   }
 
   if (signal === "respiratory_rate" || signal === "rr") {
-    if (value >= 30 || value <= 8) return { status: "urgent_help", label: "breathing rate", reason: `Breathing rate is ${value} breaths per minute.` };
-    if (value >= 24 || value <= 10) return { status: "contact_doctor", label: "breathing rate", reason: `Breathing rate is ${value} breaths per minute.` };
-    if (value >= 21) return { status: "recheck", label: "breathing rate", reason: `Breathing rate is a little raised at ${value}.` };
+    if (value >= 25 || value <= 8) return { status: "urgent_help", label: "breathing rate", reason: `Breathing rate is ${value} breaths per minute.` };
+    if (value >= 21 || value <= 10) return { status: "contact_doctor", label: "breathing rate", reason: `Breathing rate is ${value} breaths per minute.` };
   }
 
   if (signal === "bp_systolic" || signal === "bp") {
-    if (value >= 180) return { status: "urgent_help", label: "blood pressure", reason: `Blood pressure top number is ${value}.` };
+    if (value > 180) {
+      return context.hasBpCrisisSymptoms
+        ? { status: "urgent_help", label: "bp_crisis_symptoms", reason: `Blood pressure top number is ${value} with concerning symptoms.` }
+        : { status: "contact_doctor", label: "blood pressure", reason: `Blood pressure top number is ${value}.` };
+    }
     if (value >= 160) return { status: "contact_doctor", label: "blood pressure", reason: `Blood pressure top number is ${value}.` };
     if (value >= 140) return { status: "recheck", label: "blood pressure", reason: `Blood pressure top number is ${value}.` };
   }
 
+  if (signal === "bp_diastolic") {
+    if (value > 120) {
+      return context.hasBpCrisisSymptoms
+        ? { status: "urgent_help", label: "bp_crisis_symptoms", reason: `Blood pressure bottom number is ${value} with concerning symptoms.` }
+        : { status: "contact_doctor", label: "blood pressure", reason: `Blood pressure bottom number is ${value}.` };
+    }
+    if (value >= 100) return { status: "contact_doctor", label: "blood pressure", reason: `Blood pressure bottom number is ${value}.` };
+    if (value >= 90) return { status: "recheck", label: "blood pressure", reason: `Blood pressure bottom number is ${value}.` };
+  }
+
   if (signal === "glucose_mgdl") {
     if (value <= 54 || value >= 400) return { status: "urgent_help", label: "glucose", reason: `Glucose is ${value} mg/dL.` };
+    if (value >= 300 && context.hasDkaHhsPattern) {
+      return { status: "urgent_help", label: "dka_hhs_pattern", reason: `Glucose is ${value} mg/dL with illness, dehydration, vomiting, or confusion symptoms.` };
+    }
     if (value <= 70 || value >= 250) return { status: "contact_doctor", label: "glucose", reason: `Glucose is ${value} mg/dL.` };
     if (value <= 80 || value >= 180) return { status: "recheck", label: "glucose", reason: `Glucose is outside the usual target area at ${value}.` };
   }
@@ -165,6 +277,23 @@ function signalRule(summary: SignalSummary): { status: SafetyStatus; reason: str
   }
 
   return null;
+}
+
+function caregiverEscalationFor(status: SafetyStatus, caregiver?: CaregiverEscalationContext | null) {
+  const shouldAlert = status === "urgent_help" &&
+    Boolean(caregiver?.livesAlone) &&
+    Boolean(caregiver?.caregiverConsent) &&
+    Boolean(caregiver?.caregiverAvailable);
+
+  return {
+    should_alert: shouldAlert,
+    lives_alone: Boolean(caregiver?.livesAlone),
+    caregiver_consent: Boolean(caregiver?.caregiverConsent),
+    caregiver_available: Boolean(caregiver?.caregiverAvailable),
+    reason: shouldAlert
+      ? "Urgent safety signal for a person living alone with an available consented caregiver."
+      : null,
+  };
 }
 
 function triageStatus(latestTriage?: TriageSafetyContext | null): { status: SafetyStatus; reason: string } | null {
@@ -205,6 +334,10 @@ export function buildDailySafetyCheck(input: DailySafetyInput): DailySafetyCheck
   const labels = new Set<string>();
   const signalFindings: Array<{ signal: string; status: SafetyStatus; reason: string }> = [];
   let status: SafetyStatus = input.signalSummary.length === 0 ? "recheck" : "steady";
+  const ruleContext: RuleContext = {
+    hasBpCrisisSymptoms: hasBpCrisisSymptoms(input),
+    hasDkaHhsPattern: hasDkaHhsPattern(input),
+  };
 
   if (input.signalSummary.length === 0) {
     reasons.push("No recent daily safety readings are available.");
@@ -212,7 +345,7 @@ export function buildDailySafetyCheck(input: DailySafetyInput): DailySafetyCheck
   }
 
   for (const summary of input.signalSummary) {
-    const finding = signalRule(summary);
+    const finding = signalRule(summary, ruleContext);
     if (!finding) continue;
     status = maxSafetyStatus(status, finding.status);
     labels.add(finding.label);
@@ -257,6 +390,12 @@ export function buildDailySafetyCheck(input: DailySafetyInput): DailySafetyCheck
     labels.add("medication_adherence_support");
   }
 
+  const caregiverEscalation = caregiverEscalationFor(status, input.caregiver);
+  if (caregiverEscalation.should_alert) {
+    reasons.push(caregiverEscalation.reason);
+    labels.add("caregiver_escalation");
+  }
+
   const riskScore = Math.max(statusToRiskScore(status), ...signalFindings.map((finding) => statusToRiskScore(finding.status)));
   const riskTier = deriveRiskTier(status, riskScore);
   const uniqueReasons = reasons.filter((reason, index) => reasons.indexOf(reason) === index).slice(0, 5);
@@ -280,6 +419,8 @@ export function buildDailySafetyCheck(input: DailySafetyInput): DailySafetyCheck
         reading_count: summary.reading_count,
       })),
       medication,
+      symptom_pattern: input.symptomPattern ?? null,
+      caregiver_escalation: caregiverEscalation,
       latest_triage: input.latestTriage ? {
         chief_complaint: input.latestTriage.chief_complaint,
         next_step_level: input.latestTriage.next_step_level,
