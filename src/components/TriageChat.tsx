@@ -326,16 +326,17 @@ export default function TriageChat({
           { id: "worse", label: t("health.symptomCheck.chat.quickWorse", "Worse"), value: t("health.symptomCheck.chat.quickWorseValue", "It is getting worse."), Icon: Activity, tone: "amber", kind: "trend" },
           { id: "not_sure", label: t("health.symptomCheck.chat.quickNotSure", "Not sure"), value: t("health.symptomCheck.chat.quickNotSureValue", "I am not sure."), Icon: HelpCircle, tone: "purple", kind: "uncertain" },
         ];
-  const quickAnswers: QuickAnswer[] = apiQuickReplies?.length
-    ? apiQuickReplies.map((reply) => ({
+  const quickAnswers: QuickAnswer[] = apiQuickReplies === null
+    ? fallbackQuickAnswers
+    : apiQuickReplies.map((reply) => ({
         id: reply.id,
         label: reply.label,
         value: reply.value,
         Icon: iconByKey[reply.icon] ?? HelpCircle,
         tone: reply.tone,
         kind: reply.kind ?? reply.id,
-      }))
-    : fallbackQuickAnswers;
+      }));
+  const hasQuickAnswers = quickAnswers.length > 0;
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
@@ -443,7 +444,7 @@ export default function TriageChat({
         });
         if (!response.ok) throw new Error(`${response.status}`);
         const res = await response.json() as TriageResponse;
-        setApiQuickReplies(res.quickReplies?.length ? res.quickReplies : null);
+        setApiQuickReplies(res.quickReplies ?? null);
         setSafetyAlert(res.safetyAlert ?? null);
         setEmergencyContact(res.emergencyContact ?? res.safetyAlert?.emergencyContact ?? null);
         if (res.evidenceSources) setEvidenceSources(res.evidenceSources);
@@ -591,7 +592,7 @@ export default function TriageChat({
       : latestAssistantEntry.msg.content
     : t("health.symptomCheck.chat.reviewTitle", "VYVA is checking the safest next step");
   const showQuestion = Boolean(latestAssistantEntry || !loading);
-  const canAnswer = !loading && animatingIdx === null && messages.length > 0;
+  const canAnswer = !loading && animatingIdx === null && messages.length > 0 && hasQuickAnswers;
   const canShowMedicalFollowups = canAnswer && !safetyAlert && medicalFollowups.length > 0;
 
   return (
