@@ -648,6 +648,10 @@
       "report": {
         "title": "O seu relatório",
         "urgencyLabel": "Urgência",
+        "lowUrgencyLabel": "Urgência baixa",
+        "mediumUrgencyLabel": "Urgência média",
+        "highUrgencyLabel": "Urgência alta",
+        "emergencyUrgencyLabel": "Urgência de emergência",
         "urgentLabel": "Procure cuidados agora",
         "routineLabel": "Marque uma consulta",
         "monitorLabel": "Monitorize em casa",

@@ -648,6 +648,10 @@
       "report": {
         "title": "Ihr Bericht",
         "urgencyLabel": "Dringlichkeit",
+        "lowUrgencyLabel": "Niedrige Dringlichkeit",
+        "mediumUrgencyLabel": "Mittlere Dringlichkeit",
+        "highUrgencyLabel": "Hohe Dringlichkeit",
+        "emergencyUrgencyLabel": "Notfall-Dringlichkeit",
         "urgentLabel": "Sofort zum Arzt",
         "routineLabel": "Termin vereinbaren",
         "monitorLabel": "Zuhause beobachten",

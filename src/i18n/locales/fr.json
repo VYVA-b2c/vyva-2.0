@@ -663,6 +663,10 @@
       "report": {
         "title": "Votre rapport",
         "urgencyLabel": "Urgence",
+        "lowUrgencyLabel": "Urgence faible",
+        "mediumUrgencyLabel": "Urgence moyenne",
+        "highUrgencyLabel": "Urgence élevée",
+        "emergencyUrgencyLabel": "Urgence vitale",
         "urgentLabel": "Consultez immédiatement",
         "routineLabel": "Prenez rendez-vous",
         "monitorLabel": "Surveiller à domicile",

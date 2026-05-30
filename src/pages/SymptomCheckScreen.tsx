@@ -189,6 +189,8 @@ function ReportConfig(summary: TriageSummary) {
     return {
       bg: "linear-gradient(135deg, #B91C1C 0%, #EF4444 100%)",
       icon: AlertTriangle,
+      urgencyLabel: "health.symptomCheck.report.emergencyUrgencyLabel",
+      fallbackUrgencyLabel: "Emergency urgency",
       label: "health.symptomCheck.report.emergencyLabel",
       fallbackLabel: "Emergency now",
       pillBg: "rgba(255,255,255,0.25)",
@@ -199,6 +201,8 @@ function ReportConfig(summary: TriageSummary) {
     return {
       bg: "linear-gradient(135deg, #B45309 0%, #F59E0B 100%)",
       icon: Stethoscope,
+      urgencyLabel: "health.symptomCheck.report.highUrgencyLabel",
+      fallbackUrgencyLabel: "High urgency",
       label: "health.symptomCheck.report.doctorTodayLabel",
       fallbackLabel: "Doctor today",
       pillBg: "rgba(255,255,255,0.25)",
@@ -207,8 +211,10 @@ function ReportConfig(summary: TriageSummary) {
   }
   if (level === "doctor_24_48") {
     return {
-      bg: "linear-gradient(135deg, #5B21B6 0%, #7C3AED 100%)",
+      bg: "linear-gradient(135deg, #1D4ED8 0%, #6D28D9 100%)",
       icon: Eye,
+      urgencyLabel: "health.symptomCheck.report.mediumUrgencyLabel",
+      fallbackUrgencyLabel: "Medium urgency",
       label: "health.symptomCheck.report.routineLabel",
       fallbackLabel: "Doctor within 24-48 hours",
       pillBg: "rgba(255,255,255,0.25)",
@@ -218,6 +224,8 @@ function ReportConfig(summary: TriageSummary) {
   return {
     bg: "linear-gradient(135deg, #0A7C4E 0%, #10B981 100%)",
     icon: CheckCircle,
+    urgencyLabel: "health.symptomCheck.report.lowUrgencyLabel",
+    fallbackUrgencyLabel: "Low urgency",
     label: "health.symptomCheck.report.monitorLabel",
     fallbackLabel: "Monitor at home",
     pillBg: "rgba(255,255,255,0.25)",
@@ -285,6 +293,8 @@ function ReportScreen({
   const cfg = ReportConfig(summary);
   const UrgencyIcon = cfg.icon;
   const isEmergency = cfg.level === "emergency";
+  const urgencyQualifierText = t(cfg.urgencyLabel, cfg.fallbackUrgencyLabel);
+  const urgencyStatusText = t(cfg.label, cfg.fallbackLabel);
   const [openVitalKey, setOpenVitalKey] = useState<RefinementVitalKey | null>(null);
   const [vitalInputs, setVitalInputs] = useState<Record<string, string>>({});
   const [vitalInputError, setVitalInputError] = useState<string | null>(null);
@@ -418,7 +428,7 @@ function ReportScreen({
     summary.symptoms.length ? `${t("health.symptomCheck.report.symptoms", "Symptoms noted")}: ${summary.symptoms.join(", ")}` : "",
     bpm != null ? `${t("health.symptomCheck.scan.heartRate", "Heart Rate")}: ${bpm} bpm` : "",
     respiratoryRate != null ? `${t("health.symptomCheck.scan.respiratoryRate", "Resp. Rate")}: ${respiratoryRate} rpm` : "",
-    `${t("health.symptomCheck.report.urgencyLabel", "Urgency")}: ${t(cfg.label, cfg.fallbackLabel)}`,
+    `${urgencyQualifierText}: ${urgencyStatusText}`,
     summary.nextStepLabel ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${summary.nextStepLabel}` : "",
     summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why VYVA chose this")}: ${summary.triageReasons.join(" ")}` : "",
     summary.evidenceSummary ? `${t("health.symptomCheck.report.evidenceChecked", "Science-based source check")}: ${summary.evidenceSummary}` : "",
@@ -460,7 +470,7 @@ function ReportScreen({
     respiratoryRate != null ? `${t("health.symptomCheck.scan.respiratoryRate", "Resp. Rate")}: ${respiratoryRate} rpm` : "",
     durationText ? `${t("health.symptomCheck.report.timeTaken", "Time taken")}: ${durationText}` : "",
     "",
-    `${t("health.symptomCheck.report.urgencyLabel")}: ${t(cfg.label, cfg.fallbackLabel)}`,
+    `${urgencyQualifierText}: ${urgencyStatusText}`,
     summary.nextStepLabel ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${summary.nextStepLabel}` : "",
     summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why VYVA chose this")}: ${summary.triageReasons.join(" ")}` : "",
     summary.evidenceSummary ? `${t("health.symptomCheck.report.evidenceChecked", "Science-based source check")}: ${summary.evidenceSummary}` : "",
@@ -506,10 +516,10 @@ function ReportScreen({
           </div>
           <div>
             <p className="font-body text-[12px] font-medium text-white/75 uppercase tracking-wider">
-              {t("health.symptomCheck.report.urgencyLabel")}
+              {urgencyQualifierText}
             </p>
             <p className="font-display text-[28px] italic leading-tight text-white">
-              {t(cfg.label, cfg.fallbackLabel)}
+              {urgencyStatusText}
             </p>
           </div>
         </div>

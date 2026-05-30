@@ -558,6 +558,10 @@
       "report": {
         "title": "Eich adroddiad",
         "urgencyLabel": "Brys",
+        "lowUrgencyLabel": "Brys isel",
+        "mediumUrgencyLabel": "Brys canolig",
+        "highUrgencyLabel": "Brys uchel",
+        "emergencyUrgencyLabel": "Brys argyfwng",
         "urgentLabel": "Ceisiwch ofal nawr",
         "routineLabel": "Trefnwch ymweliad",
         "monitorLabel": "Monitro gartref",

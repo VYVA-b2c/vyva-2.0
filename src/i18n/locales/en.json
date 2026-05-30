@@ -680,6 +680,10 @@
       "report": {
         "title": "Your Report",
         "urgencyLabel": "Urgency",
+        "lowUrgencyLabel": "Low urgency",
+        "mediumUrgencyLabel": "Medium urgency",
+        "highUrgencyLabel": "High urgency",
+        "emergencyUrgencyLabel": "Emergency urgency",
         "urgentLabel": "Seek Care Now",
         "routineLabel": "Arrange a Visit",
         "monitorLabel": "Monitor at Home",

@@ -648,6 +648,10 @@
       "report": {
         "title": "Il tuo rapporto",
         "urgencyLabel": "Urgenza",
+        "lowUrgencyLabel": "Urgenza bassa",
+        "mediumUrgencyLabel": "Urgenza media",
+        "highUrgencyLabel": "Urgenza alta",
+        "emergencyUrgencyLabel": "Urgenza di emergenza",
         "urgentLabel": "Cerca assistenza subito",
         "routineLabel": "Prenota una visita",
         "monitorLabel": "Monitora a casa",
