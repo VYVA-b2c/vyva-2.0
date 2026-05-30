@@ -273,7 +273,7 @@ const fr = {
         checkPulseReason: "Ajoutez le pouls depuis un appareil ou comptez-le manuellement.",
         tellMainSymptom: "Symptome principal",
         nextStep: "Prochaine etape",
-        whyThisStep: "Pourquoi VYVA a choisi cela",
+        whyThisStep: "Évaluation initiale",
         vitalsUsed: "Constantes utilisees",
         profileConsidered: "Profil pris en compte",
         watchSigns: "Signes a surveiller",

@@ -273,7 +273,7 @@ const it = {
         checkPulseReason: "Aggiungi il polso da un dispositivo o contalo manualmente.",
         tellMainSymptom: "Sintomo principale",
         nextStep: "Prossimo passo",
-        whyThisStep: "Perche VYVA ha scelto questo",
+        whyThisStep: "Valutazione iniziale",
         vitalsUsed: "Parametri usati",
         profileConsidered: "Profilo considerato",
         watchSigns: "Segnali da osservare",

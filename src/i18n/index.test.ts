@@ -95,12 +95,12 @@ describe("language persistence", () => {
 
   it("keeps symptom report status labels localized for supported account languages", () => {
     const expected = {
-      en: ["Report not saved", "Why VYVA chose this", "Monitor at home, with doctor access ready"],
-      es: ["Informe no guardado", "Por que VYVA eligio esto", "Vigila en casa, con medico disponible"],
-      fr: ["Rapport non enregistre", "Pourquoi VYVA a choisi cela", "Surveillez a domicile, avec un medecin pret a etre contacte"],
-      de: ["Bericht nicht gespeichert", "Warum VYVA das gewahlt hat", "Zu Hause beobachten, Arztkontakt bereithalten"],
-      it: ["Report non salvato", "Perche VYVA ha scelto questo", "Monitora a casa, con accesso al medico pronto"],
-      pt: ["Relatorio nao guardado", "Porque a VYVA escolheu isto", "Monitorize em casa, com acesso ao medico pronto"],
+      en: ["Report not saved", "Initial Assessment", "Monitor at home, with doctor access ready"],
+      es: ["Informe no guardado", "Evaluación inicial", "Vigila en casa, con medico disponible"],
+      fr: ["Rapport non enregistre", "Évaluation initiale", "Surveillez a domicile, avec un medecin pret a etre contacte"],
+      de: ["Bericht nicht gespeichert", "Erste Einschätzung", "Zu Hause beobachten, Arztkontakt bereithalten"],
+      it: ["Report non salvato", "Valutazione iniziale", "Monitora a casa, con accesso al medico pronto"],
+      pt: ["Relatorio nao guardado", "Avaliação inicial", "Monitorize em casa, com acesso ao medico pronto"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {

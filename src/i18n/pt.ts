@@ -273,7 +273,7 @@ const pt = {
         checkPulseReason: "Adicione o pulso de um dispositivo ou conte manualmente.",
         tellMainSymptom: "Sintoma principal",
         nextStep: "Proximo passo",
-        whyThisStep: "Porque a VYVA escolheu isto",
+        whyThisStep: "Avaliação inicial",
         vitalsUsed: "Sinais vitais usados",
         profileConsidered: "Perfil considerado",
         watchSigns: "Sinais a observar",

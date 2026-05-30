@@ -278,7 +278,7 @@ const es = {
         checkPulseReason: "Anade el pulso desde un dispositivo o cuentalo manualmente.",
         tellMainSymptom: "Sintoma principal",
         nextStep: "Siguiente paso",
-        whyThisStep: "Por que VYVA eligio esto",
+        whyThisStep: "Evaluación inicial",
         vitalsUsed: "Signos vitales usados",
         profileConsidered: "Perfil considerado",
         watchSigns: "Senales de alerta",

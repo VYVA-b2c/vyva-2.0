@@ -278,7 +278,7 @@ const de = {
         checkPulseReason: "Fugen Sie den Puls von einem Gerat hinzu oder zahlen Sie ihn manuell.",
         tellMainSymptom: "Hauptsymptom",
         nextStep: "Nachster Schritt",
-        whyThisStep: "Warum VYVA das gewahlt hat",
+        whyThisStep: "Erste Einschätzung",
         vitalsUsed: "Verwendete Vitalwerte",
         profileConsidered: "Profil berucksichtigt",
         watchSigns: "Warnzeichen",

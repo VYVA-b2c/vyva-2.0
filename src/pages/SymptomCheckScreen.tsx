@@ -588,7 +588,7 @@ function ReportScreen({
     `${t("health.symptomCheck.report.tellMainSymptom", "Main symptom")}: ${summary.chiefComplaint}`,
     summary.symptoms.length ? `${t("health.symptomCheck.report.symptoms", "Symptoms noted")}: ${summary.symptoms.join(", ")}` : "",
     nextStepDisplayText ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${nextStepDisplayText}` : "",
-    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why VYVA chose this")}: ${summary.triageReasons.join(" ")}` : "",
+    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Initial Assessment")}: ${summary.triageReasons.join(" ")}` : "",
     summary.vitalsNotes?.length ? `${t("health.symptomCheck.report.vitalsUsed", "Vitals used")}: ${summary.vitalsNotes.join(" ")}` : "",
     summary.profileConsiderations?.length ? `${t("health.symptomCheck.report.profileConsidered", "Profile considered")}: ${summary.profileConsiderations.join(" ")}` : "",
     summary.watchSigns?.length ? `${t("health.symptomCheck.report.watchSigns", "Watch signs")}: ${summary.watchSigns.join(" ")}` : "",
@@ -600,7 +600,7 @@ function ReportScreen({
     respiratoryRate != null ? `${t("health.symptomCheck.scan.respiratoryRate", "Resp. Rate")}: ${respiratoryRate} rpm` : "",
     `${urgencyQualifierText}: ${urgencyStatusText}`,
     nextStepDisplayText ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${nextStepDisplayText}` : "",
-    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why VYVA chose this")}: ${summary.triageReasons.join(" ")}` : "",
+    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Initial Assessment")}: ${summary.triageReasons.join(" ")}` : "",
     summary.evidenceSummary ? `${t("health.symptomCheck.report.evidenceChecked", "Science-based source check")}: ${summary.evidenceSummary}` : "",
     summary.recommendations.length ? `${t("health.symptomCheck.report.recommendations", "What to do next")}: ${summary.recommendations.join(" ")}` : "",
     summary.watchSigns?.length ? `${t("health.symptomCheck.report.watchSigns", "Watch signs")}: ${summary.watchSigns.join(" ")}` : "",
@@ -675,7 +675,7 @@ function ReportScreen({
     "",
     `${urgencyQualifierText}: ${urgencyStatusText}`,
     nextStepDisplayText ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${nextStepDisplayText}` : "",
-    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why VYVA chose this")}: ${summary.triageReasons.join(" ")}` : "",
+    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Initial Assessment")}: ${summary.triageReasons.join(" ")}` : "",
     summary.evidenceSummary ? `${t("health.symptomCheck.report.evidenceChecked", "Science-based source check")}: ${summary.evidenceSummary}` : "",
     "",
     t("health.symptomCheck.report.recommendations") + ":",
@@ -770,7 +770,7 @@ function ReportScreen({
             <div className="mb-3 flex items-center gap-2">
               <AlertTriangle size={18} />
               <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em]">
-                {t("health.symptomCheck.report.whyThisStep", "Why VYVA chose this")}
+                {t("health.symptomCheck.report.whyThisStep", "Initial Assessment")}
               </p>
             </div>
             <ul className="grid gap-2">
