@@ -27,6 +27,12 @@ import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPane
 import VoiceHero from "@/components/VoiceHero";
 import VitalsTracker from "@/components/VitalsTracker";
 import VitalsScan from "@/components/VitalsScan";
+import {
+  HealthWizardCard,
+  HealthWizardSectionLabel,
+  HealthWizardShell,
+  HealthWizardTopBar,
+} from "@/components/health/HealthWizard";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useToast } from "@/hooks/use-toast";
@@ -201,11 +207,9 @@ function MetricCard({
   const Icon = meta.Icon;
 
   return (
-    <section
-      className={`rounded-[24px] border border-[#EDE5DB] bg-white p-4 shadow-[0_8px_24px_rgba(63,45,35,0.06)] ${
-        highlighted ? "ring-2 ring-emerald-200" : ""
-      }`}
-      data-testid={`card-vital-${metricKey}`}
+    <HealthWizardCard
+      className={`p-4 ${highlighted ? "ring-2 ring-emerald-200" : ""}`}
+      testId={`card-vital-${metricKey}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
@@ -256,7 +260,7 @@ function MetricCard({
           <MiniTrend values={trend} accent={meta.accent} />
         </div>
       )}
-    </section>
+    </HealthWizardCard>
   );
 }
 
@@ -512,26 +516,14 @@ const SignosScreen = () => {
   };
 
   return (
-    <div className="px-[18px] pb-10">
-      <div className="mb-2 mt-1 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => navigate("/health")}
-          data-testid="button-signos-back"
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-[0_4px_14px_rgba(63,45,35,0.08)] active:scale-95"
-          aria-label={t("common.back", "Back")}
-        >
-          <ChevronLeft size={20} className="text-vyva-text-1" />
-        </button>
-        <div className="min-w-0">
-          <p className="font-body text-[12px] font-bold uppercase tracking-[0.14em] text-vyva-text-3">
-            {t("health.quickTiles.status.label", "Status")}
-          </p>
-          <h1 className="font-display text-[24px] italic leading-tight text-vyva-text-1">
-            {t("statusVitals.title", "Status / Vitals")}
-          </h1>
-        </div>
-      </div>
+    <HealthWizardShell>
+      <HealthWizardTopBar
+        title={t("statusVitals.title", "Status / Vitals")}
+        kicker={t("health.quickTiles.status.label", "Status")}
+        onBack={() => navigate("/health")}
+        backLabel={t("common.back", "Back")}
+        className="mb-3"
+      />
 
       <VoiceHero
         heroSurface="vitals"
@@ -638,20 +630,21 @@ const SignosScreen = () => {
         </button>
       </div>
 
-      <div className="mb-3 mt-6 flex items-center justify-between">
-        <p className="font-body text-[13px] font-bold uppercase tracking-[0.11em] text-vyva-text-2">
-          {t("statusVitals.keyMetrics", "Key metrics")}
-        </p>
-        <button
-          type="button"
-          onClick={shareStatus}
-          className="flex min-h-[38px] items-center gap-2 rounded-full border border-[#DDD6FE] bg-white px-3 font-body text-[12px] font-bold text-[#6B21A8]"
-          data-testid="button-share-vitals-summary"
-        >
-          <Share2 size={14} />
-          {t("statusVitals.share", "Share")}
-        </button>
-      </div>
+      <HealthWizardSectionLabel
+        action={(
+          <button
+            type="button"
+            onClick={shareStatus}
+            className="flex min-h-[38px] items-center gap-2 rounded-full border border-[#DDD6FE] bg-white px-3 font-body text-[12px] font-bold text-[#6B21A8]"
+            data-testid="button-share-vitals-summary"
+          >
+            <Share2 size={14} />
+            {t("statusVitals.share", "Share")}
+          </button>
+        )}
+      >
+        {t("statusVitals.keyMetrics", "Key metrics")}
+      </HealthWizardSectionLabel>
 
       <div className="flex flex-col gap-3">
         {isLoading
@@ -774,7 +767,7 @@ const SignosScreen = () => {
 
       {showLogModal && <LogReadingModal onClose={() => setShowLogModal(false)} />}
       {showScanModal && <ScanModal onClose={() => setShowScanModal(false)} />}
-    </div>
+    </HealthWizardShell>
   );
 };
 

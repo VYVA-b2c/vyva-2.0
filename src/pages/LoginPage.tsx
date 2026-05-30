@@ -2211,7 +2211,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                 </div>
               </div>
             ) : (
-              <div className="text-center md:text-left">
+              <div className="relative text-center md:text-left">
                 <div className="mx-auto mb-5 h-1.5 w-24 rounded-full bg-[#FFDF61] md:mx-0" />
                 <p className="mb-3 font-body text-[11px] font-extrabold uppercase tracking-[0.26em] text-vyva-purple/70">
                   {heroEyebrow}
@@ -2257,7 +2257,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
 
             <div
               data-testid="auth-card"
-              className="w-full rounded-[34px] border border-[#E8DDD2] bg-white/94 p-5 shadow-[0_28px_70px_rgba(79,43,116,0.14)] backdrop-blur sm:rounded-[42px] sm:p-7 md:justify-self-end"
+              className="w-full rounded-[34px] border border-[#E8DDD2] bg-white/95 p-5 shadow-[0_28px_70px_rgba(79,43,116,0.14)] backdrop-blur sm:rounded-[42px] sm:p-7 md:justify-self-end"
             >
               <div className="mb-5">
                 <h2 className="font-body text-[34px] font-black leading-tight text-[#2F183F]">{authTitle}</h2>

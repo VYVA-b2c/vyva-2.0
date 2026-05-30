@@ -5,6 +5,13 @@ import { Activity, ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, Clipboa
 import { useQuery } from "@tanstack/react-query";
 import TriageChat from "@/components/TriageChat";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
+import {
+  HealthWizardCard,
+  HealthWizardHero,
+  HealthWizardProgress,
+  HealthWizardShell,
+  HealthWizardTopBar,
+} from "@/components/health/HealthWizard";
 import { useToast } from "@/hooks/use-toast";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 
@@ -91,15 +98,14 @@ function StepDots({ current }: { current: Step }) {
   const steps: Step[] = ["chat", "report"];
   const idx = steps.indexOf(current);
   return (
-    <div className="flex items-center gap-2 justify-center">
+    <div className="mx-[18px] flex items-center gap-2 rounded-[22px] border border-[#E8DED4] bg-white/90 p-3 shadow-[0_8px_20px_rgba(63,45,35,0.06)]">
       {steps.map((s, i) => (
         <div
           key={s}
-          className="rounded-full transition-all"
+          className="h-3 flex-1 rounded-full transition-all"
           style={{
-            width: i === idx ? 20 : 8,
-            height: 8,
-            background: i <= idx ? "hsl(var(--vyva-purple))" : "hsl(var(--vyva-warm2))",
+            background: i <= idx ? "hsl(var(--vyva-purple))" : "#E8DED4",
+            opacity: i === idx ? 1 : i < idx ? 0.85 : 0.7,
           }}
         />
       ))}
@@ -126,20 +132,15 @@ function IntroScreen({ onStart }: { onStart: (clue: string) => void }) {
   ];
 
   return (
-    <div className="flex flex-1 flex-col justify-center gap-7 px-[22px] py-8">
-      <section className="text-left">
-        <p className="font-body text-[15px] font-extrabold uppercase tracking-[0.12em] text-vyva-purple">
-          {t("health.symptomCheck.intro.stepLabel", "Symptom check")}
-        </p>
-        <h1 className="mt-3 max-w-[340px] font-body text-[30px] font-bold leading-[1.08] text-vyva-text-1">
-          {t("health.symptomCheck.intro.clueTitle", "What is bothering you?")}
-        </h1>
-        <p className="mt-3 max-w-[390px] font-body text-[18px] font-semibold leading-snug text-vyva-text-2">
-          {t("health.symptomCheck.intro.clueSub", "Use a few words. VYVA will choose the right questions.")}
-        </p>
-      </section>
+    <div className="flex flex-1 flex-col gap-5 px-[18px] py-5">
+      <HealthWizardHero
+        icon={<Stethoscope size={28} />}
+        kicker={t("health.symptomCheck.intro.stepLabel", "Symptom check")}
+        title={t("health.symptomCheck.intro.clueTitle", "What is bothering you?")}
+        body={t("health.symptomCheck.intro.clueSub", "Use a few words. VYVA will choose the right questions.")}
+      />
 
-      <div className="grid gap-4">
+      <HealthWizardCard className="grid gap-4">
         <label className="sr-only" htmlFor="symptom-clue">
           {t("health.symptomCheck.intro.clueTitle", "What is bothering you?")}
         </label>
@@ -149,7 +150,7 @@ function IntroScreen({ onStart }: { onStart: (clue: string) => void }) {
           onChange={(event) => setClue(event.target.value)}
           placeholder={t("health.symptomCheck.intro.cluePlaceholder", "For example: bad headache...")}
           data-testid="input-symptom-clue"
-          className="min-h-[72px] rounded-[24px] border border-[#E8DED4] bg-white px-5 font-body text-[20px] font-bold text-vyva-text-1 shadow-[0_10px_26px_rgba(63,45,35,0.06)] outline-none focus:border-[#6B21A8]"
+          className="min-h-[78px] rounded-[24px] border-2 border-[#DDD6FE] bg-white px-5 font-body text-[22px] font-black text-vyva-text-1 shadow-[0_10px_26px_rgba(63,45,35,0.06)] outline-none placeholder:text-[#9A8C83] focus:border-[#6B21A8]"
         />
         <div className="flex flex-wrap gap-2">
           {quickClues.map((quickClue) => (
@@ -157,13 +158,13 @@ function IntroScreen({ onStart }: { onStart: (clue: string) => void }) {
               key={quickClue}
               type="button"
               onClick={() => setClue(quickClue)}
-              className="vyva-tap min-h-[64px] rounded-full border border-[#E8DED4] bg-white px-5 font-body text-[18px] font-extrabold text-vyva-text-2"
+              className="vyva-tap min-h-[58px] rounded-full border border-[#E8DED4] bg-[#FFFCF8] px-5 font-body text-[17px] font-extrabold text-vyva-text-1 shadow-[0_4px_12px_rgba(63,45,35,0.04)]"
             >
               {quickClue}
             </button>
           ))}
         </div>
-      </div>
+      </HealthWizardCard>
 
       <div className="grid gap-3">
         <p className="font-body text-[15px] font-bold leading-snug text-vyva-text-2">
@@ -1142,33 +1143,18 @@ export default function SymptomCheckScreen() {
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-204px)] w-full flex-col overflow-hidden bg-transparent">
-      <div
-        className="flex flex-shrink-0 items-center px-[18px] py-3"
-        style={{
-          paddingTop: "max(12px, env(safe-area-inset-top))",
-          borderBottom: step !== "intro" ? "1px solid hsl(var(--vyva-border))" : "none",
-        }}
-      >
-        <button
-          onClick={handleBack}
-          data-testid="button-symptom-check-back"
-          className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-white shadow-[0_4px_14px_rgba(63,45,35,0.08)] transition-all active:scale-95"
-        >
-          <ChevronLeft size={20} style={{ color: "hsl(var(--vyva-text-1))" }} />
-        </button>
-
-        <div className="flex-1 text-center min-w-0">
-          <p className="font-display text-[23px] italic leading-tight text-vyva-text-1">
-            {stepTitle[step]}
-          </p>
-        </div>
-
-        <div className="w-9 h-9 flex-shrink-0" />
+    <HealthWizardShell contentClassName="flex min-h-[calc(100vh-204px)] flex-col overflow-hidden px-0 pb-0 pt-0">
+      <div className="px-[18px] pt-3" data-testid="symptom-check-shell">
+        <HealthWizardTopBar
+          title={stepTitle[step]}
+          kicker={t("health.symptomCheck.intro.stepLabel", "Symptom check")}
+          onBack={handleBack}
+          backLabel={t("common.back", "Back")}
+        />
       </div>
 
       {step !== "intro" && (
-        <div className="flex-shrink-0 py-3" style={{ borderBottom: "1px solid hsl(var(--vyva-border))" }}>
+        <div className="flex-shrink-0 pb-3">
           <StepDots current={step} />
         </div>
       )}
@@ -1234,6 +1220,6 @@ export default function SymptomCheckScreen() {
           />
         )}
       </div>
-    </div>
+    </HealthWizardShell>
   );
 }

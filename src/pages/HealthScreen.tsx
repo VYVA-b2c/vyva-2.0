@@ -707,7 +707,6 @@ const HealthScreen = () => {
     }, 80);
   }, [location.search]);
 
-
   const bookSpecialistMutation = useMutation({
     mutationFn: async (provider: SpecialistProvider) => {
       const specialty = displaySpecialty(provider, specialistLanguage);
