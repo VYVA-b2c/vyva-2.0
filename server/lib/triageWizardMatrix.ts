@@ -138,12 +138,12 @@ const redFlag: StageMatrix = {
     ],
   },
   tired: {
-    question: t("Can you stand safely and think clearly?", "Puedes estar de pie seguro y pensar claro?"),
+    question: t("Which statement fits the weakness or tiredness right now?", "Que frase encaja con la debilidad o cansancio ahora?"),
     replies: [
-      r("one_sided_weakness", "red_flag", "Sudden weakness, speech, or vision trouble", "Debilidad repentina, habla o vision", "I have sudden face, arm, or leg weakness, speech trouble, or vision trouble.", "Tengo debilidad repentina en cara, brazo o pierna, problema de habla o vision.", "alert", "red"),
-      r("cannot_stand", "red_flag", "No, I cannot stand safely", "No, no puedo estar de pie seguro", "I feel too weak to stand or walk safely.", "Me siento demasiado debil para estar de pie o caminar.", "alert", "red"),
-      r("chest_breathing", "red_flag", "Weak with chest pain or hard breathing", "Debil con pecho o respiracion", "Weakness comes with chest pain or hard breathing.", "La debilidad viene con dolor de pecho o dificultad para respirar.", "heart", "red"),
-      r("no_red_flag", "red_flag", "Yes, alert and safe", "Si, alerta y seguro", "I am tired or weak, but alert and safe.", "Estoy cansado o debil, pero alerta y seguro.", "help", "green"),
+      r("one_sided_weakness", "red_flag", "I have sudden weakness, speech, or vision trouble", "Tengo debilidad repentina, habla o vision", "I have sudden face, arm, or leg weakness, speech trouble, or vision trouble.", "Tengo debilidad repentina en cara, brazo o pierna, problema de habla o vision.", "alert", "red"),
+      r("cannot_stand", "red_flag", "I cannot stand or walk safely", "No puedo estar de pie o caminar seguro", "I feel too weak to stand or walk safely.", "Me siento demasiado debil para estar de pie o caminar.", "alert", "red"),
+      r("chest_breathing", "red_flag", "I feel weak with chest pain or hard breathing", "Debilidad con pecho o respiracion dificil", "Weakness comes with chest pain or hard breathing.", "La debilidad viene con dolor de pecho o dificultad para respirar.", "heart", "red"),
+      r("no_red_flag", "red_flag", "I am alert and can stand safely", "Estoy alerta y puedo estar de pie seguro", "I am tired or weak, but alert and safe.", "Estoy cansado o debil, pero alerta y seguro.", "help", "green"),
     ],
   },
   stomach: {
@@ -258,12 +258,12 @@ const duration: StageMatrix = {
     ],
   },
   stomach: {
-    question: t("How long has the stomach or bowel problem been going on?", "Cuanto lleva el problema de estomago o intestino?"),
+    question: t("Which timing or pattern fits the stomach or bowel problem?", "Que tiempo o patron encaja con el problema de estomago o intestino?"),
     replies: [
-      r("getting_worse_today", "duration", "Getting worse today", "Empeora hoy", "It is getting worse today.", "Esta empeorando hoy.", "alert", "amber"),
-      r("vomit_diarrhea_24h", "duration", "Vomiting or diarrhea over 24 hours", "Vomitos o diarrea mas de 24h", "Vomiting or diarrhea has lasted more than 24 hours.", "Vomitos o diarrea duran mas de 24 horas.", "alert", "amber"),
-      r("constipation_passing_gas", "duration", "Constipation but passing gas", "Estrenimiento pero gases", "I am constipated but passing gas, and pain is mild.", "Tengo estrenimiento pero expulso gases, y el dolor es leve.", "activity", "blue"),
-      r("better", "duration", "Mild and improving", "Leve y mejora", "It is mild and improving.", "Es leve y mejora.", "help", "green"),
+      r("getting_worse_today", "duration", "It is getting worse today", "Empeora hoy", "It is getting worse today.", "Esta empeorando hoy.", "alert", "amber"),
+      r("vomit_diarrhea_24h", "duration", "Vomiting or diarrhea has lasted over 24 hours", "Vomitos o diarrea llevan mas de 24h", "Vomiting or diarrhea has lasted more than 24 hours.", "Vomitos o diarrea duran mas de 24 horas.", "alert", "amber"),
+      r("constipation_passing_gas", "duration", "I am constipated but passing gas", "Estoy estrenido pero expulso gases", "I am constipated but passing gas, and pain is mild.", "Tengo estrenimiento pero expulso gases, y el dolor es leve.", "activity", "blue"),
+      r("better", "duration", "It is mild and improving", "Es leve y mejora", "It is mild and improving.", "Es leve y mejora.", "help", "green"),
     ],
   },
   urinary: {
@@ -378,7 +378,7 @@ const severity: StageMatrix = {
     ],
   },
   urinary: {
-    question: t("Do you have any whole-body symptoms?", "Tienes sintomas de todo el cuerpo?"),
+    question: t("What comes with the urine problem?", "Que viene con el problema de orina?"),
     replies: [
       r("urine_fever_chills", "severity", "Fever or shaking chills", "Fiebre o escalofrios", "I have fever or shaking chills.", "Tengo fiebre o escalofrios fuertes.", "alert", "red"),
       r("urine_side_pain", "severity", "Back or side pain", "Dolor espalda o lado", "I have back or side pain.", "Tengo dolor de espalda o lado.", "alert", "amber"),
@@ -405,12 +405,12 @@ const severity: StageMatrix = {
     ],
   },
   confusion: {
-    question: t("Is there any immediate safety concern?", "Hay algun peligro inmediato?"),
+    question: t("Do any safety, medicine, or mood concerns apply?", "Aplica alguna preocupacion de seguridad, medicina o animo?"),
     replies: [
       r("unsafe_behavior", "severity", "Stove, wandering, fall, or medicine safety problem", "Cocina, salir, caida o medicinas", "There is a stove, wandering, fall, or medicine safety problem.", "Hay problema con cocina, salir solo, caida o medicinas.", "alert", "amber"),
       r("new_medicine_confusion", "severity", "New medicine or dose change", "Nueva medicina o dosis", "This started after a new medicine or dose change.", "Esto empezo tras medicina nueva o cambio de dosis.", "alert", "amber"),
       r("self_harm", "severity", "Very low mood or self-harm talk", "Animo muy bajo o autolesion", "There is very low mood or talk about self-harm.", "Hay animo muy bajo o habla de autolesion.", "alert", "red"),
-      r("no_red_flag", "severity", "No immediate safety concern", "Sin peligro inmediato", "There is no immediate safety concern.", "No hay peligro inmediato.", "help", "green"),
+      r("no_red_flag", "severity", "No safety, medicine, or mood concern", "Sin preocupacion de seguridad, medicina o animo", "There is no immediate safety, medicine, or mood concern.", "No hay preocupacion inmediata de seguridad, medicina o animo.", "help", "green"),
     ],
   },
   other: {
@@ -426,7 +426,7 @@ const severity: StageMatrix = {
 
 const trendDefault: StageMatrix = {
   pain: {
-    question: t("Is the pain easing or getting worse?", "El dolor baja o empeora?"),
+    question: t("Which best describes the pain now?", "Que describe mejor el dolor ahora?"),
     replies: [
       r("better", "trend", "Pain is easing", "Dolor baja", "The pain is easing.", "El dolor esta bajando.", "activity", "green"),
       r("same", "trend", "Pain is the same", "Dolor igual", "The pain feels about the same.", "El dolor esta igual.", "help", "blue"),
@@ -444,21 +444,21 @@ const trendDefault: StageMatrix = {
     ],
   },
   breathing: {
-    question: t("Is breathing easier or harder now?", "Ahora respiras mejor o peor?"),
+    question: t("Which best describes the breathing change now?", "Que describe mejor el cambio al respirar ahora?"),
     replies: [
-      r("new_symptoms", "trend", "New or suddenly worse today", "Nuevo o peor hoy", "Breathing is new or suddenly worse today.", "La respiracion es nueva o de repente peor hoy.", "alert", "amber"),
-      r("fever_cough_phlegm", "trend", "Fever, cough, or more phlegm", "Fiebre, tos o mas flema", "Breathing trouble comes with fever, cough, or more phlegm.", "La dificultad para respirar viene con fiebre, tos o mas flema.", "alert", "amber"),
-      r("worse_lying_flat", "trend", "Worse lying flat or swollen ankles", "Peor acostado o tobillos hinchados", "It is worse lying flat, or my ankles are swollen.", "Es peor acostado, o tengo tobillos hinchados.", "activity", "amber"),
-      r("better", "trend", "Mild, usual, and improving", "Leve, habitual y mejora", "It is mild, usual for me, and improving.", "Es leve, habitual para mi y mejora.", "help", "green"),
+      r("new_symptoms", "trend", "It is new or suddenly worse today", "Es nuevo o peor hoy", "Breathing is new or suddenly worse today.", "La respiracion es nueva o de repente peor hoy.", "alert", "amber"),
+      r("fever_cough_phlegm", "trend", "It comes with fever, cough, or more phlegm", "Viene con fiebre, tos o mas flema", "Breathing trouble comes with fever, cough, or more phlegm.", "La dificultad para respirar viene con fiebre, tos o mas flema.", "alert", "amber"),
+      r("worse_lying_flat", "trend", "It is worse lying flat, or ankles are swollen", "Peor acostado o tobillos hinchados", "It is worse lying flat, or my ankles are swollen.", "Es peor acostado, o tengo tobillos hinchados.", "activity", "amber"),
+      r("better", "trend", "It is mild, usual for me, and improving", "Es leve, habitual para mi y mejora", "It is mild, usual for me, and improving.", "Es leve, habitual para mi y mejora.", "help", "green"),
     ],
   },
   fever: {
-    question: t("Is the fever coming down or getting worse?", "La fiebre baja o empeora?"),
+    question: t("Which best describes the fever now?", "Que describe mejor la fiebre ahora?"),
     replies: [
-      r("less_urine_weak", "trend", "Less urine, very weak, dizzy, or cannot drink", "Menos orina, debil, mareo o no bebo", "I have less urine, feel very weak or dizzy, or cannot drink.", "Tengo menos orina, mucha debilidad o mareo, o no puedo beber.", "alert", "amber"),
-      r("week_plus", "trend", "38 C or higher for more than 24 hours", "38 C o mas por mas de 24 horas", "Fever has been 38 C or higher for more than 24 hours.", "La fiebre ha sido 38 C o mas durante mas de 24 horas.", "thermometer", "amber"),
-      r("better", "trend", "Mild, improving, drinking and peeing", "Leve, mejora, bebo y orino", "It is mild and improving, and I am drinking and peeing normally.", "Es leve y mejora, y bebo y orino normal.", "activity", "green"),
-      r("not_sure_trend", "trend", "I am not sure", "No estoy seguro", "I am not sure.", "No estoy seguro.", "help", "purple"),
+      r("less_urine_weak", "trend", "I am peeing less, very weak, dizzy, or cannot drink", "Orino menos, estoy muy debil, mareado o no puedo beber", "I have less urine, feel very weak or dizzy, or cannot drink.", "Tengo menos orina, mucha debilidad o mareo, o no puedo beber.", "alert", "amber"),
+      r("week_plus", "trend", "It has been 38 C or higher for more than 24 hours", "Ha sido 38 C o mas por mas de 24 horas", "Fever has been 38 C or higher for more than 24 hours.", "La fiebre ha sido 38 C o mas durante mas de 24 horas.", "thermometer", "amber"),
+      r("better", "trend", "It is mild, improving, and I am drinking and peeing", "Es leve, mejora, bebo y orino", "It is mild and improving, and I am drinking and peeing normally.", "Es leve y mejora, y bebo y orino normal.", "activity", "green"),
+      r("not_sure_trend", "trend", "I am not sure how it is changing", "No se como esta cambiando", "I am not sure how the fever is changing.", "No se como esta cambiando la fiebre.", "help", "purple"),
     ],
   },
   dizzy: {
@@ -471,11 +471,11 @@ const trendDefault: StageMatrix = {
     ],
   },
   tired: {
-    question: t("Is your energy better, same, or worse?", "Tu energia mejora, sigue igual o empeora?"),
+    question: t("Which best describes the tiredness or weakness now?", "Que describe mejor el cansancio o debilidad ahora?"),
     replies: [
-      r("better", "trend", "More energy", "Mas energia", "I have a bit more energy.", "Tengo algo mas de energia.", "activity", "green"),
-      r("same", "trend", "About the same", "Mas o menos igual", "My energy feels about the same.", "Mi energia esta igual.", "help", "blue"),
-      r("worse", "trend", "Energy is weaker", "Energia mas debil", "I am feeling weaker.", "Me siento mas debil.", "alert", "red"),
+      r("better", "trend", "I have more energy", "Tengo mas energia", "I have a bit more energy.", "Tengo algo mas de energia.", "activity", "green"),
+      r("same", "trend", "It feels about the same", "Se siente mas o menos igual", "My energy feels about the same.", "Mi energia esta igual.", "help", "blue"),
+      r("worse", "trend", "I am feeling weaker", "Me siento mas debil", "I am feeling weaker.", "Me siento mas debil.", "alert", "red"),
       r("new_symptoms", "trend", "New symptoms appeared", "Aparecieron sintomas nuevos", "New symptoms have appeared.", "Han aparecido sintomas nuevos.", "alert", "amber"),
     ],
   },
@@ -516,16 +516,51 @@ const trendDefault: StageMatrix = {
     ],
   },
   confusion: {
-    question: t("When did this change start?", "Cuando empezo este cambio?"),
-    replies: duration.confusion.replies.map((reply) => ({ ...reply, kind: "trend" as const })),
+    question: t("How is this confusion or memory change behaving?", "Como se comporta esta confusion o cambio de memoria?"),
+    replies: [
+      r("today", "trend", "It started today or suddenly", "Empezo hoy o de repente", "The confusion or change started today or suddenly.", "La confusion o cambio empezo hoy o de repente.", "activity", "amber"),
+      r("few_days", "trend", "It has been changing over a few days", "Cambia desde hace pocos dias", "It has been changing over a few days.", "Cambia desde hace pocos dias.", "activity", "purple"),
+      r("week_plus", "trend", "It has been gradual over weeks or months", "Ha sido gradual durante semanas o meses", "This has been gradual over weeks or months.", "Esto ha sido gradual durante semanas o meses.", "help", "blue"),
+      r("not_sure_duration", "trend", "I am not sure how long it has been changing", "No se cuanto lleva cambiando", "I am not sure how long it has been changing.", "No se cuanto tiempo lleva cambiando.", "help", "purple"),
+    ],
   },
   other: {
-    question: t("How did it start?", "Como empezo?"),
+    question: t("Which best describes what is happening now?", "Que describe mejor lo que pasa ahora?"),
     replies: [
-      r("sudden_worse_today", "trend", "Sudden or worse today", "Repentino o peor hoy", "It started suddenly or is getting worse today.", "Empezo de repente o esta peor hoy.", "alert", "amber"),
-      r("after_medicine_surgery_fall", "trend", "After medicine, surgery, hospital, or fall", "Tras medicina, cirugia, hospital o caida", "It started after medicine, surgery, a hospital stay, or a fall.", "Empezo tras medicina, cirugia, hospital o caida.", "alert", "amber"),
-      r("ongoing_not_improving", "trend", "Ongoing and not improving", "Sigue y no mejora", "It has gone on for days and is not improving.", "Lleva dias y no mejora.", "activity", "blue"),
-      r("better", "trend", "Mild, brief, and improving", "Leve, breve y mejora", "It is mild, brief, and improving.", "Es leve, breve y mejora.", "help", "green"),
+      r("sudden_worse_today", "trend", "It started suddenly or is worse today", "Empezo de repente o esta peor hoy", "It started suddenly or is getting worse today.", "Empezo de repente o esta peor hoy.", "alert", "amber"),
+      r("after_medicine_surgery_fall", "trend", "It started after medicine, surgery, hospital, or a fall", "Empezo tras medicina, cirugia, hospital o caida", "It started after medicine, surgery, a hospital stay, or a fall.", "Empezo tras medicina, cirugia, hospital o caida.", "alert", "amber"),
+      r("ongoing_not_improving", "trend", "It is ongoing and not improving", "Sigue y no mejora", "It has gone on for days and is not improving.", "Lleva dias y no mejora.", "activity", "blue"),
+      r("better", "trend", "It is mild, brief, and improving", "Es leve, breve y mejora", "It is mild, brief, and improving.", "Es leve, breve y mejora.", "help", "green"),
+    ],
+  },
+};
+
+const otherAnxietyVariants: Partial<Record<TriageWizardMatrixStage, TriageWizardMatrixNode>> = {
+  red_flag: {
+    question: t("Does the anxiety feeling include any urgent warning signs?", "La ansiedad incluye alguna senal urgente?"),
+    replies: [
+      r("chest_pain", "red_flag", "Chest pain, hard breathing, or blue/grey/pale skin", "Pecho, respiracion o piel azul/gris/palida", "I have chest pain, trouble breathing, or blue/grey/pale skin.", "Tengo dolor de pecho, dificultad para respirar o piel azul/gris/palida.", "alert", "red"),
+      r("stroke_sign", "red_flag", "Weakness, speech or vision trouble, seizure, or fainted", "Debilidad, habla o vision, convulsion o desmayo", "I have weakness, speech or vision trouble, seizure, or fainted.", "Tengo debilidad, problema de habla o vision, convulsion o desmayo.", "alert", "red"),
+      r("new_confusion", "red_flag", "Very confused, hard to wake, severe pain, bleeding, or allergy swelling", "Confusion, despertar, dolor, sangrado o alergia", "I am very confused, hard to wake, in severe pain, heavily bleeding, or have allergy swelling.", "Tengo mucha confusion, cuesta despertarme, dolor fuerte, sangrado fuerte o hinchazon alergica.", "alert", "red"),
+      r("no_red_flag", "red_flag", "No, anxiety feeling without those warning signs", "No, ansiedad sin esas senales", "It feels like anxiety without those warning signs.", "Se siente como ansiedad sin esas senales.", "help", "green"),
+    ],
+  },
+  severity: {
+    question: t("What else is happening with the anxiety feeling?", "Que mas pasa con la ansiedad?"),
+    replies: [
+      r("main_chest_breathing", "severity", "Chest tightness, breathing trouble, or racing heart", "Pecho opresivo, falta de aire o pulso rapido", "The anxiety feeling comes with chest tightness, breathing trouble, or racing heart.", "La ansiedad viene con pecho opresivo, falta de aire o pulso rapido.", "heart", "red"),
+      r("main_neuro_fall", "severity", "Dizzy, faint, confused, weak, or after a fall", "Mareo, desmayo, confusion, debilidad o tras caida", "It comes with dizziness, faint feeling, confusion, weakness, or happened after a fall.", "Viene con mareo, sensacion de desmayo, confusion, debilidad o paso tras una caida.", "alert", "amber"),
+      r("main_infection", "severity", "Fever, stomach, urine, skin, or wound symptoms", "Fiebre, estomago, orina, piel o herida", "It comes with fever, stomach, urine, skin, or wound symptoms.", "Viene con fiebre, sintomas de estomago, orina, piel o herida.", "activity", "amber"),
+      r("other_not_sure", "severity", "Anxiety feeling without those body warning signs", "Ansiedad sin esas senales del cuerpo", "It feels like anxiety without those body warning signs.", "Se siente como ansiedad sin esas senales del cuerpo.", "help", "purple"),
+    ],
+  },
+  trend: {
+    question: t("Which best describes the anxiety or panic feeling now?", "Que describe mejor la ansiedad o panico ahora?"),
+    replies: [
+      r("sudden_worse_today", "trend", "It started suddenly, is worse today, or feels unusual", "Empezo de repente, esta peor hoy o se siente raro", "It started suddenly, is getting worse today, or feels unusual for me.", "Empezo de repente, esta peor hoy o se siente raro para mi.", "alert", "amber"),
+      r("after_medicine_surgery_fall", "trend", "It started after medicine, caffeine, alcohol/drugs, hospital, or a fall", "Empezo tras medicina, cafeina, alcohol/drogas, hospital o caida", "It started after medicine, caffeine, alcohol or drugs, a hospital stay, or a fall.", "Empezo tras medicina, cafeina, alcohol o drogas, hospital o caida.", "alert", "amber"),
+      r("ongoing_not_improving", "trend", "It is ongoing and not settling", "Sigue y no se calma", "It is ongoing and not settling.", "Sigue y no se calma.", "activity", "blue"),
+      r("better", "trend", "It is mild, brief, and settling", "Es leve, breve y se calma", "It is mild, brief, and settling.", "Es leve, breve y se calma.", "help", "green"),
     ],
   },
 };
@@ -574,6 +609,10 @@ export function triageWizardNodeFor(
   answerIds: Set<string> = new Set(),
 ): TriageWizardMatrixNode {
   if (stage === "symptom") return symptomNode;
+  if (symptomId === "other" && answerIds.has("anxiety_context")) {
+    const anxietyNode = otherAnxietyVariants[stage];
+    if (anxietyNode) return anxietyNode;
+  }
   if (stage === "trend" && symptomId === "pain") {
     for (const id of Object.keys(painTrendVariants) as Array<keyof typeof painTrendVariants>) {
       if (answerIds.has(id)) return painTrendVariants[id];
