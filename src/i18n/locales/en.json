@@ -582,8 +582,8 @@
         "hint": "My pills"
       },
       "status": {
-        "label": "Status",
-        "hint": "Vital signs"
+        "label": "Vitals",
+        "hint": "Pulse, breathing, trends"
       },
       "reports": {
         "label": "Reports",

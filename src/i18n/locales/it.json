@@ -547,8 +547,8 @@
         "hint": "Le mie medicine"
       },
       "status": {
-        "label": "Stato",
-        "hint": "Parametri vitali"
+        "label": "Parametri",
+        "hint": "Polso, respirazione, trend"
       },
       "reports": {
         "label": "Report",

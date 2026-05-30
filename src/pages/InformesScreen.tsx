@@ -372,7 +372,7 @@ function InformesMain() {
 
   const voiceHighlights = [
     ...(summary?.latestTriage ? [{ label: t("informes.cards.symptom.title"), value: formatDate(summary.latestTriage.created_at), tone: "neutral" as const }] : []),
-    ...(summary?.latestVitals ? [{ label: t("health.quickTiles.status.label", "Status"), value: `${summary.latestVitals.bpm} bpm`, tone: "good" as const }] : []),
+    ...(summary?.latestVitals ? [{ label: t("health.quickTiles.status.label", "Vitals"), value: `${summary.latestVitals.bpm} bpm`, tone: "good" as const }] : []),
     ...(summary?.todayMeds.total ? [{ label: t("health.quickTiles.medication.label", "Medication"), value: `${summary.todayMeds.taken}/${summary.todayMeds.total}`, tone: pendingMeds ? "warning" as const : "good" as const }] : []),
   ];
 

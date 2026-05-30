@@ -59,12 +59,12 @@ describe("language persistence", () => {
 
   it("keeps health quick cards localized for supported account languages", () => {
     const expected = {
-      en: ["Quick access", "Symptoms", "Medication", "Status", "Reports"],
-      es: ["Acceso rápido", "Síntomas", "Medicación", "Estado", "Informes"],
-      fr: ["Accès rapide", "Symptômes", "Médicaments", "État", "Rapports"],
-      de: ["Schnellzugriff", "Symptome", "Medikamente", "Status", "Berichte"],
-      it: ["Accesso rapido", "Sintomi", "Farmaci", "Stato", "Report"],
-      pt: ["Acesso rápido", "Sintomas", "Medicação", "Estado", "Relatórios"],
+      en: ["Quick access", "Symptoms", "Medication", "Vitals", "Reports"],
+      es: ["Acceso rápido", "Síntomas", "Medicación", "Constantes", "Informes"],
+      fr: ["Accès rapide", "Symptômes", "Médicaments", "Constantes", "Rapports"],
+      de: ["Schnellzugriff", "Symptome", "Medikamente", "Vitalwerte", "Berichte"],
+      it: ["Accesso rapido", "Sintomi", "Farmaci", "Parametri", "Report"],
+      pt: ["Acesso rápido", "Sintomas", "Medicação", "Sinais vitais", "Relatórios"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
