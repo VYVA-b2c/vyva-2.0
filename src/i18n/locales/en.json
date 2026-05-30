@@ -694,6 +694,7 @@
         "symptoms": "Symptoms noted",
         "recommendations": "What to do next",
         "doNow": "Do now",
+        "whyThisStep": "Initial assessment",
         "nextStepsTitle": "Next steps",
         "nextStepsSubtitle": "Vitals now come after the conversation. Choose what helps next.",
         "nextStepVitals": "Check vitals",
@@ -1575,6 +1576,7 @@
       "title": "Full report",
       "symptoms": "Observed symptoms",
       "recommendations": "What to do next",
+      "whyThisStep": "Initial assessment",
       "duration": "Session length",
       "chatCta": "Talk to VYVA"
     }
