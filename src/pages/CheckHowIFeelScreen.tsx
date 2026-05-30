@@ -34,8 +34,15 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/contexts/ProfileContext";
-import { apiFetch } from "@/lib/queryClient";
+import { apiFetch, queryClient } from "@/lib/queryClient";
 import { ListenButton } from "@/components/ListenButton";
+import {
+  HealthWizardCard,
+  HealthWizardChoiceTile,
+  HealthWizardHero,
+  HealthWizardProgress,
+  HealthWizardShell,
+} from "@/components/health/HealthWizard";
 
 type StepId = "welcome" | "energy" | "mood" | "body" | "sleep" | "symptoms" | "details" | "safety" | "social" | "analyzing" | "result";
 
@@ -1792,6 +1799,8 @@ const CheckHowIFeelScreen = () => {
       }
       const data = await res.json() as { result: CheckinResult };
       setResult(forceHealthPriorityResult(data.result, answers, name, gender, copy));
+      queryClient.invalidateQueries({ queryKey: ["/api/checkins/today"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/checkins/history"] });
     } catch (err) {
       console.warn("[check-in] falling back locally", err);
       setResult(forceHealthPriorityResult(localizedLocalResult(name, answers, gender, copy), answers, name, gender, copy));
@@ -1838,9 +1847,9 @@ const CheckHowIFeelScreen = () => {
   };
 
   return (
-    <div className="vyva-page bg-[radial-gradient(circle_at_top_left,#FFF7ED_0%,transparent_34%),linear-gradient(180deg,#FAF7F2_0%,#F6EFE7_100%)]">
+    <HealthWizardShell>
       {questionSteps.includes(step) && (
-        <div className="mb-4 rounded-[28px] border border-white/70 bg-white/80 p-4 shadow-[0_10px_30px_rgba(63,45,35,0.06)] backdrop-blur">
+        <HealthWizardCard className="mb-4 p-4">
           <div className="mb-3 flex items-center justify-between">
             <button
               onClick={goBack}
@@ -1853,34 +1862,24 @@ const CheckHowIFeelScreen = () => {
               {questionSteps.indexOf(step) + 1} {copy.stepOf} {questionSteps.length}
             </span>
           </div>
-          <div className="h-3 overflow-hidden rounded-full bg-[#EDE4DA]">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-vyva-purple to-[#8B5CF6] transition-all duration-300"
-              style={{ width: `${progressForActive(step, includeSafety, includeDetails)}%` }}
-            />
-          </div>
-          <p className="mt-2 text-right font-body text-[13px] font-semibold text-vyva-text-2">
-            {copy.stepHint}
-          </p>
-        </div>
+          <HealthWizardProgress
+            current={questionSteps.indexOf(step) + 1}
+            total={questionSteps.length}
+            label={copy.stepHint}
+            className="border-0 bg-transparent p-0 shadow-none"
+          />
+        </HealthWizardCard>
       )}
 
       {step === "welcome" && (
-        <section className="overflow-hidden rounded-[36px] border border-white/80 bg-white shadow-[0_16px_44px_rgba(63,45,35,0.10)]">
-          <div className="relative bg-gradient-to-br from-[#FFF7ED] via-[#F5F3FF] to-white p-7 pb-6">
-            <div className="absolute right-[-28px] top-[-34px] h-32 w-32 rounded-full bg-vyva-purple/10" />
-            <div className="absolute bottom-[-46px] right-10 h-24 w-24 rounded-full bg-[#F59E0B]/12" />
-            <div className="relative mb-5 flex h-[76px] w-[76px] items-center justify-center rounded-[28px] bg-white text-[36px] shadow-[0_12px_30px_rgba(107,33,168,0.14)]">
-              💜
-            </div>
-            <p className="relative mb-2 font-body text-[18px] font-semibold text-vyva-text-2">{copy.hello}, {name}</p>
-            <h1 className="relative mb-4 font-display text-[38px] leading-tight text-vyva-text-1">
-              {copy.welcomeTitle}
-            </h1>
-            <p className="relative font-body text-[21px] leading-relaxed text-vyva-text-2">
-              {copy.welcomeIntro}
-            </p>
-          </div>
+        <HealthWizardCard className="overflow-hidden p-0">
+          <HealthWizardHero
+            className="rounded-none border-0 shadow-none"
+            icon={<Heart />}
+            kicker={`${copy.hello}, ${name}`}
+            title={copy.welcomeTitle}
+            body={copy.welcomeIntro}
+          />
           <div className="grid gap-3 p-6">
             {[
               { Icon: ShieldCheck, ...copy.cards[0] },
@@ -1913,7 +1912,7 @@ const CheckHowIFeelScreen = () => {
               {copy.skip}
             </button>
           </div>
-        </section>
+        </HealthWizardCard>
       )}
 
       {step === "energy" && (
@@ -2015,13 +2014,13 @@ const CheckHowIFeelScreen = () => {
       )}
 
       {step === "analyzing" && (
-        <section className="flex min-h-[520px] flex-col items-center justify-center overflow-hidden rounded-[36px] border border-white/80 bg-gradient-to-br from-white via-[#F5F3FF] to-[#FFF7ED] p-8 text-center shadow-[0_16px_44px_rgba(63,45,35,0.10)]">
-          <div className="mb-5 flex h-24 w-24 items-center justify-center rounded-[34px] bg-white shadow-[0_12px_30px_rgba(107,33,168,0.14)]">
+        <HealthWizardCard className="flex min-h-[520px] flex-col items-center justify-center p-8 text-center">
+          <div className="mb-5 flex h-24 w-24 items-center justify-center rounded-[34px] bg-[#F5F3FF] shadow-[0_12px_30px_rgba(107,33,168,0.14)]">
             <Loader2 size={54} className="animate-spin text-vyva-purple" />
           </div>
           <h1 className="mb-3 font-display text-[32px] text-vyva-text-1">{copy.analyzingTitle}, {name}</h1>
           <p className="font-body text-[21px] leading-relaxed text-vyva-text-2">{loadingMessage}</p>
-        </section>
+        </HealthWizardCard>
       )}
 
       {step === "result" && result && resultVisual && (
@@ -2223,7 +2222,7 @@ const CheckHowIFeelScreen = () => {
           }}
         />
       )}
-    </div>
+    </HealthWizardShell>
   );
 };
 
@@ -2450,17 +2449,16 @@ function QuestionCard({
   children: ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-[36px] border border-white/80 bg-white shadow-[0_16px_44px_rgba(63,45,35,0.10)]">
-      <div className="relative bg-gradient-to-br from-[#F5F3FF] via-white to-[#FFF7ED] p-6 pb-5">
-        <div className="absolute right-[-36px] top-[-42px] h-32 w-32 rounded-full bg-vyva-purple/10" />
-        <div className="relative mb-4 flex h-[68px] w-[68px] items-center justify-center rounded-[24px] bg-white text-vyva-purple shadow-[0_10px_26px_rgba(107,33,168,0.14)]">
-          {icon}
-        </div>
-        <h1 className="relative mb-2 font-display text-[34px] leading-tight text-vyva-text-1">{title}</h1>
-        <p className="relative font-body text-[20px] leading-relaxed text-vyva-text-2">{subtitle}</p>
-      </div>
+    <HealthWizardCard className="overflow-hidden p-0">
+      <HealthWizardHero
+        className="rounded-none border-0 shadow-none"
+        tone="light"
+        icon={icon}
+        title={title}
+        body={subtitle}
+      />
       <div className="p-5 pt-4">{children}</div>
-    </section>
+    </HealthWizardCard>
   );
 }
 
@@ -2482,40 +2480,15 @@ function OptionList({
       {options.map((option) => {
         const isSelected = multi ? selectedValues?.includes(option.id) : selected === option.id;
         return (
-          <button
+          <HealthWizardChoiceTile
             key={option.id}
             onClick={() => onSelect(option)}
-            className={`vyva-tap flex min-h-[86px] items-center justify-between gap-4 rounded-[24px] border px-4 py-3 text-left transition-all ${
-              isSelected
-                ? "border-vyva-purple bg-gradient-to-r from-vyva-purple to-[#8B5CF6] text-white shadow-[0_10px_26px_rgba(107,33,168,0.22)]"
-                : "border-vyva-border bg-[#FAF9F6] text-vyva-text-1 shadow-[0_4px_14px_rgba(63,45,35,0.04)]"
-            }`}
-          >
-            <span className="flex min-w-0 flex-1 items-center gap-4">
-              <span
-                className={`flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[19px] text-[27px] ${
-                  isSelected ? "bg-white/18" : "bg-white"
-                }`}
-              >
-                {option.icon ?? "•"}
-              </span>
-              <span className="min-w-0">
-              <span className="block font-body text-[21px] font-bold leading-tight">{option.label}</span>
-              {option.helper && (
-                <span className={`mt-1 block font-body text-[16px] leading-snug ${isSelected ? "text-white/85" : "text-vyva-text-2"}`}>
-                  {option.helper}
-                </span>
-              )}
-              </span>
-            </span>
-            <span
-              className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full ${
-                isSelected ? "bg-[#F59E0B] shadow-sm" : "border-2 border-vyva-border bg-white"
-              }`}
-            >
-              {isSelected && <Check size={19} className="text-white" />}
-            </span>
-          </button>
+            selected={Boolean(isSelected)}
+            icon={<span className="text-[27px] leading-none">{option.icon ?? "•"}</span>}
+            title={option.label}
+            body={option.helper}
+            className="min-h-[88px]"
+          />
         );
       })}
     </div>
@@ -2533,7 +2506,6 @@ function NextButton({ disabled, onClick, label }: { disabled: boolean; onClick: 
     </button>
   );
 }
-
 function ResultList({
   title,
   icon,

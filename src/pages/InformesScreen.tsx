@@ -17,6 +17,13 @@ import {
   Wind,
 } from "lucide-react";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
+import {
+  HealthWizardCard,
+  HealthWizardHero,
+  HealthWizardSectionLabel,
+  HealthWizardShell,
+  HealthWizardTopBar,
+} from "@/components/health/HealthWizard";
 
 type TriageReport = {
   id: string;
@@ -55,7 +62,7 @@ type VitalsHistory = {
   readings: VitalsReading[];
 };
 
-const cardShell = "rounded-[24px] border border-[#E8DED4] bg-white shadow-[0_10px_28px_rgba(63,45,35,0.06)]";
+const cardShell = "rounded-[28px] border border-[#E8DED4] bg-white shadow-[0_12px_30px_rgba(63,45,35,0.07)]";
 
 function urgencyConfig(urgency: TriageReport["urgency"]) {
   if (urgency === "urgent") return { icon: AlertTriangle, bg: "#FEE2E2", text: "#B91C1C", labelBg: "#FEE2E2" };
@@ -141,17 +148,12 @@ function LineChart({ values, color }: { values: number[]; color: string }) {
 }
 
 function SectionLabel({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
-  return (
-    <div className="mb-3 mt-6 flex items-center justify-between gap-3">
-      <p className="font-body text-[13px] font-bold uppercase tracking-[0.12em] text-vyva-text-2">{children}</p>
-      {action}
-    </div>
-  );
+  return <HealthWizardSectionLabel action={action}>{children}</HealthWizardSectionLabel>;
 }
 
 function EmptyCard({ icon: Icon, title, body }: { icon: typeof ClipboardList; title: string; body: string }) {
   return (
-    <section className={`${cardShell} p-5`}>
+    <HealthWizardCard className="p-5">
       <div className="flex items-start gap-3">
         <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#F5F3FF] text-[#6B21A8]">
           <Icon size={21} />
@@ -161,7 +163,7 @@ function EmptyCard({ icon: Icon, title, body }: { icon: typeof ClipboardList; ti
           <p className="mt-1 font-body text-[13px] leading-relaxed text-vyva-text-2">{body}</p>
         </div>
       </div>
-    </section>
+    </HealthWizardCard>
   );
 }
 
@@ -176,25 +178,13 @@ function DetailView({ report, onBack }: { report: TriageReport; onBack: () => vo
   const vitalsNotes = report.vitals_notes ?? [];
 
   return (
-    <div className="min-h-screen px-[18px] pb-10">
-      <div className="mb-4 mt-1 flex items-center gap-3">
-        <button
-          onClick={onBack}
-          data-testid="button-report-detail-back"
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-[0_4px_14px_rgba(63,45,35,0.08)] active:scale-95"
-          aria-label={t("informes.back", "Back")}
-        >
-          <ChevronLeft size={20} className="text-vyva-text-1" />
-        </button>
-        <div className="min-w-0">
-          <p className="font-body text-[12px] font-bold uppercase tracking-[0.14em] text-vyva-text-3">
-            {t("informes.reportDetail.title")}
-          </p>
-          <h1 className="font-display text-[24px] italic leading-tight text-vyva-text-1">
-            {report.chief_complaint}
-          </h1>
-        </div>
-      </div>
+    <HealthWizardShell contentClassName="pb-10">
+      <HealthWizardTopBar
+        title={report.chief_complaint}
+        kicker={t("informes.reportDetail.title")}
+        onBack={onBack}
+        backLabel={t("informes.back", "Back")}
+      />
 
       <section className="overflow-hidden rounded-[28px] bg-[#3D0D82] text-white shadow-[0_16px_36px_rgba(91,18,160,0.24)]">
         <div className="relative p-5">
@@ -283,7 +273,7 @@ function DetailView({ report, onBack }: { report: TriageReport; onBack: () => vo
           {triageReasons.length > 0 && (
             <div className="mt-4 rounded-[20px] bg-[#F5F3FF] p-4 text-[#6B21A8]">
               <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em]">
-                {t("informes.reportDetail.whyThisStep", "Why this step")}
+                {t("informes.reportDetail.whyThisStep", "Why VYVA chose this")}
               </p>
               <ul className="mt-3 grid gap-2">
                 {triageReasons.slice(0, 3).map((reason, index) => (
@@ -344,7 +334,7 @@ function DetailView({ report, onBack }: { report: TriageReport; onBack: () => vo
         <MessageCircle size={18} />
         {t("informes.reportDetail.chatCta")}
       </button>
-    </div>
+    </HealthWizardShell>
   );
 }
 
@@ -397,7 +387,7 @@ function InformesMain() {
 
     if (directError || !directReport) {
       return (
-        <div className="px-[18px] pb-10">
+        <HealthWizardShell contentClassName="pb-10">
           <button
             data-testid="button-back-from-error"
             onClick={handleBack}
@@ -407,7 +397,7 @@ function InformesMain() {
             <ChevronLeft size={20} />
           </button>
           <EmptyCard icon={ClipboardList} title={t("informes.errorTitle")} body={t("informes.errorSub")} />
-        </div>
+        </HealthWizardShell>
       );
     }
 
@@ -415,20 +405,16 @@ function InformesMain() {
   }
 
   return (
-    <div className="px-[18px] pb-10">
-      <div className="mb-4 mt-1 flex items-center gap-3">
-        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#EFF6FF] text-[#1D4ED8] shadow-sm">
-          <ClipboardList size={22} />
-        </div>
-        <div className="min-w-0">
-          <p className="font-body text-[12px] font-bold uppercase tracking-[0.14em] text-vyva-text-3">
-            {t("informes.title")}
-          </p>
-          <h1 className="font-display text-[25px] italic leading-tight text-vyva-text-1">
-            {t("informes.subtitle")}
-          </h1>
-        </div>
-      </div>
+    <HealthWizardShell contentClassName="pb-10">
+      <HealthWizardTopBar
+        title={t("informes.subtitle")}
+        kicker={t("informes.title")}
+        action={(
+          <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#EFF6FF] text-[#1D4ED8] shadow-sm">
+            <ClipboardList size={22} />
+          </span>
+        )}
+      />
 
       <VoiceActionFulfillmentPanel
         domain="reports"
@@ -643,7 +629,7 @@ function InformesMain() {
       {!summaryLoading && !summary && (
         <EmptyCard icon={ClipboardList} title={t("informes.errorTitle")} body={t("informes.errorSub")} />
       )}
-    </div>
+    </HealthWizardShell>
   );
 }
 

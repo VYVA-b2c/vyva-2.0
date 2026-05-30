@@ -429,6 +429,90 @@ function monitorReasonFor(locale: string, symptomId?: string): string {
   return reasons[symptomId ?? ""] ?? text(locale, "No serious warning sign was selected, but the symptom should still be tracked clearly.", "No se selecciono una senal seria, pero el sintoma debe seguirse claramente.");
 }
 
+function selectedAnswerReasonFor(locale: string, symptomId: string | undefined, ids: Set<string>): string | null {
+  if (ids.has("low_sugar")) {
+    return text(
+      locale,
+      "You selected low sugar symptoms or diabetes medicine. Blood sugar changes can cause dizziness, weakness, sweating, confusion, or falls. Add a glucose reading now if you have a meter or sensor; get same-day advice if symptoms continue.",
+      "Seleccionaste senales de azucar baja o medicina de diabetes. Cambios de azucar pueden causar mareo, debilidad, sudor, confusion o caidas. Anade una lectura de glucosa ahora si tienes medidor o sensor; pide consejo hoy si continua.",
+    );
+  }
+
+  if (ids.has("high_sugar_sick") || ids.has("diabetes_vomiting")) {
+    return text(
+      locale,
+      "You selected diabetes with sickness or high sugar. Vomiting, dehydration, belly pain, deep breathing, drowsiness, or very high glucose can become urgent, so this needs clinician guidance.",
+      "Seleccionaste diabetes con malestar o azucar alta. Vomitos, deshidratacion, dolor de barriga, respiracion profunda, somnolencia o glucosa muy alta pueden volverse urgentes, asi que necesita guia clinica.",
+    );
+  }
+
+  if (ids.has("dizzy_chest")) {
+    return text(
+      locale,
+      "You selected dizziness with chest pain, hard breathing, or a fast heartbeat. That combination can point to a heart, breathing, or circulation problem, so it should not be watched at home.",
+      "Seleccionaste mareo con dolor de pecho, falta de aire o pulso rapido. Esa combinacion puede indicar problema de corazon, respiracion o circulacion, asi que no debe vigilarse solo en casa.",
+    );
+  }
+
+  if (ids.has("standing_dizziness")) {
+    return text(
+      locale,
+      "You selected dizziness when standing. In seniors this can mean blood pressure, dehydration, medicine effects, or fall risk, so the next step is to prevent a fall and get advice if it repeats.",
+      "Seleccionaste mareo al levantarte. En mayores puede indicar presion, deshidratacion, efecto de medicinas o riesgo de caida, asi que toca evitar una caida y pedir consejo si se repite.",
+    );
+  }
+
+  if (ids.has("very_dizzy_fall") || ids.has("cannot_stand")) {
+    return text(
+      locale,
+      "You selected dizziness or weakness that could make standing or walking unsafe. The immediate concern is a fall or a serious cause behind the unsteadiness.",
+      "Seleccionaste mareo o debilidad que puede hacer inseguro estar de pie o caminar. La preocupacion inmediata es una caida o una causa seria detras de la inestabilidad.",
+    );
+  }
+
+  if (ids.has("urine_fever_back") || ids.has("urine_fever_chills") || ids.has("urine_side_pain")) {
+    return text(
+      locale,
+      "You selected urine symptoms with fever, chills, or back/side pain. In an older adult this can mean the infection may be moving beyond the bladder, so same-day care is safer.",
+      "Seleccionaste sintomas de orina con fiebre, escalofrios o dolor de espalda/lado. En una persona mayor puede significar que la infeccion va mas alla de la vejiga, asi que es mas seguro atencion hoy.",
+    );
+  }
+
+  if (ids.has("blood_in_urine") || ids.has("urine_heavy_blood")) {
+    return text(
+      locale,
+      "You selected blood in the urine. Blood needs prompt review, especially if there are clots, weakness, pain, or blood-thinner medicine.",
+      "Seleccionaste sangre en la orina. La sangre necesita revision pronta, especialmente si hay coagulos, debilidad, dolor o anticoagulantes.",
+    );
+  }
+
+  if (ids.has("infection_signs")) {
+    return text(
+      locale,
+      "You selected infection signs. In seniors, infection can show up as weakness, less drinking, confusion, breathing changes, or falls, even before symptoms feel dramatic.",
+      "Seleccionaste senales de infeccion. En mayores, una infeccion puede aparecer como debilidad, beber menos, confusion, cambios de respiracion o caidas, incluso antes de sentirse grave.",
+    );
+  }
+
+  if (ids.has("strong") || ids.has("worse") || ids.has("new_symptoms")) {
+    return text(
+      locale,
+      "You selected that this is strong, getting worse, or new for you. That matters because a changing symptom is less safe to watch without a clear clinical plan.",
+      "Seleccionaste que es fuerte, empeora o es nuevo para ti. Eso importa porque un sintoma que cambia es menos seguro de vigilar sin un plan clinico claro.",
+    );
+  }
+
+  if (symptomId === "urinary" && (ids.has("mild") || ids.has("burning_urgency") || ids.has("urine_frequency"))) {
+    return text(
+      locale,
+      "You selected mild urine burning or urgency without fever, back pain, blood, blockage, or confusion. That is lower concern, but it should be reviewed if it continues.",
+      "Seleccionaste ardor o urgencia leve al orinar sin fiebre, dolor de espalda, sangre, bloqueo o confusion. Eso es menor preocupacion, pero debe revisarse si continua.",
+    );
+  }
+
+  return null;
+}
+
 function recommendationsFor(locale: string, symptomId: string | undefined, level: TriageRuleLevel): string[] {
   if (level === "emergency") {
     return [
@@ -846,7 +930,7 @@ export function evaluateTriageRules(input: TriageRuleInput): TriageRuleDecision 
   if (rank(level) < rank("doctor_24_48") && (ids.has("strong") || ids.has("worse") || ids.has("new_symptoms"))) {
     raise(
       "doctor_24_48",
-      text(locale, "The symptom is strong, worsening, or changing.", "El sintoma es fuerte, empeora o esta cambiando."),
+      text(locale, "You selected that the symptom is strong, getting worse, or changing, so VYVA is not recommending home watching only.", "Seleccionaste que el sintoma es fuerte, empeora o esta cambiando, por eso VYVA no recomienda solo vigilar en casa."),
       text(locale, "Contact your doctor or clinic if this continues or feels unusual for you.", "Contacta con tu medico o clinica si continua o se siente raro para ti."),
     );
   }
@@ -889,7 +973,11 @@ export function evaluateTriageRules(input: TriageRuleInput): TriageRuleDecision 
 
   const defaultRecommendations = recommendationsFor(locale, symptomId, level);
   const uniqueRecommendations = [...new Set([...recommendations, ...defaultRecommendations])];
-  const finalReasons = [...new Set(reasons.length ? reasons : [monitorReasonFor(locale, symptomId)])];
+  const selectedAnswerReason = selectedAnswerReasonFor(locale, symptomId, ids);
+  const finalReasons = [...new Set([
+    ...(selectedAnswerReason ? [selectedAnswerReason] : []),
+    ...(reasons.length ? reasons : [monitorReasonFor(locale, symptomId)]),
+  ])];
   return {
     level,
     urgency: urgencyFor(level),

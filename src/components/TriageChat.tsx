@@ -3,11 +3,19 @@ import { useTranslation } from "react-i18next";
 import { Activity, AlertCircle, HelpCircle, HeartPulse, Loader2, Mic, PhoneCall, Send, Square, Thermometer, Wind } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 import i18n from "@/i18n";
+import { HealthWizardCard, HealthWizardChoiceTile, HealthWizardHero } from "@/components/health/HealthWizard";
 
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
 }
+
+type TriageRefinementAnswer = {
+  id: string;
+  label: string;
+  value: string;
+  kind: string;
+};
 
 interface TriageSummary {
   chiefComplaint: string;
@@ -24,6 +32,12 @@ interface TriageSummary {
   vitalsNotes?: string[];
   evidenceSummary?: string;
   evidenceSources?: Array<{ title?: string; url?: string; year?: string; journal?: string }>;
+  refinementContext?: {
+    messages: ChatMessage[];
+    quickAnswers: TriageRefinementAnswer[];
+    entryMode: WizardEntryMode;
+    initialClue: string;
+  };
 }
 
 interface TriageResponse {
@@ -302,7 +316,17 @@ export default function TriageChat({
         setMessages((prev) => [...prev, { role: "assistant", content: res.content }]);
 
         const triggerComplete = res.done && res.summary
-          ? { ...res.summary, aiSummary: res.content, evidenceSources: res.summary.evidenceSources ?? res.evidenceSources }
+          ? {
+              ...res.summary,
+              aiSummary: res.content,
+              evidenceSources: res.summary.evidenceSources ?? res.evidenceSources,
+              refinementContext: {
+                messages: history,
+                quickAnswers: quickAnswerTrail,
+                entryMode,
+                initialClue,
+              },
+            }
           : null;
 
         animateMessage(msgIdx, res.content, () => {
@@ -322,7 +346,7 @@ export default function TriageChat({
         setLoading(false);
       }
     },
-    [animateMessage, bpm, entryMode, healthMemory, messages.length, onComplete, respiratoryRate, selectedQuickAnswers, t]
+    [animateMessage, bpm, entryMode, healthMemory, initialClue, messages.length, onComplete, respiratoryRate, selectedQuickAnswers, t]
   );
 
   useEffect(() => {
@@ -424,35 +448,28 @@ export default function TriageChat({
           )}
 
           {safetyAlert && (
-            <div className="motion-safe:animate-pulse rounded-[24px] border-2 border-[#DC2626] bg-[#DC2626] px-4 py-4 text-white shadow-[0_16px_36px_rgba(220,38,38,0.28)]">
-              <div className="flex items-start gap-3">
-                <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px] bg-white/16 text-white ring-2 ring-white/40">
-                  <AlertCircle size={24} />
-                </span>
-                <div className="grid gap-3">
-                  <p className="font-body text-[22px] font-black leading-tight">
-                    {t("health.symptomCheck.chat.emergencyTitle", "Emergency warning")}
-                  </p>
-                  <p className="font-body text-[18px] font-bold leading-snug text-white">
-                    {safetyAlert.recommendation}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      window.location.href = "tel:112";
-                    }}
-                    className="vyva-tap mt-1 inline-flex min-h-[64px] items-center justify-center gap-3 rounded-[20px] bg-white px-5 font-body text-[19px] font-black text-[#B91C1C] shadow-[0_10px_24px_rgba(127,29,29,0.24)]"
-                  >
-                    <PhoneCall size={22} />
-                    {t("health.symptomCheck.chat.contactEmergency", "Contact emergency services")}
-                  </button>
-                </div>
-              </div>
-            </div>
+            <HealthWizardHero
+              tone="red"
+              className="motion-safe:animate-pulse"
+              icon={<AlertCircle size={28} />}
+              title={t("health.symptomCheck.chat.emergencyTitle", "Emergency warning")}
+              body={safetyAlert.recommendation}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.href = "tel:112";
+                }}
+                className="vyva-tap inline-flex min-h-[66px] w-full items-center justify-center gap-3 rounded-[22px] bg-[#DC2626] px-5 font-body text-[19px] font-black text-white shadow-[0_10px_24px_rgba(127,29,29,0.24)]"
+              >
+                <PhoneCall size={22} />
+                {t("health.symptomCheck.chat.contactEmergency", "Contact emergency services")}
+              </button>
+            </HealthWizardHero>
           )}
 
-          <section className="px-1 py-2">
-            <h2 className={`font-body text-[27px] font-bold leading-[1.14] ${safetyAlert ? "motion-safe:animate-pulse text-[#B91C1C]" : "text-vyva-text-1"}`}>
+          <HealthWizardCard className="px-5 py-5">
+            <h2 className={`font-body text-[28px] font-black leading-[1.16] ${safetyAlert ? "motion-safe:animate-pulse text-[#B91C1C]" : "text-vyva-text-1"}`}>
               {latestQuestion}
               {latestAssistantEntry && animatingIdx === latestAssistantEntry.index && (
                 <span
@@ -461,43 +478,39 @@ export default function TriageChat({
                 />
               )}
             </h2>
-          </section>
+          </HealthWizardCard>
 
           {loading && (
-            <div className="flex min-h-[64px] items-center justify-center gap-2 rounded-[22px] border border-[#E8DED4] bg-white px-4 py-3 shadow-[0_8px_20px_rgba(63,45,35,0.05)]">
+            <HealthWizardCard className="flex min-h-[70px] items-center justify-center gap-2 px-4 py-3">
               <Loader2 size={20} className="animate-spin text-vyva-purple" />
               <span className="font-body text-[18px] font-bold text-vyva-text-2">
                 {t("health.symptomCheck.chat.thinking")}
               </span>
-            </div>
+            </HealthWizardCard>
           )}
 
           {evidenceSources && evidenceSources.length > 0 && (
-            <div className="rounded-[18px] border border-[#E8DED4] bg-white/80 px-4 py-3 shadow-[0_1px_4px_rgba(0,0,0,0.04)]">
+            <HealthWizardCard tone="blue" className="px-4 py-3">
               <p className="font-body text-[13px] font-bold uppercase tracking-[0.12em] text-vyva-text-3">
                 {t("health.symptomCheck.chat.evidence", "Evidence checked")}
               </p>
               <p className="mt-1 font-body text-[16px] leading-snug text-vyva-text-2">
                 {evidenceSources.slice(0, 2).map((source) => source.title).filter(Boolean).join(" - ")}
               </p>
-            </div>
+            </HealthWizardCard>
           )}
 
           {canAnswer && (
             <div className="grid gap-3" data-testid="triage-quick-answers">
               {quickAnswers.map((quickAnswer) => {
-                const { label, value, tone } = quickAnswer;
-                const colors = answerTone[tone];
+                const { label, value, Icon } = quickAnswer;
                 return (
-                  <button
+                  <HealthWizardChoiceTile
                     key={label}
-                    type="button"
                     onClick={() => void sendText(value, quickAnswer)}
-                    className="vyva-tap flex min-h-[76px] items-center rounded-[22px] border bg-white px-5 text-left transition active:scale-[0.98]"
-                    style={{ borderColor: colors.border, color: colors.text }}
-                  >
-                    <span className="font-body text-[20px] font-bold leading-tight">{label}</span>
-                  </button>
+                    icon={<Icon size={24} />}
+                    title={label}
+                  />
                 );
               })}
             </div>
@@ -523,7 +536,7 @@ export default function TriageChat({
               {t("health.symptomCheck.chat.listening")}
             </p>
           )}
-          <div className="flex items-center gap-3 rounded-[28px] border border-[#E8DED4] bg-white p-2 shadow-[0_10px_26px_rgba(63,45,35,0.08)]">
+          <div className="flex items-center gap-3 rounded-[30px] border border-[#E8DED4] bg-white p-2 shadow-[0_14px_34px_rgba(63,45,35,0.10)]">
             <input
               ref={inputRef}
               type="text"
@@ -533,7 +546,7 @@ export default function TriageChat({
               disabled={loading || animatingIdx !== null}
               placeholder={t("health.symptomCheck.chat.placeholder")}
               data-testid="input-triage-message"
-              className="min-w-0 flex-1 rounded-full px-4 py-[14px] font-body text-[18px] text-vyva-text-1 outline-none"
+              className="min-w-0 flex-1 rounded-full px-4 py-[16px] font-body text-[20px] font-bold text-vyva-text-1 outline-none placeholder:text-[#9A8C83]"
               style={{
                 background: "transparent",
               }}

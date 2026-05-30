@@ -234,9 +234,9 @@ type LoginCopy = {
 
 const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
   en: {
-    privateDailySupport: "YOUR AI COMPANION FOR LIFE",
-    heroTitle: "Start with VYVA by your side.",
-    heroSubtitle: "Create your account by filling the form, or use one of the voice-only options below and let VYVA guide you.",
+    privateDailySupport: "Health and wellness support",
+    heroTitle: "A companion that listens, reminds, and helps.",
+    heroSubtitle: "Talk to VYVA for health check-ins, medication reminders, memory exercises, or help planning your day.",
     signInHeroEyebrow: "Your health and wellness companion",
     signInHeroTitle: "Welcome back to VYVA.",
     signInHeroSubtitle: "Sign in to continue your health check-ins, reminders, mind activities, and everyday support.",
@@ -324,9 +324,9 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     },
   },
   es: {
-    privateDailySupport: "Tu compañero de IA privado",
-    heroTitle: "Empieza con VYVA a tu lado.",
-    heroSubtitle: "Crea tu cuenta rellenando el formulario, o usa una de las opciones solo por voz de abajo y deja que VYVA te guie.",
+    privateDailySupport: "Apoyo de salud y bienestar",
+    heroTitle: "Una compañera que escucha, recuerda y ayuda.",
+    heroSubtitle: "Habla con VYVA para controles de salud, recordatorios de medicación, ejercicios de memoria o ayuda para planificar tu día.",
     signInHeroEyebrow: "Tu compañera de salud y bienestar",
     signInHeroTitle: "Bienvenido de nuevo a VYVA.",
     signInHeroSubtitle: "Inicia sesión para continuar con tus controles de salud, recordatorios, actividades mentales y apoyo diario.",
@@ -418,9 +418,9 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     },
   },
   fr: {
-    privateDailySupport: "Votre compagnon IA privé",
-    heroTitle: "Commencez avec VYVA à vos côtés.",
-    heroSubtitle: "Creez votre compte avec le formulaire, ou utilisez l'une des options vocales ci-dessous et laissez VYVA vous guider.",
+    privateDailySupport: "Soutien santé et bien-être",
+    heroTitle: "Un compagnon qui écoute, rappelle et aide.",
+    heroSubtitle: "Parlez à VYVA pour les points santé, les rappels de médicaments, les exercices de mémoire ou l'organisation de votre journée.",
     signInHeroEyebrow: "Votre compagne santé et bien-être",
     signInHeroTitle: "Bon retour sur VYVA.",
     signInHeroSubtitle: "Connectez-vous pour continuer vos points santé, rappels, activités pour l'esprit et soutien quotidien.",
@@ -510,9 +510,9 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     },
   },
   de: {
-    privateDailySupport: "Ihr privater KI-Begleiter",
-    heroTitle: "Starten Sie mit VYVA an Ihrer Seite.",
-    heroSubtitle: "Erstellen Sie Ihr Konto uber das Formular, oder nutzen Sie eine der Sprachoptionen unten und lassen Sie sich von VYVA leiten.",
+    privateDailySupport: "Gesundheit und Wohlbefinden",
+    heroTitle: "Ein Begleiter, der zuhört, erinnert und hilft.",
+    heroSubtitle: "Sprechen Sie mit VYVA über Gesundheits-Check-ins, Medikamentenerinnerungen, Gedächtnisübungen oder Hilfe bei der Tagesplanung.",
     signInHeroEyebrow: "Ihr Begleiter für Gesundheit und Wohlbefinden",
     signInHeroTitle: "Willkommen zurück bei VYVA.",
     signInHeroSubtitle: "Melden Sie sich an, um Gesundheits-Check-ins, Erinnerungen, Denkübungen und tägliche Unterstützung fortzusetzen.",
@@ -602,9 +602,9 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     },
   },
   it: {
-    privateDailySupport: "Il tuo compagno IA privato",
-    heroTitle: "Inizia con VYVA al tuo fianco.",
-    heroSubtitle: "Crea il tuo account compilando il modulo, oppure usa una delle opzioni solo vocali qui sotto e lascia che VYVA ti guidi.",
+    privateDailySupport: "Supporto salute e benessere",
+    heroTitle: "Un compagno che ascolta, ricorda e aiuta.",
+    heroSubtitle: "Parla con VYVA per controlli di salute, promemoria farmaci, esercizi di memoria o aiuto per organizzare la giornata.",
     signInHeroEyebrow: "La tua compagna per salute e benessere",
     signInHeroTitle: "Bentornato su VYVA.",
     signInHeroSubtitle: "Accedi per continuare con controlli di salute, promemoria, attività mentali e supporto quotidiano.",
@@ -694,9 +694,9 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     },
   },
   pt: {
-    privateDailySupport: "O seu companheiro de IA privado",
-    heroTitle: "Comece com a VYVA ao seu lado.",
-    heroSubtitle: "Crie a sua conta preenchendo o formulario, ou use uma das opcoes apenas por voz abaixo e deixe a VYVA orientar.",
+    privateDailySupport: "Apoio à saúde e bem-estar",
+    heroTitle: "Uma companhia que ouve, lembra e ajuda.",
+    heroSubtitle: "Fale com a VYVA para check-ins de saúde, lembretes de medicação, exercícios de memória ou ajuda a planear o dia.",
     signInHeroEyebrow: "A sua companhia de saúde e bem-estar",
     signInHeroTitle: "Bem-vindo de volta à VYVA.",
     signInHeroSubtitle: "Entre para continuar os check-ins de saúde, lembretes, atividades mentais e apoio diário.",
@@ -786,9 +786,9 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     },
   },
   cy: {
-    privateDailySupport: "Eich cydymaith AI preifat",
-    heroTitle: "Dechreuwch gyda VYVA wrth eich ochr.",
-    heroSubtitle: "Create your account by filling the form, or use one of the voice-only options below and let VYVA guide you.",
+    privateDailySupport: "Health and wellness support",
+    heroTitle: "A companion that listens, reminds, and helps.",
+    heroSubtitle: "Talk to VYVA for health check-ins, medication reminders, memory exercises, or help planning your day.",
     signInHeroEyebrow: "Your health and wellness companion",
     signInHeroTitle: "Welcome back to VYVA.",
     signInHeroSubtitle: "Sign in to continue your health check-ins, reminders, mind activities, and everyday support.",
@@ -2157,7 +2157,14 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         </div>
       )}
 
-      <div className="min-h-screen overflow-x-hidden bg-[#FAF7F2] text-vyva-text-1">
+      <div className="relative min-h-screen overflow-x-hidden bg-[#FAF7F2] text-vyva-text-1">
+        {!adminOnly && (
+          <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden bg-[#FAF7F2]">
+            <div className="absolute inset-0 bg-[linear-gradient(118deg,#FFF9EE_0%,#FAF7F2_54%,#F8F1FC_100%)]" />
+            <div className="absolute -left-28 top-24 h-[420px] w-[420px] rounded-full bg-[#FFDF61]/20 blur-3xl" />
+            <div className="absolute -right-24 top-28 h-[460px] w-[460px] rounded-full bg-vyva-purple/10 blur-3xl" />
+          </div>
+        )}
         <header className="relative z-10 mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-5 pb-3 pt-4 sm:px-8 sm:py-5 lg:px-10 lg:py-7">
           <VyvaWordmark className="h-auto w-[132px] sm:w-[158px]" />
           <label className="flex min-h-[44px] items-center gap-2 rounded-full border border-[#E8DDF3] bg-white/90 px-3 py-2 shadow-[0_12px_32px_rgba(77,45,20,0.08)] backdrop-blur">
@@ -2204,19 +2211,19 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                 </div>
               </div>
             ) : (
-              <div className="text-center md:text-left">
+              <div className="relative text-center md:text-left">
                 <div className="mx-auto mb-5 h-1.5 w-24 rounded-full bg-[#FFDF61] md:mx-0" />
                 <p className="mb-3 font-body text-[11px] font-extrabold uppercase tracking-[0.26em] text-vyva-purple/70">
                   {heroEyebrow}
                 </p>
-                <h1 className="max-w-[540px] font-body text-[3.05rem] font-black leading-[0.96] text-[#8253AB] sm:text-[4rem] md:max-w-[190px] md:text-[2.1rem] lg:max-w-[520px] lg:text-[4.65rem]">
+                <h1 className="mx-auto max-w-[520px] font-body text-[2.8rem] font-black leading-[1] text-[#8253AB] sm:text-[3.7rem] md:mx-0 md:max-w-[460px] md:text-[3.25rem] lg:max-w-[520px] lg:text-[4.25rem]">
                   {heroTitle}
                 </h1>
-                <p className="mx-auto mt-5 max-w-[560px] font-body text-lg leading-8 text-[#5F5768] md:mx-0 md:max-w-[190px] md:text-[15px] md:leading-7 lg:max-w-[560px] lg:text-lg lg:leading-8">
+                <p className="mx-auto mt-5 max-w-[560px] font-body text-[17px] leading-8 text-[#5F5768] md:mx-0 md:max-w-[440px] lg:max-w-[560px]">
                   {heroSubtitle}
                 </p>
                 {mode === "register" && view !== "magic" && (
-                  <div className="mt-7 grid gap-2 sm:grid-cols-2 md:max-w-[560px] md:grid-cols-1 lg:grid-cols-2" aria-label="Ways to start with VYVA">
+                  <div className="mt-7 grid gap-2 sm:grid-cols-2 md:max-w-[520px]" aria-label="Ways to start with VYVA">
                     <button
                       type="button"
                       onClick={openCallModal}
@@ -2250,7 +2257,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
 
             <div
               data-testid="auth-card"
-              className="w-full rounded-[34px] border border-[#E8DDD2] bg-white/94 p-5 shadow-[0_28px_70px_rgba(79,43,116,0.14)] backdrop-blur sm:rounded-[42px] sm:p-7 md:justify-self-end"
+              className="w-full rounded-[34px] border border-[#E8DDD2] bg-white/95 p-5 shadow-[0_28px_70px_rgba(79,43,116,0.14)] backdrop-blur sm:rounded-[42px] sm:p-7 md:justify-self-end"
             >
               <div className="mb-5">
                 <h2 className="font-body text-[34px] font-black leading-tight text-[#2F183F]">{authTitle}</h2>
