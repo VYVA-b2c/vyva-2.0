@@ -620,6 +620,7 @@
     },
     "symptomCheck": {
       "title": "Symptom Check",
+      "startOver": "Start over",
       "intro": {
         "title": "Check Your Symptoms",
         "subtitle": "A quick, private health check — guided by AI and done on your phone in minutes.",

@@ -588,6 +588,7 @@
     },
     "symptomCheck": {
       "title": "Controllo sintomi",
+      "startOver": "Ricomincia",
       "intro": {
         "title": "Controlla i tuoi sintomi",
         "subtitle": "Un controllo sanitario rapido e privato — guidato dall'IA e completato sul tuo telefono in pochi minuti.",

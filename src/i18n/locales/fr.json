@@ -603,6 +603,7 @@
     },
     "symptomCheck": {
       "title": "Vérification des symptômes",
+      "startOver": "Recommencer",
       "intro": {
         "title": "Vérifiez vos symptômes",
         "subtitle": "Un bilan de santé rapide et privé — guidé par l'IA et réalisé sur votre téléphone en quelques minutes.",

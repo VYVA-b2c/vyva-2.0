@@ -608,6 +608,7 @@
     },
     "symptomCheck": {
       "title": "Revisión de síntomas",
+      "startOver": "Empezar de nuevo",
       "intro": {
         "title": "Revisa tus síntomas",
         "subtitle": "Una revisión de salud rápida y privada — guiada por IA y lista en tu teléfono en minutos.",

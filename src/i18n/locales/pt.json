@@ -588,6 +588,7 @@
     },
     "symptomCheck": {
       "title": "Verificação de sintomas",
+      "startOver": "Recomeçar",
       "intro": {
         "title": "Verifique os seus sintomas",
         "subtitle": "Uma verificação de saúde rápida e privada — orientada por IA e feita no seu telemóvel em minutos.",

@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Activity, ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, Heart, Loader2, PhoneCall, Pill, Stethoscope } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import TriageChat from "@/components/TriageChat";
+import TriageChat, { type TriageChatDraft } from "@/components/TriageChat";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { useToast } from "@/hooks/use-toast";
 import { apiFetch, queryClient } from "@/lib/queryClient";
@@ -86,6 +86,77 @@ type SavedTriageReport = {
   duration_seconds?: number | null;
   created_at?: string;
 };
+
+const SYMPTOM_CHECK_DRAFT_KEY = "vyva.symptomCheck.draft.v1";
+const SYMPTOM_CHECK_DRAFT_TTL_MS = 2 * 60 * 60 * 1000;
+
+type SymptomCheckDraft = {
+  version: 1;
+  updatedAt: number;
+  step: Exclude<Step, "intro">;
+  initialClue: string;
+  bpm: number | null;
+  respiratoryRate: number | null;
+  chatStartTime: number | null;
+  summary: TriageSummary | null;
+  reportSaveState: ReportSaveState;
+  reportId: string | null;
+  durationSeconds: number | null;
+  refinementStatus: RefinementStatus;
+  chatDraft: TriageChatDraft | null;
+};
+
+const canUseSessionStorage = () => typeof window !== "undefined" && Boolean(window.sessionStorage);
+
+function clearSymptomCheckDraft() {
+  if (!canUseSessionStorage()) return;
+  window.sessionStorage.removeItem(SYMPTOM_CHECK_DRAFT_KEY);
+}
+
+function readSymptomCheckDraft(): SymptomCheckDraft | null {
+  if (!canUseSessionStorage()) return null;
+  try {
+    const raw = window.sessionStorage.getItem(SYMPTOM_CHECK_DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<SymptomCheckDraft>;
+    const isExpired = typeof parsed.updatedAt !== "number" || Date.now() - parsed.updatedAt > SYMPTOM_CHECK_DRAFT_TTL_MS;
+    const hasValidStep = parsed.step === "chat" || parsed.step === "report";
+    const hasRestorableState = parsed.step === "chat"
+      ? Boolean(parsed.chatDraft)
+      : Boolean(parsed.summary);
+    if (parsed.version !== 1 || isExpired || !hasValidStep || !hasRestorableState) {
+      clearSymptomCheckDraft();
+      return null;
+    }
+    return {
+      version: 1,
+      updatedAt: parsed.updatedAt,
+      step: parsed.step,
+      initialClue: typeof parsed.initialClue === "string" ? parsed.initialClue : "",
+      bpm: typeof parsed.bpm === "number" ? parsed.bpm : null,
+      respiratoryRate: typeof parsed.respiratoryRate === "number" ? parsed.respiratoryRate : null,
+      chatStartTime: typeof parsed.chatStartTime === "number" ? parsed.chatStartTime : null,
+      summary: parsed.summary ?? null,
+      reportSaveState: parsed.reportSaveState === "saving" ? "idle" : parsed.reportSaveState ?? "idle",
+      reportId: typeof parsed.reportId === "string" ? parsed.reportId : null,
+      durationSeconds: typeof parsed.durationSeconds === "number" ? parsed.durationSeconds : null,
+      refinementStatus: parsed.refinementStatus ?? { state: "idle" },
+      chatDraft: parsed.chatDraft ?? null,
+    };
+  } catch {
+    clearSymptomCheckDraft();
+    return null;
+  }
+}
+
+function writeSymptomCheckDraft(draft: Omit<SymptomCheckDraft, "version" | "updatedAt">) {
+  if (!canUseSessionStorage()) return;
+  window.sessionStorage.setItem(SYMPTOM_CHECK_DRAFT_KEY, JSON.stringify({
+    ...draft,
+    version: 1,
+    updatedAt: Date.now(),
+  }));
+}
 
 function StepDots({ current }: { current: Step }) {
   const steps: Step[] = ["chat", "report"];
@@ -936,6 +1007,7 @@ function ReportScreen({
 export default function SymptomCheckScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [restoredDraft] = useState(() => readSymptomCheckDraft());
   const { data: triageContext } = useQuery<TriageContextResponse>({
     queryKey: ["/api/triage/context"],
     retry: false,
@@ -946,17 +1018,19 @@ export default function SymptomCheckScreen() {
     retry: false,
     staleTime: 2 * 60 * 1000,
   });
-  const [step, setStep] = useState<Step>("intro");
-  const [bpm, setBpm] = useState<number | null>(null);
-  const [respiratoryRate, setRespiratoryRate] = useState<number | null>(null);
-  const [chatStartTime, setChatStartTime] = useState<number | null>(null);
-  const [initialClue, setInitialClue] = useState("");
+  const [step, setStep] = useState<Step>(() => restoredDraft?.step ?? "intro");
+  const [bpm, setBpm] = useState<number | null>(() => restoredDraft?.bpm ?? null);
+  const [respiratoryRate, setRespiratoryRate] = useState<number | null>(() => restoredDraft?.respiratoryRate ?? null);
+  const [chatStartTime, setChatStartTime] = useState<number | null>(() => restoredDraft?.chatStartTime ?? null);
+  const [initialClue, setInitialClue] = useState(() => restoredDraft?.initialClue ?? "");
   const [autoStartVoice, setAutoStartVoice] = useState(false);
-  const [summary, setSummary] = useState<TriageSummary | null>(null);
-  const [reportSaveState, setReportSaveState] = useState<ReportSaveState>("idle");
-  const [reportId, setReportId] = useState<string | null>(null);
-  const [durationSeconds, setDurationSeconds] = useState<number | null>(null);
-  const [refinementStatus, setRefinementStatus] = useState<RefinementStatus>({ state: "idle" });
+  const [summary, setSummary] = useState<TriageSummary | null>(() => restoredDraft?.summary ?? null);
+  const [reportSaveState, setReportSaveState] = useState<ReportSaveState>(() => restoredDraft?.reportSaveState ?? "idle");
+  const [reportId, setReportId] = useState<string | null>(() => restoredDraft?.reportId ?? null);
+  const [durationSeconds, setDurationSeconds] = useState<number | null>(() => restoredDraft?.durationSeconds ?? null);
+  const [refinementStatus, setRefinementStatus] = useState<RefinementStatus>(() => restoredDraft?.refinementStatus ?? { state: "idle" });
+  const [chatDraft, setChatDraft] = useState<TriageChatDraft | null>(() => restoredDraft?.chatDraft ?? null);
+  const [resumePendingRequest] = useState(() => Boolean(restoredDraft?.chatDraft?.pendingRequest));
 
   const stepTitle: Record<Step, string> = {
     intro: t("health.symptomCheck.title"),
@@ -964,21 +1038,73 @@ export default function SymptomCheckScreen() {
     report: t("health.symptomCheck.report.title"),
   };
 
+  const resetSymptomCheck = useCallback(() => {
+    clearSymptomCheckDraft();
+    setBpm(null);
+    setRespiratoryRate(null);
+    setChatStartTime(null);
+    setInitialClue("");
+    setAutoStartVoice(false);
+    setSummary(null);
+    setReportSaveState("idle");
+    setReportId(null);
+    setDurationSeconds(null);
+    setRefinementStatus({ state: "idle" });
+    setChatDraft(null);
+    setStep("intro");
+  }, []);
+
+  useEffect(() => {
+    if (step === "intro") return;
+    if (step === "chat" && !chatDraft) return;
+    if (step === "report" && !summary) return;
+    writeSymptomCheckDraft({
+      step,
+      initialClue,
+      bpm,
+      respiratoryRate,
+      chatStartTime,
+      summary,
+      reportSaveState,
+      reportId,
+      durationSeconds,
+      refinementStatus,
+      chatDraft,
+    });
+  }, [bpm, chatDraft, chatStartTime, durationSeconds, initialClue, refinementStatus, reportId, reportSaveState, respiratoryRate, step, summary]);
+
   const handleBack = () => {
     if (step === "intro") {
+      clearSymptomCheckDraft();
       navigate("/health");
     } else if (step === "chat") {
-      setStep("intro");
+      resetSymptomCheck();
     } else {
       navigate("/health");
     }
   };
 
   const startChatDirectly = (clue: string, withVoice = false) => {
+    clearSymptomCheckDraft();
+    setChatDraft(null);
+    setSummary(null);
+    setReportId(null);
+    setDurationSeconds(null);
+    setReportSaveState("idle");
+    setRefinementStatus({ state: "idle" });
     setInitialClue(clue);
     setChatStartTime(Date.now());
     setAutoStartVoice(withVoice);
     setStep("chat");
+  };
+
+  const handleChatDraftChange = useCallback((draft: TriageChatDraft) => {
+    setChatDraft(draft);
+  }, []);
+
+  const handleDone = () => {
+    clearSymptomCheckDraft();
+    navigate("/health");
   };
 
   const saveTriageReport = async (
@@ -1174,7 +1300,18 @@ export default function SymptomCheckScreen() {
           </p>
         </div>
 
-        <div className="w-9 h-9 flex-shrink-0" />
+        {step === "intro" ? (
+          <div className="h-9 w-9 flex-shrink-0" />
+        ) : (
+          <button
+            type="button"
+            onClick={resetSymptomCheck}
+            data-testid="button-symptom-check-start-over"
+            className="vyva-tap min-h-[40px] flex-shrink-0 rounded-full bg-white px-3 font-body text-[13px] font-black text-vyva-purple shadow-[0_4px_14px_rgba(63,45,35,0.08)]"
+          >
+            {t("health.symptomCheck.startOver", "Start over")}
+          </button>
+        )}
       </div>
 
       {step !== "intro" && (
@@ -1224,6 +1361,9 @@ export default function SymptomCheckScreen() {
             initialClue={initialClue}
             healthMemory={triageContext?.memory ?? null}
             autoStartVoice={autoStartVoice}
+            initialDraft={chatDraft}
+            resumePendingRequest={resumePendingRequest}
+            onDraftChange={handleChatDraftChange}
             onVoiceAutoStarted={() => setAutoStartVoice(false)}
             onComplete={handleChatComplete}
           />
@@ -1240,7 +1380,7 @@ export default function SymptomCheckScreen() {
             profileContacts={profileContacts}
             refinementStatus={refinementStatus}
             onRefineVital={handleRefineVital}
-            onDone={() => navigate("/health")}
+            onDone={handleDone}
           />
         )}
       </div>
