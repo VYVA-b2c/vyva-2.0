@@ -82,6 +82,44 @@ async function mockApi(page: Page, signedIn = false, readinessOverrides: Record<
       return;
     }
 
+    if (signedIn && url.pathname === "/api/concierge/shopping/recommendations") {
+      await fulfillJson(route, 200, {
+        querySummary: "I looked for Groceries options based on: easy breakfast.",
+        recommendations: [
+          {
+            product: {
+              id: "wholegrain-porridge-oats",
+              category: "groceries",
+              name: "Wholegrain porridge oats",
+              priceLabel: "Low cost",
+              description: "A warm, budget-friendly breakfast that can be made soft.",
+              benefits: ["Budget friendly", "Filling", "Easy to soften"],
+              tags: ["food", "breakfast", "budget", "soft_food", "pantry", "simple", "fiber"],
+              suitability: ["Good for a simple breakfast routine"],
+              cautions: ["Choose gluten-free only if needed and clearly labelled."],
+              accessibilityNotes: ["A lightweight bag or small box is easier to handle."],
+              availabilityLabel: "Long shelf life",
+              priceTier: "low",
+            },
+            score: 82,
+            rankLabel: "Best fit",
+            reasons: ["Matches what you asked for.", "It is a low-cost option."],
+            tradeoffs: ["Check size, label, and ease of opening."],
+            cautionNotes: ["Choose gluten-free only if needed and clearly labelled."],
+            confidence: "high",
+          },
+        ],
+        comparison: {
+          summary: "Wholegrain porridge oats is the clearest option.",
+          differences: [],
+          bestFor: ["Wholegrain porridge oats: Matches what you asked for."],
+        },
+        uncertaintyNote: "These are informational choices from a test catalog; check labels, measurements, and availability before buying.",
+        nextQuestions: ["Would you like to prioritise price, ease, or safety?"],
+      });
+      return;
+    }
+
     if (signedIn && url.pathname === "/api/billing/status") {
       await fulfillJson(route, 200, {
         status: "active",
@@ -268,6 +306,30 @@ test("home screen renders core cards and navigates to concierge", async ({ page 
 
   await page.getByTestId("card-home-agent-concierge").click();
   await expect(page).toHaveURL(/\/concierge$/);
+});
+
+test("concierge shopping helper recommends and saves a choice", async ({ page }) => {
+  await mockApi(page, true);
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.goto("/concierge/shopping", { waitUntil: "domcontentloaded" });
+
+  await expect(page.getByRole("heading", { name: "Shopping helper" })).toBeVisible();
+  await page.getByLabel("What do you need help choosing?").fill("easy breakfast");
+  await page.getByTestId("button-shopping-find").click();
+
+  await expect(page.getByTestId("shopping-recommendation-results")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Wholegrain porridge oats" })).toBeVisible();
+  await page.getByRole("button", { name: "Save choice" }).click();
+  await expect(page.getByTestId("shopping-shortlist")).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "Shopping helper" })).toBeVisible();
+  await page.getByLabel("What do you need help choosing?").fill("easy breakfast");
+  await page.getByTestId("button-shopping-find").click();
+  await expect(page.getByTestId("shopping-recommendation-results")).toBeVisible();
+  await expectNoHorizontalOverflow(page);
 });
 
 test("notifications settings back returns to settings home", async ({ page }) => {
