@@ -588,9 +588,9 @@
       }
     },
     "scanWound": {
-      "title": "Sganio fy anaf",
-      "subtitle": "Tynnwch neu uwchlwythwch lun ar gyfer dadansoddiad AI",
-      "cta": "Tynnu neu uwchlwytho llun",
+      "title": "Sgan iechyd gweledol",
+      "subtitle": "Uwchlwythwch glwyfau, cleisiau, carthion, wrin, hylifau, newidiadau croen neu belydrau-X ar gyfer adolygiad cynorthwyol.",
+      "cta": "Tynnu neu uwchlwytho delwedd",
       "analyzing": "Dadansoddi...",
       "resultTitle": "Canlyniad y dadansoddiad",
       "severity": "Ysgafn",
@@ -599,10 +599,38 @@
         "moderate": "Cymedrol",
         "serious": "Difrifol"
       },
-      "advice": "Crafiad bach wedi'i ganfod. Cadwch yr ardal yn lân ac wedi'i gorchuddio. Newidiwch y rhwymyn bob dydd.",
-      "disclaimer": "Canllawiau yn unig yw hyn. Ceisiwch ofal proffesiynol bob amser ar gyfer anafiadau difrifol.",
+      "advice": "Gall VYVA ddisgrifio beth sy'n weladwy a nodi beth allai fod angen adolygiad. Dylai gweithiwr iechyd proffesiynol cymwys wirio unrhyw beth pryderus.",
+      "disclaimer": "Disgrifiad cynorthwyol yn unig, nid cyngor meddygol na diagnosis. Dylai gweithiwr cymwys wirio unrhyw beth pryderus.",
       "errorTitle": "Dadansoddiad ddim ar gael",
-      "errorAdvice": "Nid oeddem yn gallu dadansoddi'r llun ar hyn o bryd. Rhowch gynnig arall arni, neu os ydych yn bryderus, cysylltwch â gweithiwr iechyd proffesiynol.",
+      "errorAdvice": "Nid oedd modd adolygu'r ddelwedd ar hyn o bryd. Rhowch gynnig arall arni neu cysylltwch a gweithiwr iechyd proffesiynol os ydych yn bryderus.",
+      "errorConcern": "Nid oedd modd adolygu'r ddelwedd ar hyn o bryd.",
+      "errorUncertainty": "Ni allodd y cynorthwyydd gwblhau adolygiad y ddelwedd.",
+      "errorNextStep": "Rhowch gynnig arall arni neu cysylltwch a gweithiwr iechyd proffesiynol os ydych yn bryderus.",
+      "category": {
+        "wounds": "Clwyfau",
+        "bruises": "Cleisiau",
+        "fluids": "Hylifau",
+        "stool": "Carthion",
+        "urine": "Wrin",
+        "xrays": "Pelydrau-X"
+      },
+      "imageType": {
+        "xray": "Pelydr-X",
+        "wound_photo": "Llun clwyf",
+        "stool_image": "Delwedd carthion",
+        "urine_image": "Delwedd wrin",
+        "fluid_image": "Delwedd hylif",
+        "bruise_photo": "Llun clais",
+        "skin_lesion": "Croen neu friw",
+        "other_medical_image": "Delwedd feddygol",
+        "unclear": "Delwedd aneglur"
+      },
+      "sections": {
+        "observations": "Beth gall VYVA ei weld",
+        "concerns": "Beth allai fod angen adolygiad",
+        "limits": "Cyfyngiadau y ddelwedd hon",
+        "nextStep": "Cam nesaf awgrymedig"
+      },
       "close": "Cau"
     },
     "findAlv": {

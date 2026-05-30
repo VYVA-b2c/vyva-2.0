@@ -699,9 +699,9 @@
       }
     },
     "scanWound": {
-      "title": "Scanner ma blessure",
-      "subtitle": "Prenez ou importez une photo pour une analyse IA",
-      "cta": "Prendre ou importer une photo",
+      "title": "Analyse visuelle de sante",
+      "subtitle": "Ajoutez plaies, bleus, selles, urine, liquides, changements de peau ou radiographies pour une revue assistee.",
+      "cta": "Prendre ou ajouter une image",
       "analyzing": "Analyse en cours...",
       "resultTitle": "Résultat de l'analyse",
       "severity": "Légère",
@@ -710,10 +710,38 @@
         "moderate": "Modérée",
         "serious": "Grave"
       },
-      "advice": "Abrasion mineure détectée. Gardez la zone propre et couverte. Changez le pansement quotidiennement.",
-      "disclaimer": "Ceci est indicatif uniquement. Consultez toujours un professionnel pour les blessures graves.",
+      "advice": "VYVA peut decrire ce qui est visible et signaler ce qui peut meriter une revue. Un professionnel de sante qualifie doit verifier tout element inquietant.",
+      "disclaimer": "Description assistee uniquement, pas un avis medical ni un diagnostic. Un professionnel qualifie doit verifier tout element inquietant.",
       "errorTitle": "Analyse indisponible",
-      "errorAdvice": "Nous n'avons pas pu analyser l'image pour le moment. Veuillez réessayer ou, si vous êtes inquiet, contactez un professionnel de santé.",
+      "errorAdvice": "Nous n'avons pas pu revoir l'image pour le moment. Veuillez reessayer ou contacter un professionnel de sante si vous etes inquiet.",
+      "errorConcern": "L'image n'a pas pu etre revue pour le moment.",
+      "errorUncertainty": "L'assistant n'a pas pu terminer la revue de l'image.",
+      "errorNextStep": "Veuillez reessayer ou contacter un professionnel de sante si vous etes inquiet.",
+      "category": {
+        "wounds": "Plaies",
+        "bruises": "Bleus",
+        "fluids": "Liquides",
+        "stool": "Selles",
+        "urine": "Urine",
+        "xrays": "Radiographies"
+      },
+      "imageType": {
+        "xray": "Radiographie",
+        "wound_photo": "Photo de plaie",
+        "stool_image": "Image de selles",
+        "urine_image": "Image d'urine",
+        "fluid_image": "Image de liquide",
+        "bruise_photo": "Photo de bleu",
+        "skin_lesion": "Peau ou lesion",
+        "other_medical_image": "Image medicale",
+        "unclear": "Image peu claire"
+      },
+      "sections": {
+        "observations": "Ce que VYVA peut voir",
+        "concerns": "Ce qui peut necessiter une revue",
+        "limits": "Limites de cette image",
+        "nextStep": "Prochaine etape suggeree"
+      },
       "close": "Fermer"
     },
     "findAlv": {
