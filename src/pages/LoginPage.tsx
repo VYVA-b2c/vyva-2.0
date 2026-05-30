@@ -2242,47 +2242,57 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                 </div>
               </div>
             ) : (
-              <div className="relative text-center md:text-left">
-                <div className="mx-auto mb-5 h-1.5 w-24 rounded-full bg-[#FFDF61] md:mx-0" />
-                <p className="mb-3 font-body text-[11px] font-extrabold uppercase tracking-[0.26em] text-vyva-purple/70">
-                  {heroEyebrow}
-                </p>
-                <h1 className="mx-auto max-w-[520px] font-body text-[2.8rem] font-black leading-[1] text-[#8253AB] sm:text-[3.7rem] md:mx-0 md:max-w-[460px] md:text-[3.25rem] lg:max-w-[520px] lg:text-[4.25rem]">
-                  {heroTitle}
-                </h1>
-                <p className="mx-auto mt-5 max-w-[560px] font-body text-[17px] leading-8 text-[#5F5768] md:mx-0 md:max-w-[440px] lg:max-w-[560px]">
-                  {heroSubtitle}
-                </p>
-                {mode === "register" && view !== "magic" && (
-                  <div className="mt-7 grid gap-2 sm:grid-cols-2 md:max-w-[520px]" aria-label="Ways to start with VYVA">
-                    <button
-                      type="button"
-                      onClick={openCallModal}
-                      className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-sm font-black text-white shadow-[0_12px_30px_rgba(107,33,168,0.14)] transition hover:bg-vyva-purple/92"
-                      data-testid="button-login-call-vyva"
-                    >
-                      <PhoneCall size={16} />
-                      {copy.signupOptions.call}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={openCallbackModal}
-                      className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full border border-[#E8DDF3] bg-white px-4 font-body text-sm font-black text-vyva-purple shadow-[0_10px_24px_rgba(76,46,22,0.06)] transition hover:border-vyva-purple"
-                      data-testid="button-login-schedule-callback"
-                    >
-                      <CalendarClock size={16} />
-                      {copy.signupOptions.schedule}
-                    </button>
-
-                  </div>
-                )}
-
-                {guideVoiceErrorText && (
-                  <p className="mt-3 max-w-[520px] rounded-[16px] bg-[#FFF9E8] px-4 py-3 text-center font-body text-[12px] leading-[1.5] text-[#855F00] md:text-left">
-                    {guideVoiceErrorText}
+              <div className="relative overflow-hidden rounded-[34px] border border-white/70 bg-[#2F183F] shadow-[0_28px_80px_rgba(79,43,116,0.18)] sm:rounded-[42px]">
+                <img
+                  src="/assets/vyva/cozy-home-room.png"
+                  alt=""
+                  aria-hidden="true"
+                  className="absolute inset-0 h-full w-full object-cover object-[28%_center]"
+                />
+                <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(47,24,63,0.78)_0%,rgba(107,33,168,0.46)_42%,rgba(255,247,232,0.08)_100%)]" />
+                <div className="absolute inset-x-0 bottom-0 h-[58%] bg-[linear-gradient(0deg,rgba(47,24,63,0.82)_0%,rgba(47,24,63,0.42)_64%,rgba(47,24,63,0)_100%)]" />
+                <div className="relative z-10 flex min-h-[390px] flex-col justify-end p-5 text-center text-white sm:min-h-[460px] sm:p-7 md:min-h-[570px] md:text-left lg:min-h-[620px] lg:p-9">
+                  <div className="mx-auto mb-5 h-1.5 w-24 rounded-full bg-[#FFDF61] md:mx-0" />
+                  <p className="mb-3 font-body text-[11px] font-extrabold uppercase tracking-[0.26em] text-[#FFE98B]">
+                    {heroEyebrow}
                   </p>
-                )}
+                  <h1 className="mx-auto max-w-[500px] font-body text-[2.65rem] font-black leading-[0.96] text-white drop-shadow-[0_8px_24px_rgba(47,24,63,0.3)] sm:text-[3.65rem] md:mx-0 md:max-w-[430px] md:text-[3.2rem] lg:max-w-[520px] lg:text-[4.25rem]">
+                    {heroTitle}
+                  </h1>
+                  <p className="mx-auto mt-5 max-w-[520px] font-body text-[16px] font-semibold leading-7 text-white/88 md:mx-0 lg:text-[18px] lg:leading-8">
+                    {heroSubtitle}
+                  </p>
+                  {mode === "register" && view !== "magic" && (
+                    <div className="mt-7 grid gap-2 sm:grid-cols-2 md:max-w-[560px] md:grid-cols-1 lg:grid-cols-2" aria-label="Ways to start with VYVA">
+                      <button
+                        type="button"
+                        onClick={openCallModal}
+                        className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-sm font-black text-white shadow-[0_14px_34px_rgba(35,13,56,0.28)] transition hover:bg-vyva-purple/92"
+                        data-testid="button-login-call-vyva"
+                      >
+                        <PhoneCall size={16} />
+                        {copy.signupOptions.call}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={openCallbackModal}
+                        className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-full border border-white bg-white px-4 font-body text-sm font-black text-vyva-purple shadow-[0_12px_28px_rgba(35,13,56,0.18)] transition hover:border-[#FFE98B]"
+                        data-testid="button-login-schedule-callback"
+                      >
+                        <CalendarClock size={16} />
+                        {copy.signupOptions.schedule}
+                      </button>
+
+                    </div>
+                  )}
+
+                  {guideVoiceErrorText && (
+                    <p className="mt-3 max-w-[520px] rounded-[16px] bg-[#FFF9E8]/95 px-4 py-3 text-center font-body text-[12px] leading-[1.5] text-[#855F00] md:text-left">
+                      {guideVoiceErrorText}
+                    </p>
+                  )}
+                </div>
               </div>
             )}
 
