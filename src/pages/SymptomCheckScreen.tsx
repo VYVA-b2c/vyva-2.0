@@ -66,11 +66,19 @@ type TriageHealthMemory = {
   medications?: string;
   latestVitals?: string;
   latestSymptomReport?: string;
+  countryCode?: string;
+};
+
+type EmergencyContact = {
+  label: string;
+  telHref?: string;
 };
 
 type TriageContextResponse = {
   memory: TriageHealthMemory;
   usedItems: string[];
+  countryCode?: string;
+  emergencyContact?: EmergencyContact;
 };
 
 type ProfileContactsResponse = {
@@ -276,6 +284,7 @@ function ReportScreen({
   reportId,
   reportSaveState,
   profileContacts,
+  emergencyContact,
   refinementStatus,
   onRefineVital,
   onDone,
@@ -287,6 +296,7 @@ function ReportScreen({
   reportId: string | null;
   reportSaveState: ReportSaveState;
   profileContacts?: ProfileContactsResponse;
+  emergencyContact?: EmergencyContact | null;
   refinementStatus: RefinementStatus;
   onRefineVital: (config: RefinementVitalConfig, rawValue: string) => Promise<void>;
   onDone: () => void;
@@ -297,6 +307,14 @@ function ReportScreen({
   const cfg = ReportConfig(summary);
   const UrgencyIcon = cfg.icon;
   const isEmergency = cfg.level === "emergency";
+  const emergencyCallLabel = emergencyContact?.telHref
+    ? t("health.symptomCheck.report.callEmergencyNumber", "Call {{number}}", { number: emergencyContact.label })
+    : t("health.symptomCheck.report.contactEmergencyServices", "Contact emergency services");
+  const emergencyBody = emergencyContact?.telHref
+    ? t("health.symptomCheck.report.emergencyBodyWithNumber", "Call {{number}} now. Do not drive yourself. Keep this report open for the responder.", {
+        number: emergencyContact.label,
+      })
+    : t("health.symptomCheck.report.emergencyBodyGeneric", "Contact local emergency services now. Do not drive yourself. Keep this report open for the responder.");
   const [openVitalKey, setOpenVitalKey] = useState<RefinementVitalKey | null>(null);
   const [vitalInputs, setVitalInputs] = useState<Record<string, string>>({});
   const [vitalInputError, setVitalInputError] = useState<string | null>(null);
@@ -461,12 +479,14 @@ function ReportScreen({
   const openReport = () => navigate(reportId ? `/informes/${reportId}` : "/informes");
   const primaryAction = isEmergency
     ? {
-        label: t("health.symptomCheck.report.callEmergency", "Call emergency services"),
+        label: emergencyCallLabel,
         Icon: PhoneCall,
         onClick: () => {
-          window.location.href = "tel:112";
+          if (emergencyContact?.telHref) {
+            window.location.href = emergencyContact.telHref;
+          }
         },
-        className: "bg-[#DC2626] text-white shadow-[0_12px_26px_rgba(220,38,38,0.24)]",
+        className: "bg-[#DC2626] text-white shadow-[0_12px_26px_rgba(220,38,38,0.24)] disabled:opacity-70",
         testId: "button-report-emergency",
       }
     : cfg.level === "monitor"
@@ -757,6 +777,20 @@ function ReportScreen({
           ) : null}
         </div>
 
+        {isEmergency ? (
+          <section className="rounded-[22px] border-2 border-[#DC2626] bg-[#FEF2F2] p-4 text-[#991B1B] shadow-[0_12px_30px_rgba(220,38,38,0.14)]" data-testid="card-report-emergency">
+            <div className="mb-3 flex items-center gap-2">
+              <AlertTriangle size={18} />
+              <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em]">
+                {t("health.symptomCheck.report.emergencyDoNotWait", "Do not wait")}
+              </p>
+            </div>
+            <p className="font-body text-[16px] font-bold leading-snug">
+              {emergencyBody}
+            </p>
+          </section>
+        ) : null}
+
         <details className="group rounded-[22px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
             <span className="flex items-center gap-3">
@@ -920,6 +954,7 @@ function ReportScreen({
           <button
             type="button"
             onClick={primaryAction.onClick}
+            disabled={isEmergency && !emergencyContact?.telHref}
             data-testid={primaryAction.testId}
             className={`vyva-tap flex min-h-[58px] min-w-0 flex-1 items-center justify-center gap-2 rounded-[18px] px-4 font-body text-[17px] font-black leading-tight ${primaryAction.className}`}
           >
@@ -1242,6 +1277,7 @@ export default function SymptomCheckScreen() {
             reportId={reportId}
             reportSaveState={reportSaveState}
             profileContacts={profileContacts}
+            emergencyContact={triageContext?.emergencyContact ?? null}
             refinementStatus={refinementStatus}
             onRefineVital={handleRefineVital}
             onDone={() => navigate("/health")}
