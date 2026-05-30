@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Activity, ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, Heart, Loader2, PhoneCall, Stethoscope } from "lucide-react";
@@ -399,6 +399,12 @@ function ReportScreen({
   const [openVitalKey, setOpenVitalKey] = useState<RefinementVitalKey | null>(null);
   const [vitalInputs, setVitalInputs] = useState<Record<string, string>>({});
   const [vitalInputError, setVitalInputError] = useState<string | null>(null);
+  const reportTopRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (refinementStatus.state === "done") {
+      reportTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [refinementStatus.state]);
   const saveStatusText = reportSaveState === "saved"
     ? t("health.symptomCheck.report.savedToReports", "Saved to Reports")
     : reportSaveState === "saving"
@@ -638,6 +644,7 @@ function ReportScreen({
 
   return (
     <div className="flex flex-col flex-1 overflow-y-auto">
+      <div ref={reportTopRef} />
       <section
         data-testid="card-report-answer"
         className={`mx-[18px] mb-4 mt-4 rounded-[28px] p-5 text-white shadow-[0_16px_36px_rgba(91,18,160,0.18)] ${isEmergency ? "motion-safe:animate-pulse" : ""}`}
@@ -763,8 +770,11 @@ function ReportScreen({
             const open = openVitalKey === action.key;
             const value = vitalInputs[action.key] ?? "";
             const busy = refinementStatus.state === "saving" || refinementStatus.state === "refining";
+            const statusTone = refinementStatus.state === "error"
+              ? "border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]"
+              : "border-[#BBF7D0] bg-[#ECFDF5] text-[#047857]";
             return (
-              <div key={action.key} className="col-span-2 rounded-[26px] border-2 border-[#6B21A8] bg-white p-4 shadow-[0_14px_34px_rgba(107,33,168,0.16)]">
+              <div key={action.key} className="min-w-0 overflow-hidden rounded-[26px] border-2 border-[#6B21A8] bg-white p-4 shadow-[0_14px_34px_rgba(107,33,168,0.16)]">
                 <div className="mb-4 flex items-start gap-3">
                   <span className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px] bg-[#F5F3FF] text-vyva-purple">
                     <Activity size={28} />
@@ -781,7 +791,7 @@ function ReportScreen({
                     </p>
                   </div>
                 </div>
-                <div className="grid gap-3">
+                <div className="grid min-w-0 gap-3">
                   <button
                     type="button"
                     onClick={() => {
@@ -793,12 +803,12 @@ function ReportScreen({
                       setVitalInputError(null);
                     }}
                     disabled={busy}
-                    className="vyva-tap flex min-h-[76px] items-center justify-between rounded-[22px] bg-[#6B21A8] px-5 text-left text-white shadow-[0_12px_26px_rgba(107,33,168,0.22)]"
+                    className="vyva-tap flex min-h-[76px] w-full min-w-0 items-center justify-between rounded-[22px] bg-[#6B21A8] px-5 text-left text-white shadow-[0_12px_26px_rgba(107,33,168,0.22)]"
                   >
-                    <span className="font-body text-[18px] font-black leading-tight">
+                    <span className="min-w-0 font-body text-[18px] font-black leading-tight">
                       {t("health.symptomCheck.report.readConnectedSensor", "Read from connected sensor")}
                     </span>
-                    <ChevronLeft size={22} className="rotate-180" />
+                    <ChevronLeft size={22} className="ml-3 flex-shrink-0 rotate-180" />
                   </button>
                   <button
                     type="button"
@@ -807,12 +817,12 @@ function ReportScreen({
                       setVitalInputError(null);
                     }}
                     disabled={busy}
-                    className="vyva-tap flex min-h-[76px] items-center justify-between rounded-[22px] border border-[#E8DED4] bg-[#FAF9F6] px-5 text-left text-vyva-text-1"
+                    className="vyva-tap flex min-h-[76px] w-full min-w-0 items-center justify-between rounded-[22px] border border-[#E8DED4] bg-[#FAF9F6] px-5 text-left text-vyva-text-1"
                   >
-                    <span className="font-body text-[18px] font-black leading-tight">
+                    <span className="min-w-0 font-body text-[18px] font-black leading-tight">
                       {t("health.symptomCheck.report.enterManualReading", "Enter manually")}
                     </span>
-                    <ChevronLeft size={22} className="rotate-180 text-vyva-purple" />
+                    <ChevronLeft size={22} className="ml-3 flex-shrink-0 rotate-180 text-vyva-purple" />
                   </button>
                   {open ? (
                     <div className="grid gap-3 border-t border-[#EADFD5] pt-3">
@@ -829,6 +839,12 @@ function ReportScreen({
                       </label>
                       {vitalInputError ? (
                         <p className="font-body text-[16px] font-black text-[#B91C1C]">{vitalInputError}</p>
+                      ) : null}
+                      {refinementStatus.message ? (
+                        <div className={`rounded-[18px] border p-3 font-body text-[16px] font-black leading-snug ${statusTone}`} aria-live="polite">
+                          {busy ? <Loader2 className="mr-2 inline h-5 w-5 animate-spin align-[-3px]" /> : null}
+                          {refinementStatus.message}
+                        </div>
                       ) : null}
                       <button
                         type="button"

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -16,6 +17,7 @@ import {
   Camera,
   FileUp,
   Mic,
+  ShoppingBasket,
   PencilLine,
   Zap,
   X,
@@ -331,6 +333,7 @@ function chatHistoryKey(locale: string) {
 }
 
 const QUICK_ACTIONS = [
+  { key: "shoppingHelper", Icon: ShoppingBasket, color: "#0F766E", bg: "#F0FDFA" },
   { key: "bookRide", Icon: Car, color: "#6B21A8", bg: "#F5F3FF" },
   { key: "scheduleAppt", Icon: Calendar, color: "#0F766E", bg: "#F0FDFA" },
   { key: "researchTopic", Icon: Search, color: "#0A7C4E", bg: "#ECFDF5" },
@@ -740,6 +743,7 @@ type SpeechRecognitionWindow = Window & typeof globalThis & {
 
 const ConciergeScreen = () => {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const locale = i18n.language.split("-")[0].toLowerCase();
   const isSpanish = locale === "es";
   const autoStartVoice = useRouteVoiceAutoStart();
@@ -976,6 +980,10 @@ const ConciergeScreen = () => {
   }
 
   function handleQuickAction(key: string) {
+    if (key === "shoppingHelper") {
+      navigate("/concierge/shopping");
+      return;
+    }
     if (key === "scheduleAppt") {
       setAppointmentOpen((open) => !open);
       setOffersOpen(false);
@@ -1642,7 +1650,7 @@ const ConciergeScreen = () => {
               data-testid={`button-concierge-action-${key}`}
               onClick={() => handleQuickAction(key)}
               disabled={chatLoading}
-              className="vyva-tap flex min-h-[144px] min-w-0 flex-col items-start justify-between rounded-[28px] border border-vyva-border bg-[#FFFCF8] px-4 py-5 text-left transition-transform active:scale-[0.99] disabled:opacity-50"
+              className={`vyva-tap flex min-h-[144px] min-w-0 flex-col items-start justify-between rounded-[28px] border border-vyva-border bg-[#FFFCF8] px-4 py-5 text-left transition-transform active:scale-[0.99] disabled:opacity-50 ${key === "shoppingHelper" ? "col-span-2" : ""}`}
               style={{ boxShadow: "0 14px 30px rgba(60,38,20,0.08)" }}
             >
               <div

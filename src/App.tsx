@@ -40,6 +40,7 @@ import DualTaskWalk from "./games/DualTaskWalk";
 import CategorySort from "./games/CategorySort";
 import NumberTrails from "./games/NumberTrails";
 import ConciergeScreen from "./pages/ConciergeScreen";
+import ConciergeShoppingScreen from "./pages/ConciergeShoppingScreen";
 import SafeHomeScreen from "./pages/SafeHomeScreen";
 import ScamGuardScreen from "./pages/ScamGuardScreen";
 import SettingsScreen from "./pages/SettingsScreen";
@@ -418,6 +419,7 @@ const App = () => (
                   <Route path="/memory-games/:gameType" element={<AppShell><MemoryGameRunner /></AppShell>} />
                   <Route path="/dual-task-walk" element={<DualTaskWalkRoute />} />
                   <Route path="/concierge" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeScreen /></ServiceGateRoute></AppShell>} />
+                  <Route path="/concierge/shopping" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeShoppingScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/safe-home" element={<AppShell><SafeHomeScreen /></AppShell>} />
                   <Route path="/scam-guard" element={<AppShell><ScamGuardScreen /></AppShell>} />
                   <Route path="/history" element={<AppShell><HistoryScreen /></AppShell>} />

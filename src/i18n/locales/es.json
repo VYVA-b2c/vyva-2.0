@@ -1374,6 +1374,7 @@
     "activityTile": "Tu conserje IA",
     "activityTileSubtitle": "Servicios, ahorro, planes y apoyo — personalizado para ti",
     "actions": {
+      "shoppingHelper": "Ayuda para comprar",
       "bookRide": "Reservar taxi",
       "scheduleAppt": "Programar cita",
       "researchTopic": "Investigar",
@@ -1381,6 +1382,7 @@
       "getAdvice": "Pedir consejo"
     },
     "prompts": {
+      "shoppingHelper": "Ayudame a elegir la mejor opcion de compra para mis necesidades. Compara opciones sencillas y no inicies compra.",
       "bookRide": "Resérvame un taxi para mañana a las 10am",
       "scheduleAppt": "Ayudame a programar una cita. Usa mi perfil primero, propon opciones verificadas si hace falta, y no reserves nada sin confirmarlo conmigo.",
       "researchTopic": "Explica qué cubre Medicare Parte B en términos sencillos",
