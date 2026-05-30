@@ -3,9 +3,8 @@ import { useEffect, useMemo, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { useAuth } from "@/contexts/AuthContext";
-import { useLanguage } from "@/i18n";
+import { setAccountLanguage, useLanguage } from "@/i18n";
 import type { LanguageCode } from "@/i18n/languages";
-import { queryClient } from "@/lib/queryClient";
 
 const INVITE_LANGUAGE_CODES: LanguageCode[] = ["en", "es", "fr", "de", "it", "pt"];
 
@@ -55,7 +54,15 @@ const REDIRECT_COPY: Record<LanguageCode, { eyebrow: string; title: string; body
 };
 
 export function inviteSetupPath(search: string) {
-  return `/settings/account${search}`;
+  const params = new URLSearchParams(search);
+  params.set("mode", "register");
+  params.set("invite", "1");
+  params.set("returnTo", "/");
+  return `/login?${params.toString()}`;
+}
+
+export function inviteHomePath() {
+  return "/";
 }
 
 function inviteLanguageFromSearch(search: string): LanguageCode | null {
@@ -66,37 +73,26 @@ function inviteLanguageFromSearch(search: string): LanguageCode | null {
 }
 
 export default function InviteLandingPage() {
-  const { user, isLoading, logout } = useAuth();
+  const { user, isLoading } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const { language, setLanguage } = useLanguage();
+  const { language } = useLanguage();
   const redirectStartedRef = useRef(false);
-  const targetPath = useMemo(() => inviteSetupPath(location.search), [location.search]);
+  const setupPath = useMemo(() => inviteSetupPath(location.search), [location.search]);
   const copy = REDIRECT_COPY[language] ?? REDIRECT_COPY.en;
 
   useEffect(() => {
     const requestedLanguage = inviteLanguageFromSearch(location.search);
     if (requestedLanguage && requestedLanguage !== language) {
-      setLanguage(requestedLanguage);
+      setAccountLanguage(requestedLanguage);
     }
-  }, [language, location.search, setLanguage]);
+  }, [language, location.search]);
 
   useEffect(() => {
     if (isLoading || redirectStartedRef.current) return;
     redirectStartedRef.current = true;
-
-    async function redirectToSetup() {
-      if (user) {
-        await logout();
-        queryClient.clear();
-      }
-      navigate(targetPath, { replace: true });
-    }
-
-    redirectToSetup().catch(() => {
-      navigate(targetPath, { replace: true });
-    });
-  }, [isLoading, logout, navigate, targetPath, user]);
+    navigate(user ? inviteHomePath() : setupPath, { replace: true });
+  }, [isLoading, navigate, setupPath, user]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#FFF9F1] px-5 py-8 text-vyva-text-1">
