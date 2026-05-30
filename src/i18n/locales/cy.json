@@ -519,6 +519,7 @@
     },
     "symptomCheck": {
       "title": "Gwirio symptomau",
+      "startOver": "Dechrau eto",
       "intro": {
         "title": "Gwiriwch eich symptomau",
         "subtitle": "Gwiriad iechyd cyflym a phreifat — wedi'i arwain gan AI ac ar eich ffôn mewn munudau.",
@@ -559,6 +560,10 @@
         "title": "Eich adroddiad",
         "yourAnswerTitle": "Eich ateb",
         "urgencyLabel": "Brys",
+        "lowUrgencyLabel": "Brys isel",
+        "mediumUrgencyLabel": "Brys canolig",
+        "highUrgencyLabel": "Brys uchel",
+        "emergencyUrgencyLabel": "Brys argyfwng",
         "urgentLabel": "Ceisiwch ofal nawr",
         "routineLabel": "Trefnwch ymweliad",
         "monitorLabel": "Monitro gartref",

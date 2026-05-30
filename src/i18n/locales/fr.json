@@ -603,6 +603,7 @@
     },
     "symptomCheck": {
       "title": "Vérification des symptômes",
+      "startOver": "Recommencer",
       "intro": {
         "title": "Vérifiez vos symptômes",
         "subtitle": "Un bilan de santé rapide et privé — guidé par l'IA et réalisé sur votre téléphone en quelques minutes.",
@@ -664,6 +665,10 @@
         "title": "Votre rapport",
         "yourAnswerTitle": "Votre réponse",
         "urgencyLabel": "Urgence",
+        "lowUrgencyLabel": "Urgence faible",
+        "mediumUrgencyLabel": "Urgence moyenne",
+        "highUrgencyLabel": "Urgence élevée",
+        "emergencyUrgencyLabel": "Urgence vitale",
         "urgentLabel": "Consultez immédiatement",
         "routineLabel": "Prenez rendez-vous",
         "monitorLabel": "Surveiller à domicile",

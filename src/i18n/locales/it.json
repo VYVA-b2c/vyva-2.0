@@ -588,6 +588,7 @@
     },
     "symptomCheck": {
       "title": "Controllo sintomi",
+      "startOver": "Ricomincia",
       "intro": {
         "title": "Controlla i tuoi sintomi",
         "subtitle": "Un controllo sanitario rapido e privato — guidato dall'IA e completato sul tuo telefono in pochi minuti.",
@@ -649,6 +650,10 @@
         "title": "Il tuo rapporto",
         "yourAnswerTitle": "La tua risposta",
         "urgencyLabel": "Urgenza",
+        "lowUrgencyLabel": "Urgenza bassa",
+        "mediumUrgencyLabel": "Urgenza media",
+        "highUrgencyLabel": "Urgenza alta",
+        "emergencyUrgencyLabel": "Urgenza di emergenza",
         "urgentLabel": "Cerca assistenza subito",
         "routineLabel": "Prenota una visita",
         "monitorLabel": "Monitora a casa",

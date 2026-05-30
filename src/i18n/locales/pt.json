@@ -588,6 +588,7 @@
     },
     "symptomCheck": {
       "title": "Verificação de sintomas",
+      "startOver": "Recomeçar",
       "intro": {
         "title": "Verifique os seus sintomas",
         "subtitle": "Uma verificação de saúde rápida e privada — orientada por IA e feita no seu telemóvel em minutos.",
@@ -649,6 +650,10 @@
         "title": "O seu relatório",
         "yourAnswerTitle": "A sua resposta",
         "urgencyLabel": "Urgência",
+        "lowUrgencyLabel": "Urgência baixa",
+        "mediumUrgencyLabel": "Urgência média",
+        "highUrgencyLabel": "Urgência alta",
+        "emergencyUrgencyLabel": "Urgência de emergência",
         "urgentLabel": "Procure cuidados agora",
         "routineLabel": "Marque uma consulta",
         "monitorLabel": "Monitorize em casa",

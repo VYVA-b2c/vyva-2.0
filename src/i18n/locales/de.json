@@ -588,6 +588,7 @@
     },
     "symptomCheck": {
       "title": "Symptom-Check",
+      "startOver": "Neu starten",
       "intro": {
         "title": "Ihre Symptome prüfen",
         "subtitle": "Ein schneller, privater Gesundheits-Check — KI-gestützt und in Minuten auf Ihrem Telefon erledigt.",
@@ -649,6 +650,10 @@
         "title": "Ihr Bericht",
         "yourAnswerTitle": "Ihre Antwort",
         "urgencyLabel": "Dringlichkeit",
+        "lowUrgencyLabel": "Niedrige Dringlichkeit",
+        "mediumUrgencyLabel": "Mittlere Dringlichkeit",
+        "highUrgencyLabel": "Hohe Dringlichkeit",
+        "emergencyUrgencyLabel": "Notfall-Dringlichkeit",
         "urgentLabel": "Sofort zum Arzt",
         "routineLabel": "Termin vereinbaren",
         "monitorLabel": "Zuhause beobachten",
