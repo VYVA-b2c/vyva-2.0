@@ -685,6 +685,7 @@
         "symptoms": "Festgestellte Symptome",
         "recommendations": "Was als nächstes zu tun ist",
         "doNow": "Jetzt tun",
+        "whyThisStep": "Erste Einschaetzung",
         "nextStepsTitle": "Nächste Schritte",
         "nextStepsSubtitle": "Vitalwerte kommen nach dem Gespräch. Wählen Sie, was jetzt hilft.",
         "nextStepVitals": "Vitalwerte prüfen",

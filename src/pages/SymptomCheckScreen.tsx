@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Activity, Calendar, Car, ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, Heart, Loader2, Mail, PhoneCall, RefreshCw, ShoppingBasket, Stethoscope, type LucideIcon } from "lucide-react";
+import { Activity, Calendar, Car, ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, Heart, Loader2, Mail, PhoneCall, RefreshCw, Send, ShoppingBasket, Stethoscope, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import TriageChat, { type TriageChatDraft } from "@/components/TriageChat";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
@@ -91,6 +91,22 @@ type ProfileContactsResponse = {
   gpPhone?: string | null;
   gpEmail?: string | null;
 } | null;
+
+type CareTeamMember = {
+  id: string;
+  invitee_name?: string | null;
+  invitee_phone?: string | null;
+  invitee_email?: string | null;
+  role?: string | null;
+  relationship?: string | null;
+  status?: string | null;
+};
+
+type DoctorShareTarget = {
+  name: string;
+  value: string;
+  channel: "email" | "sms";
+};
 
 type SavedTriageReport = {
   id?: string;
@@ -377,27 +393,74 @@ function uniqueLines(lines: string[]) {
 function simplifyReportRecommendations(lines: string[]) {
   const unique = uniqueLines(lines);
   const hasDoctorContactAction = unique.some((line) =>
-    /^(contacta|contact).*(doctor|m[eé]dico|cl[ií]nica|urgent care|urgencias)/i.test(line),
+    /^(contacta|contact).*(doctor|m(?:e|\u00e9)dico|cl(?:i|\u00ed)nica|clinic|urgent care|urgencias)/i.test(line),
   );
 
   return unique.filter((line, index) => {
     if (!hasDoctorContactAction) return true;
-    return !/^(habla|talk|speak).*(doctor|m[eé]dico).*hoy/i.test(line);
+    return !/^(habla|talk|speak).*(doctor|m(?:e|\u00e9)dico).*hoy/i.test(line);
   });
 }
 
 function compactDoctorContactRecommendations(lines: string[]) {
   const unique = simplifyReportRecommendations(lines);
   const doctorContactIndex = unique.findIndex((line) =>
-    /\b(contacta|contact|habla|talk|speak|comparte|share)\b.*\b(doctor|m.dico|clinic|cl.nica|urgent care|urgencias)\b/i.test(line),
+    /\b(contacta|contact|habla|talk|speak|comparte|share)\b.*\b(doctor|m(?:e|\u00e9)dico|clinic|cl(?:i|\u00ed)nica|urgent care|urgencias)\b/i.test(line),
   );
 
   if (doctorContactIndex < 0) return unique;
 
   return unique.filter((line, index) => {
     if (index === doctorContactIndex) return true;
-    return !/\b(contacta|contact|habla|talk|speak|comparte|share)\b.*\b(doctor|m.dico|clinic|cl.nica|urgent care|urgencias)\b/i.test(line);
+    return !/\b(contacta|contact|habla|talk|speak|comparte|share)\b.*\b(doctor|m(?:e|\u00e9)dico|clinic|cl(?:i|\u00ed)nica|urgent care|urgencias)\b/i.test(line);
   });
+}
+
+function directShareChannel(value: string): DoctorShareTarget["channel"] {
+  return value.includes("@") ? "email" : "sms";
+}
+
+function findDoctorShareTarget(
+  profileContacts: ProfileContactsResponse | undefined,
+  careTeamMembers: CareTeamMember[],
+  fallbackDoctorName: string,
+): DoctorShareTarget | null {
+  const gpPhone = profileContacts?.gpPhone?.trim();
+  if (gpPhone) {
+    return {
+      name: profileContacts?.gpName?.trim() || fallbackDoctorName,
+      value: gpPhone,
+      channel: "sms",
+    };
+  }
+
+  const careTeamDoctor = careTeamMembers.find((member) => {
+    const status = member.status?.toLowerCase();
+    if (status && ["revoked", "declined", "expired"].includes(status)) return false;
+    const hasContact = Boolean(member.invitee_email?.trim() || member.invitee_phone?.trim());
+    if (!hasContact) return false;
+    const role = member.role?.toLowerCase();
+    const relationship = member.relationship?.toLowerCase();
+    return role === "doctor" || relationship === "gp" || relationship === "specialist_doctor";
+  });
+
+  const value = careTeamDoctor?.invitee_email?.trim() || careTeamDoctor?.invitee_phone?.trim();
+  if (!careTeamDoctor || !value) return null;
+
+  return {
+    name: careTeamDoctor.invitee_name?.trim() || fallbackDoctorName,
+    value,
+    channel: directShareChannel(value),
+  };
+}
+
+function directDoctorShareHref(target: DoctorShareTarget, subject: string, text: string) {
+  if (target.channel === "email") {
+    return `mailto:${encodeURIComponent(target.value)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+  }
+
+  const separator = typeof navigator !== "undefined" && /iPhone|iPad|iPod/i.test(navigator.userAgent) ? "&" : "?";
+  return `sms:${target.value}${separator}body=${encodeURIComponent(text)}`;
 }
 
 function parseNumber(raw: string) {
@@ -431,6 +494,7 @@ function ReportScreen({
   durationSeconds,
   reportId,
   profileContacts,
+  careTeamMembers,
   emergencyContact,
   refinementStatus,
   onRefineVital,
@@ -442,6 +506,7 @@ function ReportScreen({
   durationSeconds: number | null;
   reportId: string | null;
   profileContacts?: ProfileContactsResponse;
+  careTeamMembers: CareTeamMember[];
   emergencyContact?: EmergencyContact | null;
   refinementStatus: RefinementStatus;
   onRefineVital: (config: RefinementVitalConfig, rawValue: string) => Promise<void>;
@@ -620,6 +685,10 @@ function ReportScreen({
     summary.profileConsiderations?.length ? `${t("health.symptomCheck.report.profileConsidered", "Profile considered")}: ${summary.profileConsiderations.join(" ")}` : "",
     summary.vitalsNotes?.length ? `${t("health.symptomCheck.report.vitalsUsed", "Vitals used")}: ${summary.vitalsNotes.join(" ")}` : "",
   ].filter(Boolean).join("\n");
+  const doctorShareTarget = findDoctorShareTarget(profileContacts, careTeamMembers, t("health.symptomCheck.report.doctorContact", "your doctor"));
+  const doctorShareHref = doctorShareTarget
+    ? directDoctorShareHref(doctorShareTarget, t("health.symptomCheck.report.shareTitle"), doctorNote)
+    : "";
   const openDoctorWithContext = () => {
     navigate("/health/doctor", {
       state: {
@@ -872,16 +941,18 @@ function ReportScreen({
 
       <div className="flex flex-col gap-4 px-[18px] pb-[236px]">
         {visibleReasons.length ? (
-          <section className="rounded-[22px] border border-[#DDD6FE] bg-[#F5F3FF] p-4 text-vyva-purple shadow-[0_8px_22px_rgba(63,45,35,0.05)]" data-testid="card-report-why">
-            <div className="mb-3 flex items-center gap-2">
-              <AlertTriangle size={18} />
-              <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em]">
+          <section className="rounded-[26px] border-2 border-[#7C3AED] bg-[linear-gradient(135deg,#F5F3FF_0%,#FFFFFF_58%,#FFF7ED_100%)] p-4 text-vyva-purple shadow-[0_18px_38px_rgba(107,33,168,0.18)] ring-4 ring-[#F5E8FF]" data-testid="card-report-why">
+            <div className="mb-4 flex items-center gap-3">
+              <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#6B21A8] text-white shadow-[0_10px_22px_rgba(107,33,168,0.22)]">
+                <Stethoscope size={20} />
+              </span>
+              <p className="font-body text-[13px] font-extrabold uppercase tracking-[0.12em]">
                 {t("health.symptomCheck.report.whyThisStep", "Initial Assessment")}
               </p>
             </div>
-            <ul className="grid gap-2">
+            <ul className="grid gap-3 border-l-4 border-[#7C3AED] pl-4">
               {visibleReasons.map((reason, index) => (
-                <li key={index} className="font-body text-[16px] font-bold leading-snug text-vyva-text-1">
+                <li key={index} className="font-body text-[18px] font-black leading-snug text-vyva-text-1">
                   {reason}
                 </li>
               ))}
@@ -948,17 +1019,24 @@ function ReportScreen({
         ) : null}
 
         {visibleWatchSigns.length ? (
-          <section className="rounded-[22px] border border-[#FED7AA] bg-[#FFF7ED] p-4 text-[#9A3412] shadow-[0_8px_22px_rgba(63,45,35,0.05)]" data-testid="card-report-watch">
-            <div className="mb-3 flex items-center gap-2">
-              <AlertTriangle size={18} />
-              <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em]">
+          <section className="overflow-hidden rounded-[28px] border-2 border-[#FDBA74] bg-[#FFF7ED] text-[#9A3412] shadow-[0_18px_42px_rgba(154,52,18,0.12)]" data-testid="card-report-watch">
+            <div className="flex items-center gap-3 border-b border-[#FED7AA] bg-[#FFEDD5] px-4 py-3">
+              <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#C2410C] text-white shadow-[0_10px_22px_rgba(194,65,12,0.22)]">
+                <AlertTriangle size={25} strokeWidth={2.4} />
+              </span>
+              <p className="font-body text-[13px] font-black uppercase tracking-[0.11em]">
                 {t("health.symptomCheck.report.watchSigns", "Watch for")}
               </p>
             </div>
-            <ul className="grid gap-2">
+            <ul className="grid gap-3 p-4">
               {visibleWatchSigns.map((sign, index) => (
-                <li key={index} className="font-body text-[16px] font-bold leading-snug">
-                  {sign}
+                <li key={index} className="flex items-start gap-3 rounded-[20px] border border-[#FED7AA] bg-white px-4 py-3 shadow-[0_8px_18px_rgba(154,52,18,0.08)]">
+                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#FFF7ED] text-[#C2410C] ring-2 ring-[#FDBA74]">
+                    <AlertTriangle size={17} strokeWidth={2.5} />
+                  </span>
+                  <span className="font-body text-[17px] font-black leading-snug text-[#9A3412]">
+                    {sign}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -1089,21 +1167,56 @@ function ReportScreen({
         ) : null}
 
         <details className="group rounded-[22px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-            <span className="flex items-center gap-3">
-              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F5F3FF] text-vyva-purple">
-                <Stethoscope size={18} />
-              </span>
-              <span>
-                <span className="block font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-text-3">
-                  {t("health.symptomCheck.report.detailsForDoctor", "Details for doctor")}
+          <summary className="cursor-pointer list-none">
+            <span className="flex items-center justify-between gap-3">
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F5F3FF] text-vyva-purple">
+                  <Stethoscope size={18} />
                 </span>
-                <span className="mt-1 block font-body text-[14px] font-bold text-vyva-text-2">
-                  {t("health.symptomCheck.report.doctorNoteSub", "Plain text to read, show, or share.")}
+                <span className="min-w-0">
+                  <span className="block font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-text-3">
+                    {t("health.symptomCheck.report.detailsForDoctor", "Details for doctor")}
+                  </span>
+                  <span className="mt-1 block font-body text-[14px] font-bold text-vyva-text-2">
+                    {t("health.symptomCheck.report.doctorNoteSub", "Plain text to read, show, or share.")}
+                  </span>
                 </span>
               </span>
+              <ChevronLeft size={20} className="-rotate-90 flex-shrink-0 text-vyva-purple transition-transform group-open:rotate-90" />
             </span>
-            <ChevronLeft size={20} className="-rotate-90 text-vyva-purple transition-transform group-open:rotate-90" />
+            <span className="mt-3 block">
+              {doctorShareHref ? (
+                <a
+                  href={doctorShareHref}
+                  onClick={(event) => event.stopPropagation()}
+                  aria-label={t("health.symptomCheck.report.shareWithDoctor", "Share with doctor")}
+                  title={doctorShareTarget?.name}
+                  data-testid="link-report-share-doctor"
+                  className="vyva-tap inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 text-center font-body text-[15px] font-black leading-tight text-white shadow-[0_10px_22px_rgba(107,33,168,0.18)] sm:w-auto"
+                >
+                  <Send size={18} className="flex-shrink-0" />
+                  <span className="min-w-0 truncate">{t("health.symptomCheck.report.shareWithDoctor", "Share with doctor")}</span>
+                </a>
+              ) : (
+                <span
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
+                  className="inline-flex w-full sm:w-auto"
+                >
+                  <button
+                    type="button"
+                    disabled
+                    data-testid="button-report-share-doctor-disabled"
+                    className="inline-flex min-h-[52px] w-full cursor-not-allowed items-center justify-center gap-2 rounded-full bg-[#E8DED4] px-4 text-center font-body text-[15px] font-black leading-tight text-vyva-text-3 opacity-80 sm:w-auto"
+                  >
+                    <Send size={18} className="flex-shrink-0" />
+                    <span className="min-w-0 truncate">{t("health.symptomCheck.report.noDoctorToShare", "No doctor contact in profile")}</span>
+                  </button>
+                </span>
+              )}
+            </span>
           </summary>
           <div className="mt-4 grid gap-3 border-t border-[#EADFD5] pt-4">
             {doctorTellItems.length ? (
@@ -1168,14 +1281,20 @@ function ReportScreen({
             ) : null}
 
             {summary.watchSigns?.length ? (
-              <div>
-                <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-[#9A3412]">
-                  {t("health.symptomCheck.report.watchSigns", "Watch for")}
-                </p>
+              <div className="rounded-[22px] border border-[#FED7AA] bg-[#FFF7ED] p-3">
+                <div className="flex items-center gap-2 text-[#9A3412]">
+                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#C2410C] text-white">
+                    <AlertTriangle size={18} />
+                  </span>
+                  <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em]">
+                    {t("health.symptomCheck.report.watchSigns", "Watch for")}
+                  </p>
+                </div>
                 <ul className="mt-3 grid gap-2">
                   {summary.watchSigns.map((sign, index) => (
-                    <li key={index} className="font-body text-[15px] font-bold leading-snug text-[#9A3412]">
-                      {sign}
+                    <li key={index} className="flex items-start gap-2 rounded-[16px] bg-white px-3 py-2 font-body text-[15px] font-bold leading-snug text-[#9A3412]">
+                      <AlertTriangle size={16} className="mt-0.5 flex-shrink-0 text-[#C2410C]" />
+                      <span>{sign}</span>
                     </li>
                   ))}
                 </ul>
@@ -1301,6 +1420,12 @@ export default function SymptomCheckScreen() {
     staleTime: 2 * 60 * 1000,
   });
   const [step, setStep] = useState<Step>(() => restoredDraft?.step ?? "intro");
+  const { data: careTeamData } = useQuery<{ members: CareTeamMember[] }>({
+    queryKey: ["/api/onboarding/careteam"],
+    enabled: step === "report",
+    retry: false,
+    staleTime: 2 * 60 * 1000,
+  });
   const [bpm, setBpm] = useState<number | null>(() => restoredDraft?.bpm ?? null);
   const [respiratoryRate, setRespiratoryRate] = useState<number | null>(() => restoredDraft?.respiratoryRate ?? null);
   const [chatStartTime, setChatStartTime] = useState<number | null>(() => restoredDraft?.chatStartTime ?? null);
@@ -1661,6 +1786,7 @@ export default function SymptomCheckScreen() {
             durationSeconds={durationSeconds}
             reportId={reportId}
             profileContacts={profileContacts}
+            careTeamMembers={careTeamData?.members ?? []}
             emergencyContact={triageContext?.emergencyContact ?? null}
             refinementStatus={refinementStatus}
             onRefineVital={handleRefineVital}

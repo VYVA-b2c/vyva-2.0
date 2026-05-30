@@ -294,6 +294,8 @@ const pt = {
         refinePrompt: "Novo sinal vital adicionado depois do primeiro relatorio: {{title}}: {{display}}. Ajuste o resultado de triagem com esta leitura. Os sinais vitais podem aumentar ou esclarecer a urgencia, mas nao devem reduzir sinais de emergencia.",
         emergencyDoNotWait: "Nao espere",
         doctorNoteSub: "Texto simples para ler, mostrar ou partilhar.",
+        shareWithDoctor: "Partilhar com medico",
+        noDoctorToShare: "Sem contacto medico no perfil",
         contextUsed: "O que a VYVA considerou",
         actions: {
           callGp: "Ligar ao medico",

@@ -299,6 +299,8 @@ const es = {
         refinePrompt: "Nuevo signo vital anadido despues del primer informe: {{title}}: {{display}}. Ajusta el resultado de triaje con esta lectura. Los signos vitales pueden aumentar o aclarar la urgencia, pero no deben reducir senales de emergencia.",
         emergencyDoNotWait: "No esperes",
         doctorNoteSub: "Texto sencillo para leer, mostrar o compartir.",
+        shareWithDoctor: "Compartir con medico",
+        noDoctorToShare: "Sin contacto medico en perfil",
         contextUsed: "Que considero VYVA",
         actions: {
           callGp: "Llamar al medico",

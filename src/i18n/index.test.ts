@@ -95,12 +95,12 @@ describe("language persistence", () => {
 
   it("keeps symptom report status labels localized for supported account languages", () => {
     const expected = {
-      en: ["Report not saved", "Initial Assessment", "Monitor at home, with doctor access ready"],
-      es: ["Informe no guardado", "Evaluación inicial", "Vigila en casa, con medico disponible"],
-      fr: ["Rapport non enregistre", "Évaluation initiale", "Surveillez a domicile, avec un medecin pret a etre contacte"],
-      de: ["Bericht nicht gespeichert", "Erste Einschätzung", "Zu Hause beobachten, Arztkontakt bereithalten"],
-      it: ["Report non salvato", "Valutazione iniziale", "Monitora a casa, con accesso al medico pronto"],
-      pt: ["Relatorio nao guardado", "Avaliação inicial", "Monitorize em casa, com acesso ao medico pronto"],
+      en: ["Report not saved", "Initial Assessment", "Monitor at home, with doctor access ready", "Share with doctor", "No doctor contact in profile"],
+      es: ["Informe no guardado", "Evaluación inicial", "Vigila en casa, con medico disponible", "Compartir con medico", "Sin contacto medico en perfil"],
+      fr: ["Rapport non enregistre", "Évaluation initiale", "Surveillez a domicile, avec un medecin pret a etre contacte", "Partager avec le medecin", "Aucun contact medecin dans le profil"],
+      de: ["Bericht nicht gespeichert", "Erste Einschätzung", "Zu Hause beobachten, Arztkontakt bereithalten", "Mit Arzt teilen", "Kein Arztkontakt im Profil"],
+      it: ["Report non salvato", "Valutazione iniziale", "Monitora a casa, con accesso al medico pronto", "Condividi col medico", "Nessun contatto medico nel profilo"],
+      pt: ["Relatorio nao guardado", "Avaliação inicial", "Monitorize em casa, com acesso ao medico pronto", "Partilhar com medico", "Sem contacto medico no perfil"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -108,6 +108,8 @@ describe("language persistence", () => {
         translate(language as keyof typeof expected, "health.symptomCheck.report.saveFailed"),
         translate(language as keyof typeof expected, "health.symptomCheck.report.whyThisStep"),
         translate(language as keyof typeof expected, "health.symptomCheck.report.nextStepMonitorReady"),
+        translate(language as keyof typeof expected, "health.symptomCheck.report.shareWithDoctor"),
+        translate(language as keyof typeof expected, "health.symptomCheck.report.noDoctorToShare"),
       ]).toEqual(labels);
     }
   });
