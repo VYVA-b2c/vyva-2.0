@@ -66,11 +66,19 @@ type TriageHealthMemory = {
   medications?: string;
   latestVitals?: string;
   latestSymptomReport?: string;
+  countryCode?: string;
+};
+
+type EmergencyContact = {
+  label: string;
+  telHref?: string;
 };
 
 type TriageContextResponse = {
   memory: TriageHealthMemory;
   usedItems: string[];
+  countryCode?: string;
+  emergencyContact?: EmergencyContact;
 };
 
 type ProfileContactsResponse = {
@@ -265,6 +273,7 @@ function ReportScreen({
   reportId,
   reportSaveState,
   profileContacts,
+  emergencyContact,
   refinementStatus,
   onRefineVital,
   onDone,
@@ -276,6 +285,7 @@ function ReportScreen({
   reportId: string | null;
   reportSaveState: ReportSaveState;
   profileContacts?: ProfileContactsResponse;
+  emergencyContact?: EmergencyContact | null;
   refinementStatus: RefinementStatus;
   onRefineVital: (config: RefinementVitalConfig, rawValue: string) => Promise<void>;
   onDone: () => void;
@@ -286,6 +296,14 @@ function ReportScreen({
   const cfg = ReportConfig(summary);
   const UrgencyIcon = cfg.icon;
   const isEmergency = cfg.level === "emergency";
+  const emergencyCallLabel = emergencyContact?.telHref
+    ? t("health.symptomCheck.report.callEmergencyNumber", "Call {{number}}", { number: emergencyContact.label })
+    : t("health.symptomCheck.report.contactEmergencyServices", "Contact emergency services");
+  const emergencyBody = emergencyContact?.telHref
+    ? t("health.symptomCheck.report.emergencyBodyWithNumber", "Call {{number}} now. Do not drive yourself. Keep this report open for the responder.", {
+        number: emergencyContact.label,
+      })
+    : t("health.symptomCheck.report.emergencyBodyGeneric", "Contact local emergency services now. Do not drive yourself. Keep this report open for the responder.");
   const [openVitalKey, setOpenVitalKey] = useState<RefinementVitalKey | null>(null);
   const [vitalInputs, setVitalInputs] = useState<Record<string, string>>({});
   const [vitalInputError, setVitalInputError] = useState<string | null>(null);
@@ -548,15 +566,18 @@ function ReportScreen({
             <button
               type="button"
               onClick={() => {
-                window.location.href = "tel:112";
+                if (emergencyContact?.telHref) {
+                  window.location.href = emergencyContact.telHref;
+                }
               }}
+              disabled={!emergencyContact?.telHref}
               data-testid="button-report-emergency"
-              className="vyva-tap col-span-2 flex min-h-[96px] items-center justify-between rounded-[24px] bg-[#DC2626] p-5 text-left text-white shadow-[0_16px_36px_rgba(220,38,38,0.28)]"
+              className="vyva-tap col-span-2 flex min-h-[96px] items-center justify-between rounded-[24px] bg-[#DC2626] p-5 text-left text-white shadow-[0_16px_36px_rgba(220,38,38,0.28)] disabled:opacity-70"
             >
               <span className="flex items-center gap-3">
                 <PhoneCall size={26} />
                 <span className="font-body text-[20px] font-black leading-tight">
-                  {t("health.symptomCheck.report.callEmergency", "Call emergency services")}
+                  {emergencyCallLabel}
                 </span>
               </span>
             </button>
@@ -812,7 +833,7 @@ function ReportScreen({
               </p>
             </div>
             <p className="font-body text-[18px] font-bold leading-snug">
-              {t("health.symptomCheck.report.emergencyBody", "Call emergency services now. Do not drive yourself. Keep this report open for the responder.")}
+              {emergencyBody}
             </p>
           </div>
         ) : null}
@@ -1214,6 +1235,7 @@ export default function SymptomCheckScreen() {
             reportId={reportId}
             reportSaveState={reportSaveState}
             profileContacts={profileContacts}
+            emergencyContact={triageContext?.emergencyContact ?? null}
             refinementStatus={refinementStatus}
             onRefineVital={handleRefineVital}
             onDone={() => navigate("/health")}

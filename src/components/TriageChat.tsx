@@ -46,11 +46,12 @@ interface TriageResponse {
   done?: boolean;
   summary?: TriageSummary;
   urgent?: boolean;
-  safetyAlert?: { id: string; label: string; recommendation: string };
+  safetyAlert?: { id: string; label: string; recommendation: string; emergencyContact?: EmergencyContact };
   quickReplies?: ApiQuickReply[];
   wizardStage?: string;
   wizardStageLabel?: string;
   evidenceSources?: Array<{ title?: string; url?: string; year?: string; journal?: string }>;
+  emergencyContact?: EmergencyContact;
 }
 
 type WizardEntryMode = "with_vitals" | "without_vitals";
@@ -62,6 +63,12 @@ type TriageHealthMemory = {
   medications?: string;
   latestVitals?: string;
   latestSymptomReport?: string;
+  countryCode?: string;
+};
+
+type EmergencyContact = {
+  label: string;
+  telHref?: string;
 };
 
 interface TriageChatProps {
@@ -121,12 +128,28 @@ const answerTone: Record<QuickAnswerTone, { border: string; text: string }> = {
   green: { border: "#BBF7D0", text: "#332925" },
 };
 
-declare global {
-  interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
-  }
-}
+type BrowserSpeechRecognitionEvent = {
+  results: ArrayLike<ArrayLike<{ transcript: string }>>;
+};
+
+type BrowserSpeechRecognition = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start: () => void;
+  stop: () => void;
+  onstart: (() => void) | null;
+  onresult: ((event: BrowserSpeechRecognitionEvent) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+};
+
+type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
+
+type SpeechRecognitionWindow = {
+  SpeechRecognition?: BrowserSpeechRecognitionConstructor;
+  webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor;
+};
 
 const speechLangFor = (language: string) => {
   const base = language.split("-")[0];
@@ -251,11 +274,12 @@ export default function TriageChat({
   const [selectedQuickAnswers, setSelectedQuickAnswers] = useState<SelectedQuickAnswer[]>([]);
   const [evidenceSources, setEvidenceSources] = useState<TriageResponse["evidenceSources"]>([]);
   const [safetyAlert, setSafetyAlert] = useState<TriageResponse["safetyAlert"] | null>(null);
+  const [emergencyContact, setEmergencyContact] = useState<EmergencyContact | null>(null);
   const [wizardStageLabel, setWizardStageLabel] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const animTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const recRef = useRef<SpeechRecognition | null>(null);
+  const recRef = useRef<BrowserSpeechRecognition | null>(null);
   const userMessageCount = messages.filter((msg) => msg.role === "user").length;
   const fallbackQuickAnswers: QuickAnswer[] = userMessageCount === 0
     ? [
@@ -319,7 +343,8 @@ export default function TriageChat({
   );
 
   const startListening = useCallback(() => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const speechWindow = window as unknown as SpeechRecognitionWindow;
+    const SR = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
     if (!SR) {
       setVoiceError(t("health.symptomCheck.chat.voiceUnsupported"));
       return;
@@ -395,6 +420,7 @@ export default function TriageChat({
         const res = await response.json() as TriageResponse;
         setApiQuickReplies(res.quickReplies?.length ? res.quickReplies : null);
         setSafetyAlert(res.safetyAlert ?? null);
+        setEmergencyContact(res.emergencyContact ?? res.safetyAlert?.emergencyContact ?? null);
         if (res.evidenceSources) setEvidenceSources(res.evidenceSources);
         if (res.wizardStageLabel) setWizardStageLabel(res.wizardStageLabel);
 
@@ -524,16 +550,6 @@ export default function TriageChat({
             </div>
           )}
 
-          {selectedQuickAnswers.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {selectedQuickAnswers.slice(-3).map((answer, index) => (
-                <span key={`${answer.id}-${index}`} className="font-body text-[15px] font-bold text-vyva-text-3">
-                  {answer.label}
-                </span>
-              ))}
-            </div>
-          )}
-
           {safetyAlert && (
             <HealthWizardHero
               tone="red"
@@ -545,12 +561,17 @@ export default function TriageChat({
               <button
                 type="button"
                 onClick={() => {
-                  window.location.href = "tel:112";
+                  if (emergencyContact?.telHref) {
+                    window.location.href = emergencyContact.telHref;
+                  }
                 }}
+                disabled={!emergencyContact?.telHref}
                 className="vyva-tap inline-flex min-h-[66px] w-full items-center justify-center gap-3 rounded-[22px] bg-[#DC2626] px-5 font-body text-[19px] font-black text-white shadow-[0_10px_24px_rgba(127,29,29,0.24)]"
               >
                 <PhoneCall size={22} />
-                {t("health.symptomCheck.chat.contactEmergency", "Contact emergency services")}
+                {emergencyContact?.telHref
+                  ? t("health.symptomCheck.chat.callEmergencyNumber", "Call {{number}}", { number: emergencyContact.label })
+                  : t("health.symptomCheck.chat.contactEmergency", "Contact emergency services")}
               </button>
             </HealthWizardHero>
           )}
