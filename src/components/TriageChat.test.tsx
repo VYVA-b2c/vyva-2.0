@@ -11,7 +11,11 @@ vi.mock("@/lib/queryClient", () => ({
 
 const apiFetchMock = vi.mocked(apiFetch);
 
-function jsonResponse(body: unknown) {
+const quickReplies = [
+  { id: "no_red_flag", label: "No warning signs", value: "No warning signs.", icon: "help", tone: "green", kind: "red_flag" },
+];
+
+function triageResponse(body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
     status: 200,
     headers: { "Content-Type": "application/json" },
@@ -24,22 +28,22 @@ function renderTriageChat(props: Partial<ComponentProps<typeof TriageChat>> = {}
       bpm={null}
       respiratoryRate={null}
       entryMode="without_vitals"
-      initialClue="I feel dizzy"
+      initialClue="Feeling anxious"
       onComplete={vi.fn()}
       {...props}
     />,
   );
 }
 
-afterEach(() => {
-  apiFetchMock.mockReset();
-  setLanguage("en");
-});
+describe("TriageChat MediSearch follow-ups", () => {
+  afterEach(() => {
+    apiFetchMock.mockReset();
+    setLanguage("en");
+  });
 
-describe("TriageChat MediSearch follow-up chips", () => {
   it("sends the selected app language to the triage service", async () => {
     setLanguage("es");
-    apiFetchMock.mockResolvedValueOnce(jsonResponse({
+    apiFetchMock.mockResolvedValueOnce(triageResponse({
       role: "assistant",
       content: "Bien",
       quickReplies: [],
@@ -55,7 +59,7 @@ describe("TriageChat MediSearch follow-up chips", () => {
   });
 
   it("waits for the app language before starting the triage request", async () => {
-    apiFetchMock.mockResolvedValueOnce(jsonResponse({
+    apiFetchMock.mockResolvedValueOnce(triageResponse({
       role: "assistant",
       content: "Bien",
       quickReplies: [],
@@ -73,7 +77,7 @@ describe("TriageChat MediSearch follow-up chips", () => {
         bpm={null}
         respiratoryRate={null}
         entryMode="without_vitals"
-        initialClue="I feel dizzy"
+        initialClue="Feeling anxious"
         language="es"
         languageReady
         onComplete={vi.fn()}
@@ -86,44 +90,78 @@ describe("TriageChat MediSearch follow-up chips", () => {
     await screen.findByText("Bien");
   });
 
-  it("renders follow-up chips and sends a tapped question with the MediSearch conversation id", async () => {
+  it("renders follow-up chips below the primary answer tiles", async () => {
+    apiFetchMock.mockResolvedValue(triageResponse({
+      role: "assistant",
+      content: "Q?",
+      done: false,
+      quickReplies,
+      wizardStage: "red_flag",
+      wizardStageLabel: "Safety check",
+      medicalFollowups: ["Could caffeine make anxiety worse?"],
+      medisearchConversationId: "conversation-1",
+    }));
+
+    renderTriageChat();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("triage-quick-answers")).toBeInTheDocument();
+      expect(screen.getByTestId("triage-medical-followups")).toBeInTheDocument();
+    });
+
+    const primaryTiles = screen.getByTestId("triage-quick-answers");
+    const followups = screen.getByTestId("triage-medical-followups");
+    expect(primaryTiles.compareDocumentPosition(followups) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText("Useful follow-up questions")).toBeInTheDocument();
+    expect(screen.getByText("Could caffeine make anxiety worse?")).toBeInTheDocument();
+  });
+
+  it("sends follow-up chips as free text without adding quickAnswers", async () => {
     apiFetchMock
-      .mockResolvedValueOnce(jsonResponse({
+      .mockResolvedValueOnce(triageResponse({
         role: "assistant",
-        content: "Ok",
-        quickReplies: [],
-        evidenceSources: [],
-        medisearchConversationId: "med-1",
-        medicalFollowups: ["Could this be dehydration?", "Should I call my doctor?"],
+        content: "Q?",
+        done: false,
+        quickReplies,
+        wizardStage: "red_flag",
+        wizardStageLabel: "Safety check",
+        medicalFollowups: ["Could caffeine make anxiety worse?"],
+        medisearchConversationId: "conversation-1",
       }))
-      .mockResolvedValueOnce(jsonResponse({
+      .mockResolvedValueOnce(triageResponse({
         role: "assistant",
-        content: "Thanks",
-        quickReplies: [],
-        evidenceSources: [],
-        medisearchConversationId: "med-1",
+        content: "Q?",
+        done: false,
+        quickReplies,
+        wizardStage: "red_flag",
+        wizardStageLabel: "Safety check",
         medicalFollowups: [],
+        medisearchConversationId: "conversation-1",
       }));
 
     renderTriageChat();
 
-    const followup = await screen.findByTestId("triage-medical-followup-0");
-    expect(screen.getByTestId("triage-medical-followups")).toBeInTheDocument();
-    expect(followup).toHaveTextContent("Could this be dehydration?");
-
-    fireEvent.click(followup);
-
-    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledTimes(2));
-    const secondRequest = JSON.parse((apiFetchMock.mock.calls[1][1] as RequestInit).body as string);
-    expect(secondRequest.medisearchConversationId).toBe("med-1");
-    expect(secondRequest.messages.at(-1)).toMatchObject({
-      role: "user",
-      content: "Could this be dehydration?",
+    await waitFor(() => {
+      expect(screen.getByText("Could caffeine make anxiety worse?")).toBeInTheDocument();
     });
+
+    fireEvent.click(screen.getByTestId("triage-medical-followup-0"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    const secondBody = JSON.parse((apiFetchMock.mock.calls[1]?.[1] as RequestInit).body as string);
+    expect(secondBody.messages.at(-1)).toEqual({
+      role: "user",
+      content: "Could caffeine make anxiety worse?",
+    });
+    expect(secondBody.wizard.quickAnswers).toEqual([]);
+    expect(secondBody.medisearchConversationId).toBe("conversation-1");
   });
 
   it("does not show MediSearch follow-up chips during a safety alert", async () => {
-    apiFetchMock.mockResolvedValueOnce(jsonResponse({
+    apiFetchMock.mockResolvedValueOnce(triageResponse({
       role: "assistant",
       content: "Emergency warning",
       done: false,
@@ -136,7 +174,7 @@ describe("TriageChat MediSearch follow-up chips", () => {
       quickReplies: [],
       emergencyContact: { label: "112", telHref: "tel:112" },
       evidenceSources: [],
-      medisearchConversationId: "med-1",
+      medisearchConversationId: "conversation-1",
       medicalFollowups: ["Could this be anxiety?"],
     }));
 

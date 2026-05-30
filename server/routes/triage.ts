@@ -1188,6 +1188,76 @@ function vitalsNotesFor(locale: string, wizard: TriageWizardContext | undefined)
   return notes.slice(0, 4);
 }
 
+function uniqueStrings(items: string[]) {
+  return items
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .filter((item, index, all) => all.findIndex((candidate) => candidate.toLowerCase() === item.toLowerCase()) === index);
+}
+
+function fallbackReportContent(locale: string, summary: TriageSummary, symptom: string) {
+  if (summary.nextStepLevel === "emergency") {
+    return text(
+      locale,
+      `Your answers include an emergency warning sign for ${symptom}.`,
+      `Tus respuestas incluyen una senal de emergencia para ${symptom}.`,
+    );
+  }
+  if (summary.nextStepLevel === "doctor_today") {
+    return text(
+      locale,
+      `Your answers show ${symptom} should be checked today.`,
+      `Tus respuestas indican que ${symptom} debe revisarse hoy.`,
+    );
+  }
+  if (summary.nextStepLevel === "doctor_24_48") {
+    return text(
+      locale,
+      `Your answers show ${symptom} should be checked within 24-48 hours.`,
+      `Tus respuestas indican que ${symptom} debe revisarse en 24-48 horas.`,
+    );
+  }
+  return text(
+    locale,
+    `Your answers fit a lower-risk ${symptom} pattern right now.`,
+    `Tus respuestas encajan ahora con un patron de menor riesgo para ${symptom}.`,
+  );
+}
+
+function fallbackTriageReport(
+  locale: string,
+  wizard: TriageWizardContext | undefined,
+  messages: ChatMessage[],
+  healthMemory?: TriageHealthMemory,
+): { content: string; summary: TriageSummary } {
+  const symptomId = selectedSymptomId(wizard);
+  const symptom = symptomLabel(locale, symptomId);
+  const chiefComplaint = firstUserClue(messages).replace(/\s+/g, " ").trim() || symptom;
+  const detailLabels = selectedAnswers(wizard)
+    .filter((answer) => ["severity", "duration", "trend"].includes(answer.kind ?? ""))
+    .map((answer) => answer.label);
+  const baseSummary: TriageSummary = {
+    chiefComplaint,
+    symptoms: uniqueStrings([symptom, ...detailLabels]).slice(0, 4),
+    urgency: "monitor",
+    recommendations: [],
+    disclaimer: text(
+      locale,
+      "This assessment is for information only and is not medical advice. Always consult your doctor or call emergency services if you feel it is serious.",
+      "Esta evaluacion es solo informativa y no sustituye el consejo medico. Consulta siempre con tu medico o llama a emergencias si sientes que es grave.",
+    ),
+    triageReasons: [],
+    watchSigns: watchSignsFor(locale, symptomId),
+    profileConsiderations: [],
+    vitalsNotes: [],
+  };
+  const summary = applyTriageSafetyFloor(baseSummary, wizard, locale, healthMemory);
+  return {
+    content: fallbackReportContent(locale, summary, symptom),
+    summary,
+  };
+}
+
 function nextStepFor(
   locale: string,
   summary: TriageSummary,
@@ -1339,7 +1409,7 @@ router.post("/message", async (req: Request, res: Response) => {
     .slice(-20);
   const effectiveWizard = wizardWithInferredClue(wizard, validMessages, normalizedLocale);
 
-  const safetyAnswer = selectedSafetyAnswer(effectiveWizard);
+  const safetyAnswer = effectiveWizard?.refineRequested ? null : selectedSafetyAnswer(effectiveWizard);
   if (safetyAnswer) {
     const emergencyContact = emergencyContactForCountry(healthMemory?.countryCode);
     return res.json({
@@ -1365,6 +1435,15 @@ router.post("/message", async (req: Request, res: Response) => {
   const stage = nextAdaptiveStage(effectiveWizard, healthMemory);
   if (stage !== "complete") {
     const protocolQuestion = wizardQuestionText(stage, effectiveWizard, normalizedLocale);
+    const latestMessage = validMessages[validMessages.length - 1];
+    const medisearchContext = latestMessage?.role === "user"
+      ? await getMediSearchTriageContext({
+          conversation: validMessages,
+          conversationId: medisearchConversationId,
+          locale: normalizedLocale,
+          wizard: effectiveWizard,
+        })
+      : null;
     return res.json({
       role: "assistant",
       content: protocolQuestion,
@@ -1373,12 +1452,25 @@ router.post("/message", async (req: Request, res: Response) => {
       wizardStage: stage,
       wizardStageLabel: wizardStageLabel(stage, normalizedLocale),
       evidenceSources: [],
+      medisearchConversationId: medisearchContext?.conversationId,
+      medicalFollowups: medisearchContext?.followups ?? [],
     });
   }
 
   const apiKey = process.env.OPENAI_API_KEY ?? "";
   if (!apiKey) {
-    return res.status(503).json({ error: "AI service not configured" });
+    const fallbackReport = fallbackTriageReport(normalizedLocale, effectiveWizard, validMessages, healthMemory);
+    return res.json({
+      role: "assistant",
+      content: fallbackReport.content,
+      done: true,
+      summary: fallbackReport.summary,
+      quickReplies: [],
+      wizardStage: stage,
+      wizardStageLabel: wizardStageLabel(stage, normalizedLocale),
+      evidenceSources: [],
+      medicalFollowups: [],
+    });
   }
 
   try {
@@ -1412,6 +1504,7 @@ router.post("/message", async (req: Request, res: Response) => {
     const safeSummary = summary ? applyTriageSafetyFloor(summary, effectiveWizard, normalizedLocale, healthMemory) : null;
     const evidenceSources = evidenceSourcesFor(medisearchContext);
     const evidenceSummary = evidenceSummaryFor(medisearchContext);
+    const fallbackReport = fallbackTriageReport(normalizedLocale, effectiveWizard, validMessages, healthMemory);
     const summaryWithEvidence = safeSummary
       ? {
           ...safeSummary,
@@ -1419,19 +1512,23 @@ router.post("/message", async (req: Request, res: Response) => {
           evidenceSources: evidenceSources.length ? evidenceSources : undefined,
         }
       : null;
+    const finalSummary = summaryWithEvidence ?? {
+      ...fallbackReport.summary,
+      evidenceSummary: evidenceSummary || undefined,
+      evidenceSources: evidenceSources.length ? evidenceSources : undefined,
+    };
 
-    const protocolQuestion = wizardQuestionText(stage, effectiveWizard, normalizedLocale);
     return res.json({
       role: "assistant",
-      content: summaryWithEvidence ? content : protocolQuestion,
-      done: summaryWithEvidence != null,
-      summary: summaryWithEvidence ?? undefined,
-      quickReplies: summaryWithEvidence ? [] : quickRepliesFor(effectiveWizard, normalizedLocale, healthMemory),
+      content: summaryWithEvidence ? content || fallbackReport.content : fallbackReport.content,
+      done: true,
+      summary: finalSummary,
+      quickReplies: [],
       wizardStage: stage,
       wizardStageLabel: wizardStageLabel(stage, normalizedLocale),
       evidenceSources,
       medisearchConversationId: medisearchContext?.conversationId,
-      medicalFollowups: summaryWithEvidence ? [] : medisearchContext?.followups ?? [],
+      medicalFollowups: [],
     });
   } catch (err) {
     console.error("[triage] OpenAI error:", err);
