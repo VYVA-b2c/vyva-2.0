@@ -114,6 +114,28 @@ describe("language persistence", () => {
     }
   });
 
+  it("keeps symptom confidence tracker localized for supported account languages", () => {
+    const expected = {
+      en: ["Assessment confidence", "Building confidence", "VYVA is checking your answers", "Listen", "Check", "Next step"],
+      es: ["Confianza de la evaluacion", "Ganando confianza", "VYVA revisa tus respuestas", "Escuchar", "Revisar", "Siguiente paso"],
+      fr: ["Confiance de l'evaluation", "Confiance en cours", "VYVA verifie vos reponses", "Ecouter", "Verifier", "Prochaine etape"],
+      de: ["Einschaetzungs-Sicherheit", "Sicherheit steigt", "VYVA prueft Ihre Antworten", "Zuhoeren", "Pruefen", "Naechster Schritt"],
+      it: ["Fiducia nella valutazione", "Fiducia in crescita", "VYVA controlla le tue risposte", "Ascolto", "Controllo", "Prossimo passo"],
+      pt: ["Confianca da avaliacao", "A ganhar confianca", "A VYVA esta a verificar as suas respostas", "Ouvir", "Verificar", "Proximo passo"],
+    } as const;
+
+    for (const [language, labels] of Object.entries(expected)) {
+      expect([
+        translate(language as keyof typeof expected, "health.symptomCheck.tracker.label"),
+        translate(language as keyof typeof expected, "health.symptomCheck.tracker.building"),
+        translate(language as keyof typeof expected, "health.symptomCheck.tracker.checking"),
+        translate(language as keyof typeof expected, "health.symptomCheck.tracker.listen"),
+        translate(language as keyof typeof expected, "health.symptomCheck.tracker.check"),
+        translate(language as keyof typeof expected, "health.symptomCheck.tracker.nextStep"),
+      ]).toEqual(labels);
+    }
+  });
+
   it("keeps daily check-in home card copy localized for supported account languages", () => {
     const expected = {
       en: ["Daily are-you-okay check", "Checked in today", "Let VYVA know how today feels", "You checked in today. VYVA has a fresh wellbeing signal.", "View history"],

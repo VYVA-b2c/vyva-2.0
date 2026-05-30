@@ -242,6 +242,16 @@ const en = {
       },
     },
     symptomCheck: {
+      tracker: {
+        label: "Assessment confidence",
+        building: "Building confidence",
+        ready: "Ready",
+        checking: "VYVA is checking your answers",
+        prepared: "Clear next steps prepared",
+        listen: "Listen",
+        check: "Check",
+        nextStep: "Next step",
+      },
       report: {
         emergencyLabel: "Emergency now",
         doctorTodayLabel: "Doctor today",
