@@ -352,7 +352,6 @@ function ReportScreen({
   respiratoryRate,
   durationSeconds,
   reportId,
-  reportSaveState,
   profileContacts,
   emergencyContact,
   refinementStatus,
@@ -364,7 +363,6 @@ function ReportScreen({
   respiratoryRate: number | null;
   durationSeconds: number | null;
   reportId: string | null;
-  reportSaveState: ReportSaveState;
   profileContacts?: ProfileContactsResponse;
   emergencyContact?: EmergencyContact | null;
   refinementStatus: RefinementStatus;
@@ -412,13 +410,6 @@ function ReportScreen({
       reportTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }, [refinementStatus.state]);
-  const saveStatusText = reportSaveState === "saved"
-    ? t("health.symptomCheck.report.savedToReports", "Saved to Reports")
-    : reportSaveState === "saving"
-      ? t("health.symptomCheck.report.savingReport", "Saving report...")
-      : reportSaveState === "error"
-        ? t("health.symptomCheck.report.saveFailed", "Report not saved")
-        : t("health.symptomCheck.report.readyReport", "Report ready");
   const durationText = durationSeconds != null
     ? durationSeconds < 60
       ? `${durationSeconds}s`
@@ -683,15 +674,6 @@ function ReportScreen({
         </p>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <span
-            className="inline-flex items-center gap-2 rounded-full px-3 py-1.5"
-            style={{ background: cfg.pillBg }}
-          >
-            <ClipboardList size={13} className="text-white" />
-            <span className="font-body text-[13px] font-semibold text-white">
-              {saveStatusText}
-            </span>
-          </span>
           {bpm != null ? (
             <span
               className="inline-flex items-center gap-2 rounded-full px-3 py-1.5"
@@ -1467,7 +1449,6 @@ export default function SymptomCheckScreen() {
             respiratoryRate={respiratoryRate}
             durationSeconds={durationSeconds}
             reportId={reportId}
-            reportSaveState={reportSaveState}
             profileContacts={profileContacts}
             emergencyContact={triageContext?.emergencyContact ?? null}
             refinementStatus={refinementStatus}
