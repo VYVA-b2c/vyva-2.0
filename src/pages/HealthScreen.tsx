@@ -874,7 +874,7 @@ const HealthScreen = () => {
   const QUICK_TILES = [
     { id: "sintomas",   Icon: HeartPulse,    iconBg: "#F5F3FF", iconColor: "#7C3AED", label: t("health.quickTiles.symptoms.label", "Symptoms"),    hint: t("health.quickTiles.symptoms.hint", "Check how I feel"), path: "/health/symptom-check", agentMessage: "I want to talk about my symptoms", action: () => guardPath("/health/symptom-check") },
     { id: "medicacion", Icon: Pill,          iconBg: "#FDF4FF", iconColor: "#86198F", label: t("health.quickTiles.medication.label", "Medication"),  hint: t("health.quickTiles.medication.hint", "My pills"),     path: "/meds", agentMessage: "I want to review my medications", action: () => guardPath("/meds") },
-    { id: "signos",     Icon: Activity,      iconBg: "#FFF1F2", iconColor: "#BE123C", label: t("health.quickTiles.status.label", "Status"),      hint: t("health.quickTiles.status.hint", "Vital signs"),    path: "/health/vitals", agentMessage: "I want to check my health status", action: () => navigate("/health/vitals") },
+    { id: "signos",     Icon: Activity,      iconBg: "#FFF1F2", iconColor: "#BE123C", label: t("health.quickTiles.status.label", "Vitals"),      hint: t("health.quickTiles.status.hint", "Pulse, breathing, trends"),    path: "/health/vitals", agentMessage: "I want to check my health status", action: () => navigate("/health/vitals") },
     { id: "historial",  Icon: ClipboardList, iconBg: "#EFF6FF", iconColor: "#1D4ED8", label: t("health.quickTiles.reports.label", "Reports"),    hint: t("health.quickTiles.reports.hint", "View summary"),      path: "/informes", agentMessage: "I want to see my health reports", action: () => navigate("/informes") },
   ];
 

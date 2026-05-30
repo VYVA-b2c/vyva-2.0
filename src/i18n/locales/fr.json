@@ -562,8 +562,8 @@
         "hint": "Mes médicaments"
       },
       "status": {
-        "label": "État",
-        "hint": "Signes vitaux"
+        "label": "Constantes",
+        "hint": "Pouls, respiration, tendances"
       },
       "reports": {
         "label": "Rapports",

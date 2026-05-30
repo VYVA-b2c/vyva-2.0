@@ -547,8 +547,8 @@
         "hint": "Meine Medikamente"
       },
       "status": {
-        "label": "Status",
-        "hint": "Vitalzeichen"
+        "label": "Vitalwerte",
+        "hint": "Puls, Atmung, Trends"
       },
       "reports": {
         "label": "Berichte",

@@ -570,8 +570,8 @@
         "hint": "Mis pastillas"
       },
       "status": {
-        "label": "Estado",
-        "hint": "Signos vitales"
+        "label": "Constantes",
+        "hint": "Pulso, respiración y tendencias"
       },
       "reports": {
         "label": "Informes",

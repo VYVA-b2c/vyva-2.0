@@ -547,8 +547,8 @@
         "hint": "Os meus medicamentos"
       },
       "status": {
-        "label": "Estado",
-        "hint": "Sinais vitais"
+        "label": "Sinais vitais",
+        "hint": "Pulso, respiração, tendências"
       },
       "reports": {
         "label": "Relatórios",
