@@ -356,6 +356,8 @@ function DailyCheckinCard({
   const message =
     checkin?.message ??
     t("health.dailyCheckin.loadingMessage", "A short daily check helps VYVA know you are okay.");
+  const primaryLabel = checkin?.action_label ?? t("health.dailyCheckin.primary", "Check in now");
+  const showHistoryAction = checkin?.status !== "completed";
   const detail =
     checkin?.status === "completed" && completedTime
       ? t("health.dailyCheckin.completedAt", "Completed at") + ` ${completedTime}`
@@ -395,21 +397,23 @@ function DailyCheckinCard({
           ) : null}
         </div>
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-3">
+      <div className={`mt-4 grid gap-3 ${showHistoryAction ? "grid-cols-2" : "grid-cols-1"}`}>
         <button
           type="button"
           onClick={onPrimary}
           className="vyva-primary-action min-h-[58px] text-[17px]"
         >
-          {checkin?.action_label ?? t("health.dailyCheckin.primary", "Check in now")}
+          {primaryLabel}
         </button>
-        <button
-          type="button"
-          onClick={onHistory}
-          className="vyva-secondary-action min-h-[58px] text-[17px]"
-        >
-          {t("health.dailyCheckin.history", "History")}
-        </button>
+        {showHistoryAction ? (
+          <button
+            type="button"
+            onClick={onHistory}
+            className="vyva-secondary-action min-h-[58px] text-[17px]"
+          >
+            {t("health.dailyCheckin.history", "History")}
+          </button>
+        ) : null}
       </div>
     </section>
   );
