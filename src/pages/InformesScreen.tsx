@@ -273,7 +273,7 @@ function DetailView({ report, onBack }: { report: TriageReport; onBack: () => vo
           {triageReasons.length > 0 && (
             <div className="mt-4 rounded-[20px] bg-[#F5F3FF] p-4 text-[#6B21A8]">
               <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em]">
-                {t("informes.reportDetail.whyThisStep", "Why VYVA chose this")}
+                {t("informes.reportDetail.whyThisStep", "Why this recommendation")}
               </p>
               <ul className="mt-3 grid gap-2">
                 {triageReasons.slice(0, 3).map((reason, index) => (

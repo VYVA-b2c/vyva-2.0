@@ -664,6 +664,7 @@
         "symptoms": "Sintomas notados",
         "recommendations": "O que fazer a seguir",
         "doNow": "Fazer agora",
+        "whyThisStep": "Por que esta recomendação",
         "nextStepsTitle": "Próximos passos",
         "nextStepsSubtitle": "Os sinais vitais vêm depois da conversa. Escolha o que ajuda agora.",
         "nextStepVitals": "Ver sinais vitais",

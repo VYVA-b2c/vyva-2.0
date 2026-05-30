@@ -684,6 +684,7 @@
         "symptoms": "Síntomas observados",
         "recommendations": "Qué hacer a continuación",
         "doNow": "Haz esto ahora",
+        "whyThisStep": "Por qué esta recomendación",
         "nextStepsTitle": "Siguientes pasos",
         "nextStepsSubtitle": "Los signos vitales van después de la conversación. Elige qué te ayuda ahora.",
         "nextStepVitals": "Tomar signos",
@@ -1565,6 +1566,7 @@
       "title": "Informe completo",
       "symptoms": "Síntomas observados",
       "recommendations": "Qué hacer a continuación",
+      "whyThisStep": "Por qué esta recomendación",
       "duration": "Duración de la sesión",
       "chatCta": "Hablar con VYVA"
     }
