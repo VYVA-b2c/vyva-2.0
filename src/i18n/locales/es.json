@@ -726,9 +726,9 @@
       }
     },
     "scanWound": {
-      "title": "Escanear mi herida",
-      "subtitle": "Toma o sube una foto para análisis con IA",
-      "cta": "Tomar o subir foto",
+      "title": "Revision visual de salud",
+      "subtitle": "Sube heridas, moratones, heces, orina, fluidos, cambios en la piel o radiografias para una revision asistida.",
+      "cta": "Tomar o subir imagen",
       "analyzing": "Analizando...",
       "resultTitle": "Resultado del análisis",
       "severity": "Leve",
@@ -737,10 +737,38 @@
         "moderate": "Moderado",
         "serious": "Grave"
       },
-      "advice": "Abrasión menor detectada. Mantén la zona limpia y cubierta. Cambia el vendaje a diario y controla signos de infección.",
-      "disclaimer": "Esto es solo orientativo. Busca siempre atención profesional para heridas graves.",
+      "advice": "VYVA puede describir lo visible y senalar lo que podria necesitar revision. Un profesional sanitario debe revisar cualquier cosa preocupante.",
+      "disclaimer": "Descripcion asistida solamente, no es consejo medico ni diagnostico. Un profesional sanitario cualificado debe revisar cualquier cosa preocupante.",
       "errorTitle": "Análisis no disponible",
-      "errorAdvice": "No hemos podido analizar la imagen en este momento. Inténtalo de nuevo o, si estás preocupado, contacta con un profesional sanitario.",
+      "errorAdvice": "No hemos podido revisar la imagen en este momento. Intentalo de nuevo o, si estas preocupado, contacta con un profesional sanitario.",
+      "errorConcern": "La imagen no se pudo revisar ahora mismo.",
+      "errorUncertainty": "El asistente no pudo completar la revision de la imagen.",
+      "errorNextStep": "Intentalo de nuevo o contacta con un profesional sanitario si estas preocupado.",
+      "category": {
+        "wounds": "Heridas",
+        "bruises": "Moratones",
+        "fluids": "Fluidos",
+        "stool": "Heces",
+        "urine": "Orina",
+        "xrays": "Radiografias"
+      },
+      "imageType": {
+        "xray": "Radiografia",
+        "wound_photo": "Foto de herida",
+        "stool_image": "Imagen de heces",
+        "urine_image": "Imagen de orina",
+        "fluid_image": "Imagen de fluido",
+        "bruise_photo": "Foto de moraton",
+        "skin_lesion": "Piel o lesion",
+        "other_medical_image": "Imagen medica",
+        "unclear": "Imagen poco clara"
+      },
+      "sections": {
+        "observations": "Lo que VYVA puede ver",
+        "concerns": "Lo que puede necesitar revision",
+        "limits": "Limites de esta imagen",
+        "nextStep": "Siguiente paso sugerido"
+      },
       "close": "Cerrar"
     },
     "findAlv": {

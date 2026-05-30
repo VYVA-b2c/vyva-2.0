@@ -738,9 +738,9 @@
       }
     },
     "scanWound": {
-      "title": "Scan My Wound",
-      "subtitle": "Take or upload a photo for AI analysis",
-      "cta": "Take or Upload Photo",
+      "title": "Visual Health Scan",
+      "subtitle": "Upload wounds, bruises, stool, urine, fluids, skin changes, or X-rays for an assistive review.",
+      "cta": "Take or upload image",
       "analyzing": "Analysing...",
       "resultTitle": "Analysis Result",
       "severity": "Mild",
@@ -749,10 +749,38 @@
         "moderate": "Moderate",
         "serious": "Serious"
       },
-      "advice": "Minor abrasion detected. Keep the area clean and covered. Change dressing daily and monitor for signs of infection.",
-      "disclaimer": "This is for guidance only. Always seek professional care for serious injuries.",
+      "advice": "VYVA can describe visible features and highlight what may need review. A qualified clinician should review anything concerning.",
+      "disclaimer": "Assistive description only, not medical advice or diagnosis. A qualified clinician should review anything concerning.",
       "errorTitle": "Analysis Unavailable",
-      "errorAdvice": "We were unable to analyse the image right now. Please try again, or if you are concerned, contact a healthcare professional.",
+      "errorAdvice": "We were unable to review the image right now. Please try again, or if you are concerned, contact a healthcare professional.",
+      "errorConcern": "The image could not be reviewed right now.",
+      "errorUncertainty": "The assistant could not complete the image review.",
+      "errorNextStep": "Please try again, or contact a healthcare professional if you are concerned.",
+      "category": {
+        "wounds": "Wounds",
+        "bruises": "Bruises",
+        "fluids": "Fluids",
+        "stool": "Stool",
+        "urine": "Urine",
+        "xrays": "X-rays"
+      },
+      "imageType": {
+        "xray": "X-ray",
+        "wound_photo": "Wound photo",
+        "stool_image": "Stool image",
+        "urine_image": "Urine image",
+        "fluid_image": "Fluid image",
+        "bruise_photo": "Bruise photo",
+        "skin_lesion": "Skin or lesion",
+        "other_medical_image": "Medical image",
+        "unclear": "Unclear image"
+      },
+      "sections": {
+        "observations": "What VYVA can see",
+        "concerns": "What may need review",
+        "limits": "Limits of this image",
+        "nextStep": "Suggested next step"
+      },
       "close": "Close"
     },
     "findAlv": {

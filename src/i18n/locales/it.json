@@ -705,9 +705,9 @@
       }
     },
     "scanWound": {
-      "title": "Scansiona la mia ferita",
-      "subtitle": "Scatta o carica una foto per l'analisi IA",
-      "cta": "Scatta o carica foto",
+      "title": "Controllo visivo della salute",
+      "subtitle": "Carica ferite, lividi, feci, urine, fluidi, cambiamenti della pelle o radiografie per una revisione assistita.",
+      "cta": "Scatta o carica immagine",
       "analyzing": "Analisi in corso...",
       "resultTitle": "Risultato dell'analisi",
       "severity": "Lieve",
@@ -716,10 +716,38 @@
         "moderate": "Moderata",
         "serious": "Grave"
       },
-      "advice": "Abrasione minore rilevata. Mantieni l'area pulita e coperta. Cambia la medicazione ogni giorno.",
-      "disclaimer": "Questo è solo orientativo. Consulta sempre un professionista per ferite gravi.",
+      "advice": "VYVA puo descrivere cio che e visibile e indicare cosa potrebbe richiedere una revisione. Un professionista sanitario qualificato dovrebbe controllare qualsiasi elemento preoccupante.",
+      "disclaimer": "Descrizione assistita soltanto, non consiglio medico o diagnosi. Un professionista qualificato dovrebbe controllare qualsiasi elemento preoccupante.",
       "errorTitle": "Analisi non disponibile",
-      "errorAdvice": "Non è stato possibile analizzare l'immagine al momento. Riprova oppure, se sei preoccupato, contatta un operatore sanitario.",
+      "errorAdvice": "Non e stato possibile rivedere l'immagine al momento. Riprova oppure, se sei preoccupato, contatta un operatore sanitario.",
+      "errorConcern": "L'immagine non puo essere rivista al momento.",
+      "errorUncertainty": "L'assistente non ha potuto completare la revisione dell'immagine.",
+      "errorNextStep": "Riprova oppure contatta un operatore sanitario se sei preoccupato.",
+      "category": {
+        "wounds": "Ferite",
+        "bruises": "Lividi",
+        "fluids": "Fluidi",
+        "stool": "Feci",
+        "urine": "Urine",
+        "xrays": "Radiografie"
+      },
+      "imageType": {
+        "xray": "Radiografia",
+        "wound_photo": "Foto di ferita",
+        "stool_image": "Immagine di feci",
+        "urine_image": "Immagine di urine",
+        "fluid_image": "Immagine di fluido",
+        "bruise_photo": "Foto di livido",
+        "skin_lesion": "Pelle o lesione",
+        "other_medical_image": "Immagine medica",
+        "unclear": "Immagine poco chiara"
+      },
+      "sections": {
+        "observations": "Cosa puo vedere VYVA",
+        "concerns": "Cosa potrebbe richiedere revisione",
+        "limits": "Limiti di questa immagine",
+        "nextStep": "Prossimo passo suggerito"
+      },
       "close": "Chiudi"
     },
     "findAlv": {

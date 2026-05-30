@@ -705,9 +705,9 @@
       }
     },
     "scanWound": {
-      "title": "Analisar a minha ferida",
-      "subtitle": "Tire ou carregue uma foto para análise por IA",
-      "cta": "Tirar ou carregar foto",
+      "title": "Analise visual de saude",
+      "subtitle": "Carregue feridas, nodoas negras, fezes, urina, fluidos, alteracoes da pele ou raios-X para uma revisao assistida.",
+      "cta": "Tirar ou carregar imagem",
       "analyzing": "A analisar...",
       "resultTitle": "Resultado da análise",
       "severity": "Leve",
@@ -716,10 +716,38 @@
         "moderate": "Moderada",
         "serious": "Grave"
       },
-      "advice": "Abrasão menor detetada. Mantenha a área limpa e coberta. Mude o penso diariamente.",
-      "disclaimer": "Isto é apenas orientativo. Procure sempre cuidados profissionais para feridas graves.",
+      "advice": "A VYVA pode descrever o que esta visivel e assinalar o que pode precisar de revisao. Um profissional de saude qualificado deve rever qualquer sinal preocupante.",
+      "disclaimer": "Descricao assistida apenas, nao e aconselhamento medico nem diagnostico. Um profissional qualificado deve rever qualquer sinal preocupante.",
       "errorTitle": "Análise indisponível",
-      "errorAdvice": "Não foi possível analisar a imagem neste momento. Tente novamente ou, se estiver preocupado, contacte um profissional de saúde.",
+      "errorAdvice": "Nao foi possivel rever a imagem neste momento. Tente novamente ou, se estiver preocupado, contacte um profissional de saude.",
+      "errorConcern": "A imagem nao pode ser revista neste momento.",
+      "errorUncertainty": "O assistente nao conseguiu concluir a revisao da imagem.",
+      "errorNextStep": "Tente novamente ou contacte um profissional de saude se estiver preocupado.",
+      "category": {
+        "wounds": "Feridas",
+        "bruises": "Nodoas negras",
+        "fluids": "Fluidos",
+        "stool": "Fezes",
+        "urine": "Urina",
+        "xrays": "Raios-X"
+      },
+      "imageType": {
+        "xray": "Raio-X",
+        "wound_photo": "Foto de ferida",
+        "stool_image": "Imagem de fezes",
+        "urine_image": "Imagem de urina",
+        "fluid_image": "Imagem de fluido",
+        "bruise_photo": "Foto de nodoa negra",
+        "skin_lesion": "Pele ou lesao",
+        "other_medical_image": "Imagem medica",
+        "unclear": "Imagem pouco clara"
+      },
+      "sections": {
+        "observations": "O que a VYVA pode ver",
+        "concerns": "O que pode precisar de revisao",
+        "limits": "Limites desta imagem",
+        "nextStep": "Proximo passo sugerido"
+      },
       "close": "Fechar"
     },
     "findAlv": {

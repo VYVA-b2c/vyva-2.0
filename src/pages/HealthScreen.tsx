@@ -52,6 +52,29 @@ type WoundScan = {
   scanned_at: string;
 };
 
+type VisualScanImageType =
+  | "xray"
+  | "wound_photo"
+  | "stool_image"
+  | "urine_image"
+  | "fluid_image"
+  | "bruise_photo"
+  | "skin_lesion"
+  | "other_medical_image"
+  | "unclear";
+
+type VisualScanResult = {
+  severity: string;
+  resultTitle: string;
+  advice: string;
+  imageType?: VisualScanImageType;
+  visibleObservations?: string[];
+  potentialConcerns?: string[];
+  uncertainty?: string[];
+  recommendedNextStep?: string;
+  isFallback?: boolean;
+};
+
 type TriageReport = {
   id: string;
   chief_complaint: string;
@@ -319,6 +342,179 @@ function deriveSpecialistExamples(conditions: string[] | undefined, language: st
 
 type TFunction = (key: string, fallback?: string) => string;
 
+export const VISUAL_SCAN_CATEGORY_KEYS = [
+  { key: "wounds", fallback: "Wounds" },
+  { key: "bruises", fallback: "Bruises" },
+  { key: "fluids", fallback: "Fluids" },
+  { key: "stool", fallback: "Stool" },
+  { key: "urine", fallback: "Urine" },
+  { key: "xrays", fallback: "X-rays" },
+] as const;
+
+const VISUAL_SCAN_IMAGE_TYPE_FALLBACKS: Record<VisualScanImageType, string> = {
+  xray: "X-ray",
+  wound_photo: "Wound photo",
+  stool_image: "Stool image",
+  urine_image: "Urine image",
+  fluid_image: "Fluid image",
+  bruise_photo: "Bruise photo",
+  skin_lesion: "Skin or lesion",
+  other_medical_image: "Medical image",
+  unclear: "Unclear image",
+};
+
+function visualScanImageTypeLabel(t: TFunction, imageType?: VisualScanImageType) {
+  const safeType = imageType ?? "unclear";
+  return t(`health.scanWound.imageType.${safeType}`, VISUAL_SCAN_IMAGE_TYPE_FALLBACKS[safeType]);
+}
+
+function visualScanList(items?: string[]) {
+  return Array.isArray(items) ? items.filter(Boolean) : [];
+}
+
+export function VisualHealthScanCardContent({
+  t,
+  analyzing,
+  onScan,
+}: {
+  t: TFunction;
+  analyzing: boolean;
+  onScan: () => void;
+}) {
+  return (
+    <>
+      <div className="flex flex-col gap-4 px-[18px] py-[18px] sm:flex-row sm:items-center">
+        <div className="flex items-center gap-4">
+          <div className="w-[58px] h-[58px] rounded-[20px] flex items-center justify-center flex-shrink-0" style={{ background: "#FFFBEB" }}>
+            <Camera size={30} style={{ color: "#C9890A" }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-body text-[21px] font-extrabold leading-tight text-vyva-text-1">
+              {t("health.scanWound.title", "Visual Health Scan")}
+            </p>
+            <p className="mt-2 font-body text-[14px] font-medium leading-snug text-vyva-text-2">
+              {t("health.scanWound.subtitle", "Upload wounds, bruises, stool, urine, fluids, skin changes, or X-rays for an assistive review.")}
+            </p>
+          </div>
+        </div>
+        <button
+          data-testid="button-scan-wound"
+          onClick={onScan}
+          disabled={analyzing}
+          className="vyva-tap flex-shrink-0 rounded-full px-[16px] py-[8px] font-body text-[14px] font-semibold transition-all"
+          style={{ background: "#FFFBEB", color: "#C9890A", border: "1px solid #FDE68A" }}
+        >
+          {analyzing ? t("health.scanWound.analyzing", "Analysing...") : t("health.scanWound.cta", "Take or upload image")}
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-2 px-[18px] pb-[16px]">
+        {VISUAL_SCAN_CATEGORY_KEYS.map((item) => (
+          <span
+            key={item.key}
+            className="rounded-full border border-[#FDE68A] bg-[#FFFBEB] px-3 py-1 font-body text-[12px] font-bold text-[#92400E]"
+          >
+            {t(`health.scanWound.category.${item.key}`, item.fallback)}
+          </span>
+        ))}
+      </div>
+    </>
+  );
+}
+
+export function VisualScanResultPanel({
+  result,
+  t,
+  onClose,
+}: {
+  result: VisualScanResult;
+  t: TFunction;
+  onClose: () => void;
+}) {
+  const visibleObservations = visualScanList(result.visibleObservations);
+  const potentialConcerns = visualScanList(result.potentialConcerns);
+  const uncertainty = visualScanList(result.uncertainty);
+  const hasStructuredReview = visibleObservations.length || potentialConcerns.length || uncertainty.length || result.recommendedNextStep;
+  const tone =
+    result.severity === "Serious"
+      ? { bg: "#FEF2F2", border: "#FECACA", badgeBg: "#FEE2E2", badgeText: "#991B1B" }
+      : result.severity === "Moderate"
+        ? { bg: "#FFFBEB", border: "#FDE68A", badgeBg: "#FEF3C7", badgeText: "#92400E" }
+        : { bg: "#F0FDFA", border: "#6EE7B7", badgeBg: "#D1FAE5", badgeText: "#065F46" };
+  const sections = [
+    { key: "observations", title: t("health.scanWound.sections.observations", "What VYVA can see"), items: visibleObservations },
+    { key: "concerns", title: t("health.scanWound.sections.concerns", "What may need review"), items: potentialConcerns },
+    { key: "limits", title: t("health.scanWound.sections.limits", "Limits of this image"), items: uncertainty },
+  ].filter((section) => section.items.length);
+
+  return (
+    <div
+      className="mx-[18px] mb-[16px] rounded-[18px] p-[14px]"
+      style={{ background: tone.bg, border: `1px solid ${tone.border}` }}
+    >
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <span
+          data-testid="text-wound-severity"
+          className="font-body text-[11px] font-semibold px-[8px] py-[2px] rounded-full"
+          style={{ background: tone.badgeBg, color: tone.badgeText }}
+        >
+          {t(`health.scanWound.severityLabel.${result.severity.toLowerCase()}`, result.severity)}
+        </span>
+        <span className="font-body text-[11px] font-semibold px-[8px] py-[2px] rounded-full bg-white text-vyva-text-2">
+          {visualScanImageTypeLabel(t, result.imageType)}
+        </span>
+        <p data-testid="text-wound-result-title" className="font-body text-[14px] font-extrabold text-vyva-text-1">
+          {result.resultTitle}
+        </p>
+      </div>
+
+      {hasStructuredReview ? (
+        <div className="grid gap-3">
+          {sections.map((section) => (
+            <section key={section.key} className="rounded-[14px] bg-white/72 p-3">
+              <p className="font-body text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#7C3AED]">
+                {section.title}
+              </p>
+              <ul className="mt-2 grid gap-1.5">
+                {section.items.map((item, index) => (
+                  <li key={`${section.key}-${index}`} className="font-body text-[13px] font-semibold leading-snug text-vyva-text-1">
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+          {result.recommendedNextStep ? (
+            <section className="rounded-[14px] bg-white/72 p-3">
+              <p className="font-body text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#7C3AED]">
+                {t("health.scanWound.sections.nextStep", "Suggested next step")}
+              </p>
+              <p className="mt-2 font-body text-[13px] font-semibold leading-snug text-vyva-text-1">
+                {result.recommendedNextStep}
+              </p>
+            </section>
+          ) : null}
+        </div>
+      ) : (
+        <p data-testid="text-wound-advice" className="font-body text-[13px] text-vyva-text-1 leading-snug mb-2">
+          {result.advice}
+        </p>
+      )}
+
+      <p className="mt-3 rounded-[12px] bg-white/72 px-3 py-2 font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
+        {t("health.scanWound.disclaimer", "Assistive description only, not medical advice or diagnosis. A qualified clinician should review anything concerning.")}
+      </p>
+      <button
+        data-testid="button-close-wound-result"
+        onClick={onClose}
+        className="mt-3 flex items-center gap-1 font-body text-[12px]"
+        style={{ color: "#6B7280" }}
+      >
+        <X size={12} /> {t("health.scanWound.close", "Close")}
+      </button>
+    </div>
+  );
+}
+
 function formatCheckinTime(value?: string | null) {
   if (!value) return "";
   const date = new Date(value);
@@ -543,7 +739,7 @@ const HealthScreen = () => {
   const [expandedScanId,   setExpandedScanId]   = useState<string | null>(null);
   const [fullScreenScan,   setFullScreenScan]   = useState<WoundScan | null>(null);
   const [woundAnalyzing,   setWoundAnalyzing]   = useState(false);
-  const [woundResult,      setWoundResult]      = useState<null | { severity: string; resultTitle: string; advice: string }>(null);
+  const [woundResult,      setWoundResult]      = useState<VisualScanResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const specialistRecognitionRef = useRef<BrowserSpeechRecognition | null>(null);
 
@@ -843,9 +1039,14 @@ const HealthScreen = () => {
     setWoundResult(null);
     setWoundAnalyzing(true);
 
-    const errorFallback = {
+    const errorFallback: VisualScanResult = {
       severity: "Minor",
+      imageType: "unclear",
       resultTitle: t("health.scanWound.errorTitle"),
+      visibleObservations: [],
+      potentialConcerns: [t("health.scanWound.errorConcern", "The image could not be reviewed right now.")],
+      uncertainty: [t("health.scanWound.errorUncertainty", "The assistant could not complete the image review.")],
+      recommendedNextStep: t("health.scanWound.errorNextStep", "Please try again, or contact a healthcare professional if you are concerned."),
       advice: t("health.scanWound.errorAdvice"),
     };
 
@@ -856,7 +1057,7 @@ const HealthScreen = () => {
           body: JSON.stringify({ image: dataUrl, language: i18n.language }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json() as { severity: string; resultTitle: string; advice: string; isFallback?: boolean };
+        const data = await res.json() as VisualScanResult;
         if (data.isFallback) {
           setWoundResult(errorFallback);
         } else {
@@ -1061,65 +1262,19 @@ const HealthScreen = () => {
               )}
             </div>
 
-            {/* Escanear herida */}
+            {/* Visual health scan */}
             <div
               className="vyva-card overflow-hidden"
               style={{ background: "#FFFFFF", border: "1px solid #EDE5DB", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" }}
             >
-              <div className="flex items-center gap-4 px-[18px] py-[18px]">
-                <div className="w-[58px] h-[58px] rounded-[20px] flex items-center justify-center flex-shrink-0" style={{ background: "#FFFBEB" }}>
-                  <Camera size={30} style={{ color: "#C9890A" }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-body text-[21px] font-extrabold leading-tight text-vyva-text-1">{t("health.scanWound.title", "Scan My Wound")}</p>
-                  <p className="mt-2 font-body text-[14px] font-medium leading-snug text-vyva-text-2">{t("health.scanWound.subtitle", "Take or upload a photo for AI analysis")}</p>
-                </div>
-                <button
-                  data-testid="button-scan-wound"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={woundAnalyzing}
-                  className="vyva-tap flex-shrink-0 rounded-full px-[16px] py-[8px] font-body text-[14px] font-semibold transition-all"
-                  style={{ background: "#FFFBEB", color: "#C9890A", border: "1px solid #FDE68A" }}
-                >
-                  {woundAnalyzing ? t("health.scanWound.analyzing", "Analysing...") : t("health.scanWound.cta", "Take or Upload Photo")}
-                </button>
-              </div>
+              <VisualHealthScanCardContent
+                t={t}
+                analyzing={woundAnalyzing}
+                onScan={() => fileInputRef.current?.click()}
+              />
 
               {woundResult && (
-                <div
-                  className="mx-[18px] mb-[16px] rounded-[14px] p-[14px]"
-                  style={{
-                    background: woundResult.severity === "Serious" ? "#FEF2F2" : woundResult.severity === "Moderate" ? "#FFFBEB" : "#F0FDFA",
-                    border: woundResult.severity === "Serious" ? "1px solid #FECACA" : woundResult.severity === "Moderate" ? "1px solid #FDE68A" : "1px solid #6EE7B7",
-                  }}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <span
-                      data-testid="text-wound-severity"
-                      className="font-body text-[11px] font-semibold px-[8px] py-[2px] rounded-full"
-                      style={
-                        woundResult.severity === "Serious"
-                          ? { background: "#FEE2E2", color: "#991B1B" }
-                          : woundResult.severity === "Moderate"
-                          ? { background: "#FEF3C7", color: "#92400E" }
-                          : { background: "#D1FAE5", color: "#065F46" }
-                      }
-                    >
-                      {t(`health.scanWound.severityLabel.${woundResult.severity.toLowerCase()}`, woundResult.severity)}
-                    </span>
-                    <p data-testid="text-wound-result-title" className="font-body text-[13px] font-semibold text-vyva-text-1">{woundResult.resultTitle}</p>
-                  </div>
-                  <p data-testid="text-wound-advice" className="font-body text-[13px] text-vyva-text-1 leading-snug mb-2">{woundResult.advice}</p>
-                  <p className="font-body text-[11px] leading-snug" style={{ color: "#6B7280" }}>⚠️ {t("health.scanWound.disclaimer")}</p>
-                  <button
-                    data-testid="button-close-wound-result"
-                    onClick={() => setWoundResult(null)}
-                    className="mt-2 flex items-center gap-1 font-body text-[12px]"
-                    style={{ color: "#6B7280" }}
-                  >
-                    <X size={12} /> {t("health.scanWound.close")}
-                  </button>
-                </div>
+                <VisualScanResultPanel result={woundResult} t={t} onClose={() => setWoundResult(null)} />
               )}
 
               {/* ── History toggle ── */}
@@ -1508,7 +1663,7 @@ const HealthScreen = () => {
 
       </div>
 
-      {/* Hidden file input for wound scan */}
+      {/* Hidden file input for visual health scan */}
       <input
         ref={fileInputRef}
         type="file"
@@ -1519,7 +1674,7 @@ const HealthScreen = () => {
         data-testid="input-wound-photo"
       />
 
-      {/* Full-screen scan image modal */}
+      {/* Full-screen visual scan image modal */}
       {fullScreenScan && (
         <ScanFullScreenModal scan={fullScreenScan} onClose={() => setFullScreenScan(null)} t={t} />
       )}

@@ -705,9 +705,9 @@
       }
     },
     "scanWound": {
-      "title": "Wunde scannen",
-      "subtitle": "Foto aufnehmen oder hochladen zur KI-Analyse",
-      "cta": "Foto aufnehmen oder hochladen",
+      "title": "Visueller Gesundheitscheck",
+      "subtitle": "Laden Sie Wunden, Bluterguesse, Stuhl, Urin, Fluessigkeiten, Hautveraenderungen oder Roentgenbilder fuer eine assistive Bewertung hoch.",
+      "cta": "Bild aufnehmen oder hochladen",
       "analyzing": "Wird analysiert...",
       "resultTitle": "Analyseergebnis",
       "severity": "Leicht",
@@ -716,10 +716,38 @@
         "moderate": "Mittel",
         "serious": "Schwer"
       },
-      "advice": "Leichte Abschürfung erkannt. Halten Sie den Bereich sauber und bedeckt. Wechseln Sie täglich den Verband.",
-      "disclaimer": "Dies dient nur zur Orientierung. Suchen Sie bei schweren Verletzungen immer professionelle Hilfe.",
+      "advice": "VYVA kann sichtbare Merkmale beschreiben und vorsichtig markieren, was geprueft werden sollte. Alles Auffaellige sollte von einer qualifizierten Fachperson angesehen werden.",
+      "disclaimer": "Nur assistive Beschreibung, keine medizinische Beratung oder Diagnose. Alles Auffaellige sollte von einer qualifizierten Fachperson geprueft werden.",
       "errorTitle": "Analyse nicht verfügbar",
-      "errorAdvice": "Das Bild konnte gerade nicht analysiert werden. Bitte versuchen Sie es erneut oder wenden Sie sich bei Bedenken an eine medizinische Fachkraft.",
+      "errorAdvice": "Das Bild konnte gerade nicht geprueft werden. Bitte versuchen Sie es erneut oder wenden Sie sich bei Bedenken an eine medizinische Fachkraft.",
+      "errorConcern": "Das Bild konnte gerade nicht geprueft werden.",
+      "errorUncertainty": "Der Assistent konnte die Bildpruefung nicht abschliessen.",
+      "errorNextStep": "Bitte versuchen Sie es erneut oder wenden Sie sich bei Bedenken an eine medizinische Fachkraft.",
+      "category": {
+        "wounds": "Wunden",
+        "bruises": "Bluterguesse",
+        "fluids": "Fluessigkeiten",
+        "stool": "Stuhl",
+        "urine": "Urin",
+        "xrays": "Roentgen"
+      },
+      "imageType": {
+        "xray": "Roentgenbild",
+        "wound_photo": "Wundfoto",
+        "stool_image": "Stuhlbild",
+        "urine_image": "Urinbild",
+        "fluid_image": "Fluessigkeitsbild",
+        "bruise_photo": "Blutergussfoto",
+        "skin_lesion": "Haut oder Laesion",
+        "other_medical_image": "Medizinisches Bild",
+        "unclear": "Unklares Bild"
+      },
+      "sections": {
+        "observations": "Was VYVA sehen kann",
+        "concerns": "Was geprueft werden sollte",
+        "limits": "Grenzen dieses Bildes",
+        "nextStep": "Vorgeschlagener naechster Schritt"
+      },
       "close": "Schließen"
     },
     "findAlv": {
