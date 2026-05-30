@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Activity, ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, Heart, Loader2, PhoneCall, Stethoscope } from "lucide-react";
@@ -399,6 +399,12 @@ function ReportScreen({
   const [openVitalKey, setOpenVitalKey] = useState<RefinementVitalKey | null>(null);
   const [vitalInputs, setVitalInputs] = useState<Record<string, string>>({});
   const [vitalInputError, setVitalInputError] = useState<string | null>(null);
+  const reportTopRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (refinementStatus.state === "done") {
+      reportTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [refinementStatus.state]);
   const saveStatusText = reportSaveState === "saved"
     ? t("health.symptomCheck.report.savedToReports", "Saved to Reports")
     : reportSaveState === "saving"
@@ -638,6 +644,7 @@ function ReportScreen({
 
   return (
     <div className="flex flex-col flex-1 overflow-y-auto">
+      <div ref={reportTopRef} />
       <section
         data-testid="card-report-answer"
         className={`mx-[18px] mb-4 mt-4 rounded-[28px] p-5 text-white shadow-[0_16px_36px_rgba(91,18,160,0.18)] ${isEmergency ? "motion-safe:animate-pulse" : ""}`}
@@ -763,6 +770,9 @@ function ReportScreen({
             const open = openVitalKey === action.key;
             const value = vitalInputs[action.key] ?? "";
             const busy = refinementStatus.state === "saving" || refinementStatus.state === "refining";
+            const statusTone = refinementStatus.state === "error"
+              ? "border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]"
+              : "border-[#BBF7D0] bg-[#ECFDF5] text-[#047857]";
             return (
               <div key={action.key} className="min-w-0 overflow-hidden rounded-[26px] border-2 border-[#6B21A8] bg-white p-4 shadow-[0_14px_34px_rgba(107,33,168,0.16)]">
                 <div className="mb-4 flex items-start gap-3">
@@ -815,26 +825,32 @@ function ReportScreen({
                     <ChevronLeft size={22} className="ml-3 flex-shrink-0 rotate-180 text-vyva-purple" />
                   </button>
                   {open ? (
-                    <div className="grid gap-3 border-t border-[#EADFD5] pt-3">
-                      <label className="flex min-h-[86px] items-baseline gap-3 rounded-[24px] border-2 border-[#DDD6FE] bg-white px-5">
+                    <div className="grid min-w-0 gap-3 overflow-hidden border-t border-[#EADFD5] pt-3">
+                      <label className="flex min-h-[86px] w-full min-w-0 max-w-full items-baseline gap-3 overflow-hidden rounded-[24px] border-2 border-[#DDD6FE] bg-white px-4">
                         <input
                           type="text"
                           inputMode={action.key === "bloodPressure" ? "text" : "decimal"}
                           value={value}
                           onChange={(event) => setVitalInputs((current) => ({ ...current, [action.key]: event.target.value }))}
                           placeholder={action.placeholder}
-                          className="min-w-0 flex-1 bg-transparent font-body text-[48px] font-black leading-none text-vyva-text-1 outline-none placeholder:text-[#D6C7BA]"
+                          className="w-full min-w-0 flex-1 bg-transparent font-body text-[44px] font-black leading-none text-vyva-text-1 outline-none placeholder:text-[#D6C7BA] sm:text-[48px]"
                         />
-                        <span className="font-body text-[20px] font-black text-vyva-text-2">{action.unit}</span>
+                        <span className="flex-shrink-0 font-body text-[18px] font-black text-vyva-text-2 sm:text-[20px]">{action.unit}</span>
                       </label>
                       {vitalInputError ? (
                         <p className="font-body text-[16px] font-black text-[#B91C1C]">{vitalInputError}</p>
+                      ) : null}
+                      {refinementStatus.message ? (
+                        <div className={`rounded-[18px] border p-3 font-body text-[16px] font-black leading-snug ${statusTone}`} aria-live="polite">
+                          {busy ? <Loader2 className="mr-2 inline h-5 w-5 animate-spin align-[-3px]" /> : null}
+                          {refinementStatus.message}
+                        </div>
                       ) : null}
                       <button
                         type="button"
                         disabled={busy}
                         onClick={() => handleRefineVital(action, value)}
-                        className="vyva-tap flex min-h-[74px] items-center justify-center gap-3 rounded-[22px] bg-[#0A7C4E] px-5 font-body text-[20px] font-black text-white disabled:opacity-60"
+                        className="vyva-tap flex min-h-[74px] w-full min-w-0 max-w-full items-center justify-center gap-3 overflow-hidden rounded-[22px] bg-[#0A7C4E] px-4 text-center font-body text-[18px] font-black leading-tight text-white disabled:opacity-60 sm:text-[20px]"
                       >
                         {busy ? <Loader2 size={22} className="animate-spin" /> : <CheckCircle size={22} />}
                         {busy
@@ -848,7 +864,7 @@ function ReportScreen({
             );
           })}
           {refinementStatus.message ? (
-            <div className={`min-w-0 rounded-[22px] border p-4 font-body text-[17px] font-black leading-snug ${
+            <div className={`col-span-2 rounded-[22px] border p-4 font-body text-[17px] font-black leading-snug ${
               refinementStatus.state === "error"
                 ? "border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]"
                 : "border-[#BBF7D0] bg-[#ECFDF5] text-[#047857]"
