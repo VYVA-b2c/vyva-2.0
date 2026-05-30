@@ -403,6 +403,15 @@ function inferSymptomFromClue(rawClue: string, locale: string): TriageQuickReply
   return reply(locale, "other", "symptom", "Something else", "Otra cosa", "Something else is bothering me.", "Me pasa otra cosa.", "help", "purple");
 }
 
+function inferContextFromClue(rawClue: string, locale: string): TriageQuickReply | null {
+  const clue = normalizeClue(rawClue);
+  if (/\b(anxiety|anxious|panic|panicky|nervous|ansiedad|ansiedade|ansia|anxiete|angst|angstgefuhl|panico|panique|panik|nervios|nervioso|nerviosa|nervoso|nervosa)\b/.test(clue)) {
+    return reply(locale, "anxiety_context", "free_text", "Anxiety or panic", "Ansiedad o panico", "This feels like anxiety or panic.", "Esto se siente como ansiedad o panico.", "help", "purple");
+  }
+
+  return null;
+}
+
 function inferRedFlagFromClue(rawClue: string, symptomId: string | undefined, locale: string): TriageQuickReply | null {
   const clue = normalizeClue(rawClue);
   if (!clue) return null;
@@ -444,9 +453,11 @@ function wizardWithInferredClue(
   const symptom = inferSymptomFromClue(clue, locale);
   if (!symptom) return wizard;
 
+  const context = symptom.id === "other" ? inferContextFromClue(clue, locale) : null;
   const redFlag = inferRedFlagFromClue(clue, symptom.id, locale);
   const inferredAnswers = [
     { id: symptom.id, label: symptom.label, value: symptom.value, kind: symptom.kind },
+    context ? { id: context.id, label: context.label, value: context.value, kind: context.kind } : null,
     redFlag ? { id: redFlag.id, label: redFlag.label, value: redFlag.value, kind: redFlag.kind } : null,
   ].filter(Boolean) as NonNullable<TriageWizardContext["quickAnswers"]>;
 
@@ -1342,6 +1353,20 @@ router.post("/message", async (req: Request, res: Response) => {
     });
   }
 
+  const stage = nextAdaptiveStage(effectiveWizard, healthMemory);
+  if (stage !== "complete") {
+    const protocolQuestion = wizardQuestionText(stage, effectiveWizard, normalizedLocale);
+    return res.json({
+      role: "assistant",
+      content: protocolQuestion,
+      done: false,
+      quickReplies: quickRepliesFor(effectiveWizard, normalizedLocale, healthMemory),
+      wizardStage: stage,
+      wizardStageLabel: wizardStageLabel(stage, normalizedLocale),
+      evidenceSources: [],
+    });
+  }
+
   const apiKey = process.env.OPENAI_API_KEY ?? "";
   if (!apiKey) {
     return res.status(503).json({ error: "AI service not configured" });
@@ -1385,7 +1410,6 @@ router.post("/message", async (req: Request, res: Response) => {
         }
       : null;
 
-    const stage = nextAdaptiveStage(effectiveWizard, healthMemory);
     const protocolQuestion = wizardQuestionText(stage, effectiveWizard, normalizedLocale);
     return res.json({
       role: "assistant",
