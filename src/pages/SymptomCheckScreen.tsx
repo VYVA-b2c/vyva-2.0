@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Activity, ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, Heart, Loader2, PhoneCall, Send, Stethoscope } from "lucide-react";
+import { Activity, ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, Heart, Loader2, PhoneCall, RefreshCw, Send, Stethoscope } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import TriageChat, { type TriageChatDraft } from "@/components/TriageChat";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
@@ -210,23 +210,52 @@ function StepDots({ current }: { current: Step }) {
   );
 }
 
-function IntroScreen({ onStart }: { onStart: (clue: string) => void }) {
+export function IntroScreen({ onStart }: { onStart: (clue: string) => void }) {
   const { t } = useTranslation();
   const [clue, setClue] = useState("");
+  const [quickClueSetIndex, setQuickClueSetIndex] = useState(0);
   const cleanClue = clue.trim();
   const canStart = cleanClue.length >= 2;
-  const quickClues = [
-    t("health.symptomCheck.intro.clueHeadache", "Bad headache"),
-    t("health.symptomCheck.intro.clueBreathing", "Short of breath"),
-    t("health.symptomCheck.intro.clueDizzy", "Dizzy"),
-    t("health.symptomCheck.intro.clueFever", "Fever"),
-    t("health.symptomCheck.intro.clueFall", "I fell"),
-    t("health.symptomCheck.intro.clueUrine", "Pain when I pee"),
-    t("health.symptomCheck.intro.clueChest", "Chest pain"),
-    t("health.symptomCheck.intro.clueStomach", "Stomach pain"),
-    t("health.symptomCheck.intro.clueMedicine", "Medication concern"),
-    t("health.symptomCheck.intro.clueAnxiety", "Feeling anxious"),
+  const quickClueSets = [
+    [
+      t("health.symptomCheck.intro.clueHeadache", "Bad headache"),
+      t("health.symptomCheck.intro.clueBreathing", "Short of breath"),
+      t("health.symptomCheck.intro.clueDizzy", "Dizzy"),
+      t("health.symptomCheck.intro.clueFever", "Fever"),
+      t("health.symptomCheck.intro.clueFall", "I fell"),
+      t("health.symptomCheck.intro.clueUrine", "Pain when I pee"),
+      t("health.symptomCheck.intro.clueChest", "Chest pain"),
+      t("health.symptomCheck.intro.clueStomach", "Stomach pain"),
+      t("health.symptomCheck.intro.clueMedicine", "Medication concern"),
+      t("health.symptomCheck.intro.clueAnxiety", "Feeling anxious"),
+    ],
+    [
+      t("health.symptomCheck.intro.clueCough", "Cough"),
+      t("health.symptomCheck.intro.clueBack", "Back pain"),
+      t("health.symptomCheck.intro.clueThroat", "Sore throat"),
+      t("health.symptomCheck.intro.clueRash", "Rash"),
+      t("health.symptomCheck.intro.clueNausea", "Nausea"),
+      t("health.symptomCheck.intro.clueSleep", "Trouble sleeping"),
+      t("health.symptomCheck.intro.clueSwelling", "Leg swelling"),
+      t("health.symptomCheck.intro.clueEar", "Ear pain"),
+      t("health.symptomCheck.intro.clueLowEnergy", "Low energy"),
+      t("health.symptomCheck.intro.clueConfusion", "New confusion"),
+    ],
+    [
+      t("health.symptomCheck.intro.clueVomiting", "Vomiting"),
+      t("health.symptomCheck.intro.clueDiarrhea", "Diarrhea"),
+      t("health.symptomCheck.intro.clueEye", "Eye pain"),
+      t("health.symptomCheck.intro.clueNumbness", "Numbness"),
+      t("health.symptomCheck.intro.clueWeakness", "Weakness"),
+      t("health.symptomCheck.intro.clueSideEffect", "Side effect"),
+      t("health.symptomCheck.intro.clueBleeding", "Bleeding"),
+      t("health.symptomCheck.intro.cluePalpitations", "Palpitations"),
+      t("health.symptomCheck.intro.clueLowMood", "Low mood"),
+      t("health.symptomCheck.intro.clueWound", "Skin wound"),
+    ],
   ];
+  const quickClues = quickClueSets[quickClueSetIndex] ?? quickClueSets[0];
+  const refreshCluesLabel = t("health.symptomCheck.intro.refreshCluesLabel", "Refresh examples");
 
   return (
     <div className="flex flex-1 flex-col gap-5 px-[18px] py-5">
@@ -249,7 +278,17 @@ function IntroScreen({ onStart }: { onStart: (clue: string) => void }) {
           data-testid="input-symptom-clue"
           className="min-h-[78px] rounded-[24px] border-2 border-[#DDD6FE] bg-white px-5 font-body text-[22px] font-black text-vyva-text-1 shadow-[0_10px_26px_rgba(63,45,35,0.06)] outline-none placeholder:text-[#9A8C83] focus:border-[#6B21A8]"
         />
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            aria-label={refreshCluesLabel}
+            title={refreshCluesLabel}
+            data-testid="button-refresh-symptom-clues"
+            onClick={() => setQuickClueSetIndex((current) => (current + 1) % quickClueSets.length)}
+            className="vyva-tap flex h-[58px] w-[58px] flex-shrink-0 items-center justify-center rounded-full border border-[#D8C7FF] bg-[#F7F1FF] text-[#6B21A8] shadow-[0_4px_12px_rgba(107,33,168,0.08)] transition hover:border-[#B794F4] hover:bg-[#F1E8FF] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8]"
+          >
+            <RefreshCw size={22} strokeWidth={2.7} aria-hidden="true" />
+          </button>
           {quickClues.map((quickClue) => (
             <button
               key={quickClue}
@@ -341,26 +380,26 @@ function uniqueLines(lines: string[]) {
 function simplifyReportRecommendations(lines: string[]) {
   const unique = uniqueLines(lines);
   const hasDoctorContactAction = unique.some((line) =>
-    /^(contacta|contact).*(doctor|m[eé]dico|cl[ií]nica|urgent care|urgencias)/i.test(line),
+    /^(contacta|contact).*(doctor|m(?:e|\u00e9)dico|cl(?:i|\u00ed)nica|clinic|urgent care|urgencias)/i.test(line),
   );
 
   return unique.filter((line, index) => {
     if (!hasDoctorContactAction) return true;
-    return !/^(habla|talk|speak).*(doctor|m[eé]dico).*hoy/i.test(line);
+    return !/^(habla|talk|speak).*(doctor|m(?:e|\u00e9)dico).*hoy/i.test(line);
   });
 }
 
 function compactDoctorContactRecommendations(lines: string[]) {
   const unique = simplifyReportRecommendations(lines);
   const doctorContactIndex = unique.findIndex((line) =>
-    /\b(contacta|contact|habla|talk|speak|comparte|share)\b.*\b(doctor|m.dico|clinic|cl.nica|urgent care|urgencias)\b/i.test(line),
+    /\b(contacta|contact|habla|talk|speak|comparte|share)\b.*\b(doctor|m(?:e|\u00e9)dico|clinic|cl(?:i|\u00ed)nica|urgent care|urgencias)\b/i.test(line),
   );
 
   if (doctorContactIndex < 0) return unique;
 
   return unique.filter((line, index) => {
     if (index === doctorContactIndex) return true;
-    return !/\b(contacta|contact|habla|talk|speak|comparte|share)\b.*\b(doctor|m.dico|clinic|cl.nica|urgent care|urgencias)\b/i.test(line);
+    return !/\b(contacta|contact|habla|talk|speak|comparte|share)\b.*\b(doctor|m(?:e|\u00e9)dico|clinic|cl(?:i|\u00ed)nica|urgent care|urgencias)\b/i.test(line);
   });
 }
 
@@ -614,7 +653,7 @@ function ReportScreen({
     `${t("health.symptomCheck.report.tellMainSymptom", "Main symptom")}: ${summary.chiefComplaint}`,
     summary.symptoms.length ? `${t("health.symptomCheck.report.symptoms", "Symptoms noted")}: ${summary.symptoms.join(", ")}` : "",
     nextStepDisplayText ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${nextStepDisplayText}` : "",
-    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why VYVA chose this")}: ${summary.triageReasons.join(" ")}` : "",
+    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Initial assessment")}: ${summary.triageReasons.join(" ")}` : "",
     summary.vitalsNotes?.length ? `${t("health.symptomCheck.report.vitalsUsed", "Vitals used")}: ${summary.vitalsNotes.join(" ")}` : "",
     summary.profileConsiderations?.length ? `${t("health.symptomCheck.report.profileConsidered", "Profile considered")}: ${summary.profileConsiderations.join(" ")}` : "",
     summary.watchSigns?.length ? `${t("health.symptomCheck.report.watchSigns", "Watch signs")}: ${summary.watchSigns.join(" ")}` : "",
@@ -626,7 +665,7 @@ function ReportScreen({
     respiratoryRate != null ? `${t("health.symptomCheck.scan.respiratoryRate", "Resp. Rate")}: ${respiratoryRate} rpm` : "",
     `${urgencyQualifierText}: ${urgencyStatusText}`,
     nextStepDisplayText ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${nextStepDisplayText}` : "",
-    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why VYVA chose this")}: ${summary.triageReasons.join(" ")}` : "",
+    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Initial assessment")}: ${summary.triageReasons.join(" ")}` : "",
     summary.evidenceSummary ? `${t("health.symptomCheck.report.evidenceChecked", "Science-based source check")}: ${summary.evidenceSummary}` : "",
     summary.recommendations.length ? `${t("health.symptomCheck.report.recommendations", "What to do next")}: ${summary.recommendations.join(" ")}` : "",
     summary.watchSigns?.length ? `${t("health.symptomCheck.report.watchSigns", "Watch signs")}: ${summary.watchSigns.join(" ")}` : "",
@@ -705,7 +744,7 @@ function ReportScreen({
     "",
     `${urgencyQualifierText}: ${urgencyStatusText}`,
     nextStepDisplayText ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${nextStepDisplayText}` : "",
-    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why VYVA chose this")}: ${summary.triageReasons.join(" ")}` : "",
+    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Initial assessment")}: ${summary.triageReasons.join(" ")}` : "",
     summary.evidenceSummary ? `${t("health.symptomCheck.report.evidenceChecked", "Science-based source check")}: ${summary.evidenceSummary}` : "",
     "",
     t("health.symptomCheck.report.recommendations") + ":",
@@ -796,16 +835,18 @@ function ReportScreen({
 
       <div className="flex flex-col gap-4 px-[18px] pb-[236px]">
         {visibleReasons.length ? (
-          <section className="rounded-[22px] border border-[#DDD6FE] bg-[#F5F3FF] p-4 text-vyva-purple shadow-[0_8px_22px_rgba(63,45,35,0.05)]" data-testid="card-report-why">
-            <div className="mb-3 flex items-center gap-2">
-              <AlertTriangle size={18} />
-              <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em]">
-                {t("health.symptomCheck.report.whyThisStep", "Why VYVA chose this")}
+          <section className="rounded-[26px] border-2 border-[#7C3AED] bg-[linear-gradient(135deg,#F5F3FF_0%,#FFFFFF_58%,#FFF7ED_100%)] p-4 text-vyva-purple shadow-[0_18px_38px_rgba(107,33,168,0.18)] ring-4 ring-[#F5E8FF]" data-testid="card-report-why">
+            <div className="mb-4 flex items-center gap-3">
+              <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#6B21A8] text-white shadow-[0_10px_22px_rgba(107,33,168,0.22)]">
+                <Stethoscope size={20} />
+              </span>
+              <p className="font-body text-[13px] font-extrabold uppercase tracking-[0.12em]">
+                {t("health.symptomCheck.report.whyThisStep", "Initial assessment")}
               </p>
             </div>
-            <ul className="grid gap-2">
+            <ul className="grid gap-3 border-l-4 border-[#7C3AED] pl-4">
               {visibleReasons.map((reason, index) => (
-                <li key={index} className="font-body text-[16px] font-bold leading-snug text-vyva-text-1">
+                <li key={index} className="font-body text-[18px] font-black leading-snug text-vyva-text-1">
                   {reason}
                 </li>
               ))}
@@ -832,17 +873,24 @@ function ReportScreen({
         ) : null}
 
         {visibleWatchSigns.length ? (
-          <section className="rounded-[22px] border border-[#FED7AA] bg-[#FFF7ED] p-4 text-[#9A3412] shadow-[0_8px_22px_rgba(63,45,35,0.05)]" data-testid="card-report-watch">
-            <div className="mb-3 flex items-center gap-2">
-              <AlertTriangle size={18} />
-              <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em]">
+          <section className="overflow-hidden rounded-[28px] border-2 border-[#FDBA74] bg-[#FFF7ED] text-[#9A3412] shadow-[0_18px_42px_rgba(154,52,18,0.12)]" data-testid="card-report-watch">
+            <div className="flex items-center gap-3 border-b border-[#FED7AA] bg-[#FFEDD5] px-4 py-3">
+              <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#C2410C] text-white shadow-[0_10px_22px_rgba(194,65,12,0.22)]">
+                <AlertTriangle size={25} strokeWidth={2.4} />
+              </span>
+              <p className="font-body text-[13px] font-black uppercase tracking-[0.11em]">
                 {t("health.symptomCheck.report.watchSigns", "Watch for")}
               </p>
             </div>
-            <ul className="grid gap-2">
+            <ul className="grid gap-3 p-4">
               {visibleWatchSigns.map((sign, index) => (
-                <li key={index} className="font-body text-[16px] font-bold leading-snug">
-                  {sign}
+                <li key={index} className="flex items-start gap-3 rounded-[20px] border border-[#FED7AA] bg-white px-4 py-3 shadow-[0_8px_18px_rgba(154,52,18,0.08)]">
+                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#FFF7ED] text-[#C2410C] ring-2 ring-[#FDBA74]">
+                    <AlertTriangle size={17} strokeWidth={2.5} />
+                  </span>
+                  <span className="font-body text-[17px] font-black leading-snug text-[#9A3412]">
+                    {sign}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -1087,14 +1135,20 @@ function ReportScreen({
             ) : null}
 
             {summary.watchSigns?.length ? (
-              <div>
-                <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-[#9A3412]">
-                  {t("health.symptomCheck.report.watchSigns", "Watch for")}
-                </p>
+              <div className="rounded-[22px] border border-[#FED7AA] bg-[#FFF7ED] p-3">
+                <div className="flex items-center gap-2 text-[#9A3412]">
+                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#C2410C] text-white">
+                    <AlertTriangle size={18} />
+                  </span>
+                  <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em]">
+                    {t("health.symptomCheck.report.watchSigns", "Watch for")}
+                  </p>
+                </div>
                 <ul className="mt-3 grid gap-2">
                   {summary.watchSigns.map((sign, index) => (
-                    <li key={index} className="font-body text-[15px] font-bold leading-snug text-[#9A3412]">
-                      {sign}
+                    <li key={index} className="flex items-start gap-2 rounded-[16px] bg-white px-3 py-2 font-body text-[15px] font-bold leading-snug text-[#9A3412]">
+                      <AlertTriangle size={16} className="mt-0.5 flex-shrink-0 text-[#C2410C]" />
+                      <span>{sign}</span>
                     </li>
                   ))}
                 </ul>
