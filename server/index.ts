@@ -44,6 +44,7 @@ import {
   conciergeRecommendationsHandler,
 } from "./routes/concierge.js";
 import conciergeActionsRouter from "./routes/conciergeActions.js";
+import conciergeShoppingRouter from "./routes/conciergeShopping.js";
 import { woundScanHandler, woundScanHistoryHandler, woundScanDeleteHandler } from "./routes/woundScan.js";
 import { homeScanHandler, homeScanHistoryHandler, homeScanDeleteHandler } from "./routes/homeScan.js";
 import { scamCheckHandler, scamCheckHistoryHandler, scamCheckDeleteHandler } from "./routes/scamCheck.js";
@@ -143,6 +144,7 @@ app.post("/api/concierge", authMiddleware, requireUser, requireEntitlement("conc
 app.post("/api/concierge/recommendations", authMiddleware, requireUser, requireEntitlement("concierge"), conciergeRecommendationsHandler);
 app.post("/api/concierge/recommendations/plan", authMiddleware, requireUser, requireEntitlement("concierge"), conciergeRecommendationPlanHandler);
 app.post("/api/concierge/recommendations/feedback", authMiddleware, requireUser, requireEntitlement("concierge"), conciergeRecommendationFeedbackHandler);
+app.use("/api/concierge/shopping", authMiddleware, requireUser, requireEntitlement("concierge"), conciergeShoppingRouter);
 app.use("/api/concierge/actions", conciergeActionsRouter);
 app.post("/api/allergies-voice-parse", allergiesVoiceParseHandler);
 app.post("/api/address-voice-parse", addressVoiceParseHandler);

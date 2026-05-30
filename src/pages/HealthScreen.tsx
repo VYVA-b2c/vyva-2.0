@@ -332,7 +332,7 @@ function dailyCheckinTone(status?: DailyCheckinToday["status"]) {
   return { bg: "#F5F3FF", text: "#6B21A8", Icon: HeartPulse };
 }
 
-function DailyCheckinCard({
+export function DailyCheckinCard({
   checkin,
   t,
   onPrimary,
@@ -354,9 +354,21 @@ function DailyCheckinCard({
     checkin?.status === "not_scheduled" ? t("health.dailyCheckin.setup", "Set up daily check-in") :
     t("health.dailyCheckin.upcoming", "Scheduled today");
   const message =
-    checkin?.message ??
-    t("health.dailyCheckin.loadingMessage", "A short daily check helps VYVA know you are okay.");
-  const primaryLabel = checkin?.action_label ?? t("health.dailyCheckin.primary", "Check in now");
+    !checkin ? t("health.dailyCheckin.loadingMessage", "A short daily check helps VYVA know you are okay.") :
+    checkin.status === "completed" ? t("health.dailyCheckin.messages.completed", "You checked in today. VYVA has a fresh wellbeing signal.") :
+    checkin.status === "due_now" ? t("health.dailyCheckin.messages.dueNow", "Your daily check-in is ready. A quick answer lets everyone know you are okay.") :
+    checkin.status === "overdue" ? (
+      checkin.no_response.reason
+        ? t("health.dailyCheckin.messages.overdueNeedsContact", "The daily check-in is overdue. Add or confirm a caregiver contact so VYVA can escalate when needed.")
+        : t("health.dailyCheckin.messages.overdueAlerted", "The daily check-in is overdue, so VYVA has recorded a caregiver safety alert.")
+    ) :
+    checkin.status === "upcoming" ? t("health.dailyCheckin.messages.upcoming", "Your daily check-in is scheduled for later today.") :
+    t("health.dailyCheckin.messages.notScheduled", "Set a daily check-in time so VYVA can notice if you do not respond.");
+  const primaryLabel =
+    checkin?.status === "completed" ? t("health.dailyCheckin.actions.viewHistory", "View history") :
+    checkin?.status === "upcoming" ? t("health.dailyCheckin.actions.checkInEarly", "Check in early") :
+    checkin?.status === "not_scheduled" ? t("health.dailyCheckin.actions.setup", "Set up check-in") :
+    t("health.dailyCheckin.actions.primary", "Check in now");
   const showHistoryAction = checkin?.status !== "completed";
   const detail =
     checkin?.status === "completed" && completedTime

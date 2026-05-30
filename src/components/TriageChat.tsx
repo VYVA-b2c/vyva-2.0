@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { Activity, AlertCircle, BookOpenCheck, HelpCircle, HeartPulse, ListChecks, Mic, PhoneCall, Send, ShieldCheck, Square, Thermometer, UserRound, Wind } from "lucide-react";
+import { Activity, AlertCircle, BookOpenCheck, HelpCircle, HeartPulse, Mic, PhoneCall, Send, Square, Thermometer, Wind } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
-import i18n from "@/i18n";
+import { useLanguage } from "@/i18n";
 import { HealthWizardCard, HealthWizardChoiceTile, HealthWizardHero } from "@/components/health/HealthWizard";
 
 export interface ChatMessage {
@@ -55,6 +55,8 @@ interface TriageResponse {
   wizardStageLabel?: string;
   evidenceSources?: TriageEvidenceSource[];
   emergencyContact?: EmergencyContact;
+  medisearchConversationId?: string;
+  medicalFollowups?: string[];
 }
 
 type WizardEntryMode = "with_vitals" | "without_vitals";
@@ -83,6 +85,8 @@ interface TriageChatProps {
   autoStartVoice?: boolean;
   initialDraft?: TriageChatDraft | null;
   resumePendingRequest?: boolean;
+  language?: string;
+  languageReady?: boolean;
   onDraftChange?: (draft: TriageChatDraft) => void;
   onVoiceAutoStarted?: () => void;
   onComplete: (summary: TriageSummary) => void;
@@ -125,6 +129,8 @@ export type TriageChatDraft = {
   safetyAlert?: TriageSafetyAlert | null;
   emergencyContact?: EmergencyContact | null;
   wizardStageLabel?: string;
+  medisearchConversationId?: string | null;
+  medicalFollowups?: string[];
   pendingRequest?: boolean;
 };
 
@@ -184,36 +190,30 @@ const speechLangFor = (language: string) => {
 
 function TriageReviewPanel() {
   const { t } = useTranslation();
+  const [headlineIndex, setHeadlineIndex] = useState(0);
   const reviewSteps = [
-    {
-      key: "medical",
-      Icon: BookOpenCheck,
-      label: t("health.symptomCheck.chat.reviewStepMedical", "Reviewing trusted medical guidance"),
-      className: "bg-[#EEF2FF] text-[#4F46E5]",
-    },
-    {
-      key: "safety",
-      Icon: ShieldCheck,
-      label: t("health.symptomCheck.chat.reviewStepSafety", "Checking your answers for red flags"),
-      className: "bg-[#FEF2F2] text-[#B91C1C]",
-    },
-    {
-      key: "profile",
-      Icon: UserRound,
-      label: t("health.symptomCheck.chat.reviewStepProfile", "Considering your health profile and medications"),
-      className: "bg-[#F4ECFF] text-vyva-purple",
-    },
-    {
-      key: "next",
-      Icon: ListChecks,
-      label: t("health.symptomCheck.chat.reviewStepNext", "Preparing clear next steps"),
-      className: "bg-[#ECFDF5] text-[#047857]",
-    },
+    t("health.symptomCheck.chat.reviewStepMedical", "Reviewing trusted medical guidance"),
+    t("health.symptomCheck.chat.reviewStepSafety", "Checking your answers for red flags"),
+    t("health.symptomCheck.chat.reviewStepProfile", "Considering your health profile and medications"),
+    t("health.symptomCheck.chat.reviewStepNext", "Preparing clear next steps"),
   ];
+  const reviewHeadlines = [
+    t("health.symptomCheck.chat.reviewTitle", "Checking your next step"),
+    ...reviewSteps,
+  ];
+  const activeHeadline = reviewHeadlines[headlineIndex % reviewHeadlines.length];
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setHeadlineIndex((current) => (current + 1) % reviewHeadlines.length);
+    }, 2200);
+
+    return () => clearInterval(timer);
+  }, [reviewHeadlines.length]);
 
   return (
     <section
-      className="rounded-[28px] border border-[#E8DED4] bg-white px-4 py-4 shadow-[0_16px_36px_rgba(63,45,35,0.09)]"
+      className="rounded-[26px] border border-[#E8DED4] bg-white px-5 py-5 shadow-[0_14px_30px_rgba(63,45,35,0.08)]"
       data-testid="triage-review-panel"
       aria-live="polite"
       aria-label={t("health.symptomCheck.chat.reviewAria", "VYVA is reviewing your answers and preparing guidance")}
@@ -227,38 +227,13 @@ function TriageReviewPanel() {
           <p className="font-body text-[11px] font-black uppercase tracking-[0.16em] text-vyva-purple">
             {t("health.symptomCheck.chat.reviewEyebrow", "VYVA is reviewing")}
           </p>
-          <h2 className="mt-1 font-body text-[21px] font-black leading-tight text-vyva-text-1 sm:text-[23px]">
-            {t("health.symptomCheck.chat.reviewTitle", "VYVA is checking the safest next step")}
+          <h2
+            className="mt-1 min-h-[64px] font-body text-[24px] font-black leading-tight text-vyva-text-1 sm:min-h-[66px] sm:text-[26px]"
+            data-testid="triage-review-headline"
+          >
+            {activeHeadline}
           </h2>
-          <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
-            {t("health.symptomCheck.chat.reviewSubtitle", "VYVA checks your answers against trusted guidance and your profile before suggesting what to do next.")}
-          </p>
         </div>
-      </div>
-
-      <div className="mt-4 flex items-center justify-center gap-2" aria-hidden="true">
-        {reviewSteps.map(({ key, Icon, label, className }, index) => (
-          <span
-            key={key}
-            className={`triage-review-chip flex h-10 w-10 items-center justify-center rounded-[14px] ${className}`}
-            style={{ animationDelay: `${index * 160}ms` }}
-            title={label}
-          >
-            <Icon size={19} strokeWidth={2.4} />
-          </span>
-        ))}
-      </div>
-
-      <div className="triage-review-lines relative mt-3 min-h-[34px] overflow-hidden rounded-full bg-[#F4ECFF] px-4 py-2 text-center">
-        {reviewSteps.map(({ key, label }, index) => (
-          <p
-            key={key}
-            className="triage-review-line absolute inset-x-4 top-2 font-body text-[14px] font-black leading-tight text-vyva-purple"
-            style={{ animationDelay: `${index * 1.8}s` }}
-          >
-            {label}
-          </p>
-        ))}
       </div>
     </section>
   );
@@ -273,11 +248,15 @@ export default function TriageChat({
   autoStartVoice = false,
   initialDraft = null,
   resumePendingRequest = false,
+  language,
+  languageReady = true,
   onDraftChange,
   onVoiceAutoStarted,
   onComplete,
 }: TriageChatProps) {
   const { t } = useTranslation();
+  const { language: appLanguage } = useLanguage();
+  const activeLanguage = language ?? appLanguage;
   const hasInitialDraft = Boolean(initialDraft);
   const [messages, setMessages] = useState<ChatMessage[]>(() => initialDraft?.messages ?? []);
   const [input, setInput] = useState("");
@@ -293,6 +272,8 @@ export default function TriageChat({
   const [safetyAlert, setSafetyAlert] = useState<TriageResponse["safetyAlert"] | null>(() => initialDraft?.safetyAlert ?? null);
   const [emergencyContact, setEmergencyContact] = useState<EmergencyContact | null>(() => initialDraft?.emergencyContact ?? initialDraft?.safetyAlert?.emergencyContact ?? null);
   const [wizardStageLabel, setWizardStageLabel] = useState(() => initialDraft?.wizardStageLabel ?? "");
+  const [medisearchConversationId, setMedisearchConversationId] = useState<string | null>(() => initialDraft?.medisearchConversationId ?? null);
+  const [medicalFollowups, setMedicalFollowups] = useState<string[]>(() => initialDraft?.medicalFollowups ?? []);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const animTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -320,17 +301,16 @@ export default function TriageChat({
           { id: "worse", label: t("health.symptomCheck.chat.quickWorse", "Worse"), value: t("health.symptomCheck.chat.quickWorseValue", "It is getting worse."), Icon: Activity, tone: "amber", kind: "trend" },
           { id: "not_sure", label: t("health.symptomCheck.chat.quickNotSure", "Not sure"), value: t("health.symptomCheck.chat.quickNotSureValue", "I am not sure."), Icon: HelpCircle, tone: "purple", kind: "uncertain" },
         ];
-  const quickAnswers: QuickAnswer[] = apiQuickReplies === null
-    ? fallbackQuickAnswers
-    : apiQuickReplies.map((reply) => ({
+  const quickAnswers: QuickAnswer[] = apiQuickReplies?.length
+    ? apiQuickReplies.map((reply) => ({
         id: reply.id,
         label: reply.label,
         value: reply.value,
         Icon: iconByKey[reply.icon] ?? HelpCircle,
         tone: reply.tone,
         kind: reply.kind ?? reply.id,
-      }));
-  const hasQuickAnswers = quickAnswers.length > 0;
+      }))
+    : fallbackQuickAnswers;
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
@@ -374,7 +354,7 @@ export default function TriageChat({
       const rec = new SR();
       rec.continuous = false;
       rec.interimResults = true;
-      rec.lang = speechLangFor(i18n.language ?? "en");
+      rec.lang = speechLangFor(activeLanguage);
 
       rec.onstart = () => {
         setIsListening(true);
@@ -408,7 +388,7 @@ export default function TriageChat({
       setIsListening(false);
       recRef.current = null;
     }
-  }, [t]);
+  }, [activeLanguage, t]);
 
   const stopListening = useCallback(() => {
     recRef.current?.stop();
@@ -417,6 +397,7 @@ export default function TriageChat({
 
   const sendToApi = useCallback(
     async (history: ChatMessage[], quickAnswerTrail: SelectedQuickAnswer[] = selectedQuickAnswers) => {
+      if (!languageReady) return;
       setLoading(true);
       try {
         const response = await apiFetch("/api/triage/message", {
@@ -425,7 +406,7 @@ export default function TriageChat({
           body: JSON.stringify({
             messages: history,
             vitals: { bpm },
-            locale: i18n.language ?? "en",
+            locale: activeLanguage,
             wizard: {
               mode: entryMode,
               vitalsScanCompleted: entryMode === "with_vitals",
@@ -433,15 +414,26 @@ export default function TriageChat({
               quickAnswers: quickAnswerTrail,
             },
             healthMemory,
+            medisearchConversationId,
           }),
         });
         if (!response.ok) throw new Error(`${response.status}`);
         const res = await response.json() as TriageResponse;
-        setApiQuickReplies(res.quickReplies ?? null);
+        setApiQuickReplies(res.quickReplies?.length ? res.quickReplies : null);
         setSafetyAlert(res.safetyAlert ?? null);
         setEmergencyContact(res.emergencyContact ?? res.safetyAlert?.emergencyContact ?? null);
         if (res.evidenceSources) setEvidenceSources(res.evidenceSources);
         if (res.wizardStageLabel) setWizardStageLabel(res.wizardStageLabel);
+        if (res.medisearchConversationId) setMedisearchConversationId(res.medisearchConversationId);
+        setMedicalFollowups(
+          !res.done && !res.safetyAlert && Array.isArray(res.medicalFollowups)
+            ? res.medicalFollowups
+                .filter((item): item is string => typeof item === "string")
+                .map((item) => item.trim())
+                .filter(Boolean)
+                .slice(0, 3)
+            : [],
+        );
 
         const msgIdx = history.length;
         setMessages((prev) => [...prev, { role: "assistant", content: res.content }]);
@@ -470,6 +462,7 @@ export default function TriageChat({
           role: "assistant",
           content: t("health.symptomCheck.chat.errorMsg"),
         };
+        setMedicalFollowups([]);
         const msgIdx = messages.length;
         setMessages((prev) => [...prev, errMsg]);
         animateMessage(msgIdx, errMsg.content);
@@ -477,10 +470,11 @@ export default function TriageChat({
         setLoading(false);
       }
     },
-    [animateMessage, bpm, entryMode, healthMemory, initialClue, messages.length, onComplete, respiratoryRate, selectedQuickAnswers, t]
+    [activeLanguage, animateMessage, bpm, entryMode, healthMemory, initialClue, languageReady, medisearchConversationId, messages.length, onComplete, respiratoryRate, selectedQuickAnswers, t]
   );
 
   useEffect(() => {
+    if (!languageReady) return;
     if (!initiated) {
       setInitiated(true);
       const clue = initialClue.trim();
@@ -492,13 +486,14 @@ export default function TriageChat({
         sendToApi([]);
       }
     }
-  }, [initialClue, initiated, sendToApi]);
+  }, [initialClue, initiated, languageReady, sendToApi]);
 
   useEffect(() => {
+    if (!languageReady) return;
     if (!resumePendingRequest || pendingResumeSentRef.current || loading) return;
     pendingResumeSentRef.current = true;
     void sendToApi(messages, selectedQuickAnswers);
-  }, [loading, messages, resumePendingRequest, selectedQuickAnswers, sendToApi]);
+  }, [languageReady, loading, messages, resumePendingRequest, selectedQuickAnswers, sendToApi]);
 
   useEffect(() => {
     onDraftChange?.({
@@ -509,9 +504,11 @@ export default function TriageChat({
       safetyAlert,
       emergencyContact,
       wizardStageLabel,
-      pendingRequest: loading,
+      medisearchConversationId,
+      medicalFollowups,
+      pendingRequest: loading || (!languageReady && !initiated),
     });
-  }, [apiQuickReplies, emergencyContact, evidenceSources, loading, messages, onDraftChange, safetyAlert, selectedQuickAnswers, wizardStageLabel]);
+  }, [apiQuickReplies, emergencyContact, evidenceSources, initiated, languageReady, loading, medicalFollowups, medisearchConversationId, messages, onDraftChange, safetyAlert, selectedQuickAnswers, wizardStageLabel]);
 
   useEffect(() => {
     scrollToBottom();
@@ -535,7 +532,7 @@ export default function TriageChat({
 
   const sendText = async (rawText: string, quickAnswer?: QuickAnswer) => {
     const text = rawText.trim();
-    if (!text || loading || animatingIdx !== null) return;
+    if (!text || !languageReady || loading || animatingIdx !== null) return;
     setInput("");
 
     const userMsg: ChatMessage = { role: "user", content: text };
@@ -570,9 +567,11 @@ export default function TriageChat({
     ? animatingIdx === latestAssistantEntry.index
       ? animatedText
       : latestAssistantEntry.msg.content
-    : t("health.symptomCheck.chat.reviewTitle", "VYVA is checking the safest next step");
+    : t("health.symptomCheck.chat.reviewTitle", "Checking your next step");
   const showQuestion = Boolean(latestAssistantEntry || !loading);
-  const canAnswer = !loading && animatingIdx === null && messages.length > 0 && hasQuickAnswers;
+  const waitingForLanguage = !languageReady && !initiated;
+  const canAnswer = languageReady && !loading && animatingIdx === null && messages.length > 0;
+  const canShowMedicalFollowups = canAnswer && !safetyAlert && medicalFollowups.length > 0;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -628,7 +627,7 @@ export default function TriageChat({
             </HealthWizardCard>
           )}
 
-          {loading && (
+          {(loading || waitingForLanguage) && (
             <TriageReviewPanel />
           )}
 
@@ -658,6 +657,38 @@ export default function TriageChat({
               })}
             </div>
           )}
+
+          {canShowMedicalFollowups && (
+            <HealthWizardCard tone="purple" className="grid gap-3 px-4 py-4" testId="triage-medical-followups">
+              <div className="flex items-center gap-3">
+                <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-vyva-purple shadow-[0_6px_16px_rgba(107,33,168,0.10)]">
+                  <BookOpenCheck size={21} />
+                </span>
+                <div className="min-w-0">
+                  <p className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+                    {t("health.symptomCheck.chat.followupTitle", "Useful follow-up questions")}
+                  </p>
+                  <p className="font-body text-[16px] font-bold leading-snug text-vyva-text-2">
+                    {t("health.symptomCheck.chat.followupSub", "Tap one if it matches what you want to ask next.")}
+                  </p>
+                </div>
+              </div>
+              <div className="grid gap-2">
+                {medicalFollowups.map((question, index) => (
+                  <button
+                    key={`${question}-${index}`}
+                    type="button"
+                    onClick={() => void sendText(question)}
+                    data-testid={`triage-medical-followup-${index}`}
+                    className="vyva-tap flex min-h-[64px] items-center justify-between gap-3 rounded-[20px] border border-[#DDD6FE] bg-white px-4 py-3 text-left font-body text-[17px] font-black leading-snug text-vyva-text-1 shadow-[0_8px_20px_rgba(107,33,168,0.07)]"
+                  >
+                    <span>{question}</span>
+                    <Send size={18} className="flex-shrink-0 text-vyva-purple" />
+                  </button>
+                ))}
+              </div>
+            </HealthWizardCard>
+          )}
         </div>
       </div>
 
@@ -686,7 +717,7 @@ export default function TriageChat({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              disabled={loading || animatingIdx !== null}
+              disabled={!languageReady || loading || animatingIdx !== null}
               placeholder={t("health.symptomCheck.chat.placeholder")}
               data-testid="input-triage-message"
               className="min-w-0 flex-1 rounded-full px-4 py-[16px] font-body text-[20px] font-bold text-vyva-text-1 outline-none placeholder:text-[#9A8C83]"
@@ -696,7 +727,7 @@ export default function TriageChat({
             />
             <button
               onClick={isListening ? stopListening : startListening}
-              disabled={!isListening && (loading || animatingIdx !== null)}
+              disabled={!isListening && (!languageReady || loading || animatingIdx !== null)}
               data-testid="button-triage-voice"
               aria-label={t(isListening ? "health.symptomCheck.chat.voiceStop" : "health.symptomCheck.chat.voiceStart")}
               className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full transition-all active:scale-95 disabled:opacity-40"
@@ -709,7 +740,7 @@ export default function TriageChat({
             </button>
             <button
               onClick={handleSend}
-              disabled={!input.trim() || loading || animatingIdx !== null}
+              disabled={!input.trim() || !languageReady || loading || animatingIdx !== null}
               data-testid="button-triage-send"
               aria-label={t("health.symptomCheck.chat.send")}
               className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full transition-all active:scale-95 disabled:opacity-40"

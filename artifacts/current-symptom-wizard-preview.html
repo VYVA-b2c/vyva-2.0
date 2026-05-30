@@ -159,8 +159,8 @@
             <input id="manualGlucoseInput" type="number" inputmode="numeric" placeholder="86" />
             <span>mg/dL</span>
           </label>
-          <button class="save-glucose" onclick="saveManualGlucose()">Save glucose reading</button>
           <p id="glucoseStatus" class="glucose-status"></p>
+          <button id="saveGlucoseButton" class="save-glucose" onclick="saveManualGlucose()">Save and refine result</button>
         </div>
       </div>
       <div class="evidence">
@@ -230,6 +230,7 @@
     function saveManualGlucose() {
       const value = document.getElementById("manualGlucoseInput").value.trim();
       const status = document.getElementById("glucoseStatus");
+      const button = document.getElementById("saveGlucoseButton");
       if (!value) {
         status.style.color = "#b91c1c";
         status.textContent = "Enter the glucose number first.";
@@ -237,8 +238,10 @@
       }
       status.style.color = "#0a7c4e";
       status.textContent = `Saving glucose ${value} mg/dL...`;
+      button.textContent = "Saving...";
       setTimeout(() => {
         status.textContent = "Updating your result with this reading...";
+        button.textContent = "Refining result...";
       }, 500);
       setTimeout(() => {
         const numeric = Number(value);
@@ -259,6 +262,8 @@
         document.getElementById("reportBody").textContent = `Updated with glucose ${value} mg/dL. The report now includes this reading for the doctor-ready handoff.`;
         document.getElementById("reportReason").textContent = detail;
         status.textContent = `Updated with glucose ${value} mg/dL. Next step stayed the same. Report updated and ready to share.`;
+        button.textContent = "Result refined";
+        document.getElementById("report").scrollIntoView({ behavior: "smooth", block: "start" });
       }, 1100);
     }
     function start(withVitals) {

@@ -29,6 +29,15 @@ describe("voice navigation actions", () => {
     expect(action?.requiresConfirmation).toBe(true);
   });
 
+  it("routes shopping and grocery choices to the Concierge shopping helper", () => {
+    const action = actionForVoiceUtterance("Can you help me choose groceries for the week?");
+
+    expect(action?.id).toBe("voice_concierge_shopping");
+    expect(action?.route).toBe("/concierge/shopping");
+    expect(action?.domain).toBe("concierge");
+    expect(action?.requiresConfirmation).toBe(false);
+  });
+
   it("prioritises vitals over generic health routing", () => {
     const action = actionForVoiceUtterance("Can we check my blood pressure?");
 
