@@ -173,51 +173,47 @@ function TriageReviewPanel() {
 
   return (
     <section
-      className="rounded-[30px] border-2 border-[#E8DED4] bg-white px-5 py-5 shadow-[0_18px_44px_rgba(63,45,35,0.10)]"
+      className="rounded-[28px] border border-[#E8DED4] bg-white px-4 py-4 shadow-[0_16px_36px_rgba(63,45,35,0.09)]"
       data-testid="triage-review-panel"
       aria-live="polite"
       aria-label={t("health.symptomCheck.chat.reviewAria", "VYVA is reviewing your answers and preparing guidance")}
     >
-      <div className="flex items-start gap-4">
-        <div className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-[22px] bg-vyva-purple text-white shadow-[0_14px_30px_rgba(107,33,168,0.22)]">
-          <span className="triage-review-pulse absolute inset-0 rounded-[22px] border-2 border-vyva-purple/25" aria-hidden="true" />
-          <Activity size={30} strokeWidth={2.4} />
+      <div className="flex items-center gap-3">
+        <div className="relative flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[19px] bg-vyva-purple text-white shadow-[0_12px_26px_rgba(107,33,168,0.22)]">
+          <span className="triage-review-pulse absolute inset-0 rounded-[19px] border-2 border-vyva-purple/25" aria-hidden="true" />
+          <Activity size={26} strokeWidth={2.4} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="font-body text-[12px] font-black uppercase tracking-[0.16em] text-vyva-purple">
+          <p className="font-body text-[11px] font-black uppercase tracking-[0.16em] text-vyva-purple">
             {t("health.symptomCheck.chat.reviewEyebrow", "VYVA is reviewing")}
           </p>
-          <h2 className="mt-1 font-body text-[25px] font-black leading-tight text-vyva-text-1 sm:text-[29px]">
+          <h2 className="mt-1 font-body text-[21px] font-black leading-tight text-vyva-text-1 sm:text-[23px]">
             {t("health.symptomCheck.chat.reviewTitle", "VYVA is checking the safest next step")}
           </h2>
-          <p className="mt-2 font-body text-[16px] font-semibold leading-snug text-vyva-text-2">
+          <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
             {t("health.symptomCheck.chat.reviewSubtitle", "VYVA checks your answers against trusted guidance and your profile before suggesting what to do next.")}
           </p>
         </div>
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+      <div className="mt-4 flex items-center justify-center gap-2" aria-hidden="true">
         {reviewSteps.map(({ key, Icon, label, className }, index) => (
-          <div
+          <span
             key={key}
-            className="triage-review-chip flex min-h-[62px] items-center gap-3 rounded-[20px] border border-[#E8DED4] bg-[#FAF9F6] px-3 py-3"
+            className={`triage-review-chip flex h-10 w-10 items-center justify-center rounded-[14px] ${className}`}
             style={{ animationDelay: `${index * 160}ms` }}
+            title={label}
           >
-            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] ${className}`}>
-              <Icon size={20} strokeWidth={2.4} />
-            </span>
-            <span className="font-body text-[15px] font-black leading-tight text-vyva-text-1">
-              {label}
-            </span>
-          </div>
+            <Icon size={19} strokeWidth={2.4} />
+          </span>
         ))}
       </div>
 
-      <div className="triage-review-lines relative mt-5 min-h-[30px] overflow-hidden rounded-full bg-[#F4ECFF] px-4 py-2 text-center">
+      <div className="triage-review-lines relative mt-3 min-h-[34px] overflow-hidden rounded-full bg-[#F4ECFF] px-4 py-2 text-center">
         {reviewSteps.map(({ key, label }, index) => (
           <p
             key={key}
-            className="triage-review-line absolute inset-x-4 top-2 font-body text-[14px] font-black text-vyva-purple"
+            className="triage-review-line absolute inset-x-4 top-2 font-body text-[14px] font-black leading-tight text-vyva-purple"
             style={{ animationDelay: `${index * 1.8}s` }}
           >
             {label}
