@@ -82,4 +82,44 @@ describe("triage route wizard questions", () => {
     expect(res.body.content).toBe("How is pain or movement now?");
     expect(res.body.quickReplies.map((reply: { label: string }) => reply.label).join(" ")).not.toContain("Knocked out");
   });
+
+  it("delivers a deterministic report when the final stage cannot use AI", async () => {
+    const previousApiKey = process.env.OPENAI_API_KEY;
+    delete process.env.OPENAI_API_KEY;
+
+    try {
+      const res = await request(app())
+        .post("/api/triage/message")
+        .send({
+          locale: "en",
+          messages: [{ role: "user", content: "Bad headache" }],
+          wizard: {
+            mode: "without_vitals",
+            quickAnswers: [
+              { id: "pain", label: "Pain", value: "I have pain.", kind: "symptom" },
+              { id: "no_red_flag", label: "No, none of these", value: "None of these warning signs apply.", kind: "red_flag" },
+              { id: "head_neck_pain", label: "Head or neck", value: "The pain is mainly in my head or neck.", kind: "severity" },
+              { id: "better", label: "Mild, familiar, improving", value: "It is mild, familiar, and improving.", kind: "trend" },
+            ],
+          },
+        })
+        .expect(200);
+
+      expect(res.body.done).toBe(true);
+      expect(res.body.wizardStage).toBe("complete");
+      expect(res.body.content).toBe("Your answers fit a lower-risk pain or headache pattern right now.");
+      expect(res.body.quickReplies).toEqual([]);
+      expect(res.body.summary).toMatchObject({
+        chiefComplaint: "Bad headache",
+        nextStepLevel: "monitor",
+        nextStepLabel: "Monitor at home, with doctor access ready",
+      });
+    } finally {
+      if (previousApiKey === undefined) {
+        delete process.env.OPENAI_API_KEY;
+      } else {
+        process.env.OPENAI_API_KEY = previousApiKey;
+      }
+    }
+  });
 });
