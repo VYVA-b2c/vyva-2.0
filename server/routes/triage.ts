@@ -1276,13 +1276,13 @@ function nextStepFor(
   if (summary.urgency === "urgent" || (ids.has("strong") && ids.has("worse")) || ids.has("new_symptoms")) {
     return {
       nextStepLevel: "doctor_today",
-      nextStepLabel: text(locale, "Talk to a doctor today", "Habla con un medico hoy"),
+      nextStepLabel: text(locale, "Talk to a doctor today", "Habla con un médico hoy"),
     };
   }
   if (summary.urgency === "routine" || ids.has("strong") || ids.has("worse")) {
     return {
       nextStepLevel: "doctor_24_48",
-      nextStepLabel: text(locale, "Talk to a doctor within 24-48 hours", "Habla con un medico en 24-48 horas"),
+      nextStepLabel: text(locale, "Talk to a doctor within 24-48 hours", "Habla con un médico en 24-48 horas"),
     };
   }
   return {
