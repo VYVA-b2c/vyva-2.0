@@ -330,7 +330,7 @@ function profileRiskFlags(memory?: TriageHealthMemory): ProfileRiskFlags {
 }
 
 function isSpanishLocale(locale: string) {
-  return locale === "es";
+  return locale.split("-")[0].toLowerCase() === "es";
 }
 
 function text(locale: string, english: string, spanish: string) {
@@ -917,6 +917,7 @@ function triageQuestionMatrixText() {
 
 function buildSystemPrompt(
   language: string,
+  locale: string,
   bpm: number | null,
   gender: GrammaticalGender,
   wizard?: TriageWizardContext,
@@ -926,12 +927,18 @@ function buildSystemPrompt(
   const vitalsContext = bpm != null
     ? `\n\nThe user has just completed a vitals scan. Their estimated heart rate is ${bpm} bpm. Reference this gently if relevant.`
     : "";
+  const disclaimerExample = text(
+    locale,
+    "This assessment is for information only and is not medical advice. Always consult your doctor or call emergency services if you feel it is serious.",
+    "Esta valoracion es solo informativa y no es consejo medico. Consulta siempre a tu medico o llama a emergencias si sientes que es grave.",
+  );
 
   return `You are VYVA, a warm and caring medical triage assistant helping an elderly person understand their symptoms. Your role is to ask clear, simple questions and provide helpful wording.
 
 The app has a deterministic senior triage protocol engine. That protocol is the safety authority. You may enrich wording from MEDISEARCH EVIDENCE CONTEXT, HEALTH MEMORY, and the conversation, but do not downgrade urgency, soften red flags, or override protocol-driven next steps.
 
 IMPORTANT: Respond entirely in ${language}.
+Every user-facing string inside TRIAGE_JSON summary must also be in ${language}, including chiefComplaint, symptoms, nextStepLabel, triageReasons, recommendations, watchSigns, profileConsiderations, vitalsNotes, and disclaimer.
 ${genderInstruction(gender)}${vitalsContext}${wizardContextText(wizard, healthMemory)}${healthMemoryText(healthMemory)}${medisearchContextText(medisearchContext)}${triageQuestionMatrixText()}
 
 CONVERSATION FLOW:
@@ -945,7 +952,7 @@ CONVERSATION FLOW:
 8. On your FINAL turn, you MUST end your message with this exact JSON block (replace values appropriately):
 
 TRIAGE_JSON_START
-{"done":true,"summary":{"chiefComplaint":"<one-line description>","symptoms":["<symptom 1>","<symptom 2>"],"urgency":"<urgent|routine|monitor>","nextStepLabel":"<plain next step>","nextStepLevel":"<emergency|doctor_today|doctor_24_48|monitor>","triageReasons":["<plain reason 1>","<plain reason 2>"],"recommendations":["<step 1>","<step 2>","<step 3>","<step 4>"],"watchSigns":["<specific sign 1>","<specific sign 2>","<specific sign 3>"],"profileConsiderations":["<profile factor considered, if any>"],"vitalsNotes":["<vitals note, if any>"],"disclaimer":"This assessment is for information only and is not medical advice. Always consult your doctor or call emergency services if you feel it is serious."}}
+{"done":true,"summary":{"chiefComplaint":"<one-line description>","symptoms":["<symptom 1>","<symptom 2>"],"urgency":"<urgent|routine|monitor>","nextStepLabel":"<plain next step>","nextStepLevel":"<emergency|doctor_today|doctor_24_48|monitor>","triageReasons":["<plain reason 1>","<plain reason 2>"],"recommendations":["<step 1>","<step 2>","<step 3>","<step 4>"],"watchSigns":["<specific sign 1>","<specific sign 2>","<specific sign 3>"],"profileConsiderations":["<profile factor considered, if any>"],"vitalsNotes":["<vitals note, if any>"],"disclaimer":"${disclaimerExample}"}}
 TRIAGE_JSON_END
 
 Urgency definitions:
@@ -1478,7 +1485,7 @@ router.post("/message", async (req: Request, res: Response) => {
         })
       : null;
 
-    const systemContent = buildSystemPrompt(language, vitals?.bpm ?? null, gender, effectiveWizard, medisearchContext, healthMemory);
+    const systemContent = buildSystemPrompt(language, normalizedLocale, vitals?.bpm ?? null, gender, effectiveWizard, medisearchContext, healthMemory);
 
     const openaiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       { role: "system", content: systemContent },

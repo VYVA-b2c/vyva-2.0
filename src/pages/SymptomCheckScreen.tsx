@@ -5,6 +5,7 @@ import { Activity, ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, Clipboa
 import { useQuery } from "@tanstack/react-query";
 import TriageChat, { type TriageChatDraft } from "@/components/TriageChat";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
+import { useProfile } from "@/contexts/ProfileContext";
 import {
   HealthWizardCard,
   HealthWizardHero,
@@ -13,6 +14,7 @@ import {
   HealthWizardTopBar,
 } from "@/components/health/HealthWizard";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/i18n";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 
 type Step = "intro" | "chat" | "report";
@@ -344,17 +346,6 @@ function reportText(summary: TriageSummary) {
   ].join(" ").toLowerCase();
 }
 
-function compactReportLine(value?: string | null, maxLength = 170) {
-  const clean = String(value ?? "").replace(/\s+/g, " ").trim();
-  if (!clean) return "";
-  if (clean.length <= maxLength) return clean;
-
-  const firstSentence = clean.slice(0, maxLength).match(/^(.+?[.!?])\s/);
-  if (firstSentence?.[1]) return firstSentence[1].trim();
-
-  return `${clean.slice(0, maxLength).replace(/[.,;:!?-]+$/, "").trim()}...`;
-}
-
 function ReportScreen({
   summary,
   bpm,
@@ -388,6 +379,22 @@ function ReportScreen({
   const isEmergency = cfg.level === "emergency";
   const urgencyQualifierText = t(cfg.urgencyLabel, cfg.fallbackUrgencyLabel);
   const urgencyStatusText = t(cfg.label, cfg.fallbackLabel);
+  const nextStepDisplayText = (() => {
+    const level = summary.nextStepLevel ?? cfg.level;
+    if (level === "emergency") {
+      return t("health.symptomCheck.report.nextStepEmergency", "Call emergency services now");
+    }
+    if (level === "doctor_today") {
+      return t("health.symptomCheck.report.nextStepDoctorToday", "Talk to a doctor today");
+    }
+    if (level === "doctor_24_48") {
+      return t("health.symptomCheck.report.nextStepDoctor24_48", "Talk to a doctor within 24-48 hours");
+    }
+    if (level === "monitor") {
+      return t("health.symptomCheck.report.nextStepMonitorReady", "Monitor at home, with doctor access ready");
+    }
+    return summary.nextStepLabel ?? t(cfg.label, cfg.fallbackLabel);
+  })();
   const emergencyCallLabel = emergencyContact?.telHref
     ? t("health.symptomCheck.report.callEmergencyNumber", "Call {{number}}", { number: emergencyContact.label })
     : t("health.symptomCheck.report.contactEmergencyServices", "Contact emergency services");
@@ -524,7 +531,7 @@ function ReportScreen({
   const doctorTellItems = uniqueLines([
     `${t("health.symptomCheck.report.tellMainSymptom", "Main symptom")}: ${summary.chiefComplaint}`,
     summary.symptoms.length ? `${t("health.symptomCheck.report.symptoms", "Symptoms noted")}: ${summary.symptoms.join(", ")}` : "",
-    summary.nextStepLabel ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${summary.nextStepLabel}` : "",
+    nextStepDisplayText ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${nextStepDisplayText}` : "",
     summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why VYVA chose this")}: ${summary.triageReasons.join(" ")}` : "",
     summary.vitalsNotes?.length ? `${t("health.symptomCheck.report.vitalsUsed", "Vitals used")}: ${summary.vitalsNotes.join(" ")}` : "",
     summary.profileConsiderations?.length ? `${t("health.symptomCheck.report.profileConsidered", "Profile considered")}: ${summary.profileConsiderations.join(" ")}` : "",
@@ -536,7 +543,7 @@ function ReportScreen({
     bpm != null ? `${t("health.symptomCheck.scan.heartRate", "Heart Rate")}: ${bpm} bpm` : "",
     respiratoryRate != null ? `${t("health.symptomCheck.scan.respiratoryRate", "Resp. Rate")}: ${respiratoryRate} rpm` : "",
     `${urgencyQualifierText}: ${urgencyStatusText}`,
-    summary.nextStepLabel ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${summary.nextStepLabel}` : "",
+    nextStepDisplayText ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${nextStepDisplayText}` : "",
     summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why VYVA chose this")}: ${summary.triageReasons.join(" ")}` : "",
     summary.evidenceSummary ? `${t("health.symptomCheck.report.evidenceChecked", "Science-based source check")}: ${summary.evidenceSummary}` : "",
     summary.recommendations.length ? `${t("health.symptomCheck.report.recommendations", "What to do next")}: ${summary.recommendations.join(" ")}` : "",
@@ -561,7 +568,7 @@ function ReportScreen({
   const visibleRecommendations = uniqueLines(summary.recommendations).slice(0, 3);
   const visibleWatchSigns = uniqueLines(summary.watchSigns ?? []).slice(0, 2);
   const contextNotes = uniqueLines([...(summary.profileConsiderations ?? []), ...(summary.vitalsNotes ?? [])]);
-  const answerFinding = compactReportLine(summary.aiSummary) || summary.chiefComplaint;
+  const answerFinding = t("health.symptomCheck.report.summaryIntro", "Thank you for your answers. Here's a summary of your situation:");
   const evidenceSourceNames = summary.evidenceSources?.map((source) => source.title).filter(Boolean) ?? [];
   const openReport = () => navigate(reportId ? `/informes/${reportId}` : "/informes");
   const primaryAction = isEmergency
@@ -611,7 +618,7 @@ function ReportScreen({
     durationText ? `${t("health.symptomCheck.report.timeTaken", "Time taken")}: ${durationText}` : "",
     "",
     `${urgencyQualifierText}: ${urgencyStatusText}`,
-    summary.nextStepLabel ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${summary.nextStepLabel}` : "",
+    nextStepDisplayText ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${nextStepDisplayText}` : "",
     summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why VYVA chose this")}: ${summary.triageReasons.join(" ")}` : "",
     summary.evidenceSummary ? `${t("health.symptomCheck.report.evidenceChecked", "Science-based source check")}: ${summary.evidenceSummary}` : "",
     "",
@@ -668,7 +675,7 @@ function ReportScreen({
         </div>
 
         <p className="mt-5 font-body text-[24px] font-black leading-tight text-white">
-          {summary.nextStepLabel ?? t(cfg.label, cfg.fallbackLabel)}
+          {nextStepDisplayText}
         </p>
         <p className="mt-2 font-body text-[16px] font-bold leading-relaxed text-white/90">
           <span className="sr-only">{t("health.symptomCheck.report.findingLabel", "Finding")}: </span>
@@ -1086,6 +1093,8 @@ function ReportScreen({
 
 export default function SymptomCheckScreen() {
   const { t } = useTranslation();
+  const { language } = useLanguage();
+  const { isLoading: profileLoading } = useProfile();
   const navigate = useNavigate();
   const [restoredDraft] = useState(() => readSymptomCheckDraft());
   const { data: triageContext } = useQuery<TriageContextResponse>({
@@ -1255,9 +1264,12 @@ export default function SymptomCheckScreen() {
     const parsed = config.parse(rawValue);
     if (!parsed) return;
 
-    const previousNextStep = summary.nextStepLabel ?? "";
+    const previousNextStep = summary.nextStepLevel ?? summary.nextStepLabel ?? "";
     try {
-      setRefinementStatus({ state: "saving", message: `Saving ${parsed.display}...` });
+      setRefinementStatus({
+        state: "saving",
+        message: t("health.symptomCheck.report.savingReading", "Saving {{display}}...", { display: parsed.display }),
+      });
 
       const readings = config.key === "bloodPressure"
         ? [
@@ -1280,7 +1292,10 @@ export default function SymptomCheckScreen() {
         if (!saveReading.ok) throw new Error(`vitals ${saveReading.status}`);
       }
 
-      setRefinementStatus({ state: "refining", message: "Updating your result with this reading..." });
+      setRefinementStatus({
+        state: "refining",
+        message: t("health.symptomCheck.report.updatingWithReading", "Updating your result with this reading..."),
+      });
 
       const refinedVitals = {
         bpm: parsed.vitals.pulseBpm ?? bpm ?? undefined,
@@ -1299,11 +1314,15 @@ export default function SymptomCheckScreen() {
             ...baseMessages,
             {
               role: "user",
-              content: `New vital added after the first report: ${config.title}: ${parsed.display}. Refine the triage result with this new reading. Vitals can increase or clarify urgency, but must not downgrade emergency red flags.`,
+              content: t(
+                "health.symptomCheck.report.refinePrompt",
+                "New vital added after the first report: {{title}}: {{display}}. Refine the triage result with this new reading. Vitals can increase or clarify urgency, but must not downgrade emergency red flags.",
+                { title: config.title, display: parsed.display },
+              ),
             },
           ],
           vitals: refinedVitals,
-          locale: navigator.language || "en",
+          locale: language,
           wizard: {
             mode: context?.entryMode ?? "without_vitals",
             vitalsScanCompleted: false,
@@ -1341,18 +1360,24 @@ export default function SymptomCheckScreen() {
 
       const nextStepChanged = Boolean(
         previousNextStep &&
-        refinedSummary.nextStepLabel &&
-        refinedSummary.nextStepLabel !== previousNextStep,
+        (refinedSummary.nextStepLevel ?? refinedSummary.nextStepLabel) &&
+        (refinedSummary.nextStepLevel ?? refinedSummary.nextStepLabel) !== previousNextStep,
       );
       setRefinementStatus({
         state: "done",
-        message: `Updated with ${parsed.display}. ${nextStepChanged ? "Next step changed." : "Next step stayed the same."} Report updated and ready to share.`,
+        message: t(
+          nextStepChanged ? "health.symptomCheck.report.updatedReadingChanged" : "health.symptomCheck.report.updatedReadingSame",
+          nextStepChanged
+            ? "Updated with {{display}}. Next step changed. Report updated and ready to share."
+            : "Updated with {{display}}. Next step stayed the same. Report updated and ready to share.",
+          { display: parsed.display },
+        ),
       });
     } catch (err) {
       console.error("[symptom-check] refinement failed:", err);
       setRefinementStatus({
         state: "error",
-        message: "Could not update with this reading. The original report is still available.",
+        message: t("health.symptomCheck.report.updateReadingFailed", "Could not update with this reading. The original report is still available."),
       });
     }
   };
@@ -1427,6 +1452,8 @@ export default function SymptomCheckScreen() {
             autoStartVoice={autoStartVoice}
             initialDraft={chatDraft}
             resumePendingRequest={resumePendingRequest}
+            language={language}
+            languageReady={!profileLoading}
             onDraftChange={handleChatDraftChange}
             onVoiceAutoStarted={() => setAutoStartVoice(false)}
             onComplete={handleChatComplete}

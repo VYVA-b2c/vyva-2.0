@@ -1,7 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import TriageChat from "./TriageChat";
 import { apiFetch } from "@/lib/queryClient";
+import { setLanguage } from "@/i18n";
 
 vi.mock("@/lib/queryClient", () => ({
   apiFetch: vi.fn(),
@@ -20,7 +22,7 @@ function triageResponse(body: Record<string, unknown>) {
   });
 }
 
-function renderTriageChat() {
+function renderTriageChat(props: Partial<ComponentProps<typeof TriageChat>> = {}) {
   return render(
     <TriageChat
       bpm={null}
@@ -28,6 +30,7 @@ function renderTriageChat() {
       entryMode="without_vitals"
       initialClue="Feeling anxious"
       onComplete={vi.fn()}
+      {...props}
     />,
   );
 }
@@ -35,6 +38,56 @@ function renderTriageChat() {
 describe("TriageChat MediSearch follow-ups", () => {
   afterEach(() => {
     apiFetchMock.mockReset();
+    setLanguage("en");
+  });
+
+  it("sends the selected app language to the triage service", async () => {
+    setLanguage("es");
+    apiFetchMock.mockResolvedValueOnce(triageResponse({
+      role: "assistant",
+      content: "Bien",
+      quickReplies: [],
+      evidenceSources: [],
+    }));
+
+    renderTriageChat();
+
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledTimes(1));
+    const request = JSON.parse((apiFetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(request.locale).toBe("es");
+    await screen.findByText("Bien");
+  });
+
+  it("waits for the app language before starting the triage request", async () => {
+    apiFetchMock.mockResolvedValueOnce(triageResponse({
+      role: "assistant",
+      content: "Bien",
+      quickReplies: [],
+      evidenceSources: [],
+    }));
+
+    const { rerender } = renderTriageChat({ language: "es", languageReady: false });
+
+    await screen.findByTestId("triage-review-panel");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(apiFetchMock).not.toHaveBeenCalled();
+
+    rerender(
+      <TriageChat
+        bpm={null}
+        respiratoryRate={null}
+        entryMode="without_vitals"
+        initialClue="Feeling anxious"
+        language="es"
+        languageReady
+        onComplete={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledTimes(1));
+    const request = JSON.parse((apiFetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(request.locale).toBe("es");
+    await screen.findByText("Bien");
   });
 
   it("renders follow-up chips below the primary answer tiles", async () => {

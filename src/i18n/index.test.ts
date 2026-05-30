@@ -93,6 +93,25 @@ describe("language persistence", () => {
     }
   });
 
+  it("keeps symptom report status labels localized for supported account languages", () => {
+    const expected = {
+      en: ["Report not saved", "Why VYVA chose this", "Monitor at home, with doctor access ready"],
+      es: ["Informe no guardado", "Por que VYVA eligio esto", "Vigila en casa, con medico disponible"],
+      fr: ["Rapport non enregistre", "Pourquoi VYVA a choisi cela", "Surveillez a domicile, avec un medecin pret a etre contacte"],
+      de: ["Bericht nicht gespeichert", "Warum VYVA das gewahlt hat", "Zu Hause beobachten, Arztkontakt bereithalten"],
+      it: ["Report non salvato", "Perche VYVA ha scelto questo", "Monitora a casa, con accesso al medico pronto"],
+      pt: ["Relatorio nao guardado", "Porque a VYVA escolheu isto", "Monitorize em casa, com acesso ao medico pronto"],
+    } as const;
+
+    for (const [language, labels] of Object.entries(expected)) {
+      expect([
+        translate(language as keyof typeof expected, "health.symptomCheck.report.saveFailed"),
+        translate(language as keyof typeof expected, "health.symptomCheck.report.whyThisStep"),
+        translate(language as keyof typeof expected, "health.symptomCheck.report.nextStepMonitorReady"),
+      ]).toEqual(labels);
+    }
+  });
+
   it("keeps settings home rows localized for supported account languages", () => {
     const keys = [
       "settings.home.rows.myAccount",
