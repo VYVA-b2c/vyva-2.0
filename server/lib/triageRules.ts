@@ -105,9 +105,9 @@ function urgencyFor(level: TriageRuleLevel): TriageRuleDecision["urgency"] {
 function labelFor(locale: string, level: TriageRuleLevel) {
   const labels: Record<TriageRuleLevel, string> = {
     emergency: text(locale, "Call emergency services now", "Llama a emergencias ahora"),
-    doctor_today: text(locale, "Talk to a doctor today", "Habla con un medico hoy"),
-    doctor_24_48: text(locale, "Talk to a doctor within 24-48 hours", "Habla con un medico en 24-48 horas"),
-    monitor: text(locale, "Monitor at home, with doctor access ready", "Vigila en casa, con medico disponible"),
+    doctor_today: text(locale, "Talk to a doctor today", "Habla con un médico hoy"),
+    doctor_24_48: text(locale, "Talk to a doctor within 24-48 hours", "Habla con un médico en 24-48 horas"),
+    monitor: text(locale, "Monitor at home, with doctor access ready", "Vigila en casa, con médico disponible"),
   };
   return labels[level];
 }
@@ -157,7 +157,7 @@ export const TRIAGE_PROTOCOLS: Record<string, TriageProtocol> = {
       protocolRule(["chest_pain", "sudden_severe", "stroke_sign", "back_bladder_weakness", "headache_fever_stiff", "limb_cold_blue"], "emergency", "Pain includes a possible emergency warning sign.", "El dolor incluye una posible senal de emergencia.", "Call emergency services now if this is happening now.", "Llama a emergencias ahora si esto esta pasando ahora."),
     ],
     doctorToday: [
-      protocolRule(["after_fall", "new_headache_after_50", "night_back_pain", "deformed_limb"], "doctor_today", "Pain after a fall, new headache after 50, severe back pain, or limb injury should be checked promptly in an older adult.", "Dolor tras caida, dolor de cabeza nuevo despues de 50, dolor de espalda fuerte o lesion de extremidad debe revisarse pronto en una persona mayor.", "Talk to a doctor today, sooner if pain is severe or walking is unsafe.", "Habla con un medico hoy, antes si el dolor es fuerte o caminar no es seguro."),
+      protocolRule(["after_fall", "new_headache_after_50", "night_back_pain", "deformed_limb"], "doctor_today", "Pain after a fall, new headache after 50, severe back pain, or limb injury should be checked promptly in an older adult.", "Dolor tras caida, dolor de cabeza nuevo despues de 50, dolor de espalda fuerte o lesion de extremidad debe revisarse pronto en una persona mayor.", "Talk to a doctor today, sooner if pain is severe or walking is unsafe.", "Contacta hoy con tu médico, clínica o urgencias. Hazlo antes si el dolor es fuerte o caminar no es seguro."),
     ],
     doctor24_48: [],
     monitorCriteriaEn: ["No chest pain", "No sudden severe pain", "No weakness, speech trouble, vision change, or head injury"],
@@ -525,7 +525,7 @@ function recommendationsFor(locale: string, symptomId: string | undefined, level
 
   if (level === "doctor_today") {
     return [
-      text(locale, "Contact your doctor, clinic, or urgent care today.", "Contacta hoy con tu medico, clinica o urgencias."),
+      text(locale, "Contact your doctor, clinic, or urgent care today.", "Contacta hoy con tu médico, clínica o urgencias."),
       text(locale, "Tell them when it started, what changed, and which warning signs were checked.", "Diles cuando empezo, que cambio y que senales se revisaron."),
       text(locale, "Seek emergency help sooner if a red warning sign appears.", "Busca ayuda urgente antes si aparece una senal roja."),
       text(locale, "Keep this report ready to share.", "Ten este informe listo para compartir."),

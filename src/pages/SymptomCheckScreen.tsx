@@ -322,6 +322,32 @@ function uniqueLines(lines: string[]) {
     .filter((line, index, list) => list.findIndex((item) => item.toLowerCase() === line.toLowerCase()) === index);
 }
 
+function simplifyReportRecommendations(lines: string[]) {
+  const unique = uniqueLines(lines);
+  const hasDoctorContactAction = unique.some((line) =>
+    /^(contacta|contact).*(doctor|m[eé]dico|cl[ií]nica|urgent care|urgencias)/i.test(line),
+  );
+
+  return unique.filter((line, index) => {
+    if (!hasDoctorContactAction) return true;
+    return !/^(habla|talk|speak).*(doctor|m[eé]dico).*hoy/i.test(line);
+  });
+}
+
+function compactDoctorContactRecommendations(lines: string[]) {
+  const unique = simplifyReportRecommendations(lines);
+  const doctorContactIndex = unique.findIndex((line) =>
+    /\b(contacta|contact|habla|talk|speak|comparte|share)\b.*\b(doctor|m.dico|clinic|cl.nica|urgent care|urgencias)\b/i.test(line),
+  );
+
+  if (doctorContactIndex < 0) return unique;
+
+  return unique.filter((line, index) => {
+    if (index === doctorContactIndex) return true;
+    return !/\b(contacta|contact|habla|talk|speak|comparte|share)\b.*\b(doctor|m.dico|clinic|cl.nica|urgent care|urgencias)\b/i.test(line);
+  });
+}
+
 function parseNumber(raw: string) {
   const value = Number(raw.replace(",", ".").trim());
   return Number.isFinite(value) ? value : null;
@@ -565,7 +591,7 @@ function ReportScreen({
     ...(summary.vitalsNotes ?? []),
   ]);
   const visibleReasons = allReasons.slice(0, 2);
-  const visibleRecommendations = uniqueLines(summary.recommendations).slice(0, 3);
+  const visibleRecommendations = compactDoctorContactRecommendations(summary.recommendations).slice(0, 3);
   const visibleWatchSigns = uniqueLines(summary.watchSigns ?? []).slice(0, 2);
   const contextNotes = uniqueLines([...(summary.profileConsiderations ?? []), ...(summary.vitalsNotes ?? [])]);
   const answerFinding = t("health.symptomCheck.report.summaryIntro", "Thank you for your answers. Here's a summary of your situation:");
