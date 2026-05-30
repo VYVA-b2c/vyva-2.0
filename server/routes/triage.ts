@@ -204,6 +204,7 @@ interface TriageRequestBody {
   locale?: string;
   wizard?: TriageWizardContext;
   healthMemory?: TriageHealthMemory;
+  medisearchConversationId?: string;
 }
 
 async function getRequestGender(req: Request): Promise<GrammaticalGender> {
@@ -1314,7 +1315,7 @@ router.get("/context", async (req: Request, res: Response) => {
 });
 
 router.post("/message", async (req: Request, res: Response) => {
-  const { messages = [], vitals, locale = "en", wizard, healthMemory } = req.body as TriageRequestBody;
+  const { messages = [], vitals, locale = "en", wizard, healthMemory, medisearchConversationId } = req.body as TriageRequestBody;
 
   if (!Array.isArray(messages)) {
     return res.status(400).json({ error: "messages must be an array" });
@@ -1350,12 +1351,22 @@ router.post("/message", async (req: Request, res: Response) => {
       wizardStage: "support",
       wizardStageLabel: wizardStageLabel("support", normalizedLocale),
       evidenceSources: [],
+      medicalFollowups: [],
     });
   }
 
   const stage = nextAdaptiveStage(effectiveWizard, healthMemory);
   if (stage !== "complete") {
     const protocolQuestion = wizardQuestionText(stage, effectiveWizard, normalizedLocale);
+    const latestMessage = validMessages[validMessages.length - 1];
+    const medisearchContext = latestMessage?.role === "user"
+      ? await getMediSearchTriageContext({
+          conversation: validMessages,
+          conversationId: medisearchConversationId,
+          locale: normalizedLocale,
+          wizard: effectiveWizard,
+        })
+      : null;
     return res.json({
       role: "assistant",
       content: protocolQuestion,
@@ -1364,6 +1375,8 @@ router.post("/message", async (req: Request, res: Response) => {
       wizardStage: stage,
       wizardStageLabel: wizardStageLabel(stage, normalizedLocale),
       evidenceSources: [],
+      medisearchConversationId: medisearchContext?.conversationId,
+      medicalFollowups: medisearchContext?.followups ?? [],
     });
   }
 
@@ -1374,10 +1387,11 @@ router.post("/message", async (req: Request, res: Response) => {
 
   try {
     const client = new OpenAI({ apiKey });
-    const latestUserMessage = [...validMessages].reverse().find((message) => message.role === "user")?.content ?? "";
-    const medisearchContext = latestUserMessage
+    const latestMessage = validMessages[validMessages.length - 1];
+    const medisearchContext = latestMessage?.role === "user"
       ? await getMediSearchTriageContext({
-          symptomText: latestUserMessage,
+          conversation: validMessages,
+          conversationId: medisearchConversationId,
           locale: normalizedLocale,
           wizard: effectiveWizard,
         })
@@ -1420,6 +1434,8 @@ router.post("/message", async (req: Request, res: Response) => {
       wizardStage: stage,
       wizardStageLabel: wizardStageLabel(stage, normalizedLocale),
       evidenceSources,
+      medisearchConversationId: medisearchContext?.conversationId,
+      medicalFollowups: [],
     });
   } catch (err) {
     console.error("[triage] OpenAI error:", err);
