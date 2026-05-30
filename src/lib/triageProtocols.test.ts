@@ -218,6 +218,27 @@ describe("senior triage protocols", () => {
     expect(result.profileConsiderations.join(" ")).toContain("Blood thinner");
   });
 
+  it("treats stairs, height, or high-speed fall mechanism as same-day advice", () => {
+    const result = decision("fall", ["fell_from_height"]);
+
+    expect(result.level).toBe("doctor_today");
+    expect(result.reasons.join(" ")).toContain("fall from height");
+  });
+
+  it("treats being alone after a fall as same-day advice", () => {
+    const result = decision("fall", ["alone_after_fall"]);
+
+    expect(result.level).toBe("doctor_today");
+    expect(result.reasons.join(" ")).toContain("being alone after a fall");
+  });
+
+  it("keeps a small improving bruise after a fall in monitor guidance", () => {
+    const result = decision("fall", ["no_red_flag", "mild", "better"]);
+
+    expect(result.level).toBe("monitor");
+    expect(result.recommendations.join(" ")).toContain("Tell a caregiver");
+  });
+
   it("treats sudden confusion as emergency", () => {
     const result = decision("confusion", ["sudden_confusion"], {}, true);
 

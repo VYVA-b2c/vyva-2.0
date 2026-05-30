@@ -70,6 +70,7 @@ import checkinsRouter, { analyzeCheckinHandler, checkinHistoryHandler, sharedChe
 import gamesRouter from "./routes/games.js";
 import { getGooglePlacesApiKey, getGooglePlacesApiKeySource } from "./lib/googlePlacesKey.js";
 import { startCommunicationDispatcher } from "./services/communicationDispatcher.js";
+import { startDailyCheckinNoResponseMonitor } from "./services/dailyCheckinMonitor.js";
 
 const isProduction = process.env.NODE_ENV === "production";
 const app = express();
@@ -402,6 +403,9 @@ configureFrontend().then(() => {
     console.log(`[server] listening on port ${PORT} (${isProduction ? "production" : "development"})`);
     if (startCommunicationDispatcher()) {
       console.log("[communications] dispatcher enabled");
+    }
+    if (startDailyCheckinNoResponseMonitor()) {
+      console.log("[daily-checkin-monitor] no-response monitor enabled");
     }
   });
 }).catch((err) => {

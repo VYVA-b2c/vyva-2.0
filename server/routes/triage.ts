@@ -8,6 +8,14 @@ import { genderInstruction, inferProfileGender, type GrammaticalGender } from ".
 import { getMediSearchTriageContext, type MediSearchTriageContext } from "../services/medisearch.js";
 import { getDoctorMedicalProfileVariables } from "../lib/doctorMedicalProfile.js";
 import { evaluateTriageRules } from "../lib/triageRules.js";
+import {
+  emergencyContactForCountry,
+  triageWizardMatrixPromptText,
+  triageWizardNodeFor,
+  type EmergencyContact,
+  type TriageWizardMatrixReply,
+  type TriageWizardMatrixStage,
+} from "../lib/triageWizardMatrix.js";
 
 const router = Router();
 
@@ -77,6 +85,7 @@ type TriageHealthMemory = {
   medications?: string;
   latestVitals?: string;
   latestSymptomReport?: string;
+  countryCode?: string;
 };
 
 type ProfileRiskFlags = {
@@ -394,6 +403,15 @@ function inferSymptomFromClue(rawClue: string, locale: string): TriageQuickReply
   return reply(locale, "other", "symptom", "Something else", "Otra cosa", "Something else is bothering me.", "Me pasa otra cosa.", "help", "purple");
 }
 
+function inferContextFromClue(rawClue: string, locale: string): TriageQuickReply | null {
+  const clue = normalizeClue(rawClue);
+  if (/\b(anxiety|anxious|panic|panicky|nervous|ansiedad|ansiedade|ansia|anxiete|angst|angstgefuhl|panico|panique|panik|nervios|nervioso|nerviosa|nervoso|nervosa)\b/.test(clue)) {
+    return reply(locale, "anxiety_context", "free_text", "Anxiety or panic", "Ansiedad o panico", "This feels like anxiety or panic.", "Esto se siente como ansiedad o panico.", "help", "purple");
+  }
+
+  return null;
+}
+
 function inferRedFlagFromClue(rawClue: string, symptomId: string | undefined, locale: string): TriageQuickReply | null {
   const clue = normalizeClue(rawClue);
   if (!clue) return null;
@@ -435,9 +453,11 @@ function wizardWithInferredClue(
   const symptom = inferSymptomFromClue(clue, locale);
   if (!symptom) return wizard;
 
+  const context = symptom.id === "other" ? inferContextFromClue(clue, locale) : null;
   const redFlag = inferRedFlagFromClue(clue, symptom.id, locale);
   const inferredAnswers = [
     { id: symptom.id, label: symptom.label, value: symptom.value, kind: symptom.kind },
+    context ? { id: context.id, label: context.label, value: context.value, kind: context.kind } : null,
     redFlag ? { id: redFlag.id, label: redFlag.label, value: redFlag.value, kind: redFlag.kind } : null,
   ].filter(Boolean) as NonNullable<TriageWizardContext["quickAnswers"]>;
 
@@ -624,7 +644,7 @@ function wizardStageLabel(stage: WizardStage, locale: string) {
     symptom: { en: "Choose symptom", es: "Elige sintoma" },
     red_flag: { en: "Safety check", es: "Chequeo de seguridad" },
     duration: { en: "When it started", es: "Cuando empezo" },
-    severity: { en: "How it feels", es: "Como se siente" },
+    severity: { en: "More details", es: "Mas detalles" },
     trend: { en: "What changed", es: "Que cambio" },
     support: { en: "Next step", es: "Siguiente paso" },
     complete: { en: "Summary", es: "Resumen" },
@@ -638,142 +658,12 @@ function wizardQuestionText(
   locale: string,
 ): string {
   const symptomId = selectedSymptomId(wizard);
-
-  if (stage === "symptom") {
-    return text(locale, "What is bothering you?", "¿Qué te molesta?");
+  if (!["symptom", "red_flag", "duration", "severity", "trend"].includes(stage)) {
+    return text(locale, "Here is what to do next.", "Esto es lo siguiente que puedes hacer.");
   }
-
-  if (stage === "red_flag") {
-    const questions: Record<string, { en: string; es: string }> = {
-      pain: {
-        en: "Is this a new very bad headache or pain with any of these signs?",
-        es: "¿Hay alguna señal de alerta con el dolor?",
-      },
-      chest: {
-        en: "Do you have chest discomfort right now, or did it happen today?",
-        es: "¿La molestia de pecho ocurre ahora mismo?",
-      },
-      breathing: {
-        en: "How is your breathing right now?",
-        es: "¿Te falta el aire estando en reposo?",
-      },
-      fever: {
-        en: "Do any fever warning signs apply?",
-        es: "¿Hay alguna señal de alerta con la fiebre?",
-      },
-      dizzy: {
-        en: "Did you faint, nearly faint, or feel like you might fall today?",
-        es: "¿Hay alguna señal de alerta con el mareo?",
-      },
-      tired: {
-        en: "Can you stand and walk safely, and are you thinking clearly?",
-        es: "¿Puedes estar de pie y caminar con seguridad, y piensas claro?",
-      },
-      stomach: {
-        en: "Do you have stomach or bowel symptoms with any of these serious signs?",
-        es: "¿Hay alguna señal de alerta de estómago o intestino?",
-      },
-      urinary: {
-        en: "What urine problem is happening?",
-        es: "¿Hay alguna señal de alerta con la orina?",
-      },
-      fall: {
-        en: "Did you hit your head, pass out, or hurt yourself badly?",
-        es: "¿Hay alguna señal de alerta tras la caída o golpe?",
-      },
-      skin: {
-        en: "Do you have a skin problem with swelling, breathing trouble, fever, or spreading redness?",
-        es: "¿Hay alguna señal de alerta en piel o herida?",
-      },
-      confusion: {
-        en: "Is this sudden, worse, or unsafe?",
-        es: "¿Es repentino, peor o inseguro?",
-      },
-      other: {
-        en: "Do any of these warning signs apply?",
-        es: "¿Hay alguna de estas señales de alerta?",
-      },
-    };
-    const question = questions[symptomId ?? "other"] ?? questions.other;
-    return text(locale, question.en, question.es);
-  }
-
-  if (stage === "duration") {
-    const questions: Record<string, { en: string; es: string }> = {
-      pain: { en: "When did the pain start?", es: "¿Cuándo empezó el dolor?" },
-      chest: { en: "When did the chest feeling start?", es: "¿Cuándo empezó la molestia de pecho?" },
-      breathing: { en: "When did the breathing change start?", es: "¿Cuándo empezó el cambio al respirar?" },
-      fever: { en: "When did the fever start?", es: "¿Cuándo empezó la fiebre?" },
-      dizzy: { en: "When did the dizziness start?", es: "¿Cuándo empezó el mareo?" },
-      tired: { en: "When did the tiredness or weakness start?", es: "¿Cuándo empezó el cansancio o debilidad?" },
-      stomach: { en: "When did the stomach or bowel problem start?", es: "¿Cuándo empezó el problema de estómago o intestino?" },
-      urinary: { en: "When did the urine problem start?", es: "¿Cuándo empezó el problema de orina?" },
-      fall: { en: "When did the fall or injury happen?", es: "¿Cuándo fue la caída o golpe?" },
-      skin: { en: "When did the skin or wound change start?", es: "¿Cuándo empezó el cambio en piel o herida?" },
-      confusion: { en: "When did this change start?", es: "¿Cuándo empezó este cambio?" },
-      other: { en: "When did this start?", es: "¿Cuándo empezó esto?" },
-    };
-    const question = questions[symptomId ?? "other"] ?? questions.other;
-    return text(locale, question.en, question.es);
-  }
-
-  if (stage === "severity") {
-    const specificQuestions: Record<string, string> = {
-      urinary: "Do you have any whole-body symptoms?",
-      fall: "Did any of these happen with the fall?",
-      skin: "Does it look like painful blisters or shingles?",
-      confusion: "Is there any immediate safety concern?",
-      other: "Where is the main problem?",
-    };
-    if (symptomId && specificQuestions[symptomId]) return specificQuestions[symptomId];
-
-    const questions: Record<string, { en: string; es: string }> = {
-      pain: { en: "How strong is the pain?", es: "¿Qué tan fuerte es el dolor?" },
-      chest: { en: "Do you also feel any of these?", es: "¿También sientes algo de esto?" },
-      breathing: { en: "How much does it limit you?", es: "¿Cuánto te limita?" },
-      fever: { en: "How unwell do you feel?", es: "¿Qué tan mal te sientes?" },
-      dizzy: { en: "How is the dizziness affecting you?", es: "¿Cómo te afecta el mareo?" },
-      tired: { en: "How much is this limiting your day?", es: "¿Cuánto limita tu día?" },
-      stomach: { en: "How much is it bothering you?", es: "¿Cuánto te molesta?" },
-      urinary: { en: "How uncomfortable is it?", es: "¿Qué tan incómodo es?" },
-      fall: { en: "Can you use the injured part normally?", es: "¿Puedes usar la parte lesionada normal?" },
-      skin: { en: "How much has the area changed?", es: "¿Cuánto ha cambiado la zona?" },
-      confusion: { en: "How different do you feel from normal?", es: "¿Qué tan diferente te sientes de lo normal?" },
-      other: { en: "How much is it bothering you?", es: "¿Cuánto te molesta?" },
-    };
-    const question = questions[symptomId ?? "other"] ?? questions.other;
-    return text(locale, question.en, question.es);
-  }
-
-  if (stage === "trend") {
-    const specificQuestions: Record<string, string> = {
-      urinary: "Which best fits the urine problem?",
-      fall: "How is the injured area now?",
-      skin: "Is it spreading or getting worse?",
-      confusion: "When did this change start?",
-      other: "How did it start?",
-    };
-    if (symptomId && specificQuestions[symptomId]) return specificQuestions[symptomId];
-
-    const questions: Record<string, { en: string; es: string }> = {
-      pain: { en: "Is the pain easing or getting worse?", es: "¿El dolor baja o empeora?" },
-      chest: { en: "Is the chest feeling gone, same, or worse?", es: "¿La molestia de pecho se fue, sigue igual o empeora?" },
-      breathing: { en: "Is breathing easier or harder now?", es: "¿Ahora respiras mejor o peor?" },
-      fever: { en: "Is the fever coming down or getting worse?", es: "¿La fiebre baja o empeora?" },
-      dizzy: { en: "Is the dizziness better, same, or worse?", es: "¿El mareo mejora, sigue igual o empeora?" },
-      tired: { en: "Is your energy better, same, or worse?", es: "¿Tu energía mejora, sigue igual o empeora?" },
-      stomach: { en: "Is it settling or getting worse?", es: "¿Mejora o empeora?" },
-      urinary: { en: "Is it easing or getting worse?", es: "¿Mejora o empeora?" },
-      fall: { en: "Is pain or movement improving?", es: "¿Mejora el dolor o movimiento?" },
-      skin: { en: "Is the area improving or spreading?", es: "¿La zona mejora o se extiende?" },
-      confusion: { en: "Is this better, same, or worse?", es: "¿Esto mejora, sigue igual o empeora?" },
-      other: { en: "Is it better, same, or worse?", es: "¿Mejora, sigue igual o empeora?" },
-    };
-    const question = questions[symptomId ?? "other"] ?? questions.other;
-    return text(locale, question.en, question.es);
-  }
-
-  return text(locale, "Here is what to do next.", "Esto es lo siguiente que puedes hacer.");
+  const answerIds = new Set(selectedAnswers(wizard).map((answer) => answer.id));
+  const node = triageWizardNodeFor(stage as TriageWizardMatrixStage, symptomId, answerIds);
+  return text(locale, node.question.en, node.question.es);
 }
 
 function uniqueReplies(replies: TriageQuickReply[]) {
@@ -909,499 +799,72 @@ function profileRedFlagReplies(
   return replies;
 }
 
+function matrixReplyToQuickReply(locale: string, item: TriageWizardMatrixReply): TriageQuickReply {
+  return reply(
+    locale,
+    item.id,
+    item.kind as TriageQuickReply["kind"],
+    item.label.en,
+    item.label.es,
+    item.value.en,
+    item.value.es,
+    item.icon,
+    item.tone,
+  );
+}
+
 function quickRepliesFor(wizard: TriageWizardContext | undefined, locale: string, healthMemory?: TriageHealthMemory): TriageQuickReply[] {
   const stage = nextAdaptiveStage(wizard, healthMemory);
-  const answers = selectedAnswers(wizard);
-  const symptom = firstAnswerKind(wizard, "symptom");
-  const risks = profileRiskFlags(healthMemory);
-
   if (stage === "complete") return [];
+  if (!["symptom", "red_flag", "duration", "severity", "trend"].includes(stage)) return [];
 
-  if (stage === "symptom") {
-    return [
-      reply(locale, "pain", "symptom", "Pain", "Dolor", "I have pain.", "Tengo dolor.", "heart", "red"),
-      reply(locale, "chest", "symptom", "Chest discomfort", "Molestia de pecho", "I have chest discomfort.", "Tengo molestia de pecho.", "heart", "red"),
-      reply(locale, "breathing", "symptom", "Breathing", "Respirar", "I feel short of breath.", "Me falta el aire.", "wind", "blue"),
-      reply(locale, "fever", "symptom", "Fever", "Fiebre", "I have a fever.", "Tengo fiebre.", "thermometer", "amber"),
-      reply(locale, "dizzy", "symptom", "Dizzy", "Mareo", "I feel dizzy.", "Me siento mareada o mareado.", "activity", "amber"),
-      reply(locale, "tired", "symptom", "Very tired", "Muy cansancio", "I feel very tired.", "Me siento muy cansada o cansado.", "activity", "purple"),
-      reply(locale, "stomach", "symptom", "Stomach or bowel", "Estomago o intestino", "I have stomach or bowel trouble.", "Tengo problema de estomago o intestino.", "activity", "amber"),
-      reply(locale, "urinary", "symptom", "Urine problem", "Problema de orina", "I have a urine problem.", "Tengo problema de orina.", "help", "blue"),
-      reply(locale, "fall", "symptom", "Fall or injury", "Caida o golpe", "I fell or hurt myself.", "Me cai o me hice dano.", "alert", "red"),
-      reply(locale, "skin", "symptom", "Skin or wound", "Piel o herida", "I have a skin or wound problem.", "Tengo problema de piel o herida.", "help", "amber"),
-      reply(locale, "confusion", "symptom", "Confusion", "Confusion", "I feel confused or not like myself.", "Tengo confusion o no me siento como siempre.", "alert", "red"),
-      reply(locale, "other", "symptom", "Something else", "Otra cosa", "Something else is bothering me.", "Me pasa otra cosa.", "help", "purple"),
-    ];
-  }
+  const symptomId = selectedSymptomId(wizard);
+  if (stage === "red_flag" && !symptomId) return quickRepliesFor(undefined, locale, healthMemory);
+
+  const answerIds = new Set(selectedAnswers(wizard).map((answer) => answer.id));
+  const baseReplies = triageWizardNodeFor(stage as TriageWizardMatrixStage, symptomId, answerIds)
+    .replies
+    .map((item) => matrixReplyToQuickReply(locale, item));
 
   if (stage === "red_flag") {
-    if (!symptom) return quickRepliesFor(undefined, locale, healthMemory);
-
-    if (symptom.id === "pain") {
-      const baseReplies = [
-        reply(locale, "sudden_severe", "red_flag", "Sudden worst headache", "Peor dolor repentino", "This is a sudden worst headache or pain.", "Es el peor dolor de cabeza o dolor repentino.", "alert", "red"),
-        reply(locale, "stroke_sign", "red_flag", "Weakness, speech, vision, or confusion", "Debilidad, habla, vision o confusion", "I have weakness, numbness, speech trouble, vision trouble, confusion, or seizure.", "Tengo debilidad, adormecimiento, dificultad al hablar, problema de vision, confusion o convulsion.", "alert", "red"),
-        reply(locale, "back_bladder_weakness", "red_flag", "Back pain with bladder, bowel, or leg weakness", "Espalda con vejiga, intestino o pierna", "Back pain comes with bladder, bowel, or leg weakness.", "Dolor de espalda con problema de vejiga, intestino o debilidad de pierna.", "alert", "red"),
-        reply(locale, "no_red_flag", "red_flag", "None of these", "Nada de esto", "None of these apply.", "Nada de esto aplica.", "help", "green"),
-      ];
-      return withProfileReplies(baseReplies, profileRedFlagReplies(locale, symptom.id, risks));
-    }
-    if (symptom.id === "chest") {
-      const baseReplies = [
-        reply(locale, "chest_pressure", "red_flag", "Tight, heavy, crushing, or spreading", "Opresion, peso o se extiende", "The chest feeling is tight, heavy, crushing, or spreading.", "La molestia de pecho es opresiva, pesada, fuerte o se extiende.", "heart", "red"),
-        reply(locale, "chest_sweaty_faint", "red_flag", "Sweaty, sick, faint, or hard to breathe", "Sudor, nausea, desmayo o aire", "It comes with sweating, sickness, faintness, or hard breathing.", "Viene con sudor, nausea, desmayo o dificultad para respirar.", "alert", "red"),
-        reply(locale, "chest_stopped", "red_flag", "It happened today but stopped", "Paso hoy pero paro", "It happened today but has stopped now.", "Paso hoy pero ya paro.", "activity", "amber"),
-        reply(locale, "chest_sore_not_sure", "red_flag", "Mild sore spot / not sure", "Punto doloroso leve / no se", "It feels like a mild sore spot, or I am not sure.", "Parece un punto doloroso leve, o no estoy seguro.", "help", "purple"),
-      ];
-      return withProfileReplies(baseReplies, profileRedFlagReplies(locale, symptom.id, risks));
-    }
-    if (symptom.id === "breathing") {
-      const baseReplies = [
-        reply(locale, "cannot_speak_breathing", "red_flag", "Gasping / cannot speak", "Jadeo / no puedo hablar", "I am gasping or cannot speak a full sentence.", "Jadeo o no puedo decir una frase completa.", "wind", "red"),
-        reply(locale, "blue_confused", "red_flag", "Blue, grey, pale, or confused", "Azul, gris, palido o confusion", "Lips or skin look blue, grey, or very pale, or I feel confused.", "Labios o piel azul, gris o muy palida, o tengo confusion.", "alert", "red"),
-        reply(locale, "worse_but_speaking", "red_flag", "Worse than usual, but I can speak", "Peor, pero puedo hablar", "Breathing is worse than usual, but I can speak.", "Respiro peor de lo habitual, pero puedo hablar.", "activity", "amber"),
-        reply(locale, "walking_only", "red_flag", "Mild / only with activity", "Leve / solo con actividad", "It is mild or only happens with activity.", "Es leve o solo pasa con actividad.", "help", "green"),
-      ];
-      return withProfileReplies(baseReplies, profileRedFlagReplies(locale, symptom.id, risks));
-    }
-    if (symptom.id === "fever") {
-      const baseReplies = [
-        reply(locale, "sepsis_signs", "red_flag", "Confused, sleepy, fast breathing, blue/pale, or little urine", "Confusion, sueno, respiracion rapida, palidez o poca orina", "I feel confused, very sleepy, breathing fast, blue/pale/blotchy, or hardly peeing.", "Tengo confusion, mucho sueno, respiracion rapida, piel azul/palida/manchada o casi no orino.", "alert", "red"),
-        reply(locale, "cancer_fever", "red_flag", "Cancer treatment or weak immune system", "Cancer o defensas bajas", "I am on cancer treatment or immune-suppressing medicine.", "Estoy en tratamiento de cancer o medicina que baja defensas.", "thermometer", "red"),
-        reply(locale, "high_fever", "red_flag", "38 C or higher / shaking chills", "38 C o mas / escalofrios fuertes", "My temperature is 38 C or higher, or I have shaking chills.", "Mi temperatura es 38 C o mas, o tengo escalofrios fuertes.", "thermometer", "amber"),
-        reply(locale, "no_red_flag", "red_flag", "Mild feverish feeling only", "Solo sensacion leve de fiebre", "It is only a mild feverish feeling.", "Solo es sensacion leve de fiebre.", "help", "green"),
-      ];
-      return withProfileReplies(baseReplies, profileRedFlagReplies(locale, symptom.id, risks));
-    }
-    if (symptom.id === "dizzy") {
-      const baseReplies = [
-        reply(locale, "fainted_not_normal", "red_flag", "Fainted and not fully normal", "Desmayo y no estoy normal", "I fainted and am not fully back to normal.", "Me desmaye y no estoy completamente normal.", "alert", "red"),
-        reply(locale, "fainted_with_chest", "red_flag", "Fainted with chest, breathing, heartbeat, seizure, or injury", "Desmayo con pecho, aire, pulso, convulsion o golpe", "I fainted with chest pain, hard breathing, fast heartbeat, seizure, or injury.", "Me desmaye con dolor de pecho, dificultad para respirar, pulso rapido, convulsion o golpe.", "heart", "red"),
-        reply(locale, "very_dizzy_fall", "red_flag", "Very dizzy now / might fall", "Muy mareado / puedo caer", "I am very dizzy now or might fall.", "Estoy muy mareado ahora o puedo caer.", "activity", "amber"),
-        reply(locale, "no_red_flag", "red_flag", "Light-headed but steady", "Aturdido pero estable", "I am light-headed but awake and steady.", "Estoy aturdido pero despierto y estable.", "help", "green"),
-      ];
-      return withProfileReplies(baseReplies, profileRedFlagReplies(locale, symptom.id, risks));
-    }
-    if (symptom.id === "stomach") {
-      const baseReplies = [
-        reply(locale, "severe_abdominal", "red_flag", "Severe belly pain", "Dolor fuerte barriga", "I have severe belly pain.", "Tengo dolor fuerte de barriga.", "alert", "red"),
-        reply(locale, "blood_vomit_stool", "red_flag", "Blood or black stool", "Sangre o heces negras", "I vomited blood or have black or bloody stool.", "Vomito sangre o tengo heces negras o con sangre.", "alert", "red"),
-        reply(locale, "cannot_keep_fluids", "red_flag", "Cannot keep fluids down", "No retengo liquidos", "I cannot keep fluids down, or I cannot pass stool, gas, or urine.", "No puedo retener liquidos, o no puedo hacer heces, gases u orina.", "alert", "red"),
-        reply(locale, "no_red_flag", "red_flag", "None of these", "Nada de esto", "None of these apply.", "Nada de esto aplica.", "help", "green"),
-      ];
-      return withProfileReplies(baseReplies, profileRedFlagReplies(locale, symptom.id, risks));
-    }
-    if (symptom.id === "urinary") {
-      const baseReplies = [
-        reply(locale, "cannot_pee", "red_flag", "Cannot pass urine", "No puedo orinar", "I cannot pass urine or have severe lower belly pain.", "No puedo orinar o tengo dolor fuerte bajo vientre.", "alert", "red"),
-        reply(locale, "urine_fever_back", "red_flag", "Burning with fever, side pain, vomiting, or confusion", "Ardor con fiebre, lado, vomitos o confusion", "Burning or urgency comes with fever, chills, back/side pain, vomiting, or confusion.", "Ardor o urgencia viene con fiebre, escalofrios, dolor de espalda/lado, vomitos o confusion.", "alert", "red"),
-        reply(locale, "blood_in_urine", "red_flag", "Blood in urine or clots", "Sangre o coagulos en orina", "There is blood or clots in my urine.", "Hay sangre o coagulos en mi orina.", "alert", "amber"),
-        reply(locale, "no_red_flag", "red_flag", "Burning, urgency, cloudy, or smelly only", "Solo ardor, urgencia, turbia u olor", "It is only burning, urgency, cloudy urine, or smelly urine.", "Solo es ardor, urgencia, orina turbia u olor fuerte.", "help", "green"),
-      ];
-      return withProfileReplies(baseReplies, profileRedFlagReplies(locale, symptom.id, risks));
-    }
-    if (symptom.id === "fall") {
-      const baseReplies = [
-        reply(locale, "fall_head_hit", "red_flag", "Hit head", "Golpe en cabeza", "I hit my head, fainted, or feel confused.", "Me golpee la cabeza, me desmaye o tengo confusion.", "alert", "red"),
-        reply(locale, "fall_cannot_stand", "red_flag", "Cannot stand", "No puedo levantarme", "I cannot stand, walk, or use the injured part.", "No puedo estar de pie, caminar o usar la parte lesionada.", "alert", "red"),
-        reply(locale, "hip_back_after_fall", "red_flag", "Hip or back pain", "Dolor cadera/espalda", "I have hip, back, or severe pain after the fall.", "Tengo dolor de cadera, espalda o dolor fuerte tras la caida.", "alert", "red"),
-        reply(locale, "no_red_flag", "red_flag", "Small bruise", "Moreton pequeno", "It seems like a small bruise or mild soreness.", "Parece moreton pequeno o dolor leve.", "help", "green"),
-      ];
-      return withProfileReplies(baseReplies, profileRedFlagReplies(locale, symptom.id, risks));
-    }
-    if (symptom.id === "skin") {
-      const baseReplies = [
-        reply(locale, "allergic_swelling", "red_flag", "Face or throat swelling", "Cara o garganta hinchada", "My face, lips, tongue, or throat is swelling.", "Se hincha mi cara, labios, lengua o garganta.", "alert", "red"),
-        reply(locale, "skin_sepsis_signs", "red_flag", "Hot red skin with fever, confusion, fast breathing, or dizziness", "Piel roja caliente con fiebre, confusion, respiracion o mareo", "Painful hot red skin comes with fever, confusion, fast breathing, or dizziness.", "Piel roja caliente y dolorosa viene con fiebre, confusion, respiracion rapida o mareo.", "alert", "red"),
-        reply(locale, "wound_spreading", "red_flag", "Open wound, drainage, surgery wound, or spreading redness", "Herida, secrecion, cirugia o rojez", "I have an open or draining wound, surgery wound, or spreading redness.", "Tengo herida abierta o con secrecion, herida de cirugia o rojez que se extiende.", "alert", "amber"),
-        reply(locale, "no_red_flag", "red_flag", "Small skin issue", "Problema pequeno", "It is small and not spreading.", "Es pequeno y no se extiende.", "help", "green"),
-      ];
-      return withProfileReplies(baseReplies, profileRedFlagReplies(locale, symptom.id, risks));
-    }
-    if (symptom.id === "confusion") {
-      const baseReplies = [
-        reply(locale, "sudden_confusion", "red_flag", "Suddenly confused or hard to wake", "Confusion repentina o cuesta despertar", "The confusion is sudden, I am not making sense, or I am hard to wake.", "La confusion es repentina, no digo cosas con sentido o cuesta despertarme.", "alert", "red"),
-        reply(locale, "stroke_sign", "red_flag", "Weakness or speech", "Debilidad o habla", "I have weakness on one side, face droop, or trouble speaking.", "Tengo debilidad en un lado, cara caida o dificultad para hablar.", "alert", "red"),
-        reply(locale, "urine_confusion", "red_flag", "Fever or urine change", "Fiebre u orina", "I have fever, burning urine, new weakness, or low urine.", "Tengo fiebre, ardor al orinar, debilidad nueva o poca orina.", "alert", "red"),
-        reply(locale, "no_red_flag", "red_flag", "Mild forgetfulness", "Olvido leve", "It is mild forgetfulness and not sudden.", "Es olvido leve y no repentino.", "help", "green"),
-      ];
-      return withProfileReplies(baseReplies, profileRedFlagReplies(locale, symptom.id, risks));
-    }
-    if (symptom.id === "tired") {
-      const baseReplies = [
-        reply(locale, "one_sided_weakness", "red_flag", "Sudden weakness, speech, or vision trouble", "Debilidad repentina, habla o vision", "I have sudden face, arm, or leg weakness, speech trouble, or vision trouble.", "Tengo debilidad repentina en cara, brazo o pierna, problema de habla o vision.", "alert", "red"),
-        reply(locale, "cannot_stand", "red_flag", "Cannot stand safely", "No puedo estar de pie", "I feel too weak to stand or walk safely.", "Me siento demasiado debil para estar de pie o caminar.", "alert", "red"),
-        reply(locale, "chest_breathing", "red_flag", "Weak with chest pain or hard breathing", "Debil con pecho o respiracion", "Weakness comes with chest pain or hard breathing.", "La debilidad viene con dolor de pecho o dificultad para respirar.", "heart", "red"),
-        reply(locale, "no_red_flag", "red_flag", "Tired or weak, but alert and safe", "Cansado o debil, pero alerta", "I am tired or weak, but alert and safe.", "Estoy cansado o debil, pero alerta y seguro.", "help", "green"),
-      ];
-      return withProfileReplies(baseReplies, profileRedFlagReplies(locale, symptom.id, risks));
-    }
-    const baseReplies = [
-      reply(locale, "chest_pain", "red_flag", "Chest pain, hard breathing, or blue/grey/pale skin", "Pecho, respiracion o piel azul/gris/palida", "I have chest pain, trouble breathing, or blue/grey/pale skin.", "Tengo dolor de pecho, dificultad para respirar o piel azul/gris/palida.", "alert", "red"),
-      reply(locale, "stroke_sign", "red_flag", "Face/arm weakness, speech/vision trouble, seizure, or fainted", "Cara/brazo, habla/vision, convulsion o desmayo", "I have face or arm weakness, speech or vision trouble, seizure, or fainted.", "Tengo debilidad en cara o brazo, problema de habla o vision, convulsion o desmayo.", "alert", "red"),
-      reply(locale, "new_confusion", "red_flag", "Very confused, hard to wake, heavy bleeding, severe pain, or allergy swelling", "Confusion, despertar, sangrado, dolor o alergia", "I am very confused, hard to wake, heavily bleeding, in severe pain, or have allergy swelling.", "Tengo mucha confusion, cuesta despertarme, sangrado fuerte, dolor fuerte o hinchazon alergica.", "alert", "red"),
-      reply(locale, "no_red_flag", "red_flag", "None of these", "Nada de esto", "None of these apply.", "Nada de esto aplica.", "help", "green"),
-    ];
-    return withProfileReplies(baseReplies, profileRedFlagReplies(locale, symptom?.id, risks));
+    return withProfileReplies(baseReplies, profileRedFlagReplies(locale, symptomId, profileRiskFlags(healthMemory)));
   }
 
-  if (stage === "duration") {
-    const symptomId = selectedSymptomId(wizard);
-    if (symptomId === "pain") {
-      return [
-        reply(locale, "today", "duration", "Started today", "Empezo hoy", "The pain started today.", "El dolor empezo hoy.", "activity", "amber"),
-        reply(locale, "few_days", "duration", "2-3 days", "2-3 dias", "The pain has been there for two or three days.", "El dolor lleva dos o tres dias.", "activity", "purple"),
-        reply(locale, "week_plus", "duration", "A week+", "Una semana+", "The pain has lasted a week or more.", "El dolor lleva una semana o mas.", "activity", "blue"),
-        reply(locale, "not_sure_duration", "duration", "Not sure", "No se", "I am not sure when the pain started.", "No se cuando empezo el dolor.", "help", "purple"),
-      ];
-    }
-    if (symptomId === "chest") {
-      return [
-        reply(locale, "today", "duration", "Started today", "Empezo hoy", "The chest feeling started today.", "La molestia de pecho empezo hoy.", "heart", "amber"),
-        reply(locale, "few_days", "duration", "Past few days", "Pocos dias", "It has happened in the past few days.", "Ha pasado en los ultimos dias.", "activity", "purple"),
-        reply(locale, "keeps_returning", "duration", "Comes and goes", "Va y viene", "The chest feeling comes and goes.", "La molestia de pecho va y viene.", "activity", "amber"),
-        reply(locale, "not_sure_duration", "duration", "Not sure", "No se", "I am not sure when it started.", "No se cuando empezo.", "help", "purple"),
-      ];
-    }
-    if (symptomId === "fever") {
-      return [
-        reply(locale, "today", "duration", "Started today", "Empezo hoy", "It started today.", "Empezo hoy.", "thermometer", "amber"),
-        reply(locale, "few_days", "duration", "2-3 days", "2-3 dias", "It has been going on for two or three days.", "Lleva dos o tres dias.", "activity", "purple"),
-        reply(locale, "week_plus", "duration", "A week+", "Una semana+", "It has been going on for a week or more.", "Lleva una semana o mas.", "activity", "blue"),
-        reply(locale, "not_sure_duration", "duration", "Not sure", "No se", "I am not sure when it started.", "No se cuando empezo.", "help", "purple"),
-      ];
-    }
-    if (symptomId === "breathing") {
-      return [
-        reply(locale, "today", "duration", "New today", "Nuevo hoy", "It started today.", "Empezo hoy.", "wind", "amber"),
-        reply(locale, "few_days", "duration", "Few days", "Pocos dias", "It has been going on for two or three days.", "Lleva dos o tres dias.", "activity", "purple"),
-        reply(locale, "week_plus", "duration", "Longer", "Mas tiempo", "It has been going on for a week or more.", "Lleva una semana o mas.", "activity", "blue"),
-        reply(locale, "not_sure_duration", "duration", "Not sure", "No se", "I am not sure when it started.", "No se cuando empezo.", "help", "purple"),
-      ];
-    }
-    if (symptomId === "dizzy") {
-      return [
-        reply(locale, "today", "duration", "Started today", "Empezo hoy", "The dizziness started today.", "El mareo empezo hoy.", "activity", "amber"),
-        reply(locale, "few_days", "duration", "Few days", "Pocos dias", "The dizziness has been there for a few days.", "El mareo lleva pocos dias.", "activity", "purple"),
-        reply(locale, "keeps_returning", "duration", "Keeps returning", "Vuelve a pasar", "The dizziness keeps coming back.", "El mareo vuelve a pasar.", "activity", "blue"),
-        reply(locale, "not_sure_duration", "duration", "Not sure", "No se", "I am not sure when it started.", "No se cuando empezo.", "help", "purple"),
-      ];
-    }
-    if (symptomId === "tired") {
-      return [
-        reply(locale, "today", "duration", "Today", "Hoy", "The tiredness or weakness started today.", "El cansancio o debilidad empezo hoy.", "activity", "amber"),
-        reply(locale, "few_days", "duration", "Few days", "Pocos dias", "It has been going on for a few days.", "Lleva pocos dias.", "activity", "purple"),
-        reply(locale, "week_plus", "duration", "A week+", "Una semana+", "It has lasted a week or more.", "Lleva una semana o mas.", "activity", "blue"),
-        reply(locale, "not_sure_duration", "duration", "Not sure", "No se", "I am not sure when it started.", "No se cuando empezo.", "help", "purple"),
-      ];
-    }
-    if (symptomId === "stomach") {
-      return [
-        reply(locale, "getting_worse_today", "duration", "Getting worse today", "Empeora hoy", "It is getting worse today.", "Esta empeorando hoy.", "alert", "amber"),
-        reply(locale, "vomit_diarrhea_24h", "duration", "Vomiting or diarrhea over 24 hours", "Vomitos o diarrea mas de 24h", "Vomiting or diarrhea has lasted more than 24 hours.", "Vomitos o diarrea duran mas de 24 horas.", "alert", "amber"),
-        reply(locale, "constipation_passing_gas", "duration", "Constipation but passing gas", "Estrenimiento pero gases", "I am constipated but passing gas, and pain is mild.", "Tengo estrenimiento pero expulso gases, y el dolor es leve.", "activity", "blue"),
-        reply(locale, "better", "duration", "Mild and improving", "Leve y mejora", "It is mild and improving.", "Es leve y mejora.", "help", "green"),
-      ];
-    }
-    if (symptomId === "urinary") {
-      return [
-        reply(locale, "today", "duration", "Today", "Hoy", "The urine problem started today.", "El problema de orina empezo hoy.", "activity", "amber"),
-        reply(locale, "few_days", "duration", "Few days", "Pocos dias", "It has been going on for a few days.", "Lleva pocos dias.", "activity", "purple"),
-        reply(locale, "week_plus", "duration", "A week+", "Una semana+", "It has lasted a week or more.", "Lleva una semana o mas.", "activity", "blue"),
-        reply(locale, "not_sure_duration", "duration", "Not sure", "No se", "I am not sure when it started.", "No se cuando empezo.", "help", "purple"),
-      ];
-    }
-    if (symptomId === "fall") {
-      return [
-        reply(locale, "today", "duration", "Today", "Hoy", "The fall or injury happened today.", "La caida o golpe fue hoy.", "activity", "amber"),
-        reply(locale, "few_days", "duration", "Few days ago", "Hace pocos dias", "It happened a few days ago.", "Paso hace pocos dias.", "activity", "purple"),
-        reply(locale, "week_plus", "duration", "A week+", "Una semana+", "It happened a week or more ago.", "Paso hace una semana o mas.", "activity", "blue"),
-        reply(locale, "not_sure_duration", "duration", "Not sure", "No se", "I am not sure when it happened.", "No se cuando paso.", "help", "purple"),
-      ];
-    }
-    if (symptomId === "skin") {
-      return [
-        reply(locale, "today", "duration", "Today", "Hoy", "The skin or wound problem started today.", "El problema de piel o herida empezo hoy.", "activity", "amber"),
-        reply(locale, "few_days", "duration", "Few days", "Pocos dias", "It has been there for a few days.", "Lleva pocos dias.", "activity", "purple"),
-        reply(locale, "week_plus", "duration", "A week+", "Una semana+", "It has been there for a week or more.", "Lleva una semana o mas.", "activity", "blue"),
-        reply(locale, "not_sure_duration", "duration", "Not sure", "No se", "I am not sure when it started.", "No se cuando empezo.", "help", "purple"),
-      ];
-    }
-    if (symptomId === "confusion") {
-      return [
-        reply(locale, "today", "duration", "Today", "Hoy", "The confusion or change started today.", "La confusion o cambio empezo hoy.", "activity", "amber"),
-        reply(locale, "few_days", "duration", "Few days", "Pocos dias", "It has been going on for a few days.", "Lleva pocos dias.", "activity", "purple"),
-        reply(locale, "week_plus", "duration", "Longer", "Mas tiempo", "It has been going on longer.", "Lleva mas tiempo.", "activity", "blue"),
-        reply(locale, "not_sure_duration", "duration", "Not sure", "No se", "I am not sure when it started.", "No se cuando empezo.", "help", "purple"),
-      ];
-    }
-    return [
-      reply(locale, "today", "duration", "Started today", "Empezo hoy", "This started today.", "Esto empezo hoy.", "activity", "amber"),
-      reply(locale, "few_days", "duration", "Few days", "Pocos dias", "This has been going on for a few days.", "Esto lleva pocos dias.", "activity", "purple"),
-      reply(locale, "week_plus", "duration", "Longer", "Mas tiempo", "This has been going on longer.", "Esto lleva mas tiempo.", "activity", "blue"),
-      reply(locale, "not_sure_duration", "duration", "Not sure", "No se", "I am not sure when it started.", "No se cuando empezo.", "help", "purple"),
-    ];
-  }
-
-  if (stage === "severity") {
-    const symptomId = selectedSymptomId(wizard);
-    if (symptomId === "pain") {
-      return [
-        reply(locale, "head_neck_pain", "severity", "Head or neck", "Cabeza o cuello", "The pain is mainly in my head or neck.", "El dolor es sobre todo en cabeza o cuello.", "activity", "amber"),
-        reply(locale, "back_pain", "severity", "Back", "Espalda", "The pain is mainly in my back.", "El dolor es sobre todo en la espalda.", "activity", "amber"),
-        reply(locale, "belly_side_pain", "severity", "Belly or side", "Barriga o lado", "The pain is mainly in my belly or side.", "El dolor es sobre todo en barriga o lado.", "activity", "amber"),
-        reply(locale, "limb_joint_pain", "severity", "Arm, leg, joint, or other", "Brazo, pierna, articulacion u otro", "The pain is in my arm, leg, joint, or somewhere else.", "El dolor esta en brazo, pierna, articulacion u otra zona.", "help", "blue"),
-      ];
-    }
-    if (symptomId === "chest") {
-      return [
-        reply(locale, "chest_rest_long", "severity", "At rest, woke me, or over 5 minutes", "En reposo, me desperto o mas de 5 min", "It came on at rest, woke me up, or lasted over five minutes.", "Aparecio en reposo, me desperto o duro mas de cinco minutos.", "heart", "red"),
-        reply(locale, "chest_activity", "severity", "With walking, stairs, or activity", "Con caminar, escaleras o actividad", "It happens with walking, stairs, or activity.", "Pasa al caminar, subir escaleras o hacer actividad.", "activity", "amber"),
-        reply(locale, "chest_press_move", "severity", "Only when I press, twist, cough, or lift", "Solo al presionar, girar, toser o levantar", "It only hurts when I press, twist, cough, or lift.", "Solo duele al presionar, girar, toser o levantar.", "help", "green"),
-        reply(locale, "not_sure_severity", "severity", "I'm not sure", "No estoy seguro", "I am not sure which description fits.", "No estoy seguro de cual descripcion encaja.", "help", "purple"),
-      ];
-    }
-    if (symptomId === "breathing") {
-      return [
-        reply(locale, "breathing_chest_pain", "severity", "Chest tightness, heaviness, or spreading pain", "Pecho opresivo, pesado o dolor se extiende", "Breathing trouble comes with chest tightness, heaviness, or spreading pain.", "La dificultad para respirar viene con pecho opresivo, pesado o dolor que se extiende.", "heart", "red"),
-        reply(locale, "coughing_blood", "severity", "Coughing blood or one swollen calf", "Tos con sangre o pantorrilla hinchada", "I am coughing blood or one calf is painful, red, or swollen.", "Toso sangre o una pantorrilla duele, esta roja o hinchada.", "alert", "red"),
-        reply(locale, "irregular_heartbeat", "severity", "Fast heartbeat, fainting, or severe weakness", "Pulso rapido, desmayo o debilidad fuerte", "I have fast/irregular heartbeat, fainting, or severe weakness.", "Tengo pulso rapido/irregular, desmayo o debilidad fuerte.", "alert", "red"),
-        reply(locale, "no_red_flag", "severity", "No", "No", "None of these are happening.", "Nada de esto esta pasando.", "help", "green"),
-      ];
-    }
-    if (symptomId === "fever") {
-      return [
-        reply(locale, "fever_breathing", "severity", "Cough, chest pain, or shortness of breath", "Tos, pecho o falta de aire", "Fever comes with cough, chest pain, or shortness of breath.", "La fiebre viene con tos, dolor de pecho o falta de aire.", "wind", "amber"),
-        reply(locale, "fever_urine_back", "severity", "Burning pee, side pain, vomiting, or confusion", "Orina, lado, vomitos o confusion", "Fever comes with burning urine, back/side pain, vomiting, or confusion.", "La fiebre viene con ardor al orinar, dolor de espalda/lado, vomitos o confusion.", "alert", "amber"),
-        reply(locale, "fever_wound", "severity", "Red painful skin, wound, or surgery cut", "Piel roja, herida o cirugia", "Fever comes with red painful skin, a wound, or a surgery cut.", "La fiebre viene con piel roja dolorosa, herida o corte de cirugia.", "alert", "amber"),
-        reply(locale, "no_red_flag", "severity", "No clear source", "Sin fuente clara", "I do not know where the fever is coming from.", "No se de donde viene la fiebre.", "help", "blue"),
-      ];
-    }
-    if (symptomId === "dizzy") {
-      return [
-        reply(locale, "stroke_sign", "severity", "Face, arm, speech, or vision change", "Cara, brazo, habla o vision", "I have face droop, arm weakness, speech trouble, or vision loss.", "Tengo cara caida, debilidad de brazo, habla rara o perdida de vision.", "alert", "red"),
-        reply(locale, "dizzy_chest", "severity", "Chest pain, hard breathing, or fast heartbeat", "Pecho, aire o pulso rapido", "Dizziness comes with chest pain, shortness of breath, or very fast/irregular heartbeat.", "El mareo viene con dolor de pecho, falta de aire o pulso muy rapido/irregular.", "heart", "red"),
-        reply(locale, "low_sugar", "severity", "Low sugar symptoms or diabetes medicine", "Azucar baja o medicina diabetes", "I may have low sugar symptoms or take diabetes medicine.", "Puedo tener senales de azucar baja o tomo medicina de diabetes.", "activity", "amber"),
-        reply(locale, "no_red_flag", "severity", "No", "No", "None of these are happening.", "Nada de esto esta pasando.", "help", "green"),
-      ];
-    }
-    if (symptomId === "tired") {
-      return [
-        reply(locale, "infection_signs", "severity", "Fever, chills, cough, wound, or urine pain", "Fiebre, tos, herida u orina", "I have fever, chills, cough, wound, or urine pain.", "Tengo fiebre, escalofrios, tos, herida o dolor al orinar.", "alert", "amber"),
-        reply(locale, "not_drinking", "severity", "Vomiting, diarrhea, not drinking, or hardly peeing", "Vomitos, diarrea, no bebo o poca orina", "I have vomiting, diarrhea, poor drinking, or hardly peeing.", "Tengo vomitos, diarrea, bebo poco o casi no orino.", "alert", "amber"),
-        reply(locale, "low_sugar", "severity", "Diabetes medicine or possible sugar problem", "Diabetes o posible azucar", "I take diabetes medicine or may have low or high sugar.", "Tomo medicina de diabetes o puedo tener azucar baja o alta.", "activity", "amber"),
-        reply(locale, "no_red_flag", "severity", "No", "No", "None of these are happening.", "Nada de esto esta pasando.", "help", "green"),
-      ];
-    }
-    if (symptomId === "stomach") {
-      return [
-        reply(locale, "vomiting", "severity", "Vomiting", "Vomitos", "Vomiting is the main problem.", "Vomitos es el problema principal.", "alert", "amber"),
-        reply(locale, "diarrhea", "severity", "Diarrhea", "Diarrea", "Diarrhea is the main problem.", "Diarrea es el problema principal.", "activity", "amber"),
-        reply(locale, "constipation", "severity", "Constipation", "Estrenimiento", "Constipation is the main problem.", "Estrenimiento es el problema principal.", "activity", "blue"),
-        reply(locale, "belly_pain_nausea", "severity", "Belly pain, bloating, or nausea", "Dolor, hinchazon o nausea", "Belly pain, bloating, or nausea is the main problem.", "Dolor de barriga, hinchazon o nausea es el problema principal.", "help", "amber"),
-      ];
-    }
-    if (symptomId === "urinary") {
-      return [
-        reply(locale, "urine_fever_chills", "severity", "Fever or shaking chills", "Fiebre o escalofrios", "I have fever or shaking chills.", "Tengo fiebre o escalofrios fuertes.", "alert", "red"),
-        reply(locale, "urine_side_pain", "severity", "Back or side pain", "Dolor espalda o lado", "I have back or side pain.", "Tengo dolor de espalda o lado.", "alert", "amber"),
-        reply(locale, "urine_confusion_weak", "severity", "New confusion or very weak", "Confusion nueva o muy debil", "I am newly confused or very weak.", "Tengo confusion nueva o mucha debilidad.", "alert", "red"),
-        reply(locale, "no_red_flag", "severity", "No", "No", "None of these are happening.", "Nada de esto esta pasando.", "help", "green"),
-      ];
-    }
-    if (symptomId === "fall") {
-      return [
-        reply(locale, "lost_consciousness", "severity", "Knocked out, even briefly", "Perdi conocimiento", "I was knocked out, even briefly.", "Perdi el conocimiento, aunque fuera breve.", "alert", "red"),
-        reply(locale, "fell_from_height", "severity", "Fell from stairs, height, or high speed", "Escaleras, altura o velocidad", "I fell from stairs, a height, or high speed.", "Me cai de escaleras, desde altura o a velocidad.", "alert", "amber"),
-        reply(locale, "alone_after_fall", "severity", "I live alone and no one can check on me", "Vivo solo", "I live alone and no one can check on me.", "Vivo solo y nadie puede revisarme.", "alert", "amber"),
-        reply(locale, "no_red_flag", "severity", "No", "No", "None of these happened.", "Nada de esto paso.", "help", "green"),
-      ];
-    }
-    if (symptomId === "skin") {
-      return [
-        reply(locale, "shingles_eye", "severity", "Painful blisters near eye/nose or vision change", "Ampollas cerca ojo/nariz o vision", "Painful blisters are near my eye/nose or I have vision changes.", "Ampollas dolorosas cerca del ojo/nariz o tengo cambios de vision.", "alert", "amber"),
-        reply(locale, "shingles_immune", "severity", "Painful blisters and weak immune system", "Ampollas y defensas bajas", "It looks like painful blisters and my immune system is weak.", "Parecen ampollas dolorosas y tengo defensas bajas.", "alert", "amber"),
-        reply(locale, "shingles_early", "severity", "Painful blisters started within 3 days", "Ampollas hace menos de 3 dias", "Painful blisters started within the last three days.", "Ampollas dolorosas empezaron en los ultimos tres dias.", "activity", "amber"),
-        reply(locale, "no_red_flag", "severity", "No", "No", "No painful blister pattern.", "No hay patron de ampollas dolorosas.", "help", "green"),
-      ];
-    }
-    if (symptomId === "confusion") {
-      return [
-        reply(locale, "unsafe_behavior", "severity", "Stove, wandering, fall, or medicine safety problem", "Cocina, salir, caida o medicinas", "There is a stove, wandering, fall, or medicine safety problem.", "Hay problema con cocina, salir solo, caida o medicinas.", "alert", "amber"),
-        reply(locale, "new_medicine_confusion", "severity", "New medicine or dose change", "Nueva medicina o dosis", "This started after a new medicine or dose change.", "Esto empezo tras medicina nueva o cambio de dosis.", "alert", "amber"),
-        reply(locale, "self_harm", "severity", "Very low mood or self-harm talk", "Animo muy bajo o autolesion", "There is very low mood or talk about self-harm.", "Hay animo muy bajo o habla de autolesion.", "alert", "red"),
-        reply(locale, "no_red_flag", "severity", "No immediate safety concern", "Sin peligro inmediato", "There is no immediate safety concern.", "No hay peligro inmediato.", "help", "green"),
-      ];
-    }
-    if (symptomId === "other") {
-      return [
-        reply(locale, "main_chest_breathing", "severity", "Chest or breathing", "Pecho o respiracion", "The main problem is chest or breathing.", "El problema principal es pecho o respiracion.", "heart", "red"),
-        reply(locale, "main_neuro_fall", "severity", "Head, weakness, dizziness, confusion, or fall", "Cabeza, debilidad, mareo, confusion o caida", "The main problem is head, weakness, dizziness, confusion, or a fall.", "El problema principal es cabeza, debilidad, mareo, confusion o caida.", "alert", "amber"),
-        reply(locale, "main_infection", "severity", "Fever, urine, stomach, skin, or wound", "Fiebre, orina, estomago, piel o herida", "The main problem is fever, urine, stomach, skin, or a wound.", "El problema principal es fiebre, orina, estomago, piel o herida.", "activity", "amber"),
-        reply(locale, "other_not_sure", "severity", "Other / not sure", "Otra cosa / no se", "It is something else or I am not sure.", "Es otra cosa o no estoy seguro.", "help", "purple"),
-      ];
-    }
-    return [
-      reply(locale, "mild", "severity", "Mild", "Leve", "It feels mild.", "Se siente leve.", "activity", "green"),
-      reply(locale, "moderate", "severity", "Bothers me", "Me molesta", "It is bothering me.", "Me molesta.", "alert", "amber"),
-      reply(locale, "strong", "severity", "Feels serious", "Parece serio", "It feels serious.", "Parece serio.", "heart", "red"),
-      reply(locale, "not_sure_severity", "severity", "Not sure", "No se", "I am not sure how strong it is.", "No se que tan fuerte es.", "help", "purple"),
-    ];
-  }
-
-  if (stage === "trend") {
-    const symptomId = selectedSymptomId(wizard);
-    if (symptomId === "breathing") {
-      return [
-        reply(locale, "new_symptoms", "trend", "New or suddenly worse today", "Nuevo o peor hoy", "Breathing is new or suddenly worse today.", "La respiracion es nueva o de repente peor hoy.", "alert", "amber"),
-        reply(locale, "fever_cough_phlegm", "trend", "Fever, cough, or more phlegm", "Fiebre, tos o mas flema", "Breathing trouble comes with fever, cough, or more phlegm.", "La dificultad para respirar viene con fiebre, tos o mas flema.", "alert", "amber"),
-        reply(locale, "worse_lying_flat", "trend", "Worse lying flat or swollen ankles", "Peor acostado o tobillos hinchados", "It is worse lying flat, or my ankles are swollen.", "Es peor acostado, o tengo tobillos hinchados.", "activity", "amber"),
-        reply(locale, "better", "trend", "Mild, usual, and improving", "Leve, habitual y mejora", "It is mild, usual for me, and improving.", "Es leve, habitual para mi y mejora.", "help", "green"),
-      ];
-    }
-    if (symptomId === "fever") {
-      return [
-        reply(locale, "less_urine_weak", "trend", "Less urine, very weak, dizzy, or cannot drink", "Menos orina, debil, mareo o no bebo", "I have less urine, feel very weak or dizzy, or cannot drink.", "Tengo menos orina, mucha debilidad o mareo, o no puedo beber.", "alert", "amber"),
-        reply(locale, "week_plus", "trend", "Fever 38 C+ more than 24 hours", "Fiebre 38 C+ mas de 24 horas", "Fever has been 38 C or higher for more than 24 hours.", "La fiebre ha sido 38 C o mas durante mas de 24 horas.", "thermometer", "amber"),
-        reply(locale, "better", "trend", "Mild, improving, drinking and peeing", "Leve, mejora, bebo y orino", "It is mild and improving, and I am drinking and peeing normally.", "Es leve y mejora, y bebo y orino normal.", "activity", "green"),
-        reply(locale, "not_sure_trend", "trend", "I'm not sure", "No estoy seguro", "I am not sure.", "No estoy seguro.", "help", "purple"),
-      ];
-    }
-    if (symptomId === "dizzy") {
-      return [
-        reply(locale, "standing_dizziness", "trend", "When standing up", "Al levantarme", "It happens when I stand up.", "Pasa cuando me levanto.", "activity", "amber"),
-        reply(locale, "head_movement_dizzy", "trend", "With head movement", "Con movimiento de cabeza", "It happens with head movement or turning.", "Pasa con movimiento de cabeza o al girar.", "activity", "blue"),
-        reply(locale, "worse", "trend", "All the time or getting worse", "Todo el tiempo o empeora", "It is there all the time or getting worse.", "Esta todo el tiempo o empeora.", "alert", "amber"),
-        reply(locale, "better", "trend", "One brief episode, gone now", "Un episodio breve, ya paso", "It was one brief episode and is gone now.", "Fue un episodio breve y ya paso.", "help", "green"),
-      ];
-    }
-    if (symptomId === "tired") {
-      return [
-        reply(locale, "better", "trend", "More energy", "Mas energia", "I have a bit more energy.", "Tengo algo mas de energia.", "activity", "green"),
-        reply(locale, "same", "trend", "Same", "Igual", "My energy feels about the same.", "Mi energia esta igual.", "help", "blue"),
-        reply(locale, "worse", "trend", "Weaker", "Mas debil", "I am feeling weaker.", "Me siento mas debil.", "alert", "red"),
-        reply(locale, "new_symptoms", "trend", "New symptoms", "Nuevos sintomas", "New symptoms have appeared.", "Han aparecido sintomas nuevos.", "alert", "amber"),
-      ];
-    }
-    if (symptomId === "pain") {
-      const ids = new Set(selectedAnswers(wizard).map((answer) => answer.id));
-      if (ids.has("head_neck_pain")) {
-        return [
-          reply(locale, "headache_fever_stiff", "trend", "Fever, stiff neck, rash, confusion, seizure, or double vision", "Fiebre, cuello, erupcion, confusion, convulsion o vision doble", "Headache comes with fever, stiff neck, rash, confusion, seizure, or double vision.", "El dolor de cabeza viene con fiebre, cuello rigido, erupcion, confusion, convulsion o vision doble.", "alert", "red"),
-          reply(locale, "after_fall", "trend", "Started after head injury", "Tras golpe en cabeza", "It started after a head injury.", "Empezo tras un golpe en la cabeza.", "alert", "amber"),
-          reply(locale, "new_headache_after_50", "trend", "New or very different for me", "Nuevo o muy diferente", "This is new or very different for me.", "Es nuevo o muy diferente para mi.", "activity", "amber"),
-          reply(locale, "better", "trend", "Mild, familiar, improving", "Leve, conocido, mejora", "It is mild, familiar, and improving.", "Es leve, conocido y mejora.", "help", "green"),
-        ];
-      }
-      if (ids.has("back_pain")) {
-        return [
-          reply(locale, "back_bladder_weakness", "trend", "Bladder/bowel problem or leg weakness", "Vejiga/intestino o pierna debil", "Back pain comes with bladder or bowel control changes or leg weakness.", "Dolor de espalda con cambios de control de vejiga/intestino o debilidad de pierna.", "alert", "red"),
-          reply(locale, "night_back_pain", "trend", "Fever, fall, cancer history, or night pain", "Fiebre, caida, cancer o dolor nocturno", "Back pain comes with fever, a fall, cancer history, or constant night pain.", "Dolor de espalda con fiebre, caida, antecedente de cancer o dolor nocturno constante.", "alert", "amber"),
-          reply(locale, "better", "trend", "Mild strain and improving", "Tiron leve y mejora", "It feels like a mild strain and is improving.", "Parece un tiron leve y mejora.", "help", "green"),
-          reply(locale, "not_sure_trend", "trend", "I'm not sure", "No estoy seguro", "I am not sure.", "No estoy seguro.", "help", "purple"),
-        ];
-      }
-      if (ids.has("limb_joint_pain")) {
-        return [
-          reply(locale, "deformed_limb", "trend", "Cannot use it or it looks deformed", "No puedo usarlo o deformado", "I cannot use it, or it looks deformed.", "No puedo usarlo o se ve deformado.", "alert", "amber"),
-          reply(locale, "limb_cold_blue", "trend", "Cold, blue, numb, or severe swelling", "Frio, azul, dormido o hinchado", "The limb is cold, blue, numb, or very swollen.", "La extremidad esta fria, azul, dormida o muy hinchada.", "alert", "red"),
-          reply(locale, "moderate", "trend", "Painful but usable", "Duele pero puedo usarlo", "It is painful but usable.", "Duele pero puedo usarlo.", "activity", "amber"),
-          reply(locale, "better", "trend", "Mild and improving", "Leve y mejora", "It is mild and improving.", "Es leve y mejora.", "help", "green"),
-        ];
-      }
-      return [
-        reply(locale, "better", "trend", "Pain easing", "Dolor baja", "The pain is easing.", "El dolor esta bajando.", "activity", "green"),
-        reply(locale, "same", "trend", "Same", "Igual", "The pain feels about the same.", "El dolor esta igual.", "help", "blue"),
-        reply(locale, "worse", "trend", "Pain worse", "Dolor peor", "The pain is getting worse.", "El dolor esta empeorando.", "alert", "red"),
-        reply(locale, "new_symptoms", "trend", "New symptoms", "Nuevos sintomas", "New symptoms have appeared.", "Han aparecido sintomas nuevos.", "alert", "amber"),
-      ];
-    }
-    if (symptomId === "chest") {
-      return [
-        reply(locale, "chest_breathing", "trend", "Sudden shortness of breath", "Falta de aire repentina", "I have sudden shortness of breath.", "Tengo falta de aire repentina.", "wind", "red"),
-        reply(locale, "chest_cough_blood", "trend", "Coughing blood", "Tos con sangre", "I am coughing blood.", "Toso sangre.", "alert", "red"),
-        reply(locale, "one_calf_swollen", "trend", "One calf painful, red, or swollen", "Una pantorrilla duele, roja o hinchada", "One calf is painful, red, or swollen.", "Una pantorrilla duele, esta roja o hinchada.", "alert", "red"),
-        reply(locale, "no_chest_extra", "trend", "No", "No", "None of these are happening.", "Nada de esto esta pasando.", "help", "green"),
-      ];
-    }
-    if (symptomId === "stomach") {
-      return [
-        reply(locale, "not_drinking", "trend", "Very weak, dizzy, confused, dry mouth, or hardly peeing", "Debil, mareo, confusion, boca seca o poca orina", "I am very weak, dizzy, confused, dry-mouthed, or hardly peeing.", "Tengo mucha debilidad, mareo, confusion, boca seca o casi no orino.", "alert", "amber"),
-        reply(locale, "fever_or_severe_pain", "trend", "Fever or severe pain", "Fiebre o dolor fuerte", "I have fever or severe pain.", "Tengo fiebre o dolor fuerte.", "alert", "amber"),
-        reply(locale, "diabetes_vomiting", "trend", "Diabetes and vomiting or high sugar", "Diabetes y vomitos o azucar alta", "I have diabetes and vomiting or high sugar.", "Tengo diabetes y vomitos o azucar alta.", "activity", "amber"),
-        reply(locale, "no_stomach_systemic", "trend", "No", "No", "None of these are happening.", "Nada de esto esta pasando.", "help", "green"),
-      ];
-    }
-    if (symptomId === "urinary") {
-      return [
-        reply(locale, "mild", "trend", "Burning or pain when peeing", "Ardor o dolor al orinar", "I have burning or pain when peeing.", "Tengo ardor o dolor al orinar.", "activity", "amber"),
-        reply(locale, "burning_urgency", "trend", "Needing to pee often or urgently", "Orino seguido o urgente", "I need to pee often or urgently.", "Necesito orinar seguido o con urgencia.", "activity", "amber"),
-        reply(locale, "cloudy_smelly_only", "trend", "Cloudy or smelly only, no pain or fever", "Turbia u olor, sin dolor ni fiebre", "It is cloudy or smelly only, with no pain or fever.", "Solo esta turbia o huele fuerte, sin dolor ni fiebre.", "help", "green"),
-        reply(locale, "catheter_symptoms", "trend", "I have a catheter", "Tengo cateter", "I have a catheter.", "Tengo cateter.", "alert", "amber"),
-      ];
-    }
-    if (symptomId === "fall") {
-      return [
-        reply(locale, "worse", "trend", "Pain is getting worse or swelling fast", "Dolor empeora o hincha rapido", "Pain is getting worse or swelling fast.", "El dolor empeora o se hincha rapido.", "alert", "amber"),
-        reply(locale, "moderate", "trend", "Can move/use it, but painful", "Puedo moverlo, pero duele", "I can move or use it, but it is painful.", "Puedo moverlo o usarlo, pero duele.", "activity", "amber"),
-        reply(locale, "better", "trend", "Small bruise/scrape, improving", "Moreton o raspon pequeno, mejora", "It is a small bruise or scrape and is improving.", "Es un moreton o raspon pequeno y mejora.", "help", "green"),
-        reply(locale, "not_sure_trend", "trend", "I'm not sure", "No estoy seguro", "I am not sure.", "No estoy seguro.", "help", "purple"),
-      ];
-    }
-    if (symptomId === "skin") {
-      return [
-        reply(locale, "strong", "trend", "Spreading quickly", "Se extiende rapido", "It is spreading quickly.", "Se extiende rapido.", "alert", "amber"),
-        reply(locale, "pus_bad_smell", "trend", "Pus, bad smell, or increasing pain", "Pus, mal olor o mas dolor", "There is pus, bad smell, or increasing pain.", "Hay pus, mal olor o mas dolor.", "alert", "amber"),
-        reply(locale, "better", "trend", "Small, itchy, same area, improving", "Pequeno, pica, igual y mejora", "It is small, itchy, in the same area, and improving.", "Es pequeno, pica, esta en la misma zona y mejora.", "help", "green"),
-        reply(locale, "not_sure_trend", "trend", "I'm not sure", "No estoy seguro", "I am not sure.", "No estoy seguro.", "help", "purple"),
-      ];
-    }
-    if (symptomId === "confusion") {
-      return [
-        reply(locale, "today", "trend", "Started today", "Empezo hoy", "This started today.", "Esto empezo hoy.", "alert", "amber"),
-        reply(locale, "few_days", "trend", "Few days", "Pocos dias", "This has been going on for a few days.", "Esto lleva pocos dias.", "activity", "amber"),
-        reply(locale, "week_plus", "trend", "Weeks or months", "Semanas o meses", "This has been going on for weeks or months.", "Esto lleva semanas o meses.", "help", "blue"),
-        reply(locale, "not_sure_trend", "trend", "I'm not sure", "No estoy seguro", "I am not sure.", "No estoy seguro.", "help", "purple"),
-      ];
-    }
-    if (symptomId === "other") {
-      return [
-        reply(locale, "sudden_worse_today", "trend", "Sudden or worse today", "Repentino o peor hoy", "It started suddenly or is getting worse today.", "Empezo de repente o esta peor hoy.", "alert", "amber"),
-        reply(locale, "after_medicine_surgery_fall", "trend", "After medicine, surgery, hospital, or fall", "Tras medicina, cirugia, hospital o caida", "It started after medicine, surgery, a hospital stay, or a fall.", "Empezo tras medicina, cirugia, hospital o caida.", "alert", "amber"),
-        reply(locale, "ongoing_not_improving", "trend", "Ongoing and not improving", "Sigue y no mejora", "It has gone on for days and is not improving.", "Lleva dias y no mejora.", "activity", "blue"),
-        reply(locale, "better", "trend", "Mild, brief, and improving", "Leve, breve y mejora", "It is mild, brief, and improving.", "Es leve, breve y mejora.", "help", "green"),
-      ];
-    }
-    return [
-      reply(locale, "better", "trend", "Better", "Mejor", "It is getting better.", "Esta mejorando.", "activity", "green"),
-      reply(locale, "same", "trend", "Same", "Igual", "It feels about the same.", "Se siente igual.", "help", "blue"),
-      reply(locale, "worse", "trend", "Worse", "Peor", "It is getting worse.", "Esta empeorando.", "alert", "red"),
-      reply(locale, "new_symptoms", "trend", "New symptoms", "Nuevos sintomas", "New symptoms have appeared.", "alert", "amber"),
-    ];
-  }
-
-  return [];
+  return baseReplies;
 }
 
-function safetyMessage(locale: string, warningLabel: string) {
+function emergencyPhrase(locale: string, emergencyContact: EmergencyContact) {
+  if (!emergencyContact.telHref) {
+    return text(locale, "local emergency services", "emergencias locales");
+  }
+  return text(locale, `emergency services (${emergencyContact.label})`, `emergencias (${emergencyContact.label})`);
+}
+
+function safetyMessage(locale: string, warningLabel: string, emergencyContact: EmergencyContact) {
+  const emergency = emergencyPhrase(locale, emergencyContact);
   return text(
     locale,
-    `${warningLabel} can be an emergency warning sign. If this is happening now, call emergency services now or ask someone nearby to help you. Do not drive yourself.`,
-    `${warningLabel} puede ser una senal de emergencia. Si esto esta pasando ahora, llama a emergencias ahora o pide ayuda a alguien cercano. No conduzcas.`,
+    `${warningLabel} can be an emergency warning sign. If this is happening now, call ${emergency} now or ask someone nearby to help you. Do not drive yourself.`,
+    `${warningLabel} puede ser una senal de emergencia. Si esto esta pasando ahora, llama a ${emergency} ahora o pide ayuda a alguien cercano. No conduzcas.`,
   );
 }
 
-function safetyRecommendation(locale: string) {
+function safetyRecommendation(locale: string, emergencyContact: EmergencyContact) {
+  const emergency = emergencyPhrase(locale, emergencyContact);
   return text(
     locale,
-    "Call emergency services now if this is happening now. Ask someone nearby to stay with you and do not drive yourself.",
-    "Llama a emergencias ahora si esto esta pasando ahora. Pide a alguien cercano que se quede contigo y no conduzcas.",
+    `Call ${emergency} now if this is happening now. Ask someone nearby to stay with you and do not drive yourself.`,
+    `Llama a ${emergency} ahora si esto esta pasando ahora. Pide a alguien cercano que se quede contigo y no conduzcas.`,
   );
 }
 
-function safetyQuickReplies(locale: string): TriageQuickReply[] {
+function safetyQuickReplies(locale: string, emergencyContact: EmergencyContact): TriageQuickReply[] {
+  const callLabelEn = emergencyContact.telHref ? `Call ${emergencyContact.label}` : "Call emergency";
+  const callLabelEs = emergencyContact.telHref ? `Llamar ${emergencyContact.label}` : "Llamar emergencias";
+  const callValueEn = emergencyContact.telHref ? `I will call ${emergencyContact.label} now.` : "I will call local emergency services now.";
+  const callValueEs = emergencyContact.telHref ? `Llamare al ${emergencyContact.label} ahora.` : "Llamare a emergencias locales ahora.";
   return [
-    reply(locale, "call_emergency", "support", "Call emergency", "Llamar emergencias", "I will call emergency services now.", "Llamare a emergencias ahora.", "alert", "red"),
+    reply(locale, "call_emergency", "support", callLabelEn, callLabelEs, callValueEn, callValueEs, "alert", "red"),
     reply(locale, "contact_doctor", "support", "Call doctor", "Llamar medico", "I want to contact my doctor or clinic today.", "Quiero contactar hoy con mi medico o clinica.", "heart", "amber"),
     reply(locale, "make_report", "support", "Make report", "Crear informe", "Please make a clear report I can share.", "Por favor crea un informe claro para compartir.", "help", "purple"),
     reply(locale, "continue_questions", "support", "Keep asking", "Seguir preguntas", "I understand. Please keep asking simple questions.", "Entiendo. Sigue haciendo preguntas simples.", "activity", "blue"),
@@ -1448,42 +911,7 @@ function evidenceSourcesFor(context?: MediSearchTriageContext | null) {
 }
 
 function triageQuestionMatrixText() {
-  return `
-
-SYMPTOM AND PROFILE QUESTION MATRIX:
-- Pain/headache: ask about chest pain, sudden/severe onset, fall/injury, head hit, one-sided weakness, vision change, or speech trouble.
-- Chest discomfort: ask whether chest pressure/tightness is happening now, worsening, or comes with breathing trouble, sweating, faintness, nausea, or pain spreading to arm, jaw, back, or neck. Treat new chest discomfort in seniors as at least same-day doctor advice.
-- Breathing: ask about breathlessness at rest, blue lips, confusion, low oxygen, increased oxygen need, chest pressure, or one-sided calf swelling after surgery.
-- Fever: ask about very high fever, confusion/very sleepy, stiff neck, new rash, low immunity/cancer treatment, surgery wound changes, urine symptoms, or low urine/dehydration.
-- Dizziness: ask about fainting, nearly fainting, one-sided weakness, speech trouble, chest pain, irregular heartbeat, dehydration, low sugar, sedating medication, or falls.
-- Very tired/weak: first ask a plain safety/function question: "Can you stand and walk safely, and are you thinking clearly?" The choices should map to cannot stand safely, new confusion/not myself, not drinking/eating normally, or just low energy. Only mention low sugar, infection, dehydration, opioids, or heart failure when profile memory or previous answers make that specific risk relevant.
-- Stomach/bowel: ask about severe belly pain, blood vomit, black/bloody stool, hard swollen belly, vomiting/diarrhea, dehydration, and constipation with severe pain.
-- Urine problem: ask about fever, back/flank pain, shaking chills, unable to pass urine, blood in urine, burning, frequency, low urine, and new confusion.
-- Fall/injury: ask about head hit, fainting, confusion, blood thinners, hip/back pain, cannot stand/walk, cannot use the injured part, or severe pain.
-- Skin/wound: ask about spreading redness, warmth, swelling, pus, fever, surgical wound changes, face/lip/tongue/throat swelling, and low immunity.
-- Confusion/memory change: ask if sudden, much worse than usual, with weakness/speech trouble, fever, urine change, low sugar, dehydration, sedatives/opioids, or unsafe alone.
-- Something else/free text: first ask the user to name the main symptom in a few words; then choose the closest pattern above. If unclear, ask general safety checks: cannot stand, not drinking/eating, new/severe, new confusion, chest pain, or breathing trouble.
-- Later questions must stay symptom-specific. Pain asks pain timing, strength, and whether pain is easing or worsening. Breathing asks whether breathing is easier or harder. Fever asks whether temperature/feverish feeling is coming down or getting worse. Dizziness asks standing/walking safety and whether rest helps. Tired/weak asks daily function, hydration, and whether weakness is improving or worsening. Stomach asks vomiting/diarrhea/pain pattern. Urine asks burning/frequency/retention. Falls ask ability to stand/use the injured part. Skin asks spreading/warmth/pus. Confusion asks suddenness and safety. Free text should be classified first, then follow the nearest path.
-
-PROFILE-SPECIFIC SAFETY CHECKS:
-- Diabetes or glucose medication: check shaky/sweaty/confused/very weak, high sugar with sickness/thirst/drowsiness, missed insulin, vomiting, or infection signs.
-- Kidney disease or diuretics: check low urine, dehydration, dizziness standing, swelling, sudden weight gain, or medication safety.
-- COPD/asthma/oxygen support: check low oxygen, needing more oxygen than usual, breathless at rest, blue lips, or confusion.
-- Heart failure: check breathlessness, swelling, fast weight gain, chest pressure, or needing to sit upright to breathe.
-- Heart disease or AFib: check chest pressure, palpitations, fainting, irregular heartbeat, or breathlessness.
-- Hypertension or stroke/TIA history: check severe headache with weakness, speech trouble, face droop, vision change, or very high blood pressure.
-- Blood thinners: check head hit/fall, unusual bleeding, black stool, vomiting blood, large bruises, or new severe headache.
-- Low immunity, steroids, cancer, or chemotherapy: treat fever, chills, wound changes, or feeling suddenly very unwell as higher priority.
-- Dementia/cognitive concern: check new confusion, behavior change, weakness, dehydration, infection signs, or not acting like usual.
-- Parkinson's/mobility/swallowing risk: check choking, coughing with food, trouble swallowing, falls, freezing, or missed Parkinson's medication timing.
-- Osteoporosis/frailty/falls: check fall with hip/back pain, cannot stand, new severe pain, or head hit.
-- Recent surgery/hospital stay: check fever, wound redness/drainage, calf swelling/pain, chest pain, or new breathlessness.
-- UTI/recurrent infection history: check burning urine, fever, new confusion, new weakness, low urine, or back/flank pain.
-- Liver disease: check confusion, yellow skin, black stool, vomiting blood, belly swelling, or unusual bleeding.
-- Sedatives/opioids: check very sleepy, confused, unsteady, slow breathing, or hard to wake.
-- Depression/anxiety: check panic-like symptoms, sleep/appetite change, isolation, and any thoughts of self-harm if mood distress is prominent.
-
-Do not use one symptom's wording for another symptom. For example, fever does not "build up" like pain; ask fever warning signs instead.`;
+  return triageWizardMatrixPromptText();
 }
 
 function buildSystemPrompt(
@@ -1863,6 +1291,7 @@ router.get("/context", async (req: Request, res: Response) => {
       medications: String(variables.medications || ""),
       latestVitals: String(variables.latest_vitals_scan || ""),
       latestSymptomReport: String(variables.latest_symptom_report || ""),
+      countryCode: String(variables.country_code || ""),
     };
     const usedItems = [
       memory.latestVitals ? "Latest vitals" : "",
@@ -1872,7 +1301,12 @@ router.get("/context", async (req: Request, res: Response) => {
       memory.latestSymptomReport ? "Recent symptoms" : "",
     ].filter(Boolean);
 
-    return res.json({ memory, usedItems });
+    return res.json({
+      memory,
+      usedItems,
+      countryCode: memory.countryCode || undefined,
+      emergencyContact: emergencyContactForCountry(memory.countryCode),
+    });
   } catch (err) {
     console.error("[triage/context]", err);
     return res.status(500).json({ error: "Failed to load triage context" });
@@ -1899,19 +1333,36 @@ router.post("/message", async (req: Request, res: Response) => {
 
   const safetyAnswer = selectedSafetyAnswer(effectiveWizard);
   if (safetyAnswer) {
+    const emergencyContact = emergencyContactForCountry(healthMemory?.countryCode);
     return res.json({
       role: "assistant",
-      content: safetyMessage(normalizedLocale, safetyAnswer.label),
+      content: safetyMessage(normalizedLocale, safetyAnswer.label, emergencyContact),
       done: false,
       urgent: true,
       safetyAlert: {
         id: safetyAnswer.id,
         label: safetyAnswer.label,
-        recommendation: safetyRecommendation(normalizedLocale),
+        recommendation: safetyRecommendation(normalizedLocale, emergencyContact),
+        emergencyContact,
       },
-      quickReplies: safetyQuickReplies(normalizedLocale),
+      emergencyContact,
+      quickReplies: safetyQuickReplies(normalizedLocale, emergencyContact),
       wizardStage: "support",
       wizardStageLabel: wizardStageLabel("support", normalizedLocale),
+      evidenceSources: [],
+    });
+  }
+
+  const stage = nextAdaptiveStage(effectiveWizard, healthMemory);
+  if (stage !== "complete") {
+    const protocolQuestion = wizardQuestionText(stage, effectiveWizard, normalizedLocale);
+    return res.json({
+      role: "assistant",
+      content: protocolQuestion,
+      done: false,
+      quickReplies: quickRepliesFor(effectiveWizard, normalizedLocale, healthMemory),
+      wizardStage: stage,
+      wizardStageLabel: wizardStageLabel(stage, normalizedLocale),
       evidenceSources: [],
     });
   }
@@ -1959,7 +1410,6 @@ router.post("/message", async (req: Request, res: Response) => {
         }
       : null;
 
-    const stage = nextAdaptiveStage(effectiveWizard, healthMemory);
     const protocolQuestion = wizardQuestionText(stage, effectiveWizard, normalizedLocale);
     return res.json({
       role: "assistant",

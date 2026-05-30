@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Activity, AlertCircle, BookOpenCheck, HelpCircle, HeartPulse, ListChecks, Mic, PhoneCall, Send, ShieldCheck, Square, Thermometer, UserRound, Wind } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 import i18n from "@/i18n";
+import { HealthWizardCard, HealthWizardChoiceTile, HealthWizardHero } from "@/components/health/HealthWizard";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -10,7 +11,7 @@ export interface ChatMessage {
 }
 
 type TriageEvidenceSource = { title?: string; url?: string; year?: string; journal?: string };
-type TriageSafetyAlert = { id: string; label: string; recommendation: string };
+type TriageSafetyAlert = { id: string; label: string; recommendation: string; emergencyContact?: EmergencyContact };
 
 type TriageRefinementAnswer = {
   id: string;
@@ -53,6 +54,7 @@ interface TriageResponse {
   wizardStage?: string;
   wizardStageLabel?: string;
   evidenceSources?: TriageEvidenceSource[];
+  emergencyContact?: EmergencyContact;
 }
 
 type WizardEntryMode = "with_vitals" | "without_vitals";
@@ -64,6 +66,12 @@ type TriageHealthMemory = {
   medications?: string;
   latestVitals?: string;
   latestSymptomReport?: string;
+  countryCode?: string;
+};
+
+type EmergencyContact = {
+  label: string;
+  telHref?: string;
 };
 
 interface TriageChatProps {
@@ -115,6 +123,7 @@ export type TriageChatDraft = {
   apiQuickReplies?: ApiQuickReply[] | null;
   evidenceSources?: TriageEvidenceSource[];
   safetyAlert?: TriageSafetyAlert | null;
+  emergencyContact?: EmergencyContact | null;
   wizardStageLabel?: string;
   pendingRequest?: boolean;
 };
@@ -136,12 +145,28 @@ const answerTone: Record<QuickAnswerTone, { border: string; text: string }> = {
   green: { border: "#BBF7D0", text: "#332925" },
 };
 
-declare global {
-  interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
-  }
-}
+type BrowserSpeechRecognitionEvent = {
+  results: ArrayLike<ArrayLike<{ transcript: string }>>;
+};
+
+type BrowserSpeechRecognition = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start: () => void;
+  stop: () => void;
+  onstart: (() => void) | null;
+  onresult: ((event: BrowserSpeechRecognitionEvent) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+};
+
+type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
+
+type SpeechRecognitionWindow = {
+  SpeechRecognition?: BrowserSpeechRecognitionConstructor;
+  webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor;
+};
 
 const speechLangFor = (language: string) => {
   const base = language.split("-")[0];
@@ -266,11 +291,12 @@ export default function TriageChat({
   const [selectedQuickAnswers, setSelectedQuickAnswers] = useState<SelectedQuickAnswer[]>(() => initialDraft?.selectedQuickAnswers ?? []);
   const [evidenceSources, setEvidenceSources] = useState<TriageResponse["evidenceSources"]>(() => initialDraft?.evidenceSources ?? []);
   const [safetyAlert, setSafetyAlert] = useState<TriageResponse["safetyAlert"] | null>(() => initialDraft?.safetyAlert ?? null);
+  const [emergencyContact, setEmergencyContact] = useState<EmergencyContact | null>(() => initialDraft?.emergencyContact ?? initialDraft?.safetyAlert?.emergencyContact ?? null);
   const [wizardStageLabel, setWizardStageLabel] = useState(() => initialDraft?.wizardStageLabel ?? "");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const animTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const recRef = useRef<SpeechRecognition | null>(null);
+  const recRef = useRef<BrowserSpeechRecognition | null>(null);
   const pendingResumeSentRef = useRef(false);
   const userMessageCount = messages.filter((msg) => msg.role === "user").length;
   const fallbackQuickAnswers: QuickAnswer[] = userMessageCount === 0
@@ -335,7 +361,8 @@ export default function TriageChat({
   );
 
   const startListening = useCallback(() => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const speechWindow = window as unknown as SpeechRecognitionWindow;
+    const SR = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
     if (!SR) {
       setVoiceError(t("health.symptomCheck.chat.voiceUnsupported"));
       return;
@@ -411,6 +438,7 @@ export default function TriageChat({
         const res = await response.json() as TriageResponse;
         setApiQuickReplies(res.quickReplies?.length ? res.quickReplies : null);
         setSafetyAlert(res.safetyAlert ?? null);
+        setEmergencyContact(res.emergencyContact ?? res.safetyAlert?.emergencyContact ?? null);
         if (res.evidenceSources) setEvidenceSources(res.evidenceSources);
         if (res.wizardStageLabel) setWizardStageLabel(res.wizardStageLabel);
 
@@ -478,10 +506,11 @@ export default function TriageChat({
       apiQuickReplies,
       evidenceSources,
       safetyAlert,
+      emergencyContact,
       wizardStageLabel,
       pendingRequest: loading,
     });
-  }, [apiQuickReplies, evidenceSources, loading, messages, onDraftChange, safetyAlert, selectedQuickAnswers, wizardStageLabel]);
+  }, [apiQuickReplies, emergencyContact, evidenceSources, loading, messages, onDraftChange, safetyAlert, selectedQuickAnswers, wizardStageLabel]);
 
   useEffect(() => {
     scrollToBottom();
@@ -558,47 +587,35 @@ export default function TriageChat({
             </div>
           )}
 
-          {selectedQuickAnswers.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {selectedQuickAnswers.slice(-3).map((answer, index) => (
-                <span key={`${answer.id}-${index}`} className="font-body text-[15px] font-bold text-vyva-text-3">
-                  {answer.label}
-                </span>
-              ))}
-            </div>
-          )}
-
           {safetyAlert && (
-            <div className="motion-safe:animate-pulse rounded-[24px] border-2 border-[#DC2626] bg-[#DC2626] px-4 py-4 text-white shadow-[0_16px_36px_rgba(220,38,38,0.28)]">
-              <div className="flex items-start gap-3">
-                <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px] bg-white/16 text-white ring-2 ring-white/40">
-                  <AlertCircle size={24} />
-                </span>
-                <div className="grid gap-3">
-                  <p className="font-body text-[22px] font-black leading-tight">
-                    {t("health.symptomCheck.chat.emergencyTitle", "Emergency warning")}
-                  </p>
-                  <p className="font-body text-[18px] font-bold leading-snug text-white">
-                    {safetyAlert.recommendation}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      window.location.href = "tel:112";
-                    }}
-                    className="vyva-tap mt-1 inline-flex min-h-[64px] items-center justify-center gap-3 rounded-[20px] bg-white px-5 font-body text-[19px] font-black text-[#B91C1C] shadow-[0_10px_24px_rgba(127,29,29,0.24)]"
-                  >
-                    <PhoneCall size={22} />
-                    {t("health.symptomCheck.chat.contactEmergency", "Contact emergency services")}
-                  </button>
-                </div>
-              </div>
-            </div>
+            <HealthWizardHero
+              tone="red"
+              className="motion-safe:animate-pulse"
+              icon={<AlertCircle size={28} />}
+              title={t("health.symptomCheck.chat.emergencyTitle", "Emergency warning")}
+              body={safetyAlert.recommendation}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  if (emergencyContact?.telHref) {
+                    window.location.href = emergencyContact.telHref;
+                  }
+                }}
+                disabled={!emergencyContact?.telHref}
+                className="vyva-tap inline-flex min-h-[66px] w-full items-center justify-center gap-3 rounded-[22px] bg-[#DC2626] px-5 font-body text-[19px] font-black text-white shadow-[0_10px_24px_rgba(127,29,29,0.24)]"
+              >
+                <PhoneCall size={22} />
+                {emergencyContact?.telHref
+                  ? t("health.symptomCheck.chat.callEmergencyNumber", "Call {{number}}", { number: emergencyContact.label })
+                  : t("health.symptomCheck.chat.contactEmergency", "Contact emergency services")}
+              </button>
+            </HealthWizardHero>
           )}
 
           {showQuestion && (
-            <section className="px-1 py-2">
-              <h2 className={`font-body text-[27px] font-bold leading-[1.14] ${safetyAlert ? "motion-safe:animate-pulse text-[#B91C1C]" : "text-vyva-text-1"}`}>
+            <HealthWizardCard className="px-5 py-5">
+              <h2 className={`font-body text-[28px] font-black leading-[1.16] ${safetyAlert ? "motion-safe:animate-pulse text-[#B91C1C]" : "text-vyva-text-1"}`}>
                 {latestQuestion}
                 {latestAssistantEntry && animatingIdx === latestAssistantEntry.index && (
                   <span
@@ -607,7 +624,7 @@ export default function TriageChat({
                   />
                 )}
               </h2>
-            </section>
+            </HealthWizardCard>
           )}
 
           {loading && (
@@ -615,31 +632,27 @@ export default function TriageChat({
           )}
 
           {evidenceSources && evidenceSources.length > 0 && (
-            <div className="rounded-[18px] border border-[#E8DED4] bg-white/80 px-4 py-3 shadow-[0_1px_4px_rgba(0,0,0,0.04)]">
+            <HealthWizardCard tone="blue" className="px-4 py-3">
               <p className="font-body text-[13px] font-bold uppercase tracking-[0.12em] text-vyva-text-3">
                 {t("health.symptomCheck.chat.evidence", "Evidence checked")}
               </p>
               <p className="mt-1 font-body text-[16px] leading-snug text-vyva-text-2">
                 {evidenceSources.slice(0, 2).map((source) => source.title).filter(Boolean).join(" - ")}
               </p>
-            </div>
+            </HealthWizardCard>
           )}
 
           {canAnswer && (
             <div className="grid gap-3" data-testid="triage-quick-answers">
               {quickAnswers.map((quickAnswer) => {
-                const { label, value, tone } = quickAnswer;
-                const colors = answerTone[tone];
+                const { label, value, Icon } = quickAnswer;
                 return (
-                  <button
+                  <HealthWizardChoiceTile
                     key={label}
-                    type="button"
                     onClick={() => void sendText(value, quickAnswer)}
-                    className="vyva-tap flex min-h-[76px] items-center rounded-[22px] border bg-white px-5 text-left transition active:scale-[0.98]"
-                    style={{ borderColor: colors.border, color: colors.text }}
-                  >
-                    <span className="font-body text-[20px] font-bold leading-tight">{label}</span>
-                  </button>
+                    icon={<Icon size={24} />}
+                    title={label}
+                  />
                 );
               })}
             </div>
@@ -665,7 +678,7 @@ export default function TriageChat({
               {t("health.symptomCheck.chat.listening")}
             </p>
           )}
-          <div className="flex items-center gap-3 rounded-[28px] border border-[#E8DED4] bg-white p-2 shadow-[0_10px_26px_rgba(63,45,35,0.08)]">
+          <div className="flex items-center gap-3 rounded-[30px] border border-[#E8DED4] bg-white p-2 shadow-[0_14px_34px_rgba(63,45,35,0.10)]">
             <input
               ref={inputRef}
               type="text"
@@ -675,7 +688,7 @@ export default function TriageChat({
               disabled={loading || animatingIdx !== null}
               placeholder={t("health.symptomCheck.chat.placeholder")}
               data-testid="input-triage-message"
-              className="min-w-0 flex-1 rounded-full px-4 py-[14px] font-body text-[18px] text-vyva-text-1 outline-none"
+              className="min-w-0 flex-1 rounded-full px-4 py-[16px] font-body text-[20px] font-bold text-vyva-text-1 outline-none placeholder:text-[#9A8C83]"
               style={{
                 background: "transparent",
               }}

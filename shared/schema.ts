@@ -414,6 +414,60 @@ export const insertMedicationAdherenceSchema = createInsertSchema(medicationAdhe
 export type InsertMedicationAdherence = z.infer<typeof insertMedicationAdherenceSchema>;
 export type MedicationAdherence = typeof medicationAdherence.$inferSelect;
 
+export const checkinSessions = pgTable("checkin_sessions", {
+  id:               uuid("id").primaryKey().defaultRandom(),
+  user_id:          text("user_id").notNull(),
+  energy_level:     integer("energy_level"),
+  mood:             text("mood"),
+  body_areas:       text("body_areas").array().notNull().default([]),
+  sleep_quality:    text("sleep_quality"),
+  symptoms:         text("symptoms").array().notNull().default([]),
+  symptom_details:  text("symptom_details").array().notNull().default([]),
+  safety_flags:     text("safety_flags").array().notNull().default([]),
+  social_contact:   text("social_contact"),
+  feeling_label:    text("feeling_label"),
+  overall_state:    text("overall_state"),
+  vyva_reading:     text("vyva_reading"),
+  right_now:        jsonb("right_now").notNull().default([]),
+  today_actions:    jsonb("today_actions").notNull().default([]),
+  highlight:        text("highlight"),
+  flag_caregiver:   boolean("flag_caregiver").notNull().default(false),
+  watch_for:        text("watch_for"),
+  language:         text("language").notNull().default("es"),
+  completed:        boolean("completed").notNull().default(false),
+  abandoned:        boolean("abandoned").notNull().default(false),
+  duration_seconds: integer("duration_seconds"),
+  started_at:       timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  completed_at:     timestamp("completed_at", { withTimezone: true }).notNull().defaultNow(),
+  created_at:       timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertCheckinSessionSchema = createInsertSchema(checkinSessions).omit({ id: true, started_at: true, completed_at: true, created_at: true });
+export type InsertCheckinSession = z.infer<typeof insertCheckinSessionSchema>;
+export type CheckinSession = typeof checkinSessions.$inferSelect;
+
+export const checkinTrendState = pgTable("checkin_trend_state", {
+  user_id:                  text("user_id").primaryKey(),
+  streak_days:              integer("streak_days").notNull().default(0),
+  best_streak:              integer("best_streak").notNull().default(0),
+  last_checkin_date:        date("last_checkin_date"),
+  total_checkins:           integer("total_checkins").notNull().default(0),
+  avg_energy_7d:            numeric("avg_energy_7d"),
+  avg_mood_score_7d:        numeric("avg_mood_score_7d"),
+  consecutive_low_energy:   integer("consecutive_low_energy").notNull().default(0),
+  consecutive_poor_sleep:   integer("consecutive_poor_sleep").notNull().default(0),
+  consecutive_no_social:    integer("consecutive_no_social").notNull().default(0),
+  consecutive_low_mood:     integer("consecutive_low_mood").notNull().default(0),
+  caregiver_flag_active:    boolean("caregiver_flag_active").notNull().default(false),
+  flag_reason:              text("flag_reason"),
+  flag_triggered_at:        timestamp("flag_triggered_at", { withTimezone: true }),
+  updated_at:               timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertCheckinTrendStateSchema = createInsertSchema(checkinTrendState);
+export type InsertCheckinTrendState = z.infer<typeof insertCheckinTrendStateSchema>;
+export type CheckinTrendState = typeof checkinTrendState.$inferSelect;
+
 export const userMedications = pgTable("user_medications", {
   id:              uuid("id").primaryKey().defaultRandom(),
   user_id:         uuid("user_id").notNull(),
@@ -1609,6 +1663,8 @@ export const schema = {
   agentDifficulty,
   caregiverAlerts,
   medicationAdherence,
+  checkinSessions,
+  checkinTrendState,
   userMedications,
   userHealthConditions,
   onboardingState,
