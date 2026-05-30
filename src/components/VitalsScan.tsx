@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { Heart, Wind, SkipForward } from "lucide-react";
+import { Camera, Heart, Wind, SkipForward } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
+import { HealthWizardCard, HealthWizardHero } from "@/components/health/HealthWizard";
 
 interface VitalsScanProps {
   onComplete: (bpm: number | null, respiratoryRate: number | null) => void;
@@ -278,26 +279,17 @@ export default function VitalsScan({ onComplete }: VitalsScanProps) {
 
   if (permissionDenied) {
     return (
-      <div className="flex flex-col items-center justify-center flex-1 px-6 text-center gap-6">
-        <div
-          className="w-20 h-20 rounded-full flex items-center justify-center"
-          style={{ background: "hsl(var(--vyva-warm))" }}
-        >
-          <Heart size={36} style={{ color: "hsl(var(--vyva-purple))" }} />
-        </div>
-        <div>
-          <p className="font-body text-[17px] font-semibold text-vyva-text-1 mb-2">
-            {t("health.symptomCheck.scan.permissionDenied")}
-          </p>
-          <p className="font-body text-[14px] text-vyva-text-2">
-            {t("health.symptomCheck.scan.permissionHint")}
-          </p>
-        </div>
+      <div className="flex flex-1 flex-col justify-center gap-5 px-[18px] py-6">
+        <HealthWizardHero
+          tone="amber"
+          icon={<Camera size={28} />}
+          title={t("health.symptomCheck.scan.permissionDenied")}
+          body={t("health.symptomCheck.scan.permissionHint")}
+        />
         <button
           onClick={() => safeComplete(null, null)}
           data-testid="button-scan-skip-permission"
-          className="w-full rounded-full py-[14px] font-body text-[15px] font-semibold text-white transition-all active:scale-95"
-          style={{ background: "hsl(var(--vyva-purple))" }}
+          className="vyva-primary-action min-h-[68px] w-full text-[19px]"
         >
           {t("health.symptomCheck.scan.skipBtn")}
         </button>
@@ -306,13 +298,16 @@ export default function VitalsScan({ onComplete }: VitalsScanProps) {
   }
 
   return (
-    <div className="flex flex-col items-center flex-1 px-6 pt-4 pb-6 gap-5">
-      <p className="font-body text-[14px] text-vyva-text-2 text-center">
-        {done
-          ? t("health.symptomCheck.scan.complete")
-          : t("health.symptomCheck.scan.instruction")}
-      </p>
+    <div className="flex flex-1 flex-col gap-5 px-[18px] pb-6 pt-4">
+      <HealthWizardHero
+        tone={done ? "green" : "purple"}
+        icon={<Heart size={28} />}
+        kicker={t("health.symptomCheck.scan.title")}
+        title={done ? t("health.symptomCheck.scan.complete") : t("health.symptomCheck.scan.instruction")}
+        body={done ? t("health.symptomCheck.scan.continueBtn") : `${countdown}s`}
+      />
 
+      <HealthWizardCard className="flex flex-col items-center gap-5">
       <div className="relative flex items-center justify-center">
         <svg width={260} height={260} className="absolute top-0 left-0" style={{ transform: "rotate(-90deg)" }}>
           <circle cx={130} cy={130} r={r} fill="none" stroke="hsl(var(--vyva-warm))" strokeWidth={6} />
@@ -366,7 +361,7 @@ export default function VitalsScan({ onComplete }: VitalsScanProps) {
       <canvas ref={canvasRef} width={320} height={240} className="hidden" />
 
       <div
-        className="w-full rounded-[16px] p-4"
+        className="w-full rounded-[24px] p-4"
         style={{ background: "hsl(var(--vyva-warm))", border: "1px solid hsl(var(--vyva-border))" }}
       >
         <div className="flex items-center justify-between mb-2">
@@ -423,13 +418,13 @@ export default function VitalsScan({ onComplete }: VitalsScanProps) {
           </div>
         )}
       </div>
+      </HealthWizardCard>
 
       {done ? (
         <button
           onClick={handleContinue}
           data-testid="button-scan-continue"
-          className="w-full rounded-full py-[14px] font-body text-[16px] font-semibold text-white transition-all active:scale-95"
-          style={{ background: "hsl(var(--vyva-purple))" }}
+          className="vyva-primary-action min-h-[70px] w-full text-[20px]"
         >
           {t("health.symptomCheck.scan.continueBtn")}
         </button>
@@ -437,7 +432,7 @@ export default function VitalsScan({ onComplete }: VitalsScanProps) {
         <button
           onClick={handleSkip}
           data-testid="button-scan-skip"
-          className="flex items-center gap-2 font-body text-[14px] text-vyva-text-3 active:opacity-70"
+          className="vyva-tap flex min-h-[60px] items-center justify-center gap-2 rounded-full border border-[#E8DED4] bg-white font-body text-[17px] font-bold text-vyva-text-2 shadow-[0_6px_18px_rgba(63,45,35,0.05)]"
         >
           <SkipForward size={14} />
           {t("health.symptomCheck.scan.skipBtn")}

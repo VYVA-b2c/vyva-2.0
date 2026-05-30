@@ -68,6 +68,42 @@ type ReportsSummary = {
   todayMeds: { taken: number; total: number; adherencePct: number | null };
 };
 
+type DailyCheckinToday = {
+  status: "completed" | "upcoming" | "due_now" | "overdue" | "not_scheduled";
+  date_key: string;
+  timezone: string;
+  schedule: {
+    id: string | null;
+    active: boolean;
+    times_of_day: string[];
+    next_run_at: string | null;
+    last_completed_at: string | null;
+    grace_minutes: number;
+  };
+  latest_checkin: {
+    id: string;
+    completed_at: string;
+    feeling_label: string | null;
+    overall_state: string | null;
+    highlight: string | null;
+  } | null;
+  no_response: {
+    overdue: boolean;
+    minutes_overdue: number | null;
+    alert_created: boolean;
+    can_alert_caregiver: boolean;
+    reason: string | null;
+  };
+  caregiver_alert?: {
+    id: string;
+    severity: string;
+    message: string;
+    created_at?: string | null;
+  } | null;
+  message: string;
+  action_label: string;
+};
+
 type SpecialistProvider = {
   name: string;
   specialty: string;
@@ -282,6 +318,107 @@ function deriveSpecialistExamples(conditions: string[] | undefined, language: st
 
 type TFunction = (key: string, fallback?: string) => string;
 
+function formatCheckinTime(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
+function dailyCheckinTone(status?: DailyCheckinToday["status"]) {
+  if (status === "completed") return { bg: "#ECFDF5", text: "#047857", Icon: CheckCircle2 };
+  if (status === "overdue") return { bg: "#FEF2F2", text: "#B91C1C", Icon: AlertTriangle };
+  if (status === "due_now") return { bg: "#FFF7ED", text: "#B45309", Icon: Clock };
+  return { bg: "#F5F3FF", text: "#6B21A8", Icon: HeartPulse };
+}
+
+function DailyCheckinCard({
+  checkin,
+  t,
+  onPrimary,
+  onHistory,
+}: {
+  checkin?: DailyCheckinToday;
+  t: TFunction;
+  onPrimary: () => void;
+  onHistory: () => void;
+}) {
+  const tone = dailyCheckinTone(checkin?.status);
+  const Icon = tone.Icon;
+  const completedTime = formatCheckinTime(checkin?.latest_checkin?.completed_at);
+  const nextTime = formatCheckinTime(checkin?.schedule.next_run_at);
+  const statusLabel =
+    checkin?.status === "completed" ? t("health.dailyCheckin.completed", "Checked in today") :
+    checkin?.status === "overdue" ? t("health.dailyCheckin.overdue", "Check-in overdue") :
+    checkin?.status === "due_now" ? t("health.dailyCheckin.due", "Ready now") :
+    checkin?.status === "not_scheduled" ? t("health.dailyCheckin.setup", "Set up daily check-in") :
+    t("health.dailyCheckin.upcoming", "Scheduled today");
+  const message =
+    checkin?.message ??
+    t("health.dailyCheckin.loadingMessage", "A short daily check helps VYVA know you are okay.");
+  const primaryLabel = checkin?.action_label ?? t("health.dailyCheckin.primary", "Check in now");
+  const showHistoryAction = checkin?.status !== "completed";
+  const detail =
+    checkin?.status === "completed" && completedTime
+      ? t("health.dailyCheckin.completedAt", "Completed at") + ` ${completedTime}`
+      : nextTime
+        ? t("health.dailyCheckin.nextAt", "Next check-in") + ` ${nextTime}`
+        : t("health.dailyCheckin.defaultTime", "Default time: 10:00");
+
+  return (
+    <section className="mt-[18px] rounded-[26px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="daily-checkin-status-card">
+      <div className="flex items-start gap-4">
+        <span
+          className="flex h-[58px] w-[58px] flex-shrink-0 items-center justify-center rounded-[20px]"
+          style={{ background: tone.bg, color: tone.text }}
+        >
+          <Icon size={28} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.12em]" style={{ color: tone.text }}>
+              {t("health.dailyCheckin.kicker", "Daily are-you-okay check")}
+            </p>
+            <span className="rounded-full px-3 py-1 font-body text-[12px] font-bold" style={{ background: tone.bg, color: tone.text }}>
+              {statusLabel}
+            </span>
+          </div>
+          <p className="mt-2 font-body text-[20px] font-extrabold leading-tight text-vyva-text-1">
+            {checkin?.latest_checkin?.feeling_label ?? t("health.dailyCheckin.title", "Let VYVA know how today feels")}
+          </p>
+          <p className="mt-2 font-body text-[15px] font-semibold leading-relaxed text-vyva-text-2">
+            {message}
+          </p>
+          <p className="mt-2 font-body text-[13px] font-bold text-vyva-text-3">{detail}</p>
+          {checkin?.no_response.reason ? (
+            <p className="mt-2 rounded-[16px] bg-[#FFF7ED] px-3 py-2 font-body text-[13px] font-bold text-[#9A3412]">
+              {t("health.dailyCheckin.needsCaregiver", "Caregiver escalation needs a contact or consent setting.")}
+            </p>
+          ) : null}
+        </div>
+      </div>
+      <div className={`mt-4 grid gap-3 ${showHistoryAction ? "grid-cols-2" : "grid-cols-1"}`}>
+        <button
+          type="button"
+          onClick={onPrimary}
+          className="vyva-primary-action min-h-[58px] text-[17px]"
+        >
+          {primaryLabel}
+        </button>
+        {showHistoryAction ? (
+          <button
+            type="button"
+            onClick={onHistory}
+            className="vyva-secondary-action min-h-[58px] text-[17px]"
+          >
+            {t("health.dailyCheckin.history", "History")}
+          </button>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 const ScanFullScreenModal = ({
   scan,
   onClose,
@@ -367,18 +504,16 @@ const HealthScreen = () => {
   const { t, i18n } = useTranslation();
   const { firstName, profile } = useProfile();
   const navigate = useNavigate();
-  const { guardPath, canUseService, readiness, isLoading: serviceGateLoading } = useServiceGate();
+  const { guardPath, canUseService, readiness } = useServiceGate();
   const location = useLocation();
   const { toast } = useToast();
   const {
-    startDoctorVoice,
     stopDoctorVoice,
     status: doctorVoiceStatus,
     isVoiceLive: doctorVoiceLive,
     isSpeaking: doctorVoiceSpeaking,
     isConnecting: doctorVoiceConnecting,
     transcript: doctorVoiceTranscript,
-    lastError: doctorVoiceLastError,
     sendUserMessage: sendDoctorUserMessage,
   } = useDoctorVoice();
 
@@ -398,13 +533,10 @@ const HealthScreen = () => {
   const [woundResult,      setWoundResult]      = useState<null | { severity: string; resultTitle: string; advice: string }>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const specialistRecognitionRef = useRef<BrowserSpeechRecognition | null>(null);
-  const doctorAutoStartConsumedRef = useRef(false);
 
   const headlineBase = t("health.allGoodToday", "All good today");
   const headlineText = firstName ? `${headlineBase}, ${firstName}` : headlineBase;
   const specialistLanguage = activeLanguage(profile?.language || i18n.language);
-  const autoStartDoctorVoice = Boolean((location.state as { autoStartDoctorVoice?: boolean } | null)?.autoStartDoctorVoice);
-  const doctorServiceBlocked = readiness?.services?.doctor?.ready === false;
 
   const profileLocation = useMemo(() => {
     const parts = [
@@ -444,6 +576,11 @@ const HealthScreen = () => {
   });
   const { data: reportsSummary } = useQuery<ReportsSummary>({
     queryKey: ["/api/reports/summary"],
+    retry: false,
+    staleTime: 60 * 1000,
+  });
+  const { data: dailyCheckin } = useQuery<DailyCheckinToday>({
+    queryKey: ["/api/checkins/today"],
     retry: false,
     staleTime: 60 * 1000,
   });
@@ -573,35 +710,6 @@ const HealthScreen = () => {
       });
     }, 80);
   }, [location.search]);
-
-  useEffect(() => {
-    if (!autoStartDoctorVoice || doctorAutoStartConsumedRef.current || serviceGateLoading) return;
-
-    doctorAutoStartConsumedRef.current = true;
-    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
-
-    if (doctorServiceBlocked || doctorVoiceLive) return;
-    void startDoctorVoice();
-  }, [
-    autoStartDoctorVoice,
-    doctorServiceBlocked,
-    doctorVoiceLive,
-    location.pathname,
-    location.search,
-    navigate,
-    serviceGateLoading,
-    startDoctorVoice,
-  ]);
-
-  useEffect(() => {
-    if (!doctorVoiceLastError) return;
-    toast({
-      description: t(
-        "health.doctorChoice.voiceError",
-        "The doctor's voice could not start. You can still tap Connect with a real doctor.",
-      ),
-    });
-  }, [doctorVoiceLastError, t, toast]);
 
   const bookSpecialistMutation = useMutation({
     mutationFn: async (provider: SpecialistProvider) => {
@@ -796,6 +904,13 @@ const HealthScreen = () => {
             showOverlay: false,
             activeLabel: t("health.doctorChoice.stopCall", "Pause listening"),
           }}
+        />
+
+        <DailyCheckinCard
+          checkin={dailyCheckin}
+          t={t}
+          onPrimary={() => navigate(dailyCheckin?.status === "completed" ? "/health/check-ins" : "/health/check-in")}
+          onHistory={() => navigate("/health/check-ins")}
         />
 
         <button

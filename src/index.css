@@ -277,6 +277,45 @@
   }
 }
 
+@keyframes triage-review-chip {
+  0%, 100% {
+    border-color: rgba(107, 33, 168, 0.12);
+    box-shadow: 0 0 0 rgba(107, 33, 168, 0);
+    transform: translateY(0);
+  }
+  45% {
+    border-color: rgba(107, 33, 168, 0.34);
+    box-shadow: 0 10px 24px rgba(107, 33, 168, 0.10);
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes triage-review-line {
+  0%, 18% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  24%, 44% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  50%, 100% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes triage-review-pulse {
+  0%, 100% {
+    opacity: 0.18;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(1.18);
+  }
+}
+
 .landing-mic-ring {
   animation: landing-mic-ring 2.8s ease-in-out infinite;
 }
@@ -294,11 +333,41 @@
   transform-origin: bottom center;
 }
 
+.triage-review-chip {
+  animation: triage-review-chip 2.2s ease-in-out infinite;
+}
+
+.triage-review-line {
+  animation: triage-review-line 7.2s ease-in-out infinite;
+  opacity: 0;
+}
+
+.triage-review-pulse {
+  animation: triage-review-pulse 2s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .landing-mic-ring,
   .landing-mic-core,
-  .landing-wave-bar {
+  .landing-wave-bar,
+  .triage-review-chip,
+  .triage-review-line,
+  .triage-review-pulse {
     animation: none;
+  }
+
+  .triage-review-line {
+    opacity: 1;
+    position: static;
+    transform: none;
+  }
+
+  .triage-review-line:not(:first-child) {
+    display: none;
+  }
+
+  .triage-review-lines {
+    overflow: visible;
   }
 }
 

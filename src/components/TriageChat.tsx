@@ -1,13 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { Activity, AlertCircle, HelpCircle, HeartPulse, Loader2, Mic, PhoneCall, Send, Square, Thermometer, Wind } from "lucide-react";
+import { Activity, AlertCircle, BookOpenCheck, HelpCircle, HeartPulse, ListChecks, Mic, PhoneCall, Send, ShieldCheck, Square, Thermometer, UserRound, Wind } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 import i18n from "@/i18n";
+import { HealthWizardCard, HealthWizardChoiceTile, HealthWizardHero } from "@/components/health/HealthWizard";
 
-interface ChatMessage {
+export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
 }
+
+type TriageEvidenceSource = { title?: string; url?: string; year?: string; journal?: string };
+type TriageSafetyAlert = { id: string; label: string; recommendation: string; emergencyContact?: EmergencyContact };
 
 type TriageRefinementAnswer = {
   id: string;
@@ -30,7 +34,7 @@ interface TriageSummary {
   profileConsiderations?: string[];
   vitalsNotes?: string[];
   evidenceSummary?: string;
-  evidenceSources?: Array<{ title?: string; url?: string; year?: string; journal?: string }>;
+  evidenceSources?: TriageEvidenceSource[];
   refinementContext?: {
     messages: ChatMessage[];
     quickAnswers: TriageRefinementAnswer[];
@@ -45,11 +49,14 @@ interface TriageResponse {
   done?: boolean;
   summary?: TriageSummary;
   urgent?: boolean;
-  safetyAlert?: { id: string; label: string; recommendation: string };
+  safetyAlert?: TriageSafetyAlert;
   quickReplies?: ApiQuickReply[];
   wizardStage?: string;
   wizardStageLabel?: string;
-  evidenceSources?: Array<{ title?: string; url?: string; year?: string; journal?: string }>;
+  evidenceSources?: TriageEvidenceSource[];
+  emergencyContact?: EmergencyContact;
+  medisearchConversationId?: string;
+  medicalFollowups?: string[];
 }
 
 type WizardEntryMode = "with_vitals" | "without_vitals";
@@ -61,6 +68,12 @@ type TriageHealthMemory = {
   medications?: string;
   latestVitals?: string;
   latestSymptomReport?: string;
+  countryCode?: string;
+};
+
+type EmergencyContact = {
+  label: string;
+  telHref?: string;
 };
 
 interface TriageChatProps {
@@ -70,6 +83,9 @@ interface TriageChatProps {
   initialClue?: string;
   healthMemory?: TriageHealthMemory | null;
   autoStartVoice?: boolean;
+  initialDraft?: TriageChatDraft | null;
+  resumePendingRequest?: boolean;
+  onDraftChange?: (draft: TriageChatDraft) => void;
   onVoiceAutoStarted?: () => void;
   onComplete: (summary: TriageSummary) => void;
 }
@@ -103,6 +119,19 @@ type SelectedQuickAnswer = {
   kind: string;
 };
 
+export type TriageChatDraft = {
+  messages: ChatMessage[];
+  selectedQuickAnswers: SelectedQuickAnswer[];
+  apiQuickReplies?: ApiQuickReply[] | null;
+  evidenceSources?: TriageEvidenceSource[];
+  safetyAlert?: TriageSafetyAlert | null;
+  emergencyContact?: EmergencyContact | null;
+  wizardStageLabel?: string;
+  medisearchConversationId?: string | null;
+  medicalFollowups?: string[];
+  pendingRequest?: boolean;
+};
+
 const iconByKey: Record<QuickAnswerIcon, typeof HeartPulse> = {
   heart: HeartPulse,
   wind: Wind,
@@ -120,12 +149,28 @@ const answerTone: Record<QuickAnswerTone, { border: string; text: string }> = {
   green: { border: "#BBF7D0", text: "#332925" },
 };
 
-declare global {
-  interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
-  }
-}
+type BrowserSpeechRecognitionEvent = {
+  results: ArrayLike<ArrayLike<{ transcript: string }>>;
+};
+
+type BrowserSpeechRecognition = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start: () => void;
+  stop: () => void;
+  onstart: (() => void) | null;
+  onresult: ((event: BrowserSpeechRecognitionEvent) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+};
+
+type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
+
+type SpeechRecognitionWindow = {
+  SpeechRecognition?: BrowserSpeechRecognitionConstructor;
+  webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor;
+};
 
 const speechLangFor = (language: string) => {
   const base = language.split("-")[0];
@@ -141,6 +186,88 @@ const speechLangFor = (language: string) => {
   return map[base] ?? "en-US";
 };
 
+function TriageReviewPanel() {
+  const { t } = useTranslation();
+  const reviewSteps = [
+    {
+      key: "medical",
+      Icon: BookOpenCheck,
+      label: t("health.symptomCheck.chat.reviewStepMedical", "Reviewing trusted medical guidance"),
+      className: "bg-[#EEF2FF] text-[#4F46E5]",
+    },
+    {
+      key: "safety",
+      Icon: ShieldCheck,
+      label: t("health.symptomCheck.chat.reviewStepSafety", "Checking your answers for red flags"),
+      className: "bg-[#FEF2F2] text-[#B91C1C]",
+    },
+    {
+      key: "profile",
+      Icon: UserRound,
+      label: t("health.symptomCheck.chat.reviewStepProfile", "Considering your health profile and medications"),
+      className: "bg-[#F4ECFF] text-vyva-purple",
+    },
+    {
+      key: "next",
+      Icon: ListChecks,
+      label: t("health.symptomCheck.chat.reviewStepNext", "Preparing clear next steps"),
+      className: "bg-[#ECFDF5] text-[#047857]",
+    },
+  ];
+
+  return (
+    <section
+      className="rounded-[28px] border border-[#E8DED4] bg-white px-4 py-4 shadow-[0_16px_36px_rgba(63,45,35,0.09)]"
+      data-testid="triage-review-panel"
+      aria-live="polite"
+      aria-label={t("health.symptomCheck.chat.reviewAria", "VYVA is reviewing your answers and preparing guidance")}
+    >
+      <div className="flex items-center gap-3">
+        <div className="relative flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[19px] bg-vyva-purple text-white shadow-[0_12px_26px_rgba(107,33,168,0.22)]">
+          <span className="triage-review-pulse absolute inset-0 rounded-[19px] border-2 border-vyva-purple/25" aria-hidden="true" />
+          <Activity size={26} strokeWidth={2.4} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-body text-[11px] font-black uppercase tracking-[0.16em] text-vyva-purple">
+            {t("health.symptomCheck.chat.reviewEyebrow", "VYVA is reviewing")}
+          </p>
+          <h2 className="mt-1 font-body text-[21px] font-black leading-tight text-vyva-text-1 sm:text-[23px]">
+            {t("health.symptomCheck.chat.reviewTitle", "VYVA is checking the safest next step")}
+          </h2>
+          <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
+            {t("health.symptomCheck.chat.reviewSubtitle", "VYVA checks your answers against trusted guidance and your profile before suggesting what to do next.")}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-center justify-center gap-2" aria-hidden="true">
+        {reviewSteps.map(({ key, Icon, label, className }, index) => (
+          <span
+            key={key}
+            className={`triage-review-chip flex h-10 w-10 items-center justify-center rounded-[14px] ${className}`}
+            style={{ animationDelay: `${index * 160}ms` }}
+            title={label}
+          >
+            <Icon size={19} strokeWidth={2.4} />
+          </span>
+        ))}
+      </div>
+
+      <div className="triage-review-lines relative mt-3 min-h-[34px] overflow-hidden rounded-full bg-[#F4ECFF] px-4 py-2 text-center">
+        {reviewSteps.map(({ key, label }, index) => (
+          <p
+            key={key}
+            className="triage-review-line absolute inset-x-4 top-2 font-body text-[14px] font-black leading-tight text-vyva-purple"
+            style={{ animationDelay: `${index * 1.8}s` }}
+          >
+            {label}
+          </p>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default function TriageChat({
   bpm,
   respiratoryRate = null,
@@ -148,27 +275,35 @@ export default function TriageChat({
   initialClue = "",
   healthMemory = null,
   autoStartVoice = false,
+  initialDraft = null,
+  resumePendingRequest = false,
+  onDraftChange,
   onVoiceAutoStarted,
   onComplete,
 }: TriageChatProps) {
   const { t } = useTranslation();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const hasInitialDraft = Boolean(initialDraft);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => initialDraft?.messages ?? []);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [initiated, setInitiated] = useState(false);
+  const [initiated, setInitiated] = useState(() => hasInitialDraft);
   const [isListening, setIsListening] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [animatingIdx, setAnimatingIdx] = useState<number | null>(null);
   const [animatedText, setAnimatedText] = useState("");
-  const [apiQuickReplies, setApiQuickReplies] = useState<ApiQuickReply[] | null>(null);
-  const [selectedQuickAnswers, setSelectedQuickAnswers] = useState<SelectedQuickAnswer[]>([]);
-  const [evidenceSources, setEvidenceSources] = useState<TriageResponse["evidenceSources"]>([]);
-  const [safetyAlert, setSafetyAlert] = useState<TriageResponse["safetyAlert"] | null>(null);
-  const [wizardStageLabel, setWizardStageLabel] = useState("");
+  const [apiQuickReplies, setApiQuickReplies] = useState<ApiQuickReply[] | null>(() => initialDraft?.apiQuickReplies ?? null);
+  const [selectedQuickAnswers, setSelectedQuickAnswers] = useState<SelectedQuickAnswer[]>(() => initialDraft?.selectedQuickAnswers ?? []);
+  const [evidenceSources, setEvidenceSources] = useState<TriageResponse["evidenceSources"]>(() => initialDraft?.evidenceSources ?? []);
+  const [safetyAlert, setSafetyAlert] = useState<TriageResponse["safetyAlert"] | null>(() => initialDraft?.safetyAlert ?? null);
+  const [emergencyContact, setEmergencyContact] = useState<EmergencyContact | null>(() => initialDraft?.emergencyContact ?? initialDraft?.safetyAlert?.emergencyContact ?? null);
+  const [wizardStageLabel, setWizardStageLabel] = useState(() => initialDraft?.wizardStageLabel ?? "");
+  const [medisearchConversationId, setMedisearchConversationId] = useState<string | null>(() => initialDraft?.medisearchConversationId ?? null);
+  const [medicalFollowups, setMedicalFollowups] = useState<string[]>(() => initialDraft?.medicalFollowups ?? []);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const animTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const recRef = useRef<SpeechRecognition | null>(null);
+  const recRef = useRef<BrowserSpeechRecognition | null>(null);
+  const pendingResumeSentRef = useRef(false);
   const userMessageCount = messages.filter((msg) => msg.role === "user").length;
   const fallbackQuickAnswers: QuickAnswer[] = userMessageCount === 0
     ? [
@@ -232,7 +367,8 @@ export default function TriageChat({
   );
 
   const startListening = useCallback(() => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const speechWindow = window as unknown as SpeechRecognitionWindow;
+    const SR = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
     if (!SR) {
       setVoiceError(t("health.symptomCheck.chat.voiceUnsupported"));
       return;
@@ -302,14 +438,26 @@ export default function TriageChat({
               quickAnswers: quickAnswerTrail,
             },
             healthMemory,
+            medisearchConversationId,
           }),
         });
         if (!response.ok) throw new Error(`${response.status}`);
         const res = await response.json() as TriageResponse;
         setApiQuickReplies(res.quickReplies?.length ? res.quickReplies : null);
         setSafetyAlert(res.safetyAlert ?? null);
+        setEmergencyContact(res.emergencyContact ?? res.safetyAlert?.emergencyContact ?? null);
         if (res.evidenceSources) setEvidenceSources(res.evidenceSources);
         if (res.wizardStageLabel) setWizardStageLabel(res.wizardStageLabel);
+        if (res.medisearchConversationId) setMedisearchConversationId(res.medisearchConversationId);
+        setMedicalFollowups(
+          !res.done && !res.safetyAlert && Array.isArray(res.medicalFollowups)
+            ? res.medicalFollowups
+                .filter((item): item is string => typeof item === "string")
+                .map((item) => item.trim())
+                .filter(Boolean)
+                .slice(0, 3)
+            : [],
+        );
 
         const msgIdx = history.length;
         setMessages((prev) => [...prev, { role: "assistant", content: res.content }]);
@@ -338,6 +486,7 @@ export default function TriageChat({
           role: "assistant",
           content: t("health.symptomCheck.chat.errorMsg"),
         };
+        setMedicalFollowups([]);
         const msgIdx = messages.length;
         setMessages((prev) => [...prev, errMsg]);
         animateMessage(msgIdx, errMsg.content);
@@ -345,7 +494,7 @@ export default function TriageChat({
         setLoading(false);
       }
     },
-    [animateMessage, bpm, entryMode, healthMemory, messages.length, onComplete, respiratoryRate, selectedQuickAnswers, t]
+    [animateMessage, bpm, entryMode, healthMemory, initialClue, medisearchConversationId, messages.length, onComplete, respiratoryRate, selectedQuickAnswers, t]
   );
 
   useEffect(() => {
@@ -361,6 +510,27 @@ export default function TriageChat({
       }
     }
   }, [initialClue, initiated, sendToApi]);
+
+  useEffect(() => {
+    if (!resumePendingRequest || pendingResumeSentRef.current || loading) return;
+    pendingResumeSentRef.current = true;
+    void sendToApi(messages, selectedQuickAnswers);
+  }, [loading, messages, resumePendingRequest, selectedQuickAnswers, sendToApi]);
+
+  useEffect(() => {
+    onDraftChange?.({
+      messages,
+      selectedQuickAnswers,
+      apiQuickReplies,
+      evidenceSources,
+      safetyAlert,
+      emergencyContact,
+      wizardStageLabel,
+      medisearchConversationId,
+      medicalFollowups,
+      pendingRequest: loading,
+    });
+  }, [apiQuickReplies, emergencyContact, evidenceSources, loading, medicalFollowups, medisearchConversationId, messages, onDraftChange, safetyAlert, selectedQuickAnswers, wizardStageLabel]);
 
   useEffect(() => {
     scrollToBottom();
@@ -419,8 +589,10 @@ export default function TriageChat({
     ? animatingIdx === latestAssistantEntry.index
       ? animatedText
       : latestAssistantEntry.msg.content
-    : t("health.symptomCheck.chat.thinking");
+    : t("health.symptomCheck.chat.reviewTitle", "VYVA is checking the safest next step");
+  const showQuestion = Boolean(latestAssistantEntry || !loading);
   const canAnswer = !loading && animatingIdx === null && messages.length > 0;
+  const canShowMedicalFollowups = canAnswer && !safetyAlert && medicalFollowups.length > 0;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -436,94 +608,107 @@ export default function TriageChat({
             </div>
           )}
 
-          {selectedQuickAnswers.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {selectedQuickAnswers.slice(-3).map((answer, index) => (
-                <span key={`${answer.id}-${index}`} className="font-body text-[15px] font-bold text-vyva-text-3">
-                  {answer.label}
-                </span>
-              ))}
-            </div>
-          )}
-
           {safetyAlert && (
-            <div className="motion-safe:animate-pulse rounded-[24px] border-2 border-[#DC2626] bg-[#DC2626] px-4 py-4 text-white shadow-[0_16px_36px_rgba(220,38,38,0.28)]">
-              <div className="flex items-start gap-3">
-                <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px] bg-white/16 text-white ring-2 ring-white/40">
-                  <AlertCircle size={24} />
-                </span>
-                <div className="grid gap-3">
-                  <p className="font-body text-[22px] font-black leading-tight">
-                    {t("health.symptomCheck.chat.emergencyTitle", "Emergency warning")}
-                  </p>
-                  <p className="font-body text-[18px] font-bold leading-snug text-white">
-                    {safetyAlert.recommendation}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      window.location.href = "tel:112";
-                    }}
-                    className="vyva-tap mt-1 inline-flex min-h-[64px] items-center justify-center gap-3 rounded-[20px] bg-white px-5 font-body text-[19px] font-black text-[#B91C1C] shadow-[0_10px_24px_rgba(127,29,29,0.24)]"
-                  >
-                    <PhoneCall size={22} />
-                    {t("health.symptomCheck.chat.contactEmergency", "Contact emergency services")}
-                  </button>
-                </div>
-              </div>
-            </div>
+            <HealthWizardHero
+              tone="red"
+              className="motion-safe:animate-pulse"
+              icon={<AlertCircle size={28} />}
+              title={t("health.symptomCheck.chat.emergencyTitle", "Emergency warning")}
+              body={safetyAlert.recommendation}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  if (emergencyContact?.telHref) {
+                    window.location.href = emergencyContact.telHref;
+                  }
+                }}
+                disabled={!emergencyContact?.telHref}
+                className="vyva-tap inline-flex min-h-[66px] w-full items-center justify-center gap-3 rounded-[22px] bg-[#DC2626] px-5 font-body text-[19px] font-black text-white shadow-[0_10px_24px_rgba(127,29,29,0.24)]"
+              >
+                <PhoneCall size={22} />
+                {emergencyContact?.telHref
+                  ? t("health.symptomCheck.chat.callEmergencyNumber", "Call {{number}}", { number: emergencyContact.label })
+                  : t("health.symptomCheck.chat.contactEmergency", "Contact emergency services")}
+              </button>
+            </HealthWizardHero>
           )}
 
-          <section className="px-1 py-2">
-            <h2 className={`font-body text-[27px] font-bold leading-[1.14] ${safetyAlert ? "motion-safe:animate-pulse text-[#B91C1C]" : "text-vyva-text-1"}`}>
-              {latestQuestion}
-              {latestAssistantEntry && animatingIdx === latestAssistantEntry.index && (
-                <span
-                  className="ml-1 inline-block h-[1em] w-[2px] animate-pulse align-middle"
-                  style={{ background: "hsl(var(--vyva-purple))", opacity: 0.7 }}
-                />
-              )}
-            </h2>
-          </section>
+          {showQuestion && (
+            <HealthWizardCard className="px-5 py-5">
+              <h2 className={`font-body text-[28px] font-black leading-[1.16] ${safetyAlert ? "motion-safe:animate-pulse text-[#B91C1C]" : "text-vyva-text-1"}`}>
+                {latestQuestion}
+                {latestAssistantEntry && animatingIdx === latestAssistantEntry.index && (
+                  <span
+                    className="ml-1 inline-block h-[1em] w-[2px] animate-pulse align-middle"
+                    style={{ background: "hsl(var(--vyva-purple))", opacity: 0.7 }}
+                  />
+                )}
+              </h2>
+            </HealthWizardCard>
+          )}
 
           {loading && (
-            <div className="flex min-h-[64px] items-center justify-center gap-2 rounded-[22px] border border-[#E8DED4] bg-white px-4 py-3 shadow-[0_8px_20px_rgba(63,45,35,0.05)]">
-              <Loader2 size={20} className="animate-spin text-vyva-purple" />
-              <span className="font-body text-[18px] font-bold text-vyva-text-2">
-                {t("health.symptomCheck.chat.thinking")}
-              </span>
-            </div>
+            <TriageReviewPanel />
           )}
 
           {evidenceSources && evidenceSources.length > 0 && (
-            <div className="rounded-[18px] border border-[#E8DED4] bg-white/80 px-4 py-3 shadow-[0_1px_4px_rgba(0,0,0,0.04)]">
+            <HealthWizardCard tone="blue" className="px-4 py-3">
               <p className="font-body text-[13px] font-bold uppercase tracking-[0.12em] text-vyva-text-3">
                 {t("health.symptomCheck.chat.evidence", "Evidence checked")}
               </p>
               <p className="mt-1 font-body text-[16px] leading-snug text-vyva-text-2">
                 {evidenceSources.slice(0, 2).map((source) => source.title).filter(Boolean).join(" - ")}
               </p>
-            </div>
+            </HealthWizardCard>
           )}
 
           {canAnswer && (
             <div className="grid gap-3" data-testid="triage-quick-answers">
               {quickAnswers.map((quickAnswer) => {
-                const { label, value, tone } = quickAnswer;
-                const colors = answerTone[tone];
+                const { label, value, Icon } = quickAnswer;
                 return (
-                  <button
+                  <HealthWizardChoiceTile
                     key={label}
-                    type="button"
                     onClick={() => void sendText(value, quickAnswer)}
-                    className="vyva-tap flex min-h-[76px] items-center rounded-[22px] border bg-white px-5 text-left transition active:scale-[0.98]"
-                    style={{ borderColor: colors.border, color: colors.text }}
-                  >
-                    <span className="font-body text-[20px] font-bold leading-tight">{label}</span>
-                  </button>
+                    icon={<Icon size={24} />}
+                    title={label}
+                  />
                 );
               })}
             </div>
+          )}
+
+          {canShowMedicalFollowups && (
+            <HealthWizardCard tone="purple" className="grid gap-3 px-4 py-4" testId="triage-medical-followups">
+              <div className="flex items-center gap-3">
+                <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-vyva-purple shadow-[0_6px_16px_rgba(107,33,168,0.10)]">
+                  <BookOpenCheck size={21} />
+                </span>
+                <div className="min-w-0">
+                  <p className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+                    {t("health.symptomCheck.chat.followupTitle", "Useful follow-up questions")}
+                  </p>
+                  <p className="font-body text-[16px] font-bold leading-snug text-vyva-text-2">
+                    {t("health.symptomCheck.chat.followupSub", "Tap one if it matches what you want to ask next.")}
+                  </p>
+                </div>
+              </div>
+              <div className="grid gap-2">
+                {medicalFollowups.map((question, index) => (
+                  <button
+                    key={`${question}-${index}`}
+                    type="button"
+                    onClick={() => void sendText(question)}
+                    data-testid={`triage-medical-followup-${index}`}
+                    className="vyva-tap flex min-h-[64px] items-center justify-between gap-3 rounded-[20px] border border-[#DDD6FE] bg-white px-4 py-3 text-left font-body text-[17px] font-black leading-snug text-vyva-text-1 shadow-[0_8px_20px_rgba(107,33,168,0.07)]"
+                  >
+                    <span>{question}</span>
+                    <Send size={18} className="flex-shrink-0 text-vyva-purple" />
+                  </button>
+                ))}
+              </div>
+            </HealthWizardCard>
           )}
         </div>
       </div>
@@ -546,7 +731,7 @@ export default function TriageChat({
               {t("health.symptomCheck.chat.listening")}
             </p>
           )}
-          <div className="flex items-center gap-3 rounded-[28px] border border-[#E8DED4] bg-white p-2 shadow-[0_10px_26px_rgba(63,45,35,0.08)]">
+          <div className="flex items-center gap-3 rounded-[30px] border border-[#E8DED4] bg-white p-2 shadow-[0_14px_34px_rgba(63,45,35,0.10)]">
             <input
               ref={inputRef}
               type="text"
@@ -556,7 +741,7 @@ export default function TriageChat({
               disabled={loading || animatingIdx !== null}
               placeholder={t("health.symptomCheck.chat.placeholder")}
               data-testid="input-triage-message"
-              className="min-w-0 flex-1 rounded-full px-4 py-[14px] font-body text-[18px] text-vyva-text-1 outline-none"
+              className="min-w-0 flex-1 rounded-full px-4 py-[16px] font-body text-[20px] font-bold text-vyva-text-1 outline-none placeholder:text-[#9A8C83]"
               style={{
                 background: "transparent",
               }}

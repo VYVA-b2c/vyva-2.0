@@ -30,6 +30,23 @@ type CaregiverSafetyResponse = {
   } | null;
 };
 
+type DailyCheckinToday = {
+  status: "completed" | "upcoming" | "due_now" | "overdue" | "not_scheduled";
+  latest_checkin: {
+    completed_at: string;
+    feeling_label: string | null;
+    highlight: string | null;
+  } | null;
+  no_response: {
+    overdue: boolean;
+    alert_created: boolean;
+    can_alert_caregiver: boolean;
+    reason: string | null;
+  };
+  caregiver_alert?: CaregiverAlert | null;
+  message: string;
+};
+
 function normalizeStatus(value: unknown): SafetyStatus {
   const raw = String(value ?? "").toLowerCase();
   if (raw === "urgent_help" || raw === "urgent") return "urgent_help";
@@ -58,6 +75,15 @@ export default function CaregiverDashboardPage() {
     queryFn: async () => {
       const response = await apiFetch("/api/vitals-engine/caregiver/latest-alerts");
       if (!response.ok) throw new Error("Could not load caregiver safety alerts");
+      return response.json();
+    },
+    retry: false,
+  });
+  const { data: dailyCheckin } = useQuery<DailyCheckinToday>({
+    queryKey: ["/api/checkins/today"],
+    queryFn: async () => {
+      const response = await apiFetch("/api/checkins/today");
+      if (!response.ok) throw new Error("Could not load check-in status");
       return response.json();
     },
     retry: false,
@@ -122,6 +148,38 @@ export default function CaregiverDashboardPage() {
               </div>
 
               <div className="mt-5">
+                {dailyCheckin && (
+                  <div className="mb-5 rounded-[26px] border border-[#EDE5DB] bg-white p-5 shadow-[0_8px_20px_rgba(63,45,35,0.05)]">
+                    <div className="flex items-start gap-4">
+                      <div className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] ${
+                        dailyCheckin.status === "overdue" ? "bg-[#FEF2F2] text-[#B91C1C]" :
+                        dailyCheckin.status === "completed" ? "bg-[#ECFDF5] text-[#047857]" :
+                        "bg-[#F5F3FF] text-[#6B21A8]"
+                      }`}>
+                        {dailyCheckin.status === "overdue" ? <AlertTriangle className="h-6 w-6" /> :
+                          dailyCheckin.status === "completed" ? <CheckCircle2 className="h-6 w-6" /> :
+                          <Clock className="h-6 w-6" />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-body text-[12px] font-bold uppercase tracking-[0.13em] text-[#7A6A60]">Daily check-in</p>
+                        <p className="mt-2 font-body text-[19px] font-bold leading-relaxed text-[#2F241F]">
+                          {dailyCheckin.latest_checkin?.feeling_label ?? dailyCheckin.message}
+                        </p>
+                        {dailyCheckin.latest_checkin?.completed_at ? (
+                          <p className="mt-2 font-body text-[13px] font-semibold text-[#7A6A60]">
+                            Completed: {formatTime(dailyCheckin.latest_checkin.completed_at)}
+                          </p>
+                        ) : null}
+                        {dailyCheckin.no_response.reason ? (
+                          <p className="mt-2 rounded-[16px] bg-[#FFF7ED] px-3 py-2 font-body text-[13px] font-bold text-[#9A3412]">
+                            Caregiver alert needs contact or consent.
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="mb-3 flex items-center justify-between">
                   <p className="font-body text-[13px] font-bold uppercase tracking-[0.13em] text-[#7A6A60]">Recent alerts</p>
                   <span className="rounded-full bg-[#F5F3FF] px-3 py-1 font-body text-[12px] font-bold text-[#6B21A8]">{openAlerts.length} open</span>

@@ -50,6 +50,57 @@ export function Field({ label, required, optional, children }: { label: string; 
   );
 }
 
+function cleanContact(value?: string | null) {
+  return value?.replace(/\s+/g, " ").trim() || null;
+}
+
+function looksLikeEmail(value?: string | null) {
+  return Boolean(cleanContact(value)?.includes("@"));
+}
+
+function phoneContact(value?: string | null) {
+  const contact = cleanContact(value);
+  if (!contact || looksLikeEmail(contact)) return null;
+  const digits = contact.replace(/\D/g, "");
+  return digits.length >= 6 ? contact : null;
+}
+
+function contactKey(value?: string | null) {
+  const contact = cleanContact(value);
+  if (!contact) return null;
+  if (looksLikeEmail(contact)) return `email:${contact.toLowerCase()}`;
+  const digits = contact.replace(/\D/g, "");
+  if (digits.length >= 6) return `phone:${digits}`;
+  return `text:${contact.toLowerCase()}`;
+}
+
+function lifecycleUserPhone(user: Intake) {
+  return phoneContact(user.profile_phone) ?? phoneContact(user.login_phone) ?? phoneContact(user.phone);
+}
+
+function lifecycleIdentityRows(user: Intake) {
+  const primaryKey = contactKey(user.name);
+  const login = cleanContact(user.login_email) ?? phoneContact(user.login_phone);
+  const profile = cleanContact(user.profile_email) ?? phoneContact(user.profile_phone);
+  const profileName = !profile && contactKey(user.profile_name) !== primaryKey ? cleanContact(user.profile_name) : null;
+  const loginKey = contactKey(login);
+  const profileValue = profile ?? profileName;
+  const profileKey = contactKey(profileValue);
+  const rows: Array<{ label: string; value: string }> = [];
+
+  if (login && loginKey && loginKey === profileKey && loginKey !== primaryKey) {
+    rows.push({ label: looksLikeEmail(login) ? "Email" : "Contact", value: login });
+    return rows;
+  }
+
+  if (login && loginKey !== primaryKey) rows.push({ label: "Login", value: login });
+  if (profileValue && profileKey !== primaryKey && profileKey !== loginKey) {
+    rows.push({ label: profile ? "Profile" : "Profile name", value: profileValue });
+  }
+
+  return rows;
+}
+
 function supportLabel(type: string) {
   if (type === "CHECK_IN") return "Check-in calls";
   if (type === "BRAIN_COACH") return "Brain Coach";
@@ -577,6 +628,7 @@ export function IntakeTable({ users, emptyMessage = "No users match the current 
           {users.map((user) => {
             const removed = !isVisibleLifecycleUser(user);
             const removedDetails = removed ? removedUserDetails(user) : null;
+            const identityRows = lifecycleIdentityRows(user);
             return (
             <tr key={user.id} className={`rounded-2xl ${removed ? "bg-amber-50" : "bg-[#fbf8f5]"}`}>
               {selectable && (
@@ -609,14 +661,13 @@ export function IntakeTable({ users, emptyMessage = "No users match the current 
                     {removedDetails.reason && <span>Reason: {removedDetails.reason}</span>}
                   </div>
                 )}
-                {(user.login_email || user.login_phone || user.profile_email || user.profile_phone || user.profile_name) && (
+                {identityRows.length > 0 && (
                   <div className="mt-1 grid gap-0.5 text-xs font-semibold text-[#7d6b65]">
-                    {(user.login_email || user.login_phone) && <span>Login: {user.login_email || user.login_phone}</span>}
-                    {(user.profile_email || user.profile_phone || user.profile_name) && <span>Profile: {user.profile_email || user.profile_phone || user.profile_name}</span>}
+                    {identityRows.map((row) => <span key={`${row.label}:${row.value}`}>{row.label}: {row.value}</span>)}
                   </div>
                 )}
               </td>
-              {!compact && <td className="px-3 py-3">{user.phone}</td>}
+              {!compact && <td className="px-3 py-3">{lifecycleUserPhone(user) ?? "-"}</td>}
               <td className="px-3 py-3">{userTypeLabel(user.user_type)}</td>
               <td className="px-3 py-3">
                 <span>{entryPointLabel(user.entry_point)}</span>
@@ -1566,12 +1617,12 @@ export function CommunicationsSection({ communications, providerStatus = [] }: {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="font-serif text-3xl">Communication log</h2>
-          <p className="mt-1 max-w-2xl text-sm text-[#7d6b65]">Delivery health for email and WhatsApp, followed by the latest communication audit trail.</p>
+          <p className="mt-1 max-w-2xl text-sm text-[#7d6b65]">Delivery health for email, SMS, and WhatsApp, followed by the latest communication audit trail.</p>
         </div>
         <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-black text-purple-700">{communications.length} messages</span>
       </div>
 
-      <div className="mt-5 grid gap-3 md:grid-cols-2">
+      <div className="mt-5 grid gap-3 md:grid-cols-3">
         {providerStatus.map((provider) => (
           <article key={provider.channel} className={`rounded-3xl border p-4 ${providerStatusTone(provider.status)}`}>
             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -1589,7 +1640,7 @@ export function CommunicationsSection({ communications, providerStatus = [] }: {
           </article>
         ))}
         {providerStatus.length === 0 && (
-          <div className="rounded-3xl border border-[#eadfd5] bg-[#fbf8f5] p-4 text-sm font-bold text-[#7d6b65] md:col-span-2">
+          <div className="rounded-3xl border border-[#eadfd5] bg-[#fbf8f5] p-4 text-sm font-bold text-[#7d6b65] md:col-span-3">
             Provider health could not be loaded yet.
           </div>
         )}
