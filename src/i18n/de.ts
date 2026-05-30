@@ -243,6 +243,16 @@ const de = {
       },
     },
     symptomCheck: {
+      tracker: {
+        label: "Einschaetzungs-Sicherheit",
+        building: "Sicherheit steigt",
+        ready: "Bereit",
+        checking: "VYVA prueft Ihre Antworten",
+        prepared: "Klare naechste Schritte bereit",
+        listen: "Zuhoeren",
+        check: "Pruefen",
+        nextStep: "Naechster Schritt",
+      },
       report: {
         emergencyLabel: "Notfall jetzt",
         doctorTodayLabel: "Heute zum Arzt",

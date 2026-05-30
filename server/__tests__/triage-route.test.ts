@@ -135,6 +135,42 @@ describe("triage route wizard questions", () => {
     });
   });
 
+  it("includes optional scan notes and can escalate without downgrading red flags", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "");
+
+    const res = await request(app())
+      .post("/api/triage/message")
+      .send({
+        locale: "en",
+        messages: [{ role: "user", content: "My urine looks red" }],
+        wizard: {
+          mode: "without_vitals",
+          quickAnswers: [
+            { id: "urinary", label: "Urine problem", value: "I have a urine problem.", kind: "symptom" },
+            { id: "blood_in_urine", label: "Blood in urine or clots", value: "There is blood or clots in my urine.", kind: "red_flag" },
+            { id: "moderate", label: "Moderate", value: "It feels moderate.", kind: "severity" },
+            { id: "worse", label: "Worse", value: "It is getting worse.", kind: "trend" },
+          ],
+          scanResults: [{
+            id: "scan-urine-1",
+            type: "urine_photo",
+            label: "Urine appearance photo",
+            concernLevel: "urgent",
+            summary: "The urine appears red.",
+            findings: ["Red urine appearance"],
+            capturedAt: new Date().toISOString(),
+          }],
+        },
+      })
+      .expect(200);
+
+    expect(res.body.done).toBe(true);
+    expect(res.body.summary.nextStepLevel).toBe("doctor_today");
+    expect(res.body.summary.scanResults).toHaveLength(1);
+    expect(res.body.summary.scanNotes.join(" ")).toContain("A photo cannot diagnose a urine infection.");
+    expect(res.body.summary.triageReasons.join(" ")).toContain("optional scan");
+  });
+
   it("returns MediSearch follow-up chips with deterministic wizard questions", async () => {
     vi.stubEnv("MEDISEARCH_API_KEY", "test-key");
     vi.stubGlobal("fetch", vi.fn(async () => new Response([

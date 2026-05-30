@@ -9,7 +9,6 @@ import { useProfile } from "@/contexts/ProfileContext";
 import {
   HealthWizardCard,
   HealthWizardHero,
-  HealthWizardProgress,
   HealthWizardShell,
   HealthWizardTopBar,
 } from "@/components/health/HealthWizard";
@@ -17,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/i18n";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { getSymptomRecommendationActionKinds, type SymptomRecommendationActionKind } from "@/lib/symptomReportActions";
+import type { TriageScanResult } from "../../shared/triageScans";
 
 type Step = "intro" | "chat" | "report";
 
@@ -33,11 +33,14 @@ interface TriageSummary {
   watchSigns?: string[];
   profileConsiderations?: string[];
   vitalsNotes?: string[];
+  scanResults?: TriageScanResult[];
+  scanNotes?: string[];
   evidenceSummary?: string;
   evidenceSources?: Array<{ title?: string; url?: string; year?: string; journal?: string }>;
   refinementContext?: {
     messages: Array<{ role: "user" | "assistant"; content: string }>;
     quickAnswers: Array<{ id: string; label: string; value: string; kind: string }>;
+    scanResults?: TriageScanResult[];
     entryMode: "with_vitals" | "without_vitals";
     initialClue: string;
   };
@@ -116,6 +119,8 @@ type SavedTriageReport = {
   recommendations?: string[];
   disclaimer?: string;
   ai_summary?: string | null;
+  scan_results?: TriageScanResult[];
+  scan_notes?: string[];
   bpm?: number | null;
   respiratory_rate?: number | null;
   duration_seconds?: number | null;
@@ -204,21 +209,83 @@ function writeSymptomCheckDraft(draft: Omit<SymptomCheckDraft, "version" | "upda
   }));
 }
 
-function StepDots({ current }: { current: Step }) {
-  const steps: Step[] = ["chat", "report"];
-  const idx = steps.indexOf(current);
+function AssessmentConfidenceTracker({ current }: { current: Step }) {
+  const { t } = useTranslation();
+  const isReport = current === "report";
+  const activeIndex = isReport ? 2 : current === "chat" ? 1 : 0;
+  const confidence = isReport ? 100 : current === "chat" ? 68 : 24;
+  const milestones = [
+    { key: "listen", label: t("health.symptomCheck.tracker.listen", "Listen"), Icon: Stethoscope },
+    { key: "check", label: t("health.symptomCheck.tracker.check", "Check"), Icon: Activity },
+    { key: "next", label: t("health.symptomCheck.tracker.nextStep", "Next step"), Icon: CheckCircle },
+  ];
+
   return (
-    <div className="mx-[18px] flex items-center gap-2 rounded-[22px] border border-[#E8DED4] bg-white/90 p-3 shadow-[0_8px_20px_rgba(63,45,35,0.06)]">
-      {steps.map((s, i) => (
+    <div className="mx-[18px] rounded-[28px] border border-[#E8DED4] bg-white/95 p-4 shadow-[0_14px_32px_rgba(63,45,35,0.08)]">
+      <div className="flex items-center gap-3">
+        <span className="relative flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px] bg-vyva-purple text-white shadow-[0_10px_20px_rgba(107,33,168,0.20)]">
+          {isReport ? <CheckCircle size={27} /> : <Activity size={28} />}
+          {!isReport ? (
+            <span className="absolute -right-1 -top-1 h-4 w-4 rounded-full bg-[#34D399] ring-4 ring-white motion-safe:animate-pulse" />
+          ) : null}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+            {t("health.symptomCheck.tracker.label", "Assessment confidence")}
+          </p>
+          <p className="font-body text-[19px] font-black leading-tight text-vyva-text-1">
+            {isReport
+              ? t("health.symptomCheck.tracker.ready", "Ready")
+              : t("health.symptomCheck.tracker.building", "Building confidence")}
+          </p>
+          <p className="mt-1 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+            {isReport
+              ? t("health.symptomCheck.tracker.prepared", "Clear next steps prepared")
+              : t("health.symptomCheck.tracker.checking", "VYVA is checking your answers")}
+          </p>
+        </div>
         <div
-          key={s}
-          className="h-3 flex-1 rounded-full transition-all"
-          style={{
-            background: i <= idx ? "hsl(var(--vyva-purple))" : "#E8DED4",
-            opacity: i === idx ? 1 : i < idx ? 0.85 : 0.7,
-          }}
-        />
-      ))}
+          className="flex h-[58px] w-[58px] flex-shrink-0 items-center justify-center rounded-full p-[5px]"
+          style={{ background: `conic-gradient(hsl(var(--vyva-purple)) ${confidence}%, #EFE7DE 0)` }}
+          aria-label={t("health.symptomCheck.tracker.label", "Assessment confidence")}
+        >
+          <span className="flex h-full w-full items-center justify-center rounded-full bg-white font-body text-[15px] font-black text-vyva-purple">
+            {confidence}%
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        {milestones.map(({ key, label, Icon }, index) => {
+          const isComplete = index < activeIndex;
+          const isActive = index === activeIndex;
+          const tileClass = isActive
+            ? "border-vyva-purple bg-[#F5F3FF] text-vyva-purple shadow-[0_8px_18px_rgba(107,33,168,0.12)]"
+            : isComplete
+              ? "border-[#BBF7D0] bg-[#ECFDF5] text-[#047857]"
+              : "border-[#E8DED4] bg-[#FFFCF8] text-vyva-text-2";
+          const iconClass = isActive
+            ? `bg-vyva-purple text-white ${isReport ? "" : "motion-safe:animate-pulse"}`
+            : isComplete
+              ? "bg-[#10B981] text-white"
+              : "bg-[#F4EEE8] text-vyva-text-2";
+
+          return (
+            <div
+              key={key}
+              aria-current={isActive ? "step" : undefined}
+              className={`min-h-[72px] rounded-[18px] border px-2 py-2 text-center transition-all ${tileClass}`}
+            >
+              <span className={`mx-auto flex h-9 w-9 items-center justify-center rounded-[14px] ${iconClass}`}>
+                <Icon size={18} />
+              </span>
+              <span className="mt-1 block font-body text-[12px] font-black leading-tight">
+                {label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -481,9 +548,10 @@ function reportText(summary: TriageSummary) {
   return [
     summary.chiefComplaint,
     ...summary.symptoms,
-    ...(summary.triageReasons ?? []),
-    ...(summary.profileConsiderations ?? []),
-    ...(summary.vitalsNotes ?? []),
+  ...(summary.triageReasons ?? []),
+  ...(summary.profileConsiderations ?? []),
+  ...(summary.vitalsNotes ?? []),
+  ...(summary.scanNotes ?? []),
   ].join(" ").toLowerCase();
 }
 
@@ -668,6 +736,7 @@ function ReportScreen({
     nextStepDisplayText ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${nextStepDisplayText}` : "",
     summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Initial Assessment")}: ${summary.triageReasons.join(" ")}` : "",
     summary.vitalsNotes?.length ? `${t("health.symptomCheck.report.vitalsUsed", "Vitals used")}: ${summary.vitalsNotes.join(" ")}` : "",
+    summary.scanNotes?.length ? `${t("health.symptomCheck.report.scanNotes", "Scan notes")}: ${summary.scanNotes.join(" ")}` : "",
     summary.profileConsiderations?.length ? `${t("health.symptomCheck.report.profileConsidered", "Profile considered")}: ${summary.profileConsiderations.join(" ")}` : "",
     summary.watchSigns?.length ? `${t("health.symptomCheck.report.watchSigns", "Watch signs")}: ${summary.watchSigns.join(" ")}` : "",
   ]).slice(0, 6);
@@ -684,6 +753,7 @@ function ReportScreen({
     summary.watchSigns?.length ? `${t("health.symptomCheck.report.watchSigns", "Watch signs")}: ${summary.watchSigns.join(" ")}` : "",
     summary.profileConsiderations?.length ? `${t("health.symptomCheck.report.profileConsidered", "Profile considered")}: ${summary.profileConsiderations.join(" ")}` : "",
     summary.vitalsNotes?.length ? `${t("health.symptomCheck.report.vitalsUsed", "Vitals used")}: ${summary.vitalsNotes.join(" ")}` : "",
+    summary.scanNotes?.length ? `${t("health.symptomCheck.report.scanNotes", "Scan notes")}: ${summary.scanNotes.join(" ")}` : "",
   ].filter(Boolean).join("\n");
   const doctorShareTarget = findDoctorShareTarget(profileContacts, careTeamMembers, t("health.symptomCheck.report.doctorContact", "your doctor"));
   const doctorShareHref = doctorShareTarget
@@ -794,11 +864,12 @@ function ReportScreen({
     ...(summary.triageReasons ?? []),
     ...(summary.profileConsiderations ?? []),
     ...(summary.vitalsNotes ?? []),
+    ...(summary.scanNotes ?? []),
   ]);
   const visibleReasons = allReasons.slice(0, 2);
   const visibleRecommendations = compactDoctorContactRecommendations(summary.recommendations).slice(0, 4);
   const visibleWatchSigns = uniqueLines(summary.watchSigns ?? []).slice(0, 2);
-  const contextNotes = uniqueLines([...(summary.profileConsiderations ?? []), ...(summary.vitalsNotes ?? [])]);
+  const contextNotes = uniqueLines([...(summary.profileConsiderations ?? []), ...(summary.vitalsNotes ?? []), ...(summary.scanNotes ?? [])]);
   const answerFinding = t("health.symptomCheck.report.summaryIntro", "Thank you for your answers. Here's a summary of your situation:");
   const evidenceSourceNames = summary.evidenceSources?.map((source) => source.title).filter(Boolean) ?? [];
   const openReport = () => navigate(reportId ? `/informes/${reportId}` : "/informes");
@@ -1534,6 +1605,8 @@ export default function SymptomCheckScreen() {
         watch_signs: triageSummary.watchSigns ?? [],
         profile_considerations: triageSummary.profileConsiderations ?? [],
         vitals_notes: triageSummary.vitalsNotes ?? [],
+        scan_results: triageSummary.scanResults ?? [],
+        scan_notes: triageSummary.scanNotes ?? [],
         bpm: vitalOverrides?.bpm ?? bpm ?? null,
         respiratory_rate: vitalOverrides?.respiratoryRate ?? respiratoryRate ?? null,
         duration_seconds: reportDurationSeconds,
@@ -1646,6 +1719,7 @@ export default function SymptomCheckScreen() {
             vitalsScanCompleted: false,
             vitals: refinedVitals,
             quickAnswers: context?.quickAnswers ?? [],
+            scanResults: context?.scanResults ?? summary.scanResults ?? [],
             refineRequested: true,
             previousSummary: summary,
           },
@@ -1723,7 +1797,7 @@ export default function SymptomCheckScreen() {
 
       {step !== "intro" && (
         <div className="flex-shrink-0 pb-3">
-          <StepDots current={step} />
+          <AssessmentConfidenceTracker current={step} />
         </div>
       )}
 
@@ -1773,6 +1847,10 @@ export default function SymptomCheckScreen() {
             language={language}
             languageReady={!profileLoading}
             onDraftChange={handleChatDraftChange}
+            onVitalsScanned={(nextBpm, nextRespiratoryRate) => {
+              if (nextBpm != null) setBpm(nextBpm);
+              if (nextRespiratoryRate != null) setRespiratoryRate(nextRespiratoryRate);
+            }}
             onVoiceAutoStarted={() => setAutoStartVoice(false)}
             onComplete={handleChatComplete}
           />

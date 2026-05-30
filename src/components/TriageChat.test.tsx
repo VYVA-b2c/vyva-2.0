@@ -9,6 +9,10 @@ vi.mock("@/lib/queryClient", () => ({
   apiFetch: vi.fn(),
 }));
 
+vi.mock("@/lib/imageCompression", () => ({
+  compressImageFile: vi.fn(async () => "data:image/jpeg;base64,dGlueSB0ZXN0IGltYWdlIHBheWxvYWQ="),
+}));
+
 const apiFetchMock = vi.mocked(apiFetch);
 
 const quickReplies = [
@@ -205,5 +209,112 @@ describe("TriageChat MediSearch follow-ups", () => {
     await waitFor(() => {
       expect(screen.queryByTestId("triage-medical-followups")).not.toBeInTheDocument();
     });
+  });
+
+  it("renders an optional scan card from restored structured answers and can skip it", async () => {
+    const onDraftChange = vi.fn();
+
+    renderTriageChat({
+      initialClue: "",
+      initialDraft: {
+        messages: [{ role: "assistant", content: "How is breathing now?" }],
+        selectedQuickAnswers: [
+          { id: "breathing", label: "Breathing", value: "I feel short of breath.", kind: "symptom" },
+          { id: "worse_but_speaking", label: "Worse than usual, but I can speak", value: "Breathing is worse than usual, but I can speak.", kind: "red_flag" },
+        ],
+        apiQuickReplies: quickReplies,
+        wizardSymptomId: "breathing",
+      },
+      onDraftChange,
+    });
+
+    expect(screen.getByTestId("triage-scan-card")).toBeInTheDocument();
+    expect(screen.getByText("Scan pulse & breathing")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-triage-scan-skip"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("triage-scan-card")).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId("triage-quick-answers")).toBeInTheDocument();
+    expect(onDraftChange).toHaveBeenLastCalledWith(expect.objectContaining({
+      declinedScanTypes: ["vitals"],
+    }));
+  });
+
+  it("adds photo scan results to the next triage request and supports retake", async () => {
+    apiFetchMock
+      .mockResolvedValueOnce(triageResponse({
+        id: "scan-1",
+        type: "wound_photo",
+        label: "Skin or wound photo",
+        concernLevel: "watch",
+        summary: "Mild redness is visible.",
+        findings: ["Mild redness"],
+        capturedAt: new Date().toISOString(),
+      }))
+      .mockResolvedValueOnce(triageResponse({
+        id: "scan-1",
+        type: "wound_photo",
+        label: "Skin or wound photo",
+        concernLevel: "watch",
+        summary: "Mild redness is visible.",
+        findings: ["Mild redness"],
+        capturedAt: new Date().toISOString(),
+      }))
+      .mockResolvedValueOnce(triageResponse({
+        role: "assistant",
+        content: "How long has it been there?",
+        done: false,
+        quickReplies: [],
+        wizardStage: "duration",
+        wizardStageLabel: "When it started",
+        wizardSymptomId: "skin",
+      }));
+
+    renderTriageChat({
+      initialClue: "",
+      initialDraft: {
+        messages: [{ role: "assistant", content: "Do any skin warning signs apply?" }],
+        selectedQuickAnswers: [
+          { id: "skin", label: "Skin or wound", value: "I have a skin or wound problem.", kind: "symptom" },
+          { id: "wound_spreading", label: "Open wound or spreading redness", value: "I have an open or draining wound.", kind: "red_flag" },
+        ],
+        apiQuickReplies: quickReplies,
+        wizardSymptomId: "skin",
+      },
+    });
+
+    fireEvent.click(screen.getByTestId("button-triage-scan-now"));
+    fireEvent.change(screen.getByTestId("input-triage-scan-photo"), {
+      target: {
+        files: [new File(["photo"], "wound.jpg", { type: "image/jpeg" })],
+      },
+    });
+
+    await screen.findByText("Optional scan added");
+    expect(screen.getByText("Mild redness is visible.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-triage-scan-retake"));
+    expect(screen.getByText("Scan skin or wound")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-triage-scan-now"));
+    fireEvent.change(screen.getByTestId("input-triage-scan-photo"), {
+      target: {
+        files: [new File(["photo"], "wound.jpg", { type: "image/jpeg" })],
+      },
+    });
+    await screen.findByText("Mild redness is visible.");
+    fireEvent.click(screen.getByTestId("button-triage-scan-continue"));
+
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledTimes(3));
+    const triageBody = JSON.parse((apiFetchMock.mock.calls[2]?.[1] as RequestInit).body as string);
+    expect(triageBody.wizard.scanResults).toEqual([
+      expect.objectContaining({
+        id: "scan-1",
+        type: "wound_photo",
+        summary: "Mild redness is visible.",
+      }),
+    ]);
   });
 });

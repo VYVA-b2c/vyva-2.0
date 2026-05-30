@@ -238,6 +238,16 @@ const pt = {
       },
     },
     symptomCheck: {
+      tracker: {
+        label: "Confianca da avaliacao",
+        building: "A ganhar confianca",
+        ready: "Pronto",
+        checking: "A VYVA esta a verificar as suas respostas",
+        prepared: "Proximos passos preparados",
+        listen: "Ouvir",
+        check: "Verificar",
+        nextStep: "Proximo passo",
+      },
       report: {
         emergencyLabel: "Emergencia agora",
         doctorTodayLabel: "Medico hoje",

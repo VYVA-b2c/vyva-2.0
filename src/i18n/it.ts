@@ -238,6 +238,16 @@ const it = {
       },
     },
     symptomCheck: {
+      tracker: {
+        label: "Fiducia nella valutazione",
+        building: "Fiducia in crescita",
+        ready: "Pronto",
+        checking: "VYVA controlla le tue risposte",
+        prepared: "Prossimi passi pronti",
+        listen: "Ascolto",
+        check: "Controllo",
+        nextStep: "Prossimo passo",
+      },
       report: {
         emergencyLabel: "Emergenza ora",
         doctorTodayLabel: "Medico oggi",

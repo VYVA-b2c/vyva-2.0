@@ -56,6 +56,7 @@ import homePlanRouter from "./routes/homePlan.js";
 import heroMessagesRouter from "./routes/heroMessages.js";
 import weatherRouter from "./routes/weather.js";
 import triageRouter from "./routes/triage.js";
+import { triageScanHandler } from "./routes/triageScan.js";
 import companionsRouter from "./routes/companions.js";
 import socialRoomsRouter from "./routes/socialRooms.js";
 import medsAdherenceRouter from "./routes/medsAdherence.js";
@@ -108,6 +109,8 @@ app.post("/api/scam-check", express.json({ limit: "10mb" }), authMiddleware, sca
 app.get("/api/scam-check", authMiddleware, scamCheckHistoryHandler);
 app.get("/api/scam-check/history", authMiddleware, scamCheckHistoryHandler);
 app.delete("/api/scam-check/:id", authMiddleware, scamCheckDeleteHandler);
+
+app.post("/api/triage/scan", express.json({ limit: "10mb" }), authMiddleware, requireUser, requireEntitlement("symptom_check"), triageScanHandler);
 
 app.post("/api/offers/analyze-document", express.json({ limit: "20mb" }), authMiddleware, analyzeOfferDocumentHandler);
 app.post("/api/bill-reader/analyze", express.json({ limit: "20mb" }), authMiddleware, analyzeOfferDocumentHandler);

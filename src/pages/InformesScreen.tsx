@@ -24,6 +24,7 @@ import {
   HealthWizardShell,
   HealthWizardTopBar,
 } from "@/components/health/HealthWizard";
+import type { TriageScanResult } from "../../shared/triageScans";
 
 type TriageReport = {
   id: string;
@@ -39,6 +40,8 @@ type TriageReport = {
   watch_signs: string[];
   profile_considerations: string[];
   vitals_notes: string[];
+  scan_results?: TriageScanResult[];
+  scan_notes?: string[];
   bpm: number | null;
   respiratory_rate: number | null;
   duration_seconds: number | null;
@@ -176,6 +179,7 @@ function DetailView({ report, onBack }: { report: TriageReport; onBack: () => vo
   const watchSigns = report.watch_signs ?? [];
   const profileConsiderations = report.profile_considerations ?? [];
   const vitalsNotes = report.vitals_notes ?? [];
+  const scanNotes = report.scan_notes ?? [];
 
   return (
     <HealthWizardShell contentClassName="pb-10">
@@ -287,7 +291,7 @@ function DetailView({ report, onBack }: { report: TriageReport; onBack: () => vo
         </section>
       )}
 
-      {(watchSigns.length > 0 || profileConsiderations.length > 0 || vitalsNotes.length > 0) && (
+      {(watchSigns.length > 0 || profileConsiderations.length > 0 || vitalsNotes.length > 0 || scanNotes.length > 0) && (
         <section className={`${cardShell} mt-4 p-5`}>
           {watchSigns.length > 0 && (
             <div>
@@ -303,13 +307,13 @@ function DetailView({ report, onBack }: { report: TriageReport; onBack: () => vo
               </ul>
             </div>
           )}
-          {[...profileConsiderations, ...vitalsNotes].length > 0 && (
+          {[...profileConsiderations, ...vitalsNotes, ...scanNotes].length > 0 && (
             <div className={watchSigns.length > 0 ? "mt-5 border-t border-[#EADFD5] pt-5" : ""}>
               <p className="font-body text-[13px] font-bold uppercase tracking-[0.12em] text-[#6B21A8]">
                 {t("informes.reportDetail.contextUsed", "What VYVA considered")}
               </p>
               <ul className="mt-3 grid gap-2">
-                {[...profileConsiderations, ...vitalsNotes].slice(0, 4).map((note, index) => (
+                {[...profileConsiderations, ...vitalsNotes, ...scanNotes].slice(0, 6).map((note, index) => (
                   <li key={`${index}-${note}`} className="font-body text-[15px] font-bold leading-snug text-vyva-text-1">
                     {note}
                   </li>

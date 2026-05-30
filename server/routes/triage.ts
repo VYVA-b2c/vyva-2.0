@@ -9,6 +9,13 @@ import { getMediSearchTriageContext, type MediSearchTriageContext } from "../ser
 import { getDoctorMedicalProfileVariables } from "../lib/doctorMedicalProfile.js";
 import { evaluateTriageRules } from "../lib/triageRules.js";
 import {
+  isTriageScanConcernLevel,
+  isTriageScanType,
+  triageScanLabel,
+  type TriageScanResult,
+  type TriageScanType,
+} from "../../shared/triageScans.js";
+import {
   emergencyContactForCountry,
   triageWizardMatrixPromptText,
   triageWizardNodeFor,
@@ -46,6 +53,8 @@ interface TriageSummary {
   watchSigns?: string[];
   profileConsiderations?: string[];
   vitalsNotes?: string[];
+  scanResults?: TriageScanResult[];
+  scanNotes?: string[];
   evidenceSummary?: string;
   evidenceSources?: Array<{ title?: string; url?: string; year?: string; journal?: string }>;
 }
@@ -74,6 +83,8 @@ type TriageWizardContext = {
     glucoseMgdl?: number | null;
   };
   quickAnswers?: Array<{ id: string; label: string; value: string; kind?: string }>;
+  scanResults?: TriageScanResult[];
+  declinedScanTypes?: TriageScanType[];
 };
 
 type WizardStage = "symptom" | "red_flag" | "duration" | "severity" | "trend" | "support" | "complete";
@@ -236,6 +247,12 @@ function wizardContextText(wizard?: TriageWizardContext, healthMemory?: TriageHe
     typeof wizard.vitals?.temperatureC === "number" ? `Temperature: ${wizard.vitals.temperatureC} C.` : "",
     typeof wizard.vitals?.systolicBp === "number" && typeof wizard.vitals?.diastolicBp === "number" ? `Blood pressure: ${wizard.vitals.systolicBp}/${wizard.vitals.diastolicBp}.` : "",
     typeof wizard.vitals?.glucoseMgdl === "number" ? `Glucose: ${wizard.vitals.glucoseMgdl} mg/dL.` : "",
+    wizard.scanResults?.length
+      ? `Optional scan results completed: ${wizard.scanResults.map((scan) => `${scan.label}: ${scan.summary}${scan.findings.length ? ` (${scan.findings.join("; ")})` : ""}`).join(" | ")}.`
+      : "",
+    wizard.declinedScanTypes?.length
+      ? `Optional scans skipped for now: ${wizard.declinedScanTypes.map((type) => triageScanLabel(type)).join(", ")}.`
+      : "",
     wizard.quickAnswers?.length
       ? `Structured quick answers tapped so far: ${wizard.quickAnswers.map((answer) => `${answer.label} (${answer.value})`).join("; ")}.`
       : "",
@@ -470,6 +487,67 @@ function wizardWithInferredClue(
 
 function selectedAnswers(wizard?: TriageWizardContext) {
   return wizard?.quickAnswers ?? [];
+}
+
+function numberOrNull(value: unknown): number | null | undefined {
+  if (value == null) return value as null | undefined;
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function sanitizeScanResults(raw: unknown): TriageScanResult[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item, index): TriageScanResult | null => {
+      if (!item || typeof item !== "object") return null;
+      const record = item as Record<string, unknown>;
+      if (!isTriageScanType(record.type)) return null;
+      const label = typeof record.label === "string" && record.label.trim()
+        ? record.label.trim().slice(0, 80)
+        : triageScanLabel(record.type);
+      const summary = typeof record.summary === "string" && record.summary.trim()
+        ? record.summary.trim().slice(0, 240)
+        : "";
+      if (!summary) return null;
+      const findings = Array.isArray(record.findings)
+        ? record.findings
+            .filter((finding): finding is string => typeof finding === "string" && finding.trim().length > 0)
+            .map((finding) => finding.trim().slice(0, 160))
+            .slice(0, 4)
+        : [];
+      const values = record.values && typeof record.values === "object"
+        ? {
+            pulseBpm: numberOrNull((record.values as Record<string, unknown>).pulseBpm),
+            respiratoryRate: numberOrNull((record.values as Record<string, unknown>).respiratoryRate),
+          }
+        : undefined;
+
+      return {
+        id: typeof record.id === "string" && record.id.trim() ? record.id.trim().slice(0, 80) : `scan-${index}`,
+        type: record.type,
+        label,
+        concernLevel: isTriageScanConcernLevel(record.concernLevel) ? record.concernLevel : "watch",
+        summary,
+        findings,
+        capturedAt: typeof record.capturedAt === "string" && record.capturedAt.trim() ? record.capturedAt.trim().slice(0, 80) : new Date().toISOString(),
+        values,
+      };
+    })
+    .filter((item): item is TriageScanResult => Boolean(item))
+    .slice(0, 4);
+}
+
+function sanitizeDeclinedScanTypes(raw: unknown): TriageScanType[] {
+  if (!Array.isArray(raw)) return [];
+  return [...new Set(raw.filter(isTriageScanType))].slice(0, 4);
+}
+
+function sanitizeWizard(wizard: TriageWizardContext | undefined): TriageWizardContext | undefined {
+  if (!wizard || typeof wizard !== "object") return wizard;
+  return {
+    ...wizard,
+    scanResults: sanitizeScanResults(wizard.scanResults),
+    declinedScanTypes: sanitizeDeclinedScanTypes(wizard.declinedScanTypes),
+  };
 }
 
 function hasAnswer(wizard: TriageWizardContext | undefined, ids: string[]) {
@@ -938,7 +1016,7 @@ function buildSystemPrompt(
 The app has a deterministic senior triage protocol engine. That protocol is the safety authority. You may enrich wording from MEDISEARCH EVIDENCE CONTEXT, HEALTH MEMORY, and the conversation, but do not downgrade urgency, soften red flags, or override protocol-driven next steps.
 
 IMPORTANT: Respond entirely in ${language}.
-Every user-facing string inside TRIAGE_JSON summary must also be in ${language}, including chiefComplaint, symptoms, nextStepLabel, triageReasons, recommendations, watchSigns, profileConsiderations, vitalsNotes, and disclaimer.
+Every user-facing string inside TRIAGE_JSON summary must also be in ${language}, including chiefComplaint, symptoms, nextStepLabel, triageReasons, recommendations, watchSigns, profileConsiderations, vitalsNotes, scanNotes, and disclaimer.
 ${genderInstruction(gender)}${vitalsContext}${wizardContextText(wizard, healthMemory)}${healthMemoryText(healthMemory)}${medisearchContextText(medisearchContext)}${triageQuestionMatrixText()}
 
 CONVERSATION FLOW:
@@ -952,7 +1030,7 @@ CONVERSATION FLOW:
 8. On your FINAL turn, you MUST end your message with this exact JSON block (replace values appropriately):
 
 TRIAGE_JSON_START
-{"done":true,"summary":{"chiefComplaint":"<one-line description>","symptoms":["<symptom 1>","<symptom 2>"],"urgency":"<urgent|routine|monitor>","nextStepLabel":"<plain next step>","nextStepLevel":"<emergency|doctor_today|doctor_24_48|monitor>","triageReasons":["<plain reason 1>","<plain reason 2>"],"recommendations":["<step 1>","<step 2>","<step 3>","<step 4>"],"watchSigns":["<specific sign 1>","<specific sign 2>","<specific sign 3>"],"profileConsiderations":["<profile factor considered, if any>"],"vitalsNotes":["<vitals note, if any>"],"disclaimer":"${disclaimerExample}"}}
+{"done":true,"summary":{"chiefComplaint":"<one-line description>","symptoms":["<symptom 1>","<symptom 2>"],"urgency":"<urgent|routine|monitor>","nextStepLabel":"<plain next step>","nextStepLevel":"<emergency|doctor_today|doctor_24_48|monitor>","triageReasons":["<plain reason 1>","<plain reason 2>"],"recommendations":["<step 1>","<step 2>","<step 3>","<step 4>"],"watchSigns":["<specific sign 1>","<specific sign 2>","<specific sign 3>"],"profileConsiderations":["<profile factor considered, if any>"],"vitalsNotes":["<vitals note, if any>"],"scanNotes":["<optional scan note, if any>"],"disclaimer":"${disclaimerExample}"}}
 TRIAGE_JSON_END
 
 Urgency definitions:
@@ -968,6 +1046,8 @@ Outcome rules:
 - The deterministic protocol may raise or replace your urgency after you respond. Write recommendations that remain safe if the protocol escalates the next step.
 - Include profileConsiderations only when HEALTH MEMORY changed what you considered.
 - Include vitalsNotes when a vitals scan exists.
+- Include scanNotes when optional triage scans exist. Urine and stool photos can describe visible appearance only; they cannot diagnose UTI, bleeding, or bowel disease.
+- Optional scan findings may clarify or increase urgency, but must never reduce red flags or delay emergency guidance.
 
 STYLE RULES:
 - Write like a calm health form, not a chat conversation
@@ -1188,6 +1268,32 @@ function vitalsNotesFor(locale: string, wizard: TriageWizardContext | undefined)
   return notes.slice(0, 4);
 }
 
+function concernLabel(locale: string, level: TriageScanResult["concernLevel"]) {
+  if (level === "urgent") return text(locale, "concerning", "preocupante");
+  if (level === "watch") return text(locale, "worth watching", "para vigilar");
+  return text(locale, "not concerning", "sin senales preocupantes");
+}
+
+function scanNotesFor(locale: string, wizard: TriageWizardContext | undefined): string[] {
+  const scans = wizard?.scanResults ?? [];
+  return scans.map((scan) => {
+    const findings = scan.findings.length ? ` ${scan.findings.slice(0, 3).join("; ")}` : "";
+    const storageNote = scan.type === "vitals"
+      ? ""
+      : ` ${text(locale, "The photo was analyzed and discarded.", "La foto se analizo y se descarto.")}`;
+    const limitation = scan.type === "urine_photo"
+      ? ` ${text(locale, "A photo cannot diagnose a urine infection.", "Una foto no puede diagnosticar una infeccion de orina.")}`
+      : scan.type === "stool_photo"
+        ? ` ${text(locale, "A photo cannot diagnose bleeding or bowel disease.", "Una foto no puede diagnosticar sangrado o enfermedad intestinal.")}`
+        : "";
+    return text(
+      locale,
+      `Optional scan (${scan.label}) looked ${concernLabel(locale, scan.concernLevel)}: ${scan.summary}.${findings}${storageNote}${limitation}`,
+      `Escaneo opcional (${scan.label}) se ve ${concernLabel(locale, scan.concernLevel)}: ${scan.summary}.${findings}${storageNote}${limitation}`,
+    );
+  }).slice(0, 4);
+}
+
 function uniqueStrings(items: string[]) {
   return items
     .map((item) => item.trim())
@@ -1291,6 +1397,13 @@ function nextStepFor(
   };
 }
 
+function nextStepRank(level: TriageSummary["nextStepLevel"] | undefined) {
+  if (level === "emergency") return 4;
+  if (level === "doctor_today") return 3;
+  if (level === "doctor_24_48") return 2;
+  return 1;
+}
+
 function applyTriageSafetyFloor(
   summary: TriageSummary,
   wizard: TriageWizardContext | undefined,
@@ -1306,6 +1419,15 @@ function applyTriageSafetyFloor(
   const respiratoryRate = wizard?.vitals?.respiratoryRate ?? undefined;
   const abnormalPulse = typeof bpm === "number" && (bpm >= 110 || bpm <= 50);
   const abnormalBreathingRate = typeof respiratoryRate === "number" && (respiratoryRate >= 24 || respiratoryRate <= 10);
+  const scanResults = wizard?.scanResults ?? [];
+  const scanNotes = scanNotesFor(locale, wizard);
+  const urgentScans = scanResults.filter((scan) => scan.concernLevel === "urgent");
+  const urgentScanReason = urgentScans.length
+    ? text(locale, "An optional scan found a concerning visible change that should be shared with a clinician today.", "Un escaneo opcional encontro un cambio visible preocupante que conviene compartir hoy con un clinico.")
+    : "";
+  const urgentScanRecommendation = urgentScans.length
+    ? text(locale, "Talk to a doctor today and share the scan note. Seek urgent help sooner if severe symptoms appear.", "Habla con un medico hoy y comparte la nota del escaneo. Busca ayuda urgente antes si aparecen sintomas fuertes.")
+    : "";
   const ruleDecision = evaluateTriageRules({
     locale,
     symptomId: symptom,
@@ -1325,11 +1447,12 @@ function applyTriageSafetyFloor(
   const baseSummary = {
     ...summary,
     symptoms: summary.symptoms?.length ? summary.symptoms : [symptomLabel(locale, symptom)],
-    urgency: ruleDecision.urgency,
+    urgency: urgentScans.length ? maxUrgency(ruleDecision.urgency, "urgent") : ruleDecision.urgency,
     triageReasons: [
+      urgentScanReason,
       ...ruleDecision.reasons,
       ...(summary.triageReasons ?? []),
-    ].filter((item, index, items) => items.findIndex((candidate) => candidate.toLowerCase() === item.toLowerCase()) === index).slice(0, 3),
+    ].filter(Boolean).filter((item, index, items) => items.findIndex((candidate) => candidate.toLowerCase() === item.toLowerCase()) === index).slice(0, 3),
     watchSigns: ruleDecision.watchSigns.length ? ruleDecision.watchSigns : summary.watchSigns?.length ? summary.watchSigns : watchSignsFor(locale, symptom),
     profileConsiderations: [
       ...(summary.profileConsiderations ?? []),
@@ -1340,15 +1463,27 @@ function applyTriageSafetyFloor(
       ...(summary.vitalsNotes ?? []),
       ...vitalsNotesFor(locale, wizard),
     ].slice(0, 3),
+    scanResults,
+    scanNotes: uniqueStrings([
+      ...(summary.scanNotes ?? []),
+      ...scanNotes,
+    ]).slice(0, 4),
     recommendations: [
+      urgentScanRecommendation,
       ...ruleDecision.recommendations,
       ...(summary.recommendations ?? []),
-    ].filter((item, index, items) => items.findIndex((candidate) => candidate.toLowerCase() === item.toLowerCase()) === index).slice(0, 5),
+    ].filter(Boolean).filter((item, index, items) => items.findIndex((candidate) => candidate.toLowerCase() === item.toLowerCase()) === index).slice(0, 5),
   };
-  const nextStep = {
+  const scanNextStep = urgentScans.length && nextStepRank(ruleDecision.level) < nextStepRank("doctor_today")
+    ? {
+        nextStepLevel: "doctor_today" as const,
+        nextStepLabel: text(locale, "Talk to a doctor today", "Habla con un medico hoy"),
+      }
+    : null;
+  const nextStep: Pick<TriageSummary, "nextStepLabel" | "nextStepLevel"> = scanNextStep ?? {
     nextStepLevel: ruleDecision.level,
     nextStepLabel: ruleDecision.nextStepLabel,
-  } satisfies Pick<TriageSummary, "nextStepLabel" | "nextStepLevel">;
+  };
 
   return {
     ...baseSummary,
@@ -1407,7 +1542,8 @@ router.post("/message", async (req: Request, res: Response) => {
   const validMessages: ChatMessage[] = messages
     .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
     .slice(-20);
-  const effectiveWizard = wizardWithInferredClue(wizard, validMessages, normalizedLocale);
+  const sanitizedWizard = sanitizeWizard(wizard);
+  const effectiveWizard = wizardWithInferredClue(sanitizedWizard, validMessages, normalizedLocale);
 
   const safetyAnswer = effectiveWizard?.refineRequested ? null : selectedSafetyAnswer(effectiveWizard);
   if (safetyAnswer) {
@@ -1427,6 +1563,7 @@ router.post("/message", async (req: Request, res: Response) => {
       quickReplies: safetyQuickReplies(normalizedLocale, emergencyContact),
       wizardStage: "support",
       wizardStageLabel: wizardStageLabel("support", normalizedLocale),
+      wizardSymptomId: selectedSymptomId(effectiveWizard),
       evidenceSources: [],
       medicalFollowups: [],
     });
@@ -1451,6 +1588,7 @@ router.post("/message", async (req: Request, res: Response) => {
       quickReplies: quickRepliesFor(effectiveWizard, normalizedLocale, healthMemory),
       wizardStage: stage,
       wizardStageLabel: wizardStageLabel(stage, normalizedLocale),
+      wizardSymptomId: selectedSymptomId(effectiveWizard),
       evidenceSources: [],
       medisearchConversationId: medisearchContext?.conversationId,
       medicalFollowups: medisearchContext?.followups ?? [],
@@ -1468,6 +1606,7 @@ router.post("/message", async (req: Request, res: Response) => {
       quickReplies: [],
       wizardStage: stage,
       wizardStageLabel: wizardStageLabel(stage, normalizedLocale),
+      wizardSymptomId: selectedSymptomId(effectiveWizard),
       evidenceSources: [],
       medicalFollowups: [],
     });
@@ -1526,6 +1665,7 @@ router.post("/message", async (req: Request, res: Response) => {
       quickReplies: [],
       wizardStage: stage,
       wizardStageLabel: wizardStageLabel(stage, normalizedLocale),
+      wizardSymptomId: selectedSymptomId(effectiveWizard),
       evidenceSources,
       medisearchConversationId: medisearchContext?.conversationId,
       medicalFollowups: [],

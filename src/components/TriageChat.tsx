@@ -4,6 +4,9 @@ import { Activity, AlertCircle, BookOpenCheck, HelpCircle, HeartPulse, Mic, Phon
 import { apiFetch } from "@/lib/queryClient";
 import { useLanguage } from "@/i18n";
 import { HealthWizardCard, HealthWizardChoiceTile, HealthWizardHero } from "@/components/health/HealthWizard";
+import TriageScanCard from "@/components/TriageScanCard";
+import { selectTriageScanOffer } from "@/lib/triageScanOffers";
+import type { TriageScanResult, TriageScanType } from "../../shared/triageScans";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -33,11 +36,14 @@ interface TriageSummary {
   watchSigns?: string[];
   profileConsiderations?: string[];
   vitalsNotes?: string[];
+  scanResults?: TriageScanResult[];
+  scanNotes?: string[];
   evidenceSummary?: string;
   evidenceSources?: TriageEvidenceSource[];
   refinementContext?: {
     messages: ChatMessage[];
     quickAnswers: TriageRefinementAnswer[];
+    scanResults?: TriageScanResult[];
     entryMode: WizardEntryMode;
     initialClue: string;
   };
@@ -53,6 +59,7 @@ interface TriageResponse {
   quickReplies?: ApiQuickReply[];
   wizardStage?: string;
   wizardStageLabel?: string;
+  wizardSymptomId?: string;
   evidenceSources?: TriageEvidenceSource[];
   emergencyContact?: EmergencyContact;
   medisearchConversationId?: string;
@@ -88,6 +95,7 @@ interface TriageChatProps {
   language?: string;
   languageReady?: boolean;
   onDraftChange?: (draft: TriageChatDraft) => void;
+  onVitalsScanned?: (bpm: number | null, respiratoryRate: number | null) => void;
   onVoiceAutoStarted?: () => void;
   onComplete: (summary: TriageSummary) => void;
 }
@@ -129,8 +137,11 @@ export type TriageChatDraft = {
   safetyAlert?: TriageSafetyAlert | null;
   emergencyContact?: EmergencyContact | null;
   wizardStageLabel?: string;
+  wizardSymptomId?: string;
   medisearchConversationId?: string | null;
   medicalFollowups?: string[];
+  scanResults?: TriageScanResult[];
+  declinedScanTypes?: TriageScanType[];
   pendingRequest?: boolean;
 };
 
@@ -251,6 +262,7 @@ export default function TriageChat({
   language,
   languageReady = true,
   onDraftChange,
+  onVitalsScanned,
   onVoiceAutoStarted,
   onComplete,
 }: TriageChatProps) {
@@ -272,8 +284,11 @@ export default function TriageChat({
   const [safetyAlert, setSafetyAlert] = useState<TriageResponse["safetyAlert"] | null>(() => initialDraft?.safetyAlert ?? null);
   const [emergencyContact, setEmergencyContact] = useState<EmergencyContact | null>(() => initialDraft?.emergencyContact ?? initialDraft?.safetyAlert?.emergencyContact ?? null);
   const [wizardStageLabel, setWizardStageLabel] = useState(() => initialDraft?.wizardStageLabel ?? "");
+  const [wizardSymptomId, setWizardSymptomId] = useState(() => initialDraft?.wizardSymptomId ?? "");
   const [medisearchConversationId, setMedisearchConversationId] = useState<string | null>(() => initialDraft?.medisearchConversationId ?? null);
   const [medicalFollowups, setMedicalFollowups] = useState<string[]>(() => initialDraft?.medicalFollowups ?? []);
+  const [scanResults, setScanResults] = useState<TriageScanResult[]>(() => initialDraft?.scanResults ?? []);
+  const [declinedScanTypes, setDeclinedScanTypes] = useState<TriageScanType[]>(() => initialDraft?.declinedScanTypes ?? []);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const animTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -396,22 +411,34 @@ export default function TriageChat({
   }, []);
 
   const sendToApi = useCallback(
-    async (history: ChatMessage[], quickAnswerTrail: SelectedQuickAnswer[] = selectedQuickAnswers) => {
+    async (
+      history: ChatMessage[],
+      quickAnswerTrail: SelectedQuickAnswer[] = selectedQuickAnswers,
+      nextScanResults: TriageScanResult[] = scanResults,
+      nextDeclinedScanTypes: TriageScanType[] = declinedScanTypes,
+      vitalsOverride?: { bpm?: number | null; respiratoryRate?: number | null },
+    ) => {
       if (!languageReady) return;
       setLoading(true);
       try {
+        const wizardVitals = {
+          bpm: vitalsOverride?.bpm ?? bpm,
+          respiratoryRate: vitalsOverride?.respiratoryRate ?? respiratoryRate,
+        };
         const response = await apiFetch("/api/triage/message", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             messages: history,
-            vitals: { bpm },
+            vitals: { bpm: wizardVitals.bpm },
             locale: activeLanguage,
             wizard: {
               mode: entryMode,
-              vitalsScanCompleted: entryMode === "with_vitals",
-              vitals: { bpm, respiratoryRate },
+              vitalsScanCompleted: entryMode === "with_vitals" || nextScanResults.some((result) => result.type === "vitals"),
+              vitals: wizardVitals,
               quickAnswers: quickAnswerTrail,
+              scanResults: nextScanResults,
+              declinedScanTypes: nextDeclinedScanTypes,
             },
             healthMemory,
             medisearchConversationId,
@@ -424,6 +451,7 @@ export default function TriageChat({
         setEmergencyContact(res.emergencyContact ?? res.safetyAlert?.emergencyContact ?? null);
         if (res.evidenceSources) setEvidenceSources(res.evidenceSources);
         if (res.wizardStageLabel) setWizardStageLabel(res.wizardStageLabel);
+        if (res.wizardSymptomId) setWizardSymptomId(res.wizardSymptomId);
         if (res.medisearchConversationId) setMedisearchConversationId(res.medisearchConversationId);
         setMedicalFollowups(
           !res.done && !res.safetyAlert && Array.isArray(res.medicalFollowups)
@@ -446,6 +474,7 @@ export default function TriageChat({
               refinementContext: {
                 messages: history,
                 quickAnswers: quickAnswerTrail,
+                scanResults: nextScanResults,
                 entryMode,
                 initialClue,
               },
@@ -470,7 +499,7 @@ export default function TriageChat({
         setLoading(false);
       }
     },
-    [activeLanguage, animateMessage, bpm, entryMode, healthMemory, initialClue, languageReady, medisearchConversationId, messages.length, onComplete, respiratoryRate, selectedQuickAnswers, t]
+    [activeLanguage, animateMessage, bpm, declinedScanTypes, entryMode, healthMemory, initialClue, languageReady, medisearchConversationId, messages.length, onComplete, respiratoryRate, scanResults, selectedQuickAnswers, t]
   );
 
   useEffect(() => {
@@ -504,11 +533,14 @@ export default function TriageChat({
       safetyAlert,
       emergencyContact,
       wizardStageLabel,
+      wizardSymptomId,
       medisearchConversationId,
       medicalFollowups,
+      scanResults,
+      declinedScanTypes,
       pendingRequest: loading || (!languageReady && !initiated),
     });
-  }, [apiQuickReplies, emergencyContact, evidenceSources, initiated, languageReady, loading, medicalFollowups, medisearchConversationId, messages, onDraftChange, safetyAlert, selectedQuickAnswers, wizardStageLabel]);
+  }, [apiQuickReplies, declinedScanTypes, emergencyContact, evidenceSources, initiated, languageReady, loading, medicalFollowups, medisearchConversationId, messages, onDraftChange, safetyAlert, scanResults, selectedQuickAnswers, wizardStageLabel, wizardSymptomId]);
 
   useEffect(() => {
     scrollToBottom();
@@ -572,6 +604,32 @@ export default function TriageChat({
   const waitingForLanguage = !languageReady && !initiated;
   const canAnswer = languageReady && !loading && animatingIdx === null && messages.length > 0;
   const canShowMedicalFollowups = canAnswer && !safetyAlert && medicalFollowups.length > 0;
+  const scanOffer = selectTriageScanOffer({
+    selectedAnswers: selectedQuickAnswers,
+    symptomId: wizardSymptomId,
+    scanResults,
+    declinedScanTypes,
+    safetyAlertActive: Boolean(safetyAlert),
+    loading,
+  });
+
+  const handleSkipScan = (type: TriageScanType) => {
+    setDeclinedScanTypes((current) => current.includes(type) ? current : [...current, type]);
+  };
+
+  const handleAcceptScan = async (result: TriageScanResult) => {
+    const nextScanResults = [
+      ...scanResults.filter((scan) => scan.type !== result.type),
+      result,
+    ];
+    const nextDeclinedScanTypes = declinedScanTypes.filter((type) => type !== result.type);
+    setScanResults(nextScanResults);
+    setDeclinedScanTypes(nextDeclinedScanTypes);
+    const vitalsOverride = result.type === "vitals"
+      ? { bpm: result.values?.pulseBpm ?? bpm, respiratoryRate: result.values?.respiratoryRate ?? respiratoryRate }
+      : undefined;
+    await sendToApi(messages, selectedQuickAnswers, nextScanResults, nextDeclinedScanTypes, vitalsOverride);
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -640,6 +698,16 @@ export default function TriageChat({
                 {evidenceSources.slice(0, 2).map((source) => source.title).filter(Boolean).join(" - ")}
               </p>
             </HealthWizardCard>
+          )}
+
+          {canAnswer && scanOffer && (
+            <TriageScanCard
+              offer={scanOffer}
+              language={activeLanguage}
+              onAccepted={(result) => void handleAcceptScan(result)}
+              onSkip={handleSkipScan}
+              onVitalsCaptured={onVitalsScanned}
+            />
           )}
 
           {canAnswer && (
