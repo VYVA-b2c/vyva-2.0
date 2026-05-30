@@ -467,7 +467,7 @@ test("symptom check replaces repeated thinking with review guidance", async ({ p
     const reviewPanel = page.getByTestId("triage-review-panel");
     await expect(reviewPanel).toBeVisible();
     await expect(page.getByTestId("triage-review-headline")).toContainText(
-      /VYVA is checking the safest next step|Reviewing trusted medical guidance|Checking your answers for red flags|Considering your health profile and medications|Preparing clear next steps/,
+      /Checking your next step|Reviewing trusted medical guidance|Checking your answers for red flags|Considering your health profile and medications|Preparing clear next steps/,
     );
     await expect(reviewPanel).toContainText("Reviewing trusted medical guidance");
     await expect(reviewPanel).toContainText("Checking your answers for red flags");

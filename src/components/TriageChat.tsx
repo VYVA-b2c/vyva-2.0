@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { Activity, AlertCircle, BookOpenCheck, HelpCircle, HeartPulse, ListChecks, Mic, PhoneCall, Send, ShieldCheck, Square, Thermometer, UserRound, Wind } from "lucide-react";
+import { Activity, AlertCircle, BookOpenCheck, HelpCircle, HeartPulse, Mic, PhoneCall, Send, Square, Thermometer, Wind } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 import { useLanguage } from "@/i18n";
 import { HealthWizardCard, HealthWizardChoiceTile, HealthWizardHero } from "@/components/health/HealthWizard";
@@ -192,34 +192,14 @@ function TriageReviewPanel() {
   const { t } = useTranslation();
   const [headlineIndex, setHeadlineIndex] = useState(0);
   const reviewSteps = [
-    {
-      key: "medical",
-      Icon: BookOpenCheck,
-      label: t("health.symptomCheck.chat.reviewStepMedical", "Reviewing trusted medical guidance"),
-      className: "bg-[#EEF2FF] text-[#4F46E5]",
-    },
-    {
-      key: "safety",
-      Icon: ShieldCheck,
-      label: t("health.symptomCheck.chat.reviewStepSafety", "Checking your answers for red flags"),
-      className: "bg-[#FEF2F2] text-[#B91C1C]",
-    },
-    {
-      key: "profile",
-      Icon: UserRound,
-      label: t("health.symptomCheck.chat.reviewStepProfile", "Considering your health profile and medications"),
-      className: "bg-[#F4ECFF] text-vyva-purple",
-    },
-    {
-      key: "next",
-      Icon: ListChecks,
-      label: t("health.symptomCheck.chat.reviewStepNext", "Preparing clear next steps"),
-      className: "bg-[#ECFDF5] text-[#047857]",
-    },
+    t("health.symptomCheck.chat.reviewStepMedical", "Reviewing trusted medical guidance"),
+    t("health.symptomCheck.chat.reviewStepSafety", "Checking your answers for red flags"),
+    t("health.symptomCheck.chat.reviewStepProfile", "Considering your health profile and medications"),
+    t("health.symptomCheck.chat.reviewStepNext", "Preparing clear next steps"),
   ];
   const reviewHeadlines = [
-    t("health.symptomCheck.chat.reviewTitle", "VYVA is checking the safest next step"),
-    ...reviewSteps.map((step) => step.label),
+    t("health.symptomCheck.chat.reviewTitle", "Checking your next step"),
+    ...reviewSteps,
   ];
   const activeHeadline = reviewHeadlines[headlineIndex % reviewHeadlines.length];
 
@@ -233,7 +213,7 @@ function TriageReviewPanel() {
 
   return (
     <section
-      className="rounded-[28px] border border-[#E8DED4] bg-white px-4 py-4 shadow-[0_16px_36px_rgba(63,45,35,0.09)]"
+      className="rounded-[26px] border border-[#E8DED4] bg-white px-5 py-5 shadow-[0_14px_30px_rgba(63,45,35,0.08)]"
       data-testid="triage-review-panel"
       aria-live="polite"
       aria-label={t("health.symptomCheck.chat.reviewAria", "VYVA is reviewing your answers and preparing guidance")}
@@ -248,40 +228,12 @@ function TriageReviewPanel() {
             {t("health.symptomCheck.chat.reviewEyebrow", "VYVA is reviewing")}
           </p>
           <h2
-            className="mt-1 min-h-[54px] font-body text-[21px] font-black leading-tight text-vyva-text-1 sm:min-h-[58px] sm:text-[23px]"
+            className="mt-1 min-h-[64px] font-body text-[24px] font-black leading-tight text-vyva-text-1 sm:min-h-[66px] sm:text-[26px]"
             data-testid="triage-review-headline"
           >
             {activeHeadline}
           </h2>
-          <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
-            {t("health.symptomCheck.chat.reviewSubtitle", "VYVA checks your answers against trusted guidance and your profile before suggesting what to do next.")}
-          </p>
         </div>
-      </div>
-
-      <div className="mt-4 flex items-center justify-center gap-2" aria-hidden="true">
-        {reviewSteps.map(({ key, Icon, label, className }, index) => (
-          <span
-            key={key}
-            className={`triage-review-chip flex h-10 w-10 items-center justify-center rounded-[14px] ${className}`}
-            style={{ animationDelay: `${index * 160}ms` }}
-            title={label}
-          >
-            <Icon size={19} strokeWidth={2.4} />
-          </span>
-        ))}
-      </div>
-
-      <div className="triage-review-lines relative mt-3 min-h-[34px] overflow-hidden rounded-full bg-[#F4ECFF] px-4 py-2 text-center">
-        {reviewSteps.map(({ key, label }, index) => (
-          <p
-            key={key}
-            className="triage-review-line absolute inset-x-4 top-2 font-body text-[14px] font-black leading-tight text-vyva-purple"
-            style={{ animationDelay: `${index * 1.8}s` }}
-          >
-            {label}
-          </p>
-        ))}
       </div>
     </section>
   );
@@ -615,7 +567,7 @@ export default function TriageChat({
     ? animatingIdx === latestAssistantEntry.index
       ? animatedText
       : latestAssistantEntry.msg.content
-    : t("health.symptomCheck.chat.reviewTitle", "VYVA is checking the safest next step");
+    : t("health.symptomCheck.chat.reviewTitle", "Checking your next step");
   const showQuestion = Boolean(latestAssistantEntry || !loading);
   const waitingForLanguage = !languageReady && !initiated;
   const canAnswer = languageReady && !loading && animatingIdx === null && messages.length > 0;

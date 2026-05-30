@@ -96,7 +96,7 @@ describe("TriageChat MediSearch follow-ups", () => {
 
     renderTriageChat({ languageReady: false });
 
-    expect(screen.getByTestId("triage-review-headline")).toHaveTextContent("VYVA is checking the safest next step");
+    expect(screen.getByTestId("triage-review-headline")).toHaveTextContent("Checking your next step");
 
     act(() => {
       vi.advanceTimersByTime(2200);

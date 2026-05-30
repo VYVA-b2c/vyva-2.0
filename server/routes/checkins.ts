@@ -81,6 +81,107 @@ type SharedCheckinReport = {
   text?: string;
 };
 
+let checkinPersistencePromise: Promise<void> | null = null;
+
+async function ensureCheckinPersistenceTables() {
+  if (!checkinPersistencePromise) {
+    checkinPersistencePromise = (async () => {
+      await pool.query(`
+        create table if not exists checkin_sessions (
+          id uuid primary key default gen_random_uuid(),
+          user_id text not null,
+          energy_level integer,
+          mood text,
+          body_areas text[] not null default '{}',
+          sleep_quality text,
+          symptoms text[] not null default '{}',
+          symptom_details text[] not null default '{}',
+          safety_flags text[] not null default '{}',
+          social_contact text,
+          feeling_label text,
+          overall_state text,
+          vyva_reading text,
+          right_now jsonb not null default '[]'::jsonb,
+          today_actions jsonb not null default '[]'::jsonb,
+          highlight text,
+          flag_caregiver boolean not null default false,
+          watch_for text,
+          language text not null default 'es',
+          completed boolean not null default false,
+          abandoned boolean not null default false,
+          duration_seconds integer,
+          started_at timestamptz not null default now(),
+          completed_at timestamptz not null default now(),
+          created_at timestamptz not null default now()
+        )
+      `);
+
+      await pool.query(`
+        alter table checkin_sessions
+          add column if not exists energy_level integer,
+          add column if not exists mood text,
+          add column if not exists body_areas text[] not null default '{}',
+          add column if not exists sleep_quality text,
+          add column if not exists symptoms text[] not null default '{}',
+          add column if not exists symptom_details text[] not null default '{}',
+          add column if not exists safety_flags text[] not null default '{}',
+          add column if not exists social_contact text,
+          add column if not exists feeling_label text,
+          add column if not exists overall_state text,
+          add column if not exists vyva_reading text,
+          add column if not exists right_now jsonb not null default '[]'::jsonb,
+          add column if not exists today_actions jsonb not null default '[]'::jsonb,
+          add column if not exists highlight text,
+          add column if not exists flag_caregiver boolean not null default false,
+          add column if not exists watch_for text,
+          add column if not exists language text not null default 'es',
+          add column if not exists completed boolean not null default false,
+          add column if not exists abandoned boolean not null default false,
+          add column if not exists duration_seconds integer,
+          add column if not exists started_at timestamptz not null default now(),
+          add column if not exists completed_at timestamptz not null default now(),
+          add column if not exists created_at timestamptz not null default now()
+      `);
+
+      await pool.query(`
+        create table if not exists checkin_trend_state (
+          user_id text primary key,
+          streak_days integer not null default 0,
+          best_streak integer not null default 0,
+          last_checkin_date date,
+          total_checkins integer not null default 0,
+          avg_energy_7d numeric,
+          avg_mood_score_7d numeric,
+          consecutive_low_energy integer not null default 0,
+          consecutive_poor_sleep integer not null default 0,
+          consecutive_no_social integer not null default 0,
+          consecutive_low_mood integer not null default 0,
+          caregiver_flag_active boolean not null default false,
+          flag_reason text,
+          flag_triggered_at timestamptz,
+          updated_at timestamptz not null default now()
+        )
+      `);
+
+      await pool.query(`
+        create index if not exists checkin_sessions_user_completed_idx
+          on checkin_sessions(user_id, completed_at desc)
+          where completed = true
+      `);
+
+      await pool.query(`
+        create index if not exists checkin_sessions_user_created_idx
+          on checkin_sessions(user_id, created_at desc)
+      `);
+    })().catch((err) => {
+      checkinPersistencePromise = null;
+      throw err;
+    });
+  }
+
+  return checkinPersistencePromise;
+}
+
 type ProfileContext = {
   name: string;
   grammatical_gender: GrammaticalGender;
@@ -773,6 +874,7 @@ async function generateResult(profile: ProfileContext, answers: CheckinAnswers, 
 
 async function saveSession(userId: string, language: string, answers: CheckinAnswers, result: AiCheckinResult, durationSeconds: number | null) {
   try {
+    await ensureCheckinPersistenceTables();
     const inserted = await pool.query(
       `insert into checkin_sessions (
         user_id, energy_level, mood, body_areas, sleep_quality, symptoms, symptom_details, safety_flags, social_contact,
@@ -813,6 +915,7 @@ async function saveSession(userId: string, language: string, answers: CheckinAns
 
 async function updateTrend(userId: string, answers: CheckinAnswers, result: AiCheckinResult) {
   try {
+    await ensureCheckinPersistenceTables();
     const today = new Date().toISOString().slice(0, 10);
     const lowEnergy = answers.energy_level <= 2;
     const poorSleep = ["mal", "muy_mal"].includes(answers.sleep_quality);
@@ -936,6 +1039,7 @@ export async function checkinHistoryHandler(req: Request, res: Response) {
   const userId = await resolveCheckinUserId(req.user!.id);
 
   try {
+    await ensureCheckinPersistenceTables();
     const result = await pool.query(
       `select
          id, completed_at, energy_level, mood, body_areas, sleep_quality, symptoms, social_contact,
@@ -1055,6 +1159,7 @@ router.post("/abandon", requireUser, async (req: Request, res: Response) => {
 
   try {
     const userId = await resolveCheckinUserId(req.user!.id);
+    await ensureCheckinPersistenceTables();
     await pool.query(
       `insert into checkin_sessions (user_id, language, completed, abandoned, duration_seconds)
        values ($1, $2, false, true, $3)`,
