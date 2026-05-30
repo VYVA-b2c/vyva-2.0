@@ -54,54 +54,54 @@ type Copy = {
 const COPY: Record<"en" | "es", Copy> = {
   en: {
     title: "Shopping helper",
-    subtitle: "Tell VYVA what you need. We will compare simple choices, not place an order.",
+    subtitle: "Compare a few simple choices. VYVA will not place an order or start checkout.",
     shortlist: "Shortlist",
-    stepLabels: ["Need", "Choices", "Compare", "Shortlist"],
+    stepLabels: ["Tell us", "Compare", "Save"],
     needLabel: "What do you need help choosing?",
     needPlaceholder: "Example: I need an easy breakfast with protein, low cost, and no heavy carrying.",
-    categoryTitle: "Choose an area",
-    prioritiesTitle: "What matters most?",
-    constraintsLabel: "Anything VYVA should avoid?",
-    constraintsPlaceholder: "Example: no dairy, low salt, hard to bend, prefer delivery",
+    categoryTitle: "Area",
+    prioritiesTitle: "Most important",
+    constraintsLabel: "Avoid",
+    constraintsPlaceholder: "Example: no dairy, low salt, hard to bend",
     find: "Find best choices",
     loading: "Finding clear choices...",
-    emptyTitle: "Tell VYVA what you need",
-    emptyBody: "Start with a short sentence. VYVA will keep the list small and explain why each choice fits.",
+    emptyTitle: "Start with one sentence",
+    emptyBody: "VYVA keeps the list short and explains the reason for each choice.",
     resultsTitle: "Best choices",
     compareTitle: "Simple comparison",
     save: "Save choice",
     saved: "Saved",
     shortlistTitle: "Saved shortlist",
-    noCheckout: "No checkout here. This page only helps compare choices.",
+    noCheckout: "No checkout here.",
     caveat: "For pharmacy items, VYVA does not replace a pharmacist, doctor, or medication advice.",
     error: "VYVA could not compare choices right now. Please try again.",
-    back: "Back to Concierge",
+    back: "Back",
     tryIdeas: "Try one",
   },
   es: {
     title: "Ayuda para comprar",
-    subtitle: "Diga a VYVA que necesita. Compararemos opciones sencillas, sin hacer pedidos.",
+    subtitle: "Compare pocas opciones sencillas. VYVA no hara pedidos ni iniciara pagos.",
     shortlist: "Guardados",
-    stepLabels: ["Necesidad", "Opciones", "Comparar", "Guardados"],
+    stepLabels: ["Contar", "Comparar", "Guardar"],
     needLabel: "Que necesita elegir?",
     needPlaceholder: "Ejemplo: necesito un desayuno facil con proteina, economico y sin cargar peso.",
-    categoryTitle: "Elija un area",
-    prioritiesTitle: "Que importa mas?",
-    constraintsLabel: "Algo que VYVA deba evitar?",
-    constraintsPlaceholder: "Ejemplo: sin lacteos, bajo en sal, cuesta agacharse, prefiero entrega",
+    categoryTitle: "Area",
+    prioritiesTitle: "Mas importante",
+    constraintsLabel: "Evitar",
+    constraintsPlaceholder: "Ejemplo: sin lacteos, bajo en sal, cuesta agacharse",
     find: "Buscar mejores opciones",
     loading: "Buscando opciones claras...",
-    emptyTitle: "Diga a VYVA que necesita",
-    emptyBody: "Empiece con una frase corta. VYVA mostrara pocas opciones y explicara por que encajan.",
+    emptyTitle: "Empiece con una frase",
+    emptyBody: "VYVA muestra pocas opciones y explica por que encajan.",
     resultsTitle: "Mejores opciones",
     compareTitle: "Comparacion sencilla",
     save: "Guardar opcion",
     saved: "Guardado",
     shortlistTitle: "Opciones guardadas",
-    noCheckout: "Sin compra aqui. Esta pagina solo ayuda a comparar opciones.",
+    noCheckout: "Sin compra aqui.",
     caveat: "Para articulos de farmacia, VYVA no sustituye a un farmaceutico, medico ni consejo sobre medicacion.",
     error: "VYVA no ha podido comparar opciones ahora. Intentelo otra vez.",
-    back: "Volver a Concierge",
+    back: "Volver",
     tryIdeas: "Probar",
   },
 };
@@ -124,20 +124,20 @@ const PRIORITY_OPTIONS: Array<{ id: ShoppingPriority; en: string; es: string }> 
 
 const IDEA_CHIPS = [
   {
-    en: "An easy low-salt meal for days when cooking feels tiring",
-    es: "Una comida baja en sal para dias en que cocinar cansa",
+    en: "Easy low-salt meal",
+    es: "Comida baja en sal",
     category: "groceries" as ShoppingCategory,
     priorities: ["simplicity", "diet"] as ShoppingPriority[],
   },
   {
-    en: "Something to make the bathroom safer at night",
-    es: "Algo para que el bano sea mas seguro por la noche",
+    en: "Safer bathroom at night",
+    es: "Bano mas seguro",
     category: "mobility_aids" as ShoppingCategory,
     priorities: ["safety", "accessibility"] as ShoppingPriority[],
   },
   {
-    en: "A simple way to avoid mixing up medicines",
-    es: "Una forma sencilla de no confundir medicinas",
+    en: "Avoid mixing medicines",
+    es: "No confundir medicinas",
     category: "pharmacy_basics" as ShoppingCategory,
     priorities: ["simplicity", "safety"] as ShoppingPriority[],
   },
@@ -174,17 +174,20 @@ async function requestRecommendations(input: {
   return await response.json() as ShoppingRecommendationResponse;
 }
 
-const Stepper = ({ labels, activeIndex }: { labels: string[]; activeIndex: number }) => (
-  <ol aria-label="Shopping recommendation steps" className="grid grid-cols-4 gap-2">
+const FlowSteps = ({ labels, activeIndex }: { labels: string[]; activeIndex: number }) => (
+  <ol aria-label="Shopping recommendation steps" className="grid grid-cols-3 gap-2">
     {labels.map((label, index) => {
-      const active = index === activeIndex;
-      const complete = index < activeIndex;
+      const active = index <= activeIndex;
       return (
-        <li key={label} className="min-w-0">
-          <div className={`h-2 rounded-full ${active || complete ? "bg-vyva-purple" : "bg-vyva-warm2"}`} />
-          <p className={`mt-2 truncate text-center font-body text-[11px] font-bold ${active ? "text-vyva-purple" : "text-vyva-text-2"}`}>
-            {label}
-          </p>
+        <li
+          key={label}
+          className={`rounded-full border px-2 py-2 text-center font-body text-[12px] font-extrabold ${
+            active
+              ? "border-vyva-purple bg-[#F5F3FF] text-vyva-purple"
+              : "border-vyva-border bg-white text-vyva-text-2"
+          }`}
+        >
+          {index + 1}. {label}
         </li>
       );
     })}
@@ -204,57 +207,49 @@ const RecommendationCard = ({
   onToggleSave: () => void;
   copy: Copy;
 }) => (
-  <article className="rounded-[24px] border border-vyva-border bg-white p-4 shadow-[0_12px_30px_rgba(60,38,20,0.08)]">
-    <div className="flex items-start gap-3">
-      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[18px] bg-[#F5F3FF] font-body text-[20px] font-black text-vyva-purple">
-        {item.product.name.slice(0, 1)}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-[#ECFDF5] px-3 py-1 font-body text-[12px] font-extrabold text-[#0A7C4E]">
+  <article className="rounded-[18px] border border-vyva-border bg-white p-4 shadow-[0_8px_20px_rgba(60,38,20,0.07)]">
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full bg-[#ECFDF5] px-2.5 py-1 font-body text-[12px] font-black text-[#0A7C4E]">
             {rankLabel(item.rankLabel, locale)}
           </span>
-          <span className="rounded-full bg-[#FBF8F4] px-3 py-1 font-body text-[12px] font-bold text-vyva-text-2">
+          <span className="rounded-full bg-[#F8F4EF] px-2.5 py-1 font-body text-[12px] font-bold text-vyva-text-2">
             {item.product.priceLabel}
           </span>
         </div>
-        <h2 className="mt-2 font-body text-[21px] font-extrabold leading-[1.12] text-vyva-text-1">
+        <h2 className="mt-2 font-body text-[20px] font-extrabold leading-tight text-vyva-text-1">
           {item.product.name}
         </h2>
-        <p className="mt-2 font-body text-[15px] leading-relaxed text-vyva-text-2">
-          {item.product.description}
-        </p>
+      </div>
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[#F5F3FF] font-body text-[18px] font-black text-vyva-purple">
+        {item.product.name.slice(0, 1)}
       </div>
     </div>
 
-    <div className="mt-4 grid gap-2">
+    <p className="mt-2 font-body text-[15px] leading-relaxed text-vyva-text-2">
+      {item.product.description}
+    </p>
+
+    <div className="mt-3 grid gap-2">
       {item.reasons.slice(0, 2).map((reason) => (
-        <p key={reason} className="flex gap-2 rounded-[16px] bg-[#F0FDFA] px-3 py-2 font-body text-[14px] font-semibold leading-snug text-vyva-text-1">
+        <p key={reason} className="flex gap-2 rounded-[12px] bg-[#F0FDFA] px-3 py-2 font-body text-[14px] font-bold leading-snug text-vyva-text-1">
           <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-[#0F766E]" />
           <span>{reason}</span>
         </p>
       ))}
-      {item.tradeoffs.slice(0, 1).map((tradeoff) => (
-        <p key={tradeoff} className="flex gap-2 rounded-[16px] bg-[#FFFCF7] px-3 py-2 font-body text-[13px] leading-relaxed text-vyva-text-2">
+      {(item.tradeoffs[0] || item.cautionNotes[0]) && (
+        <p className="flex gap-2 rounded-[12px] bg-[#FFFCF7] px-3 py-2 font-body text-[13px] leading-relaxed text-vyva-text-2">
           <AlertCircle size={16} className="mt-0.5 shrink-0 text-[#C9890A]" />
-          <span>{tradeoff}</span>
+          <span>{item.tradeoffs[0] || item.cautionNotes[0]}</span>
         </p>
-      ))}
-    </div>
-
-    <div className="mt-4 rounded-[18px] bg-[#F8F4EF] p-3">
-      <p className="font-body text-[12px] font-black uppercase text-vyva-text-2">
-        {locale === "es" ? "Antes de elegir" : "Before choosing"}
-      </p>
-      <p className="mt-1 font-body text-[13px] leading-relaxed text-vyva-text-2">
-        {item.cautionNotes[0] || item.product.accessibilityNotes[0]}
-      </p>
+      )}
     </div>
 
     <button
       type="button"
       onClick={onToggleSave}
-      className={`vyva-tap mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 font-body text-[16px] font-extrabold ${
+      className={`vyva-tap mt-3 inline-flex w-full items-center justify-center gap-2 rounded-[16px] px-4 py-3 font-body text-[16px] font-extrabold ${
         saved ? "border border-[#BBF7D0] bg-[#ECFDF5] text-[#0A7C4E]" : "bg-vyva-purple text-white"
       }`}
       aria-pressed={saved}
@@ -284,11 +279,7 @@ const ConciergeShoppingScreen = () => {
     [result, savedIds],
   );
 
-  const activeStep = result?.recommendations.length
-    ? (savedIds.length ? 3 : 2)
-    : loading
-      ? 1
-      : 0;
+  const activeStep = result?.recommendations.length ? (savedIds.length ? 2 : 1) : 0;
 
   function togglePriority(priority: ShoppingPriority) {
     setPriorities((current) => (
@@ -346,83 +337,80 @@ const ConciergeShoppingScreen = () => {
   }
 
   return (
-    <main className="vyva-page" data-testid="concierge-shopping-screen">
-      <div className="sticky top-0 z-10 -mx-[22px] border-b border-vyva-border bg-vyva-cream/95 px-[22px] py-3 backdrop-blur">
-        <div className="flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={() => navigate("/concierge")}
-            className="vyva-tap inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 font-body text-[14px] font-extrabold text-vyva-text-1 shadow-sm"
-          >
-            <ArrowLeft size={18} />
-            {copy.back}
-          </button>
-          <div className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-white px-4 py-2 font-body text-[13px] font-extrabold text-vyva-purple shadow-sm" aria-live="polite">
-            <ShoppingBasket size={18} />
-            {copy.shortlist}: {savedIds.length}
-          </div>
+    <main className="vyva-page pb-[150px]" data-testid="concierge-shopping-screen">
+      <div className="flex items-center justify-between gap-3 pt-2">
+        <button
+          type="button"
+          onClick={() => navigate("/concierge")}
+          className="vyva-tap inline-flex items-center gap-2 rounded-[16px] border border-vyva-border bg-white px-3 py-2 font-body text-[14px] font-extrabold text-vyva-text-1 shadow-sm"
+        >
+          <ArrowLeft size={18} />
+          {copy.back}
+        </button>
+        <div className="inline-flex min-h-[48px] items-center gap-2 rounded-[16px] border border-vyva-border bg-white px-3 py-2 font-body text-[14px] font-extrabold text-vyva-purple shadow-sm" aria-live="polite">
+          <ShoppingBasket size={18} />
+          {copy.shortlist}: {savedIds.length}
         </div>
       </div>
 
-      <section className="mt-5 rounded-[28px] border border-vyva-border bg-white p-5 shadow-[0_14px_34px_rgba(60,38,20,0.08)]">
-        <div className="flex items-start gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] bg-[#F5F3FF] text-vyva-purple">
-            <PackageCheck size={27} />
+      <header className="mt-5">
+        <div className="flex items-start gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-[#F5F3FF] text-vyva-purple">
+            <PackageCheck size={24} />
           </div>
-          <div className="min-w-0 flex-1">
-            <h1 className="font-display text-[31px] leading-[1.08] text-vyva-text-1">
+          <div className="min-w-0">
+            <h1 className="font-display text-[31px] leading-[1.05] text-vyva-text-1">
               {copy.title}
             </h1>
-            <p className="mt-2 font-body text-[16px] font-semibold leading-relaxed text-vyva-text-2">
+            <p className="mt-1 font-body text-[16px] font-semibold leading-relaxed text-vyva-text-2">
               {copy.subtitle}
             </p>
           </div>
         </div>
-        <div className="mt-5">
-          <Stepper labels={copy.stepLabels} activeIndex={activeStep} />
+        <div className="mt-4">
+          <FlowSteps labels={copy.stepLabels} activeIndex={activeStep} />
         </div>
-        <p className="mt-5 rounded-[18px] bg-[#F0FDFA] p-3 font-body text-[14px] font-bold leading-relaxed text-[#0F766E]">
+        <p className="mt-3 inline-flex rounded-[12px] bg-[#F0FDFA] px-3 py-2 font-body text-[14px] font-black text-[#0F766E]">
           {copy.noCheckout}
         </p>
-      </section>
+      </header>
 
-      <form onSubmit={handleSubmit} className="mt-5 space-y-5">
-        <section className="rounded-[26px] border border-vyva-border bg-white p-4 shadow-[0_12px_30px_rgba(60,38,20,0.07)]">
-          <label htmlFor="shopping-need" className="font-body text-[17px] font-extrabold text-vyva-text-1">
-            {copy.needLabel}
-          </label>
-          <Textarea
-            id="shopping-need"
-            value={needText}
-            onChange={(event) => setNeedText(event.target.value)}
-            placeholder={copy.needPlaceholder}
-            className="mt-3 min-h-[118px] rounded-[22px] border-vyva-border bg-[#FFFCF8] p-4 font-body text-[17px] leading-relaxed text-vyva-text-1 placeholder:text-vyva-text-3"
-          />
-          <div className="mt-3">
-            <p className="font-body text-[12px] font-black uppercase text-vyva-text-2">
-              {copy.tryIdeas}
-            </p>
-            <div className="mt-2 grid gap-2">
-              {IDEA_CHIPS.map((idea) => (
-                <button
-                  key={idea.en}
-                  type="button"
-                  onClick={() => applyIdea(idea)}
-                  className="vyva-tap flex w-full items-center justify-between gap-3 rounded-[18px] border border-vyva-border bg-[#FFFCF8] px-4 py-3 text-left font-body text-[14px] font-bold leading-snug text-vyva-text-1"
-                >
-                  <span>{locale === "es" ? idea.es : idea.en}</span>
-                  <ChevronRight size={18} className="shrink-0 text-vyva-purple" />
-                </button>
-              ))}
-            </div>
+      <form onSubmit={handleSubmit} className="mt-5 rounded-[18px] border border-vyva-border bg-white p-4 shadow-[0_10px_24px_rgba(60,38,20,0.08)]">
+        <label htmlFor="shopping-need" className="font-body text-[17px] font-extrabold text-vyva-text-1">
+          {copy.needLabel}
+        </label>
+        <Textarea
+          id="shopping-need"
+          value={needText}
+          onChange={(event) => setNeedText(event.target.value)}
+          placeholder={copy.needPlaceholder}
+          className="mt-3 min-h-[98px] rounded-[14px] border-vyva-border bg-[#FFFCF8] p-4 font-body text-[17px] leading-relaxed text-vyva-text-1 placeholder:text-vyva-text-3"
+        />
+
+        <div className="mt-4">
+          <p className="font-body text-[12px] font-black uppercase text-vyva-text-2">
+            {copy.tryIdeas}
+          </p>
+          <div className="mt-2 grid gap-2">
+            {IDEA_CHIPS.map((idea) => (
+              <button
+                key={idea.en}
+                type="button"
+                onClick={() => applyIdea(idea)}
+                className="vyva-tap flex w-full items-center justify-between gap-3 rounded-[14px] border border-vyva-border bg-[#FFFCF8] px-3 py-2.5 text-left font-body text-[14px] font-bold leading-snug text-vyva-text-1"
+              >
+                <span>{locale === "es" ? idea.es : idea.en}</span>
+                <ChevronRight size={18} className="shrink-0 text-vyva-purple" />
+              </button>
+            ))}
           </div>
-        </section>
+        </div>
 
-        <section className="rounded-[26px] border border-vyva-border bg-white p-4 shadow-[0_12px_30px_rgba(60,38,20,0.07)]">
-          <h2 className="font-body text-[17px] font-extrabold text-vyva-text-1">
+        <div className="mt-5">
+          <h2 className="font-body text-[15px] font-extrabold text-vyva-text-1">
             {copy.categoryTitle}
           </h2>
-          <div className="mt-3 grid grid-cols-2 gap-3">
+          <div className="mt-2 grid grid-cols-2 gap-2">
             {CATEGORY_OPTIONS.map((option) => {
               const selected = option.id === category;
               return (
@@ -431,29 +419,29 @@ const ConciergeShoppingScreen = () => {
                   type="button"
                   onClick={() => setCategory(option.id)}
                   aria-pressed={selected}
-                  className={`vyva-tap min-h-[104px] rounded-[22px] border px-4 py-4 text-left ${
+                  className={`vyva-tap flex min-w-0 items-center gap-2 rounded-[14px] border px-3 py-2.5 text-left ${
                     selected ? "border-vyva-purple bg-[#F5F3FF]" : "border-vyva-border bg-[#FFFCF8]"
                   }`}
                 >
-                  <span className={`flex h-10 w-10 items-center justify-center rounded-[15px] font-body text-[18px] font-black ${
+                  <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] font-body text-[15px] font-black ${
                     selected ? "bg-vyva-purple text-white" : "bg-white text-vyva-purple"
                   }`}>
                     {option.icon}
                   </span>
-                  <span className="mt-3 block font-body text-[16px] font-extrabold leading-tight text-vyva-text-1">
+                  <span className="min-w-0 font-body text-[14px] font-extrabold leading-tight text-vyva-text-1">
                     {categoryLabel(option.id, locale)}
                   </span>
                 </button>
               );
             })}
           </div>
-        </section>
+        </div>
 
-        <section className="rounded-[26px] border border-vyva-border bg-white p-4 shadow-[0_12px_30px_rgba(60,38,20,0.07)]">
-          <h2 className="font-body text-[17px] font-extrabold text-vyva-text-1">
+        <div className="mt-5">
+          <h2 className="font-body text-[15px] font-extrabold text-vyva-text-1">
             {copy.prioritiesTitle}
           </h2>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-2 flex flex-wrap gap-2">
             {PRIORITY_OPTIONS.map((option) => {
               const selected = priorities.includes(option.id);
               return (
@@ -462,7 +450,7 @@ const ConciergeShoppingScreen = () => {
                   type="button"
                   onClick={() => togglePriority(option.id)}
                   aria-pressed={selected}
-                  className={`vyva-tap rounded-full border px-4 py-2.5 font-body text-[14px] font-extrabold ${
+                  className={`vyva-tap min-h-[46px] rounded-[14px] border px-3 py-2 font-body text-[14px] font-extrabold ${
                     selected ? "border-vyva-purple bg-vyva-purple text-white" : "border-vyva-border bg-[#FFFCF8] text-vyva-text-1"
                   }`}
                 >
@@ -471,21 +459,21 @@ const ConciergeShoppingScreen = () => {
               );
             })}
           </div>
+        </div>
 
-          <label htmlFor="shopping-constraints" className="mt-5 block font-body text-[15px] font-extrabold text-vyva-text-1">
-            {copy.constraintsLabel}
-          </label>
-          <Textarea
-            id="shopping-constraints"
-            value={constraintsText}
-            onChange={(event) => setConstraintsText(event.target.value)}
-            placeholder={copy.constraintsPlaceholder}
-            className="mt-2 min-h-[82px] rounded-[20px] border-vyva-border bg-[#FFFCF8] p-4 font-body text-[15px] leading-relaxed text-vyva-text-1 placeholder:text-vyva-text-3"
-          />
-        </section>
+        <label htmlFor="shopping-constraints" className="mt-5 block font-body text-[15px] font-extrabold text-vyva-text-1">
+          {copy.constraintsLabel}
+        </label>
+        <Textarea
+          id="shopping-constraints"
+          value={constraintsText}
+          onChange={(event) => setConstraintsText(event.target.value)}
+          placeholder={copy.constraintsPlaceholder}
+          className="mt-2 min-h-[74px] rounded-[14px] border-vyva-border bg-[#FFFCF8] p-3 font-body text-[15px] leading-relaxed text-vyva-text-1 placeholder:text-vyva-text-3"
+        />
 
         {error && (
-          <p role="alert" className="rounded-[18px] bg-[#FFF7ED] px-4 py-3 font-body text-[14px] font-semibold leading-relaxed text-[#9A3412]">
+          <p role="alert" className="mt-4 rounded-[14px] bg-[#FFF7ED] px-3 py-2 font-body text-[14px] font-semibold leading-relaxed text-[#9A3412]">
             {error}
           </p>
         )}
@@ -493,7 +481,7 @@ const ConciergeShoppingScreen = () => {
         <Button
           type="submit"
           disabled={loading}
-          className="vyva-primary-action sticky bottom-[112px] z-10 h-auto w-full rounded-[24px] py-4 text-[18px] shadow-[0_16px_34px_rgba(107,33,168,0.26)] hover:bg-vyva-purple/90"
+          className="vyva-primary-action mt-4 h-auto w-full rounded-[16px] py-4 text-[18px] shadow-[0_12px_26px_rgba(107,33,168,0.22)] hover:bg-vyva-purple/90"
           data-testid="button-shopping-find"
         >
           {loading ? <Loader2 size={20} className="animate-spin" /> : <Search size={20} />}
@@ -501,22 +489,22 @@ const ConciergeShoppingScreen = () => {
         </Button>
       </form>
 
-      <section className="mt-6" aria-live="polite">
+      <section className="mt-5" aria-live="polite">
         {!result && !loading && (
-          <div className="rounded-[26px] border border-vyva-border bg-white p-5 text-center shadow-[0_12px_30px_rgba(60,38,20,0.07)]">
-            <Sparkles size={30} className="mx-auto text-vyva-purple" />
-            <h2 className="mt-3 font-body text-[19px] font-extrabold text-vyva-text-1">{copy.emptyTitle}</h2>
-            <p className="mt-2 font-body text-[15px] leading-relaxed text-vyva-text-2">{copy.emptyBody}</p>
+          <div className="rounded-[18px] border border-vyva-border bg-white p-4 text-center shadow-[0_8px_20px_rgba(60,38,20,0.06)]">
+            <Sparkles size={28} className="mx-auto text-vyva-purple" />
+            <h2 className="mt-2 font-body text-[18px] font-extrabold text-vyva-text-1">{copy.emptyTitle}</h2>
+            <p className="mt-1 font-body text-[15px] leading-relaxed text-vyva-text-2">{copy.emptyBody}</p>
           </div>
         )}
 
         {result && result.recommendations.length === 0 && (
-          <div className="rounded-[26px] border border-[#FDBA74] bg-[#FFF7ED] p-5">
-            <h2 className="font-body text-[19px] font-extrabold text-vyva-text-1">{result.querySummary}</h2>
+          <div className="rounded-[18px] border border-[#FDBA74] bg-[#FFF7ED] p-4">
+            <h2 className="font-body text-[18px] font-extrabold text-vyva-text-1">{result.querySummary}</h2>
             <p className="mt-2 font-body text-[15px] leading-relaxed text-[#9A3412]">{result.uncertaintyNote}</p>
-            <div className="mt-4 grid gap-2">
+            <div className="mt-3 grid gap-2">
               {result.nextQuestions.map((question) => (
-                <p key={question} className="rounded-[16px] bg-white px-3 py-2 font-body text-[14px] font-semibold text-vyva-text-1">
+                <p key={question} className="rounded-[12px] bg-white px-3 py-2 font-body text-[14px] font-semibold text-vyva-text-1">
                   {question}
                 </p>
               ))}
@@ -526,15 +514,13 @@ const ConciergeShoppingScreen = () => {
 
         {result && result.recommendations.length > 0 && (
           <>
-            <div className="mb-3 flex items-end justify-between gap-3">
-              <div>
-                <h2 className="vyva-section-title">{copy.resultsTitle}</h2>
-                <p className="mt-1 font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">
-                  {result.querySummary}
-                </p>
-              </div>
+            <div className="mb-3">
+              <h2 className="font-display text-[24px] italic leading-tight text-vyva-text-1">{copy.resultsTitle}</h2>
+              <p className="mt-1 font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">
+                {result.querySummary}
+              </p>
             </div>
-            <div className="grid gap-4" data-testid="shopping-recommendation-results">
+            <div className="grid gap-3" data-testid="shopping-recommendation-results">
               {result.recommendations.map((item) => (
                 <RecommendationCard
                   key={item.product.id}
@@ -547,10 +533,10 @@ const ConciergeShoppingScreen = () => {
               ))}
             </div>
 
-            <section className="mt-5 rounded-[26px] border border-[#99F6E4] bg-[#F0FDFA] p-4 shadow-[0_12px_30px_rgba(15,118,110,0.10)]">
+            <section className="mt-4 rounded-[18px] border border-[#99F6E4] bg-[#F0FDFA] p-4 shadow-[0_8px_20px_rgba(15,118,110,0.08)]">
               <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] bg-white text-[#0F766E]">
-                  <Sparkles size={21} />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-white text-[#0F766E]">
+                  <Sparkles size={20} />
                 </div>
                 <div>
                   <h2 className="font-body text-[18px] font-extrabold text-vyva-text-1">
@@ -562,15 +548,15 @@ const ConciergeShoppingScreen = () => {
                 </div>
               </div>
               {result.comparison.differences.length > 0 && (
-                <div className="mt-4 grid gap-2">
+                <div className="mt-3 grid gap-2">
                   {result.comparison.differences.map((line) => (
-                    <p key={line} className="rounded-[16px] bg-white px-3 py-2 font-body text-[14px] font-semibold text-vyva-text-1">
+                    <p key={line} className="rounded-[12px] bg-white px-3 py-2 font-body text-[14px] font-semibold text-vyva-text-1">
                       {line}
                     </p>
                   ))}
                 </div>
               )}
-              <p className="mt-4 rounded-[16px] bg-white/80 px-3 py-2 font-body text-[13px] font-semibold leading-relaxed text-[#0F766E]">
+              <p className="mt-3 rounded-[12px] bg-white/80 px-3 py-2 font-body text-[13px] font-semibold leading-relaxed text-[#0F766E]">
                 {result.uncertaintyNote}
               </p>
             </section>
@@ -579,14 +565,14 @@ const ConciergeShoppingScreen = () => {
       </section>
 
       {savedRecommendations.length > 0 && (
-        <section className="mt-5 rounded-[26px] border border-vyva-border bg-white p-4 shadow-[0_12px_30px_rgba(60,38,20,0.07)]" data-testid="shopping-shortlist">
+        <section className="mt-4 rounded-[18px] border border-vyva-border bg-white p-4 shadow-[0_8px_20px_rgba(60,38,20,0.06)]" data-testid="shopping-shortlist">
           <h2 className="font-body text-[18px] font-extrabold text-vyva-text-1">
             {copy.shortlistTitle}
           </h2>
           <div className="mt-3 grid gap-2">
             {savedRecommendations.map((item) => (
-              <div key={item.product.id} className="flex items-center gap-3 rounded-[18px] bg-[#FFFCF8] p-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-[#F5F3FF] font-body font-black text-vyva-purple">
+              <div key={item.product.id} className="flex items-center gap-3 rounded-[14px] bg-[#FFFCF8] p-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] bg-[#F5F3FF] font-body font-black text-vyva-purple">
                   {item.product.name.slice(0, 1)}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -599,7 +585,7 @@ const ConciergeShoppingScreen = () => {
         </section>
       )}
 
-      <p className="mt-5 rounded-[20px] border border-vyva-border bg-[#FFFCF8] p-4 font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">
+      <p className="mt-4 rounded-[16px] border border-vyva-border bg-[#FFFCF8] p-4 font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">
         {copy.caveat}
       </p>
     </main>
@@ -607,4 +593,3 @@ const ConciergeShoppingScreen = () => {
 };
 
 export default ConciergeShoppingScreen;
-
