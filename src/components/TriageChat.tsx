@@ -663,6 +663,22 @@ export default function TriageChat({
             </HealthWizardCard>
           )}
 
+          {canAnswer && (
+            <div className="grid gap-3" data-testid="triage-quick-answers">
+              {quickAnswers.map((quickAnswer) => {
+                const { label, value, Icon } = quickAnswer;
+                return (
+                  <HealthWizardChoiceTile
+                    key={label}
+                    onClick={() => void sendText(value, quickAnswer)}
+                    icon={<Icon size={24} />}
+                    title={label}
+                  />
+                );
+              })}
+            </div>
+          )}
+
           {canShowMedicalFollowups && (
             <HealthWizardCard tone="purple" className="grid gap-3 px-4 py-4" testId="triage-medical-followups">
               <div className="flex items-center gap-3">
@@ -693,22 +709,6 @@ export default function TriageChat({
                 ))}
               </div>
             </HealthWizardCard>
-          )}
-
-          {canAnswer && (
-            <div className="grid gap-3" data-testid="triage-quick-answers">
-              {quickAnswers.map((quickAnswer) => {
-                const { label, value, Icon } = quickAnswer;
-                return (
-                  <HealthWizardChoiceTile
-                    key={label}
-                    onClick={() => void sendText(value, quickAnswer)}
-                    icon={<Icon size={24} />}
-                    title={label}
-                  />
-                );
-              })}
-            </div>
           )}
         </div>
       </div>

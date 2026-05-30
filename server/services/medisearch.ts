@@ -124,7 +124,7 @@ export function buildMediSearchConversation({
   });
 }
 
-function parseSsePayload(raw: string, conversationId: string): MediSearchTriageContext {
+export function parseMediSearchSsePayload(raw: string, conversationId: string): MediSearchTriageContext {
   const result: MediSearchTriageContext = { answer: "", followups: [], articles: [], conversationId };
 
   for (const block of raw.split(/\n\n+/)) {
@@ -204,7 +204,7 @@ export async function getMediSearchTriageContext({
     }
 
     const raw = await response.text();
-    const parsed = parseSsePayload(raw, resolvedConversationId);
+    const parsed = parseMediSearchSsePayload(raw, resolvedConversationId);
     if (!parsed.answer && parsed.followups.length === 0 && parsed.articles.length === 0) return null;
     return parsed;
   } catch (err) {
