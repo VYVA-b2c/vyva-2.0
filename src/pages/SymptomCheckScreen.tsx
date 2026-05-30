@@ -194,7 +194,7 @@ function StepDots({ current }: { current: Step }) {
   );
 }
 
-function IntroScreen({ onStart }: { onStart: (clue: string) => void }) {
+export function IntroScreen({ onStart }: { onStart: (clue: string) => void }) {
   const { t } = useTranslation();
   const [clue, setClue] = useState("");
   const cleanClue = clue.trim();
@@ -325,26 +325,26 @@ function uniqueLines(lines: string[]) {
 function simplifyReportRecommendations(lines: string[]) {
   const unique = uniqueLines(lines);
   const hasDoctorContactAction = unique.some((line) =>
-    /^(contacta|contact).*(doctor|m[eé]dico|cl[ií]nica|urgent care|urgencias)/i.test(line),
+    /^(contacta|contact).*(doctor|m(?:e|\u00e9)dico|cl(?:i|\u00ed)nica|clinic|urgent care|urgencias)/i.test(line),
   );
 
   return unique.filter((line, index) => {
     if (!hasDoctorContactAction) return true;
-    return !/^(habla|talk|speak).*(doctor|m[eé]dico).*hoy/i.test(line);
+    return !/^(habla|talk|speak).*(doctor|m(?:e|\u00e9)dico).*hoy/i.test(line);
   });
 }
 
 function compactDoctorContactRecommendations(lines: string[]) {
   const unique = simplifyReportRecommendations(lines);
   const doctorContactIndex = unique.findIndex((line) =>
-    /\b(contacta|contact|habla|talk|speak|comparte|share)\b.*\b(doctor|m.dico|clinic|cl.nica|urgent care|urgencias)\b/i.test(line),
+    /\b(contacta|contact|habla|talk|speak|comparte|share)\b.*\b(doctor|m(?:e|\u00e9)dico|clinic|cl(?:i|\u00ed)nica|urgent care|urgencias)\b/i.test(line),
   );
 
   if (doctorContactIndex < 0) return unique;
 
   return unique.filter((line, index) => {
     if (index === doctorContactIndex) return true;
-    return !/\b(contacta|contact|habla|talk|speak|comparte|share)\b.*\b(doctor|m.dico|clinic|cl.nica|urgent care|urgencias)\b/i.test(line);
+    return !/\b(contacta|contact|habla|talk|speak|comparte|share)\b.*\b(doctor|m(?:e|\u00e9)dico|clinic|cl(?:i|\u00ed)nica|urgent care|urgencias)\b/i.test(line);
   });
 }
 
@@ -763,17 +763,24 @@ function ReportScreen({
         ) : null}
 
         {visibleWatchSigns.length ? (
-          <section className="rounded-[22px] border border-[#FED7AA] bg-[#FFF7ED] p-4 text-[#9A3412] shadow-[0_8px_22px_rgba(63,45,35,0.05)]" data-testid="card-report-watch">
-            <div className="mb-3 flex items-center gap-2">
-              <AlertTriangle size={18} />
-              <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em]">
+          <section className="overflow-hidden rounded-[28px] border-2 border-[#FDBA74] bg-[#FFF7ED] text-[#9A3412] shadow-[0_18px_42px_rgba(154,52,18,0.12)]" data-testid="card-report-watch">
+            <div className="flex items-center gap-3 border-b border-[#FED7AA] bg-[#FFEDD5] px-4 py-3">
+              <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#C2410C] text-white shadow-[0_10px_22px_rgba(194,65,12,0.22)]">
+                <AlertTriangle size={25} strokeWidth={2.4} />
+              </span>
+              <p className="font-body text-[13px] font-black uppercase tracking-[0.11em]">
                 {t("health.symptomCheck.report.watchSigns", "Watch for")}
               </p>
             </div>
-            <ul className="grid gap-2">
+            <ul className="grid gap-3 p-4">
               {visibleWatchSigns.map((sign, index) => (
-                <li key={index} className="font-body text-[16px] font-bold leading-snug">
-                  {sign}
+                <li key={index} className="flex items-start gap-3 rounded-[20px] border border-[#FED7AA] bg-white px-4 py-3 shadow-[0_8px_18px_rgba(154,52,18,0.08)]">
+                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#FFF7ED] text-[#C2410C] ring-2 ring-[#FDBA74]">
+                    <AlertTriangle size={17} strokeWidth={2.5} />
+                  </span>
+                  <span className="font-body text-[17px] font-black leading-snug text-[#9A3412]">
+                    {sign}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -983,14 +990,20 @@ function ReportScreen({
             ) : null}
 
             {summary.watchSigns?.length ? (
-              <div>
-                <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-[#9A3412]">
-                  {t("health.symptomCheck.report.watchSigns", "Watch for")}
-                </p>
+              <div className="rounded-[22px] border border-[#FED7AA] bg-[#FFF7ED] p-3">
+                <div className="flex items-center gap-2 text-[#9A3412]">
+                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#C2410C] text-white">
+                    <AlertTriangle size={18} />
+                  </span>
+                  <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em]">
+                    {t("health.symptomCheck.report.watchSigns", "Watch for")}
+                  </p>
+                </div>
                 <ul className="mt-3 grid gap-2">
                   {summary.watchSigns.map((sign, index) => (
-                    <li key={index} className="font-body text-[15px] font-bold leading-snug text-[#9A3412]">
-                      {sign}
+                    <li key={index} className="flex items-start gap-2 rounded-[16px] bg-white px-3 py-2 font-body text-[15px] font-bold leading-snug text-[#9A3412]">
+                      <AlertTriangle size={16} className="mt-0.5 flex-shrink-0 text-[#C2410C]" />
+                      <span>{sign}</span>
                     </li>
                   ))}
                 </ul>
