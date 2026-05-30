@@ -92,6 +92,7 @@ describe("service readiness gates", () => {
     expect(serviceForPath("/chat")).toBe("chat");
     expect(serviceForPath("/health/symptom-check")).toBe("symptomCheck");
     expect(serviceForPath("/concierge")).toBe("concierge");
+    expect(serviceForPath("/concierge/shopping")).toBe("concierge");
     expect(serviceForPath("/caregiver")).toBe("caregiverDashboard");
     expect(serviceForPath("/activities")).toBeNull();
   });
