@@ -1402,7 +1402,7 @@ router.post("/message", async (req: Request, res: Response) => {
     .slice(-20);
   const effectiveWizard = wizardWithInferredClue(wizard, validMessages, normalizedLocale);
 
-  const safetyAnswer = selectedSafetyAnswer(effectiveWizard);
+  const safetyAnswer = effectiveWizard?.refineRequested ? null : selectedSafetyAnswer(effectiveWizard);
   if (safetyAnswer) {
     const emergencyContact = emergencyContactForCountry(healthMemory?.countryCode);
     return res.json({

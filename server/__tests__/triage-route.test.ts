@@ -267,4 +267,61 @@ describe("triage route wizard questions", () => {
     expect(res.body.done).toBe(true);
     expect(res.body.medicalFollowups).toEqual([]);
   });
+
+  it("returns a refined report instead of a safety prompt when a post-report vital is added", async () => {
+    const previousApiKey = process.env.OPENAI_API_KEY;
+    delete process.env.OPENAI_API_KEY;
+
+    try {
+      const res = await request(app())
+        .post("/api/triage/message")
+        .send({
+          locale: "en",
+          messages: [
+            { role: "user", content: "Fever and chills" },
+            {
+              role: "user",
+              content:
+                "New vital added after the first report: Check temperature now: 38.5 C. Refine the triage result with this new reading.",
+            },
+          ],
+          wizard: {
+            mode: "without_vitals",
+            refineRequested: true,
+            vitals: { temperatureC: 38.5 },
+            quickAnswers: [
+              { id: "fever", label: "Fever", value: "I have a fever.", kind: "symptom" },
+              {
+                id: "immuno_fever",
+                label: "Fever with low immunity",
+                value: "I have fever and low immunity or cancer treatment.",
+                kind: "red_flag",
+              },
+            ],
+            previousSummary: {
+              chiefComplaint: "Fever and chills",
+              symptoms: ["Fever"],
+              urgency: "routine",
+              recommendations: ["Check temperature."],
+              disclaimer: "Information only.",
+              nextStepLabel: "Talk to a doctor within 24-48 hours",
+              nextStepLevel: "doctor_24_48",
+            },
+          },
+        })
+        .expect(200);
+
+      expect(res.body.done).toBe(true);
+      expect(res.body.wizardStage).toBe("complete");
+      expect(res.body.quickReplies).toEqual([]);
+      expect(res.body.summary.nextStepLabel).toBe("Call emergency services now");
+      expect(res.body.summary.vitalsNotes).toContain("Temperature was 38.5 C.");
+    } finally {
+      if (previousApiKey === undefined) {
+        delete process.env.OPENAI_API_KEY;
+      } else {
+        process.env.OPENAI_API_KEY = previousApiKey;
+      }
+    }
+  });
 });
