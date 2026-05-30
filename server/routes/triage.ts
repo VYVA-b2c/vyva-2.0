@@ -1358,6 +1358,15 @@ router.post("/message", async (req: Request, res: Response) => {
   const stage = nextAdaptiveStage(effectiveWizard, healthMemory);
   if (stage !== "complete") {
     const protocolQuestion = wizardQuestionText(stage, effectiveWizard, normalizedLocale);
+    const latestMessage = validMessages[validMessages.length - 1];
+    const medisearchContext = latestMessage?.role === "user"
+      ? await getMediSearchTriageContext({
+          conversation: validMessages,
+          conversationId: medisearchConversationId,
+          locale: normalizedLocale,
+          wizard: effectiveWizard,
+        })
+      : null;
     return res.json({
       role: "assistant",
       content: protocolQuestion,
@@ -1366,6 +1375,8 @@ router.post("/message", async (req: Request, res: Response) => {
       wizardStage: stage,
       wizardStageLabel: wizardStageLabel(stage, normalizedLocale),
       evidenceSources: [],
+      medisearchConversationId: medisearchContext?.conversationId,
+      medicalFollowups: medisearchContext?.followups ?? [],
     });
   }
 
