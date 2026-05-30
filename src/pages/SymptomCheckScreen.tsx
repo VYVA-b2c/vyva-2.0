@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Activity, ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, Heart, Loader2, PhoneCall, Stethoscope } from "lucide-react";
+import { Activity, ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, Heart, Loader2, PhoneCall, RefreshCw, Stethoscope } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import TriageChat, { type TriageChatDraft } from "@/components/TriageChat";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
@@ -194,23 +194,52 @@ function StepDots({ current }: { current: Step }) {
   );
 }
 
-function IntroScreen({ onStart }: { onStart: (clue: string) => void }) {
+export function IntroScreen({ onStart }: { onStart: (clue: string) => void }) {
   const { t } = useTranslation();
   const [clue, setClue] = useState("");
+  const [quickClueSetIndex, setQuickClueSetIndex] = useState(0);
   const cleanClue = clue.trim();
   const canStart = cleanClue.length >= 2;
-  const quickClues = [
-    t("health.symptomCheck.intro.clueHeadache", "Bad headache"),
-    t("health.symptomCheck.intro.clueBreathing", "Short of breath"),
-    t("health.symptomCheck.intro.clueDizzy", "Dizzy"),
-    t("health.symptomCheck.intro.clueFever", "Fever"),
-    t("health.symptomCheck.intro.clueFall", "I fell"),
-    t("health.symptomCheck.intro.clueUrine", "Pain when I pee"),
-    t("health.symptomCheck.intro.clueChest", "Chest pain"),
-    t("health.symptomCheck.intro.clueStomach", "Stomach pain"),
-    t("health.symptomCheck.intro.clueMedicine", "Medication concern"),
-    t("health.symptomCheck.intro.clueAnxiety", "Feeling anxious"),
+  const quickClueSets = [
+    [
+      t("health.symptomCheck.intro.clueHeadache", "Bad headache"),
+      t("health.symptomCheck.intro.clueBreathing", "Short of breath"),
+      t("health.symptomCheck.intro.clueDizzy", "Dizzy"),
+      t("health.symptomCheck.intro.clueFever", "Fever"),
+      t("health.symptomCheck.intro.clueFall", "I fell"),
+      t("health.symptomCheck.intro.clueUrine", "Pain when I pee"),
+      t("health.symptomCheck.intro.clueChest", "Chest pain"),
+      t("health.symptomCheck.intro.clueStomach", "Stomach pain"),
+      t("health.symptomCheck.intro.clueMedicine", "Medication concern"),
+      t("health.symptomCheck.intro.clueAnxiety", "Feeling anxious"),
+    ],
+    [
+      t("health.symptomCheck.intro.clueCough", "Cough"),
+      t("health.symptomCheck.intro.clueBack", "Back pain"),
+      t("health.symptomCheck.intro.clueThroat", "Sore throat"),
+      t("health.symptomCheck.intro.clueRash", "Rash"),
+      t("health.symptomCheck.intro.clueNausea", "Nausea"),
+      t("health.symptomCheck.intro.clueSleep", "Trouble sleeping"),
+      t("health.symptomCheck.intro.clueSwelling", "Leg swelling"),
+      t("health.symptomCheck.intro.clueEar", "Ear pain"),
+      t("health.symptomCheck.intro.clueLowEnergy", "Low energy"),
+      t("health.symptomCheck.intro.clueConfusion", "New confusion"),
+    ],
+    [
+      t("health.symptomCheck.intro.clueVomiting", "Vomiting"),
+      t("health.symptomCheck.intro.clueDiarrhea", "Diarrhea"),
+      t("health.symptomCheck.intro.clueEye", "Eye pain"),
+      t("health.symptomCheck.intro.clueNumbness", "Numbness"),
+      t("health.symptomCheck.intro.clueWeakness", "Weakness"),
+      t("health.symptomCheck.intro.clueSideEffect", "Side effect"),
+      t("health.symptomCheck.intro.clueBleeding", "Bleeding"),
+      t("health.symptomCheck.intro.cluePalpitations", "Palpitations"),
+      t("health.symptomCheck.intro.clueLowMood", "Low mood"),
+      t("health.symptomCheck.intro.clueWound", "Skin wound"),
+    ],
   ];
+  const quickClues = quickClueSets[quickClueSetIndex] ?? quickClueSets[0];
+  const refreshCluesLabel = t("health.symptomCheck.intro.refreshCluesLabel", "Refresh examples");
 
   return (
     <div className="flex flex-1 flex-col gap-5 px-[18px] py-5">
@@ -233,7 +262,17 @@ function IntroScreen({ onStart }: { onStart: (clue: string) => void }) {
           data-testid="input-symptom-clue"
           className="min-h-[78px] rounded-[24px] border-2 border-[#DDD6FE] bg-white px-5 font-body text-[22px] font-black text-vyva-text-1 shadow-[0_10px_26px_rgba(63,45,35,0.06)] outline-none placeholder:text-[#9A8C83] focus:border-[#6B21A8]"
         />
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            aria-label={refreshCluesLabel}
+            title={refreshCluesLabel}
+            data-testid="button-refresh-symptom-clues"
+            onClick={() => setQuickClueSetIndex((current) => (current + 1) % quickClueSets.length)}
+            className="vyva-tap flex h-[58px] w-[58px] flex-shrink-0 items-center justify-center rounded-full border border-[#D8C7FF] bg-[#F7F1FF] text-[#6B21A8] shadow-[0_4px_12px_rgba(107,33,168,0.08)] transition hover:border-[#B794F4] hover:bg-[#F1E8FF] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8]"
+          >
+            <RefreshCw size={22} strokeWidth={2.7} aria-hidden="true" />
+          </button>
           {quickClues.map((quickClue) => (
             <button
               key={quickClue}
