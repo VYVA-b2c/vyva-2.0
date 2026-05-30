@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useTranslation } from "react-i18next";
 import { Activity, AlertCircle, BookOpenCheck, HelpCircle, HeartPulse, ListChecks, Mic, PhoneCall, Send, ShieldCheck, Square, Thermometer, UserRound, Wind } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
-import i18n from "@/i18n";
+import { useLanguage } from "@/i18n";
 import { HealthWizardCard, HealthWizardChoiceTile, HealthWizardHero } from "@/components/health/HealthWizard";
 
 interface ChatMessage {
@@ -143,7 +142,7 @@ const speechLangFor = (language: string) => {
 };
 
 function TriageReviewPanel() {
-  const { t } = useTranslation();
+  const { t } = useLanguage();
   const reviewSteps = [
     {
       key: "medical",
@@ -238,7 +237,7 @@ export default function TriageChat({
   onVoiceAutoStarted,
   onComplete,
 }: TriageChatProps) {
-  const { t } = useTranslation();
+  const { language, t } = useLanguage();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -330,7 +329,7 @@ export default function TriageChat({
       const rec = new SR();
       rec.continuous = false;
       rec.interimResults = true;
-      rec.lang = speechLangFor(i18n.language ?? "en");
+      rec.lang = speechLangFor(language);
 
       rec.onstart = () => {
         setIsListening(true);
@@ -364,7 +363,7 @@ export default function TriageChat({
       setIsListening(false);
       recRef.current = null;
     }
-  }, [t]);
+  }, [language, t]);
 
   const stopListening = useCallback(() => {
     recRef.current?.stop();
@@ -381,7 +380,7 @@ export default function TriageChat({
           body: JSON.stringify({
             messages: history,
             vitals: { bpm },
-            locale: i18n.language ?? "en",
+            locale: language,
             wizard: {
               mode: entryMode,
               vitalsScanCompleted: entryMode === "with_vitals",
@@ -432,7 +431,7 @@ export default function TriageChat({
         setLoading(false);
       }
     },
-    [animateMessage, bpm, entryMode, healthMemory, initialClue, messages.length, onComplete, respiratoryRate, selectedQuickAnswers, t]
+    [animateMessage, bpm, entryMode, healthMemory, initialClue, language, messages.length, onComplete, respiratoryRate, selectedQuickAnswers, t]
   );
 
   useEffect(() => {

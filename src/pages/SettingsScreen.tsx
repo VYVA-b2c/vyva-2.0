@@ -2,13 +2,12 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { CheckCircle2 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useTranslation } from "react-i18next";
 import { queryClient, apiFetch } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { detectBrowserLanguage } from "@/i18n/detectLanguage";
-import i18n, { LANGUAGE_STORAGE_KEY } from "@/i18n";
+import { useLanguage } from "@/i18n";
 import { LANGUAGES } from "@/i18n/languages";
 
 interface FieldProps {
@@ -65,11 +64,11 @@ interface ProfileForm {
 
 const SettingsScreen = () => {
   const { toast } = useToast();
-  const { t } = useTranslation();
+  const { language, setLanguage, t } = useLanguage();
   const { fullName, initials } = useProfile();
   const { user } = useAuth();
 
-  const activeLanguage = i18n.language?.slice(0, 2) ?? "en";
+  const activeLanguage = language;
   const sortedLanguages = [
     ...LANGUAGES.filter((language) => language.code === activeLanguage),
     ...LANGUAGES.filter((language) => language.code !== activeLanguage),
@@ -127,8 +126,7 @@ const SettingsScreen = () => {
       return res.json();
     },
     onSuccess: (_data, variables) => {
-      localStorage.setItem(LANGUAGE_STORAGE_KEY, variables.language);
-      i18n.changeLanguage(variables.language);
+      setLanguage(variables.language);
       if (variables.cityState?.trim()) {
         localStorage.removeItem("vyva_coords_weather_cache");
       }

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import { Activity, ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, Heart, Loader2, PhoneCall, Pill, Stethoscope } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import TriageChat from "@/components/TriageChat";
@@ -13,6 +12,7 @@ import {
   HealthWizardTopBar,
 } from "@/components/health/HealthWizard";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/i18n";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 
 type Step = "intro" | "chat" | "report";
@@ -114,7 +114,7 @@ function StepDots({ current }: { current: Step }) {
 }
 
 function IntroScreen({ onStart }: { onStart: (clue: string) => void }) {
-  const { t } = useTranslation();
+  const { t } = useLanguage();
   const [clue, setClue] = useState("");
   const cleanClue = clue.trim();
   const canStart = cleanClue.length >= 2;
@@ -280,7 +280,7 @@ function ReportScreen({
   onRefineVital: (config: RefinementVitalConfig, rawValue: string) => Promise<void>;
   onDone: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const { toast } = useToast();
   const cfg = ReportConfig(summary);
@@ -925,7 +925,7 @@ function ReportScreen({
 }
 
 export default function SymptomCheckScreen() {
-  const { t } = useTranslation();
+  const { language, t } = useLanguage();
   const navigate = useNavigate();
   const { data: triageContext } = useQuery<TriageContextResponse>({
     queryKey: ["/api/triage/context"],
@@ -1088,7 +1088,7 @@ export default function SymptomCheckScreen() {
             },
           ],
           vitals: refinedVitals,
-          locale: navigator.language || "en",
+          locale: language,
           wizard: {
             mode: context?.entryMode ?? "without_vitals",
             vitalsScanCompleted: false,

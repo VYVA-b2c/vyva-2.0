@@ -1,11 +1,11 @@
 import { CircleUser } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import vyvaLogo from "@/assets/vyva-logo.png";
+import { useLanguage } from "@/i18n";
 
 const StatusBar = ({ wide = false }: { wide?: boolean }) => {
   const navigate = useNavigate();
-  const { t, i18n } = useTranslation();
+  const { language, t } = useLanguage();
   const now = new Date();
   const localeByLanguage: Record<string, string> = {
     es: "es-ES",
@@ -15,7 +15,7 @@ const StatusBar = ({ wide = false }: { wide?: boolean }) => {
     it: "it-IT",
     pt: "pt-PT",
   };
-  const languageCode = i18n.language.split("-")[0];
+  const languageCode = language.split("-")[0];
   const locale = localeByLanguage[languageCode] ?? "es-ES";
   const time = now.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
   const date = now.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" });

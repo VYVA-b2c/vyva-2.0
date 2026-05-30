@@ -1,6 +1,6 @@
 import { AlertCircle, ClipboardList, House, type LucideIcon } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+import { useLanguage } from "@/i18n";
 
 type BottomNavTab = {
   id: string;
@@ -13,7 +13,7 @@ type BottomNavTab = {
 const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?: boolean }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t } = useLanguage();
 
   const tabs: BottomNavTab[] = [
     {
