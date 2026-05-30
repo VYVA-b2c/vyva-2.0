@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { Activity, AlertCircle, HelpCircle, HeartPulse, Loader2, Mic, PhoneCall, Send, Square, Thermometer, Wind } from "lucide-react";
+import { Activity, AlertCircle, BookOpenCheck, HelpCircle, HeartPulse, ListChecks, Mic, PhoneCall, Send, ShieldCheck, Square, Thermometer, UserRound, Wind } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 import i18n from "@/i18n";
 
@@ -140,6 +140,92 @@ const speechLangFor = (language: string) => {
   };
   return map[base] ?? "en-US";
 };
+
+function TriageReviewPanel() {
+  const { t } = useTranslation();
+  const reviewSteps = [
+    {
+      key: "medical",
+      Icon: BookOpenCheck,
+      label: t("health.symptomCheck.chat.reviewStepMedical", "Reviewing trusted medical guidance"),
+      className: "bg-[#EEF2FF] text-[#4F46E5]",
+    },
+    {
+      key: "safety",
+      Icon: ShieldCheck,
+      label: t("health.symptomCheck.chat.reviewStepSafety", "Checking your answers for red flags"),
+      className: "bg-[#FEF2F2] text-[#B91C1C]",
+    },
+    {
+      key: "profile",
+      Icon: UserRound,
+      label: t("health.symptomCheck.chat.reviewStepProfile", "Considering your health profile and medications"),
+      className: "bg-[#F4ECFF] text-vyva-purple",
+    },
+    {
+      key: "next",
+      Icon: ListChecks,
+      label: t("health.symptomCheck.chat.reviewStepNext", "Preparing clear next steps"),
+      className: "bg-[#ECFDF5] text-[#047857]",
+    },
+  ];
+
+  return (
+    <section
+      className="rounded-[30px] border-2 border-[#E8DED4] bg-white px-5 py-5 shadow-[0_18px_44px_rgba(63,45,35,0.10)]"
+      data-testid="triage-review-panel"
+      aria-live="polite"
+      aria-label={t("health.symptomCheck.chat.reviewAria", "VYVA is reviewing your answers and preparing guidance")}
+    >
+      <div className="flex items-start gap-4">
+        <div className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-[22px] bg-vyva-purple text-white shadow-[0_14px_30px_rgba(107,33,168,0.22)]">
+          <span className="triage-review-pulse absolute inset-0 rounded-[22px] border-2 border-vyva-purple/25" aria-hidden="true" />
+          <Activity size={30} strokeWidth={2.4} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-body text-[12px] font-black uppercase tracking-[0.16em] text-vyva-purple">
+            {t("health.symptomCheck.chat.reviewEyebrow", "VYVA is reviewing")}
+          </p>
+          <h2 className="mt-1 font-body text-[25px] font-black leading-tight text-vyva-text-1 sm:text-[29px]">
+            {t("health.symptomCheck.chat.reviewTitle", "VYVA is checking the safest next step")}
+          </h2>
+          <p className="mt-2 font-body text-[16px] font-semibold leading-snug text-vyva-text-2">
+            {t("health.symptomCheck.chat.reviewSubtitle", "VYVA checks your answers against trusted guidance and your profile before suggesting what to do next.")}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        {reviewSteps.map(({ key, Icon, label, className }, index) => (
+          <div
+            key={key}
+            className="triage-review-chip flex min-h-[62px] items-center gap-3 rounded-[20px] border border-[#E8DED4] bg-[#FAF9F6] px-3 py-3"
+            style={{ animationDelay: `${index * 160}ms` }}
+          >
+            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] ${className}`}>
+              <Icon size={20} strokeWidth={2.4} />
+            </span>
+            <span className="font-body text-[15px] font-black leading-tight text-vyva-text-1">
+              {label}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <div className="triage-review-lines relative mt-5 min-h-[30px] overflow-hidden rounded-full bg-[#F4ECFF] px-4 py-2 text-center">
+        {reviewSteps.map(({ key, label }, index) => (
+          <p
+            key={key}
+            className="triage-review-line absolute inset-x-4 top-2 font-body text-[14px] font-black text-vyva-purple"
+            style={{ animationDelay: `${index * 1.8}s` }}
+          >
+            {label}
+          </p>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 export default function TriageChat({
   bpm,
@@ -419,7 +505,8 @@ export default function TriageChat({
     ? animatingIdx === latestAssistantEntry.index
       ? animatedText
       : latestAssistantEntry.msg.content
-    : t("health.symptomCheck.chat.thinking");
+    : t("health.symptomCheck.chat.reviewTitle", "VYVA is checking the safest next step");
+  const showQuestion = Boolean(latestAssistantEntry || !loading);
   const canAnswer = !loading && animatingIdx === null && messages.length > 0;
 
   return (
@@ -474,25 +561,22 @@ export default function TriageChat({
             </div>
           )}
 
-          <section className="px-1 py-2">
-            <h2 className={`font-body text-[27px] font-bold leading-[1.14] ${safetyAlert ? "motion-safe:animate-pulse text-[#B91C1C]" : "text-vyva-text-1"}`}>
-              {latestQuestion}
-              {latestAssistantEntry && animatingIdx === latestAssistantEntry.index && (
-                <span
-                  className="ml-1 inline-block h-[1em] w-[2px] animate-pulse align-middle"
-                  style={{ background: "hsl(var(--vyva-purple))", opacity: 0.7 }}
-                />
-              )}
-            </h2>
-          </section>
+          {showQuestion && (
+            <section className="px-1 py-2">
+              <h2 className={`font-body text-[27px] font-bold leading-[1.14] ${safetyAlert ? "motion-safe:animate-pulse text-[#B91C1C]" : "text-vyva-text-1"}`}>
+                {latestQuestion}
+                {latestAssistantEntry && animatingIdx === latestAssistantEntry.index && (
+                  <span
+                    className="ml-1 inline-block h-[1em] w-[2px] animate-pulse align-middle"
+                    style={{ background: "hsl(var(--vyva-purple))", opacity: 0.7 }}
+                  />
+                )}
+              </h2>
+            </section>
+          )}
 
           {loading && (
-            <div className="flex min-h-[64px] items-center justify-center gap-2 rounded-[22px] border border-[#E8DED4] bg-white px-4 py-3 shadow-[0_8px_20px_rgba(63,45,35,0.05)]">
-              <Loader2 size={20} className="animate-spin text-vyva-purple" />
-              <span className="font-body text-[18px] font-bold text-vyva-text-2">
-                {t("health.symptomCheck.chat.thinking")}
-              </span>
-            </div>
+            <TriageReviewPanel />
           )}
 
           {evidenceSources && evidenceSources.length > 0 && (
