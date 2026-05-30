@@ -20,10 +20,12 @@ export {
 } from "../../src/safety/dailySafetyEngine.js";
 
 export type {
+  CaregiverEscalationContext,
   DailySafetyCheck,
   DailySafetyInput,
   MedicationSafetyContext,
   RiskTier,
+  SafetySymptomPattern,
   SafetyStatus,
   SignalSummary,
   TriageSafetyContext,

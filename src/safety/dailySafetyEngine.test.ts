@@ -57,6 +57,102 @@ describe("daily safety pure engine", () => {
     expect(statusShouldEscalate(result.safety_status)).toBe(true);
   });
 
+  it("keeps BP crisis readings at doctor contact unless concerning symptoms are present", () => {
+    const systolicOnly = buildDailySafetyCheck({
+      signalSummary: [signal({ signal: "bp_systolic", recent_values: [190] })],
+      language: "en",
+    });
+    const diastolicOnly = buildDailySafetyCheck({
+      signalSummary: [signal({ signal: "bp_diastolic", recent_values: [121] })],
+      language: "en",
+    });
+
+    expect(systolicOnly.safety_status).toBe("contact_doctor");
+    expect(diastolicOnly.safety_status).toBe("contact_doctor");
+    expect(systolicOnly.risk_tier).toBe("notify");
+    expect(diastolicOnly.risk_tier).toBe("notify");
+  });
+
+  it("escalates BP crisis readings to urgent help when crisis symptoms are present", () => {
+    const result = buildDailySafetyCheck({
+      signalSummary: [signal({ signal: "bp_systolic", recent_values: [190] })],
+      symptomPattern: { severeHeadache: true, visionChange: true },
+      language: "en",
+    });
+
+    expect(result.safety_status).toBe("urgent_help");
+    expect(result.risk_tier).toBe("urgent");
+    expect(result.pattern_labels).toContain("bp_crisis_symptoms");
+  });
+
+  it("maps respiratory rate 21-24 to doctor contact and 25+ to urgent help", () => {
+    const mildlyRaised = buildDailySafetyCheck({
+      signalSummary: [signal({ signal: "respiratory_rate", recent_values: [22] })],
+      language: "en",
+    });
+    const thresholdRaised = buildDailySafetyCheck({
+      signalSummary: [signal({ signal: "respiratory_rate", recent_values: [24] })],
+      language: "en",
+    });
+    const urgent = buildDailySafetyCheck({
+      signalSummary: [signal({ signal: "respiratory_rate", recent_values: [25] })],
+      language: "en",
+    });
+
+    expect(mildlyRaised.safety_status).toBe("contact_doctor");
+    expect(thresholdRaised.safety_status).toBe("contact_doctor");
+    expect(urgent.safety_status).toBe("urgent_help");
+  });
+
+  it("maps oxygen saturation 89-92 to doctor contact", () => {
+    const result = buildDailySafetyCheck({
+      signalSummary: [signal({ signal: "oxygen_saturation", recent_values: [90] })],
+      language: "en",
+    });
+
+    expect(result.safety_status).toBe("contact_doctor");
+    expect(result.risk_tier).toBe("notify");
+  });
+
+  it("uses DKA/HHS pattern symptoms to escalate glucose 300+ to urgent help", () => {
+    const glucoseAlone = buildDailySafetyCheck({
+      signalSummary: [signal({ signal: "glucose_mgdl", recent_values: [320] })],
+      language: "en",
+    });
+    const glucoseWithPattern = buildDailySafetyCheck({
+      signalSummary: [signal({ signal: "glucose_mgdl", recent_values: [320] })],
+      symptomPattern: { vomiting: true, dehydration: true },
+      language: "en",
+    });
+
+    expect(glucoseAlone.safety_status).toBe("contact_doctor");
+    expect(glucoseWithPattern.safety_status).toBe("urgent_help");
+    expect(glucoseWithPattern.pattern_labels).toContain("dka_hhs_pattern");
+  });
+
+  it("marks caregiver escalation when urgent help affects someone living alone with consented caregiver support", () => {
+    const result = buildDailySafetyCheck({
+      signalSummary: [signal({ signal: "respiratory_rate", recent_values: [25] })],
+      caregiver: {
+        livesAlone: true,
+        caregiverConsent: true,
+        caregiverAvailable: true,
+      },
+      language: "en",
+    });
+
+    expect(result.safety_status).toBe("urgent_help");
+    expect(result.pattern_labels).toContain("caregiver_escalation");
+    expect(result.contributing_signals).toMatchObject({
+      caregiver_escalation: {
+        should_alert: true,
+        lives_alone: true,
+        caregiver_consent: true,
+        caregiver_available: true,
+      },
+    });
+  });
+
   it("escalates repeated medication misses without needing UI context", () => {
     const result = buildDailySafetyCheck({
       signalSummary: [signal()],
