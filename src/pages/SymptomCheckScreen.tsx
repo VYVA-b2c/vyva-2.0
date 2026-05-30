@@ -322,6 +322,32 @@ function uniqueLines(lines: string[]) {
     .filter((line, index, list) => list.findIndex((item) => item.toLowerCase() === line.toLowerCase()) === index);
 }
 
+function simplifyReportRecommendations(lines: string[]) {
+  const unique = uniqueLines(lines);
+  const hasDoctorContactAction = unique.some((line) =>
+    /^(contacta|contact).*(doctor|m[eé]dico|cl[ií]nica|urgent care|urgencias)/i.test(line),
+  );
+
+  return unique.filter((line, index) => {
+    if (!hasDoctorContactAction) return true;
+    return !/^(habla|talk|speak).*(doctor|m[eé]dico).*hoy/i.test(line);
+  });
+}
+
+function compactDoctorContactRecommendations(lines: string[]) {
+  const unique = simplifyReportRecommendations(lines);
+  const doctorContactIndex = unique.findIndex((line) =>
+    /\b(contacta|contact|habla|talk|speak|comparte|share)\b.*\b(doctor|m.dico|clinic|cl.nica|urgent care|urgencias)\b/i.test(line),
+  );
+
+  if (doctorContactIndex < 0) return unique;
+
+  return unique.filter((line, index) => {
+    if (index === doctorContactIndex) return true;
+    return !/\b(contacta|contact|habla|talk|speak|comparte|share)\b.*\b(doctor|m.dico|clinic|cl.nica|urgent care|urgencias)\b/i.test(line);
+  });
+}
+
 function parseNumber(raw: string) {
   const value = Number(raw.replace(",", ".").trim());
   return Number.isFinite(value) ? value : null;
@@ -352,7 +378,6 @@ function ReportScreen({
   respiratoryRate,
   durationSeconds,
   reportId,
-  reportSaveState,
   profileContacts,
   emergencyContact,
   refinementStatus,
@@ -364,7 +389,6 @@ function ReportScreen({
   respiratoryRate: number | null;
   durationSeconds: number | null;
   reportId: string | null;
-  reportSaveState: ReportSaveState;
   profileContacts?: ProfileContactsResponse;
   emergencyContact?: EmergencyContact | null;
   refinementStatus: RefinementStatus;
@@ -412,13 +436,6 @@ function ReportScreen({
       reportTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }, [refinementStatus.state]);
-  const saveStatusText = reportSaveState === "saved"
-    ? t("health.symptomCheck.report.savedToReports", "Saved to Reports")
-    : reportSaveState === "saving"
-      ? t("health.symptomCheck.report.savingReport", "Saving report...")
-      : reportSaveState === "error"
-        ? t("health.symptomCheck.report.saveFailed", "Report not saved")
-        : t("health.symptomCheck.report.readyReport", "Report ready");
   const durationText = durationSeconds != null
     ? durationSeconds < 60
       ? `${durationSeconds}s`
@@ -565,7 +582,7 @@ function ReportScreen({
     ...(summary.vitalsNotes ?? []),
   ]);
   const visibleReasons = allReasons.slice(0, 2);
-  const visibleRecommendations = uniqueLines(summary.recommendations).slice(0, 3);
+  const visibleRecommendations = compactDoctorContactRecommendations(summary.recommendations).slice(0, 3);
   const visibleWatchSigns = uniqueLines(summary.watchSigns ?? []).slice(0, 2);
   const contextNotes = uniqueLines([...(summary.profileConsiderations ?? []), ...(summary.vitalsNotes ?? [])]);
   const answerFinding = t("health.symptomCheck.report.summaryIntro", "Thank you for your answers. Here's a summary of your situation:");
@@ -683,15 +700,6 @@ function ReportScreen({
         </p>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <span
-            className="inline-flex items-center gap-2 rounded-full px-3 py-1.5"
-            style={{ background: cfg.pillBg }}
-          >
-            <ClipboardList size={13} className="text-white" />
-            <span className="font-body text-[13px] font-semibold text-white">
-              {saveStatusText}
-            </span>
-          </span>
           {bpm != null ? (
             <span
               className="inline-flex items-center gap-2 rounded-full px-3 py-1.5"
@@ -1467,7 +1475,6 @@ export default function SymptomCheckScreen() {
             respiratoryRate={respiratoryRate}
             durationSeconds={durationSeconds}
             reportId={reportId}
-            reportSaveState={reportSaveState}
             profileContacts={profileContacts}
             emergencyContact={triageContext?.emergencyContact ?? null}
             refinementStatus={refinementStatus}

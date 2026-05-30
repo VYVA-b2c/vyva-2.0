@@ -1,7 +1,7 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { eq, and, desc, gte } from "drizzle-orm";
-import { db } from "../db.js";
+import { db, pool } from "../db.js";
 import { caregiverAlerts, profiles, triageReports, vitalsReadings, medicationAdherence, userMedications } from "../../shared/schema.js";
 import { z } from "zod";
 
@@ -17,6 +17,84 @@ function resolveUserId(req: Request): string | null {
 const router = Router();
 
 // ─── Storage helpers ───────────────────────────────────────────────────────────
+
+let reportsPersistencePromise: Promise<void> | null = null;
+
+async function ensureReportsPersistenceTables() {
+  if (!reportsPersistencePromise) {
+    reportsPersistencePromise = (async () => {
+      await pool.query(`
+        create table if not exists triage_reports (
+          id uuid primary key default gen_random_uuid(),
+          user_id text not null,
+          chief_complaint text not null,
+          symptoms text[] not null default '{}',
+          urgency text not null,
+          recommendations text[] not null default '{}',
+          disclaimer text not null default '',
+          ai_summary text,
+          next_step_label text,
+          next_step_level text,
+          triage_reasons text[] not null default '{}',
+          watch_signs text[] not null default '{}',
+          profile_considerations text[] not null default '{}',
+          vitals_notes text[] not null default '{}',
+          bpm integer,
+          respiratory_rate integer,
+          duration_seconds integer,
+          created_at timestamptz not null default now()
+        )
+      `);
+
+      await pool.query(`
+        alter table triage_reports
+          add column if not exists symptoms text[] not null default '{}',
+          add column if not exists recommendations text[] not null default '{}',
+          add column if not exists disclaimer text not null default '',
+          add column if not exists ai_summary text,
+          add column if not exists next_step_label text,
+          add column if not exists next_step_level text,
+          add column if not exists triage_reasons text[] not null default '{}',
+          add column if not exists watch_signs text[] not null default '{}',
+          add column if not exists profile_considerations text[] not null default '{}',
+          add column if not exists vitals_notes text[] not null default '{}',
+          add column if not exists bpm integer,
+          add column if not exists respiratory_rate integer,
+          add column if not exists duration_seconds integer,
+          add column if not exists created_at timestamptz not null default now()
+      `);
+
+      await pool.query(`
+        create table if not exists vitals_readings (
+          id uuid primary key default gen_random_uuid(),
+          user_id text not null,
+          bpm integer,
+          respiratory_rate integer,
+          metric_type text,
+          value text,
+          recorded_at timestamptz not null default now()
+        )
+      `);
+
+      await pool.query(`
+        alter table vitals_readings
+          add column if not exists bpm integer,
+          add column if not exists respiratory_rate integer,
+          add column if not exists metric_type text,
+          add column if not exists value text,
+          add column if not exists recorded_at timestamptz not null default now()
+      `);
+
+      await pool.query(`create index if not exists triage_reports_user_id_idx on triage_reports (user_id)`);
+      await pool.query(`create index if not exists vitals_readings_user_id_idx on vitals_readings (user_id)`);
+    })().catch((err) => {
+      reportsPersistencePromise = null;
+      throw err;
+    });
+  }
+
+  return reportsPersistencePromise;
+}
 
 async function saveTriageReport(params: {
   userId: string;
@@ -36,6 +114,7 @@ async function saveTriageReport(params: {
   respiratory_rate?: number | null;
   duration_seconds?: number | null;
 }) {
+  await ensureReportsPersistenceTables();
   const [row] = await db.insert(triageReports).values({
     user_id: params.userId,
     chief_complaint: params.chief_complaint,
@@ -100,6 +179,7 @@ async function saveVitalsReading(params: {
   bpm: number;
   respiratory_rate?: number | null;
 }) {
+  await ensureReportsPersistenceTables();
   const [row] = await db.insert(vitalsReadings).values({
     user_id: params.userId,
     bpm: params.bpm,
@@ -109,6 +189,7 @@ async function saveVitalsReading(params: {
 }
 
 async function getLatestTriageReport(userId: string) {
+  await ensureReportsPersistenceTables();
   const rows = await db.select().from(triageReports)
     .where(eq(triageReports.user_id, userId))
     .orderBy(desc(triageReports.created_at))
@@ -117,6 +198,7 @@ async function getLatestTriageReport(userId: string) {
 }
 
 async function getLatestVitalsReading(userId: string) {
+  await ensureReportsPersistenceTables();
   const rows = await db.select().from(vitalsReadings)
     .where(eq(vitalsReadings.user_id, userId))
     .orderBy(desc(vitalsReadings.recorded_at))
@@ -125,6 +207,7 @@ async function getLatestVitalsReading(userId: string) {
 }
 
 async function getVitalsHistory(userId: string, days = 30) {
+  await ensureReportsPersistenceTables();
   const cutoff = new Date();
   cutoff.setUTCDate(cutoff.getUTCDate() - days);
   return db.select().from(vitalsReadings)
