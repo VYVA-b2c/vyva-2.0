@@ -265,6 +265,7 @@ export const profiles = pgTable("profiles", {
   // New: health context
   gp_name:                text("gp_name"),
   gp_phone:               text("gp_phone"),
+  gp_email:               text("gp_email"),
   gp_address:             text("gp_address"),
   gp_maps_url:            text("gp_maps_url"),
   gp_place_id:            text("gp_place_id"),

@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ConciergeShoppingScreen from "./ConciergeShoppingScreen";
@@ -24,9 +25,9 @@ function jsonResponse(body: unknown) {
   });
 }
 
-function renderScreen() {
+function renderScreen(initialEntries: ComponentProps<typeof MemoryRouter>["initialEntries"] = ["/concierge/shopping"]) {
   return render(
-    <MemoryRouter initialEntries={["/concierge/shopping"]}>
+    <MemoryRouter initialEntries={initialEntries}>
       <ConciergeShoppingScreen />
     </MemoryRouter>,
   );
@@ -77,5 +78,38 @@ describe("ConciergeShoppingScreen", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent("Write a short sentence");
     expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("uses symptom report route prefill for a hydration order", async () => {
+    apiFetchMock.mockResolvedValueOnce(jsonResponse(buildShoppingRecommendations({
+      needText: "Hydration support with easy delivery",
+      category: "groceries",
+      priorities: ["delivery", "simplicity"],
+      locale: "en",
+    })));
+
+    renderScreen([{
+      pathname: "/concierge/shopping",
+      state: {
+        shoppingPrefill: {
+          needText: "Hydration support with easy delivery",
+          category: "groceries",
+          priorities: ["delivery", "simplicity"],
+        },
+      },
+    }]);
+
+    expect(screen.getByLabelText("What do you need help choosing?")).toHaveValue("Hydration support with easy delivery");
+
+    fireEvent.click(screen.getByTestId("button-shopping-find"));
+    await screen.findByTestId("shopping-recommendation-results");
+
+    const [, init] = apiFetchMock.mock.calls[0];
+    const body = JSON.parse(String(init?.body));
+    expect(body).toMatchObject({
+      needText: "Hydration support with easy delivery",
+      category: "groceries",
+      priorities: ["delivery", "simplicity"],
+    });
   });
 });

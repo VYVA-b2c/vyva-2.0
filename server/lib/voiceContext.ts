@@ -1319,7 +1319,7 @@ export async function buildVoiceContext(
         : "",
     ], 600);
     variables.providers = joinList(providers);
-    variables.gp_details = valueList([profile?.gp_name, profile?.gp_phone, profile?.gp_address]);
+    variables.gp_details = valueList([profile?.gp_name, profile?.gp_phone, profile?.gp_email, profile?.gp_address]);
     variables.diet_context = valueList([dietaryNotes, dietaryPreferences.length ? dietaryPreferences.join(", ") : ""]);
     variables.mobility_context = mobilityContext;
   }
@@ -1329,7 +1329,7 @@ export async function buildVoiceContext(
       conditions.length ? `Conditions: ${joinList(conditions)}` : "",
       allergies.length ? `Allergies: ${joinList(allergies)}` : "",
       activeMeds.length ? `Active medications: ${joinList(activeMeds)}` : "",
-      valueList([profile?.gp_name, profile?.gp_phone, profile?.gp_address]) ? `GP: ${valueList([profile?.gp_name, profile?.gp_phone, profile?.gp_address])}` : "",
+      valueList([profile?.gp_name, profile?.gp_phone, profile?.gp_email, profile?.gp_address]) ? `GP: ${valueList([profile?.gp_name, profile?.gp_phone, profile?.gp_email, profile?.gp_address])}` : "",
       providers.length ? `Providers: ${joinList(providers)}` : "",
       careTeam.length ? `Care team: ${joinList(careTeam)}` : "",
       devices.length ? `Connected devices: ${joinList(devices)}` : "",

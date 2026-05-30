@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -34,6 +34,16 @@ interface ChatMessage {
   role: "user" | "assistant";
   content: string;
 }
+
+type ConciergeRoutePrefill = {
+  kind: "ride" | "appointment" | "home_care_quote";
+  message: string;
+  source?: "symptom_report";
+};
+
+type ConciergeLocationState = {
+  conciergePrefill?: ConciergeRoutePrefill;
+} | null;
 
 interface StoredChatHistory {
   savedAt: string;
@@ -744,6 +754,7 @@ type SpeechRecognitionWindow = Window & typeof globalThis & {
 const ConciergeScreen = () => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const locale = i18n.language.split("-")[0].toLowerCase();
   const isSpanish = locale === "es";
   const autoStartVoice = useRouteVoiceAutoStart();
@@ -763,9 +774,11 @@ const ConciergeScreen = () => {
   const saveReadyRef = useRef(false);
   const billInputRef = useRef<HTMLInputElement>(null);
   const lastAppliedConciergeVoiceActionRef = useRef<string | null>(null);
+  const lastRoutePrefillKeyRef = useRef<string | null>(null);
 
   const [appointmentOpen, setAppointmentOpen] = useState(false);
   const [appointmentNote, setAppointmentNote] = useState("");
+  const [routePrefill, setRoutePrefill] = useState<ConciergeRoutePrefill | null>(null);
   const [offersOpen, setOffersOpen] = useState(false);
   const [savingsPanelView, setSavingsPanelView] = useState<SavingsPanelView>("overview");
   const [offersQuery, setOffersQuery] = useState("");
@@ -889,6 +902,31 @@ const ConciergeScreen = () => {
   }, [conciergeVoiceAction, conciergeVoiceDraft, conciergeVoiceTaskType]);
 
   useEffect(() => {
+    const prefill = (location.state as ConciergeLocationState)?.conciergePrefill;
+    if (!prefill) return;
+    const message = prefill.message.trim();
+    if (!message) return;
+    const prefillKey = `${prefill.kind}:${message}`;
+    if (lastRoutePrefillKeyRef.current === prefillKey) return;
+
+    lastRoutePrefillKeyRef.current = prefillKey;
+    const nextPrefill = { ...prefill, message };
+    setRoutePrefill(nextPrefill);
+    setInput((current) => current.trim() ? current : message);
+    setOffersOpen(false);
+
+    if (prefill.kind === "appointment") {
+      setAppointmentOpen(true);
+      setAppointmentNote((current) => current.trim() ? current : message);
+    } else {
+      setAppointmentOpen(false);
+    }
+
+    window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+  }, [location.pathname, location.search, location.state, navigate]);
+
+  useEffect(() => {
     try {
       const raw = localStorage.getItem(chatHistoryKey(i18n.language));
       if (raw) {
@@ -969,6 +1007,17 @@ const ConciergeScreen = () => {
     const nextHistory = [...messages, userMsg];
     setMessages(nextHistory);
     setInput("");
+    sendMessage(text, nextHistory);
+  }
+
+  function sendPrefillToConcierge() {
+    const text = routePrefill?.message.trim() || input.trim();
+    if (!text || chatLoading) return;
+    const userMsg: ChatMessage = { role: "user", content: text };
+    const nextHistory = [...messages, userMsg];
+    setMessages(nextHistory);
+    setInput("");
+    setRoutePrefill(null);
     sendMessage(text, nextHistory);
   }
 
@@ -1432,6 +1481,67 @@ const ConciergeScreen = () => {
           : "VYVA can use the request, date, provider, and location before confirming any action."}
         className="mt-5"
       />
+
+      {routePrefill && (
+        <section
+          className="mt-4 rounded-[24px] border border-[#D8B4FE] bg-[#F5F3FF] p-4"
+          style={{ boxShadow: "0 12px 32px rgba(107,33,168,0.12)" }}
+          data-testid="panel-concierge-route-prefill"
+        >
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-vyva-purple">
+              {routePrefill.kind === "ride" ? <Car size={20} /> : routePrefill.kind === "appointment" ? <Calendar size={20} /> : <PencilLine size={20} />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-vyva-purple">
+                {isSpanish ? "Preparado desde salud" : "Prepared from health"}
+              </p>
+              <h2 className="mt-1 font-body text-[18px] font-extrabold leading-tight text-vyva-text-1">
+                {routePrefill.kind === "ride"
+                  ? (isSpanish ? "Ayuda para ir con seguridad" : "Help getting there safely")
+                  : routePrefill.kind === "appointment"
+                    ? (isSpanish ? "Cita preparada" : "Appointment request ready")
+                    : (isSpanish ? "Presupuesto de apoyo en casa" : "Home support quote")}
+              </h2>
+              <p className="mt-2 font-body text-[15px] font-semibold leading-relaxed text-vyva-text-2">
+                {routePrefill.message}
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            {routePrefill.kind === "appointment" ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setAppointmentOpen(true);
+                  chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
+                className="vyva-tap inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-[15px] font-black text-white"
+              >
+                <Calendar size={18} />
+                {isSpanish ? "Revisar cita" : "Review appointment"}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={sendPrefillToConcierge}
+                disabled={chatLoading}
+                className="vyva-tap inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-[15px] font-black text-white disabled:opacity-60"
+              >
+                {chatLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                {isSpanish ? "Pedir a Concierge" : "Ask Concierge"}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setRoutePrefill(null)}
+              className="vyva-tap inline-flex min-h-[48px] flex-1 items-center justify-center rounded-full border border-[#D8B4FE] bg-white px-4 font-body text-[15px] font-black text-vyva-purple"
+            >
+              {isSpanish ? "Cerrar" : "Close"}
+            </button>
+          </div>
+        </section>
+      )}
 
       {conciergeVoiceAction && (
         <section

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Activity, ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, Heart, Loader2, PhoneCall, RefreshCw, Send, Stethoscope } from "lucide-react";
+import { Activity, Calendar, Car, ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, Heart, Loader2, Mail, PhoneCall, RefreshCw, Send, ShoppingBasket, Stethoscope, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import TriageChat, { type TriageChatDraft } from "@/components/TriageChat";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
@@ -16,6 +16,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/i18n";
 import { apiFetch, queryClient } from "@/lib/queryClient";
+import { getSymptomRecommendationActionKinds, type SymptomRecommendationActionKind } from "@/lib/symptomReportActions";
 
 type Step = "intro" | "chat" | "report";
 
@@ -88,6 +89,7 @@ type ProfileContactsResponse = {
   caregiverContact?: string | null;
   gpName?: string | null;
   gpPhone?: string | null;
+  gpEmail?: string | null;
 } | null;
 
 type CareTeamMember = {
@@ -118,6 +120,17 @@ type SavedTriageReport = {
   respiratory_rate?: number | null;
   duration_seconds?: number | null;
   created_at?: string;
+};
+
+type ConciergePrefillKind = "ride" | "appointment" | "home_care_quote";
+
+type ReportAction = {
+  kind: SymptomRecommendationActionKind;
+  label: string;
+  ariaLabel: string;
+  Icon: LucideIcon;
+  href?: string;
+  onClick?: () => void;
 };
 
 const SYMPTOM_CHECK_DRAFT_KEY = "vyva.symptomCheck.draft.v1";
@@ -653,7 +666,7 @@ function ReportScreen({
     `${t("health.symptomCheck.report.tellMainSymptom", "Main symptom")}: ${summary.chiefComplaint}`,
     summary.symptoms.length ? `${t("health.symptomCheck.report.symptoms", "Symptoms noted")}: ${summary.symptoms.join(", ")}` : "",
     nextStepDisplayText ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${nextStepDisplayText}` : "",
-    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Initial assessment")}: ${summary.triageReasons.join(" ")}` : "",
+    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Initial Assessment")}: ${summary.triageReasons.join(" ")}` : "",
     summary.vitalsNotes?.length ? `${t("health.symptomCheck.report.vitalsUsed", "Vitals used")}: ${summary.vitalsNotes.join(" ")}` : "",
     summary.profileConsiderations?.length ? `${t("health.symptomCheck.report.profileConsidered", "Profile considered")}: ${summary.profileConsiderations.join(" ")}` : "",
     summary.watchSigns?.length ? `${t("health.symptomCheck.report.watchSigns", "Watch signs")}: ${summary.watchSigns.join(" ")}` : "",
@@ -665,7 +678,7 @@ function ReportScreen({
     respiratoryRate != null ? `${t("health.symptomCheck.scan.respiratoryRate", "Resp. Rate")}: ${respiratoryRate} rpm` : "",
     `${urgencyQualifierText}: ${urgencyStatusText}`,
     nextStepDisplayText ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${nextStepDisplayText}` : "",
-    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Initial assessment")}: ${summary.triageReasons.join(" ")}` : "",
+    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Initial Assessment")}: ${summary.triageReasons.join(" ")}` : "",
     summary.evidenceSummary ? `${t("health.symptomCheck.report.evidenceChecked", "Science-based source check")}: ${summary.evidenceSummary}` : "",
     summary.recommendations.length ? `${t("health.symptomCheck.report.recommendations", "What to do next")}: ${summary.recommendations.join(" ")}` : "",
     summary.watchSigns?.length ? `${t("health.symptomCheck.report.watchSigns", "Watch signs")}: ${summary.watchSigns.join(" ")}` : "",
@@ -684,13 +697,106 @@ function ReportScreen({
       },
     });
   };
+  const gpPhone = profileContacts?.gpPhone?.trim() ?? "";
+  const gpEmail = profileContacts?.gpEmail?.trim() ?? "";
+  const telHref = gpPhone ? `tel:${gpPhone.replace(/[^\d+]/g, "") || gpPhone}` : "";
+  const emailSubject = t("health.symptomCheck.report.actions.emailSubject", "VYVA symptom report");
+  const mailtoHref = gpEmail
+    ? `mailto:${gpEmail}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(doctorNote)}`
+    : "";
+
+  const conciergePrefillMessage = (kind: ConciergePrefillKind, recommendation: string) => {
+    const key = kind === "ride"
+      ? "health.symptomCheck.report.actions.ridePrefill"
+      : kind === "appointment"
+        ? "health.symptomCheck.report.actions.appointmentPrefill"
+        : "health.symptomCheck.report.actions.quotePrefill";
+    const fallback = kind === "ride"
+      ? "Please help me book a safe ride for this health recommendation: {{recommendation}}. Ask me to confirm before booking."
+      : kind === "appointment"
+        ? "Please help me schedule care for this health recommendation: {{recommendation}}. Ask me to confirm before booking."
+        : "Please help me request a quote for someone to stay with me or support me at home: {{recommendation}}. Ask me to confirm before requesting anything.";
+    return t(key, fallback, { recommendation, report: doctorNote });
+  };
+
+  const openConciergePrefill = (kind: ConciergePrefillKind, recommendation: string) => {
+    navigate("/concierge", {
+      state: {
+        conciergePrefill: {
+          kind,
+          message: conciergePrefillMessage(kind, recommendation),
+          source: "symptom_report",
+        },
+      },
+    });
+  };
+
+  const openHydrationOrder = (recommendation: string) => {
+    navigate("/concierge/shopping", {
+      state: {
+        shoppingPrefill: {
+          needText: t(
+            "health.symptomCheck.report.actions.hydrationPrefill",
+            "Hydration support for this health recommendation: {{recommendation}}. Please suggest easy delivery options such as water, oral rehydration salts, or electrolyte drinks.",
+            { recommendation, report: doctorNote },
+          ),
+          category: "groceries",
+          priorities: ["delivery", "simplicity"],
+        },
+      },
+    });
+  };
+
+  const reportActionLabels: Record<SymptomRecommendationActionKind, string> = {
+    call_gp: t("health.symptomCheck.report.actions.callGp", "Call GP"),
+    email_gp: t("health.symptomCheck.report.actions.emailGp", "Email GP"),
+    doctor_help: t("health.symptomCheck.report.actions.doctorHelp", "Doctor help"),
+    book_ride: t("health.symptomCheck.report.actions.bookRide", "Book ride"),
+    schedule_appointment: t("health.symptomCheck.report.actions.scheduleAppointment", "Appointment"),
+    online_order: t("health.symptomCheck.report.actions.onlineOrder", "Online order"),
+    request_quote: t("health.symptomCheck.report.actions.requestQuote", "Request quote"),
+  };
+
+  const reportActionIcons: Record<SymptomRecommendationActionKind, LucideIcon> = {
+    call_gp: PhoneCall,
+    email_gp: Mail,
+    doctor_help: Stethoscope,
+    book_ride: Car,
+    schedule_appointment: Calendar,
+    online_order: ShoppingBasket,
+    request_quote: ClipboardList,
+  };
+
+  const actionsForRecommendation = (recommendation: string): ReportAction[] => getSymptomRecommendationActionKinds(recommendation, {
+    hasGpPhone: Boolean(gpPhone),
+    hasGpEmail: Boolean(gpEmail),
+  }).map((kind) => {
+    const label = reportActionLabels[kind];
+    const base = {
+      kind,
+      label,
+      ariaLabel: t("health.symptomCheck.report.actions.aria", "{{action}} for: {{recommendation}}", {
+        action: label,
+        recommendation,
+      }),
+      Icon: reportActionIcons[kind],
+    };
+
+    if (kind === "call_gp") return { ...base, href: telHref };
+    if (kind === "email_gp") return { ...base, href: mailtoHref };
+    if (kind === "doctor_help") return { ...base, onClick: openDoctorWithContext };
+    if (kind === "book_ride") return { ...base, onClick: () => openConciergePrefill("ride", recommendation) };
+    if (kind === "schedule_appointment") return { ...base, onClick: () => openConciergePrefill("appointment", recommendation) };
+    if (kind === "online_order") return { ...base, onClick: () => openHydrationOrder(recommendation) };
+    return { ...base, onClick: () => openConciergePrefill("home_care_quote", recommendation) };
+  }).filter((action) => action.href || action.onClick);
   const allReasons = uniqueLines([
     ...(summary.triageReasons ?? []),
     ...(summary.profileConsiderations ?? []),
     ...(summary.vitalsNotes ?? []),
   ]);
   const visibleReasons = allReasons.slice(0, 2);
-  const visibleRecommendations = compactDoctorContactRecommendations(summary.recommendations).slice(0, 3);
+  const visibleRecommendations = compactDoctorContactRecommendations(summary.recommendations).slice(0, 4);
   const visibleWatchSigns = uniqueLines(summary.watchSigns ?? []).slice(0, 2);
   const contextNotes = uniqueLines([...(summary.profileConsiderations ?? []), ...(summary.vitalsNotes ?? [])]);
   const answerFinding = t("health.symptomCheck.report.summaryIntro", "Thank you for your answers. Here's a summary of your situation:");
@@ -744,7 +850,7 @@ function ReportScreen({
     "",
     `${urgencyQualifierText}: ${urgencyStatusText}`,
     nextStepDisplayText ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${nextStepDisplayText}` : "",
-    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Initial assessment")}: ${summary.triageReasons.join(" ")}` : "",
+    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Initial Assessment")}: ${summary.triageReasons.join(" ")}` : "",
     summary.evidenceSummary ? `${t("health.symptomCheck.report.evidenceChecked", "Science-based source check")}: ${summary.evidenceSummary}` : "",
     "",
     t("health.symptomCheck.report.recommendations") + ":",
@@ -841,7 +947,7 @@ function ReportScreen({
                 <Stethoscope size={20} />
               </span>
               <p className="font-body text-[13px] font-extrabold uppercase tracking-[0.12em]">
-                {t("health.symptomCheck.report.whyThisStep", "Initial assessment")}
+                {t("health.symptomCheck.report.whyThisStep", "Initial Assessment")}
               </p>
             </div>
             <ul className="grid gap-3 border-l-4 border-[#7C3AED] pl-4">
@@ -860,14 +966,54 @@ function ReportScreen({
               {t("health.symptomCheck.report.doNow", "Do now")}
             </p>
             <ol className="mt-3 grid gap-3">
-              {visibleRecommendations.map((recommendation, index) => (
-                <li key={index} className="flex items-start gap-3 font-body text-[16px] font-bold leading-snug text-vyva-text-1">
-                  <span className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#ECFDF5] text-[#047857]">
-                    <CheckCircle size={15} />
-                  </span>
-                  <span>{recommendation}</span>
-                </li>
-              ))}
+              {visibleRecommendations.map((recommendation, index) => {
+                const actions = actionsForRecommendation(recommendation);
+                return (
+                  <li key={index} className="rounded-[20px] border border-[#F1E8DE] bg-[#FFFCF8] p-3">
+                    <div className="flex items-start gap-3 font-body text-[16px] font-bold leading-snug text-vyva-text-1">
+                      <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-vyva-purple text-white">
+                        {index + 1}
+                      </span>
+                      <span className="min-w-0 flex-1 pt-0.5">{recommendation}</span>
+                    </div>
+                    {actions.length ? (
+                      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid={`report-actions-${index}`}>
+                        {actions.map((action) => {
+                          const Icon = action.Icon;
+                          const className = "vyva-tap inline-flex min-h-[50px] items-center justify-center gap-2 rounded-[16px] border border-[#E7DCF8] bg-white px-4 py-3 text-center font-body text-[15px] font-black leading-tight text-vyva-purple shadow-sm";
+                          if (action.href) {
+                            return (
+                              <a
+                                key={action.kind}
+                                href={action.href}
+                                aria-label={action.ariaLabel}
+                                data-testid={`button-report-action-${index}-${action.kind}`}
+                                className={className}
+                              >
+                                <Icon size={19} />
+                                <span>{action.label}</span>
+                              </a>
+                            );
+                          }
+                          return (
+                            <button
+                              key={action.kind}
+                              type="button"
+                              onClick={action.onClick}
+                              aria-label={action.ariaLabel}
+                              data-testid={`button-report-action-${index}-${action.kind}`}
+                              className={className}
+                            >
+                              <Icon size={19} />
+                              <span>{action.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </li>
+                );
+              })}
             </ol>
           </section>
         ) : null}

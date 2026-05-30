@@ -231,11 +231,28 @@ describe("Onboarding journey — end-to-end", () => {
       .send({
         gp_name: "Dr. Jane Smith",
         gp_phone: "020 7946 0958",
+        gp_email: "gp@example.com",
         gp_address: "1 Health Centre, London",
       })
       .expect(200);
 
     expect(res.body).toMatchObject({ ok: true, section: "gp" });
+
+    const [profile] = await db
+      .select({
+        gp_name: profiles.gp_name,
+        gp_phone: profiles.gp_phone,
+        gp_email: profiles.gp_email,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, TEST_USER_ID))
+      .limit(1);
+
+    expect(profile).toMatchObject({
+      gp_name: "Dr. Jane Smith",
+      gp_phone: "020 7946 0958",
+      gp_email: "gp@example.com",
+    });
   });
 
   it("POST /section/hobbies saves hobbies", async () => {
