@@ -176,20 +176,43 @@ function writeSymptomCheckDraft(draft: Omit<SymptomCheckDraft, "version" | "upda
 }
 
 function StepDots({ current }: { current: Step }) {
-  const steps: Step[] = ["chat", "report"];
-  const idx = steps.indexOf(current);
+  const { t } = useTranslation();
+  const progress = current === "report" ? 100 : 58;
+  const stageLabel = current === "report"
+    ? t("health.symptomCheck.progress.report", "Report ready")
+    : t("health.symptomCheck.progress.safety", "Safety questions");
+  const confidenceLabel = current === "report"
+    ? t("health.symptomCheck.progress.confidenceHigh", "Confidence: strong")
+    : t("health.symptomCheck.progress.confidenceBuilding", "Confidence: building");
+  const helper = current === "report"
+    ? t("health.symptomCheck.progress.reportHelper", "Enough answers gathered for the next step.")
+    : t("health.symptomCheck.progress.safetyHelper", "VYVA is checking urgent signs first.");
+
   return (
-    <div className="mx-[18px] flex items-center gap-2 rounded-[22px] border border-[#E8DED4] bg-white/90 p-3 shadow-[0_8px_20px_rgba(63,45,35,0.06)]">
-      {steps.map((s, i) => (
+    <div className="mx-[18px] rounded-[22px] border border-[#E8DED4] bg-white/90 p-3 shadow-[0_8px_20px_rgba(63,45,35,0.06)]">
+      <div className="mb-2 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+            {t("health.symptomCheck.progress.title", "Triage progress")}
+          </p>
+          <p className="mt-0.5 font-body text-[15px] font-black leading-tight text-vyva-text-1">
+            {stageLabel}
+          </p>
+        </div>
+        <div className="flex-shrink-0 rounded-full bg-[#F5F3FF] px-3 py-1 text-right font-body text-[13px] font-black text-vyva-purple">
+          {progress}%
+        </div>
+      </div>
+      <div className="h-3 overflow-hidden rounded-full bg-[#E8DED4]" aria-label={`${stageLabel} ${progress}%`}>
         <div
-          key={s}
-          className="h-3 flex-1 rounded-full transition-all"
-          style={{
-            background: i <= idx ? "hsl(var(--vyva-purple))" : "#E8DED4",
-            opacity: i === idx ? 1 : i < idx ? 0.85 : 0.7,
-          }}
+          className="h-full rounded-full bg-vyva-purple transition-all"
+          style={{ width: `${progress}%` }}
         />
-      ))}
+      </div>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+        <span>{confidenceLabel}</span>
+        <span>{helper}</span>
+      </div>
     </div>
   );
 }
