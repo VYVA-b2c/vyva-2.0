@@ -549,7 +549,7 @@ function ReportScreen({
     `${t("health.symptomCheck.report.tellMainSymptom", "Main symptom")}: ${summary.chiefComplaint}`,
     summary.symptoms.length ? `${t("health.symptomCheck.report.symptoms", "Symptoms noted")}: ${summary.symptoms.join(", ")}` : "",
     nextStepDisplayText ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${nextStepDisplayText}` : "",
-    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why VYVA chose this")}: ${summary.triageReasons.join(" ")}` : "",
+    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Initial assessment")}: ${summary.triageReasons.join(" ")}` : "",
     summary.vitalsNotes?.length ? `${t("health.symptomCheck.report.vitalsUsed", "Vitals used")}: ${summary.vitalsNotes.join(" ")}` : "",
     summary.profileConsiderations?.length ? `${t("health.symptomCheck.report.profileConsidered", "Profile considered")}: ${summary.profileConsiderations.join(" ")}` : "",
     summary.watchSigns?.length ? `${t("health.symptomCheck.report.watchSigns", "Watch signs")}: ${summary.watchSigns.join(" ")}` : "",
@@ -561,7 +561,7 @@ function ReportScreen({
     respiratoryRate != null ? `${t("health.symptomCheck.scan.respiratoryRate", "Resp. Rate")}: ${respiratoryRate} rpm` : "",
     `${urgencyQualifierText}: ${urgencyStatusText}`,
     nextStepDisplayText ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${nextStepDisplayText}` : "",
-    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why VYVA chose this")}: ${summary.triageReasons.join(" ")}` : "",
+    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Initial assessment")}: ${summary.triageReasons.join(" ")}` : "",
     summary.evidenceSummary ? `${t("health.symptomCheck.report.evidenceChecked", "Science-based source check")}: ${summary.evidenceSummary}` : "",
     summary.recommendations.length ? `${t("health.symptomCheck.report.recommendations", "What to do next")}: ${summary.recommendations.join(" ")}` : "",
     summary.watchSigns?.length ? `${t("health.symptomCheck.report.watchSigns", "Watch signs")}: ${summary.watchSigns.join(" ")}` : "",
@@ -636,7 +636,7 @@ function ReportScreen({
     "",
     `${urgencyQualifierText}: ${urgencyStatusText}`,
     nextStepDisplayText ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${nextStepDisplayText}` : "",
-    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Why VYVA chose this")}: ${summary.triageReasons.join(" ")}` : "",
+    summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Initial assessment")}: ${summary.triageReasons.join(" ")}` : "",
     summary.evidenceSummary ? `${t("health.symptomCheck.report.evidenceChecked", "Science-based source check")}: ${summary.evidenceSummary}` : "",
     "",
     t("health.symptomCheck.report.recommendations") + ":",
@@ -727,16 +727,18 @@ function ReportScreen({
 
       <div className="flex flex-col gap-4 px-[18px] pb-[236px]">
         {visibleReasons.length ? (
-          <section className="rounded-[22px] border border-[#DDD6FE] bg-[#F5F3FF] p-4 text-vyva-purple shadow-[0_8px_22px_rgba(63,45,35,0.05)]" data-testid="card-report-why">
-            <div className="mb-3 flex items-center gap-2">
-              <AlertTriangle size={18} />
-              <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em]">
-                {t("health.symptomCheck.report.whyThisStep", "Why VYVA chose this")}
+          <section className="rounded-[26px] border-2 border-[#7C3AED] bg-[linear-gradient(135deg,#F5F3FF_0%,#FFFFFF_58%,#FFF7ED_100%)] p-4 text-vyva-purple shadow-[0_18px_38px_rgba(107,33,168,0.18)] ring-4 ring-[#F5E8FF]" data-testid="card-report-why">
+            <div className="mb-4 flex items-center gap-3">
+              <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#6B21A8] text-white shadow-[0_10px_22px_rgba(107,33,168,0.22)]">
+                <Stethoscope size={20} />
+              </span>
+              <p className="font-body text-[13px] font-extrabold uppercase tracking-[0.12em]">
+                {t("health.symptomCheck.report.whyThisStep", "Initial assessment")}
               </p>
             </div>
-            <ul className="grid gap-2">
+            <ul className="grid gap-3 border-l-4 border-[#7C3AED] pl-4">
               {visibleReasons.map((reason, index) => (
-                <li key={index} className="font-body text-[16px] font-bold leading-snug text-vyva-text-1">
+                <li key={index} className="font-body text-[18px] font-black leading-snug text-vyva-text-1">
                   {reason}
                 </li>
               ))}
