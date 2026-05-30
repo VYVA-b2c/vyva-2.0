@@ -652,6 +652,8 @@
         "reviewStepSafety": "Recherche de signaux d’alerte dans vos réponses",
         "reviewStepProfile": "Prise en compte de votre profil et de vos médicaments",
         "reviewStepNext": "Préparation d’étapes claires",
+        "followupTitle": "Questions utiles à poser",
+        "followupSub": "Touchez-en une si elle correspond à ce que vous voulez demander.",
         "send": "Envoyer",
         "voiceStart": "Répondre par voix",
         "voiceStop": "Arrêter la voix",

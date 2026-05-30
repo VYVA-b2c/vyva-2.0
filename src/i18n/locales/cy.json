@@ -552,6 +552,8 @@
         "reviewStepSafety": "Gwirio eich atebion am arwyddion rhybudd",
         "reviewStepProfile": "Ystyried eich proffil iechyd a meddyginiaethau",
         "reviewStepNext": "Paratoi camau nesaf clir",
+        "followupTitle": "Cwestiynau dilynol defnyddiol",
+        "followupSub": "Tapiwch un os yw'n cyfateb i'r hyn rydych am ei ofyn.",
         "send": "Anfon",
         "errorMsg": "Mae'n ddrwg gennyf, cefais drafferth deall hynny. A allech chi roi cynnig arall arni?"
       },

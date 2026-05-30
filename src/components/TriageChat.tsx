@@ -52,6 +52,8 @@ interface TriageResponse {
   wizardStageLabel?: string;
   evidenceSources?: Array<{ title?: string; url?: string; year?: string; journal?: string }>;
   emergencyContact?: EmergencyContact;
+  medisearchConversationId?: string;
+  medicalFollowups?: string[];
 }
 
 type WizardEntryMode = "with_vitals" | "without_vitals";
@@ -276,6 +278,8 @@ export default function TriageChat({
   const [safetyAlert, setSafetyAlert] = useState<TriageResponse["safetyAlert"] | null>(null);
   const [emergencyContact, setEmergencyContact] = useState<EmergencyContact | null>(null);
   const [wizardStageLabel, setWizardStageLabel] = useState("");
+  const [medisearchConversationId, setMedisearchConversationId] = useState<string | null>(null);
+  const [medicalFollowups, setMedicalFollowups] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const animTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -414,6 +418,7 @@ export default function TriageChat({
               quickAnswers: quickAnswerTrail,
             },
             healthMemory,
+            medisearchConversationId,
           }),
         });
         if (!response.ok) throw new Error(`${response.status}`);
@@ -423,6 +428,16 @@ export default function TriageChat({
         setEmergencyContact(res.emergencyContact ?? res.safetyAlert?.emergencyContact ?? null);
         if (res.evidenceSources) setEvidenceSources(res.evidenceSources);
         if (res.wizardStageLabel) setWizardStageLabel(res.wizardStageLabel);
+        if (res.medisearchConversationId) setMedisearchConversationId(res.medisearchConversationId);
+        setMedicalFollowups(
+          !res.done && !res.safetyAlert && Array.isArray(res.medicalFollowups)
+            ? res.medicalFollowups
+                .filter((item): item is string => typeof item === "string")
+                .map((item) => item.trim())
+                .filter(Boolean)
+                .slice(0, 3)
+            : [],
+        );
 
         const msgIdx = history.length;
         setMessages((prev) => [...prev, { role: "assistant", content: res.content }]);
@@ -451,6 +466,7 @@ export default function TriageChat({
           role: "assistant",
           content: t("health.symptomCheck.chat.errorMsg"),
         };
+        setMedicalFollowups([]);
         const msgIdx = messages.length;
         setMessages((prev) => [...prev, errMsg]);
         animateMessage(msgIdx, errMsg.content);
@@ -458,7 +474,7 @@ export default function TriageChat({
         setLoading(false);
       }
     },
-    [animateMessage, bpm, entryMode, healthMemory, initialClue, messages.length, onComplete, respiratoryRate, selectedQuickAnswers, t]
+    [animateMessage, bpm, entryMode, healthMemory, initialClue, medisearchConversationId, messages.length, onComplete, respiratoryRate, selectedQuickAnswers, t]
   );
 
   useEffect(() => {
@@ -535,6 +551,7 @@ export default function TriageChat({
     : t("health.symptomCheck.chat.reviewTitle", "VYVA is checking the safest next step");
   const showQuestion = Boolean(latestAssistantEntry || !loading);
   const canAnswer = !loading && animatingIdx === null && messages.length > 0;
+  const canShowMedicalFollowups = canAnswer && !safetyAlert && medicalFollowups.length > 0;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -602,6 +619,38 @@ export default function TriageChat({
               <p className="mt-1 font-body text-[16px] leading-snug text-vyva-text-2">
                 {evidenceSources.slice(0, 2).map((source) => source.title).filter(Boolean).join(" - ")}
               </p>
+            </HealthWizardCard>
+          )}
+
+          {canShowMedicalFollowups && (
+            <HealthWizardCard tone="purple" className="grid gap-3 px-4 py-4" testId="triage-medical-followups">
+              <div className="flex items-center gap-3">
+                <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-vyva-purple shadow-[0_6px_16px_rgba(107,33,168,0.10)]">
+                  <BookOpenCheck size={21} />
+                </span>
+                <div className="min-w-0">
+                  <p className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+                    {t("health.symptomCheck.chat.followupTitle", "Useful follow-up questions")}
+                  </p>
+                  <p className="font-body text-[16px] font-bold leading-snug text-vyva-text-2">
+                    {t("health.symptomCheck.chat.followupSub", "Tap one if it matches what you want to ask next.")}
+                  </p>
+                </div>
+              </div>
+              <div className="grid gap-2">
+                {medicalFollowups.map((question, index) => (
+                  <button
+                    key={`${question}-${index}`}
+                    type="button"
+                    onClick={() => void sendText(question)}
+                    data-testid={`triage-medical-followup-${index}`}
+                    className="vyva-tap flex min-h-[64px] items-center justify-between gap-3 rounded-[20px] border border-[#DDD6FE] bg-white px-4 py-3 text-left font-body text-[17px] font-black leading-snug text-vyva-text-1 shadow-[0_8px_20px_rgba(107,33,168,0.07)]"
+                  >
+                    <span>{question}</span>
+                    <Send size={18} className="flex-shrink-0 text-vyva-purple" />
+                  </button>
+                ))}
+              </div>
             </HealthWizardCard>
           )}
 
