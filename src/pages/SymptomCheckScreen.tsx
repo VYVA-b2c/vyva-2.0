@@ -1,6 +1,25 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Activity, ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, Heart, Loader2, PhoneCall, Pill, Stethoscope } from "lucide-react";
+import {
+  Activity,
+  AlertTriangle,
+  CheckCircle,
+  ChevronLeft,
+  ClipboardList,
+  Droplets,
+  Eye,
+  FileText,
+  Gauge,
+  Heart,
+  Loader2,
+  PhoneCall,
+  Pill,
+  Share2,
+  Stethoscope,
+  Thermometer,
+  Wind,
+  type LucideIcon,
+} from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import TriageChat from "@/components/TriageChat";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
@@ -45,10 +64,12 @@ type RefinementVitalKey = "glucose" | "bloodPressure" | "oxygen" | "respiratoryR
 type RefinementVitalConfig = {
   key: RefinementVitalKey;
   title: string;
+  buttonLabel: string;
   unit: string;
   placeholder: string;
   helper: string;
   signalType: string;
+  Icon: LucideIcon;
   parse: (raw: string) => { value: number; extraValue?: number; display: string; vitals: Record<string, number> } | null;
 };
 
@@ -257,6 +278,17 @@ function reportText(summary: TriageSummary) {
   ].join(" ").toLowerCase();
 }
 
+function normalizeMatchText(raw: string) {
+  return raw
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function textHasAny(text: string, keywords: string[]) {
+  return keywords.some((keyword) => text.includes(normalizeMatchText(keyword)));
+}
+
 function ReportScreen({
   summary,
   bpm,
@@ -318,93 +350,119 @@ function ReportScreen({
         })
       : "";
   const contactStatusText = notifiedText || t("health.symptomCheck.report.noContactsConfigured", "No doctor or caregiver contact is set yet.");
-  const actionText = reportText(summary);
-  const vitalActions: RefinementVitalConfig[] = [
-    /\b(glucose|sugar|diabetes|diabetic|insulin|cgm)\b/.test(actionText)
-      ? {
-          key: "glucose",
-          title: t("health.symptomCheck.report.checkGlucoseNow", "Check glucose now"),
-          unit: "mg/dL",
-          placeholder: "92",
-          helper: t("health.symptomCheck.report.checkGlucoseReason", "Add the number to this report before you speak to a doctor."),
-          signalType: "glucose_mgdl",
-          parse: (raw) => {
-            const value = parseNumber(raw);
-            return value == null ? null : { value, display: `${value} mg/dL`, vitals: { glucoseMgdl: value } };
-          },
-        }
-      : null,
-    /\b(blood pressure|bp|hypertension|180\/120|pressure)\b/.test(actionText)
-      ? {
-          key: "bloodPressure",
-          title: t("health.symptomCheck.report.checkBloodPressureNow", "Check blood pressure now"),
-          unit: "",
-          placeholder: "120/80",
-          helper: t("health.symptomCheck.report.checkBloodPressureReason", "Enter both numbers, for example 120/80."),
-          signalType: "bp_systolic",
-          parse: (raw) => {
-            const bp = parseBloodPressure(raw);
-            return bp ? { value: bp.systolic, extraValue: bp.diastolic, display: `${bp.systolic}/${bp.diastolic}`, vitals: { systolicBp: bp.systolic, diastolicBp: bp.diastolic } } : null;
-          },
-        }
-      : null,
-    /\b(oxygen|spo2|short of breath|breathing|breathless|blue lips)\b/.test(actionText)
-      ? {
-          key: "oxygen",
-          title: t("health.symptomCheck.report.checkOxygenNow", "Check oxygen now"),
-          unit: "%",
-          placeholder: "96",
-          helper: t("health.symptomCheck.report.checkOxygenReason", "Add your oxygen reading if you have a pulse oximeter."),
-          signalType: "spo2_pct",
-          parse: (raw) => {
-            const value = parseNumber(raw);
-            return value == null ? null : { value, display: `${value}%`, vitals: { oxygenSaturation: value } };
-          },
-        }
-      : null,
-    /\b(respiratory rate|breathing rate|breaths per minute|fast breathing)\b/.test(actionText)
-      ? {
-          key: "respiratoryRate",
-          title: t("health.symptomCheck.report.checkBreathingRateNow", "Check breathing rate now"),
-          unit: "/min",
-          placeholder: "16",
-          helper: t("health.symptomCheck.report.checkBreathingRateReason", "Count breaths for one minute, or use the scan result."),
-          signalType: "respiratory_rate",
-          parse: (raw) => {
-            const value = parseNumber(raw);
-            return value == null ? null : { value, display: `${value}/min`, vitals: { respiratoryRate: value } };
-          },
-        }
-      : null,
-    /\b(fever|temperature|chills|infection)\b/.test(actionText)
-      ? {
-          key: "temperature",
-          title: t("health.symptomCheck.report.checkTemperatureNow", "Check temperature now"),
-          unit: "C",
-          placeholder: "37.8",
-          helper: t("health.symptomCheck.report.checkTemperatureReason", "Add the thermometer reading."),
-          signalType: "temperature_c",
-          parse: (raw) => {
-            const value = parseNumber(raw);
-            return value == null ? null : { value, display: `${value} C`, vitals: { temperatureC: value } };
-          },
-        }
-      : null,
-    /\b(pulse|heart rate|heartbeat|afib|irregular)\b/.test(actionText)
-      ? {
-          key: "pulse",
-          title: t("health.symptomCheck.report.checkPulseNow", "Check pulse now"),
-          unit: "bpm",
-          placeholder: "72",
-          helper: t("health.symptomCheck.report.checkPulseReason", "Add pulse from a device or count it manually."),
-          signalType: "resting_hr_bpm",
-          parse: (raw) => {
-            const value = parseNumber(raw);
-            return value == null ? null : { value, display: `${value} bpm`, vitals: { pulseBpm: value } };
-          },
-        }
-      : null,
-  ].filter(Boolean) as RefinementVitalConfig[];
+  const actionText = normalizeMatchText(reportText(summary));
+  const allVitalActions: Array<{ config: RefinementVitalConfig; keywords: string[]; fallback?: boolean }> = [
+    {
+      config: {
+        key: "glucose",
+        title: t("health.symptomCheck.report.checkGlucoseNow", "Check glucose now"),
+        buttonLabel: t("health.symptomCheck.report.recordGlucose", "Record glucose"),
+        unit: "mg/dL",
+        placeholder: "92",
+        helper: t("health.symptomCheck.report.checkGlucoseReason", "Add the number to this report before you speak to a doctor."),
+        signalType: "glucose_mgdl",
+        Icon: Droplets,
+        parse: (raw) => {
+          const value = parseNumber(raw);
+          return value == null ? null : { value, display: `${value} mg/dL`, vitals: { glucoseMgdl: value } };
+        },
+      },
+      keywords: ["glucose", "sugar", "diabetes", "diabetic", "insulin", "cgm", "glucosa", "azucar", "diabetico", "insulina"],
+    },
+    {
+      config: {
+        key: "bloodPressure",
+        title: t("health.symptomCheck.report.checkBloodPressureNow", "Check blood pressure now"),
+        buttonLabel: t("health.symptomCheck.report.recordBloodPressure", "Record blood pressure"),
+        unit: "",
+        placeholder: "120/80",
+        helper: t("health.symptomCheck.report.checkBloodPressureReason", "Enter both numbers, for example 120/80."),
+        signalType: "bp_systolic",
+        Icon: Gauge,
+        parse: (raw) => {
+          const bp = parseBloodPressure(raw);
+          return bp ? { value: bp.systolic, extraValue: bp.diastolic, display: `${bp.systolic}/${bp.diastolic}`, vitals: { systolicBp: bp.systolic, diastolicBp: bp.diastolic } } : null;
+        },
+      },
+      keywords: ["blood pressure", "bp", "hypertension", "180/120", "pressure", "dizzy", "confused", "faint", "weak", "presion arterial", "tension", "hipertension", "mareo", "confuso", "confundido", "desmayo", "debil"],
+    },
+    {
+      config: {
+        key: "oxygen",
+        title: t("health.symptomCheck.report.checkOxygenNow", "Check oxygen now"),
+        buttonLabel: t("health.symptomCheck.report.recordOxygen", "Record oxygen"),
+        unit: "%",
+        placeholder: "96",
+        helper: t("health.symptomCheck.report.checkOxygenReason", "Add your oxygen reading if you have a pulse oximeter."),
+        signalType: "spo2_pct",
+        Icon: Wind,
+        parse: (raw) => {
+          const value = parseNumber(raw);
+          return value == null ? null : { value, display: `${value}%`, vitals: { oxygenSaturation: value } };
+        },
+      },
+      keywords: ["oxygen", "spo2", "short of breath", "breathing", "breathless", "blue lips", "chest", "oxigeno", "saturacion", "falta el aire", "respirar", "respiracion", "labios azules", "pecho"],
+    },
+    {
+      config: {
+        key: "respiratoryRate",
+        title: t("health.symptomCheck.report.checkBreathingRateNow", "Check breathing rate now"),
+        buttonLabel: t("health.symptomCheck.report.recordBreathingRate", "Record breathing rate"),
+        unit: "/min",
+        placeholder: "16",
+        helper: t("health.symptomCheck.report.checkBreathingRateReason", "Count breaths for one minute, or use the scan result."),
+        signalType: "respiratory_rate",
+        Icon: Wind,
+        parse: (raw) => {
+          const value = parseNumber(raw);
+          return value == null ? null : { value, display: `${value}/min`, vitals: { respiratoryRate: value } };
+        },
+      },
+      keywords: ["respiratory rate", "breathing rate", "breaths per minute", "fast breathing", "short of breath", "breathing", "respiratoria", "respiracion", "respirar", "falta el aire"],
+    },
+    {
+      config: {
+        key: "temperature",
+        title: t("health.symptomCheck.report.checkTemperatureNow", "Check temperature now"),
+        buttonLabel: t("health.symptomCheck.report.recordTemperature", "Record temperature"),
+        unit: "C",
+        placeholder: "37.8",
+        helper: t("health.symptomCheck.report.checkTemperatureReason", "Add the thermometer reading."),
+        signalType: "temperature_c",
+        Icon: Thermometer,
+        parse: (raw) => {
+          const value = parseNumber(raw);
+          return value == null ? null : { value, display: `${value} C`, vitals: { temperatureC: value } };
+        },
+      },
+      keywords: ["fever", "temperature", "chills", "infection", "sweat", "fiebre", "temperatura", "escalofrios", "infeccion", "sudor"],
+      fallback: true,
+    },
+    {
+      config: {
+        key: "pulse",
+        title: t("health.symptomCheck.report.checkPulseNow", "Check pulse now"),
+        buttonLabel: t("health.symptomCheck.report.recordPulse", "Record pulse"),
+        unit: "bpm",
+        placeholder: "72",
+        helper: t("health.symptomCheck.report.checkPulseReason", "Add pulse from a device or count it manually."),
+        signalType: "resting_hr_bpm",
+        Icon: Heart,
+        parse: (raw) => {
+          const value = parseNumber(raw);
+          return value == null ? null : { value, display: `${value} bpm`, vitals: { pulseBpm: value } };
+        },
+      },
+      keywords: ["pulse", "heart rate", "heartbeat", "afib", "irregular", "chest", "faint", "weak", "dizzy", "pulso", "frecuencia cardiaca", "latido", "palpitacion", "pecho", "desmayo", "debil", "mareo"],
+      fallback: true,
+    },
+  ];
+  const matchedVitalActions = allVitalActions
+    .filter(({ keywords }) => textHasAny(actionText, keywords))
+    .map(({ config }) => config);
+  const vitalActions: RefinementVitalConfig[] = matchedVitalActions.length
+    ? matchedVitalActions.slice(0, 4)
+    : allVitalActions.filter(({ fallback }) => fallback).map(({ config }) => config);
   const doctorTellItems = uniqueLines([
     `${t("health.symptomCheck.report.tellMainSymptom", "Main symptom")}: ${summary.chiefComplaint}`,
     summary.symptoms.length ? `${t("health.symptomCheck.report.symptoms", "Symptoms noted")}: ${summary.symptoms.join(", ")}` : "",
@@ -602,94 +660,98 @@ function ReportScreen({
               </ul>
             </div>
           ) : null}
-          {vitalActions.map((action) => {
-            const open = openVitalKey === action.key;
-            const value = vitalInputs[action.key] ?? "";
-            const busy = refinementStatus.state === "saving" || refinementStatus.state === "refining";
-            return (
-              <div key={action.key} className="col-span-2 rounded-[26px] border-2 border-[#6B21A8] bg-white p-4 shadow-[0_14px_34px_rgba(107,33,168,0.16)]">
-                <div className="mb-4 flex items-start gap-3">
-                  <span className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px] bg-[#F5F3FF] text-vyva-purple">
-                    <Activity size={28} />
-                  </span>
-                  <div>
-                    <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-purple">
-                      {t("health.symptomCheck.report.actionNeeded", "Action now")}
-                    </p>
-                    <p className="mt-1 font-body text-[22px] font-black leading-tight text-vyva-text-1">
-                      {action.title}
-                    </p>
-                    <p className="mt-1 font-body text-[16px] font-bold leading-snug text-vyva-text-2">
-                      {action.helper}
-                    </p>
-                  </div>
-                </div>
-                <div className="grid gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOpenVitalKey(action.key);
-                      setVitalInputs((current) => ({
-                        ...current,
-                        [action.key]: action.key === "glucose" ? "92" : action.placeholder,
-                      }));
-                      setVitalInputError(null);
-                    }}
-                    disabled={busy}
-                    className="vyva-tap flex min-h-[76px] items-center justify-between rounded-[22px] bg-[#6B21A8] px-5 text-left text-white shadow-[0_12px_26px_rgba(107,33,168,0.22)]"
-                  >
-                    <span className="font-body text-[18px] font-black leading-tight">
-                      {t("health.symptomCheck.report.readConnectedSensor", "Read from connected sensor")}
-                    </span>
-                    <ChevronLeft size={22} className="rotate-180" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOpenVitalKey(action.key);
-                      setVitalInputError(null);
-                    }}
-                    disabled={busy}
-                    className="vyva-tap flex min-h-[76px] items-center justify-between rounded-[22px] border border-[#E8DED4] bg-[#FAF9F6] px-5 text-left text-vyva-text-1"
-                  >
-                    <span className="font-body text-[18px] font-black leading-tight">
-                      {t("health.symptomCheck.report.enterManualReading", "Enter manually")}
-                    </span>
-                    <ChevronLeft size={22} className="rotate-180 text-vyva-purple" />
-                  </button>
-                  {open ? (
-                    <div className="grid gap-3 border-t border-[#EADFD5] pt-3">
-                      <label className="flex min-h-[86px] items-baseline gap-3 rounded-[24px] border-2 border-[#DDD6FE] bg-white px-5">
-                        <input
-                          type="text"
-                          inputMode={action.key === "bloodPressure" ? "text" : "decimal"}
-                          value={value}
-                          onChange={(event) => setVitalInputs((current) => ({ ...current, [action.key]: event.target.value }))}
-                          placeholder={action.placeholder}
-                          className="min-w-0 flex-1 bg-transparent font-body text-[48px] font-black leading-none text-vyva-text-1 outline-none placeholder:text-[#D6C7BA]"
-                        />
-                        <span className="font-body text-[20px] font-black text-vyva-text-2">{action.unit}</span>
-                      </label>
-                      {vitalInputError ? (
-                        <p className="font-body text-[16px] font-black text-[#B91C1C]">{vitalInputError}</p>
-                      ) : null}
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => handleRefineVital(action, value)}
-                        className="vyva-tap flex min-h-[74px] items-center justify-center gap-3 rounded-[22px] bg-[#0A7C4E] px-5 font-body text-[20px] font-black text-white disabled:opacity-60"
-                      >
-                        {busy ? <Loader2 size={22} className="animate-spin" /> : <CheckCircle size={22} />}
-                        {busy
-                          ? t("health.symptomCheck.report.refining", "Updating your result...")
-                          : t("health.symptomCheck.report.saveAndRefine", "Save and refine result")}
-                      </button>
-                    </div>
-                  ) : null}
+          {vitalActions.length ? (
+            <div className="col-span-2 rounded-[28px] border-2 border-[#DDD6FE] bg-[#FBF8FF] p-4 shadow-[0_14px_34px_rgba(107,33,168,0.12)]">
+              <div className="mb-4 flex items-start gap-3">
+                <span className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px] bg-white text-vyva-purple shadow-[0_8px_20px_rgba(107,33,168,0.10)]">
+                  <Activity size={28} />
+                </span>
+                <div className="min-w-0">
+                  <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-purple">
+                    {t("health.symptomCheck.report.relevantVitalsEyebrow", "Relevant vitals")}
+                  </p>
+                  <p className="mt-1 font-body text-[22px] font-black leading-tight text-vyva-text-1">
+                    {t("health.symptomCheck.report.relevantVitalsTitle", "Take vitals that match this case")}
+                  </p>
+                  <p className="mt-2 font-body text-[16px] font-bold leading-snug text-vyva-text-2">
+                    {t("health.symptomCheck.report.relevantVitalsNote", "These checks are suggested from your symptoms and watch signs. Add a reading and VYVA can refine this assessment.")}
+                  </p>
                 </div>
               </div>
-            );
-          })}
+
+              <div className="grid gap-3">
+                {vitalActions.map((action) => {
+                  const open = openVitalKey === action.key;
+                  const value = vitalInputs[action.key] ?? "";
+                  const busy = refinementStatus.state === "saving" || refinementStatus.state === "refining";
+                  const Icon = action.Icon;
+                  return (
+                    <div key={action.key} className="rounded-[24px] border border-[#E8DED4] bg-white p-3 shadow-[0_8px_20px_rgba(63,45,35,0.05)]">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOpenVitalKey(open ? null : action.key);
+                          setVitalInputs((current) => ({
+                            ...current,
+                            [action.key]: current[action.key] ?? "",
+                          }));
+                          setVitalInputError(null);
+                        }}
+                        disabled={busy}
+                        className="vyva-tap flex min-h-[76px] w-full items-center gap-3 rounded-[20px] px-2 text-left text-vyva-text-1 disabled:opacity-60"
+                      >
+                        <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[17px] bg-[#F5F3FF] text-vyva-purple">
+                          <Icon size={24} />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-body text-[18px] font-black leading-tight">
+                            {action.buttonLabel}
+                          </span>
+                          <span className="mt-1 block font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+                            {action.helper}
+                          </span>
+                        </span>
+                        <ChevronLeft size={22} className={`flex-shrink-0 text-vyva-purple transition-transform ${open ? "rotate-90" : "rotate-180"}`} />
+                      </button>
+
+                      {open ? (
+                        <div className="mt-3 grid gap-3 border-t border-[#EADFD5] pt-3">
+                          <p className="font-body text-[14px] font-extrabold leading-snug text-vyva-purple">
+                            {t("health.symptomCheck.report.enterReadingToRefine", "Enter the reading below. VYVA will save it and update the result with this new context.")}
+                          </p>
+                          <label className="flex min-h-[86px] items-baseline gap-3 rounded-[24px] border-2 border-[#DDD6FE] bg-white px-5">
+                            <input
+                              type="text"
+                              inputMode={action.key === "bloodPressure" ? "text" : "decimal"}
+                              value={value}
+                              onChange={(event) => setVitalInputs((current) => ({ ...current, [action.key]: event.target.value }))}
+                              placeholder={action.placeholder}
+                              className="min-w-0 flex-1 bg-transparent font-body text-[48px] font-black leading-none text-vyva-text-1 outline-none placeholder:text-[#D6C7BA]"
+                            />
+                            <span className="font-body text-[20px] font-black text-vyva-text-2">{action.unit}</span>
+                          </label>
+                          {vitalInputError ? (
+                            <p className="font-body text-[16px] font-black text-[#B91C1C]">{vitalInputError}</p>
+                          ) : null}
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => handleRefineVital(action, value)}
+                            className="vyva-tap flex min-h-[74px] items-center justify-center gap-3 rounded-[22px] bg-[#0A7C4E] px-5 font-body text-[20px] font-black text-white disabled:opacity-60"
+                          >
+                            {busy ? <Loader2 size={22} className="animate-spin" /> : <CheckCircle size={22} />}
+                            {busy
+                              ? t("health.symptomCheck.report.refining", "Updating your result...")
+                              : t("health.symptomCheck.report.saveAndRefine", "Save and refine result")}
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
           {refinementStatus.message ? (
             <div className={`col-span-2 rounded-[22px] border p-4 font-body text-[17px] font-black leading-snug ${
               refinementStatus.state === "error"
