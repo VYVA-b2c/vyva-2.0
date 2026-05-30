@@ -638,6 +638,8 @@
         "reviewStepSafety": "Antworten auf Warnzeichen prüfen",
         "reviewStepProfile": "Gesundheitsprofil und Medikamente berücksichtigen",
         "reviewStepNext": "Klare nächste Schritte vorbereiten",
+        "followupTitle": "Nützliche Folgefragen",
+        "followupSub": "Tippen Sie auf eine Frage, wenn sie zu dem passt, was Sie fragen möchten.",
         "send": "Senden",
         "voiceStart": "Per Sprache antworten",
         "voiceStop": "Sprache stoppen",
