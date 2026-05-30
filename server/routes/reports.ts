@@ -148,13 +148,14 @@ async function recordTriageReportHandoff(params: {
       caregiver_contact: profiles.caregiver_contact,
       gp_name: profiles.gp_name,
       gp_phone: profiles.gp_phone,
+      gp_email: profiles.gp_email,
     })
     .from(profiles)
     .where(eq(profiles.id, params.userId))
     .limit(1);
 
   const sentTo = [
-    profile?.gp_name || profile?.gp_phone ? profile.gp_name || "doctor" : "",
+    profile?.gp_name || profile?.gp_phone || profile?.gp_email ? profile.gp_name || "doctor" : "",
     profile?.caregiver_name || profile?.caregiver_contact ? profile.caregiver_name || "caregiver" : "",
   ].filter(Boolean);
 

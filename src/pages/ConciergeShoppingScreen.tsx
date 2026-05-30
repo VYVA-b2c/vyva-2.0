@@ -1,5 +1,5 @@
-import { FormEvent, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   AlertCircle,
   ArrowLeft,
@@ -50,6 +50,16 @@ type Copy = {
   back: string;
   tryIdeas: string;
 };
+
+type ShoppingRoutePrefill = {
+  needText: string;
+  category: ShoppingCategory;
+  priorities: ShoppingPriority[];
+};
+
+type ShoppingLocationState = {
+  shoppingPrefill?: ShoppingRoutePrefill;
+} | null;
 
 const COPY: Record<"en" | "es", Copy> = {
   en: {
@@ -119,6 +129,9 @@ const PRIORITY_OPTIONS: Array<{ id: ShoppingPriority; en: string; es: string }> 
   { id: "delivery", en: "Easy to carry", es: "Facil de llevar" },
   { id: "diet", en: "Diet needs", es: "Dieta" },
 ];
+
+const VALID_SHOPPING_CATEGORIES = new Set(CATEGORY_OPTIONS.map((option) => option.id));
+const VALID_SHOPPING_PRIORITIES = new Set(PRIORITY_OPTIONS.map((option) => option.id));
 
 const IDEA_CHIPS = [
   {
@@ -240,6 +253,7 @@ const RecommendationCard = ({
 
 const ConciergeShoppingScreen = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { i18n } = useTranslation();
   const locale = localeKey(i18n.language);
   const copy = COPY[locale];
@@ -253,11 +267,35 @@ const ConciergeShoppingScreen = () => {
   const [error, setError] = useState<string | null>(null);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const resultsRef = useRef<HTMLElement | null>(null);
+  const lastRoutePrefillKeyRef = useRef<string | null>(null);
 
   const savedRecommendations = useMemo(
     () => result?.recommendations.filter((item) => savedIds.includes(item.product.id)) ?? [],
     [result, savedIds],
   );
+
+  useEffect(() => {
+    const prefill = (location.state as ShoppingLocationState)?.shoppingPrefill;
+    if (!prefill) return;
+    const prefillKey = `${prefill.category}:${prefill.needText}:${prefill.priorities.join(",")}`;
+    if (lastRoutePrefillKeyRef.current === prefillKey) return;
+    lastRoutePrefillKeyRef.current = prefillKey;
+
+    if (prefill.needText.trim()) {
+      setNeedText(prefill.needText.trim());
+    }
+    if (VALID_SHOPPING_CATEGORIES.has(prefill.category)) {
+      setCategory(prefill.category);
+    }
+    const safePriorities = prefill.priorities.filter((priority) => VALID_SHOPPING_PRIORITIES.has(priority));
+    if (safePriorities.length) {
+      setPriorities(safePriorities);
+      setPreferencesOpen(true);
+    }
+    setResult(null);
+    setError(null);
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+  }, [location.pathname, location.search, location.state, navigate]);
 
   function togglePriority(priority: ShoppingPriority) {
     setPriorities((current) => (

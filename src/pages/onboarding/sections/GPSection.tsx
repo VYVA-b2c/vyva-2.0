@@ -14,6 +14,7 @@ import { friendlyError } from "@/lib/apiError";
 type GpProfile = {
   gp_name?: string;
   gp_phone?: string;
+  gp_email?: string;
   gp_address?: string;
   gp_maps_url?: string;
   gp_place_id?: string;
@@ -26,15 +27,17 @@ const GPSection = () => {
   const [manualName, setManualName] = useState("");
   const [manualAddress, setManualAddress] = useState("");
   const [manualPhone, setManualPhone] = useState("");
+  const [manualEmail, setManualEmail] = useState("");
   const [initialGp, setInitialGp] = useState<PlaceResult | null>(null);
+  const [initialGpEmail, setInitialGpEmail] = useState("");
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [isChangingGP, setIsChangingGP] = useState(false);
 
-  const gpDataRef = useRef({ manualName, manualAddress, manualPhone, place });
+  const gpDataRef = useRef({ manualName, manualAddress, manualPhone, manualEmail, place });
   useEffect(() => {
-    gpDataRef.current = { manualName, manualAddress, manualPhone, place };
-  }, [manualName, manualAddress, manualPhone, place]);
+    gpDataRef.current = { manualName, manualAddress, manualPhone, manualEmail, place };
+  }, [manualName, manualAddress, manualPhone, manualEmail, place]);
 
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (navTimerRef.current) clearTimeout(navTimerRef.current); }, []);
@@ -58,18 +61,21 @@ const GPSection = () => {
       setManualName(p.gp_name!);
       setManualAddress(p.gp_address ?? "");
       setManualPhone(p.gp_phone ?? "");
+      setManualEmail(p.gp_email ?? "");
+      setInitialGpEmail(p.gp_email ?? "");
     }
   }, [data]);
 
   const { autoSaveStatus, savedFading, retryCountdown, retryNow, scheduleAutoSave, cancelAutoSave, setAutoSaveStatus } = useAutoSave(
     async () => {
-      const { manualName, manualAddress, manualPhone, place } = gpDataRef.current;
+      const { manualName, manualAddress, manualPhone, manualEmail, place } = gpDataRef.current;
       if (!manualName.trim()) return;
       const res = await apiFetch("/api/onboarding/section/gp", {
         method: "POST",
         body: JSON.stringify({
           gp_name:     manualName,
           gp_phone:    manualPhone,
+          gp_email:    manualEmail,
           gp_address:  manualAddress,
           gp_maps_url: place?.google_maps_url ?? "",
           gp_place_id: place?.google_place_id ?? "",
@@ -94,6 +100,7 @@ const GPSection = () => {
     setManualName(p.name);
     setManualAddress(p.full_address);
     setManualPhone(p.phone);
+    setManualEmail("");
     scheduleAutoSave();
   };
 
@@ -103,6 +110,7 @@ const GPSection = () => {
     setManualName("");
     setManualAddress("");
     setManualPhone("");
+    setManualEmail("");
   };
 
   const handleChangeGP = () => {
@@ -116,6 +124,7 @@ const GPSection = () => {
       setManualName(initialGp.name);
       setManualAddress(initialGp.full_address);
       setManualPhone(initialGp.phone);
+      setManualEmail(initialGpEmail);
     }
     setIsChangingGP(false);
   };
@@ -128,7 +137,7 @@ const GPSection = () => {
     try {
       res = await apiFetch("/api/onboarding/section/gp", {
         method: "POST",
-        body: JSON.stringify({ gp_name: "", gp_phone: "", gp_address: "", gp_maps_url: "", gp_place_id: "" }),
+        body: JSON.stringify({ gp_name: "", gp_phone: "", gp_email: "", gp_address: "", gp_maps_url: "", gp_place_id: "" }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setPlace(null);
@@ -136,6 +145,8 @@ const GPSection = () => {
       setManualName("");
       setManualAddress("");
       setManualPhone("");
+      setManualEmail("");
+      setInitialGpEmail("");
       setIsChangingGP(false);
       setAutoSaveStatus("saved");
       await queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
@@ -161,6 +172,7 @@ const GPSection = () => {
         body: JSON.stringify({
           gp_name:     manualName,
           gp_phone:    manualPhone,
+          gp_email:    manualEmail,
           gp_address:  manualAddress,
           gp_maps_url: place?.google_maps_url ?? "",
           gp_place_id: place?.google_place_id ?? "",
@@ -241,6 +253,12 @@ const GPSection = () => {
               <div>
                 <p className="font-body text-[14px] font-extrabold text-vyva-text-2">Phone number</p>
                 <p data-testid="text-gp-phone" className="mt-1 font-body text-[20px] font-black text-vyva-text-1">{initialGp.phone}</p>
+              </div>
+            )}
+            {initialGpEmail && (
+              <div>
+                <p className="font-body text-[14px] font-extrabold text-vyva-text-2">Email</p>
+                <p data-testid="text-gp-email" className="mt-1 font-body text-[20px] font-black text-vyva-text-1">{initialGpEmail}</p>
               </div>
             )}
             {initialGp.google_maps_url && (
@@ -339,6 +357,23 @@ const GPSection = () => {
                     value={manualPhone}
                     onChange={(e) => { setManualPhone(e.target.value); if (place) setPlace(null); scheduleAutoSave(); }}
                     placeholder="+44 1234 567890"
+                    className={seniorInputClassName}
+                  />
+                )}
+              </div>
+              <div>
+                <label className="mb-2 block font-body text-[15px] font-extrabold text-vyva-text-2">
+                  Email
+                </label>
+                {isLoading ? (
+                  <Skeleton className="h-10 w-full rounded-md" data-testid="skeleton-gp-email" />
+                ) : (
+                  <Input
+                    data-testid="input-gp-email"
+                    type="email"
+                    value={manualEmail}
+                    onChange={(e) => { setManualEmail(e.target.value); if (place) setPlace(null); scheduleAutoSave(); }}
+                    placeholder="practice@example.com"
                     className={seniorInputClassName}
                   />
                 )}

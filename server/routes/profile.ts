@@ -94,6 +94,9 @@ const profileBodySchema = z.object({
   postalCode:      z.string().max(30).optional().default(""),
   caregiverName:   z.string().max(150).optional().default(""),
   caregiverContact: z.string().max(50).optional().default(""),
+  gpName:          z.string().max(150).optional(),
+  gpPhone:         z.string().max(50).optional(),
+  gpEmail:         z.string().email().optional().or(z.literal("")).optional(),
 });
 
 const scheduledEventBodySchema = z.object({
@@ -331,7 +334,7 @@ router.get("/readiness", async (req: Request, res: Response) => {
     const hasAnyMedication = medications.some((med) => hasText(med.medication_name));
     const hasHealthContext = healthConditions.length > 0;
     const hasAllergies = Array.isArray(profile?.known_allergies) && profile.known_allergies.some(hasText);
-    const hasGp = hasText(profile?.gp_name) || hasText(profile?.gp_phone);
+    const hasGp = hasText(profile?.gp_name) || hasText(profile?.gp_phone) || hasText(profile?.gp_email);
     const subscriptionSync = await syncProfileEntitlement({
       profile,
       profileId: profile?.id ?? userId,
@@ -930,6 +933,7 @@ router.get("/", async (req: Request, res: Response) => {
       caregiverContact: p.caregiver_contact ?? "",
       gpName:           p.gp_name ?? "",
       gpPhone:          p.gp_phone ?? "",
+      gpEmail:          p.gp_email ?? "",
       avatarUrl:        p.avatar_url ?? null,
     });
   } catch (err) {
@@ -978,6 +982,9 @@ router.post("/", async (req: Request, res: Response) => {
 
   const d = parsed.data;
   const full_name = [d.firstName, d.lastName].filter(Boolean).join(" ").trim();
+  const hasGpNameInput = Object.prototype.hasOwnProperty.call(req.body, "gpName");
+  const hasGpPhoneInput = Object.prototype.hasOwnProperty.call(req.body, "gpPhone");
+  const hasGpEmailInput = Object.prototype.hasOwnProperty.call(req.body, "gpEmail");
 
   try {
     const existingRows = await db
@@ -1005,6 +1012,9 @@ router.post("/", async (req: Request, res: Response) => {
         postcode:         d.postalCode || null,
         caregiver_name:   d.caregiverName || null,
         caregiver_contact: d.caregiverContact || null,
+        gp_name:          d.gpName || null,
+        gp_phone:         d.gpPhone || null,
+        gp_email:         d.gpEmail || null,
         data_sharing_consent: dataSharingConsent,
       })
       .onConflictDoUpdate({
@@ -1024,6 +1034,9 @@ router.post("/", async (req: Request, res: Response) => {
           postcode:         d.postalCode || null,
           caregiver_name:   d.caregiverName || null,
           caregiver_contact: d.caregiverContact || null,
+          ...(hasGpNameInput ? { gp_name: d.gpName || null } : {}),
+          ...(hasGpPhoneInput ? { gp_phone: d.gpPhone || null } : {}),
+          ...(hasGpEmailInput ? { gp_email: d.gpEmail || null } : {}),
           data_sharing_consent: dataSharingConsent,
           updated_at:       new Date(),
         },

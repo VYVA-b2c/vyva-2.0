@@ -235,6 +235,7 @@ CREATE TABLE "profiles" (
 	"caregiver_contact" text,
 	"gp_name" text,
 	"gp_phone" text,
+	"gp_email" text,
 	"gp_address" text,
 	"gp_maps_url" text,
 	"gp_place_id" text,
