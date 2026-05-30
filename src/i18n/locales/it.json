@@ -638,6 +638,8 @@
         "reviewStepSafety": "Controllo di segnali di allarme nelle risposte",
         "reviewStepProfile": "Considerazione del profilo salute e dei farmaci",
         "reviewStepNext": "Preparazione di passi chiari",
+        "followupTitle": "Domande utili da fare",
+        "followupSub": "Toccane una se corrisponde a ciò che vuoi chiedere.",
         "send": "Invia",
         "voiceStart": "Rispondi a voce",
         "voiceStop": "Ferma voce",

@@ -670,6 +670,8 @@
         "reviewStepSafety": "Checking your answers for red flags",
         "reviewStepProfile": "Considering your health profile and medications",
         "reviewStepNext": "Preparing clear next steps",
+        "followupTitle": "Useful follow-up questions",
+        "followupSub": "Tap one if it matches what you want to ask next.",
         "send": "Send",
         "voiceStart": "Answer by voice",
         "voiceStop": "Stop voice",
