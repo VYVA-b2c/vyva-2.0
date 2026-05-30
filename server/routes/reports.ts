@@ -153,6 +153,41 @@ async function getTodayMedSummary(userId: string) {
   return { taken, total, adherencePct };
 }
 
+type TodayMedSummary = Awaited<ReturnType<typeof getTodayMedSummary>>;
+
+const emptyTodayMedSummary: TodayMedSummary = { taken: 0, total: 0, adherencePct: null };
+
+type ReportsSummaryLoaders = {
+  latestTriage: (userId: string) => Promise<Awaited<ReturnType<typeof getLatestTriageReport>>>;
+  latestVitals: (userId: string) => Promise<Awaited<ReturnType<typeof getLatestVitalsReading>>>;
+  todayMeds: (userId: string) => Promise<Awaited<ReturnType<typeof getTodayMedSummary>>>;
+};
+
+const defaultReportsSummaryLoaders: ReportsSummaryLoaders = {
+  latestTriage: getLatestTriageReport,
+  latestVitals: getLatestVitalsReading,
+  todayMeds: getTodayMedSummary,
+};
+
+async function safeReportPart<T>(label: string, fallback: T, loader: () => Promise<T>): Promise<T> {
+  try {
+    return await loader();
+  } catch (err) {
+    console.warn(`[reports] ${label} unavailable`, err);
+    return fallback;
+  }
+}
+
+export async function loadReportsSummary(userId: string, loaders: ReportsSummaryLoaders = defaultReportsSummaryLoaders) {
+  const [latestTriage, latestVitals, todayMeds] = await Promise.all([
+    safeReportPart("latest triage", null, () => loaders.latestTriage(userId)),
+    safeReportPart("latest vitals", null, () => loaders.latestVitals(userId)),
+    safeReportPart("today medication summary", emptyTodayMedSummary, () => loaders.todayMeds(userId)),
+  ]);
+
+  return { latestTriage, latestVitals, todayMeds };
+}
+
 // ─── POST /triage ─────────────────────────────────────────────────────────────
 const triageSchema = z.object({
   chief_complaint:   z.string(),
@@ -224,12 +259,7 @@ router.get("/summary", async (req: Request, res: Response) => {
   const userId = resolveUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
   try {
-    const [latestTriage, latestVitals, todayMeds] = await Promise.all([
-      getLatestTriageReport(userId),
-      getLatestVitalsReading(userId),
-      getTodayMedSummary(userId),
-    ]);
-    return res.json({ latestTriage, latestVitals, todayMeds });
+    return res.json(await loadReportsSummary(userId));
   } catch (err) {
     console.error("[reports/summary GET]", err);
     return res.status(500).json({ error: "Failed to fetch summary" });
@@ -244,8 +274,8 @@ router.get("/vitals/history", async (req: Request, res: Response) => {
     const readings = await getVitalsHistory(userId, 30);
     return res.json({ readings });
   } catch (err) {
-    console.error("[reports/vitals/history GET]", err);
-    return res.status(500).json({ error: "Failed to fetch vitals history" });
+    console.warn("[reports/vitals/history GET] unavailable", err);
+    return res.json({ readings: [] });
   }
 });
 
