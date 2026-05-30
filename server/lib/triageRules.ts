@@ -82,7 +82,7 @@ export type TriageProtocol = {
 };
 
 function isSpanishLocale(locale: string) {
-  return locale === "es";
+  return locale.split("-")[0].toLowerCase() === "es";
 }
 
 function text(locale: string, english: string, spanish: string) {
