@@ -294,6 +294,8 @@ const it = {
         refinePrompt: "Nuovo parametro vitale aggiunto dopo il primo report: {{title}}: {{display}}. Perfeziona il risultato di triage con questa lettura. I parametri possono aumentare o chiarire l'urgenza, ma non devono ridurre segnali di emergenza.",
         emergencyDoNotWait: "Non aspettare",
         doctorNoteSub: "Testo semplice da leggere, mostrare o condividere.",
+        shareWithDoctor: "Condividi col medico",
+        noDoctorToShare: "Nessun contatto medico nel profilo",
         contextUsed: "Cosa ha considerato VYVA",
       },
     },

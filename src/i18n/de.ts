@@ -299,6 +299,8 @@ const de = {
         refinePrompt: "Neuer Vitalwert nach dem ersten Bericht hinzugefugt: {{title}}: {{display}}. Verfeinern Sie das Triage-Ergebnis mit diesem Wert. Vitalwerte konnen die Dringlichkeit erhohen oder klaren, durfen aber Notfall-Warnzeichen nicht herabstufen.",
         emergencyDoNotWait: "Nicht warten",
         doctorNoteSub: "Einfacher Text zum Vorlesen, Zeigen oder Teilen.",
+        shareWithDoctor: "Mit Arzt teilen",
+        noDoctorToShare: "Kein Arztkontakt im Profil",
         contextUsed: "Was VYVA berucksichtigt hat",
       },
     },

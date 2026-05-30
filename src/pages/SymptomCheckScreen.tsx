@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Activity, ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, Heart, Loader2, PhoneCall, Stethoscope } from "lucide-react";
+import { Activity, ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, Heart, Loader2, PhoneCall, Send, Stethoscope } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import TriageChat, { type TriageChatDraft } from "@/components/TriageChat";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
@@ -89,6 +89,22 @@ type ProfileContactsResponse = {
   gpName?: string | null;
   gpPhone?: string | null;
 } | null;
+
+type CareTeamMember = {
+  id: string;
+  invitee_name?: string | null;
+  invitee_phone?: string | null;
+  invitee_email?: string | null;
+  role?: string | null;
+  relationship?: string | null;
+  status?: string | null;
+};
+
+type DoctorShareTarget = {
+  name: string;
+  value: string;
+  channel: "email" | "sms";
+};
 
 type SavedTriageReport = {
   id?: string;
@@ -348,6 +364,53 @@ function compactDoctorContactRecommendations(lines: string[]) {
   });
 }
 
+function directShareChannel(value: string): DoctorShareTarget["channel"] {
+  return value.includes("@") ? "email" : "sms";
+}
+
+function findDoctorShareTarget(
+  profileContacts: ProfileContactsResponse | undefined,
+  careTeamMembers: CareTeamMember[],
+  fallbackDoctorName: string,
+): DoctorShareTarget | null {
+  const gpPhone = profileContacts?.gpPhone?.trim();
+  if (gpPhone) {
+    return {
+      name: profileContacts?.gpName?.trim() || fallbackDoctorName,
+      value: gpPhone,
+      channel: "sms",
+    };
+  }
+
+  const careTeamDoctor = careTeamMembers.find((member) => {
+    const status = member.status?.toLowerCase();
+    if (status && ["revoked", "declined", "expired"].includes(status)) return false;
+    const hasContact = Boolean(member.invitee_email?.trim() || member.invitee_phone?.trim());
+    if (!hasContact) return false;
+    const role = member.role?.toLowerCase();
+    const relationship = member.relationship?.toLowerCase();
+    return role === "doctor" || relationship === "gp" || relationship === "specialist_doctor";
+  });
+
+  const value = careTeamDoctor?.invitee_email?.trim() || careTeamDoctor?.invitee_phone?.trim();
+  if (!careTeamDoctor || !value) return null;
+
+  return {
+    name: careTeamDoctor.invitee_name?.trim() || fallbackDoctorName,
+    value,
+    channel: directShareChannel(value),
+  };
+}
+
+function directDoctorShareHref(target: DoctorShareTarget, subject: string, text: string) {
+  if (target.channel === "email") {
+    return `mailto:${encodeURIComponent(target.value)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+  }
+
+  const separator = typeof navigator !== "undefined" && /iPhone|iPad|iPod/i.test(navigator.userAgent) ? "&" : "?";
+  return `sms:${target.value}${separator}body=${encodeURIComponent(text)}`;
+}
+
 function parseNumber(raw: string) {
   const value = Number(raw.replace(",", ".").trim());
   return Number.isFinite(value) ? value : null;
@@ -379,6 +442,7 @@ function ReportScreen({
   durationSeconds,
   reportId,
   profileContacts,
+  careTeamMembers,
   emergencyContact,
   refinementStatus,
   onRefineVital,
@@ -390,6 +454,7 @@ function ReportScreen({
   durationSeconds: number | null;
   reportId: string | null;
   profileContacts?: ProfileContactsResponse;
+  careTeamMembers: CareTeamMember[];
   emergencyContact?: EmergencyContact | null;
   refinementStatus: RefinementStatus;
   onRefineVital: (config: RefinementVitalConfig, rawValue: string) => Promise<void>;
@@ -568,6 +633,10 @@ function ReportScreen({
     summary.profileConsiderations?.length ? `${t("health.symptomCheck.report.profileConsidered", "Profile considered")}: ${summary.profileConsiderations.join(" ")}` : "",
     summary.vitalsNotes?.length ? `${t("health.symptomCheck.report.vitalsUsed", "Vitals used")}: ${summary.vitalsNotes.join(" ")}` : "",
   ].filter(Boolean).join("\n");
+  const doctorShareTarget = findDoctorShareTarget(profileContacts, careTeamMembers, t("health.symptomCheck.report.doctorContact", "your doctor"));
+  const doctorShareHref = doctorShareTarget
+    ? directDoctorShareHref(doctorShareTarget, t("health.symptomCheck.report.shareTitle"), doctorNote)
+    : "";
   const openDoctorWithContext = () => {
     navigate("/health/doctor", {
       state: {
@@ -904,21 +973,56 @@ function ReportScreen({
         ) : null}
 
         <details className="group rounded-[22px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-            <span className="flex items-center gap-3">
-              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F5F3FF] text-vyva-purple">
-                <Stethoscope size={18} />
-              </span>
-              <span>
-                <span className="block font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-text-3">
-                  {t("health.symptomCheck.report.detailsForDoctor", "Details for doctor")}
+          <summary className="cursor-pointer list-none">
+            <span className="flex items-center justify-between gap-3">
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F5F3FF] text-vyva-purple">
+                  <Stethoscope size={18} />
                 </span>
-                <span className="mt-1 block font-body text-[14px] font-bold text-vyva-text-2">
-                  {t("health.symptomCheck.report.doctorNoteSub", "Plain text to read, show, or share.")}
+                <span className="min-w-0">
+                  <span className="block font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-text-3">
+                    {t("health.symptomCheck.report.detailsForDoctor", "Details for doctor")}
+                  </span>
+                  <span className="mt-1 block font-body text-[14px] font-bold text-vyva-text-2">
+                    {t("health.symptomCheck.report.doctorNoteSub", "Plain text to read, show, or share.")}
+                  </span>
                 </span>
               </span>
+              <ChevronLeft size={20} className="-rotate-90 flex-shrink-0 text-vyva-purple transition-transform group-open:rotate-90" />
             </span>
-            <ChevronLeft size={20} className="-rotate-90 text-vyva-purple transition-transform group-open:rotate-90" />
+            <span className="mt-3 block">
+              {doctorShareHref ? (
+                <a
+                  href={doctorShareHref}
+                  onClick={(event) => event.stopPropagation()}
+                  aria-label={t("health.symptomCheck.report.shareWithDoctor", "Share with doctor")}
+                  title={doctorShareTarget?.name}
+                  data-testid="link-report-share-doctor"
+                  className="vyva-tap inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 text-center font-body text-[15px] font-black leading-tight text-white shadow-[0_10px_22px_rgba(107,33,168,0.18)] sm:w-auto"
+                >
+                  <Send size={18} className="flex-shrink-0" />
+                  <span className="min-w-0 truncate">{t("health.symptomCheck.report.shareWithDoctor", "Share with doctor")}</span>
+                </a>
+              ) : (
+                <span
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
+                  className="inline-flex w-full sm:w-auto"
+                >
+                  <button
+                    type="button"
+                    disabled
+                    data-testid="button-report-share-doctor-disabled"
+                    className="inline-flex min-h-[52px] w-full cursor-not-allowed items-center justify-center gap-2 rounded-full bg-[#E8DED4] px-4 text-center font-body text-[15px] font-black leading-tight text-vyva-text-3 opacity-80 sm:w-auto"
+                  >
+                    <Send size={18} className="flex-shrink-0" />
+                    <span className="min-w-0 truncate">{t("health.symptomCheck.report.noDoctorToShare", "No doctor contact in profile")}</span>
+                  </button>
+                </span>
+              )}
+            </span>
           </summary>
           <div className="mt-4 grid gap-3 border-t border-[#EADFD5] pt-4">
             {doctorTellItems.length ? (
@@ -1116,6 +1220,12 @@ export default function SymptomCheckScreen() {
     staleTime: 2 * 60 * 1000,
   });
   const [step, setStep] = useState<Step>(() => restoredDraft?.step ?? "intro");
+  const { data: careTeamData } = useQuery<{ members: CareTeamMember[] }>({
+    queryKey: ["/api/onboarding/careteam"],
+    enabled: step === "report",
+    retry: false,
+    staleTime: 2 * 60 * 1000,
+  });
   const [bpm, setBpm] = useState<number | null>(() => restoredDraft?.bpm ?? null);
   const [respiratoryRate, setRespiratoryRate] = useState<number | null>(() => restoredDraft?.respiratoryRate ?? null);
   const [chatStartTime, setChatStartTime] = useState<number | null>(() => restoredDraft?.chatStartTime ?? null);
@@ -1476,6 +1586,7 @@ export default function SymptomCheckScreen() {
             durationSeconds={durationSeconds}
             reportId={reportId}
             profileContacts={profileContacts}
+            careTeamMembers={careTeamData?.members ?? []}
             emergencyContact={triageContext?.emergencyContact ?? null}
             refinementStatus={refinementStatus}
             onRefineVital={handleRefineVital}
