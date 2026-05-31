@@ -36,8 +36,245 @@ const ttsSchema = z.object({
   language: z.string().optional(),
 });
 
+const MEMORY_ACTIVITY_TYPES = [
+  "memory_match",
+  "sequence_memory",
+  "word_recall",
+  "number_memory",
+  "routine_memory",
+  "association_memory",
+  "story_recall",
+] as const;
+
+const cognitiveSessionWriteSchema = z.object({
+  activityType: z.string().trim().min(1).max(80),
+  domain: z.string().trim().min(1).max(80),
+  secondaryDomain: z.string().trim().min(1).max(80).nullable().optional(),
+  difficulty: z.number().int().min(1).max(100).optional().default(1),
+  difficultyScale: z.string().trim().min(1).max(40).optional().default("level"),
+  completed: z.boolean().optional().default(false),
+  abandoned: z.boolean().optional().default(false),
+  score: z.number().int().min(0).max(1000000).optional().default(0),
+  accuracyPct: z.number().min(0).max(100).nullable().optional(),
+  speedPct: z.number().min(0).max(100).nullable().optional(),
+  durationSeconds: z.number().int().min(0).max(24 * 60 * 60).optional().default(0),
+  playedAt: z.string().optional(),
+  language: z.string().trim().min(2).max(12).optional().default("es"),
+  source: z.string().trim().min(1).max(80).optional().default("app"),
+  sourceTable: z.string().trim().min(1).max(80).nullable().optional(),
+  sourceSessionId: z.string().trim().min(1).max(120).nullable().optional(),
+  clientResultId: z.string().trim().min(1).max(160).nullable().optional(),
+  metadata: z.record(z.unknown()).optional().default({}),
+});
+
 function normalizeGameLanguage(language: unknown): GameLanguage {
   return GAME_LANGUAGES.includes(language as GameLanguage) ? (language as GameLanguage) : "es";
+}
+
+function coerceDate(value: unknown, fallback = new Date()): Date {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  if (typeof value === "string" || typeof value === "number") {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  return fallback;
+}
+
+function toIsoDate(value: unknown): string | null {
+  const date = coerceDate(value, new Date(Number.NaN));
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function toNumber(value: unknown, fallback = 0): number {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function toNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function utcDayStart(value: Date): number {
+  return Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate());
+}
+
+function utcDayKeyFromStart(dayStart: number): string {
+  return new Date(dayStart).toISOString().slice(0, 10);
+}
+
+function utcDayKey(value: unknown): string | null {
+  const date = coerceDate(value, new Date(Number.NaN));
+  return Number.isNaN(date.getTime()) ? null : utcDayKeyFromStart(utcDayStart(date));
+}
+
+type BrainCoachSessionLike = {
+  id?: string;
+  userId?: string;
+  activityType: string;
+  domain: string;
+  secondaryDomain?: string | null;
+  difficulty?: number | string | null;
+  difficultyScale?: string | null;
+  completed?: boolean | null;
+  abandoned?: boolean | null;
+  score?: number | string | null;
+  accuracyPct?: number | string | null;
+  speedPct?: number | string | null;
+  durationSeconds?: number | string | null;
+  playedAt?: Date | string | null;
+  language?: string | null;
+  source?: string | null;
+  sourceTable?: string | null;
+  sourceSessionId?: string | null;
+  clientResultId?: string | null;
+  metadata?: unknown;
+  createdAt?: Date | string | null;
+};
+
+function normalizeProgressSession(row: BrainCoachSessionLike) {
+  return {
+    id: row.id ?? null,
+    userId: row.userId ?? null,
+    activityType: row.activityType,
+    domain: row.domain,
+    secondaryDomain: row.secondaryDomain ?? null,
+    difficulty: Math.max(1, Math.round(toNumber(row.difficulty, 1))),
+    difficultyScale: row.difficultyScale ?? "level",
+    completed: Boolean(row.completed),
+    abandoned: Boolean(row.abandoned),
+    score: Math.max(0, Math.round(toNumber(row.score, 0))),
+    accuracyPct: toNullableNumber(row.accuracyPct),
+    speedPct: toNullableNumber(row.speedPct),
+    durationSeconds: Math.max(0, Math.round(toNumber(row.durationSeconds, 0))),
+    playedAt: toIsoDate(row.playedAt) ?? new Date().toISOString(),
+    language: row.language ?? "es",
+    source: row.source ?? "app",
+    sourceTable: row.sourceTable ?? null,
+    sourceSessionId: row.sourceSessionId ?? null,
+    clientResultId: row.clientResultId ?? null,
+    metadata: row.metadata && typeof row.metadata === "object" ? row.metadata : {},
+    createdAt: toIsoDate(row.createdAt),
+  };
+}
+
+export function calculateBrainCoachStreak(sessions: BrainCoachSessionLike[], now = new Date()): number {
+  const completedDays = new Set(
+    sessions
+      .filter((session) => session.completed)
+      .map((session) => utcDayKey(session.playedAt))
+      .filter((key): key is string => Boolean(key)),
+  );
+  if (completedDays.size === 0) return 0;
+
+  const todayStart = utcDayStart(now);
+  const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
+  let cursor = completedDays.has(utcDayKeyFromStart(todayStart))
+    ? todayStart
+    : completedDays.has(utcDayKeyFromStart(yesterdayStart))
+      ? yesterdayStart
+      : null;
+
+  if (cursor === null) return 0;
+
+  let streak = 0;
+  while (completedDays.has(utcDayKeyFromStart(cursor))) {
+    streak += 1;
+    cursor -= 24 * 60 * 60 * 1000;
+  }
+
+  return streak;
+}
+
+export function calculateBestBrainCoachStreak(sessions: BrainCoachSessionLike[]): number {
+  const completedDayStarts = [
+    ...new Set(
+      sessions
+        .filter((session) => session.completed)
+        .map((session) => {
+          const date = coerceDate(session.playedAt, new Date(Number.NaN));
+          return Number.isNaN(date.getTime()) ? null : utcDayStart(date);
+        })
+        .filter((day): day is number => day !== null),
+    ),
+  ].sort((a, b) => a - b);
+
+  let best = 0;
+  let current = 0;
+  let previous: number | null = null;
+
+  completedDayStarts.forEach((dayStart) => {
+    current = previous !== null && dayStart === previous + 24 * 60 * 60 * 1000 ? current + 1 : 1;
+    best = Math.max(best, current);
+    previous = dayStart;
+  });
+
+  return best;
+}
+
+function summariseGroup(sessions: ReturnType<typeof normalizeProgressSession>[], key: "domain" | "activityType") {
+  const groups = new Map<string, {
+    key: string;
+    totalSessions: number;
+    completedSessions: number;
+    bestScore: number;
+    totalDurationSeconds: number;
+    lastPlayedAt: string | null;
+  }>();
+
+  sessions.forEach((session) => {
+    const groupKey = session[key];
+    const existing = groups.get(groupKey) ?? {
+      key: groupKey,
+      totalSessions: 0,
+      completedSessions: 0,
+      bestScore: 0,
+      totalDurationSeconds: 0,
+      lastPlayedAt: null,
+    };
+    existing.totalSessions += 1;
+    existing.completedSessions += session.completed ? 1 : 0;
+    existing.bestScore = Math.max(existing.bestScore, session.score);
+    existing.totalDurationSeconds += session.durationSeconds;
+    existing.lastPlayedAt = !existing.lastPlayedAt || session.playedAt > existing.lastPlayedAt
+      ? session.playedAt
+      : existing.lastPlayedAt;
+    groups.set(groupKey, existing);
+  });
+
+  return [...groups.values()].sort((a, b) => {
+    if (b.completedSessions !== a.completedSessions) return b.completedSessions - a.completedSessions;
+    return (b.lastPlayedAt ?? "").localeCompare(a.lastPlayedAt ?? "");
+  });
+}
+
+export function buildBrainCoachProgress(sessions: BrainCoachSessionLike[], now = new Date()) {
+  const normalized = sessions
+    .map(normalizeProgressSession)
+    .sort((a, b) => b.playedAt.localeCompare(a.playedAt));
+  const completed = normalized.filter((session) => session.completed);
+  const todayKey = utcDayKey(now);
+  const todayCompleted = completed.filter((session) => utcDayKey(session.playedAt) === todayKey);
+
+  return {
+    summary: {
+      totalSessions: normalized.length,
+      completedSessions: completed.length,
+      streakDays: calculateBrainCoachStreak(normalized, now),
+      bestStreakDays: calculateBestBrainCoachStreak(normalized),
+      lastPlayedAt: normalized[0]?.playedAt ?? null,
+      totalDurationSeconds: normalized.reduce((total, session) => total + session.durationSeconds, 0),
+    },
+    today: {
+      completedCount: todayCompleted.length,
+      activityTypes: [...new Set(todayCompleted.map((session) => session.activityType))],
+      domains: [...new Set(todayCompleted.map((session) => session.domain))],
+    },
+    domains: summariseGroup(normalized, "domain").map(({ key, ...rest }) => ({ domain: key, ...rest })),
+    activities: summariseGroup(normalized, "activityType").map(({ key, ...rest }) => ({ activityType: key, ...rest })),
+    history: normalized.slice(0, 25),
+  };
 }
 
 function fallbackRetellScore(keyFacts: string[], error: string): RetellScore {
@@ -221,7 +458,143 @@ export async function ttsHandler(req: Request, res: Response) {
   }
 }
 
+function queryNumber(value: unknown): number | null {
+  if (typeof value !== "string") return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function queryLimit(value: unknown, fallback: number, max: number): number {
+  const numeric = queryNumber(value);
+  if (numeric === null) return fallback;
+  return Math.min(max, Math.max(1, Math.round(numeric)));
+}
+
+async function loadCognitiveSessionDb() {
+  const [{ db }, { cognitiveSessionIndex }, { and, desc, eq, gte, inArray }] = await Promise.all([
+    import("../db.js"),
+    import("../../shared/schema.js"),
+    import("drizzle-orm"),
+  ]);
+  return { db, cognitiveSessionIndex, and, desc, eq, gte, inArray };
+}
+
+export async function createCognitiveSessionHandler(req: Request, res: Response) {
+  const parsed = cognitiveSessionWriteSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid cognitive session request." });
+  }
+
+  const data = parsed.data;
+
+  try {
+    const { db, cognitiveSessionIndex, and, eq } = await loadCognitiveSessionDb();
+
+    if (data.clientResultId) {
+      const [existing] = await db
+        .select()
+        .from(cognitiveSessionIndex)
+        .where(and(
+          eq(cognitiveSessionIndex.userId, req.user!.id),
+          eq(cognitiveSessionIndex.clientResultId, data.clientResultId),
+        ))
+        .limit(1);
+
+      if (existing) {
+        return res.json({ session: normalizeProgressSession(existing) });
+      }
+    }
+
+    const [session] = await db
+      .insert(cognitiveSessionIndex)
+      .values({
+        userId: req.user!.id,
+        activityType: data.activityType,
+        domain: data.domain,
+        secondaryDomain: data.secondaryDomain ?? null,
+        difficulty: data.difficulty,
+        difficultyScale: data.difficultyScale,
+        completed: data.completed,
+        abandoned: data.abandoned,
+        score: data.score,
+        accuracyPct: data.accuracyPct ?? null,
+        speedPct: data.speedPct ?? null,
+        durationSeconds: data.durationSeconds,
+        playedAt: coerceDate(data.playedAt),
+        language: data.language,
+        source: data.source,
+        sourceTable: data.sourceTable ?? null,
+        sourceSessionId: data.sourceSessionId ?? null,
+        clientResultId: data.clientResultId ?? null,
+        metadata: data.metadata,
+      })
+      .returning();
+
+    return res.status(201).json({ session: normalizeProgressSession(session) });
+  } catch (error) {
+    console.error("[games] Cognitive session create failed:", error);
+    return res.status(500).json({ error: "Cognitive session could not be saved." });
+  }
+}
+
+export async function cognitiveSessionHistoryHandler(req: Request, res: Response) {
+  const limit = queryLimit(req.query.limit, 100, 500);
+  const days = queryNumber(req.query.days);
+  const family = typeof req.query.family === "string" ? req.query.family : null;
+
+  try {
+    const { db, cognitiveSessionIndex, and, desc, eq, gte, inArray } = await loadCognitiveSessionDb();
+    const conditions = [eq(cognitiveSessionIndex.userId, req.user!.id)];
+    if (days !== null && days > 0) {
+      conditions.push(gte(cognitiveSessionIndex.playedAt, new Date(Date.now() - days * 24 * 60 * 60 * 1000)));
+    }
+    if (family === "memory") {
+      conditions.push(inArray(cognitiveSessionIndex.activityType, [...MEMORY_ACTIVITY_TYPES]));
+    }
+
+    const rows = await db
+      .select()
+      .from(cognitiveSessionIndex)
+      .where(and(...conditions))
+      .orderBy(desc(cognitiveSessionIndex.playedAt))
+      .limit(limit);
+
+    return res.json({ sessions: rows.map(normalizeProgressSession) });
+  } catch (error) {
+    console.error("[games] Cognitive session history failed:", error);
+    return res.status(500).json({ error: "Cognitive session history could not be loaded." });
+  }
+}
+
+export async function brainCoachProgressHandler(req: Request, res: Response) {
+  const limit = queryLimit(req.query.limit, 500, 1000);
+  const days = queryNumber(req.query.days);
+
+  try {
+    const { db, cognitiveSessionIndex, and, desc, eq, gte } = await loadCognitiveSessionDb();
+    const conditions = [eq(cognitiveSessionIndex.userId, req.user!.id)];
+    if (days !== null && days > 0) {
+      conditions.push(gte(cognitiveSessionIndex.playedAt, new Date(Date.now() - days * 24 * 60 * 60 * 1000)));
+    }
+
+    const rows = await db
+      .select()
+      .from(cognitiveSessionIndex)
+      .where(and(...conditions))
+      .orderBy(desc(cognitiveSessionIndex.playedAt))
+      .limit(limit);
+
+    return res.json(buildBrainCoachProgress(rows));
+  } catch (error) {
+    console.error("[games] Brain Coach progress failed:", error);
+    return res.status(500).json({ error: "Brain Coach progress could not be loaded." });
+  }
+}
+
 const router = Router();
+router.post("/sessions", createCognitiveSessionHandler);
+router.get("/history", cognitiveSessionHistoryHandler);
+router.get("/progress", brainCoachProgressHandler);
 router.post("/score-retell", scoreRetellHandler);
 router.post("/tts", ttsHandler);
 

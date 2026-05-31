@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { useLanguage } from "../i18n";
 import BrainGameResultActions from "./shared/BrainGameResultActions";
+import { recordCognitiveSession } from "./shared/brainCoachSessions";
 import { normalizeGameLanguage } from "./shared/language";
 
 const PURPLE = "#6B21A8";
@@ -417,8 +418,31 @@ export default function SpatialNavigator({ userId, onExit }) {
       score: result?.score ?? 0,
     };
 
-    await supabase.from("spatial_nav_sessions").insert(payload);
-  }, [map, userId]);
+    const { data } = await supabase.from("spatial_nav_sessions").insert(payload);
+    const savedSession = Array.isArray(data) ? data[0] : data;
+
+    await recordCognitiveSession({
+      userId,
+      activityType: "spatial_navigator",
+      domain: "spatial_navigation",
+      difficulty: payload.difficulty_tier,
+      difficultyScale: "tier",
+      completed: payload.completed,
+      abandoned: payload.abandoned,
+      score: payload.score,
+      accuracyPct: payload.accuracy_pct,
+      durationSeconds: payload.draw_time_seconds === null ? 0 : Math.round(Number(payload.draw_time_seconds)),
+      language: gameLanguage,
+      source: "spatial_navigator",
+      sourceTable: "spatial_nav_sessions",
+      sourceSessionId: savedSession?.id ?? null,
+      metadata: {
+        mapId: map.id ?? null,
+        stepCount: payload.step_count,
+        stepsCorrect: payload.steps_correct,
+      },
+    });
+  }, [gameLanguage, map, userId]);
 
   const updateUserState = useCallback(async (result) => {
     const previous = userState ?? defaultUserState(userId);

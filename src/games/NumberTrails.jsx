@@ -4,6 +4,7 @@ import { useLanguage } from "@/i18n";
 import vyvaLogo from "@/assets/vyva-logo.png";
 import { supabase } from "../lib/supabaseClient";
 import BrainGameResultActions from "./shared/BrainGameResultActions";
+import { recordCognitiveSession } from "./shared/brainCoachSessions";
 import { normalizeGameLanguage } from "./shared/language";
 
 const BRAND = {
@@ -604,34 +605,39 @@ export default function NumberTrails({ userId, onExit }) {
     const saved = await supabase.from("number_trails_sessions").insert(payload);
     if (saved.error) {
       console.warn("Number Trails could not save the session.", saved.error);
-      return null;
     }
 
     const savedSession = Array.isArray(saved.data) ? saved.data[0] : saved.data;
-    if (result.completed && !result.abandoned && savedSession?.id) {
-      const indexed = await supabase.from("cognitive_session_index").insert({
-        user_id: userId,
-        game: "number_trails",
-        session_id: savedSession.id,
-        played_at: new Date().toISOString(),
-        difficulty_tier: Number(config.difficulty_tier ?? 1),
-        completed: true,
-        abandoned: false,
-        primary_score: result.accuracy_pct,
-        secondary_score: result.speed_pct,
-        tertiary_score: null,
-        raw_score: result.score,
-        cognitive_domain: "processing_speed",
-        secondary_domain: "executive_function",
-      });
+    await recordCognitiveSession({
+      userId,
+      activityType: "number_trails",
+      domain: "processing_speed",
+      secondaryDomain: "executive_function",
+      difficulty: payload.difficulty_tier,
+      difficultyScale: "tier",
+      completed: result.completed,
+      abandoned: result.abandoned,
+      score: result.score,
+      accuracyPct: result.combined_accuracy_pct,
+      speedPct: result.speed_pct,
+      durationSeconds: result.completion_time_ms ? Math.max(1, Math.round(result.completion_time_ms / 1000)) : 0,
+      language: gameLanguage,
+      source: "number_trails",
+      sourceTable: "number_trails_sessions",
+      sourceSessionId: savedSession?.id ?? null,
+      metadata: {
+        configId: config.id ?? null,
+        trailType: config.trail_type,
+        nodeCount: payload.node_count,
+        nodesCorrect: result.nodes_correct,
+        nodesTotal: result.nodes_total,
+        errors: result.errors ?? 0,
+        parTimeMs: result.par_time_ms,
+      },
+    });
 
-      if (indexed.error) {
-        console.warn("Number Trails could not index the cognitive session.", indexed.error);
-      }
-    }
-
-    return savedSession;
-  }, [config, nodes.length, userId]);
+    return saved.error ? null : savedSession;
+  }, [config, gameLanguage, nodes.length, userId]);
 
   const updateUserState = useCallback(async (result) => {
     if (!userId || result.abandoned) return userState;
@@ -759,7 +765,7 @@ export default function NumberTrails({ userId, onExit }) {
     };
 
     sessionSavedRef.current = true;
-    await supabase.from("number_trails_sessions").insert({
+    const payload = {
       user_id: userId,
       config_id: latest.config.id ?? null,
       difficulty_tier: Number(latest.config.difficulty_tier ?? 1),
@@ -775,8 +781,38 @@ export default function NumberTrails({ userId, onExit }) {
       completed: false,
       abandoned: true,
       score: 0,
+    };
+    const saved = await supabase.from("number_trails_sessions").insert(payload);
+    const savedSession = Array.isArray(saved.data) ? saved.data[0] : saved.data;
+
+    await recordCognitiveSession({
+      userId,
+      activityType: "number_trails",
+      domain: "processing_speed",
+      secondaryDomain: "executive_function",
+      difficulty: payload.difficulty_tier,
+      difficultyScale: "tier",
+      completed: false,
+      abandoned: true,
+      score: 0,
+      accuracyPct: result.combined_accuracy_pct,
+      speedPct: result.speed_pct,
+      durationSeconds: result.completion_time_ms ? Math.max(1, Math.round(result.completion_time_ms / 1000)) : 0,
+      language: gameLanguage,
+      source: "number_trails",
+      sourceTable: "number_trails_sessions",
+      sourceSessionId: savedSession?.id ?? null,
+      metadata: {
+        configId: latest.config.id ?? null,
+        trailType: latest.config.trail_type,
+        nodeCount: totalNodes,
+        nodesCorrect: result.nodes_correct,
+        nodesTotal: result.nodes_total,
+        errors: result.errors ?? 0,
+        parTimeMs: result.par_time_ms,
+      },
     });
-  }, [userId]);
+  }, [computeScore, gameLanguage, userId]);
 
   useEffect(() => {
     void loadGame();
