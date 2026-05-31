@@ -15,15 +15,18 @@ import {
   type TriageScanType,
 } from "../../shared/triageScans.js";
 import {
-  applyTriageSafetyFloor,
-  buildFallbackTriageReport,
+  buildFallbackTriageReportWithTelemetry,
+  evaluateTriageSafetyFloor,
   nextAdaptiveStage,
+  primaryEscalationSource,
   profileRiskFlags,
   selectedAnswers,
   selectedSafetyAnswer,
   selectedSymptomId,
+  trackTriageEvent,
   type ProfileRiskFlags,
   type TriageHealthMemory,
+  type TriageOutcomeTelemetry,
   type TriageSummary,
   type TriageWizardContext,
   type WizardStage,
@@ -738,6 +741,47 @@ function extractTriageJson(text: string): { content: string; summary: TriageSumm
   return { content: text.trim(), summary: null };
 }
 
+function trackStartedTriage(wizard: TriageWizardContext | undefined) {
+  trackTriageEvent("triage_started", {
+    symptom_path: selectedSymptomId(wizard) ?? "unknown",
+    triage_completion_status: "started",
+  });
+}
+
+function trackSafetyAlertTriage(wizard: TriageWizardContext | undefined, ruleId: string) {
+  const symptomPath = selectedSymptomId(wizard) ?? "unknown";
+  const payload = {
+    symptom_path: symptomPath,
+    urgency: "urgent" as const,
+    rule_ids_fired: [ruleId],
+    triage_completion_status: "safety_alert" as const,
+    escalation_source: "symptom" as const,
+    caregiver_escalation_triggered: false,
+  };
+  trackTriageEvent("triage_completed", payload);
+  trackTriageEvent("triage_escalated", payload);
+}
+
+function trackCompletedTriage(telemetry: TriageOutcomeTelemetry) {
+  const payload = {
+    symptom_path: telemetry.symptomPath,
+    urgency: telemetry.urgency,
+    rule_ids_fired: telemetry.ruleIdsFired,
+    profile_modifiers_applied: telemetry.profileModifiersApplied,
+    vitals_overlays_applied: telemetry.vitalsOverlaysApplied,
+    caregiver_escalation_triggered: telemetry.caregiverEscalationTriggered,
+    triage_completion_status: "completed" as const,
+  };
+  trackTriageEvent("triage_completed", payload);
+
+  if (telemetry.urgency !== "monitor") {
+    trackTriageEvent("triage_escalated", {
+      ...payload,
+      escalation_source: primaryEscalationSource(telemetry) ?? "symptom",
+    });
+  }
+}
+
 router.get("/context", async (req: Request, res: Response) => {
   const userId = req.user?.id;
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
@@ -791,10 +835,12 @@ router.post("/message", async (req: Request, res: Response) => {
     .slice(-20);
   const sanitizedWizard = sanitizeWizard(wizard);
   const effectiveWizard = wizardWithInferredClue(sanitizedWizard, validMessages, normalizedLocale);
+  trackStartedTriage(effectiveWizard);
 
   const safetyAnswer = effectiveWizard?.refineRequested ? null : selectedSafetyAnswer(effectiveWizard);
   if (safetyAnswer) {
     const emergencyContact = emergencyContactForCountry(healthMemory?.countryCode);
+    trackSafetyAlertTriage(effectiveWizard, `triage.emergency.${safetyAnswer.id}`);
     return res.json({
       role: "assistant",
       content: safetyMessage(normalizedLocale, safetyAnswer.label, emergencyContact),
@@ -844,7 +890,8 @@ router.post("/message", async (req: Request, res: Response) => {
 
   const apiKey = process.env.OPENAI_API_KEY ?? "";
   if (!apiKey) {
-    const fallbackReport = buildFallbackTriageReport(normalizedLocale, effectiveWizard, validMessages, healthMemory);
+    const fallbackReport = buildFallbackTriageReportWithTelemetry(normalizedLocale, effectiveWizard, validMessages, healthMemory);
+    trackCompletedTriage(fallbackReport.telemetry);
     return res.json({
       role: "assistant",
       content: fallbackReport.content,
@@ -887,10 +934,11 @@ router.post("/message", async (req: Request, res: Response) => {
 
     const rawContent = completion.choices[0]?.message?.content?.trim() ?? "";
     const { content, summary } = extractTriageJson(rawContent);
-    const safeSummary = summary ? applyTriageSafetyFloor(summary, effectiveWizard, normalizedLocale, healthMemory) : null;
+    const safeOutcome = summary ? evaluateTriageSafetyFloor(summary, effectiveWizard, normalizedLocale, healthMemory) : null;
+    const safeSummary = safeOutcome?.summary ?? null;
     const evidenceSources = evidenceSourcesFor(medisearchContext);
     const evidenceSummary = evidenceSummaryFor(medisearchContext);
-    const fallbackReport = buildFallbackTriageReport(normalizedLocale, effectiveWizard, validMessages, healthMemory);
+    const fallbackReport = buildFallbackTriageReportWithTelemetry(normalizedLocale, effectiveWizard, validMessages, healthMemory);
     const summaryWithEvidence = safeSummary
       ? {
           ...safeSummary,
@@ -903,6 +951,7 @@ router.post("/message", async (req: Request, res: Response) => {
       evidenceSummary: evidenceSummary || undefined,
       evidenceSources: evidenceSources.length ? evidenceSources : undefined,
     };
+    trackCompletedTriage(safeOutcome?.telemetry ?? fallbackReport.telemetry);
 
     return res.json({
       role: "assistant",
