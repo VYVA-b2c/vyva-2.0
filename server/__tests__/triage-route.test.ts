@@ -17,6 +17,11 @@ vi.mock("openai", () => ({
 }));
 
 import triageRouter from "../routes/triage.js";
+import {
+  resetTriageTelemetrySink,
+  setTriageTelemetrySink,
+  type TriageTelemetryEvent,
+} from "../../src/triage/index.js";
 
 function app() {
   const testApp = express();
@@ -259,6 +264,7 @@ describe("triage route wizard questions", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
+    resetTriageTelemetrySink();
     openAiCreateMock.mockReset();
   });
 
@@ -362,6 +368,83 @@ describe("triage route wizard questions", () => {
     expect(Object.keys(res.body.summary).sort()).toEqual(summaryShapeKeys);
     expect(res.body.summary).toMatchObject({
       chiefComplaint: "Bad headache",
+      urgency: "monitor",
+      nextStepLevel: "monitor",
+      nextStepLabel: "Monitor at home, with doctor access ready",
+    });
+  });
+
+  it("emits non-blocking telemetry without changing the route response", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "");
+    const events: TriageTelemetryEvent[] = [];
+    setTriageTelemetrySink((event) => {
+      events.push(event);
+    });
+
+    const res = await request(app())
+      .post("/api/triage/message")
+      .send({
+        locale: "en",
+        messages: [{ role: "user", content: "Breathing feels off" }],
+        wizard: {
+          mode: "without_vitals",
+          quickAnswers: [
+            { id: "breathing", label: "Breathing", value: "I have a breathing concern.", kind: "symptom" },
+            { id: "no_red_flag", label: "No emergency signs", value: "No emergency signs.", kind: "red_flag" },
+            { id: "mild", label: "Mild", value: "It feels mild.", kind: "severity" },
+            { id: "better", label: "Better", value: "It is getting better.", kind: "trend" },
+          ],
+          vitals: { oxygenSaturation: 92 },
+        },
+      })
+      .expect(200);
+
+    expect(Object.keys(res.body).sort()).toEqual(routeResponseShapeKeys);
+    expect(Object.keys(res.body.summary).sort()).toEqual(summaryShapeKeys);
+    expect(res.body.summary).toMatchObject({
+      urgency: "urgent",
+      nextStepLevel: "doctor_today",
+      nextStepLabel: "Talk to a doctor today",
+    });
+    expect(events.map((event) => event.name)).toEqual([
+      "triage_started",
+      "triage_completed",
+      "triage_escalated",
+    ]);
+    expect(events[1].payload).toMatchObject({
+      symptom_path: "breathing",
+      urgency: "urgent",
+      triage_completion_status: "completed",
+      vitals_overlays_applied: ["spo2_le_92"],
+    });
+    expect(events[2].payload.escalation_source).toBe("vitals");
+  });
+
+  it("continues triage when telemetry emission fails", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "");
+    setTriageTelemetrySink(() => {
+      throw new Error("telemetry unavailable");
+    });
+
+    const res = await request(app())
+      .post("/api/triage/message")
+      .send({
+        locale: "en",
+        messages: [{ role: "user", content: "Bad headache" }],
+        wizard: {
+          mode: "without_vitals",
+          quickAnswers: [
+            { id: "pain", label: "Pain", value: "I have pain.", kind: "symptom" },
+            { id: "no_red_flag", label: "No, none of these", value: "None of these warning signs apply.", kind: "red_flag" },
+            { id: "head_neck_pain", label: "Head or neck", value: "The pain is mainly in my head or neck.", kind: "severity" },
+            { id: "better", label: "Mild, familiar, improving", value: "It is mild, familiar, and improving.", kind: "trend" },
+          ],
+        },
+      })
+      .expect(200);
+
+    expect(Object.keys(res.body).sort()).toEqual(routeResponseShapeKeys);
+    expect(res.body.summary).toMatchObject({
       urgency: "monitor",
       nextStepLevel: "monitor",
       nextStepLabel: "Monitor at home, with doctor access ready",

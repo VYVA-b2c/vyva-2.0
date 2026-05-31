@@ -3,6 +3,7 @@ import { evaluateVitalsOverlay } from "./evaluateVitalsOverlay.js";
 import type {
   ProtocolProfileModifier,
   ProtocolRule,
+  RaiseTriageLevel,
   TriageProtocol,
   TriageRuleDecision,
   TriageRuleInput,
@@ -574,23 +575,45 @@ export function evaluateTriage(input: TriageRuleInput): TriageRuleDecision {
   const reasons: string[] = [];
   const recommendations: string[] = [];
   const profileConsiderations: string[] = [];
+  const ruleIdsFired: string[] = [];
+  const profileModifiersApplied: string[] = [];
+  const vitalsOverlaysApplied: string[] = [];
+  const escalationSources: TriageRuleDecision["telemetry"]["escalationSources"] = [];
 
-  function raise(nextLevel: TriageRuleLevel, reason: string, recommendation?: string) {
+  function noteTelemetry(telemetry: Parameters<RaiseTriageLevel>[3]) {
+    if (!telemetry) return;
+    if (telemetry.ruleId) ruleIdsFired.push(telemetry.ruleId);
+    if (telemetry.profileModifierId) profileModifiersApplied.push(telemetry.profileModifierId);
+    if (telemetry.vitalsOverlayId) vitalsOverlaysApplied.push(telemetry.vitalsOverlayId);
+    if (telemetry.source) escalationSources.push(telemetry.source);
+  }
+
+  function raise(
+    nextLevel: TriageRuleLevel,
+    reason: string,
+    recommendation?: string,
+    telemetry?: Parameters<RaiseTriageLevel>[3],
+  ) {
+    noteTelemetry(telemetry);
     if (rank(nextLevel) > rank(level)) level = nextLevel;
     reasons.push(reason);
     if (recommendation) recommendations.push(recommendation);
   }
 
-  function applyProtocolRule(rule: ProtocolRule) {
+  function applyProtocolRule(rule: ProtocolRule, category: "emergency" | "doctor_today" | "doctor_24_48", index: number) {
     if (!rule.ids.some((id) => ids.has(id))) return;
     raise(
       rule.level,
       text(locale, rule.reasonEn, rule.reasonEs),
       rule.recommendationEn ? text(locale, rule.recommendationEn, rule.recommendationEs ?? rule.recommendationEn) : undefined,
+      {
+        ruleId: `triage.path.${protocol.symptomId}.${category}.${index + 1}`,
+        source: "symptom",
+      },
     );
   }
 
-  function applyProtocolModifier(modifier: ProtocolProfileModifier) {
+  function applyProtocolModifier(modifier: ProtocolProfileModifier, index: number) {
     const riskMatches = modifier.risks.some((risk) => Boolean(risks[risk]));
     if (!riskMatches) return;
     const answerMatches = !modifier.ids?.length || modifier.ids.some((id) => ids.has(id));
@@ -599,21 +622,27 @@ export function evaluateTriage(input: TriageRuleInput): TriageRuleDecision {
       modifier.level,
       text(locale, modifier.reasonEn, modifier.reasonEs),
       modifier.recommendationEn ? text(locale, modifier.recommendationEn, modifier.recommendationEs ?? modifier.recommendationEn) : undefined,
+      {
+        ruleId: `triage.profile.${protocol.symptomId}.protocol_modifier.${index + 1}`,
+        source: "profile",
+        profileModifierId: `${protocol.symptomId}_protocol_modifier_${index + 1}`,
+      },
     );
     profileConsiderations.push(text(locale, modifier.reasonEn, modifier.reasonEs));
   }
 
   const protocol = TRIAGE_PROTOCOLS[symptomId ?? ""] ?? TRIAGE_PROTOCOLS.other;
-  for (const rule of protocol.emergency) applyProtocolRule(rule);
-  for (const rule of protocol.doctorToday) applyProtocolRule(rule);
-  for (const rule of protocol.doctor24_48) applyProtocolRule(rule);
-  for (const modifier of protocol.profileModifiers) applyProtocolModifier(modifier);
+  protocol.emergency.forEach((rule, index) => applyProtocolRule(rule, "emergency", index));
+  protocol.doctorToday.forEach((rule, index) => applyProtocolRule(rule, "doctor_today", index));
+  protocol.doctor24_48.forEach((rule, index) => applyProtocolRule(rule, "doctor_24_48", index));
+  protocol.profileModifiers.forEach((modifier, index) => applyProtocolModifier(modifier, index));
 
   if (input.hasCriticalRedFlag) {
     raise(
       "emergency",
       text(locale, "An emergency warning sign was selected.", "Se selecciono una senal de emergencia."),
       text(locale, "Seek urgent medical help now if this is happening now.", "Busca ayuda medica urgente ahora si esto esta pasando ahora."),
+      { ruleId: "triage.emergency.selected_red_flag", source: "symptom" },
     );
   }
 
@@ -624,6 +653,7 @@ export function evaluateTriage(input: TriageRuleInput): TriageRuleDecision {
       "doctor_today",
       text(locale, "Strong pain that is getting worse needs same-day advice.", "Dolor fuerte que empeora necesita consejo el mismo dia."),
       text(locale, "Contact a doctor, clinic, or urgent care today.", "Contacta hoy con un medico, clinica o urgencias."),
+      { ruleId: "triage.path.pain.strong_worse", source: "symptom" },
     );
   }
 
@@ -632,6 +662,7 @@ export function evaluateTriage(input: TriageRuleInput): TriageRuleDecision {
       "doctor_today",
       text(locale, "Dizziness affecting walking, worsening, or changing needs prompt advice.", "Mareo que afecta caminar, empeora o cambia necesita consejo pronto."),
       text(locale, "Talk to a doctor today, especially if walking feels unsafe.", "Habla con un medico hoy, especialmente si caminar se siente inseguro."),
+      { ruleId: "triage.path.dizzy.strong_worse_or_new", source: "symptom" },
     );
   }
 
@@ -640,6 +671,7 @@ export function evaluateTriage(input: TriageRuleInput): TriageRuleDecision {
       "doctor_today",
       text(locale, "Fever that is high, prolonged, worsening, or changing needs medical advice.", "Fiebre alta, prolongada, que empeora o cambia necesita consejo medico."),
       text(locale, "Contact a doctor today if fever stays high or you feel worse.", "Contacta hoy con un medico si la fiebre sigue alta o te sientes peor."),
+      { ruleId: "triage.path.fever.strong_prolonged_worse_or_new", source: "symptom" },
     );
   }
 
@@ -648,6 +680,7 @@ export function evaluateTriage(input: TriageRuleInput): TriageRuleDecision {
       "doctor_24_48",
       text(locale, "Weakness that limits the day, worsens, or affects drinking should be checked.", "Debilidad que limita el dia, empeora o afecta beber debe revisarse."),
       text(locale, "Contact a doctor within 24-48 hours, sooner if you feel unsafe.", "Contacta con un medico en 24-48 horas, antes si te sientes inseguro."),
+      { ruleId: "triage.path.tired.strong_worse_new_or_not_drinking", source: "symptom" },
     );
   }
 
@@ -656,6 +689,7 @@ export function evaluateTriage(input: TriageRuleInput): TriageRuleDecision {
       ids.has("blood_vomit_stool") || ids.has("severe_abdominal") || ids.has("rigid_belly") ? "emergency" : "doctor_today",
       text(locale, "Stomach or bowel symptoms include signs that should be checked promptly.", "Sintomas de estomago o intestino incluyen senales que deben revisarse pronto."),
       text(locale, "Seek urgent help now for severe pain, blood, black stool, fainting, or a hard swollen belly.", "Busca ayuda urgente ahora por dolor fuerte, sangre, heces negras, desmayo o barriga dura e hinchada."),
+      { ruleId: "triage.path.stomach.prompt_check", source: "symptom" },
     );
   }
 
@@ -664,6 +698,7 @@ export function evaluateTriage(input: TriageRuleInput): TriageRuleDecision {
       ids.has("urine_confusion_weak") || ids.has("cannot_pee") ? "emergency" : "doctor_today",
       text(locale, "Urine symptoms with fever, back pain, retention, blood, or worsening need medical advice.", "Sintomas de orina con fiebre, dolor de espalda, retencion, sangre o empeoramiento necesitan consejo medico."),
       text(locale, "Talk to a doctor today, or seek urgent help if you cannot pass urine or have fever with back pain.", "Habla con un medico hoy, o busca urgencias si no puedes orinar o tienes fiebre con dolor de espalda."),
+      { ruleId: "triage.path.urinary.prompt_check", source: "symptom" },
     );
   }
 
@@ -672,6 +707,7 @@ export function evaluateTriage(input: TriageRuleInput): TriageRuleDecision {
       ids.has("fall_head_hit") || ids.has("fall_cannot_stand") || ids.has("hip_back_after_fall") ? "emergency" : "doctor_today",
       text(locale, "Fall or injury answers include signs that may need urgent assessment.", "Respuestas de caida o golpe incluyen senales que pueden necesitar evaluacion urgente."),
       text(locale, "Seek urgent help for head hit, confusion, fainting, hip/back pain, or inability to stand or walk.", "Busca ayuda urgente por golpe en cabeza, confusion, desmayo, dolor de cadera/espalda o no poder estar de pie o caminar."),
+      { ruleId: "triage.path.fall.prompt_assessment", source: "symptom" },
     );
   }
 
@@ -680,6 +716,7 @@ export function evaluateTriage(input: TriageRuleInput): TriageRuleDecision {
       ids.has("allergic_swelling") ? "emergency" : "doctor_today",
       text(locale, "Skin or wound symptoms are spreading, severe, or linked with fever/swelling.", "Sintomas de piel o herida se extienden, son fuertes o se asocian con fiebre/hinchazon."),
       text(locale, "Seek urgent help for face, lip, tongue, or throat swelling; otherwise talk to a doctor today if spreading or fever appears.", "Busca urgencias por hinchazon de cara, labios, lengua o garganta; si se extiende o hay fiebre, habla hoy con un medico."),
+      { ruleId: "triage.path.skin.spreading_or_severe", source: "symptom" },
     );
   }
 
@@ -688,6 +725,7 @@ export function evaluateTriage(input: TriageRuleInput): TriageRuleDecision {
       ids.has("sudden_confusion") || ids.has("stroke_sign") || ids.has("urine_confusion") || ids.has("urine_confusion_weak") || ids.has("self_harm") ? "emergency" : "doctor_today",
       text(locale, "Confusion that is sudden, worsening, or linked with weakness, fever, or urine change needs urgent caution.", "Confusion repentina, que empeora o con debilidad, fiebre u orina requiere mucha cautela."),
       text(locale, "Seek urgent help now if confusion is sudden, severe, or comes with weakness, speech trouble, fever, or urine change.", "Busca ayuda urgente ahora si la confusion es repentina, fuerte o viene con debilidad, habla rara, fiebre u orina."),
+      { ruleId: "triage.path.confusion.urgent_caution", source: "symptom" },
     );
   }
 
@@ -696,6 +734,7 @@ export function evaluateTriage(input: TriageRuleInput): TriageRuleDecision {
       "doctor_24_48",
       text(locale, "You selected that the symptom is strong, getting worse, or changing, so VYVA is not recommending home watching only.", "Seleccionaste que el sintoma es fuerte, empeora o esta cambiando, por eso VYVA no recomienda solo vigilar en casa."),
       text(locale, "Contact your doctor or clinic if this continues or feels unusual for you.", "Contacta con tu medico o clinica si continua o se siente raro para ti."),
+      { ruleId: "triage.path.generic.strong_worse_or_new", source: "symptom" },
     );
   }
 
@@ -724,6 +763,12 @@ export function evaluateTriage(input: TriageRuleInput): TriageRuleDecision {
     recommendations: uniqueRecommendations.slice(0, 4),
     watchSigns: watchSignsFor(locale, symptomId),
     profileConsiderations: [...new Set(profileConsiderations)].slice(0, 3),
+    telemetry: {
+      ruleIdsFired: [...new Set(ruleIdsFired)],
+      profileModifiersApplied: [...new Set(profileModifiersApplied)],
+      vitalsOverlaysApplied: [...new Set(vitalsOverlaysApplied)],
+      escalationSources: [...new Set(escalationSources)],
+    },
   };
 }
 

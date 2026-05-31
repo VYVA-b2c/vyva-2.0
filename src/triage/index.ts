@@ -8,11 +8,14 @@ export {
   CRITICAL_RED_FLAG_IDS,
   applyTriageSafetyFloor,
   buildFallbackTriageReport,
+  buildFallbackTriageReportWithTelemetry,
+  evaluateTriageSafetyFloor,
   fallbackReportContent,
   firstAnswerKind,
   hasAnswer,
   nextAdaptiveStage,
   nextStepFor,
+  primaryEscalationSource,
   profileConsiderationsFor,
   profileRiskFlags,
   scanNotesFor,
@@ -24,7 +27,14 @@ export {
   uniqueStrings,
   vitalsNotesFor,
   watchSignsFor,
+  type TriageOutcomeTelemetry,
 } from "./engine/routeOutcome.js";
+
+export {
+  resetTriageTelemetrySink,
+  setTriageTelemetrySink,
+  trackTriageEvent,
+} from "./telemetry/trackTriageEvent.js";
 
 export type {
   ProfileRiskFlags,
@@ -32,11 +42,13 @@ export type {
   ProtocolProfileModifier,
   ProtocolRule,
   RaiseTriageLevel,
+  TriageEscalationSource,
   TriageChatMessage,
   TriageHealthMemory,
   TriageProtocol,
   TriageRuleDecision,
   TriageRuleInput,
+  TriageRuleTelemetry,
   TriageRuleLevel,
   TriageRuleRiskFlags,
   TriageSummary,
@@ -46,3 +58,11 @@ export type {
   TriageWizardContext,
   WizardStage,
 } from "./types.js";
+
+export type {
+  TriageCompletionStatus,
+  TriageTelemetryEvent,
+  TriageTelemetryEventName,
+  TriageTelemetryPayload,
+  TriageTelemetrySink,
+} from "./telemetry/types.js";

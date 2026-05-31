@@ -1,6 +1,7 @@
 import type { TriageScanResult } from "../../../shared/triageScans.js";
 import { evaluateTriageRules } from "./evaluateTriage.js";
 import type {
+  TriageEscalationSource,
   ProfileRiskFlags,
   TriageChatMessage,
   TriageHealthMemory,
@@ -10,6 +11,16 @@ import type {
   TriageWizardContext,
   WizardStage,
 } from "../types.js";
+
+export type TriageOutcomeTelemetry = {
+  symptomPath: string;
+  urgency: TriageUrgency;
+  ruleIdsFired: string[];
+  profileModifiersApplied: string[];
+  vitalsOverlaysApplied: string[];
+  caregiverEscalationTriggered: boolean;
+  escalationSources: TriageEscalationSource[];
+};
 
 export const CRITICAL_RED_FLAG_IDS = new Set([
   "chest_pressure",
@@ -551,6 +562,19 @@ export function buildFallbackTriageReport(
   messages: TriageChatMessage[],
   healthMemory?: TriageHealthMemory,
 ): { content: string; summary: TriageSummary } {
+  const report = buildFallbackTriageReportWithTelemetry(locale, wizard, messages, healthMemory);
+  return {
+    content: report.content,
+    summary: report.summary,
+  };
+}
+
+export function buildFallbackTriageReportWithTelemetry(
+  locale: string,
+  wizard: TriageWizardContext | undefined,
+  messages: TriageChatMessage[],
+  healthMemory?: TriageHealthMemory,
+): { content: string; summary: TriageSummary; telemetry: TriageOutcomeTelemetry } {
   const symptomId = selectedSymptomId(wizard);
   const symptom = symptomLabel(locale, symptomId);
   const chiefComplaint = firstUserClue(messages).replace(/\s+/g, " ").trim() || symptom;
@@ -572,10 +596,11 @@ export function buildFallbackTriageReport(
     profileConsiderations: [],
     vitalsNotes: [],
   };
-  const summary = applyTriageSafetyFloor(baseSummary, wizard, locale, healthMemory);
+  const { summary, telemetry } = evaluateTriageSafetyFloor(baseSummary, wizard, locale, healthMemory);
   return {
     content: fallbackReportContent(locale, summary, symptom),
     summary,
+    telemetry,
   };
 }
 
@@ -619,12 +644,49 @@ function nextStepRank(level: TriageRuleLevel | undefined) {
   return 1;
 }
 
-export function applyTriageSafetyFloor(
+function outcomeTelemetryFor(input: {
+  symptom?: string;
+  summary: TriageSummary;
+  ruleTelemetry: {
+    ruleIdsFired: string[];
+    profileModifiersApplied: string[];
+    vitalsOverlaysApplied: string[];
+    escalationSources: TriageEscalationSource[];
+  };
+  urgentScanApplied: boolean;
+}): TriageOutcomeTelemetry {
+  const ruleIds = input.urgentScanApplied
+    ? [...input.ruleTelemetry.ruleIdsFired, "triage.scan.urgent_visible_change"]
+    : input.ruleTelemetry.ruleIdsFired;
+  const escalationSources = input.urgentScanApplied
+    ? [...input.ruleTelemetry.escalationSources, "symptom" as const]
+    : input.ruleTelemetry.escalationSources;
+
+  return {
+    symptomPath: input.symptom ?? "unknown",
+    urgency: input.summary.urgency,
+    ruleIdsFired: uniqueStrings(ruleIds),
+    profileModifiersApplied: uniqueStrings(input.ruleTelemetry.profileModifiersApplied),
+    vitalsOverlaysApplied: uniqueStrings(input.ruleTelemetry.vitalsOverlaysApplied),
+    caregiverEscalationTriggered: false,
+    escalationSources: [...new Set(escalationSources)],
+  };
+}
+
+export function primaryEscalationSource(telemetry: TriageOutcomeTelemetry): TriageEscalationSource | undefined {
+  if (telemetry.escalationSources.includes("caregiver")) return "caregiver";
+  if (telemetry.escalationSources.includes("vitals")) return "vitals";
+  if (telemetry.escalationSources.includes("profile")) return "profile";
+  if (telemetry.escalationSources.includes("symptom")) return "symptom";
+  return undefined;
+}
+
+export function evaluateTriageSafetyFloor(
   summary: TriageSummary,
   wizard: TriageWizardContext | undefined,
   locale: string,
   healthMemory?: TriageHealthMemory,
-): TriageSummary {
+): { summary: TriageSummary; telemetry: TriageOutcomeTelemetry } {
   const answers = selectedAnswers(wizard);
   const ids = new Set(answers.map((answer) => answer.id));
   const symptom = selectedSymptomId(wizard);
@@ -700,8 +762,27 @@ export function applyTriageSafetyFloor(
     nextStepLabel: ruleDecision.nextStepLabel,
   };
 
-  return {
+  const finalSummary = {
     ...baseSummary,
     ...nextStep,
   };
+
+  return {
+    summary: finalSummary,
+    telemetry: outcomeTelemetryFor({
+      symptom,
+      summary: finalSummary,
+      ruleTelemetry: ruleDecision.telemetry,
+      urgentScanApplied: urgentScans.length > 0,
+    }),
+  };
+}
+
+export function applyTriageSafetyFloor(
+  summary: TriageSummary,
+  wizard: TriageWizardContext | undefined,
+  locale: string,
+  healthMemory?: TriageHealthMemory,
+): TriageSummary {
+  return evaluateTriageSafetyFloor(summary, wizard, locale, healthMemory).summary;
 }

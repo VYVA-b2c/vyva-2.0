@@ -4,6 +4,8 @@ export type TriageRuleLevel = "emergency" | "doctor_today" | "doctor_24_48" | "m
 
 export type TriageUrgency = "urgent" | "routine" | "monitor";
 
+export type TriageEscalationSource = "symptom" | "vitals" | "profile" | "caregiver";
+
 export type TriageRuleRiskFlags = {
   diabetes?: boolean;
   copd?: boolean;
@@ -60,6 +62,14 @@ export type TriageRuleDecision = {
   recommendations: string[];
   watchSigns: string[];
   profileConsiderations: string[];
+  telemetry: TriageRuleTelemetry;
+};
+
+export type TriageRuleTelemetry = {
+  ruleIdsFired: string[];
+  profileModifiersApplied: string[];
+  vitalsOverlaysApplied: string[];
+  escalationSources: TriageEscalationSource[];
 };
 
 export type TriageSummary = {
@@ -156,6 +166,12 @@ export type RaiseTriageLevel = (
   nextLevel: TriageRuleLevel,
   reason: string,
   recommendation?: string,
+  telemetry?: {
+    ruleId?: string;
+    source?: TriageEscalationSource;
+    profileModifierId?: string;
+    vitalsOverlayId?: string;
+  },
 ) => void;
 
 export type LocalizeTriageText = (

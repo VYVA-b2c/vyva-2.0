@@ -4,6 +4,7 @@ import { eq, and, desc, gte } from "drizzle-orm";
 import { db, pool } from "../db.js";
 import { caregiverAlerts, profiles, triageReports, vitalsReadings, medicationAdherence, userMedications } from "../../shared/schema.js";
 import type { TriageScanResult } from "../../shared/triageScans.js";
+import { trackTriageEvent } from "../../src/triage/index.js";
 import { z } from "zod";
 
 const DEMO_USER_ID = "demo-user";
@@ -150,7 +151,7 @@ async function recordTriageReportHandoff(params: {
   chief_complaint: string;
   urgency: "urgent" | "routine" | "monitor";
   recommendations: string[];
-}) {
+}): Promise<{ sentTo: string[]; caregiverEscalationTriggered: boolean }> {
   const [profile] = await db
     .select({
       caregiver_name: profiles.caregiver_name,
@@ -168,7 +169,9 @@ async function recordTriageReportHandoff(params: {
     profile?.caregiver_name || profile?.caregiver_contact ? profile.caregiver_name || "caregiver" : "",
   ].filter(Boolean);
 
-  if (sentTo.length === 0) return sentTo;
+  if (sentTo.length === 0) {
+    return { sentTo, caregiverEscalationTriggered: false };
+  }
 
   await db.insert(caregiverAlerts).values({
     user_id: params.userId,
@@ -181,7 +184,10 @@ async function recordTriageReportHandoff(params: {
     sent_to: sentTo,
   });
 
-  return sentTo;
+  return {
+    sentTo,
+    caregiverEscalationTriggered: Boolean(profile?.caregiver_name || profile?.caregiver_contact),
+  };
 }
 
 async function saveVitalsReading(params: {
@@ -325,16 +331,23 @@ router.post("/triage", async (req: Request, res: Response) => {
   }
   try {
     const row = await saveTriageReport({ userId, ...parsed.data });
-    const sentTo = await recordTriageReportHandoff({
+    const handoff = await recordTriageReportHandoff({
       userId,
       chief_complaint: parsed.data.chief_complaint,
       urgency: parsed.data.urgency,
       recommendations: parsed.data.recommendations,
     }).catch((err) => {
       console.error("[reports/triage handoff]", err);
-      return [];
+      return { sentTo: [], caregiverEscalationTriggered: false };
     });
-    return res.status(201).json({ ...row, sent_to: sentTo });
+    if (handoff.caregiverEscalationTriggered) {
+      trackTriageEvent("caregiver_escalation_triggered", {
+        urgency: parsed.data.urgency,
+        trigger_source: "triage_report_handoff",
+        caregiver_escalation_triggered: true,
+      });
+    }
+    return res.status(201).json({ ...row, sent_to: handoff.sentTo });
   } catch (err) {
     console.error("[reports/triage POST]", err);
     return res.status(500).json({ error: "Failed to save triage report" });
