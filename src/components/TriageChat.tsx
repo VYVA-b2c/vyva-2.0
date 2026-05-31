@@ -1,6 +1,21 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { Activity, AlertCircle, BookOpenCheck, HelpCircle, HeartPulse, Mic, PhoneCall, Send, Square, Thermometer, Wind } from "lucide-react";
+import {
+  Activity,
+  AlertCircle,
+  BookOpenCheck,
+  CheckCircle,
+  ClipboardList,
+  HeartPulse,
+  HelpCircle,
+  ListChecks,
+  Mic,
+  PhoneCall,
+  Send,
+  Square,
+  Thermometer,
+  Wind,
+} from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 import { useLanguage } from "@/i18n";
 import { HealthWizardCard, HealthWizardChoiceTile, HealthWizardHero } from "@/components/health/HealthWizard";
@@ -612,6 +627,10 @@ export default function TriageChat({
     safetyAlertActive: Boolean(safetyAlert),
     loading,
   });
+  const answeredCount = selectedQuickAnswers.length;
+  const progressStep = Math.min(Math.max(answeredCount + 1, 1), 5);
+  const progressPct = Math.min(100, Math.max(18, (progressStep / 5) * 100));
+  const hasReusableVitals = bpm != null || respiratoryRate != null;
 
   const handleSkipScan = (type: TriageScanType) => {
     setDeclinedScanTypes((current) => current.includes(type) ? current : [...current, type]);
@@ -639,10 +658,62 @@ export default function TriageChat({
         style={{ overscrollBehavior: "contain" }}
       >
         <div className="mx-auto flex w-full max-w-[560px] flex-col gap-5">
-          {wizardStageLabel && (
-            <div className="self-start font-body text-[14px] font-extrabold uppercase tracking-[0.08em] text-vyva-purple">
-              {wizardStageLabel}
+          <HealthWizardCard tone="soft" className="px-4 py-3" testId="triage-question-progress">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-teal-700 shadow-sm">
+                <ListChecks className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-body text-[16px] font-black text-vyva-text-1">
+                    {t("health.symptomCheck.chat.oneQuestion", "One question at a time")}
+                  </p>
+                  <span className="rounded-full bg-white px-2.5 py-1 font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3 shadow-sm">
+                    {wizardStageLabel || t("health.symptomCheck.chat.currentQuestion", "Current question")}
+                  </span>
+                </div>
+                <p className="mt-1 font-body text-[15px] font-semibold leading-snug text-vyva-text-2">
+                  {answeredCount > 0
+                    ? t("health.symptomCheck.chat.answersSaved", "{{count}} answers saved", { count: answeredCount })
+                    : t("health.symptomCheck.chat.startAnswering", "Choose the closest answer, or type in your own words.")}
+                </p>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+                  <div
+                    className="h-full rounded-full bg-teal-600 transition-all duration-300"
+                    style={{ width: `${progressPct}%` }}
+                  />
+                </div>
+              </div>
             </div>
+          </HealthWizardCard>
+
+          {hasReusableVitals && (
+            <HealthWizardCard tone="blue" className="px-4 py-3" testId="triage-existing-vitals">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-blue-700 shadow-sm">
+                  <ClipboardList className="h-5 w-5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-body text-[16px] font-black text-vyva-text-1">
+                    {t("health.symptomCheck.chat.usingVitals", "Using vitals already here")}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {bpm != null && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 font-body text-[13px] font-black text-blue-800 shadow-sm">
+                        <HeartPulse className="h-3.5 w-3.5" />
+                        {t("health.symptomCheck.chat.heartRateValue", "{{value}} bpm", { value: bpm })}
+                      </span>
+                    )}
+                    {respiratoryRate != null && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 font-body text-[13px] font-black text-blue-800 shadow-sm">
+                        <Wind className="h-3.5 w-3.5" />
+                        {t("health.symptomCheck.chat.breathingRateValue", "{{value}} breaths/min", { value: respiratoryRate })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </HealthWizardCard>
           )}
 
           {safetyAlert && (
@@ -673,7 +744,10 @@ export default function TriageChat({
 
           {showQuestion && (
             <HealthWizardCard className="px-5 py-5">
-              <h2 className={`font-body text-[28px] font-black leading-[1.16] ${safetyAlert ? "motion-safe:animate-pulse text-[#B91C1C]" : "text-vyva-text-1"}`}>
+              <p className="mb-2 font-body text-[13px] font-black uppercase tracking-[0.12em] text-vyva-text-3">
+                {t("health.symptomCheck.chat.answerThisQuestion", "Answer this question")}
+              </p>
+              <h2 className={`font-body text-[26px] font-black leading-[1.16] ${safetyAlert ? "motion-safe:animate-pulse text-[#B91C1C]" : "text-vyva-text-1"}`}>
                 {latestQuestion}
                 {latestAssistantEntry && animatingIdx === latestAssistantEntry.index && (
                   <span
@@ -712,6 +786,10 @@ export default function TriageChat({
 
           {canAnswer && (
             <div className="grid gap-3" data-testid="triage-quick-answers">
+              <div className="flex items-center gap-2 px-1 font-body text-[15px] font-black text-vyva-text-2">
+                <CheckCircle className="h-4 w-4 text-teal-700" />
+                {t("health.symptomCheck.chat.chooseClosest", "Choose the closest answer")}
+              </div>
               {quickAnswers.map((quickAnswer) => {
                 const { label, value, Icon } = quickAnswer;
                 return (

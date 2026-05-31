@@ -220,7 +220,7 @@ function DetailView({ report, onBack }: { report: TriageReport; onBack: () => vo
         {report.respiratory_rate != null && (
           <div className={`${cardShell} p-4`}>
             <Wind size={18} style={{ color: "#0369A1" }} />
-            <p className="mt-3 font-body text-[28px] font-bold leading-none text-vyva-text-1">{report.respiratory_rate}<span className="ml-1 text-[13px] text-vyva-text-2">rpm</span></p>
+            <p className="mt-3 font-body text-[28px] font-bold leading-none text-vyva-text-1">{report.respiratory_rate}<span className="ml-1 text-[13px] text-vyva-text-2">breaths/min</span></p>
           </div>
         )}
         {report.duration_seconds != null && report.duration_seconds > 0 && (
@@ -246,36 +246,25 @@ function DetailView({ report, onBack }: { report: TriageReport; onBack: () => vo
         </section>
       )}
 
-      {report.recommendations.length > 0 && (
-        <section className={`${cardShell} mt-4 p-5`}>
-          <p className="mb-4 font-body text-[13px] font-bold uppercase tracking-[0.12em] text-vyva-text-2">
-            {t("informes.reportDetail.recommendations")}
-          </p>
-          <ol className="flex flex-col gap-3">
-            {report.recommendations.map((recommendation, index) => (
-              <li key={`${index}-${recommendation}`} className="flex items-start gap-3">
-                <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[#6B21A8] font-body text-[12px] font-bold text-white">
-                  {index + 1}
-                </span>
-                <span className="pt-1 font-body text-[15px] leading-relaxed text-vyva-text-1">{recommendation}</span>
-              </li>
-            ))}
-          </ol>
-        </section>
-      )}
-
       {(report.next_step_label || triageReasons.length > 0) && (
-        <section className={`${cardShell} mt-4 p-5`}>
-          <p className="mb-3 font-body text-[13px] font-bold uppercase tracking-[0.12em] text-vyva-text-2">
-            {t("informes.reportDetail.nextStep", "Next step")}
-          </p>
-          {report.next_step_label && (
-            <p className="font-body text-[20px] font-black leading-tight text-vyva-text-1">
-              {report.next_step_label}
-            </p>
-          )}
+        <section className={`${cardShell} mt-4 p-5`} data-testid="report-detail-next-step">
+          <div className="mb-4 flex items-start gap-3">
+            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#ECFDF5] text-[#047857]">
+              <ArrowRight size={21} />
+            </span>
+            <div className="min-w-0">
+              <p className="font-body text-[13px] font-bold uppercase tracking-[0.12em] text-vyva-text-2">
+                {t("informes.reportDetail.nextStep", "Next step")}
+              </p>
+              {report.next_step_label && (
+                <p className="mt-1 font-body text-[21px] font-black leading-tight text-vyva-text-1">
+                  {report.next_step_label}
+                </p>
+              )}
+            </div>
+          </div>
           {triageReasons.length > 0 && (
-            <div className="mt-4 rounded-[20px] bg-[#F5F3FF] p-4 text-[#6B21A8]">
+            <div className="rounded-[20px] bg-[#F5F3FF] p-4 text-[#6B21A8]">
               <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em]">
                 {t("informes.reportDetail.whyThisStep", "Initial Assessment")}
               </p>
@@ -288,6 +277,24 @@ function DetailView({ report, onBack }: { report: TriageReport; onBack: () => vo
               </ul>
             </div>
           )}
+        </section>
+      )}
+
+      {report.recommendations.length > 0 && (
+        <section className={`${cardShell} mt-4 p-5`}>
+          <p className="mb-4 font-body text-[13px] font-bold uppercase tracking-[0.12em] text-vyva-text-2">
+            {t("informes.reportDetail.recommendations", "What to do next")}
+          </p>
+          <ol className="flex flex-col gap-3">
+            {report.recommendations.map((recommendation, index) => (
+              <li key={`${index}-${recommendation}`} className="flex items-start gap-3 rounded-[20px] bg-[#FFFCF8] p-3">
+                <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[#6B21A8] font-body text-[12px] font-bold text-white">
+                  {index + 1}
+                </span>
+                <span className="pt-1 font-body text-[15px] leading-relaxed text-vyva-text-1">{recommendation}</span>
+              </li>
+            ))}
+          </ol>
         </section>
       )}
 
@@ -505,7 +512,7 @@ function InformesMain() {
                 <div className="mt-4 flex items-center justify-between pr-24">
                   <div className="flex items-center gap-3">
                     {summary.latestTriage.bpm != null && <span className="font-body text-[12px] font-bold text-vyva-text-2">{summary.latestTriage.bpm} bpm</span>}
-                    {summary.latestTriage.respiratory_rate != null && <span className="font-body text-[12px] font-bold text-vyva-text-2">{summary.latestTriage.respiratory_rate} rpm</span>}
+                    {summary.latestTriage.respiratory_rate != null && <span className="font-body text-[12px] font-bold text-vyva-text-2">{summary.latestTriage.respiratory_rate} breaths/min</span>}
                   </div>
                   <span className="inline-flex items-center gap-1 font-body text-[12px] font-bold text-[#6B21A8]">
                     {t("informes.cards.symptom.cta")}
@@ -540,7 +547,7 @@ function InformesMain() {
                   </div>
                   <div className="rounded-[18px] bg-[#EFF6FF] p-4">
                     <Wind size={16} style={{ color: "#0369A1" }} />
-                    <p className="mt-3 font-body text-[30px] font-bold leading-none text-vyva-text-1">{summary.latestVitals.respiratory_rate ?? "--"}<span className="ml-1 text-[13px] text-vyva-text-2">rpm</span></p>
+                    <p className="mt-3 font-body text-[30px] font-bold leading-none text-vyva-text-1">{summary.latestVitals.respiratory_rate ?? "--"}<span className="ml-1 text-[13px] text-vyva-text-2">breaths/min</span></p>
                   </div>
                 </div>
               </section>
@@ -613,8 +620,8 @@ function InformesMain() {
               </div>
               <LineChart values={respReadings.map((reading) => reading.respiratory_rate!)} color="#0369A1" />
               <div className="mt-2 flex items-center justify-between">
-                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.min")}: {Math.min(...respReadings.map((reading) => reading.respiratory_rate!))} rpm</span>
-                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.max")}: {Math.max(...respReadings.map((reading) => reading.respiratory_rate!))} rpm</span>
+                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.min")}: {Math.min(...respReadings.map((reading) => reading.respiratory_rate!))} breaths/min</span>
+                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.max")}: {Math.max(...respReadings.map((reading) => reading.respiratory_rate!))} breaths/min</span>
               </div>
             </section>
           )}
