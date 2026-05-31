@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray } from "drizzle-orm";
 import { db } from "../db.js";
 import {
   activityLogs,
@@ -17,10 +17,13 @@ import {
   vitalsReadings,
   sessionExchanges,
   cognitiveSessionIndex,
+  cognitiveDailyPlans,
+  cognitiveDailyPlanItems,
 } from "../../shared/schema.js";
 import { formatMemoryBlock, searchMemories } from "./mem0.js";
 import { extractBrainCoachPreferences } from "./brainCoachPlan.js";
 import { buildBrainCoachVoiceContext, type BrainCoachVoiceContext } from "./brainCoachVoiceContext.js";
+import { buildPersistedBrainCoachPlan } from "./brainCoachPlanLifecycle.js";
 import { socialRoomSeeds } from "./socialRoomsSeed.js";
 import { buildAgentOperatingRules, buildConversationPlan } from "./voiceAgentPolicy.js";
 import {
@@ -1138,10 +1141,32 @@ export async function buildVoiceContext(
   const latestMedicalVisit = formatScheduledHealthEvent(latestVisit);
   const upcomingMedicalAppointment = formatScheduledHealthEvent(upcomingAppointment);
   const now = new Date();
+  const todayPlanDate = now.toISOString().slice(0, 10);
+  const [brainCoachPlanRow] = domain === "brain_coach"
+    ? await db
+        .select()
+        .from(cognitiveDailyPlans)
+        .where(and(
+          eq(cognitiveDailyPlans.userId, userId),
+          eq(cognitiveDailyPlans.planDate, todayPlanDate),
+        ))
+        .limit(1)
+    : [];
+  const brainCoachPlanItemRows = brainCoachPlanRow
+    ? await db
+        .select()
+        .from(cognitiveDailyPlanItems)
+        .where(eq(cognitiveDailyPlanItems.planId, brainCoachPlanRow.id))
+        .orderBy(asc(cognitiveDailyPlanItems.sortOrder))
+    : [];
+  const persistedBrainCoachPlan = brainCoachPlanRow
+    ? buildPersistedBrainCoachPlan(brainCoachPlanRow, brainCoachPlanItemRows)
+    : null;
   const brainCoachVoiceContext = domain === "brain_coach"
     ? buildBrainCoachVoiceContext({
         sessions: brainCoachSessionRows,
         preferences: extractBrainCoachPreferences(consent),
+        plan: persistedBrainCoachPlan,
         now,
       })
     : null;
@@ -1405,12 +1430,15 @@ export async function buildVoiceContext(
   if (domain === "brain_coach") {
     variables.cognitive_notes = asString(cognitiveSection.cognitive_notes);
     variables.brain_coach_state = brainCoachVoiceContext?.state ?? "new_user";
+    variables.brain_coach_plan_id = brainCoachVoiceContext?.planId ?? "";
+    variables.brain_coach_plan_complete = brainCoachVoiceContext?.planComplete ?? false;
     variables.brain_coach_context = brainCoachVoiceContext?.summary ?? "No Brain Coach history is available yet.";
     variables.brain_coach_recent_history = brainCoachVoiceContext?.recentHistory ?? "No completed Brain Coach activities are recorded yet.";
     variables.brain_coach_plan = brainCoachVoiceContext?.planPrompt ?? "";
     variables.brain_coach_recommended_activity_prompt = brainCoachVoiceContext?.recommendedActivityPrompt ?? "";
     variables.brain_coach_recommended_activity_title = brainCoachVoiceContext?.firstRecommendedActivityTitle ?? "";
     variables.brain_coach_recommended_activity_route = brainCoachVoiceContext?.firstRecommendedActivityRoute ?? "";
+    variables.brain_coach_recommended_plan_item_id = brainCoachVoiceContext?.firstRecommendedPlanItemId ?? "";
     variables.brain_coach_missed_session_awareness = brainCoachVoiceContext?.missedSessionAwareness ?? "";
     variables.brain_coach_streak_awareness = brainCoachVoiceContext?.streakAwareness ?? "";
     variables.brain_coach_completed_yesterday = brainCoachVoiceContext?.completedYesterday ?? "";
