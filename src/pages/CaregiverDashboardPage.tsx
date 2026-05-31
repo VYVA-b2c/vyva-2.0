@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -22,7 +22,7 @@ import { Link } from "react-router-dom";
 import { apiFetch } from "@/lib/queryClient";
 
 type SafetyStatus = "steady" | "recheck" | "share_with_caregiver" | "contact_doctor" | "urgent_help";
-type WorkflowStatus = "new" | "acknowledged" | "contacted" | "watching" | "resolved";
+type WorkflowStatus = "new" | "reviewed" | "contacted" | "resolved";
 
 type CaregiverAlert = {
   id: string;
@@ -30,7 +30,13 @@ type CaregiverAlert = {
   severity: string;
   message: string;
   sent_to?: string[] | null;
+  status?: WorkflowStatus | string | null;
+  acknowledged_at?: string | null;
+  acknowledged_by?: string | null;
+  contacted_at?: string | null;
   resolved_at?: string | null;
+  resolved_by?: string | null;
+  caregiver_note?: string | null;
   created_at?: string | null;
 };
 
@@ -66,23 +72,12 @@ type DailyCheckinToday = {
   message: string;
 };
 
-type AlertWorkflowEntry = {
-  status: WorkflowStatus;
-  acknowledgedAt?: string;
-  contactedAt?: string;
-  watchingAt?: string;
-  resolvedAt?: string;
-};
-
-type AlertWorkflowState = Record<string, AlertWorkflowEntry>;
-
 type ContactTarget = {
   label: string;
   href?: string;
   kind: "call" | "email" | "record";
 };
 
-const WORKFLOW_STORAGE_KEY = "vyva_caregiver_alert_workflow_v1";
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 function normalizeStatus(value: unknown): SafetyStatus {
@@ -103,20 +98,24 @@ function statusMeta(status: SafetyStatus) {
 }
 
 function workflowMeta(status: WorkflowStatus) {
-  if (status === "resolved") return { label: "Locally resolved", color: "#047857", bg: "#ECFDF5" };
+  if (status === "resolved") return { label: "Resolved", color: "#047857", bg: "#ECFDF5" };
   if (status === "contacted") return { label: "Contacted", color: "#6B21A8", bg: "#F5F3FF" };
-  if (status === "watching") return { label: "Watching", color: "#0369A1", bg: "#EFF6FF" };
-  if (status === "acknowledged") return { label: "Acknowledged", color: "#B45309", bg: "#FFF7ED" };
+  if (status === "reviewed") return { label: "Reviewed", color: "#B45309", bg: "#FFF7ED" };
   return { label: "New", color: "#B91C1C", bg: "#FEF2F2" };
-}
-
-function resolvedAlertMeta() {
-  return { label: "Resolved", color: "#047857", bg: "#ECFDF5" };
 }
 
 function formatTime(value?: string | null) {
   if (!value) return "No recent update";
   return new Date(value).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function isWorkflowStatus(value: unknown): value is WorkflowStatus {
+  return value === "new" || value === "reviewed" || value === "contacted" || value === "resolved";
+}
+
+function workflowStatusFor(alert: CaregiverAlert): WorkflowStatus {
+  if (alert.resolved_at) return "resolved";
+  return isWorkflowStatus(alert.status) ? alert.status : "new";
 }
 
 function sourceLabel(alertType: string) {
@@ -143,16 +142,6 @@ function createdTime(alert: CaregiverAlert) {
 function isRecent(alert: CaregiverAlert) {
   if (!alert.created_at) return false;
   return Date.now() - new Date(alert.created_at).getTime() <= ONE_WEEK_MS;
-}
-
-function loadWorkflowState(): AlertWorkflowState {
-  if (typeof window === "undefined") return {};
-  try {
-    const saved = window.localStorage.getItem(WORKFLOW_STORAGE_KEY);
-    return saved ? JSON.parse(saved) as AlertWorkflowState : {};
-  } catch {
-    return {};
-  }
 }
 
 function contactTargetFor(rawValue: string): ContactTarget | null {
@@ -194,14 +183,15 @@ function buildDigest(alerts: CaregiverAlert[], statusLabel: string, checkinMessa
 function nextCaregiverAction(status: SafetyStatus, openCount: number) {
   if (status === "urgent_help") return "Review the urgent alert, use the listed contact options, and mark the follow-up step when completed.";
   if (status === "contact_doctor") return "Use the contact actions for the alert and track whether the doctor or care contact was reached.";
-  if (openCount > 0) return "Acknowledge each open alert, then mark the next caregiver step so everyone can see progress.";
+  if (openCount > 0) return "Review each open alert, then mark the next caregiver step so the saved workflow stays current.";
   return "No open alert needs action right now.";
 }
 
 export default function CaregiverDashboardPage() {
-  const [workflow, setWorkflow] = useState<AlertWorkflowState>(() => loadWorkflowState());
+  const queryClient = useQueryClient();
   const [copiedAlertId, setCopiedAlertId] = useState<string | null>(null);
   const [digestCopied, setDigestCopied] = useState(false);
+  const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
 
   const { data, isLoading, isError } = useQuery<CaregiverSafetyResponse>({
     queryKey: ["/api/vitals-engine/caregiver/latest-alerts"],
@@ -236,24 +226,44 @@ export default function CaregiverDashboardPage() {
   const checkinMessage = dailyCheckin?.latest_checkin?.feeling_label ?? dailyCheckin?.message ?? "No check-in update";
   const digestText = buildDigest(alerts, meta.label, checkinMessage);
 
-  function persistWorkflow(next: AlertWorkflowState) {
-    setWorkflow(next);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(WORKFLOW_STORAGE_KEY, JSON.stringify(next));
-    }
+  const workflowMutation = useMutation({
+    mutationFn: async (params: { alertId: string; status: WorkflowStatus; caregiver_note?: string | null }) => {
+      const response = await apiFetch(`/api/vitals-engine/caregiver/alerts/${params.alertId}/workflow`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: params.status,
+          ...(Object.prototype.hasOwnProperty.call(params, "caregiver_note") ? { caregiver_note: params.caregiver_note } : {}),
+        }),
+      });
+      if (!response.ok) throw new Error("Could not save caregiver alert workflow");
+      return response.json() as Promise<{ alert: CaregiverAlert }>;
+    },
+    onSuccess: ({ alert }) => {
+      queryClient.setQueryData<CaregiverSafetyResponse>(["/api/vitals-engine/caregiver/latest-alerts"], (current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          alerts: current.alerts.map((existing) => existing.id === alert.id ? alert : existing),
+        };
+      });
+      setNoteDrafts((current) => {
+        const next = { ...current };
+        delete next[alert.id];
+        return next;
+      });
+    },
+  });
+
+  function updateWorkflow(alert: CaregiverAlert, statusValue: WorkflowStatus) {
+    workflowMutation.mutate({ alertId: alert.id, status: statusValue });
   }
 
-  function updateWorkflow(alertId: string, statusValue: WorkflowStatus) {
-    const now = new Date().toISOString();
-    const current = workflow[alertId] ?? { status: "new" as WorkflowStatus };
-    const nextEntry: AlertWorkflowEntry = { ...current, status: statusValue };
-
-    if (statusValue === "acknowledged" && !nextEntry.acknowledgedAt) nextEntry.acknowledgedAt = now;
-    if (statusValue === "contacted") nextEntry.contactedAt = now;
-    if (statusValue === "watching") nextEntry.watchingAt = now;
-    if (statusValue === "resolved") nextEntry.resolvedAt = now;
-
-    persistWorkflow({ ...workflow, [alertId]: nextEntry });
+  function saveCaregiverNote(alert: CaregiverAlert) {
+    workflowMutation.mutate({
+      alertId: alert.id,
+      status: workflowStatusFor(alert),
+      caregiver_note: noteDrafts[alert.id] ?? alert.caregiver_note ?? "",
+    });
   }
 
   async function copyAlert(alert: CaregiverAlert) {
@@ -387,10 +397,11 @@ export default function CaregiverDashboardPage() {
                   ) : (
                     <div className="mt-5 space-y-4">
                       {alerts.map((alert) => {
-                        const serverResolved = Boolean(alert.resolved_at);
-                        const localStatus = serverResolved ? "resolved" : workflow[alert.id]?.status ?? "new";
-                        const statusStyle = serverResolved ? resolvedAlertMeta() : workflowMeta(localStatus);
+                        const workflowStatus = workflowStatusFor(alert);
+                        const statusStyle = workflowMeta(workflowStatus);
                         const contacts = contactsFor(alert);
+                        const isSavingWorkflow = workflowMutation.isPending && workflowMutation.variables?.alertId === alert.id;
+                        const noteValue = noteDrafts[alert.id] ?? alert.caregiver_note ?? "";
                         return (
                           <article key={alert.id} className="rounded-[16px] border border-[#D8DED6] bg-[#FBFCFB] p-4 shadow-[0_8px_18px_rgba(38,49,43,0.05)]">
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -443,25 +454,47 @@ export default function CaregiverDashboardPage() {
                               <div className="rounded-[14px] border border-[#D8DED6] bg-white p-3">
                                 <p className="flex items-center gap-2 font-body text-[13px] font-bold text-[#26312B]">
                                   <TimerReset className="h-4 w-4 text-[#2F6F5E]" />
-                                  Local caregiver workspace
+                                  Saved caregiver workflow
                                 </p>
                                 <p className="mt-2 rounded-[10px] bg-[#F8FAF8] p-2 font-body text-[12px] font-semibold leading-relaxed text-[#5F6B63]">
-                                  These status updates are stored on this device only.
+                                  Status updates are saved to this alert and available after refresh or another caregiver session.
                                 </p>
+                                {workflowMutation.isError && workflowMutation.variables?.alertId === alert.id ? (
+                                  <p className="mt-2 rounded-[10px] bg-[#FEF2F2] p-2 font-body text-[12px] font-bold text-[#B91C1C]">
+                                    Could not save this alert workflow. Please try again.
+                                  </p>
+                                ) : null}
                                 <div className="mt-3 flex flex-wrap gap-2">
-                                  <button type="button" onClick={() => updateWorkflow(alert.id, "acknowledged")} className="min-h-[42px] rounded-full bg-[#FFF7ED] px-3 font-body text-[13px] font-bold text-[#9A3412]">
-                                    Acknowledge
+                                  <button type="button" onClick={() => updateWorkflow(alert, "reviewed")} disabled={isSavingWorkflow} className="min-h-[42px] rounded-full bg-[#FFF7ED] px-3 font-body text-[13px] font-bold text-[#9A3412] disabled:opacity-50">
+                                    Mark reviewed
                                   </button>
-                                  <button type="button" onClick={() => updateWorkflow(alert.id, "contacted")} className="min-h-[42px] rounded-full bg-[#F5F3FF] px-3 font-body text-[13px] font-bold text-[#6B21A8]">
+                                  <button type="button" onClick={() => updateWorkflow(alert, "contacted")} disabled={isSavingWorkflow} className="min-h-[42px] rounded-full bg-[#F5F3FF] px-3 font-body text-[13px] font-bold text-[#6B21A8] disabled:opacity-50">
                                     Mark contacted
                                   </button>
-                                  <button type="button" onClick={() => updateWorkflow(alert.id, "watching")} className="min-h-[42px] rounded-full bg-[#EFF6FF] px-3 font-body text-[13px] font-bold text-[#0369A1]">
-                                    Keep watching
-                                  </button>
-                                  <button type="button" onClick={() => updateWorkflow(alert.id, "resolved")} className="min-h-[42px] rounded-full bg-[#ECFDF5] px-3 font-body text-[13px] font-bold text-[#047857]">
-                                    Mark locally resolved
+                                  <button type="button" onClick={() => updateWorkflow(alert, "resolved")} disabled={isSavingWorkflow} className="min-h-[42px] rounded-full bg-[#ECFDF5] px-3 font-body text-[13px] font-bold text-[#047857] disabled:opacity-50">
+                                    Mark resolved
                                   </button>
                                 </div>
+                                <label className="mt-3 block font-body text-[12px] font-bold uppercase tracking-[0.08em] text-[#5F6B63]" htmlFor={`caregiver-note-${alert.id}`}>
+                                  Caregiver note
+                                </label>
+                                <textarea
+                                  id={`caregiver-note-${alert.id}`}
+                                  value={noteValue}
+                                  onChange={(event) => setNoteDrafts((current) => ({ ...current, [alert.id]: event.target.value }))}
+                                  className="mt-2 min-h-[78px] w-full resize-y rounded-[12px] border border-[#C9D6CF] bg-[#FBFCFB] px-3 py-2 font-body text-[14px] font-semibold leading-relaxed text-[#26312B] outline-none focus:border-[#2F6F5E]"
+                                  placeholder="Add a brief follow-up note"
+                                />
+                                <button type="button" onClick={() => saveCaregiverNote(alert)} disabled={isSavingWorkflow} className="mt-2 min-h-[42px] rounded-full bg-[#2F6F5E] px-4 font-body text-[13px] font-bold text-white disabled:opacity-50">
+                                  {isSavingWorkflow ? "Saving" : "Save note"}
+                                </button>
+                                {alert.acknowledged_at || alert.contacted_at || alert.resolved_at ? (
+                                  <p className="mt-3 font-body text-[12px] font-semibold leading-relaxed text-[#5F6B63]">
+                                    {alert.acknowledged_at ? `Reviewed ${formatTime(alert.acknowledged_at)}. ` : ""}
+                                    {alert.contacted_at ? `Contacted ${formatTime(alert.contacted_at)}. ` : ""}
+                                    {alert.resolved_at ? `Resolved ${formatTime(alert.resolved_at)}.` : ""}
+                                  </p>
+                                ) : null}
                               </div>
                             </div>
                           </article>

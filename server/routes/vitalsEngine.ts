@@ -26,6 +26,12 @@ import {
   userHealthConditions,
   userMedications,
 } from "../../shared/schema.js";
+import {
+  buildCaregiverAlertWorkflowPatch,
+  caregiverAlertWorkflowStatuses,
+  normalizeCaregiverAlertWorkflowStatus,
+  type CaregiverAlertWorkflowRow,
+} from "../lib/caregiverAlertWorkflow.js";
 
 const router = Router();
 router.use(requireUser);
@@ -53,6 +59,11 @@ const analyseSchema = z.object({
 const acknowledgeSchema = z.object({
   analysis_id: z.string().uuid().optional(),
   action: z.enum(["recheck", "dismissed", "shared", "contacted_doctor", "urgent_guidance_followed"]),
+});
+
+const caregiverAlertWorkflowSchema = z.object({
+  status: z.enum(caregiverAlertWorkflowStatuses),
+  caregiver_note: z.string().max(2000).nullable().optional(),
 });
 
 type RiskTier = "none" | "watch" | "notify" | "urgent";
@@ -84,6 +95,15 @@ type PatternWindowRow = {
   acknowledged_action?: string | null;
   acknowledged_at?: Date | string | null;
   resolved_at?: Date | string | null;
+};
+
+type CaregiverAlertRow = CaregiverAlertWorkflowRow & {
+  id: string;
+  alert_type: string;
+  severity: string;
+  message: string;
+  sent_to?: string[] | null;
+  created_at?: Date | string | null;
 };
 
 function queryRows<T>(result: unknown): T[] {
@@ -174,21 +194,51 @@ async function getBaselines(userId: string) {
   return queryRows<Record<string, unknown>>(result);
 }
 
+function caregiverAlertSelectFields() {
+  return {
+    id: caregiverAlerts.id,
+    alert_type: caregiverAlerts.alert_type,
+    severity: caregiverAlerts.severity,
+    message: caregiverAlerts.message,
+    sent_to: caregiverAlerts.sent_to,
+    status: caregiverAlerts.status,
+    acknowledged_at: caregiverAlerts.acknowledged_at,
+    acknowledged_by: caregiverAlerts.acknowledged_by,
+    contacted_at: caregiverAlerts.contacted_at,
+    resolved_at: caregiverAlerts.resolved_at,
+    resolved_by: caregiverAlerts.resolved_by,
+    caregiver_note: caregiverAlerts.caregiver_note,
+    created_at: caregiverAlerts.created_at,
+  };
+}
+
+function caregiverAlertResponse(row: CaregiverAlertRow) {
+  return {
+    ...row,
+    status: normalizeCaregiverAlertWorkflowStatus(row),
+  };
+}
+
 async function getLatestAlerts(userId: string, limit = 3) {
-  return db
-    .select({
-      id: caregiverAlerts.id,
-      alert_type: caregiverAlerts.alert_type,
-      severity: caregiverAlerts.severity,
-      message: caregiverAlerts.message,
-      sent_to: caregiverAlerts.sent_to,
-      resolved_at: caregiverAlerts.resolved_at,
-      created_at: caregiverAlerts.created_at,
-    })
+  const rows = await db
+    .select(caregiverAlertSelectFields())
     .from(caregiverAlerts)
     .where(eq(caregiverAlerts.user_id, userId))
     .orderBy(desc(caregiverAlerts.created_at))
     .limit(limit);
+  return rows.map(caregiverAlertResponse);
+}
+
+async function getCaregiverAlert(userId: string, alertId: string) {
+  const [row] = await db
+    .select(caregiverAlertSelectFields())
+    .from(caregiverAlerts)
+    .where(and(
+      eq(caregiverAlerts.id, alertId),
+      eq(caregiverAlerts.user_id, userId),
+    ))
+    .limit(1);
+  return row ? caregiverAlertResponse(row) : null;
 }
 
 function buildSignalSummary(readings: SignalReadingRow[]): SignalSummary[] {
@@ -679,6 +729,38 @@ router.get("/caregiver/latest-alerts", async (req: Request, res: Response) => {
   } catch (err) {
     console.error("[vitals-engine caregiver alerts]", err);
     return res.status(500).json({ error: "Failed to load caregiver safety alerts" });
+  }
+});
+
+router.patch("/caregiver/alerts/:alertId/workflow", async (req: Request, res: Response) => {
+  const profileId = await resolveProfileId(req);
+  const parsed = caregiverAlertWorkflowSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  try {
+    const current = await getCaregiverAlert(profileId, req.params.alertId);
+    if (!current) return res.status(404).json({ error: "Caregiver alert not found" });
+
+    const patch = buildCaregiverAlertWorkflowPatch(
+      current,
+      parsed.data,
+      req.user!.id,
+    );
+
+    const [updated] = await db
+      .update(caregiverAlerts)
+      .set(patch)
+      .where(and(
+        eq(caregiverAlerts.id, req.params.alertId),
+        eq(caregiverAlerts.user_id, profileId),
+      ))
+      .returning(caregiverAlertSelectFields());
+
+    if (!updated) return res.status(404).json({ error: "Caregiver alert not found" });
+    return res.json({ alert: caregiverAlertResponse(updated) });
+  } catch (err) {
+    console.error("[vitals-engine caregiver alert workflow]", err);
+    return res.status(500).json({ error: "Failed to update caregiver alert workflow" });
   }
 });
 

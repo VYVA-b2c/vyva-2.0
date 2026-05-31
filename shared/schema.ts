@@ -392,8 +392,13 @@ export const caregiverAlerts = pgTable("caregiver_alerts", {
   severity:    text("severity").notNull(),
   message:     text("message").notNull(),
   sent_to:     text("sent_to").array(),
+  status:      text("status").notNull().default("new"),
+  acknowledged_at: timestamp("acknowledged_at", { withTimezone: true }),
+  acknowledged_by: text("acknowledged_by"),
+  contacted_at: timestamp("contacted_at", { withTimezone: true }),
   resolved_at: timestamp("resolved_at", { withTimezone: true }),
   resolved_by: text("resolved_by"),
+  caregiver_note: text("caregiver_note"),
   created_at:  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
