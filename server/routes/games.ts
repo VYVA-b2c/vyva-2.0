@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import OpenAI from "openai";
 import { z } from "zod";
+import { buildBrainCoachCaregiverSummary } from "../lib/brainCoachCaregiverSummary.js";
 import { buildBrainCoachDailyPlan, extractBrainCoachPreferences } from "../lib/brainCoachPlan.js";
 import {
   applyPlanItemEvent,
@@ -897,12 +898,68 @@ export async function brainCoachDailyPlanEventHandler(req: Request, res: Respons
   }
 }
 
+export async function brainCoachCaregiverSummaryHandler(req: Request, res: Response) {
+  try {
+    const ctx = await loadCognitiveSessionDb();
+    const {
+      db,
+      cognitiveSessionIndex,
+      cognitiveDailyPlans,
+      cognitiveDailyPlanItems,
+      and,
+      desc,
+      eq,
+      gte,
+      asc,
+    } = ctx;
+    const now = new Date();
+    const todayStart = utcDayStart(now);
+    const planWindowStart = new Date(todayStart - 6 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const sessionWindowStart = new Date(todayStart - 29 * 24 * 60 * 60 * 1000);
+
+    const [sessions, plans, planItems] = await Promise.all([
+      db
+        .select()
+        .from(cognitiveSessionIndex)
+        .where(and(
+          eq(cognitiveSessionIndex.userId, req.user!.id),
+          gte(cognitiveSessionIndex.playedAt, sessionWindowStart),
+        ))
+        .orderBy(desc(cognitiveSessionIndex.playedAt))
+        .limit(100),
+      db
+        .select()
+        .from(cognitiveDailyPlans)
+        .where(and(
+          eq(cognitiveDailyPlans.userId, req.user!.id),
+          gte(cognitiveDailyPlans.planDate, planWindowStart),
+        ))
+        .orderBy(desc(cognitiveDailyPlans.planDate))
+        .limit(7),
+      db
+        .select()
+        .from(cognitiveDailyPlanItems)
+        .where(and(
+          eq(cognitiveDailyPlanItems.userId, req.user!.id),
+          gte(cognitiveDailyPlanItems.planDate, planWindowStart),
+        ))
+        .orderBy(asc(cognitiveDailyPlanItems.planDate), asc(cognitiveDailyPlanItems.sortOrder)),
+    ]);
+
+    return res.json(buildBrainCoachCaregiverSummary({ sessions, plans, planItems, now }));
+  } catch (error) {
+    console.error("[games] Brain Coach caregiver summary failed:", error);
+    return res.status(500).json({ error: "Brain Coach caregiver summary could not be loaded." });
+  }
+}
+
 const router = Router();
 router.post("/sessions", createCognitiveSessionHandler);
 router.get("/history", cognitiveSessionHistoryHandler);
 router.get("/progress", brainCoachProgressHandler);
 router.get("/daily-plan", brainCoachDailyPlanHandler);
 router.post("/daily-plan/events", brainCoachDailyPlanEventHandler);
+router.get("/caregiver-summary", brainCoachCaregiverSummaryHandler);
 router.post("/score-retell", scoreRetellHandler);
 router.post("/tts", ttsHandler);
 
