@@ -23,6 +23,10 @@ export type HeroPeriod = "morning" | "afternoon" | "evening" | "night";
 
 export type HeroSafetyLevel = "normal" | "medical" | "urgent";
 
+export type HeroMessageSource = "managed" | "built_in" | "fallback";
+export type HeroMessageEventType = "impression" | "cta_click" | "fallback";
+export type HeroFallbackReason = "no_eligible_message" | "invalid_selected_message";
+
 export interface HeroMessageResult {
   headline: string;
   subtitle?: string;
@@ -31,6 +35,10 @@ export interface HeroMessageResult {
   contextHint?: string;
   messageId: string;
   reason: HeroReason;
+  surface: HeroSurface;
+  language: HeroLanguage;
+  source: HeroMessageSource;
+  fallbackReason?: HeroFallbackReason;
 }
 
 export interface HeroMessageContext {
@@ -67,6 +75,17 @@ export type HeroMessageDefinition = {
   eventTypes?: Array<NonNullable<HeroMessageContext["upcomingEventType"]>>;
   activityTypes?: Array<NonNullable<HeroMessageContext["recentActivity"]>>;
   copy: Record<HeroLanguage, HeroCopy>;
+  source?: Exclude<HeroMessageSource, "fallback">;
+};
+
+export type HeroMessageEventInput = {
+  messageId: string;
+  surface: HeroSurface;
+  language?: string | null;
+  eventType: HeroMessageEventType;
+  reason: HeroReason;
+  source: HeroMessageSource;
+  route?: string;
 };
 
 export const HERO_LIMITS = {
@@ -351,7 +370,11 @@ export function mergeHeroMessages(messages: HeroMessageDefinition[]): HeroMessag
   for (const message of HERO_MESSAGES) merged.set(message.id, message);
   for (const message of messages) {
     const existing = merged.get(message.id);
-    merged.set(message.id, existing ? { ...existing, ...message, copy: message.copy } : message);
+    const managedMessage = { ...message, source: "managed" as const };
+    merged.set(
+      message.id,
+      existing ? { ...existing, ...managedMessage, copy: managedMessage.copy } : managedMessage,
+    );
   }
   return Array.from(merged.values());
 }
@@ -366,7 +389,7 @@ function validCopy(copy: HeroCopy): boolean {
 }
 
 function buildResult(message: HeroMessageDefinition, language: HeroLanguage, context: HeroMessageContext): HeroMessageResult {
-  const copy = message.copy[language] ?? message.copy.es;
+  const copy = message.copy[language] ?? message.copy.es ?? { headline: "" };
   const name = context.firstName?.trim();
   let headline = copy.headline;
   if (name && copy.headlineWithName) {
@@ -384,10 +407,18 @@ function buildResult(message: HeroMessageDefinition, language: HeroLanguage, con
     contextHint: copy.contextHint ?? context.fallbackContextHint,
     messageId: message.id,
     reason: message.reason,
+    surface: message.surface,
+    language,
+    source: message.source ?? "built_in",
   };
 }
 
-function fallbackResult(surface: HeroSurface, context: HeroMessageContext): HeroMessageResult {
+function fallbackResult(
+  surface: HeroSurface,
+  context: HeroMessageContext,
+  language: HeroLanguage,
+  fallbackReason: HeroFallbackReason,
+): HeroMessageResult {
   return {
     headline: context.fallbackHeadline || "VYVA",
     subtitle: context.fallbackSubtitle,
@@ -396,25 +427,56 @@ function fallbackResult(surface: HeroSurface, context: HeroMessageContext): Hero
     contextHint: context.fallbackContextHint,
     messageId: `${surface}-fallback`,
     reason: "evergreen",
+    surface,
+    language,
+    source: "fallback",
+    fallbackReason,
   };
 }
 
-export function selectHeroMessage(surface: HeroSurface, context: HeroMessageContext = {}): HeroMessageResult {
+function orderedByCooldown(
+  eligible: HeroMessageDefinition[],
+  now: number,
+  impressions: Record<string, number>,
+): HeroMessageDefinition[] {
+  const notCoolingDown = eligible.find((message) => !isCoolingDown(message, now, impressions));
+  if (!notCoolingDown) return eligible;
+  return [notCoolingDown, ...eligible.filter((message) => message.id !== notCoolingDown.id)];
+}
+
+export function selectHeroMessageFromCatalog(
+  surface: HeroSurface,
+  context: HeroMessageContext = {},
+  messages: HeroMessageDefinition[] = getRuntimeHeroMessages(),
+): HeroMessageResult {
   const language = normalizeHeroLanguage(context.language);
   const period = getHeroPeriod(context.date);
   const now = (context.date ?? new Date()).getTime();
   const impressions = readImpressions();
-  const eligible = getRuntimeHeroMessages()
+  const eligible = messages
     .filter((message) => message.surface === surface)
     .filter((message) => matchesContext(message, context, period))
     .sort((a, b) => b.priority - a.priority);
 
-  const notCoolingDown = eligible.find((message) => !isCoolingDown(message, now, impressions));
-  const selected = notCoolingDown ?? eligible[0];
-  if (!selected) return fallbackResult(surface, context);
+  if (!eligible.length) return fallbackResult(surface, context, language, "no_eligible_message");
 
-  const result = buildResult(selected, language, context);
-  return validateHeroMessageResult(result) ? result : fallbackResult(surface, context);
+  let invalidSelected = false;
+  for (const selected of orderedByCooldown(eligible, now, impressions)) {
+    const result = buildResult(selected, language, context);
+    if (validateHeroMessageResult(result)) return result;
+    invalidSelected = true;
+  }
+
+  return fallbackResult(
+    surface,
+    context,
+    language,
+    invalidSelected ? "invalid_selected_message" : "no_eligible_message",
+  );
+}
+
+export function selectHeroMessage(surface: HeroSurface, context: HeroMessageContext = {}): HeroMessageResult {
+  return selectHeroMessageFromCatalog(surface, context, getRuntimeHeroMessages());
 }
 
 export function recordHeroImpression(messageId: string): void {
@@ -425,6 +487,40 @@ export function recordHeroImpression(messageId: string): void {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(impressions));
   } catch {
     // Non-critical: repetition control should never break the UI.
+  }
+}
+
+export function recordHeroEvent(event: HeroMessageEventInput): void {
+  if (typeof window === "undefined") return;
+  const payload = JSON.stringify({
+    message_id: event.messageId,
+    surface: event.surface,
+    language: normalizeHeroLanguage(event.language),
+    event_type: event.eventType,
+    reason: event.reason,
+    source: event.source,
+    route: event.route ?? window.location.pathname,
+  });
+
+  try {
+    if (navigator.sendBeacon) {
+      const body = new Blob([payload], { type: "application/json" });
+      if (navigator.sendBeacon("/api/hero-messages/events", body)) return;
+    }
+  } catch {
+    // Fall through to fetch.
+  }
+
+  try {
+    void fetch("/api/hero-messages/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: payload,
+      credentials: "include",
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    // Aggregate monitoring should never block the user flow.
   }
 }
 

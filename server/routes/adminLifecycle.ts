@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { and, desc, eq, inArray, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { db, pool } from "../db.js";
 import { getActiveProfileContext } from "../lib/profileAccess.js";
@@ -22,6 +22,7 @@ import {
   consentAttempts,
   consentLog,
   heroMessages,
+  heroMessageEvents,
   homePlanCards,
   homeScans,
   lifecycleEvents,
@@ -1833,6 +1834,58 @@ adminLifecycleRouter.get("/hero-messages", async (req: Request, res: Response) =
   } catch (error) {
     return res.status(503).json({
       error: "Hero messages are not migrated yet. Run schema/hero_messages.sql.",
+    });
+  }
+});
+
+adminLifecycleRouter.get("/hero-messages/metrics", async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+
+  const days = Math.min(Math.max(Number(req.query.days ?? 7) || 7, 1), 90);
+  const surface = typeof req.query.surface === "string" && req.query.surface !== "all"
+    ? req.query.surface
+    : undefined;
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const where = surface
+    ? and(gte(heroMessageEvents.created_at, since), eq(heroMessageEvents.surface, surface))
+    : gte(heroMessageEvents.created_at, since);
+
+  try {
+    const rows = await db
+      .select({
+        surface: heroMessageEvents.surface,
+        message_id: heroMessageEvents.message_id,
+        language: heroMessageEvents.language,
+        source: heroMessageEvents.source,
+        event_type: heroMessageEvents.event_type,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(heroMessageEvents)
+      .where(where)
+      .groupBy(
+        heroMessageEvents.surface,
+        heroMessageEvents.message_id,
+        heroMessageEvents.language,
+        heroMessageEvents.source,
+        heroMessageEvents.event_type,
+      );
+
+    const metrics = rows.map((row) => ({ ...row, count: Number(row.count ?? 0) }));
+    return res.json({
+      metrics,
+      summary: {
+        days,
+        surface: surface ?? "all",
+        impressions: metrics.filter((row) => row.event_type === "impression").reduce((sum, row) => sum + row.count, 0),
+        cta_clicks: metrics.filter((row) => row.event_type === "cta_click").reduce((sum, row) => sum + row.count, 0),
+        fallbacks: metrics.filter((row) => row.event_type === "fallback").reduce((sum, row) => sum + row.count, 0),
+      },
+    });
+  } catch {
+    return res.json({
+      metrics: [],
+      summary: { days, surface: surface ?? "all", impressions: 0, cta_clicks: 0, fallbacks: 0 },
+      warning: "Hero message metrics are not migrated yet. Run schema/hero_messages.sql.",
     });
   }
 });
