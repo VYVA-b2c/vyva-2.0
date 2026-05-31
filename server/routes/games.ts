@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import OpenAI from "openai";
 import { z } from "zod";
+import { buildBrainCoachDailyPlan, extractBrainCoachPreferences } from "../lib/brainCoachPlan.js";
 
 const OPENAI_MODEL = "gpt-4o-mini";
 const ELEVENLABS_TTS_MODEL = "eleven_multilingual_v2";
@@ -471,12 +472,12 @@ function queryLimit(value: unknown, fallback: number, max: number): number {
 }
 
 async function loadCognitiveSessionDb() {
-  const [{ db }, { cognitiveSessionIndex }, { and, desc, eq, gte, inArray }] = await Promise.all([
+  const [{ db }, { cognitiveSessionIndex, profiles }, { and, desc, eq, gte, inArray }] = await Promise.all([
     import("../db.js"),
     import("../../shared/schema.js"),
     import("drizzle-orm"),
   ]);
-  return { db, cognitiveSessionIndex, and, desc, eq, gte, inArray };
+  return { db, cognitiveSessionIndex, profiles, and, desc, eq, gte, inArray };
 }
 
 export async function createCognitiveSessionHandler(req: Request, res: Response) {
@@ -591,10 +592,43 @@ export async function brainCoachProgressHandler(req: Request, res: Response) {
   }
 }
 
+export async function brainCoachDailyPlanHandler(req: Request, res: Response) {
+  try {
+    const { db, cognitiveSessionIndex, profiles, desc, eq } = await loadCognitiveSessionDb();
+    const rows = await db
+      .select()
+      .from(cognitiveSessionIndex)
+      .where(eq(cognitiveSessionIndex.userId, req.user!.id))
+      .orderBy(desc(cognitiveSessionIndex.playedAt))
+      .limit(300);
+
+    const [profile] = await db
+      .select({
+        dataSharingConsent: profiles.data_sharing_consent,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, req.user!.id))
+      .limit(1);
+
+    const progress = buildBrainCoachProgress(rows);
+    const plan = buildBrainCoachDailyPlan({
+      sessions: rows,
+      preferences: extractBrainCoachPreferences(profile?.dataSharingConsent),
+      streakDays: progress.summary.streakDays,
+    });
+
+    return res.json(plan);
+  } catch (error) {
+    console.error("[games] Brain Coach daily plan failed:", error);
+    return res.status(500).json({ error: "Brain Coach daily plan could not be loaded." });
+  }
+}
+
 const router = Router();
 router.post("/sessions", createCognitiveSessionHandler);
 router.get("/history", cognitiveSessionHistoryHandler);
 router.get("/progress", brainCoachProgressHandler);
+router.get("/daily-plan", brainCoachDailyPlanHandler);
 router.post("/score-retell", scoreRetellHandler);
 router.post("/tts", ttsHandler);
 

@@ -1124,6 +1124,13 @@ const sectionSchemas: Record<string, z.ZodTypeAny> = {
   }),
   cognitive: z.object({
     cognitive_notes: z.string().optional(),
+    memory_difficulties: z.string().optional(),
+    cognitive_diagnosis: z.string().optional(),
+    session_length_mins: z.number().int().min(5).max(20).optional(),
+    training_time: z.string().optional(),
+    pace: z.string().optional(),
+    variety: z.string().optional(),
+    communication_style: z.string().optional(),
   }),
   diet: z.object({
     dietary_notes:      z.string().optional(),
