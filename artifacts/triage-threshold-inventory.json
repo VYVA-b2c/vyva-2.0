@@ -1,0 +1,275 @@
+{
+  "schema_version": 1,
+  "generated_from": {
+    "branch": "feat/triage-consolidation",
+    "base_ref": "origin/main",
+    "base_commit": "cae2013"
+  },
+  "purpose": "Evidence inventory of current BP, SpO2, respiratory-rate, and glucose thresholds for future parity checks. These records are not runtime inputs.",
+  "thresholds": [
+    {
+      "id": "triage.spo2.emergency",
+      "source_file": "server/lib/triageRules.ts",
+      "line": 695,
+      "signal": "oxygen_saturation",
+      "threshold": "<=88",
+      "condition_context": "Symptom path is chest, breathing, tired, confusion, or fever.",
+      "current_outcome": "Raise deterministic triage level to emergency.",
+      "proposed_owner": "src/triage",
+      "duplicate_of": null
+    },
+    {
+      "id": "triage.spo2.doctor_today",
+      "source_file": "server/lib/triageRules.ts",
+      "line": 701,
+      "signal": "oxygen_saturation",
+      "threshold": "<=92",
+      "condition_context": "Symptom path is chest, breathing, tired, or fever, and emergency SpO2 rule did not match.",
+      "current_outcome": "Raise deterministic triage level to doctor_today.",
+      "proposed_owner": "src/triage",
+      "duplicate_of": null
+    },
+    {
+      "id": "daily_safety.spo2.urgent_help",
+      "source_file": "server/lib/dailySafetyCheck.ts",
+      "line": 160,
+      "signal": "oxygen_saturation",
+      "threshold": "<=88",
+      "condition_context": "Daily Safety signal summary, independent of symptom path.",
+      "current_outcome": "Map Daily Safety signal to urgent_help.",
+      "proposed_owner": "src/safety",
+      "duplicate_of": null
+    },
+    {
+      "id": "daily_safety.spo2.contact_doctor",
+      "source_file": "server/lib/dailySafetyCheck.ts",
+      "line": 162,
+      "signal": "oxygen_saturation",
+      "threshold": "<=92",
+      "condition_context": "Daily Safety signal summary, independent of symptom path.",
+      "current_outcome": "Map Daily Safety signal to contact_doctor.",
+      "proposed_owner": "src/safety",
+      "duplicate_of": null
+    },
+    {
+      "id": "triage.rr.emergency",
+      "source_file": "server/lib/triageRules.ts",
+      "line": 711,
+      "signal": "respiratory_rate",
+      "threshold": ">=25",
+      "condition_context": "Symptom path is fever, skin, urinary, stomach, or confusion.",
+      "current_outcome": "Raise deterministic triage level to emergency.",
+      "proposed_owner": "src/triage",
+      "duplicate_of": null
+    },
+    {
+      "id": "triage.rr.doctor_today",
+      "source_file": "server/lib/triageRules.ts",
+      "line": 717,
+      "signal": "respiratory_rate",
+      "threshold": ">=21",
+      "condition_context": "Symptom path is fever, skin, urinary, stomach, or confusion, and emergency RR rule did not match.",
+      "current_outcome": "Raise deterministic triage level to doctor_today.",
+      "proposed_owner": "src/triage",
+      "duplicate_of": null
+    },
+    {
+      "id": "triage.route.rr.abnormal_flag",
+      "source_file": "server/routes/triage.ts",
+      "line": 1421,
+      "signal": "respiratory_rate",
+      "threshold": ">=24 OR <=10",
+      "condition_context": "Route-level abnormalBreathingRate flag passed into evaluateTriageRules for all symptom paths.",
+      "current_outcome": "Sets abnormalBreathingRate boolean used by deterministic triage overlays such as chest and profile modifiers.",
+      "proposed_owner": "src/triage",
+      "duplicate_of": "triage.rr.emergency"
+    },
+    {
+      "id": "triage.route.rr.report_note",
+      "source_file": "server/routes/triage.ts",
+      "line": 1251,
+      "signal": "respiratory_rate",
+      "threshold": ">=24 OR <=10",
+      "condition_context": "Vitals note generation in triage report.",
+      "current_outcome": "Adds note saying breathing rate should be shared with a clinician.",
+      "proposed_owner": "src/triage",
+      "duplicate_of": "triage.route.rr.abnormal_flag"
+    },
+    {
+      "id": "daily_safety.rr.urgent_help",
+      "source_file": "server/lib/dailySafetyCheck.ts",
+      "line": 142,
+      "signal": "respiratory_rate",
+      "threshold": ">=30 OR <=8",
+      "condition_context": "Daily Safety signal summary, independent of symptom path.",
+      "current_outcome": "Map Daily Safety signal to urgent_help.",
+      "proposed_owner": "src/safety",
+      "duplicate_of": null
+    },
+    {
+      "id": "daily_safety.rr.contact_doctor",
+      "source_file": "server/lib/dailySafetyCheck.ts",
+      "line": 144,
+      "signal": "respiratory_rate",
+      "threshold": ">=24 OR <=10",
+      "condition_context": "Daily Safety signal summary, independent of symptom path.",
+      "current_outcome": "Map Daily Safety signal to contact_doctor.",
+      "proposed_owner": "src/safety",
+      "duplicate_of": null
+    },
+    {
+      "id": "daily_safety.rr.recheck",
+      "source_file": "server/lib/dailySafetyCheck.ts",
+      "line": 145,
+      "signal": "respiratory_rate",
+      "threshold": ">=21",
+      "condition_context": "Daily Safety signal summary, independent of symptom path.",
+      "current_outcome": "Map Daily Safety signal to recheck.",
+      "proposed_owner": "src/safety",
+      "duplicate_of": null
+    },
+    {
+      "id": "triage.bp.crisis_with_symptoms",
+      "source_file": "server/lib/triageRules.ts",
+      "line": 775,
+      "signal": "blood_pressure",
+      "threshold": "systolic >=180 OR diastolic >=120",
+      "condition_context": "Symptom path is chest, pain, dizzy, confusion, or breathing.",
+      "current_outcome": "Raise deterministic triage level to emergency.",
+      "proposed_owner": "src/triage",
+      "duplicate_of": null
+    },
+    {
+      "id": "triage.bp.crisis_without_context",
+      "source_file": "server/lib/triageRules.ts",
+      "line": 781,
+      "signal": "blood_pressure",
+      "threshold": "systolic >=180 OR diastolic >=120",
+      "condition_context": "Any symptom context where crisis-with-symptoms rule did not match.",
+      "current_outcome": "Raise deterministic triage level to doctor_today.",
+      "proposed_owner": "src/triage",
+      "duplicate_of": "triage.bp.crisis_with_symptoms"
+    },
+    {
+      "id": "triage.bp.low_emergency",
+      "source_file": "server/lib/triageRules.ts",
+      "line": 789,
+      "signal": "blood_pressure",
+      "threshold": "systolic >0 AND systolic <90",
+      "condition_context": "Symptom path is fever, dizzy, tired, confusion, or fall.",
+      "current_outcome": "Raise deterministic triage level to emergency.",
+      "proposed_owner": "src/triage",
+      "duplicate_of": null
+    },
+    {
+      "id": "triage.bp.low_doctor_today",
+      "source_file": "server/lib/triageRules.ts",
+      "line": 795,
+      "signal": "blood_pressure",
+      "threshold": "systolic >=91 AND systolic <=100",
+      "condition_context": "Symptom path is fever, dizzy, tired, or confusion, and low-emergency rule did not match.",
+      "current_outcome": "Raise deterministic triage level to doctor_today.",
+      "proposed_owner": "src/triage",
+      "duplicate_of": null
+    },
+    {
+      "id": "daily_safety.bp_systolic.urgent_help",
+      "source_file": "server/lib/dailySafetyCheck.ts",
+      "line": 148,
+      "signal": "bp_systolic",
+      "threshold": ">=180",
+      "condition_context": "Daily Safety signal summary, independent of symptom path and diastolic value.",
+      "current_outcome": "Map Daily Safety signal to urgent_help.",
+      "proposed_owner": "src/safety",
+      "duplicate_of": null
+    },
+    {
+      "id": "daily_safety.bp_systolic.contact_doctor",
+      "source_file": "server/lib/dailySafetyCheck.ts",
+      "line": 150,
+      "signal": "bp_systolic",
+      "threshold": ">=160",
+      "condition_context": "Daily Safety signal summary, independent of symptom path and diastolic value.",
+      "current_outcome": "Map Daily Safety signal to contact_doctor.",
+      "proposed_owner": "src/safety",
+      "duplicate_of": null
+    },
+    {
+      "id": "daily_safety.bp_systolic.recheck",
+      "source_file": "server/lib/dailySafetyCheck.ts",
+      "line": 151,
+      "signal": "bp_systolic",
+      "threshold": ">=140",
+      "condition_context": "Daily Safety signal summary, independent of symptom path and diastolic value.",
+      "current_outcome": "Map Daily Safety signal to recheck.",
+      "proposed_owner": "src/safety",
+      "duplicate_of": null
+    },
+    {
+      "id": "triage.glucose.low_emergency",
+      "source_file": "server/lib/triageRules.ts",
+      "line": 805,
+      "signal": "glucose_mgdl",
+      "threshold": "<54 OR <70 with new_confusion/cannot_stand/fainted",
+      "condition_context": "Symptom path is dizzy, tired, confusion, stomach, fever, or other.",
+      "current_outcome": "Raise deterministic triage level to emergency.",
+      "proposed_owner": "src/triage",
+      "duplicate_of": null
+    },
+    {
+      "id": "triage.glucose.low_doctor_today",
+      "source_file": "server/lib/triageRules.ts",
+      "line": 811,
+      "signal": "glucose_mgdl",
+      "threshold": "<70",
+      "condition_context": "Symptom path is dizzy, tired, confusion, stomach, fever, or other, and low-emergency rule did not match.",
+      "current_outcome": "Raise deterministic triage level to doctor_today.",
+      "proposed_owner": "src/triage",
+      "duplicate_of": null
+    },
+    {
+      "id": "triage.glucose.high_dka_hhs_pattern",
+      "source_file": "server/lib/triageRules.ts",
+      "line": 817,
+      "signal": "glucose_mgdl",
+      "threshold": ">=300",
+      "condition_context": "Symptom path is dizzy, tired, confusion, stomach, fever, or other, plus not_drinking, strong, new_confusion, or stomach path.",
+      "current_outcome": "Raise deterministic triage level to emergency.",
+      "proposed_owner": "src/triage",
+      "duplicate_of": null
+    },
+    {
+      "id": "daily_safety.glucose.urgent_help",
+      "source_file": "server/lib/dailySafetyCheck.ts",
+      "line": 155,
+      "signal": "glucose_mgdl",
+      "threshold": "<=54 OR >=400",
+      "condition_context": "Daily Safety signal summary, independent of symptom path.",
+      "current_outcome": "Map Daily Safety signal to urgent_help.",
+      "proposed_owner": "src/safety",
+      "duplicate_of": null
+    },
+    {
+      "id": "daily_safety.glucose.contact_doctor",
+      "source_file": "server/lib/dailySafetyCheck.ts",
+      "line": 156,
+      "signal": "glucose_mgdl",
+      "threshold": "<=70 OR >=250",
+      "condition_context": "Daily Safety signal summary, independent of symptom path.",
+      "current_outcome": "Map Daily Safety signal to contact_doctor.",
+      "proposed_owner": "src/safety",
+      "duplicate_of": null
+    },
+    {
+      "id": "daily_safety.glucose.recheck",
+      "source_file": "server/lib/dailySafetyCheck.ts",
+      "line": 157,
+      "signal": "glucose_mgdl",
+      "threshold": "<=80 OR >=180",
+      "condition_context": "Daily Safety signal summary, independent of symptom path.",
+      "current_outcome": "Map Daily Safety signal to recheck.",
+      "proposed_owner": "src/safety",
+      "duplicate_of": null
+    }
+  ]
+}
