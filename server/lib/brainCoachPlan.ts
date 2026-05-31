@@ -11,6 +11,12 @@ export type BrainCoachPlanSession = {
   playedAt?: Date | string | null;
 };
 
+export type BrainCoachPlanEvent = {
+  activityType?: string | null;
+  eventType: string;
+  createdAt?: Date | string | null;
+};
+
 export type BrainCoachPlanPreferences = {
   sessionLengthMins?: number | null;
   trainingTime?: string | null;
@@ -60,6 +66,17 @@ type ActivityCandidate = {
 type ScoredCandidate = ActivityCandidate & {
   score: number;
   reason: string;
+};
+
+type ActivityTrendStats = {
+  sessions: number;
+  completed: number;
+  averageScore: number;
+  averageAccuracy: number;
+  accepted: number;
+  started: number;
+  skipped: number;
+  completedEvents: number;
 };
 
 const ACTIVITY_CATALOG: ActivityCandidate[] = [
@@ -247,6 +264,58 @@ function recentDomainStats(sessions: BrainCoachPlanSession[], now: Date) {
   return stats;
 }
 
+function recentActivityTrendStats(
+  sessions: BrainCoachPlanSession[],
+  events: BrainCoachPlanEvent[],
+  now: Date,
+) {
+  const stats = new Map<string, ActivityTrendStats>();
+  const cutoff = now.getTime() - 30 * DAY_MS;
+
+  function current(activityType: string) {
+    const existing = stats.get(activityType) ?? {
+      sessions: 0,
+      completed: 0,
+      averageScore: 0,
+      averageAccuracy: 0,
+      accepted: 0,
+      started: 0,
+      skipped: 0,
+      completedEvents: 0,
+    };
+    stats.set(activityType, existing);
+    return existing;
+  }
+
+  sessions.forEach((session) => {
+    const playedAt = asDate(session.playedAt);
+    if (!playedAt || playedAt.getTime() < cutoff) return;
+    const trend = current(session.activityType);
+    trend.sessions += 1;
+    trend.completed += session.completed ? 1 : 0;
+    trend.averageScore += numberValue(session.score);
+    trend.averageAccuracy += numberValue(session.accuracyPct);
+  });
+
+  events.forEach((event) => {
+    if (!event.activityType) return;
+    const createdAt = asDate(event.createdAt);
+    if (!createdAt || createdAt.getTime() < cutoff) return;
+    const trend = current(event.activityType);
+    if (event.eventType === "accepted") trend.accepted += 1;
+    if (event.eventType === "started") trend.started += 1;
+    if (event.eventType === "skipped") trend.skipped += 1;
+    if (event.eventType === "completed") trend.completedEvents += 1;
+  });
+
+  stats.forEach((value) => {
+    value.averageScore = value.sessions > 0 ? value.averageScore / value.sessions : 0;
+    value.averageAccuracy = value.sessions > 0 ? value.averageAccuracy / value.sessions : 0;
+  });
+
+  return stats;
+}
+
 function preferredPlanMinutes(preferences: BrainCoachPlanPreferences, lapsed: boolean): number {
   const requested = numberValue(preferences.sessionLengthMins, 7);
   if (lapsed) return 5;
@@ -269,6 +338,7 @@ function recencyScore(lastPlayed: Date | undefined, now: Date): { points: number
 function scoreCandidate(
   candidate: ActivityCandidate,
   sessions: BrainCoachPlanSession[],
+  events: BrainCoachPlanEvent[],
   preferences: BrainCoachPlanPreferences,
   now: Date,
 ): ScoredCandidate {
@@ -276,6 +346,7 @@ function scoreCandidate(
   const domainLastPlayed = lastPlayedBy(sessions, "domain");
   const activityLastPlayed = lastPlayedBy(sessions, "activityType");
   const domainStats = recentDomainStats(sessions, now);
+  const activityTrends = recentActivityTrendStats(sessions, events, now);
   const domainRecency = recencyScore(domainLastPlayed.get(candidate.domain), now);
   const activityRecency = recencyScore(activityLastPlayed.get(candidate.activityType), now);
 
@@ -309,6 +380,28 @@ function scoreCandidate(
   } else if (strongDomain) {
     score -= 12;
     reason = "already looking strong recently";
+  }
+
+  const activityTrend = activityTrends.get(candidate.activityType);
+  if (activityTrend) {
+    const completionRate = activityTrend.sessions > 0 ? activityTrend.completed / activityTrend.sessions : 1;
+    const acceptedAndCompleted = activityTrend.accepted + activityTrend.completedEvents;
+
+    if (activityTrend.sessions >= 2 && (activityTrend.averageScore < 600 || activityTrend.averageAccuracy < 65 || completionRate < 0.6)) {
+      score += 16;
+      reason = "activity trend suggests more gentle practice would help";
+    }
+
+    if (activityTrend.skipped >= 2) {
+      score -= Math.min(45, 18 + activityTrend.skipped * 8);
+      reason = "recent skips suggest choosing a different activity first";
+    } else if (activityTrend.skipped === 1) {
+      score -= 8;
+    }
+
+    if (acceptedAndCompleted >= 2 && activityTrend.skipped === 0) {
+      score += 6;
+    }
   }
 
   if (preferences.memoryDifficulties && preferences.memoryDifficulties !== "none") {
@@ -348,11 +441,13 @@ function selectActivities(
 
 export function buildBrainCoachDailyPlan(input: {
   sessions?: BrainCoachPlanSession[];
+  events?: BrainCoachPlanEvent[];
   preferences?: BrainCoachPlanPreferences | null;
   now?: Date;
   streakDays?: number;
 }): BrainCoachDailyPlan {
   const sessions = sortedSessions(input.sessions ?? []);
+  const events = input.events ?? [];
   const preferences = input.preferences ?? {};
   const now = input.now ?? new Date();
   const today = dayKey(now);
@@ -366,7 +461,7 @@ export function buildBrainCoachDailyPlan(input: {
   );
 
   const scored = ACTIVITY_CATALOG
-    .map((candidate) => scoreCandidate(candidate, sessions, preferences, now))
+    .map((candidate) => scoreCandidate(candidate, sessions, events, preferences, now))
     .sort((a, b) => b.score - a.score);
   const selected = selectActivities(scored, targetMinutes);
   const estimatedDurationMinutes = selected.reduce((total, activity) => total + activity.estimatedDurationMinutes, 0);

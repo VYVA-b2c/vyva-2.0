@@ -746,16 +746,30 @@ export async function brainCoachDailyPlanHandler(req: Request, res: Response) {
       profiles,
       cognitiveDailyPlans,
       cognitiveDailyPlanItems,
+      cognitiveDailyPlanEvents,
       desc,
       eq,
       and,
+      gte,
     } = ctx;
-    const rows = await db
-      .select()
-      .from(cognitiveSessionIndex)
-      .where(eq(cognitiveSessionIndex.userId, req.user!.id))
-      .orderBy(desc(cognitiveSessionIndex.playedAt))
-      .limit(300);
+    const trendWindowStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const [rows, planEvents] = await Promise.all([
+      db
+        .select()
+        .from(cognitiveSessionIndex)
+        .where(eq(cognitiveSessionIndex.userId, req.user!.id))
+        .orderBy(desc(cognitiveSessionIndex.playedAt))
+        .limit(300),
+      db
+        .select()
+        .from(cognitiveDailyPlanEvents)
+        .where(and(
+          eq(cognitiveDailyPlanEvents.userId, req.user!.id),
+          gte(cognitiveDailyPlanEvents.createdAt, trendWindowStart),
+        ))
+        .orderBy(desc(cognitiveDailyPlanEvents.createdAt))
+        .limit(200),
+    ]);
 
     const [profile] = await db
       .select({
@@ -769,6 +783,7 @@ export async function brainCoachDailyPlanHandler(req: Request, res: Response) {
     const progress = buildBrainCoachProgress(rows);
     const generatedPlan = buildBrainCoachDailyPlan({
       sessions: rows,
+      events: planEvents,
       preferences,
       streakDays: progress.summary.streakDays,
     });
