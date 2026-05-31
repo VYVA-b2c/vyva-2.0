@@ -98,4 +98,25 @@ describe("ConciergeScreen route prefill", () => {
     expect(body.prompt).toContain("Please help me schedule care");
     expect(body.locale).toBe("en");
   });
+
+  it("renders prepared provider phone actions as direct call links", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({
+      items: [{
+        id: "ride-1",
+        use_case: "book_ride",
+        provider_name: "Radio Taxi",
+        provider_phone: "+34 612 345 678",
+        action_summary: "Taxi option prepared for the health appointment.",
+        action_payload: null,
+        status: "pending",
+        language: "en",
+      }],
+    }));
+
+    renderScreen();
+
+    const callLink = await screen.findByRole("link", { name: "Call +34 612 345 678" });
+    expect(callLink).toHaveAttribute("href", "tel:+34612345678");
+    expect(screen.getByTestId("button-concierge-confirm-ride-1")).toHaveTextContent("Confirm and call");
+  });
 });

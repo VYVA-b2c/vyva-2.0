@@ -693,6 +693,13 @@ async function cancelPendingAction(id: string) {
   }
 }
 
+function phoneHref(phone?: string | null): string {
+  const raw = phone?.trim();
+  if (!raw) return "";
+  const normalized = raw.replace(/[^\d+]/g, "");
+  return `tel:${normalized || raw}`;
+}
+
 function getBookingUrl(item: ConciergePendingItem): string {
   return typeof item.action_payload?.booking_url === "string"
     ? item.action_payload.booking_url.trim()
@@ -1440,7 +1447,7 @@ const ConciergeScreen = () => {
     chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function handleOfferAction(option: OfferOption) {
+  function handleOfferAssistance(option: OfferOption) {
     if (option.phone) {
       setInput(isSpanish
         ? `Ayudame a contactar con ${option.name} para revisar esta opcion y confirmar el siguiente paso.`
@@ -1458,6 +1465,8 @@ const ConciergeScreen = () => {
   const queuedActionCount = queuedActions.length;
   const priorityOfferIdeas = OFFER_IDEA_CHIPS.slice(0, 3);
   const visibleOfferIdeas = OFFER_IDEA_CHIPS.slice(3 + offersIdeaPage * 4, 3 + offersIdeaPage * 4 + 4);
+  const activeActionPhoneHref = phoneHref(activeAction?.provider_phone);
+  const activeActionBookingUrl = activeAction ? getBookingUrl(activeAction) : "";
   const routePrefillMeta = routePrefill
     ? {
         Icon: routePrefill.kind === "ride" ? Car : routePrefill.kind === "appointment" ? Calendar : PencilLine,
@@ -1752,17 +1761,26 @@ const ConciergeScreen = () => {
             </p>
 
             <div className="mt-4 flex flex-wrap gap-2">
-              {activeAction.provider_phone && (
-                <span className="inline-flex items-center gap-2 rounded-full bg-[#F5F3FF] px-3 py-2 font-body text-[12px] text-vyva-text-1">
+              {activeActionPhoneHref && (
+                <a
+                  href={activeActionPhoneHref}
+                  className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#F5F3FF] px-3 py-2 font-body text-[12px] font-black text-vyva-purple"
+                  aria-label={`${isSpanish ? "Llamar" : "Call"} ${activeAction.provider_phone}`}
+                >
                   <PhoneCall size={13} style={{ color: "#6B21A8" }} />
                   {activeAction.provider_phone}
-                </span>
+                </a>
               )}
-              {!activeAction.provider_phone && getBookingUrl(activeAction) && (
-                <span className="inline-flex items-center gap-2 rounded-full bg-[#ECFDF5] px-3 py-2 font-body text-[12px] text-vyva-text-1">
+              {!activeAction.provider_phone && activeActionBookingUrl && (
+                <a
+                  href={activeActionBookingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]"
+                >
                   <Calendar size={13} style={{ color: "#0A7C4E" }} />
                   {isSpanish ? "Reserva online disponible" : "Online booking available"}
-                </span>
+                </a>
               )}
             </div>
 
@@ -1774,8 +1792,8 @@ const ConciergeScreen = () => {
                   disabled={confirmMutation.isPending || cancelMutation.isPending}
                   className="vyva-primary-action h-auto hover:bg-vyva-purple/90"
                 >
-                  <PhoneCall size={16} className="mr-2" />
-                  {!activeAction.provider_phone && getBookingUrl(activeAction)
+                  {!activeAction.provider_phone && activeActionBookingUrl ? <ExternalLink size={16} className="mr-2" /> : <PhoneCall size={16} className="mr-2" />}
+                  {!activeAction.provider_phone && activeActionBookingUrl
                     ? (isSpanish ? "Abrir reserva" : "Open booking")
                     : (isSpanish ? "Confirmar y llamar" : "Confirm and call")}
                 </Button>
@@ -2435,7 +2453,17 @@ const ConciergeScreen = () => {
                     </p>
                   </div>
                 ) : (
-                  offersResult.options.map((option) => (
+                  offersResult.options.map((option) => {
+                    const offerPhoneHref = phoneHref(option.phone);
+                    const offerUrl = option.website || option.maps_url || "";
+                    const primaryLabel = offerPhoneHref
+                      ? (isSpanish ? "Llamar ahora" : "Call now")
+                      : offerUrl
+                        ? (isSpanish ? "Abrir ahora" : "Open now")
+                        : (isSpanish ? "Pedir ayuda a VYVA" : "Ask VYVA to help");
+                    const PrimaryIcon = offerPhoneHref ? PhoneCall : offerUrl ? ExternalLink : Send;
+
+                    return (
                     <div key={`${option.label}-${option.name}`} className="rounded-[20px] border border-vyva-border bg-white p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -2460,19 +2488,43 @@ const ConciergeScreen = () => {
                         <p className="font-body text-[12px] leading-relaxed text-vyva-text-2">{option.trust_note}</p>
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          onClick={() => handleOfferAction(option)}
-                          className="h-[40px] rounded-full bg-vyva-purple px-4 font-body text-[13px] hover:bg-vyva-purple/90"
-                        >
-                          {option.phone ? (isSpanish ? "Contactar proveedor" : "Contact provider") : option.website || option.maps_url ? (isSpanish ? "Revisar ahora" : "Review now") : (isSpanish ? "Ver contacto" : "View contact")}
-                        </Button>
+                        {offerPhoneHref || offerUrl ? (
+                          <a
+                            href={offerPhoneHref || offerUrl}
+                            target={offerUrl ? "_blank" : undefined}
+                            rel={offerUrl ? "noopener noreferrer" : undefined}
+                            className="vyva-tap inline-flex min-h-[40px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-[13px] font-bold text-white"
+                          >
+                            <PrimaryIcon size={15} />
+                            {primaryLabel}
+                          </a>
+                        ) : (
+                          <Button
+                            type="button"
+                            onClick={() => handleOfferAssistance(option)}
+                            className="h-[40px] rounded-full bg-vyva-purple px-4 font-body text-[13px] hover:bg-vyva-purple/90"
+                          >
+                            <Send size={15} className="mr-2" />
+                            {primaryLabel}
+                          </Button>
+                        )}
+                        {(offerPhoneHref || offerUrl) && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => handleOfferAssistance(option)}
+                            className="h-[40px] rounded-full border-vyva-border bg-white px-4 font-body text-[13px] font-bold text-vyva-purple"
+                          >
+                            {isSpanish ? "Que VYVA ayude" : "Let VYVA help"}
+                          </Button>
+                        )}
                         <span className="inline-flex items-center rounded-full bg-[#FBF8F4] px-3 py-2 font-body text-[12px] text-vyva-text-2">
                           {option.contact_method}
                         </span>
                       </div>
                     </div>
-                  ))
+                    );
+                  })
                 )}
 
                 <div className="rounded-[18px] border border-vyva-border bg-white p-3">
