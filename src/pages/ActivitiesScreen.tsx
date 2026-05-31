@@ -1,4 +1,4 @@
-import { BrainCircuit, Headphones, Layers, Map as MapIcon, Puzzle, Route, Type, Users, Wind, type LucideIcon } from "lucide-react";
+import { BrainCircuit, CheckCircle2, Clock3, Headphones, Layers, Map as MapIcon, Puzzle, Route, Type, Users, Wind, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { margaret } from "@/data/mockData";
@@ -104,12 +104,36 @@ type BrainCoachProgress = {
   };
 };
 
+type BrainCoachDailyPlan = {
+  estimatedDurationMinutes: number;
+  recommendedDomains: string[];
+  activities: Array<{
+    activityType: string;
+    title: string;
+    domain: string;
+    route: string;
+    estimatedDurationMinutes: number;
+    rationale: string;
+    completedToday: boolean;
+  }>;
+  rationale: string[];
+  completion: {
+    completedCount: number;
+    totalCount: number;
+    allComplete: boolean;
+  };
+};
+
 const ActivitiesScreen = () => {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const autoStartVoice = useRouteVoiceAutoStart();
   const { data: brainCoachProgress } = useQuery<BrainCoachProgress>({
     queryKey: ["/api/games/progress"],
+    retry: false,
+  });
+  const { data: dailyPlan } = useQuery<BrainCoachDailyPlan>({
+    queryKey: ["/api/games/daily-plan"],
     retry: false,
   });
   const todayIndex = new Date().getDay();
@@ -155,6 +179,64 @@ const ActivitiesScreen = () => {
         description="VYVA can suggest a light activity and keep encouragement available while the user chooses."
         className="mt-[18px]"
       />
+
+      {dailyPlan && dailyPlan.activities.length > 0 && (
+        <section
+          className="mt-[18px] rounded-[26px] border bg-[#FFFCF8] p-[16px]"
+          style={{
+            borderColor: "#EDE2D1",
+            boxShadow: "0 2px 10px rgba(43,31,24,0.05)",
+          }}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-body text-[12px] font-semibold uppercase tracking-[0.06em] text-vyva-purple">Today&apos;s Brain Coach Plan</p>
+              <h2 className="mt-1 font-display text-[27px] leading-tight text-vyva-text-1">A short plan for today</h2>
+              <p className="mt-2 font-body text-[14px] font-medium leading-snug text-vyva-text-2 [overflow-wrap:anywhere]">
+                {dailyPlan.rationale[0]}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-1 rounded-full bg-[#F3E8FF] px-3 py-2 text-[13px] font-extrabold text-vyva-purple">
+              <Clock3 size={15} />
+              {dailyPlan.estimatedDurationMinutes} min
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-2">
+            {dailyPlan.activities.map((activity) => (
+              <button
+                key={activity.activityType}
+                type="button"
+                onClick={() => navigate(activity.route)}
+                className="flex min-h-[74px] items-center gap-3 rounded-[20px] border bg-white px-3 py-3 text-left shadow-sm transition-transform active:scale-[0.99]"
+                style={{ borderColor: "#EFE4D5" }}
+              >
+                <span className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-[16px] bg-[#F3E8FF] text-vyva-purple">
+                  {activity.completedToday ? <CheckCircle2 size={23} /> : <BrainCircuit size={23} />}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-body text-[17px] font-extrabold leading-tight text-vyva-text-1 [overflow-wrap:anywhere]">{activity.title}</span>
+                  <span className="mt-1 block font-body text-[13px] font-semibold leading-snug text-vyva-text-2 [overflow-wrap:anywhere]">{activity.rationale}</span>
+                </span>
+                <span className="shrink-0 rounded-full bg-[#FFF7ED] px-2.5 py-1 text-[12px] font-extrabold text-[#B45309]">
+                  {activity.estimatedDurationMinutes} min
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            {dailyPlan.recommendedDomains.map((domain) => (
+              <span key={domain} className="rounded-full bg-[#EDE9FE] px-2.5 py-1 text-[12px] font-bold text-[#6D28D9]">
+                {domain.replaceAll("_", " ")}
+              </span>
+            ))}
+            <span className="rounded-full bg-[#DDF8EA] px-2.5 py-1 text-[12px] font-bold text-[#0A7C4E]">
+              {dailyPlan.completion.completedCount}/{dailyPlan.completion.totalCount} done
+            </span>
+          </div>
+        </section>
+      )}
 
       <section
         className="mt-[18px] rounded-[26px] border bg-[#FFF9F1] p-4"
