@@ -536,7 +536,7 @@ function recommendationsFor(locale: string, symptomId: string | undefined, level
     return [
       text(locale, "Contact your doctor or clinic within 24-48 hours if this continues.", "Contacta con tu medico o clinica en 24-48 horas si continua."),
       text(locale, "Use this report to explain the symptom clearly.", "Usa este informe para explicar el sintoma claramente."),
-      text(locale, "Seek same-day help if it gets worse or feels unusual for you.", "Busca ayuda el mismo dia si empeora o se siente raro para ti."),
+      text(locale, "Write down when it started and what makes it better or worse.", "Apunta cuando empezo y que lo mejora o empeora."),
       text(locale, "Keep watching for the warning signs below.", "Sigue vigilando las senales de alerta de abajo."),
     ];
   }
@@ -637,6 +637,37 @@ function recommendationsFor(locale: string, symptomId: string | undefined, level
     text(locale, "Call a doctor if it continues, worsens, or feels unusual for you.", "Llama a un medico si continua, empeora o se siente raro para ti."),
     text(locale, "Keep watching for the warning signs below.", "Sigue vigilando las senales de alerta de abajo."),
   ];
+}
+
+function isDoctorContactRecommendation(line: string) {
+  return /\b(contacta|contact|habla|talk|speak|llama|call|share|comparte|book|reserve|reserva)\b.*\b(doctor|m[eé]dico|medico|clinician|clinic|cl[ií]nica|clinica|urgent care|urgencias|medical advice|consejo medico)\b/i.test(line);
+}
+
+function isConditionalSameDayRecommendation(line: string) {
+  return /\b(same-day|same day|today|hoy|urgent|urgente|emergency|emergencias)\b/i.test(line)
+    && /\b(if|si|worse|empeora|unusual|raro|warning|alerta)\b/i.test(line);
+}
+
+export function compactTriageRecommendations(lines: string[], level?: TriageRuleLevel): string[] {
+  const unique = [...new Set(lines.map((line) => line.trim()).filter(Boolean))];
+  const compacted: string[] = [];
+  let keptDoctorContact = false;
+
+  for (const line of unique) {
+    const doctorContact = isDoctorContactRecommendation(line);
+    if (doctorContact) {
+      if (keptDoctorContact) continue;
+      keptDoctorContact = true;
+    }
+
+    if (level === "doctor_24_48" && keptDoctorContact && isConditionalSameDayRecommendation(line)) {
+      continue;
+    }
+
+    compacted.push(line);
+  }
+
+  return compacted;
 }
 
 export function evaluateTriageRules(input: TriageRuleInput): TriageRuleDecision {
@@ -972,7 +1003,7 @@ export function evaluateTriageRules(input: TriageRuleInput): TriageRuleDecision 
   }
 
   const defaultRecommendations = recommendationsFor(locale, symptomId, level);
-  const uniqueRecommendations = [...new Set([...recommendations, ...defaultRecommendations])];
+  const uniqueRecommendations = compactTriageRecommendations([...recommendations, ...defaultRecommendations], level);
   const selectedAnswerReason = selectedAnswerReasonFor(locale, symptomId, ids);
   const finalReasons = [...new Set([
     ...(selectedAnswerReason ? [selectedAnswerReason] : []),

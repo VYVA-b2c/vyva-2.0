@@ -17,6 +17,7 @@ import {
   Wind,
 } from "lucide-react";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
+import { compactReportRecommendations } from "@/lib/reportRecommendations";
 import {
   HealthWizardCard,
   HealthWizardHero,
@@ -176,6 +177,10 @@ function DetailView({ report, onBack }: { report: TriageReport; onBack: () => vo
   const watchSigns = report.watch_signs ?? [];
   const profileConsiderations = report.profile_considerations ?? [];
   const vitalsNotes = report.vitals_notes ?? [];
+  const recommendations = compactReportRecommendations(report.recommendations, {
+    max: 4,
+    level: report.next_step_level ?? undefined,
+  });
 
   return (
     <HealthWizardShell contentClassName="pb-10">
@@ -242,13 +247,13 @@ function DetailView({ report, onBack }: { report: TriageReport; onBack: () => vo
         </section>
       )}
 
-      {report.recommendations.length > 0 && (
+      {recommendations.length > 0 && (
         <section className={`${cardShell} mt-4 p-5`}>
           <p className="mb-4 font-body text-[13px] font-bold uppercase tracking-[0.12em] text-vyva-text-2">
             {t("informes.reportDetail.recommendations")}
           </p>
           <ol className="flex flex-col gap-3">
-            {report.recommendations.map((recommendation, index) => (
+            {recommendations.map((recommendation, index) => (
               <li key={`${index}-${recommendation}`} className="flex items-start gap-3">
                 <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[#6B21A8] font-body text-[12px] font-bold text-white">
                   {index + 1}

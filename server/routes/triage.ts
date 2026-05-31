@@ -7,7 +7,7 @@ import { profiles } from "../../shared/schema.js";
 import { genderInstruction, inferProfileGender, type GrammaticalGender } from "../lib/userPersonalization.js";
 import { getMediSearchTriageContext, type MediSearchTriageContext } from "../services/medisearch.js";
 import { getDoctorMedicalProfileVariables } from "../lib/doctorMedicalProfile.js";
-import { evaluateTriageRules } from "../lib/triageRules.js";
+import { compactTriageRecommendations, evaluateTriageRules } from "../lib/triageRules.js";
 import {
   emergencyContactForCountry,
   triageWizardMatrixPromptText,
@@ -1340,10 +1340,10 @@ function applyTriageSafetyFloor(
       ...(summary.vitalsNotes ?? []),
       ...vitalsNotesFor(locale, wizard),
     ].slice(0, 3),
-    recommendations: [
+    recommendations: compactTriageRecommendations([
       ...ruleDecision.recommendations,
       ...(summary.recommendations ?? []),
-    ].filter((item, index, items) => items.findIndex((candidate) => candidate.toLowerCase() === item.toLowerCase()) === index).slice(0, 5),
+    ], ruleDecision.level).slice(0, 4),
   };
   const nextStep = {
     nextStepLevel: ruleDecision.level,
