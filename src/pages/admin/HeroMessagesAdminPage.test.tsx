@@ -108,6 +108,17 @@ describe("HeroMessagesAdminPage", () => {
     expect(screen.getByRole("button", { name: /save hero message/i })).toBeDisabled();
   });
 
+  it("lets admins jump from an overview card into editing that banner", async () => {
+    renderPage();
+
+    const doctorCard = await screen.findByTestId("card-hero-overview-doctor");
+    fireEvent.click(within(doctorCard).getByRole("button", { name: /edit copy/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("hero-preview-headline")).toHaveTextContent("Elige opcion");
+    });
+  });
+
   it("direct saves edits and refreshes the overview", async () => {
     renderPage();
 

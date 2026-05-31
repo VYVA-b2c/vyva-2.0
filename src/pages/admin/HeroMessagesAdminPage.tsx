@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle, BarChart3, CheckCircle2, Eye, Save, Search, SlidersHorizontal } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { AlertTriangle, BarChart3, CheckCircle2, Eye, Pencil, Save, Search, SlidersHorizontal } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
@@ -246,6 +246,7 @@ export default function HeroMessagesAdminPage() {
   const [diagnosticEventType, setDiagnosticEventType] = useState<(typeof EVENT_TYPES)[number]>("");
   const [diagnosticActivity, setDiagnosticActivity] = useState<(typeof ACTIVITY_TYPES)[number]>("");
   const [message, setMessage] = useState("");
+  const editorRef = useRef<HTMLElement | null>(null);
 
   const allMessages = useMemo(() => {
     const merged = new Map<string, HeroMessageAdmin>();
@@ -374,6 +375,16 @@ export default function HeroMessagesAdminPage() {
     };
     setDrafts((existing) => ({ ...existing, [id]: draft }));
     setSelectedMessageId(id);
+    window.setTimeout(() => editorRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  function focusMessageInEditor(messageId: string, surface: HeroSurface) {
+    const targetId = allMessages.some((item) => item.message_id === messageId)
+      ? messageId
+      : allMessages.find((item) => item.surface === surface)?.message_id ?? "";
+    setSurfaceFilter(surface);
+    setSelectedMessageId(targetId);
+    window.setTimeout(() => editorRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
   async function saveMessage(item: HeroMessageAdmin) {
@@ -469,7 +480,16 @@ export default function HeroMessagesAdminPage() {
                     <h3 className="mt-1 truncate text-lg font-black" data-testid={`hero-active-${item.surface}`}>{item.result.headline}</h3>
                     <p className="mt-1 text-sm text-[#7d6b65]">{item.result.messageId}</p>
                   </div>
-                  <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-black ${sourceClass(item.result.source)}`}>{sourceLabel(item.result.source)}</span>
+                  <div className="flex shrink-0 flex-col items-end gap-2">
+                    <span className={`rounded-full px-3 py-1 text-xs font-black ${sourceClass(item.result.source)}`}>{sourceLabel(item.result.source)}</span>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 rounded-lg border border-purple-200 bg-white px-3 py-1.5 text-xs font-black text-purple-700 transition hover:border-purple-300 hover:bg-purple-50"
+                      onClick={() => focusMessageInEditor(item.result.messageId, item.surface)}
+                    >
+                      <Pencil size={13} /> Edit copy
+                    </button>
+                  </div>
                 </div>
                 <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
                   <div><p className="text-[#8b7a73]">Reason</p><p className="font-black">{item.result.reason}</p></div>
@@ -487,7 +507,7 @@ export default function HeroMessagesAdminPage() {
           </div>
         </section>
 
-        <section className="mt-5 grid gap-4 xl:grid-cols-[1.05fr_1.6fr]">
+        <section ref={editorRef} className="mt-5 grid scroll-mt-6 gap-4 xl:grid-cols-[1.05fr_1.6fr]">
           <aside className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <div>
