@@ -25,6 +25,236 @@ function app() {
   return testApp;
 }
 
+type QuickAnswer = {
+  id: string;
+  label: string;
+  value: string;
+  kind: "symptom" | "red_flag" | "duration" | "severity" | "trend";
+};
+
+const summaryShapeKeys = [
+  "chiefComplaint",
+  "disclaimer",
+  "nextStepLabel",
+  "nextStepLevel",
+  "profileConsiderations",
+  "recommendations",
+  "scanNotes",
+  "scanResults",
+  "symptoms",
+  "triageReasons",
+  "urgency",
+  "vitalsNotes",
+  "watchSigns",
+].sort();
+
+const routeResponseShapeKeys = [
+  "content",
+  "done",
+  "evidenceSources",
+  "medicalFollowups",
+  "quickReplies",
+  "role",
+  "summary",
+  "wizardStage",
+  "wizardStageLabel",
+  "wizardSymptomId",
+].sort();
+
+const routeParityCases: Array<{
+  name: string;
+  message: string;
+  quickAnswers: QuickAnswer[];
+  expectedContent: string;
+  expectedLevel: string;
+  expectedLabel: string;
+  expectedUrgency: string;
+  expectedSymptomId: string;
+}> = [
+  {
+    name: "chest discomfort",
+    message: "Chest discomfort",
+    quickAnswers: [
+      { id: "chest", label: "Chest discomfort", value: "I have chest discomfort.", kind: "symptom" },
+      { id: "no_red_flag", label: "No emergency signs", value: "No emergency signs.", kind: "red_flag" },
+      { id: "mild", label: "Mild", value: "It feels mild.", kind: "severity" },
+      { id: "better", label: "Better", value: "It is getting better.", kind: "trend" },
+    ],
+    expectedContent: "Your answers show chest discomfort should be checked today.",
+    expectedLevel: "doctor_today",
+    expectedLabel: "Talk to a doctor today",
+    expectedUrgency: "urgent",
+    expectedSymptomId: "chest",
+  },
+  {
+    name: "pain/headache",
+    message: "Bad headache",
+    quickAnswers: [
+      { id: "pain", label: "Pain", value: "I have pain.", kind: "symptom" },
+      { id: "no_red_flag", label: "No, none of these", value: "None of these warning signs apply.", kind: "red_flag" },
+      { id: "head_neck_pain", label: "Head or neck", value: "The pain is mainly in my head or neck.", kind: "severity" },
+      { id: "better", label: "Mild, familiar, improving", value: "It is mild, familiar, and improving.", kind: "trend" },
+    ],
+    expectedContent: "Your answers fit a lower-risk pain or headache pattern right now.",
+    expectedLevel: "monitor",
+    expectedLabel: "Monitor at home, with doctor access ready",
+    expectedUrgency: "monitor",
+    expectedSymptomId: "pain",
+  },
+  {
+    name: "breathing",
+    message: "Breathing feels off",
+    quickAnswers: [
+      { id: "breathing", label: "Breathing", value: "I have a breathing concern.", kind: "symptom" },
+      { id: "no_red_flag", label: "No emergency signs", value: "No emergency signs.", kind: "red_flag" },
+      { id: "mild", label: "Mild", value: "It feels mild.", kind: "severity" },
+      { id: "better", label: "Better", value: "It is getting better.", kind: "trend" },
+    ],
+    expectedContent: "Your answers fit a lower-risk breathing pattern right now.",
+    expectedLevel: "monitor",
+    expectedLabel: "Monitor at home, with doctor access ready",
+    expectedUrgency: "monitor",
+    expectedSymptomId: "breathing",
+  },
+  {
+    name: "fever",
+    message: "Fever",
+    quickAnswers: [
+      { id: "fever", label: "Fever", value: "I have a fever.", kind: "symptom" },
+      { id: "no_red_flag", label: "No emergency signs", value: "No emergency signs.", kind: "red_flag" },
+      { id: "one_two_days", label: "1-2 days", value: "It has been 1-2 days.", kind: "duration" },
+      { id: "mild", label: "Mild", value: "It feels mild.", kind: "severity" },
+      { id: "better", label: "Better", value: "It is getting better.", kind: "trend" },
+    ],
+    expectedContent: "Your answers fit a lower-risk fever pattern right now.",
+    expectedLevel: "monitor",
+    expectedLabel: "Monitor at home, with doctor access ready",
+    expectedUrgency: "monitor",
+    expectedSymptomId: "fever",
+  },
+  {
+    name: "dizziness/faintness",
+    message: "Dizzy",
+    quickAnswers: [
+      { id: "dizzy", label: "Dizziness", value: "I feel dizzy.", kind: "symptom" },
+      { id: "no_red_flag", label: "No emergency signs", value: "No emergency signs.", kind: "red_flag" },
+      { id: "mild", label: "Mild", value: "It feels mild.", kind: "severity" },
+      { id: "better", label: "Better", value: "It is getting better.", kind: "trend" },
+    ],
+    expectedContent: "Your answers fit a lower-risk dizziness pattern right now.",
+    expectedLevel: "monitor",
+    expectedLabel: "Monitor at home, with doctor access ready",
+    expectedUrgency: "monitor",
+    expectedSymptomId: "dizzy",
+  },
+  {
+    name: "very tired/weak",
+    message: "Very tired",
+    quickAnswers: [
+      { id: "tired", label: "Very tired or weak", value: "I feel very tired or weak.", kind: "symptom" },
+      { id: "no_red_flag", label: "No emergency signs", value: "No emergency signs.", kind: "red_flag" },
+      { id: "one_two_days", label: "1-2 days", value: "It has been 1-2 days.", kind: "duration" },
+      { id: "mild", label: "Mild", value: "It feels mild.", kind: "severity" },
+      { id: "better", label: "Better", value: "It is getting better.", kind: "trend" },
+    ],
+    expectedContent: "Your answers fit a lower-risk tiredness or weakness pattern right now.",
+    expectedLevel: "monitor",
+    expectedLabel: "Monitor at home, with doctor access ready",
+    expectedUrgency: "monitor",
+    expectedSymptomId: "tired",
+  },
+  {
+    name: "stomach/bowel",
+    message: "Stomach problem",
+    quickAnswers: [
+      { id: "stomach", label: "Stomach or bowel", value: "I have a stomach or bowel concern.", kind: "symptom" },
+      { id: "no_red_flag", label: "No emergency signs", value: "No emergency signs.", kind: "red_flag" },
+      { id: "mild", label: "Mild", value: "It feels mild.", kind: "severity" },
+      { id: "better", label: "Better", value: "It is getting better.", kind: "trend" },
+      { id: "one_two_days", label: "1-2 days", value: "It has been 1-2 days.", kind: "duration" },
+    ],
+    expectedContent: "Your answers fit a lower-risk stomach or bowel trouble pattern right now.",
+    expectedLevel: "monitor",
+    expectedLabel: "Monitor at home, with doctor access ready",
+    expectedUrgency: "monitor",
+    expectedSymptomId: "stomach",
+  },
+  {
+    name: "urine problem",
+    message: "Urine problem",
+    quickAnswers: [
+      { id: "urinary", label: "Urine problem", value: "I have a urine problem.", kind: "symptom" },
+      { id: "no_red_flag", label: "No emergency signs", value: "No emergency signs.", kind: "red_flag" },
+      { id: "mild", label: "Mild", value: "It feels mild.", kind: "severity" },
+      { id: "better", label: "Better", value: "It is getting better.", kind: "trend" },
+    ],
+    expectedContent: "Your answers show urine problem should be checked within 24-48 hours.",
+    expectedLevel: "doctor_24_48",
+    expectedLabel: "Talk to a doctor within 24-48 hours",
+    expectedUrgency: "routine",
+    expectedSymptomId: "urinary",
+  },
+  {
+    name: "fall/injury",
+    message: "I fell",
+    quickAnswers: [
+      { id: "fall", label: "Fall or injury", value: "I fell or got injured.", kind: "symptom" },
+      { id: "no_red_flag", label: "No, only a small bruise or soreness", value: "Only a small bruise or soreness.", kind: "red_flag" },
+      { id: "mild", label: "Yes, normal movement and mild soreness", value: "I can move normally with mild soreness.", kind: "severity" },
+      { id: "better", label: "Improving", value: "It is improving.", kind: "trend" },
+    ],
+    expectedContent: "Your answers fit a lower-risk fall or injury pattern right now.",
+    expectedLevel: "monitor",
+    expectedLabel: "Monitor at home, with doctor access ready",
+    expectedUrgency: "monitor",
+    expectedSymptomId: "fall",
+  },
+  {
+    name: "skin/wound/rash",
+    message: "Skin problem",
+    quickAnswers: [
+      { id: "skin", label: "Skin or wound", value: "I have a skin or wound concern.", kind: "symptom" },
+      { id: "no_red_flag", label: "No emergency signs", value: "No emergency signs.", kind: "red_flag" },
+      { id: "mild", label: "Mild", value: "It feels mild.", kind: "severity" },
+      { id: "better", label: "Better", value: "It is getting better.", kind: "trend" },
+    ],
+    expectedContent: "Your answers fit a lower-risk skin or wound problem pattern right now.",
+    expectedLevel: "monitor",
+    expectedLabel: "Monitor at home, with doctor access ready",
+    expectedUrgency: "monitor",
+    expectedSymptomId: "skin",
+  },
+  {
+    name: "confusion",
+    message: "Confusion",
+    quickAnswers: [
+      { id: "confusion", label: "Confusion", value: "I feel confused.", kind: "symptom" },
+      { id: "no_red_flag", label: "No emergency signs", value: "No emergency signs.", kind: "red_flag" },
+      { id: "mild", label: "Mild", value: "It feels mild.", kind: "severity" },
+    ],
+    expectedContent: "Your answers show confusion or memory change should be checked within 24-48 hours.",
+    expectedLevel: "doctor_24_48",
+    expectedLabel: "Talk to a doctor within 24-48 hours",
+    expectedUrgency: "routine",
+    expectedSymptomId: "confusion",
+  },
+  {
+    name: "something else",
+    message: "Something else",
+    quickAnswers: [
+      { id: "other", label: "Something else", value: "Something else is bothering me.", kind: "symptom" },
+      { id: "no_red_flag", label: "No emergency signs", value: "No emergency signs.", kind: "red_flag" },
+      { id: "other_not_sure", label: "Other or not sure", value: "It is something else or I am not sure.", kind: "severity" },
+      { id: "better", label: "Mild, brief, and improving", value: "It is mild, brief, and improving.", kind: "trend" },
+    ],
+    expectedContent: "Your answers fit a lower-risk symptoms pattern right now.",
+    expectedLevel: "monitor",
+    expectedLabel: "Monitor at home, with doctor access ready",
+    expectedUrgency: "monitor",
+    expectedSymptomId: "other",
+  },
+];
+
 describe("triage route wizard questions", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -128,10 +358,56 @@ describe("triage route wizard questions", () => {
     expect(res.body.wizardStage).toBe("complete");
     expect(res.body.content).toBe("Your answers fit a lower-risk pain or headache pattern right now.");
     expect(res.body.quickReplies).toEqual([]);
+    expect(Object.keys(res.body).sort()).toEqual(routeResponseShapeKeys);
+    expect(Object.keys(res.body.summary).sort()).toEqual(summaryShapeKeys);
     expect(res.body.summary).toMatchObject({
       chiefComplaint: "Bad headache",
+      urgency: "monitor",
       nextStepLevel: "monitor",
       nextStepLabel: "Monitor at home, with doctor access ready",
+    });
+  });
+
+  it.each(routeParityCases)("keeps final route parity for $name", async ({
+    message,
+    quickAnswers,
+    expectedContent,
+    expectedLevel,
+    expectedLabel,
+    expectedUrgency,
+    expectedSymptomId,
+  }) => {
+    vi.stubEnv("OPENAI_API_KEY", "");
+
+    const res = await request(app())
+      .post("/api/triage/message")
+      .send({
+        locale: "en",
+        messages: [{ role: "user", content: message }],
+        wizard: {
+          mode: "without_vitals",
+          quickAnswers,
+        },
+      })
+      .expect(200);
+
+    expect(Object.keys(res.body).sort()).toEqual(routeResponseShapeKeys);
+    expect(Object.keys(res.body.summary).sort()).toEqual(summaryShapeKeys);
+    expect(res.body).toMatchObject({
+      role: "assistant",
+      content: expectedContent,
+      done: true,
+      quickReplies: [],
+      wizardStage: "complete",
+      wizardStageLabel: "Summary",
+      wizardSymptomId: expectedSymptomId,
+      evidenceSources: [],
+      medicalFollowups: [],
+    });
+    expect(res.body.summary).toMatchObject({
+      urgency: expectedUrgency,
+      nextStepLevel: expectedLevel,
+      nextStepLabel: expectedLabel,
     });
   });
 
