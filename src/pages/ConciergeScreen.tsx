@@ -914,13 +914,8 @@ const ConciergeScreen = () => {
     setRoutePrefill(nextPrefill);
     setInput((current) => current.trim() ? current : message);
     setOffersOpen(false);
-
-    if (prefill.kind === "appointment") {
-      setAppointmentOpen(true);
-      setAppointmentNote((current) => current.trim() ? current : message);
-    } else {
-      setAppointmentOpen(false);
-    }
+    setAppointmentOpen(false);
+    setAppointmentNote((current) => current.trim() ? current : message);
 
     window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
     navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
@@ -1018,6 +1013,7 @@ const ConciergeScreen = () => {
     setMessages(nextHistory);
     setInput("");
     setRoutePrefill(null);
+    setAppointmentOpen(false);
     sendMessage(text, nextHistory);
   }
 
@@ -1031,6 +1027,17 @@ const ConciergeScreen = () => {
   function handleQuickAction(key: string) {
     if (key === "shoppingHelper") {
       navigate("/concierge/shopping");
+      return;
+    }
+    if (key === "bookRide") {
+      const message = isSpanish
+        ? "Ayudame a reservar un transporte seguro. Preguntame destino y horario, prepara opciones claras y no reserves nada sin mi confirmacion."
+        : "Help me book safe transport. Ask for destination and timing, prepare clear options, and do not book anything without my confirmation.";
+      setRoutePrefill({ kind: "ride", message });
+      setInput((current) => current.trim() ? current : message);
+      setAppointmentOpen(false);
+      setOffersOpen(false);
+      window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
       return;
     }
     if (key === "scheduleAppt") {
@@ -1451,6 +1458,29 @@ const ConciergeScreen = () => {
   const queuedActionCount = queuedActions.length;
   const priorityOfferIdeas = OFFER_IDEA_CHIPS.slice(0, 3);
   const visibleOfferIdeas = OFFER_IDEA_CHIPS.slice(3 + offersIdeaPage * 4, 3 + offersIdeaPage * 4 + 4);
+  const routePrefillMeta = routePrefill
+    ? {
+        Icon: routePrefill.kind === "ride" ? Car : routePrefill.kind === "appointment" ? Calendar : PencilLine,
+        title: routePrefill.kind === "ride"
+          ? (isSpanish ? "Transporte seguro preparado" : "Safe transport ready")
+          : routePrefill.kind === "appointment"
+            ? (isSpanish ? "Solicitud de cita preparada" : "Appointment request ready")
+            : (isSpanish ? "Presupuesto de apoyo preparado" : "Support quote ready"),
+        detail: routePrefill.kind === "ride"
+          ? (isSpanish ? "VYVA puede buscar opciones y dejarte confirmar antes de reservar." : "VYVA can find options and let you confirm before booking.")
+          : routePrefill.kind === "appointment"
+            ? (isSpanish ? "VYVA prepara el motivo, proveedor y horario antes de confirmar." : "VYVA prepares the reason, provider, and timing before confirming.")
+            : (isSpanish ? "VYVA puede solicitar una ayuda en casa o compania con confirmacion previa." : "VYVA can request home support or companionship with confirmation first."),
+        primaryLabel: routePrefill.kind === "ride"
+          ? (isSpanish ? "Buscar transporte" : "Find ride options")
+          : routePrefill.kind === "appointment"
+            ? (isSpanish ? "Iniciar solicitud" : "Start appointment request")
+            : (isSpanish ? "Pedir presupuesto" : "Request quote"),
+        secondaryLabel: routePrefill.kind === "appointment"
+          ? (isSpanish ? "Anadir detalles" : "Add details")
+          : (isSpanish ? "Editar solicitud" : "Edit request"),
+      }
+    : null;
 
   function showNextQueuedAction() {
     const nextAction = queuedActions[0] ?? pendingActions[0];
@@ -1482,63 +1512,78 @@ const ConciergeScreen = () => {
         className="mt-5"
       />
 
-      {routePrefill && (
+      {routePrefill && routePrefillMeta && (
         <section
-          className="mt-4 rounded-[24px] border border-[#D8B4FE] bg-[#F5F3FF] p-4"
-          style={{ boxShadow: "0 12px 32px rgba(107,33,168,0.12)" }}
+          className="mt-4 overflow-hidden rounded-[28px] border border-[#D8B4FE] bg-white"
+          style={{ boxShadow: "0 18px 42px rgba(107,33,168,0.16)" }}
           data-testid="panel-concierge-route-prefill"
         >
-          <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-vyva-purple">
-              {routePrefill.kind === "ride" ? <Car size={20} /> : routePrefill.kind === "appointment" ? <Calendar size={20} /> : <PencilLine size={20} />}
+          <div className="bg-[linear-gradient(135deg,#7C2BE8_0%,#3D0D82_100%)] p-4 text-white">
+            <div className="flex items-start gap-3">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-white/16 text-white shadow-sm">
+                <routePrefillMeta.Icon size={22} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#FFD84D]">
+                  {isSpanish ? "Listo para actuar" : "Ready to act"}
+                </p>
+                <h2 className="mt-1 font-body text-[23px] font-black leading-tight">
+                  {routePrefillMeta.title}
+                </h2>
+                <p className="mt-2 font-body text-[15px] font-bold leading-snug text-white/88">
+                  {routePrefillMeta.detail}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRoutePrefill(null)}
+                className="vyva-tap flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/14 text-white"
+                aria-label={isSpanish ? "Cerrar" : "Close"}
+              >
+                <X size={17} />
+              </button>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-vyva-purple">
-                {isSpanish ? "Preparado desde salud" : "Prepared from health"}
+          </div>
+          <div className="p-4">
+            <div className="rounded-[22px] border border-[#E8DED4] bg-[#FFFCF8] p-3">
+              <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-text-3">
+                {isSpanish ? "Solicitud" : "Request"}
               </p>
-              <h2 className="mt-1 font-body text-[18px] font-extrabold leading-tight text-vyva-text-1">
-                {routePrefill.kind === "ride"
-                  ? (isSpanish ? "Ayuda para ir con seguridad" : "Help getting there safely")
-                  : routePrefill.kind === "appointment"
-                    ? (isSpanish ? "Cita preparada" : "Appointment request ready")
-                    : (isSpanish ? "Presupuesto de apoyo en casa" : "Home support quote")}
-              </h2>
-              <p className="mt-2 font-body text-[15px] font-semibold leading-relaxed text-vyva-text-2">
+              <p className="mt-1 font-body text-[15px] font-bold leading-relaxed text-vyva-text-1">
                 {routePrefill.message}
               </p>
             </div>
-          </div>
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-            {routePrefill.kind === "appointment" ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setAppointmentOpen(true);
-                  chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                }}
-                className="vyva-tap inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-[15px] font-black text-white"
-              >
-                <Calendar size={18} />
-                {isSpanish ? "Revisar cita" : "Review appointment"}
-              </button>
-            ) : (
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
                 onClick={sendPrefillToConcierge}
                 disabled={chatLoading}
-                className="vyva-tap inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-[15px] font-black text-white disabled:opacity-60"
+                data-testid="button-concierge-prefill-send"
+                className="vyva-tap inline-flex min-h-[54px] flex-1 items-center justify-center gap-2 rounded-full bg-vyva-purple px-5 font-body text-[17px] font-black text-white shadow-[0_12px_26px_rgba(107,33,168,0.22)] disabled:opacity-60"
               >
                 {chatLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                {isSpanish ? "Pedir a Concierge" : "Ask Concierge"}
+                {routePrefillMeta.primaryLabel}
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setRoutePrefill(null)}
-              className="vyva-tap inline-flex min-h-[48px] flex-1 items-center justify-center rounded-full border border-[#D8B4FE] bg-white px-4 font-body text-[15px] font-black text-vyva-purple"
-            >
-              {isSpanish ? "Cerrar" : "Close"}
-            </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (routePrefill.kind === "appointment") {
+                    setAppointmentOpen(true);
+                    window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+                    return;
+                  }
+                  setInput(routePrefill.message);
+                  setRoutePrefill(null);
+                }}
+                className="vyva-tap inline-flex min-h-[54px] flex-1 items-center justify-center gap-2 rounded-full border border-[#D8B4FE] bg-white px-5 font-body text-[17px] font-black text-vyva-purple"
+              >
+                <PencilLine size={18} />
+                {routePrefillMeta.secondaryLabel}
+              </button>
+            </div>
+            <p className="mt-3 rounded-full bg-[#ECFDF5] px-3 py-2 text-center font-body text-[13px] font-black text-[#047857]">
+              {isSpanish ? "Nada se reserva ni solicita sin tu confirmacion." : "Nothing is booked or requested without your confirmation."}
+            </p>
           </div>
         </section>
       )}

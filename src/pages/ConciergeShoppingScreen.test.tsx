@@ -113,8 +113,9 @@ describe("ConciergeShoppingScreen", () => {
     }]);
 
     expect(screen.getByLabelText("What do you need help choosing?")).toHaveValue("Hydration support with easy delivery");
+    expect(screen.getByTestId("panel-shopping-route-prefill")).toHaveTextContent("Hydration delivery prepared");
 
-    fireEvent.click(screen.getByTestId("button-shopping-find"));
+    fireEvent.click(screen.getByTestId("button-shopping-prefill-find"));
     await screen.findByTestId("shopping-recommendation-results");
 
     const [, init] = apiFetchMock.mock.calls[0];

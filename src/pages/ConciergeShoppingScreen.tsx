@@ -55,6 +55,12 @@ type Copy = {
   tryIdeas: string;
   checkBeforeBuying: string;
   confidence: string;
+  prefillKicker: string;
+  prefillTitle: string;
+  prefillBody: string;
+  prefillFind: string;
+  prefillEdit: string;
+  prefillSafe: string;
 };
 
 type ShoppingRoutePrefill = {
@@ -98,6 +104,12 @@ const COPY: Record<"en" | "es", Copy> = {
     tryIdeas: "Try one",
     checkBeforeBuying: "Check before choosing",
     confidence: "Fit",
+    prefillKicker: "Ready to order",
+    prefillTitle: "Hydration delivery prepared",
+    prefillBody: "VYVA can compare simple delivery options now. You stay in control before any order or checkout.",
+    prefillFind: "Find delivery options",
+    prefillEdit: "Edit request",
+    prefillSafe: "No checkout starts without your confirmation.",
   },
   es: {
     title: "Ayuda para comprar",
@@ -129,6 +141,12 @@ const COPY: Record<"en" | "es", Copy> = {
     tryIdeas: "Probar",
     checkBeforeBuying: "Comprobar antes de elegir",
     confidence: "Encaje",
+    prefillKicker: "Listo para pedir",
+    prefillTitle: "Entrega de hidratacion preparada",
+    prefillBody: "VYVA puede comparar opciones sencillas de entrega ahora. Usted mantiene el control antes de cualquier pedido o pago.",
+    prefillFind: "Buscar opciones de entrega",
+    prefillEdit: "Editar solicitud",
+    prefillSafe: "No se inicia ningun pago sin su confirmacion.",
   },
 };
 
@@ -350,6 +368,7 @@ const ConciergeShoppingScreen = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
+  const [routePrefill, setRoutePrefill] = useState<ShoppingRoutePrefill | null>(null);
   const resultsRef = useRef<HTMLElement | null>(null);
   const lastRoutePrefillKeyRef = useRef<string | null>(null);
 
@@ -365,17 +384,20 @@ const ConciergeShoppingScreen = () => {
     if (lastRoutePrefillKeyRef.current === prefillKey) return;
     lastRoutePrefillKeyRef.current = prefillKey;
 
-    if (prefill.needText.trim()) {
-      setNeedText(prefill.needText.trim());
+    const nextPrefill: ShoppingRoutePrefill = {
+      needText: prefill.needText.trim(),
+      category: VALID_SHOPPING_CATEGORIES.has(prefill.category) ? prefill.category : "safe_home",
+      priorities: prefill.priorities.filter((priority) => VALID_SHOPPING_PRIORITIES.has(priority)),
+    };
+    if (nextPrefill.needText) {
+      setNeedText(nextPrefill.needText);
     }
-    if (VALID_SHOPPING_CATEGORIES.has(prefill.category)) {
-      setCategory(prefill.category);
-    }
-    const safePriorities = prefill.priorities.filter((priority) => VALID_SHOPPING_PRIORITIES.has(priority));
-    if (safePriorities.length) {
-      setPriorities(safePriorities);
+    setCategory(nextPrefill.category);
+    if (nextPrefill.priorities.length) {
+      setPriorities(nextPrefill.priorities);
       setPreferencesOpen(true);
     }
+    setRoutePrefill(nextPrefill);
     setResult(null);
     setError(null);
     navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
@@ -414,8 +436,7 @@ const ConciergeShoppingScreen = () => {
     setError(null);
   }
 
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault();
+  async function runShoppingSearch() {
     const trimmedNeed = needText.trim();
     if (!trimmedNeed) {
       setError(locale === "es" ? "Escriba una frase corta para empezar." : "Write a short sentence to start.");
@@ -437,6 +458,7 @@ const ConciergeShoppingScreen = () => {
         locale: i18n.language,
       });
       setResult(next);
+      setRoutePrefill(null);
       setSavedIds((current) => current.filter((id) => next.recommendations.some((item) => item.product.id === id)));
       window.setTimeout(() => {
         resultsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
@@ -446,6 +468,15 @@ const ConciergeShoppingScreen = () => {
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    void runShoppingSearch();
+  }
+
+  function handleRoutePrefillSearch() {
+    void runShoppingSearch();
   }
 
   function toggleSaved(id: string) {
@@ -491,6 +522,65 @@ const ConciergeShoppingScreen = () => {
           {copy.noCheckout}
         </p>
       </header>
+
+      {routePrefill && (
+        <section
+          className="mt-4 overflow-hidden rounded-[24px] border border-[#D8B4FE] bg-white shadow-[0_16px_36px_rgba(107,33,168,0.14)]"
+          data-testid="panel-shopping-route-prefill"
+        >
+          <div className="bg-[linear-gradient(135deg,#7C2BE8_0%,#3D0D82_100%)] p-4 text-white">
+            <div className="flex items-start gap-3">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-white/16">
+                <ShoppingBasket size={23} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#FFD84D]">
+                  {copy.prefillKicker}
+                </p>
+                <h2 className="mt-1 font-body text-[22px] font-black leading-tight">
+                  {copy.prefillTitle}
+                </h2>
+                <p className="mt-2 font-body text-[15px] font-bold leading-snug text-white/88">
+                  {copy.prefillBody}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="p-4">
+            <div className="rounded-[20px] border border-vyva-border bg-[#FFFCF8] p-3">
+              <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-text-3">
+                {copy.needLabel}
+              </p>
+              <p className="mt-1 font-body text-[15px] font-bold leading-relaxed text-vyva-text-1">
+                {routePrefill.needText}
+              </p>
+            </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <Button
+                type="button"
+                onClick={handleRoutePrefillSearch}
+                disabled={loading}
+                data-testid="button-shopping-prefill-find"
+                className="vyva-primary-action h-auto min-h-[54px] rounded-full px-5 text-[17px] shadow-[0_12px_26px_rgba(107,33,168,0.22)] hover:bg-vyva-purple/90"
+              >
+                {loading ? <Loader2 size={19} className="animate-spin" /> : <Search size={19} />}
+                {loading ? copy.loading : copy.prefillFind}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setRoutePrefill(null)}
+                className="vyva-secondary-action h-auto min-h-[54px] rounded-full px-5 text-[17px]"
+              >
+                {copy.prefillEdit}
+              </Button>
+            </div>
+            <p className="mt-3 rounded-full bg-[#ECFDF5] px-3 py-2 text-center font-body text-[13px] font-black text-[#047857]">
+              {copy.prefillSafe}
+            </p>
+          </div>
+        </section>
+      )}
 
       <form onSubmit={handleSubmit} className="mt-4 rounded-[18px] border border-vyva-border bg-white p-4 shadow-[0_10px_24px_rgba(60,38,20,0.08)]">
         <label htmlFor="shopping-need" className="font-body text-[17px] font-extrabold text-vyva-text-1">
