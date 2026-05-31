@@ -48,6 +48,10 @@ export type PersistedBrainCoachDailyPlan = BrainCoachDailyPlan & {
   status: BrainCoachPlanStatus;
   generationVersion: string;
   completedAt: string | null;
+  preferences: {
+    trainingTime: string | null;
+    sessionLengthMins: number | null;
+  };
   activities: Array<BrainCoachDailyPlan["activities"][number] & {
     planItemId: string;
     status: BrainCoachPlanItemStatus;
@@ -110,6 +114,15 @@ function itemStatus(value: string): BrainCoachPlanItemStatus {
   return "recommended";
 }
 
+function generatedContextRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? value as Record<string, unknown> : {};
+}
+
+function contextNumber(value: unknown): number | null {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
 export function buildBrainCoachPlanRows(input: {
   userId: string;
   generatedPlan: BrainCoachDailyPlan;
@@ -154,6 +167,7 @@ export function buildPersistedBrainCoachPlan(
   const sortedItems = [...items].sort((a, b) => a.sortOrder - b.sortOrder);
   const completedItems = sortedItems.filter((item) => itemStatus(item.status) === "completed" || Boolean(item.completedAt));
   const completedActivityTypes = completedItems.map((item) => item.activityType);
+  const generatedContext = generatedContextRecord(plan.generatedContext);
 
   return {
     planId: plan.id,
@@ -162,6 +176,10 @@ export function buildPersistedBrainCoachPlan(
     status: planStatus(plan.status),
     generationVersion: plan.generationVersion ?? BRAIN_COACH_PLAN_GENERATION_VERSION,
     completedAt: iso(plan.completedAt),
+    preferences: {
+      trainingTime: typeof generatedContext.training_time === "string" ? generatedContext.training_time : null,
+      sessionLengthMins: contextNumber(generatedContext.session_length_mins),
+    },
     estimatedDurationMinutes: Number(plan.estimatedDurationMinutes) || 0,
     recommendedDomains: plan.recommendedDomains ?? [],
     rationale: plan.rationale ?? [],
