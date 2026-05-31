@@ -1,9 +1,19 @@
 import { Router } from "express";
 import { desc, eq } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "../db.js";
-import { heroMessages } from "../../shared/schema.js";
+import { heroMessageEvents, heroMessages } from "../../shared/schema.js";
 
 const heroMessagesRouter = Router();
+const heroEventSchema = z.object({
+  message_id: z.string().min(1).max(128),
+  surface: z.string().min(1).max(48),
+  language: z.enum(["es", "en", "de", "fr", "it", "pt"]).default("es"),
+  event_type: z.enum(["impression", "cta_click", "fallback"]),
+  reason: z.enum(["safety", "scheduled_event", "continuation", "time_of_day", "evergreen"]),
+  source: z.enum(["managed", "built_in", "fallback"]),
+  route: z.string().max(256).optional().default(""),
+}).strict();
 
 function rowToDefinition(row: typeof heroMessages.$inferSelect) {
   return {
@@ -31,6 +41,20 @@ heroMessagesRouter.get("/", async (_req, res) => {
     return res.json({ messages: rows.map(rowToDefinition), source: "admin" });
   } catch {
     return res.json({ messages: [], source: "built_in_fallback" });
+  }
+});
+
+heroMessagesRouter.post("/events", async (req, res) => {
+  const parsed = heroEventSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  try {
+    await db.insert(heroMessageEvents).values(parsed.data);
+    return res.status(204).send();
+  } catch {
+    return res.status(202).json({ recorded: false });
   }
 });
 

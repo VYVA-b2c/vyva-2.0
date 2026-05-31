@@ -1692,6 +1692,27 @@ export const insertHeroMessageSchema = createInsertSchema(heroMessages).omit({ i
 export type InsertHeroMessage = z.infer<typeof insertHeroMessageSchema>;
 export type HeroMessageRow = typeof heroMessages.$inferSelect;
 
+export const heroMessageEvents = pgTable("hero_message_events", {
+  id:         uuid("id").primaryKey().defaultRandom(),
+  message_id: text("message_id").notNull(),
+  surface:    text("surface").notNull(),
+  language:   text("language").notNull(),
+  event_type: text("event_type").notNull(),
+  reason:     text("reason").notNull(),
+  source:     text("source").notNull(),
+  route:      text("route").notNull().default(""),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("hero_message_events_created_at_idx").on(t.created_at),
+  index("hero_message_events_surface_idx").on(t.surface),
+  index("hero_message_events_message_idx").on(t.message_id),
+  index("hero_message_events_type_idx").on(t.event_type),
+]);
+
+export const insertHeroMessageEventSchema = createInsertSchema(heroMessageEvents).omit({ id: true, created_at: true });
+export type InsertHeroMessageEvent = z.infer<typeof insertHeroMessageEventSchema>;
+export type HeroMessageEventRow = typeof heroMessageEvents.$inferSelect;
+
 
 // ============================================================
 // SCHEMA EXPORT
@@ -1756,4 +1777,5 @@ export const schema = {
   voiceRecommendationFeedback,
   homePlanCards,
   heroMessages,
+  heroMessageEvents,
 };

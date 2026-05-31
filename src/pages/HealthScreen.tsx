@@ -1099,7 +1099,7 @@ const HealthScreen = () => {
         {/* ── 1. Hero ── */}
         <VoiceHero
           heroSurface="health"
-          headline={<>{headlineText}</>}
+          headline={headlineText}
           contextHint="health symptoms"
           talkLabel={t("health.talkToDoctor", "Connect with a real doctor")}
           onTalkClick={() => {
