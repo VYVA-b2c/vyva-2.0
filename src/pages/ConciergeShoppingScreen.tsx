@@ -18,8 +18,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch } from "@/lib/queryClient";
 import {
-  SHOPPING_CATEGORY_LABELS,
-  type ShoppingCategory,
+  SHOPPING_CATEGORY_CHOICE_LABELS,
+  type ShoppingCategoryChoice,
   type ShoppingPriority,
   type ShoppingRecommendation,
   type ShoppingRecommendationResponse,
@@ -47,13 +47,19 @@ type Copy = {
   noCheckout: string;
   caveat: string;
   error: string;
+  errorSignIn: string;
+  errorPlan: string;
+  errorProfile: string;
+  errorApiUnavailable: string;
   back: string;
   tryIdeas: string;
+  checkBeforeBuying: string;
+  confidence: string;
 };
 
 type ShoppingRoutePrefill = {
   needText: string;
-  category: ShoppingCategory;
+  category: ShoppingCategoryChoice;
   priorities: ShoppingPriority[];
 };
 
@@ -67,15 +73,15 @@ const COPY: Record<"en" | "es", Copy> = {
     subtitle: "Compare a few simple choices. VYVA will not place an order or start checkout.",
     shortlist: "Shortlist",
     needLabel: "What do you need help choosing?",
-    needPlaceholder: "Example: I need an easy breakfast with protein, low cost, and no heavy carrying.",
+    needPlaceholder: "Example: Safer bathroom at night, with simple low-cost choices.",
     categoryTitle: "Area",
     prioritiesTitle: "Most important",
     constraintsLabel: "Avoid",
-    constraintsPlaceholder: "Example: no dairy, low salt, hard to bend",
+    constraintsPlaceholder: "Example: hard to bend, poor night vision, no heavy items",
     find: "Find best choices",
     loading: "Finding clear choices...",
-    emptyTitle: "Start with one sentence",
-    emptyBody: "VYVA keeps the list short and explains the reason for each choice.",
+    emptyTitle: "Start with a safer-home need",
+    emptyBody: "VYVA keeps the list short and explains what each choice helps with.",
     resultsTitle: "Best choices",
     compareTitle: "Simple comparison",
     save: "Save choice",
@@ -84,23 +90,29 @@ const COPY: Record<"en" | "es", Copy> = {
     noCheckout: "No checkout here.",
     caveat: "For pharmacy items, VYVA does not replace a pharmacist, doctor, or medication advice.",
     error: "VYVA could not compare choices right now. Please try again.",
+    errorSignIn: "Please sign in again, then try Find best choices.",
+    errorPlan: "Concierge is not included in this plan. Check subscription settings to enable it.",
+    errorProfile: "Choose or finish a care profile first, then try again.",
+    errorApiUnavailable: "The local VYVA API is not running. Start the backend on port 3001 and try again.",
     back: "Back",
     tryIdeas: "Try one",
+    checkBeforeBuying: "Check before choosing",
+    confidence: "Fit",
   },
   es: {
     title: "Ayuda para comprar",
     subtitle: "Compare pocas opciones sencillas. VYVA no hara pedidos ni iniciara pagos.",
     shortlist: "Guardados",
     needLabel: "Que necesita elegir?",
-    needPlaceholder: "Ejemplo: necesito un desayuno facil con proteina, economico y sin cargar peso.",
+    needPlaceholder: "Ejemplo: bano mas seguro por la noche, con opciones sencillas y economicas.",
     categoryTitle: "Area",
     prioritiesTitle: "Mas importante",
     constraintsLabel: "Evitar",
-    constraintsPlaceholder: "Ejemplo: sin lacteos, bajo en sal, cuesta agacharse",
+    constraintsPlaceholder: "Ejemplo: cuesta agacharse, poca vision de noche, sin objetos pesados",
     find: "Buscar mejores opciones",
     loading: "Buscando opciones claras...",
-    emptyTitle: "Empiece con una frase",
-    emptyBody: "VYVA muestra pocas opciones y explica por que encajan.",
+    emptyTitle: "Empiece con una necesidad de seguridad en casa",
+    emptyBody: "VYVA muestra pocas opciones y explica para que sirve cada una.",
     resultsTitle: "Mejores opciones",
     compareTitle: "Comparacion sencilla",
     save: "Guardar opcion",
@@ -109,12 +121,19 @@ const COPY: Record<"en" | "es", Copy> = {
     noCheckout: "Sin compra aqui.",
     caveat: "Para articulos de farmacia, VYVA no sustituye a un farmaceutico, medico ni consejo sobre medicacion.",
     error: "VYVA no ha podido comparar opciones ahora. Intentelo otra vez.",
+    errorSignIn: "Inicie sesion otra vez y vuelva a buscar mejores opciones.",
+    errorPlan: "Concierge no esta incluido en este plan. Revise la suscripcion para activarlo.",
+    errorProfile: "Elija o termine un perfil de cuidado y vuelva a intentarlo.",
+    errorApiUnavailable: "La API local de VYVA no esta funcionando. Inicie el backend en el puerto 3001 y vuelva a intentarlo.",
     back: "Volver",
     tryIdeas: "Probar",
+    checkBeforeBuying: "Comprobar antes de elegir",
+    confidence: "Encaje",
   },
 };
 
-const CATEGORY_OPTIONS: Array<{ id: ShoppingCategory; icon: string }> = [
+const CATEGORY_OPTIONS: Array<{ id: ShoppingCategoryChoice; icon: string }> = [
+  { id: "safe_home", icon: "S" },
   { id: "groceries", icon: "G" },
   { id: "pharmacy_basics", icon: "P" },
   { id: "household", icon: "H" },
@@ -135,21 +154,21 @@ const VALID_SHOPPING_PRIORITIES = new Set(PRIORITY_OPTIONS.map((option) => optio
 
 const IDEA_CHIPS = [
   {
-    en: "Easy low-salt meal",
-    es: "Comida baja en sal",
-    category: "groceries" as ShoppingCategory,
-    priorities: ["simplicity", "diet"] as ShoppingPriority[],
-  },
-  {
     en: "Safer bathroom at night",
     es: "Bano mas seguro",
-    category: "mobility_aids" as ShoppingCategory,
+    category: "safe_home" as ShoppingCategoryChoice,
     priorities: ["safety", "accessibility"] as ShoppingPriority[],
+  },
+  {
+    en: "Less bending at home",
+    es: "Menos agacharse en casa",
+    category: "safe_home" as ShoppingCategoryChoice,
+    priorities: ["accessibility", "delivery"] as ShoppingPriority[],
   },
   {
     en: "Avoid mixing medicines",
     es: "No confundir medicinas",
-    category: "pharmacy_basics" as ShoppingCategory,
+    category: "pharmacy_basics" as ShoppingCategoryChoice,
     priorities: ["simplicity", "safety"] as ShoppingPriority[],
   },
 ];
@@ -158,20 +177,67 @@ function localeKey(language: string): "en" | "es" {
   return language.toLowerCase().startsWith("es") ? "es" : "en";
 }
 
-function categoryLabel(category: ShoppingCategory, locale: "en" | "es") {
-  return SHOPPING_CATEGORY_LABELS[category][locale];
+function categoryLabel(category: ShoppingCategoryChoice, locale: "en" | "es") {
+  return SHOPPING_CATEGORY_CHOICE_LABELS[category][locale];
 }
 
 function rankLabel(label: ShoppingRecommendation["rankLabel"], locale: "en" | "es") {
   if (locale === "en") return label;
   if (label === "Best fit") return "Mejor opcion";
   if (label === "Lowest cost") return "Menor coste";
+  if (label === "Best first step") return "Primer paso";
+  if (label === "Best for night trips") return "Para ir de noche";
+  if (label === "Best if standing is hard") return "Si cuesta levantarse";
+  if (label === "Best for less bending") return "Para agacharse menos";
   return "Mas facil";
+}
+
+function confidenceLabel(confidence: ShoppingRecommendation["confidence"], locale: "en" | "es") {
+  if (locale === "es") {
+    if (confidence === "high") return "alto";
+    if (confidence === "medium") return "medio";
+    return "bajo";
+  }
+  return confidence;
+}
+
+class ShoppingRequestError extends Error {
+  status?: number;
+  code?: string;
+  nextRoute?: string;
+
+  constructor(message: string, status?: number, code?: string, nextRoute?: string) {
+    super(message);
+    this.name = "ShoppingRequestError";
+    this.status = status;
+    this.code = code;
+    this.nextRoute = nextRoute;
+  }
+}
+
+async function readErrorBody(response: Response): Promise<{ error?: string; code?: string; nextRoute?: string }> {
+  try {
+    const parsed = await response.json();
+    return typeof parsed === "object" && parsed !== null ? parsed as { error?: string; code?: string; nextRoute?: string } : {};
+  } catch {
+    return {};
+  }
+}
+
+function shoppingErrorMessage(error: unknown, copy: Copy): string {
+  if (error instanceof ShoppingRequestError) {
+    if (error.status === 401) return copy.errorSignIn;
+    if (error.status === 403 || error.code === "ENTITLEMENT_REQUIRED") return copy.errorPlan;
+    if (error.status === 409) return copy.errorProfile;
+    if (error.status === 502 || error.code === "LOCAL_API_UNAVAILABLE") return copy.errorApiUnavailable;
+    return error.message || copy.error;
+  }
+  return copy.error;
 }
 
 async function requestRecommendations(input: {
   needText: string;
-  category: ShoppingCategory;
+  category: ShoppingCategoryChoice;
   priorities: ShoppingPriority[];
   constraints: string[];
   locale: string;
@@ -181,7 +247,10 @@ async function requestRecommendations(input: {
     body: JSON.stringify(input),
   });
 
-  if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+  if (!response.ok) {
+    const body = await readErrorBody(response);
+    throw new ShoppingRequestError(body.error || `Request failed: ${response.status}`, response.status, body.code, body.nextRoute);
+  }
   return await response.json() as ShoppingRecommendationResponse;
 }
 
@@ -222,6 +291,15 @@ const RecommendationCard = ({
       {item.product.description}
     </p>
 
+    <div className="mt-3 flex flex-wrap gap-2">
+      <span className="rounded-full bg-[#F8F4EF] px-2.5 py-1 font-body text-[12px] font-bold text-vyva-text-2">
+        {item.product.availabilityLabel}
+      </span>
+      <span className="rounded-full bg-[#F5F3FF] px-2.5 py-1 font-body text-[12px] font-bold text-vyva-purple">
+        {copy.confidence}: {confidenceLabel(item.confidence, locale)}
+      </span>
+    </div>
+
     <div className="mt-3 grid gap-2">
       {item.reasons.slice(0, 2).map((reason) => (
         <p key={reason} className="flex gap-2 rounded-[12px] bg-[#F0FDFA] px-3 py-2 font-body text-[14px] font-bold leading-snug text-vyva-text-1">
@@ -233,6 +311,12 @@ const RecommendationCard = ({
         <p className="flex gap-2 rounded-[12px] bg-[#FFFCF7] px-3 py-2 font-body text-[13px] leading-relaxed text-vyva-text-2">
           <AlertCircle size={16} className="mt-0.5 shrink-0 text-[#C9890A]" />
           <span>{item.tradeoffs[0] || item.cautionNotes[0]}</span>
+        </p>
+      )}
+      {item.product.accessibilityNotes[0] && (
+        <p className="rounded-[12px] border border-vyva-border bg-white px-3 py-2 font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">
+          <span className="font-extrabold text-vyva-text-1">{copy.checkBeforeBuying}: </span>
+          {item.product.accessibilityNotes[0]}
         </p>
       )}
     </div>
@@ -257,10 +341,10 @@ const ConciergeShoppingScreen = () => {
   const { i18n } = useTranslation();
   const locale = localeKey(i18n.language);
   const copy = COPY[locale];
-  const [category, setCategory] = useState<ShoppingCategory>("groceries");
+  const [category, setCategory] = useState<ShoppingCategoryChoice>("safe_home");
   const [needText, setNeedText] = useState("");
   const [constraintsText, setConstraintsText] = useState("");
-  const [priorities, setPriorities] = useState<ShoppingPriority[]>(["simplicity"]);
+  const [priorities, setPriorities] = useState<ShoppingPriority[]>(["safety", "accessibility"]);
   const [result, setResult] = useState<ShoppingRecommendationResponse | null>(null);
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -313,6 +397,23 @@ const ConciergeShoppingScreen = () => {
     setError(null);
   }
 
+  function applyFollowUpQuestion(question: string) {
+    const normalized = question.toLowerCase();
+    setNeedText(question.replace(/\?$/, ""));
+    if (normalized.includes("medicine") || normalized.includes("medicin") || normalized.includes("pastilla")) {
+      setCategory("pharmacy_basics");
+      setPriorities(["simplicity", "safety"]);
+    } else if (normalized.includes("bend") || normalized.includes("agachar")) {
+      setCategory("safe_home");
+      setPriorities(["accessibility", "delivery"]);
+    } else {
+      setCategory("safe_home");
+      setPriorities(["safety", "accessibility"]);
+    }
+    setResult(null);
+    setError(null);
+  }
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     const trimmedNeed = needText.trim();
@@ -340,8 +441,8 @@ const ConciergeShoppingScreen = () => {
       window.setTimeout(() => {
         resultsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
       }, 80);
-    } catch {
-      setError(copy.error);
+    } catch (err) {
+      setError(shoppingErrorMessage(err, copy));
     } finally {
       setLoading(false);
     }
@@ -434,21 +535,21 @@ const ConciergeShoppingScreen = () => {
           </div>
         </div>
 
-        {error && (
-          <p role="alert" className="mt-4 rounded-[14px] bg-[#FFF7ED] px-3 py-2 font-body text-[14px] font-semibold leading-relaxed text-[#9A3412]">
-            {error}
-          </p>
-        )}
-
         <Button
           type="submit"
           disabled={loading}
-          className="vyva-primary-action mt-4 h-auto w-full rounded-[16px] py-4 text-[18px] shadow-[0_12px_26px_rgba(107,33,168,0.22)] hover:bg-vyva-purple/90"
+          className="vyva-primary-action mt-4 h-auto w-full rounded-[16px] py-4 text-[18px] shadow-[0_12px_26px_rgba(107,33,168,0.22)] hover:bg-vyva-purple/90 max-[480px]:w-[calc(100%-128px)]"
           data-testid="button-shopping-find"
         >
           {loading ? <Loader2 size={20} className="animate-spin" /> : <Search size={20} />}
           {loading ? copy.loading : copy.find}
         </Button>
+
+        {error && (
+          <p role="alert" className="mt-3 rounded-[14px] border border-[#FED7AA] bg-[#FFFCF7] px-3 py-2 font-body text-[14px] font-semibold leading-relaxed text-[#9A3412]">
+            {error}
+          </p>
+        )}
 
         <div className="mt-4">
           <p className="font-body text-[12px] font-black uppercase text-vyva-text-2">
@@ -535,9 +636,15 @@ const ConciergeShoppingScreen = () => {
             <p className="mt-2 font-body text-[15px] leading-relaxed text-[#9A3412]">{result.uncertaintyNote}</p>
             <div className="mt-3 grid gap-2">
               {result.nextQuestions.map((question) => (
-                <p key={question} className="rounded-[12px] bg-white px-3 py-2 font-body text-[14px] font-semibold text-vyva-text-1">
-                  {question}
-                </p>
+                <button
+                  key={question}
+                  type="button"
+                  onClick={() => applyFollowUpQuestion(question)}
+                  className="vyva-tap flex items-center justify-between gap-3 rounded-[12px] bg-white px-3 py-2 text-left font-body text-[14px] font-semibold text-vyva-text-1"
+                >
+                  <span>{question}</span>
+                  <ChevronRight size={16} className="shrink-0 text-vyva-purple" />
+                </button>
               ))}
             </div>
           </div>

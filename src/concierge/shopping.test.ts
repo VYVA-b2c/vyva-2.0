@@ -27,6 +27,32 @@ describe("senior shopping recommender", () => {
     expect(result.recommendations[0].reasons.join(" ")).toContain("risk");
   });
 
+  it("compares safe-home night bathroom choices across categories", () => {
+    const result = buildShoppingRecommendations({
+      needText: "Safer bathroom at night",
+      category: "safe_home",
+      priorities: ["safety", "accessibility"],
+      locale: "en",
+    });
+
+    const ids = result.recommendations.map((item) => item.product.id);
+    expect(ids).toContain("motion-night-lights");
+    expect(ids).toContain("non-slip-shower-mat");
+    expect(result.recommendations[0].rankLabel).toBe("Best for night trips");
+  });
+
+  it("prioritises less-bending home safety choices", () => {
+    const result = buildShoppingRecommendations({
+      needText: "Less bending at home",
+      category: "safe_home",
+      priorities: ["accessibility", "delivery"],
+      locale: "en",
+    });
+
+    expect(result.recommendations[0].rankLabel).toBe("Best for less bending");
+    expect(["long-handle-dustpan", "grabber-reacher"]).toContain(result.recommendations[0].product.id);
+  });
+
   it("excludes products that violate allergy or diet constraints", () => {
     const result = buildShoppingRecommendations({
       needText: "I need an easy protein breakfast",
@@ -49,12 +75,15 @@ describe("senior shopping recommender", () => {
     });
 
     expect(result.recommendations[0].product.id).toBe("large-print-pill-organizer");
+    expect(result.recommendations[0].reasons.join(" ")).toContain("medicines separated");
     expect(result.uncertaintyNote).toContain("pharmacist");
   });
 
   it("asks follow-up questions when the need does not match the bounded catalog", () => {
     const result = buildShoppingRecommendations({
       needText: "purple headphones for an airplane",
+      category: "safe_home",
+      priorities: ["safety", "accessibility"],
       locale: "en",
     });
 
@@ -62,4 +91,3 @@ describe("senior shopping recommender", () => {
     expect(result.nextQuestions.length).toBeGreaterThan(0);
   });
 });
-
