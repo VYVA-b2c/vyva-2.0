@@ -13,6 +13,13 @@ vi.mock("react-i18next", async (importOriginal) => {
 });
 
 describe("SymptomCheck intro chips", () => {
+  it("sets expectation for a one-question-at-a-time flow", () => {
+    render(<IntroScreen onStart={vi.fn()} />);
+
+    expect(screen.getByTestId("symptom-check-one-question-note")).toHaveTextContent("One question at a time");
+    expect(screen.getByText("You can tap simple choices, type a short answer, or stop after the next-step report is ready.")).toBeVisible();
+  });
+
   it("refreshes the quick clue chips from the icon button", () => {
     render(<IntroScreen onStart={vi.fn()} />);
 

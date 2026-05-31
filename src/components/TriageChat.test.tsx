@@ -141,6 +141,28 @@ describe("TriageChat MediSearch follow-ups", () => {
     expect(screen.getByText("Could caffeine make anxiety worse?")).toBeInTheDocument();
   });
 
+  it("shows one-question progress and reusable vitals context", async () => {
+    apiFetchMock.mockResolvedValueOnce(triageResponse({
+      role: "assistant",
+      content: "How are you feeling now?",
+      done: false,
+      quickReplies,
+      wizardStage: "severity",
+      wizardStageLabel: "Severity check",
+      evidenceSources: [],
+    }));
+
+    renderTriageChat({ bpm: 72, respiratoryRate: 18 });
+
+    await screen.findByText("How are you feeling now?");
+    expect(screen.getByTestId("triage-question-progress")).toHaveTextContent("One question at a time");
+    expect(screen.getByTestId("triage-question-progress")).toHaveTextContent("Severity check");
+    expect(screen.getByTestId("triage-existing-vitals")).toHaveTextContent("Using vitals already here");
+    expect(screen.getByTestId("triage-existing-vitals")).toHaveTextContent("72 bpm");
+    expect(screen.getByTestId("triage-existing-vitals")).toHaveTextContent("18 breaths/min");
+    expect(screen.getByText("Choose the closest answer")).toBeInTheDocument();
+  });
+
   it("sends follow-up chips as free text without adding quickAnswers", async () => {
     apiFetchMock
       .mockResolvedValueOnce(triageResponse({
