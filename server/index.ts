@@ -35,6 +35,7 @@ import sendgridWebhooksRouter from "./routes/sendgridWebhooks.js";
 import { authRouter } from "./routes/auth.js";
 import { authMiddleware, requireAdminUser, requireUser } from "./middleware/auth.js";
 import { requireEntitlement } from "./middleware/entitlements.js";
+import { languageMiddleware } from "./middleware/language.js";
 import { medsVoiceParseHandler } from "./routes/medsVoiceParse.js";
 import { medsAssistantHandler } from "./routes/medsAssistant.js";
 import {
@@ -89,6 +90,7 @@ async function fileExists(filePath: string) {
 }
 
 app.use(cors());
+app.use(languageMiddleware);
 
 // Stripe webhook must receive the raw body before JSON parsing
 app.use("/api/billing/webhook", express.raw({ type: "application/json" }));

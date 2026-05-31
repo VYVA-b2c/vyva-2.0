@@ -1,9 +1,10 @@
-import { createContext, useContext, useEffect } from "react";
+import { createContext, useContext, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import { syncProfileLanguage } from "@/i18n/index";
+import { syncProfileLanguage, useLanguage } from "@/i18n/index";
 import { SUPPORTED_LANGUAGES } from "@/i18n/detectLanguage";
 import type { LanguageCode } from "@/i18n/languages";
+import { apiFetch, queryClient } from "@/lib/queryClient";
 
 interface ProfileData {
   firstName: string;
@@ -13,6 +14,8 @@ interface ProfileData {
   country: string;
   timezone: string;
   language: string;
+  languagePreference?: string | null;
+  profileId?: string | null;
   street: string;
   cityState: string;
   postalCode: string;
@@ -61,6 +64,8 @@ function normalizeProfileLanguage(language?: string | null): LanguageCode | null
 
 export function ProfileProvider({ children }: { children: React.ReactNode }) {
   const { token } = useAuth();
+  const { language, source, revision } = useLanguage();
+  const savedLanguageRevisionRef = useRef<string | null>(null);
   const { data: profile, isLoading } = useQuery<ProfileData | null>({
     queryKey: ["/api/profile"],
     staleTime: 5 * 60 * 1000,
@@ -77,10 +82,34 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!token) return;
-    const lang = normalizeProfileLanguage(profile?.language);
+    const lang = normalizeProfileLanguage(profile?.languagePreference ?? profile?.language);
     if (!lang) return;
-    syncProfileLanguage(lang);
-  }, [profile?.language, token]);
+    syncProfileLanguage(lang, profile?.profileId ?? null);
+  }, [profile?.language, profile?.languagePreference, profile?.profileId, token]);
+
+  useEffect(() => {
+    if (!token || source !== "user" || !profile?.profileId) return;
+    const normalized = normalizeProfileLanguage(language);
+    if (!normalized) return;
+
+    const saveKey = `${profile.profileId}:${normalized}:${revision}`;
+    if (savedLanguageRevisionRef.current === saveKey) return;
+    savedLanguageRevisionRef.current = saveKey;
+
+    const controller = new AbortController();
+    void apiFetch("/api/profile/language", {
+      method: "PATCH",
+      body: JSON.stringify({ language: normalized }),
+      signal: controller.signal,
+    }).then((response) => {
+      if (!response.ok) return;
+      void queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+    }).catch(() => {
+      savedLanguageRevisionRef.current = null;
+    });
+
+    return () => controller.abort();
+  }, [language, profile?.profileId, revision, source, token]);
 
   return (
     <ProfileContext.Provider value={{ profile: profile ?? null, isLoading, fullName, initials, firstName }}>

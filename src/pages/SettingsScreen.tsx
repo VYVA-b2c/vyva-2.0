@@ -2,13 +2,11 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { CheckCircle2 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useTranslation } from "react-i18next";
 import { queryClient, apiFetch } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { detectBrowserLanguage } from "@/i18n/detectLanguage";
-import i18n, { LANGUAGE_STORAGE_KEY } from "@/i18n";
+import { useLanguage } from "@/i18n";
 import { LANGUAGES } from "@/i18n/languages";
 
 interface FieldProps {
@@ -39,15 +37,6 @@ const Section = ({ title, children }: { title: string; children: React.ReactNode
   </div>
 );
 
-const ALL_LANGUAGES = [
-  { value: "en", label: "English" },
-  { value: "fr", label: "Français" },
-  { value: "es", label: "Español" },
-  { value: "de", label: "Deutsch" },
-  { value: "it", label: "Italiano" },
-  { value: "pt", label: "Português" },
-];
-
 interface ProfileForm {
   firstName: string;
   lastName: string;
@@ -65,14 +54,13 @@ interface ProfileForm {
 
 const SettingsScreen = () => {
   const { toast } = useToast();
-  const { t } = useTranslation();
+  const { language, setLanguage, t } = useLanguage();
   const { fullName, initials } = useProfile();
   const { user } = useAuth();
 
-  const activeLanguage = i18n.language?.slice(0, 2) ?? "en";
   const sortedLanguages = [
-    ...LANGUAGES.filter((language) => language.code === activeLanguage),
-    ...LANGUAGES.filter((language) => language.code !== activeLanguage),
+    ...LANGUAGES.filter((entry) => entry.code === language),
+    ...LANGUAGES.filter((entry) => entry.code !== language),
   ];
 
   const defaultValues: ProfileForm = {
@@ -82,7 +70,7 @@ const SettingsScreen = () => {
     phone: "",
     country: "",
     timezone: "",
-    language: detectBrowserLanguage(),
+    language,
     street: "",
     cityState: "",
     postalCode: "",
@@ -107,7 +95,7 @@ const SettingsScreen = () => {
         phone:            savedProfile.phone            ?? "",
         country:          savedProfile.country          ?? "",
         timezone:         savedProfile.timezone         ?? "",
-        language:         savedProfile.language         ?? detectBrowserLanguage(),
+        language:         savedProfile.language         ?? language,
         street:           savedProfile.street           ?? "",
         cityState:        savedProfile.cityState        ?? "",
         postalCode:       savedProfile.postalCode       ?? "",
@@ -115,7 +103,7 @@ const SettingsScreen = () => {
         caregiverContact: savedProfile.caregiverContact ?? "",
       });
     }
-  }, [savedProfile, reset, user?.email]);
+  }, [language, savedProfile, reset, user?.email]);
 
   const mutation = useMutation({
     mutationFn: async (data: ProfileForm) => {
@@ -127,8 +115,6 @@ const SettingsScreen = () => {
       return res.json();
     },
     onSuccess: (_data, variables) => {
-      localStorage.setItem(LANGUAGE_STORAGE_KEY, variables.language);
-      i18n.changeLanguage(variables.language);
       if (variables.cityState?.trim()) {
         localStorage.removeItem("vyva_coords_weather_cache");
       }
@@ -143,6 +129,10 @@ const SettingsScreen = () => {
   const onSubmit = (data: ProfileForm) => {
     mutation.mutate(data);
   };
+
+  const languageField = register("language", {
+    onChange: (event) => setLanguage(event.target.value),
+  });
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="px-[22px] pb-6">
@@ -281,7 +271,7 @@ const SettingsScreen = () => {
           <select
             data-testid="select-language"
             className={inputClass}
-            {...register("language")}
+            {...languageField}
           >
             {sortedLanguages.map((lang) => (
               <option key={lang.code} value={lang.code}>
