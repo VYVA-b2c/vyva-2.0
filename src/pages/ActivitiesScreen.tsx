@@ -1,8 +1,9 @@
 import { BrainCircuit, CheckCircle2, Clock3, Headphones, Layers, Map as MapIcon, Puzzle, Route, Type, Users, Wind, type LucideIcon } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { margaret } from "@/data/mockData";
 import { useLanguage } from "@/i18n";
+import { apiFetch } from "@/lib/queryClient";
 import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
@@ -105,15 +106,19 @@ type BrainCoachProgress = {
 };
 
 type BrainCoachDailyPlan = {
+  planId: string;
+  status: "active" | "completed" | "expired";
   estimatedDurationMinutes: number;
   recommendedDomains: string[];
   activities: Array<{
+    planItemId: string;
     activityType: string;
     title: string;
     domain: string;
     route: string;
     estimatedDurationMinutes: number;
     rationale: string;
+    status: "recommended" | "accepted" | "started" | "completed" | "skipped";
     completedToday: boolean;
   }>;
   rationale: string[];
@@ -127,6 +132,7 @@ type BrainCoachDailyPlan = {
 const ActivitiesScreen = () => {
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const autoStartVoice = useRouteVoiceAutoStart();
   const { data: brainCoachProgress } = useQuery<BrainCoachProgress>({
     queryKey: ["/api/games/progress"],
@@ -157,6 +163,26 @@ const ActivitiesScreen = () => {
   const handleActivityClick = (activityName: string) => {
     const targetRoute = activityRoutes[activityName];
     if (targetRoute) navigate(targetRoute);
+  };
+
+  const handleDailyPlanActivityClick = async (activity: BrainCoachDailyPlan["activities"][number]) => {
+    if (dailyPlan?.planId && activity.planItemId && activity.status !== "completed") {
+      await apiFetch("/api/games/daily-plan/events", {
+        method: "POST",
+        body: JSON.stringify({
+          planId: dailyPlan.planId,
+          planItemId: activity.planItemId,
+          activityType: activity.activityType,
+          eventType: "started",
+          source: "activities_screen",
+        }),
+      }).then((response) => {
+        if (response.ok) {
+          void queryClient.invalidateQueries({ queryKey: ["/api/games/daily-plan"] });
+        }
+      }).catch(() => undefined);
+    }
+    navigate(activity.route);
   };
 
   return (
@@ -207,7 +233,7 @@ const ActivitiesScreen = () => {
               <button
                 key={activity.activityType}
                 type="button"
-                onClick={() => navigate(activity.route)}
+                onClick={() => void handleDailyPlanActivityClick(activity)}
                 className="flex min-h-[74px] items-center gap-3 rounded-[20px] border bg-white px-3 py-3 text-left shadow-sm transition-transform active:scale-[0.99]"
                 style={{ borderColor: "#EFE4D5" }}
               >
