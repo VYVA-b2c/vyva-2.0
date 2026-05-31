@@ -1,5 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { getToken } from "./auth";
+import { getLanguageSnapshot } from "@/i18n";
 
 export class ApiError extends Error {
   status: number;
@@ -20,16 +21,21 @@ export class ApiError extends Error {
   }
 }
 
-function authHeaders(): HeadersInit {
+function appHeaders(init?: HeadersInit): Headers {
+  const headers = new Headers(init);
   const token = getToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const language = getLanguageSnapshot();
+  headers.set("X-VYVA-Language", language.language);
+  headers.set("X-VYVA-Language-Source", language.source);
+  return headers;
 }
 
 // Convention: queryKey[0] must be a URL string (e.g. "/api/onboarding/state").
 // All useQuery calls in this app should follow this URL-first key convention.
 async function defaultQueryFn({ queryKey }: { queryKey: readonly unknown[] }) {
   const url = queryKey[0] as string;
-  const res = await fetch(url, { credentials: "include", headers: authHeaders() });
+  const res = await fetch(url, { credentials: "include", headers: appHeaders() });
   if (!res.ok) {
     let body: unknown = null;
     try {
@@ -58,9 +64,7 @@ export async function apiFetch(
   url: string,
   options: RequestInit = {},
 ): Promise<Response> {
-  const headers = new Headers(options.headers);
-  const token = getToken();
-  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const headers = appHeaders(options.headers);
   if (!headers.has("Content-Type") && options.body) {
     headers.set("Content-Type", "application/json");
   }

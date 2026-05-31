@@ -1,6 +1,15 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { beforeEach, describe, expect, it } from "vitest";
-import { getLanguage, setAccountLanguage, setLanguage, syncProfileLanguage, translate, LANGUAGE_STORAGE_KEY } from "./index";
+import {
+  getLanguage,
+  getLanguageSnapshot,
+  setAccountLanguage,
+  setBootstrapLanguage,
+  setLanguage,
+  syncProfileLanguage,
+  translate,
+  LANGUAGE_STORAGE_KEY,
+} from "./index";
 
 const LANGUAGE_SOURCE_STORAGE_KEY = "vyva_lang_source";
 
@@ -44,7 +53,7 @@ describe("language persistence", () => {
 
     expect(getLanguage()).toBe("de");
     expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe("de");
-    expect(localStorage.getItem(LANGUAGE_SOURCE_STORAGE_KEY)).toBe("account");
+    expect(localStorage.getItem(LANGUAGE_SOURCE_STORAGE_KEY)).toBe("profile");
   });
 
   it("lets a later account login establish that account language", () => {
@@ -55,6 +64,41 @@ describe("language persistence", () => {
     expect(getLanguage()).toBe("pt");
     expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe("pt");
     expect(localStorage.getItem(LANGUAGE_SOURCE_STORAGE_KEY)).toBe("account");
+  });
+
+  it("lets a different active profile become the master language", () => {
+    syncProfileLanguage("es", "profile-a");
+    setLanguage("fr");
+
+    syncProfileLanguage("de", "profile-b");
+
+    expect(getLanguage()).toBe("de");
+    expect(getLanguageSnapshot()).toMatchObject({
+      language: "de",
+      source: "profile",
+      profileId: "profile-b",
+    });
+  });
+
+  it("keeps a current-session selector choice when the first active profile arrives", () => {
+    setLanguage("it");
+
+    syncProfileLanguage("en", "profile-a");
+
+    expect(getLanguage()).toBe("it");
+    expect(getLanguageSnapshot()).toMatchObject({
+      language: "it",
+      source: "user",
+      profileId: "profile-a",
+    });
+  });
+
+  it("does not let invite language override an account or profile language", () => {
+    setAccountLanguage("en");
+    setBootstrapLanguage("pt");
+
+    expect(getLanguage()).toBe("en");
+    expect(getLanguageSnapshot().source).toBe("account");
   });
 
   it("keeps health quick cards localized for supported account languages", () => {
@@ -203,8 +247,13 @@ describe("language persistence", () => {
       .filter((file) => file.endsWith(".tsx"))
       .map((file) => readFileSync(file, "utf8"))
       .join("\n");
+    const legacySettingsSource = readFileSync("src/pages/SettingsScreen.tsx", "utf8");
 
     expect(settingsSource).not.toContain("react-i18next");
     expect(settingsSource).not.toContain("useTranslation(");
+    expect(legacySettingsSource).not.toContain("react-i18next");
+    expect(legacySettingsSource).not.toContain("useTranslation(");
+    expect(legacySettingsSource).not.toContain("i18n.changeLanguage");
+    expect(legacySettingsSource).not.toContain("LANGUAGE_STORAGE_KEY");
   });
 });

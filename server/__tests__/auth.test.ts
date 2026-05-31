@@ -53,7 +53,7 @@ describe("Auth endpoints", () => {
   it("POST /register creates a user and returns a valid JWT", async () => {
     const res = await request(app)
       .post("/api/auth/register")
-      .send({ email: TEST_EMAIL, password: TEST_PASSWORD })
+      .send({ email: TEST_EMAIL, password: TEST_PASSWORD, language: "fr" })
       .expect(201);
 
     expect(res.body).toHaveProperty("token");
@@ -61,11 +61,28 @@ describe("Auth endpoints", () => {
     expect(res.body.email).toBe(TEST_EMAIL.toLowerCase());
     expect(typeof res.body.token).toBe("string");
     expect(res.body.token.length).toBeGreaterThan(0);
+    expect(res.body.language).toBe("fr");
     const setCookie = res.headers["set-cookie"] as unknown as string[] | undefined;
     registeredCookie = setCookie?.find((cookie) => cookie.startsWith(`${AUTH_SESSION_COOKIE}=`))?.split(";")[0] ?? "";
     expect(registeredCookie).toMatch(new RegExp(`^${AUTH_SESSION_COOKIE}=`));
 
     registeredToken = res.body.token;
+  });
+
+  it("stores the registered language in the canonical profile preference", async () => {
+    const [user] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, TEST_EMAIL.toLowerCase()))
+      .limit(1);
+    const [profile] = await db
+      .select({ language: profiles.language, language_preference: profiles.language_preference })
+      .from(profiles)
+      .where(eq(profiles.id, user.id))
+      .limit(1);
+
+    expect(profile.language).toBe("fr");
+    expect(profile.language_preference).toBe("fr");
   });
 
   it("POST /register rejects duplicate emails with 409", async () => {
@@ -121,6 +138,7 @@ describe("Auth endpoints", () => {
     expect(res.body).toHaveProperty("id");
     expect(res.body).toHaveProperty("email");
     expect(res.body.email).toBe(TEST_EMAIL.toLowerCase());
+    expect(res.body.language).toBe("fr");
   });
 
   it("GET /me restores the user from the session cookie", async () => {

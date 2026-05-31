@@ -575,7 +575,7 @@ async function fetchProfileContext(userId: string): Promise<ProfileContext> {
     name,
     grammatical_gender: inferProfileGender(consent, name),
     age: ageFromDate(getProfileString(profile, "date_of_birth", "dob", "birth_date")),
-    language: getProfileString(profile, "language", "language_preference", "preferred_language") ?? "es",
+    language: getProfileString(profile, "language_preference", "language", "preferred_language") ?? "es",
     location: {
       city: getProfileString(profile, "city", "town") ?? null,
       region: getProfileString(profile, "region", "province", "state") ?? null,

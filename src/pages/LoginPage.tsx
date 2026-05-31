@@ -24,7 +24,7 @@ import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 import { localizeAuthErrorMessage } from "@/lib/authErrorLocalization";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { stageToRoute } from "@/lib/onboardingRoute";
-import { setAccountLanguage, useLanguage } from "@/i18n";
+import { setBootstrapLanguage, useLanguage } from "@/i18n";
 import { LANGUAGES, type LanguageCode } from "@/i18n/languages";
 
 type View = "login" | "register" | "forgot" | "magic";
@@ -1464,7 +1464,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
     const setupParams = setupInviteParamsFromPath(from) ?? setupInviteParamsFromSearch(location.search);
     if (!setupParams) return;
     const setupLanguage = setupLanguageFromParams(setupParams);
-    if (setupLanguage && setupLanguage !== language) setAccountLanguage(setupLanguage);
+    if (setupLanguage && setupLanguage !== language) setBootstrapLanguage(setupLanguage);
     if (!contact.trim()) {
       const setupContact = setupContactFromParams(setupParams);
       if (setupContact) setContact(setupContact);
