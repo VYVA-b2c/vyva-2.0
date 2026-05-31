@@ -103,11 +103,15 @@ function statusMeta(status: SafetyStatus) {
 }
 
 function workflowMeta(status: WorkflowStatus) {
-  if (status === "resolved") return { label: "Resolved", color: "#047857", bg: "#ECFDF5" };
+  if (status === "resolved") return { label: "Locally resolved", color: "#047857", bg: "#ECFDF5" };
   if (status === "contacted") return { label: "Contacted", color: "#6B21A8", bg: "#F5F3FF" };
   if (status === "watching") return { label: "Watching", color: "#0369A1", bg: "#EFF6FF" };
   if (status === "acknowledged") return { label: "Acknowledged", color: "#B45309", bg: "#FFF7ED" };
   return { label: "New", color: "#B91C1C", bg: "#FEF2F2" };
+}
+
+function resolvedAlertMeta() {
+  return { label: "Resolved", color: "#047857", bg: "#ECFDF5" };
 }
 
 function formatTime(value?: string | null) {
@@ -383,8 +387,9 @@ export default function CaregiverDashboardPage() {
                   ) : (
                     <div className="mt-5 space-y-4">
                       {alerts.map((alert) => {
-                        const localStatus = alert.resolved_at ? "resolved" : workflow[alert.id]?.status ?? "new";
-                        const statusStyle = workflowMeta(localStatus);
+                        const serverResolved = Boolean(alert.resolved_at);
+                        const localStatus = serverResolved ? "resolved" : workflow[alert.id]?.status ?? "new";
+                        const statusStyle = serverResolved ? resolvedAlertMeta() : workflowMeta(localStatus);
                         const contacts = contactsFor(alert);
                         return (
                           <article key={alert.id} className="rounded-[16px] border border-[#D8DED6] bg-[#FBFCFB] p-4 shadow-[0_8px_18px_rgba(38,49,43,0.05)]">
@@ -436,11 +441,14 @@ export default function CaregiverDashboardPage() {
                               </div>
 
                               <div className="rounded-[14px] border border-[#D8DED6] bg-white p-3">
-                                <p className="mb-2 flex items-center gap-2 font-body text-[13px] font-bold text-[#26312B]">
+                                <p className="flex items-center gap-2 font-body text-[13px] font-bold text-[#26312B]">
                                   <TimerReset className="h-4 w-4 text-[#2F6F5E]" />
-                                  Alert status workflow
+                                  Local caregiver workspace
                                 </p>
-                                <div className="flex flex-wrap gap-2">
+                                <p className="mt-2 rounded-[10px] bg-[#F8FAF8] p-2 font-body text-[12px] font-semibold leading-relaxed text-[#5F6B63]">
+                                  These status updates are stored on this device only.
+                                </p>
+                                <div className="mt-3 flex flex-wrap gap-2">
                                   <button type="button" onClick={() => updateWorkflow(alert.id, "acknowledged")} className="min-h-[42px] rounded-full bg-[#FFF7ED] px-3 font-body text-[13px] font-bold text-[#9A3412]">
                                     Acknowledge
                                   </button>
@@ -451,7 +459,7 @@ export default function CaregiverDashboardPage() {
                                     Keep watching
                                   </button>
                                   <button type="button" onClick={() => updateWorkflow(alert.id, "resolved")} className="min-h-[42px] rounded-full bg-[#ECFDF5] px-3 font-body text-[13px] font-bold text-[#047857]">
-                                    Resolve
+                                    Mark locally resolved
                                   </button>
                                 </div>
                               </div>

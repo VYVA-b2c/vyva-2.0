@@ -103,6 +103,18 @@ describe("CaregiverDashboardPage", () => {
     expect(window.localStorage.getItem("vyva_caregiver_alert_workflow_v1")).toContain("acknowledged");
   });
 
+  it("shows that caregiver status tracking is local to this device", async () => {
+    mockApi();
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText("Local caregiver workspace")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("These status updates are stored on this device only.")).toBeInTheDocument();
+  });
+
   it("renders contact actions from existing alert recipients", async () => {
     mockApi();
 
