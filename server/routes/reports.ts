@@ -4,7 +4,7 @@ import { eq, and, desc, gte } from "drizzle-orm";
 import { db, pool } from "../db.js";
 import { caregiverAlerts, profiles, triageReports, vitalsReadings, medicationAdherence, userMedications } from "../../shared/schema.js";
 import type { TriageScanResult } from "../../shared/triageScans.js";
-import { trackTriageEvent } from "../../src/triage/index.js";
+import { mergeTriageRecommendations, trackTriageEvent } from "../../src/triage/index.js";
 import { z } from "zod";
 
 const DEMO_USER_ID = "demo-user";
@@ -146,6 +146,14 @@ async function saveTriageReport(params: {
   return row;
 }
 
+function normalizeTriageReportRecommendations<T extends { recommendations?: string[] | null }>(report: T | null): T | null {
+  if (!report) return report;
+  return {
+    ...report,
+    recommendations: mergeTriageRecommendations(report.recommendations ?? []),
+  };
+}
+
 async function recordTriageReportHandoff(params: {
   userId: string;
   chief_complaint: string;
@@ -210,7 +218,7 @@ async function getLatestTriageReport(userId: string) {
     .where(eq(triageReports.user_id, userId))
     .orderBy(desc(triageReports.created_at))
     .limit(1);
-  return rows[0] ?? null;
+  return normalizeTriageReportRecommendations(rows[0] ?? null);
 }
 
 async function getLatestVitalsReading(userId: string) {
@@ -284,7 +292,7 @@ export async function loadReportsSummary(userId: string, loaders: ReportsSummary
     safeReportPart("today medication summary", emptyTodayMedSummary, () => loaders.todayMeds(userId)),
   ]);
 
-  return { latestTriage, latestVitals, todayMeds };
+  return { latestTriage: normalizeTriageReportRecommendations(latestTriage), latestVitals, todayMeds };
 }
 
 // ─── POST /triage ─────────────────────────────────────────────────────────────
@@ -330,12 +338,13 @@ router.post("/triage", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Invalid body", details: parsed.error.issues });
   }
   try {
-    const row = await saveTriageReport({ userId, ...parsed.data });
+    const recommendations = mergeTriageRecommendations(parsed.data.recommendations);
+    const row = await saveTriageReport({ userId, ...parsed.data, recommendations });
     const handoff = await recordTriageReportHandoff({
       userId,
       chief_complaint: parsed.data.chief_complaint,
       urgency: parsed.data.urgency,
-      recommendations: parsed.data.recommendations,
+      recommendations,
     }).catch((err) => {
       console.error("[reports/triage handoff]", err);
       return { sentTo: [], caregiverEscalationTriggered: false };
@@ -411,7 +420,7 @@ router.get("/triage/:id", async (req: Request, res: Response) => {
       .where(and(eq(triageReports.id, id), eq(triageReports.user_id, userId)))
       .limit(1);
     if (!row) return res.status(404).json({ error: "Not found" });
-    return res.json(row);
+    return res.json(normalizeTriageReportRecommendations(row));
   } catch (err) {
     console.error("[reports/triage/:id GET]", err);
     return res.status(500).json({ error: "Failed to fetch report" });

@@ -158,6 +158,21 @@ describe("language persistence", () => {
     }
   });
 
+  it("keeps symptom doctor contact action localized for supported account languages", () => {
+    const expected = {
+      en: "Add doctor contact",
+      es: "Anadir contacto medico",
+      fr: "Ajouter le contact medecin",
+      de: "Arztkontakt hinzufuegen",
+      it: "Aggiungi contatto medico",
+      pt: "Adicionar contacto medico",
+    } as const;
+
+    for (const [language, label] of Object.entries(expected)) {
+      expect(translate(language as keyof typeof expected, "health.symptomCheck.report.addDoctorContact")).toBe(label);
+    }
+  });
+
   it("keeps symptom confidence tracker localized for supported account languages", () => {
     const expected = {
       en: ["Assessment confidence", "Building confidence", "VYVA is checking your answers", "Listen", "Check", "Next step"],

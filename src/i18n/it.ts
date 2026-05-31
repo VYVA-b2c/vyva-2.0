@@ -306,6 +306,7 @@ const it = {
         doctorNoteSub: "Testo semplice da leggere, mostrare o condividere.",
         shareWithDoctor: "Condividi col medico",
         noDoctorToShare: "Nessun contatto medico nel profilo",
+        addDoctorContact: "Aggiungi contatto medico",
         contextUsed: "Cosa ha considerato VYVA",
         actions: {
           callGp: "Chiama medico",

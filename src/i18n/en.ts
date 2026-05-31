@@ -310,6 +310,7 @@ const en = {
         doctorNoteSub: "Plain text to read, show, or share.",
         shareWithDoctor: "Share with doctor",
         noDoctorToShare: "No doctor contact in profile",
+        addDoctorContact: "Add doctor contact",
         contextUsed: "What VYVA considered",
         actions: {
           callGp: "Call GP",
