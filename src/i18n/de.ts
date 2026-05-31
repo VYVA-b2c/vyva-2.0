@@ -311,6 +311,7 @@ const de = {
         doctorNoteSub: "Einfacher Text zum Vorlesen, Zeigen oder Teilen.",
         shareWithDoctor: "Mit Arzt teilen",
         noDoctorToShare: "Kein Arztkontakt im Profil",
+        addDoctorContact: "Arztkontakt hinzufuegen",
         contextUsed: "Was VYVA berucksichtigt hat",
         actions: {
           callGp: "Arzt anrufen",

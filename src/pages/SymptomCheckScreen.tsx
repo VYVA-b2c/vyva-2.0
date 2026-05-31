@@ -789,6 +789,7 @@ function ReportScreen({
   const doctorShareHref = doctorShareTarget
     ? directDoctorShareHref(doctorShareTarget, t("health.symptomCheck.report.shareTitle"), doctorNote)
     : "";
+  const openDoctorContactSetup = () => navigate("/onboarding/profile/gp");
   const openDoctorWithContext = () => {
     navigate("/health/doctor", {
       state: {
@@ -1370,17 +1371,29 @@ function ReportScreen({
                     event.preventDefault();
                     event.stopPropagation();
                   }}
-                  className="inline-flex w-full sm:w-auto"
+                  className="grid w-full gap-2 sm:grid-cols-2"
                 >
                   <button
                     type="button"
-                    disabled
-                    data-testid="button-report-share-doctor-disabled"
-                    className="inline-flex min-h-[52px] w-full cursor-not-allowed items-center justify-center gap-2 rounded-full bg-[#E8DED4] px-4 text-center font-body text-[15px] font-black leading-tight text-vyva-text-3 opacity-80 sm:w-auto"
+                    onClick={openDoctorContactSetup}
+                    data-testid="button-report-add-doctor-contact"
+                    className="vyva-tap inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 text-center font-body text-[15px] font-black leading-tight text-white shadow-[0_10px_22px_rgba(107,33,168,0.18)]"
                   >
-                    <Send size={18} className="flex-shrink-0" />
-                    <span className="min-w-0 truncate">{t("health.symptomCheck.report.noDoctorToShare", "No doctor contact in profile")}</span>
+                    <Users size={18} className="flex-shrink-0" />
+                    <span className="min-w-0 truncate">{t("health.symptomCheck.report.addDoctorContact", "Add doctor contact")}</span>
                   </button>
+                  <button
+                    type="button"
+                    onClick={openDoctorWithContext}
+                    data-testid="button-report-doctor-help-inline"
+                    className="vyva-tap inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full border border-[#D8B4FE] bg-white px-4 text-center font-body text-[15px] font-black leading-tight text-vyva-purple"
+                  >
+                    <Stethoscope size={18} className="flex-shrink-0" />
+                    <span className="min-w-0 truncate">{t("health.symptomCheck.report.actions.doctorHelp", "Doctor help")}</span>
+                  </button>
+                  <span className="rounded-[16px] bg-[#FAF9F6] px-3 py-2 text-center font-body text-[13px] font-bold text-vyva-text-2 sm:col-span-2">
+                    {t("health.symptomCheck.report.noDoctorToShare", "No doctor contact in profile")}
+                  </span>
                 </span>
               )}
             </span>
