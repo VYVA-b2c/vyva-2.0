@@ -1141,6 +1141,44 @@ export const insertVyvaSignalReadingSchema = createInsertSchema(vyvaSignalReadin
 export type InsertVyvaSignalReading = z.infer<typeof insertVyvaSignalReadingSchema>;
 export type VyvaSignalReading = typeof vyvaSignalReadings.$inferSelect;
 
+// ============================================================
+// NEW TABLE: cognitive_session_index - unified Brain Coach history
+// ============================================================
+
+export const cognitiveSessionIndex = pgTable("cognitive_session_index", {
+  id:              uuid("id").primaryKey().defaultRandom(),
+  userId:          text("user_id").notNull(),
+  activityType:    text("activity_type").notNull(),
+  domain:          text("domain").notNull(),
+  secondaryDomain: text("secondary_domain"),
+  difficulty:      integer("difficulty").notNull().default(1),
+  difficultyScale: text("difficulty_scale").notNull().default("level"),
+  completed:       boolean("completed").notNull().default(false),
+  abandoned:       boolean("abandoned").notNull().default(false),
+  score:           integer("score").notNull().default(0),
+  accuracyPct:     numeric("accuracy_pct", { precision: 5, scale: 2 }),
+  speedPct:        numeric("speed_pct", { precision: 5, scale: 2 }),
+  durationSeconds: integer("duration_seconds").notNull().default(0),
+  playedAt:        timestamp("played_at", { withTimezone: true }).notNull().defaultNow(),
+  language:        text("language").notNull().default("es"),
+  source:          text("source").notNull().default("app"),
+  sourceTable:     text("source_table"),
+  sourceSessionId: text("source_session_id"),
+  clientResultId:  text("client_result_id"),
+  metadata:        jsonb("metadata").notNull().default({}),
+  createdAt:       timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("cognitive_session_index_user_client_result_unique").on(t.userId, t.clientResultId),
+  index("idx_cognitive_session_index_user_played").on(t.userId, t.playedAt.desc()),
+  index("idx_cognitive_session_index_user_activity").on(t.userId, t.activityType, t.playedAt.desc()),
+  index("idx_cognitive_session_index_user_domain").on(t.userId, t.domain, t.playedAt.desc()),
+  index("idx_cognitive_session_index_user_completed").on(t.userId, t.completed, t.playedAt.desc()),
+]);
+
+export const insertCognitiveSessionIndexSchema = createInsertSchema(cognitiveSessionIndex).omit({ id: true, createdAt: true });
+export type InsertCognitiveSessionIndex = z.infer<typeof insertCognitiveSessionIndexSchema>;
+export type CognitiveSessionIndexRow = typeof cognitiveSessionIndex.$inferSelect;
+
 
 // ============================================================
 // NEW TABLE: utility_review_runs — evidence log for bill reviews
@@ -1696,6 +1734,7 @@ export const schema = {
   vyvaUserBaselines,
   vyvaPatternWindows,
   userDeviceConnections,
+  cognitiveSessionIndex,
   organizations,
   tierEntitlements,
   userIntakes,

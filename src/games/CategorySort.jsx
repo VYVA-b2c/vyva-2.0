@@ -3,6 +3,7 @@ import { ArrowLeft, Check, CircleHelp, Layers, Loader2, Palette, Ruler, Shapes, 
 import { useLanguage } from "@/i18n";
 import { supabase } from "../lib/supabaseClient";
 import BrainGameResultActions from "./shared/BrainGameResultActions";
+import { recordCognitiveSession } from "./shared/brainCoachSessions";
 import { normalizeGameLanguage } from "./shared/language";
 
 const BRAND = {
@@ -562,7 +563,35 @@ export default function CategorySort({ userId, onExit }) {
     if (saved.error) {
       sessionSavedRef.current = false;
     }
-  }, [userId]);
+    const savedSession = Array.isArray(saved.data) ? saved.data[0] : saved.data;
+
+    await recordCognitiveSession({
+      userId,
+      activityType: "category_sort",
+      domain: "executive_function",
+      difficulty: result.difficulty_tier,
+      difficultyScale: "tier",
+      completed: result.completed,
+      abandoned: result.abandoned,
+      score: result.score,
+      accuracyPct: result.combined_accuracy_pct,
+      durationSeconds: result.duration_seconds,
+      language: gameLanguage,
+      source: "category_sort",
+      sourceTable: "category_sort_sessions",
+      sourceSessionId: savedSession?.id ?? null,
+      metadata: {
+        sequenceId: result.sequence_id ?? null,
+        cardCount: result.card_count,
+        cardsSorted: result.cards_sorted,
+        cardsCorrect: result.cards_correct,
+        perseverativeErrors: result.perseverative_errors,
+        ruleSwitchesTotal: result.rule_switches_total,
+        ruleSwitchesHandled: result.rule_switches_handled,
+        avgResponseMs: result.avg_response_ms,
+      },
+    });
+  }, [gameLanguage, userId]);
 
   const updateUserState = useCallback(async (result) => {
     if (!userId || result.abandoned) return userState;

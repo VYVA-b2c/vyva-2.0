@@ -1,4 +1,5 @@
 import { BrainCircuit, Headphones, Layers, Map as MapIcon, Puzzle, Route, Type, Users, Wind, type LucideIcon } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { margaret } from "@/data/mockData";
 import { useLanguage } from "@/i18n";
@@ -77,13 +78,47 @@ const activityRoutes: Partial<Record<string, string>> = {
   "brain.activities.logicPuzzle": "/executive-function",
 };
 
+const activityCompletionTypes: Record<string, string[]> = {
+  "brain.activities.triviaQuiz": ["dual_task_walk", "sequence_memory"],
+  "brain.activities.memoryGame": [
+    "memory_match",
+    "sequence_memory",
+    "word_recall",
+    "number_memory",
+    "routine_memory",
+    "association_memory",
+    "story_recall",
+  ],
+  "brain.activities.spatialNavigator": ["spatial_navigator"],
+  "brain.activities.scrabble": ["story_recall"],
+  "brain.activities.logicPuzzle": ["category_sort", "number_trails", "face_name_match"],
+};
+
+type BrainCoachProgress = {
+  summary?: {
+    streakDays?: number;
+  };
+  today?: {
+    completedCount?: number;
+    activityTypes?: string[];
+  };
+};
+
 const ActivitiesScreen = () => {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const autoStartVoice = useRouteVoiceAutoStart();
+  const { data: brainCoachProgress } = useQuery<BrainCoachProgress>({
+    queryKey: ["/api/games/progress"],
+    retry: false,
+  });
   const todayIndex = new Date().getDay();
   const mappedToday = todayIndex === 0 ? 6 : todayIndex - 1;
   const days = ["M", "T", "W", "T", "F", "S", "S"];
+  const streak = brainCoachProgress?.summary?.streakDays ?? 0;
+  const completedTodayCount = brainCoachProgress?.today?.completedCount ?? 0;
+  const todayActivityTypes = new Set(brainCoachProgress?.today?.activityTypes ?? []);
+  const previousCompletedDays = Math.max(0, streak - (completedTodayCount > 0 ? 1 : 0));
 
   const activityLabels: Record<string, string> = {
     "brain.activities.triviaQuiz": t("activities.trivia"),
@@ -106,7 +141,7 @@ const ActivitiesScreen = () => {
         heroSurface="brain"
         sourceText={t("brain.voiceSource")}
         headline={<>{t("brain.headline")}</>}
-        subtitle={t("brain.subtitle", { streak: margaret.streak })}
+        subtitle={t("brain.subtitle", { streak })}
         contextHint="brain training"
         autoStartVoice={autoStartVoice ? "brain" : false}
         showVoiceOverlay={false}
@@ -131,18 +166,20 @@ const ActivitiesScreen = () => {
         <div className="flex flex-col gap-4 min-[430px]:flex-row min-[430px]:items-center min-[430px]:justify-between">
           <div>
             <p className="font-body text-[12px] font-semibold uppercase tracking-[0.06em] text-vyva-purple">{t("brain.streakThisWeek")}</p>
-            <p className="mt-1 font-display text-[30px] leading-none text-vyva-text-1">{margaret.streak}</p>
+            <p className="mt-1 font-display text-[30px] leading-none text-vyva-text-1">{streak}</p>
           </div>
           <div className="grid w-full grid-cols-7 gap-[5px] min-[430px]:flex min-[430px]:w-auto min-[430px]:gap-[6px]">
             {days.map((d, i) => {
-              const completed = i < mappedToday;
+              const daysAgo = mappedToday - i;
+              const completed = daysAgo > 0 && daysAgo <= previousCompletedDays;
               const isToday = i === mappedToday;
+              const completedToday = isToday && completedTodayCount > 0;
               return (
                 <div
                   key={i}
                   className="flex h-8 min-w-0 items-center justify-center rounded-[10px] text-[12px] font-medium min-[430px]:h-[34px] min-[430px]:w-[34px]"
                   style={
-                    completed
+                    completed || completedToday
                       ? { background: "#6B21A8", color: "#FFFFFF", boxShadow: "0 8px 18px rgba(107,33,168,0.16)" }
                       : isToday
                         ? { background: "#FFFFFF", color: "#6B21A8", border: "2px solid #6B21A8" }
@@ -162,6 +199,7 @@ const ActivitiesScreen = () => {
         <ResponsiveGrid className="mt-3" columns="two" gap="sm">
           {margaret.activities.map((act) => {
             const Icon = activityIcons[act.name] || BrainCircuit;
+            const doneToday = (activityCompletionTypes[act.name] ?? []).some((activityType) => todayActivityTypes.has(activityType));
             const style = activityStyles[act.name] || {
               iconBg: "linear-gradient(135deg, #ECE4FF 0%, #F8F2FF 100%)",
               iconColor: "#7C3AED",
@@ -185,7 +223,7 @@ const ActivitiesScreen = () => {
                   borderColor: "#EDE2D1",
                   boxShadow: `0 16px 34px ${style.glow}, 0 2px 10px rgba(43,31,24,0.05)`,
                 }}
-                badge={act.done ? (
+                badge={doneToday ? (
                   <span
                     className="rounded-full px-2.5 py-1 font-body text-[11px] font-bold leading-tight shadow-sm"
                     style={{ background: style.badgeBg, color: style.badgeText }}
