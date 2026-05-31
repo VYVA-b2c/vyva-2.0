@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildBrainCoachDailyPlan, extractBrainCoachPreferences, type BrainCoachPlanSession } from "../lib/brainCoachPlan.js";
+import {
+  buildBrainCoachDailyPlan,
+  extractBrainCoachPreferences,
+  type BrainCoachPlanEvent,
+  type BrainCoachPlanSession,
+} from "../lib/brainCoachPlan.js";
 
 const NOW = new Date("2026-05-31T12:00:00.000Z");
 
@@ -12,6 +17,15 @@ function session(overrides: Partial<BrainCoachPlanSession>): BrainCoachPlanSessi
     accuracyPct: 75,
     durationSeconds: 180,
     playedAt: "2026-05-30T12:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function event(overrides: Partial<BrainCoachPlanEvent>): BrainCoachPlanEvent {
+  return {
+    activityType: "memory_match",
+    eventType: "accepted",
+    createdAt: "2026-05-30T12:00:00.000Z",
     ...overrides,
   };
 }
@@ -88,6 +102,52 @@ describe("Brain Coach daily plan", () => {
       totalCount: plan.activities.length,
       allComplete: false,
     });
+  });
+
+  it("downranks activities that were skipped repeatedly", () => {
+    const plan = buildBrainCoachDailyPlan({
+      sessions: [],
+      events: [
+        event({ activityType: "sequence_memory", eventType: "skipped", createdAt: "2026-05-30T09:00:00.000Z" }),
+        event({ activityType: "sequence_memory", eventType: "skipped", createdAt: "2026-05-29T09:00:00.000Z" }),
+      ],
+      preferences: { sessionLengthMins: 10, variety: "variety" },
+      now: NOW,
+    });
+
+    expect(plan.activities[0].activityType).not.toBe("sequence_memory");
+    expect(plan.activities.map((activity) => activity.rationale)).toContain("new area for variety");
+  });
+
+  it("keeps accepted and completed activities eligible later while avoiding continuous repetition", () => {
+    const eligibleLater = buildBrainCoachDailyPlan({
+      sessions: [
+        session({ activityType: "memory_match", domain: "visual_memory", score: 420, accuracyPct: 52, playedAt: "2026-05-26T08:00:00.000Z" }),
+        session({ activityType: "memory_match", domain: "visual_memory", score: 460, accuracyPct: 58, playedAt: "2026-05-25T08:00:00.000Z" }),
+      ],
+      events: [
+        event({ activityType: "memory_match", eventType: "accepted", createdAt: "2026-05-26T08:01:00.000Z" }),
+        event({ activityType: "memory_match", eventType: "completed", createdAt: "2026-05-26T08:05:00.000Z" }),
+      ],
+      preferences: { sessionLengthMins: 10, variety: "variety" },
+      now: NOW,
+    });
+
+    expect(eligibleLater.activities.some((activity) => activity.activityType === "memory_match")).toBe(true);
+
+    const avoidRepeat = buildBrainCoachDailyPlan({
+      sessions: [
+        session({ activityType: "memory_match", domain: "visual_memory", playedAt: "2026-05-31T08:00:00.000Z" }),
+      ],
+      events: [
+        event({ activityType: "memory_match", eventType: "accepted", createdAt: "2026-05-31T08:01:00.000Z" }),
+        event({ activityType: "memory_match", eventType: "completed", createdAt: "2026-05-31T08:05:00.000Z" }),
+      ],
+      preferences: { sessionLengthMins: 10, variety: "variety" },
+      now: NOW,
+    });
+
+    expect(avoidRepeat.activities[0].activityType).not.toBe("memory_match");
   });
 
   it("extracts onboarding cognitive preferences from profile consent data", () => {

@@ -33,7 +33,7 @@ function storedPlan(overrides: Partial<StoredBrainCoachPlan> = {}): StoredBrainC
     estimatedDurationMinutes: 8,
     recommendedDomains: ["attention", "visual_memory"],
     rationale: ["Starts with a short balanced plan because there is no Brain Coach history yet."],
-    generationVersion: "brain_coach_plan_v1",
+    generationVersion: "brain_coach_plan_v2",
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
@@ -73,7 +73,7 @@ describe("Brain Coach plan lifecycle", () => {
       userId: "user-1",
       planDate: "2026-05-31",
       status: "active",
-      generationVersion: "brain_coach_plan_v1",
+      generationVersion: "brain_coach_plan_v2",
     });
     expect(rows.items.map((item) => item.status)).toEqual(["recommended", "recommended"]);
     expect(rows.items.map((item) => item.activityType)).toEqual(["sequence_memory", "memory_match"]);

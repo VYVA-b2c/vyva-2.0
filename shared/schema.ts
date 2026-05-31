@@ -1188,7 +1188,7 @@ export const cognitiveDailyPlans = pgTable("cognitive_daily_plans", {
   recommendedDomains:       text("recommended_domains").array().notNull().default([]),
   rationale:                text("rationale").array().notNull().default([]),
   generatedContext:         jsonb("generated_context").notNull().default({}),
-  generationVersion:        text("generation_version").notNull().default("brain_coach_plan_v1"),
+  generationVersion:        text("generation_version").notNull().default("brain_coach_plan_v2"),
   completedAt:              timestamp("completed_at", { withTimezone: true }),
   createdAt:                timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt:                timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
