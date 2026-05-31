@@ -1696,8 +1696,10 @@ const CheckHowIFeelScreen = () => {
     staleTime: 5 * 60 * 1000,
   });
 
-  const name = firstName || "Carlos";
+  const name = firstName.trim();
   const copy = copyFor(profile?.language);
+  const welcomeKicker = name ? `${copy.hello}, ${name}` : copy.hello;
+  const analyzingTitle = name ? `${copy.analyzingTitle}, ${name}` : copy.analyzingTitle;
   const shareLabels = shareLabelsFor(copy);
   const stepIndex = STEPS.indexOf(step);
   const includeSafety = needsSafetyFollowup(answers);
@@ -1916,7 +1918,7 @@ const CheckHowIFeelScreen = () => {
           <HealthWizardHero
             className="rounded-none border-0 shadow-none"
             icon={<Heart />}
-            kicker={`${copy.hello}, ${name}`}
+            kicker={welcomeKicker}
             title={copy.welcomeTitle}
             body={copy.welcomeIntro}
           />
@@ -2058,7 +2060,7 @@ const CheckHowIFeelScreen = () => {
           <div className="mb-5 flex h-24 w-24 items-center justify-center rounded-[34px] bg-[#F5F3FF] shadow-[0_12px_30px_rgba(107,33,168,0.14)]">
             <Loader2 size={54} className="animate-spin text-vyva-purple" />
           </div>
-          <h1 className="mb-3 font-display text-[32px] text-vyva-text-1">{copy.analyzingTitle}, {name}</h1>
+          <h1 className="mb-3 font-display text-[32px] text-vyva-text-1">{analyzingTitle}</h1>
           <p className="font-body text-[21px] leading-relaxed text-vyva-text-2">{loadingMessage}</p>
         </HealthWizardCard>
       )}
