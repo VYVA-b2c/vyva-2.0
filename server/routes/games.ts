@@ -2,6 +2,15 @@ import { Router, type Request, type Response } from "express";
 import OpenAI from "openai";
 import { z } from "zod";
 import { buildBrainCoachDailyPlan, extractBrainCoachPreferences } from "../lib/brainCoachPlan.js";
+import {
+  applyPlanItemEvent,
+  buildBrainCoachPlanRows,
+  buildPersistedBrainCoachPlan,
+  completionSyncForPlan,
+  type BrainCoachPlanEventType,
+  type StoredBrainCoachPlan,
+  type StoredBrainCoachPlanItem,
+} from "../lib/brainCoachPlanLifecycle.js";
 
 const OPENAI_MODEL = "gpt-4o-mini";
 const ELEVENLABS_TTS_MODEL = "eleven_multilingual_v2";
@@ -66,6 +75,17 @@ const cognitiveSessionWriteSchema = z.object({
   sourceSessionId: z.string().trim().min(1).max(120).nullable().optional(),
   clientResultId: z.string().trim().min(1).max(160).nullable().optional(),
   metadata: z.record(z.unknown()).optional().default({}),
+});
+
+const dailyPlanEventSchema = z.object({
+  planId: z.string().uuid(),
+  planItemId: z.string().uuid().optional(),
+  activityType: z.string().trim().min(1).max(80).optional(),
+  eventType: z.enum(["accepted", "started", "skipped"]),
+  source: z.string().trim().min(1).max(80).optional().default("app"),
+  metadata: z.record(z.unknown()).optional().default({}),
+}).refine((value) => Boolean(value.planItemId || value.activityType), {
+  message: "planItemId or activityType is required.",
 });
 
 function normalizeGameLanguage(language: unknown): GameLanguage {
@@ -472,12 +492,131 @@ function queryLimit(value: unknown, fallback: number, max: number): number {
 }
 
 async function loadCognitiveSessionDb() {
-  const [{ db }, { cognitiveSessionIndex, profiles }, { and, desc, eq, gte, inArray }] = await Promise.all([
+  const [
+    { db },
+    {
+      cognitiveSessionIndex,
+      profiles,
+      cognitiveDailyPlans,
+      cognitiveDailyPlanItems,
+      cognitiveDailyPlanEvents,
+    },
+    { and, asc, desc, eq, gte, inArray },
+  ] = await Promise.all([
     import("../db.js"),
     import("../../shared/schema.js"),
     import("drizzle-orm"),
   ]);
-  return { db, cognitiveSessionIndex, profiles, and, desc, eq, gte, inArray };
+  return {
+    db,
+    cognitiveSessionIndex,
+    profiles,
+    cognitiveDailyPlans,
+    cognitiveDailyPlanItems,
+    cognitiveDailyPlanEvents,
+    and,
+    asc,
+    desc,
+    eq,
+    gte,
+    inArray,
+  };
+}
+
+type CognitiveSessionDb = Awaited<ReturnType<typeof loadCognitiveSessionDb>>;
+
+function storedPlan(row: unknown): StoredBrainCoachPlan {
+  return row as StoredBrainCoachPlan;
+}
+
+function storedItems(rows: unknown[]): StoredBrainCoachPlanItem[] {
+  return rows as StoredBrainCoachPlanItem[];
+}
+
+async function selectPlanItems(ctx: CognitiveSessionDb, planId: string) {
+  const { db, cognitiveDailyPlanItems, asc, eq } = ctx;
+  return db
+    .select()
+    .from(cognitiveDailyPlanItems)
+    .where(eq(cognitiveDailyPlanItems.planId, planId))
+    .orderBy(asc(cognitiveDailyPlanItems.sortOrder));
+}
+
+async function updatePlanCompletionStatus(ctx: CognitiveSessionDb, plan: StoredBrainCoachPlan, items: StoredBrainCoachPlanItem[]) {
+  const { db, cognitiveDailyPlans, eq } = ctx;
+  const allComplete = items.length > 0 && items.every((item) => item.status === "completed" || Boolean(item.completedAt));
+  if (allComplete && plan.status !== "completed") {
+    const completedAt = new Date();
+    const [updated] = await db
+      .update(cognitiveDailyPlans)
+      .set({ status: "completed", completedAt, updatedAt: completedAt })
+      .where(eq(cognitiveDailyPlans.id, plan.id))
+      .returning();
+    return storedPlan(updated);
+  }
+  return plan;
+}
+
+async function syncPersistedPlanCompletion(
+  ctx: CognitiveSessionDb,
+  planRow: unknown,
+  itemRows: unknown[],
+  sessions: BrainCoachSessionLike[],
+) {
+  const { db, cognitiveDailyPlanItems, cognitiveDailyPlanEvents, and, eq } = ctx;
+  let plan = storedPlan(planRow);
+  let items = storedItems(itemRows);
+  const sync = completionSyncForPlan({
+    planDate: plan.planDate,
+    items,
+    sessions,
+  });
+
+  for (const item of items) {
+    if (!sync.completedActivityTypes.includes(item.activityType)) continue;
+    if (item.status === "completed" || item.completedAt) continue;
+    const completedAt = new Date();
+    await db
+      .update(cognitiveDailyPlanItems)
+      .set({ status: "completed", completedAt, updatedAt: completedAt })
+      .where(and(
+        eq(cognitiveDailyPlanItems.id, item.id),
+        eq(cognitiveDailyPlanItems.userId, plan.userId),
+      ));
+    await db.insert(cognitiveDailyPlanEvents).values({
+      planId: plan.id,
+      planItemId: item.id,
+      userId: plan.userId,
+      activityType: item.activityType,
+      eventType: "completed" satisfies BrainCoachPlanEventType,
+      source: "cognitive_session_index",
+      metadata: { plan_date: plan.planDate },
+    });
+  }
+
+  items = storedItems(await selectPlanItems(ctx, plan.id));
+  plan = await updatePlanCompletionStatus(ctx, plan, items);
+  return buildPersistedBrainCoachPlan(plan, items);
+}
+
+async function syncSessionToDailyPlan(ctx: CognitiveSessionDb, userId: string, session: BrainCoachSessionLike) {
+  if (!session.completed) return;
+  const planDate = utcDayKey(session.playedAt);
+  if (!planDate) return;
+
+  const { db, cognitiveDailyPlans, and, eq } = ctx;
+  const [plan] = await db
+    .select()
+    .from(cognitiveDailyPlans)
+    .where(and(
+      eq(cognitiveDailyPlans.userId, userId),
+      eq(cognitiveDailyPlans.planDate, planDate),
+    ))
+    .limit(1);
+  if (!plan) return;
+
+  const items = await selectPlanItems(ctx, plan.id);
+  await syncPersistedPlanCompletion(ctx, plan, items, [session]);
 }
 
 export async function createCognitiveSessionHandler(req: Request, res: Response) {
@@ -489,7 +628,8 @@ export async function createCognitiveSessionHandler(req: Request, res: Response)
   const data = parsed.data;
 
   try {
-    const { db, cognitiveSessionIndex, and, eq } = await loadCognitiveSessionDb();
+    const ctx = await loadCognitiveSessionDb();
+    const { db, cognitiveSessionIndex, and, eq } = ctx;
 
     if (data.clientResultId) {
       const [existing] = await db
@@ -530,6 +670,10 @@ export async function createCognitiveSessionHandler(req: Request, res: Response)
         metadata: data.metadata,
       })
       .returning();
+
+    await syncSessionToDailyPlan(ctx, req.user!.id, session).catch((error) => {
+      console.warn("[games] Daily Brain Coach plan completion sync failed:", error);
+    });
 
     return res.status(201).json({ session: normalizeProgressSession(session) });
   } catch (error) {
@@ -594,7 +738,17 @@ export async function brainCoachProgressHandler(req: Request, res: Response) {
 
 export async function brainCoachDailyPlanHandler(req: Request, res: Response) {
   try {
-    const { db, cognitiveSessionIndex, profiles, desc, eq } = await loadCognitiveSessionDb();
+    const ctx = await loadCognitiveSessionDb();
+    const {
+      db,
+      cognitiveSessionIndex,
+      profiles,
+      cognitiveDailyPlans,
+      cognitiveDailyPlanItems,
+      desc,
+      eq,
+      and,
+    } = ctx;
     const rows = await db
       .select()
       .from(cognitiveSessionIndex)
@@ -611,16 +765,135 @@ export async function brainCoachDailyPlanHandler(req: Request, res: Response) {
       .limit(1);
 
     const progress = buildBrainCoachProgress(rows);
-    const plan = buildBrainCoachDailyPlan({
+    const generatedPlan = buildBrainCoachDailyPlan({
       sessions: rows,
       preferences: extractBrainCoachPreferences(profile?.dataSharingConsent),
       streakDays: progress.summary.streakDays,
     });
+    const planDate = generatedPlan.planDate;
 
-    return res.json(plan);
+    let [plan] = await db
+      .select()
+      .from(cognitiveDailyPlans)
+      .where(and(
+        eq(cognitiveDailyPlans.userId, req.user!.id),
+        eq(cognitiveDailyPlans.planDate, planDate),
+      ))
+      .limit(1);
+
+    if (!plan) {
+      const built = buildBrainCoachPlanRows({
+        userId: req.user!.id,
+        generatedPlan,
+        sourceContext: {
+          total_sessions: progress.summary.totalSessions,
+          completed_sessions: progress.summary.completedSessions,
+          streak_days: progress.summary.streakDays,
+        },
+      });
+      [plan] = await db
+        .insert(cognitiveDailyPlans)
+        .values(built.plan)
+        .returning();
+
+      if (built.items.length > 0) {
+        await db.insert(cognitiveDailyPlanItems).values(
+          built.items.map((item) => ({
+            ...item,
+            planId: plan.id,
+          })),
+        );
+      }
+    }
+
+    const items = await selectPlanItems(ctx, plan.id);
+    const persistedPlan = await syncPersistedPlanCompletion(ctx, plan, items, rows);
+
+    return res.json(persistedPlan);
   } catch (error) {
     console.error("[games] Brain Coach daily plan failed:", error);
     return res.status(500).json({ error: "Brain Coach daily plan could not be loaded." });
+  }
+}
+
+export async function brainCoachDailyPlanEventHandler(req: Request, res: Response) {
+  const parsed = dailyPlanEventSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid Brain Coach plan event request." });
+  }
+
+  const data = parsed.data;
+
+  try {
+    const ctx = await loadCognitiveSessionDb();
+    const {
+      db,
+      cognitiveDailyPlans,
+      cognitiveDailyPlanItems,
+      cognitiveDailyPlanEvents,
+      and,
+      eq,
+    } = ctx;
+    const [plan] = await db
+      .select()
+      .from(cognitiveDailyPlans)
+      .where(and(
+        eq(cognitiveDailyPlans.id, data.planId),
+        eq(cognitiveDailyPlans.userId, req.user!.id),
+      ))
+      .limit(1);
+
+    if (!plan) {
+      return res.status(404).json({ error: "Brain Coach plan not found." });
+    }
+
+    const itemConditions = [
+      eq(cognitiveDailyPlanItems.planId, data.planId),
+      eq(cognitiveDailyPlanItems.userId, req.user!.id),
+    ];
+    if (data.planItemId) {
+      itemConditions.push(eq(cognitiveDailyPlanItems.id, data.planItemId));
+    } else if (data.activityType) {
+      itemConditions.push(eq(cognitiveDailyPlanItems.activityType, data.activityType));
+    }
+
+    const [item] = await db
+      .select()
+      .from(cognitiveDailyPlanItems)
+      .where(and(...itemConditions))
+      .limit(1);
+
+    if (!item) {
+      return res.status(404).json({ error: "Brain Coach plan item not found." });
+    }
+
+    const patch = applyPlanItemEvent(storedItems([item])[0], data.eventType);
+    if (Object.keys(patch).length > 0) {
+      await db
+        .update(cognitiveDailyPlanItems)
+        .set(patch)
+        .where(and(
+          eq(cognitiveDailyPlanItems.id, item.id),
+          eq(cognitiveDailyPlanItems.userId, req.user!.id),
+        ));
+    }
+
+    await db.insert(cognitiveDailyPlanEvents).values({
+      planId: plan.id,
+      planItemId: item.id,
+      userId: req.user!.id,
+      activityType: item.activityType,
+      eventType: data.eventType,
+      source: data.source,
+      metadata: data.metadata,
+    });
+
+    const items = await selectPlanItems(ctx, plan.id);
+    const persistedPlan = buildPersistedBrainCoachPlan(storedPlan(plan), storedItems(items));
+    return res.json(persistedPlan);
+  } catch (error) {
+    console.error("[games] Brain Coach daily plan event failed:", error);
+    return res.status(500).json({ error: "Brain Coach plan event could not be saved." });
   }
 }
 
@@ -629,6 +902,7 @@ router.post("/sessions", createCognitiveSessionHandler);
 router.get("/history", cognitiveSessionHistoryHandler);
 router.get("/progress", brainCoachProgressHandler);
 router.get("/daily-plan", brainCoachDailyPlanHandler);
+router.post("/daily-plan/events", brainCoachDailyPlanEventHandler);
 router.post("/score-retell", scoreRetellHandler);
 router.post("/tts", ttsHandler);
 

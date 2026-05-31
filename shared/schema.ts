@@ -1179,6 +1179,80 @@ export const insertCognitiveSessionIndexSchema = createInsertSchema(cognitiveSes
 export type InsertCognitiveSessionIndex = z.infer<typeof insertCognitiveSessionIndexSchema>;
 export type CognitiveSessionIndexRow = typeof cognitiveSessionIndex.$inferSelect;
 
+export const cognitiveDailyPlans = pgTable("cognitive_daily_plans", {
+  id:                       uuid("id").primaryKey().defaultRandom(),
+  userId:                   text("user_id").notNull(),
+  planDate:                 date("plan_date").notNull(),
+  status:                   text("status").notNull().default("active"),
+  estimatedDurationMinutes: integer("estimated_duration_minutes").notNull().default(0),
+  recommendedDomains:       text("recommended_domains").array().notNull().default([]),
+  rationale:                text("rationale").array().notNull().default([]),
+  generatedContext:         jsonb("generated_context").notNull().default({}),
+  generationVersion:        text("generation_version").notNull().default("brain_coach_plan_v1"),
+  completedAt:              timestamp("completed_at", { withTimezone: true }),
+  createdAt:                timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:                timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("cognitive_daily_plans_user_date_unique").on(t.userId, t.planDate),
+  index("idx_cognitive_daily_plans_user_date").on(t.userId, t.planDate),
+  index("idx_cognitive_daily_plans_user_status").on(t.userId, t.status, t.planDate),
+]);
+
+export const cognitiveDailyPlanItems = pgTable("cognitive_daily_plan_items", {
+  id:                       uuid("id").primaryKey().defaultRandom(),
+  planId:                   uuid("plan_id").notNull().references(() => cognitiveDailyPlans.id, { onDelete: "cascade" }),
+  userId:                   text("user_id").notNull(),
+  planDate:                 date("plan_date").notNull(),
+  activityType:             text("activity_type").notNull(),
+  title:                    text("title").notNull(),
+  domain:                   text("domain").notNull(),
+  secondaryDomain:          text("secondary_domain"),
+  route:                    text("route").notNull(),
+  estimatedDurationMinutes: integer("estimated_duration_minutes").notNull().default(0),
+  rationale:                text("rationale").notNull().default(""),
+  status:                   text("status").notNull().default("recommended"),
+  sortOrder:                integer("sort_order").notNull().default(0),
+  acceptedAt:               timestamp("accepted_at", { withTimezone: true }),
+  startedAt:                timestamp("started_at", { withTimezone: true }),
+  skippedAt:                timestamp("skipped_at", { withTimezone: true }),
+  completedAt:              timestamp("completed_at", { withTimezone: true }),
+  createdAt:                timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:                timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("cognitive_daily_plan_items_plan_activity_unique").on(t.planId, t.activityType),
+  index("idx_cognitive_daily_plan_items_plan_order").on(t.planId, t.sortOrder),
+  index("idx_cognitive_daily_plan_items_user_date").on(t.userId, t.planDate),
+  index("idx_cognitive_daily_plan_items_user_activity").on(t.userId, t.activityType, t.planDate),
+]);
+
+export const cognitiveDailyPlanEvents = pgTable("cognitive_daily_plan_events", {
+  id:           uuid("id").primaryKey().defaultRandom(),
+  planId:       uuid("plan_id").notNull().references(() => cognitiveDailyPlans.id, { onDelete: "cascade" }),
+  planItemId:   uuid("plan_item_id").references(() => cognitiveDailyPlanItems.id, { onDelete: "set null" }),
+  userId:       text("user_id").notNull(),
+  activityType: text("activity_type"),
+  eventType:    text("event_type").notNull(),
+  source:       text("source").notNull().default("app"),
+  metadata:     jsonb("metadata").notNull().default({}),
+  createdAt:    timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_cognitive_daily_plan_events_plan").on(t.planId, t.createdAt.desc()),
+  index("idx_cognitive_daily_plan_events_user").on(t.userId, t.createdAt.desc()),
+  index("idx_cognitive_daily_plan_events_item").on(t.planItemId, t.createdAt.desc()),
+]);
+
+export const insertCognitiveDailyPlanSchema = createInsertSchema(cognitiveDailyPlans).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertCognitiveDailyPlan = z.infer<typeof insertCognitiveDailyPlanSchema>;
+export type CognitiveDailyPlanRow = typeof cognitiveDailyPlans.$inferSelect;
+
+export const insertCognitiveDailyPlanItemSchema = createInsertSchema(cognitiveDailyPlanItems).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertCognitiveDailyPlanItem = z.infer<typeof insertCognitiveDailyPlanItemSchema>;
+export type CognitiveDailyPlanItemRow = typeof cognitiveDailyPlanItems.$inferSelect;
+
+export const insertCognitiveDailyPlanEventSchema = createInsertSchema(cognitiveDailyPlanEvents).omit({ id: true, createdAt: true });
+export type InsertCognitiveDailyPlanEvent = z.infer<typeof insertCognitiveDailyPlanEventSchema>;
+export type CognitiveDailyPlanEventRow = typeof cognitiveDailyPlanEvents.$inferSelect;
+
 
 // ============================================================
 // NEW TABLE: utility_review_runs — evidence log for bill reviews
