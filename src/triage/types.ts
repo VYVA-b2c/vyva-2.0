@@ -1,3 +1,5 @@
+import type { TriageScanResult, TriageScanType } from "../../shared/triageScans.js";
+
 export type TriageRuleLevel = "emergency" | "doctor_today" | "doctor_24_48" | "monitor";
 
 export type TriageUrgency = "urgent" | "routine" | "monitor";
@@ -28,6 +30,8 @@ export type TriageRuleRiskFlags = {
   steroidMedication?: boolean;
 };
 
+export type ProfileRiskFlags = Required<TriageRuleRiskFlags>;
+
 export type TriageVitals = {
   abnormalPulse?: boolean;
   abnormalBreathingRate?: boolean;
@@ -57,6 +61,67 @@ export type TriageRuleDecision = {
   watchSigns: string[];
   profileConsiderations: string[];
 };
+
+export type TriageSummary = {
+  chiefComplaint: string;
+  symptoms: string[];
+  urgency: TriageUrgency;
+  recommendations: string[];
+  disclaimer: string;
+  nextStepLabel?: string;
+  nextStepLevel?: TriageRuleLevel;
+  triageReasons?: string[];
+  watchSigns?: string[];
+  profileConsiderations?: string[];
+  vitalsNotes?: string[];
+  scanResults?: TriageScanResult[];
+  scanNotes?: string[];
+  evidenceSummary?: string;
+  evidenceSources?: Array<{ title?: string; url?: string; year?: string; journal?: string }>;
+};
+
+export type TriageWizardAnswer = {
+  id: string;
+  label: string;
+  value: string;
+  kind?: string;
+};
+
+export type TriageWizardContext = {
+  mode?: "with_vitals" | "without_vitals";
+  vitalsScanCompleted?: boolean;
+  refineRequested?: boolean;
+  previousSummary?: TriageSummary;
+  vitals?: {
+    bpm?: number | null;
+    respiratoryRate?: number | null;
+    oxygenSaturation?: number | null;
+    temperatureC?: number | null;
+    systolicBp?: number | null;
+    diastolicBp?: number | null;
+    glucoseMgdl?: number | null;
+  };
+  quickAnswers?: TriageWizardAnswer[];
+  scanResults?: TriageScanResult[];
+  declinedScanTypes?: TriageScanType[];
+};
+
+export type TriageHealthMemory = {
+  healthContext?: string;
+  conditions?: string;
+  allergies?: string;
+  medications?: string;
+  latestVitals?: string;
+  latestSymptomReport?: string;
+  countryCode?: string;
+};
+
+export type TriageChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+export type WizardStage = "symptom" | "red_flag" | "duration" | "severity" | "trend" | "support" | "complete";
 
 export type ProtocolRule = {
   ids: string[];
