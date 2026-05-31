@@ -34,9 +34,11 @@ type CaregiverAlert = {
   acknowledged_at?: string | null;
   acknowledged_by?: string | null;
   contacted_at?: string | null;
+  contacted_by?: string | null;
   resolved_at?: string | null;
   resolved_by?: string | null;
   caregiver_note?: string | null;
+  workflow_version?: number | null;
   created_at?: string | null;
 };
 
@@ -227,11 +229,12 @@ export default function CaregiverDashboardPage() {
   const digestText = buildDigest(alerts, meta.label, checkinMessage);
 
   const workflowMutation = useMutation({
-    mutationFn: async (params: { alertId: string; status: WorkflowStatus; caregiver_note?: string | null }) => {
+    mutationFn: async (params: { alertId: string; status: WorkflowStatus; expected_workflow_version: number; caregiver_note?: string | null }) => {
       const response = await apiFetch(`/api/vitals-engine/caregiver/alerts/${params.alertId}/workflow`, {
         method: "PATCH",
         body: JSON.stringify({
           status: params.status,
+          expected_workflow_version: params.expected_workflow_version,
           ...(Object.prototype.hasOwnProperty.call(params, "caregiver_note") ? { caregiver_note: params.caregiver_note } : {}),
         }),
       });
@@ -255,13 +258,14 @@ export default function CaregiverDashboardPage() {
   });
 
   function updateWorkflow(alert: CaregiverAlert, statusValue: WorkflowStatus) {
-    workflowMutation.mutate({ alertId: alert.id, status: statusValue });
+    workflowMutation.mutate({ alertId: alert.id, status: statusValue, expected_workflow_version: alert.workflow_version ?? 1 });
   }
 
   function saveCaregiverNote(alert: CaregiverAlert) {
     workflowMutation.mutate({
       alertId: alert.id,
       status: workflowStatusFor(alert),
+      expected_workflow_version: alert.workflow_version ?? 1,
       caregiver_note: noteDrafts[alert.id] ?? alert.caregiver_note ?? "",
     });
   }

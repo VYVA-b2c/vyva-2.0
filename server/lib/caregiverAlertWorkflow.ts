@@ -7,9 +7,11 @@ export type CaregiverAlertWorkflowRow = {
   acknowledged_at?: Date | string | null;
   acknowledged_by?: string | null;
   contacted_at?: Date | string | null;
+  contacted_by?: string | null;
   resolved_at?: Date | string | null;
   resolved_by?: string | null;
   caregiver_note?: string | null;
+  workflow_version?: number | null;
 };
 
 export type CaregiverAlertWorkflowUpdate = {
@@ -47,6 +49,7 @@ export function buildCaregiverAlertWorkflowPatch(
 
   if (update.status === "contacted") {
     patch.contacted_at = row.contacted_at ?? now;
+    patch.contacted_by = row.contacted_by ?? actorId;
   }
 
   if (update.status === "resolved") {
