@@ -392,14 +392,43 @@ export const caregiverAlerts = pgTable("caregiver_alerts", {
   severity:    text("severity").notNull(),
   message:     text("message").notNull(),
   sent_to:     text("sent_to").array(),
+  status:      text("status").notNull().default("new"),
+  acknowledged_at: timestamp("acknowledged_at", { withTimezone: true }),
+  acknowledged_by: text("acknowledged_by"),
+  contacted_at: timestamp("contacted_at", { withTimezone: true }),
+  contacted_by: text("contacted_by"),
   resolved_at: timestamp("resolved_at", { withTimezone: true }),
   resolved_by: text("resolved_by"),
+  caregiver_note: text("caregiver_note"),
+  workflow_version: integer("workflow_version").notNull().default(1),
   created_at:  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const insertCaregiverAlertSchema = createInsertSchema(caregiverAlerts).omit({ id: true, created_at: true });
 export type InsertCaregiverAlert = z.infer<typeof insertCaregiverAlertSchema>;
 export type CaregiverAlert = typeof caregiverAlerts.$inferSelect;
+
+export const caregiverAlertWorkflowEvents = pgTable("caregiver_alert_workflow_events", {
+  id:                    uuid("id").primaryKey().defaultRandom(),
+  alert_id:              uuid("alert_id").notNull().references(() => caregiverAlerts.id, { onDelete: "cascade" }),
+  user_id:               text("user_id").notNull(),
+  actor_user_id:         text("actor_user_id").notNull(),
+  actor_role:            text("actor_role").notNull(),
+  from_status:           text("from_status"),
+  to_status:             text("to_status").notNull(),
+  from_caregiver_note:   text("from_caregiver_note"),
+  to_caregiver_note:     text("to_caregiver_note"),
+  from_workflow_version: integer("from_workflow_version").notNull(),
+  to_workflow_version:   integer("to_workflow_version").notNull(),
+  created_at:            timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("caregiver_alert_workflow_events_alert_idx").on(t.alert_id, t.created_at),
+  index("caregiver_alert_workflow_events_user_idx").on(t.user_id, t.created_at),
+]);
+
+export const insertCaregiverAlertWorkflowEventSchema = createInsertSchema(caregiverAlertWorkflowEvents).omit({ id: true, created_at: true });
+export type InsertCaregiverAlertWorkflowEvent = z.infer<typeof insertCaregiverAlertWorkflowEventSchema>;
+export type CaregiverAlertWorkflowEvent = typeof caregiverAlertWorkflowEvents.$inferSelect;
 
 export const medicationAdherence = pgTable("medication_adherence", {
   id:                 uuid("id").primaryKey().defaultRandom(),
