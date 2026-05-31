@@ -765,10 +765,11 @@ export async function brainCoachDailyPlanHandler(req: Request, res: Response) {
       .where(eq(profiles.id, req.user!.id))
       .limit(1);
 
+    const preferences = extractBrainCoachPreferences(profile?.dataSharingConsent);
     const progress = buildBrainCoachProgress(rows);
     const generatedPlan = buildBrainCoachDailyPlan({
       sessions: rows,
-      preferences: extractBrainCoachPreferences(profile?.dataSharingConsent),
+      preferences,
       streakDays: progress.summary.streakDays,
     });
     const planDate = generatedPlan.planDate;
@@ -790,6 +791,8 @@ export async function brainCoachDailyPlanHandler(req: Request, res: Response) {
           total_sessions: progress.summary.totalSessions,
           completed_sessions: progress.summary.completedSessions,
           streak_days: progress.summary.streakDays,
+          training_time: preferences.trainingTime ?? null,
+          session_length_mins: preferences.sessionLengthMins ?? null,
         },
       });
       [plan] = await db

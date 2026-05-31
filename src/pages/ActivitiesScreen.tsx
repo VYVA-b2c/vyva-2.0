@@ -1,4 +1,4 @@
-import { BrainCircuit, CheckCircle2, Clock3, Headphones, Layers, Map as MapIcon, Puzzle, Route, Type, Users, Wind, type LucideIcon } from "lucide-react";
+import { Bell, BrainCircuit, CheckCircle2, Clock3, Headphones, Layers, Map as MapIcon, Puzzle, Route, Type, Users, Wind, type LucideIcon } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { margaret } from "@/data/mockData";
@@ -8,6 +8,7 @@ import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 import { ActionCard, ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
+import { buildBrainCoachRetentionNudges, type BrainCoachRetentionNudge } from "@/lib/brainCoachRetentionNudges";
 
 const activityIcons: Record<string, LucideIcon> = {
   "brain.activities.triviaQuiz": Route,
@@ -98,6 +99,7 @@ const activityCompletionTypes: Record<string, string[]> = {
 type BrainCoachProgress = {
   summary?: {
     streakDays?: number;
+    lastPlayedAt?: string | null;
   };
   today?: {
     completedCount?: number;
@@ -127,7 +129,18 @@ type BrainCoachDailyPlan = {
     totalCount: number;
     allComplete: boolean;
   };
+  preferences?: {
+    trainingTime?: string | null;
+    sessionLengthMins?: number | null;
+  };
 };
+
+function retentionNudgeStyle(tone: BrainCoachRetentionNudge["tone"]) {
+  if (tone === "success") return { bg: "#ECFDF5", border: "#B7E7D1", icon: "#047857", text: "#064E3B" };
+  if (tone === "restart") return { bg: "#FFF7ED", border: "#FED7AA", icon: "#B45309", text: "#7C2D12" };
+  if (tone === "time") return { bg: "#EFF6FF", border: "#BFDBFE", icon: "#2563EB", text: "#1E3A8A" };
+  return { bg: "#F5F3FF", border: "#DDD6FE", icon: "#6D28D9", text: "#4C1D95" };
+}
 
 const ActivitiesScreen = () => {
   const { t } = useLanguage();
@@ -149,6 +162,14 @@ const ActivitiesScreen = () => {
   const completedTodayCount = brainCoachProgress?.today?.completedCount ?? 0;
   const todayActivityTypes = new Set(brainCoachProgress?.today?.activityTypes ?? []);
   const previousCompletedDays = Math.max(0, streak - (completedTodayCount > 0 ? 1 : 0));
+  const retentionNudges = buildBrainCoachRetentionNudges({
+    completedTodayCount,
+    planAllComplete: dailyPlan?.completion.allComplete,
+    planCompletedCount: dailyPlan?.completion.completedCount,
+    planTotalCount: dailyPlan?.completion.totalCount,
+    lastPlayedAt: brainCoachProgress?.summary?.lastPlayedAt ?? null,
+    preferredTrainingTime: dailyPlan?.preferences?.trainingTime ?? null,
+  });
 
   const activityLabels: Record<string, string> = {
     "brain.activities.triviaQuiz": t("activities.trivia"),
@@ -205,6 +226,33 @@ const ActivitiesScreen = () => {
         description="VYVA can suggest a light activity and keep encouragement available while the user chooses."
         className="mt-[18px]"
       />
+
+      {retentionNudges.length > 0 && (
+        <section className="mt-[18px] grid gap-2">
+          {retentionNudges.map((nudge) => {
+            const style = retentionNudgeStyle(nudge.tone);
+            return (
+              <div
+                key={nudge.id}
+                className="flex items-start gap-3 rounded-[22px] border p-4"
+                style={{ background: style.bg, borderColor: style.border }}
+              >
+                <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[14px] bg-white" style={{ color: style.icon }}>
+                  {nudge.id === "completed_today" ? <CheckCircle2 size={21} /> : <Bell size={20} />}
+                </span>
+                <span className="min-w-0">
+                  <span className="block font-body text-[16px] font-extrabold leading-tight [overflow-wrap:anywhere]" style={{ color: style.text }}>
+                    {nudge.title}
+                  </span>
+                  <span className="mt-1 block font-body text-[13px] font-semibold leading-snug [overflow-wrap:anywhere]" style={{ color: style.text }}>
+                    {nudge.body}
+                  </span>
+                </span>
+              </div>
+            );
+          })}
+        </section>
+      )}
 
       {dailyPlan && dailyPlan.activities.length > 0 && (
         <section
