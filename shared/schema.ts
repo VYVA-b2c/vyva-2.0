@@ -26,6 +26,7 @@ import {
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import type { TriageScanResult } from "./triageScans.js";
 
 
 // ============================================================
@@ -1034,6 +1035,8 @@ export const triageReports = pgTable("triage_reports", {
   watch_signs:       text("watch_signs").array().notNull().default([]),
   profile_considerations: text("profile_considerations").array().notNull().default([]),
   vitals_notes:      text("vitals_notes").array().notNull().default([]),
+  scan_results:      jsonb("scan_results").$type<TriageScanResult[]>().notNull().default(sql`'[]'::jsonb`),
+  scan_notes:        text("scan_notes").array().notNull().default([]),
   bpm:               integer("bpm"),
   respiratory_rate:  integer("respiratory_rate"),
   duration_seconds:  integer("duration_seconds"),

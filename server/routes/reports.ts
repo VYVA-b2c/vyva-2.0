@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { eq, and, desc, gte } from "drizzle-orm";
 import { db, pool } from "../db.js";
 import { caregiverAlerts, profiles, triageReports, vitalsReadings, medicationAdherence, userMedications } from "../../shared/schema.js";
+import type { TriageScanResult } from "../../shared/triageScans.js";
 import { z } from "zod";
 
 const DEMO_USER_ID = "demo-user";
@@ -39,6 +40,8 @@ async function ensureReportsPersistenceTables() {
           watch_signs text[] not null default '{}',
           profile_considerations text[] not null default '{}',
           vitals_notes text[] not null default '{}',
+          scan_results jsonb not null default '[]'::jsonb,
+          scan_notes text[] not null default '{}',
           bpm integer,
           respiratory_rate integer,
           duration_seconds integer,
@@ -58,6 +61,8 @@ async function ensureReportsPersistenceTables() {
           add column if not exists watch_signs text[] not null default '{}',
           add column if not exists profile_considerations text[] not null default '{}',
           add column if not exists vitals_notes text[] not null default '{}',
+          add column if not exists scan_results jsonb not null default '[]'::jsonb,
+          add column if not exists scan_notes text[] not null default '{}',
           add column if not exists bpm integer,
           add column if not exists respiratory_rate integer,
           add column if not exists duration_seconds integer,
@@ -110,6 +115,8 @@ async function saveTriageReport(params: {
   watch_signs?: string[];
   profile_considerations?: string[];
   vitals_notes?: string[];
+  scan_results?: TriageScanResult[];
+  scan_notes?: string[];
   bpm?: number | null;
   respiratory_rate?: number | null;
   duration_seconds?: number | null;
@@ -129,6 +136,8 @@ async function saveTriageReport(params: {
     watch_signs: params.watch_signs ?? [],
     profile_considerations: params.profile_considerations ?? [],
     vitals_notes: params.vitals_notes ?? [],
+    scan_results: params.scan_results ?? [],
+    scan_notes: params.scan_notes ?? [],
     bpm: params.bpm ?? null,
     respiratory_rate: params.respiratory_rate ?? null,
     duration_seconds: params.duration_seconds ?? null,
@@ -273,6 +282,20 @@ export async function loadReportsSummary(userId: string, loaders: ReportsSummary
 }
 
 // ─── POST /triage ─────────────────────────────────────────────────────────────
+const triageScanResultSchema = z.object({
+  id: z.string(),
+  type: z.enum(["vitals", "wound_photo", "urine_photo", "stool_photo"]),
+  label: z.string(),
+  concernLevel: z.enum(["normal", "watch", "urgent"]),
+  summary: z.string(),
+  findings: z.array(z.string()).default([]),
+  capturedAt: z.string(),
+  values: z.object({
+    pulseBpm: z.number().nullable().optional(),
+    respiratoryRate: z.number().nullable().optional(),
+  }).optional(),
+}).passthrough();
+
 const triageSchema = z.object({
   chief_complaint:   z.string(),
   symptoms:          z.array(z.string()).default([]),
@@ -286,6 +309,8 @@ const triageSchema = z.object({
   watch_signs:       z.array(z.string()).default([]),
   profile_considerations: z.array(z.string()).default([]),
   vitals_notes:      z.array(z.string()).default([]),
+  scan_results:      z.array(triageScanResultSchema).default([]),
+  scan_notes:        z.array(z.string()).default([]),
   bpm:               z.number().int().nullable().optional(),
   respiratory_rate:  z.number().int().nullable().optional(),
   duration_seconds:  z.number().int().nonnegative().nullable().optional(),
