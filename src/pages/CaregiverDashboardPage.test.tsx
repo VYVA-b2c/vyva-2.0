@@ -27,9 +27,11 @@ const baseCaregiverPayload = {
     acknowledged_at: null,
     acknowledged_by: null,
     contacted_at: null,
+    contacted_by: null,
     resolved_at: null,
     resolved_by: null,
     caregiver_note: null,
+    workflow_version: 1,
     created_at: "2026-05-29T10:01:00.000Z",
   }],
 };
@@ -66,8 +68,11 @@ function mockApi() {
     }
 
     if (path.includes("/workflow") && init?.method === "PATCH") {
-      const body = JSON.parse(String(init.body ?? "{}")) as { status: "new" | "reviewed" | "contacted" | "resolved"; caregiver_note?: string | null };
+      const body = JSON.parse(String(init.body ?? "{}")) as { status: "new" | "reviewed" | "contacted" | "resolved"; expected_workflow_version: number; caregiver_note?: string | null };
       const alert = caregiverState.alerts[0];
+      if (body.expected_workflow_version !== alert.workflow_version) {
+        return new Response(JSON.stringify({ error: "Caregiver alert workflow changed. Refresh and try again.", alert }), { status: 409, headers: { "Content-Type": "application/json" } });
+      }
       const updated = {
         ...alert,
         status: body.status,
@@ -78,9 +83,11 @@ function mockApi() {
           ? alert.acknowledged_by ?? "caregiver-1"
           : alert.acknowledged_by,
         contacted_at: body.status === "contacted" ? alert.contacted_at ?? "2026-05-29T10:03:00.000Z" : alert.contacted_at,
+        contacted_by: body.status === "contacted" ? alert.contacted_by ?? "caregiver-1" : alert.contacted_by,
         resolved_at: body.status === "resolved" ? alert.resolved_at ?? "2026-05-29T10:04:00.000Z" : alert.resolved_at,
         resolved_by: body.status === "resolved" ? alert.resolved_by ?? "caregiver-1" : alert.resolved_by,
         caregiver_note: Object.prototype.hasOwnProperty.call(body, "caregiver_note") ? body.caregiver_note ?? null : alert.caregiver_note,
+        workflow_version: alert.workflow_version + 1,
       };
       caregiverState.alerts[0] = updated;
       return new Response(JSON.stringify({ alert: updated }), { status: 200, headers: { "Content-Type": "application/json" } });
@@ -144,7 +151,7 @@ describe("CaregiverDashboardPage", () => {
       "/api/vitals-engine/caregiver/alerts/alert-1/workflow",
       expect.objectContaining({
         method: "PATCH",
-        body: JSON.stringify({ status: "reviewed" }),
+        body: JSON.stringify({ status: "reviewed", expected_workflow_version: 1 }),
       }),
     );
   });
@@ -199,7 +206,7 @@ describe("CaregiverDashboardPage", () => {
         "/api/vitals-engine/caregiver/alerts/alert-1/workflow",
         expect.objectContaining({
           method: "PATCH",
-          body: JSON.stringify({ status: "new", caregiver_note: "Called and left a voicemail." }),
+          body: JSON.stringify({ status: "new", expected_workflow_version: 1, caregiver_note: "Called and left a voicemail." }),
         }),
       );
     });
