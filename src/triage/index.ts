@@ -2,11 +2,13 @@ export {
   TRIAGE_PROTOCOLS,
   evaluateTriage,
   evaluateTriageRules,
-} from "../../src/triage/adapters/fromCurrentProtocol.js";
+} from "./engine/evaluateTriage.js";
 
 export type {
+  LocalizeTriageText,
   ProtocolProfileModifier,
   ProtocolRule,
+  RaiseTriageLevel,
   TriageProtocol,
   TriageRuleDecision,
   TriageRuleInput,
@@ -14,4 +16,4 @@ export type {
   TriageRuleRiskFlags,
   TriageUrgency,
   TriageVitals,
-} from "../../src/triage/adapters/fromCurrentProtocol.js";
+} from "./types.js";
