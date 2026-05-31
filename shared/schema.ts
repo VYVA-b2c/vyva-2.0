@@ -1241,6 +1241,22 @@ export const cognitiveDailyPlanEvents = pgTable("cognitive_daily_plan_events", {
   index("idx_cognitive_daily_plan_events_item").on(t.planItemId, t.createdAt.desc()),
 ]);
 
+export const cognitiveCaregiverSettings = pgTable("cognitive_caregiver_settings", {
+  id:                    uuid("id").primaryKey().defaultRandom(),
+  userId:                text("user_id").notNull().unique(),
+  preferredDomains:      text("preferred_domains").array().notNull().default([]),
+  excludedActivityTypes: text("excluded_activity_types").array().notNull().default([]),
+  preferredTrainingTimes: text("preferred_training_times").array().notNull().default([]),
+  weeklyTargetDays:      integer("weekly_target_days").notNull().default(3),
+  sessionLengthMinutes:  integer("session_length_minutes").notNull().default(7),
+  paused:                boolean("paused").notNull().default(false),
+  updatedBy:             text("updated_by"),
+  createdAt:             timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:             timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_cognitive_caregiver_settings_user").on(t.userId),
+]);
+
 export const insertCognitiveDailyPlanSchema = createInsertSchema(cognitiveDailyPlans).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertCognitiveDailyPlan = z.infer<typeof insertCognitiveDailyPlanSchema>;
 export type CognitiveDailyPlanRow = typeof cognitiveDailyPlans.$inferSelect;
@@ -1252,6 +1268,10 @@ export type CognitiveDailyPlanItemRow = typeof cognitiveDailyPlanItems.$inferSel
 export const insertCognitiveDailyPlanEventSchema = createInsertSchema(cognitiveDailyPlanEvents).omit({ id: true, createdAt: true });
 export type InsertCognitiveDailyPlanEvent = z.infer<typeof insertCognitiveDailyPlanEventSchema>;
 export type CognitiveDailyPlanEventRow = typeof cognitiveDailyPlanEvents.$inferSelect;
+
+export const insertCognitiveCaregiverSettingsSchema = createInsertSchema(cognitiveCaregiverSettings).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertCognitiveCaregiverSettings = z.infer<typeof insertCognitiveCaregiverSettingsSchema>;
+export type CognitiveCaregiverSettingsRow = typeof cognitiveCaregiverSettings.$inferSelect;
 
 
 // ============================================================
@@ -1809,6 +1829,10 @@ export const schema = {
   vyvaPatternWindows,
   userDeviceConnections,
   cognitiveSessionIndex,
+  cognitiveDailyPlans,
+  cognitiveDailyPlanItems,
+  cognitiveDailyPlanEvents,
+  cognitiveCaregiverSettings,
   organizations,
   tierEntitlements,
   userIntakes,
