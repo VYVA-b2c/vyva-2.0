@@ -19,6 +19,8 @@ export type BrainCoachVoiceState =
 export type BrainCoachVoiceContext = {
   state: BrainCoachVoiceState;
   plan: BrainCoachDailyPlan;
+  planId: string;
+  planComplete: boolean;
   summary: string;
   recentHistory: string;
   recommendedActivityPrompt: string;
@@ -28,10 +30,20 @@ export type BrainCoachVoiceContext = {
   completedYesterday: string;
   firstRecommendedActivityTitle: string;
   firstRecommendedActivityRoute: string;
+  firstRecommendedPlanItemId: string;
 };
 
 type CompletedSession = BrainCoachPlanSession & {
   playedAtDate: Date;
+};
+
+type VoiceContextPlan = BrainCoachDailyPlan & {
+  planId?: string;
+  status?: string;
+  activities: Array<BrainCoachDailyPlan["activities"][number] & {
+    planItemId?: string;
+    status?: string;
+  }>;
 };
 
 const ACTIVITY_TITLES = new Map(
@@ -151,7 +163,10 @@ function streakAwareness(streakDays: number) {
   return "No active Brain Coach streak. Focus on one clear completion today.";
 }
 
-function recommendedActivityPrompt(plan: BrainCoachDailyPlan) {
+function recommendedActivityPrompt(plan: VoiceContextPlan) {
+  if (plan.completion.allComplete || plan.status === "completed") {
+    return "Today's Brain Coach plan is already complete. Congratulate the user briefly and do not recommend another Brain Coach activity unless they explicitly ask for more.";
+  }
   const first = plan.activities[0];
   if (!first) {
     return "Offer one short Brain Coach activity when the user is ready.";
@@ -161,10 +176,13 @@ function recommendedActivityPrompt(plan: BrainCoachDailyPlan) {
     `Recommended voice opening: "Would you like to try ${first.title} for about ${first.estimatedDurationMinutes} minutes?"`,
     `Reason to say aloud if useful: ${first.rationale}.`,
     `If the user accepts, open ${first.route} with the app action tool using domain brain_coach.`,
-  ].join(" ");
+    plan.planId && first.planItemId
+      ? `Include payload plan_id=${plan.planId}, plan_item_id=${first.planItemId}, activity_type=${first.activityType}.`
+      : "",
+  ].filter(Boolean).join(" ");
 }
 
-function planPrompt(plan: BrainCoachDailyPlan) {
+function planPrompt(plan: VoiceContextPlan) {
   if (plan.activities.length === 0) return "No Brain Coach plan activities are available today.";
   const activities = plan.activities
     .map((activity) => `${activity.title} (${domainLabel(activity.domain)}, ${activity.estimatedDurationMinutes} min)`)
@@ -181,12 +199,13 @@ function planPrompt(plan: BrainCoachDailyPlan) {
 export function buildBrainCoachVoiceContext(input: {
   sessions?: BrainCoachPlanSession[];
   preferences?: BrainCoachPlanPreferences | null;
+  plan?: VoiceContextPlan | null;
   now?: Date;
   streakDays?: number;
 }): BrainCoachVoiceContext {
   const sessions = input.sessions ?? [];
   const now = input.now ?? new Date();
-  const plan = buildBrainCoachDailyPlan({
+  const plan = input.plan ?? buildBrainCoachDailyPlan({
     sessions,
     preferences: input.preferences,
     now,
@@ -194,17 +213,22 @@ export function buildBrainCoachVoiceContext(input: {
   });
   const completed = completedSessions(sessions);
   const streakDays = input.streakDays ?? calculatePlanStreakDays(sessions, now);
-  const state = latestCompletedState(completed, now);
+  const planComplete = plan.completion.allComplete || plan.status === "completed";
+  const state = planComplete ? "completed_today" : latestCompletedState(completed, now);
   const recentHistory = formatRecentHistory(completed, now);
   const first = plan.activities[0];
   const completedYesterday = completedYesterdayLine(completed, now);
-  const missed = missedSessionAwareness(state, completed, now);
+  const missed = planComplete
+    ? "Brain Coach plan is complete today. Congratulate the user and offer to stop or do something else."
+    : missedSessionAwareness(state, completed, now);
   const streak = streakAwareness(streakDays);
   const planLine = planPrompt(plan);
 
   return {
     state,
     plan,
+    planId: plan.planId ?? "",
+    planComplete,
     summary: [
       recentHistory,
       completedYesterday,
@@ -220,5 +244,6 @@ export function buildBrainCoachVoiceContext(input: {
     completedYesterday,
     firstRecommendedActivityTitle: first?.title ?? "",
     firstRecommendedActivityRoute: first?.route ?? "",
+    firstRecommendedPlanItemId: first?.planItemId ?? "",
   };
 }

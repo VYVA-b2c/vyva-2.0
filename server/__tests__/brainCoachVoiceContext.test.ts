@@ -77,4 +77,77 @@ describe("Brain Coach voice context", () => {
     expect(context.streakAwareness).toContain("3 days");
     expect(context.summary).toContain("Completed activities in the last 30 days: 3");
   });
+
+  it("includes persisted plan and item IDs in the recommended voice prompt", () => {
+    const context = buildBrainCoachVoiceContext({
+      sessions: [],
+      now: NOW,
+      plan: {
+        planId: "00000000-0000-4000-8000-000000000001",
+        status: "active",
+        planDate: "2026-05-31",
+        generatedAt: NOW.toISOString(),
+        estimatedDurationMinutes: 4,
+        recommendedDomains: ["attention"],
+        rationale: ["Starts with a short plan."],
+        activities: [{
+          planItemId: "00000000-0000-4000-8000-000000000010",
+          activityType: "sequence_memory",
+          title: "Rhythm Tap",
+          domain: "attention",
+          route: "/attention-boosters/rhythm-tap",
+          estimatedDurationMinutes: 4,
+          rationale: "new area for variety",
+          completedToday: false,
+        }],
+        completion: {
+          completedCount: 0,
+          totalCount: 1,
+          allComplete: false,
+          completedActivityTypes: [],
+        },
+      },
+    });
+
+    expect(context.planId).toBe("00000000-0000-4000-8000-000000000001");
+    expect(context.firstRecommendedPlanItemId).toBe("00000000-0000-4000-8000-000000000010");
+    expect(context.recommendedActivityPrompt).toContain("plan_id=00000000-0000-4000-8000-000000000001");
+    expect(context.recommendedActivityPrompt).toContain("plan_item_id=00000000-0000-4000-8000-000000000010");
+  });
+
+  it("does not recommend another activity after today's persisted plan is complete", () => {
+    const context = buildBrainCoachVoiceContext({
+      sessions: [session({ activityType: "sequence_memory", domain: "attention", playedAt: "2026-05-31T09:00:00.000Z" })],
+      now: NOW,
+      plan: {
+        planId: "00000000-0000-4000-8000-000000000001",
+        status: "completed",
+        planDate: "2026-05-31",
+        generatedAt: NOW.toISOString(),
+        estimatedDurationMinutes: 4,
+        recommendedDomains: ["attention"],
+        rationale: ["Starts with a short plan."],
+        activities: [{
+          planItemId: "00000000-0000-4000-8000-000000000010",
+          activityType: "sequence_memory",
+          title: "Rhythm Tap",
+          domain: "attention",
+          route: "/attention-boosters/rhythm-tap",
+          estimatedDurationMinutes: 4,
+          rationale: "new area for variety",
+          completedToday: true,
+        }],
+        completion: {
+          completedCount: 1,
+          totalCount: 1,
+          allComplete: true,
+          completedActivityTypes: ["sequence_memory"],
+        },
+      },
+    });
+
+    expect(context.planComplete).toBe(true);
+    expect(context.missedSessionAwareness).toContain("plan is complete today");
+    expect(context.recommendedActivityPrompt).toContain("do not recommend another Brain Coach activity");
+  });
 });
