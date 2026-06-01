@@ -3,6 +3,7 @@ import {
   brainCoachPermissionsFromCareTeamConsent,
   effectiveBrainCoachPermissions,
   hasBrainCoachPermission,
+  isBrainCoachSelfAccess,
   normalizeBrainCoachPermissions,
   withBrainCoachPermissions,
 } from "../lib/brainCoachCaregiverAccess.js";
@@ -66,6 +67,49 @@ describe("Brain Coach caregiver access", () => {
       view_summary: true,
       manage_schedule: true,
     });
+  });
+
+  it("preserves legacy summary access when adding the first explicit Brain Coach permission", () => {
+    const next = withBrainCoachPermissions(
+      { medication: { view: true } },
+      { manage_plan_preferences: true },
+      brainCoachPermissionsFromCareTeamConsent({
+        can_view_dashboard: true,
+        can_view_journal_summaries: true,
+      }),
+    ) as Record<string, unknown>;
+
+    expect(next.medication).toEqual({ view: true });
+    expect(next.brain_coach).toMatchObject({
+      view_summary: true,
+      manage_plan_preferences: true,
+      manage_schedule: false,
+      send_nudges: false,
+      preview_plan: false,
+    });
+  });
+
+  it("treats only the senior as self-managing the Brain Coach profile", () => {
+    expect(isBrainCoachSelfAccess({
+      actorUserId: "senior-1",
+      targetUserId: "senior-1",
+      activeProfileId: "senior-1",
+      activeProfileRole: null,
+    })).toBe(true);
+
+    expect(isBrainCoachSelfAccess({
+      actorUserId: "caregiver-1",
+      targetUserId: "senior-1",
+      activeProfileId: "senior-1",
+      activeProfileRole: "caregiver",
+    })).toBe(false);
+
+    expect(isBrainCoachSelfAccess({
+      actorUserId: "caregiver-1",
+      targetUserId: "senior-1",
+      activeProfileId: "senior-1",
+      activeProfileRole: "elder",
+    })).toBe(true);
   });
 
   it("checks exact permission names", () => {

@@ -89,12 +89,17 @@ export function effectiveBrainCoachPermissions(input: {
 export function withBrainCoachPermissions(
   existingPermissions: unknown,
   brainCoachPermissions: Partial<BrainCoachCaregiverPermissions>,
+  basePermissions?: Partial<BrainCoachCaregiverPermissions>,
 ) {
   const root = asRecord(existingPermissions);
+  const hasExplicitBrainCoachPermissions = "brain_coach" in root;
+  const currentPermissions = hasExplicitBrainCoachPermissions
+    ? normalizeBrainCoachPermissions(root.brain_coach)
+    : normalizeBrainCoachPermissions(basePermissions);
   return {
     ...root,
     brain_coach: {
-      ...normalizeBrainCoachPermissions(root.brain_coach),
+      ...currentPermissions,
       ...brainCoachPermissions,
     },
   };
@@ -107,6 +112,16 @@ export function hasBrainCoachPermission(
   return permissions[permission] === true;
 }
 
+export function isBrainCoachSelfAccess(input: {
+  actorUserId: string;
+  targetUserId: string;
+  activeProfileId?: string | null;
+  activeProfileRole?: string | null;
+}) {
+  return input.targetUserId === input.actorUserId ||
+    (input.activeProfileId === input.targetUserId && input.activeProfileRole === "elder");
+}
+
 export async function resolveBrainCoachAccess(input: {
   actorUserId: string;
   targetUserId: string;
@@ -115,7 +130,12 @@ export async function resolveBrainCoachAccess(input: {
   actorRequestRole?: string | null;
 }): Promise<BrainCoachAccessContext | null> {
   const activeContext = await getActiveProfileContext(input.actorUserId);
-  const isOwnProfile = input.targetUserId === input.actorUserId || activeContext.profileId === input.targetUserId;
+  const isOwnProfile = isBrainCoachSelfAccess({
+    actorUserId: input.actorUserId,
+    targetUserId: input.targetUserId,
+    activeProfileId: activeContext.profileId,
+    activeProfileRole: activeContext.role,
+  });
 
   const [[actorProfile], [membership], [invitation]] = await Promise.all([
     db
