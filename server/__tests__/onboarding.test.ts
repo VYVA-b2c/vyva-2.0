@@ -233,6 +233,8 @@ describe("Onboarding journey — end-to-end", () => {
         gp_phone: "020 7946 0958",
         gp_email: "gp@example.com",
         gp_address: "1 Health Centre, London",
+        gp_maps_url: "",
+        gp_place_id: "",
       })
       .expect(200);
 
@@ -243,6 +245,7 @@ describe("Onboarding journey — end-to-end", () => {
         gp_name: profiles.gp_name,
         gp_phone: profiles.gp_phone,
         gp_email: profiles.gp_email,
+        gp_address: profiles.gp_address,
       })
       .from(profiles)
       .where(eq(profiles.id, TEST_USER_ID))
@@ -252,7 +255,59 @@ describe("Onboarding journey — end-to-end", () => {
       gp_name: "Dr. Jane Smith",
       gp_phone: "020 7946 0958",
       gp_email: "gp@example.com",
+      gp_address: "1 Health Centre, London",
     });
+
+    const [state] = await db
+      .select({ has_gp_details: onboardingState.has_gp_details })
+      .from(onboardingState)
+      .where(eq(onboardingState.user_id, TEST_USER_ID))
+      .limit(1);
+
+    expect(state?.has_gp_details).toBe(true);
+  });
+
+  it("POST /section/gp clears GP details without leaving the section complete", async () => {
+    const res = await request(app)
+      .post("/api/onboarding/section/gp")
+      .set("x-user-id", TEST_USER_ID)
+      .send({
+        gp_name: "",
+        gp_phone: "",
+        gp_email: "",
+        gp_address: "",
+        gp_maps_url: "",
+        gp_place_id: "",
+      })
+      .expect(200);
+
+    expect(res.body).toMatchObject({ ok: true, section: "gp" });
+
+    const [profile] = await db
+      .select({
+        gp_name: profiles.gp_name,
+        gp_phone: profiles.gp_phone,
+        gp_email: profiles.gp_email,
+        gp_address: profiles.gp_address,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, TEST_USER_ID))
+      .limit(1);
+
+    expect(profile).toMatchObject({
+      gp_name: null,
+      gp_phone: null,
+      gp_email: null,
+      gp_address: null,
+    });
+
+    const [state] = await db
+      .select({ has_gp_details: onboardingState.has_gp_details })
+      .from(onboardingState)
+      .where(eq(onboardingState.user_id, TEST_USER_ID))
+      .limit(1);
+
+    expect(state?.has_gp_details).toBe(false);
   });
 
   it("POST /section/hobbies saves hobbies", async () => {
