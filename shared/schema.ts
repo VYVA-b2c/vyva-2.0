@@ -1257,6 +1257,21 @@ export const cognitiveCaregiverSettings = pgTable("cognitive_caregiver_settings"
   index("idx_cognitive_caregiver_settings_user").on(t.userId),
 ]);
 
+export const cognitiveCaregiverNudges = pgTable("cognitive_caregiver_nudges", {
+  id:              uuid("id").primaryKey().defaultRandom(),
+  userId:          text("user_id").notNull(),
+  caregiverUserId: text("caregiver_user_id").notNull(),
+  messageType:     text("message_type").notNull().default("general"),
+  message:         text("message").notNull(),
+  status:          text("status").notNull().default("unread"),
+  metadata:        jsonb("metadata").notNull().default({}),
+  readAt:          timestamp("read_at", { withTimezone: true }),
+  createdAt:       timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_cognitive_caregiver_nudges_user_status").on(t.userId, t.status, t.createdAt.desc()),
+  index("idx_cognitive_caregiver_nudges_caregiver").on(t.caregiverUserId, t.createdAt.desc()),
+]);
+
 export const insertCognitiveDailyPlanSchema = createInsertSchema(cognitiveDailyPlans).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertCognitiveDailyPlan = z.infer<typeof insertCognitiveDailyPlanSchema>;
 export type CognitiveDailyPlanRow = typeof cognitiveDailyPlans.$inferSelect;
@@ -1272,6 +1287,10 @@ export type CognitiveDailyPlanEventRow = typeof cognitiveDailyPlanEvents.$inferS
 export const insertCognitiveCaregiverSettingsSchema = createInsertSchema(cognitiveCaregiverSettings).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertCognitiveCaregiverSettings = z.infer<typeof insertCognitiveCaregiverSettingsSchema>;
 export type CognitiveCaregiverSettingsRow = typeof cognitiveCaregiverSettings.$inferSelect;
+
+export const insertCognitiveCaregiverNudgeSchema = createInsertSchema(cognitiveCaregiverNudges).omit({ id: true, createdAt: true });
+export type InsertCognitiveCaregiverNudge = z.infer<typeof insertCognitiveCaregiverNudgeSchema>;
+export type CognitiveCaregiverNudgeRow = typeof cognitiveCaregiverNudges.$inferSelect;
 
 
 // ============================================================
@@ -1833,6 +1852,7 @@ export const schema = {
   cognitiveDailyPlanItems,
   cognitiveDailyPlanEvents,
   cognitiveCaregiverSettings,
+  cognitiveCaregiverNudges,
   organizations,
   tierEntitlements,
   userIntakes,

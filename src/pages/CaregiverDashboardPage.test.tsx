@@ -131,6 +131,17 @@ const brainCoachPreviewPayload = {
   },
 };
 
+const brainCoachSchedulePayload = {
+  id: "schedule-1",
+  daysOfWeek: ["MON", "WED", "FRI"],
+  timesOfDay: ["11:00"],
+  timezone: "Europe/Madrid",
+  status: "ACTIVE",
+  paused: false,
+  nextRunAt: "2026-06-01T09:00:00.000Z",
+  updatedAt: "2026-05-29T09:00:00.000Z",
+};
+
 function mockApi(options: { brainCoachPermissions?: typeof fullBrainCoachPermissions } = {}) {
   const brainCoachPermissions = options.brainCoachPermissions ?? fullBrainCoachPermissions;
 
@@ -147,6 +158,23 @@ function mockApi(options: { brainCoachPermissions?: typeof fullBrainCoachPermiss
     }
     if (path.includes("/api/caregiver/brain-coach/me/plan-preview")) {
       return new Response(JSON.stringify({ ...brainCoachPreviewPayload, permissions: brainCoachPermissions }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (path.includes("/api/caregiver/brain-coach/me/schedule")) {
+      const schedule = init?.method === "PATCH" && typeof init.body === "string"
+        ? { ...brainCoachSchedulePayload, ...JSON.parse(init.body), updatedAt: "2026-05-30T09:00:00.000Z" }
+        : brainCoachSchedulePayload;
+      return new Response(JSON.stringify({ schedule, permissions: brainCoachPermissions }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (path.includes("/api/caregiver/brain-coach/me/nudges")) {
+      return new Response(JSON.stringify({
+        nudge: {
+          id: "nudge-1",
+          messageType: "general",
+          message: "A gentle Brain Coach reminder is available in the app.",
+          status: "unread",
+        },
+        permissions: brainCoachPermissions,
+      }), { status: 201, headers: { "Content-Type": "application/json" } });
     }
 
     const payload = path.includes("/api/checkins/today")
@@ -261,6 +289,8 @@ describe("CaregiverDashboardPage", () => {
     expect(screen.getAllByText("Memory Match").length).toBeGreaterThan(0);
     expect(screen.getByText("Control enabled")).toBeInTheDocument();
     expect(screen.getByText("Preview enabled")).toBeInTheDocument();
+    expect(screen.getByText("Schedule enabled")).toBeInTheDocument();
+    expect(screen.getByText("Nudges enabled")).toBeInTheDocument();
   });
 
   it("saves caregiver Brain Coach plan preferences when consent allows editing", async () => {
@@ -301,6 +331,8 @@ describe("CaregiverDashboardPage", () => {
     expect(screen.getAllByText("Needs senior consent").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Save preferences" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Preview next plan" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save schedule" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Send nudge" })).toBeDisabled();
   });
 
   it("shows a non-persisted Brain Coach plan preview", async () => {
@@ -320,5 +352,52 @@ describe("CaregiverDashboardPage", () => {
 
     expect(screen.getAllByText("Rhythm Tap").length).toBeGreaterThan(0);
     expect(screen.getByText("matches caregiver-approved focus domains")).toBeInTheDocument();
+  });
+
+  it("saves caregiver Brain Coach schedule changes when consent allows schedule management", async () => {
+    mockApi();
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText("Call rhythm")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Tue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save schedule" }));
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith(
+        "/api/caregiver/brain-coach/me/schedule",
+        expect.objectContaining({ method: "PATCH" }),
+      );
+    });
+
+    const saveCall = vi.mocked(apiFetch).mock.calls.find(([path, init]) => (
+      String(path).includes("/api/caregiver/brain-coach/me/schedule") &&
+      (init as RequestInit | undefined)?.method === "PATCH"
+    ));
+    expect(JSON.parse((saveCall?.[1] as RequestInit).body as string).daysOfWeek).toContain("TUE");
+  });
+
+  it("sends an in-app Brain Coach nudge when consent allows nudges", async () => {
+    mockApi();
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText("In-app nudge")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Send nudge" }));
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith(
+        "/api/caregiver/brain-coach/me/nudges",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+
+    expect(screen.getByText("Nudge saved for the senior in-app.")).toBeInTheDocument();
   });
 });
