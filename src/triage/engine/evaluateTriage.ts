@@ -1,5 +1,6 @@
 import { evaluateProfileModifiers } from "./evaluateProfileModifiers.js";
 import { evaluateVitalsOverlay } from "./evaluateVitalsOverlay.js";
+import { mergeTriageRecommendations } from "./recommendationDedupe.js";
 import type {
   ProtocolProfileModifier,
   ProtocolRule,
@@ -749,7 +750,7 @@ export function evaluateTriage(input: TriageRuleInput): TriageRuleDecision {
   });
 
   const defaultRecommendations = recommendationsFor(locale, symptomId, level);
-  const uniqueRecommendations = [...new Set([...recommendations, ...defaultRecommendations])];
+  const uniqueRecommendations = mergeTriageRecommendations(recommendations, defaultRecommendations);
   const selectedAnswerReason = selectedAnswerReasonFor(locale, symptomId, ids);
   const finalReasons = [...new Set([
     ...(selectedAnswerReason ? [selectedAnswerReason] : []),

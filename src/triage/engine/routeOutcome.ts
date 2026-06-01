@@ -1,5 +1,6 @@
 import type { TriageScanResult } from "../../../shared/triageScans.js";
 import { evaluateTriageRules } from "./evaluateTriage.js";
+import { mergeTriageRecommendations } from "./recommendationDedupe.js";
 import type {
   TriageEscalationSource,
   ProfileRiskFlags,
@@ -745,11 +746,10 @@ export function evaluateTriageSafetyFloor(
       ...(summary.scanNotes ?? []),
       ...scanNotes,
     ]).slice(0, 4),
-    recommendations: [
-      urgentScanRecommendation,
-      ...ruleDecision.recommendations,
-      ...(summary.recommendations ?? []),
-    ].filter(Boolean).filter((item, index, items) => items.findIndex((candidate) => candidate.toLowerCase() === item.toLowerCase()) === index).slice(0, 5),
+    recommendations: mergeTriageRecommendations(
+      [urgentScanRecommendation, ...ruleDecision.recommendations],
+      summary.recommendations ?? [],
+    ),
   };
   const scanNextStep = urgentScans.length && nextStepRank(ruleDecision.level) < nextStepRank("doctor_today")
     ? {
