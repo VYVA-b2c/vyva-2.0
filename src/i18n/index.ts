@@ -19,6 +19,7 @@ import customPt from "./pt";
 
 type TranslationValue = string | number | boolean | null | undefined | TranslationTree;
 type TranslationTree = { [key: string]: TranslationValue };
+type TranslationParams = Record<string, string | number | boolean | null | undefined>;
 
 type DictionaryMap = Record<LanguageCode, TranslationTree>;
 
@@ -185,6 +186,20 @@ function getValueFromPath(source: TranslationTree, path: string): TranslationVal
   }, source);
 }
 
+function interpolate(text: string, params?: TranslationParams): string {
+  if (!params) return text;
+
+  return text
+    .replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (match, key: string) => {
+      const value = params[key];
+      return value == null ? match : String(value);
+    })
+    .replace(/\{([a-zA-Z0-9_]+)\}/g, (match, key: string) => {
+      const value = params[key];
+      return value == null ? match : String(value);
+    });
+}
+
 function notifyLanguageChange() {
   listeners.forEach((listener) => listener());
 }
@@ -263,7 +278,7 @@ export function getLanguageSnapshot(): LanguageSnapshot {
 }
 
 export function getTranslator(language: LanguageCode) {
-  return (path: string, fallback?: string) => translate(language, path, fallback);
+  return (path: string, fallback?: string, params?: TranslationParams) => translate(language, path, fallback, params);
 }
 
 export function setLanguage(language: string): LanguageCode {
@@ -314,18 +329,18 @@ export function syncProfileLanguage(language: string | null | undefined, profile
   return applyLanguage(normalized, "profile", true, { profileId: nextProfileId });
 }
 
-export function translate(language: LanguageCode, path: string, fallback?: string): string {
+export function translate(language: LanguageCode, path: string, fallback?: string, params?: TranslationParams): string {
   const localized = getValueFromPath(dictionaries[language], path);
-  if (typeof localized === "string") return localized;
+  if (typeof localized === "string") return interpolate(localized, params);
 
   const spanish = getValueFromPath(dictionaries.es, path);
-  if (typeof spanish === "string") return spanish;
+  if (typeof spanish === "string") return interpolate(spanish, params);
 
-  return fallback ?? path;
+  return interpolate(fallback ?? path, params);
 }
 
-export function t(path: string, fallback?: string): string {
-  return translate(currentLanguage, path, fallback);
+export function t(path: string, fallback?: string, params?: TranslationParams): string {
+  return translate(currentLanguage, path, fallback, params);
 }
 
 function subscribe(listener: () => void) {
@@ -340,7 +355,7 @@ export function useLanguage() {
     () => serverLanguageSnapshot,
   );
   const language = snapshot.language;
-  const translator = useCallback((path: string, fallback?: string) => translate(language, path, fallback), [language]);
+  const translator = useCallback((path: string, fallback?: string, params?: TranslationParams) => translate(language, path, fallback, params), [language]);
 
   return {
     language,

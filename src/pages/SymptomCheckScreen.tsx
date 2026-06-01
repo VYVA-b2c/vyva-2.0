@@ -46,7 +46,7 @@ interface TriageSummary {
   };
 }
 
-type RefinementVitalKey = "glucose" | "bloodPressure" | "oxygen" | "respiratoryRate" | "temperature" | "pulse";
+type RefinementVitalKey = "glucose" | "bloodPressure" | "oxygen" | "respiratoryRate" | "temperature" | "pulse" | "pain" | "energy";
 
 type RefinementVitalConfig = {
   key: RefinementVitalKey;
@@ -710,7 +710,7 @@ function ReportScreen({
           unit: "%",
           placeholder: "96",
           helper: t("health.symptomCheck.report.checkOxygenReason", "Add your oxygen reading if you have a pulse oximeter."),
-          signalType: "spo2_pct",
+          signalType: "oxygen_saturation",
           parse: (raw) => {
             const value = parseNumber(raw);
             return value == null ? null : { value, display: `${value}%`, vitals: { oxygenSaturation: value } };
@@ -756,6 +756,34 @@ function ReportScreen({
           parse: (raw) => {
             const value = parseNumber(raw);
             return value == null ? null : { value, display: `${value} bpm`, vitals: { pulseBpm: value } };
+          },
+        }
+      : null,
+    /\b(pain|ache|headache|back|belly pain|stomach pain|fall|injury|dolor|cabeza|espalda|barriga|caida|golpe)\b/.test(actionText)
+      ? {
+          key: "pain",
+          title: t("health.symptomCheck.report.checkPainNow", "Rate pain now"),
+          unit: "/10",
+          placeholder: "6",
+          helper: t("health.symptomCheck.report.checkPainReason", "Use 0 for no pain and 10 for the worst pain."),
+          signalType: "pain_score",
+          parse: (raw) => {
+            const value = parseNumber(raw);
+            return value == null ? null : { value, display: `${value}/10`, vitals: { painScore: value } };
+          },
+        }
+      : null,
+    /\b(tired|weak|fatigue|energy|exhausted|dizzy|confused|cansado|debil|energia|agotado|mareo|confusion)\b/.test(actionText)
+      ? {
+          key: "energy",
+          title: t("health.symptomCheck.report.checkEnergyNow", "Rate energy now"),
+          unit: "/10",
+          placeholder: "4",
+          helper: t("health.symptomCheck.report.checkEnergyReason", "Use 1 for very low energy and 10 for normal/high energy."),
+          signalType: "energy_level",
+          parse: (raw) => {
+            const value = parseNumber(raw);
+            return value == null ? null : { value, display: `${value}/10`, vitals: { energyLevel: value } };
           },
         }
       : null,
@@ -1785,7 +1813,7 @@ export default function SymptomCheckScreen() {
           body: JSON.stringify({
             signal_type: reading.signal_type,
             value: reading.value,
-            source: "manual",
+            source: "manual_entry",
             context_tag: "general",
           }),
         });

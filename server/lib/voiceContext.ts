@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gte, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { db } from "../db.js";
 import {
   activityLogs,
@@ -20,6 +20,7 @@ import {
   cognitiveDailyPlans,
   cognitiveDailyPlanItems,
 } from "../../shared/schema.js";
+import { vitalsEvidenceFor } from "../../shared/vitalsEvidence.js";
 import { formatMemoryBlock, searchMemories } from "./mem0.js";
 import { extractBrainCoachPreferences } from "./brainCoachPlan.js";
 import { buildBrainCoachVoiceContext, type BrainCoachVoiceContext } from "./brainCoachVoiceContext.js";
@@ -67,7 +68,26 @@ type BuildVoiceContextOptions = {
   priorVoiceExchangeCount?: number;
 };
 
+type SignalReadingRow = {
+  signal_type: string;
+  value: string | number;
+  recorded_at: Date | string;
+  source: string;
+  context_tag: string | null;
+};
+
 type JsonRecord = Record<string, unknown>;
+
+function queryRows<T>(result: unknown): T[] {
+  if (result && typeof result === "object" && "rows" in result && Array.isArray((result as { rows: unknown }).rows)) {
+    return (result as { rows: T[] }).rows;
+  }
+  return Array.isArray(result) ? result as T[] : [];
+}
+
+function looksLikeUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
 
 function asRecord(value: unknown): JsonRecord {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -153,6 +173,77 @@ function formatVital(vital: typeof vitalsReadings.$inferSelect) {
   return valueList([vital.metric_type ?? "vital", value], ": ");
 }
 
+function signalLabel(signal: string | null | undefined) {
+  switch (signal) {
+    case "resting_hr_bpm":
+      return "pulse";
+    case "respiratory_rate":
+      return "breathing rate";
+    case "oxygen_saturation":
+      return "oxygen saturation";
+    case "temperature_c":
+      return "temperature";
+    case "bp_systolic":
+      return "blood pressure top number";
+    case "bp_diastolic":
+      return "blood pressure bottom number";
+    case "glucose_mgdl":
+      return "glucose";
+    case "pain_score":
+      return "pain score";
+    case "energy_level":
+      return "energy level";
+    case "mood_score":
+      return "mood score";
+    case "sleep_quality_score":
+      return "sleep quality";
+    case "medication_confirmed":
+      return "medication confirmed";
+    default:
+      return signal?.replace(/_/g, " ") || "vital";
+  }
+}
+
+function signalUnit(signal: string | null | undefined) {
+  switch (signal) {
+    case "resting_hr_bpm":
+      return "bpm";
+    case "respiratory_rate":
+      return "breaths/min";
+    case "oxygen_saturation":
+      return "%";
+    case "temperature_c":
+      return "C";
+    case "bp_systolic":
+    case "bp_diastolic":
+      return "mmHg";
+    case "glucose_mgdl":
+      return "mg/dL";
+    case "pain_score":
+    case "energy_level":
+    case "mood_score":
+    case "sleep_quality_score":
+      return "/10";
+    default:
+      return "";
+  }
+}
+
+function signalSourceLabel(source: string | null | undefined, signalType?: string | null) {
+  return vitalsEvidenceFor(source, signalType).contextLabel;
+}
+
+function formatSignalReading(reading: SignalReadingRow) {
+  const unit = signalUnit(reading.signal_type);
+  const value = `${reading.value}${unit ? ` ${unit}` : ""}`;
+  return valueList([
+    signalLabel(reading.signal_type),
+    value,
+    signalSourceLabel(reading.source, reading.signal_type),
+    reading.recorded_at ? `recorded ${formatDateTime(reading.recorded_at)}` : null,
+  ], ": ");
+}
+
 function dateKeyFor(value: Date | string) {
   return new Date(value).toISOString().slice(0, 10);
 }
@@ -162,6 +253,19 @@ function daysAgo(days: number) {
   date.setUTCHours(0, 0, 0, 0);
   date.setUTCDate(date.getUTCDate() - days);
   return date;
+}
+
+async function getLatestSignalReadings(userId: string): Promise<SignalReadingRow[]> {
+  if (!looksLikeUuid(userId)) return [];
+  const result = await db.execute(sql`
+    SELECT signal_type, value, recorded_at, source, context_tag
+    FROM vyva_signal_readings
+    WHERE user_id = ${userId}
+      AND recorded_at >= ${daysAgo(29)}
+    ORDER BY recorded_at DESC
+    LIMIT 30
+  `);
+  return queryRows<SignalReadingRow>(result);
 }
 
 function formatDateTime(value: Date | string | null | undefined) {
@@ -247,6 +351,17 @@ function latestVitalsScan(readings: Array<typeof vitalsReadings.$inferSelect>) {
   ]);
 }
 
+function latestSignalSummary(readings: SignalReadingRow[]) {
+  if (readings.length === 0) return "";
+  return valueList([
+    readings[0]?.recorded_at ? `recorded ${formatDateTime(readings[0].recorded_at)}` : "",
+    ...readings.slice(0, 6).map((reading) => {
+      const unit = signalUnit(reading.signal_type);
+      return `${signalLabel(reading.signal_type)} ${reading.value}${unit ? ` ${unit}` : ""} (${signalSourceLabel(reading.source, reading.signal_type)})`;
+    }),
+  ]);
+}
+
 function vitalsTrendSummary(readings: Array<typeof vitalsReadings.$inferSelect>) {
   const entriesByMetric = new Map<string, Array<{ value: string; recordedAt: Date }>>();
   for (const entry of readings.flatMap(vitalMetricEntries)) {
@@ -259,6 +374,27 @@ function vitalsTrendSummary(readings: Array<typeof vitalsReadings.$inferSelect>)
     const sorted = [...entries].sort((a, b) => b.recordedAt.getTime() - a.recordedAt.getTime()).slice(0, 7);
     const values = sorted.map((entry) => `${dateKeyFor(entry.recordedAt)} ${entry.value}`);
     return `${metricLabel(metric)} recent values: ${values.join(" | ")}`;
+  });
+  return compactLines(lines, 1200);
+}
+
+function signalTrendSummary(readings: SignalReadingRow[]) {
+  const entriesBySignal = new Map<string, Array<SignalReadingRow>>();
+  for (const reading of readings) {
+    const bucket = entriesBySignal.get(reading.signal_type) ?? [];
+    bucket.push(reading);
+    entriesBySignal.set(reading.signal_type, bucket);
+  }
+
+  const lines = Array.from(entriesBySignal.entries()).map(([signal, entries]) => {
+    const sorted = [...entries]
+      .sort((a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime())
+      .slice(0, 7);
+    const values = sorted.map((entry) => {
+      const unit = signalUnit(entry.signal_type);
+      return `${dateKeyFor(entry.recorded_at)} ${entry.value}${unit ? ` ${unit}` : ""}`;
+    });
+    return `${signalLabel(signal)} recent values: ${values.join(" | ")}`;
   });
   return compactLines(lines, 1200);
 }
@@ -1038,6 +1174,7 @@ export async function buildVoiceContext(
     socialInterestRows,
     latestReports,
     latestVitals,
+    latestSignalReadings,
     medicationAdherenceRows,
     scheduledEventRows,
     userRows,
@@ -1056,6 +1193,10 @@ export async function buildVoiceContext(
     db.select().from(socialUserInterests).where(eq(socialUserInterests.user_id, userId)).limit(1),
     db.select().from(triageReports).where(eq(triageReports.user_id, userId)).orderBy(desc(triageReports.created_at)).limit(5),
     db.select().from(vitalsReadings).where(eq(vitalsReadings.user_id, userId)).orderBy(desc(vitalsReadings.recorded_at)).limit(12),
+    getLatestSignalReadings(userId).catch((err) => {
+      console.warn("[voiceContext] signal readings unavailable", err);
+      return [];
+    }),
     db
       .select()
       .from(medicationAdherence)
@@ -1126,12 +1267,19 @@ export async function buildVoiceContext(
   const memoryBlock = formatMemoryBlock(memories);
   const recentHealthEvents = [
     ...latestReports.map(formatTriageReport),
+    ...latestSignalReadings.slice(0, 8).map(formatSignalReading),
     ...latestVitals.map(formatVital),
   ].filter(Boolean);
   const latestSymptomReport = latestReports[0] ? formatTriageReportDetailed(latestReports[0]) : "";
   const recentSymptomReports = latestReports.map(formatTriageReportDetailed).filter(Boolean);
-  const latestVitalsScanSummary = latestVitalsScan(latestVitals);
-  const vitalsTrend = vitalsTrendSummary(latestVitals);
+  const latestVitalsScanSummary = compactLines([
+    latestSignalSummary(latestSignalReadings),
+    latestVitalsScan(latestVitals),
+  ], 1000);
+  const vitalsTrend = compactLines([
+    signalTrendSummary(latestSignalReadings),
+    vitalsTrendSummary(latestVitals),
+  ], 1200);
   const medicationAdherenceSummary = buildMedicationAdherenceSummary(
     activeMedicationRows,
     medicationAdherenceRows,

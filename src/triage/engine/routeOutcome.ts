@@ -465,6 +465,8 @@ export function vitalsNotesFor(locale: string, wizard: TriageWizardContext | und
   const systolicBp = wizard?.vitals?.systolicBp;
   const diastolicBp = wizard?.vitals?.diastolicBp;
   const glucoseMgdl = wizard?.vitals?.glucoseMgdl;
+  const painScore = wizard?.vitals?.painScore;
+  const energyLevel = wizard?.vitals?.energyLevel;
   const notes: string[] = [];
   if (typeof bpm === "number" && (bpm >= 110 || bpm <= 50)) {
     notes.push(text(locale, `Pulse from scan was ${bpm} bpm, so the report includes it for the doctor.`, `El pulso del escaneo fue ${bpm} lpm, asi que el informe lo incluye para el medico.`));
@@ -487,6 +489,12 @@ export function vitalsNotesFor(locale: string, wizard: TriageWizardContext | und
   }
   if (typeof glucoseMgdl === "number") {
     notes.push(text(locale, `Glucose was ${glucoseMgdl} mg/dL.`, `La glucosa fue ${glucoseMgdl} mg/dL.`));
+  }
+  if (typeof painScore === "number") {
+    notes.push(text(locale, `Pain score was ${painScore}/10.`, `El dolor fue ${painScore}/10.`));
+  }
+  if (typeof energyLevel === "number") {
+    notes.push(text(locale, `Energy level was ${energyLevel}/10.`, `La energia fue ${energyLevel}/10.`));
   }
   return notes.slice(0, 4);
 }
@@ -721,6 +729,8 @@ export function evaluateTriageSafetyFloor(
     systolicBp: wizard?.vitals?.systolicBp ?? undefined,
     diastolicBp: wizard?.vitals?.diastolicBp ?? undefined,
     glucoseMgdl: wizard?.vitals?.glucoseMgdl ?? undefined,
+    painScore: wizard?.vitals?.painScore ?? undefined,
+    energyLevel: wizard?.vitals?.energyLevel ?? undefined,
   });
   const baseSummary = {
     ...summary,

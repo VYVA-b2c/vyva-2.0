@@ -170,6 +170,33 @@ export function evaluateVitalsOverlay({
     }
   }
 
+  if (typeof input.painScore === "number" && ["pain", "fall", "skin", "stomach", "other"].includes(symptomId ?? "")) {
+    if (input.painScore >= 8) {
+      raise(
+        "doctor_today",
+        text(locale, "Pain is high enough to share with a clinician today.", "El dolor es lo bastante alto para compartirlo hoy con un clinico."),
+        text(locale, "Talk to a doctor today if pain is severe, worsening, or unusual.", "Habla con un medico hoy si el dolor es fuerte, empeora o es inusual."),
+        { ruleId: "triage.vitals.pain_score.ge_8", source: "vitals", vitalsOverlayId: "pain_score_ge_8" },
+      );
+    } else if (input.painScore >= 5) {
+      raise(
+        "doctor_24_48",
+        text(locale, "Pain is moderate and should be tracked with a clear follow-up window.", "El dolor es moderado y debe seguirse con un plazo claro."),
+        text(locale, "Recheck pain and contact a doctor if it continues, worsens, or limits movement.", "Revisa el dolor y contacta con un medico si continua, empeora o limita movimiento."),
+        { ruleId: "triage.vitals.pain_score.ge_5", source: "vitals", vitalsOverlayId: "pain_score_ge_5" },
+      );
+    }
+  }
+
+  if (typeof input.energyLevel === "number" && input.energyLevel <= 2 && ["tired", "dizzy", "confusion", "fever", "other"].includes(symptomId ?? "")) {
+    raise(
+      "doctor_today",
+      text(locale, "Energy is very low with a symptom pattern that can hide illness in older adults.", "La energia es muy baja con un patron de sintomas que puede ocultar enfermedad en mayores."),
+      text(locale, "Talk to a doctor today if very low energy is new, worsening, or comes with confusion, fever, chest pain, or breathing trouble.", "Habla con un medico hoy si la energia muy baja es nueva, empeora o viene con confusion, fiebre, dolor de pecho o falta de aire."),
+      { ruleId: "triage.vitals.energy_level.le_2", source: "vitals", vitalsOverlayId: "energy_level_le_2" },
+    );
+  }
+
   if (symptomId === "breathing" && ids.has("strong")) {
     raise(
       "emergency",

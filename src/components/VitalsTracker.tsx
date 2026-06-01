@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Activity, AlertTriangle, ArrowLeft, Bell, Check, HeartPulse, Loader2, Moon, PhoneCall, Pill, Plus, RefreshCw, Share2, ShieldCheck, Smile, Sparkles, Stethoscope } from "lucide-react";
+import { Activity, AlertTriangle, ArrowLeft, Bell, Check, HeartPulse, Loader2, Moon, PhoneCall, Pill, Plus, RefreshCw, Scale, Share2, ShieldCheck, Smile, Sparkles, Stethoscope, Thermometer, Wind, Zap } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 
 type Language = "es" | "de" | "en";
@@ -43,6 +43,10 @@ interface RecentReading {
   value: string | number;
   recorded_at: string;
   source: string;
+  source_confidence?: "low" | "medium" | "high";
+  source_confidence_reason?: string;
+  source_display_label?: string;
+  source_context_label?: string;
   deviation_pct: string | number | null;
   context_tag: string | null;
 }
@@ -78,6 +82,19 @@ const COPY = {
     share: "Compartir",
     doctor: "Medico",
     urgent: "Urgente",
+    sourceEstimated: "Estimado",
+    sourceManual: "Manual",
+    sourceDevice: "Dispositivo",
+    confidenceLow: "Baja",
+    confidenceMedium: "Media",
+    confidenceHigh: "Alta",
+    evidenceTitle: "Calidad de los datos",
+    evidenceBody: "VYVA combina estimaciones del telefono con datos que introduces de dispositivos. Las estimaciones ayudan con tendencias; los dispositivos y lecturas clinicas pesan mas.",
+    evidencePhone: "Telefono: pulso y respiracion estimados",
+    evidenceManual: "Manual: dolor, animo, energia y medicacion",
+    evidenceDevice: "Dispositivo: oxigeno, temperatura, tension, glucosa y peso",
+    addEvidenceNote: "Introduce el numero tal como aparece en tu dispositivo, o registra como te sientes. Esto ayuda a VYVA a refinar la evaluacion.",
+    sourceClinical: "ClÃ­nico",
   },
   de: {
     logo: "VYVA",
@@ -103,6 +120,19 @@ const COPY = {
     share: "Teilen",
     doctor: "Arzt",
     urgent: "Dringend",
+    sourceEstimated: "Geschatzt",
+    sourceManual: "Manuell",
+    sourceDevice: "Gerat",
+    confidenceLow: "Niedrig",
+    confidenceMedium: "Mittel",
+    confidenceHigh: "Hoch",
+    evidenceTitle: "Datenqualitat",
+    evidenceBody: "VYVA kombiniert Telefonschatzungen mit Werten, die Sie von Geraten eingeben. Schatzungen helfen bei Trends; Gerate- und klinische Werte zahlen starker.",
+    evidencePhone: "Telefon: geschatzter Puls und Atmung",
+    evidenceManual: "Manuell: Schmerz, Stimmung, Energie und Medikamente",
+    evidenceDevice: "Gerat: Sauerstoff, Temperatur, Blutdruck, Glukose und Gewicht",
+    addEvidenceNote: "Geben Sie den Wert so ein, wie er auf dem Gerat steht, oder erfassen Sie, wie Sie sich fuhlen. Das hilft VYVA, die Einschatzung zu verfeinern.",
+    sourceClinical: "Klinisch",
   },
   en: {
     logo: "VYVA",
@@ -128,6 +158,19 @@ const COPY = {
     share: "Share",
     doctor: "Doctor",
     urgent: "Urgent",
+    sourceEstimated: "Estimated",
+    sourceManual: "Manual",
+    sourceDevice: "Device",
+    confidenceLow: "Low",
+    confidenceMedium: "Medium",
+    confidenceHigh: "High",
+    evidenceTitle: "Reading quality",
+    evidenceBody: "VYVA combines phone estimates with numbers you enter from devices. Estimates help spot trends; device and clinical readings carry stronger weight.",
+    evidencePhone: "Phone: estimated pulse and breathing",
+    evidenceManual: "Manual: pain, mood, energy and medication",
+    evidenceDevice: "Device: oxygen, temperature, blood pressure, glucose and weight",
+    addEvidenceNote: "Enter the number exactly as it appears on your device, or record how you feel. This helps VYVA refine the assessment.",
+    sourceClinical: "Clinical",
   },
 };
 
@@ -136,6 +179,7 @@ const SIGNAL_CONFIG = {
     label: { es: "Glucosa", de: "Blutzucker", en: "Glucose" },
     unit: "mg/dL",
     icon: "drop",
+    placeholder: "142",
     question: { es: "¿Cuánto marca tu glucómetro?", de: "Was zeigt dein Blutzuckermessgerät?", en: "What does your glucose meter show?" },
     contexts: [
       { key: "fasting", label: { es: "Ayunas", de: "Nüchtern", en: "Fasting" } },
@@ -143,12 +187,13 @@ const SIGNAL_CONFIG = {
       { key: "nocturnal", label: { es: "Noche", de: "Nachts", en: "Night" } },
       { key: "general", label: { es: "Ahora", de: "Jetzt", en: "Now" } },
     ],
-    conditions: ["diabetes_t2"],
+    conditions: [],
   },
   resting_hr_bpm: {
     label: { es: "Pulso", de: "Puls", en: "Heart rate" },
     unit: "bpm",
     icon: "heart",
+    placeholder: "72",
     question: { es: "¿Cuántas pulsaciones por minuto?", de: "Wie viele Herzschläge pro Minute?", en: "How many beats per minute?" },
     contexts: [
       { key: "morning", label: { es: "Por la mañana", de: "Morgens", en: "Morning" } },
@@ -156,29 +201,98 @@ const SIGNAL_CONFIG = {
     ],
     conditions: [],
   },
+  respiratory_rate: {
+    label: { es: "Respiracion", de: "Atemfrequenz", en: "Breathing rate" },
+    unit: "/min",
+    icon: "wind",
+    placeholder: "16",
+    question: { es: "Cuantas respiraciones por minuto?", de: "Wie viele Atemzuge pro Minute?", en: "How many breaths per minute?" },
+    contexts: [
+      { key: "resting", label: { es: "En reposo", de: "In Ruhe", en: "Resting" } },
+      { key: "general", label: { es: "Ahora", de: "Jetzt", en: "Now" } },
+    ],
+    conditions: [],
+  },
+  oxygen_saturation: {
+    label: { es: "Oxigeno", de: "Sauerstoff", en: "Oxygen" },
+    unit: "%",
+    icon: "oxygen",
+    placeholder: "97",
+    question: { es: "Cuanto marca el oximetro?", de: "Was zeigt das Pulsoximeter?", en: "What does the pulse oximeter show?" },
+    contexts: [
+      { key: "resting", label: { es: "En reposo", de: "In Ruhe", en: "Resting" } },
+      { key: "general", label: { es: "Ahora", de: "Jetzt", en: "Now" } },
+    ],
+    conditions: [],
+  },
+  temperature_c: {
+    label: { es: "Temperatura", de: "Temperatur", en: "Temperature" },
+    unit: "C",
+    icon: "thermometer",
+    placeholder: "37.2",
+    question: { es: "Cuanto marca el termometro?", de: "Was zeigt das Thermometer?", en: "What does the thermometer show?" },
+    contexts: [
+      { key: "general", label: { es: "Ahora", de: "Jetzt", en: "Now" } },
+      { key: "evening", label: { es: "Tarde", de: "Abends", en: "Evening" } },
+    ],
+    conditions: [],
+  },
   bp_systolic: {
     label: { es: "Tensión", de: "Blutdruck", en: "Blood pressure" },
     unit: "mmHg",
     icon: "stethoscope",
+    placeholder: "128",
     question: { es: "¿Cuánto marca el tensiómetro? (número alto)", de: "Was zeigt das Blutdruckmessgerät? (obere Zahl)", en: "What does the BP monitor show? (top number)" },
     contexts: [
       { key: "morning", label: { es: "Mañana", de: "Morgens", en: "Morning" } },
       { key: "evening", label: { es: "Tarde", de: "Abends", en: "Evening" } },
     ],
-    conditions: ["hypertension", "chf"],
+    conditions: [],
+  },
+  weight_kg: {
+    label: { es: "Peso", de: "Gewicht", en: "Weight" },
+    unit: "kg",
+    icon: "scale",
+    placeholder: "70",
+    question: { es: "Cuanto marca la bascula?", de: "Was zeigt die Waage?", en: "What does the scale show?" },
+    contexts: [
+      { key: "morning", label: { es: "Manana", de: "Morgens", en: "Morning" } },
+      { key: "general", label: { es: "Ahora", de: "Jetzt", en: "Now" } },
+    ],
+    conditions: [],
+  },
+  pain_score: {
+    label: { es: "Dolor", de: "Schmerz", en: "Pain" },
+    unit: "/10",
+    icon: "pain",
+    placeholder: "4",
+    question: { es: "Cuanto dolor tienes? (0 = nada, 10 = mucho)", de: "Wie stark sind die Schmerzen? (0 = keine, 10 = stark)", en: "How much pain do you have? (0 = none, 10 = severe)" },
+    contexts: [{ key: "general", label: { es: "Ahora", de: "Jetzt", en: "Now" } }],
+    conditions: [],
   },
   sleep_quality_score: {
     label: { es: "Sueño", de: "Schlaf", en: "Sleep" },
     unit: "/10",
     icon: "moon",
+    placeholder: "7",
     question: { es: "¿Cómo dormiste anoche? (1 = muy mal, 10 = muy bien)", de: "Wie haben Sie letzte Nacht geschlafen? (1 = sehr schlecht, 10 = sehr gut)", en: "How did you sleep last night? (1 = very badly, 10 = very well)" },
     contexts: [{ key: "general", label: { es: "Anoche", de: "Letzte Nacht", en: "Last night" } }],
+    conditions: [],
+  },
+  energy_level: {
+    label: { es: "Energia", de: "Energie", en: "Energy" },
+    unit: "/10",
+    icon: "energy",
+    placeholder: "6",
+    question: { es: "Cuanta energia tienes hoy? (1 = muy baja, 10 = alta)", de: "Wie viel Energie haben Sie heute? (1 = sehr niedrig, 10 = hoch)", en: "How much energy do you have today? (1 = very low, 10 = high)" },
+    contexts: [{ key: "general", label: { es: "Hoy", de: "Heute", en: "Today" } }],
     conditions: [],
   },
   medication_confirmed: {
     label: { es: "Medicación", de: "Medikamente", en: "Medication" },
     unit: "",
     icon: "pill",
+    placeholder: "1",
     question: { es: "¿Has tomado tu medicación hoy?", de: "Haben Sie heute Ihre Medikamente genommen?", en: "Have you taken your medication today?" },
     contexts: [
       { key: "morning", label: { es: "Mañana", de: "Morgens", en: "Morning" } },
@@ -191,17 +305,23 @@ const SIGNAL_CONFIG = {
     label: { es: "Ánimo", de: "Stimmung", en: "Mood" },
     unit: "/10",
     icon: "smile",
+    placeholder: "7",
     question: { es: "¿Cómo te sientes hoy? (1 = muy mal, 10 = excelente)", de: "Wie fühlen Sie sich heute? (1 = sehr schlecht, 10 = ausgezeichnet)", en: "How are you feeling today? (1 = very bad, 10 = excellent)" },
     contexts: [{ key: "general", label: { es: "Hoy", de: "Heute", en: "Today" } }],
     conditions: [],
   },
 } as const;
 
-const DASHBOARD_SIGNALS: SignalKey[] = ["glucose_mgdl", "resting_hr_bpm", "sleep_quality_score", "medication_confirmed"];
+const DASHBOARD_SIGNALS: SignalKey[] = ["resting_hr_bpm", "oxygen_saturation", "temperature_c", "glucose_mgdl", "mood_score", "sleep_quality_score"];
 
 function SignalIcon({ type, className = "" }: { type: string; className?: string }) {
   const common = `h-8 w-8 ${className}`;
   if (type === "heart") return <HeartPulse className={common} />;
+  if (type === "wind") return <Wind className={common} />;
+  if (type === "oxygen") return <Activity className={common} />;
+  if (type === "thermometer") return <Thermometer className={common} />;
+  if (type === "scale") return <Scale className={common} />;
+  if (type === "energy") return <Zap className={common} />;
   if (type === "stethoscope") return <Stethoscope className={common} />;
   if (type === "moon") return <Moon className={common} />;
   if (type === "pill") return <Pill className={common} />;
@@ -278,6 +398,23 @@ function safetyLabel(status: SafetyStatus, language: Language) {
   return labels[language][status];
 }
 
+function readingSourceBadge(reading: RecentReading | undefined, language: Language) {
+  if (!reading) return null;
+  const copy = COPY[language];
+  const source = reading.source;
+  const confidence = reading.source_confidence ?? (source === "phone_estimate" ? "low" : source === "connected_device" || source === "clinical" ? "high" : "medium");
+  const confidenceLabel =
+    confidence === "high"
+      ? copy.confidenceHigh
+      : confidence === "low"
+        ? copy.confidenceLow
+        : copy.confidenceMedium;
+  if (source === "phone_estimate") return { label: `${copy.sourceEstimated} - ${confidenceLabel}`, bg: "#F5F3FF", color: "#6B21A8" };
+  if (source === "connected_device") return { label: `${copy.sourceDevice} - ${confidenceLabel}`, bg: "#D1FAE5", color: "#047857" };
+  if (source === "clinical") return { label: `${copy.sourceClinical} - ${confidenceLabel}`, bg: "#E0F2FE", color: "#0369A1" };
+  return { label: `${copy.sourceManual} - ${confidenceLabel}`, bg: "#FEF3C7", color: "#92400E" };
+}
+
 function relativeTime(iso: string | null | undefined, language: Language) {
   if (!iso) return COPY[language].noAnalysis;
   const diffMinutes = Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
@@ -298,7 +435,7 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
   const [analysing, setAnalysing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [selectedSignal, setSelectedSignal] = useState<SignalKey>("glucose_mgdl");
+  const [selectedSignal, setSelectedSignal] = useState<SignalKey>("resting_hr_bpm");
   const [inputValue, setInputValue] = useState("");
   const [selectedContext, setSelectedContext] = useState("general");
   const [saving, setSaving] = useState(false);
@@ -356,7 +493,7 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
         body: JSON.stringify({
           signal_type: selectedSignal,
           value: numeric,
-          source: "manual",
+          source: "manual_entry",
           context_tag: selectedContext,
           condition_tags: userConditions,
         }),
@@ -481,6 +618,9 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
         <h2 className="font-display text-[30px] italic leading-tight text-[#2F241F]">
           {selectedConfig.question[language]}
         </h2>
+        <p className="mt-3 rounded-[20px] border border-[#DDD6FE] bg-white px-4 py-3 font-body text-[16px] font-bold leading-snug text-[#6B5B52]">
+          {copy.addEvidenceNote}
+        </p>
 
         {openedFromGlucoseAction ? (
           <div className="mt-5 rounded-[24px] border border-[#DDD6FE] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]">
@@ -543,7 +683,7 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
               inputMode="decimal"
               value={inputValue}
               onChange={(event) => setInputValue(event.target.value)}
-              placeholder={copy.valuePlaceholder}
+              placeholder={selectedConfig.placeholder}
               className="min-w-0 flex-1 bg-transparent font-body text-[72px] font-bold leading-none text-[#2F241F] outline-none placeholder:text-[#D6C7BA]"
             />
             <span className="pb-3 font-body text-[22px] font-bold text-[#7A6A60]">{selectedConfig.unit}</span>
@@ -629,6 +769,26 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
             <p className="mt-4 font-display text-[30px] italic leading-tight text-[#2F241F]">
               {getRiskLabel(riskScore, language)}
             </p>
+          </div>
+
+          <div className="mt-4 rounded-[26px] border border-[#DDD6FE] bg-white p-5 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="vitals-evidence-guide">
+            <div className="flex items-start gap-4">
+              <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px] bg-[#F5F3FF] text-[#6B21A8]">
+                <ShieldCheck className="h-7 w-7" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-body text-[13px] font-bold uppercase tracking-[0.12em] text-[#6B21A8]">{copy.evidenceTitle}</p>
+                <p className="mt-2 font-body text-[17px] font-bold leading-snug text-[#3B2C25]">{copy.evidenceBody}</p>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-2">
+              {[copy.evidencePhone, copy.evidenceManual, copy.evidenceDevice].map((item) => (
+                <div key={item} className="flex items-center gap-3 rounded-[18px] bg-[#FAF9F6] px-4 py-3 font-body text-[15px] font-bold text-[#6B5B52]">
+                  <Check className="h-5 w-5 flex-shrink-0 text-[#047857]" />
+                  <span>{item}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="mt-4 rounded-[26px] border border-[#EDE5DB] bg-white p-5 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="daily-safety-check">
@@ -809,10 +969,19 @@ function SignalCard({
         ? normalLabel
         : `${deviation > 0 ? "+" : ""}${deviation}% ${deviation > 0 ? "↑" : "↓"}`;
 
+  const sourceBadge = readingSourceBadge(reading, language);
+
   return (
     <article className="min-h-[152px] rounded-[24px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]">
-      <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-[20px] bg-[#F5F3FF] text-[#6B21A8]">
-        <SignalIcon type={cfg.icon} className="h-7 w-7" />
+      <div className="mb-3 flex items-start justify-between gap-2">
+        <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-[#F5F3FF] text-[#6B21A8]">
+          <SignalIcon type={cfg.icon} className="h-7 w-7" />
+        </div>
+        {sourceBadge && (
+          <span className="rounded-full px-3 py-1 font-body text-[11px] font-bold" style={{ background: sourceBadge.bg, color: sourceBadge.color }}>
+            {sourceBadge.label}
+          </span>
+        )}
       </div>
       <p className="font-body text-[18px] font-bold text-[#6B5B52]">{cfg.label[language]}</p>
       <p className="mt-1 font-body text-[24px] font-bold leading-tight text-[#2F241F]">{display}</p>

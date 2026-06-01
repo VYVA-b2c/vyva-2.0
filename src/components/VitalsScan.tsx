@@ -135,7 +135,7 @@ export default function VitalsScan({ onComplete, compact = false, saveReading = 
     if (saveReading && bpm != null) {
       apiFetch("/api/reports/vitals", {
         method: "POST",
-        body: JSON.stringify({ bpm, respiratory_rate: respiratoryRate }),
+        body: JSON.stringify({ bpm, respiratory_rate: respiratoryRate, source: "phone_estimate" }),
       }).catch((err) => console.error("[reports/vitals] save failed:", err));
     }
     onComplete(bpm, respiratoryRate);
