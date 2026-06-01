@@ -15,14 +15,27 @@ import { requireUser } from "../middleware/auth.js";
 const router = Router();
 
 const METRIC_TYPES = ["hr", "rr", "bp"] as const;
-type MetricType = typeof METRIC_TYPES[number];
+export type MetricType = typeof METRIC_TYPES[number];
 type ReadingSource = VitalsReadingSource;
-type MetricReading = {
+export type MetricReading = {
   value: string;
   recorded_at: Date;
   source: ReadingSource;
   signal_type?: string | null;
 };
+export type VitalsSummaryEntry = {
+  latest_value: string | null;
+  latest_recorded_at: string | null;
+  latest_source: ReadingSource | null;
+  latest_source_confidence: "low" | "medium" | "high" | null;
+  latest_source_confidence_reason: string | null;
+  latest_source_display_label: string | null;
+  latest_source_context_label: string | null;
+  trend: (string | null)[];
+  has_data: boolean;
+};
+export type VitalsSummaryByMetric = Record<MetricType, MetricReading[]>;
+type EngineSummaryRow = Pick<typeof vyvaSignalReadings.$inferSelect, "signal_type" | "value" | "recorded_at" | "source">;
 
 const postBodySchema = z.object({
   metric_type: z.enum(METRIC_TYPES),
@@ -86,7 +99,7 @@ function engineSource(source: string | null | undefined): ReadingSource {
   return normalizeVitalsSource(source);
 }
 
-function engineRowsToMetricEntries(rows: Array<typeof vyvaSignalReadings.$inferSelect>): Array<{ metric: MetricType } & MetricReading> {
+export function engineRowsToMetricEntries(rows: EngineSummaryRow[]): Array<{ metric: MetricType } & MetricReading> {
   const entries: Array<{ metric: MetricType } & MetricReading> = [];
 
   for (const row of rows) {
@@ -124,6 +137,58 @@ function engineRowsToMetricEntries(rows: Array<typeof vyvaSignalReadings.$inferS
   }
 
   return entries;
+}
+
+export function buildVitalsSummary(byMetric: VitalsSummaryByMetric): {
+  summary: Record<string, VitalsSummaryEntry>;
+  compliance_days: boolean[];
+} {
+  for (const metric of METRIC_TYPES) {
+    byMetric[metric].sort((a, b) => b.recorded_at.getTime() - a.recorded_at.getTime());
+  }
+
+  const summary: Record<string, VitalsSummaryEntry> = {};
+
+  for (const metric of METRIC_TYPES) {
+    const readings = byMetric[metric];
+    const latest = readings[0] ?? null;
+    const evidence = latest ? vitalsEvidenceFor(latest.source, latest.signal_type ?? ENGINE_SIGNAL_BY_METRIC[metric]) : null;
+
+    const dayMap: Record<string, string> = {};
+    for (const r of readings) {
+      const dayKey = r.recorded_at.toISOString().slice(0, 10);
+      if (!dayMap[dayKey]) dayMap[dayKey] = r.value;
+    }
+
+    const trend: (string | null)[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const day = dateStringUTC(i);
+      trend.push(dayMap[day] ?? null);
+    }
+
+    summary[metric] = {
+      latest_value: latest?.value ?? null,
+      latest_recorded_at: latest?.recorded_at.toISOString() ?? null,
+      latest_source: latest?.source ?? null,
+      latest_source_confidence: evidence?.confidence ?? null,
+      latest_source_confidence_reason: evidence?.reason ?? null,
+      latest_source_display_label: evidence?.displayLabel ?? null,
+      latest_source_context_label: evidence?.contextLabel ?? null,
+      trend,
+      has_data: readings.length > 0,
+    };
+  }
+
+  const complianceDays: boolean[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const day = dateStringUTC(i);
+    const hasReading = METRIC_TYPES.some(
+      (m) => byMetric[m].some((r) => r.recorded_at.toISOString().slice(0, 10) === day),
+    );
+    complianceDays.push(hasReading);
+  }
+
+  return { summary, compliance_days: complianceDays };
 }
 
 async function mirrorToVitalsEngine(userId: string, metricType: MetricType, value: string, source: ReadingSource) {
@@ -194,60 +259,7 @@ router.get("/", requireUser, async (req: Request, res: Response) => {
       console.warn("[vitals GET signal readings]", signalErr);
     }
 
-    for (const metric of METRIC_TYPES) {
-      byMetric[metric].sort((a, b) => b.recorded_at.getTime() - a.recorded_at.getTime());
-    }
-
-    const summary: Record<string, {
-      latest_value: string | null;
-      latest_recorded_at: string | null;
-      latest_source: ReadingSource | null;
-      latest_source_confidence: "low" | "medium" | "high" | null;
-      latest_source_confidence_reason: string | null;
-      latest_source_display_label: string | null;
-      latest_source_context_label: string | null;
-      trend: (string | null)[];
-      has_data: boolean;
-    }> = {};
-
-    for (const metric of METRIC_TYPES) {
-      const readings = byMetric[metric];
-      const latest = readings[0] ?? null;
-      const evidence = latest ? vitalsEvidenceFor(latest.source, latest.signal_type ?? ENGINE_SIGNAL_BY_METRIC[metric]) : null;
-
-      const dayMap: Record<string, string> = {};
-      for (const r of readings) {
-        const dayKey = r.recorded_at.toISOString().slice(0, 10);
-        if (!dayMap[dayKey]) dayMap[dayKey] = r.value;
-      }
-
-      const trend: (string | null)[] = [];
-      for (let i = 6; i >= 0; i--) {
-        const day = dateStringUTC(i);
-        trend.push(dayMap[day] ?? null);
-      }
-
-      summary[metric] = {
-        latest_value: latest?.value ?? null,
-        latest_recorded_at: latest?.recorded_at.toISOString() ?? null,
-        latest_source: latest?.source ?? null,
-        latest_source_confidence: evidence?.confidence ?? null,
-        latest_source_confidence_reason: evidence?.reason ?? null,
-        latest_source_display_label: evidence?.displayLabel ?? null,
-        latest_source_context_label: evidence?.contextLabel ?? null,
-        trend,
-        has_data: readings.length > 0,
-      };
-    }
-
-    const complianceDays: boolean[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const day = dateStringUTC(i);
-      const hasReading = METRIC_TYPES.some(
-        (m) => byMetric[m].some((r) => r.recorded_at.toISOString().slice(0, 10) === day),
-      );
-      complianceDays.push(hasReading);
-    }
+    const { summary, compliance_days: complianceDays } = buildVitalsSummary(byMetric);
 
     return res.json({ summary, compliance_days: complianceDays });
   } catch (err) {
