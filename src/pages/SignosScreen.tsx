@@ -129,6 +129,14 @@ const DEVICE_ROWS = [
   { id: "stethoscope", Icon: Stethoscope, labelKey: "statusVitals.deviceRows.digitalStethoscope", fallbackLabel: "Digital stethoscope", model: "Eko DUO", connected: false },
 ];
 
+type VitalsTrackerLanguage = "de" | "en" | "es";
+
+function vitalsTrackerLanguage(language?: string | null): VitalsTrackerLanguage {
+  const base = (language ?? "").split("-")[0]?.toLowerCase();
+  if (base === "de" || base === "en" || base === "es") return base;
+  return "en";
+}
+
 function parseNumericValue(value: string | null): number | null {
   if (!value) return null;
   const parsed = Number.parseFloat(value.split("/")[0]);
@@ -659,7 +667,7 @@ const SignosScreen = () => {
           <VitalsTracker
             userId={user.id}
             userConditions={personalisationData?.conditions ?? []}
-            language={profile?.language === "de" || profile?.language === "en" || profile?.language === "es" ? profile.language : "es"}
+            language={vitalsTrackerLanguage(profile?.language ?? i18n.language)}
           />
         </div>
       )}
