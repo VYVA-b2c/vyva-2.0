@@ -1139,7 +1139,10 @@ export default function SymptomCheckScreen() {
 
     const previousNextStep = summary.nextStepLabel ?? "";
     try {
-      setRefinementStatus({ state: "saving", message: `Saving ${parsed.display}...` });
+      setRefinementStatus({
+        state: "saving",
+        message: t("health.symptomCheck.report.savingReading", "Saving {{display}}...", { display: parsed.display }),
+      });
 
       const readings = config.key === "bloodPressure"
         ? [
@@ -1162,7 +1165,10 @@ export default function SymptomCheckScreen() {
         if (!saveReading.ok) throw new Error(`vitals ${saveReading.status}`);
       }
 
-      setRefinementStatus({ state: "refining", message: "Updating your result with this reading..." });
+      setRefinementStatus({
+        state: "refining",
+        message: t("health.symptomCheck.report.updatingWithReading", "Updating your result with this reading..."),
+      });
 
       const refinedVitals = {
         bpm: parsed.vitals.pulseBpm ?? bpm ?? undefined,
@@ -1226,15 +1232,25 @@ export default function SymptomCheckScreen() {
         refinedSummary.nextStepLabel &&
         refinedSummary.nextStepLabel !== previousNextStep,
       );
+      const nextStepSentence = nextStepChanged
+        ? t("health.symptomCheck.report.nextStepChanged", "Next step changed.")
+        : t("health.symptomCheck.report.nextStepSame", "Next step stayed the same.");
       setRefinementStatus({
         state: "done",
-        message: `Updated with ${parsed.display}. ${nextStepChanged ? "Next step changed." : "Next step stayed the same."} Report updated and ready to share.`,
+        message: t(
+          "health.symptomCheck.report.updatedWithReading",
+          "Updated with {{display}}. {{nextStepSentence}} Report updated and ready to share.",
+          { display: parsed.display, nextStepSentence },
+        ),
       });
     } catch (err) {
       console.error("[symptom-check] refinement failed:", err);
       setRefinementStatus({
         state: "error",
-        message: "Could not update with this reading. The original report is still available.",
+        message: t(
+          "health.symptomCheck.report.refineFailed",
+          "Could not update with this reading. The original report is still available.",
+        ),
       });
     }
   };
