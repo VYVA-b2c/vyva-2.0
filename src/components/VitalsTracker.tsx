@@ -81,6 +81,12 @@ const COPY = {
     sourceEstimated: "Estimado",
     sourceManual: "Manual",
     sourceDevice: "Dispositivo",
+    evidenceTitle: "Calidad de los datos",
+    evidenceBody: "VYVA combina estimaciones del telefono con datos que introduces de dispositivos. Las estimaciones ayudan con tendencias; los dispositivos y lecturas clinicas pesan mas.",
+    evidencePhone: "Telefono: pulso y respiracion estimados",
+    evidenceManual: "Manual: dolor, animo, energia y medicacion",
+    evidenceDevice: "Dispositivo: oxigeno, temperatura, tension, glucosa y peso",
+    addEvidenceNote: "Introduce el numero tal como aparece en tu dispositivo, o registra como te sientes. Esto ayuda a VYVA a refinar la evaluacion.",
     sourceClinical: "ClÃ­nico",
   },
   de: {
@@ -110,6 +116,12 @@ const COPY = {
     sourceEstimated: "Geschatzt",
     sourceManual: "Manuell",
     sourceDevice: "Gerat",
+    evidenceTitle: "Datenqualitat",
+    evidenceBody: "VYVA kombiniert Telefonschatzungen mit Werten, die Sie von Geraten eingeben. Schatzungen helfen bei Trends; Gerate- und klinische Werte zahlen starker.",
+    evidencePhone: "Telefon: geschatzter Puls und Atmung",
+    evidenceManual: "Manuell: Schmerz, Stimmung, Energie und Medikamente",
+    evidenceDevice: "Gerat: Sauerstoff, Temperatur, Blutdruck, Glukose und Gewicht",
+    addEvidenceNote: "Geben Sie den Wert so ein, wie er auf dem Gerat steht, oder erfassen Sie, wie Sie sich fuhlen. Das hilft VYVA, die Einschatzung zu verfeinern.",
     sourceClinical: "Klinisch",
   },
   en: {
@@ -139,6 +151,12 @@ const COPY = {
     sourceEstimated: "Estimated",
     sourceManual: "Manual",
     sourceDevice: "Device",
+    evidenceTitle: "Reading quality",
+    evidenceBody: "VYVA combines phone estimates with numbers you enter from devices. Estimates help spot trends; device and clinical readings carry stronger weight.",
+    evidencePhone: "Phone: estimated pulse and breathing",
+    evidenceManual: "Manual: pain, mood, energy and medication",
+    evidenceDevice: "Device: oxygen, temperature, blood pressure, glucose and weight",
+    addEvidenceNote: "Enter the number exactly as it appears on your device, or record how you feel. This helps VYVA refine the assessment.",
     sourceClinical: "Clinical",
   },
 };
@@ -578,6 +596,9 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
         <h2 className="font-display text-[30px] italic leading-tight text-[#2F241F]">
           {selectedConfig.question[language]}
         </h2>
+        <p className="mt-3 rounded-[20px] border border-[#DDD6FE] bg-white px-4 py-3 font-body text-[16px] font-bold leading-snug text-[#6B5B52]">
+          {copy.addEvidenceNote}
+        </p>
 
         {openedFromGlucoseAction ? (
           <div className="mt-5 rounded-[24px] border border-[#DDD6FE] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]">
@@ -726,6 +747,26 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
             <p className="mt-4 font-display text-[30px] italic leading-tight text-[#2F241F]">
               {getRiskLabel(riskScore, language)}
             </p>
+          </div>
+
+          <div className="mt-4 rounded-[26px] border border-[#DDD6FE] bg-white p-5 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="vitals-evidence-guide">
+            <div className="flex items-start gap-4">
+              <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px] bg-[#F5F3FF] text-[#6B21A8]">
+                <ShieldCheck className="h-7 w-7" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-body text-[13px] font-bold uppercase tracking-[0.12em] text-[#6B21A8]">{copy.evidenceTitle}</p>
+                <p className="mt-2 font-body text-[17px] font-bold leading-snug text-[#3B2C25]">{copy.evidenceBody}</p>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-2">
+              {[copy.evidencePhone, copy.evidenceManual, copy.evidenceDevice].map((item) => (
+                <div key={item} className="flex items-center gap-3 rounded-[18px] bg-[#FAF9F6] px-4 py-3 font-body text-[15px] font-bold text-[#6B5B52]">
+                  <Check className="h-5 w-5 flex-shrink-0 text-[#047857]" />
+                  <span>{item}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="mt-4 rounded-[26px] border border-[#EDE5DB] bg-white p-5 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="daily-safety-check">
