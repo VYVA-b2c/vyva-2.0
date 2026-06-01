@@ -8,6 +8,7 @@ import {
   userMedications,
   vitalsReadings,
 } from "../../shared/schema.js";
+import { vitalsEvidenceFor } from "../../shared/vitalsEvidence.js";
 
 export type RoomVisitContext = {
   isFirstVisit: boolean;
@@ -153,11 +154,8 @@ function signalUnit(signal: string) {
   return "";
 }
 
-function sourceLabel(source: string) {
-  if (source === "phone_estimate") return "estimated, confirm before escalation";
-  if (source === "connected_device") return "device, high confidence";
-  if (source === "clinical") return "clinical, high confidence";
-  return "manual or self-reported";
+function sourceLabel(source: string, signalType?: string | null) {
+  return vitalsEvidenceFor(source, signalType).contextLabel;
 }
 
 function medicationDoseCount(medications: Array<typeof userMedications.$inferSelect>) {
@@ -377,12 +375,12 @@ export async function buildUserConversationContext(
         recordedAt: isoDate(reading.recorded_at),
         signalType: reading.signal_type,
         value: `${reading.value}${unit ? ` ${unit}` : ""}`,
-        source: sourceLabel(reading.source),
+        source: sourceLabel(reading.source, reading.signal_type),
       };
     });
     const signalBits = latestSignalReadings.slice(0, 5).map((reading) => {
       const unit = signalUnit(reading.signal_type);
-      return `${signalLabel(reading.signal_type)} ${reading.value}${unit ? ` ${unit}` : ""} (${sourceLabel(reading.source)})`;
+      return `${signalLabel(reading.signal_type)} ${reading.value}${unit ? ` ${unit}` : ""} (${sourceLabel(reading.source, reading.signal_type)})`;
     });
     lines.push(`Latest readings: ${signalBits.join("; ")}.`);
   }

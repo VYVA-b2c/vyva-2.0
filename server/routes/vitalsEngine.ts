@@ -26,6 +26,7 @@ import {
   userHealthConditions,
   userMedications,
 } from "../../shared/schema.js";
+import { vitalsEvidenceFor } from "../../shared/vitalsEvidence.js";
 
 const router = Router();
 router.use(requireUser);
@@ -105,22 +106,6 @@ function numberOrNull(value: unknown): number | null {
 
 function roundOne(value: number): number {
   return Math.round(value * 10) / 10;
-}
-
-function sourceConfidence(source: string | null | undefined, signalType: string): { confidence: "low" | "medium" | "high"; reason: string } {
-  if (source === "clinical") {
-    return { confidence: "high", reason: "recorded from a clinical source" };
-  }
-  if (source === "connected_device") {
-    return { confidence: "high", reason: "recorded from a connected device" };
-  }
-  if (source === "phone_estimate") {
-    return { confidence: "low", reason: "estimated from the phone camera" };
-  }
-  if (["pain_score", "mood_score", "sleep_quality_score", "energy_level", "medication_confirmed"].includes(signalType)) {
-    return { confidence: "medium", reason: "self-reported by the user" };
-  }
-  return { confidence: "medium", reason: "entered manually from the user or a device" };
 }
 
 function dosesPerDay(scheduledTimes: string[] | null | undefined): number {
@@ -221,7 +206,7 @@ function buildSignalSummary(readings: SignalReadingRow[]): SignalSummary[] {
       const deviations = rows.map((row) => numberOrNull(row.deviation_pct)).filter((value): value is number => value !== null);
       const maxDeviation = deviations.length ? Math.max(...deviations.map(Math.abs)) : null;
       const latestSource = rows[0]?.source ?? null;
-      const confidence = sourceConfidence(latestSource, signalType);
+      const confidence = vitalsEvidenceFor(latestSource, signalType);
 
       let trend = "stable";
       if (values.length >= 3) {

@@ -4,19 +4,19 @@ import { and, eq, gte, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
 import { vitalsReadings } from "../../shared/schema.js";
+import { VITALS_READING_SOURCES, type VitalsReadingSource } from "../../shared/vitalsEvidence.js";
 import { requireUser } from "../middleware/auth.js";
 
 const router = Router();
 
 const METRIC_TYPES = ["hr", "rr", "bp"] as const;
 type MetricType = typeof METRIC_TYPES[number];
-const READING_SOURCES = ["phone_estimate", "manual_entry", "connected_device", "clinical"] as const;
-type ReadingSource = typeof READING_SOURCES[number];
+type ReadingSource = VitalsReadingSource;
 
 const postBodySchema = z.object({
   metric_type: z.enum(METRIC_TYPES),
   value: z.string().min(1).max(20),
-  source: z.enum(READING_SOURCES).default("manual_entry"),
+  source: z.enum(VITALS_READING_SOURCES).default("manual_entry"),
 });
 
 const ENGINE_SIGNAL_BY_METRIC: Record<MetricType, string> = {

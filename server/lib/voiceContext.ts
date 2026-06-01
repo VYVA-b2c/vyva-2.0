@@ -17,6 +17,7 @@ import {
   vitalsReadings,
   sessionExchanges,
 } from "../../shared/schema.js";
+import { vitalsEvidenceFor } from "../../shared/vitalsEvidence.js";
 import { formatMemoryBlock, searchMemories } from "./mem0.js";
 import { socialRoomSeeds } from "./socialRoomsSeed.js";
 import { buildAgentOperatingRules, buildConversationPlan } from "./voiceAgentPolicy.js";
@@ -222,11 +223,8 @@ function signalUnit(signal: string | null | undefined) {
   }
 }
 
-function signalSourceLabel(source: string | null | undefined) {
-  if (source === "phone_estimate") return "estimated by phone; confirm before escalating from this reading alone";
-  if (source === "connected_device") return "high confidence device reading";
-  if (source === "clinical") return "high confidence clinical reading";
-  return "manual or self-reported reading";
+function signalSourceLabel(source: string | null | undefined, signalType?: string | null) {
+  return vitalsEvidenceFor(source, signalType).contextLabel;
 }
 
 function formatSignalReading(reading: SignalReadingRow) {
@@ -235,7 +233,7 @@ function formatSignalReading(reading: SignalReadingRow) {
   return valueList([
     signalLabel(reading.signal_type),
     value,
-    signalSourceLabel(reading.source),
+    signalSourceLabel(reading.source, reading.signal_type),
     reading.recorded_at ? `recorded ${formatDateTime(reading.recorded_at)}` : null,
   ], ": ");
 }
@@ -353,7 +351,7 @@ function latestSignalSummary(readings: SignalReadingRow[]) {
     readings[0]?.recorded_at ? `recorded ${formatDateTime(readings[0].recorded_at)}` : "",
     ...readings.slice(0, 6).map((reading) => {
       const unit = signalUnit(reading.signal_type);
-      return `${signalLabel(reading.signal_type)} ${reading.value}${unit ? ` ${unit}` : ""} (${signalSourceLabel(reading.source)})`;
+      return `${signalLabel(reading.signal_type)} ${reading.value}${unit ? ` ${unit}` : ""} (${signalSourceLabel(reading.source, reading.signal_type)})`;
     }),
   ]);
 }

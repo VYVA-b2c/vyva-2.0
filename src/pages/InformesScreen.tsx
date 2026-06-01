@@ -29,6 +29,7 @@ import {
   HealthWizardShell,
   HealthWizardTopBar,
 } from "@/components/health/HealthWizard";
+import { vitalsEvidenceFor } from "../../shared/vitalsEvidence";
 
 type TriageReport = {
   id: string;
@@ -138,10 +139,7 @@ function signalDisplay(reading: SignalReading) {
 }
 
 function sourceLabel(source?: string | null) {
-  if (source === "phone_estimate") return "Estimated trend";
-  if (source === "connected_device") return "Device reading";
-  if (source === "clinical") return "Clinical reading";
-  return "Manual entry";
+  return vitalsEvidenceFor(source).displayLabel;
 }
 
 function reportSignal(summary?: Summary | null) {

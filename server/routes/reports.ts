@@ -3,12 +3,12 @@ import type { Request, Response } from "express";
 import { eq, and, desc, gte, sql } from "drizzle-orm";
 import { db } from "../db.js";
 import { caregiverAlerts, profiles, triageReports, vitalsReadings, medicationAdherence, userMedications } from "../../shared/schema.js";
+import { VITALS_READING_SOURCES, type VitalsReadingSource } from "../../shared/vitalsEvidence.js";
 import { z } from "zod";
 
 const DEMO_USER_ID = "demo-user";
 const IS_PROD = process.env.NODE_ENV === "production";
-const READING_SOURCES = ["phone_estimate", "manual_entry", "connected_device", "clinical"] as const;
-type ReadingSource = typeof READING_SOURCES[number];
+type ReadingSource = VitalsReadingSource;
 
 type SignalReadingRow = {
   signal_type: string;
@@ -301,7 +301,7 @@ router.post("/triage", async (req: Request, res: Response) => {
 const vitalsSchema = z.object({
   bpm:              z.number().int().min(30).max(250),
   respiratory_rate: z.number().int().min(6).max(60).nullable().optional(),
-  source:           z.enum(READING_SOURCES).default("phone_estimate"),
+  source:           z.enum(VITALS_READING_SOURCES).default("phone_estimate"),
 });
 
 router.post("/vitals", async (req: Request, res: Response) => {
