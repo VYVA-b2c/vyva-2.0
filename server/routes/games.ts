@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import OpenAI from "openai";
 import { z } from "zod";
 import { buildBrainCoachCaregiverSummary } from "../lib/brainCoachCaregiverSummary.js";
+import { mergeCaregiverSettingsIntoPreferences } from "../lib/brainCoachCaregiverSettings.js";
 import { buildBrainCoachDailyPlan, extractBrainCoachPreferences } from "../lib/brainCoachPlan.js";
 import {
   applyPlanItemEvent,
@@ -501,6 +502,7 @@ async function loadCognitiveSessionDb() {
       cognitiveDailyPlans,
       cognitiveDailyPlanItems,
       cognitiveDailyPlanEvents,
+      cognitiveCaregiverSettings,
     },
     { and, asc, desc, eq, gte, inArray },
   ] = await Promise.all([
@@ -515,6 +517,7 @@ async function loadCognitiveSessionDb() {
     cognitiveDailyPlans,
     cognitiveDailyPlanItems,
     cognitiveDailyPlanEvents,
+    cognitiveCaregiverSettings,
     and,
     asc,
     desc,
@@ -747,6 +750,7 @@ export async function brainCoachDailyPlanHandler(req: Request, res: Response) {
       cognitiveDailyPlans,
       cognitiveDailyPlanItems,
       cognitiveDailyPlanEvents,
+      cognitiveCaregiverSettings,
       desc,
       eq,
       and,
@@ -771,15 +775,25 @@ export async function brainCoachDailyPlanHandler(req: Request, res: Response) {
         .limit(200),
     ]);
 
-    const [profile] = await db
-      .select({
-        dataSharingConsent: profiles.data_sharing_consent,
-      })
-      .from(profiles)
-      .where(eq(profiles.id, req.user!.id))
-      .limit(1);
+    const [[profile], [caregiverSettings]] = await Promise.all([
+      db
+        .select({
+          dataSharingConsent: profiles.data_sharing_consent,
+        })
+        .from(profiles)
+        .where(eq(profiles.id, req.user!.id))
+        .limit(1),
+      db
+        .select()
+        .from(cognitiveCaregiverSettings)
+        .where(eq(cognitiveCaregiverSettings.userId, req.user!.id))
+        .limit(1),
+    ]);
 
-    const preferences = extractBrainCoachPreferences(profile?.dataSharingConsent);
+    const preferences = mergeCaregiverSettingsIntoPreferences(
+      extractBrainCoachPreferences(profile?.dataSharingConsent),
+      caregiverSettings,
+    );
     const progress = buildBrainCoachProgress(rows);
     const generatedPlan = buildBrainCoachDailyPlan({
       sessions: rows,
