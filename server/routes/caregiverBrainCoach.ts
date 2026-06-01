@@ -9,6 +9,7 @@ import {
   auditBrainCoachCaregiverChange,
   BRAIN_COACH_CAREGIVER_PERMISSION_KEYS,
   effectiveBrainCoachPermissions,
+  isBrainCoachSelfAccess,
   resolveBrainCoachAccess,
   withBrainCoachPermissions,
   type BrainCoachCaregiverPermissions,
@@ -27,7 +28,6 @@ import {
   profileMemberships,
   profiles,
   teamInvitations,
-  users,
 } from "../../shared/schema.js";
 
 const router = Router();
@@ -73,6 +73,30 @@ function settingsResponse(row: typeof cognitiveCaregiverSettings.$inferSelect | 
 async function resolveProfileParam(req: Request, res: Response, value: string): Promise<string | null> {
   if (value === "me") return requireActiveProfileId(req.user!.id, res);
   return value;
+}
+
+async function requireBrainCoachPermissionOwnerProfileId(req: Request, res: Response): Promise<string | null> {
+  const context = await getActiveProfileContext(req.user!.id);
+  if (!context.profileId) {
+    res.status(409).json({
+      error: "No care profile selected",
+      nextRoute: "/onboarding/who-for",
+    });
+    return null;
+  }
+
+  const canManagePermissions = isBrainCoachSelfAccess({
+    actorUserId: req.user!.id,
+    targetUserId: context.profileId,
+    activeProfileId: context.profileId,
+    activeProfileRole: context.role,
+  });
+  if (!canManagePermissions) {
+    res.status(403).json({ error: "Only the senior can manage Brain Coach caregiver permissions." });
+    return null;
+  }
+
+  return context.profileId;
 }
 
 async function loadSummary(profileId: string, now = new Date()) {
@@ -167,7 +191,7 @@ async function acceptedInvitationFor(userId: string, profileId: string) {
 }
 
 router.get("/permissions", requireUser, async (req: Request, res: Response) => {
-  const profileId = await requireActiveProfileId(req.user!.id, res);
+  const profileId = await requireBrainCoachPermissionOwnerProfileId(req, res);
   if (!profileId) return;
 
   try {
@@ -185,6 +209,7 @@ router.get("/permissions", requireUser, async (req: Request, res: Response) => {
       .from(profileMemberships)
       .where(and(
         eq(profileMemberships.profile_id, profileId),
+        eq(profileMemberships.status, "active"),
         inArray(profileMemberships.role, ["caregiver", "family"]),
       ));
 
@@ -207,7 +232,7 @@ router.get("/permissions", requireUser, async (req: Request, res: Response) => {
 });
 
 router.patch("/permissions/:membershipId", requireUser, async (req: Request, res: Response) => {
-  const profileId = await requireActiveProfileId(req.user!.id, res);
+  const profileId = await requireBrainCoachPermissionOwnerProfileId(req, res);
   if (!profileId) return;
   const patch = permissionsPatch(req.body);
   if (!patch) return res.status(400).json({ error: "Invalid Brain Coach permissions." });
@@ -219,6 +244,7 @@ router.patch("/permissions/:membershipId", requireUser, async (req: Request, res
       .where(and(
         eq(profileMemberships.id, req.params.membershipId),
         eq(profileMemberships.profile_id, profileId),
+        eq(profileMemberships.status, "active"),
         inArray(profileMemberships.role, ["caregiver", "family"]),
       ))
       .limit(1);
@@ -226,25 +252,30 @@ router.patch("/permissions/:membershipId", requireUser, async (req: Request, res
     if (!membership) return res.status(404).json({ error: "Care team member not found." });
 
     const previousPermissions = membership.permissions;
-    const nextPermissions = withBrainCoachPermissions(previousPermissions, patch);
+    const invitation = await acceptedInvitationFor(membership.user_id, profileId);
+    const currentEffectivePermissions = effectiveBrainCoachPermissions({
+      membershipPermissions: previousPermissions,
+      careTeamConsent: invitation,
+    });
+    const nextPermissions = withBrainCoachPermissions(previousPermissions, patch, currentEffectivePermissions);
     const [updated] = await db
       .update(profileMemberships)
       .set({ permissions: nextPermissions, updated_at: new Date() })
       .where(eq(profileMemberships.id, membership.id))
       .returning();
 
-    const [account] = await db
-      .select({ active_profile_id: users.active_profile_id })
-      .from(users)
-      .where(eq(users.id, req.user!.id))
-      .limit(1);
     const context = await getActiveProfileContext(req.user!.id);
     await auditBrainCoachCaregiverChange({
       access: {
         targetUserId: profileId,
         actorUserId: req.user!.id,
         actorRole: "elder",
-        isOwnProfile: context.profileId === profileId || account?.active_profile_id === profileId,
+        isOwnProfile: isBrainCoachSelfAccess({
+          actorUserId: req.user!.id,
+          targetUserId: profileId,
+          activeProfileId: context.profileId,
+          activeProfileRole: context.role,
+        }),
         isAdmin: false,
         permissions: {
           view_summary: true,
