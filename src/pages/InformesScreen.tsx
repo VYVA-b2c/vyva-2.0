@@ -138,10 +138,10 @@ function signalDisplay(reading: SignalReading) {
 }
 
 function sourceLabel(source?: string | null) {
-  if (source === "phone_estimate") return "Estimated";
-  if (source === "connected_device") return "Device";
-  if (source === "clinical") return "Clinical";
-  return "Manual";
+  if (source === "phone_estimate") return "Estimated trend";
+  if (source === "connected_device") return "Device reading";
+  if (source === "clinical") return "Clinical reading";
+  return "Manual entry";
 }
 
 function reportSignal(summary?: Summary | null) {

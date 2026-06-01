@@ -154,10 +154,10 @@ function signalUnit(signal: string) {
 }
 
 function sourceLabel(source: string) {
-  if (source === "phone_estimate") return "estimated";
-  if (source === "connected_device") return "device";
-  if (source === "clinical") return "clinical";
-  return "manual";
+  if (source === "phone_estimate") return "estimated, confirm before escalation";
+  if (source === "connected_device") return "device, high confidence";
+  if (source === "clinical") return "clinical, high confidence";
+  return "manual or self-reported";
 }
 
 function medicationDoseCount(medications: Array<typeof userMedications.$inferSelect>) {

@@ -223,10 +223,10 @@ function signalUnit(signal: string | null | undefined) {
 }
 
 function signalSourceLabel(source: string | null | undefined) {
-  if (source === "phone_estimate") return "estimated by phone";
-  if (source === "connected_device") return "device reading";
-  if (source === "clinical") return "clinical reading";
-  return "manual reading";
+  if (source === "phone_estimate") return "estimated by phone; confirm before escalating from this reading alone";
+  if (source === "connected_device") return "high confidence device reading";
+  if (source === "clinical") return "high confidence clinical reading";
+  return "manual or self-reported reading";
 }
 
 function formatSignalReading(reading: SignalReadingRow) {

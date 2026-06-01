@@ -55,6 +55,48 @@ describe("daily safety check rules", () => {
     expect(result.pattern_labels).toContain("repeated_baseline_shift");
   });
 
+  it("treats abnormal phone-estimated pulse as a confirmation request", () => {
+    const result = buildDailySafetyCheck({
+      signalSummary: [
+        signal({
+          signal: "resting_hr_bpm",
+          recent_values: [132],
+          latest_source: "phone_estimate",
+          source_confidence: "low",
+          source_confidence_reason: "estimated from the phone camera",
+        }),
+      ],
+      language: "en",
+    });
+
+    expect(result.safety_status).toBe("recheck");
+    expect(result.senior_message).toMatch(/recheck/i);
+    expect(result.contributing_signals.signal_findings).toEqual([
+      expect.objectContaining({
+        status: "recheck",
+        reason: expect.stringMatching(/phone estimate/i),
+      }),
+    ]);
+  });
+
+  it("still escalates high-confidence device pulse readings", () => {
+    const result = buildDailySafetyCheck({
+      signalSummary: [
+        signal({
+          signal: "resting_hr_bpm",
+          recent_values: [132],
+          latest_source: "connected_device",
+          source_confidence: "high",
+          source_confidence_reason: "recorded from a connected device",
+        }),
+      ],
+      language: "en",
+    });
+
+    expect(result.safety_status).toBe("urgent_help");
+    expect(result.risk_tier).toBe("urgent");
+  });
+
   it("raises multiple baseline deviations to doctor contact", () => {
     const result = buildDailySafetyCheck({
       signalSummary: [
@@ -66,6 +108,29 @@ describe("daily safety check rules", () => {
 
     expect(result.safety_status).toBe("contact_doctor");
     expect(result.pattern_labels).toContain("multi_signal_shift");
+  });
+
+  it("does not escalate low-confidence baseline shifts without confirmation", () => {
+    const result = buildDailySafetyCheck({
+      signalSummary: [
+        signal({
+          signal: "resting_hr_bpm",
+          recent_values: [92, 90],
+          deviations_pct: [38, 34],
+          max_deviation: 38,
+          reading_count: 2,
+          latest_source: "phone_estimate",
+          source_confidence: "low",
+        }),
+      ],
+      language: "en",
+    });
+
+    expect(result.safety_status).toBe("recheck");
+    expect(result.pattern_labels).not.toContain("repeated_baseline_shift");
+    expect(result.contributing_signals.reasons).toEqual([
+      expect.stringMatching(/phone estimate/i),
+    ]);
   });
 
   it("does not let AI downgrade an emergency safety floor", () => {
