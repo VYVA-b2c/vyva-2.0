@@ -42,6 +42,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useDoctorVoice } from "@/hooks/useDoctorVoice";
 import { serviceForPath, useServiceGate } from "@/hooks/useServiceGate";
+import { useLanguage } from "@/i18n";
 
 type WoundScan = {
   id: string;
@@ -710,7 +711,8 @@ const ScanFullScreenModal = ({
 };
 
 const HealthScreen = () => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const { language: appLanguage } = useLanguage();
   const { firstName, profile } = useProfile();
   const navigate = useNavigate();
   const { guardPath, canUseService, readiness } = useServiceGate();
@@ -745,7 +747,7 @@ const HealthScreen = () => {
 
   const headlineBase = t("health.allGoodToday", "All good today");
   const headlineText = firstName ? `${headlineBase}, ${firstName}` : headlineBase;
-  const specialistLanguage = activeLanguage(profile?.language || i18n.language);
+  const specialistLanguage = activeLanguage(appLanguage);
 
   const profileLocation = useMemo(() => {
     const parts = [
@@ -1054,7 +1056,7 @@ const HealthScreen = () => {
       .then(async (dataUrl) => {
         const res = await apiFetch("/api/wound-scan", {
           method: "POST",
-          body: JSON.stringify({ image: dataUrl, language: i18n.language }),
+          body: JSON.stringify({ image: dataUrl, language: appLanguage }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json() as VisualScanResult;

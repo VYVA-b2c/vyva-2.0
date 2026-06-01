@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useProfile } from "@/contexts/ProfileContext";
+import { useLanguage } from "@/i18n";
 import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { BottomSheet, EmptyState, ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
@@ -163,8 +163,8 @@ function RoomDetailSheet({ room, language, onClose, onEnter }: RoomDetailSheetPr
 const SocialHub = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { profile } = useProfile();
-  const language = getSocialLanguage(profile?.language);
+  const { language: appLanguage } = useLanguage();
+  const language = getSocialLanguage(appLanguage);
   const copy = getSocialCopy(language);
   const autoStartVoice = useRouteVoiceAutoStart();
   const [category, setCategory] = useState<"all" | SocialRoomCategory>("all");

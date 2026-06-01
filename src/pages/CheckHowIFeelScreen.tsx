@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/contexts/ProfileContext";
+import { useLanguage } from "@/i18n";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { ListenButton } from "@/components/ListenButton";
 import {
@@ -1678,6 +1679,7 @@ const CheckHowIFeelScreen = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { firstName, profile } = useProfile();
+  const { language } = useLanguage();
   const startedAtRef = useRef(Date.now());
   const [step, setStep] = useState<StepId>("welcome");
   const [answers, setAnswers] = useState<Answers>(initialAnswers);
@@ -1697,7 +1699,7 @@ const CheckHowIFeelScreen = () => {
   });
 
   const name = firstName.trim();
-  const copy = copyFor(profile?.language);
+  const copy = copyFor(language);
   const welcomeKicker = name ? `${copy.hello}, ${name}` : copy.hello;
   const analyzingTitle = name ? `${copy.analyzingTitle}, ${name}` : copy.analyzingTitle;
   const shareLabels = shareLabelsFor(copy);
@@ -1719,7 +1721,7 @@ const CheckHowIFeelScreen = () => {
   const healthPriority = hasHealthPrioritySignal(answers);
   const urgentHealthPriority = hasUrgentSafetyFlag(answers);
   const gender = inferGender(profile, name);
-  const readoutLanguage = profile?.language ?? "es";
+  const readoutLanguage = language;
   const resultReadoutText = result
     ? [
         result.feeling_label,
@@ -1771,7 +1773,7 @@ const CheckHowIFeelScreen = () => {
       await apiFetch("/api/checkins/abandon", {
         method: "POST",
         body: JSON.stringify({
-          language: profile?.language ?? "es",
+          language,
           duration_seconds: Math.round((Date.now() - startedAtRef.current) / 1000),
         }),
       });
@@ -1830,7 +1832,7 @@ const CheckHowIFeelScreen = () => {
       const res = await apiFetch("/api/checkins/analyze", {
         method: "POST",
         body: JSON.stringify({
-          language: profile?.language ?? "es",
+          language,
           duration_seconds: Math.round((Date.now() - startedAtRef.current) / 1000),
           answers,
         }),
@@ -1872,7 +1874,7 @@ const CheckHowIFeelScreen = () => {
     if (!result || shareUrl || shareUrlLoading) return shareUrl;
     setShareUrlLoading(true);
     try {
-      const url = await createSharedReportLink(name, profile?.language ?? "es", result, shareReportText);
+      const url = await createSharedReportLink(name, language, result, shareReportText);
       setShareUrl(url);
       return url;
     } catch {

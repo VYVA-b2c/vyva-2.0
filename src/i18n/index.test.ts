@@ -309,4 +309,20 @@ describe("language persistence", () => {
     expect(legacySettingsSource).not.toContain("i18n.changeLanguage");
     expect(legacySettingsSource).not.toContain("LANGUAGE_STORAGE_KEY");
   });
+
+  it("keeps live health and social screens on the current app language", () => {
+    const files = [
+      "src/pages/HealthScreen.tsx",
+      "src/pages/SignosScreen.tsx",
+      "src/pages/CheckHowIFeelScreen.tsx",
+      "src/pages/CheckinHistoryScreen.tsx",
+      "src/social/SocialHub.tsx",
+      "src/social/RoomScreen.tsx",
+    ];
+
+    for (const file of files) {
+      const source = readFileSync(file, "utf8");
+      expect(source, `${file} should not use stale profile language for live UI`).not.toMatch(/profile\??\.language/);
+    }
+  });
 });
