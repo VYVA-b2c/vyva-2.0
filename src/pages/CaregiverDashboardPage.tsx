@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   Bell,
+  Brain,
   CalendarDays,
   CheckCircle2,
   ClipboardCheck,
@@ -15,6 +16,7 @@ import {
   MessageSquare,
   PhoneCall,
   ShieldCheck,
+  Target,
   TimerReset,
   UserCheck,
 } from "lucide-react";
@@ -64,6 +66,44 @@ type DailyCheckinToday = {
   };
   caregiver_alert?: CaregiverAlert | null;
   message: string;
+};
+
+type BrainCoachCaregiverSummary = {
+  status: "no_history" | "active" | "lapsed";
+  currentStreakDays: number;
+  lastActivityAt: string | null;
+  lapsedDays: number | null;
+  todayPlan: {
+    planId: string | null;
+    planDate: string;
+    status: string;
+    completedItems: number;
+    totalItems: number;
+    completionPct: number;
+    estimatedDurationMinutes: number;
+    domains: string[];
+  };
+  adherence7d: {
+    completedPlanDays: number;
+    plannedDays: number;
+    activeSessionDays: number;
+    completionPct: number;
+  };
+  recentDomains: Array<{
+    domain: string;
+    completedSessions: number;
+    totalSessions: number;
+    lastPlayedAt: string | null;
+  }>;
+  recentActivities: Array<{
+    id: string | null;
+    activityType: string;
+    domain: string;
+    completed: boolean;
+    score: number;
+    durationSeconds: number;
+    playedAt: string;
+  }>;
 };
 
 type AlertWorkflowEntry = {
@@ -126,6 +166,10 @@ function sourceLabel(alertType: string) {
   if (alertType === "triage_report") return "Symptom report";
   if (alertType === "daily_checkin_no_response") return "Daily check-in";
   return raw.replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function labelize(value: string) {
+  return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function severityRank(severity: string) {
@@ -235,6 +279,23 @@ export default function CaregiverDashboardPage() {
   const highestSeverity = recentAlerts.reduce((max, alert) => Math.max(max, severityRank(alert.severity)), 0);
   const checkinMessage = dailyCheckin?.latest_checkin?.feeling_label ?? dailyCheckin?.message ?? "No check-in update";
   const digestText = buildDigest(alerts, meta.label, checkinMessage);
+  const { data: brainCoachSummary } = useQuery<BrainCoachCaregiverSummary>({
+    queryKey: ["/api/games/caregiver-summary"],
+    queryFn: async () => {
+      const response = await apiFetch("/api/games/caregiver-summary");
+      if (!response.ok) throw new Error("Could not load Brain Coach summary");
+      return response.json();
+    },
+    retry: false,
+  });
+  const brainCoachStatus = brainCoachSummary?.status === "lapsed"
+    ? `Lapsed ${brainCoachSummary.lapsedDays ?? 0} days`
+    : brainCoachSummary?.status === "no_history"
+      ? "No history yet"
+      : "Active";
+  const todayPlanText = brainCoachSummary?.todayPlan.totalItems
+    ? `${brainCoachSummary.todayPlan.completedItems}/${brainCoachSummary.todayPlan.totalItems} complete`
+    : "No plan yet";
 
   function persistWorkflow(next: AlertWorkflowState) {
     setWorkflow(next);
@@ -501,6 +562,69 @@ export default function CaregiverDashboardPage() {
                           ) : null}
                         </div>
                       </div>
+                    </section>
+                  )}
+
+                  {brainCoachSummary && (
+                    <section className="rounded-[16px] border border-[#D8DED6] bg-white p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-body text-[12px] font-bold uppercase tracking-[0.13em] text-[#5F6B63]">Brain Coach</p>
+                          <h2 className="mt-1 font-body text-[22px] font-bold text-[#26312B]">Read-only training view</h2>
+                        </div>
+                        <Brain className="h-6 w-6 text-[#2F6F5E]" />
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-2 gap-3">
+                        <div className="rounded-[12px] bg-[#F8FAF8] p-3">
+                          <p className="font-body text-[12px] font-bold text-[#5F6B63]">Streak</p>
+                          <p className="mt-1 font-body text-[20px] font-bold text-[#26312B]">{brainCoachSummary.currentStreakDays} days</p>
+                        </div>
+                        <div className="rounded-[12px] bg-[#F8FAF8] p-3">
+                          <p className="font-body text-[12px] font-bold text-[#5F6B63]">Status</p>
+                          <p className="mt-1 font-body text-[18px] font-bold text-[#26312B]">{brainCoachStatus}</p>
+                        </div>
+                        <div className="rounded-[12px] bg-[#F8FAF8] p-3">
+                          <p className="font-body text-[12px] font-bold text-[#5F6B63]">Today's plan</p>
+                          <p className="mt-1 font-body text-[18px] font-bold text-[#26312B]">{todayPlanText}</p>
+                        </div>
+                        <div className="rounded-[12px] bg-[#F8FAF8] p-3">
+                          <p className="font-body text-[12px] font-bold text-[#5F6B63]">7-day adherence</p>
+                          <p className="mt-1 font-body text-[18px] font-bold text-[#26312B]">{brainCoachSummary.adherence7d.completionPct}%</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 rounded-[12px] bg-[#F8FAF8] p-3">
+                        <p className="mb-2 flex items-center gap-2 font-body text-[14px] font-bold text-[#26312B]">
+                          <Target className="h-4 w-4 text-[#2F6F5E]" />
+                          Recent domains
+                        </p>
+                        {brainCoachSummary.recentDomains.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {brainCoachSummary.recentDomains.slice(0, 4).map((domain) => (
+                              <span key={domain.domain} className="rounded-full bg-white px-3 py-1 font-body text-[12px] font-bold text-[#26312B]">
+                                {labelize(domain.domain)} - {domain.completedSessions}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="font-body text-[13px] font-semibold text-[#5F6B63]">No Brain Coach activity recorded yet.</p>
+                        )}
+                      </div>
+
+                      {brainCoachSummary.recentActivities.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          {brainCoachSummary.recentActivities.slice(0, 3).map((activity) => (
+                            <div key={activity.id ?? `${activity.activityType}-${activity.playedAt}`} className="flex items-center justify-between gap-3 rounded-[12px] border border-[#D8DED6] bg-white p-3">
+                              <div>
+                                <p className="font-body text-[14px] font-bold text-[#26312B]">{labelize(activity.activityType)}</p>
+                                <p className="font-body text-[12px] font-semibold text-[#5F6B63]">{labelize(activity.domain)}</p>
+                              </div>
+                              <span className="font-body text-[12px] font-bold text-[#5F6B63]">{formatTime(activity.playedAt)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </section>
                   )}
 

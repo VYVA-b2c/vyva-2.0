@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray } from "drizzle-orm";
 import { db } from "../db.js";
 import {
   activityLogs,
@@ -16,8 +16,14 @@ import {
   userMedications,
   vitalsReadings,
   sessionExchanges,
+  cognitiveSessionIndex,
+  cognitiveDailyPlans,
+  cognitiveDailyPlanItems,
 } from "../../shared/schema.js";
 import { formatMemoryBlock, searchMemories } from "./mem0.js";
+import { extractBrainCoachPreferences } from "./brainCoachPlan.js";
+import { buildBrainCoachVoiceContext, type BrainCoachVoiceContext } from "./brainCoachVoiceContext.js";
+import { buildPersistedBrainCoachPlan } from "./brainCoachPlanLifecycle.js";
 import { socialRoomSeeds } from "./socialRoomsSeed.js";
 import { buildAgentOperatingRules, buildConversationPlan } from "./voiceAgentPolicy.js";
 import {
@@ -573,6 +579,7 @@ function buildNextBestConversation(input: {
   localInterestOpportunities: string;
   recentActivitySummary: string;
   socialActivitySummary: string;
+  brainCoachVoiceContext: BrainCoachVoiceContext | null;
   feedbackSummary: VoiceRecommendationFeedbackSummary;
   now: Date;
 }) {
@@ -854,15 +861,23 @@ function buildNextBestConversation(input: {
   }
 
   if (input.domain === "brain_coach") {
+    const brainCoach = input.brainCoachVoiceContext;
     add({
-      id: "brain_coach_specialist_session_focus",
+      id: "brain_coach_daily_plan",
       domain: "brain_coach",
-      score: 74,
-      title: "Brain coach session focus",
-      reason: "The active agent is Brain Coach and should provide encouraging company around games, memory practice, puzzles, or cognitive activity.",
-      openingCue: "Offer a short, positive brain activity and keep the tone encouraging rather than clinical.",
-      suggestedAction: "Ask whether they would like to play, continue, or choose a lighter activity.",
-      evidence: joinList([...input.allInterests, ...input.allHobbies, ...input.allPreferredActivities], "Brain Coach specialist session requested."),
+      score: brainCoach?.state === "lapsed" ? 88 : brainCoach?.state === "new_user" ? 84 : 82,
+      title: brainCoach?.firstRecommendedActivityTitle
+        ? `Start ${brainCoach.firstRecommendedActivityTitle}`
+        : "Brain coach daily plan",
+      reason: brainCoach?.missedSessionAwareness
+        ?? "The active agent is Brain Coach and should provide encouraging company around games, memory practice, puzzles, or cognitive activity.",
+      openingCue: brainCoach?.recommendedActivityPrompt
+        ?? "Offer a short, positive brain activity and keep the tone encouraging rather than clinical.",
+      suggestedAction: brainCoach?.firstRecommendedActivityRoute
+        ? `Open ${brainCoach.firstRecommendedActivityRoute} if the user accepts the recommended activity.`
+        : "Ask whether they would like to play, continue, or choose a lighter activity.",
+      evidence: brainCoach?.summary
+        ?? joinList([...input.allInterests, ...input.allHobbies, ...input.allPreferredActivities], "Brain Coach specialist session requested."),
     });
   }
 
@@ -1031,6 +1046,7 @@ export async function buildVoiceContext(
     recentSocialVisitRows,
     voiceExchangeCountRows,
     recommendationFeedbackRows,
+    brainCoachSessionRows,
   ] = await Promise.all([
     db.select().from(profiles).where(eq(profiles.id, userId)).limit(1),
     db.select().from(userMedications).where(eq(userMedications.user_id, userId)).limit(20),
@@ -1060,6 +1076,14 @@ export async function buildVoiceContext(
       ? db.select({ value: count() }).from(sessionExchanges).where(eq(sessionExchanges.user_id, userId))
       : Promise.resolve([{ value: options.priorVoiceExchangeCount }]),
     getVoiceRecommendationFeedbackRows(userId),
+    domain === "brain_coach"
+      ? db
+          .select()
+          .from(cognitiveSessionIndex)
+          .where(eq(cognitiveSessionIndex.userId, userId))
+          .orderBy(desc(cognitiveSessionIndex.playedAt))
+          .limit(300)
+      : Promise.resolve([]),
   ]);
 
   const profile = profileRows[0] ?? null;
@@ -1117,6 +1141,35 @@ export async function buildVoiceContext(
   const latestMedicalVisit = formatScheduledHealthEvent(latestVisit);
   const upcomingMedicalAppointment = formatScheduledHealthEvent(upcomingAppointment);
   const now = new Date();
+  const todayPlanDate = now.toISOString().slice(0, 10);
+  const [brainCoachPlanRow] = domain === "brain_coach"
+    ? await db
+        .select()
+        .from(cognitiveDailyPlans)
+        .where(and(
+          eq(cognitiveDailyPlans.userId, userId),
+          eq(cognitiveDailyPlans.planDate, todayPlanDate),
+        ))
+        .limit(1)
+    : [];
+  const brainCoachPlanItemRows = brainCoachPlanRow
+    ? await db
+        .select()
+        .from(cognitiveDailyPlanItems)
+        .where(eq(cognitiveDailyPlanItems.planId, brainCoachPlanRow.id))
+        .orderBy(asc(cognitiveDailyPlanItems.sortOrder))
+    : [];
+  const persistedBrainCoachPlan = brainCoachPlanRow
+    ? buildPersistedBrainCoachPlan(brainCoachPlanRow, brainCoachPlanItemRows)
+    : null;
+  const brainCoachVoiceContext = domain === "brain_coach"
+    ? buildBrainCoachVoiceContext({
+        sessions: brainCoachSessionRows,
+        preferences: extractBrainCoachPreferences(consent),
+        plan: persistedBrainCoachPlan,
+        now,
+      })
+    : null;
   const userRow = userRows[0] ?? null;
   const latestVoiceExchange = latestVoiceExchangeRows[0] ?? null;
   const allHobbies = [...new Set([
@@ -1171,6 +1224,7 @@ export async function buildVoiceContext(
     localInterestOpportunities,
     recentActivitySummary,
     socialActivitySummary,
+    brainCoachVoiceContext,
     feedbackSummary: recommendationFeedbackSummary,
     now,
   });
@@ -1194,6 +1248,7 @@ export async function buildVoiceContext(
     preferenceContext,
     upcomingEvents.length ? `Upcoming events/reminders: ${joinList(upcomingEvents)}` : "",
     recentActivitySummary ? `Activity history: ${recentActivitySummary}` : "",
+    brainCoachVoiceContext?.summary ? `Brain Coach context: ${brainCoachVoiceContext.summary}` : "",
     socialActivitySummary ? `Social activity: ${socialActivitySummary}` : "",
     matchingSocialRooms ? `Suggested social rooms: ${matchingSocialRooms}` : "",
     localInterestOpportunities ? `Nearby interest opportunities: ${localInterestOpportunities}` : "",
@@ -1206,6 +1261,7 @@ export async function buildVoiceContext(
     matchingSocialRooms ? "Offer one social room or companion activity that matches the user's interests." : "",
     localInterestOpportunities ? "Offer Concierge to verify a nearby event or place before naming specifics." : "",
     recentActivitySummary ? "Use recent activity to suggest a balanced movement, rest, or routine step." : "",
+    brainCoachVoiceContext ? "Use today's Brain Coach plan and recent cognitive history when the user wants a brain activity." : "",
     birthday ? "Use birthday context warmly only when it feels natural." : "",
   ], 1400);
   const orchestratorContext = compactLines([
@@ -1373,6 +1429,23 @@ export async function buildVoiceContext(
 
   if (domain === "brain_coach") {
     variables.cognitive_notes = asString(cognitiveSection.cognitive_notes);
+    variables.brain_coach_state = brainCoachVoiceContext?.state ?? "new_user";
+    variables.brain_coach_plan_id = brainCoachVoiceContext?.planId ?? "";
+    variables.brain_coach_plan_complete = brainCoachVoiceContext?.planComplete ?? false;
+    variables.brain_coach_context = brainCoachVoiceContext?.summary ?? "No Brain Coach history is available yet.";
+    variables.brain_coach_recent_history = brainCoachVoiceContext?.recentHistory ?? "No completed Brain Coach activities are recorded yet.";
+    variables.brain_coach_plan = brainCoachVoiceContext?.planPrompt ?? "";
+    variables.brain_coach_recommended_activity_prompt = brainCoachVoiceContext?.recommendedActivityPrompt ?? "";
+    variables.brain_coach_recommended_activity_title = brainCoachVoiceContext?.firstRecommendedActivityTitle ?? "";
+    variables.brain_coach_recommended_activity_route = brainCoachVoiceContext?.firstRecommendedActivityRoute ?? "";
+    variables.brain_coach_recommended_plan_item_id = brainCoachVoiceContext?.firstRecommendedPlanItemId ?? "";
+    variables.brain_coach_missed_session_awareness = brainCoachVoiceContext?.missedSessionAwareness ?? "";
+    variables.brain_coach_streak_awareness = brainCoachVoiceContext?.streakAwareness ?? "";
+    variables.brain_coach_completed_yesterday = brainCoachVoiceContext?.completedYesterday ?? "";
+    variables.brain_coach_plan_estimated_minutes = brainCoachVoiceContext?.plan.estimatedDurationMinutes ?? 0;
+    variables.brain_coach_plan_completion = brainCoachVoiceContext
+      ? `${brainCoachVoiceContext.plan.completion.completedCount}/${brainCoachVoiceContext.plan.completion.totalCount} recommended activities completed today`
+      : "";
   }
 
   if (domainAllows(domain, "safety")) {

@@ -45,10 +45,52 @@ const checkinPayload = {
   message: "Daily check-in complete",
 };
 
+const brainCoachPayload = {
+  status: "active",
+  currentStreakDays: 4,
+  lastActivityAt: "2026-05-29T09:00:00.000Z",
+  lapsedDays: 0,
+  todayPlan: {
+    planId: "plan-1",
+    planDate: "2026-05-29",
+    status: "active",
+    completedItems: 1,
+    totalItems: 2,
+    completionPct: 50,
+    estimatedDurationMinutes: 8,
+    domains: ["visual_memory", "attention"],
+  },
+  adherence7d: {
+    completedPlanDays: 3,
+    plannedDays: 4,
+    activeSessionDays: 4,
+    completionPct: 75,
+  },
+  recentDomains: [{
+    domain: "visual_memory",
+    completedSessions: 3,
+    totalSessions: 3,
+    lastPlayedAt: "2026-05-29T09:00:00.000Z",
+  }],
+  recentActivities: [{
+    id: "session-1",
+    activityType: "memory_match",
+    domain: "visual_memory",
+    completed: true,
+    score: 820,
+    durationSeconds: 120,
+    playedAt: "2026-05-29T09:00:00.000Z",
+  }],
+};
+
 function mockApi() {
   vi.mocked(apiFetch).mockImplementation(async (input: RequestInfo | URL) => {
     const path = String(input);
-    const payload = path.includes("/api/checkins/today") ? checkinPayload : caregiverPayload;
+    const payload = path.includes("/api/checkins/today")
+      ? checkinPayload
+      : path.includes("/api/games/caregiver-summary")
+        ? brainCoachPayload
+        : caregiverPayload;
     return new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } });
   });
 }
@@ -140,5 +182,21 @@ describe("CaregiverDashboardPage", () => {
     expect(screen.getByText("Last 7 days")).toBeInTheDocument();
     expect(screen.getByText(/Current safety status: Caregiver aware/i)).toBeInTheDocument();
     expect(screen.getByText(/Open alerts: 1/i)).toBeInTheDocument();
+  });
+
+  it("renders the read-only Brain Coach caregiver summary", async () => {
+    mockApi();
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText("Read-only training view")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("4 days")).toBeInTheDocument();
+    expect(screen.getByText("1/2 complete")).toBeInTheDocument();
+    expect(screen.getByText("75%")).toBeInTheDocument();
+    expect(screen.getByText("Visual Memory - 3")).toBeInTheDocument();
+    expect(screen.getByText("Memory Match")).toBeInTheDocument();
   });
 });
