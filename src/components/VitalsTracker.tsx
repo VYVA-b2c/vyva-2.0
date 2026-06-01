@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { Activity, AlertTriangle, ArrowLeft, Bell, Check, HeartPulse, Loader2, Moon, PhoneCall, Pill, Plus, RefreshCw, Scale, Share2, ShieldCheck, Smile, Sparkles, Stethoscope, Thermometer, Wind, Zap } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 
-type Language = "es" | "de" | "en";
+type Language = "es" | "de" | "en" | "fr" | "it" | "pt";
 type Screen = "dashboard" | "add";
 type SignalKey = keyof typeof SIGNAL_CONFIG;
 
@@ -174,6 +174,208 @@ const COPY = {
   },
 };
 
+type LocalizedText = Partial<Record<Language, string>>;
+
+interface ExtraTrackerCopy {
+  loadError: string;
+  saveError: string;
+  analysisError: string;
+  actionError: string;
+  checkConnectedSensor: string;
+  manualGlucoseEntry: string;
+  connectedGlucoseHelp: string;
+  manualGlucoseHelp: string;
+  whenReading: string;
+  ok: string;
+}
+
+const COPY_BASE: Partial<Record<Language, typeof COPY.en>> = COPY;
+
+const COPY_OVERRIDES: Record<Language, Partial<typeof COPY.en> & ExtraTrackerCopy> = {
+  es: {
+    loadError: "No pude cargar tus signos ahora.",
+    saveError: "No pude guardar este dato.",
+    analysisError: "El analisis no se pudo completar.",
+    actionError: "No pude guardar esta accion.",
+    checkConnectedSensor: "Buscar sensor conectado",
+    manualGlucoseEntry: "Entrada manual de glucosa",
+    connectedGlucoseHelp: "Si no hay lectura automatica disponible, introduce el numero del glucometro aqui.",
+    manualGlucoseHelp: "Escribe el numero del glucometro para guardarlo con tus signos.",
+    whenReading: "Cuando fue esta medicion?",
+    ok: "OK",
+  },
+  de: {
+    loadError: "Vitalwerte konnten gerade nicht geladen werden.",
+    saveError: "Dieser Wert konnte nicht gespeichert werden.",
+    analysisError: "Die Analyse konnte nicht abgeschlossen werden.",
+    actionError: "Diese Aktion konnte nicht gespeichert werden.",
+    checkConnectedSensor: "Verbundenen Sensor prufen",
+    manualGlucoseEntry: "Manuelle Glukoseeingabe",
+    connectedGlucoseHelp: "Wenn kein automatischer Wert verfugbar ist, geben Sie den Wert vom Glukosemessgerat hier ein.",
+    manualGlucoseHelp: "Geben Sie den Wert vom Glukosemessgerat ein, um ihn mit Ihren Vitalwerten zu speichern.",
+    whenReading: "Wann war diese Messung?",
+    ok: "OK",
+  },
+  en: {
+    loadError: "Could not load vitals right now.",
+    saveError: "Could not save this reading.",
+    analysisError: "The analysis could not finish.",
+    actionError: "Could not record this action.",
+    checkConnectedSensor: "Check connected sensor",
+    manualGlucoseEntry: "Manual glucose entry",
+    connectedGlucoseHelp: "If no automatic reading is available, enter the number from the glucose meter here.",
+    manualGlucoseHelp: "Type the number from the glucose meter to save it with your vitals.",
+    whenReading: "When was this reading?",
+    ok: "OK",
+  },
+  fr: {
+    add: "Ajouter une mesure",
+    analyse: "Analyser maintenant",
+    analysing: "Analyse...",
+    loading: "Preparation de vos constantes...",
+    back: "Retour",
+    save: "Enregistrer la mesure",
+    saving: "Enregistrement...",
+    lastAnalysis: "Derniere analyse",
+    noAnalysis: "Aucune analyse encore",
+    now: "Maintenant",
+    normal: "Normal",
+    today: "Aujourd'hui",
+    yes: "Oui, pris",
+    no: "Pas encore",
+    messageFallback: "Bonjour. VYVA est prete a revoir vos constantes avec vous.",
+    safetyTitle: "Controle quotidien",
+    safetyAck: "Enregistre",
+    recheck: "Verifier a nouveau",
+    share: "Partager",
+    doctor: "Medecin",
+    urgent: "Urgent",
+    sourceEstimated: "Estime",
+    sourceManual: "Manuel",
+    sourceDevice: "Appareil",
+    confidenceLow: "Faible",
+    confidenceMedium: "Moyenne",
+    confidenceHigh: "Elevee",
+    evidenceTitle: "Qualite des donnees",
+    evidenceBody: "VYVA combine les estimations du telephone avec les valeurs saisies depuis des appareils. Les estimations aident a voir les tendances; les appareils et mesures cliniques ont plus de poids.",
+    evidencePhone: "Telephone : pouls et respiration estimes",
+    evidenceManual: "Manuel : douleur, humeur, energie et medication",
+    evidenceDevice: "Appareil : oxygene, temperature, tension, glycemie et poids",
+    addEvidenceNote: "Saisissez le nombre tel qu'il apparait sur votre appareil, ou notez comment vous vous sentez. Cela aide VYVA a affiner l'evaluation.",
+    sourceClinical: "Clinique",
+    loadError: "Impossible de charger vos constantes maintenant.",
+    saveError: "Impossible d'enregistrer cette mesure.",
+    analysisError: "L'analyse n'a pas pu se terminer.",
+    actionError: "Impossible d'enregistrer cette action.",
+    checkConnectedSensor: "Verifier le capteur connecte",
+    manualGlucoseEntry: "Saisie manuelle de glycemie",
+    connectedGlucoseHelp: "Si aucune mesure automatique n'est disponible, saisissez ici le nombre du lecteur de glycemie.",
+    manualGlucoseHelp: "Saisissez le nombre du lecteur de glycemie pour l'enregistrer avec vos constantes.",
+    whenReading: "Quand cette mesure a-t-elle ete prise?",
+    ok: "OK",
+  },
+  it: {
+    add: "Aggiungi lettura",
+    analyse: "Analizza ora",
+    analysing: "Analisi...",
+    loading: "Preparazione dei parametri...",
+    back: "Indietro",
+    save: "Salva lettura",
+    saving: "Salvataggio...",
+    lastAnalysis: "Ultima analisi",
+    noAnalysis: "Nessuna analisi ancora",
+    now: "Ora",
+    normal: "Normale",
+    today: "Oggi",
+    yes: "Si, presa",
+    no: "Non ancora",
+    messageFallback: "Buongiorno. VYVA e pronta a rivedere i tuoi segnali con te.",
+    safetyTitle: "Controllo quotidiano",
+    safetyAck: "Registrato",
+    recheck: "Ricontrolla",
+    share: "Condividi",
+    doctor: "Medico",
+    urgent: "Urgente",
+    sourceEstimated: "Stimato",
+    sourceManual: "Manuale",
+    sourceDevice: "Dispositivo",
+    confidenceLow: "Bassa",
+    confidenceMedium: "Media",
+    confidenceHigh: "Alta",
+    evidenceTitle: "Qualita dei dati",
+    evidenceBody: "VYVA combina stime del telefono con valori inseriti da dispositivi. Le stime aiutano con i trend; dispositivi e letture cliniche hanno piu peso.",
+    evidencePhone: "Telefono: polso e respirazione stimati",
+    evidenceManual: "Manuale: dolore, umore, energia e farmaci",
+    evidenceDevice: "Dispositivo: ossigeno, temperatura, pressione, glucosio e peso",
+    addEvidenceNote: "Inserisci il numero esattamente come appare sul dispositivo, o registra come ti senti. Questo aiuta VYVA a perfezionare la valutazione.",
+    sourceClinical: "Clinico",
+    loadError: "Impossibile caricare i parametri ora.",
+    saveError: "Impossibile salvare questa lettura.",
+    analysisError: "L'analisi non e stata completata.",
+    actionError: "Impossibile registrare questa azione.",
+    checkConnectedSensor: "Controlla sensore connesso",
+    manualGlucoseEntry: "Inserimento manuale glucosio",
+    connectedGlucoseHelp: "Se non e disponibile una lettura automatica, inserisci qui il numero del glucometro.",
+    manualGlucoseHelp: "Digita il numero del glucometro per salvarlo con i tuoi parametri.",
+    whenReading: "Quando e stata presa questa misura?",
+    ok: "OK",
+  },
+  pt: {
+    add: "Adicionar leitura",
+    analyse: "Analisar agora",
+    analysing: "A analisar...",
+    loading: "A preparar os seus sinais...",
+    back: "Voltar",
+    save: "Guardar leitura",
+    saving: "A guardar...",
+    lastAnalysis: "Ultima analise",
+    noAnalysis: "Sem analise ainda",
+    now: "Agora",
+    normal: "Normal",
+    today: "Hoje",
+    yes: "Sim, tomado",
+    no: "Ainda nao",
+    messageFallback: "Bom dia. A VYVA esta pronta para rever os seus sinais consigo.",
+    safetyTitle: "Verificacao diaria",
+    safetyAck: "Registado",
+    recheck: "Rever",
+    share: "Partilhar",
+    doctor: "Medico",
+    urgent: "Urgente",
+    sourceEstimated: "Estimado",
+    sourceManual: "Manual",
+    sourceDevice: "Dispositivo",
+    confidenceLow: "Baixa",
+    confidenceMedium: "Media",
+    confidenceHigh: "Alta",
+    evidenceTitle: "Qualidade dos dados",
+    evidenceBody: "A VYVA combina estimativas do telefone com valores introduzidos de dispositivos. As estimativas ajudam nas tendencias; dispositivos e leituras clinicas tem mais peso.",
+    evidencePhone: "Telefone: pulso e respiracao estimados",
+    evidenceManual: "Manual: dor, humor, energia e medicacao",
+    evidenceDevice: "Dispositivo: oxigenio, temperatura, tensao, glicose e peso",
+    addEvidenceNote: "Introduza o numero exatamente como aparece no dispositivo, ou registe como se sente. Isto ajuda a VYVA a refinar a avaliacao.",
+    sourceClinical: "Clinico",
+    loadError: "Nao foi possivel carregar os seus sinais agora.",
+    saveError: "Nao foi possivel guardar esta leitura.",
+    analysisError: "A analise nao conseguiu terminar.",
+    actionError: "Nao foi possivel registar esta acao.",
+    checkConnectedSensor: "Verificar sensor ligado",
+    manualGlucoseEntry: "Entrada manual de glicose",
+    connectedGlucoseHelp: "Se nao houver leitura automatica disponivel, introduza aqui o numero do medidor de glicose.",
+    manualGlucoseHelp: "Digite o numero do medidor de glicose para guardar com os seus sinais.",
+    whenReading: "Quando foi esta medicao?",
+    ok: "OK",
+  },
+};
+
+function copyFor(language: Language) {
+  return { ...COPY.en, ...(COPY_BASE[language] ?? {}), ...COPY_OVERRIDES[language] };
+}
+
+function textFor(values: LocalizedText, language: Language): string {
+  return values[language] ?? values.en ?? values.es ?? "";
+}
+
 const SIGNAL_CONFIG = {
   glucose_mgdl: {
     label: { es: "Glucosa", de: "Blutzucker", en: "Glucose" },
@@ -312,6 +514,213 @@ const SIGNAL_CONFIG = {
   },
 } as const;
 
+interface SignalTranslation {
+  label?: string;
+  question?: string;
+  contexts?: Record<string, string>;
+}
+
+const SIGNAL_TRANSLATIONS: Partial<Record<Language, Partial<Record<SignalKey, SignalTranslation>>>> = {
+  fr: {
+    glucose_mgdl: {
+      label: "Glycemie",
+      question: "Que montre votre lecteur de glycemie?",
+      contexts: { fasting: "A jeun", post_meal_2h: "Apres repas", nocturnal: "Nuit", general: "Maintenant" },
+    },
+    resting_hr_bpm: {
+      label: "Pouls",
+      question: "Combien de battements par minute?",
+      contexts: { morning: "Matin", general: "Maintenant" },
+    },
+    respiratory_rate: {
+      label: "Respiration",
+      question: "Combien de respirations par minute?",
+      contexts: { resting: "Au repos", general: "Maintenant" },
+    },
+    oxygen_saturation: {
+      label: "Oxygene",
+      question: "Que montre l'oxymetre?",
+      contexts: { resting: "Au repos", general: "Maintenant" },
+    },
+    temperature_c: {
+      label: "Temperature",
+      question: "Que montre le thermometre?",
+      contexts: { general: "Maintenant", evening: "Soir" },
+    },
+    bp_systolic: {
+      label: "Tension",
+      question: "Que montre le tensiometre? (nombre du haut)",
+      contexts: { morning: "Matin", evening: "Soir" },
+    },
+    weight_kg: {
+      label: "Poids",
+      question: "Que montre la balance?",
+      contexts: { morning: "Matin", general: "Maintenant" },
+    },
+    pain_score: {
+      label: "Douleur",
+      question: "Quel niveau de douleur avez-vous? (0 = aucune, 10 = forte)",
+      contexts: { general: "Maintenant" },
+    },
+    sleep_quality_score: {
+      label: "Sommeil",
+      question: "Comment avez-vous dormi cette nuit? (1 = tres mal, 10 = tres bien)",
+      contexts: { general: "Cette nuit" },
+    },
+    energy_level: {
+      label: "Energie",
+      question: "Quel est votre niveau d'energie aujourd'hui? (1 = tres bas, 10 = eleve)",
+      contexts: { general: "Aujourd'hui" },
+    },
+    medication_confirmed: {
+      label: "Medicament",
+      question: "Avez-vous pris votre medicament aujourd'hui?",
+      contexts: { morning: "Matin", evening: "Soir" },
+    },
+    mood_score: {
+      label: "Humeur",
+      question: "Comment vous sentez-vous aujourd'hui? (1 = tres mal, 10 = excellent)",
+      contexts: { general: "Aujourd'hui" },
+    },
+  },
+  it: {
+    glucose_mgdl: {
+      label: "Glucosio",
+      question: "Cosa mostra il glucometro?",
+      contexts: { fasting: "A digiuno", post_meal_2h: "Dopo pasto", nocturnal: "Notte", general: "Ora" },
+    },
+    resting_hr_bpm: {
+      label: "Polso",
+      question: "Quanti battiti al minuto?",
+      contexts: { morning: "Mattina", general: "Ora" },
+    },
+    respiratory_rate: {
+      label: "Respirazione",
+      question: "Quanti respiri al minuto?",
+      contexts: { resting: "A riposo", general: "Ora" },
+    },
+    oxygen_saturation: {
+      label: "Ossigeno",
+      question: "Cosa mostra il pulsossimetro?",
+      contexts: { resting: "A riposo", general: "Ora" },
+    },
+    temperature_c: {
+      label: "Temperatura",
+      question: "Cosa mostra il termometro?",
+      contexts: { general: "Ora", evening: "Sera" },
+    },
+    bp_systolic: {
+      label: "Pressione",
+      question: "Cosa mostra il misuratore di pressione? (numero alto)",
+      contexts: { morning: "Mattina", evening: "Sera" },
+    },
+    weight_kg: {
+      label: "Peso",
+      question: "Cosa mostra la bilancia?",
+      contexts: { morning: "Mattina", general: "Ora" },
+    },
+    pain_score: {
+      label: "Dolore",
+      question: "Quanto dolore hai? (0 = niente, 10 = forte)",
+      contexts: { general: "Ora" },
+    },
+    sleep_quality_score: {
+      label: "Sonno",
+      question: "Come hai dormito questa notte? (1 = molto male, 10 = molto bene)",
+      contexts: { general: "Questa notte" },
+    },
+    energy_level: {
+      label: "Energia",
+      question: "Quanta energia hai oggi? (1 = molto bassa, 10 = alta)",
+      contexts: { general: "Oggi" },
+    },
+    medication_confirmed: {
+      label: "Farmaci",
+      question: "Hai preso i farmaci oggi?",
+      contexts: { morning: "Mattina", evening: "Sera" },
+    },
+    mood_score: {
+      label: "Umore",
+      question: "Come ti senti oggi? (1 = molto male, 10 = eccellente)",
+      contexts: { general: "Oggi" },
+    },
+  },
+  pt: {
+    glucose_mgdl: {
+      label: "Glicose",
+      question: "O que mostra o medidor de glicose?",
+      contexts: { fasting: "Em jejum", post_meal_2h: "Depois da refeicao", nocturnal: "Noite", general: "Agora" },
+    },
+    resting_hr_bpm: {
+      label: "Pulso",
+      question: "Quantas batidas por minuto?",
+      contexts: { morning: "Manha", general: "Agora" },
+    },
+    respiratory_rate: {
+      label: "Respiracao",
+      question: "Quantas respiracoes por minuto?",
+      contexts: { resting: "Em repouso", general: "Agora" },
+    },
+    oxygen_saturation: {
+      label: "Oxigenio",
+      question: "O que mostra o oximetro?",
+      contexts: { resting: "Em repouso", general: "Agora" },
+    },
+    temperature_c: {
+      label: "Temperatura",
+      question: "O que mostra o termometro?",
+      contexts: { general: "Agora", evening: "Noite" },
+    },
+    bp_systolic: {
+      label: "Tensao",
+      question: "O que mostra o medidor de tensao? (numero alto)",
+      contexts: { morning: "Manha", evening: "Noite" },
+    },
+    weight_kg: {
+      label: "Peso",
+      question: "O que mostra a balanca?",
+      contexts: { morning: "Manha", general: "Agora" },
+    },
+    pain_score: {
+      label: "Dor",
+      question: "Quanta dor sente? (0 = nenhuma, 10 = forte)",
+      contexts: { general: "Agora" },
+    },
+    sleep_quality_score: {
+      label: "Sono",
+      question: "Como dormiu esta noite? (1 = muito mal, 10 = muito bem)",
+      contexts: { general: "Esta noite" },
+    },
+    energy_level: {
+      label: "Energia",
+      question: "Quanta energia tem hoje? (1 = muito baixa, 10 = alta)",
+      contexts: { general: "Hoje" },
+    },
+    medication_confirmed: {
+      label: "Medicacao",
+      question: "Tomou a sua medicacao hoje?",
+      contexts: { morning: "Manha", evening: "Noite" },
+    },
+    mood_score: {
+      label: "Humor",
+      question: "Como se sente hoje? (1 = muito mal, 10 = excelente)",
+      contexts: { general: "Hoje" },
+    },
+  },
+};
+
+function signalLabel(signalKey: SignalKey, cfg: typeof SIGNAL_CONFIG[SignalKey], language: Language): string {
+  return SIGNAL_TRANSLATIONS[language]?.[signalKey]?.label ?? textFor(cfg.label, language);
+}
+
+function signalQuestion(signalKey: SignalKey, cfg: typeof SIGNAL_CONFIG[SignalKey], language: Language): string {
+  return SIGNAL_TRANSLATIONS[language]?.[signalKey]?.question ?? textFor(cfg.question, language);
+}
+
+function signalContextLabel(signalKey: SignalKey, context: { key: string; label: LocalizedText }, language: Language): string {
+  return SIGNAL_TRANSLATIONS[language]?.[signalKey]?.contexts?.[context.key] ?? textFor(context.label, language);
+}
+
 const DASHBOARD_SIGNALS: SignalKey[] = ["resting_hr_bpm", "oxygen_saturation", "temperature_c", "glucose_mgdl", "mood_score", "sleep_quality_score"];
 
 function SignalIcon({ type, className = "" }: { type: string; className?: string }) {
@@ -342,10 +751,13 @@ function getRiskColor(score: number) {
 }
 
 function getRiskLabel(score: number, language: Language) {
-  const labels = {
+  const labels: Record<Language, string[]> = {
     es: ["Todo bien", "Atención leve", "Requiere atención", "Urgente"],
     de: ["Alles gut", "Leichte Aufmerksamkeit", "Aufmerksamkeit erforderlich", "Dringend"],
     en: ["All good", "Mild attention", "Needs attention", "Urgent"],
+    fr: ["Tout va bien", "Attention legere", "Attention necessaire", "Urgent"],
+    it: ["Tutto bene", "Lieve attenzione", "Richiede attenzione", "Urgente"],
+    pt: ["Tudo bem", "Atencao ligeira", "Requer atencao", "Urgente"],
   };
   const lang = labels[language];
   if (score < 30) return lang[0];
@@ -394,13 +806,34 @@ function safetyLabel(status: SafetyStatus, language: Language) {
       contact_doctor: "Contact doctor",
       urgent_help: "Urgent help",
     },
+    fr: {
+      steady: "Stable",
+      recheck: "Verifier a nouveau",
+      share_with_caregiver: "Partager avec l'aidant",
+      contact_doctor: "Contacter le medecin",
+      urgent_help: "Aide urgente",
+    },
+    it: {
+      steady: "Stabile",
+      recheck: "Ricontrolla",
+      share_with_caregiver: "Condividi con caregiver",
+      contact_doctor: "Contatta medico",
+      urgent_help: "Aiuto urgente",
+    },
+    pt: {
+      steady: "Estavel",
+      recheck: "Rever",
+      share_with_caregiver: "Partilhar com cuidador",
+      contact_doctor: "Contactar medico",
+      urgent_help: "Ajuda urgente",
+    },
   };
   return labels[language][status];
 }
 
 function readingSourceBadge(reading: RecentReading | undefined, language: Language) {
   if (!reading) return null;
-  const copy = COPY[language];
+  const copy = copyFor(language);
   const source = reading.source;
   const confidence = reading.source_confidence ?? (source === "phone_estimate" ? "low" : source === "connected_device" || source === "clinical" ? "high" : "medium");
   const confidenceLabel =
@@ -416,8 +849,26 @@ function readingSourceBadge(reading: RecentReading | undefined, language: Langua
 }
 
 function relativeTime(iso: string | null | undefined, language: Language) {
-  if (!iso) return COPY[language].noAnalysis;
+  if (!iso) return copyFor(language).noAnalysis;
   const diffMinutes = Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (language === "fr") {
+    if (diffMinutes < 60) return `il y a ${diffMinutes} min`;
+    const hours = Math.round(diffMinutes / 60);
+    if (hours < 24) return `il y a ${hours} h`;
+    return `il y a ${Math.round(hours / 24)} jours`;
+  }
+  if (language === "it") {
+    if (diffMinutes < 60) return `${diffMinutes} min fa`;
+    const hours = Math.round(diffMinutes / 60);
+    if (hours < 24) return `${hours} ore fa`;
+    return `${Math.round(hours / 24)} giorni fa`;
+  }
+  if (language === "pt") {
+    if (diffMinutes < 60) return `ha ${diffMinutes} min`;
+    const hours = Math.round(diffMinutes / 60);
+    if (hours < 24) return `ha ${hours} horas`;
+    return `ha ${Math.round(hours / 24)} dias`;
+  }
   if (diffMinutes < 60) return language === "es" ? `hace ${diffMinutes} min` : language === "de" ? `vor ${diffMinutes} Min.` : `${diffMinutes} min ago`;
   const hours = Math.round(diffMinutes / 60);
   if (hours < 24) return language === "es" ? `hace ${hours} horas` : language === "de" ? `vor ${hours} Std.` : `${hours} hours ago`;
@@ -441,7 +892,7 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
   const [saving, setSaving] = useState(false);
   const [acknowledging, setAcknowledging] = useState<string | null>(null);
 
-  const copy = COPY[language];
+  const copy = useMemo(() => copyFor(language), [language]);
   const visibleSignals = useMemo(() => getVisibleSignals(userConditions), [userConditions]);
   const selectedConfig = SIGNAL_CONFIG[selectedSignal];
   const riskScore = analysis?.risk_score ?? 0;
@@ -474,11 +925,11 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
       setRecentReadings(data.recent_readings ?? []);
       setLatestAlert(data.latest_alert ?? null);
     } catch {
-      setError(language === "es" ? "No pude cargar tus signos ahora." : "Could not load vitals right now.");
+      setError(copy.loadError);
     } finally {
       setLoading(false);
     }
-  }, [language, userId]);
+  }, [copy.loadError, userId]);
 
   async function saveReading() {
     const numeric = selectedConfig.isBinary ? Number(inputValue) : Number(inputValue);
@@ -507,7 +958,7 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
         await triggerAnalysis();
       }
     } catch {
-      setError(language === "es" ? "No pude guardar este dato." : "Could not save this reading.");
+      setError(copy.saveError);
     } finally {
       setSaving(false);
     }
@@ -525,7 +976,7 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
       if (!response.ok) throw new Error("Analysis failed");
       await loadDashboard();
     } catch {
-      setError(language === "es" ? "El análisis no se pudo completar." : "The analysis could not finish.");
+      setError(copy.analysisError);
     } finally {
       setAnalysing(false);
     }
@@ -548,7 +999,7 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
       setAnalysis((current) => ({ ...(current ?? {}), ...updated }));
       await loadDashboard();
     } catch {
-      setError(language === "es" ? "No pude guardar esta accion." : "Could not record this action.");
+      setError(copy.actionError);
     } finally {
       setAcknowledging(null);
     }
@@ -607,7 +1058,7 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
                 }}
               >
                 <SignalIcon type={cfg.icon} className={active ? "text-white" : "text-[#6B21A8]"} />
-                {cfg.label[language]}
+                {signalLabel(key, cfg, language)}
               </button>
             );
           })}
@@ -616,7 +1067,7 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
         <div className="my-7 h-px bg-[#E8DED4]" />
 
         <h2 className="font-display text-[30px] italic leading-tight text-[#2F241F]">
-          {selectedConfig.question[language]}
+          {signalQuestion(selectedSignal, selectedConfig, language)}
         </h2>
         <p className="mt-3 rounded-[20px] border border-[#DDD6FE] bg-white px-4 py-3 font-body text-[16px] font-bold leading-snug text-[#6B5B52]">
           {copy.addEvidenceNote}
@@ -630,18 +1081,10 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
               </span>
               <div>
                 <p className="font-body text-[19px] font-black leading-tight text-[#2F241F]">
-                  {addSource === "connected"
-                    ? language === "es" ? "Buscar sensor conectado" : "Check connected sensor"
-                    : language === "es" ? "Entrada manual de glucosa" : "Manual glucose entry"}
+                  {addSource === "connected" ? copy.checkConnectedSensor : copy.manualGlucoseEntry}
                 </p>
                 <p className="mt-1 font-body text-[16px] font-bold leading-snug text-[#6B5B52]">
-                  {addSource === "connected"
-                    ? language === "es"
-                      ? "Si no hay lectura automatica disponible, introduce el numero del glucometro aqui."
-                      : "If no automatic reading is available, enter the number from the glucose meter here."
-                    : language === "es"
-                      ? "Escribe el numero del glucometro para guardarlo con tus signos."
-                      : "Type the number from the glucose meter to save it with your vitals."}
+                  {addSource === "connected" ? copy.connectedGlucoseHelp : copy.manualGlucoseHelp}
                 </p>
               </div>
             </div>
@@ -691,7 +1134,7 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
         )}
 
         <p className="mt-7 font-body text-[20px] font-bold text-[#3B2C25]">
-          {language === "es" ? "¿Cuándo fue esta medición?" : language === "de" ? "Wann war diese Messung?" : "When was this reading?"}
+          {copy.whenReading}
         </p>
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {selectedConfig.contexts.map((context) => {
@@ -708,7 +1151,7 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
                   color: active ? "#2F241F" : "#6B5B52",
                 }}
               >
-                {context.label[language]}
+                {signalContextLabel(selectedSignal, context, language)}
               </button>
             );
           })}
@@ -983,7 +1426,7 @@ function SignalCard({
           </span>
         )}
       </div>
-      <p className="font-body text-[18px] font-bold text-[#6B5B52]">{cfg.label[language]}</p>
+      <p className="font-body text-[18px] font-bold text-[#6B5B52]">{signalLabel(signalKey, cfg, language)}</p>
       <p className="mt-1 font-body text-[24px] font-bold leading-tight text-[#2F241F]">{display}</p>
       <p className="mt-2 font-body text-[18px] font-bold text-[#7A6A60]">{subLabel}</p>
     </article>

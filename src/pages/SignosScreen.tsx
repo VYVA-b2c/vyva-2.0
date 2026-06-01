@@ -129,11 +129,11 @@ const DEVICE_ROWS = [
   { id: "stethoscope", Icon: Stethoscope, labelKey: "statusVitals.deviceRows.digitalStethoscope", fallbackLabel: "Digital stethoscope", model: "Eko DUO", connected: false },
 ];
 
-type VitalsTrackerLanguage = "de" | "en" | "es";
+type VitalsTrackerLanguage = "de" | "en" | "es" | "fr" | "it" | "pt";
 
 function vitalsTrackerLanguage(language?: string | null): VitalsTrackerLanguage {
   const base = (language ?? "").split("-")[0]?.toLowerCase();
-  if (base === "de" || base === "en" || base === "es") return base;
+  if (base === "de" || base === "en" || base === "es" || base === "fr" || base === "it" || base === "pt") return base;
   return "en";
 }
 
