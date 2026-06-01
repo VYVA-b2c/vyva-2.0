@@ -38,6 +38,7 @@ import { useProfile } from "@/contexts/ProfileContext";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { apiFetch } from "@/lib/queryClient";
+import { vitalsEvidenceFor, type VitalsSourceConfidence } from "../../shared/vitalsEvidence";
 
 type MetricType = "hr" | "rr" | "bp";
 type ReadingSource = "phone_estimate" | "manual_entry" | "connected_device" | "clinical";
@@ -46,6 +47,10 @@ interface VitalsSummaryEntry {
   latest_value: string | null;
   latest_recorded_at: string | null;
   latest_source?: ReadingSource | null;
+  latest_source_confidence?: VitalsSourceConfidence | null;
+  latest_source_confidence_reason?: string | null;
+  latest_source_display_label?: string | null;
+  latest_source_context_label?: string | null;
   trend: (string | null)[];
   has_data: boolean;
 }
@@ -102,6 +107,12 @@ const METRIC_META: Record<MetricType, MetricMeta> = {
   },
 };
 
+const ENGINE_SIGNAL_BY_METRIC: Record<MetricType, string> = {
+  hr: "resting_hr_bpm",
+  rr: "respiratory_rate",
+  bp: "bp_systolic",
+};
+
 const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
 
 const DEVICE_ROWS = [
@@ -153,17 +164,25 @@ function getMetricState(meta: MetricMeta, value: string | null) {
   return { tone: "steady", color: "#047857", bg: "#D1FAE5" };
 }
 
-function sourceTone(source?: ReadingSource | null) {
-  if (source === "phone_estimate") {
-    return { label: "Estimated", color: "#6B21A8", bg: "#F5F3FF" };
-  }
+function confidenceLabel(confidence?: VitalsSourceConfidence | null) {
+  if (confidence === "high") return "High";
+  if (confidence === "low") return "Low";
+  return "Medium";
+}
+
+function sourceTone(summary: VitalsSummaryEntry | undefined, metricKey: MetricType) {
+  const source = summary?.latest_source;
+  const evidence = vitalsEvidenceFor(source, ENGINE_SIGNAL_BY_METRIC[metricKey]);
+  const confidence = summary?.latest_source_confidence ?? evidence.confidence;
+  const label = `${summary?.latest_source_display_label ?? evidence.displayLabel} - ${confidenceLabel(confidence)}`;
+  if (source === "phone_estimate") return { label, color: "#6B21A8", bg: "#F5F3FF" };
   if (source === "connected_device") {
-    return { label: "Device", color: "#047857", bg: "#D1FAE5" };
+    return { label, color: "#047857", bg: "#D1FAE5" };
   }
   if (source === "clinical") {
-    return { label: "Clinical", color: "#0369A1", bg: "#E0F2FE" };
+    return { label, color: "#0369A1", bg: "#E0F2FE" };
   }
-  return { label: "Manual", color: "#92400E", bg: "#FEF3C7" };
+  return { label, color: "#92400E", bg: "#FEF3C7" };
 }
 
 function MiniTrend({ values, accent }: { values: number[]; accent: string }) {
@@ -211,7 +230,7 @@ function MetricCard({
   const displayValue = hasData ? summary?.latest_value ?? "--" : "--";
   const hasTrend = trend.some((value) => value > 0);
   const state = getMetricState(meta, summary?.latest_value ?? null);
-  const source = sourceTone(summary?.latest_source);
+  const source = sourceTone(summary, metricKey);
   const stateLabel =
     state.tone === "steady"
       ? t("statusVitals.status.steady", "Steady")

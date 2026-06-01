@@ -4,7 +4,7 @@ import { and, eq, gte, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
 import { vitalsReadings } from "../../shared/schema.js";
-import { VITALS_READING_SOURCES, type VitalsReadingSource } from "../../shared/vitalsEvidence.js";
+import { VITALS_READING_SOURCES, vitalsEvidenceFor, type VitalsReadingSource } from "../../shared/vitalsEvidence.js";
 import { requireUser } from "../middleware/auth.js";
 
 const router = Router();
@@ -114,6 +114,10 @@ router.get("/", requireUser, async (req: Request, res: Response) => {
       latest_value: string | null;
       latest_recorded_at: string | null;
       latest_source: ReadingSource | null;
+      latest_source_confidence: "low" | "medium" | "high" | null;
+      latest_source_confidence_reason: string | null;
+      latest_source_display_label: string | null;
+      latest_source_context_label: string | null;
       trend: (string | null)[];
       has_data: boolean;
     }> = {};
@@ -121,6 +125,7 @@ router.get("/", requireUser, async (req: Request, res: Response) => {
     for (const metric of METRIC_TYPES) {
       const readings = byMetric[metric];
       const latest = readings[0] ?? null;
+      const evidence = latest ? vitalsEvidenceFor(latest.source, ENGINE_SIGNAL_BY_METRIC[metric]) : null;
 
       const dayMap: Record<string, string> = {};
       for (const r of readings) {
@@ -138,6 +143,10 @@ router.get("/", requireUser, async (req: Request, res: Response) => {
         latest_value: latest?.value ?? null,
         latest_recorded_at: latest?.recorded_at.toISOString() ?? null,
         latest_source: latest?.source ?? null,
+        latest_source_confidence: evidence?.confidence ?? null,
+        latest_source_confidence_reason: evidence?.reason ?? null,
+        latest_source_display_label: evidence?.displayLabel ?? null,
+        latest_source_context_label: evidence?.contextLabel ?? null,
         trend,
         has_data: readings.length > 0,
       };
