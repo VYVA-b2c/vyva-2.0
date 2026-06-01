@@ -6,6 +6,8 @@ import {
   type HeroMessageDefinition,
   type HeroMessageResult,
   type HeroSurface,
+  normalizeHeroLanguage,
+  recordHeroEvent,
   recordHeroImpression,
   selectHeroMessage,
   setRuntimeHeroMessages,
@@ -111,7 +113,26 @@ export function useHeroMessage(
   useEffect(() => {
     if (!message || trackImpression === false) return;
     recordHeroImpression(message.messageId);
-  }, [message, trackImpression]);
+    const eventLanguage = normalizeHeroLanguage(language ?? profile?.language ?? i18n.language);
+    recordHeroEvent({
+      messageId: message.messageId,
+      surface: message.surface,
+      language: eventLanguage,
+      eventType: "impression",
+      reason: message.reason,
+      source: message.source,
+    });
+    if (message.source === "fallback") {
+      recordHeroEvent({
+        messageId: message.messageId,
+        surface: message.surface,
+        language: eventLanguage,
+        eventType: "fallback",
+        reason: message.reason,
+        source: message.source,
+      });
+    }
+  }, [i18n.language, language, message, profile?.language, trackImpression]);
 
   return message;
 }

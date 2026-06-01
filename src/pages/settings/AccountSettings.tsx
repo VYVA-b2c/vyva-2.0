@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FormField, ResponsiveGrid } from "@/components/vyva-ui";
 import { useAuth } from "@/contexts/AuthContext";
-import { setAccountLanguage, useLanguage } from "@/i18n";
+import { setBootstrapLanguage, useLanguage } from "@/i18n";
 import { LANGUAGES, type LanguageCode } from "@/i18n/languages";
 import { detectBrowserLanguage } from "@/i18n/detectLanguage";
 import { apiFetch, queryClient } from "@/lib/queryClient";
@@ -332,7 +332,7 @@ export default function AccountSettings() {
 
     invitePrefillAppliedRef.current = true;
     if (invitePrefill.language && invitePrefill.language !== language) {
-      setAccountLanguage(invitePrefill.language);
+      setBootstrapLanguage(invitePrefill.language);
     }
 
     setForm((current) => {

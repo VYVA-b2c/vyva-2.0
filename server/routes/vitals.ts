@@ -4,16 +4,19 @@ import { and, eq, gte, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
 import { vitalsReadings } from "../../shared/schema.js";
+import { VITALS_READING_SOURCES, vitalsEvidenceFor, type VitalsReadingSource } from "../../shared/vitalsEvidence.js";
 import { requireUser } from "../middleware/auth.js";
 
 const router = Router();
 
 const METRIC_TYPES = ["hr", "rr", "bp"] as const;
 type MetricType = typeof METRIC_TYPES[number];
+type ReadingSource = VitalsReadingSource;
 
 const postBodySchema = z.object({
   metric_type: z.enum(METRIC_TYPES),
   value: z.string().min(1).max(20),
+  source: z.enum(VITALS_READING_SOURCES).default("manual_entry"),
 });
 
 const ENGINE_SIGNAL_BY_METRIC: Record<MetricType, string> = {
@@ -41,18 +44,25 @@ function dateStringUTC(offsetDays: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function rowToMetricEntries(row: typeof vitalsReadings.$inferSelect): Array<{ metric: MetricType; value: string }> {
+function sourceForRow(row: typeof vitalsReadings.$inferSelect): ReadingSource {
+  if (row.metric_type && row.value) return "manual_entry";
+  if (row.bpm != null || row.respiratory_rate != null) return "phone_estimate";
+  return "manual_entry";
+}
+
+function rowToMetricEntries(row: typeof vitalsReadings.$inferSelect): Array<{ metric: MetricType; value: string; source: ReadingSource }> {
+  const source = sourceForRow(row);
   if (row.metric_type && row.value) {
     const mt = row.metric_type as MetricType;
-    if (METRIC_TYPES.includes(mt)) return [{ metric: mt, value: row.value }];
+    if (METRIC_TYPES.includes(mt)) return [{ metric: mt, value: row.value, source }];
   }
-  const entries: Array<{ metric: MetricType; value: string }> = [];
-  if (row.bpm != null) entries.push({ metric: "hr", value: String(row.bpm) });
-  if (row.respiratory_rate != null) entries.push({ metric: "rr", value: String(row.respiratory_rate) });
+  const entries: Array<{ metric: MetricType; value: string; source: ReadingSource }> = [];
+  if (row.bpm != null) entries.push({ metric: "hr", value: String(row.bpm), source });
+  if (row.respiratory_rate != null) entries.push({ metric: "rr", value: String(row.respiratory_rate), source });
   return entries;
 }
 
-async function mirrorToVitalsEngine(userId: string, metricType: MetricType, value: string) {
+async function mirrorToVitalsEngine(userId: string, metricType: MetricType, value: string, source: ReadingSource) {
   const numeric = numericMetricValue(metricType, value);
   if (numeric == null) return;
 
@@ -68,7 +78,7 @@ async function mirrorToVitalsEngine(userId: string, metricType: MetricType, valu
       ${userId},
       ${ENGINE_SIGNAL_BY_METRIC[metricType]},
       ${numeric},
-      'manual_vitals',
+      ${source},
       'general'
     )
   `);
@@ -90,19 +100,24 @@ router.get("/", requireUser, async (req: Request, res: Response) => {
       )
       .orderBy(desc(vitalsReadings.recorded_at));
 
-    const byMetric: Record<MetricType, Array<{ value: string; recorded_at: Date }>> = {
+    const byMetric: Record<MetricType, Array<{ value: string; recorded_at: Date; source: ReadingSource }>> = {
       hr: [], rr: [], bp: [],
     };
 
     for (const row of rows) {
-      for (const { metric, value } of rowToMetricEntries(row)) {
-        byMetric[metric].push({ value, recorded_at: row.recorded_at });
+      for (const { metric, value, source } of rowToMetricEntries(row)) {
+        byMetric[metric].push({ value, recorded_at: row.recorded_at, source });
       }
     }
 
     const summary: Record<string, {
       latest_value: string | null;
       latest_recorded_at: string | null;
+      latest_source: ReadingSource | null;
+      latest_source_confidence: "low" | "medium" | "high" | null;
+      latest_source_confidence_reason: string | null;
+      latest_source_display_label: string | null;
+      latest_source_context_label: string | null;
       trend: (string | null)[];
       has_data: boolean;
     }> = {};
@@ -110,6 +125,7 @@ router.get("/", requireUser, async (req: Request, res: Response) => {
     for (const metric of METRIC_TYPES) {
       const readings = byMetric[metric];
       const latest = readings[0] ?? null;
+      const evidence = latest ? vitalsEvidenceFor(latest.source, ENGINE_SIGNAL_BY_METRIC[metric]) : null;
 
       const dayMap: Record<string, string> = {};
       for (const r of readings) {
@@ -126,6 +142,11 @@ router.get("/", requireUser, async (req: Request, res: Response) => {
       summary[metric] = {
         latest_value: latest?.value ?? null,
         latest_recorded_at: latest?.recorded_at.toISOString() ?? null,
+        latest_source: latest?.source ?? null,
+        latest_source_confidence: evidence?.confidence ?? null,
+        latest_source_confidence_reason: evidence?.reason ?? null,
+        latest_source_display_label: evidence?.displayLabel ?? null,
+        latest_source_context_label: evidence?.contextLabel ?? null,
         trend,
         has_data: readings.length > 0,
       };
@@ -155,7 +176,7 @@ router.post("/", requireUser, async (req: Request, res: Response) => {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
 
-  const { metric_type, value } = parsed.data;
+  const { metric_type, value, source } = parsed.data;
 
   try {
     const [entry] = await db
@@ -163,7 +184,7 @@ router.post("/", requireUser, async (req: Request, res: Response) => {
       .values({ user_id: userId, metric_type, value })
       .returning();
 
-    mirrorToVitalsEngine(userId, metric_type, value).catch((mirrorErr) => {
+    mirrorToVitalsEngine(userId, metric_type, value, source).catch((mirrorErr) => {
       console.error("[vitals POST mirror]", mirrorErr);
     });
 

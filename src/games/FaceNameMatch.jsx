@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabaseClient";
 import { useLanguage } from "../i18n";
 import FaceAvatar from "./FaceAvatar";
 import BrainGameResultActions from "./shared/BrainGameResultActions";
+import { recordCognitiveSession } from "./shared/brainCoachSessions";
 import {
   clampFaceNameTier,
   computeFaceNameScore,
@@ -608,8 +609,35 @@ export default function FaceNameMatch({ userId, onExit }) {
       duration_seconds: Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000)),
     };
 
-    await supabase.from("face_name_sessions").insert(payload);
-  }, [personas.length, selectedSet, userId]);
+    const { data } = await supabase.from("face_name_sessions").insert(payload);
+    const savedSession = Array.isArray(data) ? data[0] : data;
+
+    await recordCognitiveSession({
+      userId,
+      activityType: "face_name_match",
+      domain: "associative_memory",
+      secondaryDomain: "social_recognition",
+      difficulty: payload.difficulty_tier,
+      difficultyScale: "tier",
+      completed: payload.completed,
+      abandoned: payload.abandoned,
+      score: payload.score,
+      accuracyPct: payload.overall_accuracy_pct,
+      durationSeconds: payload.duration_seconds,
+      language: faceLanguage,
+      source: "face_name_match",
+      sourceTable: "face_name_sessions",
+      sourceSessionId: savedSession?.id ?? null,
+      metadata: {
+        setId: selectedSet.id ?? null,
+        faceCount: payload.face_count,
+        nameToFaceAttempts: payload.n2f_attempts,
+        nameToFaceCorrect: payload.n2f_correct,
+        faceToNameAttempts: payload.f2n_attempts,
+        faceToNameCorrect: payload.f2n_correct,
+      },
+    });
+  }, [faceLanguage, personas.length, selectedSet, userId]);
 
   const updateUserState = useCallback(async (result) => {
     const previous = userState ?? defaultUserState(userId);

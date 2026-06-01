@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { useAuth } from "@/contexts/AuthContext";
-import { setAccountLanguage, useLanguage } from "@/i18n";
+import { setBootstrapLanguage, useLanguage } from "@/i18n";
 import type { LanguageCode } from "@/i18n/languages";
 
 const INVITE_LANGUAGE_CODES: LanguageCode[] = ["en", "es", "fr", "de", "it", "pt"];
@@ -84,7 +84,7 @@ export default function InviteLandingPage() {
   useEffect(() => {
     const requestedLanguage = inviteLanguageFromSearch(location.search);
     if (requestedLanguage && requestedLanguage !== language) {
-      setAccountLanguage(requestedLanguage);
+      setBootstrapLanguage(requestedLanguage);
     }
   }, [language, location.search]);
 

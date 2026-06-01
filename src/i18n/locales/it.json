@@ -547,8 +547,8 @@
         "hint": "Le mie medicine"
       },
       "status": {
-        "label": "Stato",
-        "hint": "Parametri vitali"
+        "label": "Parametri",
+        "hint": "Polso, respirazione, trend"
       },
       "reports": {
         "label": "Report",
@@ -610,6 +610,27 @@
         "clueStomach": "Mal di stomaco",
         "clueMedicine": "Dubbi sui farmaci",
         "clueAnxiety": "Ansia",
+        "clueCough": "Tosse",
+        "clueBack": "Mal di schiena",
+        "clueThroat": "Mal di gola",
+        "clueRash": "Eruzione cutanea",
+        "clueNausea": "Nausea",
+        "clueSleep": "Difficoltà a dormire",
+        "clueSwelling": "Gonfiore alla gamba",
+        "clueEar": "Mal d'orecchio",
+        "clueLowEnergy": "Poca energia",
+        "clueConfusion": "Nuova confusione",
+        "clueVomiting": "Vomito",
+        "clueDiarrhea": "Diarrea",
+        "clueEye": "Dolore agli occhi",
+        "clueNumbness": "Intorpidimento",
+        "clueWeakness": "Debolezza",
+        "clueSideEffect": "Effetto collaterale",
+        "clueBleeding": "Sanguinamento",
+        "cluePalpitations": "Palpitazioni",
+        "clueLowMood": "Umore basso",
+        "clueWound": "Ferita sulla pelle",
+        "refreshCluesLabel": "Aggiorna esempi",
         "clueTitle": "Che cosa ti dà fastidio?",
         "clueSub": "Bastano poche parole. VYVA sceglierà le domande giuste.",
         "cluePlaceholder": "Per esempio: forte mal di testa...",

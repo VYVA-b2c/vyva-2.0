@@ -29,8 +29,8 @@ describe("concierge shopping recommendations API", () => {
     const res = await request(app())
       .post("/api/concierge/shopping/recommendations")
       .send({
-        needText: "I need something to make the shower safer",
-        category: "mobility_aids",
+        needText: "Safer bathroom at night",
+        category: "safe_home",
         priorities: ["safety", "accessibility"],
         locale: "en",
       })
@@ -39,8 +39,24 @@ describe("concierge shopping recommendations API", () => {
     expect(res.body.recommendations.length).toBeGreaterThan(0);
     expect(res.body.recommendations.length).toBeLessThanOrEqual(3);
     expect(catalogIds.has(res.body.recommendations[0].product.id)).toBe(true);
+    expect(res.body.recommendations.map((item: { product: { id: string } }) => item.product.id)).toContain("motion-night-lights");
     expect(res.body.comparison.summary).toContain(res.body.recommendations[0].product.name);
     expect(JSON.stringify(res.body).toLowerCase()).not.toContain("checkout");
+  });
+
+  it("returns a bounded no-match response for unrelated safe-home requests", async () => {
+    const res = await request(app())
+      .post("/api/concierge/shopping/recommendations")
+      .send({
+        needText: "purple headphones for an airplane",
+        category: "safe_home",
+        priorities: ["safety", "accessibility"],
+        locale: "en",
+      })
+      .expect(200);
+
+    expect(res.body.recommendations).toEqual([]);
+    expect(res.body.nextQuestions).toContain("Safer bathroom at night");
   });
 
   it("validates that the user supplied a shopping need", async () => {
@@ -52,4 +68,3 @@ describe("concierge shopping recommendations API", () => {
     expect(res.body.error).toContain("Tell VYVA");
   });
 });
-

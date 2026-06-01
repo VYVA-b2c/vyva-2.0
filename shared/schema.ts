@@ -26,6 +26,7 @@ import {
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import type { TriageScanResult } from "./triageScans.js";
 
 
 // ============================================================
@@ -265,6 +266,7 @@ export const profiles = pgTable("profiles", {
   // New: health context
   gp_name:                text("gp_name"),
   gp_phone:               text("gp_phone"),
+  gp_email:               text("gp_email"),
   gp_address:             text("gp_address"),
   gp_maps_url:            text("gp_maps_url"),
   gp_place_id:            text("gp_place_id"),
@@ -1033,6 +1035,8 @@ export const triageReports = pgTable("triage_reports", {
   watch_signs:       text("watch_signs").array().notNull().default([]),
   profile_considerations: text("profile_considerations").array().notNull().default([]),
   vitals_notes:      text("vitals_notes").array().notNull().default([]),
+  scan_results:      jsonb("scan_results").$type<TriageScanResult[]>().notNull().default(sql`'[]'::jsonb`),
+  scan_notes:        text("scan_notes").array().notNull().default([]),
   bpm:               integer("bpm"),
   respiratory_rate:  integer("respiratory_rate"),
   duration_seconds:  integer("duration_seconds"),
@@ -1136,6 +1140,138 @@ export const userDeviceConnections = pgTable("user_device_connections", {
 export const insertVyvaSignalReadingSchema = createInsertSchema(vyvaSignalReadings).omit({ id: true, created_at: true });
 export type InsertVyvaSignalReading = z.infer<typeof insertVyvaSignalReadingSchema>;
 export type VyvaSignalReading = typeof vyvaSignalReadings.$inferSelect;
+
+// ============================================================
+// NEW TABLE: cognitive_session_index - unified Brain Coach history
+// ============================================================
+
+export const cognitiveSessionIndex = pgTable("cognitive_session_index", {
+  id:              uuid("id").primaryKey().defaultRandom(),
+  userId:          text("user_id").notNull(),
+  activityType:    text("activity_type").notNull(),
+  domain:          text("domain").notNull(),
+  secondaryDomain: text("secondary_domain"),
+  difficulty:      integer("difficulty").notNull().default(1),
+  difficultyScale: text("difficulty_scale").notNull().default("level"),
+  completed:       boolean("completed").notNull().default(false),
+  abandoned:       boolean("abandoned").notNull().default(false),
+  score:           integer("score").notNull().default(0),
+  accuracyPct:     numeric("accuracy_pct", { precision: 5, scale: 2 }),
+  speedPct:        numeric("speed_pct", { precision: 5, scale: 2 }),
+  durationSeconds: integer("duration_seconds").notNull().default(0),
+  playedAt:        timestamp("played_at", { withTimezone: true }).notNull().defaultNow(),
+  language:        text("language").notNull().default("es"),
+  source:          text("source").notNull().default("app"),
+  sourceTable:     text("source_table"),
+  sourceSessionId: text("source_session_id"),
+  clientResultId:  text("client_result_id"),
+  metadata:        jsonb("metadata").notNull().default({}),
+  createdAt:       timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("cognitive_session_index_user_client_result_unique").on(t.userId, t.clientResultId),
+  index("idx_cognitive_session_index_user_played").on(t.userId, t.playedAt.desc()),
+  index("idx_cognitive_session_index_user_activity").on(t.userId, t.activityType, t.playedAt.desc()),
+  index("idx_cognitive_session_index_user_domain").on(t.userId, t.domain, t.playedAt.desc()),
+  index("idx_cognitive_session_index_user_completed").on(t.userId, t.completed, t.playedAt.desc()),
+]);
+
+export const insertCognitiveSessionIndexSchema = createInsertSchema(cognitiveSessionIndex).omit({ id: true, createdAt: true });
+export type InsertCognitiveSessionIndex = z.infer<typeof insertCognitiveSessionIndexSchema>;
+export type CognitiveSessionIndexRow = typeof cognitiveSessionIndex.$inferSelect;
+
+export const cognitiveDailyPlans = pgTable("cognitive_daily_plans", {
+  id:                       uuid("id").primaryKey().defaultRandom(),
+  userId:                   text("user_id").notNull(),
+  planDate:                 date("plan_date").notNull(),
+  status:                   text("status").notNull().default("active"),
+  estimatedDurationMinutes: integer("estimated_duration_minutes").notNull().default(0),
+  recommendedDomains:       text("recommended_domains").array().notNull().default([]),
+  rationale:                text("rationale").array().notNull().default([]),
+  generatedContext:         jsonb("generated_context").notNull().default({}),
+  generationVersion:        text("generation_version").notNull().default("brain_coach_plan_v2"),
+  completedAt:              timestamp("completed_at", { withTimezone: true }),
+  createdAt:                timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:                timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("cognitive_daily_plans_user_date_unique").on(t.userId, t.planDate),
+  index("idx_cognitive_daily_plans_user_date").on(t.userId, t.planDate),
+  index("idx_cognitive_daily_plans_user_status").on(t.userId, t.status, t.planDate),
+]);
+
+export const cognitiveDailyPlanItems = pgTable("cognitive_daily_plan_items", {
+  id:                       uuid("id").primaryKey().defaultRandom(),
+  planId:                   uuid("plan_id").notNull().references(() => cognitiveDailyPlans.id, { onDelete: "cascade" }),
+  userId:                   text("user_id").notNull(),
+  planDate:                 date("plan_date").notNull(),
+  activityType:             text("activity_type").notNull(),
+  title:                    text("title").notNull(),
+  domain:                   text("domain").notNull(),
+  secondaryDomain:          text("secondary_domain"),
+  route:                    text("route").notNull(),
+  estimatedDurationMinutes: integer("estimated_duration_minutes").notNull().default(0),
+  rationale:                text("rationale").notNull().default(""),
+  status:                   text("status").notNull().default("recommended"),
+  sortOrder:                integer("sort_order").notNull().default(0),
+  acceptedAt:               timestamp("accepted_at", { withTimezone: true }),
+  startedAt:                timestamp("started_at", { withTimezone: true }),
+  skippedAt:                timestamp("skipped_at", { withTimezone: true }),
+  completedAt:              timestamp("completed_at", { withTimezone: true }),
+  createdAt:                timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:                timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("cognitive_daily_plan_items_plan_activity_unique").on(t.planId, t.activityType),
+  index("idx_cognitive_daily_plan_items_plan_order").on(t.planId, t.sortOrder),
+  index("idx_cognitive_daily_plan_items_user_date").on(t.userId, t.planDate),
+  index("idx_cognitive_daily_plan_items_user_activity").on(t.userId, t.activityType, t.planDate),
+]);
+
+export const cognitiveDailyPlanEvents = pgTable("cognitive_daily_plan_events", {
+  id:           uuid("id").primaryKey().defaultRandom(),
+  planId:       uuid("plan_id").notNull().references(() => cognitiveDailyPlans.id, { onDelete: "cascade" }),
+  planItemId:   uuid("plan_item_id").references(() => cognitiveDailyPlanItems.id, { onDelete: "set null" }),
+  userId:       text("user_id").notNull(),
+  activityType: text("activity_type"),
+  eventType:    text("event_type").notNull(),
+  source:       text("source").notNull().default("app"),
+  metadata:     jsonb("metadata").notNull().default({}),
+  createdAt:    timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_cognitive_daily_plan_events_plan").on(t.planId, t.createdAt.desc()),
+  index("idx_cognitive_daily_plan_events_user").on(t.userId, t.createdAt.desc()),
+  index("idx_cognitive_daily_plan_events_item").on(t.planItemId, t.createdAt.desc()),
+]);
+
+export const cognitiveCaregiverSettings = pgTable("cognitive_caregiver_settings", {
+  id:                    uuid("id").primaryKey().defaultRandom(),
+  userId:                text("user_id").notNull().unique(),
+  preferredDomains:      text("preferred_domains").array().notNull().default([]),
+  excludedActivityTypes: text("excluded_activity_types").array().notNull().default([]),
+  preferredTrainingTimes: text("preferred_training_times").array().notNull().default([]),
+  weeklyTargetDays:      integer("weekly_target_days").notNull().default(3),
+  sessionLengthMinutes:  integer("session_length_minutes").notNull().default(7),
+  paused:                boolean("paused").notNull().default(false),
+  updatedBy:             text("updated_by"),
+  createdAt:             timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:             timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_cognitive_caregiver_settings_user").on(t.userId),
+]);
+
+export const insertCognitiveDailyPlanSchema = createInsertSchema(cognitiveDailyPlans).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertCognitiveDailyPlan = z.infer<typeof insertCognitiveDailyPlanSchema>;
+export type CognitiveDailyPlanRow = typeof cognitiveDailyPlans.$inferSelect;
+
+export const insertCognitiveDailyPlanItemSchema = createInsertSchema(cognitiveDailyPlanItems).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertCognitiveDailyPlanItem = z.infer<typeof insertCognitiveDailyPlanItemSchema>;
+export type CognitiveDailyPlanItemRow = typeof cognitiveDailyPlanItems.$inferSelect;
+
+export const insertCognitiveDailyPlanEventSchema = createInsertSchema(cognitiveDailyPlanEvents).omit({ id: true, createdAt: true });
+export type InsertCognitiveDailyPlanEvent = z.infer<typeof insertCognitiveDailyPlanEventSchema>;
+export type CognitiveDailyPlanEventRow = typeof cognitiveDailyPlanEvents.$inferSelect;
+
+export const insertCognitiveCaregiverSettingsSchema = createInsertSchema(cognitiveCaregiverSettings).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertCognitiveCaregiverSettings = z.infer<typeof insertCognitiveCaregiverSettingsSchema>;
+export type CognitiveCaregiverSettingsRow = typeof cognitiveCaregiverSettings.$inferSelect;
 
 
 // ============================================================
@@ -1650,6 +1786,27 @@ export const insertHeroMessageSchema = createInsertSchema(heroMessages).omit({ i
 export type InsertHeroMessage = z.infer<typeof insertHeroMessageSchema>;
 export type HeroMessageRow = typeof heroMessages.$inferSelect;
 
+export const heroMessageEvents = pgTable("hero_message_events", {
+  id:         uuid("id").primaryKey().defaultRandom(),
+  message_id: text("message_id").notNull(),
+  surface:    text("surface").notNull(),
+  language:   text("language").notNull(),
+  event_type: text("event_type").notNull(),
+  reason:     text("reason").notNull(),
+  source:     text("source").notNull(),
+  route:      text("route").notNull().default(""),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("hero_message_events_created_at_idx").on(t.created_at),
+  index("hero_message_events_surface_idx").on(t.surface),
+  index("hero_message_events_message_idx").on(t.message_id),
+  index("hero_message_events_type_idx").on(t.event_type),
+]);
+
+export const insertHeroMessageEventSchema = createInsertSchema(heroMessageEvents).omit({ id: true, created_at: true });
+export type InsertHeroMessageEvent = z.infer<typeof insertHeroMessageEventSchema>;
+export type HeroMessageEventRow = typeof heroMessageEvents.$inferSelect;
+
 
 // ============================================================
 // SCHEMA EXPORT
@@ -1692,6 +1849,11 @@ export const schema = {
   vyvaUserBaselines,
   vyvaPatternWindows,
   userDeviceConnections,
+  cognitiveSessionIndex,
+  cognitiveDailyPlans,
+  cognitiveDailyPlanItems,
+  cognitiveDailyPlanEvents,
+  cognitiveCaregiverSettings,
   organizations,
   tierEntitlements,
   userIntakes,
@@ -1713,4 +1875,5 @@ export const schema = {
   voiceRecommendationFeedback,
   homePlanCards,
   heroMessages,
+  heroMessageEvents,
 };

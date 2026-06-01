@@ -1,5 +1,7 @@
 export type ShoppingCategory = "groceries" | "pharmacy_basics" | "household" | "mobility_aids";
 
+export type ShoppingCategoryChoice = ShoppingCategory | "safe_home";
+
 export type ShoppingPriority =
   | "budget"
   | "simplicity"
@@ -25,7 +27,7 @@ export interface ShoppingProduct {
 
 export interface ShoppingNeedInput {
   needText?: string;
-  category?: ShoppingCategory | string | null;
+  category?: ShoppingCategoryChoice | string | null;
   priorities?: ShoppingPriority[];
   constraints?: string[];
   locale?: string;
@@ -34,7 +36,7 @@ export interface ShoppingNeedInput {
 export interface ShoppingRecommendation {
   product: ShoppingProduct;
   score: number;
-  rankLabel: "Best fit" | "Lowest cost" | "Easiest choice";
+  rankLabel: "Best fit" | "Lowest cost" | "Easiest choice" | "Best first step" | "Best for night trips" | "Best if standing is hard" | "Best for less bending";
   reasons: string[];
   tradeoffs: string[];
   cautionNotes: string[];
@@ -79,6 +81,11 @@ export const SHOPPING_CATEGORY_LABELS: Record<ShoppingCategory, LocalizedText> =
   pharmacy_basics: { en: "Pharmacy basics", es: "Farmacia basica" },
   household: { en: "Household", es: "Hogar" },
   mobility_aids: { en: "Mobility aids", es: "Ayudas de movilidad" },
+};
+
+export const SHOPPING_CATEGORY_CHOICE_LABELS: Record<ShoppingCategoryChoice, LocalizedText> = {
+  safe_home: { en: "Any safe-home area", es: "Cualquier area segura en casa" },
+  ...SHOPPING_CATEGORY_LABELS,
 };
 
 const catalog: CatalogProduct[] = [
@@ -211,7 +218,7 @@ const catalog: CatalogProduct[] = [
       en: ["Large labels", "Simple weekly view", "Helps reduce confusion"],
       es: ["Etiquetas grandes", "Vista semanal sencilla", "Ayuda a reducir confusion"],
     },
-    tags: ["pharmacy", "medicine", "medication", "pill", "large_print", "simple", "budget", "safety", "memory"],
+    tags: ["pharmacy", "medicine", "medication", "pill", "large_print", "simple", "budget", "safety", "memory", "confusion"],
     suitability: {
       en: ["Good if medicines are easy to mix up", "Helpful for a weekly routine"],
       es: ["Bueno si es facil confundir medicinas", "Util para una rutina semanal"],
@@ -356,7 +363,7 @@ const catalog: CatalogProduct[] = [
       en: ["Automatic light", "Low cost", "Helps at night"],
       es: ["Luz automatica", "Precio bajo", "Ayuda por la noche"],
     },
-    tags: ["household", "safety", "fall_prevention", "night", "budget", "simple", "accessibility"],
+    tags: ["household", "safety", "fall_prevention", "night", "night_trip", "lighting", "bathroom", "trip_hazard", "home_safety", "budget", "simple", "accessibility"],
     suitability: {
       en: ["Good for night-time bathroom trips", "Helpful in hallways and bedrooms"],
       es: ["Buenas para ir al bano de noche", "Utiles en pasillos y dormitorios"],
@@ -385,7 +392,7 @@ const catalog: CatalogProduct[] = [
       en: ["Low cost", "Helps hand grip", "No batteries"],
       es: ["Precio bajo", "Ayuda al agarre", "Sin pilas"],
     },
-    tags: ["household", "arthritis", "grip", "hands", "budget", "simple", "accessibility", "kitchen"],
+    tags: ["household", "arthritis", "grip", "hands", "budget", "simple", "accessibility", "kitchen", "home_safety"],
     suitability: {
       en: ["Good if jars are hard to open", "Useful in the kitchen"],
       es: ["Bueno si cuesta abrir tarros", "Util en la cocina"],
@@ -414,7 +421,7 @@ const catalog: CatalogProduct[] = [
       en: ["Less bending", "Lightweight", "Simple storage"],
       es: ["Menos agacharse", "Ligero", "Guardado sencillo"],
     },
-    tags: ["household", "cleaning", "mobility", "low_lift", "budget", "simple", "accessibility"],
+    tags: ["household", "cleaning", "mobility", "low_lift", "bending", "less_bending", "trip_hazard", "home_safety", "budget", "simple", "accessibility"],
     suitability: {
       en: ["Good when bending is uncomfortable", "Useful for quick tidy-ups"],
       es: ["Bueno si agacharse incomoda", "Util para limpiezas rapidas"],
@@ -443,7 +450,7 @@ const catalog: CatalogProduct[] = [
       en: ["Low cost", "Bathroom safety", "Easy first step"],
       es: ["Precio bajo", "Seguridad en bano", "Primer paso sencillo"],
     },
-    tags: ["mobility", "bathroom", "shower", "fall_prevention", "safety", "budget", "simple", "accessibility"],
+    tags: ["mobility", "bathroom", "shower", "fall_prevention", "home_safety", "safety", "budget", "simple", "accessibility"],
     suitability: {
       en: ["Good for a slippery shower floor", "Helpful before bigger bathroom changes"],
       es: ["Buena para suelo de ducha resbaladizo", "Util antes de cambios mayores en el bano"],
@@ -472,7 +479,7 @@ const catalog: CatalogProduct[] = [
       en: ["Less bending", "Lightweight", "Useful around home"],
       es: ["Menos agacharse", "Ligera", "Util en casa"],
     },
-    tags: ["mobility", "reach", "bending", "accessibility", "simple", "low_lift", "household"],
+    tags: ["mobility", "reach", "bending", "less_bending", "home_safety", "accessibility", "simple", "low_lift", "household"],
     suitability: {
       en: ["Good if bending or reaching is hard", "Useful for dropped light objects"],
       es: ["Buena si cuesta agacharse o alcanzar", "Util para objetos ligeros caidos"],
@@ -501,7 +508,7 @@ const catalog: CatalogProduct[] = [
       en: ["Adjustable height", "Folds away", "Portable support"],
       es: ["Altura ajustable", "Se pliega", "Apoyo portatil"],
     },
-    tags: ["mobility", "walking", "support", "accessibility", "outdoor", "simple", "balance"],
+    tags: ["mobility", "walking", "support", "fall_prevention", "home_safety", "accessibility", "outdoor", "simple", "balance"],
     suitability: {
       en: ["Good if a light portable support is needed", "Useful for outings"],
       es: ["Bueno si se necesita apoyo ligero y portatil", "Util para salidas"],
@@ -530,7 +537,7 @@ const catalog: CatalogProduct[] = [
       en: ["Supports standing", "Bathroom accessibility", "Stable arms"],
       es: ["Apoya al levantarse", "Accesibilidad en bano", "Brazos estables"],
     },
-    tags: ["mobility", "bathroom", "toilet", "standing", "accessibility", "safety", "support"],
+    tags: ["mobility", "bathroom", "toilet", "standing", "home_safety", "accessibility", "safety", "support"],
     suitability: {
       en: ["Good when standing from the toilet is hard", "Useful after careful measuring"],
       es: ["Bueno si cuesta levantarse del WC", "Util tras medir bien"],
@@ -551,8 +558,8 @@ const catalog: CatalogProduct[] = [
 const CATEGORY_KEYWORDS: Record<ShoppingCategory, string[]> = {
   groceries: ["food", "meal", "grocery", "groceries", "fruit", "breakfast", "soup", "eat", "snack", "compra", "comida", "fruta", "desayuno", "sopa"],
   pharmacy_basics: ["pharmacy", "medicine", "pill", "skin", "thermometer", "fever", "cream", "medication", "farmacia", "medicina", "pastilla", "piel", "termometro", "fiebre", "crema"],
-  household: ["home", "house", "clean", "laundry", "kitchen", "jar", "light", "hogar", "casa", "limpieza", "ropa", "cocina", "tarro", "luz"],
-  mobility_aids: ["mobility", "walking", "fall", "shower", "bathroom", "bend", "reach", "toilet", "movilidad", "caminar", "caida", "ducha", "bano", "agachar", "alcanzar", "wc"],
+  household: ["home", "house", "clean", "laundry", "kitchen", "jar", "light", "night", "hallway", "hogar", "casa", "limpieza", "ropa", "cocina", "tarro", "luz", "noche", "pasillo"],
+  mobility_aids: ["mobility", "walking", "fall", "shower", "bathroom", "bend", "reach", "toilet", "standing", "slip", "movilidad", "caminar", "caida", "ducha", "bano", "agachar", "alcanzar", "wc", "resbalar"],
 };
 
 const PRIORITY_KEYWORDS: Record<ShoppingPriority, string[]> = {
@@ -561,8 +568,57 @@ const PRIORITY_KEYWORDS: Record<ShoppingPriority, string[]> = {
   accessibility: ["arthritis", "grip", "bending", "reach", "mobility", "vision", "large", "dolor", "agarre", "agachar", "alcanzar", "movilidad", "vision", "grande"],
   diet: ["low salt", "low sodium", "soft", "protein", "sugar", "dairy", "gluten", "bajo en sal", "blando", "proteina", "azucar", "lacteos", "gluten"],
   delivery: ["delivery", "deliver", "carry", "heavy", "domicilio", "entrega", "llevar", "pesado"],
-  safety: ["safe", "fall", "night", "slip", "fever", "confusion", "seguro", "caida", "noche", "resbalar", "fiebre", "confusion"],
+  safety: ["safe", "safer", "fall", "trip", "night", "slip", "fever", "confusion", "seguro", "segura", "caida", "tropiezo", "noche", "resbalar", "fiebre", "confusion"],
 };
+
+const HOME_SAFETY_INTENTS = [
+  {
+    label: "night",
+    terms: ["night", "dark", "hallway", "path", "bathroom at night", "noche", "oscuro", "pasillo"],
+    tags: ["night", "night_trip", "lighting"],
+  },
+  {
+    label: "bathroom",
+    terms: ["bathroom", "shower", "toilet", "bath", "bano", "ducha", "wc"],
+    tags: ["bathroom", "shower", "toilet"],
+  },
+  {
+    label: "fall",
+    terms: ["safe", "safer", "fall", "slip", "trip", "steady", "seguro", "segura", "caida", "resbalar", "tropiezo"],
+    tags: ["safety", "fall_prevention", "trip_hazard"],
+  },
+  {
+    label: "bending",
+    terms: ["bend", "bending", "reach", "carry", "heavy", "agachar", "alcanzar", "pesado"],
+    tags: ["bending", "less_bending", "reach", "low_lift"],
+  },
+  {
+    label: "standing",
+    terms: ["stand", "standing", "sit", "sitting", "levantarse", "sentarse"],
+    tags: ["standing", "support"],
+  },
+  {
+    label: "grip",
+    terms: ["grip", "hands", "arthritis", "agarre", "manos"],
+    tags: ["grip", "hands", "arthritis"],
+  },
+] as const;
+
+const HOME_SAFETY_PRODUCT_TAGS = new Set([
+  "home_safety",
+  "fall_prevention",
+  "night_trip",
+  "lighting",
+  "bathroom",
+  "shower",
+  "toilet",
+  "trip_hazard",
+  "bending",
+  "less_bending",
+  "standing",
+  "support",
+  "grip",
+]);
 
 const CONSTRAINT_EXCLUSION_TAGS: Array<{ pattern: RegExp; tag: string }> = [
   { pattern: /\b(no|not|avoid|sin|evitar)\s+(dairy|milk|lactose|lacteos|leche|lactosa)\b/i, tag: "dairy" },
@@ -588,8 +644,46 @@ function includesTerm(text: string, term: string): boolean {
   return normalizeText(text).includes(normalizeText(term));
 }
 
+function isSafeHomeCategory(category: ShoppingNeedInput["category"]): boolean {
+  if (!category) return false;
+  const raw = normalizeText(String(category)).replace(/[\s-]+/g, "_");
+  return raw === "safe_home" || raw === "home_safety" || raw === "any_safe_home" || raw === "let_vyva_choose";
+}
+
+function homeSafetyNeedLabels(text: string): string[] {
+  return HOME_SAFETY_INTENTS
+    .filter((intent) => intent.terms.some((term) => includesTerm(text, term)))
+    .map((intent) => intent.label);
+}
+
+function homeSafetyMatches(product: CatalogProduct, text: string): string[] {
+  if (!text) return [];
+  return HOME_SAFETY_INTENTS
+    .filter((intent) => (
+      intent.terms.some((term) => includesTerm(text, term)) &&
+      intent.tags.some((tag) => product.tags.includes(tag))
+    ))
+    .map((intent) => intent.label);
+}
+
+function homeSafetySpecificBonus(product: CatalogProduct, text: string): number {
+  let bonus = 0;
+  if ((includesTerm(text, "shower") || includesTerm(text, "ducha")) && product.tags.includes("shower")) bonus += 16;
+  if ((includesTerm(text, "toilet") || includesTerm(text, "wc")) && product.tags.includes("toilet")) bonus += 16;
+  if ((includesTerm(text, "night") || includesTerm(text, "dark") || includesTerm(text, "noche")) && product.tags.includes("night_trip")) bonus += 16;
+  if ((includesTerm(text, "bend") || includesTerm(text, "reach") || includesTerm(text, "agachar")) && product.tags.includes("less_bending")) bonus += 14;
+  if ((includesTerm(text, "stand") || includesTerm(text, "sit") || includesTerm(text, "levantarse")) && product.tags.includes("standing")) bonus += 14;
+  if ((includesTerm(text, "slip") || includesTerm(text, "fall") || includesTerm(text, "resbalar") || includesTerm(text, "caida")) && product.tags.includes("fall_prevention")) bonus += 12;
+  return bonus;
+}
+
+function productHasHomeSafetyRole(product: CatalogProduct): boolean {
+  return product.tags.some((tag) => HOME_SAFETY_PRODUCT_TAGS.has(tag));
+}
+
 function normalizeCategory(category: ShoppingNeedInput["category"]): ShoppingCategory | null {
   if (!category) return null;
+  if (isSafeHomeCategory(category)) return null;
   const raw = normalizeText(String(category)).replace(/[\s-]+/g, "_");
   if (raw === "groceries" || raw === "grocery" || raw === "compra") return "groceries";
   if (raw === "pharmacy_basics" || raw === "pharmacy" || raw === "farmacia" || raw === "farmacia_basica") return "pharmacy_basics";
@@ -662,7 +756,11 @@ function textHits(product: CatalogProduct, text: string): string[] {
   return terms.filter((term) => includesTerm(haystack, term));
 }
 
-function rankLabelFor(index: number, product: ShoppingProduct, priorities: ShoppingPriority[]): ShoppingRecommendation["rankLabel"] {
+function rankLabelFor(index: number, product: ShoppingProduct, priorities: ShoppingPriority[], matchedIntents: string[]): ShoppingRecommendation["rankLabel"] {
+  if (matchedIntents.includes("night")) return "Best for night trips";
+  if (matchedIntents.includes("standing") || product.tags.includes("standing")) return "Best if standing is hard";
+  if (matchedIntents.includes("bending") || product.tags.includes("less_bending")) return "Best for less bending";
+  if (index === 0 && (product.tags.includes("home_safety") || product.tags.includes("fall_prevention"))) return "Best first step";
   if (index === 0) return "Best fit";
   if (product.priceTier === "low" || priorities.includes("budget")) return "Lowest cost";
   return "Easiest choice";
@@ -674,9 +772,34 @@ function confidenceFor(score: number): ShoppingRecommendation["confidence"] {
   return "low";
 }
 
-function reasonCopy(locale: Locale, product: ShoppingProduct, priorities: ShoppingPriority[], matchedTags: string[], score: number): string[] {
+function reasonCopy(locale: Locale, product: ShoppingProduct, priorities: ShoppingPriority[], matchedTags: string[], matchedIntents: string[], score: number): string[] {
   const reasons: string[] = [];
-  if (matchedTags.length > 0) {
+  if (matchedIntents.includes("night")) {
+    reasons.push(locale === "es"
+      ? "Ayuda a iluminar el camino al bano por la noche."
+      : "Helps light the route for night-time bathroom trips.");
+  }
+  if (matchedIntents.includes("bathroom") || (product.tags.includes("bathroom") && product.tags.includes("fall_prevention"))) {
+    reasons.push(locale === "es"
+      ? "Ayuda a reducir el riesgo de resbalones en el bano."
+      : "Helps reduce slip risk in the bathroom.");
+  }
+  if (matchedIntents.includes("bending") || product.tags.includes("less_bending")) {
+    reasons.push(locale === "es"
+      ? "Reduce agacharse o cargar objetos en tareas de casa."
+      : "Reduces bending or lifting during everyday home tasks.");
+  }
+  if (matchedIntents.includes("standing") || product.tags.includes("standing")) {
+    reasons.push(locale === "es"
+      ? "Da apoyo adicional al sentarse o levantarse."
+      : "Adds support when sitting down or standing up.");
+  }
+  if (product.tags.includes("medicine") && product.tags.includes("confusion")) {
+    reasons.push(locale === "es"
+      ? "Separa medicinas por dia para que sean mas faciles de revisar."
+      : "Keeps medicines separated by day so they are easier to check.");
+  }
+  if (matchedTags.length > 0 && reasons.length < 2) {
     reasons.push(locale === "es"
       ? "Coincide con lo que ha pedido."
       : "Matches what you asked for.");
@@ -731,8 +854,8 @@ function noMatchResponse(locale: Locale, text: string): ShoppingRecommendationRe
       ? "VYVA solo recomienda desde el catalogo de prueba y no debe inventar productos."
       : "VYVA only recommends from the test catalog and should not invent products.",
     nextQuestions: locale === "es"
-      ? ["Que necesita?", "Busca precio bajo, facilidad de uso o seguridad?", "Hay alergias, dieta o movilidad que deba tener en cuenta?"]
-      : ["What do you need?", "Do you prefer low cost, ease of use, or safety?", "Are there allergies, diet needs, or mobility needs to consider?"],
+      ? ["Bano mas seguro por la noche", "Menos agacharse en casa", "No confundir medicinas"]
+      : ["Safer bathroom at night", "Less bending at home", "Avoid mixing medicines"],
   };
 }
 
@@ -747,7 +870,11 @@ export function buildShoppingRecommendations(input: ShoppingNeedInput): Shopping
   const constraints = input.constraints ?? [];
   const combinedText = [needText, ...constraints].join(" ");
   const normalizedNeed = normalizeText(combinedText);
-  const category = normalizeCategory(input.category) ?? inferCategory(normalizedNeed);
+  const selectedCategory = normalizeCategory(input.category);
+  const homeSafetyLabels = homeSafetyNeedLabels(normalizedNeed);
+  const safeHomeChoice = isSafeHomeCategory(input.category);
+  const homeSafetyMode = safeHomeChoice || homeSafetyLabels.length > 0;
+  const category = homeSafetyMode ? null : selectedCategory ?? inferCategory(normalizedNeed);
   const priorities = inferPriorities(normalizedNeed, input.priorities ?? []);
   const excludedTags = excludedTagsFor(combinedText, constraints);
 
@@ -760,21 +887,31 @@ export function buildShoppingRecommendations(input: ShoppingNeedInput): Shopping
       const product = localizeProduct(raw, locale);
       const excluded = raw.tags.some((tag) => excludedTags.has(tag));
       const textMatches = textHits(raw, normalizedNeed);
+      const safetyMatches = homeSafetyMatches(raw, normalizedNeed);
       const priorityMatches = priorities.flatMap((priority) => tagHits(raw, PRIORITY_KEYWORDS[priority] ?? []));
       let score = 10;
 
       if (category && raw.category === category) score += 28;
+      if (selectedCategory && !homeSafetyMode && raw.category !== selectedCategory) score -= 35;
       if (!category && textMatches.length > 0) score += 10;
       score += Math.min(25, textMatches.length * 4);
+      score += Math.min(30, safetyMatches.length * 12);
+      score += homeSafetySpecificBonus(raw, normalizedNeed);
       score += Math.min(24, priorityMatches.length * 6);
       if (priorities.includes("budget") && raw.priceTier === "low") score += 12;
       if (priorities.includes("simplicity") && raw.tags.includes("simple")) score += 10;
       if (priorities.includes("accessibility") && raw.tags.includes("accessibility")) score += 10;
       if (priorities.includes("delivery") && (raw.tags.includes("delivery") || raw.tags.includes("low_lift"))) score += 8;
       if (priorities.includes("safety") && raw.tags.includes("safety")) score += 10;
-      if (/(medicine|medication|pill|pastilla|medicina)/i.test(normalizedNeed)
-        && raw.tags.some((tag) => ["medicine", "medication", "pill"].includes(tag))) {
+      if (homeSafetyMode && productHasHomeSafetyRole(raw) && (safetyMatches.length > 0 || textMatches.length > 0)) score += 12;
+      if (safeHomeChoice && !safetyMatches.length && !textMatches.length) score -= 35;
+      if (homeSafetyMode && raw.category === "groceries") score -= 18;
+      const medicationIntent = /(medicine|medication|pill|pastilla|medicina)/i.test(normalizedNeed);
+      if (medicationIntent && raw.tags.some((tag) => ["medicine", "medication", "pill"].includes(tag))) {
         score += 14;
+      }
+      if (medicationIntent && raw.category === "pharmacy_basics" && !raw.tags.some((tag) => ["medicine", "medication", "pill"].includes(tag))) {
+        score -= 50;
       }
       if (excluded) score -= 90;
 
@@ -782,29 +919,34 @@ export function buildShoppingRecommendations(input: ShoppingNeedInput): Shopping
         raw,
         product,
         score: Math.max(0, Math.min(100, score)),
-        matchedTags: Array.from(new Set([...textMatches, ...priorityMatches])),
+        sortScore: score,
+        matchedTags: Array.from(new Set([...textMatches, ...priorityMatches, ...safetyMatches])),
+        matchedIntents: safetyMatches,
         excluded,
       };
     })
     .filter((item) => !item.excluded)
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => b.sortScore - a.sortScore);
 
-  const bestScore = scored[0]?.score ?? 0;
+  const viable = scored.filter((item) => item.score >= 35);
+  const bestScore = viable[0]?.score ?? 0;
   if (bestScore < 35) {
     return noMatchResponse(locale, normalizedNeed);
   }
 
-  const recommendations = scored.slice(0, 3).map((item, index): ShoppingRecommendation => ({
+  const recommendations = viable.slice(0, 3).map((item, index): ShoppingRecommendation => ({
     product: item.product,
     score: item.score,
-    rankLabel: rankLabelFor(index, item.product, priorities),
-    reasons: reasonCopy(locale, item.product, priorities, item.matchedTags, item.score),
+    rankLabel: rankLabelFor(index, item.product, priorities, item.matchedIntents),
+    reasons: reasonCopy(locale, item.product, priorities, item.matchedTags, item.matchedIntents, item.score),
     tradeoffs: tradeoffCopy(locale, item.product),
     cautionNotes: item.product.cautions,
     confidence: confidenceFor(item.score),
   }));
 
-  const categoryLabel = category ? SHOPPING_CATEGORY_LABELS[category][locale] : (locale === "es" ? "varias categorias" : "several categories");
+  const categoryLabel = safeHomeChoice
+    ? SHOPPING_CATEGORY_CHOICE_LABELS.safe_home[locale]
+    : category ? SHOPPING_CATEGORY_LABELS[category][locale] : (locale === "es" ? "varias categorias" : "several categories");
   const top = recommendations[0]?.product;
   const second = recommendations[1]?.product;
   const isPharmacy = recommendations.some((item) => item.product.category === "pharmacy_basics");
@@ -817,16 +959,17 @@ export function buildShoppingRecommendations(input: ShoppingNeedInput): Shopping
     comparison: {
       summary: top && second
         ? (locale === "es"
-          ? `${top.name} parece la mejor opcion; ${second.name} es la alternativa mas cercana.`
-          : `${top.name} looks like the best fit; ${second.name} is the closest alternative.`)
+          ? `${top.name} es el primer paso mas claro; ${second.name} cubre otra necesidad cercana.`
+          : `${top.name} is the clearest first step; ${second.name} covers another nearby need.`)
         : (top
           ? (locale === "es" ? `${top.name} es la opcion mas clara.` : `${top.name} is the clearest option.`)
           : (locale === "es" ? "No hay comparacion suficiente." : "There is not enough to compare.")),
       differences: top && second
-        ? [
-          locale === "es" ? `${top.name}: ${top.priceLabel}.` : `${top.name}: ${top.priceLabel}.`,
-          locale === "es" ? `${second.name}: ${second.priceLabel}.` : `${second.name}: ${second.priceLabel}.`,
-        ]
+        ? recommendations.map((item) => (
+          locale === "es"
+            ? `${item.product.name}: ${item.product.priceLabel}; ${item.product.availabilityLabel}.`
+            : `${item.product.name}: ${item.product.priceLabel}; ${item.product.availabilityLabel}.`
+        ))
         : [],
       bestFor: recommendations.map((item) => `${item.product.name}: ${item.reasons[0] ?? item.product.description}`),
     },

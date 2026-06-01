@@ -26,6 +26,7 @@ import {
   userHealthConditions,
   userMedications,
 } from "../../shared/schema.js";
+import { vitalsEvidenceFor } from "../../shared/vitalsEvidence.js";
 
 const router = Router();
 router.use(requireUser);
@@ -40,7 +41,7 @@ const readingSchema = z.object({
   user_id: z.string().optional(),
   signal_type: z.string().min(1).max(80),
   value: z.coerce.number(),
-  source: z.string().min(1).max(80).default("manual"),
+  source: z.string().min(1).max(80).default("manual_entry"),
   context_tag: z.string().min(1).max(80).default("general"),
   recorded_at: z.string().datetime().optional(),
   condition_tags: z.array(z.string()).optional().default([]),
@@ -64,6 +65,13 @@ type SignalReadingRow = {
   recorded_at: Date | string;
   source: string;
   deviation_pct: string | number | null;
+};
+
+type SignalReadingResponse = SignalReadingRow & {
+  source_confidence: "low" | "medium" | "high";
+  source_confidence_reason: string;
+  source_display_label: string;
+  source_context_label: string;
 };
 
 type PatternWindowRow = {
@@ -142,6 +150,17 @@ async function getRecentReadings(userId: string, hours = 72): Promise<SignalRead
   return queryRows<SignalReadingRow>(result);
 }
 
+function signalReadingResponse(reading: SignalReadingRow): SignalReadingResponse {
+  const evidence = vitalsEvidenceFor(reading.source, reading.signal_type);
+  return {
+    ...reading,
+    source_confidence: evidence.confidence,
+    source_confidence_reason: evidence.reason,
+    source_display_label: evidence.displayLabel,
+    source_context_label: evidence.contextLabel,
+  };
+}
+
 async function getLatestAnalysis(userId: string): Promise<PatternWindowRow | null> {
   const result = await db.execute(sql`
     SELECT *
@@ -204,6 +223,8 @@ function buildSignalSummary(readings: SignalReadingRow[]): SignalSummary[] {
       const values = rows.map((row) => numberOrNull(row.value)).filter((value): value is number => value !== null);
       const deviations = rows.map((row) => numberOrNull(row.deviation_pct)).filter((value): value is number => value !== null);
       const maxDeviation = deviations.length ? Math.max(...deviations.map(Math.abs)) : null;
+      const latestSource = rows[0]?.source ?? null;
+      const confidence = vitalsEvidenceFor(latestSource, signalType);
 
       let trend = "stable";
       if (values.length >= 3) {
@@ -222,6 +243,9 @@ function buildSignalSummary(readings: SignalReadingRow[]): SignalSummary[] {
         trend,
         max_deviation: maxDeviation,
         reading_count: rows.length,
+        latest_source: latestSource,
+        source_confidence: confidence.confidence,
+        source_confidence_reason: confidence.reason,
       };
     })
     .sort((a, b) => (b.max_deviation ?? 0) - (a.max_deviation ?? 0));
@@ -630,7 +654,7 @@ async function sendLatestVitalsIntelligence(profileId: string, res: Response) {
 
     return res.json({
       analysis: analysisResponse(analysis, fallback),
-      recent_readings: context.readings,
+      recent_readings: context.readings.map(signalReadingResponse),
       baselines,
       latest_alert: alerts[0] ?? null,
       recent_alerts: alerts,

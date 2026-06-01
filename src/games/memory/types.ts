@@ -68,4 +68,5 @@ export type GameResult = {
   durationSeconds: number;
   completedAt: string;
   language: LanguageCode;
+  clientResultId?: string;
 };

@@ -1,6 +1,15 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { beforeEach, describe, expect, it } from "vitest";
-import { getLanguage, setAccountLanguage, setLanguage, syncProfileLanguage, translate, LANGUAGE_STORAGE_KEY } from "./index";
+import {
+  getLanguage,
+  getLanguageSnapshot,
+  setAccountLanguage,
+  setBootstrapLanguage,
+  setLanguage,
+  syncProfileLanguage,
+  translate,
+  LANGUAGE_STORAGE_KEY,
+} from "./index";
 
 const LANGUAGE_SOURCE_STORAGE_KEY = "vyva_lang_source";
 
@@ -44,7 +53,7 @@ describe("language persistence", () => {
 
     expect(getLanguage()).toBe("de");
     expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe("de");
-    expect(localStorage.getItem(LANGUAGE_SOURCE_STORAGE_KEY)).toBe("account");
+    expect(localStorage.getItem(LANGUAGE_SOURCE_STORAGE_KEY)).toBe("profile");
   });
 
   it("lets a later account login establish that account language", () => {
@@ -57,14 +66,49 @@ describe("language persistence", () => {
     expect(localStorage.getItem(LANGUAGE_SOURCE_STORAGE_KEY)).toBe("account");
   });
 
+  it("lets a different active profile become the master language", () => {
+    syncProfileLanguage("es", "profile-a");
+    setLanguage("fr");
+
+    syncProfileLanguage("de", "profile-b");
+
+    expect(getLanguage()).toBe("de");
+    expect(getLanguageSnapshot()).toMatchObject({
+      language: "de",
+      source: "profile",
+      profileId: "profile-b",
+    });
+  });
+
+  it("keeps a current-session selector choice when the first active profile arrives", () => {
+    setLanguage("it");
+
+    syncProfileLanguage("en", "profile-a");
+
+    expect(getLanguage()).toBe("it");
+    expect(getLanguageSnapshot()).toMatchObject({
+      language: "it",
+      source: "user",
+      profileId: "profile-a",
+    });
+  });
+
+  it("does not let invite language override an account or profile language", () => {
+    setAccountLanguage("en");
+    setBootstrapLanguage("pt");
+
+    expect(getLanguage()).toBe("en");
+    expect(getLanguageSnapshot().source).toBe("account");
+  });
+
   it("keeps health quick cards localized for supported account languages", () => {
     const expected = {
-      en: ["Quick access", "Symptoms", "Medication", "Status", "Reports"],
-      es: ["Acceso rápido", "Síntomas", "Medicación", "Estado", "Informes"],
-      fr: ["Accès rapide", "Symptômes", "Médicaments", "État", "Rapports"],
-      de: ["Schnellzugriff", "Symptome", "Medikamente", "Status", "Berichte"],
-      it: ["Accesso rapido", "Sintomi", "Farmaci", "Stato", "Report"],
-      pt: ["Acesso rápido", "Sintomas", "Medicação", "Estado", "Relatórios"],
+      en: ["Quick access", "Symptoms", "Medication", "Vitals", "Reports"],
+      es: ["Acceso rápido", "Síntomas", "Medicación", "Constantes", "Informes"],
+      fr: ["Accès rapide", "Symptômes", "Médicaments", "Constantes", "Rapports"],
+      de: ["Schnellzugriff", "Symptome", "Medikamente", "Vitalwerte", "Berichte"],
+      it: ["Accesso rapido", "Sintomi", "Farmaci", "Parametri", "Report"],
+      pt: ["Acesso rápido", "Sintomas", "Medicação", "Sinais vitais", "Relatórios"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -95,12 +139,12 @@ describe("language persistence", () => {
 
   it("keeps symptom report status labels localized for supported account languages", () => {
     const expected = {
-      en: ["Report not saved", "Why VYVA chose this", "Monitor at home, with doctor access ready"],
-      es: ["Informe no guardado", "Por que VYVA eligio esto", "Vigila en casa, con medico disponible"],
-      fr: ["Rapport non enregistre", "Pourquoi VYVA a choisi cela", "Surveillez a domicile, avec un medecin pret a etre contacte"],
-      de: ["Bericht nicht gespeichert", "Warum VYVA das gewahlt hat", "Zu Hause beobachten, Arztkontakt bereithalten"],
-      it: ["Report non salvato", "Perche VYVA ha scelto questo", "Monitora a casa, con accesso al medico pronto"],
-      pt: ["Relatorio nao guardado", "Porque a VYVA escolheu isto", "Monitorize em casa, com acesso ao medico pronto"],
+      en: ["Report not saved", "Initial Assessment", "Monitor at home, with doctor access ready", "Share with doctor", "No doctor contact in profile"],
+      es: ["Informe no guardado", "Evaluación inicial", "Vigila en casa, con medico disponible", "Compartir con medico", "Sin contacto medico en perfil"],
+      fr: ["Rapport non enregistre", "Évaluation initiale", "Surveillez a domicile, avec un medecin pret a etre contacte", "Partager avec le medecin", "Aucun contact medecin dans le profil"],
+      de: ["Bericht nicht gespeichert", "Erste Einschätzung", "Zu Hause beobachten, Arztkontakt bereithalten", "Mit Arzt teilen", "Kein Arztkontakt im Profil"],
+      it: ["Report non salvato", "Valutazione iniziale", "Monitora a casa, con accesso al medico pronto", "Condividi col medico", "Nessun contatto medico nel profilo"],
+      pt: ["Relatorio nao guardado", "Avaliação inicial", "Monitorize em casa, com acesso ao medico pronto", "Partilhar com medico", "Sem contacto medico no perfil"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -108,6 +152,45 @@ describe("language persistence", () => {
         translate(language as keyof typeof expected, "health.symptomCheck.report.saveFailed"),
         translate(language as keyof typeof expected, "health.symptomCheck.report.whyThisStep"),
         translate(language as keyof typeof expected, "health.symptomCheck.report.nextStepMonitorReady"),
+        translate(language as keyof typeof expected, "health.symptomCheck.report.shareWithDoctor"),
+        translate(language as keyof typeof expected, "health.symptomCheck.report.noDoctorToShare"),
+      ]).toEqual(labels);
+    }
+  });
+
+  it("keeps symptom doctor contact action localized for supported account languages", () => {
+    const expected = {
+      en: "Add doctor contact",
+      es: "Anadir contacto medico",
+      fr: "Ajouter le contact medecin",
+      de: "Arztkontakt hinzufuegen",
+      it: "Aggiungi contatto medico",
+      pt: "Adicionar contacto medico",
+    } as const;
+
+    for (const [language, label] of Object.entries(expected)) {
+      expect(translate(language as keyof typeof expected, "health.symptomCheck.report.addDoctorContact")).toBe(label);
+    }
+  });
+
+  it("keeps symptom confidence tracker localized for supported account languages", () => {
+    const expected = {
+      en: ["Assessment confidence", "Building confidence", "VYVA is checking your answers", "Listen", "Check", "Next step"],
+      es: ["Confianza de la evaluacion", "Ganando confianza", "VYVA revisa tus respuestas", "Escuchar", "Revisar", "Siguiente paso"],
+      fr: ["Confiance de l'evaluation", "Confiance en cours", "VYVA verifie vos reponses", "Ecouter", "Verifier", "Prochaine etape"],
+      de: ["Einschaetzungs-Sicherheit", "Sicherheit steigt", "VYVA prueft Ihre Antworten", "Zuhoeren", "Pruefen", "Naechster Schritt"],
+      it: ["Fiducia nella valutazione", "Fiducia in crescita", "VYVA controlla le tue risposte", "Ascolto", "Controllo", "Prossimo passo"],
+      pt: ["Confianca da avaliacao", "A ganhar confianca", "A VYVA esta a verificar as suas respostas", "Ouvir", "Verificar", "Proximo passo"],
+    } as const;
+
+    for (const [language, labels] of Object.entries(expected)) {
+      expect([
+        translate(language as keyof typeof expected, "health.symptomCheck.tracker.label"),
+        translate(language as keyof typeof expected, "health.symptomCheck.tracker.building"),
+        translate(language as keyof typeof expected, "health.symptomCheck.tracker.checking"),
+        translate(language as keyof typeof expected, "health.symptomCheck.tracker.listen"),
+        translate(language as keyof typeof expected, "health.symptomCheck.tracker.check"),
+        translate(language as keyof typeof expected, "health.symptomCheck.tracker.nextStep"),
       ]).toEqual(labels);
     }
   });
@@ -179,8 +262,13 @@ describe("language persistence", () => {
       .filter((file) => file.endsWith(".tsx"))
       .map((file) => readFileSync(file, "utf8"))
       .join("\n");
+    const legacySettingsSource = readFileSync("src/pages/SettingsScreen.tsx", "utf8");
 
     expect(settingsSource).not.toContain("react-i18next");
     expect(settingsSource).not.toContain("useTranslation(");
+    expect(legacySettingsSource).not.toContain("react-i18next");
+    expect(legacySettingsSource).not.toContain("useTranslation(");
+    expect(legacySettingsSource).not.toContain("i18n.changeLanguage");
+    expect(legacySettingsSource).not.toContain("LANGUAGE_STORAGE_KEY");
   });
 });
