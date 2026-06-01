@@ -28,6 +28,40 @@ const COLOR_HEX = {
 const COLOR_ORDER = ["red", "blue", "yellow", "green", "purple", "orange"];
 const SHAPE_ORDER = ["circle", "square", "triangle", "star", "diamond", "cross"];
 const SIZE_ORDER = ["small", "medium", "large"];
+const MAX_CATEGORY_SORT_TIER = 10;
+const LEVEL_UP_ACCURACY_PCT = 75;
+const LEVEL_DOWN_ACCURACY_PCT = 45;
+const LOCAL_STATE_PREFIX = "vyva_category_sort_user_state";
+
+const RULE_LABELS = {
+  color: { es: "Color", en: "Colour", fr: "Couleur", de: "Farbe" },
+  shape: { es: "Forma", en: "Shape", fr: "Forme", de: "Form" },
+  size: { es: "Tamano", en: "Size", fr: "Taille", de: "Grosse" },
+  semantic_living: { es: "Vivo", en: "Living", fr: "Vivant", de: "Lebendig" },
+  semantic_food: { es: "Comida", en: "Food", fr: "Aliment", de: "Essen" },
+  semantic_group: { es: "Categoria", en: "Category", fr: "Categorie", de: "Kategorie" },
+};
+
+function labelForRule(rule, language) {
+  if (rule?.rule === "semantic_group") {
+    return RULE_LABELS[`semantic_${rule.semantic_group_value}`]?.[language] ?? RULE_LABELS.semantic_group[language] ?? RULE_LABELS.semantic_group.en;
+  }
+
+  return RULE_LABELS[rule?.rule]?.[language] ?? "";
+}
+
+function ruleEntry(rule, switchAfter = 4, extra = {}) {
+  const labels = labelForRule({ rule, ...extra }, "es")
+    ? {
+        label_es: labelForRule({ rule, ...extra }, "es"),
+        label_en: labelForRule({ rule, ...extra }, "en"),
+        label_fr: labelForRule({ rule, ...extra }, "fr"),
+        label_de: labelForRule({ rule, ...extra }, "de"),
+      }
+    : {};
+
+  return { rule, switch_after: switchAfter, ...extra, ...labels };
+}
 
 const FALLBACK_CARDS = [
   { id: "practice-1", color: "red", shape: "circle", size: "large", semantic_class: "food", semantic_group: "food", label_es: "Manzana", label_de: "Apfel", label_en: "Apple", icon: "🍎" },
@@ -51,17 +85,50 @@ const FALLBACK_SEQUENCE = {
   card_count: FALLBACK_CARDS.length,
   language: "es",
   rules: [
-    { rule: "color", label_es: "Color", label_de: "Farbe", label_en: "Colour", switch_after: 4 },
-    { rule: "shape", label_es: "Forma", label_de: "Form", label_en: "Shape", switch_after: 4 },
-    { rule: "color", label_es: "Color", label_de: "Farbe", label_en: "Colour", switch_after: 4 },
+    ruleEntry("color"),
+    ruleEntry("shape"),
+    ruleEntry("color"),
   ],
 };
 
-function getFallbackSequence(tier = 1) {
+export function getFallbackSequence(tier = 1) {
+  const difficultyTier = clamp(Number(tier) || 1, 1, MAX_CATEGORY_SORT_TIER);
+  const fallbackRules = [
+    [ruleEntry("color"), ruleEntry("shape"), ruleEntry("color")],
+    [ruleEntry("shape"), ruleEntry("color"), ruleEntry("shape")],
+    [ruleEntry("color"), ruleEntry("size"), ruleEntry("shape")],
+    [ruleEntry("shape"), ruleEntry("size"), ruleEntry("color")],
+    [
+      ruleEntry("semantic_group", 4, {
+        semantic_group_value: "living",
+        categories: [{ value: "living" }, { value: "non_living" }],
+      }),
+      ruleEntry("color"),
+      ruleEntry("shape"),
+    ],
+    [
+      ruleEntry("semantic_group", 4, {
+        semantic_group_value: "food",
+        categories: [{ value: "food" }, { value: "non_food" }],
+      }),
+      ruleEntry("size"),
+      ruleEntry("shape"),
+    ],
+  ];
+
   return {
     ...FALLBACK_SEQUENCE,
-    difficulty_tier: clamp(Number(tier) || 1, 1, 10),
+    difficulty_tier: difficultyTier,
+    rules: fallbackRules[(difficultyTier - 1) % fallbackRules.length],
   };
+}
+
+export function getNextCategorySortTierAfterRound(currentTier, combinedAccuracyPct) {
+  const tier = clamp(Number(currentTier) || 1, 1, MAX_CATEGORY_SORT_TIER);
+  if (Number(combinedAccuracyPct) >= LEVEL_UP_ACCURACY_PCT) {
+    return clamp(tier + 1, 1, MAX_CATEGORY_SORT_TIER);
+  }
+  return tier;
 }
 
 function clamp(value, min, max) {
@@ -115,6 +182,36 @@ function getDefaultUserState(userId) {
   };
 }
 
+function localStateKey(userId) {
+  return `${LOCAL_STATE_PREFIX}:${userId || "local"}`;
+}
+
+function readLocalUserState(userId) {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = window.localStorage.getItem(localStateKey(userId));
+    if (!stored) return null;
+    const parsed = JSON.parse(stored);
+    return {
+      ...getDefaultUserState(userId),
+      ...parsed,
+      user_id: userId,
+      current_tier: clamp(Number(parsed.current_tier ?? 1), 1, MAX_CATEGORY_SORT_TIER),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalUserState(userId, state) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(localStateKey(userId), JSON.stringify(state));
+  } catch {
+    // Local progress is helpful, but the game should remain playable if storage is unavailable.
+  }
+}
+
 function normalizeSequence(row) {
   return {
     ...row,
@@ -127,7 +224,7 @@ function normalizeSequence(row) {
 
 function ruleLabel(rule, language) {
   const key = `label_${language}`;
-  return rule?.[key] ?? rule?.label_es ?? rule?.label_en ?? "";
+  return rule?.[key] ?? labelForRule(rule, language) ?? rule?.label_en ?? rule?.label_es ?? "";
 }
 
 function cardLabel(card, language) {
@@ -390,7 +487,7 @@ export default function CategorySort({ userId, onExit }) {
 
   const loadUserState = useCallback(async () => {
     const fallback = getDefaultUserState(userId);
-    if (!userId) return fallback;
+    if (!userId) return readLocalUserState(userId) ?? fallback;
 
     const existing = await supabase
       .from("category_sort_user_state")
@@ -594,29 +691,30 @@ export default function CategorySort({ userId, onExit }) {
   }, [gameLanguage, userId]);
 
   const updateUserState = useCallback(async (result) => {
-    if (!userId || result.abandoned) return userState;
+    if (result.abandoned) return userState;
 
-    const persistedState = await loadUserState().catch((error) => {
+    const persistedState = userId ? await loadUserState().catch((error) => {
       console.warn("Category Sort could not refresh saved progress before updating.", error);
       return null;
-    });
+    }) : readLocalUserState(userId);
     const previous = persistedState ?? userState ?? getDefaultUserState(userId);
     const today = todayKey();
     const yesterday = todayKey(addDays(new Date(), -1));
 
     let consecutiveWins = 0;
     let consecutiveLosses = 0;
-    if (result.combined_accuracy_pct >= 75) {
+    if (result.combined_accuracy_pct >= LEVEL_UP_ACCURACY_PCT) {
       consecutiveWins = Number(previous.consecutive_wins ?? 0) + 1;
-    } else if (result.combined_accuracy_pct < 45) {
+    } else if (result.combined_accuracy_pct < LEVEL_DOWN_ACCURACY_PCT) {
       consecutiveLosses = Number(previous.consecutive_losses ?? 0) + 1;
     }
 
     let currentTier = Number(previous.current_tier ?? 1);
     let sessionsAtTier = Number(previous.sessions_at_tier ?? 0) + 1;
 
-    if (consecutiveWins >= 3 && currentTier < 10) {
-      currentTier += 1;
+    const promotedTier = getNextCategorySortTierAfterRound(currentTier, result.combined_accuracy_pct);
+    if (promotedTier > currentTier) {
+      currentTier = promotedTier;
       sessionsAtTier = 0;
       consecutiveWins = 0;
       consecutiveLosses = 0;
@@ -638,7 +736,7 @@ export default function CategorySort({ userId, onExit }) {
     const next = {
       ...previous,
       user_id: userId,
-      current_tier: clamp(currentTier, 1, 10),
+      current_tier: clamp(currentTier, 1, MAX_CATEGORY_SORT_TIER),
       sessions_at_tier: sessionsAtTier,
       consecutive_wins: consecutiveWins,
       consecutive_losses: consecutiveLosses,
@@ -651,6 +749,11 @@ export default function CategorySort({ userId, onExit }) {
     };
 
     setUserState(next);
+    if (!userId) {
+      writeLocalUserState(userId, next);
+      return next;
+    }
+
     const updated = await supabase
       .from("category_sort_user_state")
       .upsert(next, { onConflict: "user_id" })
@@ -893,14 +996,14 @@ export default function CategorySort({ userId, onExit }) {
   const RuleIcon = iconForRule(currentRule);
   const RuleChangeIcon = iconForRule(ruleChangeRule ?? currentRule);
   const result = sessionResult ?? computeScore(sessionLog, false);
-  const progressToPromotion = clamp(((userState?.consecutive_wins ?? 0) / 3) * 100, 0, 100);
+  const progressToPromotion = clamp((result.combined_accuracy_pct / LEVEL_UP_ACCURACY_PCT) * 100, 0, 100);
   const resultTier = Number(userState?.current_tier ?? currentSequence.difficulty_tier ?? 1);
   const completedTier = Number(currentSequence.difficulty_tier ?? 1);
   const resultWasPromoted = resultTier > completedTier;
   const continueLabel = resultWasPromoted
     ? text.continueToLevel.replace("{level}", String(resultTier))
     : text.continueAction;
-  const nextTier = clamp(resultTier + 1, 1, 10);
+  const nextTier = clamp(resultTier + 1, 1, MAX_CATEGORY_SORT_TIER);
   const groupedResults = Object.values(result.log.reduce((groups, entry) => {
     const key = entry.rule_key;
     if (!groups[key]) groups[key] = { label: entry.rule_label, marks: [] };
@@ -928,48 +1031,48 @@ export default function CategorySort({ userId, onExit }) {
 
   if (screen === "intro") {
     return (
-      <div className="h-[100dvh] overflow-hidden px-4 sm:px-6 md:px-8" style={shellStyle}>
-        <div className="mx-auto flex h-full w-full max-w-[820px] flex-col">
+      <div className="min-h-[100dvh] overflow-y-auto px-4 sm:px-6 md:px-8" style={shellStyle}>
+        <div className="mx-auto flex min-h-[100dvh] w-full max-w-[820px] flex-col py-3 sm:py-4">
           <div className="flex shrink-0 items-center justify-between gap-3">
             <button
               type="button"
               onClick={handleExit}
-              className="inline-flex min-h-[64px] items-center gap-3 rounded-full bg-white px-5 text-[22px] font-bold text-vyva-text-1 shadow-vyva-card"
+              className="inline-flex min-h-[54px] items-center gap-2 rounded-full bg-white px-4 text-[20px] font-bold text-vyva-text-1 shadow-vyva-card sm:min-h-[62px] sm:gap-3 sm:px-5 sm:text-[22px]"
             >
               <ArrowLeft size={24} />
               {text.back}
             </button>
-            <div className="flex min-h-[64px] items-center rounded-full px-5 text-[22px] font-bold text-white shadow-vyva-card" style={{ background: BRAND.gold }}>
+            <div className="flex min-h-[54px] items-center rounded-full px-4 text-[20px] font-bold text-white shadow-vyva-card sm:min-h-[62px] sm:px-5 sm:text-[22px]" style={{ background: BRAND.gold }}>
               {text.level} {currentSequence.difficulty_tier}
             </div>
           </div>
 
-          <main className="flex min-h-0 flex-1 flex-col justify-center py-4 md:py-6">
-            <div className="text-center">
+          <main className="flex flex-1 flex-col py-4 md:py-6">
+            <div className="text-center [&>div:first-child]:text-[42px] sm:[&>div:first-child]:text-[56px]">
               <div className="text-[64px] leading-none">🧩</div>
-              <h1 className="mt-3 font-display text-[42px] font-bold leading-none md:text-[48px]">{text.title}</h1>
-              <p className="mx-auto mt-3 max-w-[29ch] text-[24px] leading-[1.32]" style={{ color: BRAND.muted }}>{text.subtitle}</p>
-              {loadNote && <p className="mx-auto mt-3 max-w-[30ch] text-[22px] font-bold text-[#9A3412]">{loadNote}</p>}
+              <h1 className="mx-auto mt-2 max-w-[13ch] font-display text-[34px] font-bold leading-[1.02] sm:mt-3 sm:text-[42px] md:text-[48px]">{text.title}</h1>
+              <p className="mx-auto mt-3 max-w-[31ch] text-[21px] leading-[1.28] sm:text-[24px]" style={{ color: BRAND.muted }}>{text.subtitle}</p>
+              {loadNote && <p className="mx-auto mt-3 max-w-[30ch] text-[19px] font-bold leading-[1.2] text-[#9A3412] sm:text-[22px]">{loadNote}</p>}
             </div>
 
-            <div className="mt-7 grid gap-3 sm:grid-cols-3">
+            <div className="mt-5 grid grid-cols-3 gap-2 sm:mt-7 sm:gap-3">
               {currentSequence.rules.slice(0, 3).map((rule, index) => {
                 const Icon = iconForRule(rule);
                 return (
-                  <div key={`${rule.rule}-${index}`} className="min-h-[112px] rounded-[8px] border-2 bg-white p-4 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-                    <Icon className="h-9 w-9" style={{ color: index === 1 ? BRAND.gold : BRAND.purple }} />
-                    <p className="mt-3 text-[22px] font-extrabold leading-[1.1]">{ruleLabel(rule, gameLanguage)}</p>
+                  <div key={`${rule.rule}-${index}`} className="flex min-h-[92px] flex-col justify-between rounded-[8px] border-2 bg-white p-3 shadow-vyva-card sm:min-h-[112px] sm:p-4" style={{ borderColor: BRAND.border }}>
+                    <Icon className="h-8 w-8 sm:h-9 sm:w-9" style={{ color: index === 1 ? BRAND.gold : BRAND.purple }} />
+                    <p className="mt-2 text-[18px] font-extrabold leading-[1.08] [overflow-wrap:anywhere] sm:mt-3 sm:text-[22px]">{ruleLabel(rule, gameLanguage)}</p>
                   </div>
                 );
               })}
             </div>
           </main>
 
-          <div className="grid shrink-0 gap-3 sm:grid-cols-2">
+          <div className="grid shrink-0 gap-3 pb-1 sm:grid-cols-2">
             <button
               type="button"
               onClick={() => setScreen("tutorial")}
-              className="min-h-[72px] rounded-[8px] border-2 bg-white px-6 text-[26px] font-bold shadow-vyva-card"
+              className="min-h-[64px] rounded-[8px] border-2 bg-white px-5 text-[22px] font-bold shadow-vyva-card sm:min-h-[72px] sm:px-6 sm:text-[26px]"
               style={{ borderColor: BRAND.border, color: BRAND.purple }}
             >
               {text.example}
@@ -977,7 +1080,7 @@ export default function CategorySort({ userId, onExit }) {
             <button
               type="button"
               onClick={startRound}
-              className="min-h-[72px] rounded-[8px] px-6 text-[26px] font-bold text-white shadow-vyva-card"
+              className="min-h-[64px] rounded-[8px] px-5 text-[22px] font-bold text-white shadow-vyva-card sm:min-h-[72px] sm:px-6 sm:text-[26px]"
               style={{ background: BRAND.purple }}
             >
               {text.start}
