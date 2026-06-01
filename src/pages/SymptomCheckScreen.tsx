@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Activity, Calendar, Car, ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, Heart, ListChecks, Loader2, Mail, PhoneCall, RefreshCw, Send, ShoppingBasket, Stethoscope, Users, type LucideIcon } from "lucide-react";
@@ -65,6 +65,27 @@ type RefinementStatus = {
 };
 
 type ReportSaveState = "idle" | "saving" | "saved" | "error";
+
+type LatestVitalReading = {
+  signal_type: string;
+  context_tag?: string | null;
+  value: string | number;
+  recorded_at?: string | null;
+  source?: string | null;
+  source_confidence?: "low" | "medium" | "high" | null;
+  source_display_label?: string | null;
+  source_context_label?: string | null;
+};
+
+type LatestVitalsResponse = {
+  recent_readings?: LatestVitalReading[];
+};
+
+type LatestVitalCandidate = {
+  value: string;
+  display: string;
+  source?: string | null;
+};
 
 type TriageHealthMemory = {
   healthContext?: string;
@@ -533,6 +554,43 @@ function parseBloodPressure(raw: string) {
   return { systolic, diastolic };
 }
 
+function normalizeReadingValue(value: string | number | null | undefined) {
+  if (value == null) return "";
+  return String(value).trim();
+}
+
+function findLatestReading(readings: LatestVitalReading[], signalType: string) {
+  return readings.find((reading) => reading.signal_type === signalType && normalizeReadingValue(reading.value));
+}
+
+function latestCandidateForAction(action: RefinementVitalConfig, readings: LatestVitalReading[]): LatestVitalCandidate | null {
+  if (action.key === "bloodPressure") {
+    const systolic = findLatestReading(readings, "bp_systolic");
+    const diastolic = findLatestReading(readings, "bp_diastolic");
+    if (!systolic || !diastolic) return null;
+
+    const value = `${normalizeReadingValue(systolic.value)}/${normalizeReadingValue(diastolic.value)}`;
+    const parsed = action.parse(value);
+    if (!parsed) return null;
+    return {
+      value,
+      display: parsed.display,
+      source: systolic.source ?? diastolic.source ?? null,
+    };
+  }
+
+  const reading = findLatestReading(readings, action.signalType);
+  if (!reading) return null;
+  const value = normalizeReadingValue(reading.value);
+  const parsed = action.parse(value);
+  if (!parsed) return null;
+  return {
+    value,
+    display: parsed.display,
+    source: reading.source ?? null,
+  };
+}
+
 function reportText(summary: TriageSummary) {
   return [
     summary.chiefComplaint,
@@ -553,6 +611,7 @@ function ReportScreen({
   profileContacts,
   careTeamMembers,
   emergencyContact,
+  latestVitalReadings = [],
   refinementStatus,
   onRefineVital,
   onDone,
@@ -565,6 +624,7 @@ function ReportScreen({
   profileContacts?: ProfileContactsResponse;
   careTeamMembers: CareTeamMember[];
   emergencyContact?: EmergencyContact | null;
+  latestVitalReadings?: LatestVitalReading[];
   refinementStatus: RefinementStatus;
   onRefineVital: (config: RefinementVitalConfig, rawValue: string) => Promise<void>;
   onDone: () => void;
@@ -760,6 +820,16 @@ function ReportScreen({
         }
       : null,
   ].filter(Boolean) as RefinementVitalConfig[];
+  const latestVitalCandidates = useMemo(() => {
+    const entries = vitalActions.map((action) => [action.key, latestCandidateForAction(action, latestVitalReadings)] as const);
+    return Object.fromEntries(entries) as Partial<Record<RefinementVitalKey, LatestVitalCandidate | null>>;
+  }, [latestVitalReadings, vitalActions]);
+  const latestSourceLabel = (source?: string | null) => {
+    if (source === "connected_device") return t("health.symptomCheck.report.latestSourceDevice", "device reading");
+    if (source === "clinical") return t("health.symptomCheck.report.latestSourceClinical", "clinical reading");
+    if (source === "phone_estimate") return t("health.symptomCheck.report.latestSourcePhone", "phone estimate");
+    return t("health.symptomCheck.report.latestSourceManual", "saved reading");
+  };
   const doctorTellItems = uniqueLines([
     `${t("health.symptomCheck.report.tellMainSymptom", "Main symptom")}: ${summary.chiefComplaint}`,
     summary.symptoms.length ? `${t("health.symptomCheck.report.symptoms", "Symptoms noted")}: ${summary.symptoms.join(", ")}` : "",
@@ -1212,11 +1282,34 @@ function ReportScreen({
           </div>
         </section>
 
+        {vitalActions.length ? (
+          <section className="rounded-[24px] border border-[#DDD6FE] bg-[#FAF5FF] p-4 shadow-[0_8px_22px_rgba(107,33,168,0.06)]" data-testid="card-report-vital-refinement-note">
+            <div className="flex items-start gap-3">
+              <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-vyva-purple shadow-sm">
+                <Activity size={21} />
+              </span>
+              <div className="min-w-0">
+                <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-purple">
+                  {t("health.symptomCheck.report.vitalRefinementTitle", "Refine with a reading")}
+                </p>
+                <p className="mt-1 font-body text-[16px] font-bold leading-snug text-vyva-text-2">
+                  {t(
+                    "health.symptomCheck.report.vitalRefinementBody",
+                    "A relevant reading can help VYVA update this assessment. Phone estimates are useful for trends; device or manual readings are stronger evidence.",
+                  )}
+                </p>
+              </div>
+            </div>
+          </section>
+        ) : null}
+
         <div className="grid grid-cols-1 gap-3">
           {vitalActions.map((action) => {
             const open = openVitalKey === action.key;
             const value = vitalInputs[action.key] ?? "";
             const busy = refinementStatus.state === "saving" || refinementStatus.state === "refining";
+            const latestCandidate = latestVitalCandidates[action.key] ?? null;
+            const latestSource = latestSourceLabel(latestCandidate?.source);
             const statusTone = refinementStatus.state === "error"
               ? "border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]"
               : "border-[#BBF7D0] bg-[#ECFDF5] text-[#047857]";
@@ -1242,20 +1335,39 @@ function ReportScreen({
                   <button
                     type="button"
                     onClick={() => {
+                      if (!latestCandidate) return;
                       setOpenVitalKey(action.key);
                       setVitalInputs((current) => ({
                         ...current,
-                        [action.key]: action.key === "glucose" ? "92" : action.placeholder,
+                        [action.key]: latestCandidate.value,
                       }));
                       setVitalInputError(null);
                     }}
-                    disabled={busy}
-                    className="vyva-tap flex min-h-[76px] w-full min-w-0 items-center justify-between rounded-[22px] bg-[#6B21A8] px-5 text-left text-white shadow-[0_12px_26px_rgba(107,33,168,0.22)]"
+                    disabled={busy || !latestCandidate}
+                    className={`vyva-tap flex min-h-[82px] w-full min-w-0 items-center justify-between rounded-[22px] px-5 text-left shadow-[0_12px_26px_rgba(107,33,168,0.12)] disabled:cursor-not-allowed ${
+                      latestCandidate
+                        ? "bg-[#6B21A8] text-white"
+                        : "border border-[#E8DED4] bg-[#FAF9F6] text-vyva-text-3"
+                    }`}
                   >
-                    <span className="min-w-0 font-body text-[18px] font-black leading-tight">
-                      {t("health.symptomCheck.report.readConnectedSensor", "Read from connected sensor")}
+                    <span className="grid min-w-0 gap-1">
+                      <span className="min-w-0 font-body text-[18px] font-black leading-tight">
+                        {latestCandidate
+                          ? t("health.symptomCheck.report.useLatestReading", "Use latest saved reading")
+                          : t("health.symptomCheck.report.noLatestReading", "No saved reading yet")}
+                      </span>
+                      <span className={`min-w-0 font-body text-[14px] font-bold leading-snug ${
+                        latestCandidate ? "text-white/82" : "text-vyva-text-3"
+                      }`}>
+                        {latestCandidate
+                          ? t("health.symptomCheck.report.latestReadingDetail", "{{display}} from {{source}}", {
+                              display: latestCandidate.display,
+                              source: latestSource,
+                            })
+                          : t("health.symptomCheck.report.noLatestReadingDetail", "Enter this reading manually to refine the assessment.")}
+                      </span>
                     </span>
-                    <ChevronLeft size={22} className="ml-3 flex-shrink-0 rotate-180" />
+                    <ChevronLeft size={22} className={`ml-3 flex-shrink-0 rotate-180 ${latestCandidate ? "" : "opacity-45"}`} />
                   </button>
                   <button
                     type="button"
@@ -1606,6 +1718,12 @@ export default function SymptomCheckScreen() {
     enabled: step === "report",
     retry: false,
     staleTime: 2 * 60 * 1000,
+  });
+  const { data: latestVitalsData } = useQuery<LatestVitalsResponse>({
+    queryKey: ["/api/vitals-engine/latest", "symptom-report"],
+    enabled: step === "report",
+    retry: false,
+    staleTime: 60 * 1000,
   });
   const [bpm, setBpm] = useState<number | null>(() => restoredDraft?.bpm ?? null);
   const [respiratoryRate, setRespiratoryRate] = useState<number | null>(() => restoredDraft?.respiratoryRate ?? null);
@@ -1976,6 +2094,7 @@ export default function SymptomCheckScreen() {
             profileContacts={profileContacts}
             careTeamMembers={careTeamData?.members ?? []}
             emergencyContact={triageContext?.emergencyContact ?? null}
+            latestVitalReadings={latestVitalsData?.recent_readings ?? []}
             refinementStatus={refinementStatus}
             onRefineVital={handleRefineVital}
             onDone={handleDone}
