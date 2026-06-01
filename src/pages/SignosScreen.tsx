@@ -540,6 +540,47 @@ const SignosScreen = () => {
         }]
       : []),
   ];
+  const measurementModes = [
+    {
+      id: "phone",
+      Icon: ScanLine,
+      title: t("statusVitals.capabilities.phoneTitle", "Phone estimate"),
+      body: t("statusVitals.capabilities.phoneBody", "Camera-based pulse and breathing trend. Useful for a quick check, not a medical device reading."),
+      items: [
+        t("statusVitals.capabilities.pulse", "Pulse"),
+        t("statusVitals.capabilities.breathing", "Breathing"),
+      ],
+      color: "#6B21A8",
+      bg: "#F5F3FF",
+    },
+    {
+      id: "manual",
+      Icon: Plus,
+      title: t("statusVitals.capabilities.manualTitle", "Manual log"),
+      body: t("statusVitals.capabilities.manualBody", "Add numbers from a cuff, oximeter, thermometer, glucose meter, or how you feel today."),
+      items: [
+        t("statusVitals.capabilities.bp", "BP"),
+        t("statusVitals.capabilities.oxygen", "Oxygen"),
+        t("statusVitals.capabilities.temp", "Temp"),
+        t("statusVitals.capabilities.glucose", "Glucose"),
+        t("statusVitals.capabilities.mood", "Mood"),
+      ],
+      color: "#92400E",
+      bg: "#FEF3C7",
+    },
+    {
+      id: "device",
+      Icon: Watch,
+      title: t("statusVitals.capabilities.deviceTitle", "Device or clinical"),
+      body: t("statusVitals.capabilities.deviceBody", "Connected devices and clinical readings carry the strongest weight in VYVA's safety checks."),
+      items: [
+        t("statusVitals.capabilities.highConfidence", "Higher confidence"),
+        t("statusVitals.capabilities.safetyChecks", "Safety checks"),
+      ],
+      color: "#047857",
+      bg: "#D1FAE5",
+    },
+  ];
 
   const shareStatus = async () => {
     const lines = (["hr", "rr", "bp"] as MetricType[]).map((key) => {
@@ -680,6 +721,42 @@ const SignosScreen = () => {
       <p className="mt-3 rounded-[20px] border border-[#EDE5DB] bg-white px-4 py-3 font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">
         {t("statusVitals.sourceNote", "Phone scans are estimates for trends. Device or manual readings are stronger evidence for VYVA.")}
       </p>
+
+      <section className="mt-4 rounded-[24px] border border-[#EDE5DB] bg-white p-4 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="vitals-capabilities-guide">
+        <div className="mb-3 flex items-start gap-3">
+          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#F5F3FF] text-vyva-purple">
+            <ShieldCheck size={20} />
+          </span>
+          <div className="min-w-0">
+            <p className="font-body text-[13px] font-extrabold uppercase tracking-[0.11em] text-vyva-purple">
+              {t("statusVitals.capabilities.title", "What VYVA can measure")}
+            </p>
+            <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
+              {t("statusVitals.capabilities.subtitle", "Different readings have different confidence. VYVA labels that before using them in assessments.")}
+            </p>
+          </div>
+        </div>
+        <div className="grid gap-3">
+          {measurementModes.map(({ id, Icon, title, body, items, color, bg }) => (
+            <div key={id} className="flex items-start gap-3 border-t border-[#F0E7DE] pt-3 first:border-t-0 first:pt-0">
+              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px]" style={{ color, background: bg }}>
+                <Icon size={18} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-body text-[15px] font-extrabold leading-tight text-vyva-text-1">{title}</p>
+                <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">{body}</p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {items.map((item) => (
+                    <span key={item} className="rounded-full px-2.5 py-1 font-body text-[11px] font-bold" style={{ color, background: bg }}>
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <HealthWizardSectionLabel
         action={(
