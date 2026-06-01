@@ -1031,61 +1031,72 @@ export default function CategorySort({ userId, onExit }) {
 
   if (screen === "intro") {
     return (
-      <div className="min-h-[100dvh] overflow-y-auto px-4 sm:px-6 md:px-8" style={shellStyle}>
-        <div className="mx-auto flex min-h-[100dvh] w-full max-w-[820px] flex-col py-3 sm:py-4">
-          <div className="flex shrink-0 items-center justify-between gap-3">
+      <div className="min-h-[100dvh] overflow-y-auto px-4 sm:px-6 md:px-8" style={shellStyle} data-testid="category-sort-intro">
+        <div className="mx-auto grid min-h-[100dvh] w-full max-w-[760px] grid-rows-[auto_1fr_auto] gap-3 py-3 sm:gap-5 sm:py-5">
+          <header className="flex shrink-0 items-center justify-between gap-3">
             <button
               type="button"
               onClick={handleExit}
-              className="inline-flex min-h-[54px] items-center gap-2 rounded-full bg-white px-4 text-[20px] font-bold text-vyva-text-1 shadow-vyva-card sm:min-h-[62px] sm:gap-3 sm:px-5 sm:text-[22px]"
+              className="inline-flex min-h-[48px] items-center gap-2 rounded-full bg-white px-4 text-[18px] font-bold text-vyva-text-1 shadow-vyva-card sm:min-h-[58px] sm:gap-3 sm:px-5 sm:text-[21px]"
             >
-              <ArrowLeft size={24} />
+              <ArrowLeft size={22} />
               {text.back}
             </button>
-            <div className="flex min-h-[54px] items-center rounded-full px-4 text-[20px] font-bold text-white shadow-vyva-card sm:min-h-[62px] sm:px-5 sm:text-[22px]" style={{ background: BRAND.gold }}>
+            <div className="flex min-h-[48px] shrink-0 items-center rounded-full px-4 text-[18px] font-bold text-white shadow-vyva-card sm:min-h-[58px] sm:px-5 sm:text-[21px]" style={{ background: BRAND.gold }}>
               {text.level} {currentSequence.difficulty_tier}
             </div>
-          </div>
+          </header>
 
-          <main className="flex flex-1 flex-col py-4 md:py-6">
-            <div className="text-center [&>div:first-child]:text-[42px] sm:[&>div:first-child]:text-[56px]">
-              <div className="text-[64px] leading-none">🧩</div>
-              <h1 className="mx-auto mt-2 max-w-[13ch] font-display text-[34px] font-bold leading-[1.02] sm:mt-3 sm:text-[42px] md:text-[48px]">{text.title}</h1>
-              <p className="mx-auto mt-3 max-w-[31ch] text-[21px] leading-[1.28] sm:text-[24px]" style={{ color: BRAND.muted }}>{text.subtitle}</p>
-              {loadNote && <p className="mx-auto mt-3 max-w-[30ch] text-[19px] font-bold leading-[1.2] text-[#9A3412] sm:text-[22px]">{loadNote}</p>}
+          <main className="flex min-h-0 flex-col justify-start gap-4 pt-6 sm:gap-5 sm:pt-10">
+            <div className="text-center">
+              <h1 className="mx-auto max-w-[12ch] font-display text-[32px] font-bold leading-[1.02] sm:text-[42px] md:text-[48px]">{text.title}</h1>
+              <p className="mx-auto mt-3 max-w-[34ch] text-[19px] leading-[1.3] sm:text-[23px]" style={{ color: BRAND.muted }}>{text.subtitle}</p>
+              {loadNote && (
+                <p className="mx-auto mt-3 inline-flex max-w-full rounded-full bg-[#FFF7ED] px-4 py-2 text-center text-[17px] font-bold leading-[1.15] text-[#9A3412] sm:text-[20px]">
+                  {loadNote}
+                </p>
+              )}
             </div>
 
-            <div className="mt-5 grid grid-cols-3 gap-2 sm:mt-7 sm:gap-3">
+            <div className="grid gap-2 sm:grid-cols-3 sm:gap-3" data-testid="category-sort-rule-strip">
               {currentSequence.rules.slice(0, 3).map((rule, index) => {
                 const Icon = iconForRule(rule);
                 return (
-                  <div key={`${rule.rule}-${index}`} className="flex min-h-[92px] flex-col justify-between rounded-[8px] border-2 bg-white p-3 shadow-vyva-card sm:min-h-[112px] sm:p-4" style={{ borderColor: BRAND.border }}>
-                    <Icon className="h-8 w-8 sm:h-9 sm:w-9" style={{ color: index === 1 ? BRAND.gold : BRAND.purple }} />
-                    <p className="mt-2 text-[18px] font-extrabold leading-[1.08] [overflow-wrap:anywhere] sm:mt-3 sm:text-[22px]">{ruleLabel(rule, gameLanguage)}</p>
+                  <div
+                    key={`${rule.rule}-${index}`}
+                    className="grid min-h-[58px] grid-cols-[auto_1fr_auto] items-center gap-3 rounded-[8px] border-2 bg-white px-3 py-2 shadow-vyva-card sm:min-h-[104px] sm:grid-cols-1 sm:items-start sm:p-4"
+                    style={{ borderColor: BRAND.border }}
+                    data-testid="category-sort-rule-card"
+                  >
+                    <Icon className="h-7 w-7 sm:h-9 sm:w-9" style={{ color: index === 1 ? BRAND.gold : BRAND.purple }} />
+                    <p className="min-w-0 text-[19px] font-extrabold leading-[1.08] [overflow-wrap:anywhere] sm:mt-2 sm:text-[22px]">{ruleLabel(rule, gameLanguage)}</p>
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full text-[16px] font-black sm:hidden" style={{ background: BRAND.softPurple, color: BRAND.purple }}>
+                      {index + 1}
+                    </span>
                   </div>
                 );
               })}
             </div>
           </main>
 
-          <div className="grid shrink-0 gap-3 pb-1 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={() => setScreen("tutorial")}
-              className="min-h-[64px] rounded-[8px] border-2 bg-white px-5 text-[22px] font-bold shadow-vyva-card sm:min-h-[72px] sm:px-6 sm:text-[26px]"
-              style={{ borderColor: BRAND.border, color: BRAND.purple }}
-            >
-              {text.example}
-            </button>
+          <footer className="grid shrink-0 gap-2 pb-1 sm:grid-cols-2 sm:gap-3">
             <button
               type="button"
               onClick={startRound}
-              className="min-h-[64px] rounded-[8px] px-5 text-[22px] font-bold text-white shadow-vyva-card sm:min-h-[72px] sm:px-6 sm:text-[26px]"
+              className="min-h-[62px] rounded-[8px] px-5 text-[22px] font-bold text-white shadow-vyva-card sm:min-h-[72px] sm:px-6 sm:text-[26px]"
               style={{ background: BRAND.purple }}
             >
               {text.start}
             </button>
-          </div>
+            <button
+              type="button"
+              onClick={() => setScreen("tutorial")}
+              className="min-h-[58px] rounded-[8px] border-2 bg-white px-5 text-[21px] font-bold shadow-vyva-card sm:min-h-[72px] sm:px-6 sm:text-[26px]"
+              style={{ borderColor: BRAND.border, color: BRAND.purple }}
+            >
+              {text.example}
+            </button>
+          </footer>
         </div>
       </div>
     );
