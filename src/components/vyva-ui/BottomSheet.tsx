@@ -29,19 +29,19 @@ export function BottomSheet({
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-end justify-center bg-[rgba(45,31,66,0.35)] px-3 pb-[calc(112px+env(safe-area-inset-bottom))] pt-3 md:items-center md:p-6"
+      className="fixed inset-0 z-[80] flex items-end justify-center bg-[rgba(45,31,66,0.35)] px-3 pb-[calc(104px+env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))] md:items-center md:p-6"
       onClick={() => onOpenChange(false)}
     >
       <section
         role="dialog"
         aria-modal="true"
         className={cn(
-          "max-h-[calc(100dvh-148px-env(safe-area-inset-bottom))] w-full max-w-[620px] overflow-hidden rounded-t-[34px] border border-[#E6DCCF] bg-[#FFFCF8] shadow-[0_26px_70px_rgba(45,31,66,0.22)] md:max-h-[calc(100dvh-48px)] md:rounded-[34px]",
+          "flex max-h-[calc(100dvh-120px-env(safe-area-inset-bottom))] w-full max-w-[620px] flex-col overflow-hidden rounded-t-[34px] border border-[#E6DCCF] bg-[#FFFCF8] shadow-[0_26px_70px_rgba(45,31,66,0.22)] md:max-h-[calc(100dvh-48px)] md:rounded-[34px]",
           className,
         )}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4 px-6 pt-5">
+        <div className="flex flex-shrink-0 items-start justify-between gap-4 px-6 pt-5">
           <div className="min-w-0">
             <div className="mb-4 h-1 w-14 rounded-full bg-vyva-warm2 md:hidden" />
             {title ? <h2 className="font-display text-[30px] leading-tight text-vyva-text-1">{title}</h2> : null}
@@ -57,11 +57,11 @@ export function BottomSheet({
           </button>
         </div>
 
-        <div className={cn("max-h-[inherit] overflow-y-auto px-6 pb-6 pt-4", contentClassName)}>
+        <div className={cn("min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-6 pt-4", contentClassName)}>
           {children}
         </div>
 
-        {footer ? <div className="border-t border-vyva-border bg-white px-6 py-4">{footer}</div> : null}
+        {footer ? <div className="flex-shrink-0 border-t border-vyva-border bg-white px-6 py-4">{footer}</div> : null}
       </section>
     </div>
   );
