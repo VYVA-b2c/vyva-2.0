@@ -113,12 +113,20 @@ const ENGINE_SIGNAL_BY_METRIC: Record<MetricType, string> = {
   bp: "bp_systolic",
 };
 
-const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
+const DAY_LABELS = [
+  { key: "statusVitals.days.mon", fallback: "M" },
+  { key: "statusVitals.days.tue", fallback: "T" },
+  { key: "statusVitals.days.wed", fallback: "W" },
+  { key: "statusVitals.days.thu", fallback: "T" },
+  { key: "statusVitals.days.fri", fallback: "F" },
+  { key: "statusVitals.days.sat", fallback: "S" },
+  { key: "statusVitals.days.sun", fallback: "S" },
+];
 
 const DEVICE_ROWS = [
-  { id: "watch", Icon: Watch, label: "Smartwatch", model: "VYVA Band 2", connected: true },
-  { id: "bp-cuff", Icon: Activity, label: "Blood pressure cuff", model: "OmronConnect", connected: true },
-  { id: "stethoscope", Icon: Stethoscope, label: "Digital stethoscope", model: "Eko DUO", connected: false },
+  { id: "watch", Icon: Watch, labelKey: "statusVitals.deviceRows.smartwatch", fallbackLabel: "Smartwatch", model: "VYVA Band 2", connected: true },
+  { id: "bp-cuff", Icon: Activity, labelKey: "statusVitals.deviceRows.bloodPressureCuff", fallbackLabel: "Blood pressure cuff", model: "OmronConnect", connected: true },
+  { id: "stethoscope", Icon: Stethoscope, labelKey: "statusVitals.deviceRows.digitalStethoscope", fallbackLabel: "Digital stethoscope", model: "Eko DUO", connected: false },
 ];
 
 function parseNumericValue(value: string | null): number | null {
@@ -617,7 +625,7 @@ const SignosScreen = () => {
         heroSurface="vitals"
         sourceText={t("statusVitals.heroSource", "Status / Vitals")}
         headline={t("statusVitals.heroHeadline", "Vitals are ready when you are")}
-        subtitle={latestReadingAt ? t("statusVitals.heroSubtitleWithLatest", `Last reading: ${latestText}`) : t("statusVitals.heroSubtitle", "Scan, log, and share your key health numbers.")}
+        subtitle={latestReadingAt ? t("statusVitals.heroSubtitleWithLatest", { defaultValue: "Last reading: {{latest}}", latest: latestText }) : t("statusVitals.heroSubtitle", "Scan, log, and share your key health numbers.")}
         contextHint="status vitals heart rate breathing blood pressure"
         talkLabel={t("statusVitals.heroCta", "Ask about my vitals")}
       >
@@ -791,7 +799,7 @@ const SignosScreen = () => {
               {t("statusVitals.weeklyRhythm", "Weekly rhythm")}
             </p>
             <p className="mt-1 font-body text-[15px] font-bold text-vyva-text-1">
-              {t("statusVitals.daysWithReadings", `${filledDays} of 7 days with readings`)}
+              {t("statusVitals.daysWithReadings", { defaultValue: "{{count}} of 7 days with readings", count: filledDays })}
             </p>
           </div>
           <span className="rounded-full bg-[#FFF7ED] px-3 py-1 font-body text-[12px] font-bold text-[#B45309]">{completionPct}%</span>
@@ -807,7 +815,7 @@ const SignosScreen = () => {
                 }}
                 data-testid={`compliance-day-${index}`}
               />
-              <span className="font-body text-[10px] font-semibold text-vyva-text-2">{DAY_LABELS[index]}</span>
+              <span className="font-body text-[10px] font-semibold text-vyva-text-2">{t(DAY_LABELS[index].key, DAY_LABELS[index].fallback)}</span>
             </div>
           ))}
         </div>
@@ -834,7 +842,7 @@ const SignosScreen = () => {
                 <Icon size={17} className="text-vyva-text-2" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="font-body text-[14px] font-bold leading-tight text-vyva-text-1">{device.label}</p>
+                <p className="font-body text-[14px] font-bold leading-tight text-vyva-text-1">{t(device.labelKey, device.fallbackLabel)}</p>
                 <p className="font-body text-[12px] text-vyva-text-2">{device.model}</p>
               </div>
               <div className="flex items-center gap-1.5">
