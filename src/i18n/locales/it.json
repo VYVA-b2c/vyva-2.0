@@ -732,6 +732,8 @@
         "instruction": "Guarda la fotocamera e rimani fermo — stiamo rilevando il tuo polso",
         "complete": "Scansione completata! Ecco il tuo risultato.",
         "heartRate": "Frequenza cardiaca",
+        "respiratoryRate": "Frequenza respiratoria",
+        "estimateNote": "Le scansioni da telefono sono stime per osservare le tendenze. Conferma risultati insoliti con un dispositivo o un professionista sanitario.",
         "permissionDenied": "Accesso alla fotocamera necessario",
         "permissionHint": "Consenti l'accesso alla fotocamera nelle impostazioni del browser per utilizzare la scansione dei segni vitali.",
         "skipBtn": "Salta la scansione",

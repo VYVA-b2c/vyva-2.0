@@ -732,6 +732,8 @@
         "instruction": "Olhe para a câmara e fique quieto — estamos a ler o seu pulso",
         "complete": "Scan concluído! Aqui está o seu resultado.",
         "heartRate": "Frequência cardíaca",
+        "respiratoryRate": "Frequência respiratória",
+        "estimateNote": "As análises por telefone são estimativas para tendências. Confirme resultados invulgares com um dispositivo ou profissional clínico.",
         "permissionDenied": "Acesso à câmara necessário",
         "permissionHint": "Por favor, permita o acesso à câmara nas definições do seu navegador para utilizar o scan de sinais vitais.",
         "skipBtn": "Saltar scan",

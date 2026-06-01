@@ -764,6 +764,8 @@
         "instruction": "Look at the camera and stay still — we're reading your pulse",
         "complete": "Scan complete! Here's your result.",
         "heartRate": "Heart Rate",
+        "respiratoryRate": "Resp. Rate",
+        "estimateNote": "Phone scans are estimates for trends. Confirm unusual results with a device or clinician.",
         "permissionDenied": "Camera access needed",
         "permissionHint": "Please allow camera access in your browser settings to use the vitals scan.",
         "skipBtn": "Skip scan",

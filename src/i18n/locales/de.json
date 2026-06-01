@@ -732,6 +732,8 @@
         "instruction": "Schauen Sie in die Kamera und bleiben Sie ruhig — wir messen Ihren Puls",
         "complete": "Scan abgeschlossen! Hier ist Ihr Ergebnis.",
         "heartRate": "Herzfrequenz",
+        "respiratoryRate": "Atemfrequenz",
+        "estimateNote": "Telefon-Scans sind Schätzungen für Trends. Bestätigen Sie ungewöhnliche Ergebnisse mit einem Gerät oder einer medizinischen Fachperson.",
         "permissionDenied": "Kamerazugriff erforderlich",
         "permissionHint": "Bitte erlauben Sie den Kamerazugriff in Ihren Browsereinstellungen, um den Vitalzeichen-Scan zu nutzen.",
         "skipBtn": "Scan überspringen",

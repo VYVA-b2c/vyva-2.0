@@ -752,6 +752,8 @@
         "instruction": "Mira a la cámara y quédate quieto — estamos leyendo tu pulso",
         "complete": "¡Escaneo completo! Aquí está tu resultado.",
         "heartRate": "Frecuencia cardíaca",
+        "respiratoryRate": "Frecuencia respiratoria",
+        "estimateNote": "Los escaneos con teléfono son estimaciones para tendencias. Confirma resultados inusuales con un dispositivo o profesional clínico.",
         "permissionDenied": "Se necesita acceso a la cámara",
         "permissionHint": "Por favor, permite el acceso a la cámara en la configuración de tu navegador para usar el escáner de signos vitales.",
         "skipBtn": "Omitir escáner",

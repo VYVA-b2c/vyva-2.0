@@ -747,6 +747,8 @@
         "instruction": "Regardez la caméra et restez immobile — nous lisons votre pouls",
         "complete": "Scan terminé ! Voici votre résultat.",
         "heartRate": "Fréquence cardiaque",
+        "respiratoryRate": "Fréquence respiratoire",
+        "estimateNote": "Les scans par téléphone sont des estimations pour suivre les tendances. Confirmez les résultats inhabituels avec un appareil ou un professionnel de santé.",
         "permissionDenied": "Accès à la caméra requis",
         "permissionHint": "Veuillez autoriser l'accès à la caméra dans les paramètres de votre navigateur pour utiliser le scan des constantes vitales.",
         "skipBtn": "Passer le scan",
