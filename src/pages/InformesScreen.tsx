@@ -31,6 +31,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
+import { compactReportRecommendations } from "@/lib/reportRecommendations";
 import {
   HealthWizardCard,
   HealthWizardHero,
@@ -278,8 +279,12 @@ export function DetailView({ report, onBack }: { report: TriageReport; onBack: (
   const watchSigns = report.watch_signs ?? [];
   const profileConsiderations = report.profile_considerations ?? [];
   const vitalsNotes = report.vitals_notes ?? [];
+  const recommendations = compactReportRecommendations(report.recommendations, {
+    max: 4,
+    level: report.next_step_level ?? undefined,
+  });
   const scanNotes = report.scan_notes ?? [];
-  const doctorNote = reportDoctorNote(report, t);
+  const doctorNote = reportDoctorNote({ ...report, recommendations }, t);
   const gpPhone = profileContacts?.gpPhone?.trim() ?? "";
   const gpEmail = profileContacts?.gpEmail?.trim() ?? "";
   const telHref = sanitizePhoneHref(gpPhone);
@@ -487,13 +492,13 @@ export function DetailView({ report, onBack }: { report: TriageReport; onBack: (
         </section>
       )}
 
-      {report.recommendations.length > 0 && (
+      {recommendations.length > 0 && (
         <section className={`${cardShell} mt-4 p-5`}>
           <p className="mb-4 font-body text-[13px] font-bold uppercase tracking-[0.12em] text-vyva-text-2">
             {t("informes.reportDetail.recommendations", "What to do next")}
           </p>
           <ol className="flex flex-col gap-3">
-            {report.recommendations.map((recommendation, index) => {
+            {recommendations.map((recommendation, index) => {
               const actions = recommendationActions(recommendation);
               return (
                 <li key={`${index}-${recommendation}`} className="rounded-[20px] bg-[#FFFCF8] p-3">

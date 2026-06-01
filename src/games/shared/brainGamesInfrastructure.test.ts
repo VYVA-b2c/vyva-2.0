@@ -60,6 +60,12 @@ describe("brain game shared infrastructure", () => {
     });
   });
 
+  it("does not preselect the first Dual Task subtraction answer", () => {
+    expect(dualTaskSource).not.toContain("setPickerValue(clamp(seq.start_number - 7");
+    expect(dualTaskSource).toContain("setPickerTouched(false)");
+    expect(dualTaskSource).toContain("disabled={!pickerTouched}");
+  });
+
   it("provides localized short story payloads with Spanish fallback", () => {
     const storyLevel = getGameLevel("story_recall", 5);
 

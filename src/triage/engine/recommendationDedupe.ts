@@ -40,14 +40,24 @@ function recommendationIntent(value: string): string | null {
   return null;
 }
 
+function isConditionalSameDayEscalation(value: string) {
+  const normalized = normalizeRecommendation(value);
+  return hasAny(normalized, ["same day", "same day help", "today", "hoy", "urgent", "urgente"])
+    && hasAny(normalized, ["if", "si", "worse", "empeora", "unusual", "raro", "warning", "alerta"]);
+}
+
 export function mergeTriageRecommendations(primary: string[], secondary: string[] = [], maxItems = 4) {
+  const candidates = [...primary, ...secondary];
+  const hasDoctorWindowStep = candidates.some((item) => recommendationIntent(item) === "doctor_24_48");
   const exactSeen = new Set<string>();
   const intentSeen = new Set<string>();
   const merged: string[] = [];
 
-  for (const item of [...primary, ...secondary]) {
+  for (const item of candidates) {
     const trimmed = item.trim();
     if (!trimmed) continue;
+
+    if (hasDoctorWindowStep && isConditionalSameDayEscalation(trimmed)) continue;
 
     const exactKey = normalizeRecommendation(trimmed);
     if (!exactKey || exactSeen.has(exactKey)) continue;

@@ -15,6 +15,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/i18n";
 import { apiFetch, queryClient } from "@/lib/queryClient";
+import { compactReportRecommendations, uniqueReportLines } from "@/lib/reportRecommendations";
 import { getSymptomRecommendationActionKinds, type SymptomRecommendationActionKind } from "@/lib/symptomReportActions";
 import type { TriageScanResult } from "../../shared/triageScans";
 
@@ -468,36 +469,7 @@ function ReportConfig(summary: TriageSummary) {
 }
 
 function uniqueLines(lines: string[]) {
-  return lines
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .filter((line, index, list) => list.findIndex((item) => item.toLowerCase() === line.toLowerCase()) === index);
-}
-
-function simplifyReportRecommendations(lines: string[]) {
-  const unique = uniqueLines(lines);
-  const hasDoctorContactAction = unique.some((line) =>
-    /^(contacta|contact).*(doctor|m(?:e|\u00e9)dico|cl(?:i|\u00ed)nica|clinic|urgent care|urgencias)/i.test(line),
-  );
-
-  return unique.filter((line, index) => {
-    if (!hasDoctorContactAction) return true;
-    return !/^(habla|talk|speak).*(doctor|m(?:e|\u00e9)dico).*hoy/i.test(line);
-  });
-}
-
-function compactDoctorContactRecommendations(lines: string[]) {
-  const unique = simplifyReportRecommendations(lines);
-  const doctorContactIndex = unique.findIndex((line) =>
-    /\b(contacta|contact|habla|talk|speak|comparte|share)\b.*\b(doctor|m(?:e|\u00e9)dico|clinic|cl(?:i|\u00ed)nica|urgent care|urgencias)\b/i.test(line),
-  );
-
-  if (doctorContactIndex < 0) return unique;
-
-  return unique.filter((line, index) => {
-    if (index === doctorContactIndex) return true;
-    return !/\b(contacta|contact|habla|talk|speak|comparte|share)\b.*\b(doctor|m(?:e|\u00e9)dico|clinic|cl(?:i|\u00ed)nica|urgent care|urgencias)\b/i.test(line);
-  });
+  return uniqueReportLines(lines);
 }
 
 function directShareChannel(value: string): DoctorShareTarget["channel"] {
@@ -798,6 +770,7 @@ function ReportScreen({
     summary.profileConsiderations?.length ? `${t("health.symptomCheck.report.profileConsidered", "Profile considered")}: ${summary.profileConsiderations.join(" ")}` : "",
     summary.watchSigns?.length ? `${t("health.symptomCheck.report.watchSigns", "Watch signs")}: ${summary.watchSigns.join(" ")}` : "",
   ]).slice(0, 6);
+  const reportRecommendations = compactReportRecommendations(summary.recommendations, { max: 4, level: cfg.level });
   const doctorNote = [
     summary.chiefComplaint,
     summary.symptoms.length ? `${t("health.symptomCheck.report.symptoms", "Symptoms noted")}: ${summary.symptoms.join(", ")}` : "",
@@ -807,7 +780,7 @@ function ReportScreen({
     nextStepDisplayText ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${nextStepDisplayText}` : "",
     summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Initial Assessment")}: ${summary.triageReasons.join(" ")}` : "",
     summary.evidenceSummary ? `${t("health.symptomCheck.report.evidenceChecked", "Science-based source check")}: ${summary.evidenceSummary}` : "",
-    summary.recommendations.length ? `${t("health.symptomCheck.report.recommendations", "What to do next")}: ${summary.recommendations.join(" ")}` : "",
+    reportRecommendations.length ? `${t("health.symptomCheck.report.recommendations", "What to do next")}: ${reportRecommendations.join(" ")}` : "",
     summary.watchSigns?.length ? `${t("health.symptomCheck.report.watchSigns", "Watch signs")}: ${summary.watchSigns.join(" ")}` : "",
     summary.profileConsiderations?.length ? `${t("health.symptomCheck.report.profileConsidered", "Profile considered")}: ${summary.profileConsiderations.join(" ")}` : "",
     summary.vitalsNotes?.length ? `${t("health.symptomCheck.report.vitalsUsed", "Vitals used")}: ${summary.vitalsNotes.join(" ")}` : "",
@@ -926,7 +899,7 @@ function ReportScreen({
     ...(summary.scanNotes ?? []),
   ]);
   const visibleReasons = allReasons.slice(0, 2);
-  const visibleRecommendations = compactDoctorContactRecommendations(summary.recommendations).slice(0, 4);
+  const visibleRecommendations = reportRecommendations.slice(0, 3);
   const visibleWatchSigns = uniqueLines(summary.watchSigns ?? []).slice(0, 2);
   const contextNotes = uniqueLines([...(summary.profileConsiderations ?? []), ...(summary.vitalsNotes ?? []), ...(summary.scanNotes ?? [])]);
   const vitalsSummaryItems = uniqueLines([
@@ -993,7 +966,7 @@ function ReportScreen({
     summary.evidenceSummary ? `${t("health.symptomCheck.report.evidenceChecked", "Science-based source check")}: ${summary.evidenceSummary}` : "",
     "",
     t("health.symptomCheck.report.recommendations") + ":",
-    ...summary.recommendations.map((r, i) => `${i + 1}. ${r}`),
+    ...reportRecommendations.map((r, i) => `${i + 1}. ${r}`),
     "",
     t("health.symptomCheck.report.disclaimer"),
   ]
@@ -1470,13 +1443,13 @@ function ReportScreen({
               </div>
             ) : null}
 
-            {summary.recommendations.length > 0 ? (
+            {reportRecommendations.length > 0 ? (
               <div>
                 <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-text-3">
                   {t("health.symptomCheck.report.recommendations")}
                 </p>
                 <ol className="mt-3 grid gap-3">
-                  {summary.recommendations.map((recommendation, index) => (
+                  {reportRecommendations.map((recommendation, index) => (
                     <li key={index} className="flex items-start gap-3">
                       <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-vyva-purple font-body text-[12px] font-bold text-white">
                         {index + 1}
