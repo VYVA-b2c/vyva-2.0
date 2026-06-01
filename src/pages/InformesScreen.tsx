@@ -9,12 +9,17 @@ import {
   CheckCircle2,
   ChevronLeft,
   ClipboardList,
+  Droplets,
+  Gauge,
   Heart,
   MessageCircle,
   Pill,
   ShieldCheck,
+  Thermometer,
   TrendingUp,
   Wind,
+  Zap,
+  type LucideIcon,
 } from "lucide-react";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import {
@@ -52,14 +57,24 @@ type VitalsReading = {
   recorded_at: string;
 };
 
+type SignalReading = {
+  signal_type: string;
+  value: string | number;
+  recorded_at: string;
+  source: string;
+  context_tag: string | null;
+};
+
 type Summary = {
   latestTriage: TriageReport | null;
   latestVitals: VitalsReading | null;
+  latestSignals?: SignalReading[];
   todayMeds: { taken: number; total: number; adherencePct: number | null };
 };
 
 type VitalsHistory = {
   readings: VitalsReading[];
+  signalReadings?: SignalReading[];
 };
 
 const cardShell = "rounded-[28px] border border-[#E8DED4] bg-white shadow-[0_12px_30px_rgba(63,45,35,0.07)]";
@@ -99,20 +114,56 @@ function formatDuration(seconds: number): string {
   return rest > 0 ? `${minutes}m ${rest}s` : `${minutes}m`;
 }
 
+const signalConfig: Record<string, { label: string; unit: string; Icon: LucideIcon; bg: string; color: string }> = {
+  resting_hr_bpm: { label: "Pulse", unit: "bpm", Icon: Heart, bg: "#FFF1F2", color: "#BE123C" },
+  respiratory_rate: { label: "Breathing", unit: "/min", Icon: Wind, bg: "#EFF6FF", color: "#0369A1" },
+  oxygen_saturation: { label: "Oxygen", unit: "%", Icon: Wind, bg: "#ECFDF5", color: "#047857" },
+  temperature_c: { label: "Temperature", unit: "C", Icon: Thermometer, bg: "#FFF7ED", color: "#B45309" },
+  bp_systolic: { label: "BP top", unit: "mmHg", Icon: Gauge, bg: "#F5F3FF", color: "#6B21A8" },
+  bp_diastolic: { label: "BP bottom", unit: "mmHg", Icon: Gauge, bg: "#F5F3FF", color: "#6B21A8" },
+  glucose_mgdl: { label: "Glucose", unit: "mg/dL", Icon: Droplets, bg: "#ECFEFF", color: "#0E7490" },
+  pain_score: { label: "Pain", unit: "/10", Icon: Activity, bg: "#FEF2F2", color: "#B91C1C" },
+  energy_level: { label: "Energy", unit: "/10", Icon: Zap, bg: "#FFFBEB", color: "#B45309" },
+};
+
+function signalMeta(signalType: string) {
+  return signalConfig[signalType] ?? { label: signalType.replace(/_/g, " "), unit: "", Icon: Activity, bg: "#F5F3FF", color: "#6B21A8" };
+}
+
+function signalDisplay(reading: SignalReading) {
+  const meta = signalMeta(reading.signal_type);
+  const numeric = Number(reading.value);
+  const value = Number.isFinite(numeric) ? numeric.toString() : String(reading.value ?? "--");
+  return `${value}${meta.unit ? ` ${meta.unit}` : ""}`;
+}
+
+function sourceLabel(source?: string | null) {
+  if (source === "phone_estimate") return "Estimated";
+  if (source === "connected_device") return "Device";
+  if (source === "clinical") return "Clinical";
+  return "Manual";
+}
+
 function reportSignal(summary?: Summary | null) {
   if (!summary) return { tone: "neutral", text: "No report data yet" };
-  const { latestTriage, latestVitals, todayMeds } = summary;
+  const { latestTriage, latestVitals, latestSignals = [], todayMeds } = summary;
   if (latestTriage?.urgency === "urgent") return { tone: "urgent", text: "Needs attention" };
   if (latestTriage?.urgency === "routine") return { tone: "routine", text: "Routine follow-up" };
+  const signalMap = new Map(latestSignals.map((reading) => [reading.signal_type, Number(reading.value)]));
+  if ((signalMap.get("oxygen_saturation") ?? 100) <= 92) return { tone: "routine", text: "Oxygen to review" };
+  if ((signalMap.get("temperature_c") ?? 0) >= 38) return { tone: "routine", text: "Temperature to review" };
+  if ((signalMap.get("pain_score") ?? 0) >= 8) return { tone: "routine", text: "Pain to review" };
   if (latestVitals && (latestVitals.bpm < 55 || latestVitals.bpm > 100)) return { tone: "routine", text: "Vitals to review" };
+  if ((signalMap.get("resting_hr_bpm") ?? 72) < 55 || (signalMap.get("resting_hr_bpm") ?? 72) > 100) return { tone: "routine", text: "Pulse to review" };
   if (todayMeds.total > 0 && todayMeds.taken < todayMeds.total) return { tone: "routine", text: "Medication pending" };
-  if (latestTriage || latestVitals || todayMeds.total > 0) return { tone: "good", text: "Looks steady" };
+  if (latestTriage || latestVitals || latestSignals.length > 0 || todayMeds.total > 0) return { tone: "good", text: "Looks steady" };
   return { tone: "neutral", text: "Ready for first report" };
 }
 
 function SummaryPhrase({ summary }: { summary: Summary }) {
   const { t } = useTranslation();
-  if (!summary.latestTriage && !summary.latestVitals && summary.todayMeds.total === 0) {
+  const latestSignals = summary.latestSignals ?? [];
+  if (!summary.latestTriage && !summary.latestVitals && latestSignals.length === 0 && summary.todayMeds.total === 0) {
     return <p className="font-body text-[15px] leading-relaxed text-white/86">{t("informes.summaryEmpty")}</p>;
   }
 
@@ -121,8 +172,11 @@ function SummaryPhrase({ summary }: { summary: Summary }) {
   else if (summary.latestTriage?.urgency === "routine") phrase = t("informes.summaryRoutine");
   else if (summary.todayMeds.total > 0 && summary.todayMeds.taken < summary.todayMeds.total) {
     phrase = t("informes.summaryMedsPending", { pending: summary.todayMeds.total - summary.todayMeds.taken });
-  } else if (summary.latestVitals && summary.latestVitals.bpm > 100) phrase = t("informes.summaryHighHR");
-  else if (summary.latestVitals && summary.latestVitals.bpm < 55) phrase = t("informes.summaryLowHR");
+  } else {
+    const latestPulse = Number(latestSignals.find((reading) => reading.signal_type === "resting_hr_bpm")?.value ?? summary.latestVitals?.bpm);
+    if (Number.isFinite(latestPulse) && latestPulse > 100) phrase = t("informes.summaryHighHR");
+    else if (Number.isFinite(latestPulse) && latestPulse < 55) phrase = t("informes.summaryLowHR");
+  }
 
   return <p className="font-body text-[17px] font-semibold leading-relaxed text-white">{phrase}</p>;
 }
@@ -361,18 +415,32 @@ function InformesMain() {
     navigate("/informes");
   };
 
-  const respReadings = vitalsHistory?.readings.filter((reading) => reading.respiratory_rate != null) ?? [];
-  const bpmReadings = vitalsHistory?.readings ?? [];
-  const hasRespHistory = respReadings.length >= 2;
-  const hasBpmHistory = bpmReadings.length >= 2;
-  const hasData = summary && (summary.latestTriage || summary.latestVitals || summary.todayMeds.total > 0);
+  const signalHistory = vitalsHistory?.signalReadings ?? [];
+  const signalHistoryValues = (signalType: string) =>
+    signalHistory
+      .filter((reading) => reading.signal_type === signalType)
+      .map((reading) => Number(reading.value))
+      .filter(Number.isFinite);
+  const oldRespValues = vitalsHistory?.readings
+    .filter((reading) => reading.respiratory_rate != null)
+    .map((reading) => reading.respiratory_rate!) ?? [];
+  const oldBpmValues = vitalsHistory?.readings.map((reading) => reading.bpm) ?? [];
+  const respSignalValues = signalHistoryValues("respiratory_rate");
+  const bpmSignalValues = signalHistoryValues("resting_hr_bpm");
+  const respValues = respSignalValues.length >= 2 ? respSignalValues : oldRespValues;
+  const bpmValues = bpmSignalValues.length >= 2 ? bpmSignalValues : oldBpmValues;
+  const hasRespHistory = respValues.length >= 2;
+  const hasBpmHistory = bpmValues.length >= 2;
+  const latestSignals = summary?.latestSignals ?? [];
+  const primarySignal = latestSignals[0] ?? null;
+  const hasData = summary && (summary.latestTriage || summary.latestVitals || latestSignals.length > 0 || summary.todayMeds.total > 0);
   const signal = reportSignal(summary);
   const pendingMeds = summary?.todayMeds.total ? Math.max(summary.todayMeds.total - summary.todayMeds.taken, 0) : 0;
   const statusTone = signal.tone === "urgent" ? "#B91C1C" : signal.tone === "routine" ? "#B45309" : signal.tone === "good" ? "#047857" : "#6B7280";
 
   const voiceHighlights = [
     ...(summary?.latestTriage ? [{ label: t("informes.cards.symptom.title"), value: formatDate(summary.latestTriage.created_at), tone: "neutral" as const }] : []),
-    ...(summary?.latestVitals ? [{ label: t("health.quickTiles.status.label", "Status"), value: `${summary.latestVitals.bpm} bpm`, tone: "good" as const }] : []),
+    ...(primarySignal ? [{ label: t("health.quickTiles.status.label", "Status"), value: signalDisplay(primarySignal), tone: "good" as const }] : summary?.latestVitals ? [{ label: t("health.quickTiles.status.label", "Status"), value: `${summary.latestVitals.bpm} bpm`, tone: "good" as const }] : []),
     ...(summary?.todayMeds.total ? [{ label: t("health.quickTiles.medication.label", "Medication"), value: `${summary.todayMeds.taken}/${summary.todayMeds.total}`, tone: pendingMeds ? "warning" as const : "good" as const }] : []),
   ];
 
@@ -448,7 +516,7 @@ function InformesMain() {
                   </h2>
                 </div>
                 <span className="rounded-full bg-white px-3 py-1 font-body text-[12px] font-bold" style={{ color: statusTone }}>
-                  {formatTime(summary.latestTriage?.created_at ?? summary.latestVitals?.recorded_at)}
+                  {formatTime(summary.latestTriage?.created_at ?? primarySignal?.recorded_at ?? summary.latestVitals?.recorded_at)}
                 </span>
               </div>
               {hasData ? <SummaryPhrase summary={summary} /> : <p className="font-body text-[15px] text-white/86">{t("informes.summaryEmpty")}</p>}
@@ -458,8 +526,8 @@ function InformesMain() {
                   <p className="font-body text-[11px] leading-tight text-white/66">{t("informes.cards.symptom.title")}</p>
                 </div>
                 <div>
-                  <p className="font-body text-[20px] font-bold text-white">{summary.latestVitals ? summary.latestVitals.bpm : "--"}</p>
-                  <p className="font-body text-[11px] leading-tight text-white/66">bpm</p>
+                  <p className="font-body text-[20px] font-bold text-white">{primarySignal ? signalDisplay(primarySignal).split(" ")[0] : summary.latestVitals ? summary.latestVitals.bpm : "--"}</p>
+                  <p className="font-body text-[11px] leading-tight text-white/66">{primarySignal ? signalMeta(primarySignal.signal_type).label : "bpm"}</p>
                 </div>
                 <div>
                   <p className="font-body text-[20px] font-bold text-white">{summary.todayMeds.total ? `${summary.todayMeds.taken}/${summary.todayMeds.total}` : "--"}</p>
@@ -513,7 +581,7 @@ function InformesMain() {
               <EmptyCard icon={Activity} title={t("informes.cards.symptom.title")} body={t("informes.cards.symptom.empty")} />
             )}
 
-            {summary.latestVitals ? (
+            {summary.latestVitals || latestSignals.length ? (
               <section className={`${cardShell} p-5`} data-testid="card-vitals">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
@@ -522,23 +590,44 @@ function InformesMain() {
                     </div>
                     <div>
                       <p className="font-body text-[16px] font-bold text-vyva-text-1">{t("informes.cards.vitals.title")}</p>
-                      <p className="font-body text-[12px] text-vyva-text-2">{formatDate(summary.latestVitals.recorded_at)}</p>
+                      <p className="font-body text-[12px] text-vyva-text-2">{formatDate(primarySignal?.recorded_at ?? summary.latestVitals?.recorded_at)}</p>
                     </div>
                   </div>
                   <span className="rounded-full bg-[#ECFDF5] px-3 py-1 font-body text-[11px] font-bold text-[#047857]">
-                    {t("informes.cards.vitals.statusNormal")}
+                    {primarySignal ? sourceLabel(primarySignal.source) : t("informes.cards.vitals.statusNormal")}
                   </span>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-[18px] bg-[#FFF7F8] p-4">
-                    <Heart size={16} style={{ color: "#BE123C" }} />
-                    <p className="mt-3 font-body text-[30px] font-bold leading-none text-vyva-text-1">{summary.latestVitals.bpm}<span className="ml-1 text-[13px] text-vyva-text-2">bpm</span></p>
+                {latestSignals.length ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    {latestSignals.slice(0, 6).map((reading) => {
+                      const meta = signalMeta(reading.signal_type);
+                      const Icon = meta.Icon;
+                      return (
+                        <div key={`${reading.signal_type}-${reading.recorded_at}`} className="rounded-[18px] p-4" style={{ background: meta.bg }}>
+                          <div className="flex items-center justify-between gap-2">
+                            <Icon size={16} style={{ color: meta.color }} />
+                            <span className="rounded-full bg-white/80 px-2 py-1 font-body text-[10px] font-bold" style={{ color: meta.color }}>
+                              {sourceLabel(reading.source)}
+                            </span>
+                          </div>
+                          <p className="mt-3 font-body text-[12px] font-bold text-vyva-text-2">{meta.label}</p>
+                          <p className="font-body text-[24px] font-bold leading-none text-vyva-text-1">{signalDisplay(reading)}</p>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div className="rounded-[18px] bg-[#EFF6FF] p-4">
-                    <Wind size={16} style={{ color: "#0369A1" }} />
-                    <p className="mt-3 font-body text-[30px] font-bold leading-none text-vyva-text-1">{summary.latestVitals.respiratory_rate ?? "--"}<span className="ml-1 text-[13px] text-vyva-text-2">rpm</span></p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-[18px] bg-[#FFF7F8] p-4">
+                      <Heart size={16} style={{ color: "#BE123C" }} />
+                      <p className="mt-3 font-body text-[30px] font-bold leading-none text-vyva-text-1">{summary.latestVitals?.bpm}<span className="ml-1 text-[13px] text-vyva-text-2">bpm</span></p>
+                    </div>
+                    <div className="rounded-[18px] bg-[#EFF6FF] p-4">
+                      <Wind size={16} style={{ color: "#0369A1" }} />
+                      <p className="mt-3 font-body text-[30px] font-bold leading-none text-vyva-text-1">{summary.latestVitals?.respiratory_rate ?? "--"}<span className="ml-1 text-[13px] text-vyva-text-2">rpm</span></p>
+                    </div>
                   </div>
-                </div>
+                )}
               </section>
             ) : (
               <EmptyCard icon={Heart} title={t("informes.cards.vitals.title")} body={t("informes.cards.vitals.empty")} />
@@ -590,12 +679,12 @@ function InformesMain() {
               <div className="mb-3 flex items-center gap-2">
                 <Heart size={16} style={{ color: "#BE123C" }} />
                 <p className="font-body text-[15px] font-bold text-vyva-text-1">{t("informes.trends.heartRate")}</p>
-                <span className="ml-auto font-body text-[12px] text-vyva-text-2">{t("informes.trends.readings", { count: bpmReadings.length })}</span>
+                <span className="ml-auto font-body text-[12px] text-vyva-text-2">{t("informes.trends.readings", { count: bpmValues.length })}</span>
               </div>
-              <LineChart values={bpmReadings.map((reading) => reading.bpm)} color="#BE123C" />
+              <LineChart values={bpmValues} color="#BE123C" />
               <div className="mt-2 flex items-center justify-between">
-                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.min")}: {Math.min(...bpmReadings.map((reading) => reading.bpm))} bpm</span>
-                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.max")}: {Math.max(...bpmReadings.map((reading) => reading.bpm))} bpm</span>
+                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.min")}: {Math.min(...bpmValues)} bpm</span>
+                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.max")}: {Math.max(...bpmValues)} bpm</span>
               </div>
             </section>
           )}
@@ -605,12 +694,12 @@ function InformesMain() {
               <div className="mb-3 flex items-center gap-2">
                 <Wind size={16} style={{ color: "#0369A1" }} />
                 <p className="font-body text-[15px] font-bold text-vyva-text-1">{t("informes.trends.respiratoryRate")}</p>
-                <span className="ml-auto font-body text-[12px] text-vyva-text-2">{t("informes.trends.readings", { count: respReadings.length })}</span>
+                <span className="ml-auto font-body text-[12px] text-vyva-text-2">{t("informes.trends.readings", { count: respValues.length })}</span>
               </div>
-              <LineChart values={respReadings.map((reading) => reading.respiratory_rate!)} color="#0369A1" />
+              <LineChart values={respValues} color="#0369A1" />
               <div className="mt-2 flex items-center justify-between">
-                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.min")}: {Math.min(...respReadings.map((reading) => reading.respiratory_rate!))} rpm</span>
-                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.max")}: {Math.max(...respReadings.map((reading) => reading.respiratory_rate!))} rpm</span>
+                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.min")}: {Math.min(...respValues)} rpm</span>
+                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.max")}: {Math.max(...respValues)} rpm</span>
               </div>
             </section>
           )}

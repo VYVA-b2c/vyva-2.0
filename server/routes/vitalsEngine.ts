@@ -40,7 +40,7 @@ const readingSchema = z.object({
   user_id: z.string().optional(),
   signal_type: z.string().min(1).max(80),
   value: z.coerce.number(),
-  source: z.string().min(1).max(80).default("manual"),
+  source: z.string().min(1).max(80).default("manual_entry"),
   context_tag: z.string().min(1).max(80).default("general"),
   recorded_at: z.string().datetime().optional(),
   condition_tags: z.array(z.string()).optional().default([]),

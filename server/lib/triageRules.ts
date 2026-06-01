@@ -50,6 +50,8 @@ type TriageRuleInput = {
   systolicBp?: number;
   diastolicBp?: number;
   glucoseMgdl?: number;
+  painScore?: number;
+  energyLevel?: number;
 };
 
 type ProtocolRule = {
@@ -821,6 +823,30 @@ export function evaluateTriageRules(input: TriageRuleInput): TriageRuleDecision 
         text(locale, "Seek urgent help now for very high glucose with vomiting, dehydration, breathing trouble, or reduced alertness.", "Busca ayuda urgente ahora por glucosa muy alta con vomitos, deshidratacion, falta de aire o menos alerta."),
       );
     }
+  }
+
+  if (typeof input.painScore === "number" && ["pain", "fall", "skin", "stomach", "other"].includes(symptomId ?? "")) {
+    if (input.painScore >= 8) {
+      raise(
+        "doctor_today",
+        text(locale, "Pain is high enough to share with a clinician today.", "El dolor es lo bastante alto para compartirlo hoy con un clinico."),
+        text(locale, "Talk to a doctor today if pain is severe, worsening, or unusual.", "Habla con un medico hoy si el dolor es fuerte, empeora o es inusual."),
+      );
+    } else if (input.painScore >= 5 && rank(level) < rank("doctor_24_48")) {
+      raise(
+        "doctor_24_48",
+        text(locale, "Pain is moderate and should be tracked with a clear follow-up window.", "El dolor es moderado y debe seguirse con un plazo claro."),
+        text(locale, "Recheck pain and contact a doctor if it continues, worsens, or limits movement.", "Revisa el dolor y contacta con un medico si continua, empeora o limita movimiento."),
+      );
+    }
+  }
+
+  if (typeof input.energyLevel === "number" && input.energyLevel <= 2 && ["tired", "dizzy", "confusion", "fever", "other"].includes(symptomId ?? "")) {
+    raise(
+      "doctor_today",
+      text(locale, "Energy is very low with a symptom pattern that can hide illness in older adults.", "La energia es muy baja con un patron de sintomas que puede ocultar enfermedad en mayores."),
+      text(locale, "Talk to a doctor today if very low energy is new, worsening, or comes with confusion, fever, chest pain, or breathing trouble.", "Habla con un medico hoy si la energia muy baja es nueva, empeora o viene con confusion, fiebre, dolor de pecho o falta de aire."),
+    );
   }
 
   if (symptomId === "breathing" && ids.has("strong")) {

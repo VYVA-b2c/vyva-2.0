@@ -40,10 +40,12 @@ import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { apiFetch } from "@/lib/queryClient";
 
 type MetricType = "hr" | "rr" | "bp";
+type ReadingSource = "phone_estimate" | "manual_entry" | "connected_device" | "clinical";
 
 interface VitalsSummaryEntry {
   latest_value: string | null;
   latest_recorded_at: string | null;
+  latest_source?: ReadingSource | null;
   trend: (string | null)[];
   has_data: boolean;
 }
@@ -151,6 +153,19 @@ function getMetricState(meta: MetricMeta, value: string | null) {
   return { tone: "steady", color: "#047857", bg: "#D1FAE5" };
 }
 
+function sourceTone(source?: ReadingSource | null) {
+  if (source === "phone_estimate") {
+    return { label: "Estimated", color: "#6B21A8", bg: "#F5F3FF" };
+  }
+  if (source === "connected_device") {
+    return { label: "Device", color: "#047857", bg: "#D1FAE5" };
+  }
+  if (source === "clinical") {
+    return { label: "Clinical", color: "#0369A1", bg: "#E0F2FE" };
+  }
+  return { label: "Manual", color: "#92400E", bg: "#FEF3C7" };
+}
+
 function MiniTrend({ values, accent }: { values: number[]; accent: string }) {
   const nonZeroValues = values.filter((value) => value > 0);
   const max = Math.max(...nonZeroValues, 1);
@@ -196,6 +211,7 @@ function MetricCard({
   const displayValue = hasData ? summary?.latest_value ?? "--" : "--";
   const hasTrend = trend.some((value) => value > 0);
   const state = getMetricState(meta, summary?.latest_value ?? null);
+  const source = sourceTone(summary?.latest_source);
   const stateLabel =
     state.tone === "steady"
       ? t("statusVitals.status.steady", "Steady")
@@ -236,6 +252,11 @@ function MetricCard({
           <span className="rounded-full px-3 py-1 font-body text-[11px] font-bold" style={{ color: state.color, background: state.bg }}>
             {stateLabel}
           </span>
+          {hasData && (
+            <span className="rounded-full px-3 py-1 font-body text-[11px] font-bold" style={{ color: source.color, background: source.bg }}>
+              {t(`statusVitals.source.${summary?.latest_source ?? "manual_entry"}`, source.label)}
+            </span>
+          )}
           {hasTrend && (
             <button
               type="button"
@@ -276,7 +297,7 @@ function LogReadingModal({ onClose }: { onClose: () => void }) {
       const response = await apiFetch("/api/vitals", {
         method: "POST",
         credentials: "include",
-        body: JSON.stringify({ metric_type: metricType, value: value.trim() }),
+        body: JSON.stringify({ metric_type: metricType, value: value.trim(), source: "manual_entry" }),
       });
       if (!response.ok) throw new Error("Failed to save reading");
       return response.json();
@@ -310,7 +331,7 @@ function LogReadingModal({ onClose }: { onClose: () => void }) {
               {t("statusVitals.logTitle", "Log a reading")}
             </h2>
             <p className="mt-1 font-body text-[13px] text-vyva-text-2">
-              {t("statusVitals.logSubtitle", "Add the latest number from your device.")}
+              {t("statusVitals.logSubtitle", "Add a confirmed number from a device or manual check.")}
             </p>
           </div>
           <button
@@ -392,7 +413,7 @@ function ScanModal({ onClose }: { onClose: () => void }) {
               {t("statusVitals.scanTitle", "Vitals scan")}
             </h2>
             <p className="font-body text-[12px] text-vyva-text-2">
-              {t("statusVitals.scanSubtitle", "Camera-based pulse estimate")}
+              {t("statusVitals.scanSubtitle", "Camera estimate, not a medical device reading")}
             </p>
           </div>
           <button
@@ -614,7 +635,7 @@ const SignosScreen = () => {
         >
           <ScanLine size={21} className="text-white" />
           <span className="font-body text-[15px] font-bold leading-tight text-white">
-            {t("statusVitals.scanAction", "Scan vitals")}
+            {t("statusVitals.scanAction", "Phone estimate")}
           </span>
         </button>
         <button
@@ -625,10 +646,14 @@ const SignosScreen = () => {
         >
           <Plus size={21} style={{ color: "#6B21A8" }} />
           <span className="font-body text-[15px] font-bold leading-tight text-vyva-text-1">
-            {t("statusVitals.logAction", "Log reading")}
+            {t("statusVitals.logAction", "Confirmed reading")}
           </span>
         </button>
       </div>
+
+      <p className="mt-3 rounded-[20px] border border-[#EDE5DB] bg-white px-4 py-3 font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">
+        {t("statusVitals.sourceNote", "Phone scans are estimates for trends. Device or manual readings are stronger evidence for VYVA.")}
+      </p>
 
       <HealthWizardSectionLabel
         action={(

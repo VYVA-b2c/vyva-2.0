@@ -64,6 +64,8 @@ type TriageWizardContext = {
     systolicBp?: number | null;
     diastolicBp?: number | null;
     glucoseMgdl?: number | null;
+    painScore?: number | null;
+    energyLevel?: number | null;
   };
   quickAnswers?: Array<{ id: string; label: string; value: string; kind?: string }>;
 };
@@ -191,6 +193,8 @@ interface TriageRequestBody {
     systolicBp?: number | null;
     diastolicBp?: number | null;
     glucoseMgdl?: number | null;
+    painScore?: number | null;
+    energyLevel?: number | null;
   };
   locale?: string;
   wizard?: TriageWizardContext;
@@ -226,6 +230,8 @@ function wizardContextText(wizard?: TriageWizardContext, healthMemory?: TriageHe
     typeof wizard.vitals?.temperatureC === "number" ? `Temperature: ${wizard.vitals.temperatureC} C.` : "",
     typeof wizard.vitals?.systolicBp === "number" && typeof wizard.vitals?.diastolicBp === "number" ? `Blood pressure: ${wizard.vitals.systolicBp}/${wizard.vitals.diastolicBp}.` : "",
     typeof wizard.vitals?.glucoseMgdl === "number" ? `Glucose: ${wizard.vitals.glucoseMgdl} mg/dL.` : "",
+    typeof wizard.vitals?.painScore === "number" ? `Pain score: ${wizard.vitals.painScore}/10.` : "",
+    typeof wizard.vitals?.energyLevel === "number" ? `Energy level: ${wizard.vitals.energyLevel}/10.` : "",
     wizard.quickAnswers?.length
       ? `Structured quick answers tapped so far: ${wizard.quickAnswers.map((answer) => `${answer.label} (${answer.value})`).join("; ")}.`
       : "",
@@ -1726,6 +1732,8 @@ function vitalsNotesFor(locale: string, wizard: TriageWizardContext | undefined)
   const systolicBp = wizard?.vitals?.systolicBp;
   const diastolicBp = wizard?.vitals?.diastolicBp;
   const glucoseMgdl = wizard?.vitals?.glucoseMgdl;
+  const painScore = wizard?.vitals?.painScore;
+  const energyLevel = wizard?.vitals?.energyLevel;
   const notes: string[] = [];
   if (typeof bpm === "number" && (bpm >= 110 || bpm <= 50)) {
     notes.push(text(locale, `Pulse from scan was ${bpm} bpm, so the report includes it for the doctor.`, `El pulso del escaneo fue ${bpm} lpm, asi que el informe lo incluye para el medico.`));
@@ -1748,6 +1756,12 @@ function vitalsNotesFor(locale: string, wizard: TriageWizardContext | undefined)
   }
   if (typeof glucoseMgdl === "number") {
     notes.push(text(locale, `Glucose was ${glucoseMgdl} mg/dL.`, `La glucosa fue ${glucoseMgdl} mg/dL.`));
+  }
+  if (typeof painScore === "number") {
+    notes.push(text(locale, `Pain score was ${painScore}/10.`, `El dolor fue ${painScore}/10.`));
+  }
+  if (typeof energyLevel === "number") {
+    notes.push(text(locale, `Energy level was ${energyLevel}/10.`, `La energia fue ${energyLevel}/10.`));
   }
   return notes.slice(0, 4);
 }
@@ -1815,6 +1829,8 @@ function applyTriageSafetyFloor(
     systolicBp: wizard?.vitals?.systolicBp ?? undefined,
     diastolicBp: wizard?.vitals?.diastolicBp ?? undefined,
     glucoseMgdl: wizard?.vitals?.glucoseMgdl ?? undefined,
+    painScore: wizard?.vitals?.painScore ?? undefined,
+    energyLevel: wizard?.vitals?.energyLevel ?? undefined,
   });
   const baseSummary = {
     ...summary,

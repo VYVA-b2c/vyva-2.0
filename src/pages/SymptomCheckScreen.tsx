@@ -18,6 +18,7 @@ import {
   Stethoscope,
   Thermometer,
   Wind,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -59,7 +60,7 @@ interface TriageSummary {
   };
 }
 
-type RefinementVitalKey = "glucose" | "bloodPressure" | "oxygen" | "respiratoryRate" | "temperature" | "pulse";
+type RefinementVitalKey = "glucose" | "bloodPressure" | "oxygen" | "respiratoryRate" | "temperature" | "pulse" | "pain" | "energy";
 
 type RefinementVitalConfig = {
   key: RefinementVitalKey;
@@ -394,7 +395,7 @@ function ReportScreen({
         unit: "%",
         placeholder: "96",
         helper: t("health.symptomCheck.report.checkOxygenReason", "Add your oxygen reading if you have a pulse oximeter."),
-        signalType: "spo2_pct",
+        signalType: "oxygen_saturation",
         Icon: Wind,
         parse: (raw) => {
           const value = parseNumber(raw);
@@ -455,6 +456,40 @@ function ReportScreen({
       },
       keywords: ["pulse", "heart rate", "heartbeat", "afib", "irregular", "chest", "faint", "weak", "dizzy", "pulso", "frecuencia cardiaca", "latido", "palpitacion", "pecho", "desmayo", "debil", "mareo"],
       fallback: true,
+    },
+    {
+      config: {
+        key: "pain",
+        title: t("health.symptomCheck.report.checkPainNow", "Rate pain now"),
+        buttonLabel: t("health.symptomCheck.report.recordPain", "Record pain"),
+        unit: "/10",
+        placeholder: "6",
+        helper: t("health.symptomCheck.report.checkPainReason", "Use 0 for no pain and 10 for the worst pain."),
+        signalType: "pain_score",
+        Icon: Activity,
+        parse: (raw) => {
+          const value = parseNumber(raw);
+          return value == null ? null : { value, display: `${value}/10`, vitals: { painScore: value } };
+        },
+      },
+      keywords: ["pain", "ache", "headache", "back", "belly pain", "stomach pain", "fall", "injury", "dolor", "cabeza", "espalda", "barriga", "caida", "golpe"],
+    },
+    {
+      config: {
+        key: "energy",
+        title: t("health.symptomCheck.report.checkEnergyNow", "Rate energy now"),
+        buttonLabel: t("health.symptomCheck.report.recordEnergy", "Record energy"),
+        unit: "/10",
+        placeholder: "4",
+        helper: t("health.symptomCheck.report.checkEnergyReason", "Use 1 for very low energy and 10 for normal/high energy."),
+        signalType: "energy_level",
+        Icon: Zap,
+        parse: (raw) => {
+          const value = parseNumber(raw);
+          return value == null ? null : { value, display: `${value}/10`, vitals: { energyLevel: value } };
+        },
+      },
+      keywords: ["tired", "weak", "fatigue", "energy", "exhausted", "dizzy", "confused", "cansado", "debil", "energia", "agotado", "mareo", "confusion"],
     },
   ];
   const matchedVitalActions = allVitalActions
@@ -1120,7 +1155,7 @@ export default function SymptomCheckScreen() {
           body: JSON.stringify({
             signal_type: reading.signal_type,
             value: reading.value,
-            source: "manual",
+            source: "manual_entry",
             context_tag: "general",
           }),
         });

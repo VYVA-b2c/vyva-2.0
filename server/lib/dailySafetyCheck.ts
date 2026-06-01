@@ -167,12 +167,18 @@ function signalRule(summary: SignalSummary): { status: SafetyStatus; reason: str
     if (value >= 38) return { status: "contact_doctor", label: "temperature", reason: `Temperature is ${value} C.` };
   }
 
+  if (signal === "pain_score") {
+    if (value >= 8) return { status: "contact_doctor", label: "pain", reason: `Pain is high at ${value}/10.` };
+    if (value >= 5) return { status: "recheck", label: "pain", reason: `Pain is ${value}/10.` };
+  }
+
   if (signal === "medication_confirmed" && value === 0) {
     return { status: "recheck", label: "medication", reason: "Medication has not been confirmed today." };
   }
 
-  if ((signal === "sleep_quality_score" || signal === "mood_score") && value <= 2) {
-    return { status: "recheck", label: signal === "sleep_quality_score" ? "sleep" : "mood", reason: `${signal === "sleep_quality_score" ? "Sleep" : "Mood"} score is low at ${value}/10.` };
+  if ((signal === "sleep_quality_score" || signal === "mood_score" || signal === "energy_level") && value <= 2) {
+    const label = signal === "sleep_quality_score" ? "sleep" : signal === "energy_level" ? "energy" : "mood";
+    return { status: "recheck", label, reason: `${label[0].toUpperCase()}${label.slice(1)} score is low at ${value}/10.` };
   }
 
   return null;
