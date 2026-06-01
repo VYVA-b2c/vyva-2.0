@@ -1074,34 +1074,22 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     }
 
     if (plan.gameType === "word_recall" && completionMetrics && !finished) {
-      let active = true;
-      async function completeGame() {
-        setSaving(true);
-        try {
-          await saveGameResult({
-            userId,
-            gameType: plan.gameType,
-            cognitiveDomain: definition?.cognitiveDomain ?? "episodic_memory",
-            variantId: plan.variantId,
-            level: plan.level,
-            score: completionMetrics.score,
-            accuracy: completionMetrics.accuracy,
-            mistakes: completionMetrics.mistakes,
-            durationSeconds: completionMetrics.durationSeconds,
-            completedAt: new Date().toISOString(),
-            language,
-          });
-        } finally {
-          if (active) {
-            setSaving(false);
-            setFinished(true);
-          }
-        }
-      }
-      void completeGame();
-      return () => {
-        active = false;
-      };
+      setFinished(true);
+      void saveGameResult({
+        userId,
+        gameType: plan.gameType,
+        cognitiveDomain: definition?.cognitiveDomain ?? "episodic_memory",
+        variantId: plan.variantId,
+        level: plan.level,
+        score: completionMetrics.score,
+        accuracy: completionMetrics.accuracy,
+        mistakes: completionMetrics.mistakes,
+        durationSeconds: completionMetrics.durationSeconds,
+        completedAt: new Date().toISOString(),
+        language,
+      }).catch((error) => {
+        console.warn("[memory] Word recall result could not be saved in the background.", error);
+      });
     }
   }, [
     completionMetrics,
