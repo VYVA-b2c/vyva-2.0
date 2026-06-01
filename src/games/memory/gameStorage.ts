@@ -2,6 +2,7 @@ import { apiFetch } from "@/lib/queryClient";
 import type { GameResult } from "./types";
 
 const STORAGE_KEY = "vyva-memory-game-results";
+const SERVER_SAVE_TIMEOUT_MS = 4500;
 
 let memoryFallback: GameResult[] = [];
 
@@ -170,12 +171,34 @@ function sessionToGameResult(session: CognitiveSessionDto, fallbackUserId: strin
   });
 }
 
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  onTimeout?: () => void,
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<T>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      onTimeout?.();
+      reject(new Error(`Memory game result save timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 const serverAdapter: GameStorageAdapter = {
   async saveGameResult(result) {
-    const response = await apiFetch("/api/games/sessions", {
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const response = await withTimeout(apiFetch("/api/games/sessions", {
       method: "POST",
       body: JSON.stringify(resultToSessionPayload(result)),
-    });
+      signal: controller?.signal,
+    }), SERVER_SAVE_TIMEOUT_MS, () => controller?.abort());
     if (!response.ok) {
       throw new Error(`Memory game result save failed with ${response.status}`);
     }
