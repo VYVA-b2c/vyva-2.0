@@ -1682,6 +1682,8 @@ export const heroMessages = pgTable("hero_messages", {
   event_types:    text("event_types").array().notNull().default([]),
   activity_types: text("activity_types").array().notNull().default([]),
   copy:           jsonb("copy").notNull().default({}),
+  copy_modes:     jsonb("copy_modes").notNull().default({}),
+  copy_source_metadata: jsonb("copy_source_metadata").notNull().default({}),
   is_enabled:     boolean("is_enabled").notNull().default(true),
   admin_notes:    text("admin_notes"),
   created_at:     timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

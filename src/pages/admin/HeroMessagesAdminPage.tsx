@@ -1,16 +1,21 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AlertTriangle, BarChart3, CheckCircle2, Eye, Pencil, Save, Search, SlidersHorizontal } from "lucide-react";
+import { AlertTriangle, BarChart3, BookOpen, CheckCircle2, Eye, Pencil, Save, Search, SlidersHorizontal, Sparkles } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
 import {
   HERO_LIMITS,
+  HERO_LIBRARY_TEMPLATES,
   HERO_MESSAGES,
   getHeroPeriod,
   mergeHeroMessages,
   selectHeroMessageFromCatalog,
+  type HeroContentMode,
   type HeroCopy,
+  type HeroCopyModes,
+  type HeroCopySourceMetadata,
   type HeroLanguage,
+  type HeroLibraryTemplate,
   type HeroMessageDefinition,
   type HeroMessageEventType,
   type HeroMessageSource,
@@ -29,6 +34,8 @@ type HeroMessageAdmin = HeroMessageDefinition & {
   admin_notes?: string | null;
   updated_at?: string;
   source: AdminSource;
+  copyModes: HeroCopyModes;
+  copySourceMetadata: HeroCopySourceMetadata;
 };
 
 type HeroMessageRow = {
@@ -42,6 +49,8 @@ type HeroMessageRow = {
   event_types?: string[];
   activity_types?: string[];
   copy?: Record<HeroLanguage, HeroCopy>;
+  copy_modes?: HeroCopyModes;
+  copy_source_metadata?: HeroCopySourceMetadata;
   is_enabled: boolean;
   admin_notes?: string | null;
   updated_at?: string;
@@ -63,6 +72,11 @@ const PERIODS: HeroPeriod[] = ["morning", "afternoon", "evening", "night"];
 const SAFETY_LEVELS: HeroSafetyLevel[] = ["normal", "medical", "urgent"];
 const EVENT_TYPES = ["", "appointment", "medication", "social", "concierge"] as const;
 const ACTIVITY_TYPES = ["", "health_check", "meds", "social", "concierge"] as const;
+const CONTENT_MODES: Array<{ value: HeroContentMode; label: string }> = [
+  { value: "manual", label: "Manual" },
+  { value: "ai_generated", label: "AI generated" },
+  { value: "library", label: "Library" },
+];
 
 function words(value?: string) {
   return (value ?? "").trim().split(/\s+/).filter(Boolean).length;
@@ -98,6 +112,10 @@ function sourceClass(source: HeroMessageSource | AdminSource) {
   return "bg-amber-50 text-amber-800";
 }
 
+function modeLabel(mode: HeroContentMode) {
+  return CONTENT_MODES.find((item) => item.value === mode)?.label ?? "Manual";
+}
+
 function diagnosticDate(period: HeroPeriod) {
   const date = new Date();
   const hourByPeriod: Record<HeroPeriod, number> = { morning: 9, afternoon: 14, evening: 18, night: 22 };
@@ -112,6 +130,8 @@ function builtInToAdmin(message: HeroMessageDefinition): HeroMessageAdmin {
     is_enabled: true,
     admin_notes: "",
     source: "built_in",
+    copyModes: message.copyModes ?? {},
+    copySourceMetadata: message.copySourceMetadata ?? {},
   };
 }
 
@@ -132,6 +152,8 @@ function rowToAdmin(row: HeroMessageRow): HeroMessageAdmin {
     admin_notes: row.admin_notes,
     updated_at: row.updated_at,
     source: "database",
+    copyModes: row.copy_modes ?? {},
+    copySourceMetadata: row.copy_source_metadata ?? {},
   };
 }
 
@@ -246,6 +268,7 @@ export default function HeroMessagesAdminPage() {
   const [diagnosticEventType, setDiagnosticEventType] = useState<(typeof EVENT_TYPES)[number]>("");
   const [diagnosticActivity, setDiagnosticActivity] = useState<(typeof ACTIVITY_TYPES)[number]>("");
   const [message, setMessage] = useState("");
+  const [modeBusy, setModeBusy] = useState(false);
   const editorRef = useRef<HTMLElement | null>(null);
 
   const allMessages = useMemo(() => {
@@ -272,8 +295,28 @@ export default function HeroMessagesAdminPage() {
   );
 
   const selectedCopy = selectedMessage?.copy[language] ?? selectedMessage?.copy.es ?? { headline: "" };
+  const selectedMode: HeroContentMode = selectedMessage?.copyModes?.[language] ?? "manual";
+  const selectedModeMetadata = selectedMessage?.copySourceMetadata?.[language] ?? {};
   const selectedWarnings = selectedMessage ? copyWarnings(selectedMessage, language) : [];
   const canSaveSelected = Boolean(selectedMessage && selectedCopy.headline?.trim() && validateHeroMessageResult(selectedCopy));
+
+  const selectedLibraryTemplates = useMemo(() => {
+    if (!selectedMessage) return [];
+    return HERO_LIBRARY_TEMPLATES.filter((template) => {
+      const copy = template.copy[language];
+      return template.surface === selectedMessage.surface && copy && validateHeroMessageResult(copy);
+    });
+  }, [language, selectedMessage]);
+
+  const selectedLibraryTemplateId = typeof selectedModeMetadata.templateId === "string"
+    ? selectedModeMetadata.templateId
+    : "";
+  const selectedTemplateLabel = typeof selectedModeMetadata.templateLabel === "string"
+    ? selectedModeMetadata.templateLabel
+    : "";
+  const selectedAiModel = typeof selectedModeMetadata.model === "string"
+    ? selectedModeMetadata.model
+    : "";
 
   const overview = useMemo(() => SURFACES.map((surface) => {
     const result = selectHeroMessageFromCatalog(surface, { language, date: new Date(), safetyLevel: "normal" }, selectionCatalog);
@@ -352,6 +395,112 @@ export default function HeroMessagesAdminPage() {
     });
   }
 
+  function updateMode(messageId: string, mode: HeroContentMode, metadata: Record<string, unknown> = {}) {
+    const current = allMessages.find((item) => item.message_id === messageId);
+    if (!current) return;
+    updateMessage(messageId, {
+      copyModes: {
+        ...(current.copyModes ?? {}),
+        [language]: mode,
+      },
+      copySourceMetadata: {
+        ...(current.copySourceMetadata ?? {}),
+        [language]: metadata,
+      },
+    });
+  }
+
+  function applyModeCopy(messageId: string, mode: HeroContentMode, copy: HeroCopy, metadata: Record<string, unknown>) {
+    const current = allMessages.find((item) => item.message_id === messageId);
+    if (!current) return;
+    updateMessage(messageId, {
+      copy: {
+        ...current.copy,
+        [language]: { ...copy },
+      },
+      copyModes: {
+        ...(current.copyModes ?? {}),
+        [language]: mode,
+      },
+      copySourceMetadata: {
+        ...(current.copySourceMetadata ?? {}),
+        [language]: metadata,
+      },
+    });
+  }
+
+  function applyLibraryTemplate(template: HeroLibraryTemplate) {
+    if (!selectedMessage) return;
+    const copy = template.copy[language];
+    if (!copy || !validateHeroMessageResult(copy)) {
+      setMessage("That library template does not pass banner limits for this language.");
+      return;
+    }
+    applyModeCopy(selectedMessage.message_id, "library", copy, {
+      templateId: template.id,
+      templateLabel: template.label,
+      appliedAt: new Date().toISOString(),
+    });
+    setMessage("Library draft applied. Save to publish it.");
+  }
+
+  async function generateAiCopy(item: HeroMessageAdmin) {
+    setModeBusy(true);
+    setMessage("Generating AI draft...");
+    try {
+      const data = await api("/hero-messages/generate-copy", {
+        method: "POST",
+        body: JSON.stringify({
+          surface: item.surface,
+          language,
+          reason: item.reason,
+          priority: item.priority,
+          cooldown_hours: item.cooldownHours,
+          periods: item.periods ?? [],
+          safety_levels: item.safetyLevels ?? [],
+          event_types: item.eventTypes ?? [],
+          activity_types: item.activityTypes ?? [],
+          current_copy: item.copy[language] ?? item.copy.es ?? {},
+          admin_notes: item.admin_notes ?? "",
+        }),
+      });
+      const copy = data.copy as HeroCopy;
+      if (!copy?.headline?.trim() || !validateHeroMessageResult(copy)) {
+        setMessage("AI draft came back too long. Try again or use Manual mode.");
+        return;
+      }
+      applyModeCopy(item.message_id, "ai_generated", copy, {
+        ...(data.metadata ?? {}),
+        generatedAt: data.metadata?.generatedAt ?? new Date().toISOString(),
+      });
+      const warnings = Array.isArray(data.warnings) ? data.warnings.filter(Boolean) : [];
+      setMessage(warnings.length ? `AI draft ready with warnings: ${warnings.join(", ")}` : "AI draft ready. Save to publish it.");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "AI draft generation failed.");
+    } finally {
+      setModeBusy(false);
+    }
+  }
+
+  function changeContentMode(mode: HeroContentMode) {
+    if (!selectedMessage) return;
+    if (mode === "manual") {
+      updateMode(selectedMessage.message_id, "manual", {});
+      setMessage("Manual draft mode selected. Save to publish changes.");
+      return;
+    }
+    if (mode === "library") {
+      const template = selectedLibraryTemplates[0];
+      if (!template) {
+        setMessage("No approved library templates are available for this surface and language.");
+        return;
+      }
+      applyLibraryTemplate(template);
+      return;
+    }
+    void generateAiCopy(selectedMessage);
+  }
+
   function createManagedDraft() {
     const surface = surfaceFilter === "all" ? "home" : surfaceFilter;
     const id = `${surface}-managed-${Date.now()}`;
@@ -372,6 +521,8 @@ export default function HeroMessagesAdminPage() {
       is_enabled: true,
       admin_notes: "",
       source: "database",
+      copyModes: { [language]: "manual" },
+      copySourceMetadata: {},
     };
     setDrafts((existing) => ({ ...existing, [id]: draft }));
     setSelectedMessageId(id);
@@ -411,13 +562,15 @@ export default function HeroMessagesAdminPage() {
         event_types: item.eventTypes ?? [],
         activity_types: item.activityTypes ?? [],
         copy: item.copy,
+        copy_modes: item.copyModes ?? {},
+        copy_source_metadata: item.copySourceMetadata ?? {},
         is_enabled: item.is_enabled,
         admin_notes: item.admin_notes ?? "",
       }),
     });
-    setMessage(`${item.message_id} saved.`);
     await refreshAll();
     setSelectedMessageId(item.message_id);
+    setMessage(`${item.message_id} saved.`);
   }
 
   useEffect(() => {
@@ -576,6 +729,68 @@ export default function HeroMessagesAdminPage() {
                 </div>
 
                 <div className="grid gap-3">
+                  <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
+                    <div className="grid gap-3 md:grid-cols-[1fr_1.3fr]">
+                      <Field label={`Content mode (${language.toUpperCase()})`}>
+                        <select
+                          aria-label={`Content mode (${language.toUpperCase()})`}
+                          className="w-full rounded-xl border border-[#eadfd5] px-3 py-2"
+                          value={selectedMode}
+                          disabled={modeBusy}
+                          onChange={(event) => changeContentMode(event.target.value as HeroContentMode)}
+                        >
+                          {CONTENT_MODES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                        </select>
+                      </Field>
+
+                      {selectedMode === "library" ? (
+                        <Field label="Library template">
+                          <select
+                            aria-label="Library template"
+                            className="w-full rounded-xl border border-[#eadfd5] px-3 py-2"
+                            value={selectedLibraryTemplateId}
+                            disabled={!selectedLibraryTemplates.length || modeBusy}
+                            onChange={(event) => {
+                              const template = selectedLibraryTemplates.find((item) => item.id === event.target.value);
+                              if (template) applyLibraryTemplate(template);
+                            }}
+                          >
+                            <option value="">Choose template</option>
+                            {selectedLibraryTemplates.map((template) => (
+                              <option key={template.id} value={template.id}>{template.label}</option>
+                            ))}
+                          </select>
+                        </Field>
+                      ) : selectedMode === "ai_generated" ? (
+                        <div className="flex items-end">
+                          <button
+                            type="button"
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 py-2.5 font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#8b7a73]"
+                            disabled={modeBusy}
+                            onClick={() => generateAiCopy(selectedMessage)}
+                          >
+                            <Sparkles size={16} /> {modeBusy ? "Generating" : "Regenerate AI copy"}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-end">
+                          <span className="inline-flex w-full items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-[#7d6b65]">
+                            <Pencil size={16} /> Direct copy editing
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-[#7d6b65]">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1">
+                        {selectedMode === "library" ? <BookOpen size={13} /> : selectedMode === "ai_generated" ? <Sparkles size={13} /> : <Pencil size={13} />}
+                        {modeLabel(selectedMode)}
+                      </span>
+                      {selectedMode === "library" && selectedTemplateLabel && <span className="rounded-full bg-white px-3 py-1">Template: {selectedTemplateLabel}</span>}
+                      {selectedMode === "ai_generated" && selectedAiModel && <span className="rounded-full bg-white px-3 py-1">Model: {selectedAiModel}</span>}
+                    </div>
+                  </div>
+
                   <div className="grid gap-3 md:grid-cols-4">
                     <Field label="Surface">
                       <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedMessage.surface} onChange={(event) => updateMessage(selectedMessage.message_id, { surface: event.target.value as HeroSurface })}>

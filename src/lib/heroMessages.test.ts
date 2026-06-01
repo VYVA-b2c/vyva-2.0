@@ -93,4 +93,31 @@ describe("hero message selection", () => {
       source: "managed",
     });
   });
+
+  it("ignores admin mode metadata during runtime selection", () => {
+    setRuntimeHeroMessages([
+      managed({
+        id: "health-ai-managed",
+        surface: "health",
+        reason: "evergreen",
+        priority: 150,
+        cooldownHours: 0,
+        copy: {
+          en: { sourceText: "Health", headline: "AI saved", subtitle: "Daily review", ctaLabel: "Talk" },
+          es: { sourceText: "Salud", headline: "IA guardada", subtitle: "Revision diaria", ctaLabel: "Hablar" },
+        } as HeroMessageDefinition["copy"],
+        copyModes: { en: "ai_generated", es: "library" },
+        copySourceMetadata: {
+          en: { model: "test-model" },
+          es: { templateId: "library-health-safe-default" },
+        },
+      }),
+    ]);
+
+    expect(selectHeroMessage("health", { language: "en" })).toMatchObject({
+      messageId: "health-ai-managed",
+      headline: "AI saved",
+      source: "managed",
+    });
+  });
 });

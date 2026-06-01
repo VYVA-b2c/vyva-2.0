@@ -58,6 +58,23 @@ function renderPage() {
         ],
       });
     }
+    if (url.includes("/generate-copy") && init?.method === "POST") {
+      return jsonResponse({
+        copy: {
+          sourceText: "Salud",
+          headline: "AI listo",
+          subtitle: "Revision diaria",
+          ctaLabel: "Hablar",
+          contextHint: "health doctor",
+        },
+        warnings: [],
+        metadata: {
+          mode: "ai_generated",
+          model: "test-model",
+          generatedAt: "2026-05-31T12:00:00.000Z",
+        },
+      });
+    }
     if (init?.method === "POST") {
       const body = JSON.parse(String(init.body));
       rows = [{
@@ -81,6 +98,10 @@ afterEach(() => {
 });
 
 describe("HeroMessagesAdminPage", () => {
+  function saveCalls() {
+    return apiFetchMock.mock.calls.filter(([url, init]) => String(url).endsWith("/hero-messages") && init?.method === "POST");
+  }
+
   it("shows the live overview with source, warnings, and aggregate metrics", async () => {
     renderPage();
 
@@ -92,6 +113,13 @@ describe("HeroMessagesAdminPage", () => {
     expect(within(healthCard).getByText("12")).toBeInTheDocument();
     expect(within(healthCard).getByText("3")).toBeInTheDocument();
     expect(within(healthCard).getByText("25.0%")).toBeInTheDocument();
+  });
+
+  it("shows per-language content mode controls with Manual as the default", async () => {
+    renderPage();
+
+    expect(await screen.findByLabelText("Content mode (ES)")).toHaveValue("manual");
+    expect(screen.getByLabelText("Headline (ES)")).toBeEnabled();
   });
 
   it("previews the selected language and blocks invalid copy", async () => {
@@ -119,6 +147,37 @@ describe("HeroMessagesAdminPage", () => {
     });
   });
 
+  it("fills a draft from the library without publishing until Save", async () => {
+    renderPage();
+
+    await screen.findByTestId("hero-preview-headline");
+    fireEvent.change(screen.getByLabelText("Content mode (ES)"), {
+      target: { value: "library" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("hero-preview-headline")).toHaveTextContent("Todo en orden");
+    });
+    expect(screen.getByLabelText("Content mode (ES)")).toHaveValue("library");
+    expect(saveCalls()).toHaveLength(0);
+  });
+
+  it("generates an AI draft without publishing until Save", async () => {
+    renderPage();
+
+    await screen.findByTestId("hero-preview-headline");
+    fireEvent.change(screen.getByLabelText("Content mode (ES)"), {
+      target: { value: "ai_generated" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("hero-preview-headline")).toHaveTextContent("AI listo");
+    });
+    expect(screen.getByLabelText("Content mode (ES)")).toHaveValue("ai_generated");
+    expect(apiFetchMock).toHaveBeenCalledWith(expect.stringContaining("/generate-copy"), expect.objectContaining({ method: "POST" }));
+    expect(saveCalls()).toHaveLength(0);
+  });
+
   it("direct saves edits and refreshes the overview", async () => {
     renderPage();
 
@@ -132,6 +191,8 @@ describe("HeroMessagesAdminPage", () => {
       expect(postCall).toBeTruthy();
       const body = JSON.parse(String(postCall?.[1]?.body));
       expect(body.copy.es.headline).toBe("Care now");
+      expect(body.copy_modes).toEqual({});
+      expect(body.copy_source_metadata).toEqual({});
     });
 
     await waitFor(() => {

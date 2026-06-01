@@ -26,6 +26,7 @@ export type HeroSafetyLevel = "normal" | "medical" | "urgent";
 export type HeroMessageSource = "managed" | "built_in" | "fallback";
 export type HeroMessageEventType = "impression" | "cta_click" | "fallback";
 export type HeroFallbackReason = "no_eligible_message" | "invalid_selected_message";
+export type HeroContentMode = "manual" | "ai_generated" | "library";
 
 export interface HeroMessageResult {
   headline: string;
@@ -64,6 +65,9 @@ export type HeroCopy = {
   contextHint?: string;
 };
 
+export type HeroCopyModes = Partial<Record<HeroLanguage, HeroContentMode>>;
+export type HeroCopySourceMetadata = Partial<Record<HeroLanguage, Record<string, unknown>>>;
+
 export type HeroMessageDefinition = {
   id: string;
   surface: HeroSurface;
@@ -75,7 +79,17 @@ export type HeroMessageDefinition = {
   eventTypes?: Array<NonNullable<HeroMessageContext["upcomingEventType"]>>;
   activityTypes?: Array<NonNullable<HeroMessageContext["recentActivity"]>>;
   copy: Record<HeroLanguage, HeroCopy>;
+  copyModes?: HeroCopyModes;
+  copySourceMetadata?: HeroCopySourceMetadata;
   source?: Exclude<HeroMessageSource, "fallback">;
+};
+
+export type HeroLibraryTemplate = {
+  id: string;
+  label: string;
+  surface: HeroSurface;
+  reason: HeroReason;
+  copy: Record<HeroLanguage, HeroCopy>;
 };
 
 export type HeroMessageEventInput = {
@@ -354,6 +368,22 @@ export const HERO_MESSAGES: HeroMessageDefinition[] = [
     },
   },
 ];
+
+function labelFromMessageId(id: string): string {
+  return id
+    .split("-")
+    .filter((part) => part !== "default")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+export const HERO_LIBRARY_TEMPLATES: HeroLibraryTemplate[] = HERO_MESSAGES.map((message) => ({
+  id: `library-${message.id}`,
+  label: labelFromMessageId(message.id),
+  surface: message.surface,
+  reason: message.reason,
+  copy: message.copy,
+}));
 
 let runtimeHeroMessages: HeroMessageDefinition[] | null = null;
 

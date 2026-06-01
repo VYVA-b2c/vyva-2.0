@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { and, desc, eq, gte, inArray, or, sql, type SQL } from "drizzle-orm";
+import OpenAI from "openai";
 import { z } from "zod";
 import { db, pool } from "../db.js";
 import { getActiveProfileContext } from "../lib/profileAccess.js";
@@ -262,6 +263,7 @@ const homePlanCardCreateSchema = homePlanCardUpdateSchema.extend({
 });
 
 const supportedHeroLanguageSchema = z.enum(["es", "en", "de", "fr", "it", "pt"]);
+const heroContentModeSchema = z.enum(["manual", "ai_generated", "library"]);
 const heroCopySchema = z.object({
   sourceText: z.string().optional(),
   headline: z.string().min(1),
@@ -282,14 +284,82 @@ const heroMessageCreateSchema = z.object({
   event_types: z.array(z.string()).optional().default([]),
   activity_types: z.array(z.string()).optional().default([]),
   copy: z.record(supportedHeroLanguageSchema, heroCopySchema),
+  copy_modes: z.record(supportedHeroLanguageSchema, heroContentModeSchema).optional().default({}),
+  copy_source_metadata: z.record(supportedHeroLanguageSchema, z.record(z.unknown())).optional().default({}),
   is_enabled: z.boolean().optional().default(true),
   admin_notes: z.string().optional().nullable(),
 });
 
 const heroMessageUpdateSchema = heroMessageCreateSchema.omit({ message_id: true }).partial();
+const heroGenerateCopySchema = z.object({
+  surface: z.string().min(1).max(48),
+  language: supportedHeroLanguageSchema,
+  reason: z.string().min(1).max(48).default("evergreen"),
+  priority: z.coerce.number().int().min(0).max(200).optional(),
+  cooldown_hours: z.coerce.number().int().min(0).max(720).optional(),
+  periods: z.array(z.string()).optional().default([]),
+  safety_levels: z.array(z.string()).optional().default([]),
+  event_types: z.array(z.string()).optional().default([]),
+  activity_types: z.array(z.string()).optional().default([]),
+  current_copy: heroCopySchema.partial().optional().default({}),
+  admin_notes: z.string().optional().nullable(),
+});
 const adminRoleUpdateSchema = z.object({
   role: z.enum(["user", "admin"]),
 });
+
+type AdminHeroCopy = z.infer<typeof heroCopySchema>;
+
+const HERO_COPY_LIMITS = {
+  headlineWords: 5,
+  headlineChars: 30,
+  sourceWords: 3,
+  sourceChars: 18,
+  ctaWords: 3,
+  ctaChars: 20,
+  subtitleWords: 8,
+  subtitleChars: 48,
+};
+
+function heroWordCount(value?: string): number {
+  return (value ?? "").trim().split(/\s+/).filter(Boolean).length;
+}
+
+function heroWithinLimit(value: string | undefined, wordLimit: number, charLimit: number): boolean {
+  if (!value) return true;
+  const normalized = value.trim();
+  return heroWordCount(normalized) <= wordLimit && normalized.length <= charLimit;
+}
+
+function heroCopyQualityWarnings(copy: Partial<AdminHeroCopy>): string[] {
+  const warnings: string[] = [];
+  const headline = copy.headline?.trim() ?? "";
+  if (!headline) warnings.push("Headline is required");
+  if (headline.toLowerCase() === "vyva") warnings.push("Headline is too generic");
+  if (!heroWithinLimit(copy.headline, HERO_COPY_LIMITS.headlineWords, HERO_COPY_LIMITS.headlineChars)) warnings.push("Headline too long");
+  if (!heroWithinLimit(copy.sourceText, HERO_COPY_LIMITS.sourceWords, HERO_COPY_LIMITS.sourceChars)) warnings.push("Source text too long");
+  if (!heroWithinLimit(copy.subtitle, HERO_COPY_LIMITS.subtitleWords, HERO_COPY_LIMITS.subtitleChars)) warnings.push("Subtitle too long");
+  if (!heroWithinLimit(copy.ctaLabel, HERO_COPY_LIMITS.ctaWords, HERO_COPY_LIMITS.ctaChars)) warnings.push("CTA too long");
+  return warnings;
+}
+
+function cleanHeroCopy(value: unknown): AdminHeroCopy {
+  const record = value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  const read = (key: keyof AdminHeroCopy) => {
+    const raw = record[key];
+    return typeof raw === "string" && raw.trim() ? raw.trim() : undefined;
+  };
+  return {
+    sourceText: read("sourceText"),
+    headline: read("headline") ?? "",
+    headlineWithName: read("headlineWithName"),
+    subtitle: read("subtitle"),
+    ctaLabel: read("ctaLabel"),
+    contextHint: read("contextHint"),
+  };
+}
 
 const accountSubscriptionUpdateSchema = z.object({
   account_id: z.string().optional().nullable(),
@@ -1890,6 +1960,90 @@ adminLifecycleRouter.get("/hero-messages/metrics", async (req: Request, res: Res
   }
 });
 
+adminLifecycleRouter.post("/hero-messages/generate-copy", async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+
+  const parsed = heroGenerateCopySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) {
+    return res.status(503).json({
+      error: "AI hero copy generation is not configured. Set OPENAI_API_KEY to enable this admin mode.",
+    });
+  }
+
+  const data = parsed.data;
+  const model = process.env.OPENAI_HERO_COPY_MODEL?.trim() || "gpt-4o-mini";
+  const promptVersion = "hero-copy-v1";
+  const limits = HERO_COPY_LIMITS;
+  const client = new OpenAI({ apiKey });
+
+  try {
+    const completion = await client.chat.completions.create({
+      model,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: [
+            "You write compact, friendly hero banner copy for Vyva's admin console.",
+            "Return only JSON with sourceText, headline, headlineWithName, subtitle, ctaLabel, and contextHint.",
+            "Use the requested language. Do not diagnose, promise outcomes, or mention private user data.",
+            `Limits: headline <= ${limits.headlineWords} words and <= ${limits.headlineChars} chars; sourceText <= ${limits.sourceWords} words and <= ${limits.sourceChars} chars; subtitle <= ${limits.subtitleWords} words and <= ${limits.subtitleChars} chars; ctaLabel <= ${limits.ctaWords} words and <= ${limits.ctaChars} chars.`,
+            "The headline must not be just VYVA.",
+          ].join(" "),
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            surface: data.surface,
+            language: data.language,
+            reason: data.reason,
+            priority: data.priority,
+            cooldown_hours: data.cooldown_hours,
+            periods: data.periods,
+            safety_levels: data.safety_levels,
+            event_types: data.event_types,
+            activity_types: data.activity_types,
+            current_copy: data.current_copy,
+            admin_notes: data.admin_notes ?? "",
+          }),
+        },
+      ],
+    });
+
+    const raw = completion.choices[0]?.message?.content ?? "{}";
+    const copy = cleanHeroCopy(JSON.parse(raw));
+    const warnings = heroCopyQualityWarnings(copy);
+    if (warnings.length) {
+      return res.status(422).json({
+        error: "Generated copy did not pass hero banner validation.",
+        copy,
+        warnings,
+      });
+    }
+
+    return res.json({
+      copy,
+      warnings,
+      metadata: {
+        mode: "ai_generated",
+        model,
+        generatedAt: new Date().toISOString(),
+        promptVersion,
+      },
+    });
+  } catch (error) {
+    console.warn("[admin-lifecycle] hero AI copy generation failed", error);
+    return res.status(502).json({
+      error: "AI hero copy generation failed. Try again or use Manual mode.",
+    });
+  }
+});
+
 adminLifecycleRouter.post("/hero-messages", async (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
 
@@ -1917,6 +2071,8 @@ adminLifecycleRouter.post("/hero-messages", async (req: Request, res: Response) 
         event_types: parsed.data.event_types,
         activity_types: parsed.data.activity_types,
         copy: parsed.data.copy,
+        copy_modes: parsed.data.copy_modes,
+        copy_source_metadata: parsed.data.copy_source_metadata,
         is_enabled: parsed.data.is_enabled,
         admin_notes: parsed.data.admin_notes ?? "",
         updated_at: new Date(),
@@ -1940,6 +2096,8 @@ adminLifecycleRouter.post("/hero-messages", async (req: Request, res: Response) 
         event_types: parsed.data.event_types,
         activity_types: parsed.data.activity_types,
         copy: parsed.data.copy,
+        copy_modes: parsed.data.copy_modes,
+        copy_source_metadata: parsed.data.copy_source_metadata,
         is_enabled: parsed.data.is_enabled,
         admin_notes: parsed.data.admin_notes ?? "",
       })

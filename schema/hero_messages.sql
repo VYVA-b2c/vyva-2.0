@@ -12,6 +12,8 @@ create table if not exists hero_messages (
   event_types text[] not null default '{}'::text[],
   activity_types text[] not null default '{}'::text[],
   copy jsonb not null default '{}'::jsonb,
+  copy_modes jsonb not null default '{}'::jsonb,
+  copy_source_metadata jsonb not null default '{}'::jsonb,
   is_enabled boolean not null default true,
   admin_notes text,
   created_at timestamptz not null default now(),
