@@ -3,12 +3,32 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { getLanguage, setAccountLanguage, setLanguage, syncProfileLanguage, translate, LANGUAGE_STORAGE_KEY } from "./index";
 
 const LANGUAGE_SOURCE_STORAGE_KEY = "vyva_lang_source";
+const SUPPORTED_TEST_LANGUAGES = ["en", "es", "fr", "de", "it", "pt"] as const;
 
 function collectFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
     const fullPath = `${dir}/${entry}`;
     return statSync(fullPath).isDirectory() ? collectFiles(fullPath) : [fullPath];
   });
+}
+
+function flattenLocaleKeys(value: unknown, prefix = "", output: string[] = []): string[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return output;
+
+  for (const [key, child] of Object.entries(value)) {
+    const childKey = prefix ? `${prefix}.${key}` : key;
+    if (child && typeof child === "object" && !Array.isArray(child)) {
+      flattenLocaleKeys(child, childKey, output);
+    } else {
+      output.push(childKey);
+    }
+  }
+
+  return output;
+}
+
+function localeKeys(language: (typeof SUPPORTED_TEST_LANGUAGES)[number]) {
+  return new Set(flattenLocaleKeys(JSON.parse(readFileSync(`src/i18n/locales/${language}.json`, "utf8"))));
 }
 
 describe("language persistence", () => {
@@ -131,6 +151,24 @@ describe("language persistence", () => {
         translate(language as keyof typeof expected, "settings.notifications.supportModeAi"),
         translate(language as keyof typeof expected, "settings.notifications.supportModeHuman"),
       ]).toEqual(labels);
+    }
+  });
+
+  it("keeps vitals and symptom-check health flows localized for supported account languages", () => {
+    const namespaces = [
+      "statusVitals",
+      "health.symptomCheck.scan",
+      "health.symptomCheck.report",
+    ];
+    const englishKeys = localeKeys("en");
+
+    for (const language of SUPPORTED_TEST_LANGUAGES.filter((code) => code !== "en")) {
+      const translatedKeys = localeKeys(language);
+      const missingKeys = [...englishKeys].filter((key) => (
+        namespaces.some((namespace) => key.startsWith(`${namespace}.`)) && !translatedKeys.has(key)
+      ));
+
+      expect(missingKeys, `${language} is missing health translation keys`).toEqual([]);
     }
   });
 
