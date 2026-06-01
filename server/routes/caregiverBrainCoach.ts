@@ -17,15 +17,21 @@ import {
   mergeCaregiverSettingsIntoPreferences,
   normalizeBrainCoachCaregiverSettings,
 } from "../lib/brainCoachCaregiverSettings.js";
+import {
+  computeBrainCoachNextRunAt,
+  normalizeBrainCoachSchedule,
+} from "../lib/brainCoachCaregiverSchedule.js";
 import { buildBrainCoachDailyPlan, extractBrainCoachPreferences } from "../lib/brainCoachPlan.js";
 import {
   cognitiveCaregiverSettings,
+  cognitiveCaregiverNudges,
   cognitiveDailyPlanEvents,
   cognitiveDailyPlanItems,
   cognitiveDailyPlans,
   cognitiveSessionIndex,
   profileMemberships,
   profiles,
+  scheduledInteractions,
   teamInvitations,
   users,
 } from "../../shared/schema.js";
@@ -49,6 +55,19 @@ const settingsSchema = z.object({
   paused: z.boolean().optional(),
 }).strict();
 
+const scheduleSchema = z.object({
+  daysOfWeek: z.array(z.string()).optional(),
+  timesOfDay: z.array(z.string()).optional(),
+  timezone: z.string().optional(),
+  paused: z.boolean().optional(),
+}).strict();
+
+const nudgeSchema = z.object({
+  messageType: z.enum(["missed_yesterday", "lapsed_7_days", "preferred_time", "completed_today", "general"]).optional().default("general"),
+  message: z.string().trim().max(240).optional(),
+  metadata: z.record(z.unknown()).optional().default({}),
+}).strict();
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function permissionsPatch(body: unknown): Partial<BrainCoachCaregiverPermissions> | null {
@@ -68,6 +87,32 @@ function settingsResponse(row: typeof cognitiveCaregiverSettings.$inferSelect | 
   return row
     ? normalizeBrainCoachCaregiverSettings(row)
     : defaultSettings();
+}
+
+function scheduleResponse(row: typeof scheduledInteractions.$inferSelect | null | undefined) {
+  if (!row) {
+    return {
+      id: null,
+      daysOfWeek: ["MON", "WED", "FRI"],
+      timesOfDay: ["11:00"],
+      timezone: "Europe/Madrid",
+      status: "ACTIVE",
+      paused: false,
+      nextRunAt: null,
+      updatedAt: null,
+    };
+  }
+
+  return {
+    id: row.id,
+    daysOfWeek: row.days_of_week,
+    timesOfDay: row.times_of_day,
+    timezone: row.timezone,
+    status: row.status,
+    paused: row.is_paused || row.status === "PAUSED",
+    nextRunAt: row.next_run_at,
+    updatedAt: row.updated_at,
+  };
 }
 
 async function resolveProfileParam(req: Request, res: Response, value: string): Promise<string | null> {
@@ -148,6 +193,80 @@ async function loadPlanInputs(profileId: string) {
   );
 
   return { sessions, events, settings, preferences };
+}
+
+async function loadBrainCoachSchedule(profileId: string) {
+  const [schedule] = await db
+    .select()
+    .from(scheduledInteractions)
+    .where(and(
+      eq(scheduledInteractions.user_id, profileId),
+      eq(scheduledInteractions.interaction_type, "BRAIN_COACH"),
+    ))
+    .orderBy(desc(scheduledInteractions.updated_at))
+    .limit(1);
+  return schedule ?? null;
+}
+
+async function upsertBrainCoachSchedule(input: {
+  profileId: string;
+  actorUserId: string;
+  existing: typeof scheduledInteractions.$inferSelect | null;
+  schedule: ReturnType<typeof normalizeBrainCoachSchedule>;
+}) {
+  const now = new Date();
+  const status = input.schedule.paused ? "PAUSED" : "ACTIVE";
+  const nextRunAt = computeBrainCoachNextRunAt({ ...input.schedule, status }, now);
+  const values = {
+    user_id: input.profileId,
+    interaction_type: "BRAIN_COACH",
+    friendly_label: "Brain Coach",
+    user_description: "Scheduled Brain Coach rhythm controlled by senior-approved settings.",
+    frequency_type: "WEEKLY",
+    frequency_value: {
+      source: "brain_coach_caregiver",
+      weekly_target_days: input.schedule.daysOfWeek.length,
+    },
+    days_of_week: input.schedule.daysOfWeek,
+    times_of_day: input.schedule.timesOfDay,
+    timezone: input.schedule.timezone,
+    preferred_language: "en",
+    status,
+    is_paused: input.schedule.paused,
+    pause_reason: input.schedule.paused ? "Paused from Brain Coach caregiver controls" : null,
+    pause_until: null,
+    next_run_at: nextRunAt,
+    admin_edit_allowed: true,
+    updated_by: input.actorUserId,
+    updated_at: now,
+  };
+
+  if (input.existing) {
+    const [updated] = await db
+      .update(scheduledInteractions)
+      .set(values)
+      .where(eq(scheduledInteractions.id, input.existing.id))
+      .returning();
+    return updated;
+  }
+
+  const [created] = await db
+    .insert(scheduledInteractions)
+    .values({
+      ...values,
+      created_by: input.actorUserId,
+      created_at: now,
+    })
+    .returning();
+  return created;
+}
+
+function defaultNudgeMessage(type: string) {
+  if (type === "missed_yesterday") return "A short Brain Coach session is ready whenever today feels like a good moment.";
+  if (type === "lapsed_7_days") return "It has been a little while. A gentle 5-minute Brain Coach restart is ready.";
+  if (type === "preferred_time") return "This is around the preferred Brain Coach time. Today's plan is waiting.";
+  if (type === "completed_today") return "Nice work finishing today's Brain Coach plan.";
+  return "A gentle Brain Coach reminder is available in the app.";
 }
 
 async function acceptedInvitationFor(userId: string, profileId: string) {
@@ -413,6 +532,113 @@ router.post("/:profileId/plan-preview", requireUser, async (req: Request, res: R
   } catch (error) {
     console.error("[caregiver-brain-coach] plan preview failed:", error);
     return res.status(500).json({ error: "Brain Coach plan preview could not be built." });
+  }
+});
+
+router.get("/:profileId/schedule", requireUser, async (req: Request, res: Response) => {
+  try {
+    const profileId = await resolveProfileParam(req, res, req.params.profileId);
+    if (!profileId) return;
+    const access = await resolveBrainCoachAccess({
+      actorUserId: req.user!.id,
+      targetUserId: profileId,
+      requiredPermission: "view_summary",
+      actorEmail: typeof req.user!.email === "string" ? req.user!.email : null,
+      actorRequestRole: typeof req.user!.role === "string" ? req.user!.role : null,
+    });
+    if (!access) return res.status(403).json({ error: "Brain Coach schedule visibility needs senior consent." });
+
+    const schedule = await loadBrainCoachSchedule(profileId);
+    return res.json({ schedule: scheduleResponse(schedule), permissions: access.permissions });
+  } catch (error) {
+    console.error("[caregiver-brain-coach] schedule load failed:", error);
+    return res.status(500).json({ error: "Brain Coach schedule could not be loaded." });
+  }
+});
+
+router.patch("/:profileId/schedule", requireUser, async (req: Request, res: Response) => {
+  const parsed = scheduleSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid Brain Coach schedule." });
+
+  try {
+    const profileId = await resolveProfileParam(req, res, req.params.profileId);
+    if (!profileId) return;
+    const access = await resolveBrainCoachAccess({
+      actorUserId: req.user!.id,
+      targetUserId: profileId,
+      requiredPermission: "manage_schedule",
+      actorEmail: typeof req.user!.email === "string" ? req.user!.email : null,
+      actorRequestRole: typeof req.user!.role === "string" ? req.user!.role : null,
+    });
+    if (!access) return res.status(403).json({ error: "Brain Coach schedule changes need senior consent." });
+
+    const existing = await loadBrainCoachSchedule(profileId);
+    const normalized = normalizeBrainCoachSchedule({
+      daysOfWeek: parsed.data.daysOfWeek ?? existing?.days_of_week,
+      timesOfDay: parsed.data.timesOfDay ?? existing?.times_of_day,
+      timezone: parsed.data.timezone ?? existing?.timezone,
+      paused: parsed.data.paused ?? existing?.is_paused,
+    });
+    const updated = await upsertBrainCoachSchedule({
+      profileId,
+      actorUserId: req.user!.id,
+      existing,
+      schedule: normalized,
+    });
+
+    await auditBrainCoachCaregiverChange({
+      access,
+      previousValue: { schedule: scheduleResponse(existing) },
+      newValue: { schedule: scheduleResponse(updated) },
+      source: access.isOwnProfile ? "brain_coach_schedule_self" : "brain_coach_schedule_caregiver",
+    });
+
+    return res.json({ schedule: scheduleResponse(updated), permissions: access.permissions });
+  } catch (error) {
+    console.error("[caregiver-brain-coach] schedule update failed:", error);
+    return res.status(500).json({ error: "Brain Coach schedule could not be saved." });
+  }
+});
+
+router.post("/:profileId/nudges", requireUser, async (req: Request, res: Response) => {
+  const parsed = nudgeSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: "Invalid Brain Coach nudge." });
+
+  try {
+    const profileId = await resolveProfileParam(req, res, req.params.profileId);
+    if (!profileId) return;
+    const access = await resolveBrainCoachAccess({
+      actorUserId: req.user!.id,
+      targetUserId: profileId,
+      requiredPermission: "send_nudges",
+      actorEmail: typeof req.user!.email === "string" ? req.user!.email : null,
+      actorRequestRole: typeof req.user!.role === "string" ? req.user!.role : null,
+    });
+    if (!access) return res.status(403).json({ error: "Brain Coach nudges need senior consent." });
+
+    const message = parsed.data.message?.trim() || defaultNudgeMessage(parsed.data.messageType);
+    const [nudge] = await db
+      .insert(cognitiveCaregiverNudges)
+      .values({
+        userId: profileId,
+        caregiverUserId: req.user!.id,
+        messageType: parsed.data.messageType,
+        message,
+        metadata: parsed.data.metadata,
+      })
+      .returning();
+
+    await auditBrainCoachCaregiverChange({
+      access,
+      previousValue: {},
+      newValue: { nudge_id: nudge.id, message_type: nudge.messageType },
+      source: access.isOwnProfile ? "brain_coach_nudge_self" : "brain_coach_nudge_caregiver",
+    });
+
+    return res.status(201).json({ nudge, permissions: access.permissions });
+  } catch (error) {
+    console.error("[caregiver-brain-coach] nudge failed:", error);
+    return res.status(500).json({ error: "Brain Coach nudge could not be sent." });
   }
 });
 
