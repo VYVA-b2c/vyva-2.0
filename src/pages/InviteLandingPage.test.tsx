@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   language: {
     language: "en",
     setLanguage: vi.fn(),
-    setAccountLanguage: vi.fn(),
+    setBootstrapLanguage: vi.fn(),
   },
 }));
 
@@ -21,7 +21,7 @@ vi.mock("@/contexts/AuthContext", () => ({
 }));
 
 vi.mock("@/i18n", () => ({
-  setAccountLanguage: (language: string) => mocks.language.setAccountLanguage(language),
+  setBootstrapLanguage: (language: string) => mocks.language.setBootstrapLanguage(language),
   useLanguage: () => ({
     language: mocks.language.language,
     setLanguage: mocks.language.setLanguage,
@@ -55,7 +55,7 @@ beforeEach(() => {
   mocks.auth.logout = vi.fn().mockResolvedValue(undefined);
   mocks.language.language = "en";
   mocks.language.setLanguage = vi.fn();
-  mocks.language.setAccountLanguage = vi.fn();
+  mocks.language.setBootstrapLanguage = vi.fn();
 });
 
 afterEach(() => {
@@ -77,7 +77,7 @@ describe("invite landing compatibility redirect", () => {
         "/login?lang=fr&email=maria%40example.com&mode=register&invite=1&returnTo=%2F",
       );
     });
-    expect(mocks.language.setAccountLanguage).toHaveBeenCalledWith("fr");
+    expect(mocks.language.setBootstrapLanguage).toHaveBeenCalledWith("fr");
     expect(mocks.auth.logout).not.toHaveBeenCalled();
   });
 

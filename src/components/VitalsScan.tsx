@@ -6,6 +6,8 @@ import { HealthWizardCard, HealthWizardHero } from "@/components/health/HealthWi
 
 interface VitalsScanProps {
   onComplete: (bpm: number | null, respiratoryRate: number | null) => void;
+  compact?: boolean;
+  saveReading?: boolean;
 }
 
 const SCAN_DURATION_MS = 30_000;
@@ -100,7 +102,7 @@ function computeRespiratoryRate(signal: number[], fps: number): number | null {
   return rpm >= 6 && rpm <= 40 ? rpm : null;
 }
 
-export default function VitalsScan({ onComplete }: VitalsScanProps) {
+export default function VitalsScan({ onComplete, compact = false, saveReading = true }: VitalsScanProps) {
   const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -130,14 +132,14 @@ export default function VitalsScan({ onComplete }: VitalsScanProps) {
   const safeComplete = useCallback((bpm: number | null, respiratoryRate: number | null) => {
     if (completedRef.current) return;
     completedRef.current = true;
-    if (bpm != null) {
+    if (saveReading && bpm != null) {
       apiFetch("/api/reports/vitals", {
         method: "POST",
         body: JSON.stringify({ bpm, respiratory_rate: respiratoryRate, source: "phone_estimate" }),
       }).catch((err) => console.error("[reports/vitals] save failed:", err));
     }
     onComplete(bpm, respiratoryRate);
-  }, [onComplete]);
+  }, [onComplete, saveReading]);
 
   const buildSvgPath = useCallback((samples: number[]) => {
     if (samples.length < 2) return "";
@@ -279,7 +281,7 @@ export default function VitalsScan({ onComplete }: VitalsScanProps) {
 
   if (permissionDenied) {
     return (
-      <div className="flex flex-1 flex-col justify-center gap-5 px-[18px] py-6">
+      <div className={`${compact ? "grid gap-4" : "flex flex-1 flex-col justify-center gap-5 px-[18px] py-6"}`}>
         <HealthWizardHero
           tone="amber"
           icon={<Camera size={28} />}
@@ -298,7 +300,7 @@ export default function VitalsScan({ onComplete }: VitalsScanProps) {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-5 px-[18px] pb-6 pt-4">
+    <div className={compact ? "grid gap-4" : "flex flex-1 flex-col gap-5 px-[18px] pb-6 pt-4"}>
       <HealthWizardHero
         tone={done ? "green" : "purple"}
         icon={<Heart size={28} />}
@@ -307,7 +309,7 @@ export default function VitalsScan({ onComplete }: VitalsScanProps) {
         body={done ? t("health.symptomCheck.scan.continueBtn") : `${countdown}s`}
       />
 
-      <HealthWizardCard className="flex flex-col items-center gap-5">
+      <HealthWizardCard className={`flex flex-col items-center gap-5 ${compact ? "px-3 py-4" : ""}`}>
       <div className="relative flex items-center justify-center">
         <svg width={260} height={260} className="absolute top-0 left-0" style={{ transform: "rotate(-90deg)" }}>
           <circle cx={130} cy={130} r={r} fill="none" stroke="hsl(var(--vyva-warm))" strokeWidth={6} />

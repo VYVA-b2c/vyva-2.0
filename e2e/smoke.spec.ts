@@ -5,6 +5,7 @@ const futureToken = [
   btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 60 * 60 })),
   "signature",
 ].join(".");
+const symptomCheckDraftKey = "vyva.symptomCheck.draft.v1";
 
 async function fulfillJson(route: Route, status: number, body: unknown) {
   await route.fulfill({
@@ -36,7 +37,13 @@ function readyServices(overrides: Record<string, unknown> = {}) {
   };
 }
 
-async function mockApi(page: Page, signedIn = false, readinessOverrides: Record<string, unknown> = {}) {
+async function mockApi(
+  page: Page,
+  signedIn = false,
+  readinessOverrides: Record<string, unknown> = {},
+  profileOverrides: Record<string, unknown> = {},
+  careTeamMembers: unknown[] = [],
+) {
   if (signedIn) {
     await page.addInitScript((token) => {
       localStorage.setItem("vyva_auth_token", token);
@@ -72,12 +79,53 @@ async function mockApi(page: Page, signedIn = false, readinessOverrides: Record<
         postalCode: "",
         caregiverName: "",
         caregiverContact: "",
+        gpName: "",
+        gpPhone: "",
+        ...profileOverrides,
       });
       return;
     }
 
     if (signedIn && url.pathname === "/api/profile/readiness") {
       await fulfillJson(route, 200, { profile: {}, services: readyServices(readinessOverrides) });
+      return;
+    }
+
+    if (signedIn && url.pathname === "/api/concierge/shopping/recommendations") {
+      await fulfillJson(route, 200, {
+        querySummary: "I looked for Groceries options based on: easy breakfast.",
+        recommendations: [
+          {
+            product: {
+              id: "wholegrain-porridge-oats",
+              category: "groceries",
+              name: "Wholegrain porridge oats",
+              priceLabel: "Low cost",
+              description: "A warm, budget-friendly breakfast that can be made soft.",
+              benefits: ["Budget friendly", "Filling", "Easy to soften"],
+              tags: ["food", "breakfast", "budget", "soft_food", "pantry", "simple", "fiber"],
+              suitability: ["Good for a simple breakfast routine"],
+              cautions: ["Choose gluten-free only if needed and clearly labelled."],
+              accessibilityNotes: ["A lightweight bag or small box is easier to handle."],
+              availabilityLabel: "Long shelf life",
+              priceTier: "low",
+            },
+            score: 82,
+            rankLabel: "Best fit",
+            reasons: ["Matches what you asked for.", "It is a low-cost option."],
+            tradeoffs: ["Check size, label, and ease of opening."],
+            cautionNotes: ["Choose gluten-free only if needed and clearly labelled."],
+            confidence: "high",
+          },
+        ],
+        comparison: {
+          summary: "Wholegrain porridge oats is the clearest option.",
+          differences: [],
+          bestFor: ["Wholegrain porridge oats: Matches what you asked for."],
+        },
+        uncertaintyNote: "These are informational choices from a test catalog; check labels, measurements, and availability before buying.",
+        nextQuestions: ["Would you like to prioritise price, ease, or safety?"],
+      });
       return;
     }
 
@@ -96,6 +144,11 @@ async function mockApi(page: Page, signedIn = false, readinessOverrides: Record<
         profile: { current_stage: "complete" },
         onboardingState: { current_stage: "complete" },
       });
+      return;
+    }
+
+    if (signedIn && url.pathname === "/api/onboarding/careteam") {
+      await fulfillJson(route, 200, { members: careTeamMembers });
       return;
     }
 
@@ -269,6 +322,30 @@ test("home screen renders core cards and navigates to concierge", async ({ page 
   await expect(page).toHaveURL(/\/concierge$/);
 });
 
+test("concierge shopping helper recommends and saves a choice", async ({ page }) => {
+  await mockApi(page, true);
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.goto("/concierge/shopping", { waitUntil: "domcontentloaded" });
+
+  await expect(page.getByRole("heading", { name: "Shopping helper" })).toBeVisible();
+  await page.getByLabel("What do you need help choosing?").fill("easy breakfast");
+  await page.getByTestId("button-shopping-find").click();
+
+  await expect(page.getByTestId("shopping-recommendation-results")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Wholegrain porridge oats" })).toBeVisible();
+  await page.getByRole("button", { name: "Save choice" }).click();
+  await expect(page.getByTestId("shopping-shortlist")).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "Shopping helper" })).toBeVisible();
+  await page.getByLabel("What do you need help choosing?").fill("easy breakfast");
+  await page.getByTestId("button-shopping-find").click();
+  await expect(page.getByTestId("shopping-recommendation-results")).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+});
+
 test("notifications settings back returns to settings home", async ({ page }) => {
   await mockApi(page, true);
   await page.goto("/settings/notifications", { waitUntil: "domcontentloaded" });
@@ -393,6 +470,7 @@ test("symptom check replaces repeated thinking with review guidance", async ({ p
   ]) {
     releaseTriage = null;
     triageRequestCount = 0;
+    await page.evaluate((key) => sessionStorage.removeItem(key), symptomCheckDraftKey).catch(() => undefined);
     await page.setViewportSize(viewport);
     await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
 
@@ -402,7 +480,9 @@ test("symptom check replaces repeated thinking with review guidance", async ({ p
 
     const reviewPanel = page.getByTestId("triage-review-panel");
     await expect(reviewPanel).toBeVisible();
-    await expect(page.getByText("VYVA is checking the safest next step")).toHaveCount(1);
+    await expect(page.getByTestId("triage-review-headline")).toContainText(
+      /Checking your next step|Reviewing trusted medical guidance|Checking your answers for red flags|Considering your health profile and medications|Preparing clear next steps/,
+    );
     await expect(reviewPanel).toContainText("Reviewing trusted medical guidance");
     await expect(reviewPanel).toContainText("Checking your answers for red flags");
     await expect(page.getByText("VYVA is thinking…")).toHaveCount(0);
@@ -411,6 +491,198 @@ test("symptom check replaces repeated thinking with review guidance", async ({ p
     releaseTriage?.();
     await expect(page.getByText("How strong is it?")).toBeVisible();
   }
+});
+
+test("symptom check resumes an unfinished chat and can start over", async ({ page }) => {
+  await mockApi(page, true);
+  await page.evaluate((key) => sessionStorage.removeItem(key), symptomCheckDraftKey).catch(() => undefined);
+  await page.route("**/api/triage/context", async (route) => {
+    await fulfillJson(route, 200, {
+      memory: { medications: "Amlodipine" },
+      usedItems: ["Medications"],
+    });
+  });
+  await page.route("**/api/triage/message", async (route) => {
+    await fulfillJson(route, 200, {
+      role: "assistant",
+      content: "How strong is it?",
+      quickReplies: [{
+        id: "mild",
+        label: "Mild",
+        value: "It feels mild.",
+        icon: "activity",
+        tone: "green",
+        kind: "severity",
+      }],
+    });
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
+  await page.getByTestId("input-symptom-clue").fill("bad headache");
+  await page.getByTestId("button-symptom-check-start").click();
+  await expect(page.getByText("How strong is it?")).toBeVisible();
+  await expect.poll(async () => page.evaluate((key) => JSON.parse(sessionStorage.getItem(key) ?? "null")?.step, symptomCheckDraftKey)).toBe("chat");
+
+  await page.goto("/health", { waitUntil: "domcontentloaded" });
+  await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
+
+  await expect(page.getByText("How strong is it?")).toBeVisible();
+  await expect(page.getByTestId("button-symptom-check-start-over")).toBeVisible();
+  await expect(page.getByTestId("input-symptom-clue")).toHaveCount(0);
+  await expectNoHorizontalOverflow(page);
+
+  await page.getByTestId("button-symptom-check-start-over").click();
+  await expect(page.getByTestId("input-symptom-clue")).toBeVisible();
+  await expect.poll(async () => page.evaluate((key) => sessionStorage.getItem(key), symptomCheckDraftKey)).toBeNull();
+});
+
+test("symptom check resumes and retries a pending review", async ({ page }) => {
+  await mockApi(page, true);
+  await page.evaluate((key) => sessionStorage.removeItem(key), symptomCheckDraftKey).catch(() => undefined);
+  await page.route("**/api/triage/context", async (route) => {
+    await fulfillJson(route, 200, { memory: {}, usedItems: [] });
+  });
+
+  let requestCount = 0;
+  let releaseFirst: (() => void) | null = null;
+  let releaseSecond: (() => void) | null = null;
+  await page.route("**/api/triage/message", async (route) => {
+    requestCount += 1;
+    await new Promise<void>((resolve) => {
+      if (requestCount === 1) releaseFirst = resolve;
+      else releaseSecond = resolve;
+    });
+    await fulfillJson(route, 200, {
+      role: "assistant",
+      content: "How strong is it?",
+      quickReplies: [{
+        id: "mild",
+        label: "Mild",
+        value: "It feels mild.",
+        icon: "activity",
+        tone: "green",
+        kind: "severity",
+      }],
+    });
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
+  await page.getByTestId("input-symptom-clue").fill("bad headache");
+  await page.getByTestId("button-symptom-check-start").click();
+  await expect.poll(() => requestCount).toBe(1);
+  await expect(page.getByTestId("triage-review-panel")).toBeVisible();
+  await expect.poll(async () => page.evaluate((key) => JSON.parse(sessionStorage.getItem(key) ?? "null")?.chatDraft?.pendingRequest, symptomCheckDraftKey)).toBe(true);
+
+  await page.goto("/health", { waitUntil: "domcontentloaded" });
+  await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
+
+  await expect.poll(() => requestCount).toBe(2);
+  await expect(page.getByTestId("triage-review-panel")).toBeVisible();
+  releaseSecond?.();
+  await expect(page.getByText("How strong is it?")).toBeVisible();
+  releaseFirst?.();
+  await expectNoHorizontalOverflow(page);
+});
+
+test("symptom check restores a completed report until done", async ({ page }) => {
+  await mockApi(page, true);
+  await page.evaluate((key) => sessionStorage.removeItem(key), symptomCheckDraftKey).catch(() => undefined);
+  await page.route("**/api/triage/context", async (route) => {
+    await fulfillJson(route, 200, { memory: {}, usedItems: [] });
+  });
+  await page.route("**/api/reports/triage", async (route) => {
+    await fulfillJson(route, 200, {
+      id: "triage-smoke",
+      chief_complaint: "Bad headache",
+      symptoms: ["Headache"],
+      urgency: "monitor",
+      recommendations: ["Rest and monitor symptoms."],
+      disclaimer: "Informational only.",
+    });
+  });
+  await page.route("**/api/triage/message", async (route) => {
+    await fulfillJson(route, 200, {
+      role: "assistant",
+      content: "Monitor at home unless symptoms worsen.",
+      done: true,
+      summary: {
+        chiefComplaint: "Bad headache",
+        symptoms: ["Headache"],
+        urgency: "monitor",
+        recommendations: ["Rest and monitor symptoms."],
+        disclaimer: "Informational only.",
+        nextStepLabel: "Monitor at home",
+        nextStepLevel: "monitor",
+      },
+    });
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
+  await page.getByTestId("input-symptom-clue").fill("bad headache");
+  await page.getByTestId("button-symptom-check-start").click();
+  await expect(page.getByTestId("button-report-done")).toBeVisible();
+  await expect(page.getByTestId("button-report-share-doctor-disabled")).toBeVisible();
+  await expect(page.getByTestId("button-report-share-doctor-disabled")).toBeDisabled();
+  await expect.poll(async () => page.evaluate((key) => JSON.parse(sessionStorage.getItem(key) ?? "null")?.step, symptomCheckDraftKey)).toBe("report");
+
+  await page.goto("/health", { waitUntil: "domcontentloaded" });
+  await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
+
+  await expect(page.getByTestId("button-report-done")).toBeVisible();
+  await expect(page.getByText("Monitor at Home", { exact: true })).toBeVisible();
+  await page.getByTestId("button-report-done").click();
+  await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
+  await expect(page.getByTestId("input-symptom-clue")).toBeVisible();
+  await expect.poll(async () => page.evaluate((key) => sessionStorage.getItem(key), symptomCheckDraftKey)).toBeNull();
+});
+
+test("symptom check prepares a direct doctor share link when a doctor contact is saved", async ({ page }) => {
+  await mockApi(page, true, {}, { gpName: "Dr Smoke", gpPhone: "+34123456789" });
+  await page.evaluate((key) => sessionStorage.removeItem(key), symptomCheckDraftKey).catch(() => undefined);
+  await page.route("**/api/triage/context", async (route) => {
+    await fulfillJson(route, 200, { memory: {}, usedItems: [] });
+  });
+  await page.route("**/api/reports/triage", async (route) => {
+    await fulfillJson(route, 200, {
+      id: "triage-share-smoke",
+      chief_complaint: "Bad headache",
+      symptoms: ["Headache"],
+      urgency: "monitor",
+      recommendations: ["Rest and monitor symptoms."],
+      disclaimer: "Informational only.",
+    });
+  });
+  await page.route("**/api/triage/message", async (route) => {
+    await fulfillJson(route, 200, {
+      role: "assistant",
+      content: "Monitor at home unless symptoms worsen.",
+      done: true,
+      summary: {
+        chiefComplaint: "Bad headache",
+        symptoms: ["Headache"],
+        urgency: "monitor",
+        recommendations: ["Rest and monitor symptoms."],
+        disclaimer: "Informational only.",
+        nextStepLabel: "Monitor at home",
+        nextStepLevel: "monitor",
+      },
+    });
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
+  await page.getByTestId("input-symptom-clue").fill("bad headache");
+  await page.getByTestId("button-symptom-check-start").click();
+
+  const shareDoctorLink = page.getByTestId("link-report-share-doctor");
+  await expect(shareDoctorLink).toBeVisible();
+  await expect(shareDoctorLink).toContainText("Share with doctor");
+  await expect(shareDoctorLink).toHaveAttribute("href", /^sms:\+34123456789\?body=.*Bad%20headache/);
+  await expect(page.getByTestId("button-report-share-doctor-disabled")).toHaveCount(0);
+  await expectNoHorizontalOverflow(page);
 });
 
 test("profile overview constrains desktop width and switches section rows into cards", async ({ page }) => {

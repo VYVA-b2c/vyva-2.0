@@ -352,7 +352,13 @@ export function actionForVoiceUtterance(text: string): VoiceAppAction | null {
     });
   }
 
-  if (hasAny(normalized, ["appointment", "book", "taxi", "shopping", "groceries", "delivery", "weather", "concierge", "cita", "compras", "taxi"])) {
+  if (hasAny(normalized, ["shopping", "groceries", "supermarket", "choose product", "product choice", "what should i buy", "compras", "compra", "supermercado", "que compro", "que deberia comprar"])) {
+    return actionFromRegistry("concierge.shopping", text, {
+      feedbackReason: "User asked for shopping or product-choice help.",
+    });
+  }
+
+  if (hasAny(normalized, ["appointment", "book", "taxi", "delivery", "weather", "concierge", "cita", "taxi"])) {
     return actionFromRegistry("concierge.task", text, {
       feedbackReason: "User asked for logistics, shopping, booking, weather, or reminder help.",
     });

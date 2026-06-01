@@ -24,12 +24,13 @@ async function cleanupUser(userId: string) {
   await db.delete(profiles).where(eq(profiles.id, userId));
 }
 
-async function createProfile() {
+async function createProfile(values: Partial<typeof profiles.$inferInsert> = {}) {
   const userId = randomUUID();
   createdUserIds.add(userId);
   await db.insert(profiles).values({
     id: userId,
     language: "en",
+    ...values,
   });
   return userId;
 }
@@ -42,6 +43,27 @@ afterEach(async () => {
 });
 
 describe("Profile channel preferences", () => {
+  it("returns GP email in the profile response", async () => {
+    const userId = await createProfile({
+      full_name: "Test User",
+      phone_number: "+441234567890",
+      gp_name: "Dr. Jane Smith",
+      gp_phone: "020 7946 0958",
+      gp_email: "gp@example.com",
+    });
+
+    const res = await request(app)
+      .get("/api/profile")
+      .set("x-user-id", userId)
+      .expect(200);
+
+    expect(res.body).toMatchObject({
+      gpName: "Dr. Jane Smith",
+      gpPhone: "020 7946 0958",
+      gpEmail: "gp@example.com",
+    });
+  });
+
   it("returns schema defaults when no preferences have been saved", async () => {
     const userId = await createProfile();
 

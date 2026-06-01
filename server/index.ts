@@ -35,6 +35,7 @@ import sendgridWebhooksRouter from "./routes/sendgridWebhooks.js";
 import { authRouter } from "./routes/auth.js";
 import { authMiddleware, requireAdminUser, requireUser } from "./middleware/auth.js";
 import { requireEntitlement } from "./middleware/entitlements.js";
+import { languageMiddleware } from "./middleware/language.js";
 import { medsVoiceParseHandler } from "./routes/medsVoiceParse.js";
 import { medsAssistantHandler } from "./routes/medsAssistant.js";
 import {
@@ -44,6 +45,7 @@ import {
   conciergeRecommendationsHandler,
 } from "./routes/concierge.js";
 import conciergeActionsRouter from "./routes/conciergeActions.js";
+import conciergeShoppingRouter from "./routes/conciergeShopping.js";
 import { woundScanHandler, woundScanHistoryHandler, woundScanDeleteHandler } from "./routes/woundScan.js";
 import { homeScanHandler, homeScanHistoryHandler, homeScanDeleteHandler } from "./routes/homeScan.js";
 import { scamCheckHandler, scamCheckHistoryHandler, scamCheckDeleteHandler } from "./routes/scamCheck.js";
@@ -55,10 +57,12 @@ import homePlanRouter from "./routes/homePlan.js";
 import heroMessagesRouter from "./routes/heroMessages.js";
 import weatherRouter from "./routes/weather.js";
 import triageRouter from "./routes/triage.js";
+import { triageScanHandler } from "./routes/triageScan.js";
 import companionsRouter from "./routes/companions.js";
 import socialRoomsRouter from "./routes/socialRooms.js";
 import medsAdherenceRouter from "./routes/medsAdherence.js";
 import scheduledSupportRouter from "./routes/scheduledSupport.js";
+import caregiverBrainCoachRouter from "./routes/caregiverBrainCoach.js";
 import { scanHistoryHandler } from "./routes/history.js";
 import reportsRouter from "./routes/reports.js";
 import vitalsRouter from "./routes/vitals.js";
@@ -87,6 +91,7 @@ async function fileExists(filePath: string) {
 }
 
 app.use(cors());
+app.use(languageMiddleware);
 
 // Stripe webhook must receive the raw body before JSON parsing
 app.use("/api/billing/webhook", express.raw({ type: "application/json" }));
@@ -107,6 +112,8 @@ app.post("/api/scam-check", express.json({ limit: "10mb" }), authMiddleware, sca
 app.get("/api/scam-check", authMiddleware, scamCheckHistoryHandler);
 app.get("/api/scam-check/history", authMiddleware, scamCheckHistoryHandler);
 app.delete("/api/scam-check/:id", authMiddleware, scamCheckDeleteHandler);
+
+app.post("/api/triage/scan", express.json({ limit: "10mb" }), authMiddleware, requireUser, requireEntitlement("symptom_check"), triageScanHandler);
 
 app.post("/api/offers/analyze-document", express.json({ limit: "20mb" }), authMiddleware, analyzeOfferDocumentHandler);
 app.post("/api/bill-reader/analyze", express.json({ limit: "20mb" }), authMiddleware, analyzeOfferDocumentHandler);
@@ -143,6 +150,7 @@ app.post("/api/concierge", authMiddleware, requireUser, requireEntitlement("conc
 app.post("/api/concierge/recommendations", authMiddleware, requireUser, requireEntitlement("concierge"), conciergeRecommendationsHandler);
 app.post("/api/concierge/recommendations/plan", authMiddleware, requireUser, requireEntitlement("concierge"), conciergeRecommendationPlanHandler);
 app.post("/api/concierge/recommendations/feedback", authMiddleware, requireUser, requireEntitlement("concierge"), conciergeRecommendationFeedbackHandler);
+app.use("/api/concierge/shopping", authMiddleware, requireUser, requireEntitlement("concierge"), conciergeShoppingRouter);
 app.use("/api/concierge/actions", conciergeActionsRouter);
 app.post("/api/allergies-voice-parse", allergiesVoiceParseHandler);
 app.post("/api/address-voice-parse", addressVoiceParseHandler);
@@ -166,6 +174,7 @@ app.use("/api/companions", authMiddleware, companionsRouter);
 app.use("/api/social", authMiddleware, socialRoomsRouter);
 app.use("/api/meds/adherence-report", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medsAdherenceRouter);
 app.use("/api", authMiddleware, scheduledSupportRouter);
+app.use("/api/caregiver/brain-coach", authMiddleware, caregiverBrainCoachRouter);
 // Also mount at /api/meds so that PATCH /api/meds/:id and DELETE /api/meds/:id
 // work as specified. Requests to /api/meds/adherence-report/... are matched
 // by the more-specific mount above, so they never reach this one.

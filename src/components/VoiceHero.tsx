@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef } from "react";
 import { Mic, MessageCircle, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { type TranscriptEntry, useVyvaVoice } from "@/hooks/useVyvaVoice";
-import { type HeroSurface } from "@/lib/heroMessages";
+import { recordHeroEvent, type HeroSurface } from "@/lib/heroMessages";
 import { type UseHeroMessageOptions, useHeroMessage } from "@/hooks/useHeroMessage";
 import VoiceCallOverlay from "@/components/VoiceCallOverlay";
 import VyvaAvatar from "@/components/VyvaAvatar";
@@ -161,6 +161,17 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   ]);
 
   const handleTalk = () => {
+    if (!isActive && dynamicHero) {
+      recordHeroEvent({
+        messageId: dynamicHero.messageId,
+        surface: dynamicHero.surface,
+        language: dynamicHero.language,
+        eventType: "cta_click",
+        reason: dynamicHero.reason,
+        source: dynamicHero.source,
+      });
+    }
+
     if (isActive) {
       stopVoice();
     } else if (onTalkClick) {
