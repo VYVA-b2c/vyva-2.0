@@ -296,6 +296,8 @@ const en = {
         enterValidReading: "Enter a valid reading first.",
         timeTaken: "Time taken",
         actionNeeded: "Action now",
+        vitalRefinementTitle: "Refine with a reading",
+        vitalRefinementBody: "A relevant reading can help VYVA update this assessment. Phone estimates are useful for trends; device or manual readings are stronger evidence.",
         readConnectedSensor: "Read from connected sensor",
         useLatestReading: "Use latest saved reading",
         noLatestReading: "No saved reading yet",

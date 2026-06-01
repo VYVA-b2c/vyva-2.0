@@ -1318,6 +1318,27 @@ function ReportScreen({
           </div>
         </section>
 
+        {vitalActions.length ? (
+          <section className="rounded-[24px] border border-[#DDD6FE] bg-[#FAF5FF] p-4 shadow-[0_8px_22px_rgba(107,33,168,0.06)]" data-testid="card-report-vital-refinement-note">
+            <div className="flex items-start gap-3">
+              <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-vyva-purple shadow-sm">
+                <Activity size={21} />
+              </span>
+              <div className="min-w-0">
+                <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-purple">
+                  {t("health.symptomCheck.report.vitalRefinementTitle", "Refine with a reading")}
+                </p>
+                <p className="mt-1 font-body text-[16px] font-bold leading-snug text-vyva-text-2">
+                  {t(
+                    "health.symptomCheck.report.vitalRefinementBody",
+                    "A relevant reading can help VYVA update this assessment. Phone estimates are useful for trends; device or manual readings are stronger evidence.",
+                  )}
+                </p>
+              </div>
+            </div>
+          </section>
+        ) : null}
+
         <div className="grid grid-cols-1 gap-3">
           {vitalActions.map((action) => {
             const open = openVitalKey === action.key;

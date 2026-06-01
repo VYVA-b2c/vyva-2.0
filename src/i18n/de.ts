@@ -297,6 +297,8 @@ const de = {
         enterValidReading: "Geben Sie zuerst einen gultigen Wert ein.",
         timeTaken: "Dauer",
         actionNeeded: "Jetzt handeln",
+        vitalRefinementTitle: "Mit einem Wert verfeinern",
+        vitalRefinementBody: "Ein passender Wert kann VYVA helfen, diese Einschatzung zu aktualisieren. Telefonschatzungen sind fur Trends hilfreich; Gerate- oder manuelle Werte sind starkere Hinweise.",
         readConnectedSensor: "Verbundenen Sensor auslesen",
         useLatestReading: "Letzten gespeicherten Wert nutzen",
         noLatestReading: "Noch kein gespeicherter Wert",

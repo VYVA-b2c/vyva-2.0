@@ -292,6 +292,8 @@ const it = {
         enterValidReading: "Inserisci prima una lettura valida.",
         timeTaken: "Tempo impiegato",
         actionNeeded: "Azione ora",
+        vitalRefinementTitle: "Affina con una lettura",
+        vitalRefinementBody: "Una lettura pertinente puo aiutare VYVA ad aggiornare questa valutazione. Le stime del telefono sono utili per le tendenze; le letture da dispositivo o manuali sono prove piu forti.",
         readConnectedSensor: "Leggi sensore collegato",
         useLatestReading: "Usa ultima lettura salvata",
         noLatestReading: "Nessuna lettura salvata",
