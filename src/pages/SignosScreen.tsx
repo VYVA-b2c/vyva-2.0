@@ -164,17 +164,24 @@ function getMetricState(meta: MetricMeta, value: string | null) {
   return { tone: "steady", color: "#047857", bg: "#D1FAE5" };
 }
 
-function confidenceLabel(confidence?: VitalsSourceConfidence | null) {
-  if (confidence === "high") return "High";
-  if (confidence === "low") return "Low";
-  return "Medium";
+function confidenceLabel(confidence: VitalsSourceConfidence | null | undefined, t: (key: string, fallback: string) => string) {
+  if (confidence === "high") return t("statusVitals.confidence.high", "High");
+  if (confidence === "low") return t("statusVitals.confidence.low", "Low");
+  return t("statusVitals.confidence.medium", "Medium");
 }
 
-function sourceTone(summary: VitalsSummaryEntry | undefined, metricKey: MetricType) {
+function sourceLabel(source: ReadingSource | null | undefined, fallback: string, t: (key: string, fallback: string) => string) {
+  if (source === "phone_estimate") return t("statusVitals.source.phoneEstimate", fallback);
+  if (source === "connected_device") return t("statusVitals.source.connectedDevice", fallback);
+  if (source === "clinical") return t("statusVitals.source.clinical", fallback);
+  return t("statusVitals.source.manual", fallback);
+}
+
+function sourceTone(summary: VitalsSummaryEntry | undefined, metricKey: MetricType, t: (key: string, fallback: string) => string) {
   const source = summary?.latest_source;
   const evidence = vitalsEvidenceFor(source, ENGINE_SIGNAL_BY_METRIC[metricKey]);
   const confidence = summary?.latest_source_confidence ?? evidence.confidence;
-  const label = `${summary?.latest_source_display_label ?? evidence.displayLabel} - ${confidenceLabel(confidence)}`;
+  const label = `${sourceLabel(source, summary?.latest_source_display_label ?? evidence.displayLabel, t)} - ${confidenceLabel(confidence, t)}`;
   if (source === "phone_estimate") return { label, color: "#6B21A8", bg: "#F5F3FF" };
   if (source === "connected_device") {
     return { label, color: "#047857", bg: "#D1FAE5" };
@@ -230,7 +237,7 @@ function MetricCard({
   const displayValue = hasData ? summary?.latest_value ?? "--" : "--";
   const hasTrend = trend.some((value) => value > 0);
   const state = getMetricState(meta, summary?.latest_value ?? null);
-  const source = sourceTone(summary, metricKey);
+  const source = sourceTone(summary, metricKey, t);
   const stateLabel =
     state.tone === "steady"
       ? t("statusVitals.status.steady", "Steady")
@@ -273,7 +280,7 @@ function MetricCard({
           </span>
           {hasData && (
             <span className="rounded-full px-3 py-1 font-body text-[11px] font-bold" style={{ color: source.color, background: source.bg }}>
-              {t(`statusVitals.source.${summary?.latest_source ?? "manual_entry"}`, source.label)}
+              {source.label}
             </span>
           )}
           {hasTrend && (
