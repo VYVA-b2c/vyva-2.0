@@ -782,7 +782,12 @@
         "emergencyBody": "Appelez les urgences maintenant. Ne conduisez pas vous-m?me. Gardez ce rapport ouvert pour les intervenants.",
         "contextUsed": "Ce que VYVA a pris en compte",
         "doctorNoteTitle": "Note pr?te pour le m?decin",
-        "doctorNoteSub": "Texte simple ? lire, montrer ou partager."
+        "doctorNoteSub": "Texte simple ? lire, montrer ou partager.",
+        "invalidPainReading": "Saisissez une douleur de 0 ? 10.",
+        "invalidEnergyReading": "Saisissez une ?nergie de 1 ? 10.",
+        "updatedReadingChanged": "Mis ? jour avec {{display}}. La prochaine ?tape a chang?. Le rapport est mis ? jour et pr?t ? partager.",
+        "updatedReadingSame": "Mis ? jour avec {{display}}. La prochaine ?tape reste la m?me. Le rapport est mis ? jour et pr?t ? partager.",
+        "updateReadingFailed": "Impossible de mettre ? jour avec cette mesure. Le rapport original reste disponible."
       }
     },
     "scanWound": {

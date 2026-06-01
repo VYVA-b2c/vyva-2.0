@@ -767,7 +767,12 @@
         "emergencyBody": "Ligue j? para os servi?os de emerg?ncia. N?o conduza. Mantenha este relat?rio aberto para a equipa de resposta.",
         "contextUsed": "O que a VYVA considerou",
         "doctorNoteTitle": "Nota pronta para o m?dico",
-        "doctorNoteSub": "Texto simples para ler, mostrar ou partilhar."
+        "doctorNoteSub": "Texto simples para ler, mostrar ou partilhar.",
+        "invalidPainReading": "Introduza dor de 0 a 10.",
+        "invalidEnergyReading": "Introduza energia de 1 a 10.",
+        "updatedReadingChanged": "Atualizado com {{display}}. O pr?ximo passo mudou. Relat?rio atualizado e pronto para partilhar.",
+        "updatedReadingSame": "Atualizado com {{display}}. O pr?ximo passo manteve-se igual. Relat?rio atualizado e pronto para partilhar.",
+        "updateReadingFailed": "N?o foi poss?vel atualizar com esta leitura. O relat?rio original continua dispon?vel."
       }
     },
     "scanWound": {

@@ -55,6 +55,7 @@ type RefinementVitalConfig = {
   placeholder: string;
   helper: string;
   signalType: string;
+  invalidMessage?: string;
   parse: (raw: string) => { value: number; extraValue?: number; display: string; vitals: Record<string, number> } | null;
 };
 
@@ -552,6 +553,12 @@ function parseNumber(raw: string) {
   return Number.isFinite(value) ? value : null;
 }
 
+function parseRangeNumber(raw: string, min: number, max: number) {
+  const value = parseNumber(raw);
+  if (value == null || value < min || value > max) return null;
+  return value;
+}
+
 function parseBloodPressure(raw: string) {
   const match = raw.trim().match(/^(\d{2,3})\s*[/ ]\s*(\d{2,3})$/);
   if (!match) return null;
@@ -767,8 +774,9 @@ function ReportScreen({
           placeholder: "6",
           helper: t("health.symptomCheck.report.checkPainReason", "Use 0 for no pain and 10 for the worst pain."),
           signalType: "pain_score",
+          invalidMessage: t("health.symptomCheck.report.invalidPainReading", "Enter pain from 0 to 10."),
           parse: (raw) => {
-            const value = parseNumber(raw);
+            const value = parseRangeNumber(raw, 0, 10);
             return value == null ? null : { value, display: `${value}/10`, vitals: { painScore: value } };
           },
         }
@@ -781,8 +789,9 @@ function ReportScreen({
           placeholder: "4",
           helper: t("health.symptomCheck.report.checkEnergyReason", "Use 1 for very low energy and 10 for normal/high energy."),
           signalType: "energy_level",
+          invalidMessage: t("health.symptomCheck.report.invalidEnergyReading", "Enter energy from 1 to 10."),
           parse: (raw) => {
-            const value = parseNumber(raw);
+            const value = parseRangeNumber(raw, 1, 10);
             return value == null ? null : { value, display: `${value}/10`, vitals: { energyLevel: value } };
           },
         }
@@ -972,7 +981,7 @@ function ReportScreen({
   const handleRefineVital = async (config: RefinementVitalConfig, rawValue: string) => {
     const parsed = config.parse(rawValue);
     if (!parsed) {
-      setVitalInputError(t("health.symptomCheck.report.enterValidReading", "Enter a valid reading first."));
+      setVitalInputError(config.invalidMessage ?? t("health.symptomCheck.report.enterValidReading", "Enter a valid reading first."));
       return;
     }
     setVitalInputError(null);

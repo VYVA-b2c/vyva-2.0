@@ -767,7 +767,12 @@
         "emergencyBody": "Rufen Sie jetzt den Notdienst. Fahren Sie nicht selbst. Lassen Sie diesen Bericht f?r die Einsatzkr?fte ge?ffnet.",
         "contextUsed": "Was VYVA ber?cksichtigt hat",
         "doctorNoteTitle": "Arztfertige Notiz",
-        "doctorNoteSub": "Einfacher Text zum Vorlesen, Zeigen oder Teilen."
+        "doctorNoteSub": "Einfacher Text zum Vorlesen, Zeigen oder Teilen.",
+        "invalidPainReading": "Geben Sie Schmerz von 0 bis 10 ein.",
+        "invalidEnergyReading": "Geben Sie Energie von 1 bis 10 ein.",
+        "updatedReadingChanged": "Mit {{display}} aktualisiert. Der n?chste Schritt hat sich ge?ndert. Der Bericht ist aktualisiert und bereit zum Teilen.",
+        "updatedReadingSame": "Mit {{display}} aktualisiert. Der n?chste Schritt blieb gleich. Der Bericht ist aktualisiert und bereit zum Teilen.",
+        "updateReadingFailed": "Aktualisierung mit diesem Wert war nicht m?glich. Der urspr?ngliche Bericht bleibt verf?gbar."
       }
     },
     "scanWound": {

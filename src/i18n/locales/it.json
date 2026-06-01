@@ -803,7 +803,7 @@
         "symptoms": "Sintomi rilevati",
         "recommendations": "Cosa fare dopo",
         "doNow": "Da fare ora",
-        "whyThisStep": "Valutazione iniziale",
+        "whyThisStep": "Perch? VYVA ha scelto questo",
         "nextStepsTitle": "Prossimi passi",
         "nextStepsSubtitle": "I segni vitali arrivano dopo la conversazione. Scegli cosa aiuta ora.",
         "relevantVitalsEyebrow": "Parametri rilevanti",
@@ -861,7 +861,6 @@
         "checkPulseReason": "Aggiungi il polso da un dispositivo o contalo manualmente.",
         "tellMainSymptom": "Sintomo principale",
         "nextStep": "Prossimo passo",
-        "whyThisStep": "Perch? VYVA ha scelto questo",
         "vitalsUsed": "Parametri usati",
         "profileConsidered": "Profilo considerato",
         "watchSigns": "Segnali da osservare",
@@ -884,7 +883,12 @@
         "emergencyBody": "Chiama subito i servizi di emergenza. Non guidare. Tieni aperto questo rapporto per i soccorritori.",
         "contextUsed": "Cosa ha considerato VYVA",
         "doctorNoteTitle": "Nota pronta per il medico",
-        "doctorNoteSub": "Testo semplice da leggere, mostrare o condividere."
+        "doctorNoteSub": "Testo semplice da leggere, mostrare o condividere.",
+        "invalidPainReading": "Inserisci dolore da 0 a 10.",
+        "invalidEnergyReading": "Inserisci energia da 1 a 10.",
+        "updatedReadingChanged": "Aggiornato con {{display}}. Il prossimo passo ? cambiato. Report aggiornato e pronto da condividere.",
+        "updatedReadingSame": "Aggiornato con {{display}}. Il prossimo passo ? rimasto lo stesso. Report aggiornato e pronto da condividere.",
+        "updateReadingFailed": "Non ? stato possibile aggiornare con questa lettura. Il report originale resta disponibile."
       }
     },
     "scanWound": {
