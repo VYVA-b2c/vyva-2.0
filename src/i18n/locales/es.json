@@ -933,8 +933,8 @@
         "doctorNoteTitle": "Nota lista para el médico",
         "doctorNoteSub": "Texto sencillo para leer, mostrar o compartir.",
         "invalidPainReading": "Introduce dolor de 0 a 10.",
-        "invalidEnergyReading": "Introduce energ?a de 1 a 10.",
-        "updatedReadingChanged": "Actualizado con {{display}}. El siguiente paso cambi?. Informe actualizado y listo para compartir.",
+        "invalidEnergyReading": "Introduce energía de 1 a 10.",
+        "updatedReadingChanged": "Actualizado con {{display}}. El siguiente paso cambió. Informe actualizado y listo para compartir.",
         "updatedReadingSame": "Actualizado con {{display}}. El siguiente paso se mantuvo igual. Informe actualizado y listo para compartir.",
         "updateReadingFailed": "No se pudo actualizar con esta lectura. El informe original sigue disponible."
       }
