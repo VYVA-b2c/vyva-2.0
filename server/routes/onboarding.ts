@@ -167,6 +167,10 @@ function hasText(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+function trimmedTextOrNull(value: unknown): string | null {
+  return hasText(value) ? value.trim() : null;
+}
+
 function splitTimes(value: unknown): string[] | undefined {
   if (Array.isArray(value)) {
     const times = value.filter(hasText).map((time) => time.trim());
@@ -1390,15 +1394,42 @@ onboardingRouter.post("/section/:sectionId", async (req: Request, res: Response)
       await Promise.all(fieldsToMark.map((f) => markField(userId, f)));
     } else if (sectionId === "gp") {
       const profileUpdates: Record<string, unknown> = { updated_at: new Date() };
-      if (data.gp_name     !== undefined) profileUpdates.gp_name     = data.gp_name;
-      if (data.gp_phone    !== undefined) profileUpdates.gp_phone    = data.gp_phone;
-      if (data.gp_email    !== undefined) profileUpdates.gp_email    = data.gp_email;
-      if (data.gp_address  !== undefined) profileUpdates.gp_address  = data.gp_address;
-      if (data.gp_maps_url !== undefined) profileUpdates.gp_maps_url = data.gp_maps_url;
-      if (data.gp_place_id !== undefined) profileUpdates.gp_place_id = data.gp_place_id;
+      if (data.gp_name     !== undefined) profileUpdates.gp_name     = trimmedTextOrNull(data.gp_name);
+      if (data.gp_phone    !== undefined) profileUpdates.gp_phone    = trimmedTextOrNull(data.gp_phone);
+      if (data.gp_email    !== undefined) profileUpdates.gp_email    = trimmedTextOrNull(data.gp_email);
+      if (data.gp_address  !== undefined) profileUpdates.gp_address  = trimmedTextOrNull(data.gp_address);
+      if (data.gp_maps_url !== undefined) profileUpdates.gp_maps_url = trimmedTextOrNull(data.gp_maps_url);
+      if (data.gp_place_id !== undefined) profileUpdates.gp_place_id = trimmedTextOrNull(data.gp_place_id);
+
+      const [currentProfile] = await db
+        .select({
+          gp_name: profiles.gp_name,
+          gp_phone: profiles.gp_phone,
+          gp_email: profiles.gp_email,
+          gp_address: profiles.gp_address,
+        })
+        .from(profiles)
+        .where(eq(profiles.id, userId))
+        .limit(1);
+
+      const nextGpDetails = {
+        gp_name: data.gp_name !== undefined ? profileUpdates.gp_name : currentProfile?.gp_name,
+        gp_phone: data.gp_phone !== undefined ? profileUpdates.gp_phone : currentProfile?.gp_phone,
+        gp_email: data.gp_email !== undefined ? profileUpdates.gp_email : currentProfile?.gp_email,
+        gp_address: data.gp_address !== undefined ? profileUpdates.gp_address : currentProfile?.gp_address,
+      };
+
+      const hasGpDetails = Object.values(nextGpDetails).some(hasText);
 
       await db.update(profiles).set(profileUpdates).where(eq(profiles.id, userId));
-      await markField(userId, "has_gp_details");
+      if (hasGpDetails) {
+        await markField(userId, "has_gp_details");
+      } else {
+        await db
+          .update(onboardingState)
+          .set({ has_gp_details: false, updated_at: new Date() })
+          .where(eq(onboardingState.user_id, userId));
+      }
     } else if (sectionId === "careteam") {
       const ct = data as {
         role: "family" | "carer" | "doctor";
