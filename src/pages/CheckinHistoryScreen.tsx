@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, CalendarDays, Check, HeartPulse, Loader2, Share2, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/contexts/ProfileContext";
+import { useLanguage } from "@/i18n";
 
 type CheckinHistoryReport = {
   id: string;
@@ -65,8 +66,8 @@ function shareText(report: CheckinHistoryReport, name: string) {
 const CheckinHistoryScreen = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { firstName, profile } = useProfile();
-  const language = profile?.language ?? "es";
+  const { firstName } = useProfile();
+  const { language } = useLanguage();
   const name = firstName.trim();
   const { data, isLoading, isError } = useQuery<CheckinHistoryResponse>({
     queryKey: ["/api/checkins/history"],

@@ -37,6 +37,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
+import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import { vitalsEvidenceFor, type VitalsSourceConfidence } from "../../shared/vitalsEvidence";
 
@@ -482,7 +483,8 @@ function ScanModal({ onClose }: { onClose: () => void }) {
 
 const SignosScreen = () => {
   const navigate = useNavigate();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const { language: appLanguage } = useLanguage();
   const { toast } = useToast();
   const { user } = useAuth();
   const { profile } = useProfile();
@@ -522,7 +524,7 @@ const SignosScreen = () => {
 
   const metricsWithData = (["hr", "rr", "bp"] as MetricType[]).filter((key) => summary?.[key]?.has_data).length;
   const latestText = latestReadingAt
-    ? formatRecordedAt(latestReadingAt, i18n.language)
+    ? formatRecordedAt(latestReadingAt, appLanguage)
     : t("statusVitals.noLatest", "No recent readings");
   const completionPct = Math.round((filledDays / 7) * 100);
   const overallGood = metricsWithData > 0 && filledDays >= 3;
@@ -671,7 +673,7 @@ const SignosScreen = () => {
           <VitalsTracker
             userId={user.id}
             userConditions={personalisationData?.conditions ?? []}
-            language={vitalsTrackerLanguage(profile?.language ?? i18n.language)}
+            language={vitalsTrackerLanguage(appLanguage)}
           />
         </div>
       )}
