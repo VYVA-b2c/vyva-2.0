@@ -627,7 +627,7 @@ const SignosScreen = () => {
     <HealthWizardShell>
       <HealthWizardTopBar
         title={t("statusVitals.title", "Status / Vitals")}
-        kicker={t("health.quickTiles.status.label", "Status")}
+        kicker={t("health.quickTiles.status.label", "Vitals")}
         onBack={() => navigate("/health")}
         backLabel={t("common.back", "Back")}
         className="mb-3"

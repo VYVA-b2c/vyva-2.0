@@ -543,6 +543,7 @@ async function applyProfileSections(
     postcode: textOrNull(address.postcode),
     gp_name: textOrNull(gp.gp_name),
     gp_phone: textOrNull(gp.gp_phone),
+    gp_email: textOrNull(gp.gp_email),
     gp_address: textOrNull(gp.gp_address),
     gp_maps_url: textOrNull(gp.gp_maps_url),
     gp_place_id: textOrNull(gp.gp_place_id),

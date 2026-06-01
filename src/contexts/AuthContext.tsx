@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { getToken, setToken, clearToken, isAuthenticated } from "@/lib/auth";
 import { queryClient } from "@/lib/queryClient";
-import { setAccountLanguage } from "@/i18n";
+import { getLanguageSnapshot, setAccountLanguage } from "@/i18n";
 import { signInWithSupabase } from "@/lib/supabaseAuth";
 
 const ONBOARDING_STATE_KEY = ["/api/onboarding/state"] as const;
@@ -82,6 +82,14 @@ function apiErrorMessage(data: unknown, fallback: string): string {
   return fallback;
 }
 
+function languageHeaders(init?: HeadersInit): Headers {
+  const headers = new Headers(init);
+  const language = getLanguageSnapshot();
+  headers.set("X-VYVA-Language", language.language);
+  headers.set("X-VYVA-Language-Source", language.source);
+  return headers;
+}
+
 function responseUser(data: {
   userId?: string;
   id?: string;
@@ -102,9 +110,10 @@ function responseUser(data: {
 }
 
 async function loadCurrentUser(token?: string | null, fallback?: { userId?: string; email?: string | null }): Promise<CurrentUserResult> {
+  const headers = languageHeaders(token ? { Authorization: `Bearer ${token}` } : undefined);
   const response = await fetch("/api/auth/me", {
     credentials: "same-origin",
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    headers,
   });
 
   if (!response.ok) {
@@ -200,7 +209,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const res = await fetch("/api/auth/login", {
       method: "POST",
       credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
+      headers: languageHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ ...contactPayload(identifier), password }),
     }).catch((err) => {
       throw new Error(err instanceof TypeError ? LOCAL_API_UNAVAILABLE_MESSAGE : "Login failed");
@@ -211,11 +220,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [applyToken]);
 
   const register = useCallback(async (identifier: string | AuthIdentifier, password: string) => {
+    const payload = contactPayload(identifier);
     const res = await fetch("/api/auth/register", {
       method: "POST",
       credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...contactPayload(identifier), password }),
+      headers: languageHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ ...payload, language: payload.language ?? getLanguageSnapshot().language, password }),
     }).catch((err) => {
       throw new Error(err instanceof TypeError ? LOCAL_API_UNAVAILABLE_MESSAGE : "Registration failed");
     });
@@ -228,7 +238,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const res = await fetch("/api/auth/magic-link-request", {
       method: "POST",
       credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
+      headers: languageHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(contactPayload(identifier)),
     }).catch((err) => {
       throw new Error(err instanceof TypeError ? LOCAL_API_UNAVAILABLE_MESSAGE : "Could not send sign-in link");
@@ -242,7 +252,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const res = await fetch("/api/auth/magic-login", {
       method: "POST",
       credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
+      headers: languageHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ token: magicToken }),
     }).catch((err) => {
       throw new Error(err instanceof TypeError ? LOCAL_API_UNAVAILABLE_MESSAGE : "This sign-in link did not work");

@@ -90,10 +90,14 @@ function normalizePhone(value: unknown): string | null {
 
 function normalizeProfileLanguage(value: unknown): ProfileLanguage {
   if (typeof value !== "string") return "es";
-  const raw = value.trim().toLowerCase();
+  const raw = value.trim().toLowerCase().split("-")[0];
   return SUPPORTED_PROFILE_LANGUAGES.includes(raw as ProfileLanguage)
     ? raw as ProfileLanguage
     : "es";
+}
+
+function resolveProfileLanguage(profile?: { language?: string | null; language_preference?: string | null } | null): ProfileLanguage {
+  return normalizeProfileLanguage(profile?.language_preference ?? profile?.language);
 }
 
 function resolveContactIdentifier(body: {
@@ -199,6 +203,7 @@ async function getOrCreateAuthenticatedProfile(userId: string, email?: unknown) 
       email: profiles.email,
       phone: profiles.phone_number,
       language: profiles.language,
+      language_preference: profiles.language_preference,
       role: profiles.role,
     });
 
@@ -210,6 +215,7 @@ async function getOrCreateAuthenticatedProfile(userId: string, email?: unknown) 
       email: profiles.email,
       phone: profiles.phone_number,
       language: profiles.language,
+      language_preference: profiles.language_preference,
       role: profiles.role,
     })
     .from(profiles)
@@ -224,12 +230,12 @@ async function getUserProfileLanguage(userId: string): Promise<ProfileLanguage> 
   if (!context.profileId) return "es";
 
   const [profile] = await db
-    .select({ language: profiles.language })
+    .select({ language: profiles.language, language_preference: profiles.language_preference })
     .from(profiles)
     .where(eq(profiles.id, context.profileId))
     .limit(1);
 
-  return normalizeProfileLanguage(profile?.language);
+  return resolveProfileLanguage(profile);
 }
 
 function authResponseUser(
@@ -260,6 +266,7 @@ async function seedRegistrationProfile(user: typeof users.$inferSelect, language
       email: user.email,
       phone_number: user.phone_number,
       language,
+      language_preference: language,
       onboarding_channel: "web_form",
       current_stage: "stage_1_identity",
       ...trialPatch,
@@ -270,6 +277,7 @@ async function seedRegistrationProfile(user: typeof users.$inferSelect, language
         ...(user.email ? { email: user.email } : {}),
         ...(user.phone_number ? { phone_number: user.phone_number } : {}),
         language,
+        language_preference: language,
         updated_at: now,
       },
     });
@@ -399,7 +407,7 @@ authRouter.post("/register", async (req: Request, res: Response) => {
   }
 
   const { password } = parsed.data;
-  const language = normalizeProfileLanguage(parsed.data.language);
+  const language = normalizeProfileLanguage(parsed.data.language ?? req.language);
   const contact = resolveContactIdentifier(parsed.data);
   if (!contact) {
     return res.status(400).json({ error: "Please enter a valid email address or mobile number." });
@@ -500,7 +508,7 @@ authRouter.get("/me", authMiddleware, async (req: Request, res: Response) => {
         email: profile.email ?? (typeof req.user.email === "string" ? req.user.email : null),
         phone: profile.phone ?? null,
         activeProfileId: profile.id,
-        language: normalizeProfileLanguage(profile.language),
+        language: resolveProfileLanguage(profile),
         role: isSuperAdminEmail(profile.email) || isSuperAdminEmail(req.user.email) ? "admin" : profile.role ?? "user",
         prevSeenAt: null,
       });

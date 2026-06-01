@@ -356,23 +356,31 @@ async function createNoResponseAlert(userId: string, schedule: ScheduleRow, stat
   return { alert: alert ?? null, canAlert: true, reason: null };
 }
 
-function messageFor(status: DailyCheckinScheduleStatus["state"], alertReason: string | null) {
-  if (status === "completed") return "You checked in today. VYVA has a fresh wellbeing signal.";
-  if (status === "due_now") return "Your daily check-in is ready. A quick answer lets everyone know you are okay.";
-  if (status === "overdue") {
-    return alertReason
-      ? "The daily check-in is overdue. Add or confirm a caregiver contact so VYVA can escalate when needed."
-      : "The daily check-in is overdue, so VYVA has recorded a caregiver safety alert.";
-  }
-  if (status === "upcoming") return "Your daily check-in is scheduled for later today.";
-  return "Set a daily check-in time so VYVA can notice if you do not respond.";
+function isSpanishLocale(locale: string | null | undefined) {
+  return String(locale ?? "").split("-")[0].toLowerCase() === "es";
 }
 
-function actionLabelFor(status: DailyCheckinScheduleStatus["state"]) {
-  if (status === "completed") return "View history";
-  if (status === "upcoming") return "Check in early";
-  if (status === "not_scheduled") return "Set up check-in";
-  return "Check in now";
+function dailyText(locale: string | null | undefined, english: string, spanish: string) {
+  return isSpanishLocale(locale) ? spanish : english;
+}
+
+function messageFor(status: DailyCheckinScheduleStatus["state"], alertReason: string | null, locale?: string | null) {
+  if (status === "completed") return dailyText(locale, "You checked in today. VYVA has a fresh wellbeing signal.", "Has completado el control de hoy. VYVA tiene una nueva senal de bienestar.");
+  if (status === "due_now") return dailyText(locale, "Your daily check-in is ready. A quick answer lets everyone know you are okay.", "Tu control diario esta listo. Una respuesta rapida ayuda a saber que estas bien.");
+  if (status === "overdue") {
+    return alertReason
+      ? dailyText(locale, "The daily check-in is overdue. Add or confirm a caregiver contact so VYVA can escalate when needed.", "El control diario esta pendiente. Anade o confirma un contacto de cuidador para que VYVA pueda avisar si hace falta.")
+      : dailyText(locale, "The daily check-in is overdue, so VYVA has recorded a caregiver safety alert.", "El control diario esta pendiente, asi que VYVA ha registrado una alerta de seguridad para tu cuidador.");
+  }
+  if (status === "upcoming") return dailyText(locale, "Your daily check-in is scheduled for later today.", "Tu control diario esta programado para mas tarde hoy.");
+  return dailyText(locale, "Set a daily check-in time so VYVA can notice if you do not respond.", "Configura una hora diaria para que VYVA pueda notar si no respondes.");
+}
+
+function actionLabelFor(status: DailyCheckinScheduleStatus["state"], locale?: string | null) {
+  if (status === "completed") return dailyText(locale, "View history", "Ver historial");
+  if (status === "upcoming") return dailyText(locale, "Check in early", "Hacerlo antes");
+  if (status === "not_scheduled") return dailyText(locale, "Set up check-in", "Configurar control");
+  return dailyText(locale, "Check in now", "Hacer control ahora");
 }
 
 export async function getDailyCheckinTodayStatus(
@@ -381,7 +389,9 @@ export async function getDailyCheckinTodayStatus(
 ): Promise<DailyCheckinTodayStatus> {
   const now = options.now ?? new Date();
   const schedule = await activeCheckinSchedule(userId, options.createDefaultSchedule ?? true, now);
-  const timezone = schedule?.timezone || (await profileContext(userId))?.timezone || "Europe/Madrid";
+  const profile = await profileContext(userId);
+  const locale = profile?.language ?? "en";
+  const timezone = schedule?.timezone || profile?.timezone || "Europe/Madrid";
   const scheduledTimes = schedule ? normalizeCheckinTimes(schedule.times_of_day) : [];
   const provisional = evaluateDailyCheckinSchedule({
     now,
@@ -459,8 +469,8 @@ export async function getDailyCheckinTodayStatus(
       reason: alertReason,
     },
     caregiver_alert: alert,
-    message: messageFor(status.state, alertReason),
-    action_label: actionLabelFor(status.state),
+    message: messageFor(status.state, alertReason, locale),
+    action_label: actionLabelFor(status.state, locale),
   };
 }
 

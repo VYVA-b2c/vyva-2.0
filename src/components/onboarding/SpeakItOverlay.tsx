@@ -8,12 +8,27 @@ interface SpeakItOverlayProps {
   onCancel: () => void;
 }
 
-declare global {
-  interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
-  }
-}
+type BrowserSpeechRecognitionEvent = {
+  results: ArrayLike<ArrayLike<{ transcript: string }>>;
+};
+
+type BrowserSpeechRecognition = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start: () => void;
+  stop: () => void;
+  onresult: ((event: BrowserSpeechRecognitionEvent) => void) | null;
+  onend: (() => void) | null;
+};
+
+type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
+
+type SpeechRecognitionWindow = {
+  SpeechRecognition?: BrowserSpeechRecognitionConstructor;
+  webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor;
+};
+
 
 const SpeakItOverlay = ({ title, hint, onDone, onCancel }: SpeakItOverlayProps) => {
   const [isListening, setIsListening] = useState(false);
@@ -21,10 +36,11 @@ const SpeakItOverlay = ({ title, hint, onDone, onCancel }: SpeakItOverlayProps) 
   const [hasSupport, setHasSupport] = useState(false);
   const [manualText, setManualText] = useState("");
   const [micError, setMicError] = useState<string | null>(null);
-  const recRef = useRef<SpeechRecognition | null>(null);
+  const recRef = useRef<BrowserSpeechRecognition | null>(null);
 
   useEffect(() => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const speechWindow = window as unknown as SpeechRecognitionWindow;
+    const SR = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
     if (SR) {
       setHasSupport(true);
       const rec = new SR();

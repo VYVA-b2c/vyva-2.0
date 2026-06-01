@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
+import { apiFetch } from "@/lib/queryClient";
 import {
   VYVA_VOICE_APP_ACTION_EVENT,
   VYVA_VOICE_APP_ACTION_RESULT_EVENT,
@@ -57,6 +58,17 @@ function baseFeedbackMetadata(action: VoiceAppAction) {
     voice_action_title: action.title,
     voice_action_reason: action.feedbackReason,
   };
+}
+
+function payloadString(payload: VoiceAppAction["payload"] | undefined, key: string) {
+  const value = payload?.[key];
+  return typeof value === "string" ? value : "";
+}
+
+function planEventTypeForFeedback(feedbackAction: "accepted" | "completed" | "dismissed") {
+  if (feedbackAction === "accepted") return "accepted";
+  if (feedbackAction === "dismissed") return "skipped";
+  return "started";
 }
 
 export function VoiceActionProvider({ children }: { children: ReactNode }) {
@@ -117,6 +129,26 @@ export function VoiceActionProvider({ children }: { children: ReactNode }) {
         },
         feedbackOverride(state.action),
       );
+      const planId = payloadString(state.action.payload, "plan_id");
+      const planItemId = payloadString(state.action.payload, "plan_item_id");
+      const activityType = payloadString(state.action.payload, "activity_type");
+      if (state.action.domain === "brain_coach" && planId && (planItemId || activityType)) {
+        void apiFetch("/api/games/daily-plan/events", {
+          method: "POST",
+          body: JSON.stringify({
+            planId,
+            ...(planItemId ? { planItemId } : {}),
+            ...(activityType ? { activityType } : {}),
+            eventType: planEventTypeForFeedback(feedbackAction),
+            source: "voice_action_context",
+            metadata: {
+              voice_action_id: state.action.id,
+              voice_feedback_action: feedbackAction,
+              route: state.action.route,
+            },
+          }),
+        }).catch(() => undefined);
+      }
     },
     [recordRecommendationFeedback],
   );

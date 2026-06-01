@@ -2,12 +2,12 @@ import React, { lazy, Suspense } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams, useNavigate } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { LanguageControllerProvider, LanguageFrameBoundary, useLanguage } from "@/i18n";
 import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { ProfileProvider } from "@/contexts/ProfileContext";
 import { VoiceActionProvider } from "@/contexts/VoiceActionContext";
@@ -40,6 +40,7 @@ import DualTaskWalk from "./games/DualTaskWalk";
 import CategorySort from "./games/CategorySort";
 import NumberTrails from "./games/NumberTrails";
 import ConciergeScreen from "./pages/ConciergeScreen";
+import ConciergeShoppingScreen from "./pages/ConciergeShoppingScreen";
 import SafeHomeScreen from "./pages/SafeHomeScreen";
 import ScamGuardScreen from "./pages/ScamGuardScreen";
 import SettingsScreen from "./pages/SettingsScreen";
@@ -119,7 +120,7 @@ const SECTION_MAP: Record<string, React.ComponentType> = {
 function SectionRouter() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t } = useLanguage();
   const Section = id ? SECTION_MAP[id] : null;
 
   if (Section) return <Section />;
@@ -341,16 +342,18 @@ function AgentAppContextTracker() {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <ProfileProvider>
+    <LanguageControllerProvider>
+      <AuthProvider>
+        <ProfileProvider>
           <TooltipProvider>
             <Toaster />
             <Sonner />
             <BrowserRouter>
-              <VyvaVoiceProvider>
-                <VoiceActionProvider>
-                  <AgentAppContextTracker />
-                  <Routes>
+              <LanguageFrameBoundary>
+                <VyvaVoiceProvider>
+                  <VoiceActionProvider>
+                    <AgentAppContextTracker />
+                    <Routes>
                 <Route path="/" element={<RootRoute />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/invite" element={<InviteLandingPage />} />
@@ -418,18 +421,21 @@ const App = () => (
                   <Route path="/memory-games/:gameType" element={<AppShell><MemoryGameRunner /></AppShell>} />
                   <Route path="/dual-task-walk" element={<DualTaskWalkRoute />} />
                   <Route path="/concierge" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeScreen /></ServiceGateRoute></AppShell>} />
+                  <Route path="/concierge/shopping" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeShoppingScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/safe-home" element={<AppShell><SafeHomeScreen /></AppShell>} />
                   <Route path="/scam-guard" element={<AppShell><ScamGuardScreen /></AppShell>} />
                   <Route path="/history" element={<AppShell><HistoryScreen /></AppShell>} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </VoiceActionProvider>
-              </VyvaVoiceProvider>
+                    </Routes>
+                  </VoiceActionProvider>
+                </VyvaVoiceProvider>
+              </LanguageFrameBoundary>
             </BrowserRouter>
           </TooltipProvider>
-      </ProfileProvider>
-    </AuthProvider>
+        </ProfileProvider>
+      </AuthProvider>
+    </LanguageControllerProvider>
   </QueryClientProvider>
 );
 

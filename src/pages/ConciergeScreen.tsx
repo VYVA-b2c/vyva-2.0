@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -16,6 +17,7 @@ import {
   Camera,
   FileUp,
   Mic,
+  ShoppingBasket,
   PencilLine,
   Zap,
   X,
@@ -32,6 +34,16 @@ interface ChatMessage {
   role: "user" | "assistant";
   content: string;
 }
+
+type ConciergeRoutePrefill = {
+  kind: "ride" | "appointment" | "home_care_quote";
+  message: string;
+  source?: "symptom_report";
+};
+
+type ConciergeLocationState = {
+  conciergePrefill?: ConciergeRoutePrefill;
+} | null;
 
 interface StoredChatHistory {
   savedAt: string;
@@ -331,6 +343,7 @@ function chatHistoryKey(locale: string) {
 }
 
 const QUICK_ACTIONS = [
+  { key: "shoppingHelper", Icon: ShoppingBasket, color: "#0F766E", bg: "#F0FDFA" },
   { key: "bookRide", Icon: Car, color: "#6B21A8", bg: "#F5F3FF" },
   { key: "scheduleAppt", Icon: Calendar, color: "#0F766E", bg: "#F0FDFA" },
   { key: "researchTopic", Icon: Search, color: "#0A7C4E", bg: "#ECFDF5" },
@@ -680,6 +693,13 @@ async function cancelPendingAction(id: string) {
   }
 }
 
+function phoneHref(phone?: string | null): string {
+  const raw = phone?.trim();
+  if (!raw) return "";
+  const normalized = raw.replace(/[^\d+]/g, "");
+  return `tel:${normalized || raw}`;
+}
+
 function getBookingUrl(item: ConciergePendingItem): string {
   return typeof item.action_payload?.booking_url === "string"
     ? item.action_payload.booking_url.trim()
@@ -740,6 +760,8 @@ type SpeechRecognitionWindow = Window & typeof globalThis & {
 
 const ConciergeScreen = () => {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
+  const location = useLocation();
   const locale = i18n.language.split("-")[0].toLowerCase();
   const isSpanish = locale === "es";
   const autoStartVoice = useRouteVoiceAutoStart();
@@ -759,9 +781,11 @@ const ConciergeScreen = () => {
   const saveReadyRef = useRef(false);
   const billInputRef = useRef<HTMLInputElement>(null);
   const lastAppliedConciergeVoiceActionRef = useRef<string | null>(null);
+  const lastRoutePrefillKeyRef = useRef<string | null>(null);
 
   const [appointmentOpen, setAppointmentOpen] = useState(false);
   const [appointmentNote, setAppointmentNote] = useState("");
+  const [routePrefill, setRoutePrefill] = useState<ConciergeRoutePrefill | null>(null);
   const [offersOpen, setOffersOpen] = useState(false);
   const [savingsPanelView, setSavingsPanelView] = useState<SavingsPanelView>("overview");
   const [offersQuery, setOffersQuery] = useState("");
@@ -885,6 +909,26 @@ const ConciergeScreen = () => {
   }, [conciergeVoiceAction, conciergeVoiceDraft, conciergeVoiceTaskType]);
 
   useEffect(() => {
+    const prefill = (location.state as ConciergeLocationState)?.conciergePrefill;
+    if (!prefill) return;
+    const message = prefill.message.trim();
+    if (!message) return;
+    const prefillKey = `${prefill.kind}:${message}`;
+    if (lastRoutePrefillKeyRef.current === prefillKey) return;
+
+    lastRoutePrefillKeyRef.current = prefillKey;
+    const nextPrefill = { ...prefill, message };
+    setRoutePrefill(nextPrefill);
+    setInput((current) => current.trim() ? current : message);
+    setOffersOpen(false);
+    setAppointmentOpen(false);
+    setAppointmentNote((current) => current.trim() ? current : message);
+
+    window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+  }, [location.pathname, location.search, location.state, navigate]);
+
+  useEffect(() => {
     try {
       const raw = localStorage.getItem(chatHistoryKey(i18n.language));
       if (raw) {
@@ -968,6 +1012,18 @@ const ConciergeScreen = () => {
     sendMessage(text, nextHistory);
   }
 
+  function sendPrefillToConcierge() {
+    const text = routePrefill?.message.trim() || input.trim();
+    if (!text || chatLoading) return;
+    const userMsg: ChatMessage = { role: "user", content: text };
+    const nextHistory = [...messages, userMsg];
+    setMessages(nextHistory);
+    setInput("");
+    setRoutePrefill(null);
+    setAppointmentOpen(false);
+    sendMessage(text, nextHistory);
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -976,6 +1032,21 @@ const ConciergeScreen = () => {
   }
 
   function handleQuickAction(key: string) {
+    if (key === "shoppingHelper") {
+      navigate("/concierge/shopping");
+      return;
+    }
+    if (key === "bookRide") {
+      const message = isSpanish
+        ? "Ayudame a reservar un transporte seguro. Preguntame destino y horario, prepara opciones claras y no reserves nada sin mi confirmacion."
+        : "Help me book safe transport. Ask for destination and timing, prepare clear options, and do not book anything without my confirmation.";
+      setRoutePrefill({ kind: "ride", message });
+      setInput((current) => current.trim() ? current : message);
+      setAppointmentOpen(false);
+      setOffersOpen(false);
+      window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+      return;
+    }
     if (key === "scheduleAppt") {
       setAppointmentOpen((open) => !open);
       setOffersOpen(false);
@@ -1376,7 +1447,7 @@ const ConciergeScreen = () => {
     chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function handleOfferAction(option: OfferOption) {
+  function handleOfferAssistance(option: OfferOption) {
     if (option.phone) {
       setInput(isSpanish
         ? `Ayudame a contactar con ${option.name} para revisar esta opcion y confirmar el siguiente paso.`
@@ -1394,6 +1465,31 @@ const ConciergeScreen = () => {
   const queuedActionCount = queuedActions.length;
   const priorityOfferIdeas = OFFER_IDEA_CHIPS.slice(0, 3);
   const visibleOfferIdeas = OFFER_IDEA_CHIPS.slice(3 + offersIdeaPage * 4, 3 + offersIdeaPage * 4 + 4);
+  const activeActionPhoneHref = phoneHref(activeAction?.provider_phone);
+  const activeActionBookingUrl = activeAction ? getBookingUrl(activeAction) : "";
+  const routePrefillMeta = routePrefill
+    ? {
+        Icon: routePrefill.kind === "ride" ? Car : routePrefill.kind === "appointment" ? Calendar : PencilLine,
+        title: routePrefill.kind === "ride"
+          ? (isSpanish ? "Transporte seguro preparado" : "Safe transport ready")
+          : routePrefill.kind === "appointment"
+            ? (isSpanish ? "Solicitud de cita preparada" : "Appointment request ready")
+            : (isSpanish ? "Presupuesto de apoyo preparado" : "Support quote ready"),
+        detail: routePrefill.kind === "ride"
+          ? (isSpanish ? "VYVA puede buscar opciones y dejarte confirmar antes de reservar." : "VYVA can find options and let you confirm before booking.")
+          : routePrefill.kind === "appointment"
+            ? (isSpanish ? "VYVA prepara el motivo, proveedor y horario antes de confirmar." : "VYVA prepares the reason, provider, and timing before confirming.")
+            : (isSpanish ? "VYVA puede solicitar una ayuda en casa o compania con confirmacion previa." : "VYVA can request home support or companionship with confirmation first."),
+        primaryLabel: routePrefill.kind === "ride"
+          ? (isSpanish ? "Buscar transporte" : "Find ride options")
+          : routePrefill.kind === "appointment"
+            ? (isSpanish ? "Iniciar solicitud" : "Start appointment request")
+            : (isSpanish ? "Pedir presupuesto" : "Request quote"),
+        secondaryLabel: routePrefill.kind === "appointment"
+          ? (isSpanish ? "Anadir detalles" : "Add details")
+          : (isSpanish ? "Editar solicitud" : "Edit request"),
+      }
+    : null;
 
   function showNextQueuedAction() {
     const nextAction = queuedActions[0] ?? pendingActions[0];
@@ -1424,6 +1520,82 @@ const ConciergeScreen = () => {
           : "VYVA can use the request, date, provider, and location before confirming any action."}
         className="mt-5"
       />
+
+      {routePrefill && routePrefillMeta && (
+        <section
+          className="mt-4 overflow-hidden rounded-[28px] border border-[#D8B4FE] bg-white"
+          style={{ boxShadow: "0 18px 42px rgba(107,33,168,0.16)" }}
+          data-testid="panel-concierge-route-prefill"
+        >
+          <div className="bg-[linear-gradient(135deg,#7C2BE8_0%,#3D0D82_100%)] p-4 text-white">
+            <div className="flex items-start gap-3">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-white/16 text-white shadow-sm">
+                <routePrefillMeta.Icon size={22} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#FFD84D]">
+                  {isSpanish ? "Listo para actuar" : "Ready to act"}
+                </p>
+                <h2 className="mt-1 font-body text-[23px] font-black leading-tight">
+                  {routePrefillMeta.title}
+                </h2>
+                <p className="mt-2 font-body text-[15px] font-bold leading-snug text-white/88">
+                  {routePrefillMeta.detail}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRoutePrefill(null)}
+                className="vyva-tap flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/14 text-white"
+                aria-label={isSpanish ? "Cerrar" : "Close"}
+              >
+                <X size={17} />
+              </button>
+            </div>
+          </div>
+          <div className="p-4">
+            <div className="rounded-[22px] border border-[#E8DED4] bg-[#FFFCF8] p-3">
+              <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-text-3">
+                {isSpanish ? "Solicitud" : "Request"}
+              </p>
+              <p className="mt-1 font-body text-[15px] font-bold leading-relaxed text-vyva-text-1">
+                {routePrefill.message}
+              </p>
+            </div>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={sendPrefillToConcierge}
+                disabled={chatLoading}
+                data-testid="button-concierge-prefill-send"
+                className="vyva-tap inline-flex min-h-[54px] flex-1 items-center justify-center gap-2 rounded-full bg-vyva-purple px-5 font-body text-[17px] font-black text-white shadow-[0_12px_26px_rgba(107,33,168,0.22)] disabled:opacity-60"
+              >
+                {chatLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                {routePrefillMeta.primaryLabel}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (routePrefill.kind === "appointment") {
+                    setAppointmentOpen(true);
+                    window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+                    return;
+                  }
+                  setInput(routePrefill.message);
+                  setRoutePrefill(null);
+                }}
+                className="vyva-tap inline-flex min-h-[54px] flex-1 items-center justify-center gap-2 rounded-full border border-[#D8B4FE] bg-white px-5 font-body text-[17px] font-black text-vyva-purple"
+              >
+                <PencilLine size={18} />
+                {routePrefillMeta.secondaryLabel}
+              </button>
+            </div>
+            <p className="mt-3 rounded-full bg-[#ECFDF5] px-3 py-2 text-center font-body text-[13px] font-black text-[#047857]">
+              {isSpanish ? "Nada se reserva ni solicita sin tu confirmacion." : "Nothing is booked or requested without your confirmation."}
+            </p>
+          </div>
+        </section>
+      )}
 
       {conciergeVoiceAction && (
         <section
@@ -1589,17 +1761,26 @@ const ConciergeScreen = () => {
             </p>
 
             <div className="mt-4 flex flex-wrap gap-2">
-              {activeAction.provider_phone && (
-                <span className="inline-flex items-center gap-2 rounded-full bg-[#F5F3FF] px-3 py-2 font-body text-[12px] text-vyva-text-1">
+              {activeActionPhoneHref && (
+                <a
+                  href={activeActionPhoneHref}
+                  className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#F5F3FF] px-3 py-2 font-body text-[12px] font-black text-vyva-purple"
+                  aria-label={`${isSpanish ? "Llamar" : "Call"} ${activeAction.provider_phone}`}
+                >
                   <PhoneCall size={13} style={{ color: "#6B21A8" }} />
                   {activeAction.provider_phone}
-                </span>
+                </a>
               )}
-              {!activeAction.provider_phone && getBookingUrl(activeAction) && (
-                <span className="inline-flex items-center gap-2 rounded-full bg-[#ECFDF5] px-3 py-2 font-body text-[12px] text-vyva-text-1">
+              {!activeAction.provider_phone && activeActionBookingUrl && (
+                <a
+                  href={activeActionBookingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]"
+                >
                   <Calendar size={13} style={{ color: "#0A7C4E" }} />
                   {isSpanish ? "Reserva online disponible" : "Online booking available"}
-                </span>
+                </a>
               )}
             </div>
 
@@ -1611,8 +1792,8 @@ const ConciergeScreen = () => {
                   disabled={confirmMutation.isPending || cancelMutation.isPending}
                   className="vyva-primary-action h-auto hover:bg-vyva-purple/90"
                 >
-                  <PhoneCall size={16} className="mr-2" />
-                  {!activeAction.provider_phone && getBookingUrl(activeAction)
+                  {!activeAction.provider_phone && activeActionBookingUrl ? <ExternalLink size={16} className="mr-2" /> : <PhoneCall size={16} className="mr-2" />}
+                  {!activeAction.provider_phone && activeActionBookingUrl
                     ? (isSpanish ? "Abrir reserva" : "Open booking")
                     : (isSpanish ? "Confirmar y llamar" : "Confirm and call")}
                 </Button>
@@ -1642,7 +1823,7 @@ const ConciergeScreen = () => {
               data-testid={`button-concierge-action-${key}`}
               onClick={() => handleQuickAction(key)}
               disabled={chatLoading}
-              className="vyva-tap flex min-h-[144px] min-w-0 flex-col items-start justify-between rounded-[28px] border border-vyva-border bg-[#FFFCF8] px-4 py-5 text-left transition-transform active:scale-[0.99] disabled:opacity-50"
+              className={`vyva-tap flex min-h-[144px] min-w-0 flex-col items-start justify-between rounded-[28px] border border-vyva-border bg-[#FFFCF8] px-4 py-5 text-left transition-transform active:scale-[0.99] disabled:opacity-50 ${key === "shoppingHelper" ? "col-span-2" : ""}`}
               style={{ boxShadow: "0 14px 30px rgba(60,38,20,0.08)" }}
             >
               <div
@@ -2272,7 +2453,17 @@ const ConciergeScreen = () => {
                     </p>
                   </div>
                 ) : (
-                  offersResult.options.map((option) => (
+                  offersResult.options.map((option) => {
+                    const offerPhoneHref = phoneHref(option.phone);
+                    const offerUrl = option.website || option.maps_url || "";
+                    const primaryLabel = offerPhoneHref
+                      ? (isSpanish ? "Llamar ahora" : "Call now")
+                      : offerUrl
+                        ? (isSpanish ? "Abrir ahora" : "Open now")
+                        : (isSpanish ? "Pedir ayuda a VYVA" : "Ask VYVA to help");
+                    const PrimaryIcon = offerPhoneHref ? PhoneCall : offerUrl ? ExternalLink : Send;
+
+                    return (
                     <div key={`${option.label}-${option.name}`} className="rounded-[20px] border border-vyva-border bg-white p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -2297,19 +2488,43 @@ const ConciergeScreen = () => {
                         <p className="font-body text-[12px] leading-relaxed text-vyva-text-2">{option.trust_note}</p>
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          onClick={() => handleOfferAction(option)}
-                          className="h-[40px] rounded-full bg-vyva-purple px-4 font-body text-[13px] hover:bg-vyva-purple/90"
-                        >
-                          {option.phone ? (isSpanish ? "Contactar proveedor" : "Contact provider") : option.website || option.maps_url ? (isSpanish ? "Revisar ahora" : "Review now") : (isSpanish ? "Ver contacto" : "View contact")}
-                        </Button>
+                        {offerPhoneHref || offerUrl ? (
+                          <a
+                            href={offerPhoneHref || offerUrl}
+                            target={offerUrl ? "_blank" : undefined}
+                            rel={offerUrl ? "noopener noreferrer" : undefined}
+                            className="vyva-tap inline-flex min-h-[40px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-[13px] font-bold text-white"
+                          >
+                            <PrimaryIcon size={15} />
+                            {primaryLabel}
+                          </a>
+                        ) : (
+                          <Button
+                            type="button"
+                            onClick={() => handleOfferAssistance(option)}
+                            className="h-[40px] rounded-full bg-vyva-purple px-4 font-body text-[13px] hover:bg-vyva-purple/90"
+                          >
+                            <Send size={15} className="mr-2" />
+                            {primaryLabel}
+                          </Button>
+                        )}
+                        {(offerPhoneHref || offerUrl) && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => handleOfferAssistance(option)}
+                            className="h-[40px] rounded-full border-vyva-border bg-white px-4 font-body text-[13px] font-bold text-vyva-purple"
+                          >
+                            {isSpanish ? "Que VYVA ayude" : "Let VYVA help"}
+                          </Button>
+                        )}
                         <span className="inline-flex items-center rounded-full bg-[#FBF8F4] px-3 py-2 font-body text-[12px] text-vyva-text-2">
                           {option.contact_method}
                         </span>
                       </div>
                     </div>
-                  ))
+                    );
+                  })
                 )}
 
                 <div className="rounded-[18px] border border-vyva-border bg-white p-3">

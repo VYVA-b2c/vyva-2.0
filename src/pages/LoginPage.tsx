@@ -24,7 +24,7 @@ import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 import { localizeAuthErrorMessage } from "@/lib/authErrorLocalization";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { stageToRoute } from "@/lib/onboardingRoute";
-import { setAccountLanguage, useLanguage } from "@/i18n";
+import { setBootstrapLanguage, useLanguage } from "@/i18n";
 import { LANGUAGES, type LanguageCode } from "@/i18n/languages";
 
 type View = "login" | "register" | "forgot" | "magic";
@@ -1464,7 +1464,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
     const setupParams = setupInviteParamsFromPath(from) ?? setupInviteParamsFromSearch(location.search);
     if (!setupParams) return;
     const setupLanguage = setupLanguageFromParams(setupParams);
-    if (setupLanguage && setupLanguage !== language) setAccountLanguage(setupLanguage);
+    if (setupLanguage && setupLanguage !== language) setBootstrapLanguage(setupLanguage);
     if (!contact.trim()) {
       const setupContact = setupContactFromParams(setupParams);
       if (setupContact) setContact(setupContact);
@@ -2191,9 +2191,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
       <div className="relative min-h-screen overflow-x-hidden bg-[#FAF7F2] text-vyva-text-1">
         {!adminOnly && (
           <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden bg-[#FAF7F2]">
-            <div className="absolute inset-0 bg-[linear-gradient(118deg,#FFF9EE_0%,#FAF7F2_54%,#F8F1FC_100%)]" />
-            <div className="absolute -left-28 top-24 h-[420px] w-[420px] rounded-full bg-[#FFDF61]/20 blur-3xl" />
-            <div className="absolute -right-24 top-28 h-[460px] w-[460px] rounded-full bg-vyva-purple/10 blur-3xl" />
+            <div className="absolute inset-0 bg-[linear-gradient(118deg,#FFF9EE_0%,#FAF7F2_58%,#F8F1FC_100%)]" />
           </div>
         )}
         <header className="relative z-10 mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-5 pb-3 pt-4 sm:px-8 sm:py-5 lg:px-10 lg:py-7">
@@ -2220,7 +2218,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         <main className="relative z-10 mx-auto flex min-h-[calc(100vh-96px)] w-full max-w-7xl items-start justify-center px-5 pb-8 pt-2 sm:px-8 md:min-h-[calc(100vh-108px)] md:items-center md:pt-0 lg:px-10 lg:pb-12">
           <section
             data-testid="auth-layout"
-            className="grid w-full max-w-[540px] gap-6 md:max-w-[1000px] md:grid-cols-[minmax(0,0.94fr)_minmax(420px,500px)] md:items-center lg:max-w-[1080px] lg:gap-12"
+            className="grid w-full max-w-[560px] gap-6 lg:max-w-[1080px] lg:grid-cols-[minmax(360px,0.9fr)_minmax(420px,500px)] lg:items-start lg:gap-12"
           >
             {adminOnly ? (
               <div className="text-center md:text-left">
@@ -2242,47 +2240,57 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                 </div>
               </div>
             ) : (
-              <div className="relative text-center md:text-left">
-                <div className="mx-auto mb-5 h-1.5 w-24 rounded-full bg-[#FFDF61] md:mx-0" />
-                <p className="mb-3 font-body text-[11px] font-extrabold uppercase tracking-[0.26em] text-vyva-purple/70">
-                  {heroEyebrow}
-                </p>
-                <h1 className="mx-auto max-w-[520px] font-body text-[2.8rem] font-black leading-[1] text-[#8253AB] sm:text-[3.7rem] md:mx-0 md:max-w-[460px] md:text-[3.25rem] lg:max-w-[520px] lg:text-[4.25rem]">
-                  {heroTitle}
-                </h1>
-                <p className="mx-auto mt-5 max-w-[560px] font-body text-[17px] leading-8 text-[#5F5768] md:mx-0 md:max-w-[440px] lg:max-w-[560px]">
-                  {heroSubtitle}
-                </p>
-                {mode === "register" && view !== "magic" && (
-                  <div className="mt-7 grid gap-2 sm:grid-cols-2 md:max-w-[520px]" aria-label="Ways to start with VYVA">
-                    <button
-                      type="button"
-                      onClick={openCallModal}
-                      className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-sm font-black text-white shadow-[0_12px_30px_rgba(107,33,168,0.14)] transition hover:bg-vyva-purple/92"
-                      data-testid="button-login-call-vyva"
-                    >
-                      <PhoneCall size={16} />
-                      {copy.signupOptions.call}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={openCallbackModal}
-                      className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full border border-[#E8DDF3] bg-white px-4 font-body text-sm font-black text-vyva-purple shadow-[0_10px_24px_rgba(76,46,22,0.06)] transition hover:border-vyva-purple"
-                      data-testid="button-login-schedule-callback"
-                    >
-                      <CalendarClock size={16} />
-                      {copy.signupOptions.schedule}
-                    </button>
-
-                  </div>
-                )}
-
-                {guideVoiceErrorText && (
-                  <p className="mt-3 max-w-[520px] rounded-[16px] bg-[#FFF9E8] px-4 py-3 text-center font-body text-[12px] leading-[1.5] text-[#855F00] md:text-left">
-                    {guideVoiceErrorText}
+              <div className="relative hidden overflow-hidden rounded-[34px] border border-white/70 bg-[#2F183F] shadow-[0_28px_80px_rgba(79,43,116,0.18)] lg:block lg:rounded-[40px]">
+                <img
+                  src="/assets/vyva/cozy-home-room.png"
+                  alt=""
+                  aria-hidden="true"
+                  className="absolute inset-0 h-full w-full object-cover object-[28%_center]"
+                />
+                <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(47,24,63,0.78)_0%,rgba(107,33,168,0.46)_42%,rgba(255,247,232,0.08)_100%)]" />
+                <div className="absolute inset-x-0 bottom-0 h-[58%] bg-[linear-gradient(0deg,rgba(47,24,63,0.82)_0%,rgba(47,24,63,0.42)_64%,rgba(47,24,63,0)_100%)]" />
+                <div className="relative z-10 flex min-h-[560px] flex-col justify-end p-8 text-left text-white xl:min-h-[600px] xl:p-9">
+                  <div className="mb-5 h-1.5 w-24 rounded-full bg-[#FFDF61]" />
+                  <p className="mb-3 font-body text-[11px] font-extrabold uppercase tracking-[0.26em] text-[#FFE98B]">
+                    {heroEyebrow}
                   </p>
-                )}
+                  <h1 className="max-w-[460px] font-body text-[3.35rem] font-black leading-[0.96] text-white drop-shadow-[0_8px_24px_rgba(47,24,63,0.3)] xl:text-[3.8rem]">
+                    {heroTitle}
+                  </h1>
+                  <p className="mt-5 max-w-[460px] font-body text-[17px] font-semibold leading-8 text-white/88">
+                    {heroSubtitle}
+                  </p>
+                  {mode === "register" && view !== "magic" && (
+                    <div className="mt-7 grid gap-2 xl:grid-cols-2" aria-label="Ways to start with VYVA">
+                      <button
+                        type="button"
+                        onClick={openCallModal}
+                        className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-sm font-black text-white shadow-[0_14px_34px_rgba(35,13,56,0.28)] transition hover:bg-vyva-purple/92"
+                        data-testid="button-login-call-vyva"
+                      >
+                        <PhoneCall size={16} />
+                        {copy.signupOptions.call}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={openCallbackModal}
+                        className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-full border border-white bg-white px-4 font-body text-sm font-black text-vyva-purple shadow-[0_12px_28px_rgba(35,13,56,0.18)] transition hover:border-[#FFE98B]"
+                        data-testid="button-login-schedule-callback"
+                      >
+                        <CalendarClock size={16} />
+                        {copy.signupOptions.schedule}
+                      </button>
+
+                    </div>
+                  )}
+
+                  {guideVoiceErrorText && (
+                    <p className="mt-3 max-w-[520px] rounded-[16px] bg-[#FFF9E8]/95 px-4 py-3 text-center font-body text-[12px] leading-[1.5] text-[#855F00] md:text-left">
+                      {guideVoiceErrorText}
+                    </p>
+                  )}
+                </div>
               </div>
             )}
 

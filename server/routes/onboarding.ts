@@ -1124,6 +1124,13 @@ const sectionSchemas: Record<string, z.ZodTypeAny> = {
   }),
   cognitive: z.object({
     cognitive_notes: z.string().optional(),
+    memory_difficulties: z.string().optional(),
+    cognitive_diagnosis: z.string().optional(),
+    session_length_mins: z.number().int().min(5).max(20).optional(),
+    training_time: z.string().optional(),
+    pace: z.string().optional(),
+    variety: z.string().optional(),
+    communication_style: z.string().optional(),
   }),
   diet: z.object({
     dietary_notes:      z.string().optional(),
@@ -1141,6 +1148,7 @@ const sectionSchemas: Record<string, z.ZodTypeAny> = {
   gp: z.object({
     gp_name:     z.string().optional(),
     gp_phone:    z.string().optional(),
+    gp_email:    z.string().optional(),
     gp_address:  z.string().optional(),
     gp_maps_url: z.string().optional(),
     gp_place_id: z.string().optional(),
@@ -1384,6 +1392,7 @@ onboardingRouter.post("/section/:sectionId", async (req: Request, res: Response)
       const profileUpdates: Record<string, unknown> = { updated_at: new Date() };
       if (data.gp_name     !== undefined) profileUpdates.gp_name     = data.gp_name;
       if (data.gp_phone    !== undefined) profileUpdates.gp_phone    = data.gp_phone;
+      if (data.gp_email    !== undefined) profileUpdates.gp_email    = data.gp_email;
       if (data.gp_address  !== undefined) profileUpdates.gp_address  = data.gp_address;
       if (data.gp_maps_url !== undefined) profileUpdates.gp_maps_url = data.gp_maps_url;
       if (data.gp_place_id !== undefined) profileUpdates.gp_place_id = data.gp_place_id;

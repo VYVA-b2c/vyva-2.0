@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import gamesRouter from "../routes/games.js";
+import gamesRouter, { buildBrainCoachProgress, calculateBrainCoachStreak } from "../routes/games.js";
 import { authMiddleware, requireUser } from "../middleware/auth.js";
 
 function buildApp() {
@@ -78,5 +78,91 @@ describe("brain game API routes", () => {
 
     expect(res.headers["content-type"]).toContain("audio/mpeg");
     expect(Buffer.from(res.body)).toEqual(Buffer.from([1, 2, 3]));
+  });
+
+  it("calculates real Brain Coach streaks from completed session dates", () => {
+    const now = new Date("2026-05-31T12:00:00.000Z");
+
+    expect(calculateBrainCoachStreak([
+      {
+        activityType: "memory_match",
+        domain: "visual_memory",
+        completed: true,
+        playedAt: "2026-05-31T09:00:00.000Z",
+      },
+      {
+        activityType: "number_trails",
+        domain: "processing_speed",
+        completed: true,
+        playedAt: "2026-05-30T18:00:00.000Z",
+      },
+      {
+        activityType: "category_sort",
+        domain: "executive_function",
+        completed: true,
+        playedAt: "2026-05-28T18:00:00.000Z",
+      },
+    ], now)).toBe(2);
+
+    expect(calculateBrainCoachStreak([
+      {
+        activityType: "memory_match",
+        domain: "visual_memory",
+        completed: true,
+        playedAt: "2026-05-29T09:00:00.000Z",
+      },
+    ], now)).toBe(0);
+  });
+
+  it("builds unified progress and activity history across game families", () => {
+    const progress = buildBrainCoachProgress([
+      {
+        activityType: "memory_match",
+        domain: "visual_memory",
+        difficulty: 2,
+        completed: true,
+        score: 840,
+        durationSeconds: 92,
+        playedAt: "2026-05-31T09:00:00.000Z",
+      },
+      {
+        activityType: "number_trails",
+        domain: "processing_speed",
+        secondaryDomain: "executive_function",
+        difficulty: 3,
+        completed: true,
+        score: 720,
+        durationSeconds: 48,
+        playedAt: "2026-05-30T17:00:00.000Z",
+      },
+      {
+        activityType: "category_sort",
+        domain: "executive_function",
+        difficulty: 3,
+        completed: false,
+        abandoned: true,
+        score: 0,
+        durationSeconds: 15,
+        playedAt: "2026-05-30T16:00:00.000Z",
+      },
+    ], new Date("2026-05-31T12:00:00.000Z"));
+
+    expect(progress.summary).toMatchObject({
+      totalSessions: 3,
+      completedSessions: 2,
+      streakDays: 2,
+      totalDurationSeconds: 155,
+    });
+    expect(progress.today.activityTypes).toEqual(["memory_match"]);
+    expect(progress.activities.map((activity) => activity.activityType)).toEqual([
+      "memory_match",
+      "number_trails",
+      "category_sort",
+    ]);
+    expect(progress.history.map((session) => session.activityType)).toEqual([
+      "memory_match",
+      "number_trails",
+      "category_sort",
+    ]);
   });
 });

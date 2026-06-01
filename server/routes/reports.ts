@@ -1,9 +1,11 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { eq, and, desc, gte, sql } from "drizzle-orm";
-import { db } from "../db.js";
+import { db, pool } from "../db.js";
 import { caregiverAlerts, profiles, triageReports, vitalsReadings, medicationAdherence, userMedications } from "../../shared/schema.js";
 import { VITALS_READING_SOURCES, type VitalsReadingSource } from "../../shared/vitalsEvidence.js";
+import type { TriageScanResult } from "../../shared/triageScans.js";
+import { mergeTriageRecommendations, trackTriageEvent } from "../../src/triage/index.js";
 import { z } from "zod";
 
 const DEMO_USER_ID = "demo-user";
@@ -35,6 +37,88 @@ function queryRows<T>(result: unknown): T[] {
 
 // ─── Storage helpers ───────────────────────────────────────────────────────────
 
+let reportsPersistencePromise: Promise<void> | null = null;
+
+async function ensureReportsPersistenceTables() {
+  if (!reportsPersistencePromise) {
+    reportsPersistencePromise = (async () => {
+      await pool.query(`
+        create table if not exists triage_reports (
+          id uuid primary key default gen_random_uuid(),
+          user_id text not null,
+          chief_complaint text not null,
+          symptoms text[] not null default '{}',
+          urgency text not null,
+          recommendations text[] not null default '{}',
+          disclaimer text not null default '',
+          ai_summary text,
+          next_step_label text,
+          next_step_level text,
+          triage_reasons text[] not null default '{}',
+          watch_signs text[] not null default '{}',
+          profile_considerations text[] not null default '{}',
+          vitals_notes text[] not null default '{}',
+          scan_results jsonb not null default '[]'::jsonb,
+          scan_notes text[] not null default '{}',
+          bpm integer,
+          respiratory_rate integer,
+          duration_seconds integer,
+          created_at timestamptz not null default now()
+        )
+      `);
+
+      await pool.query(`
+        alter table triage_reports
+          add column if not exists symptoms text[] not null default '{}',
+          add column if not exists recommendations text[] not null default '{}',
+          add column if not exists disclaimer text not null default '',
+          add column if not exists ai_summary text,
+          add column if not exists next_step_label text,
+          add column if not exists next_step_level text,
+          add column if not exists triage_reasons text[] not null default '{}',
+          add column if not exists watch_signs text[] not null default '{}',
+          add column if not exists profile_considerations text[] not null default '{}',
+          add column if not exists vitals_notes text[] not null default '{}',
+          add column if not exists scan_results jsonb not null default '[]'::jsonb,
+          add column if not exists scan_notes text[] not null default '{}',
+          add column if not exists bpm integer,
+          add column if not exists respiratory_rate integer,
+          add column if not exists duration_seconds integer,
+          add column if not exists created_at timestamptz not null default now()
+      `);
+
+      await pool.query(`
+        create table if not exists vitals_readings (
+          id uuid primary key default gen_random_uuid(),
+          user_id text not null,
+          bpm integer,
+          respiratory_rate integer,
+          metric_type text,
+          value text,
+          recorded_at timestamptz not null default now()
+        )
+      `);
+
+      await pool.query(`
+        alter table vitals_readings
+          add column if not exists bpm integer,
+          add column if not exists respiratory_rate integer,
+          add column if not exists metric_type text,
+          add column if not exists value text,
+          add column if not exists recorded_at timestamptz not null default now()
+      `);
+
+      await pool.query(`create index if not exists triage_reports_user_id_idx on triage_reports (user_id)`);
+      await pool.query(`create index if not exists vitals_readings_user_id_idx on vitals_readings (user_id)`);
+    })().catch((err) => {
+      reportsPersistencePromise = null;
+      throw err;
+    });
+  }
+
+  return reportsPersistencePromise;
+}
+
 async function saveTriageReport(params: {
   userId: string;
   chief_complaint: string;
@@ -49,10 +133,13 @@ async function saveTriageReport(params: {
   watch_signs?: string[];
   profile_considerations?: string[];
   vitals_notes?: string[];
+  scan_results?: TriageScanResult[];
+  scan_notes?: string[];
   bpm?: number | null;
   respiratory_rate?: number | null;
   duration_seconds?: number | null;
 }) {
+  await ensureReportsPersistenceTables();
   const [row] = await db.insert(triageReports).values({
     user_id: params.userId,
     chief_complaint: params.chief_complaint,
@@ -67,6 +154,8 @@ async function saveTriageReport(params: {
     watch_signs: params.watch_signs ?? [],
     profile_considerations: params.profile_considerations ?? [],
     vitals_notes: params.vitals_notes ?? [],
+    scan_results: params.scan_results ?? [],
+    scan_notes: params.scan_notes ?? [],
     bpm: params.bpm ?? null,
     respiratory_rate: params.respiratory_rate ?? null,
     duration_seconds: params.duration_seconds ?? null,
@@ -74,29 +163,40 @@ async function saveTriageReport(params: {
   return row;
 }
 
+function normalizeTriageReportRecommendations<T extends { recommendations?: string[] | null }>(report: T | null): T | null {
+  if (!report) return report;
+  return {
+    ...report,
+    recommendations: mergeTriageRecommendations(report.recommendations ?? []),
+  };
+}
+
 async function recordTriageReportHandoff(params: {
   userId: string;
   chief_complaint: string;
   urgency: "urgent" | "routine" | "monitor";
   recommendations: string[];
-}) {
+}): Promise<{ sentTo: string[]; caregiverEscalationTriggered: boolean }> {
   const [profile] = await db
     .select({
       caregiver_name: profiles.caregiver_name,
       caregiver_contact: profiles.caregiver_contact,
       gp_name: profiles.gp_name,
       gp_phone: profiles.gp_phone,
+      gp_email: profiles.gp_email,
     })
     .from(profiles)
     .where(eq(profiles.id, params.userId))
     .limit(1);
 
   const sentTo = [
-    profile?.gp_name || profile?.gp_phone ? profile.gp_name || "doctor" : "",
+    profile?.gp_name || profile?.gp_phone || profile?.gp_email ? profile.gp_name || "doctor" : "",
     profile?.caregiver_name || profile?.caregiver_contact ? profile.caregiver_name || "caregiver" : "",
   ].filter(Boolean);
 
-  if (sentTo.length === 0) return sentTo;
+  if (sentTo.length === 0) {
+    return { sentTo, caregiverEscalationTriggered: false };
+  }
 
   await db.insert(caregiverAlerts).values({
     user_id: params.userId,
@@ -109,7 +209,10 @@ async function recordTriageReportHandoff(params: {
     sent_to: sentTo,
   });
 
-  return sentTo;
+  return {
+    sentTo,
+    caregiverEscalationTriggered: Boolean(profile?.caregiver_name || profile?.caregiver_contact),
+  };
 }
 
 async function saveVitalsReading(params: {
@@ -118,6 +221,7 @@ async function saveVitalsReading(params: {
   respiratory_rate?: number | null;
   source?: ReadingSource;
 }) {
+  await ensureReportsPersistenceTables();
   const [row] = await db.insert(vitalsReadings).values({
     user_id: params.userId,
     bpm: params.bpm,
@@ -172,14 +276,16 @@ async function mirrorVitalsScanToEngine(params: {
 }
 
 async function getLatestTriageReport(userId: string) {
+  await ensureReportsPersistenceTables();
   const rows = await db.select().from(triageReports)
     .where(eq(triageReports.user_id, userId))
     .orderBy(desc(triageReports.created_at))
     .limit(1);
-  return rows[0] ?? null;
+  return normalizeTriageReportRecommendations(rows[0] ?? null);
 }
 
 async function getLatestVitalsReading(userId: string) {
+  await ensureReportsPersistenceTables();
   const rows = await db.select().from(vitalsReadings)
     .where(eq(vitalsReadings.user_id, userId))
     .orderBy(desc(vitalsReadings.recorded_at))
@@ -225,6 +331,7 @@ async function getSignalHistory(userId: string, days = 30): Promise<SignalReadin
 }
 
 async function getVitalsHistory(userId: string, days = 30) {
+  await ensureReportsPersistenceTables();
   const cutoff = new Date();
   cutoff.setUTCDate(cutoff.getUTCDate() - days);
   return db.select().from(vitalsReadings)
@@ -253,7 +360,56 @@ async function getTodayMedSummary(userId: string) {
   return { taken, total, adherencePct };
 }
 
+type TodayMedSummary = Awaited<ReturnType<typeof getTodayMedSummary>>;
+
+const emptyTodayMedSummary: TodayMedSummary = { taken: 0, total: 0, adherencePct: null };
+
+type ReportsSummaryLoaders = {
+  latestTriage: (userId: string) => Promise<Awaited<ReturnType<typeof getLatestTriageReport>>>;
+  latestVitals: (userId: string) => Promise<Awaited<ReturnType<typeof getLatestVitalsReading>>>;
+  todayMeds: (userId: string) => Promise<Awaited<ReturnType<typeof getTodayMedSummary>>>;
+};
+
+const defaultReportsSummaryLoaders: ReportsSummaryLoaders = {
+  latestTriage: getLatestTriageReport,
+  latestVitals: getLatestVitalsReading,
+  todayMeds: getTodayMedSummary,
+};
+
+async function safeReportPart<T>(label: string, fallback: T, loader: () => Promise<T>): Promise<T> {
+  try {
+    return await loader();
+  } catch (err) {
+    console.warn(`[reports] ${label} unavailable`, err);
+    return fallback;
+  }
+}
+
+export async function loadReportsSummary(userId: string, loaders: ReportsSummaryLoaders = defaultReportsSummaryLoaders) {
+  const [latestTriage, latestVitals, todayMeds] = await Promise.all([
+    safeReportPart("latest triage", null, () => loaders.latestTriage(userId)),
+    safeReportPart("latest vitals", null, () => loaders.latestVitals(userId)),
+    safeReportPart("today medication summary", emptyTodayMedSummary, () => loaders.todayMeds(userId)),
+  ]);
+
+  return { latestTriage: normalizeTriageReportRecommendations(latestTriage), latestVitals, todayMeds };
+}
+
 // ─── POST /triage ─────────────────────────────────────────────────────────────
+const triageScanResultSchema = z.object({
+  id: z.string(),
+  type: z.enum(["vitals", "wound_photo", "urine_photo", "stool_photo"]),
+  label: z.string(),
+  concernLevel: z.enum(["normal", "watch", "urgent"]),
+  summary: z.string(),
+  findings: z.array(z.string()).default([]),
+  capturedAt: z.string(),
+  values: z.object({
+    pulseBpm: z.number().nullable().optional(),
+    respiratoryRate: z.number().nullable().optional(),
+  }).optional(),
+}).passthrough();
+
 const triageSchema = z.object({
   chief_complaint:   z.string(),
   symptoms:          z.array(z.string()).default([]),
@@ -267,6 +423,8 @@ const triageSchema = z.object({
   watch_signs:       z.array(z.string()).default([]),
   profile_considerations: z.array(z.string()).default([]),
   vitals_notes:      z.array(z.string()).default([]),
+  scan_results:      z.array(triageScanResultSchema).default([]),
+  scan_notes:        z.array(z.string()).default([]),
   bpm:               z.number().int().nullable().optional(),
   respiratory_rate:  z.number().int().nullable().optional(),
   duration_seconds:  z.number().int().nonnegative().nullable().optional(),
@@ -280,17 +438,25 @@ router.post("/triage", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Invalid body", details: parsed.error.issues });
   }
   try {
-    const row = await saveTriageReport({ userId, ...parsed.data });
-    const sentTo = await recordTriageReportHandoff({
+    const recommendations = mergeTriageRecommendations(parsed.data.recommendations);
+    const row = await saveTriageReport({ userId, ...parsed.data, recommendations });
+    const handoff = await recordTriageReportHandoff({
       userId,
       chief_complaint: parsed.data.chief_complaint,
       urgency: parsed.data.urgency,
-      recommendations: parsed.data.recommendations,
+      recommendations,
     }).catch((err) => {
       console.error("[reports/triage handoff]", err);
-      return [];
+      return { sentTo: [], caregiverEscalationTriggered: false };
     });
-    return res.status(201).json({ ...row, sent_to: sentTo });
+    if (handoff.caregiverEscalationTriggered) {
+      trackTriageEvent("caregiver_escalation_triggered", {
+        urgency: parsed.data.urgency,
+        trigger_source: "triage_report_handoff",
+        caregiver_escalation_triggered: true,
+      });
+    }
+    return res.status(201).json({ ...row, sent_to: handoff.sentTo });
   } catch (err) {
     console.error("[reports/triage POST]", err);
     return res.status(500).json({ error: "Failed to save triage report" });
@@ -325,16 +491,14 @@ router.get("/summary", async (req: Request, res: Response) => {
   const userId = resolveUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
   try {
-    const [latestTriage, latestVitals, todayMeds] = await Promise.all([
-      getLatestTriageReport(userId),
-      getLatestVitalsReading(userId),
-      getTodayMedSummary(userId),
+    const [summary, latestSignals] = await Promise.all([
+      loadReportsSummary(userId),
+      getLatestSignalReadings(userId).catch((err) => {
+        console.warn("[reports/summary signals]", err);
+        return [];
+      }),
     ]);
-    const latestSignals = await getLatestSignalReadings(userId).catch((err) => {
-      console.warn("[reports/summary signals]", err);
-      return [];
-    });
-    return res.json({ latestTriage, latestVitals, latestSignals, todayMeds });
+    return res.json({ ...summary, latestSignals });
   } catch (err) {
     console.error("[reports/summary GET]", err);
     return res.status(500).json({ error: "Failed to fetch summary" });
@@ -355,8 +519,8 @@ router.get("/vitals/history", async (req: Request, res: Response) => {
     ]);
     return res.json({ readings, signalReadings });
   } catch (err) {
-    console.error("[reports/vitals/history GET]", err);
-    return res.status(500).json({ error: "Failed to fetch vitals history" });
+    console.warn("[reports/vitals/history GET] unavailable", err);
+    return res.json({ readings: [] });
   }
 });
 
@@ -370,7 +534,7 @@ router.get("/triage/:id", async (req: Request, res: Response) => {
       .where(and(eq(triageReports.id, id), eq(triageReports.user_id, userId)))
       .limit(1);
     if (!row) return res.status(404).json({ error: "Not found" });
-    return res.json(row);
+    return res.json(normalizeTriageReportRecommendations(row));
   } catch (err) {
     console.error("[reports/triage/:id GET]", err);
     return res.status(500).json({ error: "Failed to fetch report" });

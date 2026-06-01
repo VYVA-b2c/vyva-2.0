@@ -12,6 +12,7 @@ import {
 import { useLanguage } from "@/i18n";
 import { supabase } from "../lib/supabaseClient";
 import BrainGameResultActions from "./shared/BrainGameResultActions";
+import { recordCognitiveSession } from "./shared/brainCoachSessions";
 import { normalizeGameLanguage } from "./shared/language";
 
 const SYMBOLS = ["★", "●", "▲", "■", "♦"];
@@ -412,7 +413,7 @@ export default function DualTaskWalk({ userId, onExit }) {
   const saveSession = useCallback(async (result) => {
     if (!userId) return;
 
-    await supabase.from("dual_task_sessions").insert({
+    const payload = {
       user_id: userId,
       sequence_id: result.sequence_id,
       difficulty_tier: result.difficulty_tier,
@@ -427,8 +428,36 @@ export default function DualTaskWalk({ userId, onExit }) {
       completed: result.completed,
       abandoned: result.abandoned,
       duration_seconds: result.duration_seconds,
+    };
+    const { data } = await supabase.from("dual_task_sessions").insert(payload);
+    const savedSession = Array.isArray(data) ? data[0] : data;
+
+    await recordCognitiveSession({
+      userId,
+      activityType: "dual_task_walk",
+      domain: "attention",
+      secondaryDomain: "executive_function",
+      difficulty: result.difficulty_tier,
+      difficultyScale: "tier",
+      completed: result.completed,
+      abandoned: result.abandoned,
+      score: result.dual_task_score,
+      accuracyPct: result.combined_accuracy_pct,
+      durationSeconds: result.duration_seconds,
+      language: lang,
+      source: "dual_task_walk",
+      sourceTable: "dual_task_sessions",
+      sourceSessionId: savedSession?.id ?? null,
+      metadata: {
+        sequenceId: result.sequence_id,
+        serial7sAttempts: result.serial7s_attempts,
+        serial7sCorrect: result.serial7s_correct,
+        tapHits: result.tap_hits,
+        tapMisses: result.tap_misses,
+        tapFalsePositives: result.tap_false_positives,
+      },
     });
-  }, [userId]);
+  }, [lang, userId]);
 
   const updateUserState = useCallback(async (result) => {
     if (!userId || result.abandoned) return;
