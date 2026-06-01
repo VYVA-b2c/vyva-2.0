@@ -113,7 +113,7 @@
       "pulse": "Pulse",
       "breathing": "Breathing",
       "manualTitle": "Manual log",
-      "manualBody": "Add numbers from a cuff, oximeter, thermometer, glucose meter, or how you feel today.",
+      "manualBody": "Add confirmed readings from home devices, plus pain, mood, energy, sleep, and medication notes.",
       "bp": "BP",
       "oxygen": "Oxygen",
       "temp": "Temp",
