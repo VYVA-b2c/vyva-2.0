@@ -67,6 +67,13 @@ type SignalReadingRow = {
   deviation_pct: string | number | null;
 };
 
+type SignalReadingResponse = SignalReadingRow & {
+  source_confidence: "low" | "medium" | "high";
+  source_confidence_reason: string;
+  source_display_label: string;
+  source_context_label: string;
+};
+
 type PatternWindowRow = {
   id?: string | null;
   analysed_at?: Date | string | null;
@@ -141,6 +148,17 @@ async function getRecentReadings(userId: string, hours = 72): Promise<SignalRead
     ORDER BY recorded_at DESC
   `);
   return queryRows<SignalReadingRow>(result);
+}
+
+function signalReadingResponse(reading: SignalReadingRow): SignalReadingResponse {
+  const evidence = vitalsEvidenceFor(reading.source, reading.signal_type);
+  return {
+    ...reading,
+    source_confidence: evidence.confidence,
+    source_confidence_reason: evidence.reason,
+    source_display_label: evidence.displayLabel,
+    source_context_label: evidence.contextLabel,
+  };
 }
 
 async function getLatestAnalysis(userId: string): Promise<PatternWindowRow | null> {
@@ -636,7 +654,7 @@ async function sendLatestVitalsIntelligence(profileId: string, res: Response) {
 
     return res.json({
       analysis: analysisResponse(analysis, fallback),
-      recent_readings: context.readings,
+      recent_readings: context.readings.map(signalReadingResponse),
       baselines,
       latest_alert: alerts[0] ?? null,
       recent_alerts: alerts,

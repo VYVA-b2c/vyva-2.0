@@ -43,6 +43,10 @@ interface RecentReading {
   value: string | number;
   recorded_at: string;
   source: string;
+  source_confidence?: "low" | "medium" | "high";
+  source_confidence_reason?: string;
+  source_display_label?: string;
+  source_context_label?: string;
   deviation_pct: string | number | null;
   context_tag: string | null;
 }
@@ -81,6 +85,9 @@ const COPY = {
     sourceEstimated: "Estimado",
     sourceManual: "Manual",
     sourceDevice: "Dispositivo",
+    confidenceLow: "Baja",
+    confidenceMedium: "Media",
+    confidenceHigh: "Alta",
     evidenceTitle: "Calidad de los datos",
     evidenceBody: "VYVA combina estimaciones del telefono con datos que introduces de dispositivos. Las estimaciones ayudan con tendencias; los dispositivos y lecturas clinicas pesan mas.",
     evidencePhone: "Telefono: pulso y respiracion estimados",
@@ -116,6 +123,9 @@ const COPY = {
     sourceEstimated: "Geschatzt",
     sourceManual: "Manuell",
     sourceDevice: "Gerat",
+    confidenceLow: "Niedrig",
+    confidenceMedium: "Mittel",
+    confidenceHigh: "Hoch",
     evidenceTitle: "Datenqualitat",
     evidenceBody: "VYVA kombiniert Telefonschatzungen mit Werten, die Sie von Geraten eingeben. Schatzungen helfen bei Trends; Gerate- und klinische Werte zahlen starker.",
     evidencePhone: "Telefon: geschatzter Puls und Atmung",
@@ -151,6 +161,9 @@ const COPY = {
     sourceEstimated: "Estimated",
     sourceManual: "Manual",
     sourceDevice: "Device",
+    confidenceLow: "Low",
+    confidenceMedium: "Medium",
+    confidenceHigh: "High",
     evidenceTitle: "Reading quality",
     evidenceBody: "VYVA combines phone estimates with numbers you enter from devices. Estimates help spot trends; device and clinical readings carry stronger weight.",
     evidencePhone: "Phone: estimated pulse and breathing",
@@ -385,12 +398,21 @@ function safetyLabel(status: SafetyStatus, language: Language) {
   return labels[language][status];
 }
 
-function readingSourceBadge(source: string | null | undefined, language: Language) {
+function readingSourceBadge(reading: RecentReading | undefined, language: Language) {
+  if (!reading) return null;
   const copy = COPY[language];
-  if (source === "phone_estimate") return { label: copy.sourceEstimated, bg: "#F5F3FF", color: "#6B21A8" };
-  if (source === "connected_device") return { label: copy.sourceDevice, bg: "#D1FAE5", color: "#047857" };
-  if (source === "clinical") return { label: copy.sourceClinical, bg: "#E0F2FE", color: "#0369A1" };
-  return { label: copy.sourceManual, bg: "#FEF3C7", color: "#92400E" };
+  const source = reading.source;
+  const confidence = reading.source_confidence ?? (source === "phone_estimate" ? "low" : source === "connected_device" || source === "clinical" ? "high" : "medium");
+  const confidenceLabel =
+    confidence === "high"
+      ? copy.confidenceHigh
+      : confidence === "low"
+        ? copy.confidenceLow
+        : copy.confidenceMedium;
+  if (source === "phone_estimate") return { label: `${copy.sourceEstimated} - ${confidenceLabel}`, bg: "#F5F3FF", color: "#6B21A8" };
+  if (source === "connected_device") return { label: `${copy.sourceDevice} - ${confidenceLabel}`, bg: "#D1FAE5", color: "#047857" };
+  if (source === "clinical") return { label: `${copy.sourceClinical} - ${confidenceLabel}`, bg: "#E0F2FE", color: "#0369A1" };
+  return { label: `${copy.sourceManual} - ${confidenceLabel}`, bg: "#FEF3C7", color: "#92400E" };
 }
 
 function relativeTime(iso: string | null | undefined, language: Language) {
@@ -947,7 +969,7 @@ function SignalCard({
         ? normalLabel
         : `${deviation > 0 ? "+" : ""}${deviation}% ${deviation > 0 ? "↑" : "↓"}`;
 
-  const sourceBadge = reading ? readingSourceBadge(reading.source, language) : null;
+  const sourceBadge = readingSourceBadge(reading, language);
 
   return (
     <article className="min-h-[152px] rounded-[24px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]">
