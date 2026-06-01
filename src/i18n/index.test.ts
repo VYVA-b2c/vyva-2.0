@@ -217,12 +217,12 @@ describe("language persistence", () => {
 
   it("keeps daily check-in home card copy localized for supported account languages", () => {
     const expected = {
-      en: ["Daily are-you-okay check", "Checked in today", "Let VYVA know how today feels", "You checked in today. VYVA has a fresh wellbeing signal.", "View history"],
-      es: ["Control diario de bienestar", "Hecho hoy", "Cu\u00e9ntale a VYVA c\u00f3mo te sientes hoy", "Has completado el control de hoy. VYVA tiene una nueva se\u00f1al de bienestar.", "Ver historial"],
-      fr: ["Controle quotidien de bien-etre", "Controle fait aujourd'hui", "Dites a VYVA comment vous vous sentez aujourd'hui", "Vous avez fait le controle aujourd'hui. VYVA a un nouveau signal de bien-etre.", "Voir l'historique"],
-      de: ["Taglicher Wohlbefinden-Check", "Heute erledigt", "Sag VYVA, wie du dich heute fuhlst", "Du hast heute eingecheckt. VYVA hat ein neues Wohlbefinden-Signal.", "Verlauf ansehen"],
-      it: ["Controllo quotidiano del benessere", "Fatto oggi", "Di a VYVA come ti senti oggi", "Hai completato il controllo di oggi. VYVA ha un nuovo segnale di benessere.", "Vedi cronologia"],
-      pt: ["Check-in diario de bem-estar", "Feito hoje", "Diga a VYVA como se sente hoje", "Concluiu o check-in de hoje. A VYVA tem um novo sinal de bem-estar.", "Ver historico"],
+      en: ["Daily check-in", "Checked in today", "How are you today?", "VYVA has today's signal.", "History"],
+      es: ["Control diario", "Hecho hoy", "Como estas hoy?", "VYVA tiene la senal de hoy.", "Historial"],
+      fr: ["Contrôle quotidien", "Contrôle fait aujourd'hui", "Comment allez-vous ?", "VYVA a le signal du jour.", "Historique"],
+      de: ["Taglicher Check", "Heute erledigt", "Wie geht es dir heute?", "VYVA hat das heutige Signal.", "Verlauf"],
+      it: ["Check-in quotidiano", "Fatto oggi", "Come ti senti oggi?", "VYVA ha il segnale di oggi.", "Cronologia"],
+      pt: ["Check-in diario", "Feito hoje", "Como se sente hoje?", "A VYVA tem o sinal de hoje.", "Historico"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {

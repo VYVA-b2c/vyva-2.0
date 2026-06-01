@@ -549,24 +549,24 @@ export function DailyCheckinCard({
     checkin?.status === "completed" ? t("health.dailyCheckin.completed", "Checked in today") :
     checkin?.status === "overdue" ? t("health.dailyCheckin.overdue", "Check-in overdue") :
     checkin?.status === "due_now" ? t("health.dailyCheckin.due", "Ready now") :
-    checkin?.status === "not_scheduled" ? t("health.dailyCheckin.setup", "Set up daily check-in") :
-    t("health.dailyCheckin.upcoming", "Scheduled today");
+    checkin?.status === "not_scheduled" ? t("health.dailyCheckin.setup", "Set up") :
+    t("health.dailyCheckin.upcoming", "Scheduled");
   const message =
-    !checkin ? t("health.dailyCheckin.loadingMessage", "A short daily check helps VYVA know you are okay.") :
-    checkin.status === "completed" ? t("health.dailyCheckin.messages.completed", "You checked in today. VYVA has a fresh wellbeing signal.") :
-    checkin.status === "due_now" ? t("health.dailyCheckin.messages.dueNow", "Your daily check-in is ready. A quick answer lets everyone know you are okay.") :
+    !checkin ? t("health.dailyCheckin.loadingMessage", "A quick check helps VYVA keep watch.") :
+    checkin.status === "completed" ? t("health.dailyCheckin.messages.completed", "VYVA has today's signal.") :
+    checkin.status === "due_now" ? t("health.dailyCheckin.messages.dueNow", "Answer in a few seconds.") :
     checkin.status === "overdue" ? (
       checkin.no_response.reason
-        ? t("health.dailyCheckin.messages.overdueNeedsContact", "The daily check-in is overdue. Add or confirm a caregiver contact so VYVA can escalate when needed.")
-        : t("health.dailyCheckin.messages.overdueAlerted", "The daily check-in is overdue, so VYVA has recorded a caregiver safety alert.")
+        ? t("health.dailyCheckin.messages.overdueNeedsContact", "Add a caregiver contact for alerts.")
+        : t("health.dailyCheckin.messages.overdueAlerted", "Caregiver safety alert recorded.")
     ) :
-    checkin.status === "upcoming" ? t("health.dailyCheckin.messages.upcoming", "Your daily check-in is scheduled for later today.") :
-    t("health.dailyCheckin.messages.notScheduled", "Set a daily check-in time so VYVA can notice if you do not respond.");
+    checkin.status === "upcoming" ? t("health.dailyCheckin.messages.upcoming", "Scheduled for later today.") :
+    t("health.dailyCheckin.messages.notScheduled", "Pick a daily check-in time.");
   const primaryLabel =
-    checkin?.status === "completed" ? t("health.dailyCheckin.actions.viewHistory", "View history") :
-    checkin?.status === "upcoming" ? t("health.dailyCheckin.actions.checkInEarly", "Check in early") :
-    checkin?.status === "not_scheduled" ? t("health.dailyCheckin.actions.setup", "Set up check-in") :
-    t("health.dailyCheckin.actions.primary", "Check in now");
+    checkin?.status === "completed" ? t("health.dailyCheckin.actions.viewHistory", "History") :
+    checkin?.status === "upcoming" ? t("health.dailyCheckin.actions.checkInEarly", "Check early") :
+    checkin?.status === "not_scheduled" ? t("health.dailyCheckin.actions.setup", "Set up") :
+    t("health.dailyCheckin.actions.primary", "Check in");
   const showHistoryAction = checkin?.status !== "completed";
   const detail =
     checkin?.status === "completed" && completedTime
@@ -577,36 +577,31 @@ export function DailyCheckinCard({
 
   return (
     <section className="mt-[18px] rounded-[26px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="daily-checkin-status-card">
-      <div className="flex items-start gap-4">
+      <div className="flex items-center gap-3">
         <span
-          className="flex h-[58px] w-[58px] flex-shrink-0 items-center justify-center rounded-[20px]"
+          className="flex h-[54px] w-[54px] flex-shrink-0 items-center justify-center rounded-[18px]"
           style={{ background: tone.bg, color: tone.text }}
         >
-          <Icon size={28} />
+          <Icon size={26} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.12em]" style={{ color: tone.text }}>
-              {t("health.dailyCheckin.kicker", "Daily are-you-okay check")}
+            <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em]" style={{ color: tone.text }}>
+              {t("health.dailyCheckin.kicker", "Daily check-in")}
             </p>
             <span className="rounded-full px-3 py-1 font-body text-[12px] font-bold" style={{ background: tone.bg, color: tone.text }}>
               {statusLabel}
             </span>
           </div>
-          <p className="mt-2 font-body text-[20px] font-extrabold leading-tight text-vyva-text-1">
-            {checkin?.latest_checkin?.feeling_label ?? t("health.dailyCheckin.title", "Let VYVA know how today feels")}
-          </p>
-          <p className="mt-2 font-body text-[15px] font-semibold leading-relaxed text-vyva-text-2">
-            {message}
-          </p>
-          <p className="mt-2 font-body text-[13px] font-bold text-vyva-text-3">{detail}</p>
-          {checkin?.no_response.reason ? (
-            <p className="mt-2 rounded-[16px] bg-[#FFF7ED] px-3 py-2 font-body text-[13px] font-bold text-[#9A3412]">
-              {t("health.dailyCheckin.needsCaregiver", "Caregiver escalation needs a contact or consent setting.")}
-            </p>
-          ) : null}
+          <p className="mt-1 font-body text-[13px] font-bold text-vyva-text-3">{detail}</p>
         </div>
       </div>
+      <p className="mt-3 font-body text-[19px] font-extrabold leading-tight text-vyva-text-1">
+        {checkin?.latest_checkin?.feeling_label ?? t("health.dailyCheckin.title", "How are you today?")}
+      </p>
+      <p className="mt-2 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
+        {message}
+      </p>
       <div className={`mt-4 grid gap-3 ${showHistoryAction ? "grid-cols-2" : "grid-cols-1"}`}>
         <button
           type="button"
