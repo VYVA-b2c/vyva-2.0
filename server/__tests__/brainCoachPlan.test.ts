@@ -150,6 +150,49 @@ describe("Brain Coach daily plan", () => {
     expect(avoidRepeat.activities[0].activityType).not.toBe("memory_match");
   });
 
+  it("uses caregiver-approved focus domains when ranking activities", () => {
+    const plan = buildBrainCoachDailyPlan({
+      sessions: [],
+      preferences: {
+        sessionLengthMins: 10,
+        variety: "variety",
+        preferredDomains: ["spatial_navigation"],
+        weeklyTargetDays: 4,
+      },
+      now: NOW,
+    });
+
+    expect(plan.activities[0].domain).toBe("spatial_navigation");
+    expect(plan.activities[0].rationale).toContain("caregiver-approved focus domains");
+    expect(plan.rationale).toContain("Supports the caregiver-approved weekly goal of 4 Brain Coach days.");
+  });
+
+  it("excludes caregiver-blocked activities without changing scoring", () => {
+    const plan = buildBrainCoachDailyPlan({
+      sessions: [],
+      preferences: {
+        sessionLengthMins: 10,
+        variety: "variety",
+        excludedActivityTypes: ["sequence_memory"],
+      },
+      now: NOW,
+    });
+
+    expect(plan.activities.map((activity) => activity.activityType)).not.toContain("sequence_memory");
+  });
+
+  it("pauses recommended plans when caregiver-approved settings are paused", () => {
+    const plan = buildBrainCoachDailyPlan({
+      sessions: [],
+      preferences: { caregiverPaused: true },
+      now: NOW,
+    });
+
+    expect(plan.activities).toEqual([]);
+    expect(plan.estimatedDurationMinutes).toBe(0);
+    expect(plan.rationale[0]).toContain("paused");
+  });
+
   it("extracts onboarding cognitive preferences from profile consent data", () => {
     const preferences = extractBrainCoachPreferences({
       cognitive: {

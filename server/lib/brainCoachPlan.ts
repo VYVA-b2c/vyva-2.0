@@ -26,6 +26,10 @@ export type BrainCoachPlanPreferences = {
   cognitiveDiagnosis?: string | null;
   hobbies?: string[];
   personality?: Record<string, string>;
+  preferredDomains?: string[];
+  excludedActivityTypes?: string[];
+  weeklyTargetDays?: number | null;
+  caregiverPaused?: boolean | null;
 };
 
 export type BrainCoachPlanActivity = {
@@ -409,6 +413,11 @@ function scoreCandidate(
     if (candidate.domain === "attention") score += 5;
   }
 
+  if (preferences.preferredDomains?.includes(candidate.domain) || (candidate.secondaryDomain && preferences.preferredDomains?.includes(candidate.secondaryDomain))) {
+    score += 22;
+    reason = "matches caregiver-approved focus domains";
+  }
+
   if (preferences.pace === "slower" || preferences.pace === "very_slow") {
     if (candidate.estimatedDurationMinutes <= 4) score += 6;
     if (candidate.activityType === "dual_task_walk") score -= 6;
@@ -451,6 +460,22 @@ export function buildBrainCoachDailyPlan(input: {
   const preferences = input.preferences ?? {};
   const now = input.now ?? new Date();
   const today = dayKey(now);
+  if (preferences.caregiverPaused) {
+    return {
+      planDate: today,
+      generatedAt: now.toISOString(),
+      estimatedDurationMinutes: 0,
+      recommendedDomains: [],
+      activities: [],
+      rationale: ["Brain Coach planning is paused by caregiver-approved settings."],
+      completion: {
+        completedCount: 0,
+        totalCount: 0,
+        allComplete: false,
+        completedActivityTypes: [],
+      },
+    };
+  }
   const lapsedDays = daysSinceLastSession(sessions, now);
   const lapsed = lapsedDays !== null && lapsedDays >= 7;
   const targetMinutes = preferredPlanMinutes(preferences, lapsed);
@@ -460,7 +485,11 @@ export function buildBrainCoachDailyPlan(input: {
       .map((session) => session.activityType),
   );
 
-  const scored = ACTIVITY_CATALOG
+  const excluded = new Set(preferences.excludedActivityTypes ?? []);
+  const candidates = ACTIVITY_CATALOG.filter((candidate) => !excluded.has(candidate.activityType));
+  const catalog = candidates.length > 0 ? candidates : ACTIVITY_CATALOG;
+
+  const scored = catalog
     .map((candidate) => scoreCandidate(candidate, sessions, events, preferences, now))
     .sort((a, b) => b.score - a.score);
   const selected = selectActivities(scored, targetMinutes);
@@ -479,6 +508,12 @@ export function buildBrainCoachDailyPlan(input: {
     preferences.variety === "repeating"
       ? "Allows some familiar repetition because onboarding preferences allow it."
       : "Avoids repeating the same game continuously.",
+    preferences.preferredDomains && preferences.preferredDomains.length > 0
+      ? `Uses caregiver-approved focus domains: ${preferences.preferredDomains.join(", ")}.`
+      : "Uses the default domain balance when no caregiver focus is set.",
+    preferences.weeklyTargetDays
+      ? `Supports the caregiver-approved weekly goal of ${preferences.weeklyTargetDays} Brain Coach days.`
+      : "Uses the default weekly goal for gentle consistency.",
     streakDays > 0
       ? `Keeps momentum from the current ${streakDays}-day streak.`
       : "Aims for one clear completion today.",
