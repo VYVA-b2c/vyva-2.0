@@ -1,10 +1,15 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { and, eq, gte, desc, sql } from "drizzle-orm";
+import { and, eq, gte, desc, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
-import { vitalsReadings } from "../../shared/schema.js";
-import { VITALS_READING_SOURCES, vitalsEvidenceFor, type VitalsReadingSource } from "../../shared/vitalsEvidence.js";
+import { vitalsReadings, vyvaSignalReadings } from "../../shared/schema.js";
+import {
+  VITALS_READING_SOURCES,
+  normalizeVitalsSource,
+  vitalsEvidenceFor,
+  type VitalsReadingSource,
+} from "../../shared/vitalsEvidence.js";
 import { requireUser } from "../middleware/auth.js";
 
 const router = Router();
@@ -12,6 +17,12 @@ const router = Router();
 const METRIC_TYPES = ["hr", "rr", "bp"] as const;
 type MetricType = typeof METRIC_TYPES[number];
 type ReadingSource = VitalsReadingSource;
+type MetricReading = {
+  value: string;
+  recorded_at: Date;
+  source: ReadingSource;
+  signal_type?: string | null;
+};
 
 const postBodySchema = z.object({
   metric_type: z.enum(METRIC_TYPES),
@@ -24,6 +35,7 @@ const ENGINE_SIGNAL_BY_METRIC: Record<MetricType, string> = {
   rr: "respiratory_rate",
   bp: "bp_systolic",
 };
+const SUMMARY_ENGINE_SIGNAL_TYPES = ["resting_hr_bpm", "respiratory_rate", "bp_systolic", "bp_diastolic"] as const;
 
 function numericMetricValue(metricType: MetricType, value: string): number | null {
   const raw = metricType === "bp" ? value.split("/")[0] : value;
@@ -50,15 +62,67 @@ function sourceForRow(row: typeof vitalsReadings.$inferSelect): ReadingSource {
   return "manual_entry";
 }
 
-function rowToMetricEntries(row: typeof vitalsReadings.$inferSelect): Array<{ metric: MetricType; value: string; source: ReadingSource }> {
+function rowToMetricEntries(row: typeof vitalsReadings.$inferSelect): Array<{ metric: MetricType } & MetricReading> {
   const source = sourceForRow(row);
   if (row.metric_type && row.value) {
     const mt = row.metric_type as MetricType;
-    if (METRIC_TYPES.includes(mt)) return [{ metric: mt, value: row.value, source }];
+    if (METRIC_TYPES.includes(mt)) {
+      return [{ metric: mt, value: row.value, recorded_at: row.recorded_at, source, signal_type: ENGINE_SIGNAL_BY_METRIC[mt] }];
+    }
   }
-  const entries: Array<{ metric: MetricType; value: string; source: ReadingSource }> = [];
-  if (row.bpm != null) entries.push({ metric: "hr", value: String(row.bpm), source });
-  if (row.respiratory_rate != null) entries.push({ metric: "rr", value: String(row.respiratory_rate), source });
+  const entries: Array<{ metric: MetricType } & MetricReading> = [];
+  if (row.bpm != null) entries.push({ metric: "hr", value: String(row.bpm), recorded_at: row.recorded_at, source, signal_type: "resting_hr_bpm" });
+  if (row.respiratory_rate != null) entries.push({ metric: "rr", value: String(row.respiratory_rate), recorded_at: row.recorded_at, source, signal_type: "respiratory_rate" });
+  return entries;
+}
+
+function engineValue(value: string | number): string {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return String(value);
+  return Number.isInteger(parsed) ? String(parsed) : String(Number(parsed.toFixed(1)));
+}
+
+function engineSource(source: string | null | undefined): ReadingSource {
+  return normalizeVitalsSource(source);
+}
+
+function engineRowsToMetricEntries(rows: Array<typeof vyvaSignalReadings.$inferSelect>): Array<{ metric: MetricType } & MetricReading> {
+  const entries: Array<{ metric: MetricType } & MetricReading> = [];
+
+  for (const row of rows) {
+    if (row.signal_type === "resting_hr_bpm") {
+      entries.push({
+        metric: "hr",
+        value: engineValue(row.value),
+        recorded_at: row.recorded_at,
+        source: engineSource(row.source),
+        signal_type: row.signal_type,
+      });
+    }
+    if (row.signal_type === "respiratory_rate") {
+      entries.push({
+        metric: "rr",
+        value: engineValue(row.value),
+        recorded_at: row.recorded_at,
+        source: engineSource(row.source),
+        signal_type: row.signal_type,
+      });
+    }
+  }
+
+  const diastolicRows = rows.filter((row) => row.signal_type === "bp_diastolic");
+  for (const systolic of rows.filter((row) => row.signal_type === "bp_systolic")) {
+    const systolicTime = systolic.recorded_at.getTime();
+    const matchingDiastolic = diastolicRows.find((row) => Math.abs(row.recorded_at.getTime() - systolicTime) <= 5 * 60 * 1000);
+    entries.push({
+      metric: "bp",
+      value: matchingDiastolic ? `${engineValue(systolic.value)}/${engineValue(matchingDiastolic.value)}` : engineValue(systolic.value),
+      recorded_at: systolic.recorded_at,
+      source: engineSource(systolic.source),
+      signal_type: systolic.signal_type,
+    });
+  }
+
   return entries;
 }
 
@@ -100,14 +164,38 @@ router.get("/", requireUser, async (req: Request, res: Response) => {
       )
       .orderBy(desc(vitalsReadings.recorded_at));
 
-    const byMetric: Record<MetricType, Array<{ value: string; recorded_at: Date; source: ReadingSource }>> = {
+    const byMetric: Record<MetricType, MetricReading[]> = {
       hr: [], rr: [], bp: [],
     };
 
     for (const row of rows) {
-      for (const { metric, value, source } of rowToMetricEntries(row)) {
-        byMetric[metric].push({ value, recorded_at: row.recorded_at, source });
+      for (const { metric, ...reading } of rowToMetricEntries(row)) {
+        byMetric[metric].push(reading);
       }
+    }
+
+    try {
+      const signalRows = await db
+        .select()
+        .from(vyvaSignalReadings)
+        .where(
+          and(
+            eq(vyvaSignalReadings.user_id, userId),
+            gte(vyvaSignalReadings.recorded_at, sevenDaysAgo),
+            inArray(vyvaSignalReadings.signal_type, [...SUMMARY_ENGINE_SIGNAL_TYPES]),
+          ),
+        )
+        .orderBy(desc(vyvaSignalReadings.recorded_at));
+
+      for (const { metric, ...reading } of engineRowsToMetricEntries(signalRows)) {
+        byMetric[metric].push(reading);
+      }
+    } catch (signalErr) {
+      console.warn("[vitals GET signal readings]", signalErr);
+    }
+
+    for (const metric of METRIC_TYPES) {
+      byMetric[metric].sort((a, b) => b.recorded_at.getTime() - a.recorded_at.getTime());
     }
 
     const summary: Record<string, {
@@ -125,7 +213,7 @@ router.get("/", requireUser, async (req: Request, res: Response) => {
     for (const metric of METRIC_TYPES) {
       const readings = byMetric[metric];
       const latest = readings[0] ?? null;
-      const evidence = latest ? vitalsEvidenceFor(latest.source, ENGINE_SIGNAL_BY_METRIC[metric]) : null;
+      const evidence = latest ? vitalsEvidenceFor(latest.source, latest.signal_type ?? ENGINE_SIGNAL_BY_METRIC[metric]) : null;
 
       const dayMap: Record<string, string> = {};
       for (const r of readings) {
