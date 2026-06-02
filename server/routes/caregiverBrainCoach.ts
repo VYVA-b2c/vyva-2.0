@@ -19,6 +19,11 @@ import {
   normalizeBrainCoachCaregiverSettings,
 } from "../lib/brainCoachCaregiverSettings.js";
 import { buildBrainCoachDailyPlan, extractBrainCoachPreferences } from "../lib/brainCoachPlan.js";
+import { buildBrainCoachPlanRows } from "../lib/brainCoachPlanLifecycle.js";
+import {
+  brainCoachScheduleAuditSnapshot,
+  syncBrainCoachScheduledInteraction,
+} from "../lib/brainCoachScheduleSync.js";
 import {
   cognitiveCaregiverSettings,
   cognitiveDailyPlanEvents,
@@ -117,6 +122,48 @@ async function loadTodayPlan(profileId: string) {
     ))
     .limit(1);
   return plan ?? null;
+}
+
+async function ensureTodayPlan(profileId: string) {
+  const existing = await loadTodayPlan(profileId);
+  if (existing) return existing;
+
+  const { sessions, events, preferences } = await loadPlanInputs(profileId);
+  const generatedPlan = buildBrainCoachDailyPlan({
+    sessions,
+    events,
+    preferences,
+  });
+  const built = buildBrainCoachPlanRows({
+    userId: profileId,
+    generatedPlan,
+    sourceContext: {
+      source: "caregiver_nudge",
+      total_sessions: sessions.length,
+      completed_sessions: sessions.filter((session) => session.completed).length,
+      training_time: preferences.trainingTime ?? null,
+      session_length_mins: preferences.sessionLengthMins ?? null,
+    },
+  });
+
+  const insertedPlans = await db
+    .insert(cognitiveDailyPlans)
+    .values(built.plan)
+    .onConflictDoNothing()
+    .returning();
+  const plan = insertedPlans[0] ?? await loadTodayPlan(profileId);
+  if (!plan) throw new Error("Brain Coach daily plan could not be created.");
+
+  if (insertedPlans.length > 0 && built.items.length > 0) {
+    await db.insert(cognitiveDailyPlanItems).values(
+      built.items.map((item) => ({
+        ...item,
+        planId: plan.id,
+      })),
+    );
+  }
+
+  return plan;
 }
 
 async function resolveProfileParam(req: Request, res: Response, value: string): Promise<string | null> {
@@ -461,12 +508,27 @@ router.patch("/:profileId/settings", requireUser, async (req: Request, res: Resp
         set: values,
       })
       .returning();
+    const scheduleSync = touchesSchedule
+      ? await syncBrainCoachScheduledInteraction({
+          userId: profileId,
+          actorUserId: req.user!.id,
+          preferredTrainingTimes: normalized.preferredTrainingTimes,
+          paused: normalized.paused,
+        })
+      : null;
 
     await auditBrainCoachCaregiverChange({
       access,
-      previousValue: { settings: settingsResponse(existing) },
-      newValue: { settings: settingsResponse(updated) },
+      previousValue: {
+        settings: settingsResponse(existing),
+        schedule: brainCoachScheduleAuditSnapshot(scheduleSync?.previousSchedule),
+      },
+      newValue: {
+        settings: settingsResponse(updated),
+        schedule: brainCoachScheduleAuditSnapshot(scheduleSync?.schedule),
+      },
       source: access.isOwnProfile ? "brain_coach_settings_self" : "brain_coach_settings_caregiver",
+      scheduleId: scheduleSync?.schedule.id ?? null,
     });
 
     return res.json({ settings: settingsResponse(updated), permissions: access.permissions });
@@ -492,8 +554,7 @@ router.post("/:profileId/nudges", requireUser, async (req: Request, res: Respons
     });
     if (!access) return res.status(403).json({ error: "Brain Coach nudges need senior consent." });
 
-    const plan = await loadTodayPlan(profileId);
-    if (!plan) return res.status(409).json({ error: "Today's Brain Coach plan is not available yet." });
+    const plan = await ensureTodayPlan(profileId);
 
     const copy = caregiverNudgeCopy(parsed.data.messageType);
     const sentAt = new Date();

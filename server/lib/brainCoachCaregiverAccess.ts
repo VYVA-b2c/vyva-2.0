@@ -204,10 +204,11 @@ export async function auditBrainCoachCaregiverChange(input: {
   previousValue: unknown;
   newValue: unknown;
   source?: string;
+  scheduleId?: string | null;
 }) {
   await db.insert(consentAuditLogs).values({
     user_id: input.access.targetUserId,
-    schedule_id: null,
+    schedule_id: input.scheduleId ?? null,
     changed_by: input.access.actorUserId,
     changed_by_role: input.access.actorRole,
     previous_value: input.previousValue ?? {},
