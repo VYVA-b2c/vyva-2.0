@@ -299,7 +299,6 @@ const es = {
         actionNeeded: "Accion ahora",
         vitalRefinementTitle: "Ajustar con una lectura",
         vitalRefinementBody: "Una lectura relevante puede ayudar a VYVA a actualizar esta evaluacion. Las estimaciones del telefono sirven para tendencias; las lecturas de dispositivo o manuales son evidencia mas fuerte.",
-        readConnectedSensor: "Leer sensor conectado",
         useLatestReading: "Usar ultima lectura guardada",
         noLatestReading: "Aun no hay lectura guardada",
         latestReadingDetail: "{{display}} desde {{source}}",
