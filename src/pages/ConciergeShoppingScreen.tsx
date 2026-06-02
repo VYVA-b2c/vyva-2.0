@@ -13,9 +13,9 @@ import {
   SlidersHorizontal,
   Sparkles,
 } from "lucide-react";
-import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import {
   SHOPPING_CATEGORY_CHOICE_LABELS,
@@ -356,8 +356,8 @@ const RecommendationCard = ({
 const ConciergeShoppingScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { i18n } = useTranslation();
-  const locale = localeKey(i18n.language);
+  const { language } = useLanguage();
+  const locale = localeKey(language);
   const copy = COPY[locale];
   const [category, setCategory] = useState<ShoppingCategoryChoice>("safe_home");
   const [needText, setNeedText] = useState("");
@@ -455,7 +455,7 @@ const ConciergeShoppingScreen = () => {
         category,
         priorities,
         constraints,
-        locale: i18n.language,
+        locale: language,
       });
       setResult(next);
       setRoutePrefill(null);

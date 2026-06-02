@@ -7,6 +7,7 @@ import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPane
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { ApiError } from "@/lib/queryClient";
 import { useProfile } from "@/contexts/ProfileContext";
+import { useLanguage } from "@/i18n";
 import { sanitizePhoneHref } from "@/lib/emergencyContacts";
 import {
   medicationDoctorMailto,
@@ -125,7 +126,8 @@ function normalizeVoiceFocus(value: string) {
 }
 
 const AdherenceReportScreen = () => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const { language } = useLanguage();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { profile } = useProfile();
@@ -303,7 +305,7 @@ const AdherenceReportScreen = () => {
   ].join("\n");
   const gpName = profile?.gpName?.trim();
   const gpPhoneHref = sanitizePhoneHref(profile?.gpPhone);
-  const gpEmailHref = medicationDoctorMailto(profile?.gpEmail, adherenceDoctorNote, i18n.language);
+  const gpEmailHref = medicationDoctorMailto(profile?.gpEmail, adherenceDoctorNote, language);
   const attentionContext = attentionNames.length ? attentionNames.join(", ") : t("meds.adherence.shareAllOnTrack");
   const serviceActions: AdherenceServiceAction[] = [
     {
@@ -314,7 +316,7 @@ const AdherenceReportScreen = () => {
       color: "#C9890A",
       bg: "#FEF3C7",
       onClick: () => navigate("/concierge/shopping", {
-        state: medicationRefillShoppingState(medicationSummary, i18n.language),
+        state: medicationRefillShoppingState(medicationSummary, language),
       }),
     },
     ...(gpPhoneHref
@@ -365,7 +367,7 @@ const AdherenceReportScreen = () => {
         state: medicationReviewAppointmentState(
           medicationSummary,
           `${adherenceDoctorNote}\nNeeds attention: ${attentionContext}`,
-          i18n.language,
+          language,
           "adherence_report",
         ),
       }),
@@ -381,7 +383,7 @@ const AdherenceReportScreen = () => {
         state: medicationReviewRideState(
           medicationSummary,
           `${adherenceDoctorNote}\nNeeds attention: ${attentionContext}`,
-          i18n.language,
+          language,
           "adherence_report",
         ),
       }),

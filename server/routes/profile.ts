@@ -57,7 +57,7 @@ import { getActiveProfileContext } from "../lib/profileAccess.js";
 
 const DEMO_USER_ID = "demo-user";
 const IS_PROD = process.env.NODE_ENV === "production";
-const SUPPORTED_PROFILE_LANGUAGES = ["es", "en", "fr", "de", "it", "pt", "cy"] as const;
+const SUPPORTED_PROFILE_LANGUAGES = ["es", "en", "fr", "de", "it", "pt"] as const;
 type ProfileLanguage = (typeof SUPPORTED_PROFILE_LANGUAGES)[number];
 
 const router = Router();

@@ -282,9 +282,9 @@ const ROOM_PICKER_NAMES: Record<string, Record<SocialLanguage, string>> = {
 
 export function getSocialLanguage(language?: string | null): SocialLanguage {
   if (!language) return "es";
-  if (language.startsWith("de")) return "de";
-  if (language.startsWith("en")) return "en";
-  return "es";
+  const base = language.split("-")[0]?.toLowerCase();
+  if (base === "es" || base === "de") return base;
+  return "en";
 }
 
 export function getSocialCopy(language: SocialLanguage) {

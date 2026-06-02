@@ -389,7 +389,7 @@ function validCopy(copy: HeroCopy): boolean {
 }
 
 function buildResult(message: HeroMessageDefinition, language: HeroLanguage, context: HeroMessageContext): HeroMessageResult {
-  const copy = message.copy[language] ?? message.copy.es ?? { headline: "" };
+  const copy = message.copy[language] ?? message.copy.en ?? message.copy.es ?? { headline: "" };
   const name = context.firstName?.trim();
   let headline = copy.headline;
   if (name && copy.headlineWithName) {
@@ -465,6 +465,16 @@ export function selectHeroMessageFromCatalog(
     const result = buildResult(selected, language, context);
     if (validateHeroMessageResult(result)) return result;
     invalidSelected = true;
+  }
+
+  const builtInEligible = HERO_MESSAGES
+    .filter((message) => message.surface === surface)
+    .filter((message) => matchesContext(message, context, period))
+    .sort((a, b) => b.priority - a.priority);
+
+  for (const selected of orderedByCooldown(builtInEligible, now, impressions)) {
+    const result = buildResult(selected, language, context);
+    if (validateHeroMessageResult(result)) return result;
   }
 
   return fallbackResult(

@@ -512,6 +512,37 @@ describe("language persistence", () => {
     }
   });
 
+  it("keeps exposed locale JSON files complete against English", () => {
+    const englishKeys = localeKeys("en");
+
+    for (const language of SUPPORTED_TEST_LANGUAGES.filter((code) => code !== "en")) {
+      const translatedKeys = localeKeys(language);
+      const missingKeys = [...englishKeys].filter((key) => !translatedKeys.has(key));
+
+      expect(missingKeys, `${language} is missing locale keys`).toEqual([]);
+    }
+  });
+
+  it("keeps live user UI on the central language snapshot", () => {
+    const files = [
+      ...collectFiles("src/pages"),
+      ...collectFiles("src/components"),
+      ...collectFiles("src/hooks"),
+      ...collectFiles("src/social"),
+    ].filter((file) => (
+      /\.(ts|tsx)$/.test(file) &&
+      !file.includes("/admin/") &&
+      !file.endsWith(".test.ts") &&
+      !file.endsWith(".test.tsx")
+    ));
+
+    const offenders = files
+      .filter((file) => readFileSync(file, "utf8").includes("i18n.language"))
+      .map((file) => file.replace(/\\/g, "/"));
+
+    expect(offenders).toEqual([]);
+  });
+
   it("keeps settings pages on the shared app language store", () => {
     const settingsSource = collectFiles("src/pages/settings")
       .filter((file) => file.endsWith(".tsx"))

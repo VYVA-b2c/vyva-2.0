@@ -16,11 +16,12 @@ import {
   inferProfileGender,
   type GrammaticalGender,
 } from "../lib/userPersonalization.js";
+import { normalizeAppLanguage } from "../../shared/language.js";
 
 const router = Router();
 
 const checkinBodySchema = z.object({
-  language: z.string().max(12).optional().default("es"),
+  language: z.string().max(12).optional(),
   duration_seconds: z.number().int().min(0).max(3600).optional(),
   answers: z.object({
     energy_level: z.number().int().min(1).max(5),
@@ -35,7 +36,7 @@ const checkinBodySchema = z.object({
 });
 
 const abandonBodySchema = z.object({
-  language: z.string().max(12).optional().default("es"),
+  language: z.string().max(12).optional(),
   duration_seconds: z.number().int().min(0).max(3600).optional(),
 });
 
@@ -373,11 +374,12 @@ function ageFromDate(dateOfBirth: string | null): number | null {
 }
 
 function minimalProfileContext(language = "es"): ProfileContext {
+  const normalizedLanguage = normalizeAppLanguage(language, "es");
   return {
     name: "amiga",
     grammatical_gender: "neutral",
     age: null,
-    language,
+    language: normalizedLanguage,
     location: {
       city: null,
       region: null,
@@ -575,7 +577,7 @@ async function fetchProfileContext(userId: string): Promise<ProfileContext> {
     name,
     grammatical_gender: inferProfileGender(consent, name),
     age: ageFromDate(getProfileString(profile, "date_of_birth", "dob", "birth_date")),
-    language: getProfileString(profile, "language_preference", "language", "preferred_language") ?? "es",
+    language: normalizeAppLanguage(getProfileString(profile, "language_preference", "language", "preferred_language"), "es"),
     location: {
       city: getProfileString(profile, "city", "town") ?? null,
       region: getProfileString(profile, "region", "province", "state") ?? null,
@@ -993,8 +995,9 @@ export async function analyzeCheckinHandler(req: Request, res: Response) {
       console.error("[checkins] profile context failed; using minimal profile:", err);
       profile = minimalProfileContext(language);
     }
-    const result = await generateResult(profile, answers, language || profile.language);
-    const sessionId = await saveSession(userId, language || profile.language, answers, result, duration_seconds ?? null);
+    const effectiveLanguage = normalizeAppLanguage(language, profile.language);
+    const result = await generateResult(profile, answers, effectiveLanguage);
+    const sessionId = await saveSession(userId, effectiveLanguage, answers, result, duration_seconds ?? null);
     await updateTrend(userId, answers, result);
     await markDailyCheckinCompleted(userId, new Date(), { resolveAlerts: true }).catch((err) => {
       console.warn("[checkins] scheduled check-in completion not updated:", err);
@@ -1163,7 +1166,7 @@ router.post("/abandon", requireUser, async (req: Request, res: Response) => {
     await pool.query(
       `insert into checkin_sessions (user_id, language, completed, abandoned, duration_seconds)
        values ($1, $2, false, true, $3)`,
-      [userId, parsed.data.language, parsed.data.duration_seconds ?? null],
+      [userId, normalizeAppLanguage(parsed.data.language ?? req.language, "es"), parsed.data.duration_seconds ?? null],
     );
   } catch (err) {
     console.warn("[checkins] abandoned session not saved; has the checkin schema been applied?", err);

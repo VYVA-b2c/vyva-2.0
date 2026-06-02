@@ -269,7 +269,19 @@
       "appointmentPrefill": "Bitte helfen Sie mir, einen Termin zu vereinbaren. Fragen Sie, welche Art Termin ich brauche, und buchen Sie nichts ohne meine Bestatigung.",
       "ridePrefill": "Bitte helfen Sie mir, sicheren Transport zu organisieren. Fragen Sie nach Ziel und Zeit und buchen Sie nichts ohne meine Bestatigung."
     },
-    "whatNow": "oder Thema erkunden"
+    "whatNow": "oder Thema erkunden",
+    "chatExamples": [
+      "Ist dieses Medikament sicher, wenn ich Diabetes habe?",
+      "Ich brauche einen Herzspezialisten in meiner Nahe",
+      "Hilf mir, dieses Formular auszufullen",
+      "Wie beantrage ich finanzielle Hilfe?",
+      "Wie bekomme ich meinen Seniorenrabatt?",
+      "Hilf mir, eine gute betreute Wohnanlage zu finden",
+      "Welche Nebenwirkungen hat mein Blutdruckmedikament?",
+      "Erinnere mich um 8 Uhr an meine Tabletten",
+      "Ich brauche Hilfe mit meiner Arztrechnung",
+      "Finde jetzt eine geoffnete Apotheke in meiner Nahe"
+    ]
   },
   "voiceHero": {
     "talkToVyva": "Reden",
@@ -546,7 +558,22 @@
       "langPt": "Português",
       "tzMadrid": "Spanien (Madrid)",
       "tzBerlin": "Deutschland (Berlin)",
-      "tzLondon": "Vereinigtes Königreich (London)"
+      "tzLondon": "Vereinigtes Königreich (London)",
+      "required": "Erforderlich",
+      "optional": "Optional",
+      "minimumInfoTitle": "Bitte erganzen Sie zuerst die erforderlichen Angaben.",
+      "minimumInfoHint": "Vorname, Nachname und Telefonnummer sind erforderlich, um VYVA zu nutzen.",
+      "firstName": "Vorname",
+      "lastName": "Nachname",
+      "firstNamePlaceholder": "Vorname eingeben",
+      "lastNamePlaceholder": "Nachname eingeben",
+      "firstNameRequired": "Vorname ist erforderlich.",
+      "lastNameRequired": "Nachname ist erforderlich.",
+      "phoneRequired": "Telefonnummer ist erforderlich.",
+      "requiredFieldsMissing": "Bitte fullen Sie die erforderlichen Felder aus.",
+      "saved": "Kontodaten gespeichert",
+      "saveError": "Kontodaten konnten nicht gespeichert werden",
+      "defaultName": "Maria"
     }
   },
   "health": {
@@ -622,7 +649,8 @@
         "defaultContext": "Arztanfrage aus dem Gesundheitsbereich. Fragen, was benoetigt wird, und einen sicheren naechsten Schritt vorbereiten.",
         "appointmentPrefill": "Bitte helfen Sie mir, einen Arzttermin zu planen. Nichts ohne meine Bestaetigung buchen.\n\n{{context}}",
         "ridePrefill": "Bitte helfen Sie mir, eine sichere Fahrt zu einem Arzttermin zu organisieren. Nichts ohne meine Bestaetigung buchen.\n\n{{context}}"
-      }
+      },
+      "liveChat": "Live-Chat"
     },
     "symptomCheck": {
       "title": "Symptom-Check",
@@ -707,7 +735,34 @@
         "listening": "Ich höre zu...",
         "voiceUnsupported": "Sprache ist in diesem Browser nicht verfügbar. Sie können hier schreiben.",
         "voiceError": "Das Mikrofon konnte nicht gestartet werden. Sie können Ihre Antwort schreiben.",
-        "errorMsg": "Es tut mir leid, ich hatte Schwierigkeiten, das zu verstehen. Könnten Sie es erneut versuchen?"
+        "errorMsg": "Es tut mir leid, ich hatte Schwierigkeiten, das zu verstehen. Könnten Sie es erneut versuchen?",
+        "quickPain": "Schmerz",
+        "quickPainValue": "Ich habe Schmerzen.",
+        "quickChest": "Brustbeschwerden",
+        "quickChestValue": "Ich habe Beschwerden in der Brust.",
+        "quickBreathing": "Atmung",
+        "quickBreathingValue": "Ich bin kurzatmig.",
+        "quickFever": "Fieber",
+        "quickFeverValue": "Ich habe Fieber.",
+        "quickTired": "Sehr mude",
+        "quickTiredValue": "Ich fuhle mich sehr mude.",
+        "quickMild": "Leicht",
+        "quickMildValue": "Es fuhlt sich leicht an.",
+        "quickModerate": "Massig",
+        "quickModerateValue": "Es fuhlt sich massig an.",
+        "quickStrong": "Stark",
+        "quickStrongValue": "Es fuhlt sich stark an.",
+        "quickNotSure": "Nicht sicher",
+        "quickNotSureValue": "Ich bin nicht sicher.",
+        "quickYes": "Ja",
+        "quickYesValue": "Ja.",
+        "quickNo": "Nein",
+        "quickNoValue": "Nein.",
+        "quickWorse": "Schlimmer",
+        "quickWorseValue": "Es wird schlimmer.",
+        "emergencyTitle": "Notfallwarnung",
+        "contactEmergency": "Rettungsdienst kontaktieren",
+        "evidence": "Evidenz gepruft"
       },
       "report": {
         "title": "Ihr Bericht",
@@ -949,7 +1004,14 @@
       "copyAdvice": "Empfehlung kopieren",
       "shareAdvice": "Empfehlung teilen",
       "copyAdviceDone": "Empfehlung kopiert",
-      "shareIntro": "Mein KI-Gesundheitsscan sagt..."
+      "shareIntro": "Mein KI-Gesundheitsscan sagt...",
+      "viewHistory": "Verlauf ansehen",
+      "empty": "Noch keine gespeicherten Scans"
+    },
+    "allGoodToday": "Heute alles gut",
+    "wellbeingHistory": {
+      "title": "Wohlbefinden-Verlauf",
+      "subtitle": "Sehen Sie fruhere Werte und aktuelle Muster."
     }
   },
   "meds": {
@@ -1526,14 +1588,16 @@
       "scheduleAppt": "Termin buchen",
       "researchTopic": "Thema suchen",
       "findDeals": "Sparen",
-      "getAdvice": "Rat einholen"
+      "getAdvice": "Rat einholen",
+      "shoppingHelper": "Einkaufshilfe"
     },
     "prompts": {
       "bookRide": "Buchen Sie mir für morgen um 10 Uhr ein Taxi",
       "scheduleAppt": "Helfen Sie mir, einen Arzttermin zu vereinbaren",
       "researchTopic": "Erklären Sie einfach, was Medicare Teil B abdeckt",
       "findDeals": "Finden Sie dieses Wochenende Angebote in meiner Nähe",
-      "getAdvice": "Was ist ein gutes einfaches Rezept für eine Person?"
+      "getAdvice": "Was ist ein gutes einfaches Rezept für eine Person?",
+      "shoppingHelper": "Hilf mir, die beste Einkaufsoption fur meine Bedurfnisse zu wahlen. Vergleiche einfache Moglichkeiten und starte keinen Kauf."
     }
   },
   "scamGuard": {
@@ -1789,6 +1853,66 @@
       "deviceBody": "Verbundene Geräte und klinische Messungen haben das größte Gewicht in den Sicherheitsprüfungen von VYVA.",
       "highConfidence": "Höhere Sicherheit",
       "safetyChecks": "Sicherheitsprüfungen"
+    }
+  },
+  "informes": {
+    "title": "Meine Berichte",
+    "subtitle": "Symptome, Vitalwerte und Medikamente",
+    "todaySummary": "Heutige Zusammenfassung",
+    "latestReports": "Neueste Berichte",
+    "summaryGood": "Heute sieht alles gut aus. Weiter so.",
+    "summaryUrgent": "Ihre letzte Prufung empfiehlt baldige medizinische Hilfe.",
+    "summaryRoutine": "Ihre letzte Prufung empfiehlt einen Arzttermin.",
+    "summaryMedsPending": "Sie haben heute noch {{pending}} Medikament(e) einzunehmen.",
+    "summaryHighHR": "Ihre letzte Herzfrequenz war etwas erhoht.",
+    "summaryLowHR": "Ihre letzte Herzfrequenz war etwas niedrig.",
+    "summaryEmpty": "Machen Sie den ersten Symptomcheck, um hier Ihre Zusammenfassung zu sehen.",
+    "back": "Zuruck",
+    "errorTitle": "Konnte nicht geladen werden",
+    "errorSub": "Prufen Sie die Verbindung und versuchen Sie es erneut.",
+    "urgency": {
+      "urgent": "Hilfe suchen",
+      "routine": "Besuch empfohlen",
+      "monitor": "Zu Hause beobachten"
+    },
+    "cards": {
+      "symptom": {
+        "title": "Letzter Symptomcheck",
+        "cta": "Vollstandigen Bericht ansehen",
+        "empty": "Noch keine Symptomchecks. Starten Sie einen Check im Bereich Gesundheit."
+      },
+      "vitals": {
+        "title": "Vitalwerte",
+        "bpm": "Schlage pro Minute",
+        "breathsPerMin": "Atemzuge/min",
+        "statusNormal": "Normal",
+        "statusReview": "Prufen",
+        "empty": "Noch keine Vitalwerte. Machen Sie einen Symptomcheck, um den Puls zu speichern."
+      },
+      "meds": {
+        "title": "Medikamenteneinnahme",
+        "today": "Heute",
+        "taken": "{{taken}} von {{total}} genommen",
+        "cta": "Details ansehen",
+        "empty": "Keine Medikamente erfasst. Fugen Sie Ihre Medikamente im Bereich Medikamente hinzu."
+      }
+    },
+    "trends": {
+      "title": "Trends",
+      "heartRate": "Herzfrequenz",
+      "respiratoryRate": "Atemfrequenz",
+      "readings": "{{count}} Messungen",
+      "min": "Min",
+      "max": "Max",
+      "empty": "Machen Sie den ersten Scan, um hier Trends zu sehen."
+    },
+    "reportDetail": {
+      "title": "Vollstandiger Bericht",
+      "symptoms": "Beobachtete Symptome",
+      "recommendations": "Was als Nachstes zu tun ist",
+      "whyThisStep": "Erste Einschatzung",
+      "duration": "Sitzungsdauer",
+      "chatCta": "Mit VYVA sprechen"
     }
   }
 }

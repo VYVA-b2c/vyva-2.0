@@ -172,7 +172,7 @@ function normalizePhoneOnboardingPayload(data: z.infer<typeof phoneOnboardingCom
     email: callerEmail || undefined,
     whatsapp_number: firstText(profile.whatsapp_number) || callerPhone,
     country_code: firstText(data.country_code, profile.country_code) || undefined,
-    language: firstText(data.language, profile.language) || undefined,
+    language: firstText(data.language, profile.language_preference, profile.language) || undefined,
     timezone: firstText(data.timezone, profile.timezone) || undefined,
   };
 
@@ -221,7 +221,7 @@ function normalizePhoneOnboardingPayload(data: z.infer<typeof phoneOnboardingCom
       full_name: elderName,
       phone_number: elderPhone,
       email: elderEmail || undefined,
-      language: firstText(data.language, elder.language, profile.language) || undefined,
+      language: firstText(data.language, elder.language_preference, elder.language, profile.language_preference, profile.language) || undefined,
       timezone: firstText(data.timezone, elder.timezone, profile.timezone) || undefined,
     };
   }

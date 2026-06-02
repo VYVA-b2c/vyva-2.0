@@ -3,23 +3,14 @@ import OpenAI from "openai";
 import { eq, desc } from "drizzle-orm";
 import { db } from "../db.js";
 import { scamChecks } from "../../shared/schema.js";
+import { languageName, normalizeAppLanguage } from "../../shared/language.js";
 
 const DEMO_USER_ID = "demo-user";
 
-const LOCALE_TO_LANGUAGE: Record<string, string> = {
-  es: "Spanish",
-  fr: "French",
-  pt: "Portuguese",
-  de: "German",
-  it: "Italian",
-  cy: "Welsh",
-};
-
 function buildSystemPrompt(locale: string): string {
-  const language = LOCALE_TO_LANGUAGE[locale];
-  const translationInstruction = language
-    ? `\n- Translate ONLY the "resultTitle", "explanation", and "steps" array items into ${language}. The "riskLevel" field must always remain in English as exactly one of: Safe, Suspicious, Scam.`
-    : "";
+  const language = languageName(normalizeAppLanguage(locale, "en"));
+  const translationInstruction =
+    `\n- Translate ONLY the "resultTitle", "explanation", and "steps" array items into ${language}. The "riskLevel" field must always remain in English as exactly one of: Safe, Suspicious, Scam.`;
   return `You are a compassionate fraud and scam detection expert helping older adults identify potentially dangerous communications, letters, emails, or documents.
 Analyse the image provided — it may be a photograph of a letter, printed email, text message screenshot, or any other document — and assess whether it is a scam or fraudulent attempt.
 

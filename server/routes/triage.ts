@@ -39,6 +39,7 @@ import {
   type TriageWizardMatrixReply,
   type TriageWizardMatrixStage,
 } from "../lib/triageWizardMatrix.js";
+import { languageName, normalizeAppLanguage } from "../../shared/language.js";
 
 const router = Router();
 
@@ -49,7 +50,6 @@ const LOCALE_TO_LANGUAGE: Record<string, string> = {
   pt: "Portuguese",
   de: "German",
   it: "Italian",
-  cy: "Welsh",
 };
 
 interface ChatMessage {
@@ -828,10 +828,8 @@ router.post("/message", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "messages must be an array" });
   }
 
-  const normalizedLocale = typeof locale === "string"
-    ? locale.split("-")[0].toLowerCase()
-    : "en";
-  const language = LOCALE_TO_LANGUAGE[normalizedLocale] ?? "English";
+  const normalizedLocale = normalizeAppLanguage(locale, "en");
+  const language = LOCALE_TO_LANGUAGE[normalizedLocale] ?? languageName(normalizedLocale);
   const gender = await getRequestGender(req).catch(() => "neutral" as const);
 
   const validMessages: ChatMessage[] = messages

@@ -38,6 +38,7 @@ import {
   recommendationFeedbackScoreAdjustment,
   type VoiceRecommendationFeedbackSummary,
 } from "./voiceRecommendationFeedback.js";
+import { normalizeAppLanguage } from "../../shared/language.js";
 
 export type VoiceContextDomain =
   | "safety"
@@ -1429,6 +1430,7 @@ export async function buildVoiceContext(
     appEntrypoint: options.appEntrypoint ?? memoryQuery,
     priorVoiceExchangeCount,
   });
+  const preferredLanguage = normalizeAppLanguage(profile?.language_preference ?? profile?.language, "en");
 
   const variables: VoiceDynamicVariables = {
     user_id: userId,
@@ -1445,14 +1447,14 @@ export async function buildVoiceContext(
     date_of_birth: dateOfBirth,
     age_years: ageYears,
     birthday_context: birthday,
-    preferred_language: profile?.language ?? "en",
+    preferred_language: preferredLanguage,
     timezone: profile?.timezone ?? "Europe/Madrid",
     city: profile?.city ?? "",
     country_code: profile?.country_code ?? "",
     onboarding_complete: Boolean(profile?.onboarding_complete),
     profile_summary: compactLines([
       `Name: ${profile?.preferred_name || profile?.full_name || "Not recorded"}`,
-      `Language: ${profile?.language ?? "en"}`,
+      `Language: ${preferredLanguage}`,
       ageYears ? `Age: ${ageYears}` : "",
       profile?.timezone ? `Timezone: ${profile.timezone}` : "",
       profile?.city || profile?.country_code ? `Location: ${valueList([profile.city, profile.country_code])}` : "",

@@ -30,7 +30,9 @@ import { useVyvaVoice, useTtsReadout } from "@/hooks/useVyvaVoice";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useProfile } from "@/contexts/ProfileContext";
+import { useLanguage } from "@/i18n";
 import { sanitizePhoneHref } from "@/lib/emergencyContacts";
+import { languageText } from "../../shared/language";
 
 type ScamCheck = {
   id: string;
@@ -93,10 +95,14 @@ export function scamGuardContextSummary(context: ScamGuardActionContext) {
 }
 
 export function scamGuardConciergeState(context: ScamGuardActionContext, language = "en"): ScamGuardConciergeState {
-  const isSpanish = language.toLowerCase().startsWith("es");
-  const intro = isSpanish
-    ? "Ayudame a gestionar este mensaje, llamada o documento sospechoso de forma segura. No envies nada ni contactes con nadie sin confirmarmelo primero."
-    : "Please help me handle this suspicious message, call, or document safely. Do not send anything or contact anyone without confirming with me first.";
+  const intro = languageText(language, {
+    es: "Ayudame a gestionar este mensaje, llamada o documento sospechoso de forma segura. No envies nada ni contactes con nadie sin confirmarmelo primero.",
+    en: "Please help me handle this suspicious message, call, or document safely. Do not send anything or contact anyone without confirming with me first.",
+    fr: "Aide-moi a gerer ce message, cet appel ou ce document suspect en toute securite. N'envoie rien et ne contacte personne sans ma confirmation.",
+    de: "Hilf mir, diese verdaechtige Nachricht, diesen Anruf oder dieses Dokument sicher zu bearbeiten. Sende nichts und kontaktiere niemanden ohne meine Bestaetigung.",
+    it: "Aiutami a gestire in sicurezza questo messaggio, chiamata o documento sospetto. Non inviare nulla e non contattare nessuno senza la mia conferma.",
+    pt: "Ajude-me a lidar com esta mensagem, chamada ou documento suspeito com seguranca. Nao envie nada nem contacte ninguem sem a minha confirmacao.",
+  });
 
   return {
     conciergePrefill: {
@@ -385,7 +391,8 @@ const FullScreenModal = ({
 };
 
 const ScamGuardScreen = () => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const { language } = useLanguage();
   const { toast } = useToast();
   const navigate = useNavigate();
   const { profile } = useProfile();
@@ -423,9 +430,9 @@ const ScamGuardScreen = () => {
     const summary = firstStep
       ? `${riskLabel}. ${result.resultTitle}. ${t("scamGuard.ttsStepIntro", "First step")}: ${firstStep}`
       : `${riskLabel}. ${result.resultTitle}.`;
-    speakText(summary, i18n.language);
+    speakText(summary, language);
     return () => stopTts();
-  }, [result, t, i18n.language, speakText, stopTts]);
+  }, [result, t, language, speakText, stopTts]);
 
   const { data: pastChecks = [], isLoading: historyLoading } = useQuery<ScamCheck[]>({
     queryKey: ["/api/scam-check"],
@@ -470,7 +477,7 @@ const ScamGuardScreen = () => {
       .then(async (dataUrl) => {
         const res = await apiFetch("/api/scam-check", {
           method: "POST",
-          body: JSON.stringify({ image: dataUrl, language: i18n.language, fileType: sourceType }),
+          body: JSON.stringify({ image: dataUrl, language, fileType: sourceType }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json() as ScamCheckResult;
@@ -497,7 +504,7 @@ const ScamGuardScreen = () => {
   };
 
   const openScamConcierge = (context: ScamGuardActionContext) => {
-    navigate("/concierge", { state: scamGuardConciergeState(context, i18n.language) });
+    navigate("/concierge", { state: scamGuardConciergeState(context, language) });
   };
 
   const openTrustedContactSetup = () => {
@@ -759,7 +766,7 @@ const ScamGuardScreen = () => {
                         const summary = firstStep
                           ? `${riskLabel}. ${result.resultTitle}. ${t("scamGuard.ttsStepIntro", "First step")}: ${firstStep}`
                           : `${riskLabel}. ${result.resultTitle}.`;
-                        speakText(summary, i18n.language);
+                        speakText(summary, language);
                       }}
                       aria-label={isTtsSpeaking ? t("scamGuard.ttsStop", "Stop reading") : t("scamGuard.ttsPlay", "Read aloud")}
                       className="flex items-center gap-[5px] px-[10px] py-[5px] rounded-full font-body text-[12px] font-semibold transition-all active:scale-95"

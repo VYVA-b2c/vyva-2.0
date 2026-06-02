@@ -7,6 +7,7 @@ import { apiFetch, queryClient } from "@/lib/queryClient";
 import { useLocation, useNavigate } from "react-router-dom";
 import type { ActivityLog } from "../../shared/schema";
 import { useProfile } from "@/contexts/ProfileContext";
+import { useLanguage } from "@/i18n";
 import { safeHomeQuoteState, safeHomeShoppingState, type SafeHomeActionScan } from "./SafeHomeScreen";
 
 const ACTIVITY_TYPES = [
@@ -95,7 +96,8 @@ function compressImageFile(file: File): Promise<string> {
 }
 
 const ActivityScreen = () => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const { language } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
   const incomingState = location.state as ActivityLocationState;
@@ -166,7 +168,7 @@ const ActivityScreen = () => {
       .then(async (dataUrl) => {
         const res = await apiFetch("/api/home-scan", {
           method: "POST",
-          body: JSON.stringify({ image: dataUrl, language: i18n.language }),
+          body: JSON.stringify({ image: dataUrl, language }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json() as HomeScanResult & { isFallback?: boolean };
@@ -233,7 +235,7 @@ const ActivityScreen = () => {
         type="button"
         data-testid={`button-activity-safe-home-order-aids-${suffix}`}
         onClick={() => navigate("/concierge/shopping", {
-          state: safeHomeShoppingState(scan, i18n.language),
+          state: safeHomeShoppingState(scan, language),
         })}
         className="vyva-tap flex min-h-[50px] items-center gap-2 rounded-[14px] border border-[#D8C5F0] bg-white px-3 py-2 text-left"
       >
@@ -253,7 +255,7 @@ const ActivityScreen = () => {
         type="button"
         data-testid={`button-activity-safe-home-request-quote-${suffix}`}
         onClick={() => navigate("/concierge", {
-          state: safeHomeQuoteState(scan, i18n.language),
+          state: safeHomeQuoteState(scan, language),
         })}
         className="vyva-tap flex min-h-[50px] items-center gap-2 rounded-[14px] border border-[#F4D6A8] bg-white px-3 py-2 text-left"
       >
@@ -691,7 +693,7 @@ const ActivityScreen = () => {
                             {scan.result_title}
                           </p>
                           <p className="font-body text-[11px] text-vyva-text-2">
-                            {new Date(scan.scanned_at).toLocaleDateString(i18n.language, { day: "numeric", month: "short" })}
+                            {new Date(scan.scanned_at).toLocaleDateString(language, { day: "numeric", month: "short" })}
                           </p>
                         </div>
                         <div

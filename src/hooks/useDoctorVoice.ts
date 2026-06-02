@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/contexts/ProfileContext";
 import { apiFetch } from "@/lib/queryClient";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
+import { useLanguage } from "@/i18n";
 
 export const DOCTOR_AGENT_ID = "agent_9201knfm6ep0fpp958kdyt0hev1b";
 
@@ -34,7 +34,7 @@ async function fetchDoctorContextVariables(conversationId: string): Promise<Voic
 }
 
 export function useDoctorVoice() {
-  const { i18n } = useTranslation();
+  const { language } = useLanguage();
   const { user } = useAuth();
   const { profile, firstName } = useProfile();
   const voice = useVyvaVoice();
@@ -89,10 +89,10 @@ export function useDoctorVoice() {
         first_name: firstName?.trim() || profile?.firstName?.trim() || "there",
         user_id: user?.id ?? FALLBACK_DOCTOR_USER_ID,
         conversation_id: conversationId,
-        language: i18n.language?.slice(0, 2) || "en",
+        language,
       },
     });
-  }, [firstName, i18n.language, profile?.firstName, startVoice, user?.id]);
+  }, [firstName, language, profile?.firstName, startVoice, user?.id]);
 
   const stopDoctorVoice = useCallback(() => {
     setUserStopped(true);

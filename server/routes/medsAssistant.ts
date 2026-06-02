@@ -4,16 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../db.js";
 import { profiles } from "../../shared/schema.js";
 import { genderInstruction, inferProfileGender, type GrammaticalGender } from "../lib/userPersonalization.js";
-
-const LOCALE_TO_LANGUAGE: Record<string, string> = {
-  en: "English",
-  es: "Spanish",
-  fr: "French",
-  pt: "Portuguese",
-  de: "German",
-  it: "Italian",
-  cy: "Welsh",
-};
+import { languageName, normalizeAppLanguage } from "../../shared/language.js";
 
 const DISCLAIMER =
   "This is information only, not medical advice — always check with your doctor or pharmacist.";
@@ -31,7 +22,7 @@ async function getRequestGender(req: Request): Promise<GrammaticalGender> {
 }
 
 function buildSystemPrompt(locale: string, gender: GrammaticalGender): string {
-  const language = LOCALE_TO_LANGUAGE[locale];
+  const language = languageName(normalizeAppLanguage(locale, "en"));
   const languageInstruction = language
     ? `\n\nIMPORTANT: You MUST respond entirely in ${language}. All your advice, explanations and questions must be in ${language}. Only the disclaimer at the end must remain exactly in English as specified — never translate it.`
     : "";
