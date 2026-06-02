@@ -18,6 +18,7 @@ import LandingPage from "@/pages/LandingPage";
 import InviteLandingPage from "@/pages/InviteLandingPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import AccessLinkPage from "@/pages/AccessLinkPage";
+import CareTeamInvitePage from "@/pages/CareTeamInvitePage";
 import AppShell from "./components/AppShell";
 import ServiceGateRoute from "./components/ServiceGateRoute";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -360,6 +361,7 @@ const App = () => (
                 <Route path="/admin/login" element={<LoginPage adminOnly />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/access/:token" element={<AccessLinkPage />} />
+                <Route path="/care-team/invite/:token" element={<CareTeamInvitePage />} />
                 <Route path="/confirm/:token" element={<ElderConfirmByToken />} />
                 <Route path="/shared/check-in/:token" element={<SharedCheckinReport />} />
                 <Route path="/admin/proxy-pending" element={<AdminRoute><ProxyPendingPage /></AdminRoute>} />
