@@ -259,4 +259,51 @@ describe("Brain Coach caregiver access resolver", () => {
       consent_source: "brain_coach_settings_caregiver",
     });
   });
+
+  it("audits senior Brain Coach permission updates to consent audit logs", async () => {
+    const access: BrainCoachAccessContext = {
+      targetUserId: "senior-1",
+      actorUserId: "senior-1",
+      actorRole: "elder",
+      isOwnProfile: true,
+      isAdmin: false,
+      permissions: {
+        view_summary: true,
+        manage_plan_preferences: true,
+        manage_schedule: true,
+        send_nudges: true,
+        preview_plan: true,
+      },
+    };
+
+    await auditBrainCoachCaregiverChange({
+      access,
+      previousValue: {
+        membership_id: "member-1",
+        permissions: { brain_coach: { view_summary: true } },
+      },
+      newValue: {
+        membership_id: "member-1",
+        permissions: { brain_coach: { view_summary: true, manage_schedule: true } },
+      },
+      source: "brain_coach_permission_update",
+    });
+
+    expect(mocks.db.insert).toHaveBeenCalledTimes(1);
+    expect(mocks.insertValues).toHaveBeenCalledWith({
+      user_id: "senior-1",
+      schedule_id: null,
+      changed_by: "senior-1",
+      changed_by_role: "elder",
+      previous_value: {
+        membership_id: "member-1",
+        permissions: { brain_coach: { view_summary: true } },
+      },
+      new_value: {
+        membership_id: "member-1",
+        permissions: { brain_coach: { view_summary: true, manage_schedule: true } },
+      },
+      consent_source: "brain_coach_permission_update",
+    });
+  });
 });
