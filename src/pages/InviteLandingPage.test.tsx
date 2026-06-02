@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
     setLanguage: vi.fn(),
     setBootstrapLanguage: vi.fn(),
   },
+  fetch: vi.fn(),
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
@@ -50,12 +51,15 @@ function renderInvite(initialEntry: string) {
 }
 
 beforeEach(() => {
+  window.sessionStorage.clear();
   mocks.auth.user = null;
   mocks.auth.isLoading = false;
   mocks.auth.logout = vi.fn().mockResolvedValue(undefined);
   mocks.language.language = "en";
   mocks.language.setLanguage = vi.fn();
   mocks.language.setBootstrapLanguage = vi.fn();
+  mocks.fetch = vi.fn().mockResolvedValue({ ok: true });
+  vi.stubGlobal("fetch", mocks.fetch);
 });
 
 afterEach(() => {
@@ -70,14 +74,18 @@ describe("invite landing compatibility redirect", () => {
   });
 
   it("redirects signed-out invite links to account creation", async () => {
-    renderInvite("/invite?lang=fr&email=maria%40example.com");
+    renderInvite("/invite?lang=fr&email=maria%40example.com&invite_id=invite-123456");
 
     await waitFor(() => {
       expect(screen.getByTestId("location")).toHaveTextContent(
-        "/login?lang=fr&email=maria%40example.com&mode=register&invite=1&returnTo=%2F",
+        "/login?lang=fr&email=maria%40example.com&invite_id=invite-123456&mode=register&invite=1&returnTo=%2F",
       );
     });
     expect(mocks.language.setBootstrapLanguage).toHaveBeenCalledWith("fr");
+    expect(mocks.fetch).toHaveBeenCalledWith("/api/auth/signup-invite/track", expect.objectContaining({
+      method: "POST",
+      body: expect.stringContaining("invite-123456"),
+    }));
     expect(mocks.auth.logout).not.toHaveBeenCalled();
   });
 

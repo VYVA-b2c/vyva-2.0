@@ -28,6 +28,7 @@ import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
+import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 
 interface ChatMessage {
@@ -36,9 +37,9 @@ interface ChatMessage {
 }
 
 type ConciergeRoutePrefill = {
-  kind: "ride" | "appointment" | "home_care_quote";
+  kind: "ride" | "appointment" | "home_care_quote" | "task";
   message: string;
-  source?: "symptom_report";
+  source?: "symptom_report" | "daily_checkin" | "shared_checkin" | "visual_scan" | "caregiver_alert" | "doctor_choice" | "adherence_report" | "medication_support" | "safe_home_scan" | "scam_guard" | "health_home_doctor" | "specialist_finder" | "vitals_safety" | "activity_support" | "home_quick_action";
 };
 
 type ConciergeLocationState = {
@@ -759,10 +760,11 @@ type SpeechRecognitionWindow = Window & typeof globalThis & {
 };
 
 const ConciergeScreen = () => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const { language } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
-  const locale = i18n.language.split("-")[0].toLowerCase();
+  const locale = language.split("-")[0].toLowerCase();
   const isSpanish = locale === "es";
   const autoStartVoice = useRouteVoiceAutoStart();
   const queryClient = useQueryClient();
@@ -777,7 +779,7 @@ const ConciergeScreen = () => {
   const reqIdRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const chatSectionRef = useRef<HTMLElement>(null);
-  const currentLocaleRef = useRef(i18n.language);
+  const currentLocaleRef = useRef(language);
   const saveReadyRef = useRef(false);
   const billInputRef = useRef<HTMLInputElement>(null);
   const lastAppliedConciergeVoiceActionRef = useRef<string | null>(null);
@@ -884,7 +886,7 @@ const ConciergeScreen = () => {
   }, [pendingActions]);
 
   useEffect(() => {
-    currentLocaleRef.current = i18n.language;
+    currentLocaleRef.current = language;
   });
 
   useEffect(() => {
@@ -921,7 +923,7 @@ const ConciergeScreen = () => {
     setRoutePrefill(nextPrefill);
     setInput((current) => current.trim() ? current : message);
     setOffersOpen(false);
-    setAppointmentOpen(false);
+    setAppointmentOpen(prefill.kind === "appointment");
     setAppointmentNote((current) => current.trim() ? current : message);
 
     window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
@@ -930,7 +932,7 @@ const ConciergeScreen = () => {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(chatHistoryKey(i18n.language));
+      const raw = localStorage.getItem(chatHistoryKey(language));
       if (raw) {
         const stored = JSON.parse(raw) as StoredChatHistory;
         const age = Date.now() - new Date(stored.savedAt).getTime();
@@ -939,14 +941,14 @@ const ConciergeScreen = () => {
           setHasRestoredHistory(true);
           return;
         }
-        localStorage.removeItem(chatHistoryKey(i18n.language));
+        localStorage.removeItem(chatHistoryKey(language));
       }
     } catch {
       // Ignore corrupt cache.
     }
     setMessages([]);
     setHasRestoredHistory(false);
-  }, [i18n.language]);
+  }, [language]);
 
   useEffect(() => {
     if (!saveReadyRef.current) {
@@ -980,7 +982,7 @@ const ConciergeScreen = () => {
     setMessages([]);
     setHasRestoredHistory(false);
     try {
-      localStorage.removeItem(chatHistoryKey(i18n.language));
+      localStorage.removeItem(chatHistoryKey(language));
     } catch {
       // Ignore.
     }
@@ -991,7 +993,7 @@ const ConciergeScreen = () => {
     setChatLoading(true);
     setChatError(null);
     try {
-      const response = await callConcierge(text, history, i18n.language);
+      const response = await callConcierge(text, history, language);
       if (reqIdRef.current !== myReqId) return;
       setMessages((prev) => [...prev, { role: "assistant", content: response }]);
     } catch {
@@ -1090,7 +1092,7 @@ const ConciergeScreen = () => {
     setOffersLoading(true);
     setOffersError(null);
     try {
-      const result = await searchOffers(query, i18n.language, documentContext);
+      const result = await searchOffers(query, language, documentContext);
       setOffersResult(result);
     } catch {
       setOffersError(isSpanish
@@ -1142,7 +1144,7 @@ const ConciergeScreen = () => {
       const extracted = billAnalysisToUtilityExtracted(analysis);
       const normalized = await normalizeUtilityReview({
         input_method: inputMethod,
-        locale: i18n.language,
+        locale: language,
         extracted_data: extracted,
       });
       setUtilityNormalized(normalized.normalized_input);
@@ -1168,7 +1170,7 @@ const ConciergeScreen = () => {
     if (!file) return;
     const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
     if (!file.type.startsWith("image/") && !isPdf) {
-      setBillAnalysisError(billClientMessage(i18n.language, "unsupported"));
+      setBillAnalysisError(billClientMessage(language, "unsupported"));
       return;
     }
     setBillAnalysisLoading(true);
@@ -1181,12 +1183,12 @@ const ConciergeScreen = () => {
       const documentDataUrl = isPdf ? await readFileAsDataUrl(file) : await compressBillImage(file);
       let analysis: BillDocumentAnalysis;
       try {
-        analysis = await analyzeBillDocument(documentDataUrl, i18n.language);
+        analysis = await analyzeBillDocument(documentDataUrl, language);
       } catch (err) {
         const status = (err as { status?: number }).status;
         if (status !== 413 || isPdf) throw err;
         const emergencyDataUrl = await compressBillImage(file, 75_000);
-        analysis = await analyzeBillDocument(emergencyDataUrl, i18n.language);
+        analysis = await analyzeBillDocument(emergencyDataUrl, language);
       }
       setBillAnalysis(analysis);
       setOffersQuery(analysis.suggested_query);
@@ -1205,7 +1207,7 @@ const ConciergeScreen = () => {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "";
-      setBillAnalysisError(message || billClientMessage(i18n.language, "read_failed"));
+      setBillAnalysisError(message || billClientMessage(language, "read_failed"));
     } finally {
       setBillAnalysisLoading(false);
     }
@@ -1245,7 +1247,7 @@ const ConciergeScreen = () => {
     try {
       const normalized = await normalizeUtilityReview({
         input_method: "manual",
-        locale: i18n.language,
+        locale: language,
         fields: utilityForm,
       });
       setUtilityNormalized(normalized.normalized_input);
@@ -1278,7 +1280,7 @@ const ConciergeScreen = () => {
     try {
       const normalized = await normalizeUtilityReview({
         input_method: "voice",
-        locale: i18n.language,
+        locale: language,
         voice_answers: nextAnswers,
       });
       setUtilityNormalized(normalized.normalized_input);
@@ -1304,7 +1306,7 @@ const ConciergeScreen = () => {
       return;
     }
     const recognition = new SpeechRecognition();
-    recognition.lang = isSpanish ? "es-ES" : i18n.language;
+    recognition.lang = isSpanish ? "es-ES" : language;
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
     recognition.onresult = (event) => {
@@ -1346,7 +1348,7 @@ const ConciergeScreen = () => {
     try {
       const result = await compareUtilityReview({
         input_method: utilityMethod ?? "manual",
-        locale: i18n.language,
+        locale: language,
         normalized_input: comparableInput,
         extracted_data: billAnalysis ? billAnalysisToUtilityExtracted(billAnalysis) : {},
       });
@@ -1474,17 +1476,23 @@ const ConciergeScreen = () => {
           ? (isSpanish ? "Transporte seguro preparado" : "Safe transport ready")
           : routePrefill.kind === "appointment"
             ? (isSpanish ? "Solicitud de cita preparada" : "Appointment request ready")
-            : (isSpanish ? "Presupuesto de apoyo preparado" : "Support quote ready"),
+            : routePrefill.kind === "home_care_quote"
+              ? (isSpanish ? "Presupuesto de apoyo preparado" : "Support quote ready")
+              : (isSpanish ? "Solicitud preparada" : "Request ready"),
         detail: routePrefill.kind === "ride"
           ? (isSpanish ? "VYVA puede buscar opciones y dejarte confirmar antes de reservar." : "VYVA can find options and let you confirm before booking.")
           : routePrefill.kind === "appointment"
             ? (isSpanish ? "VYVA prepara el motivo, proveedor y horario antes de confirmar." : "VYVA prepares the reason, provider, and timing before confirming.")
-            : (isSpanish ? "VYVA puede solicitar una ayuda en casa o compania con confirmacion previa." : "VYVA can request home support or companionship with confirmation first."),
+            : routePrefill.kind === "home_care_quote"
+              ? (isSpanish ? "VYVA puede solicitar una ayuda en casa o compania con confirmacion previa." : "VYVA can request home support or companionship with confirmation first.")
+              : (isSpanish ? "VYVA prepara opciones y te pide confirmar antes de actuar." : "VYVA prepares options and asks you to confirm before acting."),
         primaryLabel: routePrefill.kind === "ride"
           ? (isSpanish ? "Buscar transporte" : "Find ride options")
           : routePrefill.kind === "appointment"
             ? (isSpanish ? "Iniciar solicitud" : "Start appointment request")
-            : (isSpanish ? "Pedir presupuesto" : "Request quote"),
+            : routePrefill.kind === "home_care_quote"
+              ? (isSpanish ? "Pedir presupuesto" : "Request quote")
+              : (isSpanish ? "Iniciar solicitud" : "Start request"),
         secondaryLabel: routePrefill.kind === "appointment"
           ? (isSpanish ? "Anadir detalles" : "Add details")
           : (isSpanish ? "Editar solicitud" : "Edit request"),

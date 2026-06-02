@@ -7,6 +7,6 @@ export const LANGUAGES = [
   { code: "pt", label: "Portugu\u00eas" },
 ] as const;
 
-export type LanguageCode = "es" | "en" | "fr" | "de" | "it" | "pt" | "cy";
+export type LanguageCode = "es" | "en" | "fr" | "de" | "it" | "pt";
 
 export const DEFAULT_LANGUAGE: LanguageCode = "es";

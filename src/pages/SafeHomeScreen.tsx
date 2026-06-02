@@ -14,12 +14,19 @@ import {
   ShieldAlert,
   Phone,
   Users,
+  ShoppingBasket,
+  Wrench,
 } from "lucide-react";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
+import { useProfile } from "@/contexts/ProfileContext";
+import { useLanguage } from "@/i18n";
+import { sanitizePhoneHref } from "@/lib/emergencyContacts";
+import type { ShoppingPriority } from "../../shared/shopping";
+import { languageText } from "../../shared/language";
 
 type HomeScan = {
   id: string;
@@ -29,6 +36,29 @@ type HomeScan = {
   advice: string;
   image_data?: string | null;
   scanned_at: string;
+};
+
+export type SafeHomeActionScan = {
+  riskLevel?: string;
+  resultTitle: string;
+  hazards?: string[];
+  advice?: string;
+};
+
+type SafeHomeShoppingState = {
+  shoppingPrefill: {
+    needText: string;
+    category: "safe_home";
+    priorities: ShoppingPriority[];
+  };
+};
+
+type SafeHomeQuoteState = {
+  conciergePrefill: {
+    kind: "home_care_quote";
+    message: string;
+    source: "safe_home_scan";
+  };
 };
 
 const RISK_COLORS: Record<string, { bg: string; text: string; icon: typeof CheckCircle; labelKey: string }> = {
@@ -46,6 +76,51 @@ function riskLabelKey(riskLevel: string): string {
   if (normalized === "high risk") return "safeHome.riskLabel.highRisk";
   if (normalized === "low risk") return "safeHome.riskLabel.lowRisk";
   return "safeHome.riskLabel.safe";
+}
+
+function safeHomeScanSummary(scan: SafeHomeActionScan) {
+  const hazards = scan.hazards?.map((hazard) => hazard.trim()).filter(Boolean) ?? [];
+  return [
+    scan.resultTitle.trim(),
+    hazards.length ? `Hazards: ${hazards.join(", ")}` : "",
+    scan.advice?.trim() ? `Advice: ${scan.advice.trim()}` : "",
+  ].filter(Boolean).join(". ");
+}
+
+export function safeHomeShoppingState(scan: SafeHomeActionScan, language = "en"): SafeHomeShoppingState {
+  const summary = safeHomeScanSummary(scan);
+  return {
+    shoppingPrefill: {
+      needText: languageText(language, {
+        es: `Ayudame a elegir ayudas sencillas de seguridad para casa segun este escaneo: ${summary}. No inicies compra ni pago sin confirmarme.`,
+        en: `Help me choose simple home safety aids based on this scan: ${summary}. Do not start checkout without my confirmation.`,
+        fr: `Aide-moi a choisir des aides simples de securite a domicile selon cette analyse : ${summary}. Ne lance aucun achat ni paiement sans ma confirmation.`,
+        de: `Hilf mir, einfache Hilfen fuer die Sicherheit zu Hause anhand dieses Scans auszuwaehlen: ${summary}. Starte keinen Kauf und keine Zahlung ohne meine Bestaetigung.`,
+        it: `Aiutami a scegliere semplici ausili per la sicurezza in casa in base a questa scansione: ${summary}. Non avviare acquisti o pagamenti senza la mia conferma.`,
+        pt: `Ajude-me a escolher apoios simples de seguranca em casa com base neste exame: ${summary}. Nao inicie compras nem pagamentos sem a minha confirmacao.`,
+      }),
+      category: "safe_home",
+      priorities: ["safety", "simplicity", "delivery"],
+    },
+  };
+}
+
+export function safeHomeQuoteState(scan: SafeHomeActionScan, language = "en"): SafeHomeQuoteState {
+  const summary = safeHomeScanSummary(scan);
+  return {
+    conciergePrefill: {
+      kind: "home_care_quote",
+      source: "safe_home_scan",
+      message: languageText(language, {
+        es: `Ayudame a pedir un presupuesto de seguridad en casa para revisar o arreglar estos riesgos: ${summary}. Pideme confirmacion antes de solicitar nada.`,
+        en: `Help me request a home safety quote to review or fix these risks: ${summary}. Ask me to confirm before requesting anything.`,
+        fr: `Aide-moi a demander un devis de securite a domicile pour verifier ou corriger ces risques : ${summary}. Demande-moi confirmation avant toute demande.`,
+        de: `Hilf mir, ein Angebot fuer Sicherheit zu Hause anzufordern, um diese Risiken zu pruefen oder zu beheben: ${summary}. Bitte bestaetige mit mir, bevor du etwas anfragst.`,
+        it: `Aiutami a richiedere un preventivo per la sicurezza domestica per controllare o sistemare questi rischi: ${summary}. Chiedimi conferma prima di inviare qualsiasi richiesta.`,
+        pt: `Ajude-me a pedir um orcamento de seguranca em casa para rever ou corrigir estes riscos: ${summary}. Peca a minha confirmacao antes de solicitar qualquer coisa.`,
+      }),
+    },
+  };
 }
 
 const ScanFullScreenModal = ({
@@ -180,9 +255,11 @@ const ScanFullScreenModal = ({
 };
 
 const SafeHomeScreen = () => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const { language } = useLanguage();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { profile } = useProfile();
 
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<null | {
@@ -278,7 +355,7 @@ const SafeHomeScreen = () => {
       .then(async (dataUrl) => {
         const res = await apiFetch("/api/home-scan", {
           method: "POST",
-          body: JSON.stringify({ image: dataUrl, language: i18n.language }),
+          body: JSON.stringify({ image: dataUrl, language }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json() as {
@@ -306,6 +383,91 @@ const SafeHomeScreen = () => {
 
   const resultColors = result ? getRiskColors(result.riskLevel) : null;
   const ResultIcon = resultColors?.icon ?? CheckCircle;
+  const caregiverName = profile?.caregiverName?.trim() || t("safeHome.actions.caregiverFallback", "care team");
+  const caregiverHref = sanitizePhoneHref(profile?.caregiverContact);
+
+  const renderServiceActions = (scan: SafeHomeActionScan, testIdSuffix: string) => (
+    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid={`safe-home-service-actions-${testIdSuffix}`}>
+      <button
+        type="button"
+        data-testid={`button-safe-home-order-aids-${testIdSuffix}`}
+        onClick={() => navigate("/concierge/shopping", {
+          state: safeHomeShoppingState(scan, language),
+        })}
+        className="vyva-tap flex min-h-[58px] items-center gap-3 rounded-[16px] border border-[#D8C5F0] bg-white px-3 py-2 text-left shadow-[0_8px_18px_rgba(107,33,168,0.08)]"
+      >
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F5F3FF] text-[#6B21A8]">
+          <ShoppingBasket size={19} />
+        </span>
+        <span className="min-w-0">
+          <span className="block font-body text-[14px] font-bold leading-tight text-vyva-text-1">
+            {t("safeHome.actions.orderAids", "Order safety aids")}
+          </span>
+          <span className="mt-0.5 block font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
+            {t("safeHome.actions.orderAidsSub", "Compare simple items before checkout.")}
+          </span>
+        </span>
+      </button>
+      {caregiverHref ? (
+        <a
+          href={caregiverHref}
+          data-testid={`button-safe-home-call-caregiver-${testIdSuffix}`}
+          className="vyva-tap flex min-h-[58px] items-center gap-3 rounded-[16px] border border-[#BBF7D0] bg-white px-3 py-2 text-left shadow-[0_8px_18px_rgba(4,120,87,0.08)]"
+        >
+          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#ECFDF5] text-[#047857]">
+            <Phone size={19} />
+          </span>
+          <span className="min-w-0">
+            <span className="block font-body text-[14px] font-bold leading-tight text-vyva-text-1">
+              {t("safeHome.actions.callCaregiver", "Call {{name}}", { name: caregiverName })}
+            </span>
+            <span className="mt-0.5 block font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
+              {t("safeHome.actions.callCaregiverSub", "Share the safety concern now.")}
+            </span>
+          </span>
+        </a>
+      ) : (
+        <button
+          type="button"
+          data-testid={`button-safe-home-add-caregiver-${testIdSuffix}`}
+          onClick={() => navigate("/onboarding/profile/care-team")}
+          className="vyva-tap flex min-h-[58px] items-center gap-3 rounded-[16px] border border-[#BBF7D0] bg-white px-3 py-2 text-left shadow-[0_8px_18px_rgba(4,120,87,0.08)]"
+        >
+          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#ECFDF5] text-[#047857]">
+            <Users size={19} />
+          </span>
+          <span className="min-w-0">
+            <span className="block font-body text-[14px] font-bold leading-tight text-vyva-text-1">
+              {t("safeHome.actions.addCaregiver", "Add care team")}
+            </span>
+            <span className="mt-0.5 block font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
+              {t("safeHome.actions.addCaregiverSub", "Save someone to call from safety checks.")}
+            </span>
+          </span>
+        </button>
+      )}
+      <button
+        type="button"
+        data-testid={`button-safe-home-request-quote-${testIdSuffix}`}
+        onClick={() => navigate("/concierge", {
+          state: safeHomeQuoteState(scan, language),
+        })}
+        className="vyva-tap flex min-h-[58px] items-center gap-3 rounded-[16px] border border-[#F4D6A8] bg-white px-3 py-2 text-left shadow-[0_8px_18px_rgba(154,52,18,0.08)]"
+      >
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#FFF7ED] text-[#B45309]">
+          <Wrench size={19} />
+        </span>
+        <span className="min-w-0">
+          <span className="block font-body text-[14px] font-bold leading-tight text-vyva-text-1">
+            {t("safeHome.actions.requestQuote", "Request quote")}
+          </span>
+          <span className="mt-0.5 block font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
+            {t("safeHome.actions.requestQuoteSub", "Prepare home help for your approval.")}
+          </span>
+        </span>
+      </button>
+    </div>
+  );
 
   return (
     <>
@@ -538,6 +700,7 @@ const SafeHomeScreen = () => {
                 >
                   {result.advice}
                 </p>
+                {renderServiceActions(result, "current")}
               </div>
             )}
 
@@ -704,7 +867,13 @@ const SafeHomeScreen = () => {
                           <p className="font-body text-[12px] text-vyva-text-1 leading-snug mb-[10px]">
                             {scan.advice}
                           </p>
-                          <div className="flex gap-[8px]">
+                          {renderServiceActions({
+                            resultTitle: scan.result_title,
+                            riskLevel: scan.risk_level,
+                            hazards: scan.hazards,
+                            advice: scan.advice,
+                          }, scan.id)}
+                          <div className="mt-[10px] flex gap-[8px]">
                             {scan.image_data && (
                               <button
                                 data-testid={`button-view-home-scan-image-${scan.id}`}

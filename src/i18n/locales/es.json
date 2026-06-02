@@ -216,38 +216,38 @@
     "todayForYou": {
       "sectionTitle": "Hoy para ti",
       "refreshLabel": "Actualizar sugerencias",
-        "cards": {
-          "symptomCheck": {
-            "badge": "Síntomas",
-            "title": "Revisa síntomas",
-            "text": "Responde unas preguntas si algo te preocupa hoy.",
-            "cta": "Empezar"
-          },
-          "specialistFinder": {
-            "badge": "Salud",
-            "title": "Buscar especialista",
-            "text": "Encuentra médicos cercanos según tu necesidad.",
-            "cta": "Buscar"
-          },
-          "gamesRoom": {
-            "badge": "Juegos",
-            "title": "Sala de juegos",
-            "text": "Elige un juego tranquilo para activar la mente.",
-            "cta": "Jugar"
-          },
-          "musicSalon": {
-            "badge": "Música",
-            "title": "Salón musical",
-            "text": "Charla con la guía musical y descubre algo bonito.",
-            "cta": "Entrar"
-          },
-          "billReview": {
-            "badge": "Ahorro",
-            "title": "Revisar facturas",
-            "text": "Comprueba si puedes pagar menos por servicios.",
-            "cta": "Revisar"
-          },
-          "breathing": {
+      "cards": {
+        "symptomCheck": {
+          "badge": "Síntomas",
+          "title": "Revisa síntomas",
+          "text": "Responde unas preguntas si algo te preocupa hoy.",
+          "cta": "Empezar"
+        },
+        "specialistFinder": {
+          "badge": "Salud",
+          "title": "Buscar especialista",
+          "text": "Encuentra médicos cercanos según tu necesidad.",
+          "cta": "Buscar"
+        },
+        "gamesRoom": {
+          "badge": "Juegos",
+          "title": "Sala de juegos",
+          "text": "Elige un juego tranquilo para activar la mente.",
+          "cta": "Jugar"
+        },
+        "musicSalon": {
+          "badge": "Música",
+          "title": "Salón musical",
+          "text": "Charla con la guía musical y descubre algo bonito.",
+          "cta": "Entrar"
+        },
+        "billReview": {
+          "badge": "Ahorro",
+          "title": "Revisar facturas",
+          "text": "Comprueba si puedes pagar menos por servicios.",
+          "cta": "Revisar"
+        },
+        "breathing": {
           "badge": "Respiración",
           "title": "Respira y relájate",
           "text": "Un ejercicio de respiración profunda para calmar tu mente en 3 minutos.",
@@ -366,7 +366,38 @@
         "openLabel": "Abrir conserje"
       }
     },
-    "whatNow": "o explora un tema"
+    "fastHelp": {
+      "kicker": "Ayuda rapida",
+      "title": "Que necesitas ahora?",
+      "doctor": {
+        "label": "Ayuda medica",
+        "sub": "Hablar de una preocupacion de salud"
+      },
+      "appointment": {
+        "label": "Reservar cita",
+        "sub": "Preparar una solicitud para confirmar"
+      },
+      "ride": {
+        "label": "Reservar transporte",
+        "sub": "Organizar un trayecto seguro"
+      },
+      "doctorContext": "Solicitud rapida de ayuda medica desde Inicio. Pregunta que ocurre y ayuda a preparar el siguiente paso seguro.",
+      "appointmentPrefill": "Ayudame a programar una cita. Pregunta que tipo de cita necesito y no reserves nada sin mi confirmacion.",
+      "ridePrefill": "Ayudame a organizar transporte seguro. Pregunta destino y horario, y no reserves nada sin mi confirmacion."
+    },
+    "whatNow": "o explora un tema",
+    "chatExamples": [
+      "Es seguro tomar este medicamento si tengo diabetes?",
+      "Necesito un cardiologo cerca de casa",
+      "Ayudame a rellenar este formulario",
+      "Cual es el tramite para solicitar ayuda economica?",
+      "Como consigo mi descuento de senior?",
+      "Ayudame a encontrar una buena residencia asistida",
+      "Que efectos secundarios tiene mi medicamento para la tension?",
+      "Recuerdame tomar mis pastillas a las 8:00",
+      "Necesito entender mi factura medica",
+      "Busca una farmacia abierta cerca de mi ahora"
+    ]
   },
   "voiceHero": {
     "talkToVyva": "Hablemos",
@@ -712,7 +743,7 @@
     },
     "seeDoctor": {
       "title": "Ver a un médico",
-      "subtitle": "Teléfono, video o chat en vivo",
+      "subtitle": "Llamada, cita o ayuda con transporte",
       "cta": "Elegir",
       "sheetTitle": "Elige cómo conectar",
       "videoCall": "Videollamada",
@@ -721,7 +752,26 @@
       "comingSoonBtn": "Próximamente",
       "comingSoon": "¡Este servicio está en preparación para ti. Disponible muy pronto!",
       "checkSymptoms": "Revisar mis síntomas",
-      "checkSymptomsSub": "Triaje con IA + escáner de signos vitales en 5 minutos"
+      "checkSymptomsSub": "Triaje con IA + escáner de signos vitales en 5 minutos",
+      "actions": {
+        "title": "Acceso medico",
+        "callGp": "Llamar al medico",
+        "callGpNamed": "Llamar a {{name}}",
+        "callGpSub": "Habla ahora con tu consulta.",
+        "emailGp": "Email al medico",
+        "emailGpSub": "Abre un email con el contexto preparado.",
+        "doctorHelp": "Ayuda medica",
+        "doctorHelpSub": "Repasa el siguiente paso con VYVA.",
+        "bookAppointment": "Pedir cita",
+        "bookAppointmentSub": "VYVA prepara la solicitud para aprobarla.",
+        "bookTransport": "Reservar transporte",
+        "bookTransportSub": "Organiza un traslado seguro.",
+        "addGp": "Anadir contacto medico",
+        "addGpSub": "Guarda telefono o email primero.",
+        "defaultContext": "Solicitud de ayuda medica desde Salud. Pregunta que necesito y prepara un siguiente paso seguro.",
+        "appointmentPrefill": "Ayudame a pedir una cita medica. No reserves nada sin confirmarlo conmigo.\n\n{{context}}",
+        "ridePrefill": "Ayudame a organizar transporte seguro para una cita medica. No reserves nada sin confirmarlo conmigo.\n\n{{context}}"
+      }
     },
     "symptomCheck": {
       "title": "Revisión de síntomas",
@@ -851,7 +901,7 @@
         "symptoms": "Síntomas observados",
         "recommendations": "Qué hacer a continuación",
         "doNow": "Haz esto ahora",
-        "whyThisStep": "Evaluacion inicial",
+        "whyThisStep": "Por qué VYVA eligió esto",
         "nextStepsTitle": "Siguientes pasos",
         "nextStepsSubtitle": "Los signos vitales van después de la conversación. Elige qué te ayuda ahora.",
         "relevantVitalsEyebrow": "Signos vitales relevantes",
@@ -909,7 +959,6 @@
         "checkPulseReason": "Añade el pulso desde un dispositivo o cuéntalo manualmente.",
         "tellMainSymptom": "Síntoma principal",
         "nextStep": "Siguiente paso",
-        "whyThisStep": "Por qué VYVA eligió esto",
         "vitalsUsed": "Signos usados",
         "profileConsidered": "Perfil considerado",
         "watchSigns": "Señales de alerta",
@@ -932,7 +981,12 @@
         "emergencyBody": "Llama a emergencias ahora. No conduzcas. Mantén este informe abierto para el equipo de respuesta.",
         "contextUsed": "Lo que VYVA consideró",
         "doctorNoteTitle": "Nota lista para el médico",
-        "doctorNoteSub": "Texto sencillo para leer, mostrar o compartir."
+        "doctorNoteSub": "Texto sencillo para leer, mostrar o compartir.",
+        "invalidPainReading": "Introduce dolor de 0 a 10.",
+        "invalidEnergyReading": "Introduce energía de 1 a 10.",
+        "updatedReadingChanged": "Actualizado con {{display}}. El siguiente paso cambió. Informe actualizado y listo para compartir.",
+        "updatedReadingSame": "Actualizado con {{display}}. El siguiente paso se mantuvo igual. Informe actualizado y listo para compartir.",
+        "updateReadingFailed": "No se pudo actualizar con esta lectura. El informe original sigue disponible."
       }
     },
     "scanWound": {
@@ -1010,6 +1064,9 @@
       "noProvidersBody": "Puedes probar otra ciudad o abrir Google Maps para buscar opciones cerca.",
       "openMaps": "Abrir Google Maps",
       "contact": "Contactar",
+      "call": "Llamar",
+      "bookAppointment": "Cita",
+      "bookRide": "Reservar transporte",
       "map": "Mapa",
       "share": "Compartir",
       "doctorSearchTerm": "médico",
@@ -1169,38 +1226,38 @@
     "adherence": {
       "title": "Adherence Report",
       "backToMeds": "Back to Medications",
-        "overallStats": "Overall Adherence",
-        "overviewTitle": "Resumen de la semana",
-        "overviewAllTaken": "Vas por buen camino",
-        "overviewAllTakenSub": "Todos tus medicamentos actuales se han cubierto esta semana.",
-        "overviewSomeMissed": "Algunas dosis necesitan atención",
-        "overviewSomeMissedSub": "{{count}} medicamento aún muestra dosis perdidas esta semana.",
-        "overviewManyMissed": "Volvamos a coger ritmo",
-        "overviewManyMissedSub": "{{count}} medicamentos aún muestran dosis perdidas esta semana.",
-        "statOnTrack": "En marcha",
-        "statNeedsAttention": "Atención",
-        "statBestStreak": "Mejor racha",
-        "todayTitle": "Hoy",
-        "todayNeedsAttention": "{{count}} medicamento aún necesita atención hoy.",
-        "todayAllCovered": "Todo lo previsto para hoy ya está cubierto.",
-        "todayDone": "{{count}} hecho",
-        "todayLeft": "{{count}} pendientes",
-        "attentionTitle": "Necesitan atención",
-        "attentionSubtitle": "Esta semana conviene vigilar {{names}}.",
-        "insightsTitle": "Ideas prácticas",
-        "insightNextStepTitle": "Siguiente mejor paso",
-        "insightNextStepSingle": "{{name}} aún necesita una dosis hoy.",
-        "insightNextStepMultiple": "{{count}} medicamentos aún necesitan dosis hoy.",
-        "insightNextStepReview": "Revisa primero {{name}} porque está generando las dosis perdidas de esta semana.",
-        "insightNextStepClear": "Ahora mismo no hace falta ninguna acción inmediata.",
-        "insightHabitTitle": "Hábito más fuerte",
-        "insightHabitBody": "{{name}} es tu mejor rutina hasta ahora con {{streak}} días seguidos.",
-        "insightHabitBodyNoStreak": "{{name}} es actualmente tu medicamento más constante.",
-        "insightHabitBodyEmpty": "Cuando entre más información, VYVA detectará aquí tu hábito más fuerte.",
-        "insightFocusTitle": "Foco de la semana",
-        "insightFocusBody": "Conviene revisar primero {{name}} porque tiene {{count}} dosis perdidas esta semana.",
-        "insightFocusBodyClear": "Todo se ve estable esta semana.",
-        "thisWeek": "This week",
+      "overallStats": "Overall Adherence",
+      "overviewTitle": "Resumen de la semana",
+      "overviewAllTaken": "Vas por buen camino",
+      "overviewAllTakenSub": "Todos tus medicamentos actuales se han cubierto esta semana.",
+      "overviewSomeMissed": "Algunas dosis necesitan atención",
+      "overviewSomeMissedSub": "{{count}} medicamento aún muestra dosis perdidas esta semana.",
+      "overviewManyMissed": "Volvamos a coger ritmo",
+      "overviewManyMissedSub": "{{count}} medicamentos aún muestran dosis perdidas esta semana.",
+      "statOnTrack": "En marcha",
+      "statNeedsAttention": "Atención",
+      "statBestStreak": "Mejor racha",
+      "todayTitle": "Hoy",
+      "todayNeedsAttention": "{{count}} medicamento aún necesita atención hoy.",
+      "todayAllCovered": "Todo lo previsto para hoy ya está cubierto.",
+      "todayDone": "{{count}} hecho",
+      "todayLeft": "{{count}} pendientes",
+      "attentionTitle": "Necesitan atención",
+      "attentionSubtitle": "Esta semana conviene vigilar {{names}}.",
+      "insightsTitle": "Ideas prácticas",
+      "insightNextStepTitle": "Siguiente mejor paso",
+      "insightNextStepSingle": "{{name}} aún necesita una dosis hoy.",
+      "insightNextStepMultiple": "{{count}} medicamentos aún necesitan dosis hoy.",
+      "insightNextStepReview": "Revisa primero {{name}} porque está generando las dosis perdidas de esta semana.",
+      "insightNextStepClear": "Ahora mismo no hace falta ninguna acción inmediata.",
+      "insightHabitTitle": "Hábito más fuerte",
+      "insightHabitBody": "{{name}} es tu mejor rutina hasta ahora con {{streak}} días seguidos.",
+      "insightHabitBodyNoStreak": "{{name}} es actualmente tu medicamento más constante.",
+      "insightHabitBodyEmpty": "Cuando entre más información, VYVA detectará aquí tu hábito más fuerte.",
+      "insightFocusTitle": "Foco de la semana",
+      "insightFocusBody": "Conviene revisar primero {{name}} porque tiene {{count}} dosis perdidas esta semana.",
+      "insightFocusBodyClear": "Todo se ve estable esta semana.",
+      "thisWeek": "This week",
       "last30Days": "Last 30 days",
       "perMedication": "Per Medication",
       "taken": "taken",
@@ -1226,18 +1283,18 @@
       "authTitle": "Inicia sesión para ver este informe",
       "authSub": "La adherencia a medicamentos es privada. Inicia sesión para ver tu informe.",
       "signIn": "Iniciar sesión",
-        "shareButton": "Share with care team",
-        "shareTitle": "Medication Adherence Report",
-        "shareShared": "Shared",
-        "shareSharedDesc": "Your adherence summary was shared.",
-        "shareCopied": "Report copied!",
-        "shareCopiedDesc": "Your adherence summary has been copied to the clipboard.",
-        "shareFormat": "Medication Adherence Report\n\nThis week: {{week}}%\nLast 30 days: {{month}}%\nAttention: {{attention}}\n\nPer medication:\n{{meds}}\n\nGenerated by VYVA",
-        "shareAllOnTrack": "All current medications are on track this week.",
-        "shareNeedsAttention": "{{count}} medication needs attention this week: {{names}}.",
-        "shareFormatMed": "{{name}} ({{dosage}}): {{taken}}/{{scheduled}} doses taken this week, {{streak}}-day streak",
-        "shareFooter": "Generated by VYVA",
-        "loadingTitle": "Loading your report…",
+      "shareButton": "Share with care team",
+      "shareTitle": "Medication Adherence Report",
+      "shareShared": "Shared",
+      "shareSharedDesc": "Your adherence summary was shared.",
+      "shareCopied": "Report copied!",
+      "shareCopiedDesc": "Your adherence summary has been copied to the clipboard.",
+      "shareFormat": "Medication Adherence Report\n\nThis week: {{week}}%\nLast 30 days: {{month}}%\nAttention: {{attention}}\n\nPer medication:\n{{meds}}\n\nGenerated by VYVA",
+      "shareAllOnTrack": "All current medications are on track this week.",
+      "shareNeedsAttention": "{{count}} medication needs attention this week: {{names}}.",
+      "shareFormatMed": "{{name}} ({{dosage}}): {{taken}}/{{scheduled}} doses taken this week, {{streak}}-day streak",
+      "shareFooter": "Generated by VYVA",
+      "loadingTitle": "Loading your report…",
       "errorTitle": "Could not load report",
       "errorSub": "Please try again in a moment.",
       "retry": "Try again",
@@ -1292,6 +1349,14 @@
     "saving": "Guardando…",
     "logActivity": "Registrar {{duration}}m de {{type}}",
     "selectActivity": "Selecciona una actividad arriba",
+    "supportTitle": "¿Necesitas ayuda para salir?",
+    "supportSubtitle": "VYVA puede preparar transporte o acompañamiento antes de que confirmes.",
+    "bookRide": "Reservar transporte",
+    "bookRideSub": "Organiza el trayecto antes de salir.",
+    "arrangeCompanion": "Organizar acompañante",
+    "arrangeCompanionSub": "Pide que alguien te acompañe.",
+    "ridePrefill": "Ayudame a organizar transporte seguro para una actividad de {{activity}} de {{duration}} minutos. Pideme confirmacion antes de reservar nada.",
+    "companionPrefill": "Ayudame a organizar un acompanante o persona de apoyo de confianza para una actividad de {{activity}} de {{duration}} minutos. Pideme confirmacion antes de contactar o reservar a nadie.",
     "activityLogged": "Actividad registrada — ¡buen trabajo!",
     "couldNotSave": "No se pudo guardar — inténtalo de nuevo.",
     "todaysSummary": "Resumen de hoy",
@@ -1682,7 +1747,18 @@
     "callCompanionDesc": "Activa VYVA mientras recibes una llamada sospechosa. Pregunta qué decir, qué evitar y si debes colgar.",
     "callCompanionStart": "Iniciar Compañero de Llamada",
     "callCompanionEnd": "Pausar ayuda",
-    "callCompanionConnecting": "Conectando…"
+    "callCompanionConnecting": "Conectando…",
+    "actions": {
+      "title": "Acciones seguras",
+      "trustedFallback": "persona de confianza",
+      "callTrusted": "Llamar a {{name}}",
+      "callTrustedAria": "Llamar a {{name}} sobre esta comprobacion",
+      "addTrusted": "Anadir persona de confianza",
+      "safeHelp": "Ayuda segura",
+      "safeHelpAria": "Abrir Concierge de VYVA con esta comprobacion",
+      "callGuidance": "Guia por llamada",
+      "pauseGuidance": "Pausar guia"
+    }
   },
   "community": {
     "title": "Mi Comunidad",

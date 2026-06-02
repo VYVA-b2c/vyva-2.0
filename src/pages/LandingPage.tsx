@@ -541,6 +541,7 @@ const LANDING_COPY: Record<LanguageCode, {
 };
 
 function ProductPreview({ copy }: { copy: Pick<(typeof LANDING_COPY)["en"], "productLive" | "productTalk" | "productActions"> }) {
+  const onlineLabel = copy.productLive || "Online";
   const quickActions = [
     { icon: HeartPulse, label: copy.productActions[0], tone: "bg-[#FCE7F3] text-[#BE185D]" },
     { icon: Brain, label: copy.productActions[1], tone: "bg-[#E0F2FE] text-[#0369A1]" },
@@ -559,8 +560,12 @@ function ProductPreview({ copy }: { copy: Pick<(typeof LANDING_COPY)["en"], "pro
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#8253AB] font-body text-sm font-black text-white shadow-[0_10px_24px_rgba(130,83,171,0.26)]">
             V
           </span>
-          <span className="rounded-full bg-[#ECFDF5] px-3 py-1 font-body text-xs font-black text-[#047857]">
-            {copy.productLive}
+          <span
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-[#ECFDF5] shadow-[0_0_0_1px_rgba(4,120,87,0.12)]"
+            aria-label={onlineLabel}
+            title={onlineLabel}
+          >
+            <span className="h-2.5 w-2.5 rounded-full bg-[#10B981] shadow-[0_0_0_4px_rgba(16,185,129,0.18)]" />
           </span>
         </div>
 

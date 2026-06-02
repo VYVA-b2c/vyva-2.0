@@ -3,8 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ClipboardList, ChevronDown, ChevronUp, AlertTriangle, ShieldCheck, ShieldAlert } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { enGB, es, de, fr, it, pt, cy } from "date-fns/locale";
+import { enGB, es, de, fr, it, pt } from "date-fns/locale";
 import type { Locale } from "date-fns";
+import { useLanguage } from "@/i18n";
 
 interface HistoryItem {
   id: number;
@@ -26,7 +27,6 @@ const DATE_FNS_LOCALES: Record<string, Locale> = {
   fr,
   it,
   pt,
-  cy,
 };
 
 function normalizeLevel(level: string): string {
@@ -170,8 +170,9 @@ function HistoryCard({ item, dateLocale }: { item: HistoryItem; dateLocale: Loca
 }
 
 export default function HistoryScreen() {
-  const { t, i18n } = useTranslation();
-  const dateLocale = DATE_FNS_LOCALES[i18n.language.split("-")[0]] ?? enGB;
+  const { t } = useTranslation();
+  const { language } = useLanguage();
+  const dateLocale = DATE_FNS_LOCALES[language.split("-")[0]] ?? enGB;
 
   const { data, isLoading } = useQuery<HistoryItem[]>({
     queryKey: ["/api/history/scans"],

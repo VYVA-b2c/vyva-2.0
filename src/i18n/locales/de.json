@@ -250,7 +250,38 @@
         "openLabel": "Concierge öffnen"
       }
     },
-    "whatNow": "oder Thema erkunden"
+    "fastHelp": {
+      "kicker": "Schnelle Hilfe",
+      "title": "Was brauchen Sie jetzt?",
+      "doctor": {
+        "label": "Arzthilfe",
+        "sub": "Ein Gesundheitsanliegen besprechen"
+      },
+      "appointment": {
+        "label": "Termin buchen",
+        "sub": "Anfrage zur Bestatigung vorbereiten"
+      },
+      "ride": {
+        "label": "Fahrt buchen",
+        "sub": "Sicheren Transport organisieren"
+      },
+      "doctorContext": "Schnelle Arzthilfe-Anfrage von der Startseite. Fragen Sie, was passiert, und helfen Sie, den sicheren nachsten Schritt vorzubereiten.",
+      "appointmentPrefill": "Bitte helfen Sie mir, einen Termin zu vereinbaren. Fragen Sie, welche Art Termin ich brauche, und buchen Sie nichts ohne meine Bestatigung.",
+      "ridePrefill": "Bitte helfen Sie mir, sicheren Transport zu organisieren. Fragen Sie nach Ziel und Zeit und buchen Sie nichts ohne meine Bestatigung."
+    },
+    "whatNow": "oder Thema erkunden",
+    "chatExamples": [
+      "Ist dieses Medikament sicher, wenn ich Diabetes habe?",
+      "Ich brauche einen Herzspezialisten in meiner Nahe",
+      "Hilf mir, dieses Formular auszufullen",
+      "Wie beantrage ich finanzielle Hilfe?",
+      "Wie bekomme ich meinen Seniorenrabatt?",
+      "Hilf mir, eine gute betreute Wohnanlage zu finden",
+      "Welche Nebenwirkungen hat mein Blutdruckmedikament?",
+      "Erinnere mich um 8 Uhr an meine Tabletten",
+      "Ich brauche Hilfe mit meiner Arztrechnung",
+      "Finde jetzt eine geoffnete Apotheke in meiner Nahe"
+    ]
   },
   "voiceHero": {
     "talkToVyva": "Reden",
@@ -527,7 +558,22 @@
       "langPt": "Português",
       "tzMadrid": "Spanien (Madrid)",
       "tzBerlin": "Deutschland (Berlin)",
-      "tzLondon": "Vereinigtes Königreich (London)"
+      "tzLondon": "Vereinigtes Königreich (London)",
+      "required": "Erforderlich",
+      "optional": "Optional",
+      "minimumInfoTitle": "Bitte erganzen Sie zuerst die erforderlichen Angaben.",
+      "minimumInfoHint": "Vorname, Nachname und Telefonnummer sind erforderlich, um VYVA zu nutzen.",
+      "firstName": "Vorname",
+      "lastName": "Nachname",
+      "firstNamePlaceholder": "Vorname eingeben",
+      "lastNamePlaceholder": "Nachname eingeben",
+      "firstNameRequired": "Vorname ist erforderlich.",
+      "lastNameRequired": "Nachname ist erforderlich.",
+      "phoneRequired": "Telefonnummer ist erforderlich.",
+      "requiredFieldsMissing": "Bitte fullen Sie die erforderlichen Felder aus.",
+      "saved": "Kontodaten gespeichert",
+      "saveError": "Kontodaten konnten nicht gespeichert werden",
+      "defaultName": "Maria"
     }
   },
   "health": {
@@ -576,7 +622,7 @@
     },
     "seeDoctor": {
       "title": "Einen Arzt aufsuchen",
-      "subtitle": "Video oder Telefon in wenigen Minuten",
+      "subtitle": "Anruf, Termin oder Transporthilfe",
       "cta": "Jetzt buchen",
       "sheetTitle": "Verbindungsart wählen",
       "videoCall": "Videoanruf",
@@ -584,7 +630,27 @@
       "comingSoonBtn": "Demnächst",
       "comingSoon": "Dieser Dienst wird gerade für Sie eingerichtet. Schon sehr bald verfügbar!",
       "checkSymptoms": "Meine Symptome prüfen",
-      "checkSymptomsSub": "KI-Triage + Vitalzeichen-Scan in 5 Minuten"
+      "checkSymptomsSub": "KI-Triage + Vitalzeichen-Scan in 5 Minuten",
+      "actions": {
+        "title": "Arztzugang",
+        "callGp": "Arzt anrufen",
+        "callGpNamed": "{{name}} anrufen",
+        "callGpSub": "Jetzt mit der Praxis sprechen.",
+        "emailGp": "Arzt mailen",
+        "emailGpSub": "E-Mail mit Kontext oeffnen.",
+        "doctorHelp": "Arzthilfe",
+        "doctorHelpSub": "Naechsten Schritt mit VYVA klaeren.",
+        "bookAppointment": "Termin buchen",
+        "bookAppointmentSub": "VYVA bereitet die Anfrage zur Freigabe vor.",
+        "bookTransport": "Fahrt buchen",
+        "bookTransportSub": "Sichere Fahrt zur Versorgung organisieren.",
+        "addGp": "Arztkontakt hinzufuegen",
+        "addGpSub": "Zuerst Telefon oder E-Mail speichern.",
+        "defaultContext": "Arztanfrage aus dem Gesundheitsbereich. Fragen, was benoetigt wird, und einen sicheren naechsten Schritt vorbereiten.",
+        "appointmentPrefill": "Bitte helfen Sie mir, einen Arzttermin zu planen. Nichts ohne meine Bestaetigung buchen.\n\n{{context}}",
+        "ridePrefill": "Bitte helfen Sie mir, eine sichere Fahrt zu einem Arzttermin zu organisieren. Nichts ohne meine Bestaetigung buchen.\n\n{{context}}"
+      },
+      "liveChat": "Live-Chat"
     },
     "symptomCheck": {
       "title": "Symptom-Check",
@@ -669,7 +735,34 @@
         "listening": "Ich höre zu...",
         "voiceUnsupported": "Sprache ist in diesem Browser nicht verfügbar. Sie können hier schreiben.",
         "voiceError": "Das Mikrofon konnte nicht gestartet werden. Sie können Ihre Antwort schreiben.",
-        "errorMsg": "Es tut mir leid, ich hatte Schwierigkeiten, das zu verstehen. Könnten Sie es erneut versuchen?"
+        "errorMsg": "Es tut mir leid, ich hatte Schwierigkeiten, das zu verstehen. Könnten Sie es erneut versuchen?",
+        "quickPain": "Schmerz",
+        "quickPainValue": "Ich habe Schmerzen.",
+        "quickChest": "Brustbeschwerden",
+        "quickChestValue": "Ich habe Beschwerden in der Brust.",
+        "quickBreathing": "Atmung",
+        "quickBreathingValue": "Ich bin kurzatmig.",
+        "quickFever": "Fieber",
+        "quickFeverValue": "Ich habe Fieber.",
+        "quickTired": "Sehr mude",
+        "quickTiredValue": "Ich fuhle mich sehr mude.",
+        "quickMild": "Leicht",
+        "quickMildValue": "Es fuhlt sich leicht an.",
+        "quickModerate": "Massig",
+        "quickModerateValue": "Es fuhlt sich massig an.",
+        "quickStrong": "Stark",
+        "quickStrongValue": "Es fuhlt sich stark an.",
+        "quickNotSure": "Nicht sicher",
+        "quickNotSureValue": "Ich bin nicht sicher.",
+        "quickYes": "Ja",
+        "quickYesValue": "Ja.",
+        "quickNo": "Nein",
+        "quickNoValue": "Nein.",
+        "quickWorse": "Schlimmer",
+        "quickWorseValue": "Es wird schlimmer.",
+        "emergencyTitle": "Notfallwarnung",
+        "contactEmergency": "Rettungsdienst kontaktieren",
+        "evidence": "Evidenz gepruft"
       },
       "report": {
         "title": "Ihr Bericht",
@@ -706,7 +799,7 @@
         "disclaimer": "Dieser Bericht dient nur zu Informationszwecken und stellt keine medizinische Beratung dar. Konsultieren Sie stets einen qualifizierten Arzt für Diagnose und Behandlung.",
         "relevantVitalsEyebrow": "Relevante Vitalwerte",
         "relevantVitalsTitle": "Vitalwerte erfassen, die zu diesem Fall passen",
-        "relevantVitalsNote": "Diese Werte werden anhand Ihrer Symptome und Warnzeichen vorgeschlagen. F?gen Sie einen Wert hinzu, damit VYVA die Einsch?tzung verfeinern kann.",
+        "relevantVitalsNote": "Diese Werte werden anhand Ihrer Symptome und Warnzeichen vorgeschlagen. Fügen Sie einen Wert hinzu, damit VYVA die Einschätzung verfeinern kann.",
         "enterReadingToRefine": "Geben Sie den Wert unten ein. VYVA speichert ihn und aktualisiert das Ergebnis mit diesem neuen Kontext.",
         "recordGlucose": "Glukose erfassen",
         "recordBloodPressure": "Blutdruck erfassen",
@@ -717,7 +810,7 @@
         "recordPain": "Schmerz erfassen",
         "recordEnergy": "Energie erfassen",
         "checkPainNow": "Schmerz jetzt bewerten",
-        "checkPainReason": "0 bedeutet kein Schmerz, 10 bedeutet st?rkster Schmerz.",
+        "checkPainReason": "0 bedeutet kein Schmerz, 10 bedeutet stärkster Schmerz.",
         "checkEnergyNow": "Energie jetzt bewerten",
         "checkEnergyReason": "1 bedeutet sehr wenig Energie, 10 bedeutet normal/hoch.",
         "emergencyLabel": "Notfall",
@@ -731,25 +824,25 @@
         "sentToBoth": "Eine Kopie dieses Berichts wurde an {{first}} und {{second}} gesendet.",
         "sentToOne": "Eine Kopie dieses Berichts wurde an {{contact}} gesendet.",
         "noContactsConfigured": "Es ist noch kein Arzt- oder Betreuungskontakt eingerichtet.",
-        "checkGlucoseNow": "Glukose jetzt pr?fen",
-        "checkGlucoseReason": "F?gen Sie den Wert diesem Bericht hinzu, bevor Sie mit einem Arzt sprechen.",
-        "checkBloodPressureNow": "Blutdruck jetzt pr?fen",
+        "checkGlucoseNow": "Glukose jetzt prüfen",
+        "checkGlucoseReason": "Fügen Sie den Wert diesem Bericht hinzu, bevor Sie mit einem Arzt sprechen.",
+        "checkBloodPressureNow": "Blutdruck jetzt prüfen",
         "checkBloodPressureReason": "Geben Sie beide Zahlen ein, zum Beispiel 120/80.",
-        "checkOxygenNow": "Sauerstoff jetzt pr?fen",
-        "checkOxygenReason": "F?gen Sie Ihre Sauerstoffmessung hinzu, wenn Sie ein Pulsoximeter haben.",
-        "checkBreathingRateNow": "Atemfrequenz jetzt pr?fen",
-        "checkBreathingRateReason": "Z?hlen Sie die Atemz?ge eine Minute lang oder verwenden Sie das Scan-Ergebnis.",
-        "checkTemperatureNow": "Temperatur jetzt pr?fen",
-        "checkTemperatureReason": "F?gen Sie den Thermometerwert hinzu.",
-        "checkPulseNow": "Puls jetzt pr?fen",
-        "checkPulseReason": "F?gen Sie den Puls von einem Ger?t hinzu oder z?hlen Sie ihn manuell.",
+        "checkOxygenNow": "Sauerstoff jetzt prüfen",
+        "checkOxygenReason": "Fügen Sie Ihre Sauerstoffmessung hinzu, wenn Sie ein Pulsoximeter haben.",
+        "checkBreathingRateNow": "Atemfrequenz jetzt prüfen",
+        "checkBreathingRateReason": "Zählen Sie die Atemzüge eine Minute lang oder verwenden Sie das Scan-Ergebnis.",
+        "checkTemperatureNow": "Temperatur jetzt prüfen",
+        "checkTemperatureReason": "Fügen Sie den Thermometerwert hinzu.",
+        "checkPulseNow": "Puls jetzt prüfen",
+        "checkPulseReason": "Fügen Sie den Puls von einem Gerät hinzu oder zählen Sie ihn manuell.",
         "tellMainSymptom": "Hauptsymptom",
-        "nextStep": "N?chster Schritt",
+        "nextStep": "Nächster Schritt",
         "vitalsUsed": "Verwendete Vitalwerte",
-        "profileConsidered": "Ber?cksichtigtes Profil",
+        "profileConsidered": "Berücksichtigtes Profil",
         "watchSigns": "Warnzeichen",
-        "evidenceChecked": "Quellenpr?fung auf klinischer Basis",
-        "enterValidReading": "Geben Sie zuerst einen g?ltigen Wert ein.",
+        "evidenceChecked": "Quellenprüfung auf klinischer Basis",
+        "enterValidReading": "Geben Sie zuerst einen gültigen Wert ein.",
         "timeTaken": "Dauer",
         "callEmergency": "Notdienst rufen",
         "callDoctor": "Mit einem echten Arzt sprechen",
@@ -758,16 +851,21 @@
         "savingReading": "{{display}} wird gespeichert...",
         "updatingWithReading": "Ergebnis wird mit diesem Wert aktualisiert...",
         "updatedWithReading": "Mit {{display}} aktualisiert. {{nextStepSentence}} Bericht aktualisiert und bereit zum Teilen.",
-        "nextStepChanged": "Der n?chste Schritt hat sich ge?ndert.",
-        "nextStepSame": "Der n?chste Schritt ist gleich geblieben.",
-        "refineFailed": "Aktualisierung mit diesem Wert war nicht m?glich. Der urspr?ngliche Bericht bleibt verf?gbar.",
+        "nextStepChanged": "Der nächste Schritt hat sich geändert.",
+        "nextStepSame": "Der nächste Schritt ist gleich geblieben.",
+        "refineFailed": "Aktualisierung mit diesem Wert war nicht möglich. Der ursprüngliche Bericht bleibt verfügbar.",
         "tellDoctorTitle": "Dem Arzt sagen",
         "viewReports": "Berichte ansehen",
         "emergencyDoNotWait": "Nicht warten",
-        "emergencyBody": "Rufen Sie jetzt den Notdienst. Fahren Sie nicht selbst. Lassen Sie diesen Bericht f?r die Einsatzkr?fte ge?ffnet.",
-        "contextUsed": "Was VYVA ber?cksichtigt hat",
+        "emergencyBody": "Rufen Sie jetzt den Notdienst. Fahren Sie nicht selbst. Lassen Sie diesen Bericht für die Einsatzkräfte geöffnet.",
+        "contextUsed": "Was VYVA berücksichtigt hat",
         "doctorNoteTitle": "Arztfertige Notiz",
-        "doctorNoteSub": "Einfacher Text zum Vorlesen, Zeigen oder Teilen."
+        "doctorNoteSub": "Einfacher Text zum Vorlesen, Zeigen oder Teilen.",
+        "invalidPainReading": "Geben Sie Schmerz von 0 bis 10 ein.",
+        "invalidEnergyReading": "Geben Sie Energie von 1 bis 10 ein.",
+        "updatedReadingChanged": "Mit {{display}} aktualisiert. Der nächste Schritt hat sich geändert. Der Bericht ist aktualisiert und bereit zum Teilen.",
+        "updatedReadingSame": "Mit {{display}} aktualisiert. Der nächste Schritt blieb gleich. Der Bericht ist aktualisiert und bereit zum Teilen.",
+        "updateReadingFailed": "Aktualisierung mit diesem Wert war nicht möglich. Der ursprüngliche Bericht bleibt verfügbar."
       }
     },
     "scanWound": {
@@ -827,6 +925,43 @@
       "title": "Facharzt finden",
       "subtitle": "Den richtigen Experten finden",
       "bookButton": "Buchen",
+      "optionsButton": "Optionen",
+      "hideButton": "Ausblenden",
+      "intro": "Beschreiben Sie das Problem oder den Bedarf. VYVA sucht die passende Fachrichtung und nahe Optionen.",
+      "reset": "Zuruecksetzen",
+      "suggestions": "Vorschlaege fuer Sie",
+      "more": "Mehr",
+      "voiceSearch": "Per Sprache suchen",
+      "listening": "Hoere zu...",
+      "conditionPlaceholder": "z. B. Knieschmerz, Diabetes, Gedaechtnis...",
+      "locationPlaceholder": "Stadt oder Gebiet",
+      "searching": "Facharzt-Suche...",
+      "searchButton": "Fachaerzte suchen",
+      "recommendedSpecialties": "Empfohlene Fachrichtungen",
+      "disclaimer": "Dies ist keine Diagnose. Bei schweren oder ploetzlichen Symptomen rufen Sie den Notdienst oder Ihren Arzt an.",
+      "noProvidersTitle": "Ich konnte derzeit keine verifizierten Anbieter mit genug Daten finden.",
+      "noProvidersBody": "Versuchen Sie eine andere Stadt oder oeffnen Sie Google Maps fuer Optionen in der Naehe.",
+      "openMaps": "Google Maps oeffnen",
+      "contact": "Kontakt",
+      "call": "Anrufen",
+      "bookAppointment": "Termin",
+      "bookRide": "Fahrt buchen",
+      "map": "Karte",
+      "share": "Teilen",
+      "doctorSearchTerm": "Arzt",
+      "searchError": "Ich konnte gerade keine Fachaerzte suchen. Bitte versuchen Sie es gleich erneut.",
+      "emptyCondition": "Nennen Sie das Problem oder den Bedarf, damit ich den passenden Facharzt finde.",
+      "voiceUnsupported": "Spracheingabe ist hier nicht verfuegbar. Sie koennen den Bedarf eintippen.",
+      "voiceError": "Ich konnte Sie nicht klar hoeren. Versuchen Sie es erneut oder tippen Sie.",
+      "appointmentReady": "Ich habe die Anfrage vorbereitet. Ich bringe Sie zu Concierge zur Bestaetigung.",
+      "appointmentError": "Ich konnte den Termin nicht vorbereiten. Bitte versuchen Sie es gleich erneut.",
+      "phoneLabel": "Telefon",
+      "locationLabel": "Ort",
+      "hoursLabel": "Oeffnungszeiten",
+      "distanceLabel": "Entfernung",
+      "moreInfoLabel": "Weitere Informationen",
+      "shareCopied": "Details zum Teilen kopiert.",
+      "shareError": "Ich konnte es gerade nicht teilen. Bitte versuchen Sie es erneut.",
       "cardiology": "Kardiologie",
       "neurology": "Neurologie",
       "dermatology": "Dermatologie",
@@ -869,7 +1004,14 @@
       "copyAdvice": "Empfehlung kopieren",
       "shareAdvice": "Empfehlung teilen",
       "copyAdviceDone": "Empfehlung kopiert",
-      "shareIntro": "Mein KI-Gesundheitsscan sagt..."
+      "shareIntro": "Mein KI-Gesundheitsscan sagt...",
+      "viewHistory": "Verlauf ansehen",
+      "empty": "Noch keine gespeicherten Scans"
+    },
+    "allGoodToday": "Heute alles gut",
+    "wellbeingHistory": {
+      "title": "Wohlbefinden-Verlauf",
+      "subtitle": "Sehen Sie fruhere Werte und aktuelle Muster."
     }
   },
   "meds": {
@@ -1091,6 +1233,14 @@
     "saving": "Speichere…",
     "logActivity": "{{duration}}min {{type}} erfassen",
     "selectActivity": "Wählen Sie oben eine Aktivität",
+    "supportTitle": "Brauchen Sie Hilfe beim Rausgehen?",
+    "supportSubtitle": "VYVA kann Transport oder Begleitung vorbereiten, bevor Sie bestatigen.",
+    "bookRide": "Fahrt buchen",
+    "bookRideSub": "Transport vor dem Losgehen organisieren.",
+    "arrangeCompanion": "Begleitung organisieren",
+    "arrangeCompanionSub": "Bitten Sie jemanden, mitzukommen.",
+    "ridePrefill": "Bitte helfen Sie mir, sicheren Transport fur eine {{duration}}-minutige Aktivitat {{activity}} zu organisieren. Fragen Sie nach meiner Bestatigung, bevor etwas gebucht wird.",
+    "companionPrefill": "Bitte helfen Sie mir, eine vertrauenswurdige Begleitung oder Unterstutzung fur eine {{duration}}-minutige Aktivitat {{activity}} zu organisieren. Fragen Sie nach meiner Bestatigung, bevor jemand kontaktiert oder gebucht wird.",
     "activityLogged": "Aktivität erfasst — gut gemacht!",
     "couldNotSave": "Konnte nicht gespeichert werden — bitte erneut versuchen.",
     "todaysSummary": "Heutige Zusammenfassung",
@@ -1438,14 +1588,16 @@
       "scheduleAppt": "Termin buchen",
       "researchTopic": "Thema suchen",
       "findDeals": "Sparen",
-      "getAdvice": "Rat einholen"
+      "getAdvice": "Rat einholen",
+      "shoppingHelper": "Einkaufshilfe"
     },
     "prompts": {
       "bookRide": "Buchen Sie mir für morgen um 10 Uhr ein Taxi",
       "scheduleAppt": "Helfen Sie mir, einen Arzttermin zu vereinbaren",
       "researchTopic": "Erklären Sie einfach, was Medicare Teil B abdeckt",
       "findDeals": "Finden Sie dieses Wochenende Angebote in meiner Nähe",
-      "getAdvice": "Was ist ein gutes einfaches Rezept für eine Person?"
+      "getAdvice": "Was ist ein gutes einfaches Rezept für eine Person?",
+      "shoppingHelper": "Hilf mir, die beste Einkaufsoption fur meine Bedurfnisse zu wahlen. Vergleiche einfache Moglichkeiten und starte keinen Kauf."
     }
   },
   "scamGuard": {
@@ -1479,7 +1631,18 @@
     "callCompanionDesc": "Starten Sie VYVA während eines verdächtigen Anrufs. Fragen Sie, was Sie sagen sollen und ob Sie auflegen sollten.",
     "callCompanionStart": "Anruf-Begleitung starten",
     "callCompanionEnd": "Hilfe pausieren",
-    "callCompanionConnecting": "Verbindung…"
+    "callCompanionConnecting": "Verbindung…",
+    "actions": {
+      "title": "Sichere Schnellaktionen",
+      "trustedFallback": "Vertrauensperson",
+      "callTrusted": "{{name}} anrufen",
+      "callTrustedAria": "{{name}} zu dieser Pruefung anrufen",
+      "addTrusted": "Vertrauensperson hinzufuegen",
+      "safeHelp": "Sichere Hilfe",
+      "safeHelpAria": "VYVA Concierge mit dieser Pruefung oeffnen",
+      "callGuidance": "Anrufhilfe",
+      "pauseGuidance": "Hilfe pausieren"
+    }
   },
   "community": {
     "title": "Meine Gemeinschaft",
@@ -1690,6 +1853,66 @@
       "deviceBody": "Verbundene Geräte und klinische Messungen haben das größte Gewicht in den Sicherheitsprüfungen von VYVA.",
       "highConfidence": "Höhere Sicherheit",
       "safetyChecks": "Sicherheitsprüfungen"
+    }
+  },
+  "informes": {
+    "title": "Meine Berichte",
+    "subtitle": "Symptome, Vitalwerte und Medikamente",
+    "todaySummary": "Heutige Zusammenfassung",
+    "latestReports": "Neueste Berichte",
+    "summaryGood": "Heute sieht alles gut aus. Weiter so.",
+    "summaryUrgent": "Ihre letzte Prufung empfiehlt baldige medizinische Hilfe.",
+    "summaryRoutine": "Ihre letzte Prufung empfiehlt einen Arzttermin.",
+    "summaryMedsPending": "Sie haben heute noch {{pending}} Medikament(e) einzunehmen.",
+    "summaryHighHR": "Ihre letzte Herzfrequenz war etwas erhoht.",
+    "summaryLowHR": "Ihre letzte Herzfrequenz war etwas niedrig.",
+    "summaryEmpty": "Machen Sie den ersten Symptomcheck, um hier Ihre Zusammenfassung zu sehen.",
+    "back": "Zuruck",
+    "errorTitle": "Konnte nicht geladen werden",
+    "errorSub": "Prufen Sie die Verbindung und versuchen Sie es erneut.",
+    "urgency": {
+      "urgent": "Hilfe suchen",
+      "routine": "Besuch empfohlen",
+      "monitor": "Zu Hause beobachten"
+    },
+    "cards": {
+      "symptom": {
+        "title": "Letzter Symptomcheck",
+        "cta": "Vollstandigen Bericht ansehen",
+        "empty": "Noch keine Symptomchecks. Starten Sie einen Check im Bereich Gesundheit."
+      },
+      "vitals": {
+        "title": "Vitalwerte",
+        "bpm": "Schlage pro Minute",
+        "breathsPerMin": "Atemzuge/min",
+        "statusNormal": "Normal",
+        "statusReview": "Prufen",
+        "empty": "Noch keine Vitalwerte. Machen Sie einen Symptomcheck, um den Puls zu speichern."
+      },
+      "meds": {
+        "title": "Medikamenteneinnahme",
+        "today": "Heute",
+        "taken": "{{taken}} von {{total}} genommen",
+        "cta": "Details ansehen",
+        "empty": "Keine Medikamente erfasst. Fugen Sie Ihre Medikamente im Bereich Medikamente hinzu."
+      }
+    },
+    "trends": {
+      "title": "Trends",
+      "heartRate": "Herzfrequenz",
+      "respiratoryRate": "Atemfrequenz",
+      "readings": "{{count}} Messungen",
+      "min": "Min",
+      "max": "Max",
+      "empty": "Machen Sie den ersten Scan, um hier Trends zu sehen."
+    },
+    "reportDetail": {
+      "title": "Vollstandiger Bericht",
+      "symptoms": "Beobachtete Symptome",
+      "recommendations": "Was als Nachstes zu tun ist",
+      "whyThisStep": "Erste Einschatzung",
+      "duration": "Sitzungsdauer",
+      "chatCta": "Mit VYVA sprechen"
     }
   }
 }

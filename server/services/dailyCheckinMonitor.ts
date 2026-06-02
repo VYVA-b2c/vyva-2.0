@@ -5,6 +5,7 @@ import {
   scheduledInteractions,
   teamInvitations,
 } from "../../shared/schema.js";
+import { languageText, normalizeAppLanguage } from "../../shared/language.js";
 import {
   DAILY_CHECKIN_ALERT_TYPE,
   DAILY_CHECKIN_GRACE_MINUTES,
@@ -21,6 +22,7 @@ type ProfileAlertContext = {
   caregiver_contact: string | null;
   data_sharing_consent: unknown;
   language: string | null;
+  language_preference: string | null;
   timezone: string | null;
 };
 
@@ -117,26 +119,46 @@ function iso(value: unknown): string | null {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
+function profileLanguage(profile: ProfileAlertContext | null | undefined) {
+  return normalizeAppLanguage(profile?.language_preference ?? profile?.language, "es");
+}
+
 function buildNoResponseMessage(profile: ProfileAlertContext | null, status: DailyCheckinScheduleStatus) {
-  const spanish = String(profile?.language ?? "").startsWith("es");
+  const language = profileLanguage(profile);
   const minutes = status.minutes_overdue ?? 0;
-  if (spanish) {
-    return [
-      "VYVA no ha recibido el check-in diario esperado.",
-      minutes > 0 ? `Han pasado aproximadamente ${minutes} minutos desde el margen de seguridad.` : null,
-      "Siguiente paso recomendado: llamar o enviar un mensaje para confirmar que esta bien.",
-    ].filter(Boolean).join("\n");
-  }
+  const elapsed = minutes > 0 ? languageText(language, {
+    es: `Han pasado aproximadamente ${minutes} minutos desde el margen de seguridad.`,
+    en: `It is about ${minutes} minutes past the safety window.`,
+    fr: `Il y a environ ${minutes} minutes depuis la marge de securite.`,
+    de: `Das Sicherheitsfenster ist seit etwa ${minutes} Minuten ueberschritten.`,
+    it: `Sono passati circa ${minutes} minuti dalla finestra di sicurezza.`,
+    pt: `Passaram cerca de ${minutes} minutos desde a margem de seguranca.`,
+  }) : null;
+
   return [
-    "VYVA has not received the expected daily check-in.",
-    minutes > 0 ? `It is about ${minutes} minutes past the safety window.` : null,
-    "Recommended next step: call or message to confirm everything is okay.",
+    languageText(language, {
+      es: "VYVA no ha recibido el check-in diario esperado.",
+      en: "VYVA has not received the expected daily check-in.",
+      fr: "VYVA n'a pas recu le controle quotidien attendu.",
+      de: "VYVA hat den erwarteten taeglichen Check-in nicht erhalten.",
+      it: "VYVA non ha ricevuto il check-in quotidiano previsto.",
+      pt: "A VYVA nao recebeu o check-in diario esperado.",
+    }),
+    elapsed,
+    languageText(language, {
+      es: "Siguiente paso recomendado: llamar o enviar un mensaje para confirmar que esta bien.",
+      en: "Recommended next step: call or message to confirm everything is okay.",
+      fr: "Prochaine etape recommandee : appeler ou envoyer un message pour confirmer que tout va bien.",
+      de: "Empfohlener naechster Schritt: anrufen oder eine Nachricht senden, um zu bestaetigen, dass alles in Ordnung ist.",
+      it: "Prossimo passo consigliato: chiamare o inviare un messaggio per confermare che vada tutto bene.",
+      pt: "Proximo passo recomendado: ligar ou enviar mensagem para confirmar que esta tudo bem.",
+    }),
   ].filter(Boolean).join("\n");
 }
 
 async function profileContext(userId: string): Promise<ProfileAlertContext | null> {
   const result = await pool.query(
-    `select caregiver_name, caregiver_contact, data_sharing_consent, language, timezone
+    `select caregiver_name, caregiver_contact, data_sharing_consent, language, language_preference, timezone
      from profiles
      where id::text = $1
      limit 1`,
@@ -197,7 +219,7 @@ async function activeCheckinSchedule(userId: string, createDefaultSchedule: bool
       days_of_week: [],
       times_of_day: times,
       timezone,
-      preferred_language: profile?.language || "es",
+      preferred_language: profileLanguage(profile),
       quiet_hours_start: "21:00",
       quiet_hours_end: "08:00",
       escalation_contacts: recipients.map((contact) => ({ contact, relationship: "caregiver" })),
@@ -356,31 +378,93 @@ async function createNoResponseAlert(userId: string, schedule: ScheduleRow, stat
   return { alert: alert ?? null, canAlert: true, reason: null };
 }
 
-function isSpanishLocale(locale: string | null | undefined) {
-  return String(locale ?? "").split("-")[0].toLowerCase() === "es";
-}
-
-function dailyText(locale: string | null | undefined, english: string, spanish: string) {
-  return isSpanishLocale(locale) ? spanish : english;
-}
-
 function messageFor(status: DailyCheckinScheduleStatus["state"], alertReason: string | null, locale?: string | null) {
-  if (status === "completed") return dailyText(locale, "You checked in today. VYVA has a fresh wellbeing signal.", "Has completado el control de hoy. VYVA tiene una nueva senal de bienestar.");
-  if (status === "due_now") return dailyText(locale, "Your daily check-in is ready. A quick answer lets everyone know you are okay.", "Tu control diario esta listo. Una respuesta rapida ayuda a saber que estas bien.");
+  if (status === "completed") return languageText(locale, {
+    es: "Has completado el control de hoy. VYVA tiene una nueva senal de bienestar.",
+    en: "You checked in today. VYVA has a fresh wellbeing signal.",
+    fr: "Vous avez fait le controle aujourd'hui. VYVA a un nouveau signal de bien-etre.",
+    de: "Du hast heute eingecheckt. VYVA hat ein neues Wohlbefinden-Signal.",
+    it: "Hai completato il controllo di oggi. VYVA ha un nuovo segnale di benessere.",
+    pt: "Fez o check-in hoje. A VYVA tem um novo sinal de bem-estar.",
+  });
+  if (status === "due_now") return languageText(locale, {
+    es: "Tu control diario esta listo. Una respuesta rapida ayuda a saber que estas bien.",
+    en: "Your daily check-in is ready. A quick answer lets everyone know you are okay.",
+    fr: "Votre controle quotidien est pret. Une reponse rapide rassure tout le monde.",
+    de: "Dein taeglicher Check-in ist bereit. Eine kurze Antwort zeigt, dass alles in Ordnung ist.",
+    it: "Il tuo check-in quotidiano e pronto. Una risposta rapida fa sapere che stai bene.",
+    pt: "O seu check-in diario esta pronto. Uma resposta rapida mostra que esta tudo bem.",
+  });
   if (status === "overdue") {
     return alertReason
-      ? dailyText(locale, "The daily check-in is overdue. Add or confirm a caregiver contact so VYVA can escalate when needed.", "El control diario esta pendiente. Anade o confirma un contacto de cuidador para que VYVA pueda avisar si hace falta.")
-      : dailyText(locale, "The daily check-in is overdue, so VYVA has recorded a caregiver safety alert.", "El control diario esta pendiente, asi que VYVA ha registrado una alerta de seguridad para tu cuidador.");
+      ? languageText(locale, {
+        es: "El control diario esta pendiente. Anade o confirma un contacto de cuidador para que VYVA pueda avisar si hace falta.",
+        en: "The daily check-in is overdue. Add or confirm a caregiver contact so VYVA can escalate when needed.",
+        fr: "Le controle quotidien est en retard. Ajoutez ou confirmez un contact aidant pour que VYVA puisse alerter si besoin.",
+        de: "Der taegliche Check-in ist ueberfaellig. Fuege einen Betreuungskontakt hinzu oder bestaetige ihn, damit VYVA bei Bedarf eskalieren kann.",
+        it: "Il check-in quotidiano e in ritardo. Aggiungi o conferma un contatto caregiver cosi VYVA puo avvisare se necessario.",
+        pt: "O check-in diario esta atrasado. Adicione ou confirme um contacto cuidador para a VYVA poder avisar se necessario.",
+      })
+      : languageText(locale, {
+        es: "El control diario esta pendiente, asi que VYVA ha registrado una alerta de seguridad para tu cuidador.",
+        en: "The daily check-in is overdue, so VYVA has recorded a caregiver safety alert.",
+        fr: "Le controle quotidien est en retard, donc VYVA a enregistre une alerte de securite pour l'aidant.",
+        de: "Der taegliche Check-in ist ueberfaellig, daher hat VYVA eine Sicherheitswarnung fuer die Betreuung erfasst.",
+        it: "Il check-in quotidiano e in ritardo, quindi VYVA ha registrato un avviso di sicurezza per il caregiver.",
+        pt: "O check-in diario esta atrasado, por isso a VYVA registou um alerta de seguranca para o cuidador.",
+      });
   }
-  if (status === "upcoming") return dailyText(locale, "Your daily check-in is scheduled for later today.", "Tu control diario esta programado para mas tarde hoy.");
-  return dailyText(locale, "Set a daily check-in time so VYVA can notice if you do not respond.", "Configura una hora diaria para que VYVA pueda notar si no respondes.");
+  if (status === "upcoming") return languageText(locale, {
+    es: "Tu control diario esta programado para mas tarde hoy.",
+    en: "Your daily check-in is scheduled for later today.",
+    fr: "Votre controle quotidien est prevu plus tard aujourd'hui.",
+    de: "Dein taeglicher Check-in ist fuer spaeter heute geplant.",
+    it: "Il tuo check-in quotidiano e programmato per piu tardi oggi.",
+    pt: "O seu check-in diario esta agendado para mais tarde hoje.",
+  });
+  return languageText(locale, {
+    es: "Configura una hora diaria para que VYVA pueda notar si no respondes.",
+    en: "Set a daily check-in time so VYVA can notice if you do not respond.",
+    fr: "Definissez une heure de controle quotidienne pour que VYVA remarque si vous ne repondez pas.",
+    de: "Lege eine taegliche Check-in-Zeit fest, damit VYVA merkt, wenn du nicht antwortest.",
+    it: "Imposta un orario di check-in quotidiano cosi VYVA nota se non rispondi.",
+    pt: "Defina uma hora diaria de check-in para a VYVA perceber se nao responder.",
+  });
 }
 
 function actionLabelFor(status: DailyCheckinScheduleStatus["state"], locale?: string | null) {
-  if (status === "completed") return dailyText(locale, "View history", "Ver historial");
-  if (status === "upcoming") return dailyText(locale, "Check in early", "Hacerlo antes");
-  if (status === "not_scheduled") return dailyText(locale, "Set up check-in", "Configurar control");
-  return dailyText(locale, "Check in now", "Hacer control ahora");
+  if (status === "completed") return languageText(locale, {
+    es: "Ver historial",
+    en: "View history",
+    fr: "Voir l'historique",
+    de: "Verlauf ansehen",
+    it: "Vedi storico",
+    pt: "Ver historico",
+  });
+  if (status === "upcoming") return languageText(locale, {
+    es: "Hacerlo antes",
+    en: "Check in early",
+    fr: "Faire le controle plus tot",
+    de: "Frueher einchecken",
+    it: "Fai il check-in prima",
+    pt: "Fazer check-in mais cedo",
+  });
+  if (status === "not_scheduled") return languageText(locale, {
+    es: "Configurar control",
+    en: "Set up check-in",
+    fr: "Configurer le controle",
+    de: "Check-in einrichten",
+    it: "Configura check-in",
+    pt: "Configurar check-in",
+  });
+  return languageText(locale, {
+    es: "Hacer control ahora",
+    en: "Check in now",
+    fr: "Faire le controle",
+    de: "Jetzt einchecken",
+    it: "Fai check-in ora",
+    pt: "Fazer check-in agora",
+  });
 }
 
 export async function getDailyCheckinTodayStatus(
@@ -390,7 +474,7 @@ export async function getDailyCheckinTodayStatus(
   const now = options.now ?? new Date();
   const schedule = await activeCheckinSchedule(userId, options.createDefaultSchedule ?? true, now);
   const profile = await profileContext(userId);
-  const locale = profile?.language ?? "en";
+  const locale = profileLanguage(profile);
   const timezone = schedule?.timezone || profile?.timezone || "Europe/Madrid";
   const scheduledTimes = schedule ? normalizeCheckinTimes(schedule.times_of_day) : [];
   const provisional = evaluateDailyCheckinSchedule({

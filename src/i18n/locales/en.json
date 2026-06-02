@@ -216,38 +216,38 @@
     "todayForYou": {
       "sectionTitle": "Today for you",
       "refreshLabel": "Refresh suggestions",
-        "cards": {
-          "symptomCheck": {
-            "badge": "Symptoms",
-            "title": "Check symptoms",
-            "text": "Answer a few guided questions if something worries you today.",
-            "cta": "Start"
-          },
-          "specialistFinder": {
-            "badge": "Health",
-            "title": "Find a specialist",
-            "text": "Find nearby doctors based on what you need.",
-            "cta": "Search"
-          },
-          "gamesRoom": {
-            "badge": "Games",
-            "title": "Games room",
-            "text": "Choose a calm game to keep your mind active.",
-            "cta": "Play"
-          },
-          "musicSalon": {
-            "badge": "Music",
-            "title": "Music salon",
-            "text": "Chat with the music guide and discover something lovely.",
-            "cta": "Enter"
-          },
-          "billReview": {
-            "badge": "Savings",
-            "title": "Review bills",
-            "text": "Check if you could pay less for important services.",
-            "cta": "Review"
-          },
-          "breathing": {
+      "cards": {
+        "symptomCheck": {
+          "badge": "Symptoms",
+          "title": "Check symptoms",
+          "text": "Answer a few guided questions if something worries you today.",
+          "cta": "Start"
+        },
+        "specialistFinder": {
+          "badge": "Health",
+          "title": "Find a specialist",
+          "text": "Find nearby doctors based on what you need.",
+          "cta": "Search"
+        },
+        "gamesRoom": {
+          "badge": "Games",
+          "title": "Games room",
+          "text": "Choose a calm game to keep your mind active.",
+          "cta": "Play"
+        },
+        "musicSalon": {
+          "badge": "Music",
+          "title": "Music salon",
+          "text": "Chat with the music guide and discover something lovely.",
+          "cta": "Enter"
+        },
+        "billReview": {
+          "badge": "Savings",
+          "title": "Review bills",
+          "text": "Check if you could pay less for important services.",
+          "cta": "Review"
+        },
+        "breathing": {
           "badge": "Breathing",
           "title": "Breathe and relax",
           "text": "A gentle deep breathing exercise to calm your mind in 3 minutes.",
@@ -377,6 +377,25 @@
         "micLabel": "Ask for help by voice",
         "openLabel": "Open concierge"
       }
+    },
+    "fastHelp": {
+      "kicker": "Fast help",
+      "title": "What do you need now?",
+      "doctor": {
+        "label": "Doctor help",
+        "sub": "Talk through a health concern"
+      },
+      "appointment": {
+        "label": "Book appointment",
+        "sub": "Prepare a request to confirm"
+      },
+      "ride": {
+        "label": "Book ride",
+        "sub": "Arrange safe transport"
+      },
+      "doctorContext": "Home quick doctor help request. Ask what is happening and help prepare a safe next step.",
+      "appointmentPrefill": "Please help me schedule an appointment. Ask what kind of appointment I need and do not book anything without my confirmation.",
+      "ridePrefill": "Please help me arrange safe transport. Ask for destination and timing, and do not book anything without my confirmation."
     },
     "whatNow": "or explore a topic"
   },
@@ -724,7 +743,7 @@
     },
     "seeDoctor": {
       "title": "See a Doctor",
-      "subtitle": "Phone, video, or live chat",
+      "subtitle": "Call, appointment, or transport help",
       "cta": "Choose",
       "sheetTitle": "Choose how to connect",
       "videoCall": "Video Call",
@@ -733,7 +752,26 @@
       "comingSoonBtn": "Coming soon",
       "comingSoon": "This service is being set up for you. Available very soon!",
       "checkSymptoms": "Check My Symptoms",
-      "checkSymptomsSub": "AI triage + vitals scan in 5 minutes"
+      "checkSymptomsSub": "AI triage + vitals scan in 5 minutes",
+      "actions": {
+        "title": "Doctor access",
+        "callGp": "Call GP",
+        "callGpNamed": "Call {{name}}",
+        "callGpSub": "Speak to your practice now.",
+        "emailGp": "Email GP",
+        "emailGpSub": "Open an email with context filled in.",
+        "doctorHelp": "Doctor help",
+        "doctorHelpSub": "Talk through the next step with VYVA.",
+        "bookAppointment": "Book appointment",
+        "bookAppointmentSub": "VYVA prepares the request for approval.",
+        "bookTransport": "Book transport",
+        "bookTransportSub": "Arrange a safe ride to care.",
+        "addGp": "Add GP contact",
+        "addGpSub": "Save phone or email first.",
+        "defaultContext": "Health home doctor support request. Ask what is needed and help prepare a safe next step.",
+        "appointmentPrefill": "Please help me schedule a doctor appointment. Ask me to confirm before booking anything.\n\n{{context}}",
+        "ridePrefill": "Please help me arrange safe transport for a medical appointment. Ask me to confirm before booking anything.\n\n{{context}}"
+      }
     },
     "symptomCheck": {
       "title": "Symptom Check",
@@ -863,7 +901,7 @@
         "symptoms": "Symptoms noted",
         "recommendations": "What to do next",
         "doNow": "Do now",
-        "whyThisStep": "Initial assessment",
+        "whyThisStep": "Why VYVA chose this",
         "nextStepsTitle": "Next steps",
         "nextStepsSubtitle": "Vitals now come after the conversation. Choose what helps next.",
         "relevantVitalsEyebrow": "Relevant vitals",
@@ -921,7 +959,6 @@
         "checkPulseReason": "Add pulse from a device or count it manually.",
         "tellMainSymptom": "Main symptom",
         "nextStep": "Next step",
-        "whyThisStep": "Why VYVA chose this",
         "vitalsUsed": "Vitals used",
         "profileConsidered": "Profile considered",
         "watchSigns": "Watch signs",
@@ -944,7 +981,12 @@
         "emergencyBody": "Call emergency services now. Do not drive yourself. Keep this report open for the responder.",
         "contextUsed": "What VYVA considered",
         "doctorNoteTitle": "Doctor-ready note",
-        "doctorNoteSub": "Plain text to read, show, or share."
+        "doctorNoteSub": "Plain text to read, show, or share.",
+        "invalidPainReading": "Enter pain from 0 to 10.",
+        "invalidEnergyReading": "Enter energy from 1 to 10.",
+        "updatedReadingChanged": "Updated with {{display}}. Next step changed. Report updated and ready to share.",
+        "updatedReadingSame": "Updated with {{display}}. Next step stayed the same. Report updated and ready to share.",
+        "updateReadingFailed": "Could not update with this reading. The original report is still available."
       }
     },
     "scanWound": {
@@ -1022,6 +1064,9 @@
       "noProvidersBody": "You can try another city or open Google Maps to look for nearby options.",
       "openMaps": "Open Google Maps",
       "contact": "Contact",
+      "call": "Call",
+      "bookAppointment": "Appointment",
+      "bookRide": "Book ride",
       "map": "Map",
       "share": "Share",
       "doctorSearchTerm": "doctor",
@@ -1181,38 +1226,38 @@
     "adherence": {
       "title": "Adherence Report",
       "backToMeds": "Back to Medications",
-        "overallStats": "Overall Adherence",
-        "overviewTitle": "This week at a glance",
-        "overviewAllTaken": "You're staying on track",
-        "overviewAllTakenSub": "All of your current medications were covered this week.",
-        "overviewSomeMissed": "A few doses need attention",
-        "overviewSomeMissedSub": "{{count}} medication still shows missed doses this week.",
-        "overviewManyMissed": "Let's get back into rhythm",
-        "overviewManyMissedSub": "{{count}} medications still show missed doses this week.",
-        "statOnTrack": "On track",
-        "statNeedsAttention": "Need attention",
-        "statBestStreak": "Best streak",
-        "todayTitle": "Today",
-        "todayNeedsAttention": "{{count}} medication still needs attention today.",
-        "todayAllCovered": "Everything scheduled for today has been covered.",
-        "todayDone": "{{count}} done",
-        "todayLeft": "{{count}} left",
-        "attentionTitle": "Needs attention",
-        "attentionSubtitle": "This week, keep an eye on {{names}}.",
-        "insightsTitle": "Actionable insights",
-        "insightNextStepTitle": "Next best step",
-        "insightNextStepSingle": "{{name}} still needs a dose today.",
-        "insightNextStepMultiple": "{{count}} medications still need doses today.",
-        "insightNextStepReview": "Review {{name}} first because it is driving this week's missed doses.",
-        "insightNextStepClear": "No immediate action is needed right now.",
-        "insightHabitTitle": "Strongest habit",
-        "insightHabitBody": "{{name}} has your best routine so far with {{streak}} days in a row.",
-        "insightHabitBodyNoStreak": "{{name}} is currently your most consistent medication.",
-        "insightHabitBodyEmpty": "As more data comes in, VYVA will spot your strongest habit here.",
-        "insightFocusTitle": "Weekly focus",
-        "insightFocusBody": "{{name}} is worth checking first because it has {{count}} missed doses this week.",
-        "insightFocusBodyClear": "Everything looks steady this week.",
-        "thisWeek": "This week",
+      "overallStats": "Overall Adherence",
+      "overviewTitle": "This week at a glance",
+      "overviewAllTaken": "You're staying on track",
+      "overviewAllTakenSub": "All of your current medications were covered this week.",
+      "overviewSomeMissed": "A few doses need attention",
+      "overviewSomeMissedSub": "{{count}} medication still shows missed doses this week.",
+      "overviewManyMissed": "Let's get back into rhythm",
+      "overviewManyMissedSub": "{{count}} medications still show missed doses this week.",
+      "statOnTrack": "On track",
+      "statNeedsAttention": "Need attention",
+      "statBestStreak": "Best streak",
+      "todayTitle": "Today",
+      "todayNeedsAttention": "{{count}} medication still needs attention today.",
+      "todayAllCovered": "Everything scheduled for today has been covered.",
+      "todayDone": "{{count}} done",
+      "todayLeft": "{{count}} left",
+      "attentionTitle": "Needs attention",
+      "attentionSubtitle": "This week, keep an eye on {{names}}.",
+      "insightsTitle": "Actionable insights",
+      "insightNextStepTitle": "Next best step",
+      "insightNextStepSingle": "{{name}} still needs a dose today.",
+      "insightNextStepMultiple": "{{count}} medications still need doses today.",
+      "insightNextStepReview": "Review {{name}} first because it is driving this week's missed doses.",
+      "insightNextStepClear": "No immediate action is needed right now.",
+      "insightHabitTitle": "Strongest habit",
+      "insightHabitBody": "{{name}} has your best routine so far with {{streak}} days in a row.",
+      "insightHabitBodyNoStreak": "{{name}} is currently your most consistent medication.",
+      "insightHabitBodyEmpty": "As more data comes in, VYVA will spot your strongest habit here.",
+      "insightFocusTitle": "Weekly focus",
+      "insightFocusBody": "{{name}} is worth checking first because it has {{count}} missed doses this week.",
+      "insightFocusBodyClear": "Everything looks steady this week.",
+      "thisWeek": "This week",
       "last30Days": "Last 30 days",
       "perMedication": "Per Medication",
       "taken": "taken",
@@ -1238,18 +1283,18 @@
       "authTitle": "Sign in to view this report",
       "authSub": "Medication adherence is private. Please sign in to see your report.",
       "signIn": "Sign in",
-        "shareButton": "Share with care team",
-        "shareTitle": "Medication Adherence Report",
-        "shareShared": "Shared",
-        "shareSharedDesc": "Your adherence summary was shared.",
-        "shareCopied": "Report copied!",
-        "shareCopiedDesc": "Your adherence summary has been copied to the clipboard.",
-        "shareFormat": "Medication Adherence Report\n\nThis week: {{week}}%\nLast 30 days: {{month}}%\nAttention: {{attention}}\n\nPer medication:\n{{meds}}\n\nGenerated by VYVA",
-        "shareAllOnTrack": "All current medications are on track this week.",
-        "shareNeedsAttention": "{{count}} medication needs attention this week: {{names}}.",
-        "shareFormatMed": "{{name}} ({{dosage}}): {{taken}}/{{scheduled}} doses taken this week, {{streak}}-day streak",
-        "shareFooter": "Generated by VYVA",
-        "loadingTitle": "Loading your report…",
+      "shareButton": "Share with care team",
+      "shareTitle": "Medication Adherence Report",
+      "shareShared": "Shared",
+      "shareSharedDesc": "Your adherence summary was shared.",
+      "shareCopied": "Report copied!",
+      "shareCopiedDesc": "Your adherence summary has been copied to the clipboard.",
+      "shareFormat": "Medication Adherence Report\n\nThis week: {{week}}%\nLast 30 days: {{month}}%\nAttention: {{attention}}\n\nPer medication:\n{{meds}}\n\nGenerated by VYVA",
+      "shareAllOnTrack": "All current medications are on track this week.",
+      "shareNeedsAttention": "{{count}} medication needs attention this week: {{names}}.",
+      "shareFormatMed": "{{name}} ({{dosage}}): {{taken}}/{{scheduled}} doses taken this week, {{streak}}-day streak",
+      "shareFooter": "Generated by VYVA",
+      "loadingTitle": "Loading your report…",
       "errorTitle": "Could not load report",
       "errorSub": "Please try again in a moment.",
       "retry": "Try again",
@@ -1304,6 +1349,14 @@
     "saving": "Saving…",
     "logActivity": "Log {{duration}}m {{type}}",
     "selectActivity": "Select an activity above",
+    "supportTitle": "Need help going out?",
+    "supportSubtitle": "VYVA can prepare transport or companion support before you confirm.",
+    "bookRide": "Book ride",
+    "bookRideSub": "Arrange transport before you go.",
+    "arrangeCompanion": "Arrange companion",
+    "arrangeCompanionSub": "Ask for someone to come with you.",
+    "ridePrefill": "Please help me arrange safe transport for a {{duration}} minute {{activity}} activity. Ask me to confirm before booking anything.",
+    "companionPrefill": "Please help me arrange a trusted companion or support person for a {{duration}} minute {{activity}} activity. Ask me to confirm before contacting or booking anyone.",
     "activityLogged": "Activity logged — great job!",
     "couldNotSave": "Couldn't save — please try again.",
     "todaysSummary": "Today's Summary",
@@ -1694,7 +1747,18 @@
     "callCompanionDesc": "Start VYVA on your phone while taking a suspicious call. Ask VYVA what to say, what to watch out for, and whether to hang up.",
     "callCompanionStart": "Start Call Companion",
     "callCompanionEnd": "Pause guidance",
-    "callCompanionConnecting": "Connecting…"
+    "callCompanionConnecting": "Connecting…",
+    "actions": {
+      "title": "Quick safe actions",
+      "trustedFallback": "trusted person",
+      "callTrusted": "Call {{name}}",
+      "callTrustedAria": "Call {{name}} about this scam check",
+      "addTrusted": "Add trusted person",
+      "safeHelp": "Get safe help",
+      "safeHelpAria": "Open VYVA concierge with this scam check",
+      "callGuidance": "Call guidance",
+      "pauseGuidance": "Pause guidance"
+    }
   },
   "community": {
     "title": "My Community",

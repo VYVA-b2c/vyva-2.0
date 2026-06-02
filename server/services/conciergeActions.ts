@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db, pool } from "../db.js";
 import { profiles } from "../../shared/schema.js";
+import { normalizeAppLanguage } from "../../shared/language.js";
 
 export const CONCIERGE_USE_CASES = [
   "book_ride",
@@ -44,6 +45,7 @@ interface BasicProfile {
   preferred_name: string | null;
   date_of_birth: string | null;
   language: string;
+  language_preference: string | null;
 }
 
 interface PendingRow {
@@ -116,9 +118,7 @@ function formatList(value: unknown): string | undefined {
 }
 
 function normalizeLanguage(language?: string | null, fallback = "es"): string {
-  const base = language?.split("-")[0]?.toLowerCase().trim();
-  if (!base) return fallback;
-  return base;
+  return normalizeAppLanguage(language, normalizeAppLanguage(fallback, "es"));
 }
 
 function firstName(profile: BasicProfile): string {
@@ -131,11 +131,12 @@ function firstName(profile: BasicProfile): string {
 
 function buildDynamicVariables(pending: PendingRow, profile: BasicProfile): Record<string, string> {
   const payload = pending.action_payload ?? {};
+  const profileLanguage = normalizeLanguage(profile.language_preference ?? profile.language, "es");
   const dynamicVariables: Record<string, string> = {
     concierge_pending_id: pending.id,
     user_id: pending.user_id,
     use_case: pending.use_case,
-    language: normalizeLanguage(pending.language, normalizeLanguage(profile.language, "es")),
+    language: normalizeLanguage(pending.language, profileLanguage),
     senior_name: firstName(profile),
   };
 
@@ -174,6 +175,7 @@ async function ensureProfile(userId: string, language: string) {
     .values({
       id: userId,
       language,
+      language_preference: language,
     })
     .onConflictDoNothing();
 }
@@ -186,6 +188,7 @@ async function loadProfile(userId: string): Promise<BasicProfile> {
       preferred_name: profiles.preferred_name,
       date_of_birth: profiles.date_of_birth,
       language: profiles.language,
+      language_preference: profiles.language_preference,
     })
     .from(profiles)
     .where(eq(profiles.id, userId))
@@ -200,6 +203,7 @@ async function loadProfile(userId: string): Promise<BasicProfile> {
     preferred_name: null,
     date_of_birth: null,
     language: "es",
+    language_preference: null,
   };
 }
 

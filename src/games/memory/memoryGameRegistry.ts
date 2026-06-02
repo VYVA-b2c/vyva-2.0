@@ -1623,7 +1623,7 @@ export function getGameLevel(gameType: MemoryGameType, level: number) {
 }
 
 export function getVariantContent(variant: MemoryGameVariant, language: LanguageCode) {
-  return variant.content[language] ?? variant.content.es;
+  return variant.content[language] ?? variant.content.en ?? variant.content.es;
 }
 
 export function getGameTitle(gameType: MemoryGameType, language: LanguageCode) {

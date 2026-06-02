@@ -13,6 +13,7 @@ import { setBootstrapLanguage, useLanguage } from "@/i18n";
 import { LANGUAGES, type LanguageCode } from "@/i18n/languages";
 import { detectBrowserLanguage } from "@/i18n/detectLanguage";
 import { apiFetch, queryClient } from "@/lib/queryClient";
+import { clearSignupInviteId, currentSignupInviteId, trackSignupInviteEvent } from "@/lib/signupInviteAudit";
 import {
   PHONE_COUNTRY_OPTIONS,
   buildProfileIdentityPayload,
@@ -453,6 +454,13 @@ export default function AccountSettings() {
       if (!res.ok) throw new Error(await res.text());
 
       await queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+      const inviteId = currentSignupInviteId(location.search);
+      trackSignupInviteEvent(inviteId, "profile_completed", {
+        destination: "/settings/account",
+        keepalive: true,
+        clearAfter: true,
+      });
+      clearSignupInviteId(inviteId);
       toast({ title: accountCopy.saved });
     } catch {
       toast({

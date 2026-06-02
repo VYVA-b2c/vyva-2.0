@@ -29,7 +29,15 @@ vi.mock("@/hooks/useVoiceActionFulfillment", () => ({
   }),
 }));
 
+vi.mock("@/i18n", () => ({
+  useLanguage: () => ({
+    language: "en",
+    t: (_key: string, fallback?: string) => fallback ?? _key,
+  }),
+}));
+
 vi.mock("react-i18next", () => ({
+  initReactI18next: { type: "3rdParty", init: vi.fn() },
   useTranslation: () => ({
     i18n: { language: "en" },
     t: (_key: string, fallback?: string) => fallback ?? _key,
@@ -85,6 +93,8 @@ describe("ConciergeScreen route prefill", () => {
     }]);
 
     expect(await screen.findByTestId("panel-concierge-route-prefill")).toHaveTextContent("Appointment request ready");
+    expect(screen.getByTestId("panel-appointment-assistant")).toHaveTextContent("Schedule an appointment");
+    expect(screen.getByDisplayValue("Please help me schedule care for chest discomfort. Ask me to confirm before booking.")).toBeVisible();
 
     fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
 
@@ -97,6 +107,35 @@ describe("ConciergeScreen route prefill", () => {
     const body = JSON.parse(String(init?.body));
     expect(body.prompt).toContain("Please help me schedule care");
     expect(body.locale).toBe("en");
+  });
+
+  it("turns a daily check-in task handoff into a prepared concierge request", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({ response: "I can prepare options." }));
+
+    renderScreen([{
+      pathname: "/concierge",
+      state: {
+        conciergePrefill: {
+          kind: "task",
+          message: "Please prepare an easy outing with transport if needed.",
+          source: "daily_checkin",
+        },
+      },
+    }]);
+
+    expect(await screen.findByTestId("panel-concierge-route-prefill")).toHaveTextContent("Request ready");
+
+    fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/concierge", expect.objectContaining({
+        method: "POST",
+      }));
+    });
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse(String(init?.body));
+    expect(body.prompt).toContain("easy outing");
   });
 
   it("renders prepared provider phone actions as direct call links", async () => {

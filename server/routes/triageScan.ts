@@ -9,20 +9,12 @@ import {
   type TriageScanResult,
   type TriageScanType,
 } from "../../shared/triageScans.js";
+import { languageName, normalizeAppLanguage } from "../../shared/language.js";
 
 const PHOTO_SCAN_TYPES = new Set<TriageScanType>(["wound_photo", "urine_photo", "stool_photo"]);
 
-const LOCALE_TO_LANGUAGE: Record<string, string> = {
-  es: "Spanish",
-  fr: "French",
-  pt: "Portuguese",
-  de: "German",
-  it: "Italian",
-  cy: "Welsh",
-};
-
 function normalizedLocale(raw: unknown) {
-  return typeof raw === "string" ? raw.split("-")[0].toLowerCase() : "en";
+  return normalizeAppLanguage(typeof raw === "string" ? raw : null, "en");
 }
 
 function parseImageDataUrl(raw: unknown): { mimeType: string; base64Data: string } | null {
@@ -35,10 +27,9 @@ function parseImageDataUrl(raw: unknown): { mimeType: string; base64Data: string
 }
 
 function buildPrompt(type: TriageScanType, locale: string) {
-  const language = LOCALE_TO_LANGUAGE[locale];
-  const translationInstruction = language
-    ? `\n- Write "summary" and each item in "findings" in ${language}. Keep "concernLevel" in English.`
-    : "";
+  const language = languageName(normalizeAppLanguage(locale, "en"));
+  const translationInstruction =
+    `\n- Write "summary" and each item in "findings" in ${language}. Keep "concernLevel" in English.`;
 
   const common = `You are a cautious medical image assistant inside an optional symptom triage flow for older adults.
 Analyze only visible appearance. Do not diagnose disease.

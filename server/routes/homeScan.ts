@@ -3,23 +3,14 @@ import OpenAI from "openai";
 import { eq, desc } from "drizzle-orm";
 import { db } from "../db.js";
 import { homeScans } from "../../shared/schema.js";
+import { languageName, normalizeAppLanguage } from "../../shared/language.js";
 
 const DEMO_USER_ID = "demo-user";
 
-const LOCALE_TO_LANGUAGE: Record<string, string> = {
-  es: "Spanish",
-  fr: "French",
-  pt: "Portuguese",
-  de: "German",
-  it: "Italian",
-  cy: "Welsh",
-};
-
 function buildSystemPrompt(locale: string): string {
-  const language = LOCALE_TO_LANGUAGE[locale];
-  const translationInstruction = language
-    ? `\n- Translate ONLY the "resultTitle", "hazards" array items, and "advice" fields into ${language}. The "riskLevel" field must always remain in English as exactly one of: Safe, Low Risk, High Risk.`
-    : "";
+  const language = languageName(normalizeAppLanguage(locale, "en"));
+  const translationInstruction =
+    `\n- Translate ONLY the "resultTitle", "hazards" array items, and "advice" fields into ${language}. The "riskLevel" field must always remain in English as exactly one of: Safe, Low Risk, High Risk.`;
   return `You are a compassionate home safety expert helping older adults identify potential hazards in their living environment.
 Analyse the room image provided and identify safety risks relevant to an older adult living independently.
 

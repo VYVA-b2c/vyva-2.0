@@ -109,6 +109,7 @@ interface TriageChatProps {
   resumePendingRequest?: boolean;
   language?: string;
   languageReady?: boolean;
+  showProgressCard?: boolean;
   onDraftChange?: (draft: TriageChatDraft) => void;
   onVitalsScanned?: (bpm: number | null, respiratoryRate: number | null) => void;
   onVoiceAutoStarted?: () => void;
@@ -209,7 +210,6 @@ const speechLangFor = (language: string) => {
     de: "de-DE",
     it: "it-IT",
     pt: "pt-PT",
-    cy: "en-GB",
   };
   return map[base] ?? "en-US";
 };
@@ -276,6 +276,7 @@ export default function TriageChat({
   resumePendingRequest = false,
   language,
   languageReady = true,
+  showProgressCard = true,
   onDraftChange,
   onVitalsScanned,
   onVoiceAutoStarted,
@@ -628,8 +629,25 @@ export default function TriageChat({
     loading,
   });
   const answeredCount = selectedQuickAnswers.length;
-  const progressStep = Math.min(Math.max(answeredCount + 1, 1), 5);
-  const progressPct = Math.min(100, Math.max(18, (progressStep / 5) * 100));
+  const confidenceSignals = Math.min(5, Math.max(2, answeredCount + 2));
+  const confidencePercent = confidenceSignals * 20;
+  const confidenceValue = `${confidenceSignals}/5`;
+  const confidenceLevel = answeredCount >= 3
+    ? t("health.symptomCheck.tracker.high", "High")
+    : answeredCount > 0
+      ? t("health.symptomCheck.tracker.medium", "Medium")
+      : t("health.symptomCheck.tracker.low", "Low");
+  const confidenceStatus = answeredCount >= 3
+    ? t("health.symptomCheck.tracker.ready", "Ready to guide")
+    : answeredCount > 0
+      ? t("health.symptomCheck.tracker.building", "Confidence improving")
+      : t("health.symptomCheck.tracker.starting", "Getting started");
+  const confidenceStageIndex = answeredCount >= 3 ? 2 : answeredCount > 0 ? 1 : 0;
+  const confidenceStages = [
+    { key: "symptoms", label: t("health.symptomCheck.tracker.listen", "Symptoms"), Icon: ListChecks },
+    { key: "safety", label: t("health.symptomCheck.tracker.check", "Safety check"), Icon: Activity },
+    { key: "next", label: t("health.symptomCheck.tracker.nextStep", "Next step"), Icon: CheckCircle },
+  ];
   const hasReusableVitals = bpm != null || respiratoryRate != null;
 
   const handleSkipScan = (type: TriageScanType) => {
@@ -658,34 +676,115 @@ export default function TriageChat({
         style={{ overscrollBehavior: "contain" }}
       >
         <div className="mx-auto flex w-full max-w-[560px] flex-col gap-5">
-          <HealthWizardCard tone="soft" className="px-4 py-3" testId="triage-question-progress">
-            <div className="flex items-start gap-3">
-              <span className="mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-teal-700 shadow-sm">
-                <ListChecks className="h-5 w-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-body text-[16px] font-black text-vyva-text-1">
-                    {t("health.symptomCheck.chat.oneQuestion", "One question at a time")}
-                  </p>
-                  <span className="rounded-full bg-white px-2.5 py-1 font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3 shadow-sm">
-                    {wizardStageLabel || t("health.symptomCheck.chat.currentQuestion", "Current question")}
+          {showProgressCard ? (
+            <HealthWizardCard
+              tone="soft"
+              className="overflow-hidden border-[#D8C7FF] bg-white p-0 shadow-[0_18px_42px_rgba(63,45,35,0.10)]"
+              testId="triage-confidence-tracker"
+            >
+              <div className="grid gap-4 bg-[linear-gradient(135deg,#FFFFFF_0%,#F7F1FF_58%,#FFF8EA_100%)] p-4 sm:grid-cols-[112px_minmax(0,1fr)]">
+                <div
+                  role="meter"
+                  aria-label={t("health.symptomCheck.tracker.label", "Confidence level")}
+                  aria-valuemin={1}
+                  aria-valuemax={5}
+                  aria-valuenow={confidenceSignals}
+                  aria-valuetext={`${confidenceLevel} ${confidenceValue}`}
+                  className="relative mx-auto grid h-[112px] w-[112px] place-items-center rounded-full p-2 shadow-[0_18px_32px_rgba(107,33,168,0.18)] sm:mx-0"
+                  style={{ background: `conic-gradient(#6B21A8 0 ${confidencePercent}%, #E8DED4 ${confidencePercent}% 100%)` }}
+                >
+                  <span className="grid h-full w-full place-items-center rounded-full bg-white text-center">
+                    <Activity className={!loading ? "h-7 w-7 text-vyva-purple motion-safe:animate-pulse" : "h-7 w-7 text-vyva-purple"} />
+                    <span className="mt-1 block font-body text-[25px] font-black leading-none text-vyva-purple">
+                      {confidenceValue}
+                    </span>
+                    <span className="mt-0.5 block font-body text-[10px] font-black uppercase tracking-[0.1em] text-vyva-text-3">
+                      {t("health.symptomCheck.tracker.shortLabel", "Confidence")}
+                    </span>
+                  </span>
+                  <span className="absolute right-1 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-[#34D399] ring-4 ring-white">
+                    <span className="h-2.5 w-2.5 rounded-full bg-white motion-safe:animate-pulse" />
                   </span>
                 </div>
-                <p className="mt-1 font-body text-[15px] font-semibold leading-snug text-vyva-text-2">
-                  {answeredCount > 0
-                    ? t("health.symptomCheck.chat.answersSaved", "{{count}} answers saved", { count: answeredCount })
-                    : t("health.symptomCheck.chat.startAnswering", "Choose the closest answer, or type in your own words.")}
-                </p>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
-                  <div
-                    className="h-full rounded-full bg-teal-600 transition-all duration-300"
-                    style={{ width: `${progressPct}%` }}
-                  />
+
+                <div className="min-w-0">
+                  <div className="flex h-full flex-col justify-center gap-3">
+                    <div className="min-w-0">
+                      <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+                        {t("health.symptomCheck.tracker.label", "Confidence level")}
+                      </p>
+                      <p className="mt-1 font-body text-[24px] font-black leading-tight text-vyva-text-1">
+                        {confidenceStatus}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-[#ECFDF5] px-3 py-1.5 font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#047857] shadow-[0_5px_14px_rgba(4,120,87,0.10)]">
+                        {confidenceLevel}
+                      </span>
+                      <span className="rounded-full bg-white px-3 py-1.5 font-body text-[12px] font-black text-vyva-purple shadow-sm">
+                        {wizardStageLabel || t("health.symptomCheck.chat.currentQuestion", "Current question")}
+                      </span>
+                    </div>
+                    <p className="font-body text-[15px] font-bold leading-snug text-vyva-text-2">
+                      <span className="text-vyva-text-1">
+                        {t("health.symptomCheck.chat.oneQuestion", "One question at a time")}
+                      </span>
+                      {" - "}
+                      {answeredCount > 0
+                        ? t("health.symptomCheck.chat.answersSaved", "{{count}} answers saved", { count: answeredCount })
+                        : t("health.symptomCheck.chat.startAnswering", "Choose the closest answer, or type in your own words.")}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-          </HealthWizardCard>
+
+              <div className="border-t border-[#EEE4DA] bg-[#FFFCF8] p-3">
+                <div
+                  className="grid grid-cols-3 gap-2"
+                  aria-label={t("health.symptomCheck.tracker.label", "Confidence level")}
+                  data-testid="triage-confidence-signals"
+                >
+                  {confidenceStages.map(({ key, label, Icon }, index) => {
+                    const isComplete = index < confidenceStageIndex;
+                    const isActive = index === confidenceStageIndex;
+                    const stateLabel = isComplete
+                      ? t("health.symptomCheck.tracker.complete", "Done")
+                      : isActive
+                        ? t("health.symptomCheck.tracker.current", "Now")
+                        : t("health.symptomCheck.tracker.waiting", "Next");
+                    const tileClass = isActive
+                      ? "border-vyva-purple bg-white text-vyva-purple shadow-[0_8px_18px_rgba(107,33,168,0.12)]"
+                      : isComplete
+                        ? "border-[#BBF7D0] bg-[#ECFDF5] text-[#047857]"
+                        : "border-[#E8DED4] bg-white/70 text-vyva-text-2";
+                    const iconClass = isActive
+                      ? "bg-vyva-purple text-white"
+                      : isComplete
+                        ? "bg-[#10B981] text-white"
+                        : "bg-[#F4EEE8] text-vyva-text-2";
+
+                    return (
+                      <div
+                        key={key}
+                        aria-current={isActive ? "step" : undefined}
+                        className={`min-h-[82px] rounded-[20px] border px-2 py-2 text-center transition-all ${tileClass}`}
+                      >
+                        <span className={`mx-auto flex h-9 w-9 items-center justify-center rounded-[14px] ${iconClass}`}>
+                          <Icon className="h-[18px] w-[18px]" />
+                        </span>
+                        <span className="mt-1 block font-body text-[12px] font-black leading-tight">
+                          {label}
+                        </span>
+                        <span className="mt-0.5 block font-body text-[10px] font-black uppercase tracking-[0.08em] opacity-70">
+                          {stateLabel}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </HealthWizardCard>
+          ) : null}
 
           {hasReusableVitals && (
             <HealthWizardCard tone="blue" className="px-4 py-3" testId="triage-existing-vitals">

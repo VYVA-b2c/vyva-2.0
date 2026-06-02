@@ -1,9 +1,11 @@
-import { Bell, BrainCircuit, CheckCircle2, Clock3, Headphones, Layers, Map as MapIcon, Puzzle, Route, Type, Users, Wind, type LucideIcon } from "lucide-react";
+import { useCallback, useEffect, useRef } from "react";
+import { Bell, BrainCircuit, CheckCircle2, Clock3, Headphones, Layers, Map as MapIcon, MessageCircle, Puzzle, Route, Type, UserRoundPlus, Users, Wind, X, type LucideIcon } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { margaret } from "@/data/mockData";
 import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
@@ -72,12 +74,22 @@ const activityStyles: Record<string, { iconBg: string; iconColor: string; glow: 
   },
 };
 
-const activityRoutes: Partial<Record<string, string>> = {
-  "brain.activities.triviaQuiz": "/attention-boosters",
-  "brain.activities.memoryGame": "/memory-games",
-  "brain.activities.spatialNavigator": "/spatial-navigator",
-  "brain.activities.scrabble": "/language",
-  "brain.activities.logicPuzzle": "/executive-function",
+type ActivityDestination = {
+  to: string;
+  state?: {
+    preselectActivity?: string;
+    duration?: number;
+  };
+};
+
+const activityRoutes: Partial<Record<string, ActivityDestination>> = {
+  "brain.activities.triviaQuiz": { to: "/attention-boosters" },
+  "brain.activities.memoryGame": { to: "/memory-games" },
+  "brain.activities.spatialNavigator": { to: "/spatial-navigator" },
+  "brain.activities.scrabble": { to: "/language" },
+  "brain.activities.logicPuzzle": { to: "/executive-function" },
+  "brain.activities.meditation": { to: "/activity", state: { preselectActivity: "Breathing", duration: 10 } },
+  "brain.activities.breathing": { to: "/activity", state: { preselectActivity: "Breathing", duration: 10 } },
 };
 
 const activityCompletionTypes: Record<string, string[]> = {
@@ -129,6 +141,18 @@ type BrainCoachDailyPlan = {
     totalCount: number;
     allComplete: boolean;
   };
+  caregiverNudge?: {
+    id: string | null;
+    messageType: string;
+    title: string;
+    body: string;
+    sentAt: string | null;
+    sentBy: string | null;
+    status?: "unread" | "read" | "dismissed";
+    isUnread?: boolean;
+    readAt?: string | null;
+    dismissedAt?: string | null;
+  } | null;
   preferences?: {
     trainingTime?: string | null;
     sessionLengthMins?: number | null;
@@ -146,6 +170,8 @@ const ActivitiesScreen = () => {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const notifiedCaregiverNudgeIdsRef = useRef<Set<string>>(new Set());
   const autoStartVoice = useRouteVoiceAutoStart();
   const { data: brainCoachProgress } = useQuery<BrainCoachProgress>({
     queryKey: ["/api/games/progress"],
@@ -162,6 +188,8 @@ const ActivitiesScreen = () => {
   const completedTodayCount = brainCoachProgress?.today?.completedCount ?? 0;
   const todayActivityTypes = new Set(brainCoachProgress?.today?.activityTypes ?? []);
   const previousCompletedDays = Math.max(0, streak - (completedTodayCount > 0 ? 1 : 0));
+  const caregiverNudge = dailyPlan?.caregiverNudge ?? null;
+  const visibleCaregiverNudge = caregiverNudge?.status === "dismissed" ? null : caregiverNudge;
   const retentionNudges = buildBrainCoachRetentionNudges({
     completedTodayCount,
     planAllComplete: dailyPlan?.completion.allComplete,
@@ -182,8 +210,56 @@ const ActivitiesScreen = () => {
   };
 
   const handleActivityClick = (activityName: string) => {
-    const targetRoute = activityRoutes[activityName];
-    if (targetRoute) navigate(targetRoute);
+    const destination = activityRoutes[activityName];
+    if (destination) navigate(destination.to, destination.state ? { state: destination.state } : undefined);
+  };
+
+  const recordCaregiverNudgeEvent = useCallback(async (
+    eventType: "caregiver_nudge_read" | "caregiver_nudge_dismissed",
+    options: { invalidate?: boolean } = {},
+  ) => {
+    if (!dailyPlan?.planId || !caregiverNudge?.id) return false;
+
+    try {
+      const response = await apiFetch("/api/games/daily-plan/events", {
+        method: "POST",
+        body: JSON.stringify({
+          planId: dailyPlan.planId,
+          nudgeEventId: caregiverNudge.id,
+          eventType,
+          source: "activities_screen",
+        }),
+      });
+      if (response.ok && options.invalidate) {
+        void queryClient.invalidateQueries({ queryKey: ["/api/games/daily-plan"] });
+      }
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }, [caregiverNudge?.id, dailyPlan?.planId, queryClient]);
+
+  useEffect(() => {
+    if (!caregiverNudge?.id || (caregiverNudge.status ?? "unread") !== "unread") return;
+    if (notifiedCaregiverNudgeIdsRef.current.has(caregiverNudge.id)) return;
+
+    notifiedCaregiverNudgeIdsRef.current.add(caregiverNudge.id);
+    toast({
+      title: caregiverNudge.title,
+      description: caregiverNudge.body,
+    });
+    void recordCaregiverNudgeEvent("caregiver_nudge_read");
+  }, [
+    caregiverNudge?.body,
+    caregiverNudge?.id,
+    caregiverNudge?.status,
+    caregiverNudge?.title,
+    recordCaregiverNudgeEvent,
+    toast,
+  ]);
+
+  const handleDismissCaregiverNudge = async () => {
+    await recordCaregiverNudgeEvent("caregiver_nudge_dismissed", { invalidate: true });
   };
 
   const handleDailyPlanActivityClick = async (activity: BrainCoachDailyPlan["activities"][number]) => {
@@ -226,6 +302,37 @@ const ActivitiesScreen = () => {
         description="VYVA can suggest a light activity and keep encouragement available while the user chooses."
         className="mt-[18px]"
       />
+
+      {visibleCaregiverNudge && (
+        <section
+          className="mt-[18px] flex items-start gap-3 rounded-[22px] border p-4"
+          style={{ background: "#EFF6FF", borderColor: "#BFDBFE" }}
+          data-testid="brain-coach-caregiver-nudge"
+        >
+          <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[14px] bg-white text-[#2563EB]">
+            <Bell size={20} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-body text-[16px] font-extrabold leading-tight text-[#1E3A8A] [overflow-wrap:anywhere]">
+              {visibleCaregiverNudge.title}
+            </span>
+            <span className="mt-1 block font-body text-[13px] font-semibold leading-snug text-[#1E3A8A] [overflow-wrap:anywhere]">
+              {visibleCaregiverNudge.body}
+            </span>
+          </span>
+          {visibleCaregiverNudge.id && (
+            <button
+              type="button"
+              aria-label="Dismiss caregiver nudge"
+              data-testid="brain-coach-caregiver-nudge-dismiss"
+              onClick={() => void handleDismissCaregiverNudge()}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#2563EB] shadow-sm transition-transform active:scale-[0.98]"
+            >
+              <X size={17} />
+            </button>
+          )}
+        </section>
+      )}
 
       {retentionNudges.length > 0 && (
         <section className="mt-[18px] grid gap-2">
@@ -411,6 +518,44 @@ const ActivitiesScreen = () => {
             <h3 className="font-body text-[21px] font-extrabold leading-tight text-vyva-text-1 [overflow-wrap:anywhere]">{t("companions.activityTile")}</h3>
             <p className="mt-2 font-body text-[14px] font-medium leading-snug text-vyva-text-2 [overflow-wrap:anywhere]">{t("companions.activityTileSubtitle")}</p>
           </div>
+        </div>
+        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="activities-companion-actions">
+          <button
+            type="button"
+            data-testid="button-activities-open-social-rooms"
+            onClick={() => navigate("/social-rooms")}
+            className="vyva-tap flex min-h-[58px] items-center gap-3 rounded-[18px] border border-[#BFDBFE] bg-white px-4 py-3 text-left shadow-[0_8px_20px_rgba(47,102,208,0.08)]"
+          >
+            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[15px] bg-[#EFF6FF] text-[#2F66D0]">
+              <MessageCircle size={20} />
+            </span>
+            <span className="min-w-0">
+              <span className="block font-body text-[15px] font-black leading-tight text-vyva-text-1">
+                {t("activities.joinSocialRoom", "Join a room")}
+              </span>
+              <span className="block font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
+                {t("activities.joinSocialRoomSub", "Start a friendly conversation now.")}
+              </span>
+            </span>
+          </button>
+          <button
+            type="button"
+            data-testid="button-activities-open-companions"
+            onClick={() => navigate("/companions")}
+            className="vyva-tap flex min-h-[58px] items-center gap-3 rounded-[18px] border border-[#D8B4FE] bg-white px-4 py-3 text-left shadow-[0_8px_20px_rgba(107,33,168,0.08)]"
+          >
+            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[15px] bg-[#F5F3FF] text-vyva-purple">
+              <UserRoundPlus size={20} />
+            </span>
+            <span className="min-w-0">
+              <span className="block font-body text-[15px] font-black leading-tight text-vyva-text-1">
+                {t("activities.findCompanions", "Find companions")}
+              </span>
+              <span className="block font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
+                {t("activities.findCompanionsSub", "Match around interests and routines.")}
+              </span>
+            </span>
+          </button>
         </div>
       </section>
     </div>

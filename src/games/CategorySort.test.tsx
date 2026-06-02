@@ -13,6 +13,7 @@ describe("CategorySort", () => {
     render(<CategorySort userId="" onExit={vi.fn()} />);
 
     expect(await screen.findByRole("heading", { name: "Clasifica y Ordena" })).toBeInTheDocument();
+    expect(screen.getAllByTestId("category-sort-rule-card")).toHaveLength(3);
 
     fireEvent.click(screen.getByRole("button", { name: "Empezar ejercicio" }));
 

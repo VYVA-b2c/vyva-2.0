@@ -15,6 +15,7 @@ import {
   userMedications,
   users,
 } from "../../shared/schema.js";
+import { normalizeAppLanguage } from "../../shared/language.js";
 
 type Database = typeof db;
 type Intake = typeof userIntakes.$inferSelect;
@@ -1091,7 +1092,7 @@ export async function ensurePasswordlessUser(input: {
     ? input.profile.preferred_name.trim()
     : input.name.split(" ")[0] ?? input.name;
   const dateOfBirth = typeof input.profile?.date_of_birth === "string" ? input.profile.date_of_birth : null;
-  const language = typeof input.profile?.language === "string" && input.profile.language ? input.profile.language : "es";
+  const language = normalizeAppLanguage(input.profile?.language, "es");
   const timezone = typeof input.profile?.timezone === "string" && input.profile.timezone ? input.profile.timezone : "Europe/Madrid";
   const countryCode = typeof input.profile?.country_code === "string" && input.profile.country_code ? input.profile.country_code : "ES";
   const whatsappNumber = typeof input.profile?.whatsapp_number === "string" && input.profile.whatsapp_number.trim()
@@ -1117,6 +1118,7 @@ export async function ensurePasswordlessUser(input: {
     preferred_name: preferredName,
     date_of_birth: dateOfBirth,
     language,
+    language_preference: language,
     phone_number: normalizedPhone,
     whatsapp_number: whatsappNumber,
     email: input.email || user.email || null,
@@ -1132,6 +1134,7 @@ export async function ensurePasswordlessUser(input: {
       preferred_name: preferredName,
       date_of_birth: dateOfBirth,
       language,
+      language_preference: language,
       phone_number: normalizedPhone,
       whatsapp_number: whatsappNumber,
       email: input.email || user.email || null,
@@ -2209,7 +2212,7 @@ function normalizeBulkRow(row: BulkRowInput, defaultTier: string) {
   const fullName = `${firstName} ${lastName}`.trim() || (row.name ?? "").trim();
   const phone = normalizePhone(row.phone ?? "");
   const whatsapp = (row.whatsapp ?? "").trim() ? normalizePhone(row.whatsapp ?? "") : phone;
-  const language = (row.language ?? "").trim() || "es";
+  const language = normalizeAppLanguage(row.language, "es");
   const timezone = (row.timezone ?? "").trim() || "Europe/Madrid";
   const tier = normalizeSubscriptionTier((row.tier ?? "").trim() || defaultTier || "free");
 

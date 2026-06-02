@@ -208,7 +208,7 @@ export const profiles = pgTable("profiles", {
   // Existing
   full_name:              text("full_name"),
   date_of_birth:          text("date_of_birth"),
-  language:               text("language").notNull().default("en"),
+  language:               text("language").notNull().default("es"),
   language_preference:    text("language_preference"),
   deployment:             text("deployment").notNull().default("standard"),
   mem0_user_id:           text("mem0_user_id"),

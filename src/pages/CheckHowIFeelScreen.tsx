@@ -8,6 +8,8 @@ import {
   Battery,
   BedDouble,
   BookOpen,
+  Calendar,
+  Car,
   ChefHat,
   Check,
   ClipboardList,
@@ -18,13 +20,16 @@ import {
   Heart,
   Headphones,
   Loader2,
+  Mail,
   MessageCircle,
   Music,
   Palette,
+  PhoneCall,
   Plus,
   Send,
   ShieldCheck,
   Share2,
+  ShoppingBasket,
   Sparkles,
   Stethoscope,
   Sun,
@@ -35,7 +40,9 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/contexts/ProfileContext";
+import { useLanguage } from "@/i18n";
 import { apiFetch, queryClient } from "@/lib/queryClient";
+import { sanitizePhoneHref } from "@/lib/emergencyContacts";
 import { ListenButton } from "@/components/ListenButton";
 import {
   HealthWizardCard,
@@ -75,11 +82,17 @@ type CheckinResult = {
 };
 
 type AppAction = {
-  key: "concierge" | "symptom" | "vitals" | "care" | "meditation" | "social" | "music" | "exercise" | "chess" | "cooking" | "art" | "literature";
+  key: "concierge" | "symptom" | "vitals" | "care" | "call_gp" | "email_gp" | "appointment" | "ride" | "order" | "quote" | "meditation" | "social" | "music" | "exercise" | "chess" | "cooking" | "art" | "literature";
   title: string;
   description: string;
   to: string;
+  href?: string;
   primary?: boolean;
+};
+
+export type CheckinActionNavigation = {
+  to: string;
+  state?: unknown;
 };
 
 type CareTeamMember = {
@@ -231,6 +244,10 @@ const CHECKIN_TEXT = {
     note: "Ten en cuenta",
     appActions: {
       care: ["Buscar atención médica", "Si empeora, hay dolor en el pecho, falta de aire o confusión, no esperes."],
+      appointment: ["Pedir cita médica", "VYVA prepara la solicitud con tu lectura de hoy para que confirmes antes de reservar."],
+      ride: ["Reservar transporte", "Organiza un viaje seguro para atención médica si decides salir."],
+      order: ["Pedir entrega", "Prepara compra o farmacia a domicilio y confirma antes de pedir o pagar."],
+      quote: ["Pedir ayuda en casa", "Solicita presupuesto para acompañamiento o apoyo en casa, siempre con confirmacion."],
       symptom: ["Hacer chequeo de síntomas", "VYVA te guía con preguntas claras y te ayuda a decidir el siguiente paso."],
       vitals: ["Tomar signos vitales", "Haz un escaneo rápido para registrar pulso y respiración antes de decidir."],
       concierge: ["Ver Para ti hoy", "Encuentra una salida o idea cercana, adaptada a tu energía y movilidad."],
@@ -295,6 +312,10 @@ const CHECKIN_TEXT = {
     note: "Keep in mind",
     appActions: {
       care: ["Seek medical attention", "If things worsen, or there is chest pain, breathlessness, or confusion, do not wait."],
+      appointment: ["Book care appointment", "VYVA prepares the request with today's reading so you can confirm before booking."],
+      ride: ["Book transport", "Arrange a safe ride to care if you decide to go."],
+      order: ["Order delivery", "Prepare grocery or pharmacy delivery and confirm before ordering or paying."],
+      quote: ["Request home help", "Request a quote for companion or home support, always with confirmation."],
       symptom: ["Do a symptom check", "VYVA guides you with clear questions and helps decide the next step."],
       vitals: ["Take vital signs", "Do a quick scan to record pulse and breathing before deciding."],
       concierge: ["See For you today", "Find a nearby idea adapted to your energy and mobility."],
@@ -364,6 +385,10 @@ const CHECKIN_LAUNCH_TEXT = {
     note: "Bitte beachten",
     appActions: {
       care: ["Medizinische Hilfe suchen", "Wenn es schlimmer wird oder Brustschmerz, Atemnot oder Verwirrung dazukommen, warte nicht."],
+      appointment: ["Arzttermin planen", "VYVA bereitet die Anfrage mit der heutigen Einschätzung vor. Du bestätigst vor der Buchung."],
+      ride: ["Transport buchen", "Organisiere eine sichere Fahrt zur Versorgung, wenn du gehen möchtest."],
+      order: ["Lieferung bestellen", "Bereitet Lebensmittel- oder Apothekenlieferung vor. Du bestätigst vor Bestellung oder Zahlung."],
+      quote: ["Hilfe zu Hause", "Angebot für Begleitung oder Unterstützung zu Hause anfragen, immer mit Bestätigung."],
       symptom: ["Symptom-Check machen", "VYVA führt dich mit klaren Fragen und hilft beim nächsten Schritt."],
       vitals: ["Vitalwerte messen", "Mach einen kurzen Scan, um Puls und Atmung zu erfassen."],
       concierge: ["Für dich heute ansehen", "Finde eine nahe Idee, passend zu Energie und Mobilität."],
@@ -429,6 +454,10 @@ const CHECKIN_LAUNCH_TEXT = {
     note: "À noter",
     appActions: {
       care: ["Chercher une aide médicale", "Si cela s’aggrave, ou s’il y a douleur thoracique, essoufflement ou confusion, n’attends pas."],
+      appointment: ["Prendre rendez-vous", "VYVA prépare la demande avec la lecture du jour. Tu confirmes avant toute réservation."],
+      ride: ["Réserver un transport", "Organise un trajet sûr vers les soins si tu décides d'y aller."],
+      order: ["Commander livraison", "Prépare courses ou pharmacie à domicile. Tu confirmes avant commande ou paiement."],
+      quote: ["Aide à domicile", "Demander un devis pour compagnie ou aide à domicile, toujours avec confirmation."],
       symptom: ["Faire un contrôle des symptômes", "VYVA te guide avec des questions claires et aide à décider la suite."],
       vitals: ["Prendre les signes vitaux", "Fais un scan rapide pour noter le pouls et la respiration."],
       concierge: ["Voir Pour toi aujourd’hui", "Trouve une idée proche, adaptée à ton énergie et ta mobilité."],
@@ -494,6 +523,10 @@ const CHECKIN_LAUNCH_TEXT = {
     note: "Da tenere a mente",
     appActions: {
       care: ["Cercare assistenza medica", "Se peggiora, o ci sono dolore al petto, mancanza di respiro o confusione, non aspettare."],
+      appointment: ["Prenotare visita", "VYVA prepara la richiesta con la lettura di oggi. Confermi prima di prenotare."],
+      ride: ["Prenotare trasporto", "Organizza un viaggio sicuro verso le cure se decidi di andare."],
+      order: ["Ordinare consegna", "Prepara spesa o farmacia a domicilio. Confermi prima di ordinare o pagare."],
+      quote: ["Aiuto a casa", "Richiedi preventivo per compagnia o supporto in casa, sempre con conferma."],
       symptom: ["Fare controllo sintomi", "VYVA ti guida con domande chiare e aiuta a decidere il prossimo passo."],
       vitals: ["Misurare segni vitali", "Fai una scansione rapida per registrare polso e respirazione."],
       concierge: ["Vedi Per te oggi", "Trova un’idea vicina, adatta alla tua energia e mobilità."],
@@ -559,6 +592,10 @@ const CHECKIN_LAUNCH_TEXT = {
     note: "Tem em conta",
     appActions: {
       care: ["Procurar assistência médica", "Se piorar, ou houver dor no peito, falta de ar ou confusão, não esperes."],
+      appointment: ["Marcar consulta", "A VYVA prepara o pedido com a leitura de hoje. Tu confirmas antes da marcação."],
+      ride: ["Reservar transporte", "Organiza uma viagem segura para cuidados se decidires ir."],
+      order: ["Pedir entrega", "Prepara compras ou farmácia ao domicílio. Confirmas antes de pedir ou pagar."],
+      quote: ["Ajuda em casa", "Pede orçamento para companhia ou apoio em casa, sempre com confirmação."],
       symptom: ["Fazer cheque de sintomas", "A VYVA guia-te com perguntas claras e ajuda a decidir o próximo passo."],
       vitals: ["Medir sinais vitais", "Faz uma leitura rápida para registar pulso e respiração."],
       concierge: ["Ver Para ti hoje", "Encontra uma ideia próxima, adaptada à tua energia e mobilidade."],
@@ -1264,7 +1301,7 @@ function localizedLocalResult(name: string, answers: Answers, gender: Grammatica
   }, answers, copy);
 }
 
-function appActionsFor(answers: Answers, result: CheckinResult): AppAction[] {
+export function appActionsFor(answers: Answers, result: CheckinResult): AppAction[] {
   const hasSymptom = (id: string) => answers.symptoms.includes(id) || answers.body_areas.includes(id);
   const urgentSafetyFlag = answers.safety_flags.some((flag) =>
     ["severe_now", "chest_pressure", "confusion_now", "sudden_weakness"].includes(flag)
@@ -1280,6 +1317,21 @@ function appActionsFor(answers: Answers, result: CheckinResult): AppAction[] {
     (answers.energy_level ?? 3) >= 3 &&
     !["mal", "muy_mal"].includes(answers.sleep_quality ?? "") &&
     !["pecho", "falta_aire", "mareo", "confusion"].some(hasSymptom);
+  const resultText = [
+    result.feeling_label,
+    result.vyva_reading,
+    result.highlight,
+    result.watch_for ?? "",
+    result.app_suggestion ?? "",
+    result.personal_plan ?? "",
+    ...result.right_now,
+    ...result.today_actions,
+  ].join(" ").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const needsOrder =
+    answers.symptom_details.includes("nausea_vomiting") ||
+    /\b(hydrat|electrolyte|rehydrat|drink fluids|water delivery|pharmacy delivery|order|delivery|grocer|food delivery|agua|liquidos|electrolitos|farmacia|entrega|compra|pedido|domicilio)\b/.test(resultText);
+  const needsQuote =
+    /\b(someone stay|stay with you|not be alone|do not stay alone|home care|home help|support at home|companion|caregiver|carer|quote|acompan|no estar solo|no estes solo|ayuda en casa|apoyo en casa|cuidador|cuidadora|presupuesto|companhia|apoio em casa)\b/.test(resultText);
 
   const actions: AppAction[] = [];
   const defaultAction = (key: AppAction["key"], primary = false): AppAction => {
@@ -1290,6 +1342,38 @@ function appActionsFor(answers: Answers, result: CheckinResult): AppAction[] {
           title: "Buscar atención médica",
           description: "Si empeora, hay dolor en el pecho, falta de aire o confusión, no esperes.",
           to: "/health",
+          primary,
+        };
+      case "appointment":
+        return {
+          key,
+          title: "Pedir cita medica",
+          description: "VYVA prepara una solicitud con tu lectura de hoy para confirmar antes de reservar.",
+          to: "/concierge",
+          primary,
+        };
+      case "ride":
+        return {
+          key,
+          title: "Reservar transporte",
+          description: "Organiza un viaje seguro para atencion medica si decides salir.",
+          to: "/concierge",
+          primary,
+        };
+      case "order":
+        return {
+          key,
+          title: "Pedir entrega",
+          description: "Prepara compra o farmacia a domicilio y confirma antes de pedir o pagar.",
+          to: "/concierge/shopping",
+          primary,
+        };
+      case "quote":
+        return {
+          key,
+          title: "Pedir ayuda en casa",
+          description: "Solicita presupuesto para acompanamiento o apoyo en casa, siempre con confirmacion.",
+          to: "/concierge",
           primary,
         };
       case "symptom":
@@ -1386,12 +1470,15 @@ function appActionsFor(answers: Answers, result: CheckinResult): AppAction[] {
   if (hasHealthPrioritySignal(answers)) {
     return [
       defaultAction(hasUrgentSafetyFlag(answers) ? "care" : "symptom", true),
-      defaultAction("vitals"),
+      defaultAction("appointment"),
+      defaultAction("ride"),
     ];
   }
 
   if (safetySignal) {
     actions.push(defaultAction("care", true));
+    actions.push(defaultAction("appointment"));
+    actions.push(defaultAction("ride"));
   }
 
   if (symptomSignal || result.watch_for) {
@@ -1400,6 +1487,14 @@ function appActionsFor(answers: Answers, result: CheckinResult): AppAction[] {
 
   if (hasSymptom("mareo") || hasSymptom("falta_aire") || hasSymptom("pecho") || (answers.energy_level ?? 3) <= 2) {
     actions.push(defaultAction("vitals"));
+  }
+
+  if (!safetySignal && needsOrder) {
+    actions.push(defaultAction("order", actions.length === 0));
+  }
+
+  if (needsQuote) {
+    actions.push(defaultAction("quote", actions.length === 0));
   }
 
   if (!safetySignal && (answers.mood === "ansiosa" || answers.sleep_quality === "mal" || answers.sleep_quality === "muy_mal")) {
@@ -1447,11 +1542,10 @@ function appActionsFor(answers: Answers, result: CheckinResult): AppAction[] {
   if (preferred) {
     return uniqueActions(actions)
       .map((action) => ({ ...action, primary: action.key === preferred }))
-      .sort((a, b) => Number(b.key === preferred) - Number(a.key === preferred))
-      .slice(0, 3);
+      .sort((a, b) => Number(b.key === preferred) - Number(a.key === preferred));
   }
 
-  return uniqueActions(actions).slice(0, 3);
+  return uniqueActions(actions);
 }
 
 function localizeAppActions(actions: AppAction[], copy: ReturnType<typeof copyFor>): AppAction[] {
@@ -1463,6 +1557,191 @@ function localizeAppActions(actions: AppAction[], copy: ReturnType<typeof copyFo
       description: localized?.[1] ?? action.description,
     };
   });
+}
+
+function directGpCopyFor(copy: ReturnType<typeof copyFor>, gpName?: string | null) {
+  const name = gpName?.trim() || (copy === CHECKIN_LAUNCH_TEXT.es ? "medico" : "GP");
+  if (copy === CHECKIN_LAUNCH_TEXT.es) {
+    return {
+      callTitle: `Llamar a ${name}`,
+      callDescription: "Habla con la consulta ahora.",
+      emailTitle: "Email medico",
+      emailDescription: "Enviar la lectura de hoy.",
+    };
+  }
+  if (copy === CHECKIN_LAUNCH_TEXT.fr) {
+    return {
+      callTitle: `Appeler ${name}`,
+      callDescription: "Parler au cabinet maintenant.",
+      emailTitle: "Email medecin",
+      emailDescription: "Envoyer la lecture d'aujourd'hui.",
+    };
+  }
+  if (copy === CHECKIN_LAUNCH_TEXT.de) {
+    return {
+      callTitle: `${name} anrufen`,
+      callDescription: "Jetzt die Praxis sprechen.",
+      emailTitle: "Arzt per Email",
+      emailDescription: "Heutige Einschaetzung senden.",
+    };
+  }
+  if (copy === CHECKIN_LAUNCH_TEXT.it) {
+    return {
+      callTitle: `Chiama ${name}`,
+      callDescription: "Parla ora con lo studio.",
+      emailTitle: "Email medico",
+      emailDescription: "Invia la lettura di oggi.",
+    };
+  }
+  if (copy === CHECKIN_LAUNCH_TEXT.pt) {
+    return {
+      callTitle: `Ligar a ${name}`,
+      callDescription: "Falar agora com a clinica.",
+      emailTitle: "Email medico",
+      emailDescription: "Enviar a leitura de hoje.",
+    };
+  }
+  return {
+    callTitle: `Call ${name}`,
+    callDescription: "Speak to the practice now.",
+    emailTitle: "Email GP",
+    emailDescription: "Send today's reading.",
+  };
+}
+
+export function addDirectGpActionsForCheckin(
+  actions: AppAction[],
+  profile: { gpName?: string | null; gpPhone?: string | null; gpEmail?: string | null } | null | undefined,
+  context: string,
+  copy: ReturnType<typeof copyFor> = CHECKIN_LAUNCH_TEXT.en,
+): AppAction[] {
+  const hasCareNeed = actions.some((action) => ["care", "appointment", "ride"].includes(action.key));
+  if (!hasCareNeed) return actions;
+
+  const gpPhoneHref = sanitizePhoneHref(profile?.gpPhone);
+  const gpEmail = profile?.gpEmail?.trim() ?? "";
+  if (!gpPhoneHref && !gpEmail) return actions;
+
+  const labels = directGpCopyFor(copy, profile?.gpName);
+  const safeContext = context.trim() || "VYVA daily check-in";
+  const directActions: AppAction[] = [];
+  const promoteDirectAction = true;
+
+  if (gpPhoneHref) {
+    directActions.push({
+      key: "call_gp",
+      title: labels.callTitle,
+      description: labels.callDescription,
+      to: "",
+      href: gpPhoneHref,
+      primary: promoteDirectAction,
+    });
+  }
+
+  if (gpEmail) {
+    directActions.push({
+      key: "email_gp",
+      title: labels.emailTitle,
+      description: labels.emailDescription,
+      to: "",
+      href: `mailto:${gpEmail}?subject=${encodeURIComponent("VYVA daily check-in")}&body=${encodeURIComponent(safeContext)}`,
+      primary: promoteDirectAction && directActions.length === 0,
+    });
+  }
+
+  const demotedActions = actions.map((action) => ({ ...action, primary: false }));
+
+  return [...directActions, ...demotedActions];
+}
+
+export function checkinActionNavigationFor(
+  action: Pick<AppAction, "key" | "to">,
+  context: {
+    reportText: string;
+    symptomClue: string;
+    conciergeMessage: string;
+  },
+): CheckinActionNavigation {
+  const reportText = context.reportText.trim();
+  if (action.key === "care") {
+    return {
+      to: "/health/doctor",
+      state: {
+        autoStartVoice: true,
+        latestSymptomReport: reportText || context.symptomClue,
+      },
+    };
+  }
+
+  if (action.key === "symptom") {
+    return {
+      to: "/health/symptom-check",
+      state: {
+        initialClue: context.symptomClue.trim(),
+        autoStartVoice: false,
+      },
+    };
+  }
+
+  if (action.key === "appointment" || action.key === "ride") {
+    const isRide = action.key === "ride";
+    const contextText = reportText || context.symptomClue.trim() || context.conciergeMessage.trim();
+    return {
+      to: "/concierge",
+      state: {
+        conciergePrefill: {
+          kind: isRide ? "ride" : "appointment",
+          message: isRide
+            ? `Please help me arrange safe transport for care based on today's VYVA check-in. Ask me to confirm before booking.\n\n${contextText}`
+            : `Please help me schedule a care appointment based on today's VYVA check-in. Ask me to confirm before booking.\n\n${contextText}`,
+          source: "daily_checkin",
+        },
+      },
+    };
+  }
+
+  if (action.key === "order") {
+    const contextText = reportText || context.symptomClue.trim() || context.conciergeMessage.trim();
+    return {
+      to: "/concierge/shopping",
+      state: {
+        shoppingPrefill: {
+          needText: `Please help me prepare a safe delivery based on today's VYVA check-in. Ask me to confirm before ordering or paying.\n\n${contextText}`,
+          category: "groceries",
+          priorities: ["delivery", "simplicity", "safety"],
+        },
+      },
+    };
+  }
+
+  if (action.key === "quote") {
+    const contextText = reportText || context.symptomClue.trim() || context.conciergeMessage.trim();
+    return {
+      to: "/concierge",
+      state: {
+        conciergePrefill: {
+          kind: "home_care_quote",
+          message: `Please help me request a quote for companion or home support based on today's VYVA check-in. Ask me to confirm before requesting anything.\n\n${contextText}`,
+          source: "daily_checkin",
+        },
+      },
+    };
+  }
+
+  if (action.key === "concierge") {
+    return {
+      to: "/concierge",
+      state: {
+        conciergePrefill: {
+          kind: "task",
+          message: context.conciergeMessage.trim(),
+          source: "daily_checkin",
+        },
+      },
+    };
+  }
+
+  return { to: action.to };
 }
 
 function resultVisualFor(state: CheckinResult["overall_state"]) {
@@ -1678,6 +1957,7 @@ const CheckHowIFeelScreen = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { firstName, profile } = useProfile();
+  const { language } = useLanguage();
   const startedAtRef = useRef(Date.now());
   const [step, setStep] = useState<StepId>("welcome");
   const [answers, setAnswers] = useState<Answers>(initialAnswers);
@@ -1697,7 +1977,7 @@ const CheckHowIFeelScreen = () => {
   });
 
   const name = firstName.trim();
-  const copy = copyFor(profile?.language);
+  const copy = copyFor(language);
   const welcomeKicker = name ? `${copy.hello}, ${name}` : copy.hello;
   const analyzingTitle = name ? `${copy.analyzingTitle}, ${name}` : copy.analyzingTitle;
   const shareLabels = shareLabelsFor(copy);
@@ -1708,18 +1988,10 @@ const CheckHowIFeelScreen = () => {
   const safetyCopy = safetyCopyFor(copy);
   const detailCopy = symptomDetailCopyFor(copy);
   const canGoBack = stepIndex > 0 && step !== "analyzing" && step !== "result";
-  const appActions = result ? localizeAppActions(appActionsFor(answers, result), copy) : [];
-  const suggestedAction = result
-    ? appActions.find((action) => action.key === result.suggested_app_action) ?? appActions[0]
-    : undefined;
-  const planAction = appActions.find((action) => !["care", "symptom", "vitals"].includes(action.key)) ?? suggestedAction;
-  const nowAction = appActions[0];
-  const todayAction = appActions[1] ?? planAction ?? suggestedAction;
-  const resultVisual = result ? resultVisualFor(result.overall_state) : null;
   const healthPriority = hasHealthPrioritySignal(answers);
   const urgentHealthPriority = hasUrgentSafetyFlag(answers);
   const gender = inferGender(profile, name);
-  const readoutLanguage = profile?.language ?? "es";
+  const readoutLanguage = language;
   const resultReadoutText = result
     ? [
         result.feeling_label,
@@ -1734,6 +2006,21 @@ const CheckHowIFeelScreen = () => {
         result.watch_for && !healthPriority ? result.watch_for : "",
       ].filter(Boolean).join(". ")
     : "";
+  const appActions = result
+    ? addDirectGpActionsForCheckin(
+        localizeAppActions(appActionsFor(answers, result), copy),
+        profile,
+        resultReadoutText,
+        copy,
+      )
+    : [];
+  const suggestedAction = result
+    ? appActions.find((action) => action.key === result.suggested_app_action) ?? appActions[0]
+    : undefined;
+  const planAction = appActions.find((action) => !["call_gp", "email_gp", "care", "symptom", "vitals"].includes(action.key)) ?? suggestedAction;
+  const nowAction = appActions[0];
+  const todayAction = appActions[1] ?? planAction ?? suggestedAction;
+  const resultVisual = result ? resultVisualFor(result.overall_state) : null;
   const energyOptions = localizedEnergyOptionsFor(gender, copy);
   const moodOptionsLocalized = localizedMoodOptionsFor(copy);
   const bodyOptionsLocalized = localizedBodyOptionsFor(copy);
@@ -1771,7 +2058,7 @@ const CheckHowIFeelScreen = () => {
       await apiFetch("/api/checkins/abandon", {
         method: "POST",
         body: JSON.stringify({
-          language: profile?.language ?? "es",
+          language,
           duration_seconds: Math.round((Date.now() - startedAtRef.current) / 1000),
         }),
       });
@@ -1830,7 +2117,7 @@ const CheckHowIFeelScreen = () => {
       const res = await apiFetch("/api/checkins/analyze", {
         method: "POST",
         body: JSON.stringify({
-          language: profile?.language ?? "es",
+          language,
           duration_seconds: Math.round((Date.now() - startedAtRef.current) / 1000),
           answers,
         }),
@@ -1867,12 +2154,38 @@ const CheckHowIFeelScreen = () => {
   const shareReportMessage = result && shareUrl
     ? shareLinkMessageFor(name, result, shareUrl, shareLabels)
     : shareReportText;
+  const checkinSymptomClue = result
+    ? uniqueByIntent([
+        result.watch_for ?? "",
+        result.highlight,
+        ...result.right_now,
+        ...result.today_actions,
+      ]).slice(0, 3).join(". ")
+    : "";
+  const checkinConciergeMessage = result
+    ? copy === CHECKIN_TEXT.es
+      ? `Ayudame a preparar el siguiente paso practico para el check-in de hoy de ${name || "la persona"}: ${result.highlight}. Acciones sugeridas: ${uniqueByIntent(result.today_actions).slice(0, 3).join("; ")}. Pideme confirmar antes de reservar, llamar o solicitar nada.`
+      : `Please help prepare the next practical step from today's check-in for ${name || "the person"}: ${result.highlight}. Suggested actions: ${uniqueByIntent(result.today_actions).slice(0, 3).join("; ")}. Ask me to confirm before booking, calling, or requesting anything.`
+    : "";
+
+  const navigateAppAction = (action: AppAction) => {
+    if (action.href) {
+      window.location.href = action.href;
+      return;
+    }
+    const destination = checkinActionNavigationFor(action, {
+      reportText: shareReportText || resultReadoutText,
+      symptomClue: checkinSymptomClue,
+      conciergeMessage: checkinConciergeMessage,
+    });
+    navigate(destination.to, destination.state ? { state: destination.state } : undefined);
+  };
 
   const prepareShareUrl = async () => {
     if (!result || shareUrl || shareUrlLoading) return shareUrl;
     setShareUrlLoading(true);
     try {
-      const url = await createSharedReportLink(name, profile?.language ?? "es", result, shareReportText);
+      const url = await createSharedReportLink(name, language, result, shareReportText);
       setShareUrl(url);
       return url;
     } catch {
@@ -2115,7 +2428,7 @@ const CheckHowIFeelScreen = () => {
                   text={result.why_today}
                   tone="lavender"
                   actionLabel={nowAction?.title}
-                  onAction={nowAction ? () => navigate(nowAction.to) : undefined}
+                  onAction={nowAction ? () => navigateAppAction(nowAction) : undefined}
                 />
               )}
               {result.trend_note && (
@@ -2135,7 +2448,7 @@ const CheckHowIFeelScreen = () => {
                   text={result.personal_plan}
                   tone="mint"
                   actionLabel={planAction?.title}
-                  onAction={planAction ? () => navigate(planAction.to) : undefined}
+                  onAction={planAction ? () => navigateAppAction(planAction) : undefined}
                 />
               )}
               {result.app_suggestion && (
@@ -2145,7 +2458,7 @@ const CheckHowIFeelScreen = () => {
                   text={result.app_suggestion}
                   tone="cream"
                   actionLabel={suggestedAction?.title}
-                  onAction={suggestedAction ? () => navigate(suggestedAction.to) : undefined}
+                  onAction={suggestedAction ? () => navigateAppAction(suggestedAction) : undefined}
                 />
               )}
             </div>
@@ -2155,14 +2468,14 @@ const CheckHowIFeelScreen = () => {
             icon="⚡"
             items={result.right_now}
             actionLabel={nowAction?.title}
-            onAction={nowAction ? () => navigate(nowAction.to) : undefined}
+            onAction={nowAction ? () => navigateAppAction(nowAction) : undefined}
           />
           <ResultList
             title={copy.today}
             icon="☀️"
             items={result.today_actions}
             actionLabel={todayAction?.title}
-            onAction={todayAction ? () => navigate(todayAction.to) : undefined}
+            onAction={todayAction ? () => navigateAppAction(todayAction) : undefined}
           />
           {!hasSavedCareContact && (
             <button
@@ -2203,7 +2516,7 @@ const CheckHowIFeelScreen = () => {
               </p>
               <div className="grid gap-3">
                 {appActions.map((action) => (
-                  <AppActionButton key={action.key} action={action} onClick={() => navigate(action.to)} />
+                  <AppActionButton key={action.key} action={action} onClick={() => navigateAppAction(action)} />
                 ))}
               </div>
             </div>
@@ -2216,7 +2529,7 @@ const CheckHowIFeelScreen = () => {
               <Share2 size={19} className="mr-2" />
               {copy.share}
             </button>
-            <button onClick={() => navigate(suggestedAction?.to ?? "/health")} className="vyva-primary-action min-h-[72px] w-full text-[20px]">
+            <button onClick={() => suggestedAction ? navigateAppAction(suggestedAction) : navigate("/health")} className="vyva-primary-action min-h-[72px] w-full text-[20px]">
               {suggestedAction?.title ?? (copy === CHECKIN_TEXT.es ? "Elegir siguiente paso" : "Choose next step")}
             </button>
             <button onClick={reset} className="vyva-secondary-action min-h-[68px] w-full text-[19px]">
@@ -2686,6 +2999,12 @@ function uniqueByIntent(items: string[]) {
 function AppActionButton({ action, onClick }: { action: AppAction; onClick: () => void }) {
   const Icon =
     action.key === "concierge" ? Compass :
+    action.key === "call_gp" ? PhoneCall :
+    action.key === "email_gp" ? Mail :
+    action.key === "appointment" ? Calendar :
+    action.key === "ride" ? Car :
+    action.key === "order" ? ShoppingBasket :
+    action.key === "quote" ? Users :
     action.key === "symptom" ? ClipboardList :
     action.key === "vitals" ? Activity :
     action.key === "meditation" ? Headphones :
@@ -2697,16 +3016,13 @@ function AppActionButton({ action, onClick }: { action: AppAction; onClick: () =
     action.key === "art" ? Palette :
     action.key === "literature" ? BookOpen :
     ShieldCheck;
-  return (
-    <button
-      onClick={onClick}
-      className={`vyva-tap flex min-h-[86px] items-center gap-4 rounded-[22px] border p-4 text-left ${
-        action.primary
-          ? "border-vyva-purple bg-vyva-purple text-white"
-          : "border-vyva-border bg-[#FAF9F6] text-vyva-text-1"
-      }`}
-      data-testid={`button-checkin-app-action-${action.key}`}
-    >
+  const className = `vyva-tap flex min-h-[86px] items-center gap-4 rounded-[22px] border p-4 text-left ${
+    action.primary
+      ? "border-vyva-purple bg-vyva-purple text-white"
+      : "border-vyva-border bg-[#FAF9F6] text-vyva-text-1"
+  }`;
+  const content = (
+    <>
       <span
         className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[17px] ${
           action.primary ? "bg-white/18" : "bg-vyva-purple-light"
@@ -2720,6 +3036,28 @@ function AppActionButton({ action, onClick }: { action: AppAction; onClick: () =
           {action.description}
         </span>
       </span>
+    </>
+  );
+
+  if (action.href) {
+    return (
+      <a
+        href={action.href}
+        className={className}
+        data-testid={`button-checkin-app-action-${action.key}`}
+      >
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <button
+      onClick={onClick}
+      className={className}
+      data-testid={`button-checkin-app-action-${action.key}`}
+    >
+      {content}
     </button>
   );
 }
