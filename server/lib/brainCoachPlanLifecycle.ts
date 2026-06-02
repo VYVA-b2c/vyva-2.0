@@ -4,7 +4,16 @@ export const BRAIN_COACH_PLAN_GENERATION_VERSION = "brain_coach_plan_v2";
 
 export type BrainCoachPlanStatus = "active" | "completed" | "expired";
 export type BrainCoachPlanItemStatus = "recommended" | "accepted" | "started" | "completed" | "skipped";
-export type BrainCoachPlanEventType = "accepted" | "started" | "skipped" | "completed" | "refreshed" | "expired" | "caregiver_nudge";
+export type BrainCoachPlanEventType =
+  | "accepted"
+  | "started"
+  | "skipped"
+  | "completed"
+  | "refreshed"
+  | "expired"
+  | "caregiver_nudge"
+  | "caregiver_nudge_read"
+  | "caregiver_nudge_dismissed";
 
 export type StoredBrainCoachPlan = {
   id: string;
