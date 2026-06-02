@@ -22,6 +22,7 @@ describe("signup invite language", () => {
       email: "maria@example.com",
       phone: "+34 612 345 678",
       whatsapp: "+34 612 345 678",
+      inviteId: "invite-123456",
     });
     const parsed = new URL(setupUrl);
 
@@ -33,6 +34,7 @@ describe("signup invite language", () => {
     expect(parsed.searchParams.get("email")).toBe("maria@example.com");
     expect(parsed.searchParams.get("phone")).toBe("+34 612 345 678");
     expect(parsed.searchParams.get("whatsapp")).toBe("+34 612 345 678");
+    expect(parsed.searchParams.get("invite_id")).toBe("invite-123456");
   });
 
   it("does not use email or phone contacts as invite names", () => {

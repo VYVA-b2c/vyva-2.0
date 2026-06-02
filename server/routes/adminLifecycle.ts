@@ -1,5 +1,6 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
+import { randomUUID } from "crypto";
 import { and, desc, eq, gte, inArray, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { db, pool } from "../db.js";
@@ -405,6 +406,110 @@ function matchingInviteRecipient(
     if (matched) return matched;
   }
   return candidates.length === 1 ? candidates[0] : undefined;
+}
+
+function looksLikeInviteContact(value: string | null | undefined) {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) return false;
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return true;
+  const digits = trimmed.replace(/\D/g, "");
+  return digits.length >= 7 && /^[+\d\s().-]+$/.test(trimmed);
+}
+
+function signupInviteDisplayName(name: string | null | undefined) {
+  const normalized = (name ?? "").replace(/\s+/g, " ").trim();
+  return normalized && !looksLikeInviteContact(normalized) ? normalized : "Invited user";
+}
+
+async function findSignupInviteIntake(input: { email?: string | null; phone?: string | null }) {
+  const clauses: SQL[] = [];
+  const email = (input.email ?? "").trim().toLowerCase();
+  const phone = normalizePhone(input.phone ?? "");
+  const phoneDigits = phone.replace(/\D/g, "");
+
+  if (email) clauses.push(sql`lower(coalesce(${userIntakes.email}, '')) = ${email}`);
+  if (phone) clauses.push(sql`regexp_replace(coalesce(${userIntakes.phone}, ''), '[^0-9+]', '', 'g') = ${phone}`);
+  if (phoneDigits) clauses.push(sql`regexp_replace(coalesce(${userIntakes.phone}, ''), '[^0-9]', '', 'g') = ${phoneDigits}`);
+  if (!clauses.length) return null;
+
+  const [intake] = await db
+    .select()
+    .from(userIntakes)
+    .where(and(
+      or(...clauses),
+      sql`${userIntakes.journey_step} <> 'admin_deleted'`,
+      sql`coalesce(${userIntakes.metadata}->>'hidden_from_lifecycle', 'false') <> 'true'`,
+      sql`coalesce(${userIntakes.metadata}->>'deleted_from_lifecycle', 'false') <> 'true'`,
+    ))
+    .orderBy(desc(userIntakes.updated_at))
+    .limit(1);
+
+  return intake ?? null;
+}
+
+async function ensureSignupInviteIntake(input: {
+  inviteId: string;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  channel: string;
+  language: string;
+  sharedBy: string | null;
+}) {
+  const now = new Date();
+  const email = (input.email ?? "").trim().toLowerCase() || null;
+  const phone = normalizePhone(input.phone ?? "") || null;
+  const metadataPatch = {
+    source: "admin_share_invite",
+    latest_invite_id: input.inviteId,
+    invite_language: input.language,
+    invite_channel: input.channel,
+    invited_email: email,
+    invited_phone: phone,
+    ...(input.name ? { recipient_name: input.name } : {}),
+    shared_by: input.sharedBy,
+  };
+  const existing = await findSignupInviteIntake({ email, phone });
+
+  if (existing) {
+    const [updated] = await db
+      .update(userIntakes)
+      .set({
+        name: existing.name === "Invited user" ? signupInviteDisplayName(input.name) : existing.name,
+        email: existing.email ?? email,
+        phone: existing.phone || phone || "",
+        status: existing.status === "active" ? "active" : "link_sent",
+        journey_step: existing.status === "active" ? existing.journey_step : "signup_invite_sent",
+        link_sent_at: now,
+        last_activity_at: now,
+        updated_at: now,
+        metadata: { ...jsonRecord(existing.metadata), ...metadataPatch },
+      })
+      .where(eq(userIntakes.id, existing.id))
+      .returning();
+    return updated;
+  }
+
+  const [created] = await db
+    .insert(userIntakes)
+    .values({
+      name: signupInviteDisplayName(input.name),
+      phone: phone ?? "",
+      email,
+      user_type: "elder",
+      entry_point: "admin",
+      tier: "free",
+      status: "link_sent",
+      journey_step: "signup_invite_sent",
+      consent_status: "not_required",
+      source_payload: { source: "admin_share_invite", channel: input.channel },
+      metadata: metadataPatch,
+      link_sent_at: now,
+      last_activity_at: now,
+    })
+    .returning();
+
+  return created;
 }
 
 function publicBaseUrl(req: Request): string {
@@ -3639,61 +3744,107 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
   const intro = parsed.data.message || copy.defaultIntro;
   const buildBody = (setupUrl: string) => `${intro}\n\n${copy.startHere}: ${setupUrl}`;
   const buildSetupUrl = (prefill: SignupInvitePrefill) => buildSignupInviteUrl(baseUrl, language, prefill);
-  const rows = [
-    ...emailRecipients.map((emailRecipient) => {
-      const { recipient, name } = emailRecipient;
-      const matchedWhatsapp = matchingInviteRecipient(emailRecipient, whatsappRecipients, whatsappByName);
-      const setupUrl = buildSetupUrl({
-        name,
-        email: recipient,
-        phone: matchedWhatsapp?.recipient,
-        whatsapp: matchedWhatsapp?.recipient,
-      });
-      return {
-        user_id: req.user?.id ?? null,
-        channel: "email",
-        recipient,
-        purpose: "share_signup_form",
-        status: "queued",
-        body: buildBody(setupUrl),
-        metadata: {
-          url: setupUrl,
-          language,
-          intro,
-          subject: copy.subject,
-          ...(name ? { recipient_name: name } : {}),
-          shared_by: req.user?.email ?? req.user?.id ?? null,
-        },
-      };
-    }),
-    ...whatsappRecipients.map((whatsappRecipient) => {
-      const { recipient, name } = whatsappRecipient;
-      const matchedEmail = matchingInviteRecipient(whatsappRecipient, emailRecipients, emailByName);
-      const setupUrl = buildSetupUrl({
-        name,
-        email: matchedEmail?.recipient,
-        phone: recipient,
-        whatsapp: recipient,
-      });
-      return {
-        user_id: req.user?.id ?? null,
-        channel: phoneInviteChannel,
-        recipient,
-        purpose: "share_signup_form",
-        status: "queued",
-        body: buildBody(setupUrl),
-        metadata: {
-          url: setupUrl,
-          language,
-          requested_channel: "phone",
-          delivery_channel: phoneInviteChannel,
-          whatsapp_fallback_to_sms: phoneInviteChannel === "sms",
-          ...(name ? { recipient_name: name } : {}),
-          shared_by: req.user?.email ?? req.user?.id ?? null,
-        },
-      };
-    }),
-  ];
+  const sharedBy = req.user?.email ?? req.user?.id ?? null;
+  const rows: Array<typeof communicationsLog.$inferInsert> = [];
+
+  for (const emailRecipient of emailRecipients) {
+    const { recipient, name } = emailRecipient;
+    const matchedWhatsapp = matchingInviteRecipient(emailRecipient, whatsappRecipients, whatsappByName);
+    const inviteId = randomUUID();
+    const intake = await ensureSignupInviteIntake({
+      inviteId,
+      name,
+      email: recipient,
+      phone: matchedWhatsapp?.recipient,
+      channel: "email",
+      language,
+      sharedBy,
+    });
+    const setupUrl = buildSetupUrl({
+      name,
+      email: recipient,
+      phone: matchedWhatsapp?.recipient,
+      whatsapp: matchedWhatsapp?.recipient,
+      inviteId,
+    });
+    rows.push({
+      intake_id: intake.id,
+      user_id: req.user?.id ?? null,
+      channel: "email",
+      recipient,
+      purpose: "share_signup_form",
+      status: "queued",
+      body: buildBody(setupUrl),
+      metadata: {
+        invite_id: inviteId,
+        url: setupUrl,
+        language,
+        intro,
+        subject: copy.subject,
+        ...(name ? { recipient_name: name } : {}),
+        shared_by: sharedBy,
+      },
+    });
+    await lifecycleService.recordLifecycleEvent({
+      intakeId: intake.id,
+      userId: intake.user_id,
+      eventType: "signup_invite_sent",
+      fromStatus: intake.status,
+      toStatus: intake.status,
+      channel: "email",
+      metadata: { invite_id: inviteId, recipient, language, shared_by: sharedBy },
+    });
+  }
+
+  for (const whatsappRecipient of whatsappRecipients) {
+    const { recipient, name } = whatsappRecipient;
+    const matchedEmail = matchingInviteRecipient(whatsappRecipient, emailRecipients, emailByName);
+    const inviteId = randomUUID();
+    const intake = await ensureSignupInviteIntake({
+      inviteId,
+      name,
+      email: matchedEmail?.recipient,
+      phone: recipient,
+      channel: phoneInviteChannel,
+      language,
+      sharedBy,
+    });
+    const setupUrl = buildSetupUrl({
+      name,
+      email: matchedEmail?.recipient,
+      phone: recipient,
+      whatsapp: recipient,
+      inviteId,
+    });
+    rows.push({
+      intake_id: intake.id,
+      user_id: req.user?.id ?? null,
+      channel: phoneInviteChannel,
+      recipient,
+      purpose: "share_signup_form",
+      status: "queued",
+      body: buildBody(setupUrl),
+      metadata: {
+        invite_id: inviteId,
+        url: setupUrl,
+        language,
+        requested_channel: "phone",
+        delivery_channel: phoneInviteChannel,
+        whatsapp_fallback_to_sms: phoneInviteChannel === "sms",
+        ...(name ? { recipient_name: name } : {}),
+        shared_by: sharedBy,
+      },
+    });
+    await lifecycleService.recordLifecycleEvent({
+      intakeId: intake.id,
+      userId: intake.user_id,
+      eventType: "signup_invite_sent",
+      fromStatus: intake.status,
+      toStatus: intake.status,
+      channel: phoneInviteChannel,
+      metadata: { invite_id: inviteId, recipient, language, shared_by: sharedBy },
+    });
+  }
 
   const communications = await db.insert(communicationsLog).values(rows).returning();
   const dispatchResult = await dispatchCommunicationsByIds(communications.map((item) => item.id));
