@@ -63,6 +63,9 @@ interface TeamMember {
   created_at: string;
   expires_at: string;
   accepted_at: string | null;
+  latest_delivery_status: string | null;
+  latest_delivery_channel: string | null;
+  latest_delivery_at: string | null;
 }
 
 const defaultConsent = (role: Role): ConsentState => ({
@@ -160,6 +163,15 @@ function initials(name: string) {
 
 function plainLabel(value: string) {
   return value.replace(/^[^\p{L}\p{N}]+/u, "");
+}
+
+function deliveryLabel(member: TeamMember) {
+  if (!member.latest_delivery_status) return null;
+  const channel = member.latest_delivery_channel ? ` by ${member.latest_delivery_channel}` : "";
+  if (member.latest_delivery_status === "sent") return `Invite sent${channel}`;
+  if (member.latest_delivery_status === "failed") return `Invite delivery needs attention${channel}`;
+  if (member.latest_delivery_status === "queued" || member.latest_delivery_status === "sending") return `Invite delivery in progress${channel}`;
+  return `Invite delivery: ${member.latest_delivery_status}${channel}`;
 }
 
 const StepDots = ({ current }: { current: number }) => {
@@ -360,11 +372,12 @@ export default function CareTeamFlow() {
               const isLoading = actionLoadingId === member.id;
               const isConfirming = confirmingRevokeId === member.id;
               const canRevoke = member.status === "pending" || member.status === "accepted";
-              const canResend = member.status === "expired";
+              const canResend = member.status === "pending" || member.status === "expired";
               const detailLine = [
                 getRoleLabel(member.role),
                 member.relationship ? getRelationshipLabel(member.relationship) : null,
               ].filter(Boolean).join(" - ");
+              const delivery = deliveryLabel(member);
 
               return (
                 <div
@@ -381,6 +394,14 @@ export default function CareTeamFlow() {
                       <p className="font-body text-[13px] font-bold text-purple-700">{detailLine}</p>
                       {member.invitee_phone ? (
                         <p className="truncate font-body text-[13px] text-vyva-text-3">{member.invitee_phone}</p>
+                      ) : null}
+                      {delivery ? (
+                        <p className={cn(
+                          "mt-1 font-body text-[12px] font-black",
+                          member.latest_delivery_status === "failed" ? "text-red-600" : "text-vyva-text-3",
+                        )}>
+                          {delivery}
+                        </p>
                       ) : null}
                     </div>
                     <span className={cn("flex-shrink-0 rounded-full px-3 py-1 font-body text-[12px] font-black", badgeClass)}>

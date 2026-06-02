@@ -5,7 +5,7 @@ import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
 import { z } from "zod";
 import { db } from "../db.js";
-import { accessLinks, communicationsLog, lifecycleEvents, profileMemberships, profiles, userIntakes, users } from "../../shared/schema.js";
+import { accessLinks, communicationsLog, lifecycleEvents, profileMemberships, profiles, teamInvitations, userIntakes, users } from "../../shared/schema.js";
 import { signMagicLoginToken, verifyMagicLoginToken } from "../lib/jwt.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { sendMagicLoginEmail, sendPasswordResetEmail } from "../lib/email.js";
@@ -390,6 +390,110 @@ const resetPasswordSchema = z.object({
 const consumeAccessLinkSchema = z.object({
   token: z.string().min(16, "Access token is required"),
 });
+
+type CareTeamInviteRow = typeof teamInvitations.$inferSelect;
+type CareTeamInvitePublicStatus = "pending" | "accepted" | "declined" | "revoked" | "expired";
+
+function careTeamInviteStatus(invitation: CareTeamInviteRow): CareTeamInvitePublicStatus {
+  if (invitation.status === "pending" && new Date() > invitation.expires_at) return "expired";
+  return invitation.status as CareTeamInvitePublicStatus;
+}
+
+function seniorDisplayName(profile?: Pick<(typeof profiles.$inferSelect), "full_name" | "preferred_name"> | null): string {
+  return profile?.preferred_name?.trim() || profile?.full_name?.trim() || "Your VYVA member";
+}
+
+function requestedCareTeamPermissions(invitation: CareTeamInviteRow) {
+  return {
+    dailyDigest: invitation.can_receive_daily_digest,
+    safetyAlerts: invitation.can_receive_safety_alerts,
+    healthAlerts: invitation.can_receive_health_alerts,
+    moodAlerts: invitation.can_receive_mood_alerts,
+    medicationAlerts: invitation.can_receive_medication_alerts,
+    dashboardAccess: invitation.can_view_dashboard,
+    healthReports: invitation.can_view_health_reports,
+    vitalSigns: invitation.can_view_vital_signs,
+    journalSummaries: invitation.can_view_journal_summaries,
+  };
+}
+
+function publicCareTeamInvitePayload(
+  invitation: CareTeamInviteRow,
+  senior?: Pick<(typeof profiles.$inferSelect), "full_name" | "preferred_name"> | null,
+) {
+  const status = careTeamInviteStatus(invitation);
+  return {
+    invite: {
+      status,
+      canAccept: status === "pending",
+      seniorDisplayName: seniorDisplayName(senior),
+      inviteeName: invitation.invitee_name,
+      role: invitation.role,
+      relationship: invitation.relationship,
+      expiresAt: invitation.expires_at.toISOString(),
+      acceptedAt: invitation.accepted_at?.toISOString() ?? null,
+      requestedPermissions: requestedCareTeamPermissions(invitation),
+    },
+  };
+}
+
+function invitedContactMatchesAccount(input: {
+  invitation: CareTeamInviteRow;
+  user: typeof users.$inferSelect;
+  requestUser?: Request["user"];
+}) {
+  const invitedEmails = [
+    normalizeEmail(input.invitation.invitee_email),
+  ].filter((value): value is string => Boolean(value));
+  const invitedPhones = [
+    normalizePhone(input.invitation.invitee_phone),
+    normalizePhone(input.invitation.invitee_whatsapp),
+  ].filter((value): value is string => Boolean(value));
+
+  if (invitedEmails.length === 0 && invitedPhones.length === 0) return true;
+
+  const accountEmails = [
+    normalizeEmail(input.user.email),
+    normalizeEmail(input.requestUser?.email),
+  ].filter((value): value is string => Boolean(value));
+  const accountPhones = [
+    normalizePhone(input.user.phone_number),
+    normalizePhone(input.requestUser?.phone),
+  ].filter((value): value is string => Boolean(value));
+
+  return (
+    accountEmails.some((email) => invitedEmails.includes(email)) ||
+    accountPhones.some((phone) => invitedPhones.includes(phone))
+  );
+}
+
+function profileMembershipRoleForInvite(role: CareTeamInviteRow["role"]): (typeof profileMemberships.$inferSelect)["role"] {
+  if (role === "caregiver") return "caregiver";
+  if (role === "doctor" || role === "gp") return "doctor";
+  return "family";
+}
+
+function careTeamMembershipPermissions(invitation: CareTeamInviteRow) {
+  return {
+    care_team: requestedCareTeamPermissions(invitation),
+    caregiver_dashboard: {
+      view: invitation.can_view_dashboard,
+      healthReports: invitation.can_view_health_reports,
+      vitalSigns: invitation.can_view_vital_signs,
+      journalSummaries: invitation.can_view_journal_summaries,
+    },
+  };
+}
+
+class RouteHttpError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "RouteHttpError";
+    this.status = status;
+  }
+}
 
 const signupInviteTrackSchema = z.object({
   invite_id: z.string().trim().min(8).max(120),
@@ -792,6 +896,222 @@ authRouter.post("/magic-login", async (req: Request, res: Response) => {
       await getProfileRole(user.id),
     ),
   });
+});
+
+/**
+ * GET /api/auth/careteam-invites/:token
+ * Public, non-sensitive preview for a care-team invitation claim link.
+ */
+authRouter.get("/careteam-invites/:token", async (req: Request, res: Response) => {
+  const token = typeof req.params.token === "string" ? req.params.token.trim() : "";
+  if (!token) {
+    return res.status(404).json({ error: "This care-team invitation is invalid." });
+  }
+
+  try {
+    const [invitation] = await db
+      .select()
+      .from(teamInvitations)
+      .where(eq(teamInvitations.invite_token, token))
+      .limit(1);
+
+    if (!invitation) {
+      return res.status(404).json({ error: "This care-team invitation is invalid." });
+    }
+
+    const [senior] = await db
+      .select({
+        full_name: profiles.full_name,
+        preferred_name: profiles.preferred_name,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, invitation.senior_id))
+      .limit(1);
+
+    const payload = publicCareTeamInvitePayload(invitation, senior);
+    const status = payload.invite.status;
+    if (status === "expired" || status === "revoked" || status === "declined") {
+      return res.status(410).json({ error: "This invitation link is no longer active.", ...payload });
+    }
+    if (status === "accepted") {
+      return res.status(409).json({ error: "This invitation has already been accepted.", ...payload });
+    }
+
+    return res.json(payload);
+  } catch (err) {
+    console.error("[auth/careteam-invites:get]", err);
+    return res.status(500).json({ error: "Could not load this invitation" });
+  }
+});
+
+/**
+ * POST /api/auth/careteam-invites/:token/accept
+ * Claims a pending invitation for the signed-in caregiver account.
+ */
+authRouter.post("/careteam-invites/:token/accept", authMiddleware, async (req: Request, res: Response) => {
+  if (!req.user) {
+    return res.status(401).json({ error: "Please sign in or create an account to accept this invitation." });
+  }
+
+  const token = typeof req.params.token === "string" ? req.params.token.trim() : "";
+  if (!token) {
+    return res.status(404).json({ error: "This care-team invitation is invalid." });
+  }
+
+  try {
+    const authenticatedUser = await getOrCreateAuthenticatedUser(req.user.id, req.user.email);
+    if (!authenticatedUser) {
+      return res.status(401).json({ error: "Please sign in or create an account to accept this invitation." });
+    }
+
+    const [invitation] = await db
+      .select()
+      .from(teamInvitations)
+      .where(eq(teamInvitations.invite_token, token))
+      .limit(1);
+
+    if (!invitation) {
+      return res.status(404).json({ error: "This care-team invitation is invalid." });
+    }
+
+    if (invitation.status === "accepted") {
+      if (invitation.accepted_user_id === authenticatedUser.id) {
+        await db.update(users).set({ active_profile_id: invitation.senior_id }).where(eq(users.id, authenticatedUser.id));
+        return res.json({
+          ok: true,
+          status: "accepted",
+          alreadyAccepted: true,
+          seniorProfileId: invitation.senior_id,
+          destination: "/caregiver",
+        });
+      }
+
+      return res.status(409).json({ error: "This invitation has already been accepted by another account." });
+    }
+
+    const status = careTeamInviteStatus(invitation);
+    if (status === "expired" || status === "revoked" || status === "declined") {
+      if (status === "expired" && invitation.status === "pending") {
+        await db
+          .update(teamInvitations)
+          .set({ status: "expired", updated_at: new Date() })
+          .where(eq(teamInvitations.id, invitation.id));
+      }
+      return res.status(410).json({ error: "This invitation link is no longer active." });
+    }
+
+    if (!invitedContactMatchesAccount({ invitation, user: authenticatedUser, requestUser: req.user })) {
+      return res.status(403).json({ error: "Please sign in with the invited email or mobile number." });
+    }
+
+    const now = new Date();
+    const outcome = await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select()
+        .from(teamInvitations)
+        .where(eq(teamInvitations.id, invitation.id))
+        .limit(1);
+
+      if (!current) {
+        throw new RouteHttpError(404, "This care-team invitation is invalid.");
+      }
+
+      if (current.status === "accepted") {
+        if (current.accepted_user_id === authenticatedUser.id) {
+          await tx.update(users).set({ active_profile_id: current.senior_id }).where(eq(users.id, authenticatedUser.id));
+          return { alreadyAccepted: true, seniorProfileId: current.senior_id };
+        }
+        throw new RouteHttpError(409, "This invitation has already been accepted by another account.");
+      }
+
+      const currentStatus = careTeamInviteStatus(current);
+      if (currentStatus !== "pending") {
+        if (currentStatus === "expired" && current.status === "pending") {
+          await tx
+            .update(teamInvitations)
+            .set({ status: "expired", updated_at: now })
+            .where(eq(teamInvitations.id, current.id));
+        }
+        throw new RouteHttpError(410, "This invitation link is no longer active.");
+      }
+
+      const [existingMembership] = await tx
+        .select({ permissions: profileMemberships.permissions })
+        .from(profileMemberships)
+        .where(and(
+          eq(profileMemberships.user_id, authenticatedUser.id),
+          eq(profileMemberships.profile_id, current.senior_id),
+        ))
+        .limit(1);
+
+      const existingPermissions = existingMembership?.permissions && typeof existingMembership.permissions === "object"
+        ? existingMembership.permissions as Record<string, unknown>
+        : {};
+
+      await tx
+        .insert(profileMemberships)
+        .values({
+          user_id: authenticatedUser.id,
+          profile_id: current.senior_id,
+          role: profileMembershipRoleForInvite(current.role),
+          relationship: current.relationship,
+          display_name: current.invitee_name,
+          status: "active",
+          permissions: {
+            ...existingPermissions,
+            ...careTeamMembershipPermissions(current),
+          },
+          is_primary: false,
+          accepted_at: now,
+        })
+        .onConflictDoUpdate({
+          target: [profileMemberships.user_id, profileMemberships.profile_id],
+          set: {
+            role: profileMembershipRoleForInvite(current.role),
+            relationship: current.relationship,
+            display_name: current.invitee_name,
+            status: "active",
+            permissions: {
+              ...existingPermissions,
+              ...careTeamMembershipPermissions(current),
+            },
+            accepted_at: now,
+            updated_at: now,
+          },
+        });
+
+      await tx
+        .update(teamInvitations)
+        .set({
+          status: "accepted",
+          accepted_user_id: authenticatedUser.id,
+          accepted_at: now,
+          updated_at: now,
+        })
+        .where(eq(teamInvitations.id, current.id));
+
+      await tx
+        .update(users)
+        .set({ active_profile_id: current.senior_id })
+        .where(eq(users.id, authenticatedUser.id));
+
+      return { alreadyAccepted: false, seniorProfileId: current.senior_id };
+    });
+
+    return res.json({
+      ok: true,
+      status: "accepted",
+      alreadyAccepted: outcome.alreadyAccepted,
+      seniorProfileId: outcome.seniorProfileId,
+      destination: "/caregiver",
+    });
+  } catch (err) {
+    if (err instanceof RouteHttpError) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    console.error("[auth/careteam-invites:accept]", err);
+    return res.status(500).json({ error: "Could not accept this invitation" });
+  }
 });
 
 /**

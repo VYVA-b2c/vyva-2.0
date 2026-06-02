@@ -5,8 +5,8 @@ import request from "supertest";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { authRouter } from "../routes/auth.js";
 import { db } from "../db.js";
-import { users, profiles } from "../../shared/schema.js";
-import { eq } from "drizzle-orm";
+import { profileMemberships, profiles, teamInvitations, users } from "../../shared/schema.js";
+import { and, eq, or } from "drizzle-orm";
 import { AUTH_SESSION_COOKIE } from "../lib/sessionCookie.js";
 
 function buildApp() {
@@ -29,6 +29,10 @@ async function cleanupEmail(email: string) {
       .where(eq(users.email, email.toLowerCase()))
       .limit(1);
     if (user) {
+      await db.delete(teamInvitations).where(or(
+        eq(teamInvitations.senior_id, user.id),
+        eq(teamInvitations.accepted_user_id, user.id),
+      ));
       await db.delete(profiles).where(eq(profiles.id, user.id));
       await db.delete(users).where(eq(users.id, user.id));
     }
@@ -201,5 +205,231 @@ describe("Auth endpoints", () => {
       cookie.startsWith(`${AUTH_SESSION_COOKIE}=`) &&
       cookie.includes("Max-Age=0")
     ))).toBe(true);
+  });
+});
+
+describe("Care-team invite claim flow", () => {
+  const seniorEmail = `careteam-senior-${randomUUID()}@example.com`;
+  const caregiverEmail = `careteam-caregiver-${randomUUID()}@example.com`;
+  const otherEmail = `careteam-other-${randomUUID()}@example.com`;
+  const password = "securepassword123";
+
+  let seniorId: string;
+  let caregiverId: string;
+  let caregiverToken: string;
+  let otherToken: string;
+  let inviteId: string;
+  let inviteToken: string;
+
+  async function register(email: string) {
+    const res = await request(app)
+      .post("/api/auth/register")
+      .send({ email, password })
+      .expect(201);
+    return { id: res.body.userId as string, token: res.body.token as string };
+  }
+
+  beforeAll(async () => {
+    await cleanupEmail(seniorEmail);
+    await cleanupEmail(caregiverEmail);
+    await cleanupEmail(otherEmail);
+
+    const senior = await register(seniorEmail);
+    const caregiver = await register(caregiverEmail);
+    const other = await register(otherEmail);
+
+    seniorId = senior.id;
+    caregiverId = caregiver.id;
+    caregiverToken = caregiver.token;
+    otherToken = other.token;
+
+    await db
+      .update(profiles)
+      .set({ full_name: "Elena Senior" })
+      .where(eq(profiles.id, seniorId));
+
+    inviteToken = randomUUID();
+    const [invite] = await db
+      .insert(teamInvitations)
+      .values({
+        senior_id: seniorId,
+        invitee_name: "Care Giver",
+        invitee_email: caregiverEmail.toLowerCase(),
+        role: "caregiver",
+        relationship: "daughter",
+        invite_token: inviteToken,
+        invite_channel: "whatsapp_outbound",
+        status: "pending",
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        can_receive_daily_digest: true,
+        can_receive_safety_alerts: true,
+        can_view_dashboard: true,
+        can_view_journal_summaries: true,
+      })
+      .returning();
+    inviteId = invite.id;
+  });
+
+  afterAll(async () => {
+    if (seniorId) {
+      await db.delete(teamInvitations).where(eq(teamInvitations.senior_id, seniorId));
+      await db.delete(profileMemberships).where(eq(profileMemberships.profile_id, seniorId));
+    }
+    await cleanupEmail(seniorEmail);
+    await cleanupEmail(caregiverEmail);
+    await cleanupEmail(otherEmail);
+  });
+
+  it("GET /careteam-invites/:token returns a non-sensitive pending invite summary", async () => {
+    const res = await request(app)
+      .get(`/api/auth/careteam-invites/${inviteToken}`)
+      .expect(200);
+
+    expect(res.body.invite).toMatchObject({
+      status: "pending",
+      canAccept: true,
+      seniorDisplayName: "Elena Senior",
+      inviteeName: "Care Giver",
+      role: "caregiver",
+      relationship: "daughter",
+      requestedPermissions: {
+        dashboardAccess: true,
+        journalSummaries: true,
+      },
+    });
+    expect(JSON.stringify(res.body)).not.toContain(caregiverEmail.toLowerCase());
+  });
+
+  it("POST /careteam-invites/:token/accept requires authentication", async () => {
+    const res = await request(app)
+      .post(`/api/auth/careteam-invites/${inviteToken}/accept`)
+      .expect(401);
+
+    expect(res.body.error).toMatch(/sign in/i);
+  });
+
+  it("accepts a valid invite, creates membership, and selects the senior profile", async () => {
+    const res = await request(app)
+      .post(`/api/auth/careteam-invites/${inviteToken}/accept`)
+      .set("Authorization", `Bearer ${caregiverToken}`)
+      .expect(200);
+
+    expect(res.body).toMatchObject({
+      ok: true,
+      status: "accepted",
+      alreadyAccepted: false,
+      seniorProfileId: seniorId,
+      destination: "/caregiver",
+    });
+
+    const [invite] = await db
+      .select()
+      .from(teamInvitations)
+      .where(eq(teamInvitations.id, inviteId))
+      .limit(1);
+    expect(invite.status).toBe("accepted");
+    expect(invite.accepted_user_id).toBe(caregiverId);
+    expect(invite.accepted_at).toBeTruthy();
+
+    const [membership] = await db
+      .select()
+      .from(profileMemberships)
+      .where(and(
+        eq(profileMemberships.user_id, caregiverId),
+        eq(profileMemberships.profile_id, seniorId),
+      ))
+      .limit(1);
+    expect(membership).toMatchObject({
+      role: "caregiver",
+      status: "active",
+      relationship: "daughter",
+    });
+    expect(membership.permissions).toMatchObject({
+      care_team: {
+        dashboardAccess: true,
+        journalSummaries: true,
+      },
+    });
+
+    const [caregiver] = await db
+      .select({ active_profile_id: users.active_profile_id })
+      .from(users)
+      .where(eq(users.id, caregiverId))
+      .limit(1);
+    expect(caregiver.active_profile_id).toBe(seniorId);
+  });
+
+  it("accept is idempotent for the same caregiver account", async () => {
+    const res = await request(app)
+      .post(`/api/auth/careteam-invites/${inviteToken}/accept`)
+      .set("Authorization", `Bearer ${caregiverToken}`)
+      .expect(200);
+
+    expect(res.body).toMatchObject({
+      ok: true,
+      status: "accepted",
+      alreadyAccepted: true,
+      destination: "/caregiver",
+    });
+  });
+
+  it("rejects repeat acceptance by a different account", async () => {
+    const res = await request(app)
+      .post(`/api/auth/careteam-invites/${inviteToken}/accept`)
+      .set("Authorization", `Bearer ${otherToken}`)
+      .expect(409);
+
+    expect(res.body.error).toMatch(/another account/i);
+  });
+
+  it("blocks acceptance when the signed-in contact does not match the invite", async () => {
+    const mismatchToken = randomUUID();
+    await db
+      .insert(teamInvitations)
+      .values({
+        senior_id: seniorId,
+        invitee_name: "Wrong Contact",
+        invitee_email: `wrong-${randomUUID()}@example.com`,
+        role: "family_member",
+        relationship: "son",
+        invite_token: mismatchToken,
+        invite_channel: "whatsapp_outbound",
+        status: "pending",
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      });
+
+    const res = await request(app)
+      .post(`/api/auth/careteam-invites/${mismatchToken}/accept`)
+      .set("Authorization", `Bearer ${caregiverToken}`)
+      .expect(403);
+
+    expect(res.body.error).toMatch(/invited email or mobile/i);
+  });
+
+  it("rejects expired public invite lookup with an inactive summary", async () => {
+    const expiredToken = randomUUID();
+    await db
+      .insert(teamInvitations)
+      .values({
+        senior_id: seniorId,
+        invitee_name: "Expired Invite",
+        invitee_email: `expired-${randomUUID()}@example.com`,
+        role: "family_member",
+        relationship: "friend",
+        invite_token: expiredToken,
+        invite_channel: "whatsapp_outbound",
+        status: "pending",
+        expires_at: new Date(Date.now() - 60 * 1000),
+      });
+
+    const res = await request(app)
+      .get(`/api/auth/careteam-invites/${expiredToken}`)
+      .expect(410);
+
+    expect(res.body.invite).toMatchObject({
+      status: "expired",
+      canAccept: false,
+      seniorDisplayName: "Elena Senior",
+    });
   });
 });
