@@ -27,6 +27,14 @@ export type BrainCoachCaregiverPlanItem = {
   planDate?: Date | string | null;
 };
 
+export type BrainCoachCaregiverPlanEvent = {
+  id?: string | null;
+  planId: string;
+  eventType: string;
+  metadata?: unknown;
+  createdAt?: Date | string | null;
+};
+
 type NormalizedSession = {
   id: string | null;
   activityType: string;
@@ -63,6 +71,10 @@ function dayKeyFromStart(dayStart: number) {
   return new Date(dayStart).toISOString().slice(0, 10);
 }
 
+function dayKeysFromWindow(windowStart: number, days: number) {
+  return Array.from({ length: days }, (_, index) => dayKeyFromStart(windowStart + index * DAY_MS));
+}
+
 function numeric(value: unknown, fallback = 0) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -71,6 +83,19 @@ function numeric(value: unknown, fallback = 0) {
 function percent(numerator: number, denominator: number) {
   if (denominator <= 0) return 0;
   return Math.round((numerator / denominator) * 100);
+}
+
+function iso(value: unknown): string | null {
+  const date = coerceDate(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function metadataRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? value as Record<string, unknown> : {};
 }
 
 function normalizeSessions(sessions: BrainCoachCaregiverSession[]) {
@@ -119,6 +144,26 @@ function planItemCompleted(item: BrainCoachCaregiverPlanItem) {
   return item.status === "completed" || Boolean(item.completedAt);
 }
 
+function planCompletedAt(plan: BrainCoachCaregiverPlan | undefined, items: BrainCoachCaregiverPlanItem[]) {
+  const explicitCompletedAt = iso(plan?.completedAt);
+  if (explicitCompletedAt) return explicitCompletedAt;
+  if (!items.length || !items.every(planItemCompleted)) return null;
+
+  const itemCompletedTimes = items
+    .map((item) => iso(item.completedAt))
+    .filter((value): value is string => Boolean(value));
+  if (itemCompletedTimes.length !== items.length) return null;
+  return itemCompletedTimes.sort().at(-1) ?? null;
+}
+
+function planCompletedForDay(plan: BrainCoachCaregiverPlan, items: BrainCoachCaregiverPlanItem[]) {
+  return (
+    (items.length > 0 && items.every(planItemCompleted)) ||
+    plan.status === "completed" ||
+    Boolean(plan.completedAt)
+  );
+}
+
 function summarizeDomains(sessions: NormalizedSession[]) {
   const domains = new Map<string, {
     domain: string;
@@ -150,24 +195,214 @@ function summarizeDomains(sessions: NormalizedSession[]) {
     .slice(0, 5);
 }
 
+function nudgeOutcomeForEvent(input: {
+  nudge: BrainCoachCaregiverPlanEvent;
+  plans: BrainCoachCaregiverPlan[];
+  planItems: BrainCoachCaregiverPlanItem[];
+  planEvents: BrainCoachCaregiverPlanEvent[];
+}) {
+  const nudgeId = input.nudge.id ?? null;
+  const metadata = metadataRecord(input.nudge.metadata);
+  const relatedEvents = nudgeId
+    ? input.planEvents.filter((event) => {
+        const eventMetadata = metadataRecord(event.metadata);
+        return (
+          event.planId === input.nudge.planId &&
+          stringValue(eventMetadata.nudge_event_id) === nudgeId &&
+          (event.eventType === "caregiver_nudge_read" || event.eventType === "caregiver_nudge_dismissed")
+        );
+      })
+    : [];
+  const readEvent = relatedEvents
+    .filter((event) => event.eventType === "caregiver_nudge_read")
+    .sort((left, right) => (iso(right.createdAt) ?? "").localeCompare(iso(left.createdAt) ?? ""))[0];
+  const dismissedEvent = relatedEvents
+    .filter((event) => event.eventType === "caregiver_nudge_dismissed")
+    .sort((left, right) => (iso(right.createdAt) ?? "").localeCompare(iso(left.createdAt) ?? ""))[0];
+  const status = dismissedEvent ? "dismissed" : readEvent ? "seen" : "sent";
+  const plan = input.plans.find((entry) => entry.id === input.nudge.planId);
+  const matchingItems = input.planItems.filter((item) => item.planId === input.nudge.planId);
+  const completedAt = planCompletedAt(plan, matchingItems);
+  const sentAt = iso(input.nudge.createdAt) ?? stringValue(metadata.sent_at);
+
+  return {
+    id: nudgeId,
+    planId: input.nudge.planId,
+    messageType: stringValue(metadata.message_type) ?? "today_plan",
+    title: stringValue(metadata.title) ?? "Brain Coach nudge",
+    body: stringValue(metadata.body) ?? "",
+    status,
+    sentAt,
+    sentBy: stringValue(metadata.sent_by),
+    seenAt: iso(readEvent?.createdAt),
+    dismissedAt: iso(dismissedEvent?.createdAt),
+    planCompletedAfterNudge: Boolean(sentAt && completedAt && completedAt > sentAt),
+    planCompletedAt: completedAt,
+  };
+}
+
+function latestNudgeOutcome(input: {
+  plans: BrainCoachCaregiverPlan[];
+  planItems: BrainCoachCaregiverPlanItem[];
+  planEvents: BrainCoachCaregiverPlanEvent[];
+}) {
+  const latestNudge = input.planEvents
+    .filter((event) => event.eventType === "caregiver_nudge")
+    .sort((left, right) => (iso(right.createdAt) ?? "").localeCompare(iso(left.createdAt) ?? ""))[0];
+  if (!latestNudge) return null;
+
+  return nudgeOutcomeForEvent({ nudge: latestNudge, ...input });
+}
+
+function nudgeOutcomesForWindow(input: {
+  plans: BrainCoachCaregiverPlan[];
+  planItems: BrainCoachCaregiverPlanItem[];
+  planEvents: BrainCoachCaregiverPlanEvent[];
+  dayKeys: Set<string>;
+}) {
+  const outcomes = input.planEvents
+    .filter((event) => event.eventType === "caregiver_nudge")
+    .filter((event) => {
+      const sentDay = utcDayKey(event.createdAt);
+      return Boolean(sentDay && input.dayKeys.has(sentDay));
+    })
+    .map((nudge) => nudgeOutcomeForEvent({ nudge, ...input }));
+  const totalSent = outcomes.length;
+  const seen = outcomes.filter((outcome) => outcome.status === "seen").length;
+  const dismissed = outcomes.filter((outcome) => outcome.status === "dismissed").length;
+  const completedAfterNudge = outcomes.filter((outcome) => outcome.planCompletedAfterNudge).length;
+
+  return {
+    sent: totalSent,
+    seen,
+    dismissed,
+    completedAfterNudge,
+    completionAfterNudgePct: percent(completedAfterNudge, totalSent),
+  };
+}
+
+function weeklyWindowMetrics(input: {
+  sessions: NormalizedSession[];
+  plans: BrainCoachCaregiverPlan[];
+  planItems: BrainCoachCaregiverPlanItem[];
+  planEvents: BrainCoachCaregiverPlanEvent[];
+  windowStart: number;
+  todayStart: number;
+}) {
+  const dayKeys = dayKeysFromWindow(input.windowStart, 7);
+  const dayKeySet = new Set(dayKeys);
+  const completedSessions = input.sessions.filter((session) => session.completed && dayKeySet.has(session.dayKey));
+  const days = dayKeys.map((date) => {
+    const dayPlans = input.plans.filter((plan) => utcDayKey(plan.planDate) === date);
+    const dayPlanIds = new Set(dayPlans.map((plan) => plan.id));
+    const dayItems = input.planItems.filter((item) => dayPlanIds.has(item.planId));
+    const completed = dayPlans.some((plan) => planCompletedForDay(plan, dayItems.filter((item) => item.planId === plan.id)));
+    const dayStart = utcDayStart(new Date(`${date}T00:00:00.000Z`));
+
+    return {
+      date,
+      planned: dayPlans.length > 0,
+      completed,
+      missed: dayPlans.length > 0 && !completed && dayStart < input.todayStart,
+      activeSessionCount: completedSessions.filter((session) => session.dayKey === date).length,
+    };
+  });
+  const plannedDays = days.filter((day) => day.planned).length;
+  const completedPlanDays = days.filter((day) => day.completed).length;
+  const activeSessionDays = days.filter((day) => day.activeSessionCount > 0).length;
+  const missedPlannedDays = days.filter((day) => day.missed).length;
+
+  return {
+    plannedDays,
+    completedPlanDays,
+    activeSessionDays,
+    completedSessions: completedSessions.length,
+    completionPct: percent(completedPlanDays, plannedDays),
+    missedPlannedDays,
+    domainsPracticed: summarizeDomains(completedSessions),
+    nudgeOutcomes: nudgeOutcomesForWindow({
+      plans: input.plans,
+      planItems: input.planItems,
+      planEvents: input.planEvents,
+      dayKeys: dayKeySet,
+    }),
+  };
+}
+
+function weeklyTrendCopy(current: ReturnType<typeof weeklyWindowMetrics>, previous: ReturnType<typeof weeklyWindowMetrics>) {
+  if (current.completedSessions === 0 && current.plannedDays === 0) return "No Brain Coach plan or completed activity in the last 7 days.";
+  if (current.completedSessions === 0) return "Plans were available this week, but no Brain Coach activities were completed yet.";
+  if (current.activeSessionDays > previous.activeSessionDays) return `Brain Coach activity increased to ${current.activeSessionDays} active days this week.`;
+  if (current.activeSessionDays < previous.activeSessionDays) return `Brain Coach activity slowed to ${current.activeSessionDays} active days this week.`;
+  if (current.completedPlanDays > previous.completedPlanDays) return `Plan follow-through improved to ${current.completedPlanDays} completed plan days this week.`;
+  if (current.completedPlanDays < previous.completedPlanDays) return `Plan follow-through dipped to ${current.completedPlanDays} completed plan days this week.`;
+  return `Brain Coach rhythm held steady with ${current.activeSessionDays} active days this week.`;
+}
+
+function weeklyChangeSummary(current: ReturnType<typeof weeklyWindowMetrics>, previous: ReturnType<typeof weeklyWindowMetrics>) {
+  if (
+    previous.completedSessions === 0 &&
+    previous.plannedDays === 0 &&
+    current.completedSessions === 0 &&
+    current.plannedDays === 0
+  ) {
+    return "No week-over-week comparison is available yet.";
+  }
+
+  const sessionDelta = current.completedSessions - previous.completedSessions;
+  const planDelta = current.completedPlanDays - previous.completedPlanDays;
+  const sessionText = sessionDelta === 0
+    ? "same number of completed activities"
+    : sessionDelta > 0
+      ? `${sessionDelta} more completed ${sessionDelta === 1 ? "activity" : "activities"}`
+      : `${Math.abs(sessionDelta)} fewer completed ${Math.abs(sessionDelta) === 1 ? "activity" : "activities"}`;
+  const planText = planDelta === 0
+    ? "same completed plan days"
+    : planDelta > 0
+      ? `${planDelta} more completed plan ${planDelta === 1 ? "day" : "days"}`
+      : `${Math.abs(planDelta)} fewer completed plan ${Math.abs(planDelta) === 1 ? "day" : "days"}`;
+  return `Compared with the previous 7 days: ${sessionText} and ${planText}.`;
+}
+
 export function buildBrainCoachCaregiverSummary(input: {
   sessions?: BrainCoachCaregiverSession[];
   plans?: BrainCoachCaregiverPlan[];
   planItems?: BrainCoachCaregiverPlanItem[];
+  planEvents?: BrainCoachCaregiverPlanEvent[];
   now?: Date;
 }) {
   const now = input.now ?? new Date();
-  const todayKey = dayKeyFromStart(utcDayStart(now));
+  const todayStart = utcDayStart(now);
+  const todayKey = dayKeyFromStart(todayStart);
   const normalized = normalizeSessions(input.sessions ?? []);
   const completed = normalized.filter((session) => session.completed);
   const plans = input.plans ?? [];
   const planItems = input.planItems ?? [];
+  const planEvents = input.planEvents ?? [];
   const planIds = new Set(plans.map((plan) => plan.id));
   const visibleItems = planItems.filter((item) => planIds.has(item.planId));
   const todayPlan = plans.find((plan) => utcDayKey(plan.planDate) === todayKey) ?? null;
   const todayItems = todayPlan ? visibleItems.filter((item) => item.planId === todayPlan.id) : [];
   const todayCompletedItems = todayItems.filter(planItemCompleted).length;
   const latestCompleted = completed[0] ?? null;
+  const currentWindowStart = todayStart - 6 * DAY_MS;
+  const previousWindowStart = todayStart - 13 * DAY_MS;
+  const currentWeek = weeklyWindowMetrics({
+    sessions: normalized,
+    plans,
+    planItems: visibleItems,
+    planEvents,
+    windowStart: currentWindowStart,
+    todayStart,
+  });
+  const previousWeek = weeklyWindowMetrics({
+    sessions: normalized,
+    plans,
+    planItems: visibleItems,
+    planEvents,
+    windowStart: previousWindowStart,
+    todayStart,
+  });
   const lapsedDays = latestCompleted
     ? Math.max(0, Math.floor((utcDayStart(now) - utcDayStart(new Date(latestCompleted.playedAt))) / DAY_MS))
     : null;
@@ -227,6 +462,28 @@ export function buildBrainCoachCaregiverSummary(input: {
       activeSessionDays,
       completionPct: percent(completedPlanDays, plannedDays),
       days: adherenceDays,
+    },
+    latestNudge: latestNudgeOutcome({ plans, planItems: visibleItems, planEvents }),
+    weeklyInsights: {
+      trendCopy: weeklyTrendCopy(currentWeek, previousWeek),
+      changeSummary: weeklyChangeSummary(currentWeek, previousWeek),
+      domainsPracticed: currentWeek.domainsPracticed,
+      missedPlannedDays: currentWeek.missedPlannedDays,
+      nudgeOutcomes: currentWeek.nudgeOutcomes,
+      currentWeek: {
+        plannedDays: currentWeek.plannedDays,
+        completedPlanDays: currentWeek.completedPlanDays,
+        activeSessionDays: currentWeek.activeSessionDays,
+        completedSessions: currentWeek.completedSessions,
+        completionPct: currentWeek.completionPct,
+      },
+      previousWeek: {
+        plannedDays: previousWeek.plannedDays,
+        completedPlanDays: previousWeek.completedPlanDays,
+        activeSessionDays: previousWeek.activeSessionDays,
+        completedSessions: previousWeek.completedSessions,
+        completionPct: previousWeek.completionPct,
+      },
     },
     recentDomains: summarizeDomains(normalized),
     recentActivities: normalized.slice(0, 6).map((session) => ({

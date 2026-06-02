@@ -45,6 +45,52 @@ type BrainCoachCaregiverSummary = {
     activeSessionDays: number;
     completionPct: number;
   };
+  latestNudge: {
+    id: string | null;
+    planId: string;
+    messageType: string;
+    title: string;
+    body: string;
+    status: "sent" | "seen" | "dismissed";
+    sentAt: string | null;
+    sentBy: string | null;
+    seenAt: string | null;
+    dismissedAt: string | null;
+    planCompletedAfterNudge: boolean;
+    planCompletedAt: string | null;
+  } | null;
+  weeklyInsights?: {
+    trendCopy: string;
+    changeSummary: string;
+    domainsPracticed: Array<{
+      domain: string;
+      completedSessions: number;
+      totalSessions: number;
+      lastPlayedAt: string | null;
+    }>;
+    missedPlannedDays: number;
+    nudgeOutcomes: {
+      sent: number;
+      seen: number;
+      dismissed: number;
+      completedAfterNudge: number;
+      completionAfterNudgePct: number;
+    };
+    currentWeek: {
+      plannedDays: number;
+      completedPlanDays: number;
+      activeSessionDays: number;
+      completedSessions: number;
+      completionPct: number;
+    };
+    previousWeek: {
+      plannedDays: number;
+      completedPlanDays: number;
+      activeSessionDays: number;
+      completedSessions: number;
+      completionPct: number;
+    };
+  };
   recentDomains: Array<{
     domain: string;
     completedSessions: number;
@@ -204,6 +250,26 @@ function nudgeMessageType(summary: BrainCoachCaregiverSummary | undefined) {
   return "today_plan";
 }
 
+function nudgeStatusLabel(summary: BrainCoachCaregiverSummary | undefined) {
+  if (!summary?.latestNudge) return "No nudge sent";
+  if (summary.latestNudge.status === "seen") return "Seen";
+  if (summary.latestNudge.status === "dismissed") return "Dismissed";
+  return "Sent";
+}
+
+function nudgeOutcomeText(summary: BrainCoachCaregiverSummary | undefined) {
+  const nudge = summary?.latestNudge;
+  if (!nudge) return "No Brain Coach nudge has been sent yet.";
+  if (nudge.planCompletedAfterNudge) return `Plan completed after nudge at ${formatTime(nudge.planCompletedAt)}.`;
+  if (nudge.status === "dismissed") return "The nudge was dismissed before the plan was completed.";
+  if (nudge.status === "seen") return "The nudge was seen; plan completion is still pending.";
+  return "The nudge was sent; it has not been seen yet.";
+}
+
+function pluralize(count: number, singular: string, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
 export function CaregiverBrainCoachPanel() {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<BrainCoachSettings>(DEFAULT_SETTINGS);
@@ -253,6 +319,9 @@ export function CaregiverBrainCoachPanel() {
       if (!response.ok) throw new Error("Could not send Brain Coach nudge");
       return response.json() as Promise<NudgeResponse>;
     },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["/api/caregiver/brain-coach/me/summary"] });
+    },
   });
 
   const previewMutation = useMutation({
@@ -284,7 +353,7 @@ export function CaregiverBrainCoachPanel() {
   const preferencesDisabled = !canManagePreferences || settingsQuery.isLoading || saveMutation.isPending;
   const scheduleDisabled = !canManageSchedule || settingsQuery.isLoading || saveMutation.isPending;
   const nudgeType = nudgeMessageType(summary);
-  const nudgeDisabled = !canSendNudges || !summary?.todayPlan.planId || nudgeMutation.isPending;
+  const nudgeDisabled = !canSendNudges || nudgeMutation.isPending;
 
   useEffect(() => {
     if (settingsQuery.data?.settings) setDraft({ ...DEFAULT_SETTINGS, ...settingsQuery.data.settings });
@@ -377,6 +446,72 @@ export function CaregiverBrainCoachPanel() {
           ))}
         </div>
       ) : null}
+
+      {summary?.weeklyInsights && (
+        <div className="mt-4 rounded-[14px] border border-[#D8DED6] bg-[#FBFCFB] p-4" data-testid="brain-coach-weekly-insights">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="flex items-center gap-2 font-body text-[15px] font-bold text-[#26312B]">
+              <CalendarClock className="h-4 w-4 text-[#2F6F5E]" />
+              Weekly insight
+            </p>
+            <span className="rounded-full bg-white px-3 py-1 font-body text-[12px] font-bold text-[#26312B]">
+              Last 7 days
+            </span>
+          </div>
+          <p className="mt-3 font-body text-[14px] font-bold leading-relaxed text-[#26312B]">
+            {summary.weeklyInsights.trendCopy}
+          </p>
+          <p className="mt-1 font-body text-[13px] font-semibold leading-relaxed text-[#5F6B63]">
+            {summary.weeklyInsights.changeSummary}
+          </p>
+
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="rounded-[12px] bg-white p-3">
+              <p className="font-body text-[12px] font-bold text-[#5F6B63]">Active days</p>
+              <p className="mt-1 font-body text-[18px] font-bold text-[#26312B]">
+                {summary.weeklyInsights.currentWeek.activeSessionDays}
+              </p>
+            </div>
+            <div className="rounded-[12px] bg-white p-3">
+              <p className="font-body text-[12px] font-bold text-[#5F6B63]">Missed planned days</p>
+              <p className="mt-1 font-body text-[18px] font-bold text-[#26312B]">
+                {summary.weeklyInsights.missedPlannedDays}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-[12px] bg-white p-3">
+            <p className="mb-2 flex items-center gap-2 font-body text-[13px] font-bold text-[#26312B]">
+              <Target className="h-4 w-4 text-[#2F6F5E]" />
+              Domains this week
+            </p>
+            {summary.weeklyInsights.domainsPracticed.length ? (
+              <div className="flex flex-wrap gap-2">
+                {summary.weeklyInsights.domainsPracticed.slice(0, 4).map((domain) => (
+                  <span key={domain.domain} className="rounded-full bg-[#F8FAF8] px-3 py-1 font-body text-[12px] font-bold text-[#26312B]">
+                    {labelize(domain.domain)} - {domain.completedSessions}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="font-body text-[13px] font-semibold text-[#5F6B63]">No domains practiced this week yet.</p>
+            )}
+          </div>
+
+          <div className="mt-3 rounded-[12px] bg-white p-3">
+            <p className="mb-2 flex items-center gap-2 font-body text-[13px] font-bold text-[#26312B]">
+              <Bell className="h-4 w-4 text-[#2F6F5E]" />
+              Nudge outcomes this week
+            </p>
+            <p className="font-body text-[13px] font-semibold leading-relaxed text-[#5F6B63]">
+              {pluralize(summary.weeklyInsights.nudgeOutcomes.sent, "sent", "sent")} - {pluralize(summary.weeklyInsights.nudgeOutcomes.seen, "seen", "seen")} - {pluralize(summary.weeklyInsights.nudgeOutcomes.dismissed, "dismissed", "dismissed")}
+            </p>
+            <p className="mt-1 font-body text-[13px] font-semibold leading-relaxed text-[#5F6B63]">
+              Completion after nudge: {summary.weeklyInsights.nudgeOutcomes.completionAfterNudgePct}%
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="mt-4 rounded-[14px] border border-[#D8DED6] bg-[#FBFCFB] p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -564,6 +699,28 @@ export function CaregiverBrainCoachPanel() {
         <p className="mt-2 font-body text-[13px] font-semibold leading-relaxed text-[#5F6B63]">
           Sends a Brain Coach reminder inside VYVA only.
         </p>
+        <div className="mt-3 rounded-[12px] border border-[#D8DED6] bg-[#F8FAF8] p-3" data-testid="brain-coach-nudge-outcome">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="font-body text-[13px] font-bold text-[#5F6B63]">Latest nudge</p>
+            <span className={`rounded-full px-3 py-1 font-body text-[12px] font-bold ${
+              summary?.latestNudge?.status === "dismissed"
+                ? "bg-[#FFF7ED] text-[#9A3412]"
+                : summary?.latestNudge?.status === "seen"
+                  ? "bg-[#ECFDF5] text-[#047857]"
+                  : "bg-white text-[#26312B]"
+            }`}>
+              {nudgeStatusLabel(summary)}
+            </span>
+          </div>
+          <p className="mt-2 font-body text-[13px] font-semibold leading-relaxed text-[#5F6B63]">
+            {nudgeOutcomeText(summary)}
+          </p>
+          {summary?.latestNudge?.sentAt && (
+            <p className="mt-1 font-body text-[12px] font-semibold text-[#7A857D]">
+              Sent {formatTime(summary.latestNudge.sentAt)}
+            </p>
+          )}
+        </div>
         <button
           type="button"
           disabled={nudgeDisabled}
@@ -574,9 +731,9 @@ export function CaregiverBrainCoachPanel() {
           {nudgeMutation.isPending ? "Sending nudge" : "Send in-app nudge"}
         </button>
 
-        {!summary?.todayPlan.planId && (
-          <p className="mt-3 rounded-[12px] bg-[#FFF7ED] p-3 font-body text-[13px] font-bold text-[#9A3412]">
-            Today's Brain Coach plan needs to exist before a caregiver nudge can be sent.
+        {canSendNudges && !summary?.todayPlan.planId && (
+          <p className="mt-3 rounded-[12px] bg-[#EFF6FF] p-3 font-body text-[13px] font-bold text-[#1E3A8A]">
+            VYVA will create today's Brain Coach plan before sending the in-app nudge.
           </p>
         )}
         {!canSendNudges && (
