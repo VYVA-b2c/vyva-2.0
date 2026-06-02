@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 import {
   Activity,
   AlertTriangle,
+  Calendar,
+  Car,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
@@ -12,12 +14,14 @@ import {
   ClipboardList,
   Heart,
   LucideIcon,
+  Mail,
   Phone,
   Plus,
   ScanLine,
   Share2,
   ShieldCheck,
   Stethoscope,
+  UserPlus,
   Users,
   Watch,
   Wind,
@@ -39,6 +43,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
+import { sanitizePhoneHref } from "@/lib/emergencyContacts";
 import { vitalsEvidenceFor, type VitalsSourceConfidence } from "../../shared/vitalsEvidence";
 
 type MetricType = "hr" | "rr" | "bp";
@@ -129,6 +134,117 @@ const DEVICE_ROWS = [
   { id: "bp-cuff", Icon: Activity, labelKey: "statusVitals.deviceRows.bloodPressureCuff", fallbackLabel: "Blood pressure cuff", model: "OmronConnect", connected: true },
   { id: "stethoscope", Icon: Stethoscope, labelKey: "statusVitals.deviceRows.digitalStethoscope", fallbackLabel: "Digital stethoscope", model: "Eko DUO", connected: false },
 ];
+
+type VitalsStatusServiceActionKind =
+  | "call_gp"
+  | "email_gp"
+  | "doctor_help"
+  | "add_doctor_contact"
+  | "schedule_appointment"
+  | "book_ride";
+
+type VitalsStatusServiceAction = {
+  kind: VitalsStatusServiceActionKind;
+  label: string;
+  href?: string;
+  to?: string;
+  state?: Record<string, unknown>;
+};
+
+type VitalsStatusServiceLabels = {
+  callGp: string;
+  callGpWithName: string;
+  emailGp: string;
+  doctorHelp: string;
+  addDoctor: string;
+  appointment: string;
+  ride: string;
+  appointmentPrefill: string;
+  ridePrefill: string;
+};
+
+export function vitalsStatusServiceActionsFor({
+  gpName,
+  gpPhone,
+  gpEmail,
+  context,
+  labels,
+}: {
+  gpName?: string | null;
+  gpPhone?: string | null;
+  gpEmail?: string | null;
+  context: string;
+  labels: VitalsStatusServiceLabels;
+}): VitalsStatusServiceAction[] {
+  const actions: VitalsStatusServiceAction[] = [];
+  const gpPhoneHref = sanitizePhoneHref(gpPhone);
+  const email = gpEmail?.trim() ?? "";
+  const displayName = gpName?.trim();
+  const safeContext = context.trim() || "VYVA vitals summary requested.";
+
+  if (gpPhoneHref) {
+    actions.push({
+      kind: "call_gp",
+      label: displayName ? labels.callGpWithName.replace("{{name}}", displayName) : labels.callGp,
+      href: gpPhoneHref,
+    });
+  }
+
+  if (email) {
+    actions.push({
+      kind: "email_gp",
+      label: labels.emailGp,
+      href: `mailto:${email}?subject=${encodeURIComponent("VYVA vitals summary")}&body=${encodeURIComponent(safeContext)}`,
+    });
+  }
+
+  if (!gpPhoneHref && !email) {
+    actions.push({
+      kind: "add_doctor_contact",
+      label: labels.addDoctor,
+      to: "/onboarding/profile/gp",
+    });
+  }
+
+  actions.push({
+    kind: "doctor_help",
+    label: labels.doctorHelp,
+    to: "/health/doctor",
+    state: {
+      autoStartVoice: true,
+      latestSymptomReport: safeContext,
+      source: "vitals_status",
+    },
+  });
+
+  actions.push({
+    kind: "schedule_appointment",
+    label: labels.appointment,
+    to: "/concierge",
+    state: {
+      conciergePrefill: {
+        kind: "appointment",
+        message: `${labels.appointmentPrefill}\n\nContext:\n${safeContext}`,
+        source: "vitals_safety",
+      },
+    },
+  });
+
+  actions.push({
+    kind: "book_ride",
+    label: labels.ride,
+    to: "/concierge",
+    state: {
+      conciergePrefill: {
+        kind: "ride",
+        message: `${labels.ridePrefill}\n\nContext:\n${safeContext}`,
+        source: "vitals_safety",
+      },
+    },
+  });
+
+  return actions;
+}
 
 type VitalsTrackerLanguage = "de" | "en" | "es" | "fr" | "it" | "pt";
 
@@ -604,24 +720,94 @@ const SignosScreen = () => {
     },
   ];
 
-  const shareStatus = async () => {
+  const statusSummaryText = useMemo(() => {
     const lines = (["hr", "rr", "bp"] as MetricType[]).map((key) => {
       const meta = METRIC_META[key];
       const value = summary?.[key]?.latest_value;
       return `${t(meta.labelKey, meta.fallbackLabel)}: ${value ? `${value} ${meta.unit}` : t("statusVitals.noReading", "no reading")}`;
     });
-    const text = `${t("statusVitals.shareTitle", "VYVA Status / Vitals")}\n${lines.join("\n")}\n${t("statusVitals.shareUpdated", "Updated")}: ${latestText}`;
+    return `${t("statusVitals.shareTitle", "VYVA Status / Vitals")}\n${lines.join("\n")}\n${t("statusVitals.shareUpdated", "Updated")}: ${latestText}`;
+  }, [latestText, summary, t]);
 
+  const statusServiceActions = useMemo(() => vitalsStatusServiceActionsFor({
+    gpName: profile?.gpName,
+    gpPhone: profile?.gpPhone,
+    gpEmail: profile?.gpEmail,
+    context: statusSummaryText,
+    labels: {
+      callGp: t("statusVitals.actions.callGp", "Call GP"),
+      callGpWithName: t("statusVitals.actions.callGpWithName", "Call {{name}}"),
+      emailGp: t("statusVitals.actions.emailGp", "Email GP"),
+      doctorHelp: t("statusVitals.actions.doctorHelp", "Doctor help"),
+      addDoctor: t("statusVitals.actions.addDoctor", "Add doctor"),
+      appointment: t("statusVitals.actions.appointment", "Book appointment"),
+      ride: t("statusVitals.actions.ride", "Book ride"),
+      appointmentPrefill: t("statusVitals.actions.appointmentPrefill", "Please help me schedule a doctor appointment based on my VYVA vitals. Ask me to confirm before booking."),
+      ridePrefill: t("statusVitals.actions.ridePrefill", "Please help me arrange safe transport based on my VYVA vitals. Ask me to confirm before booking."),
+    },
+  }), [profile?.gpEmail, profile?.gpName, profile?.gpPhone, statusSummaryText, t]);
+
+  const statusServiceIcons: Record<VitalsStatusServiceActionKind, LucideIcon> = {
+    call_gp: Phone,
+    email_gp: Mail,
+    doctor_help: Stethoscope,
+    add_doctor_contact: UserPlus,
+    schedule_appointment: Calendar,
+    book_ride: Car,
+  };
+
+  const statusServiceClass: Record<VitalsStatusServiceActionKind, string> = {
+    call_gp: "bg-[#6B21A8] text-white shadow-[0_10px_22px_rgba(107,33,168,0.18)]",
+    email_gp: "border border-[#DDD6FE] bg-white text-[#6B21A8]",
+    doctor_help: "border border-[#DDD6FE] bg-white text-[#6B21A8]",
+    add_doctor_contact: "border border-[#DDD6FE] bg-white text-[#6B21A8]",
+    schedule_appointment: "border border-[#BBF7D0] bg-[#ECFDF5] text-[#047857]",
+    book_ride: "border border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]",
+  };
+
+  const renderStatusServiceAction = (action: VitalsStatusServiceAction) => {
+    const Icon = statusServiceIcons[action.kind];
+    const className = `vyva-tap flex min-h-[54px] items-center justify-center gap-2 rounded-[17px] px-3 text-center font-body text-[14px] font-black leading-tight ${statusServiceClass[action.kind]}`;
+
+    if (action.href) {
+      return (
+        <a
+          key={action.kind}
+          href={action.href}
+          className={className}
+          data-testid={`button-status-${action.kind.replaceAll("_", "-")}`}
+        >
+          <Icon size={17} />
+          <span>{action.label}</span>
+        </a>
+      );
+    }
+
+    return (
+      <button
+        key={action.kind}
+        type="button"
+        onClick={() => action.to && navigate(action.to, { state: action.state })}
+        className={className}
+        data-testid={`button-status-${action.kind.replaceAll("_", "-")}`}
+      >
+        <Icon size={17} />
+        <span>{action.label}</span>
+      </button>
+    );
+  };
+
+  const shareStatus = async () => {
     if (navigator.share) {
       try {
-        await navigator.share({ title: t("statusVitals.shareTitle", "VYVA Status / Vitals"), text });
+        await navigator.share({ title: t("statusVitals.shareTitle", "VYVA Status / Vitals"), text: statusSummaryText });
         return;
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") return;
       }
     }
 
-    await navigator.clipboard.writeText(text);
+    await navigator.clipboard.writeText(statusSummaryText);
     toast({ description: t("statusVitals.copied", "Vitals summary copied.") });
   };
 
@@ -674,6 +860,11 @@ const SignosScreen = () => {
             userId={user.id}
             userConditions={personalisationData?.conditions ?? []}
             language={vitalsTrackerLanguage(appLanguage)}
+            country={profile?.country}
+            gpName={profile?.gpName}
+            gpPhone={profile?.gpPhone}
+            gpEmail={profile?.gpEmail}
+            caregiverContact={profile?.caregiverContact}
           />
         </div>
       )}
@@ -884,7 +1075,7 @@ const SignosScreen = () => {
             </p>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <button
             type="button"
             onClick={shareStatus}
@@ -894,15 +1085,7 @@ const SignosScreen = () => {
             <Users size={16} />
             {t("statusVitals.copySummary", "Copy")}
           </button>
-          <button
-            type="button"
-            onClick={() => navigate("/health/doctor")}
-            className="vyva-primary-action min-h-[52px] rounded-[16px] text-[14px]"
-            data-testid="button-contact-doctor"
-          >
-            <Phone size={16} />
-            {t("statusVitals.doctor", "Doctor")}
-          </button>
+          {statusServiceActions.map(renderStatusServiceAction)}
         </div>
       </section>
 

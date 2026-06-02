@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import CaregiverDashboardPage from "./CaregiverDashboardPage";
+import CaregiverDashboardPage, { caregiverAlertContext, caregiverAlertServiceActionKindsFor, caregiverAlertServiceActionsFor } from "./CaregiverDashboardPage";
 import { apiFetch } from "@/lib/queryClient";
 
 vi.mock("@/lib/queryClient", () => ({
@@ -43,6 +43,12 @@ const checkinPayload = {
   },
   caregiver_alert: null,
   message: "Daily check-in complete",
+};
+
+const profilePayload = {
+  gpName: "Dr Garcia",
+  gpPhone: "+34 612 345 678",
+  gpEmail: "gp@example.com",
 };
 
 const brainCoachPayload = {
@@ -175,11 +181,23 @@ function mockApi(options: { brainCoachPermissions?: typeof fullBrainCoachPermiss
       return new Response(JSON.stringify({ ...brainCoachPreviewPayload, permissions: brainCoachPermissions }), { status: 200, headers: { "Content-Type": "application/json" } });
     }
 
-    const payload = path.includes("/api/checkins/today")
+     const payload = path.includes("/api/checkins/today")
       ? checkinPayload
+      : path.includes("/api/profile")
+        ? profilePayload
       : caregiverPayload;
     return new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } });
   });
+}
+
+function LocationProbe() {
+  const location = useLocation();
+  return (
+    <div>
+      <div data-testid="current-route">{location.pathname}</div>
+      <pre data-testid="route-state">{JSON.stringify(location.state ?? {})}</pre>
+    </div>
+  );
 }
 
 function renderPage() {
@@ -189,7 +207,11 @@ function renderPage() {
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
-        <CaregiverDashboardPage />
+        <Routes>
+          <Route path="/" element={<CaregiverDashboardPage />} />
+          <Route path="/health/doctor" element={<LocationProbe />} />
+          <Route path="/concierge" element={<LocationProbe />} />
+        </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -255,6 +277,82 @@ describe("CaregiverDashboardPage", () => {
 
     expect(screen.getByRole("link", { name: /call \+1 555 0100/i })).toHaveAttribute("href", "tel:+15550100");
     expect(screen.getByRole("link", { name: /email nurse@example.com/i })).toHaveAttribute("href", "mailto:nurse@example.com");
+  });
+
+  it("maps urgent caregiver alerts to direct service actions", () => {
+    expect(caregiverAlertServiceActionKindsFor(caregiverPayload.alerts[0], "urgent_help")).toEqual([
+      "doctor_help",
+      "schedule_appointment",
+      "book_ride",
+    ]);
+    expect(caregiverAlertContext(caregiverPayload.alerts[0], "Urgent help")).toContain("VYVA caregiver alert");
+    expect(caregiverAlertContext(caregiverPayload.alerts[0], "Urgent help")).toContain("Symptom report");
+  });
+
+  it("adds saved GP call and email links to caregiver alert service actions", () => {
+    const actions = caregiverAlertServiceActionsFor(caregiverPayload.alerts[0], "urgent_help", profilePayload);
+
+    expect(actions.map((action) => action.kind)).toEqual([
+      "call_gp",
+      "email_gp",
+      "doctor_help",
+      "schedule_appointment",
+      "book_ride",
+    ]);
+    expect(actions[0]).toMatchObject({
+      label: "Call Dr Garcia",
+      href: "tel:+34612345678",
+    });
+    expect(actions[1]).toMatchObject({
+      label: "Email GP",
+      href: expect.stringContaining("mailto:gp@example.com"),
+    });
+    expect(actions[1].href).toContain("VYVA%20caregiver%20alert");
+  });
+
+  it("renders saved GP call and email actions inside caregiver alert fast services", async () => {
+    mockApi();
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("button-caregiver-alert-service-alert-1-call_gp")).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId("button-caregiver-alert-service-alert-1-call_gp")).toHaveAttribute("href", "tel:+34612345678");
+    expect(screen.getByTestId("button-caregiver-alert-service-alert-1-call_gp")).toHaveTextContent("Call Dr Garcia");
+    expect(screen.getByTestId("button-caregiver-alert-service-alert-1-email_gp")).toHaveAttribute("href", expect.stringContaining("mailto:gp@example.com"));
+    expect(screen.getByTestId("button-caregiver-alert-service-alert-1-email_gp")).toHaveTextContent("Email GP");
+  });
+
+  it("opens doctor support with caregiver alert context", async () => {
+    mockApi();
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("button-caregiver-alert-service-alert-1-doctor_help")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("button-caregiver-alert-service-alert-1-doctor_help"));
+
+    expect(screen.getByTestId("current-route")).toHaveTextContent("/health/doctor");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("caregiver_alert");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("Symptom report");
+  });
+
+  it("opens concierge with prepared appointment and ride requests", async () => {
+    mockApi();
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("button-caregiver-alert-service-alert-1-schedule_appointment")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("button-caregiver-alert-service-alert-1-schedule_appointment"));
+
+    expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("caregiver_alert");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("appointment");
   });
 
   it("builds a weekly caregiver digest from the existing alert feed", async () => {

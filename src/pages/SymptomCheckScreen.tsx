@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Activity, Calendar, Car, ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, Heart, ListChecks, Loader2, Mail, PhoneCall, RefreshCw, Send, ShoppingBasket, Stethoscope, Users, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -20,6 +20,11 @@ import { getSymptomRecommendationActionKinds, type SymptomRecommendationActionKi
 import type { TriageScanResult } from "../../shared/triageScans";
 
 type Step = "intro" | "chat" | "report";
+
+type SymptomCheckLocationState = {
+  initialClue?: string;
+  autoStartVoice?: boolean;
+} | null;
 
 interface TriageSummary {
   chiefComplaint: string;
@@ -153,7 +158,7 @@ type SavedTriageReport = {
 type ConciergePrefillKind = "ride" | "appointment" | "home_care_quote";
 
 type ReportAction = {
-  kind: SymptomRecommendationActionKind;
+  kind: SymptomRecommendationActionKind | "add_doctor_contact";
   label: string;
   ariaLabel: string;
   Icon: LucideIcon;
@@ -232,62 +237,262 @@ function writeSymptomCheckDraft(draft: Omit<SymptomCheckDraft, "version" | "upda
   }));
 }
 
-function AssessmentConfidenceTracker({ current }: { current: Step }) {
+export function AssessmentConfidenceTracker({
+  current,
+  variant = "full",
+}: {
+  current: Step;
+  variant?: "full" | "compact";
+}) {
   const { t } = useTranslation();
   const isReport = current === "report";
   const activeIndex = isReport ? 2 : current === "chat" ? 1 : 0;
-  const progress = isReport ? 100 : current === "chat" ? 66 : 33;
-  const stepLabel = t("health.symptomCheck.tracker.stepLabel", "Step {{current}} of {{total}}", { current: activeIndex + 1, total: 3 });
+  const filledSignals = isReport ? 5 : current === "chat" ? 4 : 2;
+  const confidenceLabel = isReport
+    ? t("health.symptomCheck.tracker.high", "High")
+    : current === "chat"
+      ? t("health.symptomCheck.tracker.medium", "Medium")
+      : t("health.symptomCheck.tracker.low", "Low");
+  const statusLabel = isReport
+    ? t("health.symptomCheck.tracker.ready", "Ready to guide")
+    : current === "chat"
+      ? t("health.symptomCheck.tracker.building", "Confidence improving")
+      : t("health.symptomCheck.tracker.starting", "Getting started");
+  const detailLabel = isReport
+    ? t("health.symptomCheck.tracker.prepared", "Next steps are ready")
+    : current === "chat"
+      ? t("health.symptomCheck.tracker.checking", "VYVA is checking symptoms and safety signs")
+      : t("health.symptomCheck.tracker.listening", "Tell VYVA what feels wrong");
   const milestones = [
-    { key: "listen", label: t("health.symptomCheck.tracker.listen", "Listen"), Icon: Stethoscope },
-    { key: "check", label: t("health.symptomCheck.tracker.check", "Check"), Icon: Activity },
+    { key: "listen", label: t("health.symptomCheck.tracker.listen", "Symptoms"), Icon: Stethoscope },
+    { key: "check", label: t("health.symptomCheck.tracker.check", "Safety check"), Icon: Activity },
     { key: "next", label: t("health.symptomCheck.tracker.nextStep", "Next step"), Icon: CheckCircle },
   ];
+  const confidenceValue = `${filledSignals}/5`;
+  const activeStageLabel = milestones[activeIndex]?.label ?? milestones[0].label;
 
-  return (
-    <div className="mx-[18px] rounded-[28px] border border-[#E8DED4] bg-white/95 p-4 shadow-[0_14px_32px_rgba(63,45,35,0.08)]">
-      <div className="flex items-center gap-3">
-        <span className="relative flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px] bg-vyva-purple text-white shadow-[0_10px_20px_rgba(107,33,168,0.20)]">
-          {isReport ? <CheckCircle size={27} /> : <Activity size={28} />}
-          {!isReport ? (
-            <span className="absolute -right-1 -top-1 h-4 w-4 rounded-full bg-[#34D399] ring-4 ring-white motion-safe:animate-pulse" />
-          ) : null}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-vyva-purple">
-            {t("health.symptomCheck.tracker.label", "Symptom check progress")}
-          </p>
-          <p className="font-body text-[19px] font-black leading-tight text-vyva-text-1">
-            {isReport
-              ? t("health.symptomCheck.tracker.ready", "Ready")
-              : stepLabel}
-          </p>
-          <p className="mt-1 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
-            {isReport
-              ? t("health.symptomCheck.tracker.prepared", "Clear next steps prepared")
-              : t("health.symptomCheck.tracker.checking", "VYVA is checking your answers")}
+  if (variant === "compact") {
+    return (
+      <section
+        className="mx-[18px] overflow-hidden rounded-[28px] border border-[#D8C7FF] bg-white shadow-[0_16px_36px_rgba(63,45,35,0.10)]"
+        data-testid="assessment-confidence-tracker"
+      >
+        <div className="bg-[linear-gradient(135deg,#FFFFFF_0%,#F7F1FF_58%,#FFF8EA_100%)] px-4 py-4">
+          <div className="flex items-center gap-3">
+            <div
+              className="relative flex h-[58px] w-[58px] flex-shrink-0 items-center justify-center rounded-[22px] bg-vyva-purple text-white shadow-[0_12px_24px_rgba(107,33,168,0.24)]"
+              aria-hidden="true"
+            >
+              <Activity size={25} className={!isReport ? "motion-safe:animate-pulse" : ""} />
+              {!isReport ? (
+                <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#34D399] ring-4 ring-white">
+                  <span className="h-2 w-2 rounded-full bg-white motion-safe:animate-pulse" />
+                </span>
+              ) : null}
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <p className="font-body text-[12px] font-black uppercase text-vyva-purple">
+                {t("health.symptomCheck.tracker.live", "Live assessment")}
+              </p>
+              <p className="mt-1 font-body text-[22px] font-black leading-tight text-vyva-text-1">
+                {statusLabel}
+              </p>
+              <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+                {detailLabel}
+              </p>
+            </div>
+
+            <div
+              className="flex min-h-[58px] min-w-[74px] flex-shrink-0 flex-col items-center justify-center rounded-[22px] border border-white bg-white px-2 text-center shadow-[0_8px_18px_rgba(63,45,35,0.07)]"
+              role="meter"
+              aria-label={t("health.symptomCheck.tracker.label", "Confidence level")}
+              aria-valuemin={1}
+              aria-valuemax={5}
+              aria-valuenow={filledSignals}
+              aria-valuetext={`${confidenceLabel} ${confidenceValue}`}
+            >
+              <span className="font-body text-[20px] font-black leading-none text-vyva-purple">
+                {confidenceValue}
+              </span>
+              <span className="mt-1 rounded-full bg-[#ECFDF5] px-2 py-1 font-body text-[10px] font-black uppercase text-[#047857]">
+                {confidenceLabel}
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-5 gap-2" aria-hidden="true">
+            {Array.from({ length: 5 }).map((_, index) => {
+              const isFilled = index < filledSignals;
+              const isCurrent = index === filledSignals - 1 && !isReport;
+
+              return (
+                <span
+                  key={index}
+                  className={`h-3 rounded-full transition-all duration-300 ${
+                    isFilled
+                      ? `bg-vyva-purple shadow-[0_7px_14px_rgba(107,33,168,0.18)] ${isCurrent ? "motion-safe:animate-pulse" : ""}`
+                      : "bg-[#E8DED4]"
+                  }`}
+                />
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="border-t border-[#EEE4DA] bg-[#FFFCF8] px-3 py-3">
+          <div className="grid grid-cols-3 gap-2" aria-label={t("health.symptomCheck.tracker.label", "Confidence level")} data-testid="assessment-confidence-signals">
+            {milestones.map(({ key, label, Icon }, index) => {
+              const isComplete = index < activeIndex;
+              const isActive = index === activeIndex;
+              const stateLabel = isComplete
+                ? t("health.symptomCheck.tracker.complete", "Done")
+                : isActive
+                  ? t("health.symptomCheck.tracker.current", "Now")
+                  : t("health.symptomCheck.tracker.waiting", "Next");
+              const tileClass = isActive
+                ? "border-vyva-purple bg-vyva-purple text-white shadow-[0_10px_22px_rgba(107,33,168,0.18)]"
+                : isComplete
+                  ? "border-[#BBF7D0] bg-[#ECFDF5] text-[#047857]"
+                  : "border-[#E8DED4] bg-white text-vyva-text-2";
+              const iconClass = isActive
+                ? `bg-white/18 text-white ${isReport ? "" : "motion-safe:animate-pulse"}`
+                : isComplete
+                  ? "bg-[#10B981] text-white"
+                  : "bg-[#F4EEE8] text-vyva-text-2";
+
+              return (
+                <div
+                  key={key}
+                  aria-current={isActive ? "step" : undefined}
+                  className={`min-h-[70px] rounded-[18px] border px-2 py-2 text-center transition-all ${tileClass}`}
+                >
+                  <span className={`mx-auto flex h-9 w-9 items-center justify-center rounded-[14px] ${iconClass}`}>
+                    <Icon size={17} />
+                  </span>
+                  <span className="mt-1 block font-body text-[11px] font-black leading-tight">
+                    {label}
+                  </span>
+                  <span className="mt-0.5 block font-body text-[10px] font-black uppercase opacity-75">
+                    {stateLabel}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-center font-body text-[12px] font-black text-vyva-purple">
+            {activeStageLabel}
           </p>
         </div>
+      </section>
+    );
+  }
+
+  return (
+    <div
+      className="mx-[18px] rounded-[30px] border border-[#E8DED4] bg-[linear-gradient(135deg,#FFFFFF_0%,#F6EEFF_48%,#FFF7E8_100%)] p-4 shadow-[0_16px_34px_rgba(63,45,35,0.10)]"
+      data-testid="assessment-confidence-tracker"
+    >
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <div
-          className="flex h-[58px] w-[58px] flex-shrink-0 items-center justify-center rounded-full p-[5px]"
-          style={{ background: `conic-gradient(hsl(var(--vyva-purple)) ${progress}%, #EFE7DE 0)` }}
-          aria-label={t("health.symptomCheck.tracker.label", "Symptom check progress")}
+          className="relative flex min-h-[102px] flex-shrink-0 items-center gap-3 rounded-[26px] border border-white/80 bg-white px-4 py-3 shadow-[0_12px_26px_rgba(107,33,168,0.14)] sm:w-[188px] sm:flex-col sm:items-start sm:justify-center"
+          role="meter"
+          aria-label={t("health.symptomCheck.tracker.label", "Confidence level")}
+          aria-valuemin={1}
+          aria-valuemax={5}
+          aria-valuenow={filledSignals}
+          aria-valuetext={`${confidenceLabel} ${filledSignals}/5`}
         >
-          <span className="flex h-full w-full items-center justify-center rounded-full bg-white font-body text-[15px] font-black text-vyva-purple">
-            {activeIndex + 1}/3
+          <span className="flex h-[58px] w-[58px] flex-shrink-0 items-center justify-center rounded-[20px] bg-vyva-purple text-white shadow-[0_12px_22px_rgba(107,33,168,0.24)]">
+            <Activity size={28} className={!isReport ? "motion-safe:animate-pulse" : ""} />
           </span>
+          <span className="min-w-0 font-body leading-tight">
+            <span className="block text-[11px] font-black uppercase tracking-[0.12em] text-vyva-text-3">
+              {t("health.symptomCheck.tracker.label", "Confidence level")}
+            </span>
+            <strong className="mt-1 block text-[24px] font-black text-vyva-purple">{confidenceLabel}</strong>
+            <span className="mt-2 flex gap-1" aria-hidden="true" data-testid="assessment-confidence-signals">
+              {Array.from({ length: 5 }).map((_, index) => (
+                <span
+                  key={index}
+                  className={`h-3 w-3 rounded-full ${
+                    index < filledSignals
+                      ? "bg-vyva-purple"
+                      : "bg-[#E8DED4]"
+                  }`}
+                />
+              ))}
+            </span>
+          </span>
+          <span className="sr-only">
+            {t("health.symptomCheck.tracker.label", "Confidence level")}:
+            {" "}
+            {filledSignals}/5
+            {" "}
+            {confidenceLabel}
+          </span>
+          {!isReport ? (
+            <span className="absolute right-3 top-3 flex h-4 w-4 items-center justify-center rounded-full bg-[#34D399] ring-4 ring-white">
+              <span className="h-2 w-2 rounded-full bg-white motion-safe:animate-pulse" />
+            </span>
+          ) : null}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+                {isReport
+                  ? t("health.symptomCheck.tracker.complete", "Done")
+                  : t("health.symptomCheck.tracker.live", "Live")}
+              </p>
+              <p className="mt-1 font-body text-[22px] font-black leading-tight text-vyva-text-1">
+                {statusLabel}
+              </p>
+            </div>
+            <span className="rounded-full bg-white px-3 py-1.5 font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#047857] shadow-[0_4px_12px_rgba(63,45,35,0.06)]">
+              {confidenceLabel}
+            </span>
+          </div>
+          <p className="mt-2 font-body text-[15px] font-bold leading-snug text-vyva-text-2 sm:text-[16px]">
+            {detailLabel}
+          </p>
+          <div className="mt-4 rounded-[22px] border border-white/80 bg-white/82 px-4 py-3 shadow-[0_8px_18px_rgba(63,45,35,0.05)]">
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-text-3">
+                {t("health.symptomCheck.tracker.live", "Live")}
+              </span>
+              <span className="flex gap-2" aria-hidden="true">
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <span
+                    key={index}
+                    className={`h-4 w-4 rounded-full transition-all duration-300 ${
+                      index < filledSignals
+                        ? "bg-vyva-purple shadow-[0_6px_14px_rgba(107,33,168,0.22)]"
+                        : "bg-[#E8DED4]"
+                    }`}
+                  />
+                ))}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-2">
+      <div className="mt-4 grid grid-cols-3 gap-2" aria-label={t("health.symptomCheck.tracker.label", "Confidence level")}>
         {milestones.map(({ key, label, Icon }, index) => {
           const isComplete = index < activeIndex;
           const isActive = index === activeIndex;
+          const stateLabel = isComplete
+            ? t("health.symptomCheck.tracker.complete", "Done")
+            : isActive
+              ? t("health.symptomCheck.tracker.current", "Now")
+              : t("health.symptomCheck.tracker.waiting", "Next");
           const tileClass = isActive
-            ? "border-vyva-purple bg-[#F5F3FF] text-vyva-purple shadow-[0_8px_18px_rgba(107,33,168,0.12)]"
+            ? "border-vyva-purple bg-white text-vyva-purple shadow-[0_10px_20px_rgba(107,33,168,0.14)]"
             : isComplete
               ? "border-[#BBF7D0] bg-[#ECFDF5] text-[#047857]"
-              : "border-[#E8DED4] bg-[#FFFCF8] text-vyva-text-2";
+              : "border-[#E8DED4] bg-white/70 text-vyva-text-2";
           const iconClass = isActive
             ? `bg-vyva-purple text-white ${isReport ? "" : "motion-safe:animate-pulse"}`
             : isComplete
@@ -298,13 +503,16 @@ function AssessmentConfidenceTracker({ current }: { current: Step }) {
             <div
               key={key}
               aria-current={isActive ? "step" : undefined}
-              className={`min-h-[72px] rounded-[18px] border px-2 py-2 text-center transition-all ${tileClass}`}
+              className={`min-h-[82px] rounded-[20px] border px-2 py-2 text-center transition-all ${tileClass}`}
             >
               <span className={`mx-auto flex h-9 w-9 items-center justify-center rounded-[14px] ${iconClass}`}>
                 <Icon size={18} />
               </span>
               <span className="mt-1 block font-body text-[12px] font-black leading-tight">
                 {label}
+              </span>
+              <span className="mt-0.5 block font-body text-[10px] font-black uppercase tracking-[0.08em] opacity-70">
+                {stateLabel}
               </span>
             </div>
           );
@@ -609,7 +817,7 @@ function reportText(summary: TriageSummary) {
   ].join(" ").toLowerCase();
 }
 
-function ReportScreen({
+export function ReportScreen({
   summary,
   bpm,
   respiratoryRate,
@@ -893,10 +1101,10 @@ function ReportScreen({
         ? "health.symptomCheck.report.actions.appointmentPrefill"
         : "health.symptomCheck.report.actions.quotePrefill";
     const fallback = kind === "ride"
-      ? "Please help me book a safe ride for this health recommendation: {{recommendation}}. Ask me to confirm before booking."
+      ? "Please help me book a safe ride for this health recommendation: {{recommendation}}. Report: {{report}}. Ask me to confirm before booking."
       : kind === "appointment"
-        ? "Please help me schedule care for this health recommendation: {{recommendation}}. Ask me to confirm before booking."
-        : "Please help me request a quote for someone to stay with me or support me at home: {{recommendation}}. Ask me to confirm before requesting anything.";
+        ? "Please help me schedule care for this health recommendation: {{recommendation}}. Report: {{report}}. Ask me to confirm before booking."
+        : "Please help me request a quote for someone to stay with me or support me at home: {{recommendation}}. Report: {{report}}. Ask me to confirm before requesting anything.";
     return t(key, fallback, { recommendation, report: doctorNote });
   };
 
@@ -929,6 +1137,9 @@ function ReportScreen({
   };
 
   const reportActionLabels: Record<SymptomRecommendationActionKind, string> = {
+    call_emergency: emergencyContact?.telHref
+      ? t("health.symptomCheck.report.callEmergencyNumber", "Call {{number}}", { number: emergencyContact.label })
+      : t("health.symptomCheck.report.contactEmergencyServices", "Contact emergency services"),
     call_gp: t("health.symptomCheck.report.actions.callGp", "Call GP"),
     email_gp: t("health.symptomCheck.report.actions.emailGp", "Email GP"),
     doctor_help: t("health.symptomCheck.report.actions.doctorHelp", "Doctor help"),
@@ -939,6 +1150,7 @@ function ReportScreen({
   };
 
   const reportActionIcons: Record<SymptomRecommendationActionKind, LucideIcon> = {
+    call_emergency: PhoneCall,
     call_gp: PhoneCall,
     email_gp: Mail,
     doctor_help: Stethoscope,
@@ -948,29 +1160,46 @@ function ReportScreen({
     request_quote: ClipboardList,
   };
 
-  const actionsForRecommendation = (recommendation: string): ReportAction[] => getSymptomRecommendationActionKinds(recommendation, {
-    hasGpPhone: Boolean(gpPhone),
-    hasGpEmail: Boolean(gpEmail),
-  }).map((kind) => {
-    const label = reportActionLabels[kind];
-    const base = {
-      kind,
-      label,
-      ariaLabel: t("health.symptomCheck.report.actions.aria", "{{action}} for: {{recommendation}}", {
-        action: label,
-        recommendation,
-      }),
-      Icon: reportActionIcons[kind],
-    };
+  const actionsForRecommendation = (recommendation: string): ReportAction[] => {
+    const actions = getSymptomRecommendationActionKinds(recommendation, {
+      hasEmergencyContact: Boolean(emergencyContact?.telHref),
+      hasGpPhone: Boolean(gpPhone),
+      hasGpEmail: Boolean(gpEmail),
+    }).map((kind): ReportAction => {
+      const label = reportActionLabels[kind];
+      const base = {
+        kind,
+        label,
+        ariaLabel: t("health.symptomCheck.report.actions.aria", "{{action}} for: {{recommendation}}", {
+          action: label,
+          recommendation,
+        }),
+        Icon: reportActionIcons[kind],
+      };
 
-    if (kind === "call_gp") return { ...base, href: telHref };
-    if (kind === "email_gp") return { ...base, href: mailtoHref };
-    if (kind === "doctor_help") return { ...base, onClick: openDoctorWithContext };
-    if (kind === "book_ride") return { ...base, onClick: () => openConciergePrefill("ride", recommendation) };
-    if (kind === "schedule_appointment") return { ...base, onClick: () => openConciergePrefill("appointment", recommendation) };
-    if (kind === "online_order") return { ...base, onClick: () => openHydrationOrder(recommendation) };
-    return { ...base, onClick: () => openConciergePrefill("home_care_quote", recommendation) };
-  }).filter((action) => action.href || action.onClick);
+      if (kind === "call_emergency") return { ...base, href: emergencyContact?.telHref };
+      if (kind === "call_gp") return { ...base, href: telHref };
+      if (kind === "email_gp") return { ...base, href: mailtoHref };
+      if (kind === "doctor_help") return { ...base, onClick: openDoctorWithContext };
+      if (kind === "book_ride") return { ...base, onClick: () => openConciergePrefill("ride", recommendation) };
+      if (kind === "schedule_appointment") return { ...base, onClick: () => openConciergePrefill("appointment", recommendation) };
+      if (kind === "online_order") return { ...base, onClick: () => openHydrationOrder(recommendation) };
+      return { ...base, onClick: () => openConciergePrefill("home_care_quote", recommendation) };
+    }).filter((action) => action.href || action.onClick);
+
+    const hasDoctorAction = actions.some((action) => action.kind === "doctor_help" || action.kind === "call_gp" || action.kind === "email_gp");
+    if (hasDoctorAction && !gpPhone && !gpEmail) {
+      actions.push({
+        kind: "add_doctor_contact",
+        label: t("health.symptomCheck.report.addDoctorContact", "Add doctor contact"),
+        ariaLabel: t("health.symptomCheck.report.addDoctorContact", "Add doctor contact"),
+        Icon: Users,
+        onClick: openDoctorContactSetup,
+      });
+    }
+
+    return actions;
+  };
   const allReasons = uniqueLines([
     ...(summary.triageReasons ?? []),
     ...(summary.profileConsiderations ?? []),
@@ -978,7 +1207,8 @@ function ReportScreen({
     ...(summary.scanNotes ?? []),
   ]);
   const visibleReasons = allReasons.slice(0, 2);
-  const visibleRecommendations = reportRecommendations.slice(0, 3);
+  const visibleRecommendations = reportRecommendations.slice(0, 4);
+  const nextStepActions = nextStepDisplayText ? actionsForRecommendation(nextStepDisplayText) : [];
   const visibleWatchSigns = uniqueLines(summary.watchSigns ?? []).slice(0, 2);
   const contextNotes = uniqueLines([...(summary.profileConsiderations ?? []), ...(summary.vitalsNotes ?? []), ...(summary.scanNotes ?? [])]);
   const vitalsSummaryItems = uniqueLines([
@@ -1014,11 +1244,25 @@ function ReportScreen({
           testId: "button-report-vitals",
         }
       : {
-          label: t("health.symptomCheck.report.callDoctor", "Talk to doctor"),
-          Icon: Stethoscope,
-          onClick: openDoctorWithContext,
+          label: telHref
+            ? t("health.symptomCheck.report.actions.callGp", "Call GP")
+            : mailtoHref
+              ? t("health.symptomCheck.report.actions.emailGp", "Email GP")
+              : t("health.symptomCheck.report.callDoctor", "Talk to doctor"),
+          Icon: telHref ? PhoneCall : mailtoHref ? Mail : Stethoscope,
+          onClick: () => {
+            if (telHref) {
+              window.location.href = telHref;
+              return;
+            }
+            if (mailtoHref) {
+              window.location.href = mailtoHref;
+              return;
+            }
+            openDoctorWithContext();
+          },
           className: "bg-[#6B21A8] text-white shadow-[0_12px_26px_rgba(107,33,168,0.20)]",
-          testId: "button-report-doctor",
+          testId: telHref ? "button-report-call-gp" : mailtoHref ? "button-report-email-gp" : "button-report-doctor",
         };
 
   const handleRefineVital = async (config: RefinementVitalConfig, rawValue: string) => {
@@ -1103,6 +1347,41 @@ function ReportScreen({
           <span className="sr-only">{t("health.symptomCheck.report.findingLabel", "Finding")}: </span>
           {answerFinding}
         </p>
+        {nextStepActions.length ? (
+          <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="report-next-step-actions">
+            {nextStepActions.map((action, index) => {
+              const Icon = action.Icon;
+              const className = "vyva-tap inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[16px] bg-white px-4 py-3 text-center font-body text-[15px] font-black leading-tight text-vyva-purple shadow-[0_10px_22px_rgba(31,15,54,0.14)]";
+              if (action.href) {
+                return (
+                  <a
+                    key={`${action.kind}-${index}`}
+                    href={action.href}
+                    aria-label={action.ariaLabel}
+                    data-testid={`button-report-next-step-action-${index}-${action.kind}`}
+                    className={className}
+                  >
+                    <Icon size={19} />
+                    <span>{action.label}</span>
+                  </a>
+                );
+              }
+              return (
+                <button
+                  key={`${action.kind}-${index}`}
+                  type="button"
+                  onClick={action.onClick}
+                  aria-label={action.ariaLabel}
+                  data-testid={`button-report-next-step-action-${index}-${action.kind}`}
+                  className={className}
+                >
+                  <Icon size={19} />
+                  <span>{action.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
 
         <div className="mt-4 flex flex-wrap gap-2">
           {bpm != null ? (
@@ -1710,6 +1989,9 @@ export default function SymptomCheckScreen() {
   const { language } = useLanguage();
   const { isLoading: profileLoading } = useProfile();
   const navigate = useNavigate();
+  const location = useLocation();
+  const incomingState = location.state as SymptomCheckLocationState;
+  const incomingInitialClue = typeof incomingState?.initialClue === "string" ? incomingState.initialClue.trim() : "";
   const [restoredDraft] = useState(() => readSymptomCheckDraft());
   const { data: triageContext } = useQuery<TriageContextResponse>({
     queryKey: ["/api/triage/context"],
@@ -1721,7 +2003,7 @@ export default function SymptomCheckScreen() {
     retry: false,
     staleTime: 2 * 60 * 1000,
   });
-  const [step, setStep] = useState<Step>(() => restoredDraft?.step ?? "intro");
+  const [step, setStep] = useState<Step>(() => restoredDraft?.step ?? (incomingInitialClue ? "chat" : "intro"));
   const { data: careTeamData } = useQuery<{ members: CareTeamMember[] }>({
     queryKey: ["/api/onboarding/careteam"],
     enabled: step === "report",
@@ -1736,9 +2018,9 @@ export default function SymptomCheckScreen() {
   });
   const [bpm, setBpm] = useState<number | null>(() => restoredDraft?.bpm ?? null);
   const [respiratoryRate, setRespiratoryRate] = useState<number | null>(() => restoredDraft?.respiratoryRate ?? null);
-  const [chatStartTime, setChatStartTime] = useState<number | null>(() => restoredDraft?.chatStartTime ?? null);
-  const [initialClue, setInitialClue] = useState(() => restoredDraft?.initialClue ?? "");
-  const [autoStartVoice, setAutoStartVoice] = useState(false);
+  const [chatStartTime, setChatStartTime] = useState<number | null>(() => restoredDraft?.chatStartTime ?? (incomingInitialClue ? Date.now() : null));
+  const [initialClue, setInitialClue] = useState(() => restoredDraft?.initialClue ?? incomingInitialClue);
+  const [autoStartVoice, setAutoStartVoice] = useState(() => Boolean(!restoredDraft && incomingState?.autoStartVoice));
   const [summary, setSummary] = useState<TriageSummary | null>(() => restoredDraft?.summary ?? null);
   const [reportSaveState, setReportSaveState] = useState<ReportSaveState>(() => restoredDraft?.reportSaveState ?? "idle");
   const [reportId, setReportId] = useState<string | null>(() => restoredDraft?.reportId ?? null);
@@ -2032,7 +2314,13 @@ export default function SymptomCheckScreen() {
         />
       </div>
 
-      {step !== "intro" && (
+      {step === "chat" && (
+        <div className="flex-shrink-0 pb-3">
+          <AssessmentConfidenceTracker current={step} variant="compact" />
+        </div>
+      )}
+
+      {step === "report" && (
         <div className="flex-shrink-0 pb-3">
           <AssessmentConfidenceTracker current={step} />
         </div>
@@ -2083,6 +2371,7 @@ export default function SymptomCheckScreen() {
             resumePendingRequest={resumePendingRequest}
             language={language}
             languageReady={!profileLoading}
+            showProgressCard={false}
             onDraftChange={handleChatDraftChange}
             onVitalsScanned={(nextBpm, nextRespiratoryRate) => {
               if (nextBpm != null) setBpm(nextBpm);

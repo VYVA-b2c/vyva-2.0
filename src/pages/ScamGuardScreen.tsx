@@ -1,10 +1,13 @@
 import { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   ShieldCheck,
   Headset,
   Camera,
   Phone,
+  ClipboardList,
+  Users,
   X,
   Clock,
   Trash2,
@@ -26,6 +29,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useVyvaVoice, useTtsReadout } from "@/hooks/useVyvaVoice";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
+import { useProfile } from "@/contexts/ProfileContext";
+import { sanitizePhoneHref } from "@/lib/emergencyContacts";
 
 type ScamCheck = {
   id: string;
@@ -45,6 +50,21 @@ type ScamCheckResult = {
   isFallback?: boolean;
 };
 
+export type ScamGuardActionContext = {
+  riskLevel: string;
+  resultTitle: string;
+  explanation: string;
+  steps: string[];
+};
+
+type ScamGuardConciergeState = {
+  conciergePrefill: {
+    kind: "task";
+    source: "scam_guard";
+    message: string;
+  };
+};
+
 const RISK_COLORS: Record<string, { bg: string; text: string; border: string; icon: typeof CheckCircle }> = {
   safe:       { bg: "#DCFCE7", text: "#15803D", border: "#A7F3D0", icon: CheckCircle  },
   suspicious: { bg: "#FEF9C3", text: "#A16207", border: "#FDE68A", icon: AlertTriangle },
@@ -60,6 +80,49 @@ function riskLabelKey(level: string): string {
   if (n === "scam") return "scamGuard.riskLabel.scam";
   if (n === "suspicious") return "scamGuard.riskLabel.suspicious";
   return "scamGuard.riskLabel.safe";
+}
+
+export function scamGuardContextSummary(context: ScamGuardActionContext) {
+  const steps = context.steps.filter(Boolean).slice(0, 4);
+  return [
+    `Risk: ${context.riskLevel || "unknown"}`,
+    `Result: ${context.resultTitle || "Scam check"}`,
+    context.explanation ? `Assessment: ${context.explanation}` : "",
+    steps.length ? `Recommended steps: ${steps.join(" | ")}` : "",
+  ].filter(Boolean).join("\n");
+}
+
+export function scamGuardConciergeState(context: ScamGuardActionContext, language = "en"): ScamGuardConciergeState {
+  const isSpanish = language.toLowerCase().startsWith("es");
+  const intro = isSpanish
+    ? "Ayudame a gestionar este mensaje, llamada o documento sospechoso de forma segura. No envies nada ni contactes con nadie sin confirmarmelo primero."
+    : "Please help me handle this suspicious message, call, or document safely. Do not send anything or contact anyone without confirming with me first.";
+
+  return {
+    conciergePrefill: {
+      kind: "task",
+      source: "scam_guard",
+      message: `${intro}\n\n${scamGuardContextSummary(context)}`,
+    },
+  };
+}
+
+function scamCheckToActionContext(check: ScamCheck): ScamGuardActionContext {
+  return {
+    riskLevel: check.risk_level,
+    resultTitle: check.result_title,
+    explanation: check.explanation,
+    steps: check.steps,
+  };
+}
+
+function resultToActionContext(result: ScamCheckResult): ScamGuardActionContext {
+  return {
+    riskLevel: result.riskLevel,
+    resultTitle: result.resultTitle,
+    explanation: result.explanation,
+    steps: result.steps,
+  };
 }
 
 function compressImage(file: File): Promise<string> {
@@ -115,6 +178,93 @@ async function processFile(file: File): Promise<string> {
 
 const SCAM_CALL_SYSTEM_PROMPT =
   "Hi, I'm VYVA — your scam protection companion. I'm now active and ready to help you handle this suspicious call safely. You can ask me: 'Is this a scam?', 'What should I say?', 'Should I hang up?', or 'What information should I never share?'. I'll guide you step by step. You are safe — just stay calm and ask me anything.";
+
+type ScamGuardActionButtonsProps = {
+  context: ScamGuardActionContext;
+  trustedContactName?: string;
+  trustedContactHref?: string;
+  isCallActive?: boolean;
+  onOpenConcierge: (context: ScamGuardActionContext) => void;
+  onStartGuidance: () => void;
+  onAddTrustedContact: () => void;
+  compact?: boolean;
+  testIdSuffix: string;
+};
+
+export function ScamGuardActionButtons({
+  context,
+  trustedContactName,
+  trustedContactHref,
+  isCallActive,
+  onOpenConcierge,
+  onStartGuidance,
+  onAddTrustedContact,
+  compact = false,
+  testIdSuffix,
+}: ScamGuardActionButtonsProps) {
+  const { t } = useTranslation();
+  const contactName = trustedContactName?.trim() || t("scamGuard.actions.trustedFallback", "trusted person");
+  const buttonClass = compact
+    ? "vyva-tap inline-flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded-[12px] px-3 py-2 font-body text-[12px] font-black leading-tight transition active:scale-[0.98]"
+    : "vyva-tap inline-flex min-h-[54px] items-center justify-center gap-2 rounded-[16px] px-4 py-3 font-body text-[15px] font-black leading-tight transition active:scale-[0.98]";
+
+  return (
+    <div
+      data-testid={`scam-service-actions-${testIdSuffix}`}
+      className={compact ? "mt-3 border-t border-[#EDE5DB] pt-3" : "mt-4 rounded-[18px] bg-white/75 p-3"}
+    >
+      <p className="mb-2 font-body text-[11px] font-black uppercase tracking-[0.1em] text-vyva-purple">
+        {t("scamGuard.actions.title", "Quick safe actions")}
+      </p>
+      <div className={compact ? "flex flex-wrap gap-2" : "grid grid-cols-1 gap-2 sm:grid-cols-3"}>
+        {trustedContactHref ? (
+          <a
+            href={trustedContactHref}
+            data-testid={`button-scam-call-trusted-${testIdSuffix}`}
+            aria-label={t("scamGuard.actions.callTrustedAria", "Call {{name}} about this scam check", { name: contactName })}
+            className={`${buttonClass} bg-[#F5F3FF] text-vyva-purple`}
+          >
+            <Phone size={compact ? 15 : 18} />
+            <span>{t("scamGuard.actions.callTrusted", "Call {{name}}", { name: contactName })}</span>
+          </a>
+        ) : (
+          <button
+            type="button"
+            onClick={onAddTrustedContact}
+            data-testid={`button-scam-add-trusted-${testIdSuffix}`}
+            className={`${buttonClass} bg-[#F5F3FF] text-vyva-purple`}
+          >
+            <Users size={compact ? 15 : 18} />
+            <span>{t("scamGuard.actions.addTrusted", "Add trusted person")}</span>
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => onOpenConcierge(context)}
+          data-testid={`button-scam-safe-help-${testIdSuffix}`}
+          aria-label={t("scamGuard.actions.safeHelpAria", "Open VYVA concierge with this scam check")}
+          className={`${buttonClass} bg-vyva-purple text-white shadow-[0_10px_22px_rgba(107,33,168,0.18)]`}
+        >
+          <ClipboardList size={compact ? 15 : 18} />
+          <span>{t("scamGuard.actions.safeHelp", "Get safe help")}</span>
+        </button>
+        <button
+          type="button"
+          onClick={onStartGuidance}
+          data-testid={`button-scam-call-guidance-${testIdSuffix}`}
+          className={`${buttonClass} bg-[#ECFDF5] text-[#047857]`}
+        >
+          <Phone size={compact ? 15 : 18} />
+          <span>
+            {isCallActive
+              ? t("scamGuard.actions.pauseGuidance", "Pause guidance")
+              : t("scamGuard.actions.callGuidance", "Call guidance")}
+          </span>
+        </button>
+      </div>
+    </div>
+  );
+}
 
 const FullScreenModal = ({
   check,
@@ -237,6 +387,8 @@ const FullScreenModal = ({
 const ScamGuardScreen = () => {
   const { t, i18n } = useTranslation();
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const { profile } = useProfile();
 
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<ScamCheckResult | null>(null);
@@ -261,6 +413,8 @@ const ScamGuardScreen = () => {
   const scamRiskDetail = scamPayloadValue("risk_detail");
 
   const { speakText, stopTts, isTtsSpeaking } = useTtsReadout();
+  const trustedContactName = profile?.caregiverName?.trim() || "";
+  const trustedContactHref = sanitizePhoneHref(profile?.caregiverContact);
 
   useEffect(() => {
     if (!result) return;
@@ -340,6 +494,14 @@ const ScamGuardScreen = () => {
         SCAM_CALL_SYSTEM_PROMPT
       );
     }
+  };
+
+  const openScamConcierge = (context: ScamGuardActionContext) => {
+    navigate("/concierge", { state: scamGuardConciergeState(context, i18n.language) });
+  };
+
+  const openTrustedContactSetup = () => {
+    navigate("/onboarding/profile/care-team");
   };
 
   const cardStyle = {
@@ -645,6 +807,16 @@ const ScamGuardScreen = () => {
                       </ol>
                     </>
                   )}
+                  <ScamGuardActionButtons
+                    context={resultToActionContext(result)}
+                    trustedContactName={trustedContactName}
+                    trustedContactHref={trustedContactHref}
+                    isCallActive={isCallActive}
+                    onOpenConcierge={openScamConcierge}
+                    onStartGuidance={handleCallCompanion}
+                    onAddTrustedContact={openTrustedContactSetup}
+                    testIdSuffix="current"
+                  />
                 </div>
               );
             })()}
@@ -798,6 +970,17 @@ const ScamGuardScreen = () => {
                               </ol>
                             </>
                           )}
+                          <ScamGuardActionButtons
+                            context={scamCheckToActionContext(check)}
+                            trustedContactName={trustedContactName}
+                            trustedContactHref={trustedContactHref}
+                            isCallActive={isCallActive}
+                            onOpenConcierge={openScamConcierge}
+                            onStartGuidance={handleCallCompanion}
+                            onAddTrustedContact={openTrustedContactSetup}
+                            compact
+                            testIdSuffix={check.id}
+                          />
                           <div className="flex gap-[8px] pt-[2px]">
                             {check.image_data && (
                               <button

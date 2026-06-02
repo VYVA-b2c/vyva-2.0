@@ -1,11 +1,20 @@
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, BarChart2, Copy, AlertCircle, RefreshCw, ClipboardCheck, Flame, ShieldCheck, TriangleAlert, Sparkles, Clock3, Target, LockKeyhole, LogIn } from "lucide-react";
+import { ArrowLeft, BarChart2, Copy, AlertCircle, RefreshCw, ClipboardCheck, Flame, ShieldCheck, TriangleAlert, Sparkles, Clock3, Target, LockKeyhole, LogIn, ShoppingCart, PhoneCall, Mail, Stethoscope, Calendar, Car, type LucideIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { ApiError } from "@/lib/queryClient";
+import { useProfile } from "@/contexts/ProfileContext";
+import { sanitizePhoneHref } from "@/lib/emergencyContacts";
+import {
+  medicationDoctorMailto,
+  medicationListSummary,
+  medicationRefillShoppingState,
+  medicationReviewAppointmentState,
+  medicationReviewRideState,
+} from "@/lib/medicationServiceActions";
 
 type DailyStatus = "taken" | "missed" | "none";
 
@@ -24,6 +33,17 @@ type AdherenceReport = {
   monthPct: number;
   perMedication: MedAdherence[];
   sevenDayDates: string[];
+};
+
+type AdherenceServiceAction = {
+  id: "refill" | "call-gp" | "email-gp" | "doctor-help" | "appointment" | "ride";
+  icon: LucideIcon;
+  label: string;
+  sub: string;
+  color: string;
+  bg: string;
+  href?: string;
+  onClick?: () => void;
 };
 
 function AdherenceDot({ status, title }: { status: DailyStatus; title: string }) {
@@ -105,9 +125,10 @@ function normalizeVoiceFocus(value: string) {
 }
 
 const AdherenceReportScreen = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { profile } = useProfile();
 
   const { data, isLoading, isError, refetch, error } = useQuery<AdherenceReport, ApiError>({
     queryKey: ["/api/meds/adherence-report"],
@@ -137,6 +158,10 @@ const AdherenceReportScreen = () => {
   const onTrackCount = medications.length - medicationsNeedingAttention.length;
   const bestStreak = medications.reduce((best, med) => Math.max(best, med.streak), 0);
   const attentionNames = medicationsNeedingAttention.slice(0, 3).map((med) => med.name);
+  const medicationSummary = medicationListSummary(
+    medications.map((med) => med.name),
+    t("meds.medicationSummaryFallback", "my medications"),
+  );
   const medicationInsights = medications.map((med) => {
     const missedCount = med.dailyStatus.filter((status) => status === "missed").length;
     const adherencePct = med.scheduled > 0 ? Math.round((med.taken / med.scheduled) * 100) : 0;
@@ -260,6 +285,108 @@ const AdherenceReportScreen = () => {
             }),
           };
   const SummaryIcon = summaryTone.icon;
+  const adherenceDoctorNote = [
+    t("meds.adherenceService.doctorNoteTitle", "VYVA medication adherence report"),
+    `${t("meds.adherence.thisWeek")}: ${data?.weekPct ?? 0}%`,
+    `${t("meds.adherence.last30Days")}: ${data?.monthPct ?? 0}%`,
+    `${t("meds.adherence.todayTitle")}: ${
+      todayStillDueCount > 0
+        ? t("meds.adherence.todayNeedsAttention", { count: todayStillDueCount })
+        : t("meds.adherence.todayAllCovered")
+    }`,
+    `${t("meds.adherence.attentionTitle")}: ${
+      attentionNames.length > 0
+        ? t("meds.adherence.attentionSubtitle", { names: attentionNames.join(", ") })
+        : t("meds.adherence.shareAllOnTrack")
+    }`,
+    `${t("meds.adherence.perMedication")}: ${medicationSummary}`,
+  ].join("\n");
+  const gpName = profile?.gpName?.trim();
+  const gpPhoneHref = sanitizePhoneHref(profile?.gpPhone);
+  const gpEmailHref = medicationDoctorMailto(profile?.gpEmail, adherenceDoctorNote, i18n.language);
+  const attentionContext = attentionNames.length ? attentionNames.join(", ") : t("meds.adherence.shareAllOnTrack");
+  const serviceActions: AdherenceServiceAction[] = [
+    {
+      id: "refill",
+      icon: ShoppingCart,
+      label: t("meds.adherenceService.refill", "Prepare refill"),
+      sub: t("meds.adherenceService.refillSub", "Find pharmacy or delivery options. You confirm before anything is ordered."),
+      color: "#C9890A",
+      bg: "#FEF3C7",
+      onClick: () => navigate("/concierge/shopping", {
+        state: medicationRefillShoppingState(medicationSummary, i18n.language),
+      }),
+    },
+    ...(gpPhoneHref
+      ? [{
+          id: "call-gp" as const,
+          icon: PhoneCall,
+          label: gpName ? t("meds.callGpNamed", "Call {{name}}", { name: gpName }) : t("meds.callGp", "Call GP"),
+          sub: t("meds.adherenceService.callGpSub", "Speak to your doctor with this report ready."),
+          color: "#0A7C4E",
+          bg: "#ECFDF5",
+          href: gpPhoneHref,
+        }]
+      : []),
+    ...(gpEmailHref
+      ? [{
+          id: "email-gp" as const,
+          icon: Mail,
+          label: t("meds.emailGp", "Email GP"),
+          sub: t("meds.adherenceService.emailGpSub", "Open an email with the report context filled in."),
+          color: "#2563EB",
+          bg: "#EFF6FF",
+          href: gpEmailHref,
+        }]
+      : []),
+    {
+      id: "doctor-help",
+      icon: Stethoscope,
+      label: t("meds.doctorReview", "Doctor help"),
+      sub: t("meds.adherenceService.doctorHelpSub", "Talk through missed doses, side effects, or medication worries."),
+      color: "#6B21A8",
+      bg: "#F5F3FF",
+      onClick: () => navigate("/health/doctor", {
+        state: {
+          autoStartVoice: true,
+          latestSymptomReport: adherenceDoctorNote,
+          source: "adherence_report",
+        },
+      }),
+    },
+    {
+      id: "appointment",
+      icon: Calendar,
+      label: t("meds.adherenceService.appointment", "Medication appointment"),
+      sub: t("meds.adherenceService.appointmentSub", "VYVA prepares the appointment request for you to confirm."),
+      color: "#B45309",
+      bg: "#FFF7ED",
+      onClick: () => navigate("/concierge", {
+        state: medicationReviewAppointmentState(
+          medicationSummary,
+          `${adherenceDoctorNote}\nNeeds attention: ${attentionContext}`,
+          i18n.language,
+          "adherence_report",
+        ),
+      }),
+    },
+    {
+      id: "ride",
+      icon: Car,
+      label: t("meds.adherenceService.ride", "Book ride"),
+      sub: t("meds.adherenceService.rideSub", "Arrange transport for a medication review or pharmacy pickup."),
+      color: "#1D4ED8",
+      bg: "#EFF6FF",
+      onClick: () => navigate("/concierge", {
+        state: medicationReviewRideState(
+          medicationSummary,
+          `${adherenceDoctorNote}\nNeeds attention: ${attentionContext}`,
+          i18n.language,
+          "adherence_report",
+        ),
+      }),
+    },
+  ];
 
   async function handleShare() {
     if (!data) return;
@@ -581,6 +708,81 @@ const AdherenceReportScreen = () => {
                 </div>
               </div>
             </div>
+
+            <section
+              className="mb-[14px] rounded-[24px] border border-vyva-border bg-white p-[18px]"
+              style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}
+              data-testid="panel-adherence-service-actions"
+            >
+              <div className="mb-4 flex items-start gap-3">
+                <div
+                  className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[15px]"
+                  style={{ background: "#EDE9FE", color: "#6B21A8" }}
+                >
+                  <Sparkles size={21} />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-body text-[12px] font-semibold uppercase tracking-[0.12em] text-vyva-purple">
+                    {t("meds.adherenceService.kicker", "Fast help")}
+                  </p>
+                  <h2 className="font-body text-[20px] font-bold leading-tight text-vyva-text-1">
+                    {t("meds.adherenceService.title", "Medication help in one tap")}
+                  </h2>
+                  <p className="mt-1 font-body text-[14px] leading-snug text-vyva-text-2">
+                    {t("meds.adherenceService.subtitle", "Refills, doctor contact, and appointment help are ready from this report.")}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {serviceActions.map((action) => {
+                  const ActionIcon = action.icon;
+                  const content = (
+                    <>
+                      <span
+                        className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[17px]"
+                        style={{ background: action.bg, color: action.color }}
+                      >
+                        <ActionIcon size={22} />
+                      </span>
+                      <span className="min-w-0 flex-1 text-left">
+                        <span className="block font-body text-[15px] font-bold leading-tight text-vyva-text-1">
+                          {action.label}
+                        </span>
+                        <span className="mt-1 block font-body text-[13px] font-medium leading-snug text-vyva-text-2">
+                          {action.sub}
+                        </span>
+                      </span>
+                    </>
+                  );
+
+                  const className = "vyva-tap flex min-h-[86px] w-full items-center gap-3 rounded-[20px] border border-vyva-border bg-[#FCFBF8] px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(63,45,35,0.10)]";
+                  if (action.href) {
+                    return (
+                      <a
+                        key={action.id}
+                        href={action.href}
+                        className={className}
+                        data-testid={`button-adherence-service-${action.id}`}
+                      >
+                        {content}
+                      </a>
+                    );
+                  }
+                  return (
+                    <button
+                      key={action.id}
+                      type="button"
+                      onClick={action.onClick}
+                      className={className}
+                      data-testid={`button-adherence-service-${action.id}`}
+                    >
+                      {content}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
 
             <div
               className="bg-white rounded-[20px] border border-vyva-border overflow-hidden mb-[14px]"

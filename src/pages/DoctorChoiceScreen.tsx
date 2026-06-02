@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ChevronRight, HeartPulse, Mic, Stethoscope, X } from "lucide-react";
+import { ArrowLeft, Calendar, Car, ChevronRight, HeartPulse, Mail, Mic, PhoneCall, Stethoscope, UserPlus, X, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useProfile } from "@/contexts/ProfileContext";
 import { useDoctorVoice } from "@/hooks/useDoctorVoice";
 import { useHeroMessage } from "@/hooks/useHeroMessage";
 import { useServiceGate } from "@/hooks/useServiceGate";
+import { sanitizePhoneHref } from "@/lib/emergencyContacts";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 
 type DoctorLocationState = {
@@ -12,10 +14,121 @@ type DoctorLocationState = {
   latestSymptomReport?: string;
 };
 
+export type DoctorChoiceQuickActionKind = "call_gp" | "email_gp" | "book_appointment" | "book_ride" | "add_gp_contact";
+
+type DoctorChoiceQuickActionLabels = Record<DoctorChoiceQuickActionKind | `${DoctorChoiceQuickActionKind}Sub`, string>;
+
+export type DoctorChoiceQuickAction = {
+  kind: DoctorChoiceQuickActionKind;
+  label: string;
+  sub: string;
+  href?: string;
+  to?: string;
+  state?: Record<string, unknown>;
+};
+
+function buildDoctorChoiceContext(latestSymptomReport?: string) {
+  return latestSymptomReport?.trim() || "Doctor support requested from VYVA.";
+}
+
+function buildDoctorChoiceConciergeMessage(kind: "appointment" | "ride", latestSymptomReport?: string) {
+  const context = buildDoctorChoiceContext(latestSymptomReport);
+  const request = kind === "appointment"
+    ? "Please help me schedule a GP or doctor appointment."
+    : "Please help me book transport for a medical appointment.";
+  return `${request}\n\nContext:\n${context}`;
+}
+
+export function doctorChoiceQuickActionsFor({
+  gpName,
+  gpPhone,
+  gpEmail,
+  latestSymptomReport,
+  labels,
+}: {
+  gpName?: string | null;
+  gpPhone?: string | null;
+  gpEmail?: string | null;
+  latestSymptomReport?: string;
+  labels: DoctorChoiceQuickActionLabels;
+}): DoctorChoiceQuickAction[] {
+  const actions: DoctorChoiceQuickAction[] = [];
+  const phoneHref = sanitizePhoneHref(gpPhone);
+  const email = gpEmail?.trim() ?? "";
+  const doctorContext = buildDoctorChoiceContext(latestSymptomReport);
+  const displayName = gpName?.trim();
+
+  if (phoneHref) {
+    actions.push({
+      kind: "call_gp",
+      label: displayName ? labels.call_gp.replace("{{name}}", displayName) : labels.call_gp.replace("{{name}}", "GP"),
+      sub: labels.call_gpSub,
+      href: phoneHref,
+    });
+  }
+
+  if (email) {
+    actions.push({
+      kind: "email_gp",
+      label: labels.email_gp,
+      sub: labels.email_gpSub,
+      href: `mailto:${email}?subject=${encodeURIComponent("VYVA doctor support")}&body=${encodeURIComponent(doctorContext)}`,
+    });
+  }
+
+  if (!phoneHref && !email) {
+    actions.push({
+      kind: "add_gp_contact",
+      label: labels.add_gp_contact,
+      sub: labels.add_gp_contactSub,
+      to: `/onboarding/profile/gp?returnTo=${encodeURIComponent("/health/doctor")}`,
+    });
+  }
+
+  actions.push({
+    kind: "book_appointment",
+    label: labels.book_appointment,
+    sub: labels.book_appointmentSub,
+    to: "/concierge",
+    state: {
+      conciergePrefill: {
+        kind: "appointment",
+        message: buildDoctorChoiceConciergeMessage("appointment", latestSymptomReport),
+        source: "doctor_choice",
+      },
+    },
+  });
+
+  actions.push({
+    kind: "book_ride",
+    label: labels.book_ride,
+    sub: labels.book_rideSub,
+    to: "/concierge",
+    state: {
+      conciergePrefill: {
+        kind: "ride",
+        message: buildDoctorChoiceConciergeMessage("ride", latestSymptomReport),
+        source: "doctor_choice",
+      },
+    },
+  });
+
+  return actions;
+}
+
+const quickActionIcons: Record<DoctorChoiceQuickActionKind, LucideIcon> = {
+  call_gp: PhoneCall,
+  email_gp: Mail,
+  book_appointment: Calendar,
+  book_ride: Car,
+  add_gp_contact: UserPlus,
+};
+
 const DoctorChoiceScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t, i18n } = useTranslation();
+  const { profile } = useProfile();
   const { readiness } = useServiceGate();
   const {
     status,
@@ -34,6 +147,24 @@ const DoctorChoiceScreen = () => {
   const autoStartRequested = Boolean(locationState?.autoStartVoice);
   const latestSymptomReport = locationState?.latestSymptomReport?.trim() ?? "";
   const doctorRecommendations = readiness?.services.doctor.recommended ?? [];
+  const quickActions = useMemo(() => doctorChoiceQuickActionsFor({
+    gpName: profile?.gpName,
+    gpPhone: profile?.gpPhone,
+    gpEmail: profile?.gpEmail,
+    latestSymptomReport,
+    labels: {
+      call_gp: t("health.doctorChoice.quickActions.callGp", "Call {{name}}"),
+      call_gpSub: t("health.doctorChoice.quickActions.callGpSub", "Speak to the practice now."),
+      email_gp: t("health.doctorChoice.quickActions.emailGp", "Email GP"),
+      email_gpSub: t("health.doctorChoice.quickActions.emailGpSub", "Send the health context."),
+      book_appointment: t("health.doctorChoice.quickActions.bookAppointment", "Book appointment"),
+      book_appointmentSub: t("health.doctorChoice.quickActions.bookAppointmentSub", "VYVA prepares the request."),
+      book_ride: t("health.doctorChoice.quickActions.bookRide", "Book transport"),
+      book_rideSub: t("health.doctorChoice.quickActions.bookRideSub", "Arrange a ride to care."),
+      add_gp_contact: t("health.doctorChoice.quickActions.addGp", "Add GP contact"),
+      add_gp_contactSub: t("health.doctorChoice.quickActions.addGpSub", "Save phone or email first."),
+    },
+  }), [latestSymptomReport, profile?.gpEmail, profile?.gpName, profile?.gpPhone, t]);
 
   const heroMessage = useHeroMessage("doctor", {
     fallbackHeadline: t("health.doctorChoice.title", "Elige una opcion"),
@@ -225,6 +356,70 @@ const DoctorChoiceScreen = () => {
         description={t("health.doctorChoice.contextReadySub", "VYVA can use the health profile, recent symptoms, vitals, and GP context while helping here.")}
         className="mt-4"
       />
+
+      <section className="mt-4 rounded-[28px] border border-[#E8DED4] bg-white p-4 shadow-[0_10px_28px_rgba(63,45,35,0.08)]" data-testid="doctor-quick-service-actions">
+        <div className="flex items-center gap-3">
+          <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#F5F3FF] text-vyva-purple">
+            <Stethoscope size={24} />
+          </span>
+          <div className="min-w-0">
+            <p className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+              {t("health.doctorChoice.quickActions.title", "Fast service access")}
+            </p>
+            <p className="mt-1 font-body text-[15px] font-bold leading-snug text-vyva-text-2">
+              {t("health.doctorChoice.quickActions.subtitle", "Call, email, book care, or arrange transport from here.")}
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          {quickActions.map((action) => {
+            const Icon = quickActionIcons[action.kind];
+            const className = "vyva-tap flex min-h-[94px] flex-col items-start justify-between rounded-[22px] border border-[#E8DED4] bg-[#FFFCF8] p-3 text-left shadow-[0_8px_18px_rgba(63,45,35,0.05)] transition active:scale-[0.98]";
+            const content = (
+              <>
+                <span className="flex h-10 w-10 items-center justify-center rounded-[15px] bg-white text-vyva-purple shadow-sm">
+                  <Icon size={20} />
+                </span>
+                <span className="mt-2 block font-body text-[16px] font-black leading-tight text-vyva-text-1">
+                  {action.label}
+                </span>
+                <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+                  {action.sub}
+                </span>
+              </>
+            );
+
+            if (action.href) {
+              return (
+                <a
+                  key={action.kind}
+                  href={action.href}
+                  onClick={stopDoctorVoiceAndClearError}
+                  className={className}
+                  data-testid={`button-doctor-quick-${action.kind}`}
+                >
+                  {content}
+                </a>
+              );
+            }
+
+            return (
+              <button
+                key={action.kind}
+                type="button"
+                onClick={() => {
+                  stopDoctorVoiceAndClearError();
+                  if (action.to) navigate(action.to, action.state ? { state: action.state } : undefined);
+                }}
+                className={className}
+                data-testid={`button-doctor-quick-${action.kind}`}
+              >
+                {content}
+              </button>
+            );
+          })}
+        </div>
+      </section>
 
       {latestSymptomReport ? (
         <section className="mt-4 rounded-[24px] border border-[#E8DED4] bg-white p-5 shadow-[0_8px_24px_rgba(63,45,35,0.06)]">

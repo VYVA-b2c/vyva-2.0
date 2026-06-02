@@ -366,6 +366,25 @@
         "openLabel": "Apri concierge"
       }
     },
+    "fastHelp": {
+      "kicker": "Aiuto rapido",
+      "title": "Di cosa hai bisogno ora?",
+      "doctor": {
+        "label": "Aiuto medico",
+        "sub": "Parla di un dubbio di salute"
+      },
+      "appointment": {
+        "label": "Prenota visita",
+        "sub": "Prepara una richiesta da confermare"
+      },
+      "ride": {
+        "label": "Prenota trasporto",
+        "sub": "Organizza un viaggio sicuro"
+      },
+      "doctorContext": "Richiesta rapida di aiuto medico dalla Home. Chiedi cosa sta succedendo e aiuta a preparare il prossimo passo sicuro.",
+      "appointmentPrefill": "Aiutami a programmare un appuntamento. Chiedi che tipo di appuntamento mi serve e non prenotare nulla senza la mia conferma.",
+      "ridePrefill": "Aiutami a organizzare un trasporto sicuro. Chiedi destinazione e orario, e non prenotare nulla senza la mia conferma."
+    },
     "whatNow": "o esplora un argomento"
   },
   "voiceHero": {
@@ -692,7 +711,7 @@
     },
     "seeDoctor": {
       "title": "Vedere un medico",
-      "subtitle": "Video o telefono in pochi minuti",
+      "subtitle": "Chiamata, appuntamento o trasporto",
       "cta": "Prenota ora",
       "sheetTitle": "Scegli come connetterti",
       "videoCall": "Videochiamata",
@@ -700,7 +719,26 @@
       "comingSoonBtn": "Prossimamente",
       "comingSoon": "Questo servizio è in fase di attivazione. Disponibile molto presto!",
       "checkSymptoms": "Controlla i miei sintomi",
-      "checkSymptomsSub": "Triage IA + scansione vitali in 5 minuti"
+      "checkSymptomsSub": "Triage IA + scansione vitali in 5 minuti",
+      "actions": {
+        "title": "Accesso medico",
+        "callGp": "Chiama medico",
+        "callGpNamed": "Chiama {{name}}",
+        "callGpSub": "Parla ora con lo studio.",
+        "emailGp": "Email medico",
+        "emailGpSub": "Apri un'email con contesto.",
+        "doctorHelp": "Aiuto medico",
+        "doctorHelpSub": "Chiarisci il prossimo passo con VYVA.",
+        "bookAppointment": "Prenota visita",
+        "bookAppointmentSub": "VYVA prepara la richiesta da approvare.",
+        "bookTransport": "Prenota trasporto",
+        "bookTransportSub": "Organizza un viaggio sicuro.",
+        "addGp": "Aggiungi medico",
+        "addGpSub": "Salva prima telefono o email.",
+        "defaultContext": "Richiesta di supporto medico dalla pagina Salute. Chiedi cosa serve e prepara un prossimo passo sicuro.",
+        "appointmentPrefill": "Aiutami a prenotare una visita medica. Non prenotare nulla senza la mia conferma.\n\n{{context}}",
+        "ridePrefill": "Aiutami a organizzare un trasporto sicuro per una visita medica. Non prenotare nulla senza la mia conferma.\n\n{{context}}"
+      }
     },
     "symptomCheck": {
       "title": "Controllo sintomi",
@@ -948,6 +986,43 @@
       "title": "Trova uno specialista",
       "subtitle": "Connettiti con l'esperto giusto",
       "bookButton": "Prenota",
+      "optionsButton": "Opzioni",
+      "hideButton": "Nascondi",
+      "intro": "Descrivi il problema o il bisogno. VYVA cerchera il tipo di specialista giusto e opzioni vicine.",
+      "reset": "Reimposta",
+      "suggestions": "Suggerimenti per te",
+      "more": "Altro",
+      "voiceSearch": "Cerca con la voce",
+      "listening": "Ascolto...",
+      "conditionPlaceholder": "es. dolore al ginocchio, diabete, memoria...",
+      "locationPlaceholder": "Citta o zona",
+      "searching": "Ricerca specialisti...",
+      "searchButton": "Cerca specialisti",
+      "recommendedSpecialties": "Specialita consigliate",
+      "disclaimer": "Questo non e una diagnosi. Se i sintomi sono gravi o improvvisi, chiama emergenze o medico.",
+      "noProvidersTitle": "Non ho trovato fornitori verificati con dati sufficienti al momento.",
+      "noProvidersBody": "Prova un'altra citta o apri Google Maps per cercare opzioni vicine.",
+      "openMaps": "Apri Google Maps",
+      "contact": "Contatta",
+      "call": "Chiama",
+      "bookAppointment": "Appuntamento",
+      "bookRide": "Prenota trasporto",
+      "map": "Mappa",
+      "share": "Condividi",
+      "doctorSearchTerm": "medico",
+      "searchError": "Non ho potuto cercare specialisti ora. Riprova tra poco.",
+      "emptyCondition": "Dimmi il problema o il bisogno per trovare lo specialista giusto.",
+      "voiceUnsupported": "La dettatura vocale non e disponibile qui. Puoi scrivere il bisogno.",
+      "voiceError": "Non ho sentito chiaramente. Riprova o scrivi.",
+      "appointmentReady": "Ho preparato la richiesta. Ti porto a Concierge per confermare.",
+      "appointmentError": "Non ho potuto preparare l'appuntamento. Riprova tra poco.",
+      "phoneLabel": "Telefono",
+      "locationLabel": "Luogo",
+      "hoursLabel": "Orari",
+      "distanceLabel": "Distanza",
+      "moreInfoLabel": "Maggiori informazioni",
+      "shareCopied": "Dettagli copiati per la condivisione.",
+      "shareError": "Non ho potuto condividerlo ora. Riprova.",
       "cardiology": "Cardiologia",
       "neurology": "Neurologia",
       "dermatology": "Dermatologia",
@@ -1212,6 +1287,14 @@
     "saving": "Salvataggio…",
     "logActivity": "Registra {{duration}}min di {{type}}",
     "selectActivity": "Seleziona un'attività sopra",
+    "supportTitle": "Serve aiuto per uscire?",
+    "supportSubtitle": "VYVA puo preparare trasporto o accompagnamento prima della conferma.",
+    "bookRide": "Prenota trasporto",
+    "bookRideSub": "Organizza il viaggio prima di uscire.",
+    "arrangeCompanion": "Organizza accompagnatore",
+    "arrangeCompanionSub": "Chiedi a qualcuno di venire con te.",
+    "ridePrefill": "Aiutami a organizzare un trasporto sicuro per un'attivita {{activity}} di {{duration}} minuti. Chiedimi conferma prima di prenotare qualsiasi cosa.",
+    "companionPrefill": "Aiutami a organizzare un accompagnatore o una persona di supporto fidata per un'attivita {{activity}} di {{duration}} minuti. Chiedimi conferma prima di contattare o prenotare qualcuno.",
     "activityLogged": "Attività registrata — ottimo lavoro!",
     "couldNotSave": "Impossibile salvare — riprova.",
     "todaysSummary": "Riepilogo di oggi",
@@ -1600,7 +1683,18 @@
     "callCompanionDesc": "Attiva VYVA durante una chiamata sospetta. Chiedi cosa dire, cosa evitare e se riagganciare.",
     "callCompanionStart": "Avvia compagno di chiamata",
     "callCompanionEnd": "Metti in pausa",
-    "callCompanionConnecting": "Connessione…"
+    "callCompanionConnecting": "Connessione…",
+    "actions": {
+      "title": "Azioni sicure",
+      "trustedFallback": "persona fidata",
+      "callTrusted": "Chiama {{name}}",
+      "callTrustedAria": "Chiama {{name}} per questo controllo",
+      "addTrusted": "Aggiungi persona fidata",
+      "safeHelp": "Aiuto sicuro",
+      "safeHelpAria": "Apri il concierge VYVA con questo controllo",
+      "callGuidance": "Guida in chiamata",
+      "pauseGuidance": "Metti in pausa"
+    }
   },
   "community": {
     "title": "La Mia Comunita",

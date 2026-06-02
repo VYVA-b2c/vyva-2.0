@@ -1,12 +1,13 @@
 import { useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Footprints, Bike, PersonStanding, Dumbbell, Wind, CheckCircle2, Loader2, Pencil, Home, Camera, AlertTriangle, ShieldAlert, ChevronRight } from "lucide-react";
+import { Footprints, Bike, PersonStanding, Dumbbell, Wind, CheckCircle2, Loader2, Pencil, Home, Camera, AlertTriangle, ShieldAlert, ChevronRight, ShoppingBasket, Wrench, Car, Users } from "lucide-react";
 import VoiceHero from "@/components/VoiceHero";
 import { apiFetch, queryClient } from "@/lib/queryClient";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import type { ActivityLog } from "../../shared/schema";
 import { useProfile } from "@/contexts/ProfileContext";
+import { safeHomeQuoteState, safeHomeShoppingState, type SafeHomeActionScan } from "./SafeHomeScreen";
 
 const ACTIVITY_TYPES = [
   { key: "Walking",    icon: Footprints,     labelKey: "activity.types.walking",    bg: "#FEF3C7", color: "#B45309" },
@@ -22,6 +23,7 @@ const ACTIVITY_ICON_MAP: Record<string, (typeof ACTIVITY_TYPES)[number]> = Objec
 
 const DURATIONS = [10, 20, 30, 45, 60];
 const TARGET_STEPS = 6_000;
+const OUTING_ACTIVITY_TYPES = new Set(["Walking", "Cycling", "Exercise"]);
 
 function formatTime(date: Date | string) {
   const d = typeof date === "string" ? new Date(date) : date;
@@ -36,7 +38,20 @@ interface ActivitySummary {
 }
 
 type HomeScanResult = { riskLevel: string; resultTitle: string; hazards: string[]; advice: string };
-type HomeScanRow = { id: string; risk_level: string; result_title: string; scanned_at: string; image_data?: string };
+type HomeScanRow = {
+  id: string;
+  risk_level: string;
+  result_title: string;
+  hazards?: string[];
+  advice?: string;
+  scanned_at: string;
+  image_data?: string;
+};
+
+type ActivityLocationState = {
+  preselectActivity?: string;
+  duration?: number;
+} | null;
 
 const HOME_RISK_COLORS: Record<string, { bg: string; text: string; icon: typeof CheckCircle2 }> = {
   "safe":      { bg: "#DCFCE7", text: "#15803D", icon: CheckCircle2 },
@@ -82,8 +97,16 @@ function compressImageFile(file: File): Promise<string> {
 const ActivityScreen = () => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const [selected, setSelected] = useState<string | null>(null);
-  const [duration, setDuration] = useState<number>(20);
+  const location = useLocation();
+  const incomingState = location.state as ActivityLocationState;
+  const incomingActivity = typeof incomingState?.preselectActivity === "string" && ACTIVITY_ICON_MAP[incomingState.preselectActivity]
+    ? incomingState.preselectActivity
+    : null;
+  const incomingDuration = typeof incomingState?.duration === "number" && DURATIONS.includes(incomingState.duration)
+    ? incomingState.duration
+    : 20;
+  const [selected, setSelected] = useState<string | null>(() => incomingActivity);
+  const [duration, setDuration] = useState<number>(() => incomingDuration);
   const [editingSteps, setEditingSteps] = useState(false);
   const [stepsInput, setStepsInput] = useState("");
   const [homeAnalyzing, setHomeAnalyzing] = useState(false);
@@ -178,6 +201,76 @@ const ActivityScreen = () => {
     : t("activity.headline");
 
   const selectedType = ACTIVITY_TYPES.find((a) => a.key === selected);
+  const selectedIsOuting = Boolean(selected && OUTING_ACTIVITY_TYPES.has(selected));
+  const openActivitySupport = (kind: "ride" | "companion") => {
+    if (!selectedType) return;
+    const activityLabel = t(selectedType.labelKey);
+    const message = kind === "ride"
+      ? t(
+        "activity.ridePrefill",
+        "Please help me arrange safe transport for a {{duration}} minute {{activity}} activity. Ask me to confirm before booking anything.",
+        { duration, activity: activityLabel },
+      )
+      : t(
+        "activity.companionPrefill",
+        "Please help me arrange a trusted companion or support person for a {{duration}} minute {{activity}} activity. Ask me to confirm before contacting or booking anyone.",
+        { duration, activity: activityLabel },
+      );
+    navigate("/concierge", {
+      state: {
+        conciergePrefill: {
+          kind: kind === "ride" ? "ride" : "task",
+          message,
+          source: "activity_support",
+        },
+      },
+    });
+  };
+
+  const renderHomeScanServiceActions = (scan: SafeHomeActionScan, suffix: string) => (
+    <div className="mt-[10px] grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid={`activity-safe-home-actions-${suffix}`}>
+      <button
+        type="button"
+        data-testid={`button-activity-safe-home-order-aids-${suffix}`}
+        onClick={() => navigate("/concierge/shopping", {
+          state: safeHomeShoppingState(scan, i18n.language),
+        })}
+        className="vyva-tap flex min-h-[50px] items-center gap-2 rounded-[14px] border border-[#D8C5F0] bg-white px-3 py-2 text-left"
+      >
+        <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[12px] bg-[#F5F3FF] text-[#6B21A8]">
+          <ShoppingBasket size={17} />
+        </span>
+        <span className="min-w-0">
+          <span className="block font-body text-[13px] font-bold leading-tight text-vyva-text-1">
+            {t("safeHome.actions.orderAids", "Order safety aids")}
+          </span>
+          <span className="block font-body text-[11px] font-semibold leading-snug text-vyva-text-2">
+            {t("safeHome.actions.orderAidsSub", "Compare simple items before checkout.")}
+          </span>
+        </span>
+      </button>
+      <button
+        type="button"
+        data-testid={`button-activity-safe-home-request-quote-${suffix}`}
+        onClick={() => navigate("/concierge", {
+          state: safeHomeQuoteState(scan, i18n.language),
+        })}
+        className="vyva-tap flex min-h-[50px] items-center gap-2 rounded-[14px] border border-[#F4D6A8] bg-white px-3 py-2 text-left"
+      >
+        <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[12px] bg-[#FFF7ED] text-[#B45309]">
+          <Wrench size={17} />
+        </span>
+        <span className="min-w-0">
+          <span className="block font-body text-[13px] font-bold leading-tight text-vyva-text-1">
+            {t("safeHome.actions.requestQuote", "Request quote")}
+          </span>
+          <span className="block font-body text-[11px] font-semibold leading-snug text-vyva-text-2">
+            {t("safeHome.actions.requestQuoteSub", "Prepare home help for your approval.")}
+          </span>
+        </span>
+      </button>
+    </div>
+  );
 
   return (
     <div className="px-[22px]">
@@ -373,6 +466,58 @@ const ActivityScreen = () => {
               : t("activity.selectActivity")}
           </button>
 
+          {selectedType && selectedIsOuting ? (
+            <div
+              className="mt-[14px] rounded-[18px] border border-[#D8C7FF] bg-[linear-gradient(135deg,#F8F3FF_0%,#FFFFFF_70%,#FFF7ED_100%)] p-3"
+              data-testid="activity-support-actions"
+            >
+              <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-purple">
+                {t("activity.supportTitle", "Need help going out?")}
+              </p>
+              <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
+                {t("activity.supportSubtitle", "VYVA can prepare transport or companion support before you confirm.")}
+              </p>
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  data-testid="button-activity-book-ride"
+                  onClick={() => openActivitySupport("ride")}
+                  className="vyva-tap flex min-h-[58px] items-center gap-3 rounded-[16px] border border-[#D8B4FE] bg-white px-3 py-3 text-left shadow-[0_8px_20px_rgba(107,33,168,0.08)]"
+                >
+                  <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[15px] bg-[#F5F3FF] text-vyva-purple">
+                    <Car size={20} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-body text-[15px] font-black leading-tight text-vyva-text-1">
+                      {t("activity.bookRide", "Book ride")}
+                    </span>
+                    <span className="block font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
+                      {t("activity.bookRideSub", "Arrange transport before you go.")}
+                    </span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="button-activity-arrange-companion"
+                  onClick={() => openActivitySupport("companion")}
+                  className="vyva-tap flex min-h-[58px] items-center gap-3 rounded-[16px] border border-[#BBF7D0] bg-white px-3 py-3 text-left shadow-[0_8px_20px_rgba(20,154,99,0.08)]"
+                >
+                  <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[15px] bg-[#ECFDF5] text-[#047857]">
+                    <Users size={20} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-body text-[15px] font-black leading-tight text-vyva-text-1">
+                      {t("activity.arrangeCompanion", "Arrange companion")}
+                    </span>
+                    <span className="block font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
+                      {t("activity.arrangeCompanionSub", "Ask for someone to come with you.")}
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           {logMutation.isSuccess && (
             <div
               className="mt-[12px] flex items-center gap-[8px] px-[14px] py-[10px] rounded-[12px]"
@@ -486,6 +631,7 @@ const ActivityScreen = () => {
                   </ul>
                 )}
                 <p className="font-body text-[12px] text-vyva-text-1 leading-snug">{homeResult.advice}</p>
+                {renderHomeScanServiceActions(homeResult, "current")}
               </div>
             );
           })()}
@@ -529,33 +675,41 @@ const ActivityScreen = () => {
                     <div
                       key={scan.id}
                       data-testid={`row-home-scan-${scan.id}`}
-                      className="flex items-center gap-[10px] rounded-[10px] px-[12px] py-[9px]"
+                      className="rounded-[10px] px-[12px] py-[9px]"
                       style={{ background: "#F9F7F4" }}
                     >
-                      {scan.image_data && (
-                        <img
-                          src={scan.image_data}
-                          alt=""
-                          className="w-[36px] h-[36px] rounded-[8px] object-cover flex-shrink-0"
-                        />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-body text-[13px] font-medium text-vyva-text-1 truncate">
-                          {scan.result_title}
-                        </p>
-                        <p className="font-body text-[11px] text-vyva-text-2">
-                          {new Date(scan.scanned_at).toLocaleDateString(i18n.language, { day: "numeric", month: "short" })}
-                        </p>
+                      <div className="flex items-center gap-[10px]">
+                        {scan.image_data && (
+                          <img
+                            src={scan.image_data}
+                            alt=""
+                            className="w-[36px] h-[36px] rounded-[8px] object-cover flex-shrink-0"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-body text-[13px] font-medium text-vyva-text-1 truncate">
+                            {scan.result_title}
+                          </p>
+                          <p className="font-body text-[11px] text-vyva-text-2">
+                            {new Date(scan.scanned_at).toLocaleDateString(i18n.language, { day: "numeric", month: "short" })}
+                          </p>
+                        </div>
+                        <div
+                          className="flex items-center gap-[4px] rounded-[6px] px-[7px] py-[3px] flex-shrink-0"
+                          style={{ background: rc.bg }}
+                        >
+                          <RiskIcon size={10} style={{ color: rc.text }} />
+                          <span className="font-body text-[10px] font-semibold" style={{ color: rc.text }}>
+                            {t(homeRiskLabelKey(scan.risk_level), scan.risk_level)}
+                          </span>
+                        </div>
                       </div>
-                      <div
-                        className="flex items-center gap-[4px] rounded-[6px] px-[7px] py-[3px] flex-shrink-0"
-                        style={{ background: rc.bg }}
-                      >
-                        <RiskIcon size={10} style={{ color: rc.text }} />
-                        <span className="font-body text-[10px] font-semibold" style={{ color: rc.text }}>
-                          {t(homeRiskLabelKey(scan.risk_level), scan.risk_level)}
-                        </span>
-                      </div>
+                      {renderHomeScanServiceActions({
+                        resultTitle: scan.result_title,
+                        riskLevel: scan.risk_level,
+                        hazards: scan.hazards ?? [],
+                        advice: scan.advice ?? "",
+                      }, scan.id)}
                     </div>
                   );
                 })}

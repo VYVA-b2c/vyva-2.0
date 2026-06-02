@@ -1,16 +1,26 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { Check, Clock, AlertCircle, Calendar, Link as LinkIcon, Mic, ChevronDown, ExternalLink, Zap, Leaf, ShoppingCart, Sparkles, BarChart2, Pencil, Trash2, type LucideIcon } from "lucide-react";
+import { Check, Clock, AlertCircle, Link as LinkIcon, Mic, ExternalLink, Zap, Leaf, ShoppingCart, Sparkles, BarChart2, Pencil, Trash2, PhoneCall, Mail, Stethoscope, Calendar, Car, type LucideIcon } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import VoiceMedsModal, { type MedicationForForm } from "@/components/VoiceMedsModal";
 import MedsAssistantSheet from "@/components/MedsAssistantSheet";
 import { EmptyState, ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
+import { useProfile } from "@/contexts/ProfileContext";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { apiFetch } from "@/lib/queryClient";
+import {
+  medicationDoctorActionKinds,
+  medicationDoctorContext,
+  medicationDoctorMailto,
+  medicationListSummary,
+  medicationRefillShoppingState,
+  medicationReviewAppointmentState,
+  medicationReviewRideState,
+} from "@/lib/medicationServiceActions";
 import {
   Dialog,
   DialogContent,
@@ -59,6 +69,22 @@ type DbMed = {
 
 type TodayResponse = { medications: DbMed[] };
 
+export {
+  medicationDoctorActionKinds,
+  medicationDoctorContext,
+  medicationListSummary,
+  medicationRefillShoppingState,
+  medicationReviewAppointmentState,
+  medicationReviewRideState,
+} from "@/lib/medicationServiceActions";
+
+function sanitizePhoneHref(phone?: string | null): string {
+  const raw = phone?.trim();
+  if (!raw) return "";
+  const normalized = raw.replace(/[^\d+]/g, "");
+  return `tel:${normalized || raw}`;
+}
+
 function normalizeVoiceFocus(value: string) {
   return value
     .toLowerCase()
@@ -72,6 +98,7 @@ const MedsScreen = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { profile } = useProfile();
 
   // ─── Load today's medications from the DB ──────────────────────────────────
   const { data: todayData, isLoading: todayLoading } = useQuery<TodayResponse>({
@@ -113,6 +140,10 @@ const MedsScreen = () => {
       return names.join(", ");
     }
   })();
+  const medicationSummary = medicationListSummary(
+    displayMeds.map((m) => m.displayName),
+    t("meds.medicationSummaryFallback", "my medications"),
+  );
 
   const [confirmedDoseCounts, setConfirmedDoseCounts] = useState<Map<string, number>>(new Map());
   const [voiceModalOpen, setVoiceModalOpen] = useState(false);
@@ -214,8 +245,6 @@ const MedsScreen = () => {
   const [assistantTitle, setAssistantTitle] = useState("");
   const [assistantPrompt, setAssistantPrompt] = useState("");
 
-  const [expandedLinks, setExpandedLinks] = useState<Set<string>>(new Set());
-
   useEffect(() => {
     setConfirmedDoseCounts(new Map());
   }, [todayData]);
@@ -263,6 +292,16 @@ const MedsScreen = () => {
     (sum, med) => sum + remainingDoseCount(med),
     0
   );
+  const medicationDoctorNote = medicationDoctorContext({
+    medicationSummary,
+    totalScheduledDoseCount,
+    totalTakenDoseCount,
+    totalRemainingDoseCount,
+    language: i18n.language,
+  });
+  const gpPhoneHref = sanitizePhoneHref(profile?.gpPhone);
+  const gpEmailHref = medicationDoctorMailto(profile?.gpEmail, medicationDoctorNote, i18n.language);
+  const gpName = profile?.gpName?.trim();
   const progressPercent = totalScheduledDoseCount > 0 ? (totalTakenDoseCount / totalScheduledDoseCount) * 100 : 0;
   const rawHeadlines = t("meds.headlines", { returnObjects: true });
   const headlines = Array.isArray(rawHeadlines) && rawHeadlines.length > 0 ? rawHeadlines as string[] : [];
@@ -311,13 +350,8 @@ const MedsScreen = () => {
       sub: t("meds.assistant.order.sub"),
       color: "#0A7C4E",
       bg: "#ECFDF5",
-      type: "links" as const,
-      links: [
-        { label: t("meds.assistant.order.links.nhsRepeat"), url: "https://www.nhs.uk/nhs-services/prescriptions-and-pharmacies/how-to-order-repeat-prescriptions/" },
-        { label: t("meds.assistant.order.links.pharmacy2u"), url: "https://www.pharmacy2u.co.uk" },
-        { label: t("meds.assistant.order.links.chemistDirect"), url: "https://www.chemistdirect.co.uk" },
-        { label: t("meds.assistant.order.links.lloydsPharmacy"), url: "https://www.lloydspharmacy.com" },
-      ],
+      type: "action" as const,
+      onClick: openRefillSupport,
     },
     {
       id: "advances",
@@ -348,12 +382,31 @@ const MedsScreen = () => {
     setAssistantOpen(true);
   }
 
-  function toggleLinks(id: string) {
-    setExpandedLinks((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
+  function openRefillSupport() {
+    navigate("/concierge/shopping", {
+      state: medicationRefillShoppingState(medicationSummary, i18n.language),
+    });
+  }
+
+  function openDoctorMedicationReview() {
+    navigate("/health/doctor", {
+      state: {
+        autoStartVoice: true,
+        latestSymptomReport: medicationDoctorNote,
+        source: "medication_support",
+      },
+    });
+  }
+
+  function openMedicationAppointment() {
+    navigate("/concierge", {
+      state: medicationReviewAppointmentState(medicationSummary, medicationDoctorNote, i18n.language, "medication_support"),
+    });
+  }
+
+  function openMedicationRide() {
+    navigate("/concierge", {
+      state: medicationReviewRideState(medicationSummary, medicationDoctorNote, i18n.language, "medication_support"),
     });
   }
 
@@ -373,24 +426,91 @@ const MedsScreen = () => {
     sub: string;
     color: string;
     bg: string;
+    href?: string;
     onClick?: () => void;
     testId?: string;
   }> = [
     {
       id: "refill",
-      icon: Calendar,
-      label: t("meds.refillReminder"),
-      sub: t("meds.refillReminderSub"),
+      icon: ShoppingCart,
+      label: t("meds.refillSupport", "Prepare refill"),
+      sub: t("meds.refillSupportSub", "Find safe pharmacy or delivery options before anything is ordered."),
       color: "#C9890A",
       bg: "#FEF3C7",
+      onClick: openRefillSupport,
+      testId: "button-meds-refill-support",
     },
     {
       id: "interactions",
       icon: AlertCircle,
-      label: t("meds.interactions"),
-      sub: displayMeds.length > 0 ? t("meds.interactionsSubWithMeds", { count: displayMeds.length }) : t("meds.interactionsSub"),
+      label: t("meds.interactionSupport", "Check interactions"),
+      sub: displayMeds.length > 0 ? t("meds.interactionSupportSubWithMeds", { count: displayMeds.length }) : t("meds.interactionSupportSub", "Ask VYVA to review medicines, supplements, and questions."),
       color: "#0A7C4E",
       bg: "#ECFDF5",
+      onClick: () => openAssistant(
+        t("meds.assistant.interactions.prompt", { medNames }),
+        t("meds.assistant.interactions.sheetTitle"),
+      ),
+      testId: "button-meds-interaction-support",
+    },
+    ...medicationDoctorActionKinds({
+      hasGpPhone: Boolean(gpPhoneHref),
+      hasGpEmail: Boolean(gpEmailHref),
+    }).map((kind) => {
+      if (kind === "call_gp") {
+        return {
+          id: "call-gp",
+          icon: PhoneCall,
+          label: gpName ? t("meds.callGpNamed", "Call {{name}}", { name: gpName }) : t("meds.callGp", "Call GP"),
+          sub: t("meds.callGpSub", "Speak to your practice now."),
+          color: "#0A7C4E",
+          bg: "#ECFDF5",
+          href: gpPhoneHref,
+          testId: "link-meds-call-gp",
+        };
+      }
+      if (kind === "email_gp") {
+        return {
+          id: "email-gp",
+          icon: Mail,
+          label: t("meds.emailGp", "Email GP"),
+          sub: t("meds.emailGpSub", "Open an email with context filled in."),
+          color: "#2563EB",
+          bg: "#EFF6FF",
+          href: gpEmailHref,
+          testId: "link-meds-email-gp",
+        };
+      }
+      return {
+        id: "doctor-review",
+        icon: Stethoscope,
+        label: t("meds.doctorReview", "Doctor help"),
+        sub: t("meds.doctorReviewSub", "Share today’s medication context and get help quickly."),
+        color: "#6B21A8",
+        bg: "#EDE9FE",
+        onClick: openDoctorMedicationReview,
+        testId: "button-meds-doctor-review",
+      };
+    }),
+    {
+      id: "appointment",
+      icon: Calendar,
+      label: t("meds.medicationAppointment", "Medication appointment"),
+      sub: t("meds.medicationAppointmentSub", "VYVA prepares the request and you confirm before anything is booked."),
+      color: "#B45309",
+      bg: "#FFF7ED",
+      onClick: openMedicationAppointment,
+      testId: "button-meds-medication-appointment",
+    },
+    {
+      id: "ride",
+      icon: Car,
+      label: t("meds.medicationRide", "Book ride"),
+      sub: t("meds.medicationRideSub", "Arrange transport for a medication visit or pharmacy pickup."),
+      color: "#1D4ED8",
+      bg: "#EFF6FF",
+      onClick: openMedicationRide,
+      testId: "button-meds-medication-ride",
     },
     {
       id: "adherence",
@@ -662,11 +782,20 @@ const MedsScreen = () => {
                   <p className="font-body text-[16px] font-extrabold leading-tight text-vyva-text-1">{item.label}</p>
                   <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">{item.sub}</p>
                 </div>
-                {item.onClick ? <ExternalLink size={17} className="flex-shrink-0 text-vyva-purple" /> : null}
+                {item.onClick || item.href ? <ExternalLink size={17} className="flex-shrink-0 text-vyva-purple" /> : null}
               </>
             );
 
-            return item.onClick ? (
+            return item.href ? (
+              <a
+                key={item.id}
+                data-testid={item.testId}
+                href={item.href}
+                className={`vyva-tap flex w-full items-center gap-4 px-4 py-4 text-left transition-colors active:bg-[#FFF9F1] ${i !== supportActions.length - 1 ? "border-b border-vyva-border" : ""}`}
+              >
+                {content}
+              </a>
+            ) : item.onClick ? (
               <button
                 key={item.id}
                 data-testid={item.testId}
@@ -697,14 +826,19 @@ const MedsScreen = () => {
 
         <ResponsiveGrid columns="two" gap="sm">
           {ASSISTANT_ACTIONS.map((action) => {
-            const isLinksExpanded = action.type === "links" && expandedLinks.has(action.id);
             const Icon = action.icon;
 
             return (
               <div key={action.id} className="min-w-0">
                 <button
                   data-testid={`button-assistant-${action.id}`}
-                  onClick={() => action.type === "chat" ? openAssistant(action.prompt, action.sheetTitle) : toggleLinks(action.id)}
+                  onClick={() => {
+                    if (action.type === "chat") {
+                      openAssistant(action.prompt, action.sheetTitle);
+                      return;
+                    }
+                    action.onClick();
+                  }}
                   className="vyva-tap flex min-h-[150px] w-full flex-col justify-between rounded-[26px] border border-vyva-border bg-white p-4 text-left shadow-vyva-card"
                 >
                   <div className="flex w-full items-start justify-between gap-3">
@@ -714,7 +848,7 @@ const MedsScreen = () => {
                     {action.type === "chat" ? (
                       <ExternalLink size={17} className="text-vyva-text-2" />
                     ) : (
-                      <ChevronDown size={18} className={`text-vyva-text-2 transition-transform ${isLinksExpanded ? "rotate-180" : ""}`} />
+                      <ExternalLink size={17} className="text-vyva-text-2" />
                     )}
                   </div>
                   <div className="mt-4 min-w-0">
@@ -722,16 +856,6 @@ const MedsScreen = () => {
                     <p className="mt-1 font-body text-[13px] font-medium leading-snug text-vyva-text-2">{action.sub}</p>
                   </div>
                 </button>
-
-                {action.type === "links" && isLinksExpanded && (
-                  <div className="mt-2 grid gap-2 rounded-[20px] border border-vyva-border bg-white p-3 shadow-vyva-card">
-                    {action.links?.map((link) => (
-                      <a key={link.url} href={link.url} target="_blank" rel="noreferrer" className="font-body text-[14px] font-bold text-vyva-purple underline underline-offset-2">
-                        {link.label}
-                      </a>
-                    ))}
-                  </div>
-                )}
               </div>
             );
           })}

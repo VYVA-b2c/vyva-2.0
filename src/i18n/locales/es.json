@@ -366,6 +366,25 @@
         "openLabel": "Abrir conserje"
       }
     },
+    "fastHelp": {
+      "kicker": "Ayuda rapida",
+      "title": "Que necesitas ahora?",
+      "doctor": {
+        "label": "Ayuda medica",
+        "sub": "Hablar de una preocupacion de salud"
+      },
+      "appointment": {
+        "label": "Reservar cita",
+        "sub": "Preparar una solicitud para confirmar"
+      },
+      "ride": {
+        "label": "Reservar transporte",
+        "sub": "Organizar un trayecto seguro"
+      },
+      "doctorContext": "Solicitud rapida de ayuda medica desde Inicio. Pregunta que ocurre y ayuda a preparar el siguiente paso seguro.",
+      "appointmentPrefill": "Ayudame a programar una cita. Pregunta que tipo de cita necesito y no reserves nada sin mi confirmacion.",
+      "ridePrefill": "Ayudame a organizar transporte seguro. Pregunta destino y horario, y no reserves nada sin mi confirmacion."
+    },
     "whatNow": "o explora un tema"
   },
   "voiceHero": {
@@ -712,7 +731,7 @@
     },
     "seeDoctor": {
       "title": "Ver a un médico",
-      "subtitle": "Teléfono, video o chat en vivo",
+      "subtitle": "Llamada, cita o ayuda con transporte",
       "cta": "Elegir",
       "sheetTitle": "Elige cómo conectar",
       "videoCall": "Videollamada",
@@ -721,7 +740,26 @@
       "comingSoonBtn": "Próximamente",
       "comingSoon": "¡Este servicio está en preparación para ti. Disponible muy pronto!",
       "checkSymptoms": "Revisar mis síntomas",
-      "checkSymptomsSub": "Triaje con IA + escáner de signos vitales en 5 minutos"
+      "checkSymptomsSub": "Triaje con IA + escáner de signos vitales en 5 minutos",
+      "actions": {
+        "title": "Acceso medico",
+        "callGp": "Llamar al medico",
+        "callGpNamed": "Llamar a {{name}}",
+        "callGpSub": "Habla ahora con tu consulta.",
+        "emailGp": "Email al medico",
+        "emailGpSub": "Abre un email con el contexto preparado.",
+        "doctorHelp": "Ayuda medica",
+        "doctorHelpSub": "Repasa el siguiente paso con VYVA.",
+        "bookAppointment": "Pedir cita",
+        "bookAppointmentSub": "VYVA prepara la solicitud para aprobarla.",
+        "bookTransport": "Reservar transporte",
+        "bookTransportSub": "Organiza un traslado seguro.",
+        "addGp": "Anadir contacto medico",
+        "addGpSub": "Guarda telefono o email primero.",
+        "defaultContext": "Solicitud de ayuda medica desde Salud. Pregunta que necesito y prepara un siguiente paso seguro.",
+        "appointmentPrefill": "Ayudame a pedir una cita medica. No reserves nada sin confirmarlo conmigo.\n\n{{context}}",
+        "ridePrefill": "Ayudame a organizar transporte seguro para una cita medica. No reserves nada sin confirmarlo conmigo.\n\n{{context}}"
+      }
     },
     "symptomCheck": {
       "title": "Revisión de síntomas",
@@ -1014,6 +1052,9 @@
       "noProvidersBody": "Puedes probar otra ciudad o abrir Google Maps para buscar opciones cerca.",
       "openMaps": "Abrir Google Maps",
       "contact": "Contactar",
+      "call": "Llamar",
+      "bookAppointment": "Cita",
+      "bookRide": "Reservar transporte",
       "map": "Mapa",
       "share": "Compartir",
       "doctorSearchTerm": "médico",
@@ -1296,6 +1337,14 @@
     "saving": "Guardando…",
     "logActivity": "Registrar {{duration}}m de {{type}}",
     "selectActivity": "Selecciona una actividad arriba",
+    "supportTitle": "¿Necesitas ayuda para salir?",
+    "supportSubtitle": "VYVA puede preparar transporte o acompañamiento antes de que confirmes.",
+    "bookRide": "Reservar transporte",
+    "bookRideSub": "Organiza el trayecto antes de salir.",
+    "arrangeCompanion": "Organizar acompañante",
+    "arrangeCompanionSub": "Pide que alguien te acompañe.",
+    "ridePrefill": "Ayudame a organizar transporte seguro para una actividad de {{activity}} de {{duration}} minutos. Pideme confirmacion antes de reservar nada.",
+    "companionPrefill": "Ayudame a organizar un acompanante o persona de apoyo de confianza para una actividad de {{activity}} de {{duration}} minutos. Pideme confirmacion antes de contactar o reservar a nadie.",
     "activityLogged": "Actividad registrada — ¡buen trabajo!",
     "couldNotSave": "No se pudo guardar — inténtalo de nuevo.",
     "todaysSummary": "Resumen de hoy",
@@ -1686,7 +1735,18 @@
     "callCompanionDesc": "Activa VYVA mientras recibes una llamada sospechosa. Pregunta qué decir, qué evitar y si debes colgar.",
     "callCompanionStart": "Iniciar Compañero de Llamada",
     "callCompanionEnd": "Pausar ayuda",
-    "callCompanionConnecting": "Conectando…"
+    "callCompanionConnecting": "Conectando…",
+    "actions": {
+      "title": "Acciones seguras",
+      "trustedFallback": "persona de confianza",
+      "callTrusted": "Llamar a {{name}}",
+      "callTrustedAria": "Llamar a {{name}} sobre esta comprobacion",
+      "addTrusted": "Anadir persona de confianza",
+      "safeHelp": "Ayuda segura",
+      "safeHelpAria": "Abrir Concierge de VYVA con esta comprobacion",
+      "callGuidance": "Guia por llamada",
+      "pauseGuidance": "Pausar guia"
+    }
   },
   "community": {
     "title": "Mi Comunidad",
