@@ -129,6 +129,14 @@ type BrainCoachDailyPlan = {
     totalCount: number;
     allComplete: boolean;
   };
+  caregiverNudge?: {
+    id: string | null;
+    messageType: string;
+    title: string;
+    body: string;
+    sentAt: string | null;
+    sentBy: string | null;
+  } | null;
   preferences?: {
     trainingTime?: string | null;
     sessionLengthMins?: number | null;
@@ -226,6 +234,26 @@ const ActivitiesScreen = () => {
         description="VYVA can suggest a light activity and keep encouragement available while the user chooses."
         className="mt-[18px]"
       />
+
+      {dailyPlan?.caregiverNudge && (
+        <section
+          className="mt-[18px] flex items-start gap-3 rounded-[22px] border p-4"
+          style={{ background: "#EFF6FF", borderColor: "#BFDBFE" }}
+          data-testid="brain-coach-caregiver-nudge"
+        >
+          <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[14px] bg-white text-[#2563EB]">
+            <Bell size={20} />
+          </span>
+          <span className="min-w-0">
+            <span className="block font-body text-[16px] font-extrabold leading-tight text-[#1E3A8A] [overflow-wrap:anywhere]">
+              {dailyPlan.caregiverNudge.title}
+            </span>
+            <span className="mt-1 block font-body text-[13px] font-semibold leading-snug text-[#1E3A8A] [overflow-wrap:anywhere]">
+              {dailyPlan.caregiverNudge.body}
+            </span>
+          </span>
+        </section>
+      )}
 
       {retentionNudges.length > 0 && (
         <section className="mt-[18px] grid gap-2">

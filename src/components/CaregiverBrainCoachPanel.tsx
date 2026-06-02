@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Bell,
   Brain,
+  CalendarClock,
   CheckCircle2,
   Clock,
   Eye,
@@ -9,6 +11,7 @@ import {
   PauseCircle,
   PlayCircle,
   Save,
+  Send,
   Target,
 } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
@@ -85,6 +88,16 @@ type BrainCoachPlanPreview = {
   permissions: BrainCoachPermissions;
 };
 
+type BrainCoachCaregiverNudge = {
+  id: string | null;
+  planId: string;
+  messageType: "today_plan" | "gentle_restart" | "completed_today" | string;
+  title: string;
+  body: string;
+  sentAt: string | null;
+  sentBy: string | null;
+};
+
 type SummaryResponse = {
   summary: BrainCoachCaregiverSummary;
   permissions: BrainCoachPermissions;
@@ -92,6 +105,11 @@ type SummaryResponse = {
 
 type SettingsResponse = {
   settings: BrainCoachSettings;
+  permissions: BrainCoachPermissions;
+};
+
+type NudgeResponse = {
+  nudge: BrainCoachCaregiverNudge;
   permissions: BrainCoachPermissions;
 };
 
@@ -135,6 +153,9 @@ const ACTIVITY_OPTIONS = [
   { value: "face_name_match", label: "Face-Name Match" },
 ];
 
+const PLAN_PREFERENCE_KEYS = ["preferredDomains", "excludedActivityTypes", "weeklyTargetDays", "sessionLengthMinutes"] as const;
+const SCHEDULE_KEYS = ["preferredTrainingTimes", "paused"] as const;
+
 function labelize(value: string) {
   return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
@@ -144,8 +165,19 @@ function formatTime(value?: string | null) {
   return new Date(value).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-function settingsEqual(left: BrainCoachSettings, right: BrainCoachSettings) {
-  return JSON.stringify(left) === JSON.stringify(right);
+function buildSettingsPatch(draft: BrainCoachSettings, saved: BrainCoachSettings): Partial<BrainCoachSettings> {
+  const patch: Partial<BrainCoachSettings> = {};
+  const keys = [...PLAN_PREFERENCE_KEYS, ...SCHEDULE_KEYS] as Array<keyof BrainCoachSettings>;
+  for (const key of keys) {
+    if (JSON.stringify(draft[key]) !== JSON.stringify(saved[key])) {
+      (patch as Record<string, unknown>)[key] = draft[key];
+    }
+  }
+  return patch;
+}
+
+function hasPatchKey(patch: Partial<BrainCoachSettings>, keys: readonly (keyof BrainCoachSettings)[]) {
+  return keys.some((key) => Object.prototype.hasOwnProperty.call(patch, key));
 }
 
 function toggleValue(values: string[], value: string) {
@@ -164,6 +196,12 @@ function statusLabel(summary: BrainCoachCaregiverSummary | undefined) {
 function planText(summary: BrainCoachCaregiverSummary | undefined) {
   if (!summary?.todayPlan.totalItems) return "No plan yet";
   return `${summary.todayPlan.completedItems}/${summary.todayPlan.totalItems} complete`;
+}
+
+function nudgeMessageType(summary: BrainCoachCaregiverSummary | undefined) {
+  if (summary?.todayPlan.totalItems && summary.todayPlan.completionPct >= 100) return "completed_today";
+  if (summary?.status === "lapsed") return "gentle_restart";
+  return "today_plan";
 }
 
 export function CaregiverBrainCoachPanel() {
@@ -191,7 +229,7 @@ export function CaregiverBrainCoachPanel() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: async (nextSettings: BrainCoachSettings) => {
+    mutationFn: async (nextSettings: Partial<BrainCoachSettings>) => {
       const response = await apiFetch("/api/caregiver/brain-coach/me/settings", {
         method: "PATCH",
         body: JSON.stringify(nextSettings),
@@ -206,6 +244,17 @@ export function CaregiverBrainCoachPanel() {
     },
   });
 
+  const nudgeMutation = useMutation({
+    mutationFn: async (messageType: ReturnType<typeof nudgeMessageType>) => {
+      const response = await apiFetch("/api/caregiver/brain-coach/me/nudges", {
+        method: "POST",
+        body: JSON.stringify({ messageType }),
+      });
+      if (!response.ok) throw new Error("Could not send Brain Coach nudge");
+      return response.json() as Promise<NudgeResponse>;
+    },
+  });
+
   const previewMutation = useMutation({
     mutationFn: async () => {
       const response = await apiFetch("/api/caregiver/brain-coach/me/plan-preview", { method: "POST" });
@@ -214,17 +263,31 @@ export function CaregiverBrainCoachPanel() {
     },
   });
 
-  const savedSettings = settingsQuery.data?.settings ?? DEFAULT_SETTINGS;
+  const savedSettings = useMemo(
+    () => ({ ...DEFAULT_SETTINGS, ...(settingsQuery.data?.settings ?? {}) }),
+    [settingsQuery.data?.settings],
+  );
   const permissions = settingsQuery.data?.permissions ?? summaryQuery.data?.permissions ?? DEFAULT_PERMISSIONS;
   const summary = summaryQuery.data?.summary;
-  const canManage = permissions.manage_plan_preferences;
+  const canManagePreferences = permissions.manage_plan_preferences;
+  const canManageSchedule = permissions.manage_schedule;
+  const canSendNudges = permissions.send_nudges;
   const canPreview = permissions.preview_plan;
-  const isDirty = !settingsEqual(draft, savedSettings);
+  const settingsPatch = useMemo(() => buildSettingsPatch(draft, savedSettings), [draft, savedSettings]);
+  const isDirty = Object.keys(settingsPatch).length > 0;
+  const dirtyPlanPreferences = hasPatchKey(settingsPatch, PLAN_PREFERENCE_KEYS);
+  const dirtySchedule = hasPatchKey(settingsPatch, SCHEDULE_KEYS);
+  const canSaveDirtyChanges = isDirty &&
+    (!dirtyPlanPreferences || canManagePreferences) &&
+    (!dirtySchedule || canManageSchedule);
   const preferredTime = draft.preferredTrainingTimes[0] ?? "";
-  const controlDisabled = !canManage || settingsQuery.isLoading || saveMutation.isPending;
+  const preferencesDisabled = !canManagePreferences || settingsQuery.isLoading || saveMutation.isPending;
+  const scheduleDisabled = !canManageSchedule || settingsQuery.isLoading || saveMutation.isPending;
+  const nudgeType = nudgeMessageType(summary);
+  const nudgeDisabled = !canSendNudges || !summary?.todayPlan.planId || nudgeMutation.isPending;
 
   useEffect(() => {
-    if (settingsQuery.data?.settings) setDraft(settingsQuery.data.settings);
+    if (settingsQuery.data?.settings) setDraft({ ...DEFAULT_SETTINGS, ...settingsQuery.data.settings });
   }, [settingsQuery.data?.settings]);
 
   const preview = previewMutation.data?.plan;
@@ -258,7 +321,7 @@ export function CaregiverBrainCoachPanel() {
         <div>
           <p className="font-body text-[12px] font-bold uppercase tracking-[0.13em] text-[#5F6B63]">Brain Coach</p>
           <h2 className="mt-1 font-body text-[22px] font-bold text-[#26312B]">
-            {canManage ? "Training plan controls" : "Read-only training view"}
+            {canManagePreferences || canManageSchedule || canSendNudges ? "Training plan controls" : "Read-only training view"}
           </h2>
         </div>
         <Brain className="h-6 w-6 text-[#2F6F5E]" />
@@ -318,13 +381,13 @@ export function CaregiverBrainCoachPanel() {
       <div className="mt-4 rounded-[14px] border border-[#D8DED6] bg-[#FBFCFB] p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="font-body text-[15px] font-bold text-[#26312B]">Plan preferences</p>
-          <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 font-body text-[12px] font-bold ${canManage ? "bg-[#ECFDF5] text-[#047857]" : "bg-[#FFF7ED] text-[#9A3412]"}`}>
-            {canManage ? <CheckCircle2 className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-            {canManage ? "Control enabled" : "Needs senior consent"}
+          <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 font-body text-[12px] font-bold ${canManagePreferences ? "bg-[#ECFDF5] text-[#047857]" : "bg-[#FFF7ED] text-[#9A3412]"}`}>
+            {canManagePreferences ? <CheckCircle2 className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+            {canManagePreferences ? "Control enabled" : "Needs senior consent"}
           </span>
         </div>
 
-        <fieldset disabled={controlDisabled} className={`mt-4 space-y-4 ${controlDisabled ? "opacity-70" : ""}`}>
+        <fieldset disabled={preferencesDisabled} className={`mt-4 space-y-4 ${preferencesDisabled ? "opacity-70" : ""}`}>
           <div>
             <p className="mb-2 font-body text-[13px] font-bold text-[#5F6B63]">Focus domains</p>
             <div className="flex flex-wrap gap-2">
@@ -347,33 +410,18 @@ export function CaregiverBrainCoachPanel() {
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block">
-              <span className="mb-2 block font-body text-[13px] font-bold text-[#5F6B63]">Training time</span>
-              <input
-                type="time"
-                value={preferredTime}
-                onChange={(event) => setDraft((current) => ({
-                  ...current,
-                  preferredTrainingTimes: event.target.value ? [event.target.value] : [],
-                }))}
-                className="h-11 w-full rounded-[12px] border border-[#D8DED6] bg-white px-3 font-body text-[15px] font-bold text-[#26312B]"
-              />
-            </label>
-
-            <label className="block">
-              <span className="mb-2 block font-body text-[13px] font-bold text-[#5F6B63]">Weekly goal</span>
-              <select
-                value={draft.weeklyTargetDays}
-                onChange={(event) => setDraft((current) => ({ ...current, weeklyTargetDays: Number(event.target.value) }))}
-                className="h-11 w-full rounded-[12px] border border-[#D8DED6] bg-white px-3 font-body text-[15px] font-bold text-[#26312B]"
-              >
-                {[1, 2, 3, 4, 5, 6, 7].map((day) => (
-                  <option key={day} value={day}>{day} days</option>
-                ))}
-              </select>
-            </label>
-          </div>
+          <label className="block">
+            <span className="mb-2 block font-body text-[13px] font-bold text-[#5F6B63]">Weekly goal</span>
+            <select
+              value={draft.weeklyTargetDays}
+              onChange={(event) => setDraft((current) => ({ ...current, weeklyTargetDays: Number(event.target.value) }))}
+              className="h-11 w-full rounded-[12px] border border-[#D8DED6] bg-white px-3 font-body text-[15px] font-bold text-[#26312B]"
+            >
+              {[1, 2, 3, 4, 5, 6, 7].map((day) => (
+                <option key={day} value={day}>{day} days</option>
+              ))}
+            </select>
+          </label>
 
           <div>
             <p className="mb-2 font-body text-[13px] font-bold text-[#5F6B63]">Session length</p>
@@ -421,6 +469,46 @@ export function CaregiverBrainCoachPanel() {
               })}
             </div>
           </div>
+        </fieldset>
+
+        {!canManagePreferences && (
+          <p className="mt-3 rounded-[12px] bg-[#FFF7ED] p-3 font-body text-[13px] font-bold leading-relaxed text-[#9A3412]">
+            Needs senior consent before caregiver plan preference edits are available.
+          </p>
+        )}
+
+        {selectedDomainLabels.length > 0 && (
+          <p className="mt-3 font-body text-[12px] font-semibold leading-relaxed text-[#5F6B63]">
+            Focus: {selectedDomainLabels.join(", ")}
+          </p>
+        )}
+      </div>
+
+      <div className="mt-4 rounded-[14px] border border-[#D8DED6] bg-[#FBFCFB] p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="flex items-center gap-2 font-body text-[15px] font-bold text-[#26312B]">
+            <CalendarClock className="h-4 w-4 text-[#2F6F5E]" />
+            Schedule rhythm
+          </p>
+          <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 font-body text-[12px] font-bold ${canManageSchedule ? "bg-[#ECFDF5] text-[#047857]" : "bg-[#FFF7ED] text-[#9A3412]"}`}>
+            {canManageSchedule ? <CheckCircle2 className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+            {canManageSchedule ? "Schedule enabled" : "Needs senior consent"}
+          </span>
+        </div>
+
+        <fieldset disabled={scheduleDisabled} className={`mt-4 space-y-4 ${scheduleDisabled ? "opacity-70" : ""}`}>
+          <label className="block">
+            <span className="mb-2 block font-body text-[13px] font-bold text-[#5F6B63]">Training time</span>
+            <input
+              type="time"
+              value={preferredTime}
+              onChange={(event) => setDraft((current) => ({
+                ...current,
+                preferredTrainingTimes: event.target.value ? [event.target.value] : [],
+              }))}
+              className="h-11 w-full rounded-[12px] border border-[#D8DED6] bg-white px-3 font-body text-[15px] font-bold text-[#26312B]"
+            />
+          </label>
 
           <button
             type="button"
@@ -435,21 +523,23 @@ export function CaregiverBrainCoachPanel() {
           </button>
         </fieldset>
 
-        {!canManage && (
+        {!canManageSchedule && (
           <p className="mt-3 rounded-[12px] bg-[#FFF7ED] p-3 font-body text-[13px] font-bold leading-relaxed text-[#9A3412]">
-            Needs senior consent before caregiver edits are available.
+            Needs senior consent before caregiver schedule changes are available.
           </p>
         )}
+      </div>
 
+      <div className="mt-4 rounded-[14px] border border-[#D8DED6] bg-white p-4">
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
             type="button"
-            disabled={!canManage || !isDirty || saveMutation.isPending}
-            onClick={() => saveMutation.mutate(draft)}
+            disabled={!canSaveDirtyChanges || saveMutation.isPending}
+            onClick={() => saveMutation.mutate(settingsPatch)}
             className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-[#2F6F5E] px-4 font-body text-[13px] font-bold text-white disabled:cursor-not-allowed disabled:bg-[#A8B6AF]"
           >
             <Save className="h-4 w-4" />
-            {saveMutation.isPending ? "Saving" : "Save preferences"}
+            {saveMutation.isPending ? "Saving" : "Save Brain Coach changes"}
           </button>
           {saveMutation.isSuccess && !isDirty && (
             <span className="font-body text-[13px] font-bold text-[#047857]">Saved</span>
@@ -458,10 +548,50 @@ export function CaregiverBrainCoachPanel() {
             <span className="font-body text-[13px] font-bold text-[#B91C1C]">Could not save settings</span>
           )}
         </div>
+      </div>
 
-        {selectedDomainLabels.length > 0 && (
-          <p className="mt-3 font-body text-[12px] font-semibold leading-relaxed text-[#5F6B63]">
-            Focus: {selectedDomainLabels.join(", ")}
+      <div className="mt-4 rounded-[14px] border border-[#D8DED6] bg-white p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="flex items-center gap-2 font-body text-[15px] font-bold text-[#26312B]">
+            <Bell className="h-4 w-4 text-[#2F6F5E]" />
+            In-app nudge
+          </p>
+          <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 font-body text-[12px] font-bold ${canSendNudges ? "bg-[#ECFDF5] text-[#047857]" : "bg-[#FFF7ED] text-[#9A3412]"}`}>
+            {canSendNudges ? <CheckCircle2 className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+            {canSendNudges ? "Nudges enabled" : "Needs senior consent"}
+          </span>
+        </div>
+        <p className="mt-2 font-body text-[13px] font-semibold leading-relaxed text-[#5F6B63]">
+          Sends a Brain Coach reminder inside VYVA only.
+        </p>
+        <button
+          type="button"
+          disabled={nudgeDisabled}
+          onClick={() => nudgeMutation.mutate(nudgeType)}
+          className="mt-3 inline-flex min-h-[42px] items-center gap-2 rounded-full border border-[#C9D6CF] bg-[#F8FAF8] px-3 font-body text-[13px] font-bold text-[#26312B] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <Send className="h-4 w-4" />
+          {nudgeMutation.isPending ? "Sending nudge" : "Send in-app nudge"}
+        </button>
+
+        {!summary?.todayPlan.planId && (
+          <p className="mt-3 rounded-[12px] bg-[#FFF7ED] p-3 font-body text-[13px] font-bold text-[#9A3412]">
+            Today's Brain Coach plan needs to exist before a caregiver nudge can be sent.
+          </p>
+        )}
+        {!canSendNudges && (
+          <p className="mt-3 rounded-[12px] bg-[#FFF7ED] p-3 font-body text-[13px] font-bold text-[#9A3412]">
+            Needs senior consent before caregiver nudges are available.
+          </p>
+        )}
+        {nudgeMutation.isSuccess && (
+          <p className="mt-3 rounded-[12px] bg-[#ECFDF5] p-3 font-body text-[13px] font-bold text-[#047857]">
+            Nudge sent in-app.
+          </p>
+        )}
+        {nudgeMutation.isError && (
+          <p className="mt-3 rounded-[12px] bg-[#FEF2F2] p-3 font-body text-[13px] font-bold text-[#B91C1C]">
+            Could not send the nudge.
           </p>
         )}
       </div>
