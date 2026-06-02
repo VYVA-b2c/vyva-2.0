@@ -306,12 +306,12 @@ const DoctorChoiceScreen = () => {
               <p className="font-body text-[12px] font-bold uppercase tracking-[0.14em] text-white/65">
                 {heroMessage?.sourceText ?? t("health.doctorChoice.kicker", "Ayuda medica")}
               </p>
-              {isVoiceLive ? (
-                <span className="inline-flex flex-shrink-0 items-center gap-2 rounded-full bg-white px-3 py-2 font-body text-[13px] font-extrabold text-[#0A7C4E]">
-                  <span className="h-2 w-2 rounded-full bg-[#10B981]" />
-                  {t("common.live", "En vivo")}
-                </span>
-              ) : null}
+              <span
+                className="inline-flex h-4 w-4 flex-shrink-0 rounded-full border-2 border-white/80 shadow-[0_0_0_5px_rgba(255,255,255,0.16)]"
+                style={{ background: isVoiceLive ? "#10B981" : "#DC2626" }}
+                aria-label={isVoiceLive ? t("statusVitals.online", "Online") : t("statusVitals.offline", "Offline")}
+                title={isVoiceLive ? t("statusVitals.online", "Online") : t("statusVitals.offline", "Offline")}
+              />
             </div>
             <h1
               className="mt-1 min-w-0 break-words font-display text-[34px] italic leading-[1.08] text-white"

@@ -1,6 +1,18 @@
 import { Router, type Request, type Response } from "express";
 import OpenAI from "openai";
 import { z } from "zod";
+import { buildBrainCoachCaregiverSummary } from "../lib/brainCoachCaregiverSummary.js";
+import { mergeCaregiverSettingsIntoPreferences } from "../lib/brainCoachCaregiverSettings.js";
+import { buildBrainCoachDailyPlan, extractBrainCoachPreferences } from "../lib/brainCoachPlan.js";
+import {
+  applyPlanItemEvent,
+  buildBrainCoachPlanRows,
+  buildPersistedBrainCoachPlan,
+  completionSyncForPlan,
+  type BrainCoachPlanEventType,
+  type StoredBrainCoachPlan,
+  type StoredBrainCoachPlanItem,
+} from "../lib/brainCoachPlanLifecycle.js";
 
 const OPENAI_MODEL = "gpt-4o-mini";
 const ELEVENLABS_TTS_MODEL = "eleven_multilingual_v2";
@@ -65,6 +77,17 @@ const cognitiveSessionWriteSchema = z.object({
   sourceSessionId: z.string().trim().min(1).max(120).nullable().optional(),
   clientResultId: z.string().trim().min(1).max(160).nullable().optional(),
   metadata: z.record(z.unknown()).optional().default({}),
+});
+
+const dailyPlanEventSchema = z.object({
+  planId: z.string().uuid(),
+  planItemId: z.string().uuid().optional(),
+  activityType: z.string().trim().min(1).max(80).optional(),
+  eventType: z.enum(["accepted", "started", "skipped"]),
+  source: z.string().trim().min(1).max(80).optional().default("app"),
+  metadata: z.record(z.unknown()).optional().default({}),
+}).refine((value) => Boolean(value.planItemId || value.activityType), {
+  message: "planItemId or activityType is required.",
 });
 
 function normalizeGameLanguage(language: unknown): GameLanguage {
@@ -471,12 +494,173 @@ function queryLimit(value: unknown, fallback: number, max: number): number {
 }
 
 async function loadCognitiveSessionDb() {
-  const [{ db }, { cognitiveSessionIndex }, { and, desc, eq, gte, inArray }] = await Promise.all([
+  const [
+    { db },
+    {
+      cognitiveSessionIndex,
+      profiles,
+      cognitiveDailyPlans,
+      cognitiveDailyPlanItems,
+      cognitiveDailyPlanEvents,
+      cognitiveCaregiverSettings,
+    },
+    { and, asc, desc, eq, gte, inArray },
+  ] = await Promise.all([
     import("../db.js"),
     import("../../shared/schema.js"),
     import("drizzle-orm"),
   ]);
-  return { db, cognitiveSessionIndex, and, desc, eq, gte, inArray };
+  return {
+    db,
+    cognitiveSessionIndex,
+    profiles,
+    cognitiveDailyPlans,
+    cognitiveDailyPlanItems,
+    cognitiveDailyPlanEvents,
+    cognitiveCaregiverSettings,
+    and,
+    asc,
+    desc,
+    eq,
+    gte,
+    inArray,
+  };
+}
+
+type CognitiveSessionDb = Awaited<ReturnType<typeof loadCognitiveSessionDb>>;
+
+function storedPlan(row: unknown): StoredBrainCoachPlan {
+  return row as StoredBrainCoachPlan;
+}
+
+function storedItems(rows: unknown[]): StoredBrainCoachPlanItem[] {
+  return rows as StoredBrainCoachPlanItem[];
+}
+
+function recordValue(row: unknown, key: string): unknown {
+  return row && typeof row === "object" ? (row as Record<string, unknown>)[key] : undefined;
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+export function latestCaregiverNudge(events: unknown[], planId: string) {
+  const event = events
+    .filter((row) => (
+      recordValue(row, "planId") === planId &&
+      recordValue(row, "eventType") === "caregiver_nudge"
+    ))
+    .sort((left, right) => {
+      const leftTime = coerceDate(recordValue(left, "createdAt"), new Date(0)).getTime();
+      const rightTime = coerceDate(recordValue(right, "createdAt"), new Date(0)).getTime();
+      return rightTime - leftTime;
+    })[0];
+  if (!event) return null;
+
+  const metadata = recordValue(event, "metadata");
+  const metadataRecord = metadata && typeof metadata === "object"
+    ? metadata as Record<string, unknown>
+    : {};
+  const title = stringValue(metadataRecord.title);
+  const body = stringValue(metadataRecord.body);
+  if (!title || !body) return null;
+
+  return {
+    id: stringValue(recordValue(event, "id")),
+    planId,
+    messageType: stringValue(metadataRecord.message_type) ?? "today_plan",
+    title,
+    body,
+    sentAt: toIsoDate(recordValue(event, "createdAt")) ?? stringValue(metadataRecord.sent_at),
+    sentBy: stringValue(metadataRecord.sent_by),
+  };
+}
+
+async function selectPlanItems(ctx: CognitiveSessionDb, planId: string) {
+  const { db, cognitiveDailyPlanItems, asc, eq } = ctx;
+  return db
+    .select()
+    .from(cognitiveDailyPlanItems)
+    .where(eq(cognitiveDailyPlanItems.planId, planId))
+    .orderBy(asc(cognitiveDailyPlanItems.sortOrder));
+}
+
+async function updatePlanCompletionStatus(ctx: CognitiveSessionDb, plan: StoredBrainCoachPlan, items: StoredBrainCoachPlanItem[]) {
+  const { db, cognitiveDailyPlans, eq } = ctx;
+  const allComplete = items.length > 0 && items.every((item) => item.status === "completed" || Boolean(item.completedAt));
+  if (allComplete && plan.status !== "completed") {
+    const completedAt = new Date();
+    const [updated] = await db
+      .update(cognitiveDailyPlans)
+      .set({ status: "completed", completedAt, updatedAt: completedAt })
+      .where(eq(cognitiveDailyPlans.id, plan.id))
+      .returning();
+    return storedPlan(updated);
+  }
+  return plan;
+}
+
+async function syncPersistedPlanCompletion(
+  ctx: CognitiveSessionDb,
+  planRow: unknown,
+  itemRows: unknown[],
+  sessions: BrainCoachSessionLike[],
+) {
+  const { db, cognitiveDailyPlanItems, cognitiveDailyPlanEvents, and, eq } = ctx;
+  let plan = storedPlan(planRow);
+  let items = storedItems(itemRows);
+  const sync = completionSyncForPlan({
+    planDate: plan.planDate,
+    items,
+    sessions,
+  });
+
+  for (const item of items) {
+    if (!sync.completedActivityTypes.includes(item.activityType)) continue;
+    if (item.status === "completed" || item.completedAt) continue;
+    const completedAt = new Date();
+    await db
+      .update(cognitiveDailyPlanItems)
+      .set({ status: "completed", completedAt, updatedAt: completedAt })
+      .where(and(
+        eq(cognitiveDailyPlanItems.id, item.id),
+        eq(cognitiveDailyPlanItems.userId, plan.userId),
+      ));
+    await db.insert(cognitiveDailyPlanEvents).values({
+      planId: plan.id,
+      planItemId: item.id,
+      userId: plan.userId,
+      activityType: item.activityType,
+      eventType: "completed" satisfies BrainCoachPlanEventType,
+      source: "cognitive_session_index",
+      metadata: { plan_date: plan.planDate },
+    });
+  }
+
+  items = storedItems(await selectPlanItems(ctx, plan.id));
+  plan = await updatePlanCompletionStatus(ctx, plan, items);
+  return buildPersistedBrainCoachPlan(plan, items);
+}
+
+async function syncSessionToDailyPlan(ctx: CognitiveSessionDb, userId: string, session: BrainCoachSessionLike) {
+  if (!session.completed) return;
+  const planDate = utcDayKey(session.playedAt);
+  if (!planDate) return;
+
+  const { db, cognitiveDailyPlans, and, eq } = ctx;
+  const [plan] = await db
+    .select()
+    .from(cognitiveDailyPlans)
+    .where(and(
+      eq(cognitiveDailyPlans.userId, userId),
+      eq(cognitiveDailyPlans.planDate, planDate),
+    ))
+    .limit(1);
+  if (!plan) return;
+
+  const items = await selectPlanItems(ctx, plan.id);
+  await syncPersistedPlanCompletion(ctx, plan, items, [session]);
 }
 
 export async function createCognitiveSessionHandler(req: Request, res: Response) {
@@ -488,7 +672,8 @@ export async function createCognitiveSessionHandler(req: Request, res: Response)
   const data = parsed.data;
 
   try {
-    const { db, cognitiveSessionIndex, and, eq } = await loadCognitiveSessionDb();
+    const ctx = await loadCognitiveSessionDb();
+    const { db, cognitiveSessionIndex, and, eq } = ctx;
 
     if (data.clientResultId) {
       const [existing] = await db
@@ -529,6 +714,10 @@ export async function createCognitiveSessionHandler(req: Request, res: Response)
         metadata: data.metadata,
       })
       .returning();
+
+    await syncSessionToDailyPlan(ctx, req.user!.id, session).catch((error) => {
+      console.warn("[games] Daily Brain Coach plan completion sync failed:", error);
+    });
 
     return res.status(201).json({ session: normalizeProgressSession(session) });
   } catch (error) {
@@ -591,10 +780,261 @@ export async function brainCoachProgressHandler(req: Request, res: Response) {
   }
 }
 
+export async function brainCoachDailyPlanHandler(req: Request, res: Response) {
+  try {
+    const ctx = await loadCognitiveSessionDb();
+    const {
+      db,
+      cognitiveSessionIndex,
+      profiles,
+      cognitiveDailyPlans,
+      cognitiveDailyPlanItems,
+      cognitiveDailyPlanEvents,
+      cognitiveCaregiverSettings,
+      desc,
+      eq,
+      and,
+      gte,
+    } = ctx;
+    const trendWindowStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const [rows, planEvents] = await Promise.all([
+      db
+        .select()
+        .from(cognitiveSessionIndex)
+        .where(eq(cognitiveSessionIndex.userId, req.user!.id))
+        .orderBy(desc(cognitiveSessionIndex.playedAt))
+        .limit(300),
+      db
+        .select()
+        .from(cognitiveDailyPlanEvents)
+        .where(and(
+          eq(cognitiveDailyPlanEvents.userId, req.user!.id),
+          gte(cognitiveDailyPlanEvents.createdAt, trendWindowStart),
+        ))
+        .orderBy(desc(cognitiveDailyPlanEvents.createdAt))
+        .limit(200),
+    ]);
+
+    const [[profile], [caregiverSettings]] = await Promise.all([
+      db
+        .select({
+          dataSharingConsent: profiles.data_sharing_consent,
+        })
+        .from(profiles)
+        .where(eq(profiles.id, req.user!.id))
+        .limit(1),
+      db
+        .select()
+        .from(cognitiveCaregiverSettings)
+        .where(eq(cognitiveCaregiverSettings.userId, req.user!.id))
+        .limit(1),
+    ]);
+
+    const preferences = mergeCaregiverSettingsIntoPreferences(
+      extractBrainCoachPreferences(profile?.dataSharingConsent),
+      caregiverSettings,
+    );
+    const progress = buildBrainCoachProgress(rows);
+    const generatedPlan = buildBrainCoachDailyPlan({
+      sessions: rows,
+      events: planEvents,
+      preferences,
+      streakDays: progress.summary.streakDays,
+    });
+    const planDate = generatedPlan.planDate;
+
+    let [plan] = await db
+      .select()
+      .from(cognitiveDailyPlans)
+      .where(and(
+        eq(cognitiveDailyPlans.userId, req.user!.id),
+        eq(cognitiveDailyPlans.planDate, planDate),
+      ))
+      .limit(1);
+
+    if (!plan) {
+      const built = buildBrainCoachPlanRows({
+        userId: req.user!.id,
+        generatedPlan,
+        sourceContext: {
+          total_sessions: progress.summary.totalSessions,
+          completed_sessions: progress.summary.completedSessions,
+          streak_days: progress.summary.streakDays,
+          training_time: preferences.trainingTime ?? null,
+          session_length_mins: preferences.sessionLengthMins ?? null,
+        },
+      });
+      [plan] = await db
+        .insert(cognitiveDailyPlans)
+        .values(built.plan)
+        .returning();
+
+      if (built.items.length > 0) {
+        await db.insert(cognitiveDailyPlanItems).values(
+          built.items.map((item) => ({
+            ...item,
+            planId: plan.id,
+          })),
+        );
+      }
+    }
+
+    const items = await selectPlanItems(ctx, plan.id);
+    const persistedPlan = await syncPersistedPlanCompletion(ctx, plan, items, rows);
+
+    return res.json({
+      ...persistedPlan,
+      caregiverNudge: latestCaregiverNudge(planEvents, plan.id),
+    });
+  } catch (error) {
+    console.error("[games] Brain Coach daily plan failed:", error);
+    return res.status(500).json({ error: "Brain Coach daily plan could not be loaded." });
+  }
+}
+
+export async function brainCoachDailyPlanEventHandler(req: Request, res: Response) {
+  const parsed = dailyPlanEventSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid Brain Coach plan event request." });
+  }
+
+  const data = parsed.data;
+
+  try {
+    const ctx = await loadCognitiveSessionDb();
+    const {
+      db,
+      cognitiveDailyPlans,
+      cognitiveDailyPlanItems,
+      cognitiveDailyPlanEvents,
+      and,
+      eq,
+    } = ctx;
+    const [plan] = await db
+      .select()
+      .from(cognitiveDailyPlans)
+      .where(and(
+        eq(cognitiveDailyPlans.id, data.planId),
+        eq(cognitiveDailyPlans.userId, req.user!.id),
+      ))
+      .limit(1);
+
+    if (!plan) {
+      return res.status(404).json({ error: "Brain Coach plan not found." });
+    }
+
+    const itemConditions = [
+      eq(cognitiveDailyPlanItems.planId, data.planId),
+      eq(cognitiveDailyPlanItems.userId, req.user!.id),
+    ];
+    if (data.planItemId) {
+      itemConditions.push(eq(cognitiveDailyPlanItems.id, data.planItemId));
+    } else if (data.activityType) {
+      itemConditions.push(eq(cognitiveDailyPlanItems.activityType, data.activityType));
+    }
+
+    const [item] = await db
+      .select()
+      .from(cognitiveDailyPlanItems)
+      .where(and(...itemConditions))
+      .limit(1);
+
+    if (!item) {
+      return res.status(404).json({ error: "Brain Coach plan item not found." });
+    }
+
+    const patch = applyPlanItemEvent(storedItems([item])[0], data.eventType);
+    if (Object.keys(patch).length > 0) {
+      await db
+        .update(cognitiveDailyPlanItems)
+        .set(patch)
+        .where(and(
+          eq(cognitiveDailyPlanItems.id, item.id),
+          eq(cognitiveDailyPlanItems.userId, req.user!.id),
+        ));
+    }
+
+    await db.insert(cognitiveDailyPlanEvents).values({
+      planId: plan.id,
+      planItemId: item.id,
+      userId: req.user!.id,
+      activityType: item.activityType,
+      eventType: data.eventType,
+      source: data.source,
+      metadata: data.metadata,
+    });
+
+    const items = await selectPlanItems(ctx, plan.id);
+    const persistedPlan = buildPersistedBrainCoachPlan(storedPlan(plan), storedItems(items));
+    return res.json(persistedPlan);
+  } catch (error) {
+    console.error("[games] Brain Coach daily plan event failed:", error);
+    return res.status(500).json({ error: "Brain Coach plan event could not be saved." });
+  }
+}
+
+export async function brainCoachCaregiverSummaryHandler(req: Request, res: Response) {
+  try {
+    const ctx = await loadCognitiveSessionDb();
+    const {
+      db,
+      cognitiveSessionIndex,
+      cognitiveDailyPlans,
+      cognitiveDailyPlanItems,
+      and,
+      desc,
+      eq,
+      gte,
+      asc,
+    } = ctx;
+    const now = new Date();
+    const todayStart = utcDayStart(now);
+    const planWindowStart = new Date(todayStart - 6 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const sessionWindowStart = new Date(todayStart - 29 * 24 * 60 * 60 * 1000);
+
+    const [sessions, plans, planItems] = await Promise.all([
+      db
+        .select()
+        .from(cognitiveSessionIndex)
+        .where(and(
+          eq(cognitiveSessionIndex.userId, req.user!.id),
+          gte(cognitiveSessionIndex.playedAt, sessionWindowStart),
+        ))
+        .orderBy(desc(cognitiveSessionIndex.playedAt))
+        .limit(100),
+      db
+        .select()
+        .from(cognitiveDailyPlans)
+        .where(and(
+          eq(cognitiveDailyPlans.userId, req.user!.id),
+          gte(cognitiveDailyPlans.planDate, planWindowStart),
+        ))
+        .orderBy(desc(cognitiveDailyPlans.planDate))
+        .limit(7),
+      db
+        .select()
+        .from(cognitiveDailyPlanItems)
+        .where(and(
+          eq(cognitiveDailyPlanItems.userId, req.user!.id),
+          gte(cognitiveDailyPlanItems.planDate, planWindowStart),
+        ))
+        .orderBy(asc(cognitiveDailyPlanItems.planDate), asc(cognitiveDailyPlanItems.sortOrder)),
+    ]);
+
+    return res.json(buildBrainCoachCaregiverSummary({ sessions, plans, planItems, now }));
+  } catch (error) {
+    console.error("[games] Brain Coach caregiver summary failed:", error);
+    return res.status(500).json({ error: "Brain Coach caregiver summary could not be loaded." });
+  }
+}
+
 const router = Router();
 router.post("/sessions", createCognitiveSessionHandler);
 router.get("/history", cognitiveSessionHistoryHandler);
 router.get("/progress", brainCoachProgressHandler);
+router.get("/daily-plan", brainCoachDailyPlanHandler);
+router.post("/daily-plan/events", brainCoachDailyPlanEventHandler);
+router.get("/caregiver-summary", brainCoachCaregiverSummaryHandler);
 router.post("/score-retell", scoreRetellHandler);
 router.post("/tts", ttsHandler);
 

@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/contexts/ProfileContext";
 import { sanitizePhoneHref } from "@/lib/emergencyContacts";
 import { checkinActionNavigationFor, type CheckinActionNavigation } from "./CheckHowIFeelScreen";
+import { useLanguage } from "@/i18n";
 
 type CheckinHistoryReport = {
   id: string;
@@ -59,7 +60,7 @@ function formatDate(value: string, language = "es") {
 
 function shareText(report: CheckinHistoryReport, name: string) {
   return [
-    `Lectura VYVA para ${name}`,
+    name ? `Lectura VYVA para ${name}` : "Lectura VYVA",
     formatDate(report.completed_at, report.language ?? "es"),
     "",
     report.feeling_label ?? "Check-in de bienestar",
@@ -188,9 +189,9 @@ export function savedCheckinNavigationFor(report: CheckinHistoryReport, name: st
 const CheckinHistoryScreen = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { firstName, profile } = useProfile();
-  const language = profile?.language ?? "es";
-  const name = firstName || "Carlos";
+  const { firstName } = useProfile();
+  const { language } = useLanguage();
+  const name = firstName.trim();
   const { data, isLoading, isError } = useQuery<CheckinHistoryResponse>({
     queryKey: ["/api/checkins/history"],
   });

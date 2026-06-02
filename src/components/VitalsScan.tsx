@@ -135,7 +135,7 @@ export default function VitalsScan({ onComplete, compact = false, saveReading = 
     if (saveReading && bpm != null) {
       apiFetch("/api/reports/vitals", {
         method: "POST",
-        body: JSON.stringify({ bpm, respiratory_rate: respiratoryRate }),
+        body: JSON.stringify({ bpm, respiratory_rate: respiratoryRate, source: "phone_estimate" }),
       }).catch((err) => console.error("[reports/vitals] save failed:", err));
     }
     onComplete(bpm, respiratoryRate);
@@ -415,10 +415,14 @@ export default function VitalsScan({ onComplete, compact = false, saveReading = 
               style={{ color: "#0369A1" }}
               data-testid="display-scan-resp"
             >
-              {displayResp} rpm
+            {displayResp} rpm
             </span>
           </div>
         )}
+
+        <p className="mt-3 rounded-[18px] border border-[#DDD6FE] bg-white px-3 py-2 font-body text-[12px] font-semibold leading-relaxed text-vyva-text-2">
+          {t("health.symptomCheck.scan.estimateNote", "Phone scans are estimates for trends. Confirm unusual results with a device or clinician.")}
+        </p>
       </div>
       </HealthWizardCard>
 

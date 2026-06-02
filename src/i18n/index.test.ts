@@ -12,12 +12,32 @@ import {
 } from "./index";
 
 const LANGUAGE_SOURCE_STORAGE_KEY = "vyva_lang_source";
+const SUPPORTED_TEST_LANGUAGES = ["en", "es", "fr", "de", "it", "pt"] as const;
 
 function collectFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
     const fullPath = `${dir}/${entry}`;
     return statSync(fullPath).isDirectory() ? collectFiles(fullPath) : [fullPath];
   });
+}
+
+function flattenLocaleKeys(value: unknown, prefix = "", output: string[] = []): string[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return output;
+
+  for (const [key, child] of Object.entries(value)) {
+    const childKey = prefix ? `${prefix}.${key}` : key;
+    if (child && typeof child === "object" && !Array.isArray(child)) {
+      flattenLocaleKeys(child, childKey, output);
+    } else {
+      output.push(childKey);
+    }
+  }
+
+  return output;
+}
+
+function localeKeys(language: (typeof SUPPORTED_TEST_LANGUAGES)[number]) {
+  return new Set(flattenLocaleKeys(JSON.parse(readFileSync(`src/i18n/locales/${language}.json`, "utf8"))));
 }
 
 describe("language persistence", () => {
@@ -414,12 +434,12 @@ describe("language persistence", () => {
 
   it("keeps daily check-in home card copy localized for supported account languages", () => {
     const expected = {
-      en: ["Daily are-you-okay check", "Checked in today", "Let VYVA know how today feels", "You checked in today. VYVA has a fresh wellbeing signal.", "View history"],
-      es: ["Control diario de bienestar", "Hecho hoy", "Cu\u00e9ntale a VYVA c\u00f3mo te sientes hoy", "Has completado el control de hoy. VYVA tiene una nueva se\u00f1al de bienestar.", "Ver historial"],
-      fr: ["Controle quotidien de bien-etre", "Controle fait aujourd'hui", "Dites a VYVA comment vous vous sentez aujourd'hui", "Vous avez fait le controle aujourd'hui. VYVA a un nouveau signal de bien-etre.", "Voir l'historique"],
-      de: ["Taglicher Wohlbefinden-Check", "Heute erledigt", "Sag VYVA, wie du dich heute fuhlst", "Du hast heute eingecheckt. VYVA hat ein neues Wohlbefinden-Signal.", "Verlauf ansehen"],
-      it: ["Controllo quotidiano del benessere", "Fatto oggi", "Di a VYVA come ti senti oggi", "Hai completato il controllo di oggi. VYVA ha un nuovo segnale di benessere.", "Vedi cronologia"],
-      pt: ["Check-in diario de bem-estar", "Feito hoje", "Diga a VYVA como se sente hoje", "Concluiu o check-in de hoje. A VYVA tem um novo sinal de bem-estar.", "Ver historico"],
+      en: ["Daily check-in", "Checked in today", "How are you today?", "VYVA has today's signal.", "History"],
+      es: ["Control diario", "Hecho hoy", "Como estas hoy?", "VYVA tiene la senal de hoy.", "Historial"],
+      fr: ["Contrôle quotidien", "Contrôle fait aujourd'hui", "Comment allez-vous ?", "VYVA a le signal du jour.", "Historique"],
+      de: ["Taglicher Check", "Heute erledigt", "Wie geht es dir heute?", "VYVA hat das heutige Signal.", "Verlauf"],
+      it: ["Check-in quotidiano", "Fatto oggi", "Come ti senti oggi?", "VYVA ha il segnale di oggi.", "Cronologia"],
+      pt: ["Check-in diario", "Feito hoje", "Como se sente hoje?", "A VYVA tem o sinal de hoje.", "Historico"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -474,6 +494,24 @@ describe("language persistence", () => {
     }
   });
 
+  it("keeps vitals and symptom-check health flows localized for supported account languages", () => {
+    const namespaces = [
+      "statusVitals",
+      "health.symptomCheck.scan",
+      "health.symptomCheck.report",
+    ];
+    const englishKeys = localeKeys("en");
+
+    for (const language of SUPPORTED_TEST_LANGUAGES.filter((code) => code !== "en")) {
+      const translatedKeys = localeKeys(language);
+      const missingKeys = [...englishKeys].filter((key) => (
+        namespaces.some((namespace) => key.startsWith(`${namespace}.`)) && !translatedKeys.has(key)
+      ));
+
+      expect(missingKeys, `${language} is missing health translation keys`).toEqual([]);
+    }
+  });
+
   it("keeps settings pages on the shared app language store", () => {
     const settingsSource = collectFiles("src/pages/settings")
       .filter((file) => file.endsWith(".tsx"))
@@ -487,5 +525,21 @@ describe("language persistence", () => {
     expect(legacySettingsSource).not.toContain("useTranslation(");
     expect(legacySettingsSource).not.toContain("i18n.changeLanguage");
     expect(legacySettingsSource).not.toContain("LANGUAGE_STORAGE_KEY");
+  });
+
+  it("keeps live health and social screens on the current app language", () => {
+    const files = [
+      "src/pages/HealthScreen.tsx",
+      "src/pages/SignosScreen.tsx",
+      "src/pages/CheckHowIFeelScreen.tsx",
+      "src/pages/CheckinHistoryScreen.tsx",
+      "src/social/SocialHub.tsx",
+      "src/social/RoomScreen.tsx",
+    ];
+
+    for (const file of files) {
+      const source = readFileSync(file, "utf8");
+      expect(source, `${file} should not use stale profile language for live UI`).not.toMatch(/profile\??\.language/);
+    }
   });
 });

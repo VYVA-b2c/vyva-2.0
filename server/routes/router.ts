@@ -387,6 +387,24 @@ function buildVoiceContextPromptBlock(voiceContext: VoiceDynamicVariables) {
     contextValue(voiceContext.recent_activity_summary)
       ? `Recent activity: ${contextValue(voiceContext.recent_activity_summary)}`
       : "",
+    contextValue(voiceContext.brain_coach_context)
+      ? `Brain Coach context: ${contextValue(voiceContext.brain_coach_context)}`
+      : "",
+    contextValue(voiceContext.brain_coach_plan)
+      ? `Brain Coach plan: ${contextValue(voiceContext.brain_coach_plan)}`
+      : "",
+    contextValue(voiceContext.brain_coach_plan_id)
+      ? `Brain Coach plan IDs: plan_id ${contextValue(voiceContext.brain_coach_plan_id)}; recommended_plan_item_id ${contextValue(voiceContext.brain_coach_recommended_plan_item_id)}`
+      : "",
+    contextValue(voiceContext.brain_coach_recommended_activity_prompt)
+      ? `Brain Coach recommended activity prompt: ${contextValue(voiceContext.brain_coach_recommended_activity_prompt)}`
+      : "",
+    contextValue(voiceContext.brain_coach_missed_session_awareness)
+      ? `Brain Coach missed-session awareness: ${contextValue(voiceContext.brain_coach_missed_session_awareness)}`
+      : "",
+    contextValue(voiceContext.brain_coach_streak_awareness)
+      ? `Brain Coach streak awareness: ${contextValue(voiceContext.brain_coach_streak_awareness)}`
+      : "",
     contextValue(voiceContext.social_activity_summary)
       ? `Recent social activity: ${contextValue(voiceContext.social_activity_summary)}`
       : "",

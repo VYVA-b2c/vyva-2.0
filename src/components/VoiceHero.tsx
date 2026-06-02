@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef } from "react";
 import { Mic, MessageCircle, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { type TranscriptEntry, useVyvaVoice } from "@/hooks/useVyvaVoice";
-import { type HeroSurface } from "@/lib/heroMessages";
+import { recordHeroEvent, type HeroSurface } from "@/lib/heroMessages";
 import { type UseHeroMessageOptions, useHeroMessage } from "@/hooks/useHeroMessage";
 import VoiceCallOverlay from "@/components/VoiceCallOverlay";
 import VyvaAvatar from "@/components/VyvaAvatar";
@@ -161,6 +161,17 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   ]);
 
   const handleTalk = () => {
+    if (!isActive && dynamicHero) {
+      recordHeroEvent({
+        messageId: dynamicHero.messageId,
+        surface: dynamicHero.surface,
+        language: dynamicHero.language,
+        eventType: "cta_click",
+        reason: dynamicHero.reason,
+        source: dynamicHero.source,
+      });
+    }
+
     if (isActive) {
       stopVoice();
     } else if (onTalkClick) {
@@ -183,6 +194,10 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
           ? t("voiceHero.speaking")
           : t("voiceHero.listening"))
     : resolvedTalkLabel ?? t("voiceHero.talkToVyva");
+  const connectionLabel = isActive ? t("statusVitals.online", "Online") : t("statusVitals.offline", "Offline");
+  const connectionColor = isActive ? "#34D399" : "#EF4444";
+  const connectionHalo = isActive ? "rgba(52,211,153,0.24)" : "rgba(239,68,68,0.20)";
+  const connectionBorder = isActive ? "rgba(52,211,153,0.42)" : "rgba(239,68,68,0.36)";
   const isBrainHero = heroSurface === "brain";
 
   const timeOfDay = useMemo((): "morning" | "afternoon" | "evening" => {
@@ -213,10 +228,14 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
         )}
 
         <div className="mt-[14px] rounded-[24px] relative overflow-visible hero-purple" style={{ paddingTop: "0" }}>
-          {/* En Vivo badge — top right */}
-          <div className="absolute top-[14px] right-[16px] flex items-center gap-1.5 px-[10px] py-[4px] rounded-full z-10" style={{ background: isActive ? "rgba(52,211,153,0.3)" : "rgba(52,211,153,0.18)", border: "1px solid rgba(52,211,153,0.28)" }}>
-            <div className="w-[6px] h-[6px] rounded-full live-dot" style={{ background: "#34D399" }} />
-            <span className="text-[11px] font-body" style={{ color: "#34D399" }}>{isActive ? t("voiceHero.active") : t("voiceHero.live")}</span>
+          <div
+            className="absolute right-[16px] top-[14px] z-10 flex h-8 w-8 items-center justify-center rounded-full"
+            style={{ background: connectionHalo, border: `1px solid ${connectionBorder}` }}
+            aria-label={connectionLabel}
+            title={connectionLabel}
+            data-testid="voice-hero-status-dot"
+          >
+            <span className="h-2.5 w-2.5 rounded-full live-dot" style={{ background: connectionColor }} />
           </div>
 
           {/* Avatar — anchored to card bottom-right */}
@@ -336,9 +355,14 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
                 <MessageCircle size={16} style={{ color: "rgba(255,255,255,0.92)" }} />
               </button>
             )}
-            <div className="flex items-center gap-1.5 px-[10px] py-[3px] rounded-full" style={{ background: isActive ? "rgba(52,211,153,0.3)" : "rgba(52,211,153,0.18)", border: "1px solid rgba(52,211,153,0.28)" }}>
-              <div className="w-[6px] h-[6px] rounded-full live-dot" style={{ background: "#34D399" }} />
-              <span className="text-[11px] font-body" style={{ color: "#34D399" }}>{isActive ? t("voiceHero.active") : t("voiceHero.live")}</span>
+            <div
+              className="flex h-8 w-8 items-center justify-center rounded-full"
+              style={{ background: connectionHalo, border: `1px solid ${connectionBorder}` }}
+              aria-label={connectionLabel}
+              title={connectionLabel}
+              data-testid="voice-hero-status-dot"
+            >
+              <span className="h-2.5 w-2.5 rounded-full live-dot" style={{ background: connectionColor }} />
             </div>
           </div>
         </div>

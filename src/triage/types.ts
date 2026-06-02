@@ -44,6 +44,8 @@ export type TriageVitals = {
   systolicBp?: number;
   diastolicBp?: number;
   glucoseMgdl?: number;
+  painScore?: number;
+  energyLevel?: number;
 };
 
 export type TriageRuleInput = TriageVitals & {
@@ -110,6 +112,8 @@ export type TriageWizardContext = {
     systolicBp?: number | null;
     diastolicBp?: number | null;
     glucoseMgdl?: number | null;
+    painScore?: number | null;
+    energyLevel?: number | null;
   };
   quickAnswers?: TriageWizardAnswer[];
   scanResults?: TriageScanResult[];

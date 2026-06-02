@@ -455,6 +455,14 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   const isTtsSpeakingRef = useRef(isTtsSpeaking);
   const companionLineKeyRef = useRef("");
   const wordRecallRepeatTimerRef = useRef<number | null>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const stopWordRecallAudio = () => {
     if (wordRecallRepeatTimerRef.current) {
@@ -1076,9 +1084,9 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     }
 
     if (plan.gameType === "word_recall" && completionMetrics && !finished) {
-      let active = true;
       async function completeGame() {
         setSaving(true);
+        setFinished(true);
         try {
           await saveGameResult({
             userId,
@@ -1094,16 +1102,12 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
             language,
           });
         } finally {
-          if (active) {
+          if (isMountedRef.current) {
             setSaving(false);
-            setFinished(true);
           }
         }
       }
       void completeGame();
-      return () => {
-        active = false;
-      };
     }
   }, [
     completionMetrics,

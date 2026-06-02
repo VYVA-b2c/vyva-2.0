@@ -261,6 +261,8 @@ describe("senior triage protocols", () => {
 
     expect(result.level).toBe("doctor_24_48");
     expect(result.reasons.join(" ")).toContain("unclear");
+    expect(result.recommendations.filter((item) => /doctor|clinic/i.test(item))).toHaveLength(1);
+    expect(result.recommendations.join(" ")).not.toContain("same-day help");
   });
 
   it.each([

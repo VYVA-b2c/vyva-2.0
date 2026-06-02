@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import gamesRouter, { buildBrainCoachProgress, calculateBrainCoachStreak } from "../routes/games.js";
+import gamesRouter, { buildBrainCoachProgress, calculateBrainCoachStreak, latestCaregiverNudge } from "../routes/games.js";
 import { authMiddleware, requireUser } from "../middleware/auth.js";
 
 function buildApp() {
@@ -164,5 +164,42 @@ describe("brain game API routes", () => {
       "number_trails",
       "category_sort",
     ]);
+  });
+
+  it("projects the latest caregiver Brain Coach nudge from plan events", () => {
+    expect(latestCaregiverNudge([
+      {
+        id: "event-old",
+        planId: "plan-1",
+        eventType: "caregiver_nudge",
+        metadata: {
+          message_type: "gentle_restart",
+          title: "Older nudge",
+          body: "Older message",
+          sent_by: "caregiver-1",
+        },
+        createdAt: "2026-06-01T08:00:00.000Z",
+      },
+      {
+        id: "event-new",
+        planId: "plan-1",
+        eventType: "caregiver_nudge",
+        metadata: {
+          message_type: "today_plan",
+          title: "Your Brain Coach plan is ready",
+          body: "Your caregiver suggested one short recommended activity.",
+          sent_by: "caregiver-1",
+        },
+        createdAt: "2026-06-01T10:00:00.000Z",
+      },
+    ], "plan-1")).toMatchObject({
+      id: "event-new",
+      planId: "plan-1",
+      messageType: "today_plan",
+      title: "Your Brain Coach plan is ready",
+      body: "Your caregiver suggested one short recommended activity.",
+      sentAt: "2026-06-01T10:00:00.000Z",
+      sentBy: "caregiver-1",
+    });
   });
 });

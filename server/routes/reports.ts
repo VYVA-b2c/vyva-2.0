@@ -1,14 +1,24 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { eq, and, desc, gte } from "drizzle-orm";
+import { eq, and, desc, gte, sql } from "drizzle-orm";
 import { db, pool } from "../db.js";
 import { caregiverAlerts, profiles, triageReports, vitalsReadings, medicationAdherence, userMedications } from "../../shared/schema.js";
+import { VITALS_READING_SOURCES, type VitalsReadingSource } from "../../shared/vitalsEvidence.js";
 import type { TriageScanResult } from "../../shared/triageScans.js";
 import { mergeTriageRecommendations, trackTriageEvent } from "../../src/triage/index.js";
 import { z } from "zod";
 
 const DEMO_USER_ID = "demo-user";
 const IS_PROD = process.env.NODE_ENV === "production";
+type ReadingSource = VitalsReadingSource;
+
+type SignalReadingRow = {
+  signal_type: string;
+  value: string | number;
+  recorded_at: Date | string;
+  source: ReadingSource | string;
+  context_tag: string | null;
+};
 
 function resolveUserId(req: Request): string | null {
   if (req.user?.id) return req.user.id;
@@ -17,6 +27,13 @@ function resolveUserId(req: Request): string | null {
 }
 
 const router = Router();
+
+function queryRows<T>(result: unknown): T[] {
+  if (result && typeof result === "object" && "rows" in result && Array.isArray((result as { rows: unknown }).rows)) {
+    return (result as { rows: T[] }).rows;
+  }
+  return Array.isArray(result) ? result as T[] : [];
+}
 
 // ─── Storage helpers ───────────────────────────────────────────────────────────
 
@@ -202,6 +219,7 @@ async function saveVitalsReading(params: {
   userId: string;
   bpm: number;
   respiratory_rate?: number | null;
+  source?: ReadingSource;
 }) {
   await ensureReportsPersistenceTables();
   const [row] = await db.insert(vitalsReadings).values({
@@ -209,7 +227,52 @@ async function saveVitalsReading(params: {
     bpm: params.bpm,
     respiratory_rate: params.respiratory_rate ?? null,
   }).returning();
+
+  mirrorVitalsScanToEngine({
+    userId: params.userId,
+    bpm: params.bpm,
+    respiratoryRate: params.respiratory_rate ?? null,
+    source: params.source ?? "phone_estimate",
+  }).catch((err) => console.error("[reports/vitals mirror]", err));
+
   return row;
+}
+
+function looksLikeUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+async function mirrorVitalsScanToEngine(params: {
+  userId: string;
+  bpm: number;
+  respiratoryRate?: number | null;
+  source: ReadingSource;
+}) {
+  if (!looksLikeUuid(params.userId)) return;
+
+  const entries = [
+    { signalType: "resting_hr_bpm", value: params.bpm },
+    ...(params.respiratoryRate != null ? [{ signalType: "respiratory_rate", value: params.respiratoryRate }] : []),
+  ];
+
+  for (const entry of entries) {
+    await db.execute(sql`
+      INSERT INTO vyva_signal_readings (
+        user_id,
+        signal_type,
+        value,
+        source,
+        context_tag
+      )
+      VALUES (
+        ${params.userId},
+        ${entry.signalType},
+        ${entry.value},
+        ${params.source},
+        'camera_scan'
+      )
+    `);
+  }
 }
 
 async function getLatestTriageReport(userId: string) {
@@ -228,6 +291,43 @@ async function getLatestVitalsReading(userId: string) {
     .orderBy(desc(vitalsReadings.recorded_at))
     .limit(1);
   return rows[0] ?? null;
+}
+
+async function getLatestSignalReadings(userId: string): Promise<SignalReadingRow[]> {
+  if (!looksLikeUuid(userId)) return [];
+  const result = await db.execute(sql`
+    SELECT signal_type, value, recorded_at, source, context_tag
+    FROM (
+      SELECT
+        signal_type,
+        value,
+        recorded_at,
+        source,
+        context_tag,
+        row_number() OVER (PARTITION BY signal_type ORDER BY recorded_at DESC) AS rn
+      FROM vyva_signal_readings
+      WHERE user_id = ${userId}
+    ) ranked
+    WHERE rn = 1
+    ORDER BY recorded_at DESC
+    LIMIT 12
+  `);
+  return queryRows<SignalReadingRow>(result);
+}
+
+async function getSignalHistory(userId: string, days = 30): Promise<SignalReadingRow[]> {
+  if (!looksLikeUuid(userId)) return [];
+  const cutoff = new Date();
+  cutoff.setUTCDate(cutoff.getUTCDate() - days);
+  const result = await db.execute(sql`
+    SELECT signal_type, value, recorded_at, source, context_tag
+    FROM vyva_signal_readings
+    WHERE user_id = ${userId}
+      AND recorded_at >= ${cutoff}
+    ORDER BY recorded_at ASC
+    LIMIT 120
+  `);
+  return queryRows<SignalReadingRow>(result);
 }
 
 async function getVitalsHistory(userId: string, days = 30) {
@@ -367,6 +467,7 @@ router.post("/triage", async (req: Request, res: Response) => {
 const vitalsSchema = z.object({
   bpm:              z.number().int().min(30).max(250),
   respiratory_rate: z.number().int().min(6).max(60).nullable().optional(),
+  source:           z.enum(VITALS_READING_SOURCES).default("phone_estimate"),
 });
 
 router.post("/vitals", async (req: Request, res: Response) => {
@@ -390,7 +491,14 @@ router.get("/summary", async (req: Request, res: Response) => {
   const userId = resolveUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
   try {
-    return res.json(await loadReportsSummary(userId));
+    const [summary, latestSignals] = await Promise.all([
+      loadReportsSummary(userId),
+      getLatestSignalReadings(userId).catch((err) => {
+        console.warn("[reports/summary signals]", err);
+        return [];
+      }),
+    ]);
+    return res.json({ ...summary, latestSignals });
   } catch (err) {
     console.error("[reports/summary GET]", err);
     return res.status(500).json({ error: "Failed to fetch summary" });
@@ -402,8 +510,14 @@ router.get("/vitals/history", async (req: Request, res: Response) => {
   const userId = resolveUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
   try {
-    const readings = await getVitalsHistory(userId, 30);
-    return res.json({ readings });
+    const [readings, signalReadings] = await Promise.all([
+      getVitalsHistory(userId, 30),
+      getSignalHistory(userId, 30).catch((err) => {
+        console.warn("[reports/vitals/history signals]", err);
+        return [];
+      }),
+    ]);
+    return res.json({ readings, signalReadings });
   } catch (err) {
     console.warn("[reports/vitals/history GET] unavailable", err);
     return res.json({ readings: [] });

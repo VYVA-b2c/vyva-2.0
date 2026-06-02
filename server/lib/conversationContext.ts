@@ -8,6 +8,7 @@ import {
   userMedications,
   vitalsReadings,
 } from "../../shared/schema.js";
+import { vitalsEvidenceFor } from "../../shared/vitalsEvidence.js";
 
 export type RoomVisitContext = {
   isFirstVisit: boolean;
@@ -47,6 +48,12 @@ export type ConversationContextSummary = {
       metricType?: string | null;
       value?: string | null;
     };
+    latestSignals?: Array<{
+      recordedAt?: string;
+      signalType: string;
+      value: string;
+      source: string;
+    }>;
     medicationToday?: {
       activeMedicationCount: number;
       expectedDoseCount: number;
@@ -70,6 +77,13 @@ type BuildConversationContextOptions = {
   roomSlug?: string;
   roomVisitState?: RoomVisitContext | null;
   maxLines?: number;
+};
+
+type SignalReadingRow = {
+  signal_type: string;
+  value: string | number;
+  recorded_at: Date | string;
+  source: string;
 };
 
 const EMPTY_CONTEXT: ConversationContextSummary = {
@@ -108,6 +122,42 @@ function todayStartUtc() {
   return new Date(new Date().toISOString().slice(0, 10) + "T00:00:00.000Z");
 }
 
+function looksLikeUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function signalLabel(signal: string) {
+  const labels: Record<string, string> = {
+    resting_hr_bpm: "pulse",
+    respiratory_rate: "breathing rate",
+    oxygen_saturation: "oxygen",
+    temperature_c: "temperature",
+    bp_systolic: "blood pressure top number",
+    bp_diastolic: "blood pressure bottom number",
+    glucose_mgdl: "glucose",
+    pain_score: "pain",
+    energy_level: "energy",
+    mood_score: "mood",
+    sleep_quality_score: "sleep",
+  };
+  return labels[signal] ?? signal.replace(/_/g, " ");
+}
+
+function signalUnit(signal: string) {
+  if (signal === "resting_hr_bpm") return "bpm";
+  if (signal === "respiratory_rate") return "breaths/min";
+  if (signal === "oxygen_saturation") return "%";
+  if (signal === "temperature_c") return "C";
+  if (signal === "bp_systolic" || signal === "bp_diastolic") return "mmHg";
+  if (signal === "glucose_mgdl") return "mg/dL";
+  if (["pain_score", "energy_level", "mood_score", "sleep_quality_score"].includes(signal)) return "/10";
+  return "";
+}
+
+function sourceLabel(source: string, signalType?: string | null) {
+  return vitalsEvidenceFor(source, signalType).contextLabel;
+}
+
 function medicationDoseCount(medications: Array<typeof userMedications.$inferSelect>) {
   return medications.reduce((total, medication) => {
     const times = Array.isArray(medication.scheduled_times) ? medication.scheduled_times.filter(Boolean).length : 0;
@@ -139,6 +189,24 @@ async function loadLatestCheckin(userId: string) {
   return result.rows[0] ?? null;
 }
 
+async function loadLatestSignalReadings(userId: string): Promise<SignalReadingRow[]> {
+  if (!looksLikeUuid(userId)) return [];
+  const result = await pool.query<SignalReadingRow>(
+    `select signal_type, value, recorded_at, source
+     from (
+       select signal_type, value, recorded_at, source,
+         row_number() over (partition by signal_type order by recorded_at desc) as rn
+       from vyva_signal_readings
+       where user_id = $1
+     ) ranked
+     where rn = 1
+     order by recorded_at desc
+     limit 8`,
+    [userId],
+  );
+  return result.rows;
+}
+
 export async function buildUserConversationContext(
   userId: string,
   options: BuildConversationContextOptions = {},
@@ -150,6 +218,7 @@ export async function buildUserConversationContext(
     latestCheckin,
     latestTriage,
     latestVitals,
+    latestSignalReadings,
     activeMeds,
     todayMedLogs,
     brainCoach,
@@ -182,6 +251,7 @@ export async function buildUserConversationContext(
       },
       null,
     ),
+    safeContextPart("latest signal readings", () => loadLatestSignalReadings(userId), [] as SignalReadingRow[]),
     safeContextPart(
       "active medications",
       () => db.select().from(userMedications).where(and(eq(userMedications.user_id, userId), eq(userMedications.active, true))),
@@ -296,6 +366,23 @@ export async function buildUserConversationContext(
       latestVitals.metric_type && latestVitals.value ? `${latestVitals.metric_type} ${cleanText(latestVitals.value, 30)}` : "",
     ].filter(Boolean);
     if (vitalBits.length) lines.push(`Latest vitals: ${vitalBits.join("; ")}.`);
+  }
+
+  if (latestSignalReadings.length) {
+    facts.latestSignals = latestSignalReadings.map((reading) => {
+      const unit = signalUnit(reading.signal_type);
+      return {
+        recordedAt: isoDate(reading.recorded_at),
+        signalType: reading.signal_type,
+        value: `${reading.value}${unit ? ` ${unit}` : ""}`,
+        source: sourceLabel(reading.source, reading.signal_type),
+      };
+    });
+    const signalBits = latestSignalReadings.slice(0, 5).map((reading) => {
+      const unit = signalUnit(reading.signal_type);
+      return `${signalLabel(reading.signal_type)} ${reading.value}${unit ? ` ${unit}` : ""} (${sourceLabel(reading.source, reading.signal_type)})`;
+    });
+    lines.push(`Latest readings: ${signalBits.join("; ")}.`);
   }
 
   const expectedDoseCount = medicationDoseCount(activeMeds);

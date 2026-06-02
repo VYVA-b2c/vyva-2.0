@@ -22,6 +22,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import { CaregiverBrainCoachPanel } from "@/components/CaregiverBrainCoachPanel";
 import { apiFetch } from "@/lib/queryClient";
 
 type SafetyStatus = "steady" | "recheck" | "share_with_caregiver" | "contact_doctor" | "urgent_help";
@@ -344,7 +345,6 @@ export default function CaregiverDashboardPage() {
   const highestSeverity = recentAlerts.reduce((max, alert) => Math.max(max, severityRank(alert.severity)), 0);
   const checkinMessage = dailyCheckin?.latest_checkin?.feeling_label ?? dailyCheckin?.message ?? "No check-in update";
   const digestText = buildDigest(alerts, meta.label, checkinMessage);
-
   function persistWorkflow(next: AlertWorkflowState) {
     setWorkflow(next);
     if (typeof window !== "undefined") {
@@ -677,6 +677,8 @@ export default function CaregiverDashboardPage() {
                       </div>
                     </section>
                   )}
+
+                  <CaregiverBrainCoachPanel />
 
                   <section className="rounded-[16px] border border-[#D8DED6] bg-white p-5">
                     <div className="flex items-start justify-between gap-3">

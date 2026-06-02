@@ -47,11 +47,11 @@ describe("DailyCheckinCard", () => {
       />,
     );
 
-    expect(screen.getByText("Control diario de bienestar")).toBeInTheDocument();
+    expect(screen.getByText("Control diario")).toBeInTheDocument();
     expect(screen.getByText("Hecho hoy")).toBeInTheDocument();
-    expect(screen.getByText("Cu\u00e9ntale a VYVA c\u00f3mo te sientes hoy")).toBeInTheDocument();
-    expect(screen.getByText("Has completado el control de hoy. VYVA tiene una nueva se\u00f1al de bienestar.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Ver historial" })).toBeInTheDocument();
+    expect(screen.getByText("Como estas hoy?")).toBeInTheDocument();
+    expect(screen.getByText("VYVA tiene la senal de hoy.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Historial" })).toBeInTheDocument();
     expect(screen.queryByText("Daily are-you-okay check")).not.toBeInTheDocument();
     expect(screen.queryByText("You checked in today. VYVA has a fresh wellbeing signal.")).not.toBeInTheDocument();
   });

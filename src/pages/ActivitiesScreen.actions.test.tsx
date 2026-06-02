@@ -8,11 +8,16 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
   return {
     ...actual,
-    useQuery: () => ({
-      data: {
-        summary: { streakDays: 2 },
-        today: { completedCount: 0, activityTypes: [] },
-      },
+    useQuery: ({ queryKey }: { queryKey?: unknown[] }) => ({
+      data: queryKey?.[0] === "/api/games/progress"
+        ? {
+            summary: { streakDays: 2 },
+            today: { completedCount: 0, activityTypes: [] },
+          }
+        : undefined,
+    }),
+    useQueryClient: () => ({
+      invalidateQueries: vi.fn(),
     }),
   };
 });

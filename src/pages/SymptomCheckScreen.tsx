@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Activity, Calendar, Car, ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, Heart, ListChecks, Loader2, Mail, PhoneCall, RefreshCw, Send, ShoppingBasket, Stethoscope, Users, type LucideIcon } from "lucide-react";
@@ -15,6 +15,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/i18n";
 import { apiFetch, queryClient } from "@/lib/queryClient";
+import { compactReportRecommendations, uniqueReportLines } from "@/lib/reportRecommendations";
 import { getSymptomRecommendationActionKinds, type SymptomRecommendationActionKind } from "@/lib/symptomReportActions";
 import type { TriageScanResult } from "../../shared/triageScans";
 
@@ -51,7 +52,7 @@ interface TriageSummary {
   };
 }
 
-type RefinementVitalKey = "glucose" | "bloodPressure" | "oxygen" | "respiratoryRate" | "temperature" | "pulse";
+type RefinementVitalKey = "glucose" | "bloodPressure" | "oxygen" | "respiratoryRate" | "temperature" | "pulse" | "pain" | "energy";
 
 type RefinementVitalConfig = {
   key: RefinementVitalKey;
@@ -60,6 +61,7 @@ type RefinementVitalConfig = {
   placeholder: string;
   helper: string;
   signalType: string;
+  invalidMessage?: string;
   parse: (raw: string) => { value: number; extraValue?: number; display: string; vitals: Record<string, number> } | null;
 };
 
@@ -69,6 +71,27 @@ type RefinementStatus = {
 };
 
 type ReportSaveState = "idle" | "saving" | "saved" | "error";
+
+type LatestVitalReading = {
+  signal_type: string;
+  context_tag?: string | null;
+  value: string | number;
+  recorded_at?: string | null;
+  source?: string | null;
+  source_confidence?: "low" | "medium" | "high" | null;
+  source_display_label?: string | null;
+  source_context_label?: string | null;
+};
+
+type LatestVitalsResponse = {
+  recent_readings?: LatestVitalReading[];
+};
+
+type LatestVitalCandidate = {
+  value: string;
+  display: string;
+  source?: string | null;
+};
 
 type TriageHealthMemory = {
   healthContext?: string;
@@ -676,36 +699,7 @@ function ReportConfig(summary: TriageSummary) {
 }
 
 function uniqueLines(lines: string[]) {
-  return lines
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .filter((line, index, list) => list.findIndex((item) => item.toLowerCase() === line.toLowerCase()) === index);
-}
-
-function simplifyReportRecommendations(lines: string[]) {
-  const unique = uniqueLines(lines);
-  const hasDoctorContactAction = unique.some((line) =>
-    /^(contacta|contact).*(doctor|m(?:e|\u00e9)dico|cl(?:i|\u00ed)nica|clinic|urgent care|urgencias)/i.test(line),
-  );
-
-  return unique.filter((line, index) => {
-    if (!hasDoctorContactAction) return true;
-    return !/^(habla|talk|speak).*(doctor|m(?:e|\u00e9)dico).*hoy/i.test(line);
-  });
-}
-
-function compactDoctorContactRecommendations(lines: string[]) {
-  const unique = simplifyReportRecommendations(lines);
-  const doctorContactIndex = unique.findIndex((line) =>
-    /\b(contacta|contact|habla|talk|speak|comparte|share)\b.*\b(doctor|m(?:e|\u00e9)dico|clinic|cl(?:i|\u00ed)nica|urgent care|urgencias)\b/i.test(line),
-  );
-
-  if (doctorContactIndex < 0) return unique;
-
-  return unique.filter((line, index) => {
-    if (index === doctorContactIndex) return true;
-    return !/\b(contacta|contact|habla|talk|speak|comparte|share)\b.*\b(doctor|m(?:e|\u00e9)dico|clinic|cl(?:i|\u00ed)nica|urgent care|urgencias)\b/i.test(line);
-  });
+  return uniqueReportLines(lines);
 }
 
 function directShareChannel(value: string): DoctorShareTarget["channel"] {
@@ -760,6 +754,12 @@ function parseNumber(raw: string) {
   return Number.isFinite(value) ? value : null;
 }
 
+function parseRangeNumber(raw: string, min: number, max: number) {
+  const value = parseNumber(raw);
+  if (value == null || value < min || value > max) return null;
+  return value;
+}
+
 function parseBloodPressure(raw: string) {
   const match = raw.trim().match(/^(\d{2,3})\s*[/ ]\s*(\d{2,3})$/);
   if (!match) return null;
@@ -767,6 +767,43 @@ function parseBloodPressure(raw: string) {
   const diastolic = Number(match[2]);
   if (!Number.isFinite(systolic) || !Number.isFinite(diastolic)) return null;
   return { systolic, diastolic };
+}
+
+function normalizeReadingValue(value: string | number | null | undefined) {
+  if (value == null) return "";
+  return String(value).trim();
+}
+
+function findLatestReading(readings: LatestVitalReading[], signalType: string) {
+  return readings.find((reading) => reading.signal_type === signalType && normalizeReadingValue(reading.value));
+}
+
+function latestCandidateForAction(action: RefinementVitalConfig, readings: LatestVitalReading[]): LatestVitalCandidate | null {
+  if (action.key === "bloodPressure") {
+    const systolic = findLatestReading(readings, "bp_systolic");
+    const diastolic = findLatestReading(readings, "bp_diastolic");
+    if (!systolic || !diastolic) return null;
+
+    const value = `${normalizeReadingValue(systolic.value)}/${normalizeReadingValue(diastolic.value)}`;
+    const parsed = action.parse(value);
+    if (!parsed) return null;
+    return {
+      value,
+      display: parsed.display,
+      source: systolic.source ?? diastolic.source ?? null,
+    };
+  }
+
+  const reading = findLatestReading(readings, action.signalType);
+  if (!reading) return null;
+  const value = normalizeReadingValue(reading.value);
+  const parsed = action.parse(value);
+  if (!parsed) return null;
+  return {
+    value,
+    display: parsed.display,
+    source: reading.source ?? null,
+  };
 }
 
 function reportText(summary: TriageSummary) {
@@ -789,6 +826,7 @@ export function ReportScreen({
   profileContacts,
   careTeamMembers,
   emergencyContact,
+  latestVitalReadings = [],
   refinementStatus,
   onRefineVital,
   onDone,
@@ -801,6 +839,7 @@ export function ReportScreen({
   profileContacts?: ProfileContactsResponse;
   careTeamMembers: CareTeamMember[];
   emergencyContact?: EmergencyContact | null;
+  latestVitalReadings?: LatestVitalReading[];
   refinementStatus: RefinementStatus;
   onRefineVital: (config: RefinementVitalConfig, rawValue: string) => Promise<void>;
   onDone: () => void;
@@ -918,7 +957,7 @@ export function ReportScreen({
           unit: "%",
           placeholder: "96",
           helper: t("health.symptomCheck.report.checkOxygenReason", "Add your oxygen reading if you have a pulse oximeter."),
-          signalType: "spo2_pct",
+          signalType: "oxygen_saturation",
           parse: (raw) => {
             const value = parseNumber(raw);
             return value == null ? null : { value, display: `${value}%`, vitals: { oxygenSaturation: value } };
@@ -967,7 +1006,47 @@ export function ReportScreen({
           },
         }
       : null,
+    /\b(pain|ache|headache|back|belly pain|stomach pain|fall|injury|dolor|cabeza|espalda|barriga|caida|golpe)\b/.test(actionText)
+      ? {
+          key: "pain",
+          title: t("health.symptomCheck.report.checkPainNow", "Rate pain now"),
+          unit: "/10",
+          placeholder: "6",
+          helper: t("health.symptomCheck.report.checkPainReason", "Use 0 for no pain and 10 for the worst pain."),
+          signalType: "pain_score",
+          invalidMessage: t("health.symptomCheck.report.invalidPainReading", "Enter pain from 0 to 10."),
+          parse: (raw) => {
+            const value = parseRangeNumber(raw, 0, 10);
+            return value == null ? null : { value, display: `${value}/10`, vitals: { painScore: value } };
+          },
+        }
+      : null,
+    /\b(tired|weak|fatigue|energy|exhausted|dizzy|confused|cansado|debil|energia|agotado|mareo|confusion)\b/.test(actionText)
+      ? {
+          key: "energy",
+          title: t("health.symptomCheck.report.checkEnergyNow", "Rate energy now"),
+          unit: "/10",
+          placeholder: "4",
+          helper: t("health.symptomCheck.report.checkEnergyReason", "Use 1 for very low energy and 10 for normal/high energy."),
+          signalType: "energy_level",
+          invalidMessage: t("health.symptomCheck.report.invalidEnergyReading", "Enter energy from 1 to 10."),
+          parse: (raw) => {
+            const value = parseRangeNumber(raw, 1, 10);
+            return value == null ? null : { value, display: `${value}/10`, vitals: { energyLevel: value } };
+          },
+        }
+      : null,
   ].filter(Boolean) as RefinementVitalConfig[];
+  const latestVitalCandidates = useMemo(() => {
+    const entries = vitalActions.map((action) => [action.key, latestCandidateForAction(action, latestVitalReadings)] as const);
+    return Object.fromEntries(entries) as Partial<Record<RefinementVitalKey, LatestVitalCandidate | null>>;
+  }, [latestVitalReadings, vitalActions]);
+  const latestSourceLabel = (source?: string | null) => {
+    if (source === "connected_device") return t("health.symptomCheck.report.latestSourceDevice", "device reading");
+    if (source === "clinical") return t("health.symptomCheck.report.latestSourceClinical", "clinical reading");
+    if (source === "phone_estimate") return t("health.symptomCheck.report.latestSourcePhone", "phone estimate");
+    return t("health.symptomCheck.report.latestSourceManual", "saved reading");
+  };
   const doctorTellItems = uniqueLines([
     `${t("health.symptomCheck.report.tellMainSymptom", "Main symptom")}: ${summary.chiefComplaint}`,
     summary.symptoms.length ? `${t("health.symptomCheck.report.symptoms", "Symptoms noted")}: ${summary.symptoms.join(", ")}` : "",
@@ -978,6 +1057,7 @@ export function ReportScreen({
     summary.profileConsiderations?.length ? `${t("health.symptomCheck.report.profileConsidered", "Profile considered")}: ${summary.profileConsiderations.join(" ")}` : "",
     summary.watchSigns?.length ? `${t("health.symptomCheck.report.watchSigns", "Watch signs")}: ${summary.watchSigns.join(" ")}` : "",
   ]).slice(0, 6);
+  const reportRecommendations = compactReportRecommendations(summary.recommendations, { max: 4, level: cfg.level });
   const doctorNote = [
     summary.chiefComplaint,
     summary.symptoms.length ? `${t("health.symptomCheck.report.symptoms", "Symptoms noted")}: ${summary.symptoms.join(", ")}` : "",
@@ -987,7 +1067,7 @@ export function ReportScreen({
     nextStepDisplayText ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${nextStepDisplayText}` : "",
     summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Initial Assessment")}: ${summary.triageReasons.join(" ")}` : "",
     summary.evidenceSummary ? `${t("health.symptomCheck.report.evidenceChecked", "Science-based source check")}: ${summary.evidenceSummary}` : "",
-    summary.recommendations.length ? `${t("health.symptomCheck.report.recommendations", "What to do next")}: ${summary.recommendations.join(" ")}` : "",
+    reportRecommendations.length ? `${t("health.symptomCheck.report.recommendations", "What to do next")}: ${reportRecommendations.join(" ")}` : "",
     summary.watchSigns?.length ? `${t("health.symptomCheck.report.watchSigns", "Watch signs")}: ${summary.watchSigns.join(" ")}` : "",
     summary.profileConsiderations?.length ? `${t("health.symptomCheck.report.profileConsidered", "Profile considered")}: ${summary.profileConsiderations.join(" ")}` : "",
     summary.vitalsNotes?.length ? `${t("health.symptomCheck.report.vitalsUsed", "Vitals used")}: ${summary.vitalsNotes.join(" ")}` : "",
@@ -1127,7 +1207,7 @@ export function ReportScreen({
     ...(summary.scanNotes ?? []),
   ]);
   const visibleReasons = allReasons.slice(0, 2);
-  const visibleRecommendations = compactDoctorContactRecommendations(summary.recommendations).slice(0, 4);
+  const visibleRecommendations = reportRecommendations.slice(0, 4);
   const nextStepActions = nextStepDisplayText ? actionsForRecommendation(nextStepDisplayText) : [];
   const visibleWatchSigns = uniqueLines(summary.watchSigns ?? []).slice(0, 2);
   const contextNotes = uniqueLines([...(summary.profileConsiderations ?? []), ...(summary.vitalsNotes ?? []), ...(summary.scanNotes ?? [])]);
@@ -1188,7 +1268,7 @@ export function ReportScreen({
   const handleRefineVital = async (config: RefinementVitalConfig, rawValue: string) => {
     const parsed = config.parse(rawValue);
     if (!parsed) {
-      setVitalInputError(t("health.symptomCheck.report.enterValidReading", "Enter a valid reading first."));
+      setVitalInputError(config.invalidMessage ?? t("health.symptomCheck.report.enterValidReading", "Enter a valid reading first."));
       return;
     }
     setVitalInputError(null);
@@ -1209,7 +1289,7 @@ export function ReportScreen({
     summary.evidenceSummary ? `${t("health.symptomCheck.report.evidenceChecked", "Science-based source check")}: ${summary.evidenceSummary}` : "",
     "",
     t("health.symptomCheck.report.recommendations") + ":",
-    ...summary.recommendations.map((r, i) => `${i + 1}. ${r}`),
+    ...reportRecommendations.map((r, i) => `${i + 1}. ${r}`),
     "",
     t("health.symptomCheck.report.disclaimer"),
   ]
@@ -1490,11 +1570,34 @@ export function ReportScreen({
           </div>
         </section>
 
+        {vitalActions.length ? (
+          <section className="rounded-[24px] border border-[#DDD6FE] bg-[#FAF5FF] p-4 shadow-[0_8px_22px_rgba(107,33,168,0.06)]" data-testid="card-report-vital-refinement-note">
+            <div className="flex items-start gap-3">
+              <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-vyva-purple shadow-sm">
+                <Activity size={21} />
+              </span>
+              <div className="min-w-0">
+                <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-purple">
+                  {t("health.symptomCheck.report.vitalRefinementTitle", "Refine with a reading")}
+                </p>
+                <p className="mt-1 font-body text-[16px] font-bold leading-snug text-vyva-text-2">
+                  {t(
+                    "health.symptomCheck.report.vitalRefinementBody",
+                    "A relevant reading can help VYVA update this assessment. Phone estimates are useful for trends; device or manual readings are stronger evidence.",
+                  )}
+                </p>
+              </div>
+            </div>
+          </section>
+        ) : null}
+
         <div className="grid grid-cols-1 gap-3">
           {vitalActions.map((action) => {
             const open = openVitalKey === action.key;
             const value = vitalInputs[action.key] ?? "";
             const busy = refinementStatus.state === "saving" || refinementStatus.state === "refining";
+            const latestCandidate = latestVitalCandidates[action.key] ?? null;
+            const latestSource = latestSourceLabel(latestCandidate?.source);
             const statusTone = refinementStatus.state === "error"
               ? "border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]"
               : "border-[#BBF7D0] bg-[#ECFDF5] text-[#047857]";
@@ -1520,20 +1623,39 @@ export function ReportScreen({
                   <button
                     type="button"
                     onClick={() => {
+                      if (!latestCandidate) return;
                       setOpenVitalKey(action.key);
                       setVitalInputs((current) => ({
                         ...current,
-                        [action.key]: action.key === "glucose" ? "92" : action.placeholder,
+                        [action.key]: latestCandidate.value,
                       }));
                       setVitalInputError(null);
                     }}
-                    disabled={busy}
-                    className="vyva-tap flex min-h-[76px] w-full min-w-0 items-center justify-between rounded-[22px] bg-[#6B21A8] px-5 text-left text-white shadow-[0_12px_26px_rgba(107,33,168,0.22)]"
+                    disabled={busy || !latestCandidate}
+                    className={`vyva-tap flex min-h-[82px] w-full min-w-0 items-center justify-between rounded-[22px] px-5 text-left shadow-[0_12px_26px_rgba(107,33,168,0.12)] disabled:cursor-not-allowed ${
+                      latestCandidate
+                        ? "bg-[#6B21A8] text-white"
+                        : "border border-[#E8DED4] bg-[#FAF9F6] text-vyva-text-3"
+                    }`}
                   >
-                    <span className="min-w-0 font-body text-[18px] font-black leading-tight">
-                      {t("health.symptomCheck.report.readConnectedSensor", "Read from connected sensor")}
+                    <span className="grid min-w-0 gap-1">
+                      <span className="min-w-0 font-body text-[18px] font-black leading-tight">
+                        {latestCandidate
+                          ? t("health.symptomCheck.report.useLatestReading", "Use latest saved reading")
+                          : t("health.symptomCheck.report.noLatestReading", "No saved reading yet")}
+                      </span>
+                      <span className={`min-w-0 font-body text-[14px] font-bold leading-snug ${
+                        latestCandidate ? "text-white/82" : "text-vyva-text-3"
+                      }`}>
+                        {latestCandidate
+                          ? t("health.symptomCheck.report.latestReadingDetail", "{{display}} from {{source}}", {
+                              display: latestCandidate.display,
+                              source: latestSource,
+                            })
+                          : t("health.symptomCheck.report.noLatestReadingDetail", "Enter this reading manually to refine the assessment.")}
+                      </span>
                     </span>
-                    <ChevronLeft size={22} className="ml-3 flex-shrink-0 rotate-180" />
+                    <ChevronLeft size={22} className={`ml-3 flex-shrink-0 rotate-180 ${latestCandidate ? "" : "opacity-45"}`} />
                   </button>
                   <button
                     type="button"
@@ -1721,13 +1843,13 @@ export function ReportScreen({
               </div>
             ) : null}
 
-            {summary.recommendations.length > 0 ? (
+            {reportRecommendations.length > 0 ? (
               <div>
                 <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-text-3">
                   {t("health.symptomCheck.report.recommendations")}
                 </p>
                 <ol className="mt-3 grid gap-3">
-                  {summary.recommendations.map((recommendation, index) => (
+                  {reportRecommendations.map((recommendation, index) => (
                     <li key={index} className="flex items-start gap-3">
                       <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-vyva-purple font-body text-[12px] font-bold text-white">
                         {index + 1}
@@ -1887,6 +2009,12 @@ export default function SymptomCheckScreen() {
     enabled: step === "report",
     retry: false,
     staleTime: 2 * 60 * 1000,
+  });
+  const { data: latestVitalsData } = useQuery<LatestVitalsResponse>({
+    queryKey: ["/api/vitals-engine/latest", "symptom-report"],
+    enabled: step === "report",
+    retry: false,
+    staleTime: 60 * 1000,
   });
   const [bpm, setBpm] = useState<number | null>(() => restoredDraft?.bpm ?? null);
   const [respiratoryRate, setRespiratoryRate] = useState<number | null>(() => restoredDraft?.respiratoryRate ?? null);
@@ -2067,7 +2195,7 @@ export default function SymptomCheckScreen() {
           body: JSON.stringify({
             signal_type: reading.signal_type,
             value: reading.value,
-            source: "manual",
+            source: "manual_entry",
             context_tag: "general",
           }),
         });
@@ -2264,6 +2392,7 @@ export default function SymptomCheckScreen() {
             profileContacts={profileContacts}
             careTeamMembers={careTeamData?.members ?? []}
             emergencyContact={triageContext?.emergencyContact ?? null}
+            latestVitalReadings={latestVitalsData?.recent_readings ?? []}
             refinementStatus={refinementStatus}
             onRefineVital={handleRefineVital}
             onDone={handleDone}

@@ -41,14 +41,22 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
+import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import { sanitizePhoneHref } from "@/lib/emergencyContacts";
+import { vitalsEvidenceFor, type VitalsSourceConfidence } from "../../shared/vitalsEvidence";
 
 type MetricType = "hr" | "rr" | "bp";
+type ReadingSource = "phone_estimate" | "manual_entry" | "connected_device" | "clinical";
 
 interface VitalsSummaryEntry {
   latest_value: string | null;
   latest_recorded_at: string | null;
+  latest_source?: ReadingSource | null;
+  latest_source_confidence?: VitalsSourceConfidence | null;
+  latest_source_confidence_reason?: string | null;
+  latest_source_display_label?: string | null;
+  latest_source_context_label?: string | null;
   trend: (string | null)[];
   has_data: boolean;
 }
@@ -105,12 +113,26 @@ const METRIC_META: Record<MetricType, MetricMeta> = {
   },
 };
 
-const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
+const ENGINE_SIGNAL_BY_METRIC: Record<MetricType, string> = {
+  hr: "resting_hr_bpm",
+  rr: "respiratory_rate",
+  bp: "bp_systolic",
+};
+
+const DAY_LABELS = [
+  { key: "statusVitals.days.mon", fallback: "M" },
+  { key: "statusVitals.days.tue", fallback: "T" },
+  { key: "statusVitals.days.wed", fallback: "W" },
+  { key: "statusVitals.days.thu", fallback: "T" },
+  { key: "statusVitals.days.fri", fallback: "F" },
+  { key: "statusVitals.days.sat", fallback: "S" },
+  { key: "statusVitals.days.sun", fallback: "S" },
+];
 
 const DEVICE_ROWS = [
-  { id: "watch", Icon: Watch, label: "Smartwatch", model: "VYVA Band 2", connected: true },
-  { id: "bp-cuff", Icon: Activity, label: "Blood pressure cuff", model: "OmronConnect", connected: true },
-  { id: "stethoscope", Icon: Stethoscope, label: "Digital stethoscope", model: "Eko DUO", connected: false },
+  { id: "watch", Icon: Watch, labelKey: "statusVitals.deviceRows.smartwatch", fallbackLabel: "Smartwatch", model: "VYVA Band 2", connected: true },
+  { id: "bp-cuff", Icon: Activity, labelKey: "statusVitals.deviceRows.bloodPressureCuff", fallbackLabel: "Blood pressure cuff", model: "OmronConnect", connected: true },
+  { id: "stethoscope", Icon: Stethoscope, labelKey: "statusVitals.deviceRows.digitalStethoscope", fallbackLabel: "Digital stethoscope", model: "Eko DUO", connected: false },
 ];
 
 type VitalsStatusServiceActionKind =
@@ -224,6 +246,14 @@ export function vitalsStatusServiceActionsFor({
   return actions;
 }
 
+type VitalsTrackerLanguage = "de" | "en" | "es" | "fr" | "it" | "pt";
+
+function vitalsTrackerLanguage(language?: string | null): VitalsTrackerLanguage {
+  const base = (language ?? "").split("-")[0]?.toLowerCase();
+  if (base === "de" || base === "en" || base === "es" || base === "fr" || base === "it" || base === "pt") return base;
+  return "en";
+}
+
 function parseNumericValue(value: string | null): number | null {
   if (!value) return null;
   const parsed = Number.parseFloat(value.split("/")[0]);
@@ -265,6 +295,34 @@ function getMetricState(meta: MetricMeta, value: string | null) {
   if (!meta.range) return { tone: "logged", color: "#6B21A8", bg: "#F5F3FF" };
   if (numeric < meta.range.low || numeric > meta.range.high) return { tone: "review", color: "#B45309", bg: "#FEF3C7" };
   return { tone: "steady", color: "#047857", bg: "#D1FAE5" };
+}
+
+function confidenceLabel(confidence: VitalsSourceConfidence | null | undefined, t: (key: string, fallback: string) => string) {
+  if (confidence === "high") return t("statusVitals.confidence.high", "High");
+  if (confidence === "low") return t("statusVitals.confidence.low", "Low");
+  return t("statusVitals.confidence.medium", "Medium");
+}
+
+function sourceLabel(source: ReadingSource | null | undefined, fallback: string, t: (key: string, fallback: string) => string) {
+  if (source === "phone_estimate") return t("statusVitals.source.phoneEstimate", fallback);
+  if (source === "connected_device") return t("statusVitals.source.connectedDevice", fallback);
+  if (source === "clinical") return t("statusVitals.source.clinical", fallback);
+  return t("statusVitals.source.manual", fallback);
+}
+
+function sourceTone(summary: VitalsSummaryEntry | undefined, metricKey: MetricType, t: (key: string, fallback: string) => string) {
+  const source = summary?.latest_source;
+  const evidence = vitalsEvidenceFor(source, ENGINE_SIGNAL_BY_METRIC[metricKey]);
+  const confidence = summary?.latest_source_confidence ?? evidence.confidence;
+  const label = `${sourceLabel(source, summary?.latest_source_display_label ?? evidence.displayLabel, t)} - ${confidenceLabel(confidence, t)}`;
+  if (source === "phone_estimate") return { label, color: "#6B21A8", bg: "#F5F3FF" };
+  if (source === "connected_device") {
+    return { label, color: "#047857", bg: "#D1FAE5" };
+  }
+  if (source === "clinical") {
+    return { label, color: "#0369A1", bg: "#E0F2FE" };
+  }
+  return { label, color: "#92400E", bg: "#FEF3C7" };
 }
 
 function MiniTrend({ values, accent }: { values: number[]; accent: string }) {
@@ -312,6 +370,7 @@ function MetricCard({
   const displayValue = hasData ? summary?.latest_value ?? "--" : "--";
   const hasTrend = trend.some((value) => value > 0);
   const state = getMetricState(meta, summary?.latest_value ?? null);
+  const source = sourceTone(summary, metricKey, t);
   const stateLabel =
     state.tone === "steady"
       ? t("statusVitals.status.steady", "Steady")
@@ -352,6 +411,11 @@ function MetricCard({
           <span className="rounded-full px-3 py-1 font-body text-[11px] font-bold" style={{ color: state.color, background: state.bg }}>
             {stateLabel}
           </span>
+          {hasData && (
+            <span className="rounded-full px-3 py-1 font-body text-[11px] font-bold" style={{ color: source.color, background: source.bg }}>
+              {source.label}
+            </span>
+          )}
           {hasTrend && (
             <button
               type="button"
@@ -392,7 +456,7 @@ function LogReadingModal({ onClose }: { onClose: () => void }) {
       const response = await apiFetch("/api/vitals", {
         method: "POST",
         credentials: "include",
-        body: JSON.stringify({ metric_type: metricType, value: value.trim() }),
+        body: JSON.stringify({ metric_type: metricType, value: value.trim(), source: "manual_entry" }),
       });
       if (!response.ok) throw new Error("Failed to save reading");
       return response.json();
@@ -426,7 +490,7 @@ function LogReadingModal({ onClose }: { onClose: () => void }) {
               {t("statusVitals.logTitle", "Log a reading")}
             </h2>
             <p className="mt-1 font-body text-[13px] text-vyva-text-2">
-              {t("statusVitals.logSubtitle", "Add the latest number from your device.")}
+              {t("statusVitals.logSubtitle", "Add a confirmed number from a device or manual check.")}
             </p>
           </div>
           <button
@@ -508,7 +572,7 @@ function ScanModal({ onClose }: { onClose: () => void }) {
               {t("statusVitals.scanTitle", "Vitals scan")}
             </h2>
             <p className="font-body text-[12px] text-vyva-text-2">
-              {t("statusVitals.scanSubtitle", "Camera-based pulse estimate")}
+              {t("statusVitals.scanSubtitle", "Camera estimate, not a medical device reading")}
             </p>
           </div>
           <button
@@ -535,7 +599,8 @@ function ScanModal({ onClose }: { onClose: () => void }) {
 
 const SignosScreen = () => {
   const navigate = useNavigate();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const { language: appLanguage } = useLanguage();
   const { toast } = useToast();
   const { user } = useAuth();
   const { profile } = useProfile();
@@ -575,7 +640,7 @@ const SignosScreen = () => {
 
   const metricsWithData = (["hr", "rr", "bp"] as MetricType[]).filter((key) => summary?.[key]?.has_data).length;
   const latestText = latestReadingAt
-    ? formatRecordedAt(latestReadingAt, i18n.language)
+    ? formatRecordedAt(latestReadingAt, appLanguage)
     : t("statusVitals.noLatest", "No recent readings");
   const completionPct = Math.round((filledDays / 7) * 100);
   const overallGood = metricsWithData > 0 && filledDays >= 3;
@@ -608,6 +673,51 @@ const SignosScreen = () => {
           tone: "neutral" as const,
         }]
       : []),
+  ];
+  const measurementModes = [
+    {
+      id: "phone",
+      Icon: ScanLine,
+      title: t("statusVitals.capabilities.phoneTitle", "Phone estimate"),
+      body: t("statusVitals.capabilities.phoneBody", "Camera-based pulse and breathing trend. Useful for a quick check, not a medical device reading."),
+      items: [
+        t("statusVitals.capabilities.pulse", "Pulse"),
+        t("statusVitals.capabilities.breathing", "Breathing"),
+      ],
+      color: "#6B21A8",
+      bg: "#F5F3FF",
+    },
+    {
+      id: "manual",
+      Icon: Plus,
+      title: t("statusVitals.capabilities.manualTitle", "Manual log"),
+      body: t("statusVitals.capabilities.manualBody", "Add numbers from a cuff, oximeter, thermometer, glucose meter, or how you feel today."),
+      items: [
+        t("statusVitals.capabilities.bp", "BP"),
+        t("statusVitals.capabilities.oxygen", "Oxygen"),
+        t("statusVitals.capabilities.temp", "Temp"),
+        t("statusVitals.capabilities.glucose", "Glucose"),
+        t("statusVitals.capabilities.pain", "Pain"),
+        t("statusVitals.capabilities.mood", "Mood"),
+        t("statusVitals.capabilities.energy", "Energy"),
+        t("statusVitals.capabilities.sleep", "Sleep"),
+        t("statusVitals.capabilities.medication", "Medication"),
+      ],
+      color: "#92400E",
+      bg: "#FEF3C7",
+    },
+    {
+      id: "device",
+      Icon: Watch,
+      title: t("statusVitals.capabilities.deviceTitle", "Device or clinical"),
+      body: t("statusVitals.capabilities.deviceBody", "Connected devices and clinical readings carry the strongest weight in VYVA's safety checks."),
+      items: [
+        t("statusVitals.capabilities.highConfidence", "Higher confidence"),
+        t("statusVitals.capabilities.safetyChecks", "Safety checks"),
+      ],
+      color: "#047857",
+      bg: "#D1FAE5",
+    },
   ];
 
   const statusSummaryText = useMemo(() => {
@@ -715,7 +825,7 @@ const SignosScreen = () => {
         heroSurface="vitals"
         sourceText={t("statusVitals.heroSource", "Status / Vitals")}
         headline={t("statusVitals.heroHeadline", "Vitals are ready when you are")}
-        subtitle={latestReadingAt ? t("statusVitals.heroSubtitleWithLatest", `Last reading: ${latestText}`) : t("statusVitals.heroSubtitle", "Scan, log, and share your key health numbers.")}
+        subtitle={latestReadingAt ? t("statusVitals.heroSubtitleWithLatest", { defaultValue: "Last reading: {{latest}}", latest: latestText }) : t("statusVitals.heroSubtitle", "Scan, log, and share your key health numbers.")}
         contextHint="status vitals heart rate breathing blood pressure"
         talkLabel={t("statusVitals.heroCta", "Ask about my vitals")}
       >
@@ -749,7 +859,7 @@ const SignosScreen = () => {
           <VitalsTracker
             userId={user.id}
             userConditions={personalisationData?.conditions ?? []}
-            language={profile?.language === "de" || profile?.language === "en" || profile?.language === "es" ? profile.language : "es"}
+            language={vitalsTrackerLanguage(appLanguage)}
             country={profile?.country}
             gpName={profile?.gpName}
             gpPhone={profile?.gpPhone}
@@ -805,7 +915,7 @@ const SignosScreen = () => {
         >
           <ScanLine size={21} className="text-white" />
           <span className="font-body text-[15px] font-bold leading-tight text-white">
-            {t("statusVitals.scanAction", "Scan vitals")}
+            {t("statusVitals.scanAction", "Phone estimate")}
           </span>
         </button>
         <button
@@ -816,10 +926,50 @@ const SignosScreen = () => {
         >
           <Plus size={21} style={{ color: "#6B21A8" }} />
           <span className="font-body text-[15px] font-bold leading-tight text-vyva-text-1">
-            {t("statusVitals.logAction", "Log reading")}
+            {t("statusVitals.logAction", "Confirmed reading")}
           </span>
         </button>
       </div>
+
+      <p className="mt-3 rounded-[20px] border border-[#EDE5DB] bg-white px-4 py-3 font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">
+        {t("statusVitals.sourceNote", "Phone scans are estimates for trends. Device or manual readings are stronger evidence for VYVA.")}
+      </p>
+
+      <section className="mt-4 rounded-[24px] border border-[#EDE5DB] bg-white p-4 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="vitals-capabilities-guide">
+        <div className="mb-3 flex items-start gap-3">
+          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#F5F3FF] text-vyva-purple">
+            <ShieldCheck size={20} />
+          </span>
+          <div className="min-w-0">
+            <p className="font-body text-[13px] font-extrabold uppercase tracking-[0.11em] text-vyva-purple">
+              {t("statusVitals.capabilities.title", "What VYVA can measure")}
+            </p>
+            <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
+              {t("statusVitals.capabilities.subtitle", "Different readings have different confidence. VYVA labels that before using them in assessments.")}
+            </p>
+          </div>
+        </div>
+        <div className="grid gap-3">
+          {measurementModes.map(({ id, Icon, title, body, items, color, bg }) => (
+            <div key={id} className="flex items-start gap-3 border-t border-[#F0E7DE] pt-3 first:border-t-0 first:pt-0">
+              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px]" style={{ color, background: bg }}>
+                <Icon size={18} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-body text-[15px] font-extrabold leading-tight text-vyva-text-1">{title}</p>
+                <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">{body}</p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {items.map((item) => (
+                    <span key={item} className="rounded-full px-2.5 py-1 font-body text-[11px] font-bold" style={{ color, background: bg }}>
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <HealthWizardSectionLabel
         action={(
@@ -854,7 +1004,7 @@ const SignosScreen = () => {
               {t("statusVitals.weeklyRhythm", "Weekly rhythm")}
             </p>
             <p className="mt-1 font-body text-[15px] font-bold text-vyva-text-1">
-              {t("statusVitals.daysWithReadings", `${filledDays} of 7 days with readings`)}
+              {t("statusVitals.daysWithReadings", { defaultValue: "{{count}} of 7 days with readings", count: filledDays })}
             </p>
           </div>
           <span className="rounded-full bg-[#FFF7ED] px-3 py-1 font-body text-[12px] font-bold text-[#B45309]">{completionPct}%</span>
@@ -870,7 +1020,7 @@ const SignosScreen = () => {
                 }}
                 data-testid={`compliance-day-${index}`}
               />
-              <span className="font-body text-[10px] font-semibold text-vyva-text-2">{DAY_LABELS[index]}</span>
+              <span className="font-body text-[10px] font-semibold text-vyva-text-2">{t(DAY_LABELS[index].key, DAY_LABELS[index].fallback)}</span>
             </div>
           ))}
         </div>
@@ -897,7 +1047,7 @@ const SignosScreen = () => {
                 <Icon size={17} className="text-vyva-text-2" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="font-body text-[14px] font-bold leading-tight text-vyva-text-1">{device.label}</p>
+                <p className="font-body text-[14px] font-bold leading-tight text-vyva-text-1">{t(device.labelKey, device.fallbackLabel)}</p>
                 <p className="font-body text-[12px] text-vyva-text-2">{device.model}</p>
               </div>
               <div className="flex items-center gap-1.5">

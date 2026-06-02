@@ -146,47 +146,48 @@ function getTapStats(tapLog, sequence) {
 }
 
 function NumberPicker({ value, min, max, onChange, ariaLabel, increaseLabel, decreaseLabel }) {
+  const safeValue = Number.isFinite(value) ? value : min;
   const setNext = (nextValue) => onChange(clamp(nextValue, min, max));
-  const visible = [clamp(value + 1, min, max), value, clamp(value - 1, min, max)];
+  const visible = [clamp(safeValue + 1, min, max), safeValue, clamp(safeValue - 1, min, max)];
 
   return (
     <div
-      className="grid w-[150px] grid-rows-[64px_68px_64px] overflow-hidden rounded-[8px] border-2 bg-white sm:w-[178px] sm:grid-rows-[64px_76px_64px]"
+      className="grid w-[118px] grid-rows-[44px_56px_44px] overflow-hidden rounded-[8px] border-2 bg-white sm:w-[178px] sm:grid-rows-[64px_76px_64px]"
       style={{ borderColor: BRAND.border }}
       onWheel={(event) => {
         event.preventDefault();
-        setNext(value + (event.deltaY > 0 ? -1 : 1));
+        setNext(safeValue + (event.deltaY > 0 ? -1 : 1));
       }}
       aria-label={ariaLabel}
       role="spinbutton"
-      aria-valuenow={value}
+      aria-valuenow={safeValue}
       aria-valuemin={min}
       aria-valuemax={max}
     >
       <button
         type="button"
-        onClick={() => setNext(value + 1)}
-        className="flex min-h-[64px] items-center justify-center text-[26px] font-semibold"
+        onClick={() => setNext(safeValue + 1)}
+        className="flex min-h-[44px] items-center justify-center text-[22px] font-semibold sm:min-h-[64px] sm:text-[26px]"
         style={{ color: BRAND.purple }}
         aria-label={increaseLabel}
       >
-        <ChevronUp size={34} />
+        <ChevronUp size={30} />
       </button>
       <div className="grid grid-rows-3 text-center">
-        <div className="text-[22px] leading-[21px] text-[#7C6D94] sm:text-[24px] sm:leading-[22px]">{visible[0] === value ? "" : visible[0]}</div>
-        <div className="text-[34px] font-bold leading-[26px] sm:text-[38px] sm:leading-[32px]" style={{ color: BRAND.ink }}>
-          {value}
+        <div className="text-[18px] leading-[17px] text-[#7C6D94] sm:text-[24px] sm:leading-[22px]">{visible[0] === safeValue ? "" : visible[0]}</div>
+        <div className="text-[30px] font-bold leading-[22px] sm:text-[38px] sm:leading-[32px]" style={{ color: BRAND.ink }}>
+          {safeValue}
         </div>
-        <div className="text-[22px] leading-[21px] text-[#7C6D94] sm:text-[24px] sm:leading-[22px]">{visible[2] === value ? "" : visible[2]}</div>
+        <div className="text-[18px] leading-[17px] text-[#7C6D94] sm:text-[24px] sm:leading-[22px]">{visible[2] === safeValue ? "" : visible[2]}</div>
       </div>
       <button
         type="button"
-        onClick={() => setNext(value - 1)}
-        className="flex min-h-[64px] items-center justify-center text-[26px] font-semibold"
+        onClick={() => setNext(safeValue - 1)}
+        className="flex min-h-[44px] items-center justify-center text-[22px] font-semibold sm:min-h-[64px] sm:text-[26px]"
         style={{ color: BRAND.purple }}
         aria-label={decreaseLabel}
       >
-        <ChevronDown size={34} />
+        <ChevronDown size={30} />
       </button>
     </div>
   );
@@ -247,6 +248,7 @@ export default function DualTaskWalk({ userId, onExit }) {
 
   const [serial7sStep, setSerial7sStep] = useState(0);
   const [pickerValue, setPickerValue] = useState(0);
+  const [pickerTouched, setPickerTouched] = useState(false);
   const [serial7sLog, setSerial7sLog] = useState([]);
   const [serialFeedback, setSerialFeedback] = useState(null);
 
@@ -621,7 +623,8 @@ export default function DualTaskWalk({ userId, onExit }) {
     setSerialFeedback(null);
     setRoundProgress(1);
     setSessionResult(null);
-    setPickerValue(clamp(seq.start_number - 7, seq.start_number - Math.max(50, seq.expected_answers.length * 7 + 5), seq.start_number + 50));
+    setPickerValue(seq.start_number);
+    setPickerTouched(false);
     setScreen("playing");
 
     const intervalMs = seq.round_duration_ms / seq.symbol_count;
@@ -669,7 +672,7 @@ export default function DualTaskWalk({ userId, onExit }) {
 
   const handleSerial7sConfirm = useCallback(() => {
     const seq = sequenceRef.current;
-    if (!seq || serial7sStepRef.current >= seq.expected_answers.length) return;
+    if (!seq || serial7sStepRef.current >= seq.expected_answers.length || !pickerTouched) return;
 
     const step = serial7sStepRef.current;
     const expected = seq.expected_answers[step];
@@ -685,11 +688,12 @@ export default function DualTaskWalk({ userId, onExit }) {
     setSerial7sStep(nextStep);
     setSerialFeedback(correct ? "correct" : "almost");
 
-    const nextAnchor = correct ? expected : given;
-    setPickerValue(clamp(nextAnchor - 7, seq.start_number - Math.max(50, seq.expected_answers.length * 7 + 5), seq.start_number + 50));
+    const nextMinuend = nextStep === 0 ? seq.start_number : seq.expected_answers[nextStep - 1] ?? expected;
+    setPickerValue(clamp(nextMinuend, seq.start_number - Math.max(50, seq.expected_answers.length * 7 + 5), seq.start_number + 50));
+    setPickerTouched(false);
     window.setTimeout(() => setSerialFeedback(null), 650);
     checkRoundCompletion();
-  }, [checkRoundCompletion, pickerValue]);
+  }, [checkRoundCompletion, pickerTouched, pickerValue]);
 
   const handleExit = useCallback(() => {
     if (screenRef.current === "playing") {
@@ -710,14 +714,16 @@ export default function DualTaskWalk({ userId, onExit }) {
         if (!active) return;
         setUserState(state);
         setSequence(nextSequence);
-        setPickerValue(nextSequence.start_number - 7);
+        setPickerValue(nextSequence.start_number);
+        setPickerTouched(false);
         setScreen("intro");
       } catch {
         if (!active) return;
         const fallbackState = getDefaultUserState(userId);
         setUserState(fallbackState);
         setSequence(FALLBACK_SEQUENCE);
-        setPickerValue(FALLBACK_SEQUENCE.start_number - 7);
+        setPickerValue(FALLBACK_SEQUENCE.start_number);
+        setPickerTouched(false);
         setScreen("intro");
       }
     }
@@ -910,15 +916,15 @@ export default function DualTaskWalk({ userId, onExit }) {
       <div className="h-[100dvh] overflow-hidden px-3 sm:px-4 md:px-5" style={fixedShellStyle}>
         <div className="mx-auto flex h-full w-full max-w-[820px] flex-col gap-2">
           <header className="shrink-0">
-            <div className="flex min-h-[64px] items-center justify-between gap-3">
-              <h1 className="min-w-0 text-[24px] font-bold leading-[1.1] sm:text-[30px]">{text.title}</h1>
+            <div className="flex min-h-[52px] items-center justify-between gap-3 sm:min-h-[64px]">
+              <h1 className="min-w-0 font-display text-[20px] font-bold leading-[1.05] sm:text-[30px]">{text.title}</h1>
               <button
                 type="button"
                 onClick={handleExit}
-                className="inline-flex min-h-[64px] shrink-0 items-center gap-2 rounded-full px-4 text-[22px] font-bold sm:gap-3 sm:px-5 sm:text-[24px]"
+                className="inline-flex min-h-[46px] shrink-0 items-center gap-2 rounded-full px-4 text-[18px] font-bold sm:min-h-[64px] sm:gap-3 sm:px-5 sm:text-[24px]"
                 style={{ background: "#FFF7ED", color: "#9A3412" }}
               >
-                <Square size={24} />
+                <Square size={22} />
                 {text.exit}
               </button>
             </div>
@@ -934,14 +940,14 @@ export default function DualTaskWalk({ userId, onExit }) {
               }`}
               style={{
                 borderColor: serialFeedback === "correct" ? "#16A34A" : serialFeedback === "almost" ? BRAND.gold : BRAND.border,
-                flexBasis: "clamp(324px, 38dvh, 336px)",
+                flexBasis: "clamp(228px, 34dvh, 316px)",
               }}
             >
               <div className="flex items-center justify-between gap-2">
-                <p className="min-w-0 text-[22px] font-bold leading-[1.15] sm:text-[28px]">
+                <p className="min-w-0 text-[18px] font-bold leading-[1.1] sm:text-[28px]">
                   {text.startAt}: <span style={{ color: BRAND.purple }}>{currentSequence.start_number}</span>
                 </p>
-                <p className="shrink-0 text-[22px] font-bold leading-[1.15] text-[#5B4B71] sm:text-[24px]">
+                <p className="shrink-0 text-[17px] font-bold leading-[1.1] text-[#5B4B71] sm:text-[24px]">
                   {text.step} {Math.min(serial7sStep + 1, serialSteps)} {text.of} {serialSteps}
                 </p>
               </div>
@@ -954,22 +960,25 @@ export default function DualTaskWalk({ userId, onExit }) {
               ) : (
                 <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2">
                   <div className="min-w-0 shrink-0">
-                    <p className="text-[26px] font-bold leading-[1.12] sm:text-[30px]">
+                    <p className="text-[22px] font-bold leading-[1.05] sm:text-[30px]">
                       {text.question} {currentMinuend} - 7?
                     </p>
-                    <p className="mt-1 text-[22px] font-semibold leading-[1.15] text-[#5B4B71] sm:text-[24px]">
+                    <p className="mt-1 text-[17px] font-semibold leading-[1.1] text-[#5B4B71] sm:text-[24px]">
                       {text.recent}:{" "}
                       {lastThreeMath.length === 0
                         ? "—"
                         : lastThreeMath.map((entry) => (entry.correct ? "OK" : text.almost)).join(" ")}
                     </p>
                   </div>
-                  <div className="grid min-h-0 grid-cols-[150px_minmax(0,1fr)] items-stretch gap-3 sm:grid-cols-[178px_minmax(0,1fr)]">
+                  <div className="grid min-h-0 grid-cols-[118px_minmax(0,1fr)] items-stretch gap-2 sm:grid-cols-[178px_minmax(0,1fr)] sm:gap-3">
                     <NumberPicker
                       value={pickerValue}
                       min={pickerMin}
                       max={pickerMax}
-                      onChange={setPickerValue}
+                      onChange={(nextValue) => {
+                        setPickerValue(nextValue);
+                        setPickerTouched(true);
+                      }}
                       ariaLabel={text.mathAnswer}
                       increaseLabel={text.increaseNumber}
                       decreaseLabel={text.decreaseNumber}
@@ -977,10 +986,11 @@ export default function DualTaskWalk({ userId, onExit }) {
                     <button
                       type="button"
                       onClick={handleSerial7sConfirm}
-                      className="inline-flex min-h-[96px] items-center justify-center gap-2 rounded-[8px] px-4 text-[24px] font-bold leading-[1.05] text-white sm:gap-3 sm:px-6 sm:text-[26px]"
-                      style={{ background: BRAND.purple }}
+                      disabled={!pickerTouched}
+                      className="inline-flex min-h-[72px] items-center justify-center gap-2 rounded-[8px] px-3 text-[20px] font-bold leading-[1.05] text-white transition-opacity disabled:opacity-45 sm:min-h-[96px] sm:gap-3 sm:px-6 sm:text-[26px]"
+                      style={{ background: pickerTouched ? BRAND.purple : "#9CA3AF" }}
                     >
-                      <Check size={34} />
+                      <Check size={28} />
                       {text.confirm}
                     </button>
                   </div>
@@ -994,27 +1004,27 @@ export default function DualTaskWalk({ userId, onExit }) {
               }`}
               style={{ borderColor: lastTapResult === "hit" ? "#16A34A" : lastTapResult === "fp" ? "#DC2626" : BRAND.border }}
             >
-              <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1">
-                <p className="text-[22px] font-semibold leading-[1.1] text-[#5B4B71] sm:text-[24px]">
-                  {text.previousSymbol}: <span className="text-[30px] text-[#2B2233] sm:text-[36px]">{previousSymbol}</span>
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <p className="text-[18px] font-semibold leading-[1.05] text-[#5B4B71] sm:text-[24px]">
+                  {text.previousSymbol}: <span className="text-[24px] text-[#2B2233] sm:text-[36px]">{previousSymbol}</span>
                 </p>
-                <div className="flex items-center gap-4 text-[22px] font-bold leading-[1.1] sm:gap-6 sm:text-[24px]">
+                <div className="flex items-center gap-3 text-[18px] font-bold leading-[1.05] sm:gap-6 sm:text-[24px]">
                   <span>{text.hits}: {tapLog.filter((entry) => entry.wasMatch && entry.tapped).length}</span>
                   <span>{text.almost}: {tapLog.filter((entry) => !entry.wasMatch && entry.tapped).length}</span>
                 </div>
               </div>
               <div className="flex min-h-0 flex-1 items-center justify-center py-1">
                 {symbolsComplete ? (
-                  <p className="text-center text-[32px] font-bold" style={{ color: BRAND.purple }}>{text.visualDone}</p>
+                  <p className="text-center text-[24px] font-bold sm:text-[32px]" style={{ color: BRAND.purple }}>{text.visualDone}</p>
                 ) : (
-                  <div className="text-[92px] font-bold leading-none sm:text-[112px]">{currentSymbol}</div>
+                  <div className="text-[62px] font-bold leading-none sm:text-[112px]">{currentSymbol}</div>
                 )}
               </div>
               <button
                 type="button"
                 onClick={handleTap}
                 disabled={symbolsComplete}
-                className="mx-auto flex min-h-[200px] w-full max-w-[560px] shrink-0 items-center justify-center rounded-[8px] px-6 text-center text-[30px] font-bold leading-[1.05] text-white disabled:opacity-60 sm:px-8 sm:text-[32px]"
+                className="mx-auto flex min-h-[108px] w-full max-w-[560px] shrink-0 items-center justify-center rounded-[8px] px-6 text-center text-[24px] font-bold leading-[1.05] text-white disabled:opacity-60 sm:min-h-[200px] sm:px-8 sm:text-[32px]"
                 style={{ background: lastTapResult === "hit" ? "#16A34A" : lastTapResult === "fp" ? "#DC2626" : BRAND.purple }}
               >
                 {text.tapHere}

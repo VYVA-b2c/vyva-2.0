@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/contexts/ProfileContext";
+import { useLanguage } from "@/i18n";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { sanitizePhoneHref } from "@/lib/emergencyContacts";
 import { ListenButton } from "@/components/ListenButton";
@@ -1956,6 +1957,7 @@ const CheckHowIFeelScreen = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { firstName, profile } = useProfile();
+  const { language } = useLanguage();
   const startedAtRef = useRef(Date.now());
   const [step, setStep] = useState<StepId>("welcome");
   const [answers, setAnswers] = useState<Answers>(initialAnswers);
@@ -1974,8 +1976,10 @@ const CheckHowIFeelScreen = () => {
     staleTime: 5 * 60 * 1000,
   });
 
-  const name = firstName || "Carlos";
-  const copy = copyFor(profile?.language);
+  const name = firstName.trim();
+  const copy = copyFor(language);
+  const welcomeKicker = name ? `${copy.hello}, ${name}` : copy.hello;
+  const analyzingTitle = name ? `${copy.analyzingTitle}, ${name}` : copy.analyzingTitle;
   const shareLabels = shareLabelsFor(copy);
   const stepIndex = STEPS.indexOf(step);
   const includeSafety = needsSafetyFollowup(answers);
@@ -1987,7 +1991,7 @@ const CheckHowIFeelScreen = () => {
   const healthPriority = hasHealthPrioritySignal(answers);
   const urgentHealthPriority = hasUrgentSafetyFlag(answers);
   const gender = inferGender(profile, name);
-  const readoutLanguage = profile?.language ?? "es";
+  const readoutLanguage = language;
   const resultReadoutText = result
     ? [
         result.feeling_label,
@@ -2054,7 +2058,7 @@ const CheckHowIFeelScreen = () => {
       await apiFetch("/api/checkins/abandon", {
         method: "POST",
         body: JSON.stringify({
-          language: profile?.language ?? "es",
+          language,
           duration_seconds: Math.round((Date.now() - startedAtRef.current) / 1000),
         }),
       });
@@ -2113,7 +2117,7 @@ const CheckHowIFeelScreen = () => {
       const res = await apiFetch("/api/checkins/analyze", {
         method: "POST",
         body: JSON.stringify({
-          language: profile?.language ?? "es",
+          language,
           duration_seconds: Math.round((Date.now() - startedAtRef.current) / 1000),
           answers,
         }),
@@ -2181,7 +2185,7 @@ const CheckHowIFeelScreen = () => {
     if (!result || shareUrl || shareUrlLoading) return shareUrl;
     setShareUrlLoading(true);
     try {
-      const url = await createSharedReportLink(name, profile?.language ?? "es", result, shareReportText);
+      const url = await createSharedReportLink(name, language, result, shareReportText);
       setShareUrl(url);
       return url;
     } catch {
@@ -2227,7 +2231,7 @@ const CheckHowIFeelScreen = () => {
           <HealthWizardHero
             className="rounded-none border-0 shadow-none"
             icon={<Heart />}
-            kicker={`${copy.hello}, ${name}`}
+            kicker={welcomeKicker}
             title={copy.welcomeTitle}
             body={copy.welcomeIntro}
           />
@@ -2369,7 +2373,7 @@ const CheckHowIFeelScreen = () => {
           <div className="mb-5 flex h-24 w-24 items-center justify-center rounded-[34px] bg-[#F5F3FF] shadow-[0_12px_30px_rgba(107,33,168,0.14)]">
             <Loader2 size={54} className="animate-spin text-vyva-purple" />
           </div>
-          <h1 className="mb-3 font-display text-[32px] text-vyva-text-1">{copy.analyzingTitle}, {name}</h1>
+          <h1 className="mb-3 font-display text-[32px] text-vyva-text-1">{analyzingTitle}</h1>
           <p className="font-body text-[21px] leading-relaxed text-vyva-text-2">{loadingMessage}</p>
         </HealthWizardCard>
       )}

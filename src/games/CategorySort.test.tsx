@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setLanguage } from "@/i18n";
-import CategorySort from "./CategorySort";
+import CategorySort, { getFallbackSequence, getNextCategorySortTierAfterRound } from "./CategorySort";
 
 describe("CategorySort", () => {
   beforeEach(() => {
@@ -13,6 +13,7 @@ describe("CategorySort", () => {
     render(<CategorySort userId="" onExit={vi.fn()} />);
 
     expect(await screen.findByRole("heading", { name: "Clasifica y Ordena" })).toBeInTheDocument();
+    expect(screen.getAllByTestId("category-sort-rule-card")).toHaveLength(3);
 
     fireEvent.click(screen.getByRole("button", { name: "Empezar ejercicio" }));
 
@@ -21,4 +22,31 @@ describe("CategorySort", () => {
     expect(screen.getByRole("button", { name: "Rojo" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Naranja" })).toBeInTheDocument();
   }, 10_000);
+
+  it("renders the intro in French without falling back to Spanish game copy", async () => {
+    setLanguage("fr");
+
+    render(<CategorySort userId="" onExit={vi.fn()} />);
+
+    expect(await screen.findByRole("heading", { name: "Tri de categories" })).toBeInTheDocument();
+    expect(screen.getByText("Triez chaque carte selon la regle affichee en haut. La regle changera.")).toBeInTheDocument();
+    expect(screen.getAllByText("Couleur").length).toBeGreaterThan(0);
+    expect(screen.getByText("Forme")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Voir l'exemple" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Commencer l'exercice" })).toBeInTheDocument();
+    expect(screen.queryByText("Clasifica y Ordena")).not.toBeInTheDocument();
+  });
+
+  it("advances practice levels after a strong completed round", () => {
+    expect(getNextCategorySortTierAfterRound(1, 75)).toBe(2);
+    expect(getNextCategorySortTierAfterRound(1, 74)).toBe(1);
+    expect(getNextCategorySortTierAfterRound(10, 100)).toBe(10);
+  });
+
+  it("varies the local practice rule sequence across levels", () => {
+    expect(getFallbackSequence(1).rules.map((rule) => rule.rule)).toEqual(["color", "shape", "color"]);
+    expect(getFallbackSequence(2).rules.map((rule) => rule.rule)).toEqual(["shape", "color", "shape"]);
+    expect(getFallbackSequence(3).rules.map((rule) => rule.rule)).toEqual(["color", "size", "shape"]);
+    expect(getFallbackSequence(1).rules[0].label_fr).toBe("Couleur");
+  });
 });
