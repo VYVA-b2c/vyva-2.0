@@ -284,7 +284,7 @@ export function CaregiverBrainCoachPanel() {
   const preferencesDisabled = !canManagePreferences || settingsQuery.isLoading || saveMutation.isPending;
   const scheduleDisabled = !canManageSchedule || settingsQuery.isLoading || saveMutation.isPending;
   const nudgeType = nudgeMessageType(summary);
-  const nudgeDisabled = !canSendNudges || !summary?.todayPlan.planId || nudgeMutation.isPending;
+  const nudgeDisabled = !canSendNudges || nudgeMutation.isPending;
 
   useEffect(() => {
     if (settingsQuery.data?.settings) setDraft({ ...DEFAULT_SETTINGS, ...settingsQuery.data.settings });
@@ -574,9 +574,9 @@ export function CaregiverBrainCoachPanel() {
           {nudgeMutation.isPending ? "Sending nudge" : "Send in-app nudge"}
         </button>
 
-        {!summary?.todayPlan.planId && (
-          <p className="mt-3 rounded-[12px] bg-[#FFF7ED] p-3 font-body text-[13px] font-bold text-[#9A3412]">
-            Today's Brain Coach plan needs to exist before a caregiver nudge can be sent.
+        {canSendNudges && !summary?.todayPlan.planId && (
+          <p className="mt-3 rounded-[12px] bg-[#EFF6FF] p-3 font-body text-[13px] font-bold text-[#1E3A8A]">
+            VYVA will create today's Brain Coach plan before sending the in-app nudge.
           </p>
         )}
         {!canSendNudges && (

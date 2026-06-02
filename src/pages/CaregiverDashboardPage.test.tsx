@@ -145,14 +145,18 @@ const brainCoachPreviewPayload = {
   },
 };
 
-function mockApi(options: { brainCoachPermissions?: typeof fullBrainCoachPermissions } = {}) {
+function mockApi(options: {
+  brainCoachPermissions?: typeof fullBrainCoachPermissions;
+  brainCoachSummary?: unknown;
+} = {}) {
   const brainCoachPermissions = options.brainCoachPermissions ?? fullBrainCoachPermissions;
+  const brainCoachSummary = options.brainCoachSummary ?? brainCoachPayload;
   let currentBrainCoachSettings = { ...brainCoachSettingsPayload };
 
   vi.mocked(apiFetch).mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input);
     if (path.includes("/api/caregiver/brain-coach/me/summary")) {
-      return new Response(JSON.stringify({ summary: brainCoachPayload, permissions: brainCoachPermissions }), { status: 200, headers: { "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ summary: brainCoachSummary, permissions: brainCoachPermissions }), { status: 200, headers: { "Content-Type": "application/json" } });
     }
     if (path.includes("/api/caregiver/brain-coach/me/settings")) {
       if (init?.method === "PATCH" && typeof init.body === "string") {
@@ -463,6 +467,31 @@ describe("CaregiverDashboardPage", () => {
     });
 
     expect(screen.getByText("Nudge sent in-app.")).toBeInTheDocument();
+  });
+
+  it("allows a caregiver nudge before today's Brain Coach plan exists", async () => {
+    mockApi({
+      brainCoachSummary: {
+        ...brainCoachPayload,
+        todayPlan: {
+          ...brainCoachPayload.todayPlan,
+          planId: null,
+          status: "not_planned",
+          completedItems: 0,
+          totalItems: 0,
+          completionPct: 0,
+        },
+      },
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText("Training plan controls")).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("button", { name: "Send in-app nudge" })).not.toBeDisabled();
+    expect(screen.getByText("VYVA will create today's Brain Coach plan before sending the in-app nudge.")).toBeInTheDocument();
   });
 
   it("shows a non-persisted Brain Coach plan preview", async () => {
