@@ -72,6 +72,20 @@ const brainCoachPayload = {
     activeSessionDays: 4,
     completionPct: 75,
   },
+  latestNudge: {
+    id: "nudge-1",
+    planId: "plan-1",
+    messageType: "today_plan",
+    title: "Your Brain Coach plan is ready",
+    body: "Your caregiver suggested starting with one short recommended activity.",
+    status: "seen",
+    sentAt: "2026-05-29T10:00:00.000Z",
+    sentBy: "caregiver-1",
+    seenAt: "2026-05-29T10:05:00.000Z",
+    dismissedAt: null,
+    planCompletedAfterNudge: false,
+    planCompletedAt: null,
+  },
   recentDomains: [{
     domain: "visual_memory",
     completedSessions: 3,
@@ -389,6 +403,8 @@ describe("CaregiverDashboardPage", () => {
     expect(screen.getAllByText("Memory Match").length).toBeGreaterThan(0);
     expect(screen.getByText("Control enabled")).toBeInTheDocument();
     expect(screen.getByText("Preview enabled")).toBeInTheDocument();
+    expect(screen.getByTestId("brain-coach-nudge-outcome")).toHaveTextContent("Seen");
+    expect(screen.getByTestId("brain-coach-nudge-outcome")).toHaveTextContent("plan completion is still pending");
   });
 
   it("saves caregiver Brain Coach plan preferences when consent allows editing", async () => {
@@ -492,6 +508,63 @@ describe("CaregiverDashboardPage", () => {
 
     expect(screen.getByRole("button", { name: "Send in-app nudge" })).not.toBeDisabled();
     expect(screen.getByText("VYVA will create today's Brain Coach plan before sending the in-app nudge.")).toBeInTheDocument();
+  });
+
+  it("shows no Brain Coach nudge outcome when no nudge has been sent", async () => {
+    mockApi({
+      brainCoachSummary: {
+        ...brainCoachPayload,
+        latestNudge: null,
+      },
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("brain-coach-nudge-outcome")).toHaveTextContent("No nudge sent");
+    });
+    expect(screen.getByTestId("brain-coach-nudge-outcome")).toHaveTextContent("No Brain Coach nudge has been sent yet.");
+  });
+
+  it("shows dismissed Brain Coach nudge outcome", async () => {
+    mockApi({
+      brainCoachSummary: {
+        ...brainCoachPayload,
+        latestNudge: {
+          ...brainCoachPayload.latestNudge,
+          status: "dismissed",
+          seenAt: null,
+          dismissedAt: "2026-05-29T10:06:00.000Z",
+        },
+      },
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("brain-coach-nudge-outcome")).toHaveTextContent("Dismissed");
+    });
+    expect(screen.getByTestId("brain-coach-nudge-outcome")).toHaveTextContent("dismissed before the plan was completed");
+  });
+
+  it("shows when today's plan was completed after a Brain Coach nudge", async () => {
+    mockApi({
+      brainCoachSummary: {
+        ...brainCoachPayload,
+        latestNudge: {
+          ...brainCoachPayload.latestNudge,
+          status: "seen",
+          planCompletedAfterNudge: true,
+          planCompletedAt: "2026-05-29T10:20:00.000Z",
+        },
+      },
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("brain-coach-nudge-outcome")).toHaveTextContent("Plan completed after nudge");
+    });
   });
 
   it("shows a non-persisted Brain Coach plan preview", async () => {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildBrainCoachCaregiverSummary,
   type BrainCoachCaregiverPlan,
+  type BrainCoachCaregiverPlanEvent,
   type BrainCoachCaregiverPlanItem,
   type BrainCoachCaregiverSession,
 } from "../lib/brainCoachCaregiverSummary.js";
@@ -46,6 +47,22 @@ function session(overrides: Partial<BrainCoachCaregiverSession> = {}) {
   };
 }
 
+function event(overrides: Partial<BrainCoachCaregiverPlanEvent> = {}) {
+  return {
+    id: "event-1",
+    planId: "plan-1",
+    eventType: "caregiver_nudge",
+    metadata: {
+      message_type: "today_plan",
+      title: "Your Brain Coach plan is ready",
+      body: "Your caregiver suggested starting with one short recommended activity.",
+      sent_by: "caregiver-1",
+    },
+    createdAt: "2026-06-01T08:00:00.000Z",
+    ...overrides,
+  };
+}
+
 describe("Brain Coach caregiver summary", () => {
   it("returns an empty read-only summary when no Brain Coach history exists", () => {
     const summary = buildBrainCoachCaregiverSummary({ now: NOW });
@@ -58,6 +75,7 @@ describe("Brain Coach caregiver summary", () => {
       totalItems: 0,
       completionPct: 0,
     });
+    expect(summary.latestNudge).toBeNull();
     expect(summary.recentActivities).toEqual([]);
   });
 
@@ -136,5 +154,86 @@ describe("Brain Coach caregiver summary", () => {
 
     expect(summary.recentDomains.map((domain) => domain.domain)).toEqual(["visual_memory", "attention"]);
     expect(summary.recentDomains[0].completedSessions).toBe(2);
+  });
+
+  it("shows sent caregiver nudge outcome when the latest nudge has not been seen", () => {
+    const summary = buildBrainCoachCaregiverSummary({
+      now: NOW,
+      plans: [plan()],
+      planItems: [item()],
+      planEvents: [event()],
+    });
+
+    expect(summary.latestNudge).toMatchObject({
+      id: "event-1",
+      planId: "plan-1",
+      title: "Your Brain Coach plan is ready",
+      status: "sent",
+      sentAt: "2026-06-01T08:00:00.000Z",
+      seenAt: null,
+      dismissedAt: null,
+      planCompletedAfterNudge: false,
+    });
+  });
+
+  it("shows seen caregiver nudge outcome when the senior app records a read event", () => {
+    const summary = buildBrainCoachCaregiverSummary({
+      now: NOW,
+      plans: [plan()],
+      planItems: [item()],
+      planEvents: [
+        event(),
+        event({
+          id: "event-read",
+          eventType: "caregiver_nudge_read",
+          metadata: { nudge_event_id: "event-1" },
+          createdAt: "2026-06-01T08:05:00.000Z",
+        }),
+      ],
+    });
+
+    expect(summary.latestNudge).toMatchObject({
+      status: "seen",
+      seenAt: "2026-06-01T08:05:00.000Z",
+      dismissedAt: null,
+    });
+  });
+
+  it("shows dismissed caregiver nudge outcome when the senior dismisses the nudge", () => {
+    const summary = buildBrainCoachCaregiverSummary({
+      now: NOW,
+      plans: [plan()],
+      planItems: [item()],
+      planEvents: [
+        event(),
+        event({
+          id: "event-dismissed",
+          eventType: "caregiver_nudge_dismissed",
+          metadata: { nudge_event_id: "event-1" },
+          createdAt: "2026-06-01T08:06:00.000Z",
+        }),
+      ],
+    });
+
+    expect(summary.latestNudge).toMatchObject({
+      status: "dismissed",
+      seenAt: null,
+      dismissedAt: "2026-06-01T08:06:00.000Z",
+    });
+  });
+
+  it("marks plan completion after the latest caregiver nudge", () => {
+    const summary = buildBrainCoachCaregiverSummary({
+      now: NOW,
+      plans: [plan({ status: "completed", completedAt: "2026-06-01T08:20:00.000Z" })],
+      planItems: [item({ status: "completed", completedAt: "2026-06-01T08:19:00.000Z" })],
+      planEvents: [event({ createdAt: "2026-06-01T08:00:00.000Z" })],
+    });
+
+    expect(summary.latestNudge).toMatchObject({
+      status: "sent",
+      planCompletedAfterNudge: true,
+      planCompletedAt: "2026-06-01T08:20:00.000Z",
+    });
   });
 });

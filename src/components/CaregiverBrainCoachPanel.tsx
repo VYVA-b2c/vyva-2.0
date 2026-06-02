@@ -45,6 +45,20 @@ type BrainCoachCaregiverSummary = {
     activeSessionDays: number;
     completionPct: number;
   };
+  latestNudge: {
+    id: string | null;
+    planId: string;
+    messageType: string;
+    title: string;
+    body: string;
+    status: "sent" | "seen" | "dismissed";
+    sentAt: string | null;
+    sentBy: string | null;
+    seenAt: string | null;
+    dismissedAt: string | null;
+    planCompletedAfterNudge: boolean;
+    planCompletedAt: string | null;
+  } | null;
   recentDomains: Array<{
     domain: string;
     completedSessions: number;
@@ -204,6 +218,22 @@ function nudgeMessageType(summary: BrainCoachCaregiverSummary | undefined) {
   return "today_plan";
 }
 
+function nudgeStatusLabel(summary: BrainCoachCaregiverSummary | undefined) {
+  if (!summary?.latestNudge) return "No nudge sent";
+  if (summary.latestNudge.status === "seen") return "Seen";
+  if (summary.latestNudge.status === "dismissed") return "Dismissed";
+  return "Sent";
+}
+
+function nudgeOutcomeText(summary: BrainCoachCaregiverSummary | undefined) {
+  const nudge = summary?.latestNudge;
+  if (!nudge) return "No Brain Coach nudge has been sent yet.";
+  if (nudge.planCompletedAfterNudge) return `Plan completed after nudge at ${formatTime(nudge.planCompletedAt)}.`;
+  if (nudge.status === "dismissed") return "The nudge was dismissed before the plan was completed.";
+  if (nudge.status === "seen") return "The nudge was seen; plan completion is still pending.";
+  return "The nudge was sent; it has not been seen yet.";
+}
+
 export function CaregiverBrainCoachPanel() {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<BrainCoachSettings>(DEFAULT_SETTINGS);
@@ -252,6 +282,9 @@ export function CaregiverBrainCoachPanel() {
       });
       if (!response.ok) throw new Error("Could not send Brain Coach nudge");
       return response.json() as Promise<NudgeResponse>;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["/api/caregiver/brain-coach/me/summary"] });
     },
   });
 
@@ -564,6 +597,28 @@ export function CaregiverBrainCoachPanel() {
         <p className="mt-2 font-body text-[13px] font-semibold leading-relaxed text-[#5F6B63]">
           Sends a Brain Coach reminder inside VYVA only.
         </p>
+        <div className="mt-3 rounded-[12px] border border-[#D8DED6] bg-[#F8FAF8] p-3" data-testid="brain-coach-nudge-outcome">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="font-body text-[13px] font-bold text-[#5F6B63]">Latest nudge</p>
+            <span className={`rounded-full px-3 py-1 font-body text-[12px] font-bold ${
+              summary?.latestNudge?.status === "dismissed"
+                ? "bg-[#FFF7ED] text-[#9A3412]"
+                : summary?.latestNudge?.status === "seen"
+                  ? "bg-[#ECFDF5] text-[#047857]"
+                  : "bg-white text-[#26312B]"
+            }`}>
+              {nudgeStatusLabel(summary)}
+            </span>
+          </div>
+          <p className="mt-2 font-body text-[13px] font-semibold leading-relaxed text-[#5F6B63]">
+            {nudgeOutcomeText(summary)}
+          </p>
+          {summary?.latestNudge?.sentAt && (
+            <p className="mt-1 font-body text-[12px] font-semibold text-[#7A857D]">
+              Sent {formatTime(summary.latestNudge.sentAt)}
+            </p>
+          )}
+        </div>
         <button
           type="button"
           disabled={nudgeDisabled}
