@@ -1393,7 +1393,7 @@
       "toastInviteError": "Could not send invitation",
       "step1": {
         "heading": "👥 Add someone to your care team",
-        "subtitle": "You decide exactly what each person can see. Nothing is shared until you confirm.",
+        "subtitle": "Add as many people as you need. You decide exactly what each person can see, and nothing is shared until you confirm.",
         "infoBanner": "All sharing is under your control. You can change or remove access at any time in Settings → Privacy & consent.",
         "continue": "Continue"
       },

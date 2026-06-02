@@ -1381,7 +1381,7 @@
       "toastInviteError": "No se pudo enviar la invitación",
       "step1": {
         "heading": "👥 Añadir a alguien a tu equipo de cuidado",
-        "subtitle": "Tú decides exactamente lo que cada persona puede ver. Nada se comparte hasta que lo confirmes.",
+        "subtitle": "Añade tantas personas como necesites. Tú decides exactamente lo que cada persona puede ver, y nada se comparte hasta que lo confirmes.",
         "infoBanner": "Todo el intercambio está bajo tu control. Puedes cambiar o eliminar el acceso en cualquier momento en Ajustes → Privacidad y consentimiento.",
         "continue": "Continuar"
       },
