@@ -77,6 +77,7 @@ type VitalsHistory = {
 };
 
 type ProfileContactsResponse = {
+  country?: string | null;
   gpName?: string | null;
   gpPhone?: string | null;
   gpEmail?: string | null;
@@ -203,6 +204,25 @@ function sanitizePhoneHref(phone?: string | null): string {
   return `tel:${normalized || raw}`;
 }
 
+function emergencyContactForCountry(country?: string | null) {
+  const countryCode = (country ?? "ES").trim().toUpperCase() || "ES";
+  const emergencyNumberByCountry: Record<string, string> = {
+    ES: "112",
+    FR: "112",
+    DE: "112",
+    IT: "112",
+    PT: "112",
+    IE: "112",
+    GB: "999",
+    UK: "999",
+    US: "911",
+    CA: "911",
+    AU: "000",
+  };
+  const number = emergencyNumberByCountry[countryCode];
+  return number ? { label: number, telHref: `tel:${number}` } : null;
+}
+
 function reportDoctorNote(report: TriageReport, t: ReturnType<typeof useTranslation>["t"]) {
   return [
     `${t("health.symptomCheck.report.tellMainSymptom", "Main symptom")}: ${report.chief_complaint}`,
@@ -232,6 +252,7 @@ export function DetailView({ report, onBack }: { report: TriageReport; onBack: (
   const gpPhone = profileContacts?.gpPhone?.trim() ?? "";
   const gpEmail = profileContacts?.gpEmail?.trim() ?? "";
   const telHref = sanitizePhoneHref(gpPhone);
+  const emergencyContact = emergencyContactForCountry(profileContacts?.country);
   const mailtoHref = gpEmail
     ? `mailto:${gpEmail}?subject=${encodeURIComponent(t("health.symptomCheck.report.actions.emailSubject", "VYVA symptom report"))}&body=${encodeURIComponent(doctorNote)}`
     : "";
@@ -252,10 +273,10 @@ export function DetailView({ report, onBack }: { report: TriageReport; onBack: (
         ? "health.symptomCheck.report.actions.appointmentPrefill"
         : "health.symptomCheck.report.actions.quotePrefill";
     const fallback = kind === "ride"
-      ? "Please help me book a safe ride for this health recommendation: {{recommendation}}. Ask me to confirm before booking."
+      ? "Please help me book a safe ride for this health recommendation: {{recommendation}}. Report: {{report}}. Ask me to confirm before booking."
       : kind === "appointment"
-        ? "Please help me schedule care for this health recommendation: {{recommendation}}. Ask me to confirm before booking."
-        : "Please help me request a quote for someone to stay with me or support me at home: {{recommendation}}. Ask me to confirm before requesting anything.";
+        ? "Please help me schedule care for this health recommendation: {{recommendation}}. Report: {{report}}. Ask me to confirm before booking."
+        : "Please help me request a quote for someone to stay with me or support me at home: {{recommendation}}. Report: {{report}}. Ask me to confirm before requesting anything.";
     navigate("/concierge", {
       state: {
         conciergePrefill: {
@@ -284,6 +305,9 @@ export function DetailView({ report, onBack }: { report: TriageReport; onBack: (
   };
 
   const actionLabels: Record<SymptomRecommendationActionKind, string> = {
+    call_emergency: emergencyContact?.telHref
+      ? t("health.symptomCheck.report.callEmergencyNumber", "Call {{number}}", { number: emergencyContact.label })
+      : t("health.symptomCheck.report.contactEmergencyServices", "Contact emergency services"),
     call_gp: t("health.symptomCheck.report.actions.callGp", "Call GP"),
     email_gp: t("health.symptomCheck.report.actions.emailGp", "Email GP"),
     doctor_help: t("health.symptomCheck.report.actions.doctorHelp", "Doctor help"),
@@ -293,6 +317,7 @@ export function DetailView({ report, onBack }: { report: TriageReport; onBack: (
     request_quote: t("health.symptomCheck.report.actions.requestQuote", "Request quote"),
   };
   const actionIcons: Record<SymptomRecommendationActionKind, LucideIcon> = {
+    call_emergency: PhoneCall,
     call_gp: PhoneCall,
     email_gp: Mail,
     doctor_help: Stethoscope,
@@ -304,6 +329,7 @@ export function DetailView({ report, onBack }: { report: TriageReport; onBack: (
 
   const recommendationActions = (recommendation: string): ReportAction[] => {
     const actions = getSymptomRecommendationActionKinds(recommendation, {
+      hasEmergencyContact: Boolean(emergencyContact?.telHref),
       hasGpPhone: Boolean(gpPhone),
       hasGpEmail: Boolean(gpEmail),
     }).map((kind): ReportAction => {
@@ -314,6 +340,7 @@ export function DetailView({ report, onBack }: { report: TriageReport; onBack: (
         ariaLabel: t("health.symptomCheck.report.actions.aria", "{{action}} for: {{recommendation}}", { action: label, recommendation }),
         Icon: actionIcons[kind],
       };
+      if (kind === "call_emergency") return { ...base, href: emergencyContact?.telHref };
       if (kind === "call_gp") return { ...base, href: telHref };
       if (kind === "email_gp") return { ...base, href: mailtoHref };
       if (kind === "doctor_help") return { ...base, onClick: openDoctorWithContext };
@@ -336,6 +363,7 @@ export function DetailView({ report, onBack }: { report: TriageReport; onBack: (
 
     return actions;
   };
+  const nextStepActions = report.next_step_label ? recommendationActions(report.next_step_label) : [];
 
   return (
     <HealthWizardShell contentClassName="pb-10">
@@ -433,6 +461,41 @@ export function DetailView({ report, onBack }: { report: TriageReport; onBack: (
               </ul>
             </div>
           )}
+          {nextStepActions.length ? (
+            <div className="mt-4 grid gap-2 sm:grid-cols-2" data-testid="report-detail-next-step-actions">
+              {nextStepActions.map((action, index) => {
+                const ActionIcon = action.Icon;
+                const className = "vyva-tap inline-flex min-h-[50px] items-center justify-center gap-2 rounded-[17px] border border-[#E7DCF8] bg-white px-4 py-3 text-center font-body text-[14px] font-black leading-tight text-vyva-purple shadow-sm";
+                if (action.href) {
+                  return (
+                    <a
+                      key={`${action.kind}-${index}`}
+                      href={action.href}
+                      aria-label={action.ariaLabel}
+                      data-testid={`button-report-detail-next-step-action-${index}-${action.kind}`}
+                      className={className}
+                    >
+                      <ActionIcon size={18} />
+                      <span>{action.label}</span>
+                    </a>
+                  );
+                }
+                return (
+                  <button
+                    key={`${action.kind}-${index}`}
+                    type="button"
+                    onClick={action.onClick}
+                    aria-label={action.ariaLabel}
+                    data-testid={`button-report-detail-next-step-action-${index}-${action.kind}`}
+                    className={className}
+                  >
+                    <ActionIcon size={18} />
+                    <span>{action.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
         </section>
       )}
 
@@ -545,7 +608,18 @@ export function DetailView({ report, onBack }: { report: TriageReport; onBack: (
   );
 }
 
-function InformesMain() {
+function uniqueReportActions(actions: ReportAction[]) {
+  const seen = new Set<string>();
+  return actions.filter((action) => {
+    if (seen.has(action.kind)) return false;
+    seen.add(action.kind);
+    return true;
+  });
+}
+
+const overviewActionClass = "vyva-tap inline-flex min-h-[50px] items-center justify-center gap-2 rounded-[17px] border border-[#E7DCF8] bg-white px-4 py-3 text-center font-body text-[14px] font-black leading-tight text-vyva-purple shadow-sm";
+
+export function InformesMain() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { id: urlId } = useParams<{ id?: string }>();
@@ -556,6 +630,9 @@ function InformesMain() {
   });
   const { data: vitalsHistory } = useQuery<VitalsHistory>({
     queryKey: ["/api/reports/vitals/history"],
+  });
+  const { data: profileContacts } = useQuery<ProfileContactsResponse>({
+    queryKey: ["/api/profile"],
   });
   const { data: directReport, isLoading: directLoading, isError: directError } = useQuery<TriageReport>({
     queryKey: [`/api/reports/triage/${selectedReportId}`],
@@ -576,6 +653,241 @@ function InformesMain() {
   const signal = reportSignal(summary);
   const pendingMeds = summary?.todayMeds.total ? Math.max(summary.todayMeds.total - summary.todayMeds.taken, 0) : 0;
   const statusTone = signal.tone === "urgent" ? "#B91C1C" : signal.tone === "routine" ? "#B45309" : signal.tone === "good" ? "#047857" : "#6B7280";
+  const latestTriage = summary?.latestTriage ?? null;
+  const latestDoctorNote = latestTriage ? reportDoctorNote(latestTriage, t) : "";
+  const latestVitals = summary?.latestVitals ?? null;
+  const latestVitalsNeedReview = Boolean(latestVitals && (latestVitals.bpm < 55 || latestVitals.bpm > 100 || (latestVitals.respiratory_rate != null && (latestVitals.respiratory_rate < 12 || latestVitals.respiratory_rate > 24))));
+  const vitalsContext = latestVitals
+    ? t(
+      "informes.actions.vitalsContext",
+      "Latest VYVA vitals: pulse {{bpm}} bpm{{resp}}. Please help me decide the safest next step.",
+      {
+        bpm: latestVitals.bpm,
+        resp: latestVitals.respiratory_rate != null ? `, breathing ${latestVitals.respiratory_rate}/min` : "",
+      },
+    )
+    : "";
+  const medicationContext = summary?.todayMeds.total
+    ? t(
+      "informes.actions.medsContext",
+      "Today's medication status: {{taken}} of {{total}} taken, {{pending}} still pending.",
+      {
+        taken: summary.todayMeds.taken,
+        total: summary.todayMeds.total,
+        pending: pendingMeds,
+      },
+    )
+    : "";
+  const gpPhone = profileContacts?.gpPhone?.trim() ?? "";
+  const gpEmail = profileContacts?.gpEmail?.trim() ?? "";
+  const gpName = profileContacts?.gpName?.trim() ?? "";
+  const telHref = sanitizePhoneHref(gpPhone);
+  const emergencyContact = emergencyContactForCountry(profileContacts?.country);
+  const mailtoHref = gpEmail && latestDoctorNote
+    ? `mailto:${gpEmail}?subject=${encodeURIComponent(t("health.symptomCheck.report.actions.emailSubject", "VYVA symptom report"))}&body=${encodeURIComponent(latestDoctorNote)}`
+    : "";
+  const callGpLabel = gpName
+    ? t("meds.callGpNamed", "Call {{name}}", { name: gpName })
+    : t("health.symptomCheck.report.actions.callGp", "Call GP");
+  const vitalsMailtoHref = gpEmail && vitalsContext
+    ? `mailto:${gpEmail}?subject=${encodeURIComponent(t("informes.actions.vitalsEmailSubject", "VYVA vitals report"))}&body=${encodeURIComponent(vitalsContext)}`
+    : "";
+  const medicationMailtoHref = gpEmail && medicationContext
+    ? `mailto:${gpEmail}?subject=${encodeURIComponent(t("meds.adherenceService.doctorNoteTitle", "VYVA medication adherence report"))}&body=${encodeURIComponent(medicationContext)}`
+    : "";
+
+  const openLatestReport = () => {
+    if (!latestTriage) return;
+    setSelectedReportId(latestTriage.id);
+    navigate(`/informes/${latestTriage.id}`);
+  };
+
+  const openLatestDoctorWithContext = () => {
+    if (!latestDoctorNote) return;
+    navigate("/health/doctor", {
+      state: {
+        autoStartVoice: true,
+        latestSymptomReport: latestDoctorNote,
+      },
+    });
+  };
+
+  const openLatestConciergePrefill = (kind: "ride" | "appointment" | "home_care_quote", recommendation: string) => {
+    const key = kind === "ride"
+      ? "health.symptomCheck.report.actions.ridePrefill"
+      : kind === "appointment"
+        ? "health.symptomCheck.report.actions.appointmentPrefill"
+        : "health.symptomCheck.report.actions.quotePrefill";
+    const fallback = kind === "ride"
+      ? "Please help me book a safe ride for this health recommendation: {{recommendation}}. Report: {{report}}. Ask me to confirm before booking."
+      : kind === "appointment"
+        ? "Please help me schedule care for this health recommendation: {{recommendation}}. Report: {{report}}. Ask me to confirm before booking."
+        : "Please help me request a quote for someone to stay with me or support me at home: {{recommendation}}. Report: {{report}}. Ask me to confirm before requesting anything.";
+    navigate("/concierge", {
+      state: {
+        conciergePrefill: {
+          kind,
+          message: t(key, fallback, { recommendation, report: latestDoctorNote }),
+          source: "symptom_report",
+        },
+      },
+    });
+  };
+
+  const openLatestHydrationOrder = (recommendation: string) => {
+    navigate("/concierge/shopping", {
+      state: {
+        shoppingPrefill: {
+          needText: t(
+            "health.symptomCheck.report.actions.hydrationPrefill",
+            "Hydration support for this health recommendation: {{recommendation}}. Please suggest easy delivery options such as water, oral rehydration salts, or electrolyte drinks.",
+            { recommendation, report: latestDoctorNote },
+          ),
+          category: "groceries",
+          priorities: ["delivery", "simplicity"],
+        },
+      },
+    });
+  };
+
+  const openVitalsDoctorHelp = () => {
+    if (!vitalsContext) return;
+    navigate("/health/doctor", {
+      state: {
+        autoStartVoice: true,
+        latestSymptomReport: vitalsContext,
+      },
+    });
+  };
+
+  const openVitalsConciergePrefill = (kind: "appointment" | "ride") => {
+    if (!vitalsContext) return;
+    const key = kind === "appointment" ? "informes.actions.vitalsAppointmentPrefill" : "informes.actions.vitalsRidePrefill";
+    const fallback = kind === "appointment"
+      ? "Please help me schedule care to review these VYVA vitals. {{context}} Ask me to confirm before booking."
+      : "Please help me arrange safe transport for a medical visit to review these VYVA vitals. {{context}} Ask me to confirm before booking.";
+    navigate("/concierge", {
+      state: {
+        conciergePrefill: {
+          kind,
+          message: t(key, fallback, { context: vitalsContext }),
+          source: "vitals_safety",
+        },
+      },
+    });
+  };
+
+  const openMedicationRefill = () => {
+    if (!medicationContext) return;
+    navigate("/concierge/shopping", {
+      state: {
+        shoppingPrefill: {
+          needText: t(
+            "informes.actions.medsRefillPrefill",
+            "Please help me prepare a safe pharmacy refill or delivery based on this medication status: {{context}} Ask me to confirm before ordering or paying.",
+            { context: medicationContext },
+          ),
+          category: "pharmacy_basics",
+          priorities: ["safety", "delivery", "simplicity"],
+        },
+      },
+    });
+  };
+
+  const openMedicationDoctorHelp = () => {
+    if (!medicationContext) return;
+    navigate("/health/doctor", {
+      state: {
+        autoStartVoice: true,
+        latestSymptomReport: t(
+          "informes.actions.medsDoctorContext",
+          "VYVA medication support request. {{context}} Please help me decide if I should contact my doctor or pharmacist.",
+          { context: medicationContext },
+        ),
+      },
+    });
+  };
+
+  const openMedicationAppointment = () => {
+    if (!medicationContext) return;
+    navigate("/concierge", {
+      state: {
+        conciergePrefill: {
+          kind: "appointment",
+          message: t(
+            "informes.actions.medsAppointmentPrefill",
+            "Please help me schedule a medication review appointment. {{context}} Ask me to confirm before booking.",
+            { context: medicationContext },
+          ),
+          source: "medication_support",
+        },
+      },
+    });
+  };
+
+  const latestActionLabels: Record<SymptomRecommendationActionKind, string> = {
+    call_emergency: emergencyContact?.telHref
+      ? t("health.symptomCheck.report.callEmergencyNumber", "Call {{number}}", { number: emergencyContact.label })
+      : t("health.symptomCheck.report.contactEmergencyServices", "Contact emergency services"),
+    call_gp: t("health.symptomCheck.report.actions.callGp", "Call GP"),
+    email_gp: t("health.symptomCheck.report.actions.emailGp", "Email GP"),
+    doctor_help: t("health.symptomCheck.report.actions.doctorHelp", "Doctor help"),
+    book_ride: t("health.symptomCheck.report.actions.bookRide", "Book ride"),
+    schedule_appointment: t("health.symptomCheck.report.actions.scheduleAppointment", "Appointment"),
+    online_order: t("health.symptomCheck.report.actions.onlineOrder", "Online order"),
+    request_quote: t("health.symptomCheck.report.actions.requestQuote", "Request quote"),
+  };
+  const latestActionIcons: Record<SymptomRecommendationActionKind, LucideIcon> = {
+    call_emergency: PhoneCall,
+    call_gp: PhoneCall,
+    email_gp: Mail,
+    doctor_help: Stethoscope,
+    book_ride: Car,
+    schedule_appointment: Calendar,
+    online_order: ShoppingBasket,
+    request_quote: ClipboardList,
+  };
+  const latestReportActions = latestTriage ? uniqueReportActions(
+    [
+      latestTriage.next_step_label,
+      ...latestTriage.recommendations,
+    ].filter((text): text is string => Boolean(text?.trim())).flatMap((recommendation) => {
+      const actions = getSymptomRecommendationActionKinds(recommendation, {
+        hasEmergencyContact: Boolean(emergencyContact?.telHref),
+        hasGpPhone: Boolean(gpPhone),
+        hasGpEmail: Boolean(gpEmail),
+      }).map((kind): ReportAction => {
+        const label = latestActionLabels[kind];
+        const base = {
+          kind,
+          label,
+          ariaLabel: t("health.symptomCheck.report.actions.aria", "{{action}} for: {{recommendation}}", { action: label, recommendation }),
+          Icon: latestActionIcons[kind],
+        };
+        if (kind === "call_emergency") return { ...base, href: emergencyContact?.telHref };
+        if (kind === "call_gp") return { ...base, href: telHref };
+        if (kind === "email_gp") return { ...base, href: mailtoHref };
+        if (kind === "doctor_help") return { ...base, onClick: openLatestDoctorWithContext };
+        if (kind === "book_ride") return { ...base, onClick: () => openLatestConciergePrefill("ride", recommendation) };
+        if (kind === "schedule_appointment") return { ...base, onClick: () => openLatestConciergePrefill("appointment", recommendation) };
+        if (kind === "online_order") return { ...base, onClick: () => openLatestHydrationOrder(recommendation) };
+        return { ...base, onClick: () => openLatestConciergePrefill("home_care_quote", recommendation) };
+      }).filter((action) => action.href || action.onClick);
+
+      const hasDoctorAction = actions.some((action) => action.kind === "doctor_help" || action.kind === "call_gp" || action.kind === "email_gp");
+      if (hasDoctorAction && !gpPhone && !gpEmail) {
+        actions.push({
+          kind: "add_doctor_contact",
+          label: t("health.symptomCheck.report.addDoctorContact", "Add doctor contact"),
+          ariaLabel: t("health.symptomCheck.report.addDoctorContact", "Add doctor contact"),
+          Icon: Users,
+          onClick: () => navigate("/onboarding/profile/gp"),
+        });
+      }
+
+      return actions;
+    }),
+  ) : [];
 
   const voiceHighlights = [
     ...(summary?.latestTriage ? [{ label: t("informes.cards.symptom.title"), value: formatDate(summary.latestTriage.created_at), tone: "neutral" as const }] : []),
@@ -680,13 +992,9 @@ function InformesMain() {
 
           <div className="flex flex-col gap-3">
             {summary.latestTriage ? (
-              <button
+              <section
                 data-testid="card-symptom-report"
-                onClick={() => {
-                  setSelectedReportId(summary.latestTriage!.id);
-                  navigate(`/informes/${summary.latestTriage!.id}`);
-                }}
-                className={`${cardShell} w-full p-5 text-left active:scale-[0.99]`}
+                className={`${cardShell} w-full p-5 text-left`}
               >
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
@@ -710,12 +1018,57 @@ function InformesMain() {
                     {summary.latestTriage.bpm != null && <span className="font-body text-[12px] font-bold text-vyva-text-2">{summary.latestTriage.bpm} bpm</span>}
                     {summary.latestTriage.respiratory_rate != null && <span className="font-body text-[12px] font-bold text-vyva-text-2">{summary.latestTriage.respiratory_rate} breaths/min</span>}
                   </div>
-                  <span className="inline-flex items-center gap-1 font-body text-[12px] font-bold text-[#6B21A8]">
+                  <button
+                    type="button"
+                    onClick={openLatestReport}
+                    data-testid="button-open-latest-symptom-report"
+                    className="vyva-tap inline-flex min-h-[42px] items-center gap-1 rounded-full bg-[#F5F3FF] px-4 font-body text-[12px] font-bold text-[#6B21A8]"
+                  >
                     {t("informes.cards.symptom.cta")}
                     <ArrowRight size={15} />
-                  </span>
+                  </button>
                 </div>
-              </button>
+                {latestReportActions.length ? (
+                  <div className="mt-4 border-t border-[#E8DED4] pt-4" data-testid="latest-report-service-actions">
+                    <p className="mb-2 font-body text-[12px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+                      {t("informes.fastServiceAccess", "Fast service access")}
+                    </p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {latestReportActions.map((action) => {
+                        const ActionIcon = action.Icon;
+                        const className = "vyva-tap inline-flex min-h-[50px] items-center justify-center gap-2 rounded-[17px] border border-[#E7DCF8] bg-white px-4 py-3 text-center font-body text-[14px] font-black leading-tight text-vyva-purple shadow-sm";
+                        if (action.href) {
+                          return (
+                            <a
+                              key={action.kind}
+                              href={action.href}
+                              aria-label={action.ariaLabel}
+                              data-testid={`button-latest-report-service-${action.kind}`}
+                              className={className}
+                            >
+                              <ActionIcon size={18} />
+                              <span>{action.label}</span>
+                            </a>
+                          );
+                        }
+                        return (
+                          <button
+                            key={action.kind}
+                            type="button"
+                            onClick={action.onClick}
+                            aria-label={action.ariaLabel}
+                            data-testid={`button-latest-report-service-${action.kind}`}
+                            className={className}
+                          >
+                            <ActionIcon size={18} />
+                            <span>{action.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </section>
             ) : (
               <EmptyCard icon={Activity} title={t("informes.cards.symptom.title")} body={t("informes.cards.symptom.empty")} />
             )}
@@ -733,7 +1086,7 @@ function InformesMain() {
                     </div>
                   </div>
                   <span className="rounded-full bg-[#ECFDF5] px-3 py-1 font-body text-[11px] font-bold text-[#047857]">
-                    {t("informes.cards.vitals.statusNormal")}
+                    {latestVitalsNeedReview ? t("informes.cards.vitals.statusReview") : t("informes.cards.vitals.statusNormal")}
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -744,6 +1097,73 @@ function InformesMain() {
                   <div className="rounded-[18px] bg-[#EFF6FF] p-4">
                     <Wind size={16} style={{ color: "#0369A1" }} />
                     <p className="mt-3 font-body text-[30px] font-bold leading-none text-vyva-text-1">{summary.latestVitals.respiratory_rate ?? "--"}<span className="ml-1 text-[13px] text-vyva-text-2">breaths/min</span></p>
+                  </div>
+                </div>
+                <div className="mt-4 border-t border-[#E8DED4] pt-4" data-testid="reports-vitals-service-actions">
+                  <p className="mb-2 font-body text-[12px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+                    {t("informes.fastServiceAccess", "Fast service access")}
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => navigate("/health/vitals")}
+                      data-testid="button-reports-vitals-review"
+                      className={overviewActionClass}
+                    >
+                      <Activity size={18} />
+                      <span>{t("informes.actions.reviewVitals", "Review vitals")}</span>
+                    </button>
+                    {latestVitalsNeedReview ? (
+                      <>
+                        {telHref ? (
+                          <a
+                            href={telHref}
+                            data-testid="button-reports-vitals-call-gp"
+                            className={overviewActionClass}
+                          >
+                            <PhoneCall size={18} />
+                            <span>{callGpLabel}</span>
+                          </a>
+                        ) : null}
+                        {vitalsMailtoHref ? (
+                          <a
+                            href={vitalsMailtoHref}
+                            data-testid="button-reports-vitals-email-gp"
+                            className={overviewActionClass}
+                          >
+                            <Mail size={18} />
+                            <span>{t("health.symptomCheck.report.actions.emailGp", "Email GP")}</span>
+                          </a>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={openVitalsDoctorHelp}
+                          data-testid="button-reports-vitals-doctor"
+                          className={overviewActionClass}
+                        >
+                          <Stethoscope size={18} />
+                          <span>{t("informes.actions.doctorHelp", "Doctor help")}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openVitalsConciergePrefill("appointment")}
+                          data-testid="button-reports-vitals-appointment"
+                          className={overviewActionClass}
+                        >
+                          <Calendar size={18} />
+                          <span>{t("informes.actions.bookAppointment", "Appointment")}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openVitalsConciergePrefill("ride")}
+                          data-testid="button-reports-vitals-ride"
+                          className={overviewActionClass}
+                        >
+                          <Car size={18} />
+                          <span>{t("informes.actions.bookRide", "Book ride")}</span>
+                        </button>
+                      </>
+                    ) : null}
                   </div>
                 </div>
               </section>
@@ -762,20 +1182,89 @@ function InformesMain() {
                 </div>
               </div>
               {summary.todayMeds.total > 0 ? (
-                <div className="flex items-end justify-between gap-3">
-                  <div>
-                    <p className="font-body text-[34px] font-bold leading-none text-vyva-text-1">{summary.todayMeds.adherencePct ?? 0}%</p>
-                    <p className="mt-1 font-body text-[13px] text-vyva-text-2">
-                      {t("informes.cards.meds.taken", { taken: summary.todayMeds.taken, total: summary.todayMeds.total })}
-                    </p>
+                <div>
+                  <div className="flex items-end justify-between gap-3">
+                    <div>
+                      <p className="font-body text-[34px] font-bold leading-none text-vyva-text-1">{summary.todayMeds.adherencePct ?? 0}%</p>
+                      <p className="mt-1 font-body text-[13px] text-vyva-text-2">
+                        {t("informes.cards.meds.taken", { taken: summary.todayMeds.taken, total: summary.todayMeds.total })}
+                      </p>
+                    </div>
+                    <button
+                      data-testid="button-meds-details"
+                      onClick={() => navigate("/meds/adherence-report")}
+                      className="rounded-full bg-[#FDF4FF] px-4 py-2 font-body text-[13px] font-bold text-[#86198F] active:scale-95"
+                    >
+                      {t("informes.cards.meds.cta")}
+                    </button>
                   </div>
-                  <button
-                    data-testid="button-meds-details"
-                    onClick={() => navigate("/meds/adherence-report")}
-                    className="rounded-full bg-[#FDF4FF] px-4 py-2 font-body text-[13px] font-bold text-[#86198F] active:scale-95"
-                  >
-                    {t("informes.cards.meds.cta")}
-                  </button>
+                  <div className="mt-4 border-t border-[#E8DED4] pt-4" data-testid="reports-meds-service-actions">
+                    <p className="mb-2 font-body text-[12px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+                      {t("informes.fastServiceAccess", "Fast service access")}
+                    </p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() => navigate("/meds")}
+                        data-testid="button-reports-meds-review"
+                        className={overviewActionClass}
+                      >
+                        <Pill size={18} />
+                        <span>{t("informes.actions.reviewMeds", "Review meds")}</span>
+                      </button>
+                      {pendingMeds > 0 ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={openMedicationRefill}
+                            data-testid="button-reports-meds-refill"
+                            className={overviewActionClass}
+                          >
+                            <ShoppingBasket size={18} />
+                            <span>{t("informes.actions.prepareRefill", "Prepare refill")}</span>
+                          </button>
+                          {telHref ? (
+                            <a
+                              href={telHref}
+                              data-testid="button-reports-meds-call-gp"
+                              className={overviewActionClass}
+                            >
+                              <PhoneCall size={18} />
+                              <span>{callGpLabel}</span>
+                            </a>
+                          ) : null}
+                          {medicationMailtoHref ? (
+                            <a
+                              href={medicationMailtoHref}
+                              data-testid="button-reports-meds-email-gp"
+                              className={overviewActionClass}
+                            >
+                              <Mail size={18} />
+                              <span>{t("health.symptomCheck.report.actions.emailGp", "Email GP")}</span>
+                            </a>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={openMedicationDoctorHelp}
+                            data-testid="button-reports-meds-doctor"
+                            className={overviewActionClass}
+                          >
+                            <Stethoscope size={18} />
+                            <span>{t("informes.actions.doctorHelp", "Doctor help")}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={openMedicationAppointment}
+                            data-testid="button-reports-meds-appointment"
+                            className={overviewActionClass}
+                          >
+                            <Calendar size={18} />
+                            <span>{t("informes.actions.bookAppointment", "Appointment")}</span>
+                          </button>
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <p className="font-body text-[14px] leading-relaxed text-vyva-text-2">{t("informes.cards.meds.empty")}</p>

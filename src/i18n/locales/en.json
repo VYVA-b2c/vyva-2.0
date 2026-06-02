@@ -262,6 +262,25 @@
         "openLabel": "Open concierge"
       }
     },
+    "fastHelp": {
+      "kicker": "Fast help",
+      "title": "What do you need now?",
+      "doctor": {
+        "label": "Doctor help",
+        "sub": "Talk through a health concern"
+      },
+      "appointment": {
+        "label": "Book appointment",
+        "sub": "Prepare a request to confirm"
+      },
+      "ride": {
+        "label": "Book ride",
+        "sub": "Arrange safe transport"
+      },
+      "doctorContext": "Home quick doctor help request. Ask what is happening and help prepare a safe next step.",
+      "appointmentPrefill": "Please help me schedule an appointment. Ask what kind of appointment I need and do not book anything without my confirmation.",
+      "ridePrefill": "Please help me arrange safe transport. Ask for destination and timing, and do not book anything without my confirmation."
+    },
     "whatNow": "or explore a topic"
   },
   "voiceHero": {
@@ -608,7 +627,7 @@
     },
     "seeDoctor": {
       "title": "See a Doctor",
-      "subtitle": "Phone, video, or live chat",
+      "subtitle": "Call, appointment, or transport help",
       "cta": "Choose",
       "sheetTitle": "Choose how to connect",
       "videoCall": "Video Call",
@@ -617,7 +636,26 @@
       "comingSoonBtn": "Coming soon",
       "comingSoon": "This service is being set up for you. Available very soon!",
       "checkSymptoms": "Check My Symptoms",
-      "checkSymptomsSub": "AI triage + vitals scan in 5 minutes"
+      "checkSymptomsSub": "AI triage + vitals scan in 5 minutes",
+      "actions": {
+        "title": "Doctor access",
+        "callGp": "Call GP",
+        "callGpNamed": "Call {{name}}",
+        "callGpSub": "Speak to your practice now.",
+        "emailGp": "Email GP",
+        "emailGpSub": "Open an email with context filled in.",
+        "doctorHelp": "Doctor help",
+        "doctorHelpSub": "Talk through the next step with VYVA.",
+        "bookAppointment": "Book appointment",
+        "bookAppointmentSub": "VYVA prepares the request for approval.",
+        "bookTransport": "Book transport",
+        "bookTransportSub": "Arrange a safe ride to care.",
+        "addGp": "Add GP contact",
+        "addGpSub": "Save phone or email first.",
+        "defaultContext": "Health home doctor support request. Ask what is needed and help prepare a safe next step.",
+        "appointmentPrefill": "Please help me schedule a doctor appointment. Ask me to confirm before booking anything.\n\n{{context}}",
+        "ridePrefill": "Please help me arrange safe transport for a medical appointment. Ask me to confirm before booking anything.\n\n{{context}}"
+      }
     },
     "symptomCheck": {
       "title": "Symptom Check",
@@ -812,6 +850,9 @@
       "noProvidersBody": "You can try another city or open Google Maps to look for nearby options.",
       "openMaps": "Open Google Maps",
       "contact": "Contact",
+      "call": "Call",
+      "bookAppointment": "Appointment",
+      "bookRide": "Book ride",
       "map": "Map",
       "share": "Share",
       "doctorSearchTerm": "doctor",
@@ -1094,6 +1135,14 @@
     "saving": "Saving…",
     "logActivity": "Log {{duration}}m {{type}}",
     "selectActivity": "Select an activity above",
+    "supportTitle": "Need help going out?",
+    "supportSubtitle": "VYVA can prepare transport or companion support before you confirm.",
+    "bookRide": "Book ride",
+    "bookRideSub": "Arrange transport before you go.",
+    "arrangeCompanion": "Arrange companion",
+    "arrangeCompanionSub": "Ask for someone to come with you.",
+    "ridePrefill": "Please help me arrange safe transport for a {{duration}} minute {{activity}} activity. Ask me to confirm before booking anything.",
+    "companionPrefill": "Please help me arrange a trusted companion or support person for a {{duration}} minute {{activity}} activity. Ask me to confirm before contacting or booking anyone.",
     "activityLogged": "Activity logged — great job!",
     "couldNotSave": "Couldn't save — please try again.",
     "todaysSummary": "Today's Summary",
@@ -1484,7 +1533,18 @@
     "callCompanionDesc": "Start VYVA on your phone while taking a suspicious call. Ask VYVA what to say, what to watch out for, and whether to hang up.",
     "callCompanionStart": "Start Call Companion",
     "callCompanionEnd": "Pause guidance",
-    "callCompanionConnecting": "Connecting…"
+    "callCompanionConnecting": "Connecting…",
+    "actions": {
+      "title": "Quick safe actions",
+      "trustedFallback": "trusted person",
+      "callTrusted": "Call {{name}}",
+      "callTrustedAria": "Call {{name}} about this scam check",
+      "addTrusted": "Add trusted person",
+      "safeHelp": "Get safe help",
+      "safeHelpAria": "Open VYVA concierge with this scam check",
+      "callGuidance": "Call guidance",
+      "pauseGuidance": "Pause guidance"
+    }
   },
   "community": {
     "title": "My Community",

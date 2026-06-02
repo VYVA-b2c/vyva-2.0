@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { Activity, AlertTriangle, ArrowLeft, Bell, Check, HeartPulse, Loader2, Moon, PhoneCall, Pill, Plus, RefreshCw, Share2, ShieldCheck, Smile, Sparkles, Stethoscope } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Activity, AlertTriangle, ArrowLeft, Bell, Calendar, Car, Check, HeartPulse, Loader2, Mail, Moon, PhoneCall, Pill, Plus, RefreshCw, Share2, ShieldCheck, Smile, Sparkles, Stethoscope, UserPlus, Users } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 
 type Language = "es" | "de" | "en";
@@ -11,6 +11,11 @@ interface Props {
   userId: string;
   userConditions: string[];
   language?: Language;
+  country?: string | null;
+  gpName?: string | null;
+  gpPhone?: string | null;
+  gpEmail?: string | null;
+  caregiverContact?: string | null;
 }
 
 interface LatestAnalysis {
@@ -28,7 +33,17 @@ interface LatestAnalysis {
   model_version?: string | null;
 }
 
-type SafetyStatus = "steady" | "recheck" | "share_with_caregiver" | "contact_doctor" | "urgent_help";
+export type SafetyStatus = "steady" | "recheck" | "share_with_caregiver" | "contact_doctor" | "urgent_help";
+type VitalsSafetyActionKind =
+  | "call_emergency"
+  | "call_gp"
+  | "email_gp"
+  | "doctor_help"
+  | "add_doctor_contact"
+  | "schedule_appointment"
+  | "book_ride"
+  | "share_summary"
+  | "recheck";
 
 interface LatestAlert {
   id: string;
@@ -78,6 +93,14 @@ const COPY = {
     share: "Compartir",
     doctor: "Medico",
     urgent: "Urgente",
+    call: "Llamar",
+    callGp: "Llamar medico",
+    emailGp: "Email medico",
+    doctorHelp: "Ayuda medica",
+    addDoctor: "Anadir medico",
+    appointment: "Cita medica",
+    ride: "Transporte",
+    shareSummary: "Compartir resumen",
   },
   de: {
     logo: "VYVA",
@@ -103,6 +126,14 @@ const COPY = {
     share: "Teilen",
     doctor: "Arzt",
     urgent: "Dringend",
+    call: "Anrufen",
+    callGp: "Arzt anrufen",
+    emailGp: "Arzt mailen",
+    doctorHelp: "Arzthilfe",
+    addDoctor: "Arzt hinzufugen",
+    appointment: "Termin buchen",
+    ride: "Fahrt buchen",
+    shareSummary: "Zusammenfassung teilen",
   },
   en: {
     logo: "VYVA",
@@ -128,6 +159,14 @@ const COPY = {
     share: "Share",
     doctor: "Doctor",
     urgent: "Urgent",
+    call: "Call",
+    callGp: "Call GP",
+    emailGp: "Email GP",
+    doctorHelp: "Doctor help",
+    addDoctor: "Add doctor",
+    appointment: "Book appointment",
+    ride: "Book ride",
+    shareSummary: "Share summary",
   },
 };
 
@@ -278,6 +317,89 @@ function safetyLabel(status: SafetyStatus, language: Language) {
   return labels[language][status];
 }
 
+function sanitizePhoneHref(phone?: string | null): string {
+  const raw = phone?.trim();
+  if (!raw) return "";
+  const normalized = raw.replace(/[^\d+]/g, "");
+  return `tel:${normalized || raw}`;
+}
+
+function emailHref(email?: string | null, subject = "", body = ""): string {
+  const raw = email?.trim();
+  if (!raw) return "";
+  return `mailto:${raw}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+function emergencyContactForCountry(country?: string | null) {
+  const code = (country ?? "ES").trim().toUpperCase() || "ES";
+  const numberByCountry: Record<string, string> = {
+    ES: "112",
+    FR: "112",
+    DE: "112",
+    IT: "112",
+    PT: "112",
+    IE: "112",
+    GB: "999",
+    UK: "999",
+    US: "911",
+    CA: "911",
+    AU: "000",
+  };
+  const number = numberByCountry[code];
+  return number ? { label: number, telHref: `tel:${number}` } : null;
+}
+
+function isEmailContact(value?: string | null) {
+  return Boolean(value?.includes("@"));
+}
+
+function contactHref(value?: string | null, subject = "", body = "") {
+  if (!value?.trim()) return "";
+  return isEmailContact(value) ? emailHref(value, subject, body) : sanitizePhoneHref(value);
+}
+
+export function vitalsSafetyActionKindsFor(
+  status: SafetyStatus,
+  availability: { hasEmergencyContact?: boolean; hasGpPhone?: boolean; hasGpEmail?: boolean; hasCaregiverContact?: boolean } = {},
+): VitalsSafetyActionKind[] {
+  if (status === "urgent_help") {
+    return availability.hasEmergencyContact ? ["call_emergency", "doctor_help", "book_ride"] : ["doctor_help", "book_ride"];
+  }
+
+  if (status === "contact_doctor") {
+    const actions: VitalsSafetyActionKind[] = [];
+    if (availability.hasGpPhone) actions.push("call_gp");
+    if (availability.hasGpEmail) actions.push("email_gp");
+    actions.push("doctor_help");
+    actions.push("schedule_appointment", "book_ride");
+    if (!availability.hasGpPhone && !availability.hasGpEmail) actions.push("add_doctor_contact");
+    return actions;
+  }
+
+  if (status === "share_with_caregiver") return ["share_summary"];
+
+  if (status === "recheck") return ["recheck"];
+  return [];
+}
+
+function buildVitalsContext({
+  analysis,
+  recentReadings,
+  language,
+}: {
+  analysis: LatestAnalysis | null;
+  recentReadings: RecentReading[];
+  language: Language;
+}) {
+  const lines = [
+    language === "de" ? "VYVA Vitalwerte" : language === "en" ? "VYVA vitals summary" : "Resumen de signos VYVA",
+    analysis?.senior_message ? `${language === "en" ? "VYVA note" : "Nota VYVA"}: ${analysis.senior_message}` : "",
+    analysis?.risk_score != null ? `${language === "en" ? "Risk score" : "Nivel"}: ${analysis.risk_score}/100` : "",
+    ...recentReadings.slice(0, 5).map((reading) => `${reading.signal_type}: ${reading.value}${reading.context_tag ? ` (${reading.context_tag})` : ""}`),
+  ];
+  return lines.filter(Boolean).join("\n");
+}
+
 function relativeTime(iso: string | null | undefined, language: Language) {
   if (!iso) return COPY[language].noAnalysis;
   const diffMinutes = Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
@@ -288,7 +410,17 @@ function relativeTime(iso: string | null | undefined, language: Language) {
   return language === "es" ? `hace ${days} días` : language === "de" ? `vor ${days} Tagen` : `${days} days ago`;
 }
 
-export default function VitalsTracker({ userId, userConditions, language = "es" }: Props) {
+export default function VitalsTracker({
+  userId,
+  userConditions,
+  language = "es",
+  country,
+  gpName,
+  gpPhone,
+  gpEmail,
+  caregiverContact,
+}: Props) {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [screen, setScreen] = useState<Screen>("dashboard");
   const [analysis, setAnalysis] = useState<LatestAnalysis | null>(null);
@@ -305,6 +437,7 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
   const [acknowledging, setAcknowledging] = useState<string | null>(null);
 
   const copy = COPY[language];
+  const gpCallLabel = gpName?.trim() ? `${copy.call} ${gpName.trim()}` : copy.callGp;
   const visibleSignals = useMemo(() => getVisibleSignals(userConditions), [userConditions]);
   const selectedConfig = SIGNAL_CONFIG[selectedSignal];
   const riskScore = analysis?.risk_score ?? 0;
@@ -315,6 +448,24 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
   const safety = safetyTone(safetyStatus);
   const SafetyIcon = safety.Icon;
   const safetyAcknowledged = Boolean(analysis?.acknowledged_at);
+  const emergencyContact = emergencyContactForCountry(country);
+  const gpPhoneHref = sanitizePhoneHref(gpPhone);
+  const gpEmailHref = emailHref(
+    gpEmail,
+    language === "en" ? "VYVA vitals summary" : language === "de" ? "VYVA Vitalwerte" : "Resumen de signos VYVA",
+    buildVitalsContext({ analysis, recentReadings, language }),
+  );
+  const caregiverHref = contactHref(
+    caregiverContact,
+    language === "en" ? "VYVA vitals summary" : language === "de" ? "VYVA Vitalwerte" : "Resumen de signos VYVA",
+    buildVitalsContext({ analysis, recentReadings, language }),
+  );
+  const safetyActionKinds = vitalsSafetyActionKindsFor(safetyStatus, {
+    hasEmergencyContact: Boolean(emergencyContact?.telHref),
+    hasGpPhone: Boolean(gpPhoneHref),
+    hasGpEmail: Boolean(gpEmailHref),
+    hasCaregiverContact: Boolean(caregiverHref),
+  });
 
   useEffect(() => {
     const signalParam = searchParams.get("add");
@@ -417,6 +568,62 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
     }
   }
 
+  function openDoctorHelp() {
+    void acknowledgeSafety(safetyStatus === "urgent_help" ? "urgent_guidance_followed" : "contacted_doctor");
+    navigate("/health/doctor", {
+      state: {
+        autoStartVoice: true,
+        latestSymptomReport: buildVitalsContext({ analysis, recentReadings, language }),
+        source: "vitals_safety",
+      },
+    });
+  }
+
+  function openDoctorContactSetup() {
+    navigate("/onboarding/profile/gp");
+  }
+
+  function openConciergeService(kind: "appointment" | "ride") {
+    const context = buildVitalsContext({ analysis, recentReadings, language });
+    const request = kind === "ride"
+      ? language === "de"
+        ? "Bitte hilf mir, eine sichere Fahrt wegen meiner VYVA Vitalwerte zu organisieren. Vor der Buchung bitte bestaetigen lassen."
+        : language === "en"
+          ? "Please help me arrange safe transport based on my VYVA vitals. Ask me to confirm before booking."
+          : "Ayudame a organizar transporte seguro segun mis signos de VYVA. Pideme confirmacion antes de reservar."
+      : language === "de"
+        ? "Bitte hilf mir, einen Arzttermin wegen meiner VYVA Vitalwerte zu vereinbaren. Vor der Buchung bitte bestaetigen lassen."
+        : language === "en"
+          ? "Please help me schedule a doctor appointment based on my VYVA vitals. Ask me to confirm before booking."
+          : "Ayudame a programar una cita medica segun mis signos de VYVA. Pideme confirmacion antes de reservar.";
+
+    void acknowledgeSafety(safetyStatus === "urgent_help" ? "urgent_guidance_followed" : "contacted_doctor");
+    navigate("/concierge", {
+      state: {
+        conciergePrefill: {
+          kind,
+          message: `${request}\n\nContext:\n${context}`,
+          source: "vitals_safety",
+        },
+      },
+    });
+  }
+
+  async function shareVitalsSummary() {
+    const text = buildVitalsContext({ analysis, recentReadings, language });
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: COPY[language].safetyTitle, text });
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      }
+      await acknowledgeSafety("shared");
+    } catch (shareError) {
+      if (shareError instanceof Error && shareError.name === "AbortError") return;
+      await acknowledgeSafety("shared");
+    }
+  }
+
   function selectSignal(key: SignalKey) {
     setSelectedSignal(key);
     setSelectedContext(SIGNAL_CONFIG[key].contexts[0]?.key ?? "general");
@@ -432,6 +639,172 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
       selectSignal(visibleSignals[0]?.[0] ?? "resting_hr_bpm");
     }
   }, [visibleSignals, selectedSignal]);
+
+  const safetyActionBaseClass = "flex min-h-[58px] items-center justify-center gap-2 rounded-[18px] px-4 text-center font-body text-[16px] font-bold transition active:scale-[0.98] disabled:opacity-60";
+
+  function renderSafetyAction(kind: VitalsSafetyActionKind) {
+    if (kind === "call_emergency" && emergencyContact?.telHref) {
+      return (
+        <a
+          key={kind}
+          href={emergencyContact.telHref}
+          onClick={() => void acknowledgeSafety("urgent_guidance_followed")}
+          className={`${safetyActionBaseClass} bg-[#DC2626] text-white`}
+          data-testid="button-safety-call-emergency"
+        >
+          <PhoneCall className="h-5 w-5" />
+          {copy.call} {emergencyContact.label}
+        </a>
+      );
+    }
+
+    if (kind === "call_gp" && gpPhoneHref) {
+      return (
+        <a
+          key={kind}
+          href={gpPhoneHref}
+          onClick={() => void acknowledgeSafety("contacted_doctor")}
+          className={`${safetyActionBaseClass} bg-[#B45309] text-white`}
+          data-testid="button-safety-call-gp"
+        >
+          <PhoneCall className="h-5 w-5" />
+          {gpCallLabel}
+        </a>
+      );
+    }
+
+    if (kind === "email_gp" && gpEmailHref) {
+      return (
+        <a
+          key={kind}
+          href={gpEmailHref}
+          onClick={() => void acknowledgeSafety("contacted_doctor")}
+          className={`${safetyActionBaseClass} border border-[#F6C177] bg-[#FFF7ED] text-[#92400E]`}
+          data-testid="button-safety-email-gp"
+        >
+          <Mail className="h-5 w-5" />
+          {copy.emailGp}
+        </a>
+      );
+    }
+
+    if (kind === "doctor_help") {
+      const doctorHelpAckAction = safetyStatus === "urgent_help" ? "urgent_guidance_followed" : "contacted_doctor";
+      return (
+        <button
+          key={kind}
+          type="button"
+          onClick={openDoctorHelp}
+          disabled={acknowledging !== null}
+          className={`${safetyActionBaseClass} bg-[#6B21A8] text-white`}
+          data-testid="button-safety-doctor-help"
+        >
+          {acknowledging === doctorHelpAckAction ? <Loader2 className="h-5 w-5 animate-spin" /> : <Stethoscope className="h-5 w-5" />}
+          {copy.doctorHelp}
+        </button>
+      );
+    }
+
+    if (kind === "add_doctor_contact") {
+      return (
+        <button
+          key={kind}
+          type="button"
+          onClick={openDoctorContactSetup}
+          className={`${safetyActionBaseClass} border border-[#E8DED4] bg-white text-[#6B21A8]`}
+          data-testid="button-safety-add-doctor"
+        >
+          <UserPlus className="h-5 w-5" />
+          {copy.addDoctor}
+        </button>
+      );
+    }
+
+    if (kind === "schedule_appointment") {
+      return (
+        <button
+          key={kind}
+          type="button"
+          onClick={() => openConciergeService("appointment")}
+          disabled={acknowledging !== null}
+          className={`${safetyActionBaseClass} border border-[#DDD6FE] bg-white text-[#6B21A8]`}
+          data-testid="button-safety-schedule-appointment"
+        >
+          <Calendar className="h-5 w-5" />
+          {copy.appointment}
+        </button>
+      );
+    }
+
+    if (kind === "book_ride") {
+      return (
+        <button
+          key={kind}
+          type="button"
+          onClick={() => openConciergeService("ride")}
+          disabled={acknowledging !== null}
+          className={`${safetyActionBaseClass} border border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]`}
+          data-testid="button-safety-book-ride"
+        >
+          <Car className="h-5 w-5" />
+          {copy.ride}
+        </button>
+      );
+    }
+
+    if (kind === "share_summary") {
+      if (caregiverHref) {
+        const ContactIcon = isEmailContact(caregiverContact) ? Mail : Users;
+        return (
+          <a
+            key={kind}
+            href={caregiverHref}
+            onClick={() => void acknowledgeSafety("shared")}
+            className={`${safetyActionBaseClass} bg-[#6B21A8] text-white`}
+            data-testid="button-safety-contact-caregiver"
+          >
+            <ContactIcon className="h-5 w-5" />
+            {copy.share}
+          </a>
+        );
+      }
+
+      return (
+        <button
+          key={kind}
+          type="button"
+          onClick={() => void shareVitalsSummary()}
+          disabled={acknowledging !== null}
+          className={`${safetyActionBaseClass} bg-[#6B21A8] text-white`}
+          data-testid="button-safety-share-summary"
+        >
+          {acknowledging === "shared" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Share2 className="h-5 w-5" />}
+          {copy.shareSummary}
+        </button>
+      );
+    }
+
+    if (kind === "recheck") {
+      return (
+        <button
+          key={kind}
+          type="button"
+          onClick={() => {
+            void acknowledgeSafety("recheck");
+            setScreen("add");
+          }}
+          disabled={acknowledging !== null}
+          className={`${safetyActionBaseClass} bg-[#0369A1] text-white`}
+          data-testid="button-safety-recheck"
+        >
+          {acknowledging === "recheck" ? <Loader2 className="h-5 w-5 animate-spin" /> : <RefreshCw className="h-5 w-5" />}
+          {copy.recheck}
+        </button>
+      );
+    }
+
+    return null;
+  }
 
   // TODO: Device connection settings screen for Apple Health / LibreView / Withings.
   // TODO: Nightly cron job should call POST /api/vitals/baseline/update for active users.
@@ -660,52 +1033,8 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
             </div>
 
             {!safetyAcknowledged && (
-              <div className="mt-5 grid grid-cols-2 gap-3">
-                {safetyStatus === "urgent_help" ? (
-                  <button
-                    type="button"
-                    onClick={() => acknowledgeSafety("urgent_guidance_followed")}
-                    disabled={acknowledging !== null}
-                    className="flex min-h-[58px] items-center justify-center gap-2 rounded-[18px] bg-[#DC2626] px-4 font-body text-[17px] font-bold text-white disabled:opacity-60"
-                    data-testid="button-safety-urgent"
-                  >
-                    {acknowledging === "urgent_guidance_followed" ? <Loader2 className="h-5 w-5 animate-spin" /> : <AlertTriangle className="h-5 w-5" />}
-                    {copy.urgent}
-                  </button>
-                ) : safetyStatus === "contact_doctor" ? (
-                  <button
-                    type="button"
-                    onClick={() => acknowledgeSafety("contacted_doctor")}
-                    disabled={acknowledging !== null}
-                    className="flex min-h-[58px] items-center justify-center gap-2 rounded-[18px] bg-[#B45309] px-4 font-body text-[17px] font-bold text-white disabled:opacity-60"
-                    data-testid="button-safety-doctor"
-                  >
-                    {acknowledging === "contacted_doctor" ? <Loader2 className="h-5 w-5 animate-spin" /> : <PhoneCall className="h-5 w-5" />}
-                    {copy.doctor}
-                  </button>
-                ) : safetyStatus === "share_with_caregiver" ? (
-                  <button
-                    type="button"
-                    onClick={() => acknowledgeSafety("shared")}
-                    disabled={acknowledging !== null}
-                    className="flex min-h-[58px] items-center justify-center gap-2 rounded-[18px] bg-[#6B21A8] px-4 font-body text-[17px] font-bold text-white disabled:opacity-60"
-                    data-testid="button-safety-share"
-                  >
-                    {acknowledging === "shared" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Share2 className="h-5 w-5" />}
-                    {copy.share}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => acknowledgeSafety("recheck")}
-                    disabled={acknowledging !== null}
-                    className="flex min-h-[58px] items-center justify-center gap-2 rounded-[18px] bg-[#0369A1] px-4 font-body text-[17px] font-bold text-white disabled:opacity-60"
-                    data-testid="button-safety-recheck"
-                  >
-                    {acknowledging === "recheck" ? <Loader2 className="h-5 w-5 animate-spin" /> : <RefreshCw className="h-5 w-5" />}
-                    {copy.recheck}
-                  </button>
-                )}
+              <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {safetyActionKinds.map(renderSafetyAction)}
                 <button
                   type="button"
                   onClick={() => acknowledgeSafety("dismissed")}

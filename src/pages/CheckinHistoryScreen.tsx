@@ -1,9 +1,11 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, CalendarDays, Check, HeartPulse, Loader2, Share2, Sparkles } from "lucide-react";
+import { Activity, ArrowLeft, CalendarDays, Car, Check, ClipboardList, Compass, HeartPulse, Loader2, Mail, PhoneCall, Share2, ShoppingBasket, Sparkles, Stethoscope, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/contexts/ProfileContext";
+import { sanitizePhoneHref } from "@/lib/emergencyContacts";
+import { checkinActionNavigationFor, type CheckinActionNavigation } from "./CheckHowIFeelScreen";
 
 type CheckinHistoryReport = {
   id: string;
@@ -26,6 +28,13 @@ type CheckinHistoryReport = {
 
 type CheckinHistoryResponse = {
   reports: CheckinHistoryReport[];
+};
+
+type SavedCheckinServiceAction = {
+  key: "call_gp" | "email_gp" | "care" | "appointment" | "ride" | "order" | "quote" | "symptom" | "vitals" | "concierge";
+  title: string;
+  to: string;
+  href?: string;
 };
 
 const stateStyle: Record<string, { bg: string; text: string; label: string }> = {
@@ -60,6 +69,120 @@ function shareText(report: CheckinHistoryReport, name: string) {
     ...(report.today_actions ?? []).slice(0, 3).map((item) => `- ${item}`),
     report.watch_for ? `\nTen en cuenta: ${report.watch_for}` : "",
   ].filter(Boolean).join("\n");
+}
+
+function normalizeActionText(text: string) {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+export function savedCheckinServiceActionsFor(report: CheckinHistoryReport): SavedCheckinServiceAction[] {
+  const text = normalizeActionText([
+    report.highlight ?? "",
+    report.watch_for ?? "",
+    ...(report.today_actions ?? []),
+    ...(report.right_now ?? []),
+  ].join(" "));
+  const actions: SavedCheckinServiceAction[] = [];
+  const add = (action: SavedCheckinServiceAction) => {
+    if (!actions.some((item) => item.key === action.key)) actions.push(action);
+  };
+
+  const needsCare = /\b(medica|medico|doctor|urgente|emergencia|pecho|falta de aire|confusion|seek medical|medical attention|doctor|urgent)\b/.test(text);
+  if (needsCare) {
+    add({ key: "care", title: "Hablar con doctor", to: "/health/doctor" });
+    add({ key: "appointment", title: "Pedir cita", to: "/concierge" });
+    add({ key: "ride", title: "Reservar transporte", to: "/concierge" });
+  }
+  if (/\b(sintoma|symptom|empeora|worsen|dolor|mareo|fiebre|nausea|preocupa|worries)\b/.test(text)) {
+    add({ key: "symptom", title: "Chequear sintomas", to: "/health/symptom-check" });
+  }
+  if (/\b(signos|vital|pulso|respiracion|presion|oxygen|heart rate|vitals)\b/.test(text)) {
+    add({ key: "vitals", title: "Tomar signos", to: "/health/vitals" });
+  }
+  if (/\b(hidrata|agua|liquidos|electrolitos|farmacia|entrega|compra|pedido|domicilio|hydrat|water|fluids|electrolyte|pharmacy|delivery|groceries|order)\b/.test(text)) {
+    add({ key: "order", title: "Pedir entrega", to: "/concierge/shopping" });
+  }
+  if (/\b(acompan|no estar solo|no estes solo|ayuda en casa|apoyo en casa|cuidador|cuidadora|presupuesto|someone stay|stay with you|not be alone|home care|home help|support at home|companion|quote)\b/.test(text)) {
+    add({ key: "quote", title: "Pedir ayuda en casa", to: "/concierge" });
+  }
+  if (!needsCare && /\b(concierge|para ti hoy|salida|cerca|adaptad|transporte|cita|compania|company|appointment|ride|nearby)\b/.test(text)) {
+    add({ key: "concierge", title: "Preparar ayuda", to: "/concierge" });
+  }
+
+  return actions;
+}
+
+export function savedCheckinActionsWithGpContact(
+  actions: SavedCheckinServiceAction[],
+  profile: { gpName?: string | null; gpPhone?: string | null; gpEmail?: string | null } | null | undefined,
+  report: CheckinHistoryReport,
+  name: string,
+): SavedCheckinServiceAction[] {
+  const hasCareNeed = actions.some((action) => ["care", "appointment", "ride"].includes(action.key));
+  if (!hasCareNeed) return actions;
+
+  const gpPhoneHref = sanitizePhoneHref(profile?.gpPhone);
+  const gpEmail = profile?.gpEmail?.trim() ?? "";
+  if (!gpPhoneHref && !gpEmail) return actions;
+
+  const isEnglish = (report.language ?? "").toLowerCase().startsWith("en");
+  const gpName = profile?.gpName?.trim() || (isEnglish ? "GP" : "medico");
+  const context = shareText(report, name);
+  const directActions: SavedCheckinServiceAction[] = [];
+
+  if (gpPhoneHref) {
+    directActions.push({
+      key: "call_gp",
+      title: isEnglish ? `Call ${gpName}` : `Llamar a ${gpName}`,
+      to: "",
+      href: gpPhoneHref,
+    });
+  }
+
+  if (gpEmail) {
+    directActions.push({
+      key: "email_gp",
+      title: isEnglish ? "Email GP" : "Email medico",
+      to: "",
+      href: `mailto:${gpEmail}?subject=${encodeURIComponent("VYVA saved check-in")}&body=${encodeURIComponent(context)}`,
+    });
+  }
+
+  return [...directActions, ...actions];
+}
+
+export function savedCheckinNavigationFor(report: CheckinHistoryReport, name: string, action: SavedCheckinServiceAction): CheckinActionNavigation {
+  const symptomClue = [
+    report.watch_for ?? "",
+    report.highlight ?? "",
+    ...(report.right_now ?? []),
+  ].filter(Boolean).slice(0, 3).join(". ");
+  const conciergeMessage = `Ayudame a preparar el siguiente paso practico para este check-in guardado de ${name || "la persona"}: ${report.highlight ?? report.feeling_label ?? "bienestar"}. Acciones sugeridas: ${(report.today_actions ?? []).slice(0, 3).join("; ")}. Pideme confirmar antes de reservar, llamar o solicitar nada.`;
+  if (action.key === "appointment" || action.key === "ride") {
+    const contextText = shareText(report, name) || symptomClue || conciergeMessage;
+    const isRide = action.key === "ride";
+    return {
+      to: "/concierge",
+      state: {
+        conciergePrefill: {
+          kind: isRide ? "ride" : "appointment",
+          message: isRide
+            ? `Please help me arrange safe transport for care based on this saved VYVA check-in. Ask me to confirm before booking.\n\n${contextText}`
+            : `Please help me schedule a care appointment based on this saved VYVA check-in. Ask me to confirm before booking.\n\n${contextText}`,
+          source: "daily_checkin",
+        },
+      },
+    };
+  }
+
+  return checkinActionNavigationFor(action, {
+    reportText: shareText(report, name),
+    symptomClue,
+    conciergeMessage,
+  });
 }
 
 const CheckinHistoryScreen = () => {
@@ -169,6 +292,8 @@ const CheckinHistoryScreen = () => {
                 key={report.id}
                 report={report}
                 language={language}
+                name={name}
+                gpProfile={profile}
                 onShare={() => handleShare(report)}
               />
             ))}
@@ -200,13 +325,19 @@ function EmptyState({ title, text }: { title: string; text: string }) {
 function ReportCard({
   report,
   language,
+  name,
+  gpProfile,
   onShare,
 }: {
   report: CheckinHistoryReport;
   language: string;
+  name: string;
+  gpProfile?: { gpName?: string | null; gpPhone?: string | null; gpEmail?: string | null } | null;
   onShare: () => void;
 }) {
   const style = stateStyle[report.overall_state ?? "moderate"] ?? stateStyle.moderate;
+  const navigate = useNavigate();
+  const serviceActions = savedCheckinActionsWithGpContact(savedCheckinServiceActionsFor(report), gpProfile, report, name);
 
   return (
     <article className="rounded-[30px] border border-vyva-border bg-white p-5 shadow-[0_8px_24px_rgba(63,45,35,0.07)]">
@@ -265,6 +396,21 @@ function ReportCard({
         </p>
       )}
 
+      {serviceActions.length > 0 && (
+        <div className="mt-4 grid gap-2 sm:grid-cols-2" data-testid={`checkin-history-actions-${report.id}`}>
+          {serviceActions.map((action) => (
+            <SavedCheckinActionButton
+              key={action.key}
+              action={action}
+              onClick={() => {
+                const destination = savedCheckinNavigationFor(report, name, action);
+                navigate(destination.to, destination.state ? { state: destination.state } : undefined);
+              }}
+            />
+          ))}
+        </div>
+      )}
+
       <button
         onClick={onShare}
         className="vyva-secondary-action mt-4 min-h-[56px] w-full text-[16px]"
@@ -273,6 +419,46 @@ function ReportCard({
         Compartir esta lectura
       </button>
     </article>
+  );
+}
+
+function SavedCheckinActionButton({ action, onClick }: { action: SavedCheckinServiceAction; onClick: () => void }) {
+  const Icon =
+    action.key === "call_gp" ? PhoneCall :
+    action.key === "email_gp" ? Mail :
+    action.key === "care" ? Stethoscope :
+    action.key === "appointment" ? CalendarDays :
+    action.key === "ride" ? Car :
+    action.key === "order" ? ShoppingBasket :
+    action.key === "quote" ? Users :
+    action.key === "symptom" ? ClipboardList :
+    action.key === "vitals" ? Activity :
+    Compass;
+  const className = "vyva-tap inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[17px] border border-[#E7DCF8] bg-white px-4 py-3 text-center font-body text-[15px] font-black leading-tight text-vyva-purple shadow-sm";
+
+  if (action.href) {
+    return (
+      <a
+        href={action.href}
+        data-testid={`button-checkin-history-action-${action.key}`}
+        className={className}
+      >
+        <Icon size={18} />
+        <span>{action.title}</span>
+      </a>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      data-testid={`button-checkin-history-action-${action.key}`}
+      className={className}
+    >
+      <Icon size={18} />
+      <span>{action.title}</span>
+    </button>
   );
 }
 

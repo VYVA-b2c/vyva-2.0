@@ -1,4 +1,4 @@
-import { BrainCircuit, Headphones, Layers, Map as MapIcon, Puzzle, Route, Type, Users, Wind, type LucideIcon } from "lucide-react";
+import { BrainCircuit, Headphones, Layers, Map as MapIcon, Puzzle, Route, Type, Users, Wind, MessageCircle, UserRoundPlus, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { margaret } from "@/data/mockData";
@@ -70,12 +70,22 @@ const activityStyles: Record<string, { iconBg: string; iconColor: string; glow: 
   },
 };
 
-const activityRoutes: Partial<Record<string, string>> = {
-  "brain.activities.triviaQuiz": "/attention-boosters",
-  "brain.activities.memoryGame": "/memory-games",
-  "brain.activities.spatialNavigator": "/spatial-navigator",
-  "brain.activities.scrabble": "/language",
-  "brain.activities.logicPuzzle": "/executive-function",
+type ActivityDestination = {
+  to: string;
+  state?: {
+    preselectActivity?: string;
+    duration?: number;
+  };
+};
+
+const activityRoutes: Partial<Record<string, ActivityDestination>> = {
+  "brain.activities.triviaQuiz": { to: "/attention-boosters" },
+  "brain.activities.memoryGame": { to: "/memory-games" },
+  "brain.activities.spatialNavigator": { to: "/spatial-navigator" },
+  "brain.activities.scrabble": { to: "/language" },
+  "brain.activities.logicPuzzle": { to: "/executive-function" },
+  "brain.activities.meditation": { to: "/activity", state: { preselectActivity: "Breathing", duration: 10 } },
+  "brain.activities.breathing": { to: "/activity", state: { preselectActivity: "Breathing", duration: 10 } },
 };
 
 const activityCompletionTypes: Record<string, string[]> = {
@@ -131,8 +141,8 @@ const ActivitiesScreen = () => {
   };
 
   const handleActivityClick = (activityName: string) => {
-    const targetRoute = activityRoutes[activityName];
-    if (targetRoute) navigate(targetRoute);
+    const destination = activityRoutes[activityName];
+    if (destination) navigate(destination.to, destination.state ? { state: destination.state } : undefined);
   };
 
   return (
@@ -255,6 +265,44 @@ const ActivitiesScreen = () => {
             <h3 className="font-body text-[21px] font-extrabold leading-tight text-vyva-text-1 [overflow-wrap:anywhere]">{t("companions.activityTile")}</h3>
             <p className="mt-2 font-body text-[14px] font-medium leading-snug text-vyva-text-2 [overflow-wrap:anywhere]">{t("companions.activityTileSubtitle")}</p>
           </div>
+        </div>
+        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="activities-companion-actions">
+          <button
+            type="button"
+            data-testid="button-activities-open-social-rooms"
+            onClick={() => navigate("/social-rooms")}
+            className="vyva-tap flex min-h-[58px] items-center gap-3 rounded-[18px] border border-[#BFDBFE] bg-white px-4 py-3 text-left shadow-[0_8px_20px_rgba(47,102,208,0.08)]"
+          >
+            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[15px] bg-[#EFF6FF] text-[#2F66D0]">
+              <MessageCircle size={20} />
+            </span>
+            <span className="min-w-0">
+              <span className="block font-body text-[15px] font-black leading-tight text-vyva-text-1">
+                {t("activities.joinSocialRoom", "Join a room")}
+              </span>
+              <span className="block font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
+                {t("activities.joinSocialRoomSub", "Start a friendly conversation now.")}
+              </span>
+            </span>
+          </button>
+          <button
+            type="button"
+            data-testid="button-activities-open-companions"
+            onClick={() => navigate("/companions")}
+            className="vyva-tap flex min-h-[58px] items-center gap-3 rounded-[18px] border border-[#D8B4FE] bg-white px-4 py-3 text-left shadow-[0_8px_20px_rgba(107,33,168,0.08)]"
+          >
+            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[15px] bg-[#F5F3FF] text-vyva-purple">
+              <UserRoundPlus size={20} />
+            </span>
+            <span className="min-w-0">
+              <span className="block font-body text-[15px] font-black leading-tight text-vyva-text-1">
+                {t("activities.findCompanions", "Find companions")}
+              </span>
+              <span className="block font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
+                {t("activities.findCompanionsSub", "Match around interests and routines.")}
+              </span>
+            </span>
+          </button>
         </div>
       </section>
     </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect, type Dispatch, type SetStateAction } from "react";
+import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
@@ -398,7 +398,7 @@ function InterestPicker({
 
 // ─── Hero Banner ──────────────────────────────────────────────────────────────
 
-function HeroBanner() {
+export function HeroBanner({ onExplore }: { onExplore?: () => void }) {
   const { t } = useTranslation();
   const heroMessage = useHeroMessage("companions", {
     fallbackHeadline: "Conecta hoy",
@@ -455,7 +455,9 @@ function HeroBanner() {
           {t("common.active", "Activo")}
         </span>
         <button
+          type="button"
           data-testid="button-explorar-community"
+          onClick={onExplore}
           className="font-body text-[14px] font-medium rounded-full px-4 py-2 transition-opacity active:opacity-70"
           style={{
             color: "rgba(255,255,255,0.75)",
@@ -507,7 +509,13 @@ function MoodRow() {
 
 // ─── Groups strip ─────────────────────────────────────────────────────────────
 
-function GroupsStrip({ defaultActiveGroup = "garden" }: { defaultActiveGroup?: string }) {
+export function GroupsStrip({
+  defaultActiveGroup = "garden",
+  onManageGroups,
+}: {
+  defaultActiveGroup?: string;
+  onManageGroups?: () => void;
+}) {
   const { t } = useTranslation();
   const [activeGroup, setActiveGroup] = useState(defaultActiveGroup);
   return (
@@ -516,7 +524,13 @@ function GroupsStrip({ defaultActiveGroup = "garden" }: { defaultActiveGroup?: s
         <h2 className="font-display italic font-normal text-[18px] text-vyva-text-1">
           {t("community.groups.title")}
         </h2>
-        <button className="font-body text-[15px] font-medium" style={{ color: "#6B21A8" }}>
+        <button
+          type="button"
+          data-testid="button-groups-see-all"
+          onClick={onManageGroups}
+          className="font-body text-[15px] font-medium"
+          style={{ color: "#6B21A8" }}
+        >
           {t("community.groups.seeAll")}
         </button>
       </div>
@@ -559,7 +573,9 @@ function GroupsStrip({ defaultActiveGroup = "garden" }: { defaultActiveGroup?: s
           );
         })}
         <button
+          type="button"
           data-testid="button-group-add"
+          onClick={onManageGroups}
           className="w-[62px] h-[62px] rounded-full flex items-center justify-center flex-shrink-0 border-2 border-dashed transition-all"
           style={{ background: "#F5F3FF", borderColor: "#6B21A8", color: "#6B21A8" }}
           title={t("community.groups.join")}
@@ -580,7 +596,13 @@ const GROUP_META: Record<string, { icon: string; bg: string; color: string }> = 
   music:   { icon: "🎵", bg: "#E2F5EF", color: "#2A8C78" },
 };
 
-function ActiveGroupPanel({ activeGroupId = "garden" }: { activeGroupId?: string }) {
+export function ActiveGroupPanel({
+  activeGroupId = "garden",
+  onJoinCall,
+}: {
+  activeGroupId?: string;
+  onJoinCall?: () => void;
+}) {
   const { t } = useTranslation();
   const meta = GROUP_META[activeGroupId] ?? GROUP_META.garden;
   return (
@@ -653,7 +675,9 @@ function ActiveGroupPanel({ activeGroupId = "garden" }: { activeGroupId?: string
           </p>
         </div>
         <button
+          type="button"
           data-testid="button-join-call"
+          onClick={onJoinCall}
           className="rounded-full px-4 min-h-[48px] font-body text-[15px] font-semibold text-white flex-shrink-0 transition-all active:scale-95"
           style={{ background: "#E8A020" }}
         >
@@ -1054,6 +1078,7 @@ const CompanionsScreen = () => {
   const [introModal, setIntroModal] = useState<string | null>(null);
   const [showToast, setShowToast] = useState(false);
   const [showConsentSheet, setShowConsentSheet] = useState(false);
+  const matchesRef = useRef<HTMLDivElement | null>(null);
 
   const socialStatusQuery = useQuery<SocialStatus>({
     queryKey: ["/api/companions/social-status"],
@@ -1222,6 +1247,11 @@ const CompanionsScreen = () => {
     respondMutation.mutate({ id, status });
   };
 
+  const handleRefreshMatches = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/companions/suggestions"] });
+    matchesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   return (
     <div>
       <style>{`
@@ -1272,7 +1302,7 @@ const CompanionsScreen = () => {
 
         {/* Hero banner */}
         <div className="vyva-section-reveal" style={{ animationDelay: "0.05s" }}>
-          <HeroBanner />
+          <HeroBanner onExplore={handleRefreshMatches} />
         </div>
 
         {/* Mood check-in */}
@@ -1282,21 +1312,27 @@ const CompanionsScreen = () => {
 
         {/* My Groups */}
         <div className="vyva-section-reveal" style={{ animationDelay: "0.11s" }}>
-          <GroupsStrip defaultActiveGroup={activeGroupId} />
+          <GroupsStrip defaultActiveGroup={activeGroupId} onManageGroups={() => setEditingInterests(true)} />
         </div>
 
         {/* Active group panel */}
         <div className="vyva-section-reveal" style={{ animationDelay: "0.13s" }}>
-          <ActiveGroupPanel activeGroupId={activeGroupId} />
+          <ActiveGroupPanel activeGroupId={activeGroupId} onJoinCall={() => setShowToast(true)} />
         </div>
 
         {/* People you might like */}
-        <div className="vyva-section-reveal" style={{ animationDelay: "0.15s" }}>
+        <div ref={matchesRef} className="vyva-section-reveal" style={{ animationDelay: "0.15s" }}>
           <div className="flex items-baseline justify-between mb-3">
             <h2 className="font-display italic font-normal text-[18px] text-vyva-text-1">
               {t("community.matches.title")}
             </h2>
-            <button className="font-body text-[15px] font-medium" style={{ color: "#6B21A8" }}>
+            <button
+              type="button"
+              data-testid="button-matches-see-more"
+              onClick={handleRefreshMatches}
+              className="font-body text-[15px] font-medium"
+              style={{ color: "#6B21A8" }}
+            >
               {t("community.matches.seeMore")}
             </button>
           </div>

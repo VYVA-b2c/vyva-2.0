@@ -141,7 +141,7 @@ describe("TriageChat MediSearch follow-ups", () => {
     expect(screen.getByText("Could caffeine make anxiety worse?")).toBeInTheDocument();
   });
 
-  it("shows one-question progress and reusable vitals context", async () => {
+  it("shows a confidence tracker and reusable vitals context", async () => {
     apiFetchMock.mockResolvedValueOnce(triageResponse({
       role: "assistant",
       content: "How are you feeling now?",
@@ -155,8 +155,18 @@ describe("TriageChat MediSearch follow-ups", () => {
     renderTriageChat({ bpm: 72, respiratoryRate: 18 });
 
     await screen.findByText("How are you feeling now?");
-    expect(screen.getByTestId("triage-question-progress")).toHaveTextContent("One question at a time");
-    expect(screen.getByTestId("triage-question-progress")).toHaveTextContent("Severity check");
+    expect(screen.getByTestId("triage-confidence-tracker")).toHaveTextContent("Confidence level");
+    expect(screen.getByTestId("triage-confidence-tracker")).toHaveTextContent("2/5");
+    expect(screen.getByTestId("triage-confidence-tracker")).toHaveTextContent("Getting started");
+    expect(screen.getByTestId("triage-confidence-tracker")).toHaveTextContent("Low");
+    expect(screen.getByTestId("triage-confidence-tracker")).toHaveTextContent("One question at a time");
+    expect(screen.getByTestId("triage-confidence-tracker")).toHaveTextContent("Severity check");
+    expect(screen.getByTestId("triage-confidence-tracker")).toHaveTextContent("Symptoms");
+    expect(screen.getByTestId("triage-confidence-tracker")).toHaveTextContent("Safety check");
+    expect(screen.getByTestId("triage-confidence-signals")).toHaveTextContent("Now");
+    expect(screen.getByTestId("triage-confidence-signals")).toHaveTextContent("Next");
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(screen.getByRole("meter", { name: "Confidence level" })).toHaveAttribute("aria-valuenow", "2");
     expect(screen.getByTestId("triage-existing-vitals")).toHaveTextContent("Using vitals already here");
     expect(screen.getByTestId("triage-existing-vitals")).toHaveTextContent("72 bpm");
     expect(screen.getByTestId("triage-existing-vitals")).toHaveTextContent("18 breaths/min");

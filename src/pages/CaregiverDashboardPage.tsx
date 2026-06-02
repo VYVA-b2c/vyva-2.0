@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   Bell,
+  Car,
   CalendarDays,
   CheckCircle2,
   ClipboardCheck,
@@ -15,10 +16,12 @@ import {
   MessageSquare,
   PhoneCall,
   ShieldCheck,
+  Stethoscope,
   TimerReset,
   UserCheck,
+  type LucideIcon,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { apiFetch } from "@/lib/queryClient";
 
 type SafetyStatus = "steady" | "recheck" | "share_with_caregiver" | "contact_doctor" | "urgent_help";
@@ -81,6 +84,31 @@ type ContactTarget = {
   href?: string;
   kind: "call" | "email" | "record";
 };
+
+type ProfileContactsResponse = {
+  gpName?: string | null;
+  gpPhone?: string | null;
+  gpEmail?: string | null;
+} | null;
+
+type CaregiverAlertNavigationActionKind = "doctor_help" | "schedule_appointment" | "book_ride";
+type CaregiverAlertServiceActionKind = "call_gp" | "email_gp" | CaregiverAlertNavigationActionKind;
+
+type CaregiverAlertDirectAction = {
+  kind: "call_gp" | "email_gp";
+  label: string;
+  Icon: LucideIcon;
+  href: string;
+};
+
+type CaregiverAlertNavigationAction = {
+  kind: CaregiverAlertNavigationActionKind;
+  label: string;
+  Icon: LucideIcon;
+  href?: undefined;
+};
+
+type CaregiverAlertServiceAction = CaregiverAlertDirectAction | CaregiverAlertNavigationAction;
 
 const WORKFLOW_STORAGE_KEY = "vyva_caregiver_alert_workflow_v1";
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -172,6 +200,76 @@ function contactsFor(alert: CaregiverAlert): ContactTarget[] {
     .filter((target): target is ContactTarget => Boolean(target));
 }
 
+function alertTextForMatching(alert: CaregiverAlert) {
+  return `${alert.alert_type} ${alert.severity} ${alert.message}`.toLowerCase();
+}
+
+export function caregiverAlertServiceActionKindsFor(alert: CaregiverAlert, status?: SafetyStatus): CaregiverAlertServiceActionKind[] {
+  if (alert.resolved_at) return [];
+  const text = alertTextForMatching(alert);
+  const needsClinicalFollowUp =
+    status === "urgent_help"
+    || status === "contact_doctor"
+    || severityRank(alert.severity) >= 3
+    || /\b(urgent|emergency|doctor|medic|clinician|clinic|hospital|triage|symptom|vitals|chest|pain|breath|fall|help now)\b/.test(text);
+
+  return needsClinicalFollowUp ? ["doctor_help", "schedule_appointment", "book_ride"] : [];
+}
+
+export function caregiverAlertContext(alert: CaregiverAlert, statusLabel = "Caregiver alert") {
+  return [
+    "VYVA caregiver alert",
+    `Status: ${statusLabel}`,
+    `Source: ${sourceLabel(alert.alert_type)}`,
+    `Severity: ${alert.severity}`,
+    alert.created_at ? `Created: ${formatTime(alert.created_at)}` : "",
+    `Alert: ${alert.message}`,
+  ].filter(Boolean).join("\n");
+}
+
+const CAREGIVER_ALERT_SERVICE_ACTIONS: Record<CaregiverAlertNavigationActionKind, CaregiverAlertNavigationAction> = {
+  doctor_help: { kind: "doctor_help", label: "Doctor help", Icon: Stethoscope },
+  schedule_appointment: { kind: "schedule_appointment", label: "Appointment", Icon: CalendarDays },
+  book_ride: { kind: "book_ride", label: "Book ride", Icon: Car },
+};
+
+export function caregiverAlertServiceActionsFor(
+  alert: CaregiverAlert,
+  status?: SafetyStatus,
+  profileContacts: ProfileContactsResponse = null,
+): CaregiverAlertServiceAction[] {
+  const navigationKinds = caregiverAlertServiceActionKindsFor(alert, status);
+  if (navigationKinds.length === 0) return [];
+
+  const statusLabel = status ? statusMeta(status).label : "Caregiver alert";
+  const context = caregiverAlertContext(alert, statusLabel);
+  const actions: CaregiverAlertServiceAction[] = [];
+  const gpPhoneTarget = profileContacts?.gpPhone ? contactTargetFor(profileContacts.gpPhone) : null;
+  const gpName = profileContacts?.gpName?.trim();
+  const gpEmail = profileContacts?.gpEmail?.trim();
+
+  if (gpPhoneTarget?.href && gpPhoneTarget.kind === "call") {
+    actions.push({
+      kind: "call_gp",
+      label: gpName ? `Call ${gpName}` : "Call GP",
+      Icon: PhoneCall,
+      href: gpPhoneTarget.href,
+    });
+  }
+
+  if (gpEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(gpEmail)) {
+    actions.push({
+      kind: "email_gp",
+      label: "Email GP",
+      Icon: Mail,
+      href: `mailto:${gpEmail}?subject=${encodeURIComponent("VYVA caregiver alert")}&body=${encodeURIComponent(context)}`,
+    });
+  }
+
+  navigationKinds.forEach((kind) => actions.push(CAREGIVER_ALERT_SERVICE_ACTIONS[kind]));
+  return actions;
+}
+
 function buildDigest(alerts: CaregiverAlert[], statusLabel: string, checkinMessage: string) {
   const recentAlerts = alerts.filter(isRecent);
   const openCount = alerts.filter((alert) => !alert.resolved_at).length;
@@ -199,6 +297,7 @@ function nextCaregiverAction(status: SafetyStatus, openCount: number) {
 }
 
 export default function CaregiverDashboardPage() {
+  const navigate = useNavigate();
   const [workflow, setWorkflow] = useState<AlertWorkflowState>(() => loadWorkflowState());
   const [copiedAlertId, setCopiedAlertId] = useState<string | null>(null);
   const [digestCopied, setDigestCopied] = useState(false);
@@ -220,6 +319,16 @@ export default function CaregiverDashboardPage() {
       return response.json();
     },
     retry: false,
+  });
+  const { data: profileContacts } = useQuery<ProfileContactsResponse>({
+    queryKey: ["/api/profile"],
+    queryFn: async () => {
+      const response = await apiFetch("/api/profile");
+      if (!response.ok) throw new Error("Could not load GP contact");
+      return response.json();
+    },
+    retry: false,
+    staleTime: 2 * 60 * 1000,
   });
 
   const analysis = data?.latest_analysis ?? null;
@@ -267,6 +376,32 @@ export default function CaregiverDashboardPage() {
     await navigator.clipboard?.writeText(digestText);
     setDigestCopied(true);
     window.setTimeout(() => setDigestCopied(false), 1800);
+  }
+
+  function openCaregiverAlertServiceAction(alert: CaregiverAlert, action: CaregiverAlertNavigationActionKind) {
+    const context = caregiverAlertContext(alert, meta.label);
+    if (action === "doctor_help") {
+      navigate("/health/doctor", {
+        state: {
+          autoStartVoice: true,
+          latestSymptomReport: context,
+          source: "caregiver_alert",
+        },
+      });
+      return;
+    }
+
+    navigate("/concierge", {
+      state: {
+        conciergePrefill: {
+          kind: action === "schedule_appointment" ? "appointment" : "ride",
+          message: action === "schedule_appointment"
+            ? `Please help prepare a care appointment based on this caregiver alert. Ask me to confirm before booking.\n\n${context}`
+            : `Please help prepare safe transport for follow-up on this caregiver alert. Ask me to confirm before booking.\n\n${context}`,
+          source: "caregiver_alert",
+        },
+      },
+    });
   }
 
   return (
@@ -391,6 +526,7 @@ export default function CaregiverDashboardPage() {
                         const localStatus = serverResolved ? "resolved" : workflow[alert.id]?.status ?? "new";
                         const statusStyle = serverResolved ? resolvedAlertMeta() : workflowMeta(localStatus);
                         const contacts = contactsFor(alert);
+                        const serviceActions = caregiverAlertServiceActionsFor(alert, status, profileContacts ?? null);
                         return (
                           <article key={alert.id} className="rounded-[16px] border border-[#D8DED6] bg-[#FBFCFB] p-4 shadow-[0_8px_18px_rgba(38,49,43,0.05)]">
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -438,6 +574,44 @@ export default function CaregiverDashboardPage() {
                                     No contact target is attached to this alert yet.
                                   </p>
                                 )}
+                                {serviceActions.length > 0 ? (
+                                  <div className="mt-3 border-t border-[#E4EBE6] pt-3" data-testid={`caregiver-alert-services-${alert.id}`}>
+                                    <p className="mb-2 font-body text-[12px] font-bold uppercase tracking-[0.12em] text-[#5F6B63]">
+                                      Fast service access
+                                    </p>
+                                    <div className="flex flex-wrap gap-2">
+                                      {serviceActions.map((action) => {
+                                        const ActionIcon = action.Icon;
+                                        if (action.href) {
+                                          return (
+                                            <a
+                                              key={`${alert.id}-${action.kind}`}
+                                              href={action.href}
+                                              className="inline-flex min-h-[42px] items-center gap-2 rounded-full bg-[#2F6F5E] px-3 font-body text-[13px] font-bold text-white shadow-[0_8px_18px_rgba(47,111,94,0.18)]"
+                                              data-testid={`button-caregiver-alert-service-${alert.id}-${action.kind}`}
+                                            >
+                                              <ActionIcon className="h-4 w-4" />
+                                              {action.label}
+                                            </a>
+                                          );
+                                        }
+
+                                        return (
+                                          <button
+                                            key={`${alert.id}-${action.kind}`}
+                                            type="button"
+                                            onClick={() => openCaregiverAlertServiceAction(alert, action.kind)}
+                                            className="inline-flex min-h-[42px] items-center gap-2 rounded-full bg-[#2F6F5E] px-3 font-body text-[13px] font-bold text-white shadow-[0_8px_18px_rgba(47,111,94,0.18)]"
+                                            data-testid={`button-caregiver-alert-service-${alert.id}-${action.kind}`}
+                                          >
+                                            <ActionIcon className="h-4 w-4" />
+                                            {action.label}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ) : null}
                               </div>
 
                               <div className="rounded-[14px] border border-[#D8DED6] bg-white p-3">

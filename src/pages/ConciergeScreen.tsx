@@ -36,9 +36,9 @@ interface ChatMessage {
 }
 
 type ConciergeRoutePrefill = {
-  kind: "ride" | "appointment" | "home_care_quote";
+  kind: "ride" | "appointment" | "home_care_quote" | "task";
   message: string;
-  source?: "symptom_report";
+  source?: "symptom_report" | "daily_checkin" | "shared_checkin" | "visual_scan" | "caregiver_alert" | "doctor_choice" | "adherence_report" | "medication_support" | "safe_home_scan" | "scam_guard" | "health_home_doctor" | "specialist_finder" | "vitals_safety" | "activity_support" | "home_quick_action";
 };
 
 type ConciergeLocationState = {
@@ -921,7 +921,7 @@ const ConciergeScreen = () => {
     setRoutePrefill(nextPrefill);
     setInput((current) => current.trim() ? current : message);
     setOffersOpen(false);
-    setAppointmentOpen(false);
+    setAppointmentOpen(prefill.kind === "appointment");
     setAppointmentNote((current) => current.trim() ? current : message);
 
     window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
@@ -1474,17 +1474,23 @@ const ConciergeScreen = () => {
           ? (isSpanish ? "Transporte seguro preparado" : "Safe transport ready")
           : routePrefill.kind === "appointment"
             ? (isSpanish ? "Solicitud de cita preparada" : "Appointment request ready")
-            : (isSpanish ? "Presupuesto de apoyo preparado" : "Support quote ready"),
+            : routePrefill.kind === "home_care_quote"
+              ? (isSpanish ? "Presupuesto de apoyo preparado" : "Support quote ready")
+              : (isSpanish ? "Solicitud preparada" : "Request ready"),
         detail: routePrefill.kind === "ride"
           ? (isSpanish ? "VYVA puede buscar opciones y dejarte confirmar antes de reservar." : "VYVA can find options and let you confirm before booking.")
           : routePrefill.kind === "appointment"
             ? (isSpanish ? "VYVA prepara el motivo, proveedor y horario antes de confirmar." : "VYVA prepares the reason, provider, and timing before confirming.")
-            : (isSpanish ? "VYVA puede solicitar una ayuda en casa o compania con confirmacion previa." : "VYVA can request home support or companionship with confirmation first."),
+            : routePrefill.kind === "home_care_quote"
+              ? (isSpanish ? "VYVA puede solicitar una ayuda en casa o compania con confirmacion previa." : "VYVA can request home support or companionship with confirmation first.")
+              : (isSpanish ? "VYVA prepara opciones y te pide confirmar antes de actuar." : "VYVA prepares options and asks you to confirm before acting."),
         primaryLabel: routePrefill.kind === "ride"
           ? (isSpanish ? "Buscar transporte" : "Find ride options")
           : routePrefill.kind === "appointment"
             ? (isSpanish ? "Iniciar solicitud" : "Start appointment request")
-            : (isSpanish ? "Pedir presupuesto" : "Request quote"),
+            : routePrefill.kind === "home_care_quote"
+              ? (isSpanish ? "Pedir presupuesto" : "Request quote")
+              : (isSpanish ? "Iniciar solicitud" : "Start request"),
         secondaryLabel: routePrefill.kind === "appointment"
           ? (isSpanish ? "Anadir detalles" : "Add details")
           : (isSpanish ? "Editar solicitud" : "Edit request"),

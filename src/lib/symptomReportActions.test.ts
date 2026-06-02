@@ -2,6 +2,16 @@ import { describe, expect, it } from "vitest";
 import { getSymptomRecommendationActionKinds } from "./symptomReportActions";
 
 describe("symptom report recommendation actions", () => {
+  it("maps emergency recommendations to an emergency call action when a number is known", () => {
+    expect(getSymptomRecommendationActionKinds("Call emergency services now", {
+      hasEmergencyContact: true,
+    })).toEqual(["call_emergency"]);
+  });
+
+  it("does not show a fake emergency call action when no emergency number is known", () => {
+    expect(getSymptomRecommendationActionKinds("Call emergency services now")).toEqual([]);
+  });
+
   it("maps doctor recommendations to available GP contact actions and doctor help", () => {
     expect(getSymptomRecommendationActionKinds("Contact your doctor immediately", {
       hasGpPhone: true,

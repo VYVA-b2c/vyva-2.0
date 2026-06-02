@@ -1,4 +1,5 @@
 export type SymptomRecommendationActionKind =
+  | "call_emergency"
   | "call_gp"
   | "email_gp"
   | "doctor_help"
@@ -8,9 +9,19 @@ export type SymptomRecommendationActionKind =
   | "request_quote";
 
 export type SymptomRecommendationActionAvailability = {
+  hasEmergencyContact?: boolean;
   hasGpPhone?: boolean;
   hasGpEmail?: boolean;
 };
+
+const EMERGENCY_PATTERNS = [
+  /\b(emergency|emergencies|emergency services|call 112|call 911|call 999|call 000|do not wait|urgent help now)\b/,
+  /\b(emergencia|emergencias|llama a emergencias|llamar a emergencias|urgencia vital|no esperes)\b/,
+  /\b(urgence|urgences|appelez les urgences|n'attendez pas)\b/,
+  /\b(notfall|notdienst|notruf|rufen sie den notdienst|warten sie nicht)\b/,
+  /\b(emergenza|emergenze|chiama i servizi di emergenza|non aspettare)\b/,
+  /\b(emergencia|emergencias|ligue para os servicos de emergencia|nao espere)\b/,
+];
 
 const DOCTOR_PATTERNS = [
   /\b(contact|call|phone|email|speak|talk|doctor|gp|physician|clinician|primary care|general practitioner)\b/,
@@ -66,6 +77,12 @@ export function getSymptomRecommendationActionKinds(
 ): SymptomRecommendationActionKind[] {
   const normalized = normalizeRecommendationText(recommendation);
   const actions: SymptomRecommendationActionKind[] = [];
+  const isEmergencyRecommendation = matchesAny(normalized, EMERGENCY_PATTERNS);
+
+  if (isEmergencyRecommendation) {
+    if (availability.hasEmergencyContact) actions.push("call_emergency");
+    return uniqueActions(actions);
+  }
 
   if (matchesAny(normalized, DOCTOR_PATTERNS)) {
     if (availability.hasGpPhone) actions.push("call_gp");

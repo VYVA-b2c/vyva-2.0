@@ -21,6 +21,9 @@ interface ProfileData {
   postalCode: string;
   caregiverName: string;
   caregiverContact: string;
+  gpName?: string;
+  gpPhone?: string;
+  gpEmail?: string;
   gender?: string;
 }
 
