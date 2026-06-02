@@ -27,6 +27,14 @@ export type BrainCoachCaregiverPlanItem = {
   planDate?: Date | string | null;
 };
 
+export type BrainCoachCaregiverPlanEvent = {
+  id?: string | null;
+  planId: string;
+  eventType: string;
+  metadata?: unknown;
+  createdAt?: Date | string | null;
+};
+
 type NormalizedSession = {
   id: string | null;
   activityType: string;
@@ -71,6 +79,19 @@ function numeric(value: unknown, fallback = 0) {
 function percent(numerator: number, denominator: number) {
   if (denominator <= 0) return 0;
   return Math.round((numerator / denominator) * 100);
+}
+
+function iso(value: unknown): string | null {
+  const date = coerceDate(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function metadataRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? value as Record<string, unknown> : {};
 }
 
 function normalizeSessions(sessions: BrainCoachCaregiverSession[]) {
@@ -119,6 +140,18 @@ function planItemCompleted(item: BrainCoachCaregiverPlanItem) {
   return item.status === "completed" || Boolean(item.completedAt);
 }
 
+function planCompletedAt(plan: BrainCoachCaregiverPlan | undefined, items: BrainCoachCaregiverPlanItem[]) {
+  const explicitCompletedAt = iso(plan?.completedAt);
+  if (explicitCompletedAt) return explicitCompletedAt;
+  if (!items.length || !items.every(planItemCompleted)) return null;
+
+  const itemCompletedTimes = items
+    .map((item) => iso(item.completedAt))
+    .filter((value): value is string => Boolean(value));
+  if (itemCompletedTimes.length !== items.length) return null;
+  return itemCompletedTimes.sort().at(-1) ?? null;
+}
+
 function summarizeDomains(sessions: NormalizedSession[]) {
   const domains = new Map<string, {
     domain: string;
@@ -150,10 +183,61 @@ function summarizeDomains(sessions: NormalizedSession[]) {
     .slice(0, 5);
 }
 
+function latestNudgeOutcome(input: {
+  plans: BrainCoachCaregiverPlan[];
+  planItems: BrainCoachCaregiverPlanItem[];
+  planEvents: BrainCoachCaregiverPlanEvent[];
+}) {
+  const latestNudge = input.planEvents
+    .filter((event) => event.eventType === "caregiver_nudge")
+    .sort((left, right) => (iso(right.createdAt) ?? "").localeCompare(iso(left.createdAt) ?? ""))[0];
+  if (!latestNudge) return null;
+
+  const nudgeId = latestNudge.id ?? null;
+  const metadata = metadataRecord(latestNudge.metadata);
+  const relatedEvents = nudgeId
+    ? input.planEvents.filter((event) => {
+        const eventMetadata = metadataRecord(event.metadata);
+        return (
+          event.planId === latestNudge.planId &&
+          stringValue(eventMetadata.nudge_event_id) === nudgeId &&
+          (event.eventType === "caregiver_nudge_read" || event.eventType === "caregiver_nudge_dismissed")
+        );
+      })
+    : [];
+  const readEvent = relatedEvents
+    .filter((event) => event.eventType === "caregiver_nudge_read")
+    .sort((left, right) => (iso(right.createdAt) ?? "").localeCompare(iso(left.createdAt) ?? ""))[0];
+  const dismissedEvent = relatedEvents
+    .filter((event) => event.eventType === "caregiver_nudge_dismissed")
+    .sort((left, right) => (iso(right.createdAt) ?? "").localeCompare(iso(left.createdAt) ?? ""))[0];
+  const status = dismissedEvent ? "dismissed" : readEvent ? "seen" : "sent";
+  const plan = input.plans.find((entry) => entry.id === latestNudge.planId);
+  const matchingItems = input.planItems.filter((item) => item.planId === latestNudge.planId);
+  const completedAt = planCompletedAt(plan, matchingItems);
+  const sentAt = iso(latestNudge.createdAt) ?? stringValue(metadata.sent_at);
+
+  return {
+    id: nudgeId,
+    planId: latestNudge.planId,
+    messageType: stringValue(metadata.message_type) ?? "today_plan",
+    title: stringValue(metadata.title) ?? "Brain Coach nudge",
+    body: stringValue(metadata.body) ?? "",
+    status,
+    sentAt,
+    sentBy: stringValue(metadata.sent_by),
+    seenAt: iso(readEvent?.createdAt),
+    dismissedAt: iso(dismissedEvent?.createdAt),
+    planCompletedAfterNudge: Boolean(sentAt && completedAt && completedAt > sentAt),
+    planCompletedAt: completedAt,
+  };
+}
+
 export function buildBrainCoachCaregiverSummary(input: {
   sessions?: BrainCoachCaregiverSession[];
   plans?: BrainCoachCaregiverPlan[];
   planItems?: BrainCoachCaregiverPlanItem[];
+  planEvents?: BrainCoachCaregiverPlanEvent[];
   now?: Date;
 }) {
   const now = input.now ?? new Date();
@@ -162,6 +246,7 @@ export function buildBrainCoachCaregiverSummary(input: {
   const completed = normalized.filter((session) => session.completed);
   const plans = input.plans ?? [];
   const planItems = input.planItems ?? [];
+  const planEvents = input.planEvents ?? [];
   const planIds = new Set(plans.map((plan) => plan.id));
   const visibleItems = planItems.filter((item) => planIds.has(item.planId));
   const todayPlan = plans.find((plan) => utcDayKey(plan.planDate) === todayKey) ?? null;
@@ -228,6 +313,7 @@ export function buildBrainCoachCaregiverSummary(input: {
       completionPct: percent(completedPlanDays, plannedDays),
       days: adherenceDays,
     },
+    latestNudge: latestNudgeOutcome({ plans, planItems: visibleItems, planEvents }),
     recentDomains: summarizeDomains(normalized),
     recentActivities: normalized.slice(0, 6).map((session) => ({
       id: session.id,

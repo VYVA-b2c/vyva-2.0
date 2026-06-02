@@ -200,7 +200,7 @@ async function loadSummary(profileId: string, now = new Date()) {
   const planWindowStart = new Date(todayStart - 6 * DAY_MS).toISOString().slice(0, 10);
   const sessionWindowStart = new Date(todayStart - 29 * DAY_MS);
 
-  const [sessions, plans, planItems] = await Promise.all([
+  const [sessions, plans, planItems, planEvents] = await Promise.all([
     db
       .select()
       .from(cognitiveSessionIndex)
@@ -227,9 +227,18 @@ async function loadSummary(profileId: string, now = new Date()) {
         gte(cognitiveDailyPlanItems.planDate, planWindowStart),
       ))
       .orderBy(asc(cognitiveDailyPlanItems.planDate), asc(cognitiveDailyPlanItems.sortOrder)),
+    db
+      .select()
+      .from(cognitiveDailyPlanEvents)
+      .where(and(
+        eq(cognitiveDailyPlanEvents.userId, profileId),
+        gte(cognitiveDailyPlanEvents.createdAt, sessionWindowStart),
+      ))
+      .orderBy(desc(cognitiveDailyPlanEvents.createdAt))
+      .limit(100),
   ]);
 
-  return buildBrainCoachCaregiverSummary({ sessions, plans, planItems, now });
+  return buildBrainCoachCaregiverSummary({ sessions, plans, planItems, planEvents, now });
 }
 
 async function loadPlanInputs(profileId: string) {
