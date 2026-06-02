@@ -1765,9 +1765,17 @@ adminLifecycleRouter.get("/home-plan-cards", async (req: Request, res: Response)
     const rows = await db.select().from(homePlanCards).orderBy(desc(homePlanCards.base_priority));
     return res.json({ cards: rows });
   } catch (error) {
-    return res.status(503).json({
-      error: "Home cards are not migrated yet. Run schema/home_plan_cards.sql.",
-    });
+    const code = typeof error === "object" && error !== null && "code" in error
+      ? (error as { code?: unknown }).code
+      : undefined;
+    if (code === "42P01") {
+      return res.status(503).json({
+        error: "Home cards are not available yet. Deploy and run migrations, including migrations/0032_home_plan_cards.sql.",
+      });
+    }
+
+    console.error("[adminLifecycle] GET /home-plan-cards error:", error);
+    return res.status(500).json({ error: "Could not load home cards." });
   }
 });
 
