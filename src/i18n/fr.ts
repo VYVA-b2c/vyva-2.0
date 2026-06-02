@@ -294,7 +294,6 @@ const fr = {
         actionNeeded: "Action maintenant",
         vitalRefinementTitle: "Affiner avec une mesure",
         vitalRefinementBody: "Une mesure pertinente peut aider VYVA a mettre a jour cette evaluation. Les estimations du telephone sont utiles pour les tendances; les mesures d'appareil ou manuelles sont des preuves plus fortes.",
-        readConnectedSensor: "Lire le capteur connecte",
         useLatestReading: "Utiliser la derniere mesure enregistree",
         noLatestReading: "Aucune mesure enregistree",
         latestReadingDetail: "{{display}} depuis {{source}}",
