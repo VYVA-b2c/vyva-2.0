@@ -178,6 +178,24 @@ function lifecycleActivityCopy(eventType: string, row: JsonRecord) {
       detail: `${cleanLabel(stringValue(metadata.link_type) ?? "access link")} opened${stringValue(metadata.destination) ? ` for ${stringValue(metadata.destination)}` : ""}`,
     };
   }
+  if (eventType === "signup_invite_sent") {
+    return { label: "Signup invite sent", detail: `${cleanLabel(stringValue(row.channel) ?? "Invite")} invite sent.` };
+  }
+  if (eventType === "signup_invite_clicked") {
+    return {
+      label: "Signup invite clicked",
+      detail: stringValue(metadata.destination) ? `Opened and continued to ${stringValue(metadata.destination)}.` : "Recipient opened the invite link.",
+    };
+  }
+  if (eventType === "signup_invite_profile_started") {
+    return { label: "Signup started", detail: "Recipient started account creation from the invite." };
+  }
+  if (eventType === "signup_invite_profile_created") {
+    return { label: "Account created", detail: "Recipient created a VYVA login from the invite." };
+  }
+  if (eventType === "signup_invite_profile_completed") {
+    return { label: "Profile completed", detail: "Recipient saved their profile details from the invite flow." };
+  }
   if (eventType === "admin_profile_updated") {
     const tierChanged = previousTier && nextTier && previousTier !== nextTier;
     return {
@@ -413,8 +431,12 @@ function AuditMilestones({ detail }: { detail: UserDetail }) {
   const clickedAt = latestTimestamp([
     ...(detail.access_links ?? []).map((link) => link.clicked_at),
     stringValue(latestLifecycleEvent(detail, ["access_link_clicked"])?.created_at),
+    stringValue(latestLifecycleEvent(detail, ["signup_invite_clicked"])?.created_at),
   ]);
-  const profileCreatedAt = stringValue(detail.profile?.created_at);
+  const profileCreatedAt = latestTimestamp([
+    stringValue(detail.profile?.created_at),
+    stringValue(latestLifecycleEvent(detail, ["signup_invite_profile_created"])?.created_at),
+  ]);
   const tierEvent = latestTierEvent(detail);
   const tierMetadata = jsonObject(tierEvent?.metadata);
   const accessOrRemovalEvent = latestLifecycleEvent(detail, ["user_disabled", "user_enabled", "user_deleted", "user_restored"]);

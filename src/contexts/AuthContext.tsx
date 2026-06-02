@@ -22,6 +22,7 @@ interface AuthIdentifier {
   phone?: string;
   identifier?: string;
   language?: string;
+  invite_id?: string;
 }
 
 interface MagicLinkResponse {

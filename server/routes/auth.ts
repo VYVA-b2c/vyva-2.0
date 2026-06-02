@@ -1,11 +1,11 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
 import { z } from "zod";
 import { db } from "../db.js";
-import { accessLinks, lifecycleEvents, profileMemberships, profiles, userIntakes, users } from "../../shared/schema.js";
+import { accessLinks, communicationsLog, lifecycleEvents, profileMemberships, profiles, userIntakes, users } from "../../shared/schema.js";
 import { signMagicLoginToken, verifyMagicLoginToken } from "../lib/jwt.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { sendMagicLoginEmail, sendPasswordResetEmail } from "../lib/email.js";
@@ -86,6 +86,12 @@ function normalizePhone(value: unknown): string | null {
   const digitCount = normalized.replace(/\D/g, "").length;
   if (digitCount < 7 || digitCount > 15) return null;
   return normalized;
+}
+
+function jsonRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
 }
 
 function normalizeProfileLanguage(value: unknown): ProfileLanguage {
@@ -351,6 +357,7 @@ const registerSchema = z.object({
   phone:      z.string().optional(),
   identifier: z.string().optional(),
   language:   z.string().optional(),
+  invite_id:  z.string().trim().min(8).max(120).optional(),
   password:   z.string().min(8, "Password must be at least 8 characters"),
 });
 
@@ -384,6 +391,12 @@ const consumeAccessLinkSchema = z.object({
   token: z.string().min(16, "Access token is required"),
 });
 
+const signupInviteTrackSchema = z.object({
+  invite_id: z.string().trim().min(8).max(120),
+  event: z.enum(["clicked", "profile_started", "profile_created", "profile_completed"]),
+  destination: z.string().trim().max(200).optional(),
+});
+
 /** Token lifetime: 1 hour */
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 
@@ -393,6 +406,133 @@ authRouter.get("/supabase-config", (_req: Request, res: Response) => {
   const config = getSupabaseConfig();
   if (!config) return res.status(404).json({ configured: false });
   return res.json({ configured: true, url: config.url, anonKey: config.anonKey });
+});
+
+const signupInviteEventType: Record<z.infer<typeof signupInviteTrackSchema>["event"], string> = {
+  clicked: "signup_invite_clicked",
+  profile_started: "signup_invite_profile_started",
+  profile_created: "signup_invite_profile_created",
+  profile_completed: "signup_invite_profile_completed",
+};
+
+const signupInviteJourneyRank: Record<string, number> = {
+  signup_invite_sent: 1,
+  signup_invite_clicked: 2,
+  signup_invite_profile_started: 3,
+  signup_invite_profile_created: 4,
+  signup_invite_profile_completed: 5,
+};
+
+function strongestSignupInviteStep(currentStep: string | null | undefined, nextStep: string) {
+  const currentRank = signupInviteJourneyRank[currentStep ?? ""] ?? 0;
+  const nextRank = signupInviteJourneyRank[nextStep] ?? 0;
+  return nextRank >= currentRank ? nextStep : currentStep ?? nextStep;
+}
+
+async function intakeForSignupInvite(inviteId: string) {
+  const [communication] = await db
+    .select()
+    .from(communicationsLog)
+    .where(sql`${communicationsLog.metadata}->>'invite_id' = ${inviteId}`)
+    .orderBy(desc(communicationsLog.created_at))
+    .limit(1);
+
+  if (communication?.intake_id) {
+    const [intake] = await db.select().from(userIntakes).where(eq(userIntakes.id, communication.intake_id)).limit(1);
+    if (intake) return { intake, communication };
+  }
+
+  const [intake] = await db
+    .select()
+    .from(userIntakes)
+    .where(sql`${userIntakes.metadata}->>'latest_invite_id' = ${inviteId}`)
+    .orderBy(desc(userIntakes.updated_at))
+    .limit(1);
+
+  return { intake: intake ?? null, communication: communication ?? null };
+}
+
+async function recordSignupInviteAudit(input: {
+  inviteId: string;
+  event: z.infer<typeof signupInviteTrackSchema>["event"];
+  destination?: string | null;
+  userId?: string | null;
+  language?: string | null;
+}) {
+  const { intake, communication } = await intakeForSignupInvite(input.inviteId);
+  if (!intake && !communication) return { tracked: false };
+
+  const now = new Date();
+  const eventType = signupInviteEventType[input.event];
+  const userId = input.userId ?? intake?.user_id ?? intake?.elder_user_id ?? null;
+  const status = intake?.status === "active" || input.event === "profile_completed"
+    ? "active"
+    : intake?.status === "created"
+      ? "link_sent"
+      : intake?.status ?? "link_sent";
+
+  if (intake) {
+    await db.update(userIntakes).set({
+      user_id: userId ?? intake.user_id,
+      elder_user_id: userId ?? intake.elder_user_id,
+      status,
+      journey_step: strongestSignupInviteStep(intake.journey_step, eventType),
+      activated_at: status === "active" ? now : intake.activated_at,
+      last_activity_at: now,
+      updated_at: now,
+      metadata: {
+        ...jsonRecord(intake.metadata),
+        latest_invite_id: input.inviteId,
+        latest_invite_event: eventType,
+        ...(input.language ? { invite_language: input.language } : {}),
+      },
+    }).where(eq(userIntakes.id, intake.id));
+
+    const [existingEvent] = await db
+      .select({ id: lifecycleEvents.id })
+      .from(lifecycleEvents)
+      .where(and(
+        eq(lifecycleEvents.intake_id, intake.id),
+        eq(lifecycleEvents.event_type, eventType),
+        sql`${lifecycleEvents.metadata}->>'invite_id' = ${input.inviteId}`,
+      ))
+      .limit(1);
+
+    if (!existingEvent) {
+      await db.insert(lifecycleEvents).values({
+        intake_id: intake.id,
+        user_id: userId,
+        event_type: eventType,
+        from_status: intake.status,
+        to_status: status,
+        channel: communication?.channel ?? "invite",
+        metadata: {
+          invite_id: input.inviteId,
+          destination: input.destination ?? null,
+          communication_id: communication?.id ?? null,
+        },
+      });
+    }
+  }
+
+  return { tracked: Boolean(intake), intake_id: intake?.id ?? null };
+}
+
+authRouter.post("/signup-invite/track", async (req: Request, res: Response) => {
+  const parsed = signupInviteTrackSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(204).end();
+
+  try {
+    const result = await recordSignupInviteAudit({
+      inviteId: parsed.data.invite_id,
+      event: parsed.data.event,
+      destination: parsed.data.destination,
+    });
+    return res.json(result);
+  } catch (error) {
+    console.warn("[auth/signup-invite/track] skipped invite audit", error);
+    return res.status(204).end();
+  }
 });
 
 /**
@@ -432,6 +572,19 @@ authRouter.post("/register", async (req: Request, res: Response) => {
 
     await seedRegistrationProfile(user, language);
     const registeredUser = { ...user, active_profile_id: user.id, onboarding_intent: "self" };
+    if (parsed.data.invite_id) {
+      try {
+        await recordSignupInviteAudit({
+          inviteId: parsed.data.invite_id,
+          event: "profile_created",
+          destination: "/",
+          userId: user.id,
+          language,
+        });
+      } catch (auditError) {
+        console.warn("[auth/register] skipped signup invite audit", auditError);
+      }
+    }
 
     const token = await issueAuthSessionCookie(res, user.id);
     return res.status(201).json({ token, ...authResponseUser(registeredUser, null, language, "user") });
