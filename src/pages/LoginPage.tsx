@@ -24,6 +24,7 @@ import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 import { localizeAuthErrorMessage } from "@/lib/authErrorLocalization";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { stageToRoute } from "@/lib/onboardingRoute";
+import { currentSignupInviteId, trackSignupInviteEvent } from "@/lib/signupInviteAudit";
 import { setBootstrapLanguage, useLanguage } from "@/i18n";
 import { LANGUAGES, type LanguageCode } from "@/i18n/languages";
 
@@ -1448,9 +1449,11 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
 
   const authContactPayload = (includeLanguage = false) => {
     const trimmedContact = contact.trim();
+    const inviteId = includeLanguage ? currentSignupInviteId(location.search) : null;
     return {
       ...(trimmedContact.includes("@") ? { email: trimmedContact } : { phone: trimmedContact }),
       ...(includeLanguage ? { language } : {}),
+      ...(inviteId ? { invite_id: inviteId } : {}),
     };
   };
 
@@ -1591,6 +1594,8 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
           throw new Error("Admin accounts can only be created by the super admin after sign in.");
         }
         const setupFor = rememberSetupIntent();
+        const inviteId = currentSignupInviteId(location.search);
+        trackSignupInviteEvent(inviteId, "profile_started", { destination: "/", keepalive: true });
         await register(authContactPayload(true), password);
         if (inviteReturnPath) {
           navigate(inviteReturnPath, { replace: true });

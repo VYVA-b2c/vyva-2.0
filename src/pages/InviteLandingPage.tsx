@@ -5,6 +5,7 @@ import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { useAuth } from "@/contexts/AuthContext";
 import { setBootstrapLanguage, useLanguage } from "@/i18n";
 import type { LanguageCode } from "@/i18n/languages";
+import { rememberSignupInviteId, signupInviteIdFromSearch, trackSignupInviteEvent } from "@/lib/signupInviteAudit";
 
 const INVITE_LANGUAGE_CODES: LanguageCode[] = ["en", "es", "fr", "de", "it", "pt"];
 
@@ -91,8 +92,12 @@ export default function InviteLandingPage() {
   useEffect(() => {
     if (isLoading || redirectStartedRef.current) return;
     redirectStartedRef.current = true;
-    navigate(user ? inviteHomePath() : setupPath, { replace: true });
-  }, [isLoading, navigate, setupPath, user]);
+    const destination = user ? inviteHomePath() : setupPath;
+    const inviteId = signupInviteIdFromSearch(location.search);
+    rememberSignupInviteId(inviteId);
+    trackSignupInviteEvent(inviteId, "clicked", { destination, keepalive: true });
+    navigate(destination, { replace: true });
+  }, [isLoading, location.search, navigate, setupPath, user]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#FFF9F1] px-5 py-8 text-vyva-text-1">
