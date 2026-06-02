@@ -1,9 +1,11 @@
-import { Bell, BrainCircuit, CheckCircle2, Clock3, Headphones, Layers, Map as MapIcon, MessageCircle, Puzzle, Route, Type, UserRoundPlus, Users, Wind, type LucideIcon } from "lucide-react";
+import { useCallback, useEffect, useRef } from "react";
+import { Bell, BrainCircuit, CheckCircle2, Clock3, Headphones, Layers, Map as MapIcon, MessageCircle, Puzzle, Route, Type, UserRoundPlus, Users, Wind, X, type LucideIcon } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { margaret } from "@/data/mockData";
 import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
@@ -146,6 +148,10 @@ type BrainCoachDailyPlan = {
     body: string;
     sentAt: string | null;
     sentBy: string | null;
+    status?: "unread" | "read" | "dismissed";
+    isUnread?: boolean;
+    readAt?: string | null;
+    dismissedAt?: string | null;
   } | null;
   preferences?: {
     trainingTime?: string | null;
@@ -164,6 +170,8 @@ const ActivitiesScreen = () => {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const notifiedCaregiverNudgeIdsRef = useRef<Set<string>>(new Set());
   const autoStartVoice = useRouteVoiceAutoStart();
   const { data: brainCoachProgress } = useQuery<BrainCoachProgress>({
     queryKey: ["/api/games/progress"],
@@ -180,6 +188,8 @@ const ActivitiesScreen = () => {
   const completedTodayCount = brainCoachProgress?.today?.completedCount ?? 0;
   const todayActivityTypes = new Set(brainCoachProgress?.today?.activityTypes ?? []);
   const previousCompletedDays = Math.max(0, streak - (completedTodayCount > 0 ? 1 : 0));
+  const caregiverNudge = dailyPlan?.caregiverNudge ?? null;
+  const visibleCaregiverNudge = caregiverNudge?.status === "dismissed" ? null : caregiverNudge;
   const retentionNudges = buildBrainCoachRetentionNudges({
     completedTodayCount,
     planAllComplete: dailyPlan?.completion.allComplete,
@@ -202,6 +212,54 @@ const ActivitiesScreen = () => {
   const handleActivityClick = (activityName: string) => {
     const destination = activityRoutes[activityName];
     if (destination) navigate(destination.to, destination.state ? { state: destination.state } : undefined);
+  };
+
+  const recordCaregiverNudgeEvent = useCallback(async (
+    eventType: "caregiver_nudge_read" | "caregiver_nudge_dismissed",
+    options: { invalidate?: boolean } = {},
+  ) => {
+    if (!dailyPlan?.planId || !caregiverNudge?.id) return false;
+
+    try {
+      const response = await apiFetch("/api/games/daily-plan/events", {
+        method: "POST",
+        body: JSON.stringify({
+          planId: dailyPlan.planId,
+          nudgeEventId: caregiverNudge.id,
+          eventType,
+          source: "activities_screen",
+        }),
+      });
+      if (response.ok && options.invalidate) {
+        void queryClient.invalidateQueries({ queryKey: ["/api/games/daily-plan"] });
+      }
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }, [caregiverNudge?.id, dailyPlan?.planId, queryClient]);
+
+  useEffect(() => {
+    if (!caregiverNudge?.id || (caregiverNudge.status ?? "unread") !== "unread") return;
+    if (notifiedCaregiverNudgeIdsRef.current.has(caregiverNudge.id)) return;
+
+    notifiedCaregiverNudgeIdsRef.current.add(caregiverNudge.id);
+    toast({
+      title: caregiverNudge.title,
+      description: caregiverNudge.body,
+    });
+    void recordCaregiverNudgeEvent("caregiver_nudge_read");
+  }, [
+    caregiverNudge?.body,
+    caregiverNudge?.id,
+    caregiverNudge?.status,
+    caregiverNudge?.title,
+    recordCaregiverNudgeEvent,
+    toast,
+  ]);
+
+  const handleDismissCaregiverNudge = async () => {
+    await recordCaregiverNudgeEvent("caregiver_nudge_dismissed", { invalidate: true });
   };
 
   const handleDailyPlanActivityClick = async (activity: BrainCoachDailyPlan["activities"][number]) => {
@@ -245,7 +303,7 @@ const ActivitiesScreen = () => {
         className="mt-[18px]"
       />
 
-      {dailyPlan?.caregiverNudge && (
+      {visibleCaregiverNudge && (
         <section
           className="mt-[18px] flex items-start gap-3 rounded-[22px] border p-4"
           style={{ background: "#EFF6FF", borderColor: "#BFDBFE" }}
@@ -254,14 +312,25 @@ const ActivitiesScreen = () => {
           <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[14px] bg-white text-[#2563EB]">
             <Bell size={20} />
           </span>
-          <span className="min-w-0">
+          <span className="min-w-0 flex-1">
             <span className="block font-body text-[16px] font-extrabold leading-tight text-[#1E3A8A] [overflow-wrap:anywhere]">
-              {dailyPlan.caregiverNudge.title}
+              {visibleCaregiverNudge.title}
             </span>
             <span className="mt-1 block font-body text-[13px] font-semibold leading-snug text-[#1E3A8A] [overflow-wrap:anywhere]">
-              {dailyPlan.caregiverNudge.body}
+              {visibleCaregiverNudge.body}
             </span>
           </span>
+          {visibleCaregiverNudge.id && (
+            <button
+              type="button"
+              aria-label="Dismiss caregiver nudge"
+              data-testid="brain-coach-caregiver-nudge-dismiss"
+              onClick={() => void handleDismissCaregiverNudge()}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#2563EB] shadow-sm transition-transform active:scale-[0.98]"
+            >
+              <X size={17} />
+            </button>
+          )}
         </section>
       )}
 

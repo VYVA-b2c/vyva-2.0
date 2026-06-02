@@ -203,7 +203,7 @@ const SharedCheckinReport = () => {
   });
 
   const report = data?.report;
-  const result = report?.result ?? {};
+  const result = useMemo(() => report?.result ?? {}, [report?.result]);
   const language = report?.language ?? "es";
   const name = report?.name || (language === "es" ? "la persona" : "the person");
   const style = toneStyles[result.overall_state ?? "moderate"] ?? toneStyles.moderate;

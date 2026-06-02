@@ -83,12 +83,34 @@ const dailyPlanEventSchema = z.object({
   planId: z.string().uuid(),
   planItemId: z.string().uuid().optional(),
   activityType: z.string().trim().min(1).max(80).optional(),
-  eventType: z.enum(["accepted", "started", "skipped"]),
+  nudgeEventId: z.string().trim().min(1).max(120).optional(),
+  eventType: z.enum(["accepted", "started", "skipped", "caregiver_nudge_read", "caregiver_nudge_dismissed"]),
   source: z.string().trim().min(1).max(80).optional().default("app"),
   metadata: z.record(z.unknown()).optional().default({}),
-}).refine((value) => Boolean(value.planItemId || value.activityType), {
-  message: "planItemId or activityType is required.",
+}).superRefine((value, ctx) => {
+  if (isCaregiverNudgeVisibilityEvent(value.eventType)) {
+    if (!value.nudgeEventId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "nudgeEventId is required.",
+        path: ["nudgeEventId"],
+      });
+    }
+    return;
+  }
+
+  if (!value.planItemId && !value.activityType) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "planItemId or activityType is required.",
+      path: ["planItemId"],
+    });
+  }
 });
+
+function isCaregiverNudgeVisibilityEvent(eventType: string): eventType is Extract<BrainCoachPlanEventType, "caregiver_nudge_read" | "caregiver_nudge_dismissed"> {
+  return eventType === "caregiver_nudge_read" || eventType === "caregiver_nudge_dismissed";
+}
 
 function normalizeGameLanguage(language: unknown): GameLanguage {
   return GAME_LANGUAGES.includes(language as GameLanguage) ? (language as GameLanguage) : "es";
@@ -566,14 +588,45 @@ export function latestCaregiverNudge(events: unknown[], planId: string) {
   const body = stringValue(metadataRecord.body);
   if (!title || !body) return null;
 
+  const nudgeId = stringValue(recordValue(event, "id"));
+  const visibilityEvents = events
+    .filter((row) => {
+      const rowMetadata = recordValue(row, "metadata");
+      const rowMetadataRecord = rowMetadata && typeof rowMetadata === "object"
+        ? rowMetadata as Record<string, unknown>
+        : {};
+      return (
+        recordValue(row, "planId") === planId &&
+        nudgeId !== null &&
+        stringValue(rowMetadataRecord.nudge_event_id) === nudgeId &&
+        (
+          recordValue(row, "eventType") === "caregiver_nudge_read" ||
+          recordValue(row, "eventType") === "caregiver_nudge_dismissed"
+        )
+      );
+    })
+    .sort((left, right) => {
+      const leftTime = coerceDate(recordValue(left, "createdAt"), new Date(0)).getTime();
+      const rightTime = coerceDate(recordValue(right, "createdAt"), new Date(0)).getTime();
+      return rightTime - leftTime;
+    });
+
+  const readEvent = visibilityEvents.find((row) => recordValue(row, "eventType") === "caregiver_nudge_read");
+  const dismissedEvent = visibilityEvents.find((row) => recordValue(row, "eventType") === "caregiver_nudge_dismissed");
+  const status = dismissedEvent ? "dismissed" : readEvent ? "read" : "unread";
+
   return {
-    id: stringValue(recordValue(event, "id")),
+    id: nudgeId,
     planId,
     messageType: stringValue(metadataRecord.message_type) ?? "today_plan",
     title,
     body,
     sentAt: toIsoDate(recordValue(event, "createdAt")) ?? stringValue(metadataRecord.sent_at),
     sentBy: stringValue(metadataRecord.sent_by),
+    status,
+    isUnread: status === "unread",
+    readAt: toIsoDate(recordValue(readEvent, "createdAt")),
+    dismissedAt: toIsoDate(recordValue(dismissedEvent, "createdAt")),
   };
 }
 
@@ -908,6 +961,7 @@ export async function brainCoachDailyPlanEventHandler(req: Request, res: Respons
       cognitiveDailyPlanItems,
       cognitiveDailyPlanEvents,
       and,
+      desc,
       eq,
     } = ctx;
     const [plan] = await db
@@ -921,6 +975,54 @@ export async function brainCoachDailyPlanEventHandler(req: Request, res: Respons
 
     if (!plan) {
       return res.status(404).json({ error: "Brain Coach plan not found." });
+    }
+
+    if (isCaregiverNudgeVisibilityEvent(data.eventType)) {
+      const [nudgeEvent] = await db
+        .select()
+        .from(cognitiveDailyPlanEvents)
+        .where(and(
+          eq(cognitiveDailyPlanEvents.id, data.nudgeEventId!),
+          eq(cognitiveDailyPlanEvents.planId, plan.id),
+          eq(cognitiveDailyPlanEvents.userId, req.user!.id),
+          eq(cognitiveDailyPlanEvents.eventType, "caregiver_nudge"),
+        ))
+        .limit(1);
+
+      if (!nudgeEvent) {
+        return res.status(404).json({ error: "Brain Coach caregiver nudge not found." });
+      }
+
+      await db.insert(cognitiveDailyPlanEvents).values({
+        planId: plan.id,
+        planItemId: null,
+        userId: req.user!.id,
+        activityType: null,
+        eventType: data.eventType satisfies BrainCoachPlanEventType,
+        source: data.source,
+        metadata: {
+          ...data.metadata,
+          nudge_event_id: data.nudgeEventId,
+        },
+      });
+
+      const [items, planEvents] = await Promise.all([
+        selectPlanItems(ctx, plan.id),
+        db
+          .select()
+          .from(cognitiveDailyPlanEvents)
+          .where(and(
+            eq(cognitiveDailyPlanEvents.planId, plan.id),
+            eq(cognitiveDailyPlanEvents.userId, req.user!.id),
+          ))
+          .orderBy(desc(cognitiveDailyPlanEvents.createdAt))
+          .limit(50),
+      ]);
+      const persistedPlan = buildPersistedBrainCoachPlan(storedPlan(plan), storedItems(items));
+      return res.json({
+        ...persistedPlan,
+        caregiverNudge: latestCaregiverNudge(planEvents, plan.id),
+      });
     }
 
     const itemConditions = [
