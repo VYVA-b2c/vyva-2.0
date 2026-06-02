@@ -210,7 +210,6 @@ const speechLangFor = (language: string) => {
     de: "de-DE",
     it: "it-IT",
     pt: "pt-PT",
-    cy: "en-GB",
   };
   return map[base] ?? "en-US";
 };

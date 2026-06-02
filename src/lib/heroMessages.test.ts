@@ -53,6 +53,56 @@ describe("hero message selection", () => {
     expect(result.headline).not.toBe("VYVA");
   });
 
+  it("uses built-in surface copy when invalid managed copy overrides a built-in id", () => {
+    setRuntimeHeroMessages([
+      managed({
+        id: "health-safe-default",
+        surface: "health",
+        reason: "evergreen",
+        priority: 300,
+        cooldownHours: 0,
+        copy: {
+          en: {
+            headline: "This managed health headline is invalid because it is far too long",
+            ctaLabel: "Talk",
+          },
+          es: {
+            headline: "Este titular gestionado de salud no es valido porque es demasiado largo",
+            ctaLabel: "Hablar",
+          },
+        } as HeroMessageDefinition["copy"],
+      }),
+    ]);
+
+    const result = selectHeroMessage("health", { language: "en", fallbackHeadline: "All good today" });
+
+    expect(result.source).toBe("built_in");
+    expect(result.messageId).toBe("health-safe-default");
+    expect(result.headline).toBe("All good");
+    expect(result.headline).not.toBe("VYVA");
+  });
+
+  it("uses English hero copy before Spanish when the selected language is missing", () => {
+    setRuntimeHeroMessages([
+      managed({
+        id: "health-managed-en-es",
+        surface: "health",
+        reason: "evergreen",
+        priority: 300,
+        cooldownHours: 0,
+        copy: {
+          en: { headline: "English fallback", ctaLabel: "Talk" },
+          es: { headline: "Fallback espanol", ctaLabel: "Hablar" },
+        } as HeroMessageDefinition["copy"],
+      }),
+    ]);
+
+    const result = selectHeroMessage("health", { language: "fr" });
+
+    expect(result.source).toBe("managed");
+    expect(result.headline).toBe("English fallback");
+  });
+
   it("keeps priority and cooldown behavior for managed messages", () => {
     setRuntimeHeroMessages([
       managed({

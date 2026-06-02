@@ -3,17 +3,9 @@ import OpenAI from "openai";
 import { desc, eq } from "drizzle-orm";
 import { db } from "../db.js";
 import { woundScans } from "../../shared/schema.js";
+import { languageName, normalizeAppLanguage } from "../../shared/language.js";
 
 const DEMO_USER_ID = "demo-user";
-
-const LOCALE_TO_LANGUAGE: Record<string, string> = {
-  es: "Spanish",
-  fr: "French",
-  pt: "Portuguese",
-  de: "German",
-  it: "Italian",
-  cy: "Welsh",
-};
 
 const IMAGE_TYPES = new Set([
   "xray",
@@ -51,10 +43,9 @@ type VisualScanResult = {
 };
 
 function buildSystemPrompt(locale: string): string {
-  const language = LOCALE_TO_LANGUAGE[locale];
-  const translationInstruction = language
-    ? `\n- Translate ONLY resultTitle, advice, visibleObservations, potentialConcerns, uncertainty, and recommendedNextStep into ${language}. severity and imageType must remain in English exactly as specified.`
-    : "";
+  const language = languageName(normalizeAppLanguage(locale, "en"));
+  const translationInstruction =
+    `\n- Translate ONLY resultTitle, advice, visibleObservations, potentialConcerns, uncertainty, and recommendedNextStep into ${language}. severity and imageType must remain in English exactly as specified.`;
 
   return `You are a compassionate medical image understanding assistant for older adults and their caregivers.
 Your role is assistive description and triage support only. Describe visible findings; do not diagnose.

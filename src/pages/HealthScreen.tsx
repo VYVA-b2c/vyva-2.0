@@ -1366,7 +1366,7 @@ const HealthScreen = () => {
               state: {
                 conciergePrefill: {
                   kind: "appointment",
-                  message: activeLanguage(i18n.language) === "es"
+                  message: activeLanguage(appLanguage) === "es"
                     ? `Ayudame a preparar una cita clinica para revisar este escaneo visual de VYVA. Confirma conmigo antes de reservar.\n\n${visualScanContext}`
                     : `Help me prepare a clinical appointment to review this VYVA visual scan. Ask me to confirm before booking.\n\n${visualScanContext}`,
                   source: "visual_scan",
@@ -1384,7 +1384,7 @@ const HealthScreen = () => {
             state: {
               conciergePrefill: {
                 kind: "ride",
-                message: activeLanguage(i18n.language) === "es"
+                message: activeLanguage(appLanguage) === "es"
                   ? `Ayudame a preparar transporte seguro para una revision clinica de este escaneo visual de VYVA. Confirma conmigo antes de reservar.\n\n${visualScanContext}`
                   : `Help me prepare safe transport for a clinical review of this VYVA visual scan. Ask me to confirm before booking.\n\n${visualScanContext}`,
                 source: "visual_scan",

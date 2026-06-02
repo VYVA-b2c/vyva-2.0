@@ -11,6 +11,7 @@ import { EmptyState, ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
+import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import {
   medicationDoctorActionKinds,
@@ -94,7 +95,8 @@ function normalizeVoiceFocus(value: string) {
 }
 
 const MedsScreen = () => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const { language } = useLanguage();
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -135,7 +137,7 @@ const MedsScreen = () => {
   const medNames = (() => {
     const names = displayMeds.map((m) => m.displayName);
     try {
-      return new Intl.ListFormat(i18n.language, { style: "long", type: "conjunction" }).format(names);
+      return new Intl.ListFormat(language, { style: "long", type: "conjunction" }).format(names);
     } catch {
       return names.join(", ");
     }
@@ -297,10 +299,10 @@ const MedsScreen = () => {
     totalScheduledDoseCount,
     totalTakenDoseCount,
     totalRemainingDoseCount,
-    language: i18n.language,
+    language,
   });
   const gpPhoneHref = sanitizePhoneHref(profile?.gpPhone);
-  const gpEmailHref = medicationDoctorMailto(profile?.gpEmail, medicationDoctorNote, i18n.language);
+  const gpEmailHref = medicationDoctorMailto(profile?.gpEmail, medicationDoctorNote, language);
   const gpName = profile?.gpName?.trim();
   const progressPercent = totalScheduledDoseCount > 0 ? (totalTakenDoseCount / totalScheduledDoseCount) * 100 : 0;
   const rawHeadlines = t("meds.headlines", { returnObjects: true });
@@ -384,7 +386,7 @@ const MedsScreen = () => {
 
   function openRefillSupport() {
     navigate("/concierge/shopping", {
-      state: medicationRefillShoppingState(medicationSummary, i18n.language),
+      state: medicationRefillShoppingState(medicationSummary, language),
     });
   }
 
@@ -400,13 +402,13 @@ const MedsScreen = () => {
 
   function openMedicationAppointment() {
     navigate("/concierge", {
-      state: medicationReviewAppointmentState(medicationSummary, medicationDoctorNote, i18n.language, "medication_support"),
+      state: medicationReviewAppointmentState(medicationSummary, medicationDoctorNote, language, "medication_support"),
     });
   }
 
   function openMedicationRide() {
     navigate("/concierge", {
-      state: medicationReviewRideState(medicationSummary, medicationDoctorNote, i18n.language, "medication_support"),
+      state: medicationReviewRideState(medicationSummary, medicationDoctorNote, language, "medication_support"),
     });
   }
 

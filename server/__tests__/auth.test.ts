@@ -141,6 +141,26 @@ describe("Auth endpoints", () => {
     expect(res.body.language).toBe("fr");
   });
 
+  it("GET /me resolves language_preference before legacy profile language", async () => {
+    const [user] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, TEST_EMAIL.toLowerCase()))
+      .limit(1);
+
+    await db
+      .update(profiles)
+      .set({ language: "es", language_preference: "de" })
+      .where(eq(profiles.id, user.id));
+
+    const res = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${registeredToken}`)
+      .expect(200);
+
+    expect(res.body.language).toBe("de");
+  });
+
   it("GET /me restores the user from the session cookie", async () => {
     const res = await request(app)
       .get("/api/auth/me")

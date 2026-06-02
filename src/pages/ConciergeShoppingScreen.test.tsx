@@ -10,7 +10,15 @@ vi.mock("@/lib/queryClient", () => ({
   apiFetch: vi.fn(),
 }));
 
+vi.mock("@/i18n", () => ({
+  useLanguage: () => ({
+    language: "en",
+    t: (_key: string, fallback?: string) => fallback ?? _key,
+  }),
+}));
+
 vi.mock("react-i18next", () => ({
+  initReactI18next: { type: "3rdParty", init: vi.fn() },
   useTranslation: () => ({
     i18n: { language: "en" },
   }),

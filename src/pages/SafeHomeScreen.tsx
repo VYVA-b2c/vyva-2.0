@@ -23,8 +23,10 @@ import { useToast } from "@/hooks/use-toast";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useProfile } from "@/contexts/ProfileContext";
+import { useLanguage } from "@/i18n";
 import { sanitizePhoneHref } from "@/lib/emergencyContacts";
 import type { ShoppingPriority } from "../../shared/shopping";
+import { languageText } from "../../shared/language";
 
 type HomeScan = {
   id: string;
@@ -86,13 +88,17 @@ function safeHomeScanSummary(scan: SafeHomeActionScan) {
 }
 
 export function safeHomeShoppingState(scan: SafeHomeActionScan, language = "en"): SafeHomeShoppingState {
-  const isSpanish = language.toLowerCase().startsWith("es");
   const summary = safeHomeScanSummary(scan);
   return {
     shoppingPrefill: {
-      needText: isSpanish
-        ? `Ayudame a elegir ayudas sencillas de seguridad para casa segun este escaneo: ${summary}. No inicies compra ni pago sin confirmarme.`
-        : `Help me choose simple home safety aids based on this scan: ${summary}. Do not start checkout without my confirmation.`,
+      needText: languageText(language, {
+        es: `Ayudame a elegir ayudas sencillas de seguridad para casa segun este escaneo: ${summary}. No inicies compra ni pago sin confirmarme.`,
+        en: `Help me choose simple home safety aids based on this scan: ${summary}. Do not start checkout without my confirmation.`,
+        fr: `Aide-moi a choisir des aides simples de securite a domicile selon cette analyse : ${summary}. Ne lance aucun achat ni paiement sans ma confirmation.`,
+        de: `Hilf mir, einfache Hilfen fuer die Sicherheit zu Hause anhand dieses Scans auszuwaehlen: ${summary}. Starte keinen Kauf und keine Zahlung ohne meine Bestaetigung.`,
+        it: `Aiutami a scegliere semplici ausili per la sicurezza in casa in base a questa scansione: ${summary}. Non avviare acquisti o pagamenti senza la mia conferma.`,
+        pt: `Ajude-me a escolher apoios simples de seguranca em casa com base neste exame: ${summary}. Nao inicie compras nem pagamentos sem a minha confirmacao.`,
+      }),
       category: "safe_home",
       priorities: ["safety", "simplicity", "delivery"],
     },
@@ -100,15 +106,19 @@ export function safeHomeShoppingState(scan: SafeHomeActionScan, language = "en")
 }
 
 export function safeHomeQuoteState(scan: SafeHomeActionScan, language = "en"): SafeHomeQuoteState {
-  const isSpanish = language.toLowerCase().startsWith("es");
   const summary = safeHomeScanSummary(scan);
   return {
     conciergePrefill: {
       kind: "home_care_quote",
       source: "safe_home_scan",
-      message: isSpanish
-        ? `Ayudame a pedir un presupuesto de seguridad en casa para revisar o arreglar estos riesgos: ${summary}. Pideme confirmacion antes de solicitar nada.`
-        : `Help me request a home safety quote to review or fix these risks: ${summary}. Ask me to confirm before requesting anything.`,
+      message: languageText(language, {
+        es: `Ayudame a pedir un presupuesto de seguridad en casa para revisar o arreglar estos riesgos: ${summary}. Pideme confirmacion antes de solicitar nada.`,
+        en: `Help me request a home safety quote to review or fix these risks: ${summary}. Ask me to confirm before requesting anything.`,
+        fr: `Aide-moi a demander un devis de securite a domicile pour verifier ou corriger ces risques : ${summary}. Demande-moi confirmation avant toute demande.`,
+        de: `Hilf mir, ein Angebot fuer Sicherheit zu Hause anzufordern, um diese Risiken zu pruefen oder zu beheben: ${summary}. Bitte bestaetige mit mir, bevor du etwas anfragst.`,
+        it: `Aiutami a richiedere un preventivo per la sicurezza domestica per controllare o sistemare questi rischi: ${summary}. Chiedimi conferma prima di inviare qualsiasi richiesta.`,
+        pt: `Ajude-me a pedir um orcamento de seguranca em casa para rever ou corrigir estes riscos: ${summary}. Peca a minha confirmacao antes de solicitar qualquer coisa.`,
+      }),
     },
   };
 }
@@ -245,7 +255,8 @@ const ScanFullScreenModal = ({
 };
 
 const SafeHomeScreen = () => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const { language } = useLanguage();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { profile } = useProfile();
@@ -344,7 +355,7 @@ const SafeHomeScreen = () => {
       .then(async (dataUrl) => {
         const res = await apiFetch("/api/home-scan", {
           method: "POST",
-          body: JSON.stringify({ image: dataUrl, language: i18n.language }),
+          body: JSON.stringify({ image: dataUrl, language }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json() as {
@@ -381,7 +392,7 @@ const SafeHomeScreen = () => {
         type="button"
         data-testid={`button-safe-home-order-aids-${testIdSuffix}`}
         onClick={() => navigate("/concierge/shopping", {
-          state: safeHomeShoppingState(scan, i18n.language),
+          state: safeHomeShoppingState(scan, language),
         })}
         className="vyva-tap flex min-h-[58px] items-center gap-3 rounded-[16px] border border-[#D8C5F0] bg-white px-3 py-2 text-left shadow-[0_8px_18px_rgba(107,33,168,0.08)]"
       >
@@ -439,7 +450,7 @@ const SafeHomeScreen = () => {
         type="button"
         data-testid={`button-safe-home-request-quote-${testIdSuffix}`}
         onClick={() => navigate("/concierge", {
-          state: safeHomeQuoteState(scan, i18n.language),
+          state: safeHomeQuoteState(scan, language),
         })}
         className="vyva-tap flex min-h-[58px] items-center gap-3 rounded-[16px] border border-[#F4D6A8] bg-white px-3 py-2 text-left shadow-[0_8px_18px_rgba(154,52,18,0.08)]"
       >

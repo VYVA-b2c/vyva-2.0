@@ -6,6 +6,7 @@ import { useProfile } from "@/contexts/ProfileContext";
 import { useDoctorVoice } from "@/hooks/useDoctorVoice";
 import { useHeroMessage } from "@/hooks/useHeroMessage";
 import { useServiceGate } from "@/hooks/useServiceGate";
+import { useLanguage } from "@/i18n";
 import { sanitizePhoneHref } from "@/lib/emergencyContacts";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 
@@ -127,7 +128,8 @@ const quickActionIcons: Record<DoctorChoiceQuickActionKind, LucideIcon> = {
 const DoctorChoiceScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const { language } = useLanguage();
   const { profile } = useProfile();
   const { readiness } = useServiceGate();
   const {
@@ -175,7 +177,6 @@ const DoctorChoiceScreen = () => {
   });
 
   const stopCallFallback = useMemo(() => {
-    const language = i18n.language?.slice(0, 2);
     switch (language) {
       case "en":
         return "Pause listening";
@@ -191,7 +192,7 @@ const DoctorChoiceScreen = () => {
       default:
         return "Pausar escucha";
     }
-  }, [i18n.language]);
+  }, [language]);
 
   const stopDoctorVoiceAndClearError = useCallback(() => {
     stopDoctorVoice();

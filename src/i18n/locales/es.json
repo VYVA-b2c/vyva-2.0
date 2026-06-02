@@ -385,7 +385,19 @@
       "appointmentPrefill": "Ayudame a programar una cita. Pregunta que tipo de cita necesito y no reserves nada sin mi confirmacion.",
       "ridePrefill": "Ayudame a organizar transporte seguro. Pregunta destino y horario, y no reserves nada sin mi confirmacion."
     },
-    "whatNow": "o explora un tema"
+    "whatNow": "o explora un tema",
+    "chatExamples": [
+      "Es seguro tomar este medicamento si tengo diabetes?",
+      "Necesito un cardiologo cerca de casa",
+      "Ayudame a rellenar este formulario",
+      "Cual es el tramite para solicitar ayuda economica?",
+      "Como consigo mi descuento de senior?",
+      "Ayudame a encontrar una buena residencia asistida",
+      "Que efectos secundarios tiene mi medicamento para la tension?",
+      "Recuerdame tomar mis pastillas a las 8:00",
+      "Necesito entender mi factura medica",
+      "Busca una farmacia abierta cerca de mi ahora"
+    ]
   },
   "voiceHero": {
     "talkToVyva": "Hablemos",

@@ -269,7 +269,19 @@
       "appointmentPrefill": "Aidez-moi a prendre rendez-vous. Demandez quel type de rendez-vous il me faut et ne reservez rien sans ma confirmation.",
       "ridePrefill": "Aidez-moi a organiser un transport sur. Demandez la destination et l'horaire, et ne reservez rien sans ma confirmation."
     },
-    "whatNow": "ou explorez un sujet"
+    "whatNow": "ou explorez un sujet",
+    "chatExamples": [
+      "Puis-je prendre ce medicament avec mon diabete?",
+      "Je cherche un cardiologue pres de chez moi",
+      "Aide-moi a remplir ce formulaire",
+      "Quelle est la demarche pour demander une aide financiere?",
+      "Comment obtenir ma reduction senior?",
+      "Aide-moi a trouver une bonne residence accompagnee",
+      "Quels sont les effets secondaires de mon medicament pour la tension?",
+      "Rappelle-moi de prendre mes comprimes a 8 h",
+      "J ai besoin de comprendre ma facture medicale",
+      "Trouve une pharmacie ouverte pres de moi maintenant"
+    ]
   },
   "voiceHero": {
     "talkToVyva": "Discuter",
@@ -637,7 +649,8 @@
         "defaultContext": "Demande d'aide medecin depuis Sante. Demandez ce qu'il faut et preparez une prochaine etape sure.",
         "appointmentPrefill": "Aidez-moi a prendre un rendez-vous medical. Ne reservez rien sans ma confirmation.\n\n{{context}}",
         "ridePrefill": "Aidez-moi a organiser un transport sur pour un rendez-vous medical. Ne reservez rien sans ma confirmation.\n\n{{context}}"
-      }
+      },
+      "liveChat": "Chat en direct"
     },
     "symptomCheck": {
       "title": "Vérification des symptômes",
@@ -722,7 +735,34 @@
         "listening": "J'écoute...",
         "voiceUnsupported": "La voix n'est pas disponible dans ce navigateur. Vous pouvez écrire ici.",
         "voiceError": "Je n'ai pas pu activer le micro. Vous pouvez écrire votre réponse.",
-        "errorMsg": "Je suis désolé, j'ai eu du mal à comprendre. Pourriez-vous réessayer ?"
+        "errorMsg": "Je suis désolé, j'ai eu du mal à comprendre. Pourriez-vous réessayer ?",
+        "quickPain": "Douleur",
+        "quickPainValue": "J ai mal.",
+        "quickChest": "Gene thoracique",
+        "quickChestValue": "J ai une gene dans la poitrine.",
+        "quickBreathing": "Respiration",
+        "quickBreathingValue": "Je suis essouffle.",
+        "quickFever": "Fievre",
+        "quickFeverValue": "J ai de la fievre.",
+        "quickTired": "Tres fatigue",
+        "quickTiredValue": "Je me sens tres fatigue.",
+        "quickMild": "Leger",
+        "quickMildValue": "C est leger.",
+        "quickModerate": "Modere",
+        "quickModerateValue": "C est modere.",
+        "quickStrong": "Fort",
+        "quickStrongValue": "C est fort.",
+        "quickNotSure": "Pas sur",
+        "quickNotSureValue": "Je ne suis pas sur.",
+        "quickYes": "Oui",
+        "quickYesValue": "Oui.",
+        "quickNo": "Non",
+        "quickNoValue": "Non.",
+        "quickWorse": "Pire",
+        "quickWorseValue": "Cela empire.",
+        "emergencyTitle": "Alerte urgence",
+        "contactEmergency": "Contacter les urgences",
+        "evidence": "Elements verifies"
       },
       "report": {
         "title": "Votre rapport",
@@ -964,7 +1004,14 @@
       "copyAdvice": "Copier l'avis",
       "shareAdvice": "Partager l'avis",
       "copyAdviceDone": "Avis copié",
-      "shareIntro": "Mon analyse de santé par IA dit..."
+      "shareIntro": "Mon analyse de santé par IA dit...",
+      "viewHistory": "Voir l historique",
+      "empty": "Aucun scan enregistre"
+    },
+    "allGoodToday": "Tout va bien aujourd hui",
+    "wellbeingHistory": {
+      "title": "Historique du bien-etre",
+      "subtitle": "Consultez vos lectures precedentes et les tendances recentes."
     }
   },
   "meds": {
@@ -1541,14 +1588,16 @@
       "scheduleAppt": "Rendez-vous",
       "researchTopic": "Rechercher",
       "findDeals": "Économiser",
-      "getAdvice": "Obtenir un conseil"
+      "getAdvice": "Obtenir un conseil",
+      "shoppingHelper": "Aide achats"
     },
     "prompts": {
       "bookRide": "Réservez-moi un taxi pour demain à 10h",
       "scheduleAppt": "Aidez-moi à prendre rendez-vous chez le médecin",
       "researchTopic": "Expliquez ce que couvre la Medicare Partie B en termes simples",
       "findDeals": "Trouvez des bons plans près de chez moi ce week-end",
-      "getAdvice": "Quelle est une bonne recette simple pour une personne ?"
+      "getAdvice": "Quelle est une bonne recette simple pour une personne ?",
+      "shoppingHelper": "Aide-moi a choisir la meilleure option d achat pour mes besoins. Compare des choix simples et ne lance pas le paiement."
     }
   },
   "scamGuard": {
@@ -1804,6 +1853,66 @@
       "deviceBody": "Les appareils connectés et les mesures cliniques ont le plus de poids dans les contrôles de sécurité de VYVA.",
       "highConfidence": "Confiance plus élevée",
       "safetyChecks": "Contrôles de sécurité"
+    }
+  },
+  "informes": {
+    "title": "Mes rapports",
+    "subtitle": "Symptomes, signes vitaux et medicaments",
+    "todaySummary": "Resume du jour",
+    "latestReports": "Derniers rapports",
+    "summaryGood": "Tout semble bon aujourd hui. Continuez comme ca.",
+    "summaryUrgent": "Votre dernier controle recommande de consulter rapidement.",
+    "summaryRoutine": "Votre dernier controle suggere de programmer une visite medicale.",
+    "summaryMedsPending": "Il vous reste {{pending}} medicament(s) a prendre aujourd hui.",
+    "summaryHighHR": "Votre rythme cardiaque recent etait un peu eleve.",
+    "summaryLowHR": "Votre rythme cardiaque recent etait un peu bas.",
+    "summaryEmpty": "Faites votre premier controle de symptomes pour voir votre resume ici.",
+    "back": "Retour",
+    "errorTitle": "Chargement impossible",
+    "errorSub": "Verifiez votre connexion et reessayez.",
+    "urgency": {
+      "urgent": "Consulter rapidement",
+      "routine": "Visite recommandee",
+      "monitor": "Surveiller a domicile"
+    },
+    "cards": {
+      "symptom": {
+        "title": "Dernier controle de symptomes",
+        "cta": "Voir le rapport complet",
+        "empty": "Aucun controle de symptomes pour l instant. Lancez un controle depuis Sante."
+      },
+      "vitals": {
+        "title": "Signes vitaux",
+        "bpm": "battements par minute",
+        "breathsPerMin": "respirations/min",
+        "statusNormal": "Normal",
+        "statusReview": "A revoir",
+        "empty": "Aucune lecture de signes vitaux. Faites un controle de symptomes pour enregistrer votre pouls."
+      },
+      "meds": {
+        "title": "Suivi des medicaments",
+        "today": "Aujourd hui",
+        "taken": "{{taken}} sur {{total}} pris",
+        "cta": "Voir les details",
+        "empty": "Aucun medicament enregistre. Ajoutez vos medicaments dans la section Medicaments."
+      }
+    },
+    "trends": {
+      "title": "Tendances",
+      "heartRate": "Rythme cardiaque",
+      "respiratoryRate": "Frequence respiratoire",
+      "readings": "{{count}} lectures",
+      "min": "Min",
+      "max": "Max",
+      "empty": "Faites votre premier scan pour voir les tendances ici."
+    },
+    "reportDetail": {
+      "title": "Rapport complet",
+      "symptoms": "Symptomes observes",
+      "recommendations": "Que faire ensuite",
+      "whyThisStep": "Evaluation initiale",
+      "duration": "Duree de session",
+      "chatCta": "Parler a VYVA"
     }
   }
 }

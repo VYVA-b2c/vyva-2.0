@@ -7,7 +7,6 @@ import legacyFr from "./locales/fr.json";
 import legacyDe from "./locales/de.json";
 import legacyIt from "./locales/it.json";
 import legacyPt from "./locales/pt.json";
-import legacyCy from "./locales/cy.json";
 import { DEFAULT_LANGUAGE, LANGUAGES, type LanguageCode } from "./languages";
 import { detectBrowserLanguage as detectNavigatorLanguage } from "./detectLanguage";
 import customEn from "./en";
@@ -44,7 +43,6 @@ const overrides: DictionaryMap = {
   de: customDe,
   it: customIt,
   pt: customPt,
-  cy: {},
 };
 
 const baseDictionaries: DictionaryMap = {
@@ -54,7 +52,6 @@ const baseDictionaries: DictionaryMap = {
   de: legacyDe as TranslationTree,
   it: legacyIt as TranslationTree,
   pt: legacyPt as TranslationTree,
-  cy: legacyCy as TranslationTree,
 };
 
 function isObject(value: TranslationValue): value is TranslationTree {
@@ -85,7 +82,6 @@ const dictionaries: DictionaryMap = {
   de: deepMerge(baseDictionaries.de, overrides.de),
   it: deepMerge(baseDictionaries.it, overrides.it),
   pt: deepMerge(baseDictionaries.pt, overrides.pt),
-  cy: deepMerge(baseDictionaries.cy, overrides.cy),
 };
 
 const supportedCodes = LANGUAGES.map((language) => language.code);
@@ -254,7 +250,7 @@ if (!i18n.isInitialized) {
       supportedCodes.map((code) => [code, { translation: dictionaries[code] }]),
     ),
     lng: currentLanguage,
-    fallbackLng: DEFAULT_LANGUAGE,
+    fallbackLng: "en",
     interpolation: {
       escapeValue: false,
     },
@@ -333,8 +329,13 @@ export function translate(language: LanguageCode, path: string, fallback?: strin
   const localized = getValueFromPath(dictionaries[language], path);
   if (typeof localized === "string") return interpolate(localized, params);
 
-  const spanish = getValueFromPath(dictionaries.es, path);
-  if (typeof spanish === "string") return interpolate(spanish, params);
+  const english = getValueFromPath(dictionaries.en, path);
+  if (typeof english === "string") return interpolate(english, params);
+
+  if (language !== DEFAULT_LANGUAGE) {
+    const defaultLanguage = getValueFromPath(dictionaries[DEFAULT_LANGUAGE], path);
+    if (typeof defaultLanguage === "string") return interpolate(defaultLanguage, params);
+  }
 
   return interpolate(fallback ?? path, params);
 }

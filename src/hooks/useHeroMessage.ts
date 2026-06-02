@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
 import { useProfile } from "@/contexts/ProfileContext";
+import { useLanguage } from "@/i18n";
 import {
   type HeroMessageContext,
   type HeroMessageDefinition,
@@ -47,8 +47,8 @@ export function useHeroMessage(
   surface?: HeroSurface | null,
   options: UseHeroMessageOptions = {},
 ): HeroMessageResult | null {
-  const { i18n } = useTranslation();
-  const { profile, firstName: profileFirstName } = useProfile();
+  const { language: appLanguage } = useLanguage();
+  const { firstName: profileFirstName } = useProfile();
   const [catalogVersion, setCatalogVersion] = useState(0);
   const {
     language,
@@ -87,7 +87,7 @@ export function useHeroMessage(
       fallbackContextHint,
       upcomingEventType,
       recentActivity,
-      language: language ?? profile?.language ?? i18n.language,
+      language: language ?? appLanguage,
       firstName: firstName ?? profileFirstName,
       date: date ?? new Date(),
     });
@@ -104,16 +104,15 @@ export function useHeroMessage(
     fallbackContextHint,
     upcomingEventType,
     recentActivity,
-    profile?.language,
+    appLanguage,
     profileFirstName,
-    i18n.language,
     catalogVersion,
   ]);
 
   useEffect(() => {
     if (!message || trackImpression === false) return;
     recordHeroImpression(message.messageId);
-    const eventLanguage = normalizeHeroLanguage(language ?? profile?.language ?? i18n.language);
+    const eventLanguage = normalizeHeroLanguage(language ?? appLanguage);
     recordHeroEvent({
       messageId: message.messageId,
       surface: message.surface,
@@ -132,7 +131,7 @@ export function useHeroMessage(
         source: message.source,
       });
     }
-  }, [i18n.language, language, message, profile?.language, trackImpression]);
+  }, [appLanguage, language, message, trackImpression]);
 
   return message;
 }
