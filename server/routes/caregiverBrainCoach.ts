@@ -197,7 +197,7 @@ async function requireBrainCoachPermissionOwnerProfileId(req: Request, res: Resp
 
 async function loadSummary(profileId: string, now = new Date()) {
   const todayStart = utcDayStart(now);
-  const planWindowStart = new Date(todayStart - 6 * DAY_MS).toISOString().slice(0, 10);
+  const planWindowStart = new Date(todayStart - 13 * DAY_MS).toISOString().slice(0, 10);
   const sessionWindowStart = new Date(todayStart - 29 * DAY_MS);
 
   const [sessions, plans, planItems, planEvents] = await Promise.all([

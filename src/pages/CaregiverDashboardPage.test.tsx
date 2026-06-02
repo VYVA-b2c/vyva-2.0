@@ -86,6 +86,43 @@ const brainCoachPayload = {
     planCompletedAfterNudge: false,
     planCompletedAt: null,
   },
+  weeklyInsights: {
+    trendCopy: "Brain Coach activity increased to 4 active days this week.",
+    changeSummary: "Compared with the previous 7 days: 2 more completed activities and 1 more completed plan day.",
+    domainsPracticed: [{
+      domain: "visual_memory",
+      completedSessions: 2,
+      totalSessions: 2,
+      lastPlayedAt: "2026-05-29T09:00:00.000Z",
+    }, {
+      domain: "attention",
+      completedSessions: 1,
+      totalSessions: 1,
+      lastPlayedAt: "2026-05-28T09:00:00.000Z",
+    }],
+    missedPlannedDays: 1,
+    nudgeOutcomes: {
+      sent: 3,
+      seen: 1,
+      dismissed: 1,
+      completedAfterNudge: 1,
+      completionAfterNudgePct: 33,
+    },
+    currentWeek: {
+      plannedDays: 4,
+      completedPlanDays: 3,
+      activeSessionDays: 4,
+      completedSessions: 5,
+      completionPct: 75,
+    },
+    previousWeek: {
+      plannedDays: 3,
+      completedPlanDays: 2,
+      activeSessionDays: 2,
+      completedSessions: 3,
+      completionPct: 67,
+    },
+  },
   recentDomains: [{
     domain: "visual_memory",
     completedSessions: 3,
@@ -405,6 +442,25 @@ describe("CaregiverDashboardPage", () => {
     expect(screen.getByText("Preview enabled")).toBeInTheDocument();
     expect(screen.getByTestId("brain-coach-nudge-outcome")).toHaveTextContent("Seen");
     expect(screen.getByTestId("brain-coach-nudge-outcome")).toHaveTextContent("plan completion is still pending");
+  });
+
+  it("renders read-only Brain Coach weekly insights for caregivers", async () => {
+    mockApi();
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("brain-coach-weekly-insights")).toHaveTextContent("Weekly insight");
+    });
+
+    const weekly = screen.getByTestId("brain-coach-weekly-insights");
+    expect(weekly).toHaveTextContent("Brain Coach activity increased to 4 active days this week.");
+    expect(weekly).toHaveTextContent("Compared with the previous 7 days: 2 more completed activities and 1 more completed plan day.");
+    expect(weekly).toHaveTextContent("Missed planned days");
+    expect(weekly).toHaveTextContent("Visual Memory - 2");
+    expect(weekly).toHaveTextContent("Attention - 1");
+    expect(weekly).toHaveTextContent("3 sent - 1 seen - 1 dismissed");
+    expect(weekly).toHaveTextContent("Completion after nudge: 33%");
   });
 
   it("saves caregiver Brain Coach plan preferences when consent allows editing", async () => {

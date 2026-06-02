@@ -59,6 +59,38 @@ type BrainCoachCaregiverSummary = {
     planCompletedAfterNudge: boolean;
     planCompletedAt: string | null;
   } | null;
+  weeklyInsights?: {
+    trendCopy: string;
+    changeSummary: string;
+    domainsPracticed: Array<{
+      domain: string;
+      completedSessions: number;
+      totalSessions: number;
+      lastPlayedAt: string | null;
+    }>;
+    missedPlannedDays: number;
+    nudgeOutcomes: {
+      sent: number;
+      seen: number;
+      dismissed: number;
+      completedAfterNudge: number;
+      completionAfterNudgePct: number;
+    };
+    currentWeek: {
+      plannedDays: number;
+      completedPlanDays: number;
+      activeSessionDays: number;
+      completedSessions: number;
+      completionPct: number;
+    };
+    previousWeek: {
+      plannedDays: number;
+      completedPlanDays: number;
+      activeSessionDays: number;
+      completedSessions: number;
+      completionPct: number;
+    };
+  };
   recentDomains: Array<{
     domain: string;
     completedSessions: number;
@@ -232,6 +264,10 @@ function nudgeOutcomeText(summary: BrainCoachCaregiverSummary | undefined) {
   if (nudge.status === "dismissed") return "The nudge was dismissed before the plan was completed.";
   if (nudge.status === "seen") return "The nudge was seen; plan completion is still pending.";
   return "The nudge was sent; it has not been seen yet.";
+}
+
+function pluralize(count: number, singular: string, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`;
 }
 
 export function CaregiverBrainCoachPanel() {
@@ -410,6 +446,72 @@ export function CaregiverBrainCoachPanel() {
           ))}
         </div>
       ) : null}
+
+      {summary?.weeklyInsights && (
+        <div className="mt-4 rounded-[14px] border border-[#D8DED6] bg-[#FBFCFB] p-4" data-testid="brain-coach-weekly-insights">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="flex items-center gap-2 font-body text-[15px] font-bold text-[#26312B]">
+              <CalendarClock className="h-4 w-4 text-[#2F6F5E]" />
+              Weekly insight
+            </p>
+            <span className="rounded-full bg-white px-3 py-1 font-body text-[12px] font-bold text-[#26312B]">
+              Last 7 days
+            </span>
+          </div>
+          <p className="mt-3 font-body text-[14px] font-bold leading-relaxed text-[#26312B]">
+            {summary.weeklyInsights.trendCopy}
+          </p>
+          <p className="mt-1 font-body text-[13px] font-semibold leading-relaxed text-[#5F6B63]">
+            {summary.weeklyInsights.changeSummary}
+          </p>
+
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="rounded-[12px] bg-white p-3">
+              <p className="font-body text-[12px] font-bold text-[#5F6B63]">Active days</p>
+              <p className="mt-1 font-body text-[18px] font-bold text-[#26312B]">
+                {summary.weeklyInsights.currentWeek.activeSessionDays}
+              </p>
+            </div>
+            <div className="rounded-[12px] bg-white p-3">
+              <p className="font-body text-[12px] font-bold text-[#5F6B63]">Missed planned days</p>
+              <p className="mt-1 font-body text-[18px] font-bold text-[#26312B]">
+                {summary.weeklyInsights.missedPlannedDays}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-[12px] bg-white p-3">
+            <p className="mb-2 flex items-center gap-2 font-body text-[13px] font-bold text-[#26312B]">
+              <Target className="h-4 w-4 text-[#2F6F5E]" />
+              Domains this week
+            </p>
+            {summary.weeklyInsights.domainsPracticed.length ? (
+              <div className="flex flex-wrap gap-2">
+                {summary.weeklyInsights.domainsPracticed.slice(0, 4).map((domain) => (
+                  <span key={domain.domain} className="rounded-full bg-[#F8FAF8] px-3 py-1 font-body text-[12px] font-bold text-[#26312B]">
+                    {labelize(domain.domain)} - {domain.completedSessions}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="font-body text-[13px] font-semibold text-[#5F6B63]">No domains practiced this week yet.</p>
+            )}
+          </div>
+
+          <div className="mt-3 rounded-[12px] bg-white p-3">
+            <p className="mb-2 flex items-center gap-2 font-body text-[13px] font-bold text-[#26312B]">
+              <Bell className="h-4 w-4 text-[#2F6F5E]" />
+              Nudge outcomes this week
+            </p>
+            <p className="font-body text-[13px] font-semibold leading-relaxed text-[#5F6B63]">
+              {pluralize(summary.weeklyInsights.nudgeOutcomes.sent, "sent", "sent")} - {pluralize(summary.weeklyInsights.nudgeOutcomes.seen, "seen", "seen")} - {pluralize(summary.weeklyInsights.nudgeOutcomes.dismissed, "dismissed", "dismissed")}
+            </p>
+            <p className="mt-1 font-body text-[13px] font-semibold leading-relaxed text-[#5F6B63]">
+              Completion after nudge: {summary.weeklyInsights.nudgeOutcomes.completionAfterNudgePct}%
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="mt-4 rounded-[14px] border border-[#D8DED6] bg-[#FBFCFB] p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
