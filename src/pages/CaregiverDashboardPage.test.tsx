@@ -99,6 +99,14 @@ const summaryOnlyBrainCoachPermissions = {
   preview_plan: false,
 };
 
+const planPreferenceOnlyBrainCoachPermissions = {
+  view_summary: true,
+  manage_plan_preferences: true,
+  manage_schedule: false,
+  send_nudges: false,
+  preview_plan: false,
+};
+
 const brainCoachSettingsPayload = {
   preferredDomains: ["attention"],
   excludedActivityTypes: [],
@@ -133,6 +141,7 @@ const brainCoachPreviewPayload = {
 
 function mockApi(options: { brainCoachPermissions?: typeof fullBrainCoachPermissions } = {}) {
   const brainCoachPermissions = options.brainCoachPermissions ?? fullBrainCoachPermissions;
+  let currentBrainCoachSettings = { ...brainCoachSettingsPayload };
 
   vi.mocked(apiFetch).mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input);
@@ -140,10 +149,27 @@ function mockApi(options: { brainCoachPermissions?: typeof fullBrainCoachPermiss
       return new Response(JSON.stringify({ summary: brainCoachPayload, permissions: brainCoachPermissions }), { status: 200, headers: { "Content-Type": "application/json" } });
     }
     if (path.includes("/api/caregiver/brain-coach/me/settings")) {
-      const settings = init?.method === "PATCH" && typeof init.body === "string"
-        ? JSON.parse(init.body)
-        : brainCoachSettingsPayload;
-      return new Response(JSON.stringify({ settings, permissions: brainCoachPermissions }), { status: 200, headers: { "Content-Type": "application/json" } });
+      if (init?.method === "PATCH" && typeof init.body === "string") {
+        currentBrainCoachSettings = {
+          ...currentBrainCoachSettings,
+          ...JSON.parse(init.body),
+        };
+      }
+      return new Response(JSON.stringify({ settings: currentBrainCoachSettings, permissions: brainCoachPermissions }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (path.includes("/api/caregiver/brain-coach/me/nudges")) {
+      return new Response(JSON.stringify({
+        nudge: {
+          id: "nudge-1",
+          planId: "plan-1",
+          messageType: "today_plan",
+          title: "Your Brain Coach plan is ready",
+          body: "Your caregiver suggested starting with one short recommended activity.",
+          sentAt: "2026-05-29T10:00:00.000Z",
+          sentBy: "caregiver-1",
+        },
+        permissions: brainCoachPermissions,
+      }), { status: 201, headers: { "Content-Type": "application/json" } });
     }
     if (path.includes("/api/caregiver/brain-coach/me/plan-preview")) {
       return new Response(JSON.stringify({ ...brainCoachPreviewPayload, permissions: brainCoachPermissions }), { status: 200, headers: { "Content-Type": "application/json" } });
@@ -273,7 +299,7 @@ describe("CaregiverDashboardPage", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Navigation" }));
-    fireEvent.click(screen.getByRole("button", { name: "Save preferences" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Brain Coach changes" }));
 
     await waitFor(() => {
       expect(apiFetch).toHaveBeenCalledWith(
@@ -286,7 +312,9 @@ describe("CaregiverDashboardPage", () => {
       String(path).includes("/api/caregiver/brain-coach/me/settings") &&
       (init as RequestInit | undefined)?.method === "PATCH"
     ));
-    expect(JSON.parse((saveCall?.[1] as RequestInit).body as string).preferredDomains).toContain("spatial_navigation");
+    expect(JSON.parse((saveCall?.[1] as RequestInit).body as string)).toEqual({
+      preferredDomains: ["attention", "spatial_navigation"],
+    });
   });
 
   it("shows disabled Brain Coach controls when senior consent is missing", async () => {
@@ -299,8 +327,44 @@ describe("CaregiverDashboardPage", () => {
     });
 
     expect(screen.getAllByText("Needs senior consent").length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: "Save preferences" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save Brain Coach changes" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Preview next plan" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Send in-app nudge" })).toBeDisabled();
+  });
+
+  it("keeps Brain Coach schedule controls disabled without schedule consent", async () => {
+    mockApi({ brainCoachPermissions: planPreferenceOnlyBrainCoachPermissions });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText("Training plan controls")).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("button", { name: "Navigation" })).not.toBeDisabled();
+    expect(screen.getByLabelText("Training time")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Brain Coach active" })).toBeDisabled();
+  });
+
+  it("sends an in-app Brain Coach nudge when consent allows it", async () => {
+    mockApi();
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText("Training plan controls")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Send in-app nudge" }));
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith(
+        "/api/caregiver/brain-coach/me/nudges",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+
+    expect(screen.getByText("Nudge sent in-app.")).toBeInTheDocument();
   });
 
   it("shows a non-persisted Brain Coach plan preview", async () => {

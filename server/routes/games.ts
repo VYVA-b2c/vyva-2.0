@@ -537,6 +537,46 @@ function storedItems(rows: unknown[]): StoredBrainCoachPlanItem[] {
   return rows as StoredBrainCoachPlanItem[];
 }
 
+function recordValue(row: unknown, key: string): unknown {
+  return row && typeof row === "object" ? (row as Record<string, unknown>)[key] : undefined;
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+export function latestCaregiverNudge(events: unknown[], planId: string) {
+  const event = events
+    .filter((row) => (
+      recordValue(row, "planId") === planId &&
+      recordValue(row, "eventType") === "caregiver_nudge"
+    ))
+    .sort((left, right) => {
+      const leftTime = coerceDate(recordValue(left, "createdAt"), new Date(0)).getTime();
+      const rightTime = coerceDate(recordValue(right, "createdAt"), new Date(0)).getTime();
+      return rightTime - leftTime;
+    })[0];
+  if (!event) return null;
+
+  const metadata = recordValue(event, "metadata");
+  const metadataRecord = metadata && typeof metadata === "object"
+    ? metadata as Record<string, unknown>
+    : {};
+  const title = stringValue(metadataRecord.title);
+  const body = stringValue(metadataRecord.body);
+  if (!title || !body) return null;
+
+  return {
+    id: stringValue(recordValue(event, "id")),
+    planId,
+    messageType: stringValue(metadataRecord.message_type) ?? "today_plan",
+    title,
+    body,
+    sentAt: toIsoDate(recordValue(event, "createdAt")) ?? stringValue(metadataRecord.sent_at),
+    sentBy: stringValue(metadataRecord.sent_by),
+  };
+}
+
 async function selectPlanItems(ctx: CognitiveSessionDb, planId: string) {
   const { db, cognitiveDailyPlanItems, asc, eq } = ctx;
   return db
@@ -842,7 +882,10 @@ export async function brainCoachDailyPlanHandler(req: Request, res: Response) {
     const items = await selectPlanItems(ctx, plan.id);
     const persistedPlan = await syncPersistedPlanCompletion(ctx, plan, items, rows);
 
-    return res.json(persistedPlan);
+    return res.json({
+      ...persistedPlan,
+      caregiverNudge: latestCaregiverNudge(planEvents, plan.id),
+    });
   } catch (error) {
     console.error("[games] Brain Coach daily plan failed:", error);
     return res.status(500).json({ error: "Brain Coach daily plan could not be loaded." });

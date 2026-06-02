@@ -49,7 +49,13 @@ const settingsSchema = z.object({
   paused: z.boolean().optional(),
 }).strict();
 
+const nudgeSchema = z.object({
+  messageType: z.enum(["today_plan", "gentle_restart", "completed_today"]).optional().default("today_plan"),
+}).strict();
+
 const DAY_MS = 24 * 60 * 60 * 1000;
+const PLAN_PREFERENCE_SETTING_KEYS = ["preferredDomains", "excludedActivityTypes", "weeklyTargetDays", "sessionLengthMinutes"] as const;
+const SCHEDULE_SETTING_KEYS = ["preferredTrainingTimes", "paused"] as const;
 
 function permissionsPatch(body: unknown): Partial<BrainCoachCaregiverPermissions> | null {
   const parsed = permissionsSchema.safeParse(body);
@@ -68,6 +74,49 @@ function settingsResponse(row: typeof cognitiveCaregiverSettings.$inferSelect | 
   return row
     ? normalizeBrainCoachCaregiverSettings(row)
     : defaultSettings();
+}
+
+function hasOwn(value: object, key: string) {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function hasAnySettingKey(value: object, keys: readonly string[]) {
+  return keys.some((key) => hasOwn(value, key));
+}
+
+function caregiverNudgeCopy(messageType: z.infer<typeof nudgeSchema>["messageType"]) {
+  if (messageType === "gentle_restart") {
+    return {
+      title: "A gentle Brain Coach restart",
+      body: "Your caregiver suggested one short activity today. A few minutes is enough.",
+    };
+  }
+  if (messageType === "completed_today") {
+    return {
+      title: "Nice work today",
+      body: "Your caregiver noticed today's Brain Coach plan is complete.",
+    };
+  }
+  return {
+    title: "Your Brain Coach plan is ready",
+    body: "Your caregiver suggested starting with one short recommended activity.",
+  };
+}
+
+function todayPlanDate(now = new Date()) {
+  return new Date(utcDayStart(now)).toISOString().slice(0, 10);
+}
+
+async function loadTodayPlan(profileId: string) {
+  const [plan] = await db
+    .select()
+    .from(cognitiveDailyPlans)
+    .where(and(
+      eq(cognitiveDailyPlans.userId, profileId),
+      eq(cognitiveDailyPlans.planDate, todayPlanDate()),
+    ))
+    .limit(1);
+  return plan ?? null;
 }
 
 async function resolveProfileParam(req: Request, res: Response, value: string): Promise<string | null> {
@@ -361,6 +410,9 @@ router.get("/:profileId/settings", requireUser, async (req: Request, res: Respon
 router.patch("/:profileId/settings", requireUser, async (req: Request, res: Response) => {
   const parsed = settingsSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid Brain Coach settings." });
+  const touchesPlanPreferences = hasAnySettingKey(parsed.data, PLAN_PREFERENCE_SETTING_KEYS);
+  const touchesSchedule = hasAnySettingKey(parsed.data, SCHEDULE_SETTING_KEYS);
+  if (!touchesPlanPreferences && !touchesSchedule) return res.status(400).json({ error: "No Brain Coach settings were provided." });
 
   try {
     const profileId = await resolveProfileParam(req, res, req.params.profileId);
@@ -368,11 +420,17 @@ router.patch("/:profileId/settings", requireUser, async (req: Request, res: Resp
     const access = await resolveBrainCoachAccess({
       actorUserId: req.user!.id,
       targetUserId: profileId,
-      requiredPermission: "manage_plan_preferences",
+      requiredPermission: "view_summary",
       actorEmail: typeof req.user!.email === "string" ? req.user!.email : null,
       actorRequestRole: typeof req.user!.role === "string" ? req.user!.role : null,
     });
-    if (!access) return res.status(403).json({ error: "Brain Coach settings need senior consent." });
+    if (!access) return res.status(403).json({ error: "Brain Coach caregiver access is not enabled." });
+    if (touchesPlanPreferences && !access.permissions.manage_plan_preferences) {
+      return res.status(403).json({ error: "Brain Coach plan preferences need senior consent." });
+    }
+    if (touchesSchedule && !access.permissions.manage_schedule) {
+      return res.status(403).json({ error: "Brain Coach schedule changes need senior consent." });
+    }
 
     const [existing] = await db
       .select()
@@ -415,6 +473,81 @@ router.patch("/:profileId/settings", requireUser, async (req: Request, res: Resp
   } catch (error) {
     console.error("[caregiver-brain-coach] settings update failed:", error);
     return res.status(500).json({ error: "Brain Coach settings could not be saved." });
+  }
+});
+
+router.post("/:profileId/nudges", requireUser, async (req: Request, res: Response) => {
+  const parsed = nudgeSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: "Invalid Brain Coach nudge." });
+
+  try {
+    const profileId = await resolveProfileParam(req, res, req.params.profileId);
+    if (!profileId) return;
+    const access = await resolveBrainCoachAccess({
+      actorUserId: req.user!.id,
+      targetUserId: profileId,
+      requiredPermission: "send_nudges",
+      actorEmail: typeof req.user!.email === "string" ? req.user!.email : null,
+      actorRequestRole: typeof req.user!.role === "string" ? req.user!.role : null,
+    });
+    if (!access) return res.status(403).json({ error: "Brain Coach nudges need senior consent." });
+
+    const plan = await loadTodayPlan(profileId);
+    if (!plan) return res.status(409).json({ error: "Today's Brain Coach plan is not available yet." });
+
+    const copy = caregiverNudgeCopy(parsed.data.messageType);
+    const sentAt = new Date();
+    const metadata = {
+      message_type: parsed.data.messageType,
+      title: copy.title,
+      body: copy.body,
+      sent_by: req.user!.id,
+      sent_at: sentAt.toISOString(),
+      in_app_only: true,
+    };
+
+    const [event] = await db
+      .insert(cognitiveDailyPlanEvents)
+      .values({
+        planId: plan.id,
+        planItemId: null,
+        userId: profileId,
+        activityType: null,
+        eventType: "caregiver_nudge",
+        source: "caregiver_dashboard",
+        metadata,
+        createdAt: sentAt,
+      })
+      .returning();
+
+    await auditBrainCoachCaregiverChange({
+      access,
+      previousValue: {},
+      newValue: {
+        nudge: {
+          plan_id: plan.id,
+          message_type: parsed.data.messageType,
+          in_app_only: true,
+        },
+      },
+      source: access.isOwnProfile ? "brain_coach_nudge_self" : "brain_coach_nudge_caregiver",
+    });
+
+    return res.status(201).json({
+      nudge: {
+        id: event.id,
+        planId: plan.id,
+        messageType: parsed.data.messageType,
+        title: copy.title,
+        body: copy.body,
+        sentAt: sentAt.toISOString(),
+        sentBy: req.user!.id,
+      },
+      permissions: access.permissions,
+    });
+  } catch (error) {
+    console.error("[caregiver-brain-coach] nudge failed:", error);
+    return res.status(500).json({ error: "Brain Coach nudge could not be saved." });
   }
 });
 
