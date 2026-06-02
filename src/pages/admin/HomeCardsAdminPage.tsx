@@ -3,6 +3,8 @@ import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
 
+type AdminRequestError = Error & { status?: number };
+
 type HomePlanCardAdmin = {
   id?: string;
   card_id: string;
@@ -62,18 +64,35 @@ export default function HomeCardsAdminPage() {
   const [cards, setCards] = useState<HomePlanCardAdmin[]>([]);
   const [draft, setDraft] = useState<HomePlanCardAdmin>(emptyCard);
   const [message, setMessage] = useState("");
+  const [setupMissing, setSetupMissing] = useState(false);
 
   async function api(path: string, options: RequestInit = {}) {
     const res = await apiFetch(`/api/admin/lifecycle${path}`, options);
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error ?? "Admin request failed");
+    if (!res.ok) {
+      const error = new Error(data.error ?? "Admin request failed") as AdminRequestError;
+      error.status = res.status;
+      throw error;
+    }
     return data;
   }
 
   async function refresh() {
     setMessage("");
-    const data = await api("/home-plan-cards");
-    setCards(data.cards ?? []);
+    setSetupMissing(false);
+    try {
+      const data = await api("/home-plan-cards");
+      setCards(data.cards ?? []);
+    } catch (err) {
+      const error = err as AdminRequestError;
+      if (error.status === 503) {
+        setCards([]);
+        setSetupMissing(true);
+        setMessage("");
+        return;
+      }
+      throw err;
+    }
   }
 
   function updateCard(cardId: string, patch: Partial<HomePlanCardAdmin>) {
@@ -129,51 +148,62 @@ export default function HomeCardsAdminPage() {
           subtitle="Admins add and tune the pool behind Today for you. VYVA still chooses which cards each user sees based on profile signals."
         >
           <button className="rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white" onClick={() => refresh().catch((err) => setMessage(err.message))}>Refresh</button>
-          {message && <span className="rounded-2xl bg-purple-50 px-4 py-3 text-purple-800">{message}</span>}
+          {message && <span className="max-w-full break-words rounded-2xl bg-purple-50 px-4 py-3 text-purple-800">{message}</span>}
         </AdminPageHeader>
 
         <AdminMenu />
 
-        <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="font-serif text-3xl">Add a card</h2>
-              <p className="mt-2 max-w-3xl text-sm text-[#7d6b65]">
-                Use this for day-to-day card creation. The SQL file is only a one-time setup that creates the table and seeds starter cards.
-              </p>
-            </div>
-            <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">{cards.length} cards</span>
-          </div>
-
-          <div className="mt-5 grid gap-3 lg:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_8rem]">
-            <Field label="Card ID"><input className="w-full rounded-2xl border px-4 py-3" value={draft.card_id} onChange={(e) => setDraft((prev) => ({ ...prev, card_id: e.target.value }))} placeholder="music_hour" /></Field>
-            <Field label="Route"><input className="w-full rounded-2xl border px-4 py-3" value={draft.route} onChange={(e) => setDraft((prev) => ({ ...prev, route: e.target.value }))} placeholder="/social-rooms/music-salon" /></Field>
-            <Field label="Icon"><input className="w-full rounded-2xl border px-4 py-3" value={draft.emoji} onChange={(e) => setDraft((prev) => ({ ...prev, emoji: e.target.value }))} /></Field>
-            <Field label="Priority"><input className="w-full rounded-2xl border px-4 py-3" type="number" value={draft.base_priority} onChange={(e) => setDraft((prev) => ({ ...prev, base_priority: Number(e.target.value) }))} /></Field>
-          </div>
-
-          <div className="mt-3 grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
-            <Field label="Condition keywords" optional>
-              <textarea className="min-h-20 w-full rounded-2xl border px-4 py-3" value={keywordsToText(draft.condition_keywords)} onChange={(e) => setDraft((prev) => ({ ...prev, condition_keywords: textToKeywords(e.target.value) }))} placeholder="lonely, low_mood" />
-            </Field>
-            <Field label="Hobby keywords" optional>
-              <textarea className="min-h-20 w-full rounded-2xl border px-4 py-3" value={keywordsToText(draft.hobby_keywords)} onChange={(e) => setDraft((prev) => ({ ...prev, hobby_keywords: textToKeywords(e.target.value) }))} placeholder="music, cooking" />
-            </Field>
-            <Field label="Avoid if user has" optional>
-              <textarea className="min-h-20 w-full rounded-2xl border px-4 py-3" value={keywordsToText(draft.avoid_condition_keywords)} onChange={(e) => setDraft((prev) => ({ ...prev, avoid_condition_keywords: textToKeywords(e.target.value) }))} placeholder="mobility_severe" />
-            </Field>
-          </div>
-
-          <button className="mt-4 rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white" onClick={() => addCard().catch((err) => setMessage(err.message))}>
-            Add card
-          </button>
-        </section>
-
-        {cards.length === 0 ? (
+        {!setupMissing && (
           <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5">
-            <h2 className="font-serif text-3xl">Setup needed</h2>
-            <p className="mt-2 text-[#7d6b65]">Home cards are not active yet. Run the one-time migration, then refresh this page.</p>
-            <code className="mt-4 block overflow-auto whitespace-pre-wrap break-words rounded-3xl bg-[#2f2135] p-4 text-sm text-white">psql "$DATABASE_URL" -f schema/home_plan_cards.sql</code>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="font-serif text-3xl">Add a card</h2>
+                <p className="mt-2 max-w-3xl text-sm text-[#7d6b65]">
+                  Use this for day-to-day card creation. The deployment migration creates the table and seeds starter cards.
+                </p>
+              </div>
+              <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">{cards.length} cards</span>
+            </div>
+
+            <div className="mt-5 grid gap-3 lg:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_8rem]">
+              <Field label="Card ID"><input className="w-full rounded-2xl border px-4 py-3" value={draft.card_id} onChange={(e) => setDraft((prev) => ({ ...prev, card_id: e.target.value }))} placeholder="music_hour" /></Field>
+              <Field label="Route"><input className="w-full rounded-2xl border px-4 py-3" value={draft.route} onChange={(e) => setDraft((prev) => ({ ...prev, route: e.target.value }))} placeholder="/social-rooms/music-salon" /></Field>
+              <Field label="Icon"><input className="w-full rounded-2xl border px-4 py-3" value={draft.emoji} onChange={(e) => setDraft((prev) => ({ ...prev, emoji: e.target.value }))} /></Field>
+              <Field label="Priority"><input className="w-full rounded-2xl border px-4 py-3" type="number" value={draft.base_priority} onChange={(e) => setDraft((prev) => ({ ...prev, base_priority: Number(e.target.value) }))} /></Field>
+            </div>
+
+            <div className="mt-3 grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+              <Field label="Condition keywords" optional>
+                <textarea className="min-h-20 w-full rounded-2xl border px-4 py-3" value={keywordsToText(draft.condition_keywords)} onChange={(e) => setDraft((prev) => ({ ...prev, condition_keywords: textToKeywords(e.target.value) }))} placeholder="lonely, low_mood" />
+              </Field>
+              <Field label="Hobby keywords" optional>
+                <textarea className="min-h-20 w-full rounded-2xl border px-4 py-3" value={keywordsToText(draft.hobby_keywords)} onChange={(e) => setDraft((prev) => ({ ...prev, hobby_keywords: textToKeywords(e.target.value) }))} placeholder="music, cooking" />
+              </Field>
+              <Field label="Avoid if user has" optional>
+                <textarea className="min-h-20 w-full rounded-2xl border px-4 py-3" value={keywordsToText(draft.avoid_condition_keywords)} onChange={(e) => setDraft((prev) => ({ ...prev, avoid_condition_keywords: textToKeywords(e.target.value) }))} placeholder="mobility_severe" />
+              </Field>
+            </div>
+
+            <button className="mt-4 rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white" onClick={() => addCard().catch((err) => setMessage(err.message))}>
+              Add card
+            </button>
+          </section>
+        )}
+
+        {setupMissing ? (
+          <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5">
+            <h2 className="font-serif text-3xl">Setup pending</h2>
+            <p className="mt-2 max-w-3xl text-[#7d6b65]">
+              Home cards are waiting for the deployment migration. After the latest release runs migrations, refresh this page.
+            </p>
+            <code className="mt-4 block overflow-auto whitespace-pre-wrap break-words rounded-3xl bg-[#2f2135] p-4 text-xs text-white sm:text-sm">migrations/0032_home_plan_cards.sql</code>
+          </section>
+        ) : cards.length === 0 ? (
+          <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5">
+            <h2 className="font-serif text-3xl">No cards yet</h2>
+            <p className="mt-2 max-w-3xl text-[#7d6b65]">
+              The card library is ready. Add a card above to start building the Personalized Today pool.
+            </p>
           </section>
         ) : (
           <section className="mt-5 grid gap-4 xl:grid-cols-2">
