@@ -35,9 +35,14 @@ describe("selectTriageScanOffer", () => {
   });
 
   it("offers stool photos for relevant bowel cases but not severe stool red flags", () => {
-    expect(selectTriageScanOffer({
+    const offer = selectTriageScanOffer({
       selectedAnswers: [symptom("stomach"), answer("no_red_flag"), answer("constipation_passing_gas", "duration")],
-    })?.type).toBe("stool_photo");
+    });
+
+    expect(offer?.type).toBe("stool_photo");
+    expect(offer?.title).toBe("Photo of stool appearance");
+    expect(offer?.body).toBe("If the stool looked unusual for you, a photo may help VYVA note the change.");
+    expect(offer?.privacyNote).toBe("Only photograph the stool itself. Keep faces and ID cards out of the photo. A photo cannot tell if there is bleeding or stomach disease.");
 
     expect(selectTriageScanOffer({
       selectedAnswers: [symptom("stomach"), answer("blood_vomit_stool")],

@@ -261,7 +261,7 @@ describe("TriageChat MediSearch follow-ups", () => {
     });
 
     expect(screen.getByTestId("triage-scan-card")).toBeInTheDocument();
-    expect(screen.getByText("Scan pulse & breathing")).toBeInTheDocument();
+    expect(screen.getByText("Check pulse & breathing")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-triage-scan-skip"));
 
@@ -328,7 +328,7 @@ describe("TriageChat MediSearch follow-ups", () => {
     expect(screen.getByText("Mild redness is visible.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-triage-scan-retake"));
-    expect(screen.getByText("Scan skin or wound")).toBeInTheDocument();
+    expect(screen.getByText("Photo of the skin change")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-triage-scan-now"));
     fireEvent.change(screen.getByTestId("input-triage-scan-photo"), {
