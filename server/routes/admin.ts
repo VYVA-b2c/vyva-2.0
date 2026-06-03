@@ -404,6 +404,98 @@ adminRouter.post("/proxy-confirm/:userId", async (req: Request, res: Response) =
 });
 
 // ============================================================
+// DELETE /proxy-caregiver/:userId
+// Revokes caregiver access for a proxy-managed profile and
+// clears the legacy proxy marker that keeps it in the admin list.
+// ============================================================
+
+adminRouter.delete("/proxy-caregiver/:userId", async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+
+  const { userId } = req.params;
+  const now = new Date();
+
+  try {
+    const [existing] = await db
+      .select({
+        id: profiles.id,
+        proxy_initiator_id: profiles.proxy_initiator_id,
+        caregiver_name: profiles.caregiver_name,
+        caregiver_contact: profiles.caregiver_contact,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, userId))
+      .limit(1);
+
+    if (!existing) {
+      return res.status(404).json({ error: "Profile not found" });
+    }
+
+    const hasProxyAssignment = Boolean(existing.proxy_initiator_id || existing.caregiver_name || existing.caregiver_contact);
+    if (!hasProxyAssignment) {
+      return res.status(400).json({ error: "No caregiver assignment found for this profile" });
+    }
+
+    const revokedMemberships = await db
+      .update(profileMemberships)
+      .set({ status: "revoked", updated_at: now })
+      .where(and(
+        eq(profileMemberships.profile_id, userId),
+        inArray(profileMemberships.role, ["caregiver", "family"]),
+      ))
+      .returning({ id: profileMemberships.id, user_id: profileMemberships.user_id });
+
+    const revokedInvitations = await db
+      .update(teamInvitations)
+      .set({
+        status: "revoked",
+        revoked_at: now,
+        revoked_reason: "removed_by_admin",
+        updated_at: now,
+      })
+      .where(and(
+        eq(teamInvitations.senior_id, userId),
+        inArray(teamInvitations.status, ["pending", "accepted"]),
+      ))
+      .returning({ id: teamInvitations.id });
+
+    const revokedUserIds = [...new Set(revokedMemberships.map((member) => member.user_id))];
+    if (revokedUserIds.length) {
+      await db
+        .update(users)
+        .set({ active_profile_id: null })
+        .where(and(
+          inArray(users.id, revokedUserIds),
+          eq(users.active_profile_id, userId),
+        ));
+    }
+
+    await db
+      .update(profiles)
+      .set({
+        proxy_initiator_id: null,
+        proxy_initiated_at: null,
+        elder_confirmed_at: null,
+        caregiver_name: null,
+        caregiver_contact: null,
+        updated_at: now,
+      })
+      .where(eq(profiles.id, userId));
+
+    return res.json({
+      ok: true,
+      userId,
+      action: "caregiver_removed",
+      revoked_memberships: revokedMemberships.length,
+      revoked_invitations: revokedInvitations.length,
+    });
+  } catch (e) {
+    console.error("[admin] DELETE /proxy-caregiver error:", e);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ============================================================
 // POST /proxy-flag/:userId
 // Creates a caregiver_alert entry flagging the account for
 // manual review (e.g. proxy seems fraudulent or unresponsive).

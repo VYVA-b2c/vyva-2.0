@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   Smartphone,
   UserCheck,
+  UserX,
   Users,
 } from "lucide-react";
 import { VyvaWordmark } from "@/components/VyvaWordmark";
@@ -245,6 +246,7 @@ function CaregiverRow({
 }) {
   const [flagReason, setFlagReason] = useState("");
   const [showFlagInput, setShowFlagInput] = useState(false);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
   const caregiver = caregiverDisplay(profile);
   const dayCount = profile.proxy_initiated_at
@@ -284,6 +286,20 @@ function CaregiverRow({
     onError: () => setActionMsg("Could not flag caregiver."),
   });
 
+  const removeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiFetch(`/api/admin/proxy-caregiver/${profile.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      setActionMsg("Caregiver access removed.");
+      setShowRemoveConfirm(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/proxy-pending"] });
+    },
+    onError: () => setActionMsg("Could not remove caregiver access."),
+  });
+
   return (
     <article
       data-testid={`card-proxy-profile-${profile.id}`}
@@ -313,31 +329,82 @@ function CaregiverRow({
           </div>
         </div>
 
-        {isPending && (
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              data-testid={`button-confirm-${profile.id}`}
-              onClick={() => confirmMutation.mutate()}
-              disabled={confirmMutation.isPending}
-              className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2 text-sm font-black text-white disabled:opacity-50"
-            >
-              <UserCheck size={16} />
-              {confirmMutation.isPending ? "Confirming..." : "Confirm"}
-            </button>
-            <button
-              type="button"
-              data-testid={`button-flag-${profile.id}`}
-              onClick={() => setShowFlagInput((value) => !value)}
-              disabled={flagMutation.isPending}
-              className="inline-flex items-center gap-2 rounded-xl bg-amber-100 px-4 py-2 text-sm font-black text-amber-800 disabled:opacity-50"
-            >
-              <Flag size={16} />
-              Flag
-            </button>
-          </div>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {isPending && (
+            <>
+              <button
+                type="button"
+                data-testid={`button-confirm-${profile.id}`}
+                onClick={() => confirmMutation.mutate()}
+                disabled={confirmMutation.isPending || removeMutation.isPending}
+                className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-green-600 px-4 py-2 text-sm font-black text-white disabled:opacity-50"
+              >
+                <UserCheck size={16} />
+                {confirmMutation.isPending ? "Confirming..." : "Confirm"}
+              </button>
+              <button
+                type="button"
+                data-testid={`button-flag-${profile.id}`}
+                onClick={() => setShowFlagInput((value) => !value)}
+                disabled={flagMutation.isPending || removeMutation.isPending}
+                className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-amber-100 px-4 py-2 text-sm font-black text-amber-800 disabled:opacity-50"
+              >
+                <Flag size={16} />
+                Flag
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            data-testid={`button-remove-caregiver-${profile.id}`}
+            onClick={() => {
+              setShowFlagInput(false);
+              setShowRemoveConfirm((value) => !value);
+            }}
+            disabled={removeMutation.isPending}
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-black text-red-700 disabled:opacity-50"
+          >
+            <UserX size={16} />
+            Remove access
+          </button>
+        </div>
       </div>
+
+      {showRemoveConfirm && (
+        <div
+          data-testid={`panel-remove-caregiver-${profile.id}`}
+          className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4"
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-black text-red-800">Remove {caregiver.name} from this elder account?</p>
+              <p className="mt-1 text-sm font-semibold leading-relaxed text-red-700">
+                This revokes caregiver dashboard access, cancels pending invites, and removes this assignment from the admin list.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                data-testid={`button-remove-caregiver-cancel-${profile.id}`}
+                onClick={() => setShowRemoveConfirm(false)}
+                disabled={removeMutation.isPending}
+                className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-black text-red-700 disabled:opacity-50"
+              >
+                Keep caregiver
+              </button>
+              <button
+                type="button"
+                data-testid={`button-remove-caregiver-confirm-${profile.id}`}
+                onClick={() => removeMutation.mutate()}
+                disabled={removeMutation.isPending}
+                className="rounded-xl bg-red-700 px-4 py-2 text-sm font-black text-white disabled:opacity-50"
+              >
+                {removeMutation.isPending ? "Removing..." : "Yes, remove"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showFlagInput && (
         <div className="mt-4 flex flex-wrap items-center gap-2" data-testid={`form-flag-reason-${profile.id}`}>
