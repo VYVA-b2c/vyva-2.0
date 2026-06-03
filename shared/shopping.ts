@@ -10,6 +10,12 @@ export type ShoppingPriority =
   | "delivery"
   | "safety";
 
+export type ShoppingLocale = "en" | "es";
+
+export type LocalizedText = Record<ShoppingLocale, string>;
+
+export type ShoppingSupportPackageId = string;
+
 export interface ShoppingProduct {
   id: string;
   category: ShoppingCategory;
@@ -31,6 +37,7 @@ export interface ShoppingNeedInput {
   priorities?: ShoppingPriority[];
   constraints?: string[];
   locale?: string;
+  packageId?: string | null;
 }
 
 export interface ShoppingRecommendation {
@@ -57,11 +64,23 @@ export interface ShoppingRecommendationResponse {
   nextQuestions: string[];
 }
 
-type Locale = "en" | "es";
+export interface ShoppingSupportPackageDefinition {
+  id: ShoppingSupportPackageId;
+  label: LocalizedText;
+  description: LocalizedText;
+  needText: LocalizedText;
+  category: ShoppingCategoryChoice;
+  priorities: ShoppingPriority[];
+  constraints: Record<Locale, string[]>;
+  ctaLabel: LocalizedText;
+  serviceRequest?: boolean;
+  productIds?: string[];
+  isEnabled?: boolean;
+  priority?: number;
+  adminNotes?: string | null;
+}
 
-type LocalizedText = Record<Locale, string>;
-
-interface CatalogProduct {
+export interface ShoppingCatalogProduct {
   id: string;
   category: ShoppingCategory;
   name: LocalizedText;
@@ -76,6 +95,13 @@ interface CatalogProduct {
   priceTier: "low" | "medium" | "high";
 }
 
+type Locale = ShoppingLocale;
+
+export type BuildShoppingRecommendationsOptions = {
+  catalog?: ShoppingCatalogProduct[];
+  packageProductIds?: string[];
+};
+
 export const SHOPPING_CATEGORY_LABELS: Record<ShoppingCategory, LocalizedText> = {
   groceries: { en: "Groceries", es: "Compra" },
   pharmacy_basics: { en: "Pharmacy basics", es: "Farmacia basica" },
@@ -88,7 +114,95 @@ export const SHOPPING_CATEGORY_CHOICE_LABELS: Record<ShoppingCategoryChoice, Loc
   ...SHOPPING_CATEGORY_LABELS,
 };
 
-const catalog: CatalogProduct[] = [
+export const SHOPPING_SUPPORT_PACKAGES: Record<ShoppingSupportPackageId, ShoppingSupportPackageDefinition> = {
+  hydration_support: {
+    id: "hydration_support",
+    label: { en: "Hydration support", es: "Apoyo de hidratacion" },
+    description: {
+      en: "Compare water, oral rehydration salts, and electrolyte drinks without starting checkout.",
+      es: "Compare agua, sales de rehidratacion oral y bebidas con electrolitos sin iniciar compra.",
+    },
+    needText: {
+      en: "Hydration support: water, oral rehydration salts, or electrolyte drinks that are simple to use and easy to carry.",
+      es: "Apoyo de hidratacion: agua, sales de rehidratacion oral o bebidas con electrolitos que sean sencillas y faciles de llevar.",
+    },
+    category: "groceries",
+    priorities: ["delivery", "simplicity"],
+    constraints: {
+      en: ["no heavy lifting", "check sugar or fluid restrictions"],
+      es: ["sin cargar peso", "revisar azucar o restriccion de liquidos"],
+    },
+    ctaLabel: { en: "Compare hydration", es: "Comparar hidratacion" },
+    productIds: ["small-water-bottle-multipack", "low-sugar-electrolyte-drinks", "oral-rehydration-sachets"],
+    priority: 90,
+  },
+  easy_meals: {
+    id: "easy_meals",
+    label: { en: "Easy meals", es: "Comidas faciles" },
+    description: {
+      en: "Simple groceries and pantry options for low-effort meals.",
+      es: "Compra sencilla y opciones de despensa para comer con poco esfuerzo.",
+    },
+    needText: {
+      en: "Easy meals after a health check: soft foods, pantry meals, and simple low-effort choices.",
+      es: "Comidas faciles tras una revision de salud: alimentos blandos, comidas de despensa y opciones sencillas.",
+    },
+    category: "groceries",
+    priorities: ["simplicity", "delivery"],
+    constraints: {
+      en: ["easy to open", "simple preparation"],
+      es: ["facil de abrir", "preparacion sencilla"],
+    },
+    ctaLabel: { en: "Compare easy meals", es: "Comparar comidas" },
+    productIds: ["low-sodium-lentil-soup", "ready-cut-soft-fruit", "plain-protein-yogurt", "wholegrain-porridge-oats"],
+    priority: 80,
+  },
+  pharmacy_basics: {
+    id: "pharmacy_basics",
+    label: { en: "Pharmacy basics", es: "Basicos de farmacia" },
+    description: {
+      en: "Basic supplies with a reminder to ask a pharmacist or doctor when unsure.",
+      es: "Suministros basicos con recordatorio de consultar a farmacia o medico si hay dudas.",
+    },
+    needText: {
+      en: "Pharmacy basics for a health support kit: simple, clearly labelled items and no medication advice.",
+      es: "Basicos de farmacia para un kit de apoyo: articulos sencillos, bien etiquetados y sin consejo de medicacion.",
+    },
+    category: "pharmacy_basics",
+    priorities: ["simplicity", "safety"],
+    constraints: {
+      en: ["check with a pharmacist", "do not change medicines"],
+      es: ["consultar con farmacia", "no cambiar medicinas"],
+    },
+    ctaLabel: { en: "Compare basics", es: "Comparar basicos" },
+    productIds: ["large-print-pill-organizer", "large-display-thermometer", "oral-rehydration-sachets", "fragrance-free-moisturizer"],
+    priority: 70,
+  },
+  home_support: {
+    id: "home_support",
+    label: { en: "Home support", es: "Apoyo en casa" },
+    description: {
+      en: "Prepare a support request for help at home, with confirmation before anyone is contacted.",
+      es: "Prepare una solicitud de apoyo en casa, con confirmacion antes de contactar a nadie.",
+    },
+    needText: {
+      en: "Home support after a health recommendation: someone to check in, help at home, or stay nearby.",
+      es: "Apoyo en casa tras una recomendacion de salud: alguien que revise, ayude en casa o este cerca.",
+    },
+    category: "safe_home",
+    priorities: ["safety", "accessibility"],
+    constraints: {
+      en: ["confirm before contacting anyone", "no product checkout"],
+      es: ["confirmar antes de contactar a nadie", "sin compra de productos"],
+    },
+    ctaLabel: { en: "Prepare support", es: "Preparar apoyo" },
+    serviceRequest: true,
+    productIds: ["motion-night-lights", "non-slip-shower-mat", "grabber-reacher", "raised-toilet-seat-arms"],
+    priority: 60,
+  },
+};
+
+export const STATIC_SHOPPING_CATALOG: ShoppingCatalogProduct[] = [
   {
     id: "low-sodium-lentil-soup",
     category: "groceries",
@@ -204,6 +318,93 @@ const catalog: CatalogProduct[] = [
     },
     availabilityLabel: { en: "Long shelf life", es: "Caducidad larga" },
     priceTier: "low",
+  },
+  {
+    id: "small-water-bottle-multipack",
+    category: "groceries",
+    name: { en: "Small water bottle multipack", es: "Pack de botellas pequenas de agua" },
+    priceLabel: { en: "Low cost", es: "Precio bajo" },
+    description: {
+      en: "Small bottles of water that are easier to lift, open, and keep nearby.",
+      es: "Botellas pequenas de agua mas faciles de levantar, abrir y tener cerca.",
+    },
+    benefits: {
+      en: ["Easy to keep nearby", "Small bottles are lighter", "Simple option"],
+      es: ["Facil de tener cerca", "Botellas pequenas mas ligeras", "Opcion sencilla"],
+    },
+    tags: ["food", "water", "hydration", "fluids", "delivery", "low_lift", "simple", "budget"],
+    suitability: {
+      en: ["Good when drinks need to be close at hand", "Helpful when large bottles are too heavy"],
+      es: ["Buena cuando las bebidas deben estar a mano", "Util si las botellas grandes pesan demasiado"],
+    },
+    cautions: {
+      en: ["Ask a clinician if you have been told to limit fluids."],
+      es: ["Consulte a un clinico si le han indicado limitar liquidos."],
+    },
+    accessibilityNotes: {
+      en: ["Choose easy-open caps if hand strength is limited."],
+      es: ["Elija tapones faciles de abrir si tiene poca fuerza en las manos."],
+    },
+    availabilityLabel: { en: "Usually easy to order with groceries", es: "Suele pedirse facilmente con la compra" },
+    priceTier: "low",
+  },
+  {
+    id: "low-sugar-electrolyte-drinks",
+    category: "groceries",
+    name: { en: "Low-sugar electrolyte drinks", es: "Bebidas con electrolitos bajas en azucar" },
+    priceLabel: { en: "Medium cost", es: "Precio medio" },
+    description: {
+      en: "Ready-to-drink electrolyte bottles for short-term hydration support.",
+      es: "Botellas listas para tomar con electrolitos para apoyo puntual de hidratacion.",
+    },
+    benefits: {
+      en: ["No mixing needed", "Easy to sip", "Delivery friendly"],
+      es: ["Sin mezclar", "Facil de beber a sorbos", "Apta para entrega"],
+    },
+    tags: ["food", "hydration", "fluids", "electrolyte", "delivery", "simple", "sugar"],
+    suitability: {
+      en: ["Good when mixing powders is inconvenient", "Helpful for a short support kit"],
+      es: ["Buena si mezclar polvos no es comodo", "Util para un kit de apoyo puntual"],
+    },
+    cautions: {
+      en: ["Check sugar, salt, kidney, heart, or fluid-restriction advice before choosing."],
+      es: ["Revise azucar, sal y consejo sobre rinon, corazon o restriccion de liquidos antes de elegir."],
+    },
+    accessibilityNotes: {
+      en: ["Pick smaller bottles if carrying or grip is difficult."],
+      es: ["Elija botellas pequenas si cargar o agarrar cuesta."],
+    },
+    availabilityLabel: { en: "Common grocery or pharmacy item", es: "Comun en supermercado o farmacia" },
+    priceTier: "medium",
+  },
+  {
+    id: "oral-rehydration-sachets",
+    category: "pharmacy_basics",
+    name: { en: "Oral rehydration salt sachets", es: "Sobres de sales de rehidratacion oral" },
+    priceLabel: { en: "Medium cost", es: "Precio medio" },
+    description: {
+      en: "Sachets that mix with water for oral rehydration support.",
+      es: "Sobres que se mezclan con agua para apoyo de rehidratacion oral.",
+    },
+    benefits: {
+      en: ["Small to store", "Clear portions", "Useful pharmacy basic"],
+      es: ["Ocupan poco", "Porciones claras", "Basico util de farmacia"],
+    },
+    tags: ["pharmacy", "hydration", "fluids", "rehydration", "oral_rehydration", "electrolyte", "simple", "safety"],
+    suitability: {
+      en: ["Good to ask a pharmacist about", "Useful when a clinician recommends rehydration support"],
+      es: ["Buena para consultar con farmacia", "Util cuando un clinico recomienda apoyo de rehidratacion"],
+    },
+    cautions: {
+      en: ["Ask a pharmacist or doctor first if symptoms are severe, ongoing, or fluids are difficult."],
+      es: ["Consulte primero a farmacia o medico si los sintomas son fuertes, continuos o cuesta tomar liquidos."],
+    },
+    accessibilityNotes: {
+      en: ["Check that mixing instructions are large enough to read."],
+      es: ["Compruebe que las instrucciones de mezcla sean faciles de leer."],
+    },
+    availabilityLabel: { en: "Common pharmacy item", es: "Articulo comun de farmacia" },
+    priceTier: "medium",
   },
   {
     id: "large-print-pill-organizer",
@@ -556,8 +757,8 @@ const catalog: CatalogProduct[] = [
 ];
 
 const CATEGORY_KEYWORDS: Record<ShoppingCategory, string[]> = {
-  groceries: ["food", "meal", "grocery", "groceries", "fruit", "breakfast", "soup", "eat", "snack", "compra", "comida", "fruta", "desayuno", "sopa"],
-  pharmacy_basics: ["pharmacy", "medicine", "pill", "skin", "thermometer", "fever", "cream", "medication", "farmacia", "medicina", "pastilla", "piel", "termometro", "fiebre", "crema"],
+  groceries: ["food", "meal", "grocery", "groceries", "fruit", "breakfast", "soup", "eat", "snack", "water", "hydration", "fluids", "electrolyte", "compra", "comida", "fruta", "desayuno", "sopa", "agua", "liquidos", "hidratacion"],
+  pharmacy_basics: ["pharmacy", "medicine", "pill", "skin", "thermometer", "fever", "cream", "medication", "rehydration", "oral rehydration", "farmacia", "medicina", "pastilla", "piel", "termometro", "fiebre", "crema", "rehidratacion"],
   household: ["home", "house", "clean", "laundry", "kitchen", "jar", "light", "night", "hallway", "hogar", "casa", "limpieza", "ropa", "cocina", "tarro", "luz", "noche", "pasillo"],
   mobility_aids: ["mobility", "walking", "fall", "shower", "bathroom", "bend", "reach", "toilet", "standing", "slip", "movilidad", "caminar", "caida", "ducha", "bano", "agachar", "alcanzar", "wc", "resbalar"],
 };
@@ -656,7 +857,7 @@ function homeSafetyNeedLabels(text: string): string[] {
     .map((intent) => intent.label);
 }
 
-function homeSafetyMatches(product: CatalogProduct, text: string): string[] {
+function homeSafetyMatches(product: ShoppingCatalogProduct, text: string): string[] {
   if (!text) return [];
   return HOME_SAFETY_INTENTS
     .filter((intent) => (
@@ -666,7 +867,7 @@ function homeSafetyMatches(product: CatalogProduct, text: string): string[] {
     .map((intent) => intent.label);
 }
 
-function homeSafetySpecificBonus(product: CatalogProduct, text: string): number {
+function homeSafetySpecificBonus(product: ShoppingCatalogProduct, text: string): number {
   let bonus = 0;
   if ((includesTerm(text, "shower") || includesTerm(text, "ducha")) && product.tags.includes("shower")) bonus += 16;
   if ((includesTerm(text, "toilet") || includesTerm(text, "wc")) && product.tags.includes("toilet")) bonus += 16;
@@ -677,7 +878,7 @@ function homeSafetySpecificBonus(product: CatalogProduct, text: string): number 
   return bonus;
 }
 
-function productHasHomeSafetyRole(product: CatalogProduct): boolean {
+function productHasHomeSafetyRole(product: ShoppingCatalogProduct): boolean {
   return product.tags.some((tag) => HOME_SAFETY_PRODUCT_TAGS.has(tag));
 }
 
@@ -709,7 +910,7 @@ function inferPriorities(text: string, explicit: ShoppingPriority[] = []): Shopp
   return Array.from(priorities);
 }
 
-function localizeProduct(product: CatalogProduct, locale: Locale): ShoppingProduct {
+function localizeProduct(product: ShoppingCatalogProduct, locale: Locale): ShoppingProduct {
   return {
     id: product.id,
     category: product.category,
@@ -735,11 +936,11 @@ function excludedTagsFor(text: string, constraints: string[]): Set<string> {
   );
 }
 
-function tagHits(product: CatalogProduct, terms: string[]): string[] {
+function tagHits(product: ShoppingCatalogProduct, terms: string[]): string[] {
   return product.tags.filter((tag) => terms.some((term) => includesTerm(tag, term) || includesTerm(term, tag)));
 }
 
-function textHits(product: CatalogProduct, text: string): string[] {
+function textHits(product: ShoppingCatalogProduct, text: string): string[] {
   if (!text) return [];
   const terms = normalizeText(text).split(" ").filter((term) => term.length >= 4);
   const haystack = [
@@ -799,6 +1000,11 @@ function reasonCopy(locale: Locale, product: ShoppingProduct, priorities: Shoppi
       ? "Separa medicinas por dia para que sean mas faciles de revisar."
       : "Keeps medicines separated by day so they are easier to check.");
   }
+  if (product.tags.includes("hydration") && reasons.length < 2) {
+    reasons.push(locale === "es"
+      ? "Ayuda a tener bebidas o apoyo de hidratacion a mano."
+      : "Helps keep drinks or hydration support close at hand.");
+  }
   if (matchedTags.length > 0 && reasons.length < 2) {
     reasons.push(locale === "es"
       ? "Coincide con lo que ha pedido."
@@ -833,6 +1039,9 @@ function tradeoffCopy(locale: Locale, product: ShoppingProduct): string[] {
   if (product.tags.includes("fresh")) {
     tradeoffs.push(locale === "es" ? "Debe consumirse antes que productos de despensa." : "It needs using sooner than pantry items.");
   }
+  if (product.tags.includes("hydration") && product.category === "pharmacy_basics") {
+    tradeoffs.push(locale === "es" ? "Conviene consultar con farmacia o medico si los sintomas son fuertes." : "Ask a pharmacist or doctor if symptoms are strong.");
+  }
   if (tradeoffs.length === 0) {
     tradeoffs.push(locale === "es" ? "Revise tamano, etiqueta y facilidad de apertura." : "Check size, label, and ease of opening.");
   }
@@ -851,8 +1060,8 @@ function noMatchResponse(locale: Locale, text: string): ShoppingRecommendationRe
       bestFor: [],
     },
     uncertaintyNote: locale === "es"
-      ? "VYVA solo recomienda desde el catalogo de prueba y no debe inventar productos."
-      : "VYVA only recommends from the test catalog and should not invent products.",
+      ? "VYVA solo recomienda desde el catalogo aprobado y no debe inventar productos."
+      : "VYVA only recommends from the approved catalog and should not invent products.",
     nextQuestions: locale === "es"
       ? ["Bano mas seguro por la noche", "Menos agacharse en casa", "No confundir medicinas"]
       : ["Safer bathroom at night", "Less bending at home", "Avoid mixing medicines"],
@@ -861,13 +1070,24 @@ function noMatchResponse(locale: Locale, text: string): ShoppingRecommendationRe
 
 export function getShoppingCatalog(localeInput: unknown = "en"): ShoppingProduct[] {
   const locale = localeFrom(localeInput);
-  return catalog.map((product) => localizeProduct(product, locale));
+  return STATIC_SHOPPING_CATALOG.map((product) => localizeProduct(product, locale));
 }
 
-export function buildShoppingRecommendations(input: ShoppingNeedInput): ShoppingRecommendationResponse {
+export function getStaticShoppingSupportPackages(): ShoppingSupportPackageDefinition[] {
+  return Object.values(SHOPPING_SUPPORT_PACKAGES)
+    .filter((item) => item.isEnabled !== false)
+    .sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0) || a.id.localeCompare(b.id));
+}
+
+export function buildShoppingRecommendations(
+  input: ShoppingNeedInput,
+  options: BuildShoppingRecommendationsOptions = {},
+): ShoppingRecommendationResponse {
   const locale = localeFrom(input.locale);
   const needText = input.needText?.trim() ?? "";
   const constraints = input.constraints ?? [];
+  const sourceCatalog = options.catalog?.length ? options.catalog : STATIC_SHOPPING_CATALOG;
+  const packageProductIds = new Set(options.packageProductIds ?? []);
   const combinedText = [needText, ...constraints].join(" ");
   const normalizedNeed = normalizeText(combinedText);
   const selectedCategory = normalizeCategory(input.category);
@@ -882,9 +1102,10 @@ export function buildShoppingRecommendations(input: ShoppingNeedInput): Shopping
     return noMatchResponse(locale, normalizedNeed);
   }
 
-  const scored = catalog
+  const scored = sourceCatalog
     .map((raw) => {
       const product = localizeProduct(raw, locale);
+      const packageLinked = packageProductIds.has(raw.id);
       const excluded = raw.tags.some((tag) => excludedTags.has(tag));
       const textMatches = textHits(raw, normalizedNeed);
       const safetyMatches = homeSafetyMatches(raw, normalizedNeed);
@@ -906,6 +1127,14 @@ export function buildShoppingRecommendations(input: ShoppingNeedInput): Shopping
       if (homeSafetyMode && productHasHomeSafetyRole(raw) && (safetyMatches.length > 0 || textMatches.length > 0)) score += 12;
       if (safeHomeChoice && !safetyMatches.length && !textMatches.length) score -= 35;
       if (homeSafetyMode && raw.category === "groceries") score -= 18;
+      const hydrationIntent = /(hydrat|fluid|water|electrolyte|rehydrat|agua|liquidos|hidratacion|rehidratacion)/i.test(normalizedNeed);
+      if (hydrationIntent && raw.tags.includes("hydration")) score += 22;
+      if (hydrationIntent && raw.tags.includes("electrolyte")) score += 8;
+      if (hydrationIntent && raw.tags.includes("water")) score += 8;
+      if (hydrationIntent && !raw.tags.includes("hydration")) score -= 18;
+      if (packageProductIds.size > 0) {
+        score += packageLinked ? 24 : -6;
+      }
       const medicationIntent = /(medicine|medication|pill|pastilla|medicina)/i.test(normalizedNeed);
       if (medicationIntent && raw.tags.some((tag) => ["medicine", "medication", "pill"].includes(tag))) {
         score += 14;
@@ -922,13 +1151,29 @@ export function buildShoppingRecommendations(input: ShoppingNeedInput): Shopping
         sortScore: score,
         matchedTags: Array.from(new Set([...textMatches, ...priorityMatches, ...safetyMatches])),
         matchedIntents: safetyMatches,
+        packageLinked,
         excluded,
       };
     })
     .filter((item) => !item.excluded)
     .sort((a, b) => b.sortScore - a.sortScore);
 
-  const viable = scored.filter((item) => item.score >= 35);
+  const baseViable = scored.filter((item) => item.score >= 35);
+  const packageViable = packageProductIds.size > 0
+    ? scored.filter((item) => item.packageLinked && item.score >= 25)
+    : [];
+  const packageFirst = packageViable.length > 0
+    ? [
+      ...packageViable,
+      ...baseViable.filter((item) => !packageProductIds.has(item.raw.id)),
+    ]
+    : baseViable;
+  const seenIds = new Set<string>();
+  const viable = packageFirst.filter((item) => {
+    if (seenIds.has(item.raw.id)) return false;
+    seenIds.add(item.raw.id);
+    return true;
+  });
   const bestScore = viable[0]?.score ?? 0;
   if (bestScore < 35) {
     return noMatchResponse(locale, normalizedNeed);
@@ -978,8 +1223,8 @@ export function buildShoppingRecommendations(input: ShoppingNeedInput): Shopping
         ? "Para articulos de farmacia, VYVA no sustituye a un farmaceutico, medico ni consejo sobre medicacion."
         : "For pharmacy items, VYVA does not replace a pharmacist, doctor, or medication advice.")
       : (locale === "es"
-        ? "Estas son opciones informativas de un catalogo de prueba; revise etiquetas, medidas y disponibilidad antes de comprar."
-        : "These are informational choices from a test catalog; check labels, measurements, and availability before buying."),
+        ? "Estas son opciones informativas del catalogo aprobado de VYVA; revise etiquetas, medidas y disponibilidad antes de comprar."
+        : "These are informational choices from VYVA's approved catalog; check labels, measurements, and availability before buying."),
     nextQuestions: locale === "es"
       ? ["Quiere priorizar precio, facilidad o seguridad?", "Hay alergias, dieta o movilidad que deba tener en cuenta?", "Prefiere algo ligero o con entrega a domicilio?"]
       : ["Would you like to prioritise price, ease, or safety?", "Are there allergies, diet needs, or mobility needs to consider?", "Do you prefer something lightweight or delivery-friendly?"],
