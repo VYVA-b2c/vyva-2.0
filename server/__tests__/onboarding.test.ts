@@ -343,7 +343,7 @@ describe("Onboarding journey — end-to-end", () => {
         role: "family",
         person: { name: "Mary User", relationship: "Daughter", phone: "07700900000", email: "mary@example.com" },
         consent: { daily_summary: true, emergency_alerts: true },
-        invite_channel: "whatsapp",
+        invite_channel: "sms",
       })
       .expect(200);
 
@@ -353,7 +353,7 @@ describe("Onboarding journey — end-to-end", () => {
     expect(res.body._devInviteUrl).toContain("/care-team/invite/");
 
     const channels = (res.body.delivery.results as Array<{ channel: string }>).map((item) => item.channel).sort();
-    expect(channels).toEqual(["email", "whatsapp"]);
+    expect(channels).toEqual(["email", "sms"]);
 
     const communications = await db
       .select()
@@ -368,6 +368,21 @@ describe("Onboarding journey — end-to-end", () => {
     const mary = roster.body.members.find((member: { invitee_name: string }) => member.invitee_name === "Mary User");
     expect(mary.latest_delivery_status).toBeTruthy();
     expect(mary.latest_delivery_channel).toBeTruthy();
+  });
+
+  it("POST /section/careteam requires caregiver email because invites always send SMS and email", async () => {
+    const res = await request(app)
+      .post("/api/onboarding/section/careteam")
+      .set("x-user-id", TEST_USER_ID)
+      .send({
+        role: "family",
+        person: { name: "Email Missing", relationship: "Daughter", phone: "07700900001" },
+        consent: { daily_summary: true, emergency_alerts: true },
+        invite_channel: "sms",
+      })
+      .expect(400);
+
+    expect(res.body).toHaveProperty("error");
   });
 
   it("POST /careteam/:id/resend refreshes a pending invitation token and queues delivery", async () => {
