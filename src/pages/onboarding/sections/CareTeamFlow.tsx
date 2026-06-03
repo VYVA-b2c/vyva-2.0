@@ -7,7 +7,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   HeartHandshake,
-  MessageCircle,
   ShieldCheck,
   Smartphone,
   Stethoscope,
@@ -27,7 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 
 type Role = "family" | "carer" | "doctor";
-type InviteChannel = "whatsapp" | "sms";
+type InviteChannel = "sms";
 type Step = 1 | 2 | 3 | 4 | 5;
 type Mode = "roster" | "adding";
 
@@ -230,7 +229,7 @@ export default function CareTeamFlow() {
   const [role, setRole] = useState<Role>("family");
   const [person, setPerson] = useState<PersonForm>({ name: "", relationship: "", phone: "", whatsapp: "", email: "" });
   const [consent, setConsent] = useState<ConsentState>(defaultConsent("family"));
-  const [inviteChannel, setInviteChannel] = useState<InviteChannel>("whatsapp");
+  const [inviteChannel, setInviteChannel] = useState<InviteChannel>("sms");
   const [saving, setSaving] = useState(false);
   const [confirmingRevokeId, setConfirmingRevokeId] = useState<string | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
@@ -633,7 +632,7 @@ export default function CareTeamFlow() {
 
           <Button
             onClick={() => setStep(3)}
-            disabled={!person.name.trim() || !person.phone.trim()}
+            disabled={!person.name.trim() || !person.phone.trim() || !person.email.trim()}
             className="h-14 w-full rounded-full bg-[#6B21A8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5B1A8F] disabled:opacity-40"
           >
             {t("onboarding.careTeam.step2.continue")}
@@ -727,24 +726,16 @@ export default function CareTeamFlow() {
     const channelOptions: Array<{
       id: InviteChannel;
       icon: LucideIcon;
-      titleKey: string;
+      title: string;
       contact: string;
       bg: string;
       iconColor: string;
     }> = [
       {
-        id: "whatsapp",
-        icon: MessageCircle,
-        titleKey: "onboarding.careTeam.step4.channelWhatsapp",
-        contact: person.whatsapp || person.phone,
-        bg: "#ECFDF5",
-        iconColor: "#0A7C4E",
-      },
-      {
         id: "sms",
         icon: Smartphone,
-        titleKey: "onboarding.careTeam.step4.channelSms",
-        contact: person.phone,
+        title: t("onboarding.careTeam.step4.channelSmsEmail", "SMS + email"),
+        contact: `${person.phone} + ${person.email}`,
         bg: "#EFF6FF",
         iconColor: "#1D4ED8",
       },
@@ -784,7 +775,7 @@ export default function CareTeamFlow() {
                     <Icon size={26} style={{ color: opt.iconColor }} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-body text-[18px] font-black text-vyva-text-1">{t(opt.titleKey)}</p>
+                    <p className="font-body text-[18px] font-black text-vyva-text-1">{opt.title}</p>
                     <p className="mt-1 truncate font-body text-[14px] font-semibold text-vyva-text-2">
                       {t("onboarding.careTeam.step4.channelTo", { contact: opt.contact })}
                     </p>

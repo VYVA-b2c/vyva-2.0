@@ -537,6 +537,10 @@ onboardingRouter.post("/careteam/:id/resend", async (req: Request, res: Response
       return res.status(400).json({ error: "Only pending or expired invitations can be resent" });
     }
 
+    if (!normalizeRecipient(orig.invitee_phone) || !normalizeRecipient(orig.invitee_email)) {
+      return res.status(400).json({ error: "Caregiver phone and email are required to resend an invitation" });
+    }
+
     const newToken = crypto.randomUUID();
     const newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
@@ -1274,9 +1278,9 @@ const sectionSchemas: Record<string, z.ZodTypeAny> = {
     person: z.object({
       name:         z.string(),
       relationship: z.string().optional(),
-      phone:        z.string().optional(),
+      phone:        z.string().trim().min(1, "Phone is required"),
       whatsapp:     z.string().optional(),
-      email:        z.string().optional(),
+      email:        z.string().trim().email("Email is required"),
     }),
     consent: z.object({
       // Fields that map directly to team_invitations columns:
@@ -1354,18 +1358,21 @@ function normalizeRecipient(value: string | null | undefined) {
   return trimmed && trimmed.length > 0 ? trimmed : null;
 }
 
-function preferredDeliveryTarget(invitation: {
-  invite_channel: string;
+function requiredCareTeamRecipients(invitation: {
   invitee_phone: string | null;
-  invitee_whatsapp: string | null;
+  invitee_email: string | null;
 }) {
-  if (invitation.invite_channel === "whatsapp_text") {
-    const recipient = normalizeRecipient(invitation.invitee_phone);
-    return recipient ? { channel: "sms", recipient } : null;
+  const smsRecipient = normalizeRecipient(invitation.invitee_phone);
+  const emailRecipient = normalizeRecipient(invitation.invitee_email);
+
+  if (!smsRecipient || !emailRecipient) {
+    throw new Error("Caregiver phone and email are required to send a care-team invitation.");
   }
 
-  const recipient = normalizeRecipient(invitation.invitee_whatsapp) ?? normalizeRecipient(invitation.invitee_phone);
-  return recipient ? { channel: "whatsapp", recipient } : null;
+  return [
+    { channel: "sms", recipient: smsRecipient },
+    { channel: "email", recipient: emailRecipient },
+  ];
 }
 
 function careTeamInviteBody(input: {
@@ -1388,12 +1395,7 @@ async function queueAndDispatchCareTeamInvite(input: {
     inviteeName: input.invitation.invitee_name,
     inviteUrl,
   });
-  const preferred = preferredDeliveryTarget(input.invitation);
-  const emailRecipient = normalizeRecipient(input.invitation.invitee_email);
-  const recipients = [
-    preferred,
-    emailRecipient ? { channel: "email", recipient: emailRecipient } : null,
-  ].filter((item): item is { channel: string; recipient: string } => Boolean(item));
+  const recipients = requiredCareTeamRecipients(input.invitation);
 
   const dedupedRecipients = Array.from(
     new Map(recipients.map((item) => [`${item.channel}:${item.recipient.toLowerCase()}`, item])).values(),
@@ -1626,7 +1628,7 @@ onboardingRouter.post("/section/:sectionId", async (req: Request, res: Response)
     } else if (sectionId === "careteam") {
       const ct = data as {
         role: "family" | "carer" | "doctor";
-        person: { name: string; relationship?: string; phone?: string; whatsapp?: string; email?: string };
+        person: { name: string; relationship?: string; phone: string; whatsapp?: string; email: string };
         consent?: Record<string, boolean>;
         invite_channel?: "whatsapp" | "sms";
       };
@@ -1635,9 +1637,7 @@ onboardingRouter.post("/section/:sectionId", async (req: Request, res: Response)
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       const inviteToken = crypto.randomUUID();
 
-      const inviteChannel = ct.invite_channel === "sms"
-        ? ("whatsapp_text" as const)
-        : ("whatsapp_outbound" as const);
+      const inviteChannel = "whatsapp_text" as const;
 
       const consent = ct.consent ?? {};
 
