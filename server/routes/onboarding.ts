@@ -1381,7 +1381,7 @@ function careTeamInviteBody(input: {
   inviteUrl: string;
 }) {
   const seniorName = displayNameOrFallback(input.seniorName);
-  return `VYVA: ${seniorName} invited you to join their care team. Use this secure link to sign in or create your own account: ${input.inviteUrl}`;
+  return `VYVA: ${seniorName} invited you to their care team. Review and accept securely: ${input.inviteUrl}`;
 }
 
 async function queueAndDispatchCareTeamInvite(input: {
@@ -1416,10 +1416,12 @@ async function queueAndDispatchCareTeamInvite(input: {
       body,
       metadata: {
         url: inviteUrl,
-        subject: "VYVA care team invitation",
+        subject: `${displayNameOrFallback(input.seniorName)} invited you to their VYVA care team`,
         invitation_id: input.invitation.id,
         senior_id: input.invitation.senior_id,
+        senior_name: displayNameOrFallback(input.seniorName),
         invitee_name: input.invitation.invitee_name,
+        recipient_name: input.invitation.invitee_name,
         target_role: input.invitation.role,
         relationship: input.invitation.relationship,
       },
