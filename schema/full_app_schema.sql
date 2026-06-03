@@ -194,6 +194,7 @@ CREATE TABLE "profiles" (
 	"full_name" text,
 	"date_of_birth" text,
 	"language" text DEFAULT 'en' NOT NULL,
+	"language_preference" text,
 	"deployment" text DEFAULT 'standard' NOT NULL,
 	"mem0_user_id" text,
 	"stripe_customer_id" text,

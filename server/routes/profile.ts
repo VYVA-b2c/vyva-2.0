@@ -88,6 +88,21 @@ function samePhone(a: string | null | undefined, b: string | null | undefined): 
   return Boolean(a && b && a.replace(/\s+/g, "") === b.replace(/\s+/g, ""));
 }
 
+function isMissingColumnError(err: unknown, column: string): boolean {
+  const error = err as { code?: unknown; message?: unknown };
+  const message = typeof error.message === "string" ? error.message : String(err);
+  return (
+    message.includes(`column "${column}" does not exist`) ||
+    message.includes(`column profiles.${column} does not exist`) ||
+    message.includes(`column "profiles"."${column}" does not exist`)
+  );
+}
+
+function withoutLanguagePreference<T extends Record<string, unknown>>(values: T): Omit<T, "language_preference"> {
+  const { language_preference: _languagePreference, ...rest } = values;
+  return rest;
+}
+
 /**
  * Returns the authenticated user's ID if a valid JWT was present (set by
  * authMiddleware), or the demo-user fallback in non-production environments.
@@ -901,6 +916,50 @@ router.patch("/channel-preferences", async (req: Request, res: Response) => {
   }
 });
 
+const profileSettingsSelection = {
+  id: profiles.id,
+  full_name: profiles.full_name,
+  preferred_name: profiles.preferred_name,
+  date_of_birth: profiles.date_of_birth,
+  data_sharing_consent: profiles.data_sharing_consent,
+  email: profiles.email,
+  phone_number: profiles.phone_number,
+  whatsapp_number: profiles.whatsapp_number,
+  country_code: profiles.country_code,
+  timezone: profiles.timezone,
+  language: profiles.language,
+  language_preference: profiles.language_preference,
+  address_line_1: profiles.address_line_1,
+  city: profiles.city,
+  postcode: profiles.postcode,
+  caregiver_name: profiles.caregiver_name,
+  caregiver_contact: profiles.caregiver_contact,
+  gp_name: profiles.gp_name,
+  gp_phone: profiles.gp_phone,
+  gp_email: profiles.gp_email,
+  avatar_url: profiles.avatar_url,
+};
+
+const legacyProfileSettingsSelection = withoutLanguagePreference(profileSettingsSelection);
+
+async function selectProfileSettingsRows(userId: string) {
+  try {
+    return await db
+      .select(profileSettingsSelection)
+      .from(profiles)
+      .where(eq(profiles.id, userId))
+      .limit(1);
+  } catch (err) {
+    if (!isMissingColumnError(err, "language_preference")) throw err;
+    const rows = await db
+      .select(legacyProfileSettingsSelection)
+      .from(profiles)
+      .where(eq(profiles.id, userId))
+      .limit(1);
+    return rows.map((row) => ({ ...row, language_preference: null }));
+  }
+}
+
 router.get("/", async (req: Request, res: Response) => {
   const userId = await resolveUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
@@ -908,11 +967,7 @@ router.get("/", async (req: Request, res: Response) => {
 
   try {
     const [rows, accountRows] = await Promise.all([
-      db
-        .select()
-        .from(profiles)
-        .where(eq(profiles.id, userId))
-        .limit(1),
+      selectProfileSettingsRows(userId),
       accountUserId
         ? db
             .select({ email: users.email, phone_number: users.phone_number })
@@ -1017,21 +1072,35 @@ router.patch("/language", async (req: Request, res: Response) => {
   const language = normalizeProfileLanguage(parsed.data.language);
 
   try {
-    await db
-      .insert(profiles)
-      .values({
-        id: userId,
-        language,
-        language_preference: language,
-      })
-      .onConflictDoUpdate({
-        target: profiles.id,
-        set: {
-          language,
-          language_preference: language,
-          updated_at: new Date(),
-        },
-      });
+    const insertValues = {
+      id: userId,
+      language,
+      language_preference: language,
+    };
+    const updateValues = {
+      language,
+      language_preference: language,
+      updated_at: new Date(),
+    };
+
+    try {
+      await db
+        .insert(profiles)
+        .values(insertValues)
+        .onConflictDoUpdate({
+          target: profiles.id,
+          set: updateValues,
+        });
+    } catch (err) {
+      if (!isMissingColumnError(err, "language_preference")) throw err;
+      await db
+        .insert(profiles)
+        .values(withoutLanguagePreference(insertValues))
+        .onConflictDoUpdate({
+          target: profiles.id,
+          set: withoutLanguagePreference(updateValues),
+        });
+    }
 
     return res.json({ ok: true, language, languagePreference: language });
   } catch (err) {
@@ -1129,55 +1198,69 @@ router.post("/", async (req: Request, res: Response) => {
       }
     }
 
-    await db
-      .insert(profiles)
-      .values({
-        id:               userId,
-        full_name,
-        preferred_name:   d.preferredName || null,
-        date_of_birth:    d.dateOfBirth || null,
-        email:            profileEmail,
-        phone_number:     profilePhone,
-        whatsapp_number:  d.whatsapp || null,
-        country_code:     d.country || null,
-        timezone:         d.timezone || "Europe/Madrid",
-        language,
-        language_preference: language,
-        address_line_1:   d.street || null,
-        city:             d.cityState || null,
-        postcode:         d.postalCode || null,
-        caregiver_name:   d.caregiverName || null,
-        caregiver_contact: d.caregiverContact || null,
-        gp_name:          d.gpName || null,
-        gp_phone:         d.gpPhone || null,
-        gp_email:         d.gpEmail || null,
-        data_sharing_consent: dataSharingConsent,
-      })
-      .onConflictDoUpdate({
-        target: profiles.id,
-        set: {
-          full_name,
-          preferred_name:   d.preferredName || null,
-          date_of_birth:    d.dateOfBirth || null,
-          email:            profileEmail,
-          phone_number:     profilePhone,
-          whatsapp_number:  d.whatsapp || null,
-          country_code:     d.country || null,
-          timezone:         d.timezone || "Europe/Madrid",
-          language,
-          language_preference: language,
-          address_line_1:   d.street || null,
-          city:             d.cityState || null,
-          postcode:         d.postalCode || null,
-          caregiver_name:   d.caregiverName || null,
-          caregiver_contact: d.caregiverContact || null,
-          ...(hasGpNameInput ? { gp_name: d.gpName || null } : {}),
-          ...(hasGpPhoneInput ? { gp_phone: d.gpPhone || null } : {}),
-          ...(hasGpEmailInput ? { gp_email: d.gpEmail || null } : {}),
-          data_sharing_consent: dataSharingConsent,
-          updated_at:       new Date(),
-        },
-      });
+    const insertValues = {
+      id:               userId,
+      full_name,
+      preferred_name:   d.preferredName || null,
+      date_of_birth:    d.dateOfBirth || null,
+      email:            profileEmail,
+      phone_number:     profilePhone,
+      whatsapp_number:  d.whatsapp || null,
+      country_code:     d.country || null,
+      timezone:         d.timezone || "Europe/Madrid",
+      language,
+      language_preference: language,
+      address_line_1:   d.street || null,
+      city:             d.cityState || null,
+      postcode:         d.postalCode || null,
+      caregiver_name:   d.caregiverName || null,
+      caregiver_contact: d.caregiverContact || null,
+      gp_name:          d.gpName || null,
+      gp_phone:         d.gpPhone || null,
+      gp_email:         d.gpEmail || null,
+      data_sharing_consent: dataSharingConsent,
+    };
+    const updateValues = {
+      full_name,
+      preferred_name:   d.preferredName || null,
+      date_of_birth:    d.dateOfBirth || null,
+      email:            profileEmail,
+      phone_number:     profilePhone,
+      whatsapp_number:  d.whatsapp || null,
+      country_code:     d.country || null,
+      timezone:         d.timezone || "Europe/Madrid",
+      language,
+      language_preference: language,
+      address_line_1:   d.street || null,
+      city:             d.cityState || null,
+      postcode:         d.postalCode || null,
+      caregiver_name:   d.caregiverName || null,
+      caregiver_contact: d.caregiverContact || null,
+      ...(hasGpNameInput ? { gp_name: d.gpName || null } : {}),
+      ...(hasGpPhoneInput ? { gp_phone: d.gpPhone || null } : {}),
+      ...(hasGpEmailInput ? { gp_email: d.gpEmail || null } : {}),
+      data_sharing_consent: dataSharingConsent,
+      updated_at:       new Date(),
+    };
+
+    try {
+      await db
+        .insert(profiles)
+        .values(insertValues)
+        .onConflictDoUpdate({
+          target: profiles.id,
+          set: updateValues,
+        });
+    } catch (err) {
+      if (!isMissingColumnError(err, "language_preference")) throw err;
+      await db
+        .insert(profiles)
+        .values(withoutLanguagePreference(insertValues))
+        .onConflictDoUpdate({
+          target: profiles.id,
+          set: withoutLanguagePreference(updateValues),
+        });
+    }
 
     return res.json({ ok: true });
   } catch (err) {
