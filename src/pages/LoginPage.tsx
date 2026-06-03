@@ -22,6 +22,12 @@ import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { useAuth } from "@/contexts/AuthContext";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 import { localizeAuthErrorMessage } from "@/lib/authErrorLocalization";
+import {
+  careTeamInviteTokenFromReturnPath,
+  currentCareTeamInviteReturnPath,
+  isCareTeamInviteReturnPath,
+  rememberCareTeamInviteReturnPath,
+} from "@/lib/careTeamInviteReturn";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { stageToRoute } from "@/lib/onboardingRoute";
 import { currentSignupInviteId, trackSignupInviteEvent } from "@/lib/signupInviteAudit";
@@ -165,21 +171,6 @@ function inviteReturnPathFromSearch(search: string): string | null {
   const returnTo = normalizeReturnPath(params.get("returnTo") ?? undefined);
   if (returnTo) return returnTo;
   return params.get("invite") === "1" ? "/" : null;
-}
-
-function isCareTeamInviteReturnPath(value: string | null): boolean {
-  return Boolean(value?.startsWith("/care-team/invite/"));
-}
-
-function careTeamInviteTokenFromReturnPath(value: string | null): string | null {
-  if (!value?.startsWith("/care-team/invite/")) return null;
-  const rawToken = value.slice("/care-team/invite/".length).split(/[?#]/)[0]?.trim();
-  if (!rawToken) return null;
-  try {
-    return decodeURIComponent(rawToken);
-  } catch {
-    return rawToken;
-  }
 }
 
 function setupLanguageFromParams(params: URLSearchParams): LanguageCode | null {
@@ -1412,7 +1403,9 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   const from = adminOnly ? "/admin/lifecycle" : normalizeReturnPath(rawFrom);
   const requestedAuthMode = new URLSearchParams(location.search).get("mode") === "login" ? "login" : "register";
   const initialAuthMode = adminOnly ? "login" : requestedAuthMode;
-  const inviteReturnPath = adminOnly ? null : inviteReturnPathFromSearch(location.search);
+  const explicitInviteReturnPath = adminOnly ? null : inviteReturnPathFromSearch(location.search);
+  const storedCareTeamInviteReturnPath = adminOnly ? null : currentCareTeamInviteReturnPath();
+  const inviteReturnPath = explicitInviteReturnPath ?? storedCareTeamInviteReturnPath;
   const isCareTeamInviteAuth = isCareTeamInviteReturnPath(inviteReturnPath);
 
   const [mode, setMode] = useState<"login" | "register">(initialAuthMode);
@@ -1498,6 +1491,10 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   useEffect(() => {
     if (isCareTeamInviteAuth) setSetupIntent("caregiver");
   }, [isCareTeamInviteAuth]);
+
+  useEffect(() => {
+    if (isCareTeamInviteAuth) rememberCareTeamInviteReturnPath(inviteReturnPath);
+  }, [inviteReturnPath, isCareTeamInviteAuth]);
 
   useEffect(() => {
     const setupParams = setupInviteParamsFromPath(from) ?? setupInviteParamsFromSearch(location.search);

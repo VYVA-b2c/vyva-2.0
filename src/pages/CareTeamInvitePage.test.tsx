@@ -74,6 +74,7 @@ function renderInvitePage(initialEntry = "/care-team/invite/token-123") {
 }
 
 beforeEach(() => {
+  window.sessionStorage.clear();
   mocks.auth.user = null;
   mocks.auth.isLoading = false;
   mocks.apiFetch.mockReset();
@@ -82,6 +83,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  window.sessionStorage.clear();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -91,6 +93,7 @@ describe("CareTeamInvitePage", () => {
     renderInvitePage();
 
     expect(await screen.findByText(/Elena Senior invited you/i)).toBeInTheDocument();
+    expect(window.sessionStorage.getItem("vyva_care_team_invite_return")).toBe("/care-team/invite/token-123");
     expect(screen.getByText("Mary Caregiver")).toBeInTheDocument();
     expect(screen.getByText("Caregiver - daughter")).toBeInTheDocument();
     expect(screen.getByText("Daily wellbeing summary")).toBeInTheDocument();
@@ -127,6 +130,7 @@ describe("CareTeamInvitePage", () => {
 
     await waitFor(() => {
       expect(mocks.apiFetch).toHaveBeenCalledWith("/api/auth/careteam-invites/token-123/accept", { method: "POST" });
+      expect(window.sessionStorage.getItem("vyva_care_team_invite_return")).toBeNull();
       expect(screen.getByTestId("location")).toHaveTextContent("/caregiver");
     });
   });
