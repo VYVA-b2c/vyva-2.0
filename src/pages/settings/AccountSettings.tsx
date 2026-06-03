@@ -41,6 +41,24 @@ type AccountForm = IdentityBasicsForm & {
   timezone: string;
 };
 
+async function readProfileSaveError(res: Response): Promise<string> {
+  try {
+    const body = await res.clone().json();
+    if (body && typeof body === "object" && "error" in body) {
+      const error = (body as { error?: unknown }).error;
+      if (typeof error === "string" && error.trim()) return error;
+    }
+  } catch {
+    try {
+      const text = await res.text();
+      if (text.trim()) return text;
+    } catch {
+      // fall through to the generic message
+    }
+  }
+  return "Failed to save profile";
+}
+
 const ACCOUNT_LANGUAGE_COPY: Record<LanguageCode, Record<string, string>> = {
   es: {
     required: "Obligatorio",
@@ -390,7 +408,7 @@ export default function AccountSettings() {
         method: "PATCH",
         body: JSON.stringify({ avatarUrl: dataUrl }),
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error(await readProfileSaveError(res));
       return res.json();
     },
     onSuccess: () => {
@@ -451,7 +469,7 @@ export default function AccountSettings() {
         }),
       });
 
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error(await readProfileSaveError(res));
 
       await queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
       const inviteId = currentSignupInviteId(location.search);
@@ -462,9 +480,10 @@ export default function AccountSettings() {
       });
       clearSignupInviteId(inviteId);
       toast({ title: accountCopy.saved });
-    } catch {
+    } catch (err) {
       toast({
         title: accountCopy.saveError,
+        description: err instanceof Error ? err.message : undefined,
         variant: "destructive",
       });
     } finally {
