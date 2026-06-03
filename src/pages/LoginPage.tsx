@@ -171,6 +171,17 @@ function isCareTeamInviteReturnPath(value: string | null): boolean {
   return Boolean(value?.startsWith("/care-team/invite/"));
 }
 
+function careTeamInviteTokenFromReturnPath(value: string | null): string | null {
+  if (!value?.startsWith("/care-team/invite/")) return null;
+  const rawToken = value.slice("/care-team/invite/".length).split(/[?#]/)[0]?.trim();
+  if (!rawToken) return null;
+  try {
+    return decodeURIComponent(rawToken);
+  } catch {
+    return rawToken;
+  }
+}
+
 function setupLanguageFromParams(params: URLSearchParams): LanguageCode | null {
   const normalized = (params.get("lang") ?? params.get("language") ?? "")
     .trim()
@@ -1469,10 +1480,12 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   const authContactPayload = (includeLanguage = false) => {
     const trimmedContact = contact.trim();
     const inviteId = includeLanguage ? currentSignupInviteId(location.search) : null;
+    const careTeamInviteToken = includeLanguage ? careTeamInviteTokenFromReturnPath(inviteReturnPath) : null;
     return {
       ...(trimmedContact.includes("@") ? { email: trimmedContact } : { phone: trimmedContact }),
       ...(includeLanguage ? { language } : {}),
       ...(inviteId ? { invite_id: inviteId } : {}),
+      ...(careTeamInviteToken ? { care_team_invite_token: careTeamInviteToken } : {}),
     };
   };
 

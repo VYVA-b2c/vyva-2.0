@@ -326,6 +326,13 @@ onboardingRouter.get("/state", async (req: Request, res: Response) => {
       health_conditions?: string[];
       mobility_level?: string | null;
       living_situation?: string | null;
+      no_known_conditions?: boolean;
+    };
+    const medicationSection = (consent.medications ?? {}) as {
+      no_known_medications?: boolean;
+    };
+    const allergySection = (consent.allergies ?? {}) as {
+      no_known_allergies?: boolean;
     };
     const emergencySection = (consent.emergency ?? {}) as {
       emergency_name?: string;
@@ -350,6 +357,9 @@ onboardingRouter.get("/state", async (req: Request, res: Response) => {
             conditions: (conditionSection.health_conditions ?? []).map((name) => ({ name, category: "other" })),
             mobility_level: conditionSection.mobility_level ?? "",
             living_situation: conditionSection.living_situation ?? "",
+            no_known_conditions: conditionSection.no_known_conditions === true,
+            no_known_medications: medicationSection.no_known_medications === true,
+            no_known_allergies: allergySection.no_known_allergies === true,
             emergency_contact: {
               name: emergencySection.emergency_name ?? "",
               relationship: emergencySection.emergency_role ?? "",
@@ -1200,6 +1210,8 @@ const sectionSchemas: Record<string, z.ZodTypeAny> = {
       times:           z.union([z.string(), z.array(z.string())]).optional(),
     })).optional(),
     known_allergies: z.array(z.string()).optional(),
+    no_known_medications: z.boolean().optional(),
+    no_known_allergies: z.boolean().optional(),
   }),
   conditions: z.object({
     health_conditions: z.array(z.string()).optional(),
@@ -1210,6 +1222,7 @@ const sectionSchemas: Record<string, z.ZodTypeAny> = {
     mobility_level:   z.string().nullable().optional(),
     living_situation: z.string().nullable().optional(),
     allergies:        z.array(z.string()).optional(),
+    no_known_conditions: z.boolean().optional(),
   }),
   cognitive: z.object({
     cognitive_notes: z.string().optional(),
@@ -1470,7 +1483,12 @@ async function mergeSectionIntoConsent(
     .limit(1);
 
   const existing = (profileRows[0]?.data_sharing_consent as Record<string, unknown> | null) ?? {};
-  const merged = { ...existing, [sectionKey]: payload };
+  const existingSection = (
+    existing[sectionKey] && typeof existing[sectionKey] === "object" && !Array.isArray(existing[sectionKey])
+      ? existing[sectionKey]
+      : {}
+  ) as Record<string, unknown>;
+  const merged = { ...existing, [sectionKey]: { ...existingSection, ...payload } };
 
   await db
     .update(profiles)
@@ -1502,10 +1520,39 @@ onboardingRouter.post("/section/:sectionId", async (req: Request, res: Response)
 
     if (sectionId === "medications") {
       if (Array.isArray(data.known_allergies)) {
+        const allergies = (data.known_allergies as unknown[])
+          .filter(hasText)
+          .map((allergy) => allergy.trim());
+
         await db
           .update(profiles)
-          .set({ known_allergies: data.known_allergies as string[], updated_at: new Date() })
+          .set({ known_allergies: allergies, updated_at: new Date() })
           .where(eq(profiles.id, userId));
+
+        await mergeSectionIntoConsent(userId, "allergies", {
+          no_known_allergies: allergies.length === 0 && data.no_known_allergies === true,
+        });
+
+        if (allergies.length > 0) {
+          await markField(userId, "has_allergies");
+        } else {
+          await db
+            .update(onboardingState)
+            .set({ has_allergies: false, updated_at: new Date() })
+            .where(eq(onboardingState.user_id, userId));
+        }
+      } else if (data.no_known_allergies !== undefined) {
+        await db
+          .update(profiles)
+          .set({ known_allergies: [], updated_at: new Date() })
+          .where(eq(profiles.id, userId));
+        await mergeSectionIntoConsent(userId, "allergies", {
+          no_known_allergies: data.no_known_allergies === true,
+        });
+        await db
+          .update(onboardingState)
+          .set({ has_allergies: false, updated_at: new Date() })
+          .where(eq(onboardingState.user_id, userId));
       }
 
       const rawMeds = data.medications as Array<{
@@ -1517,7 +1564,8 @@ onboardingRouter.post("/section/:sectionId", async (req: Request, res: Response)
         times?: string | string[];
       }> | undefined;
 
-      const meds = Array.isArray(rawMeds)
+      const hasMedicationPayload = Array.isArray(rawMeds);
+      const meds = hasMedicationPayload
         ? rawMeds
             .map((m) => ({
               medication_name: (m.medication_name ?? m.name ?? "").trim(),
@@ -1528,36 +1576,40 @@ onboardingRouter.post("/section/:sectionId", async (req: Request, res: Response)
             .filter((m) => m.medication_name.length > 0)
         : [];
 
-      // The profile medication form is treated as the source of truth for
-      // onboarding-entered medicines, so repeated autosaves update instead of duplicate.
-      await db
-        .delete(userMedications)
-        .where(and(eq(userMedications.user_id, userId), eq(userMedications.added_by, "onboarding")));
+      if (hasMedicationPayload || data.no_known_medications !== undefined) {
+        const noKnownMedications = meds.length === 0 && data.no_known_medications === true;
 
-      if (meds.length > 0) {
-        await db.insert(userMedications).values(
-          meds.map((m) => ({
-            user_id:         userId,
-            medication_name: m.medication_name,
-            dosage:          m.dosage,
-            frequency:       m.frequency,
-            scheduled_times: m.scheduled_times,
-            added_by:        "onboarding",
-          }))
-        );
-      }
+        // The profile medication form is treated as the source of truth for
+        // onboarding-entered medicines, so repeated autosaves update instead of duplicate.
+        await db
+          .delete(userMedications)
+          .where(and(eq(userMedications.user_id, userId), eq(userMedications.added_by, "onboarding")));
 
-      await db
-        .update(onboardingState)
-        .set({
-          has_medications: meds.length > 0,
-          feature_medication_mgmt: meds.length > 0,
-          updated_at: new Date(),
-        })
-        .where(eq(onboardingState.user_id, userId));
+        if (meds.length > 0) {
+          await db.insert(userMedications).values(
+            meds.map((m) => ({
+              user_id:         userId,
+              medication_name: m.medication_name,
+              dosage:          m.dosage,
+              frequency:       m.frequency,
+              scheduled_times: m.scheduled_times,
+              added_by:        "onboarding",
+            }))
+          );
+        }
 
-      if (Array.isArray(data.known_allergies) && (data.known_allergies as string[]).length > 0) {
-        await markField(userId, "has_allergies");
+        await mergeSectionIntoConsent(userId, "medications", {
+          no_known_medications: noKnownMedications,
+        });
+
+        await db
+          .update(onboardingState)
+          .set({
+            has_medications: meds.length > 0,
+            feature_medication_mgmt: meds.length > 0,
+            updated_at: new Date(),
+          })
+          .where(eq(onboardingState.user_id, userId));
       }
     } else if (sectionId === "conditions") {
       const namedConditions = Array.isArray(data.conditions)
@@ -1573,6 +1625,7 @@ onboardingRouter.post("/section/:sectionId", async (req: Request, res: Response)
         health_conditions: healthConditions,
         mobility_level: hasText(data.mobility_level) ? data.mobility_level.trim() : null,
         living_situation: hasText(data.living_situation) ? data.living_situation.trim() : null,
+        no_known_conditions: healthConditions.length === 0 && data.no_known_conditions === true,
       };
 
       await mergeSectionIntoConsent(userId, "conditions", payload);
@@ -1583,6 +1636,11 @@ onboardingRouter.post("/section/:sectionId", async (req: Request, res: Response)
         payload.living_situation
       ) {
         await markField(userId, "has_health_conditions");
+      } else {
+        await db
+          .update(onboardingState)
+          .set({ has_health_conditions: false, updated_at: new Date() })
+          .where(eq(onboardingState.user_id, userId));
       }
     } else if (sectionId === "address") {
       const profileUpdates: Record<string, unknown> = { updated_at: new Date() };

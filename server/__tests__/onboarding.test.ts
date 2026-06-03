@@ -182,6 +182,41 @@ describe("Onboarding journey — end-to-end", () => {
     expect(res.body).toMatchObject({ ok: true, section: "conditions" });
   });
 
+  it("POST /section/conditions persists explicit no known conditions", async () => {
+    const res = await request(app)
+      .post("/api/onboarding/section/conditions")
+      .set("x-user-id", TEST_USER_ID)
+      .send({ health_conditions: [], no_known_conditions: true })
+      .expect(200);
+
+    expect(res.body).toMatchObject({ ok: true, section: "conditions" });
+
+    const stateRes = await request(app)
+      .get("/api/onboarding/state")
+      .set("x-user-id", TEST_USER_ID)
+      .expect(200);
+
+    expect(stateRes.body.profile.conditions).toEqual([]);
+    expect(stateRes.body.profile.no_known_conditions).toBe(true);
+    expect(stateRes.body.onboardingState.has_health_conditions).toBe(false);
+  });
+
+  it("POST /section/conditions does not complete empty health without explicit none", async () => {
+    await request(app)
+      .post("/api/onboarding/section/conditions")
+      .set("x-user-id", TEST_USER_ID)
+      .send({ health_conditions: [] })
+      .expect(200);
+
+    const stateRes = await request(app)
+      .get("/api/onboarding/state")
+      .set("x-user-id", TEST_USER_ID)
+      .expect(200);
+
+    expect(stateRes.body.profile.no_known_conditions).toBe(false);
+    expect(stateRes.body.onboardingState.has_health_conditions).toBe(false);
+  });
+
   it("POST /section/medications saves medications and allergies", async () => {
     const res = await request(app)
       .post("/api/onboarding/section/medications")
@@ -195,6 +230,67 @@ describe("Onboarding journey — end-to-end", () => {
       .expect(200);
 
     expect(res.body).toMatchObject({ ok: true, section: "medications" });
+  });
+
+  it("POST /section/medications persists no current medications without service medication rows", async () => {
+    const res = await request(app)
+      .post("/api/onboarding/section/medications")
+      .set("x-user-id", TEST_USER_ID)
+      .send({ medications: [], no_known_medications: true })
+      .expect(200);
+
+    expect(res.body).toMatchObject({ ok: true, section: "medications" });
+
+    const stateRes = await request(app)
+      .get("/api/onboarding/state")
+      .set("x-user-id", TEST_USER_ID)
+      .expect(200);
+
+    expect(stateRes.body.profile.medications).toEqual([]);
+    expect(stateRes.body.profile.no_known_medications).toBe(true);
+    expect(stateRes.body.onboardingState.has_medications).toBe(false);
+  });
+
+  it("POST /section/medications preserves medications when saving allergies only", async () => {
+    await request(app)
+      .post("/api/onboarding/section/medications")
+      .set("x-user-id", TEST_USER_ID)
+      .send({ medications: [{ medication_name: "Atorvastatin", dosage: "20mg" }] })
+      .expect(200);
+
+    await request(app)
+      .post("/api/onboarding/section/medications")
+      .set("x-user-id", TEST_USER_ID)
+      .send({ known_allergies: ["Peanuts"] })
+      .expect(200);
+
+    const stateRes = await request(app)
+      .get("/api/onboarding/state")
+      .set("x-user-id", TEST_USER_ID)
+      .expect(200);
+
+    expect(stateRes.body.profile.medications).toEqual([
+      expect.objectContaining({ name: "Atorvastatin", dosage: "20mg" }),
+    ]);
+    expect(stateRes.body.profile.known_allergies).toEqual(["Peanuts"]);
+    expect(stateRes.body.profile.no_known_allergies).toBe(false);
+  });
+
+  it("POST /section/medications persists explicit no known allergies", async () => {
+    await request(app)
+      .post("/api/onboarding/section/medications")
+      .set("x-user-id", TEST_USER_ID)
+      .send({ known_allergies: [], no_known_allergies: true })
+      .expect(200);
+
+    const stateRes = await request(app)
+      .get("/api/onboarding/state")
+      .set("x-user-id", TEST_USER_ID)
+      .expect(200);
+
+    expect(stateRes.body.profile.known_allergies).toEqual([]);
+    expect(stateRes.body.profile.no_known_allergies).toBe(true);
+    expect(stateRes.body.onboardingState.has_allergies).toBe(false);
   });
 
   it("POST /section/address saves address details", async () => {

@@ -277,6 +277,22 @@ function accountInvitePrefillFromSearch(search: string): AccountInvitePrefill | 
   return Object.values(prefill).some(Boolean) ? prefill : null;
 }
 
+async function accountSaveErrorMessage(response: Response) {
+  try {
+    const body = await response.json() as { error?: unknown; message?: unknown };
+    if (typeof body.error === "string" && body.error.trim()) return body.error.trim();
+    if (typeof body.message === "string" && body.message.trim()) return body.message.trim();
+  } catch {
+    try {
+      const text = await response.text();
+      if (text.trim()) return text.trim();
+    } catch {
+      // Fall through to the generic message.
+    }
+  }
+  return "";
+}
+
 export default function AccountSettings() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -438,9 +454,9 @@ export default function AccountSettings() {
       return;
     }
 
+    const identityPayload = buildProfileIdentityPayload(form);
     setSaving(true);
     try {
-      const identityPayload = buildProfileIdentityPayload(form);
       const res = await apiFetch("/api/profile", {
         method: "POST",
         body: JSON.stringify({
@@ -451,9 +467,24 @@ export default function AccountSettings() {
         }),
       });
 
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error(await accountSaveErrorMessage(res));
+    } catch (error) {
+      toast({
+        title: accountCopy.saveError,
+        description: error instanceof Error && error.message ? error.message : undefined,
+        variant: "destructive",
+      });
+      setSaving(false);
+      return;
+    }
 
+    try {
       await queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+    } catch (error) {
+      console.warn("[account-settings] profile refresh skipped after save", error);
+    }
+
+    try {
       const inviteId = currentSignupInviteId(location.search);
       trackSignupInviteEvent(inviteId, "profile_completed", {
         destination: "/settings/account",
@@ -461,15 +492,12 @@ export default function AccountSettings() {
         clearAfter: true,
       });
       clearSignupInviteId(inviteId);
-      toast({ title: accountCopy.saved });
-    } catch {
-      toast({
-        title: accountCopy.saveError,
-        variant: "destructive",
-      });
-    } finally {
-      setSaving(false);
+    } catch (error) {
+      console.warn("[account-settings] invite completion tracking skipped", error);
     }
+
+    setSaving(false);
+    toast({ title: accountCopy.saved });
   };
 
   return (

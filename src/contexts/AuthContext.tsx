@@ -23,6 +23,7 @@ interface AuthIdentifier {
   identifier?: string;
   language?: string;
   invite_id?: string;
+  care_team_invite_token?: string;
 }
 
 interface MagicLinkResponse {

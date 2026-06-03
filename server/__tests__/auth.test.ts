@@ -432,4 +432,111 @@ describe("Care-team invite claim flow", () => {
       seniorDisplayName: "Elena Senior",
     });
   });
+
+  it("lets a new invited caregiver create an account before accepting the invite", async () => {
+    const newCaregiverEmail = `careteam-new-${randomUUID()}@example.com`;
+    const newInviteToken = randomUUID();
+
+    await cleanupEmail(newCaregiverEmail);
+    await db
+      .insert(teamInvitations)
+      .values({
+        senior_id: seniorId,
+        invitee_name: "New Caregiver",
+        invitee_email: newCaregiverEmail.toLowerCase(),
+        role: "caregiver",
+        relationship: "son",
+        invite_token: newInviteToken,
+        invite_channel: "email",
+        status: "pending",
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        can_receive_safety_alerts: true,
+        can_view_dashboard: true,
+      });
+
+    try {
+      const registerRes = await request(app)
+        .post("/api/auth/register")
+        .send({
+          email: newCaregiverEmail,
+          password,
+          care_team_invite_token: newInviteToken,
+        })
+        .expect(201);
+
+      const newCaregiverId = registerRes.body.userId as string;
+      const newCaregiverToken = registerRes.body.token as string;
+      expect(registerRes.body.activeProfileId).toBeNull();
+
+      const [selfProfile] = await db
+        .select({ id: profiles.id })
+        .from(profiles)
+        .where(eq(profiles.id, newCaregiverId))
+        .limit(1);
+      expect(selfProfile).toBeUndefined();
+
+      const [selfMembership] = await db
+        .select({ id: profileMemberships.id })
+        .from(profileMemberships)
+        .where(and(
+          eq(profileMemberships.user_id, newCaregiverId),
+          eq(profileMemberships.profile_id, newCaregiverId),
+        ))
+        .limit(1);
+      expect(selfMembership).toBeUndefined();
+
+      const acceptRes = await request(app)
+        .post(`/api/auth/careteam-invites/${newInviteToken}/accept`)
+        .set("Authorization", `Bearer ${newCaregiverToken}`)
+        .expect(200);
+
+      expect(acceptRes.body).toMatchObject({
+        ok: true,
+        status: "accepted",
+        alreadyAccepted: false,
+        seniorProfileId: seniorId,
+        destination: "/caregiver",
+      });
+    } finally {
+      await db.delete(teamInvitations).where(eq(teamInvitations.invite_token, newInviteToken));
+      await cleanupEmail(newCaregiverEmail);
+    }
+  });
+
+  it("blocks care-team invite registration when the contact does not match the invitation", async () => {
+    const mismatchInviteToken = randomUUID();
+    const invitedEmail = `careteam-invited-${randomUUID()}@example.com`;
+    const registeringEmail = `careteam-uninvited-${randomUUID()}@example.com`;
+
+    await cleanupEmail(registeringEmail);
+    await db
+      .insert(teamInvitations)
+      .values({
+        senior_id: seniorId,
+        invitee_name: "Invited Caregiver",
+        invitee_email: invitedEmail.toLowerCase(),
+        role: "caregiver",
+        relationship: "daughter",
+        invite_token: mismatchInviteToken,
+        invite_channel: "email",
+        status: "pending",
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      });
+
+    try {
+      const res = await request(app)
+        .post("/api/auth/register")
+        .send({
+          email: registeringEmail,
+          password,
+          care_team_invite_token: mismatchInviteToken,
+        })
+        .expect(403);
+
+      expect(res.body.error).toMatch(/invited email or mobile/i);
+    } finally {
+      await db.delete(teamInvitations).where(eq(teamInvitations.invite_token, mismatchInviteToken));
+      await cleanupEmail(registeringEmail);
+    }
+  });
 });

@@ -85,6 +85,23 @@ describe("Profile readiness", () => {
     expect(res.body.services.adherenceReport.ready).toBe(true);
   });
 
+  it("keeps medication services locked when no current medications was explicitly saved", async () => {
+    const userId = await createProfile({
+      data_sharing_consent: {
+        medications: { no_known_medications: true },
+      },
+    });
+
+    const res = await request(app)
+      .get("/api/profile/readiness")
+      .set("x-user-id", userId)
+      .expect(200);
+
+    expect(res.body.profile.hasMedicationForServices).toBe(false);
+    expect(res.body.services.medications.ready).toBe(false);
+    expect(res.body.services.adherenceReport.ready).toBe(false);
+  });
+
   it("unlocks premium entitlement-only services during an active premium trial", async () => {
     const userId = await createProfile({
       subscription_tier: "premium",

@@ -153,6 +153,7 @@ export default function ConditionsSection() {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
+  const [noKnownConditions, setNoKnownConditions] = useState(false);
   const [mobility, setMobility] = useState("");
   const [living, setLiving] = useState("");
   const [saving, setSaving] = useState(false);
@@ -172,6 +173,7 @@ export default function ConditionsSection() {
     mobility_level: mobility || null,
     living_situation: living || null,
     allergies: [],
+    no_known_conditions: noKnownConditions && selected.length === 0,
   });
 
   const completePath = () => {
@@ -191,6 +193,7 @@ export default function ConditionsSection() {
         const msg = await friendlyError(new Error(), res);
         throw new Error(msg);
       }
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
       queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
       queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
     },
@@ -198,7 +201,7 @@ export default function ConditionsSection() {
   );
 
   const { data, isLoading } = useQuery<{
-    profile: { conditions?: SavedCondition[]; mobility_level?: string; living_situation?: string } | null;
+    profile: { conditions?: SavedCondition[]; mobility_level?: string; living_situation?: string; no_known_conditions?: boolean } | null;
   }>({
     queryKey: ["/api/onboarding/state"],
   });
@@ -209,10 +212,12 @@ export default function ConditionsSection() {
       if (p.conditions) setSelected(p.conditions.map((c) => c.name));
       if (p.mobility_level) setMobility(p.mobility_level);
       if (p.living_situation) setLiving(p.living_situation);
+      setNoKnownConditions(Boolean(p.no_known_conditions) && (!p.conditions || p.conditions.length === 0));
     }
   }, [data]);
 
   const toggleCondition = (name: string) => {
+    setNoKnownConditions(false);
     setSelected((prev) => prev.includes(name) ? prev.filter((x) => x !== name) : [...prev, name]);
     scheduleAutoSave();
   };
@@ -222,8 +227,20 @@ export default function ConditionsSection() {
     scheduleAutoSave();
   };
 
+  const toggleNoKnownConditions = () => {
+    const next = !noKnownConditions;
+    setNoKnownConditions(next);
+    if (next) {
+      setSelected([]);
+      setSearch("");
+      setSpeakItMatches([]);
+    }
+    scheduleAutoSave();
+  };
+
   const handleMobility = (value: string) => { setMobility(value); scheduleAutoSave(); };
   const handleLiving   = (value: string) => { setLiving(value);   scheduleAutoSave(); };
+  const hasHealthSectionContent = selected.length > 0 || Boolean(mobility) || Boolean(living) || noKnownConditions;
 
   const handleSpeakItDone = (transcript: string) => {
     setSpeakItOpen(false);
@@ -238,6 +255,7 @@ export default function ConditionsSection() {
 
   const confirmSpeakItMatches = () => {
     const newSelected = Array.from(new Set([...selected, ...speakItMatches]));
+    setNoKnownConditions(false);
     setSelected(newSelected);
     setSpeakItMatches([]);
     scheduleAutoSave();
@@ -346,6 +364,28 @@ export default function ConditionsSection() {
             onCancel={() => setSpeakItOpen(false)}
           />
         )}
+
+        <div className="rounded-[24px] border border-[#E9DDF8] bg-white px-4 py-4 shadow-[0_10px_22px_rgba(53,28,87,0.05)]">
+          <p className="font-body text-[15px] font-extrabold text-vyva-text-1">No conditions to add?</p>
+          <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
+            Choose this if there are no known health conditions right now.
+          </p>
+          <button
+            type="button"
+            aria-pressed={noKnownConditions}
+            data-testid="button-conditions-no-known"
+            onClick={toggleNoKnownConditions}
+            className={cn(
+              "mt-3 flex min-h-[58px] w-full items-center justify-center gap-2 rounded-[20px] border px-4 py-3 font-body text-[16px] font-black transition",
+              noKnownConditions
+                ? "border-vyva-purple bg-vyva-purple text-white shadow-[0_14px_26px_rgba(107,33,168,0.22)]"
+                : "border-[#E9DDF8] bg-[#FCF8FF] text-vyva-purple",
+            )}
+          >
+            <CheckCircle2 size={18} />
+            No known health conditions
+          </button>
+        </div>
 
         {isLoading ? (
           <div className="flex flex-col gap-3" data-testid="skeleton-conditions-content">
@@ -500,7 +540,7 @@ export default function ConditionsSection() {
         )}
 
         <div className="flex flex-col gap-2 pt-2">
-          <Button data-testid="button-conditions-save" onClick={handleSave} disabled={saving || isLoading} className="h-14 w-full rounded-full bg-[#6b21a8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5b1a8f]">
+          <Button data-testid="button-conditions-save" onClick={handleSave} disabled={saving || isLoading || !hasHealthSectionContent} className="h-14 w-full rounded-full bg-[#6b21a8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5b1a8f] disabled:opacity-40">
             {saving ? "Saving..." : "Save health conditions"}
           </Button>
           <button data-testid="button-conditions-skip" onClick={() => navigate("/onboarding/profile")} className="py-2 text-center text-[15px] font-bold text-gray-500">

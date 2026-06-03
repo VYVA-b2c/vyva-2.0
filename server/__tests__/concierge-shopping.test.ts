@@ -23,6 +23,15 @@ describe("concierge shopping recommendations API", () => {
     process.env = { ...originalEnv };
   });
 
+  it("returns enabled support packages for the shopping screen", async () => {
+    const res = await request(app())
+      .get("/api/concierge/shopping/support-packages")
+      .expect(200);
+
+    expect(res.body.packages.map((item: { id: string }) => item.id)).toContain("hydration_support");
+    expect(JSON.stringify(res.body).toLowerCase()).not.toContain("payment");
+  });
+
   it("returns catalog-bounded recommendations without requiring AI", async () => {
     const catalogIds = new Set(getShoppingCatalog("en").map((item) => item.id));
 
@@ -42,6 +51,24 @@ describe("concierge shopping recommendations API", () => {
     expect(res.body.recommendations.map((item: { product: { id: string } }) => item.product.id)).toContain("motion-night-lights");
     expect(res.body.comparison.summary).toContain(res.body.recommendations[0].product.name);
     expect(JSON.stringify(res.body).toLowerCase()).not.toContain("checkout");
+  });
+
+  it("uses package context without leaving the approved catalog", async () => {
+    const catalogIds = new Set(getShoppingCatalog("en").map((item) => item.id));
+
+    const res = await request(app())
+      .post("/api/concierge/shopping/recommendations")
+      .send({
+        needText: "Simple support kit after a health recommendation",
+        category: "groceries",
+        priorities: ["simplicity", "delivery"],
+        packageId: "hydration_support",
+        locale: "en",
+      })
+      .expect(200);
+
+    expect(res.body.recommendations[0].product.id).toBe("small-water-bottle-multipack");
+    expect(res.body.recommendations.every((item: { product: { id: string } }) => catalogIds.has(item.product.id))).toBe(true);
   });
 
   it("returns a bounded no-match response for unrelated safe-home requests", async () => {

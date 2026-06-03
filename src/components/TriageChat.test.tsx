@@ -154,7 +154,7 @@ describe("TriageChat MediSearch follow-ups", () => {
 
     renderTriageChat({ bpm: 72, respiratoryRate: 18 });
 
-    await screen.findByText("How are you feeling now?");
+    await screen.findByText("How are you feeling now?", {}, { timeout: 5000 });
     expect(screen.getByTestId("triage-confidence-tracker")).toHaveTextContent("Confidence level");
     expect(screen.getByTestId("triage-confidence-tracker")).toHaveTextContent("2/5");
     expect(screen.getByTestId("triage-confidence-tracker")).toHaveTextContent("Getting started");

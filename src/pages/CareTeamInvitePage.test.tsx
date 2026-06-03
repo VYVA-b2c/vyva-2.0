@@ -101,7 +101,7 @@ describe("CareTeamInvitePage", () => {
     );
     expect(screen.getByRole("link", { name: "Create account" })).toHaveAttribute(
       "href",
-      "/login?returnTo=%2Fcare-team%2Finvite%2Ftoken-123",
+      "/login?mode=register&returnTo=%2Fcare-team%2Finvite%2Ftoken-123",
     );
   });
 

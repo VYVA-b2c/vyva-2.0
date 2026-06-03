@@ -2,6 +2,15 @@ const SIGNUP_INVITE_SESSION_KEY = "vyva_signup_invite_id";
 
 export type SignupInviteAuditEvent = "clicked" | "profile_started" | "profile_created" | "profile_completed";
 
+function inviteSessionStorage(): Storage | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
 export function signupInviteIdFromSearch(search: string): string | null {
   const inviteId = new URLSearchParams(search).get("invite_id")?.trim();
   return inviteId || null;
@@ -9,7 +18,11 @@ export function signupInviteIdFromSearch(search: string): string | null {
 
 export function rememberSignupInviteId(inviteId: string | null | undefined) {
   if (!inviteId) return;
-  window.sessionStorage.setItem(SIGNUP_INVITE_SESSION_KEY, inviteId);
+  try {
+    inviteSessionStorage()?.setItem(SIGNUP_INVITE_SESSION_KEY, inviteId);
+  } catch {
+    // Invite tracking should never block account setup.
+  }
 }
 
 export function currentSignupInviteId(search?: string): string | null {
@@ -18,13 +31,22 @@ export function currentSignupInviteId(search?: string): string | null {
     rememberSignupInviteId(fromSearch);
     return fromSearch;
   }
-  return window.sessionStorage.getItem(SIGNUP_INVITE_SESSION_KEY);
+  try {
+    return inviteSessionStorage()?.getItem(SIGNUP_INVITE_SESSION_KEY) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export function clearSignupInviteId(inviteId?: string | null) {
-  const current = window.sessionStorage.getItem(SIGNUP_INVITE_SESSION_KEY);
-  if (!inviteId || current === inviteId) {
-    window.sessionStorage.removeItem(SIGNUP_INVITE_SESSION_KEY);
+  try {
+    const storage = inviteSessionStorage();
+    const current = storage?.getItem(SIGNUP_INVITE_SESSION_KEY);
+    if (!inviteId || current === inviteId) {
+      storage?.removeItem(SIGNUP_INVITE_SESSION_KEY);
+    }
+  } catch {
+    // Invite tracking should never block account setup.
   }
 }
 

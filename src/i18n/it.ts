@@ -409,7 +409,7 @@ const it = {
           doctorHelp: "Aiuto medico",
           bookRide: "Prenota trasporto",
           scheduleAppointment: "Appuntamento",
-          onlineOrder: "Ordine online",
+          onlineOrder: "Get support package",
           requestQuote: "Richiedi preventivo",
           aria: "{{action}} per: {{recommendation}}",
           emailSubject: "Report sintomi VYVA",
