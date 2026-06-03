@@ -1446,7 +1446,7 @@
       "toastInviteError": "Impossibile inviare l'invito",
       "step1": {
         "heading": "👥 Aggiungi qualcuno al tuo team di cura",
-        "subtitle": "Decidi esattamente cosa può vedere ogni persona. Nulla viene condiviso finché non confermi.",
+        "subtitle": "Aggiungi tutte le persone di cui hai bisogno. Decidi esattamente cosa può vedere ogni persona, e nulla viene condiviso finché non confermi.",
         "infoBanner": "Tutta la condivisione è sotto il tuo controllo. Puoi modificare o rimuovere l'accesso in qualsiasi momento in Impostazioni → Privacy e consenso.",
         "continue": "Continua"
       },

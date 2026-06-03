@@ -1330,7 +1330,7 @@
       "toastInviteError": "Não foi possível enviar o convite",
       "step1": {
         "heading": "👥 Adicionar alguém à equipa de cuidados",
-        "subtitle": "Você decide exatamente o que cada pessoa pode ver. Nada é partilhado até confirmar.",
+        "subtitle": "Adicione quantas pessoas precisar. Você decide exatamente o que cada pessoa pode ver, e nada é partilhado até confirmar.",
         "infoBanner": "Toda a partilha está sob o seu controlo. Pode alterar ou remover o acesso a qualquer momento em Definições → Privacidade e consentimento.",
         "continue": "Continuar"
       },

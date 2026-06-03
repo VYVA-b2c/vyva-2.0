@@ -1330,7 +1330,7 @@
       "toastInviteError": "Impossible d'envoyer l'invitation",
       "step1": {
         "heading": "👥 Ajouter quelqu'un à votre équipe de soins",
-        "subtitle": "Vous décidez exactement ce que chaque personne peut voir. Rien n'est partagé avant votre confirmation.",
+        "subtitle": "Ajoutez autant de personnes que nécessaire. Vous décidez exactement ce que chaque personne peut voir, et rien n'est partagé avant votre confirmation.",
         "infoBanner": "Tout le partage est sous votre contrôle. Vous pouvez modifier ou supprimer l'accès à tout moment dans Paramètres → Confidentialité et consentement.",
         "continue": "Continuer"
       },

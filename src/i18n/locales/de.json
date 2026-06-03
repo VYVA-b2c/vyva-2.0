@@ -1330,7 +1330,7 @@
       "toastInviteError": "Einladung konnte nicht gesendet werden",
       "step1": {
         "heading": "👥 Jemanden zum Pflegeteam hinzufügen",
-        "subtitle": "Sie entscheiden genau, was jede Person sehen kann. Nichts wird geteilt, bis Sie bestätigen.",
+        "subtitle": "Fügen Sie so viele Personen hinzu, wie Sie benötigen. Sie entscheiden genau, was jede Person sehen kann, und nichts wird geteilt, bis Sie bestätigen.",
         "infoBanner": "Alles Teilen liegt unter Ihrer Kontrolle. Sie können den Zugang jederzeit in Einstellungen → Datenschutz & Einwilligung ändern oder entfernen.",
         "continue": "Weiter"
       },
