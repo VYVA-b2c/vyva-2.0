@@ -384,10 +384,10 @@ const HomeScreen = () => {
       </div>
 
       <section
-        className="mt-[18px] rounded-[26px] border border-[#EDE2D1] bg-[#FFFCF8] p-4 shadow-[0_14px_32px_rgba(60,38,20,0.07)]"
+        className="mt-[18px] rounded-[28px] border border-[#EDE2D1] bg-[#FFFCF8] p-5 shadow-[0_14px_32px_rgba(60,38,20,0.07)]"
         data-testid="home-fast-help"
       >
-        <div className="mb-3">
+        <div className="mb-4">
           <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-purple">
             {t("home.fastHelp.kicker", "Fast help")}
           </p>
@@ -395,29 +395,29 @@ const HomeScreen = () => {
             {t("home.fastHelp.title", "What do you need now?")}
           </h2>
         </div>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3">
           {homeFastActions.map((action) => {
             const theme = HOME_FAST_ACTION_THEMES[action.tone];
             const Icon = action.icon;
             const content = (
               <>
                 <span
-                  className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px]"
+                  className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[18px]"
                   style={{ background: theme.iconBg, color: theme.iconColor }}
                 >
-                  <Icon size={22} />
+                  <Icon size={24} strokeWidth={2.4} />
                 </span>
-                <span className="min-w-0">
-                  <span className="block font-body text-[15px] font-black leading-tight text-vyva-text-1">
+                <span className="min-w-0 flex-1">
+                  <span className="block font-body text-[18px] font-black leading-tight text-vyva-text-1">
                     {action.label}
                   </span>
-                  <span className="mt-0.5 block font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
+                  <span className="mt-1 block max-w-[24rem] font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
                     {action.sub}
                   </span>
                 </span>
               </>
             );
-            const className = "vyva-tap flex min-h-[66px] items-center gap-3 rounded-[18px] border bg-white px-4 py-3 text-left";
+            const className = "vyva-tap flex min-h-[86px] w-full items-center gap-4 rounded-[22px] border bg-white px-4 py-4 text-left transition-transform hover:-translate-y-0.5";
             const style = {
               borderColor: theme.border,
               boxShadow: `0 10px 24px ${theme.shadow}`,
