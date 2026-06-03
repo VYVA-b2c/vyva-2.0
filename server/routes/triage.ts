@@ -16,6 +16,7 @@ import {
 } from "../../shared/triageScans.js";
 import {
   buildFallbackTriageReportWithTelemetry,
+  buildPersonalizedTriageSuggestions,
   evaluateTriageSafetyFloor,
   nextAdaptiveStage,
   primaryEscalationSource,
@@ -169,7 +170,10 @@ function healthMemoryText(memory?: TriageHealthMemory): string {
     memory.allergies ? `Known allergies: ${memory.allergies}` : "",
     memory.medications ? `Current medications: ${memory.medications}` : "",
     memory.latestVitals ? `Latest vitals: ${memory.latestVitals}` : "",
+    memory.vitalsTrend ? `Vitals trend: ${memory.vitalsTrend}` : "",
     memory.latestSymptomReport ? `Latest symptom report: ${memory.latestSymptomReport}` : "",
+    memory.medicationAdherence ? `Medication adherence: ${memory.medicationAdherence}` : "",
+    memory.medicationInteraction ? `Medication interaction context: ${memory.medicationInteraction}` : "",
     riskLabels.length ? `Deterministic profile flags: ${riskLabels.join(", ")}` : "",
   ].filter(Boolean);
 
@@ -798,22 +802,29 @@ router.get("/context", async (req: Request, res: Response) => {
       allergies: String(variables.allergies || ""),
       medications: String(variables.medications || ""),
       latestVitals: String(variables.latest_vitals_scan || ""),
+      vitalsTrend: String(variables.vitals_trend || ""),
       latestSymptomReport: String(variables.latest_symptom_report || ""),
+      medicationAdherence: String(variables.medication_adherence_summary || ""),
+      medicationInteraction: String(variables.medication_interaction_context || ""),
       countryCode: String(variables.country_code || ""),
     };
     const usedItems = [
       memory.latestVitals ? "Latest vitals" : "",
+      memory.vitalsTrend ? "Vitals trend" : "",
       memory.medications ? "Medications" : "",
+      memory.medicationAdherence || memory.medicationInteraction ? "Medication context" : "",
       memory.allergies ? "Allergies" : "",
       memory.conditions ? "Conditions" : "",
       memory.latestSymptomReport ? "Recent symptoms" : "",
     ].filter(Boolean);
+    const language = normalizeAppLanguage(req.language ?? req.header("X-VYVA-Language"), "en");
 
     return res.json({
       memory,
       usedItems,
       countryCode: memory.countryCode || undefined,
       emergencyContact: emergencyContactForCountry(memory.countryCode),
+      personalizedSuggestions: buildPersonalizedTriageSuggestions(memory, language),
     });
   } catch (err) {
     console.error("[triage/context]", err);

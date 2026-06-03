@@ -7,6 +7,12 @@ export {
 export { mergeTriageRecommendations } from "./engine/recommendationDedupe.js";
 
 export {
+  buildPersonalizedTriageSuggestions,
+  extractTriageProfileSignals,
+  type TriageProfileSignals,
+} from "./introSuggestions.js";
+
+export {
   CRITICAL_RED_FLAG_IDS,
   applyTriageSafetyFloor,
   buildFallbackTriageReport,
@@ -47,6 +53,8 @@ export type {
   TriageEscalationSource,
   TriageChatMessage,
   TriageHealthMemory,
+  TriagePersonalizedSuggestion,
+  TriageSuggestionReasonCode,
   TriageProtocol,
   TriageRuleDecision,
   TriageRuleInput,

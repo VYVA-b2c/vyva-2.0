@@ -126,8 +126,33 @@ export type TriageHealthMemory = {
   allergies?: string;
   medications?: string;
   latestVitals?: string;
+  vitalsTrend?: string;
   latestSymptomReport?: string;
+  medicationAdherence?: string;
+  medicationInteraction?: string;
   countryCode?: string;
+};
+
+export type TriageSuggestionReasonCode =
+  | "condition_match"
+  | "medicine_match"
+  | "recent_report"
+  | "recent_vitals"
+  | "fallback";
+
+export type TriagePersonalizedSuggestion = {
+  id: string;
+  kind: "common_concern" | "health_improvement";
+  label: string;
+  description: string;
+  tone: "purple" | "red" | "blue" | "amber" | "green";
+  icon: "heart" | "wind" | "droplet" | "activity" | "pill" | "home" | "brain" | "stethoscope" | "shield" | "gauge";
+  source: "profile" | "medications" | "recent_report" | "vitals" | "fallback";
+  priority: number;
+  reasonCode?: TriageSuggestionReasonCode;
+  score?: number;
+  initialClue?: string;
+  route?: string;
 };
 
 export type TriageChatMessage = {
