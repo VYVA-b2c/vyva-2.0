@@ -279,7 +279,7 @@ function accountInvitePrefillFromSearch(search: string): AccountInvitePrefill | 
 
 async function accountSaveErrorMessage(response: Response) {
   try {
-    const body = await response.json() as { error?: unknown; message?: unknown };
+    const body = await response.clone().json() as { error?: unknown; message?: unknown };
     if (typeof body.error === "string" && body.error.trim()) return body.error.trim();
     if (typeof body.message === "string" && body.message.trim()) return body.message.trim();
   } catch {
@@ -290,7 +290,7 @@ async function accountSaveErrorMessage(response: Response) {
       // Fall through to the generic message.
     }
   }
-  return "";
+  return "Failed to save profile";
 }
 
 export default function AccountSettings() {
@@ -406,7 +406,7 @@ export default function AccountSettings() {
         method: "PATCH",
         body: JSON.stringify({ avatarUrl: dataUrl }),
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error(await accountSaveErrorMessage(res));
       return res.json();
     },
     onSuccess: () => {

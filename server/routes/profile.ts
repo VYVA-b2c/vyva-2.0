@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { and, desc, eq, count, inArray, or } from "drizzle-orm";
+import { and, desc, eq, count, inArray, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
 import {
@@ -72,6 +72,20 @@ function normalizeProfileLanguage(value: unknown): ProfileLanguage {
 
 function resolvedProfileLanguage(profile: { language?: string | null; language_preference?: string | null }): ProfileLanguage {
   return normalizeProfileLanguage(profile.language_preference ?? profile.language);
+}
+
+function trimToNull(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function sameEmail(a: string | null | undefined, b: string | null | undefined): boolean {
+  return Boolean(a && b && a.trim().toLowerCase() === b.trim().toLowerCase());
+}
+
+function samePhone(a: string | null | undefined, b: string | null | undefined): boolean {
+  return Boolean(a && b && a.replace(/\s+/g, "") === b.replace(/\s+/g, ""));
 }
 
 /**
@@ -1029,6 +1043,7 @@ router.patch("/language", async (req: Request, res: Response) => {
 router.post("/", async (req: Request, res: Response) => {
   const userId = await resolveUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  const accountUserId = req.user?.id ?? null;
 
   const parsed = profileBodySchema.safeParse(req.body);
   if (!parsed.success) {
@@ -1043,12 +1058,76 @@ router.post("/", async (req: Request, res: Response) => {
   const hasGpEmailInput = Object.prototype.hasOwnProperty.call(req.body, "gpEmail");
 
   try {
-    const existingRows = await db
-      .select({ data_sharing_consent: profiles.data_sharing_consent })
-      .from(profiles)
-      .where(eq(profiles.id, userId))
-      .limit(1);
+    const [existingRows, accountRows] = await Promise.all([
+      db
+        .select({
+          data_sharing_consent: profiles.data_sharing_consent,
+          email: profiles.email,
+          phone_number: profiles.phone_number,
+        })
+        .from(profiles)
+        .where(eq(profiles.id, userId))
+        .limit(1),
+      accountUserId
+        ? db
+            .select({ email: users.email, phone_number: users.phone_number })
+            .from(users)
+            .where(eq(users.id, accountUserId))
+            .limit(1)
+            .catch((err) => {
+              const message = err instanceof Error ? err.message : String(err);
+              if (message.includes("does not exist")) return [];
+              throw err;
+            })
+        : Promise.resolve([]),
+    ]);
+    const existingProfile = existingRows[0];
+    const account = accountRows[0];
+    const accountEmail = typeof req.user?.email === "string" ? req.user.email : account?.email;
     const dataSharingConsent = mergeIdentityGender(existingRows[0]?.data_sharing_consent, d.gender);
+    const inputEmail = trimToNull(d.email);
+    const inputPhone = trimToNull(d.phone);
+    const isEditingActiveCareProfile = Boolean(accountUserId && accountUserId !== userId);
+    const profileEmail = isEditingActiveCareProfile && sameEmail(inputEmail, accountEmail)
+      ? existingProfile?.email ?? null
+      : inputEmail;
+    const profilePhone = isEditingActiveCareProfile && samePhone(inputPhone, account?.phone_number)
+      ? existingProfile?.phone_number ?? null
+      : inputPhone;
+
+    if (profileEmail && !sameEmail(profileEmail, existingProfile?.email)) {
+      const [emailOwner] = await db
+        .select({ id: profiles.id })
+        .from(profiles)
+        .where(and(
+          sql`lower(${profiles.email}) = ${profileEmail.toLowerCase()}`,
+          ne(profiles.id, userId),
+        ))
+        .limit(1);
+
+      if (emailOwner) {
+        return res.status(409).json({
+          error: "That email is already used on another profile. Use the account email only for your sign-in account, or choose a different profile email.",
+        });
+      }
+    }
+
+    if (profilePhone && profilePhone !== existingProfile?.phone_number) {
+      const [phoneOwner] = await db
+        .select({ id: profiles.id })
+        .from(profiles)
+        .where(and(
+          eq(profiles.phone_number, profilePhone),
+          ne(profiles.id, userId),
+        ))
+        .limit(1);
+
+      if (phoneOwner) {
+        return res.status(409).json({
+          error: "That phone number is already used on another profile. Choose a different profile phone number.",
+        });
+      }
+    }
 
     await db
       .insert(profiles)
@@ -1057,8 +1136,8 @@ router.post("/", async (req: Request, res: Response) => {
         full_name,
         preferred_name:   d.preferredName || null,
         date_of_birth:    d.dateOfBirth || null,
-        email:            d.email || null,
-        phone_number:     d.phone || null,
+        email:            profileEmail,
+        phone_number:     profilePhone,
         whatsapp_number:  d.whatsapp || null,
         country_code:     d.country || null,
         timezone:         d.timezone || "Europe/Madrid",
@@ -1080,8 +1159,8 @@ router.post("/", async (req: Request, res: Response) => {
           full_name,
           preferred_name:   d.preferredName || null,
           date_of_birth:    d.dateOfBirth || null,
-          email:            d.email || null,
-          phone_number:     d.phone || null,
+          email:            profileEmail,
+          phone_number:     profilePhone,
           whatsapp_number:  d.whatsapp || null,
           country_code:     d.country || null,
           timezone:         d.timezone || "Europe/Madrid",
