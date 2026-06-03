@@ -73,6 +73,12 @@ describe("invite landing compatibility redirect", () => {
     );
   });
 
+  it("routes caregiver setup invites into the who-for onboarding step", () => {
+    expect(inviteSetupPath("?lang=en&email=care%40example.com&setup_for=someone_else")).toBe(
+      "/login?lang=en&email=care%40example.com&setup_for=someone_else&mode=register&invite=1&returnTo=%2Fonboarding%2Fwho-for",
+    );
+  });
+
   it("redirects signed-out invite links to account creation", async () => {
     renderInvite("/invite?lang=fr&email=maria%40example.com&invite_id=invite-123456");
 

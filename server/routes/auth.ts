@@ -568,7 +568,7 @@ async function recordSignupInviteAudit(input: {
 
   const now = new Date();
   const eventType = signupInviteEventType[input.event];
-  const userId = input.userId ?? intake?.user_id ?? intake?.elder_user_id ?? null;
+  const userId = input.userId ?? intake?.user_id ?? intake?.elder_user_id ?? intake?.family_user_id ?? null;
   const status = intake?.status === "active" || input.event === "profile_completed"
     ? "active"
     : intake?.status === "created"
@@ -576,16 +576,19 @@ async function recordSignupInviteAudit(input: {
       : intake?.status ?? "link_sent";
 
   if (intake) {
+    const metadata = jsonRecord(intake.metadata);
+    const caregiverInvite = intake.user_type === "family" || metadata.invite_type === "caregiver";
     await db.update(userIntakes).set({
       user_id: userId ?? intake.user_id,
-      elder_user_id: userId ?? intake.elder_user_id,
+      elder_user_id: caregiverInvite ? intake.elder_user_id : userId ?? intake.elder_user_id,
+      family_user_id: caregiverInvite ? userId ?? intake.family_user_id : intake.family_user_id,
       status,
       journey_step: strongestSignupInviteStep(intake.journey_step, eventType),
       activated_at: status === "active" ? now : intake.activated_at,
       last_activity_at: now,
       updated_at: now,
       metadata: {
-        ...jsonRecord(intake.metadata),
+        ...metadata,
         latest_invite_id: input.inviteId,
         latest_invite_event: eventType,
         ...(input.language ? { invite_language: input.language } : {}),

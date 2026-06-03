@@ -37,6 +37,19 @@ describe("signup invite language", () => {
     expect(parsed.searchParams.get("invite_id")).toBe("invite-123456");
   });
 
+  it("can mark invite links for caregiver or family setup", () => {
+    const setupUrl = buildSignupInviteUrl("https://v2.vyva.life", "en", {
+      email: "care@example.com",
+      inviteId: "invite-caregiver",
+      setupFor: "someone_else",
+    });
+    const parsed = new URL(setupUrl);
+
+    expect(parsed.searchParams.get("email")).toBe("care@example.com");
+    expect(parsed.searchParams.get("invite_id")).toBe("invite-caregiver");
+    expect(parsed.searchParams.get("setup_for")).toBe("someone_else");
+  });
+
   it("does not use email or phone contacts as invite names", () => {
     const emailOnlyUrl = buildSignupInviteUrl("https://v2.vyva.life", "en", {
       name: "gm@4cksa.com",
