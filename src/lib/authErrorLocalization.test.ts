@@ -37,4 +37,21 @@ describe("auth error localization", () => {
       "Unexpected backend detail.",
     );
   });
+
+  it("hides technical account setup errors from users", () => {
+    expect(
+      localizeAuthErrorMessage(
+        new Error("Database schema is out of date. Please run npm run db:auth, restart the app, and try again."),
+        "en",
+        "Something went wrong.",
+      ),
+    ).toBe("We could not create this account right now. Please try again later or contact VYVA support.");
+    expect(
+      localizeAuthErrorMessage(
+        new Error("Account setup is not ready in this environment. Run npm run db:auth against the app database."),
+        "es",
+        "Algo salio mal.",
+      ),
+    ).toBe("No se pudo crear esta cuenta ahora. Intentalo mas tarde o contacta con soporte de VYVA.");
+  });
 });

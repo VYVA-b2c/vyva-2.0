@@ -344,7 +344,10 @@ function friendlyAuthWriteError(err: unknown): string {
     message.includes("onboarding_intent") ||
     message.includes("does not exist")
   ) {
-    return "Database schema is out of date. Please run npm run db:auth, restart the app, and try again.";
+    if (!isProduction) {
+      return "Account setup is not ready in this environment. Run npm run db:auth against the app database, restart the backend, and try again.";
+    }
+    return "We could not create the account right now. Please try again later or contact VYVA support.";
   }
   if (!isProduction) {
     return `Registration failed: ${message.slice(0, 240)}`;
