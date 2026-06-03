@@ -734,6 +734,49 @@ const pt = {
       finish: "Terminar",
     },
   },
+  triageScan: {
+    eyebrow: "A sua escolha",
+    resultAdded: "Nota do controlo adicionada",
+    photoError: "Nao conseguimos verificar essa foto. Pode tentar de novo ou continuar sem ela.",
+    actions: {
+      checkNow: "Verificar agora",
+      takePhoto: "Tirar foto",
+      notNow: "Agora nao",
+      tryAgain: "Tentar de novo",
+      continue: "Continuar",
+    },
+    labels: {
+      vitals: "Verificacao de pulso e respiracao",
+    },
+    vitals: {
+      pulseSummary: "Pulso {{bpm}} bpm",
+      breathingSummary: "respiracao {{rate}}/min",
+      noReading: "Nenhuma leitura registada.",
+      pulseFinding: "Pulso: {{bpm}} bpm",
+      breathingFinding: "Frequencia respiratoria: {{rate}}/min",
+    },
+    offers: {
+      vitals: {
+        title: "Verificar pulso e respiracao",
+        body: "Se se sentir confortavel, esta verificacao rapida ajuda a VYVA a perceber como esta o seu corpo agora.",
+      },
+      wound_photo: {
+        title: "Foto da alteracao na pele",
+        body: "Se quiser, pode tirar uma foto da alteracao na pele para a VYVA observar o que e visivel.",
+        privacyNote: "Fotografe apenas a zona que quer verificar. A foto e analisada e depois descartada.",
+      },
+      urine_photo: {
+        title: "Foto do aspeto da urina",
+        body: "Se a cor ou turvacao parecer diferente, uma foto pode ajudar a VYVA a registar a alteracao.",
+        privacyNote: "Fotografe apenas a urina. Evite rostos e documentos. Uma foto nao consegue dizer se tem uma infeccao urinaria.",
+      },
+      stool_photo: {
+        title: "Foto do aspeto das fezes",
+        body: "Se as fezes pareceram invulgares para si, uma foto pode ajudar a VYVA a registar a alteracao.",
+        privacyNote: "Fotografe apenas as fezes. Evite rostos e documentos. Uma foto nao consegue dizer se ha sangramento ou doenca do estomago.",
+      },
+    },
+  },
   informes: {
     fastServiceAccess: "Acesso rapido a servicos",
     actions: {

@@ -829,6 +829,49 @@ const en = {
       finish: "Finish",
     },
   },
+  triageScan: {
+    eyebrow: "Your choice",
+    resultAdded: "Scan note added",
+    photoError: "We could not check that photo. You can try again or continue without it.",
+    actions: {
+      checkNow: "Check now",
+      takePhoto: "Take photo",
+      notNow: "Not now",
+      tryAgain: "Try again",
+      continue: "Continue",
+    },
+    labels: {
+      vitals: "Pulse and breathing scan",
+    },
+    vitals: {
+      pulseSummary: "Pulse {{bpm}} bpm",
+      breathingSummary: "breathing {{rate}}/min",
+      noReading: "No reading captured.",
+      pulseFinding: "Pulse: {{bpm}} bpm",
+      breathingFinding: "Breathing rate: {{rate}}/min",
+    },
+    offers: {
+      vitals: {
+        title: "Check pulse & breathing",
+        body: "If you feel comfortable, this quick check can help VYVA understand how your body is doing right now.",
+      },
+      wound_photo: {
+        title: "Photo of the skin change",
+        body: "If you want, you can take a photo of the skin change so VYVA can look for visible changes.",
+        privacyNote: "Only photograph the area you want checked. The photo is reviewed and then discarded.",
+      },
+      urine_photo: {
+        title: "Photo of urine appearance",
+        body: "If the color or cloudiness looks different, a photo may help VYVA note what changed.",
+        privacyNote: "Only photograph the urine itself. Keep faces and ID cards out of the photo. A photo cannot tell if you have a urine infection.",
+      },
+      stool_photo: {
+        title: "Photo of stool appearance",
+        body: "If the stool looked unusual for you, a photo may help VYVA note the change.",
+        privacyNote: "Only photograph the stool itself. Keep faces and ID cards out of the photo. A photo cannot tell if there is bleeding or stomach disease.",
+      },
+    },
+  },
   informes: {
     fastServiceAccess: "Fast service access",
     actions: {

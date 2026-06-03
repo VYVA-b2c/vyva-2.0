@@ -823,6 +823,49 @@ const es = {
       finish: "Terminar",
     },
   },
+  triageScan: {
+    eyebrow: "Tu decides",
+    resultAdded: "Nota del chequeo anadida",
+    photoError: "No pudimos revisar esa foto. Puedes intentarlo de nuevo o seguir sin ella.",
+    actions: {
+      checkNow: "Revisar ahora",
+      takePhoto: "Tomar foto",
+      notNow: "Ahora no",
+      tryAgain: "Intentar de nuevo",
+      continue: "Continuar",
+    },
+    labels: {
+      vitals: "Chequeo de pulso y respiracion",
+    },
+    vitals: {
+      pulseSummary: "Pulso {{bpm}} bpm",
+      breathingSummary: "respiracion {{rate}}/min",
+      noReading: "No se registro lectura.",
+      pulseFinding: "Pulso: {{bpm}} bpm",
+      breathingFinding: "Frecuencia respiratoria: {{rate}}/min",
+    },
+    offers: {
+      vitals: {
+        title: "Revisar pulso y respiracion",
+        body: "Si te parece bien, este chequeo rapido ayuda a VYVA a entender como esta tu cuerpo ahora.",
+      },
+      wound_photo: {
+        title: "Foto del cambio en la piel",
+        body: "Si quieres, puedes tomar una foto del cambio en la piel para que VYVA revise lo que se ve.",
+        privacyNote: "Fotografia solo la zona que quieres revisar. La foto se analiza y luego se descarta.",
+      },
+      urine_photo: {
+        title: "Foto del aspecto de la orina",
+        body: "Si el color o la turbidez se ven diferentes, una foto puede ayudar a VYVA a anotar el cambio.",
+        privacyNote: "Fotografia solo la orina. Evita caras y documentos. Una foto no puede decir si tienes una infeccion urinaria.",
+      },
+      stool_photo: {
+        title: "Foto del aspecto de las heces",
+        body: "Si las heces se vieron inusuales para ti, una foto puede ayudar a VYVA a anotar el cambio.",
+        privacyNote: "Fotografia solo las heces. Evita caras y documentos. Una foto no puede decir si hay sangrado o enfermedad del estomago.",
+      },
+    },
+  },
   informes: {
     fastServiceAccess: "Acceso rapido a servicios",
     actions: {
