@@ -368,6 +368,13 @@ describe("Onboarding journey — end-to-end", () => {
     const mary = roster.body.members.find((member: { invitee_name: string }) => member.invitee_name === "Mary User");
     expect(mary.latest_delivery_status).toBeTruthy();
     expect(mary.latest_delivery_channel).toBeTruthy();
+    expect(mary).toMatchObject({
+      can_receive_daily_digest: true,
+      can_receive_safety_alerts: true,
+      can_receive_health_alerts: false,
+      can_view_health_reports: false,
+      can_view_journal_summaries: false,
+    });
   });
 
   it("POST /section/careteam requires caregiver email because invites always send SMS and email", async () => {
