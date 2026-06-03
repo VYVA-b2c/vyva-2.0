@@ -7,6 +7,7 @@ const SECTION_LABELS: Record<string, { title: string; message: string }> = {
   basics: { title: "Basics saved", message: "Your personal details are looking good." },
   contact: { title: "Contact details saved", message: "We know where to reach you." },
   health: { title: "Health conditions saved", message: "VYVA will keep this in mind during conversations." },
+  conditions: { title: "Health conditions saved", message: "VYVA will keep this in mind during conversations." },
   medications: { title: "Medications saved", message: "Reminders and adherence tracking are ready." },
   allergies: { title: "Allergies saved", message: "Important — VYVA will remember these." },
   "care-team": { title: "Care team added", message: "Your loved ones can now receive updates." },

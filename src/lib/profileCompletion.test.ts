@@ -40,6 +40,22 @@ describe("deriveCompletedSections", () => {
     expect(result.has("health")).toBe(true);
   });
 
+  it("marks health complete when no known conditions was explicitly saved", () => {
+    const result = deriveCompletedSections({
+      data_sharing_consent: {
+        conditions: { no_known_conditions: true },
+      },
+    }, null);
+    expect(result.has("health")).toBe(true);
+  });
+
+  it("marks health complete from saved conditions even if onboarding state is missing", () => {
+    const result = deriveCompletedSections({
+      conditions: [{ name: "Hypertension" }],
+    }, null);
+    expect(result.has("health")).toBe(true);
+  });
+
   it("does not mark health complete when has_health_conditions is false", () => {
     const result = deriveCompletedSections(null, { has_health_conditions: false });
     expect(result.has("health")).toBe(false);
@@ -50,8 +66,34 @@ describe("deriveCompletedSections", () => {
     expect(result.has("medications")).toBe(true);
   });
 
+  it("marks medications complete when no current medications was explicitly saved", () => {
+    const result = deriveCompletedSections({
+      data_sharing_consent: {
+        medications: { no_known_medications: true },
+      },
+    }, null);
+    expect(result.has("medications")).toBe(true);
+  });
+
+  it("marks medications complete from restored medication rows", () => {
+    const result = deriveCompletedSections({
+      medications: [{ name: "Metformin" }],
+    }, null);
+    expect(result.has("medications")).toBe(true);
+  });
+
   it("marks allergies complete when known_allergies has at least one entry", () => {
     const result = deriveCompletedSections({ known_allergies: ["Penicillin"] }, null);
+    expect(result.has("allergies")).toBe(true);
+  });
+
+  it("marks allergies complete when no known allergies was explicitly saved", () => {
+    const result = deriveCompletedSections({
+      known_allergies: [],
+      data_sharing_consent: {
+        allergies: { no_known_allergies: true },
+      },
+    }, null);
     expect(result.has("allergies")).toBe(true);
   });
 

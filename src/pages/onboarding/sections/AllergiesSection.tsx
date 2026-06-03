@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiFetch } from "@/lib/queryClient";
 import { useAutoSave } from "@/hooks/useAutoSave";
 import VoiceAllergiesModal from "@/components/VoiceAllergiesModal";
-import { AlertTriangle, Plus, Mic } from "lucide-react";
+import { AlertTriangle, Plus, Mic, CheckCircle2 } from "lucide-react";
 import { friendlyError } from "@/lib/apiError";
 import { useToast } from "@/hooks/use-toast";
 
@@ -42,6 +42,7 @@ export default function AllergiesSection() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [allergies, setAllergies] = useState<string[]>([]);
+  const [noKnownAllergies, setNoKnownAllergies] = useState(false);
   const [input, setInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [voiceModalOpen, setVoiceModalOpen] = useState(false);
@@ -49,7 +50,7 @@ export default function AllergiesSection() {
   const allergiesRef = useRef(allergies);
   useEffect(() => { allergiesRef.current = allergies; }, [allergies]);
 
-  const { data, isLoading } = useQuery<{ profile: { known_allergies?: string[] | null } | null }>({
+  const { data, isLoading } = useQuery<{ profile: { known_allergies?: string[] | null; no_known_allergies?: boolean } | null }>({
     queryKey: ["/api/onboarding/state"],
   });
 
@@ -57,18 +58,23 @@ export default function AllergiesSection() {
     if (!data) return;
     const saved = data?.profile?.known_allergies;
     setAllergies(Array.isArray(saved) ? saved : []);
+    setNoKnownAllergies(Boolean(data.profile?.no_known_allergies) && (!Array.isArray(saved) || saved.length === 0));
   }, [data]);
 
   const { autoSaveStatus, savedFading, retryCountdown, retryNow, scheduleAutoSave, cancelAutoSave } = useAutoSave(
     async () => {
       const res = await apiFetch("/api/onboarding/section/medications", {
         method: "POST",
-        body: JSON.stringify({ known_allergies: allergiesRef.current }),
+        body: JSON.stringify({
+          known_allergies: allergiesRef.current,
+          no_known_allergies: noKnownAllergies && allergiesRef.current.length === 0,
+        }),
       });
       if (!res.ok) {
         const msg = await friendlyError(new Error(), res);
         throw new Error(msg);
       }
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
       queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
     },
     1500,
@@ -82,6 +88,7 @@ export default function AllergiesSection() {
       setInput("");
       return;
     }
+    setNoKnownAllergies(false);
     const updated = [...allergies, value];
     setAllergies(updated);
     setInput("");
@@ -90,6 +97,16 @@ export default function AllergiesSection() {
 
   const removeAllergy = (name: string) => {
     setAllergies((prev) => prev.filter((a) => a !== name));
+    scheduleAutoSave();
+  };
+
+  const toggleNoKnownAllergies = () => {
+    const next = !noKnownAllergies;
+    setNoKnownAllergies(next);
+    if (next) {
+      setAllergies([]);
+      setInput("");
+    }
     scheduleAutoSave();
   };
 
@@ -108,6 +125,7 @@ export default function AllergiesSection() {
       toast({ title: "All allergens are already on your list" });
       return;
     }
+    setNoKnownAllergies(false);
     setAllergies((prev) => Array.from(new Set([...prev, ...novel])));
     scheduleAutoSave();
     toast({ title: `${novel.length} allergen${novel.length > 1 ? "s" : ""} added` });
@@ -121,7 +139,10 @@ export default function AllergiesSection() {
     try {
       res = await apiFetch("/api/onboarding/section/medications", {
         method: "POST",
-        body: JSON.stringify({ known_allergies: allergies }),
+        body: JSON.stringify({
+          known_allergies: allergies,
+          no_known_allergies: noKnownAllergies && allergies.length === 0,
+        }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
@@ -138,6 +159,7 @@ export default function AllergiesSection() {
   const suggestionsToShow = COMMON_ALLERGENS.filter(
     (a) => !allergies.some((x) => x.toLowerCase() === a.toLowerCase())
   );
+  const hasAllergySectionContent = allergies.length > 0 || noKnownAllergies;
 
   return (
     <PhoneFrame subtitle="Allergies" showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
@@ -186,6 +208,27 @@ export default function AllergiesSection() {
           onOpenChange={setVoiceModalOpen}
           onAddAllergies={handleVoiceAddAllergies}
         />
+
+        <div className="rounded-[24px] border border-[#FDE68A] bg-white px-4 py-4 shadow-[0_10px_22px_rgba(53,28,87,0.05)]">
+          <p className="font-body text-[15px] font-extrabold text-vyva-text-1">No allergies to add?</p>
+          <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
+            Choose this if there are no known allergies right now.
+          </p>
+          <button
+            type="button"
+            aria-pressed={noKnownAllergies}
+            data-testid="button-allergies-no-known"
+            onClick={toggleNoKnownAllergies}
+            className={`mt-3 flex min-h-[58px] w-full items-center justify-center gap-2 rounded-[20px] border px-4 py-3 font-body text-[16px] font-black transition ${
+              noKnownAllergies
+                ? "border-[#C9890A] bg-[#C9890A] text-white shadow-[0_14px_26px_rgba(201,137,10,0.18)]"
+                : "border-[#FDE68A] bg-[#FFFBEB] text-[#92400E]"
+            }`}
+          >
+            <CheckCircle2 size={18} />
+            No known allergies
+          </button>
+        </div>
 
         {isLoading ? (
           <div className="flex flex-col gap-3">
@@ -279,8 +322,8 @@ export default function AllergiesSection() {
           <Button
             data-testid="button-allergies-save"
             onClick={handleSave}
-            disabled={saving || isLoading}
-            className="h-14 w-full rounded-full bg-[#6b21a8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5b1a8f]"
+            disabled={saving || isLoading || !hasAllergySectionContent}
+            className="h-14 w-full rounded-full bg-[#6b21a8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5b1a8f] disabled:opacity-40"
           >
             {saving ? "Saving..." : "Save allergies"}
           </Button>
