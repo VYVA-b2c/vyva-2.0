@@ -203,7 +203,7 @@ export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 // ============================================================
 
 export const profiles = pgTable("profiles", {
-  id: uuid("id").primaryKey(),
+  id: text("id").primaryKey(),
 
   // Existing
   full_name:              text("full_name"),

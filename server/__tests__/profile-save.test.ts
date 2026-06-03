@@ -59,6 +59,48 @@ afterEach(async () => {
 });
 
 describe("Profile save", () => {
+  it("saves profiles whose IDs come from external text auth providers", async () => {
+    const profileId = `legacy-profile-${randomUUID()}`;
+    await createProfile({
+      id: profileId,
+      full_name: "Legacy User",
+      phone_number: "+34600000101",
+    });
+
+    await request(app)
+      .post("/api/profile")
+      .set("x-user-id", profileId)
+      .send({
+        firstName: "Legacy",
+        lastName: "Person",
+        preferredName: "Legacy",
+        dateOfBirth: "1940-03-09",
+        email: "legacy-profile@example.com",
+        phone: "+34600000102",
+        whatsapp: "",
+        country: "ES",
+        timezone: "Europe/Madrid",
+        language: "en",
+      })
+      .expect(200);
+
+    const [profile] = await db
+      .select({
+        full_name: profiles.full_name,
+        email: profiles.email,
+        phone_number: profiles.phone_number,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, profileId))
+      .limit(1);
+
+    expect(profile).toMatchObject({
+      full_name: "Legacy Person",
+      email: "legacy-profile@example.com",
+      phone_number: "+34600000102",
+    });
+  });
+
   it("does not copy the account email onto a separate active care profile", async () => {
     const accountEmail = `profile-account-${randomUUID()}@example.com`;
     const seniorProfileId = await createProfile({
