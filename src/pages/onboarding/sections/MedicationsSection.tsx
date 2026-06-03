@@ -116,7 +116,12 @@ function cloneSetWithout(value: Set<string>, id: string) {
   return next;
 }
 
-async function saveMedsToServer(meds: Medication[]): Promise<Response> {
+function hasNamedMedication(meds: Medication[]) {
+  return meds.some((med) => med.name.trim().length > 0);
+}
+
+async function saveMedsToServer(meds: Medication[], noKnownMedications = false): Promise<Response> {
+  const hasMedication = hasNamedMedication(meds);
   return await apiFetch("/api/onboarding/section/medications", {
     method: "POST",
     body: JSON.stringify({
@@ -128,6 +133,7 @@ async function saveMedsToServer(meds: Medication[]): Promise<Response> {
           frequency: m.frequency || undefined,
           scheduled_times: parseMedicationTimes(m.times),
         })),
+      no_known_medications: noKnownMedications && !hasMedication,
     }),
   });
 }
@@ -152,6 +158,7 @@ export default function MedicationsSection() {
   const initialMed = emptyMed("med-1");
   const [meds, setMeds] = useState<Medication[]>([initialMed]);
   const [savedMeds, setSavedMeds] = useState<Medication[]>([initialMed]);
+  const [noKnownMedications, setNoKnownMedications] = useState(false);
   const [saving, setSaving] = useState(false);
   const [autoSaving, setAutoSaving] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -164,10 +171,12 @@ export default function MedicationsSection() {
 
   // Refs so auto-save closure always sees the latest values
   const medsRef = useRef(meds);
+  const noKnownMedicationsRef = useRef(noKnownMedications);
   const busyRef = useRef(false);
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { medsRef.current = meds; }, [meds]);
+  useEffect(() => { noKnownMedicationsRef.current = noKnownMedications; }, [noKnownMedications]);
   useEffect(() => { busyRef.current = saving || autoSaving || adding || !!removingId; }, [saving, autoSaving, adding, removingId]);
   useEffect(() => () => { if (navTimerRef.current) clearTimeout(navTimerRef.current); }, []);
   useEffect(() => {
@@ -184,7 +193,7 @@ export default function MedicationsSection() {
       : "/onboarding/complete/medications";
   };
 
-  const { data, isLoading } = useQuery<{ profile: { medications?: Omit<Medication, "id">[] } | null }>({
+  const { data, isLoading } = useQuery<{ profile: { medications?: Omit<Medication, "id">[]; no_known_medications?: boolean } | null }>({
     queryKey: ["/api/onboarding/state"],
   });
 
@@ -197,10 +206,12 @@ export default function MedicationsSection() {
       const withIds = saved.map((m, i) => ({ ...m, id: `med-${i + 1}` }));
       setMeds(withIds);
       setSavedMeds(withIds);
+      setNoKnownMedications(false);
       setExpandedMedIds(new Set());
       setDetailsOpenMedIds(new Set());
     } else if (data && !isLoading) {
       loadedRef.current = true;
+      setNoKnownMedications(Boolean(data.profile?.no_known_medications));
     }
   }, [data, isLoading]);
 
@@ -210,12 +221,13 @@ export default function MedicationsSection() {
       setAutoSaving(true);
       try {
         const currentMeds = medsRef.current;
-        const res = await saveMedsToServer(currentMeds);
+        const res = await saveMedsToServer(currentMeds, noKnownMedicationsRef.current);
         if (!res.ok) {
           const msg = await friendlyError(new Error(), res);
           throw new Error(msg);
         }
         setSavedMeds([...currentMeds]);
+        queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
         queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
         queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
       } finally {
@@ -226,7 +238,22 @@ export default function MedicationsSection() {
   );
 
   const updateMed = (id: string, field: keyof Omit<Medication, "id">, value: string) => {
+    if (value.trim()) setNoKnownMedications(false);
     setMeds((prev) => prev.map((m) => m.id === id ? { ...m, [field]: value } : m));
+    scheduleAutoSave();
+  };
+
+  const toggleNoKnownMedications = () => {
+    const next = !noKnownMedications;
+    setNoKnownMedications(next);
+    if (next) {
+      const reset = emptyMed("med-1");
+      counterRef.current = 1;
+      setMeds([reset]);
+      setExpandedMedIds(new Set([reset.id]));
+      setDetailsOpenMedIds(new Set());
+      setCustomFrequencyMedIds(new Set());
+    }
     scheduleAutoSave();
   };
 
@@ -273,6 +300,7 @@ export default function MedicationsSection() {
   const addMed = async () => {
     if (adding || removingId || saving) return;
     setAdding(true);
+    setNoKnownMedications(false);
     const previous = meds;
     counterRef.current += 1;
     const newMed = emptyMed(`med-${counterRef.current}`);
@@ -282,10 +310,11 @@ export default function MedicationsSection() {
     setDetailsOpenMedIds((prev) => cloneSetWithout(prev, newMed.id));
     let res: Response | undefined;
     try {
-      res = await saveMedsToServer(updated);
+      res = await saveMedsToServer(updated, false);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setSavedMeds(updated);
       setAutoSaveStatus("saved");
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
       queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
       queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
     } catch (err) {
@@ -303,20 +332,21 @@ export default function MedicationsSection() {
     const previous = meds;
     const filtered = previous.filter((m) => m.id !== id);
     counterRef.current += 1;
-      const updated = filtered.length > 0 ? filtered : [emptyMed(`med-${counterRef.current}`)];
-      setMeds(updated);
-      setExpandedMedIds((prev) => {
-        const next = cloneSetWithout(prev, id);
-        if (updated.length === 1 && !updated[0].name.trim()) next.add(updated[0].id);
-        return next;
-      });
-      setDetailsOpenMedIds((prev) => cloneSetWithout(prev, id));
-      let res: Response | undefined;
+    const updated = filtered.length > 0 ? filtered : [emptyMed(`med-${counterRef.current}`)];
+    setMeds(updated);
+    setExpandedMedIds((prev) => {
+      const next = cloneSetWithout(prev, id);
+      if (updated.length === 1 && !updated[0].name.trim()) next.add(updated[0].id);
+      return next;
+    });
+    setDetailsOpenMedIds((prev) => cloneSetWithout(prev, id));
+    let res: Response | undefined;
     try {
-      res = await saveMedsToServer(updated);
+      res = await saveMedsToServer(updated, noKnownMedications);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setSavedMeds(updated);
       setAutoSaveStatus("saved");
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
       queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
       queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
     } catch (err) {
@@ -332,6 +362,7 @@ export default function MedicationsSection() {
     async (voiceMed: MedicationForForm) => {
       if (adding || removingId || saving) return;
       setAdding(true);
+      setNoKnownMedications(false);
       const previous = meds;
       counterRef.current += 1;
       const newId = `med-${counterRef.current}`;
@@ -352,10 +383,11 @@ export default function MedicationsSection() {
       }
       let res: Response | undefined;
       try {
-        res = await saveMedsToServer(updated);
+        res = await saveMedsToServer(updated, false);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         setSavedMeds(updated);
         setAutoSaveStatus("saved");
+        queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
         queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
         queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
       } catch (err) {
@@ -396,7 +428,7 @@ export default function MedicationsSection() {
     let navigating = false;
     let res: Response | undefined;
     try {
-      res = await saveMedsToServer(meds);
+      res = await saveMedsToServer(meds, noKnownMedications);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
@@ -442,6 +474,7 @@ export default function MedicationsSection() {
   );
 
   const busy = saving || autoSaving || adding || !!removingId;
+  const hasMedicationSectionContent = hasNamedMedication(meds) || noKnownMedications;
   const inputClassName = "h-14 rounded-[18px] border-[#DDC7FF] bg-white px-4 text-[17px] text-vyva-text-1 shadow-[0_8px_20px_rgba(53,28,87,0.05)] placeholder:text-[#8D7D73] focus-visible:ring-4 focus-visible:ring-vyva-purple/15";
 
   return (
@@ -503,6 +536,27 @@ export default function MedicationsSection() {
             </p>
           </div>
         </button>
+
+        <div className="rounded-[24px] border border-[#D7F5E8] bg-white px-4 py-4 shadow-[0_10px_22px_rgba(53,28,87,0.05)]">
+          <p className="font-body text-[15px] font-extrabold text-vyva-text-1">No medications right now?</p>
+          <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
+            Choose this if there are no current medicines to add.
+          </p>
+          <button
+            type="button"
+            aria-pressed={noKnownMedications}
+            data-testid="button-meds-no-current"
+            onClick={toggleNoKnownMedications}
+            className={`mt-3 flex min-h-[58px] w-full items-center justify-center gap-2 rounded-[20px] border px-4 py-3 font-body text-[16px] font-black transition ${
+              noKnownMedications
+                ? "border-[#0A7C4E] bg-[#0A7C4E] text-white shadow-[0_14px_26px_rgba(10,124,78,0.18)]"
+                : "border-[#BDEED8] bg-[#F2FBF7] text-[#0A7C4E]"
+            }`}
+          >
+            <CheckCircle2 size={18} />
+            No current medications
+          </button>
+        </div>
 
         {isLoading ? (
           <MedSkeleton />
@@ -734,7 +788,7 @@ export default function MedicationsSection() {
         )}
 
         <div className={`fixed bottom-0 left-1/2 z-50 flex w-[min(100vw,410px)] -translate-x-1/2 flex-col gap-3 rounded-t-[28px] border-t border-[#EDE2D1] bg-[#FFFCF8] px-4 pb-3 pt-4 shadow-[0_-18px_40px_rgba(53,28,87,0.16)] transition duration-200 sm:sticky sm:bottom-0 sm:left-auto sm:z-20 sm:-mx-2 sm:w-auto sm:translate-x-0 sm:px-5 sm:opacity-100 ${showMobileActionBar ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-[120%] opacity-0 sm:pointer-events-auto"}`}>
-          <Button data-testid="button-meds-save" onClick={handleSave} disabled={busy || isLoading} className="h-14 w-full gap-2 rounded-full bg-[#6b21a8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5b1a8f]">
+          <Button data-testid="button-meds-save" onClick={handleSave} disabled={busy || isLoading || !hasMedicationSectionContent} className="h-14 w-full gap-2 rounded-full bg-[#6b21a8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5b1a8f] disabled:opacity-40">
             {saving ? <Loader2 size={19} className="animate-spin" /> : <ShieldCheck size={19} />}
             {saving ? "Saving..." : "Save medications"}
           </Button>

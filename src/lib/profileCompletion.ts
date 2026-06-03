@@ -14,16 +14,69 @@ export function deriveCompletedSections(
     completed.add("contact");
   }
 
-  if (state?.has_health_conditions) {
+  const consent = profile?.data_sharing_consent as Record<string, unknown> | null | undefined;
+  const conditions = consent?.conditions as Record<string, unknown> | null | undefined;
+  const conditionNames = Array.isArray(profile?.conditions)
+    ? profile.conditions
+    : Array.isArray(conditions?.health_conditions)
+      ? conditions.health_conditions
+      : [];
+  const hasConditionNames = conditionNames.some((condition) => {
+    if (typeof condition === "string") return condition.trim().length > 0;
+    return Boolean(
+      condition &&
+      typeof condition === "object" &&
+      "name" in condition &&
+      typeof condition.name === "string" &&
+      condition.name.trim().length > 0
+    );
+  });
+  const hasMobility = typeof profile?.mobility_level === "string"
+    ? profile.mobility_level.trim().length > 0
+    : typeof conditions?.mobility_level === "string" && conditions.mobility_level.trim().length > 0;
+  const hasLivingSituation = typeof profile?.living_situation === "string"
+    ? profile.living_situation.trim().length > 0
+    : typeof conditions?.living_situation === "string" && conditions.living_situation.trim().length > 0;
+  if (
+    state?.has_health_conditions ||
+    hasConditionNames ||
+    hasMobility ||
+    hasLivingSituation ||
+    conditions?.no_known_conditions === true ||
+    profile?.no_known_conditions === true
+  ) {
     completed.add("health");
   }
 
-  if (state?.has_medications) {
+  const medicationConsent = consent?.medications as Record<string, unknown> | null | undefined;
+  const profileMedications = Array.isArray(profile?.medications) ? profile.medications : [];
+  const hasProfileMedication = profileMedications.some((medication) => {
+    if (typeof medication === "string") return medication.trim().length > 0;
+    return Boolean(
+      medication &&
+      typeof medication === "object" &&
+      (
+        ("name" in medication && typeof medication.name === "string" && medication.name.trim().length > 0) ||
+        ("medication_name" in medication && typeof medication.medication_name === "string" && medication.medication_name.trim().length > 0)
+      )
+    );
+  });
+  if (
+    state?.has_medications ||
+    hasProfileMedication ||
+    medicationConsent?.no_known_medications === true ||
+    profile?.no_known_medications === true
+  ) {
     completed.add("medications");
   }
 
   const allergies = profile?.known_allergies;
-  if (Array.isArray(allergies) && allergies.length > 0) {
+  const allergyConsent = consent?.allergies as Record<string, unknown> | null | undefined;
+  if (
+    (Array.isArray(allergies) && allergies.some((allergy) => typeof allergy === "string" && allergy.trim().length > 0)) ||
+    allergyConsent?.no_known_allergies === true ||
+    profile?.no_known_allergies === true
+  ) {
     completed.add("allergies");
   }
 
@@ -31,7 +84,6 @@ export function deriveCompletedSections(
     completed.add("gp");
   }
 
-  const consent = profile?.data_sharing_consent as Record<string, unknown> | null | undefined;
   const providers = consent?.providers;
   if (Array.isArray(providers) && providers.length > 0) {
     completed.add("providers");
