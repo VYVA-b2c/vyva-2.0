@@ -631,8 +631,9 @@ export default function CareTeamFlow() {
           </div>
 
           <Button
+            data-testid="button-careteam-step2-continue"
             onClick={() => setStep(3)}
-            disabled={!person.name.trim() || !person.phone.trim() || !person.email.trim()}
+            disabled={!person.name.trim() || !person.phone.trim()}
             className="h-14 w-full rounded-full bg-[#6B21A8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5B1A8F] disabled:opacity-40"
           >
             {t("onboarding.careTeam.step2.continue")}
@@ -734,8 +735,8 @@ export default function CareTeamFlow() {
       {
         id: "sms",
         icon: Smartphone,
-        title: t("onboarding.careTeam.step4.channelSmsEmail", "SMS + email"),
-        contact: `${person.phone} + ${person.email}`,
+        title: t("onboarding.careTeam.step4.channelSms"),
+        contact: [person.phone, person.email].map((value) => value.trim()).filter(Boolean).join(" + "),
         bg: "#EFF6FF",
         iconColor: "#1D4ED8",
       },
