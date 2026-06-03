@@ -26,6 +26,31 @@ const fullPermissions: BrainCoachCaregiverPermissions = {
   preview_plan: true,
 };
 
+const realCareTeamMember = {
+  id: "invite-1",
+  invitee_name: "Hassan Assad",
+  invitee_phone: "+34600111222",
+  invitee_email: "hassan@example.com",
+  role: "family",
+  relationship: "son",
+  status: "accepted",
+  created_at: "2026-06-03T08:00:00.000Z",
+  expires_at: "2026-06-10T08:00:00.000Z",
+  accepted_at: "2026-06-03T08:05:00.000Z",
+  latest_delivery_status: "sent",
+  latest_delivery_channel: "sms",
+  latest_delivery_at: "2026-06-03T08:00:00.000Z",
+  can_receive_daily_digest: true,
+  can_receive_safety_alerts: true,
+  can_receive_health_alerts: false,
+  can_receive_mood_alerts: false,
+  can_receive_medication_alerts: false,
+  can_view_dashboard: true,
+  can_view_health_reports: false,
+  can_view_vital_signs: false,
+  can_view_journal_summaries: true,
+};
+
 function renderPrivacySettings() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -40,10 +65,17 @@ function renderPrivacySettings() {
   );
 }
 
-function mockPermissionsApi(initialPermissions: BrainCoachCaregiverPermissions) {
+function mockPermissionsApi(initialPermissions: BrainCoachCaregiverPermissions, careTeamMembers = [realCareTeamMember]) {
   let currentPermissions = { ...initialPermissions };
 
   vi.mocked(apiFetch).mockImplementation(async (input: string, init?: RequestInit) => {
+    if (input === "/api/onboarding/careteam" && !init?.method) {
+      return new Response(JSON.stringify({ members: careTeamMembers }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     if (input === "/api/caregiver/brain-coach/permissions" && !init?.method) {
       return new Response(JSON.stringify({
         permissionKeys: Object.keys(emptyPermissions),
@@ -138,5 +170,32 @@ describe("PrivacySettings Brain Coach caregiver consent", () => {
     await waitFor(() => {
       expect(screen.getByText("No Brain Coach access")).toBeInTheDocument();
     });
+  });
+});
+
+describe("PrivacySettings care-team sharing roster", () => {
+  it("uses real care-team members instead of sample people", async () => {
+    mockPermissionsApi(emptyPermissions, [realCareTeamMember]);
+
+    renderPrivacySettings();
+
+    expect(await screen.findByText("Hassan Assad")).toBeInTheDocument();
+    expect(screen.getByText("Son")).toBeInTheDocument();
+    expect(screen.getByText("Daily wellbeing summary")).toBeInTheDocument();
+    expect(screen.getByText("Caregiver dashboard")).toBeInTheDocument();
+    expect(screen.queryByText("Sarah Collins")).not.toBeInTheDocument();
+    expect(screen.queryByText("James Collins")).not.toBeInTheDocument();
+    expect(screen.queryByText("Linda Hughes")).not.toBeInTheDocument();
+    expect(screen.queryByText("Dr. Anita Patel")).not.toBeInTheDocument();
+  });
+
+  it("shows an empty state when the senior has no care-team members", async () => {
+    mockPermissionsApi(emptyPermissions, []);
+
+    renderPrivacySettings();
+
+    expect(await screen.findByText("No care-team members yet.")).toBeInTheDocument();
+    expect(screen.getByTestId("button-privacy-add-careteam")).toBeInTheDocument();
+    expect(screen.queryByText("Sarah Collins")).not.toBeInTheDocument();
   });
 });
