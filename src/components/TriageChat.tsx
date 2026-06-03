@@ -89,7 +89,10 @@ type TriageHealthMemory = {
   allergies?: string;
   medications?: string;
   latestVitals?: string;
+  vitalsTrend?: string;
   latestSymptomReport?: string;
+  medicationAdherence?: string;
+  medicationInteraction?: string;
   countryCode?: string;
 };
 

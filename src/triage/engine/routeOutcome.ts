@@ -114,7 +114,10 @@ export function profileRiskFlags(memory?: TriageHealthMemory): ProfileRiskFlags 
     memory?.allergies,
     memory?.medications,
     memory?.latestVitals,
+    memory?.vitalsTrend,
     memory?.latestSymptomReport,
+    memory?.medicationAdherence,
+    memory?.medicationInteraction,
   ].filter(Boolean).join(" ").toLowerCase();
 
   return {
