@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/i18n";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { getSymptomRecommendationActionKinds, type SymptomRecommendationActionKind } from "@/lib/symptomReportActions";
+import type { ShoppingSupportPackageId } from "../../shared/shopping";
 import type { TriageScanResult } from "../../shared/triageScans";
 
 type Step = "intro" | "chat" | "report";
@@ -572,7 +573,7 @@ function reportText(summary: TriageSummary) {
   ].join(" ").toLowerCase();
 }
 
-function ReportScreen({
+export function ReportScreen({
   summary,
   bpm,
   respiratoryRate,
@@ -831,10 +832,12 @@ function ReportScreen({
     });
   };
 
-  const openHydrationOrder = (recommendation: string) => {
+  const openSupportPackage = (packageId: ShoppingSupportPackageId, recommendation: string) => {
     navigate("/concierge/shopping", {
       state: {
         shoppingPrefill: {
+          packageId,
+          sourceRecommendation: recommendation,
           needText: t(
             "health.symptomCheck.report.actions.hydrationPrefill",
             "Hydration support for this health recommendation: {{recommendation}}. Please suggest easy delivery options such as water, oral rehydration salts, or electrolyte drinks.",
@@ -853,7 +856,7 @@ function ReportScreen({
     doctor_help: t("health.symptomCheck.report.actions.doctorHelp", "Doctor help"),
     book_ride: t("health.symptomCheck.report.actions.bookRide", "Book ride"),
     schedule_appointment: t("health.symptomCheck.report.actions.scheduleAppointment", "Appointment"),
-    online_order: t("health.symptomCheck.report.actions.onlineOrder", "Online order"),
+    online_order: t("health.symptomCheck.report.actions.onlineOrder", "Get support package"),
     request_quote: t("health.symptomCheck.report.actions.requestQuote", "Request quote"),
   };
 
@@ -887,7 +890,7 @@ function ReportScreen({
     if (kind === "doctor_help") return { ...base, onClick: openDoctorWithContext };
     if (kind === "book_ride") return { ...base, onClick: () => openConciergePrefill("ride", recommendation) };
     if (kind === "schedule_appointment") return { ...base, onClick: () => openConciergePrefill("appointment", recommendation) };
-    if (kind === "online_order") return { ...base, onClick: () => openHydrationOrder(recommendation) };
+    if (kind === "online_order") return { ...base, onClick: () => openSupportPackage("hydration_support", recommendation) };
     return { ...base, onClick: () => openConciergePrefill("home_care_quote", recommendation) };
   }).filter((action) => action.href || action.onClick);
   const allReasons = uniqueLines([

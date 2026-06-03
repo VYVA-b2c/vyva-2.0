@@ -36,6 +36,15 @@ const HYDRATION_PATTERNS = [
   /\b(agua|liquidos|hidratar|hidratacao|eletrolitos)\b/,
 ];
 
+const HYDRATION_WARNING_PATTERNS = [
+  /\b(fluids?\s+(are\s+)?difficult|difficult\s+to\s+(drink|keep\s+fluids)|cannot\s+keep\s+fluids|can't\s+keep\s+fluids|unable\s+to\s+keep\s+fluids|not\s+drinking|poor\s+intake|cannot\s+drink|can't\s+drink|unable\s+to\s+drink)\b/,
+  /\b(cuesta\s+(tomar|beber)\s+liquidos|no\s+puede\s+(retener|tomar|beber)\s+liquidos|no\s+bebe|mala\s+ingesta)\b/,
+  /\b(difficile\s+de\s+boire|ne\s+peut\s+pas\s+boire|faible\s+apport)\b/,
+  /\b(schwer\s+zu\s+trinken|kann\s+keine\s+flussigkeit|trinkt\s+nicht)\b/,
+  /\b(difficile\s+bere|non\s+riesce\s+a\s+bere|scarso\s+apporto)\b/,
+  /\b(dificil\s+beber|nao\s+consegue\s+beber|baixa\s+ingestao)\b/,
+];
+
 const CARE_SUPPORT_PATTERNS = [
   /\b(someone stay|stay with you|not be alone|do not stay alone|caregiver|carer|companion|home care|home support|support at home)\b/,
   /\b(cuidador|cuidadora|acompan|acompanar|acompanarte|no estar solo|no estes solo|ayuda en casa)\b/,
@@ -77,7 +86,7 @@ export function getSymptomRecommendationActionKinds(
     actions.push("book_ride", "schedule_appointment");
   }
 
-  if (matchesAny(normalized, HYDRATION_PATTERNS)) {
+  if (matchesAny(normalized, HYDRATION_PATTERNS) && !matchesAny(normalized, HYDRATION_WARNING_PATTERNS)) {
     actions.push("online_order");
   }
 

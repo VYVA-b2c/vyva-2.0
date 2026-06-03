@@ -6,6 +6,7 @@ import {
   type ShoppingPriority,
   type ShoppingRecommendationResponse,
 } from "../../shared/shopping.js";
+import { loadShoppingCatalogForUser } from "../lib/conciergeShoppingCatalog.js";
 
 const router = Router();
 
@@ -24,6 +25,7 @@ type ShoppingRecommendationBody = {
   priorities?: unknown;
   constraints?: unknown;
   locale?: unknown;
+  packageId?: unknown;
 };
 
 function safeString(value: unknown, maxLength = 600): string {
@@ -52,6 +54,7 @@ function normaliseBody(body: ShoppingRecommendationBody): ShoppingNeedInput {
     priorities: safePriorities(body.priorities),
     constraints: safeStringArray(body.constraints),
     locale: safeString(body.locale, 12) || "en",
+    packageId: safeString(body.packageId, 120) || null,
   };
 }
 
@@ -124,11 +127,24 @@ export async function conciergeShoppingRecommendationsHandler(req: Request, res:
     });
   }
 
-  const deterministic = buildShoppingRecommendations(input);
+  const catalogSource = await loadShoppingCatalogForUser();
+  const deterministic = buildShoppingRecommendations(input, {
+    catalog: catalogSource.products,
+    packageProductIds: input.packageId ? catalogSource.packageProductIds[input.packageId] ?? [] : [],
+  });
   const response = await maybeAddAiSummary(deterministic, input);
   return res.json(response);
 }
 
+export async function conciergeShoppingSupportPackagesHandler(_req: Request, res: Response) {
+  const catalogSource = await loadShoppingCatalogForUser();
+  return res.json({
+    source: catalogSource.source,
+    packages: catalogSource.packages,
+  });
+}
+
+router.get("/support-packages", conciergeShoppingSupportPackagesHandler);
 router.post("/recommendations", conciergeShoppingRecommendationsHandler);
 
 export default router;

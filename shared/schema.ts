@@ -1692,6 +1692,68 @@ export const insertHeroMessageSchema = createInsertSchema(heroMessages).omit({ i
 export type InsertHeroMessage = z.infer<typeof insertHeroMessageSchema>;
 export type HeroMessageRow = typeof heroMessages.$inferSelect;
 
+export const conciergeShoppingProducts = pgTable("concierge_shopping_products", {
+  id:                  uuid("id").primaryKey().defaultRandom(),
+  product_id:          text("product_id").notNull().unique(),
+  category:            text("category").notNull(),
+  name:                jsonb("name").notNull().default({}),
+  price_label:         jsonb("price_label").notNull().default({}),
+  description:         jsonb("description").notNull().default({}),
+  benefits:            jsonb("benefits").notNull().default({}),
+  tags:                text("tags").array().notNull().default([]),
+  suitability:         jsonb("suitability").notNull().default({}),
+  cautions:            jsonb("cautions").notNull().default({}),
+  accessibility_notes: jsonb("accessibility_notes").notNull().default({}),
+  availability_label:  jsonb("availability_label").notNull().default({}),
+  price_tier:          text("price_tier").notNull().default("medium"),
+  is_enabled:          boolean("is_enabled").notNull().default(true),
+  priority:            integer("priority").notNull().default(50),
+  admin_notes:         text("admin_notes"),
+  created_at:          timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:          timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const conciergeShoppingPackages = pgTable("concierge_shopping_packages", {
+  id:              uuid("id").primaryKey().defaultRandom(),
+  package_id:      text("package_id").notNull().unique(),
+  label:           jsonb("label").notNull().default({}),
+  description:     jsonb("description").notNull().default({}),
+  need_text:       jsonb("need_text").notNull().default({}),
+  category:        text("category").notNull().default("safe_home"),
+  priorities:      text("priorities").array().notNull().default([]),
+  constraints:     jsonb("constraints").notNull().default({}),
+  cta_label:       jsonb("cta_label").notNull().default({}),
+  service_request: boolean("service_request").notNull().default(false),
+  is_enabled:      boolean("is_enabled").notNull().default(true),
+  priority:        integer("priority").notNull().default(50),
+  admin_notes:     text("admin_notes"),
+  created_at:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:      timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const conciergeShoppingPackageItems = pgTable("concierge_shopping_package_items", {
+  id:         uuid("id").primaryKey().defaultRandom(),
+  package_id: text("package_id").notNull().references(() => conciergeShoppingPackages.package_id, { onDelete: "cascade" }),
+  product_id: text("product_id").notNull().references(() => conciergeShoppingProducts.product_id, { onDelete: "cascade" }),
+  sort_order: integer("sort_order").notNull().default(0),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("concierge_shopping_package_items_unique").on(t.package_id, t.product_id),
+  index("concierge_shopping_package_items_package_idx").on(t.package_id),
+]);
+
+export const insertConciergeShoppingProductSchema = createInsertSchema(conciergeShoppingProducts).omit({ id: true, created_at: true, updated_at: true });
+export type InsertConciergeShoppingProduct = z.infer<typeof insertConciergeShoppingProductSchema>;
+export type ConciergeShoppingProductRow = typeof conciergeShoppingProducts.$inferSelect;
+
+export const insertConciergeShoppingPackageSchema = createInsertSchema(conciergeShoppingPackages).omit({ id: true, created_at: true, updated_at: true });
+export type InsertConciergeShoppingPackage = z.infer<typeof insertConciergeShoppingPackageSchema>;
+export type ConciergeShoppingPackageRow = typeof conciergeShoppingPackages.$inferSelect;
+
+export const insertConciergeShoppingPackageItemSchema = createInsertSchema(conciergeShoppingPackageItems).omit({ id: true, created_at: true });
+export type InsertConciergeShoppingPackageItem = z.infer<typeof insertConciergeShoppingPackageItemSchema>;
+export type ConciergeShoppingPackageItemRow = typeof conciergeShoppingPackageItems.$inferSelect;
+
 
 // ============================================================
 // SCHEMA EXPORT
@@ -1756,4 +1818,7 @@ export const schema = {
   voiceRecommendationFeedback,
   homePlanCards,
   heroMessages,
+  conciergeShoppingProducts,
+  conciergeShoppingPackages,
+  conciergeShoppingPackageItems,
 };

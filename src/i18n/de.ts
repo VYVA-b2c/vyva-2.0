@@ -318,7 +318,7 @@ const de = {
           doctorHelp: "Arzthilfe",
           bookRide: "Fahrt buchen",
           scheduleAppointment: "Termin",
-          onlineOrder: "Online bestellen",
+          onlineOrder: "Get support package",
           requestQuote: "Angebot anfragen",
           aria: "{{action}} fur: {{recommendation}}",
           emailSubject: "VYVA Symptombericht",

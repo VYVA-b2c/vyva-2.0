@@ -313,7 +313,7 @@ const pt = {
           doctorHelp: "Ajuda medica",
           bookRide: "Reservar transporte",
           scheduleAppointment: "Consulta",
-          onlineOrder: "Pedido online",
+          onlineOrder: "Get support package",
           requestQuote: "Pedir orcamento",
           aria: "{{action}} para: {{recommendation}}",
           emailSubject: "Relatorio de sintomas VYVA",

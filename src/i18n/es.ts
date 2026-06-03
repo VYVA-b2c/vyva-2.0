@@ -318,7 +318,7 @@ const es = {
           doctorHelp: "Ayuda medica",
           bookRide: "Reservar transporte",
           scheduleAppointment: "Cita",
-          onlineOrder: "Pedido online",
+          onlineOrder: "Paquete de apoyo",
           requestQuote: "Pedir presupuesto",
           aria: "{{action}} para: {{recommendation}}",
           emailSubject: "Informe de sintomas VYVA",
