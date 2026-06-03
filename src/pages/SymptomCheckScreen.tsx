@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Activity, Calendar, Car, ChevronLeft, Share2, CheckCircle, AlertTriangle, Eye, ClipboardList, FileText, Heart, ListChecks, Loader2, Mail, PhoneCall, RefreshCw, Send, ShoppingBasket, Stethoscope, Users, type LucideIcon } from "lucide-react";
+import { Activity, Brain, Calendar, Car, ChevronLeft, Share2, CheckCircle, AlertTriangle, ArrowRight, Droplets, Eye, ClipboardList, FileText, Gauge, Heart, HeartPulse, Home, ListChecks, Loader2, Mail, PhoneCall, Pill, Send, ShieldCheck, ShoppingBasket, Stethoscope, Users, Wind, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import TriageChat, { type TriageChatDraft } from "@/components/TriageChat";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
@@ -17,6 +17,7 @@ import { useLanguage } from "@/i18n";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { compactReportRecommendations, uniqueReportLines } from "@/lib/reportRecommendations";
 import { getSymptomRecommendationActionKinds, type SymptomRecommendationActionKind } from "@/lib/symptomReportActions";
+import type { TriagePersonalizedSuggestion } from "@/triage";
 import type { ShoppingSupportPackageId } from "../../shared/shopping";
 import type { TriageScanResult } from "../../shared/triageScans";
 
@@ -100,7 +101,10 @@ type TriageHealthMemory = {
   allergies?: string;
   medications?: string;
   latestVitals?: string;
+  vitalsTrend?: string;
   latestSymptomReport?: string;
+  medicationAdherence?: string;
+  medicationInteraction?: string;
   countryCode?: string;
 };
 
@@ -114,6 +118,7 @@ type TriageContextResponse = {
   usedItems: string[];
   countryCode?: string;
   emergencyContact?: EmergencyContact;
+  personalizedSuggestions?: TriagePersonalizedSuggestion[];
 };
 
 type ProfileContactsResponse = {
@@ -523,52 +528,161 @@ export function AssessmentConfidenceTracker({
   );
 }
 
-export function IntroScreen({ onStart }: { onStart: (clue: string) => void }) {
+type IntroScreenProps = {
+  onStart: (clue: string) => void;
+  onNavigate?: (route: string) => void;
+  personalizedSuggestions?: TriagePersonalizedSuggestion[];
+};
+
+function fallbackIntroSuggestions(t: ReturnType<typeof useTranslation>["t"]): TriagePersonalizedSuggestion[] {
+  return [
+    {
+      id: "fallback-breathing",
+      kind: "common_concern",
+      label: t("health.symptomCheck.intro.fallbackBreathingLabel", "Breathing feels different"),
+      description: t("health.symptomCheck.intro.fallbackBreathingDesc", "Start with what changed and when."),
+      initialClue: t("health.symptomCheck.intro.fallbackBreathingClue", "Breathing feels different"),
+      tone: "blue",
+      icon: "wind",
+      source: "fallback",
+      priority: 45,
+    },
+    {
+      id: "fallback-pain",
+      kind: "common_concern",
+      label: t("health.symptomCheck.intro.fallbackPainLabel", "Pain or headache"),
+      description: t("health.symptomCheck.intro.fallbackPainDesc", "Tell VYVA where it hurts."),
+      initialClue: t("health.symptomCheck.intro.fallbackPainClue", "Pain or headache"),
+      tone: "red",
+      icon: "heart",
+      source: "fallback",
+      priority: 44,
+    },
+    {
+      id: "fallback-vitals",
+      kind: "health_improvement",
+      label: t("health.symptomCheck.intro.fallbackVitalsLabel", "Check vitals"),
+      description: t("health.symptomCheck.intro.fallbackVitalsDesc", "Add a quick reading before or after the check."),
+      route: "/health/vitals",
+      tone: "blue",
+      icon: "gauge",
+      source: "fallback",
+      priority: 42,
+    },
+    {
+      id: "fallback-checkin",
+      kind: "health_improvement",
+      label: t("health.symptomCheck.intro.fallbackCheckinLabel", "Daily check-in"),
+      description: t("health.symptomCheck.intro.fallbackCheckinDesc", "Log how today feels in one minute."),
+      route: "/health/check-in",
+      tone: "green",
+      icon: "activity",
+      source: "fallback",
+      priority: 41,
+    },
+  ];
+}
+
+const suggestionIconByKey: Record<TriagePersonalizedSuggestion["icon"], LucideIcon> = {
+  activity: Activity,
+  brain: Brain,
+  droplet: Droplets,
+  gauge: Gauge,
+  heart: HeartPulse,
+  home: Home,
+  pill: Pill,
+  shield: ShieldCheck,
+  stethoscope: Stethoscope,
+  wind: Wind,
+};
+
+const suggestionToneClass: Record<TriagePersonalizedSuggestion["tone"], { button: string; icon: string; badge: string }> = {
+  amber: {
+    button: "border-[#FED7AA] bg-[#FFF7ED] hover:border-[#FDBA74]",
+    icon: "bg-[#FFEDD5] text-[#C2410C]",
+    badge: "bg-[#FFEDD5] text-[#9A3412]",
+  },
+  blue: {
+    button: "border-[#BFDBFE] bg-[#EFF6FF] hover:border-[#93C5FD]",
+    icon: "bg-[#DBEAFE] text-[#1D4ED8]",
+    badge: "bg-[#DBEAFE] text-[#1D4ED8]",
+  },
+  green: {
+    button: "border-[#BBF7D0] bg-[#ECFDF5] hover:border-[#86EFAC]",
+    icon: "bg-[#D1FAE5] text-[#047857]",
+    badge: "bg-[#D1FAE5] text-[#047857]",
+  },
+  purple: {
+    button: "border-[#DDD6FE] bg-[#F5F3FF] hover:border-[#C4B5FD]",
+    icon: "bg-[#EDE9FE] text-vyva-purple",
+    badge: "bg-[#EDE9FE] text-vyva-purple",
+  },
+  red: {
+    button: "border-[#FECACA] bg-[#FEF2F2] hover:border-[#FCA5A5]",
+    icon: "bg-[#FEE2E2] text-[#B91C1C]",
+    badge: "bg-[#FEE2E2] text-[#B91C1C]",
+  },
+};
+
+export function IntroScreen({ onStart, onNavigate, personalizedSuggestions }: IntroScreenProps) {
   const { t } = useTranslation();
   const [clue, setClue] = useState("");
-  const [quickClueSetIndex, setQuickClueSetIndex] = useState(0);
   const cleanClue = clue.trim();
   const canStart = cleanClue.length >= 2;
-  const quickClueSets = [
-    [
-      t("health.symptomCheck.intro.clueHeadache", "Bad headache"),
-      t("health.symptomCheck.intro.clueBreathing", "Short of breath"),
-      t("health.symptomCheck.intro.clueDizzy", "Dizzy"),
-      t("health.symptomCheck.intro.clueFever", "Fever"),
-      t("health.symptomCheck.intro.clueFall", "I fell"),
-      t("health.symptomCheck.intro.clueUrine", "Pain when I pee"),
-      t("health.symptomCheck.intro.clueChest", "Chest pain"),
-      t("health.symptomCheck.intro.clueStomach", "Stomach pain"),
-      t("health.symptomCheck.intro.clueMedicine", "Medication concern"),
-      t("health.symptomCheck.intro.clueAnxiety", "Feeling anxious"),
-    ],
-    [
-      t("health.symptomCheck.intro.clueCough", "Cough"),
-      t("health.symptomCheck.intro.clueBack", "Back pain"),
-      t("health.symptomCheck.intro.clueThroat", "Sore throat"),
-      t("health.symptomCheck.intro.clueRash", "Rash"),
-      t("health.symptomCheck.intro.clueNausea", "Nausea"),
-      t("health.symptomCheck.intro.clueSleep", "Trouble sleeping"),
-      t("health.symptomCheck.intro.clueSwelling", "Leg swelling"),
-      t("health.symptomCheck.intro.clueEar", "Ear pain"),
-      t("health.symptomCheck.intro.clueLowEnergy", "Low energy"),
-      t("health.symptomCheck.intro.clueConfusion", "New confusion"),
-    ],
-    [
-      t("health.symptomCheck.intro.clueVomiting", "Vomiting"),
-      t("health.symptomCheck.intro.clueDiarrhea", "Diarrhea"),
-      t("health.symptomCheck.intro.clueEye", "Eye pain"),
-      t("health.symptomCheck.intro.clueNumbness", "Numbness"),
-      t("health.symptomCheck.intro.clueWeakness", "Weakness"),
-      t("health.symptomCheck.intro.clueSideEffect", "Side effect"),
-      t("health.symptomCheck.intro.clueBleeding", "Bleeding"),
-      t("health.symptomCheck.intro.cluePalpitations", "Palpitations"),
-      t("health.symptomCheck.intro.clueLowMood", "Low mood"),
-      t("health.symptomCheck.intro.clueWound", "Skin wound"),
-    ],
-  ];
-  const quickClues = quickClueSets[quickClueSetIndex] ?? quickClueSets[0];
-  const refreshCluesLabel = t("health.symptomCheck.intro.refreshCluesLabel", "Refresh examples");
+  const suggestions = personalizedSuggestions?.length ? personalizedSuggestions : fallbackIntroSuggestions(t);
+  const commonConcerns = suggestions.filter((suggestion) => suggestion.kind === "common_concern").slice(0, 6);
+  const healthImprovements = suggestions.filter((suggestion) => suggestion.kind === "health_improvement").slice(0, 5);
+  const hasProfileSuggestions = suggestions.some((suggestion) => suggestion.source !== "fallback");
+  const sourceLabels: Record<TriagePersonalizedSuggestion["source"], string> = {
+    fallback: t("health.symptomCheck.intro.sourceFallback", "Common option"),
+    medications: t("health.symptomCheck.intro.sourceMedications", "From medicines"),
+    profile: t("health.symptomCheck.intro.sourceProfile", "Based on profile"),
+    recent_report: t("health.symptomCheck.intro.sourceRecentReport", "Recent report"),
+    vitals: t("health.symptomCheck.intro.sourceVitals", "Recent vitals"),
+  };
+
+  const renderSuggestion = (suggestion: TriagePersonalizedSuggestion) => {
+    const Icon = suggestionIconByKey[suggestion.icon] ?? Stethoscope;
+    const tone = suggestionToneClass[suggestion.tone] ?? suggestionToneClass.purple;
+    const isConcern = suggestion.kind === "common_concern";
+    return (
+      <button
+        key={suggestion.id}
+        type="button"
+        onClick={() => {
+          if (isConcern) {
+            setClue(suggestion.initialClue || suggestion.label);
+            return;
+          }
+          if (suggestion.route) onNavigate?.(suggestion.route);
+        }}
+        data-testid={`button-symptom-intro-suggestion-${suggestion.id}`}
+        className={`vyva-tap group flex min-h-[78px] w-full items-center gap-3 rounded-[22px] border px-3 py-3 text-left shadow-[0_8px_20px_rgba(63,45,35,0.05)] transition ${tone.button}`}
+      >
+        <span className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] ${tone.icon}`}>
+          <Icon size={21} strokeWidth={2.6} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="font-body text-[16px] font-black leading-tight text-vyva-text-1">
+              {suggestion.label}
+            </span>
+            <span className={`rounded-full px-2.5 py-1 font-body text-[10px] font-black uppercase tracking-[0.08em] ${tone.badge}`}>
+              {sourceLabels[suggestion.source]}
+            </span>
+          </span>
+          <span className="mt-1 block font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+            {suggestion.description}
+          </span>
+        </span>
+        {isConcern ? null : (
+          <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/80 text-vyva-purple shadow-sm">
+            <ArrowRight size={18} strokeWidth={2.8} />
+          </span>
+        )}
+      </button>
+    );
+  };
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-5 px-[18px] py-5">
@@ -595,7 +709,7 @@ export function IntroScreen({ onStart }: { onStart: (clue: string) => void }) {
         </div>
       </HealthWizardCard>
 
-      <HealthWizardCard className="grid min-w-0 gap-4">
+      <HealthWizardCard className="grid min-w-0 gap-5">
         <label className="sr-only" htmlFor="symptom-clue">
           {t("health.symptomCheck.intro.clueTitle", "What is bothering you?")}
         </label>
@@ -607,27 +721,40 @@ export function IntroScreen({ onStart }: { onStart: (clue: string) => void }) {
           data-testid="input-symptom-clue"
           className="min-h-[78px] w-full min-w-0 max-w-full rounded-[24px] border-2 border-[#DDD6FE] bg-white px-5 font-body text-[22px] font-black text-vyva-text-1 shadow-[0_10px_26px_rgba(63,45,35,0.06)] outline-none placeholder:text-[#9A8C83] focus:border-[#6B21A8]"
         />
-        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
-          <button
-            type="button"
-            aria-label={refreshCluesLabel}
-            title={refreshCluesLabel}
-            data-testid="button-refresh-symptom-clues"
-            onClick={() => setQuickClueSetIndex((current) => (current + 1) % quickClueSets.length)}
-            className="vyva-tap flex h-[58px] w-[58px] flex-shrink-0 items-center justify-center rounded-full border border-[#D8C7FF] bg-[#F7F1FF] text-[#6B21A8] shadow-[0_4px_12px_rgba(107,33,168,0.08)] transition hover:border-[#B794F4] hover:bg-[#F1E8FF] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8]"
-          >
-            <RefreshCw size={22} strokeWidth={2.7} aria-hidden="true" />
-          </button>
-          {quickClues.map((quickClue) => (
-            <button
-              key={quickClue}
-              type="button"
-              onClick={() => setClue(quickClue)}
-              className="vyva-tap min-h-[58px] max-w-full whitespace-normal rounded-full border border-[#E8DED4] bg-[#FFFCF8] px-5 text-left font-body text-[17px] font-extrabold text-vyva-text-1 shadow-[0_4px_12px_rgba(63,45,35,0.04)]"
-            >
-              {quickClue}
-            </button>
-          ))}
+
+        <div className="rounded-[22px] border border-[#EDE5DB] bg-[#FFFCF8] px-4 py-3">
+          <p className="font-body text-[12px] font-black uppercase tracking-[0.14em] text-vyva-purple">
+            {hasProfileSuggestions
+              ? t("health.symptomCheck.intro.personalizedBadge", "Profile tuned")
+              : t("health.symptomCheck.intro.fallbackBadge", "Helpful starts")}
+          </p>
+          <p className="mt-1 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+            {hasProfileSuggestions
+              ? t("health.symptomCheck.intro.personalizedBody", "Suggestions use your profile context without showing private details here.")
+              : t("health.symptomCheck.intro.fallbackBody", "Choose a concern or open a support step.")}
+          </p>
+        </div>
+
+        <div className="grid gap-3">
+          <div>
+            <p className="mb-2 font-body text-[13px] font-black uppercase tracking-[0.13em] text-vyva-text-2">
+              {hasProfileSuggestions
+                ? t("health.symptomCheck.intro.commonConcernsProfile", "Common concerns from your profile")
+                : t("health.symptomCheck.intro.commonConcernsFallback", "Common concerns to start with")}
+            </p>
+            <div className="grid gap-2">
+              {commonConcerns.map(renderSuggestion)}
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-2 font-body text-[13px] font-black uppercase tracking-[0.13em] text-vyva-text-2">
+              {t("health.symptomCheck.intro.healthImprovements", "Ways to improve health")}
+            </p>
+            <div className="grid gap-2">
+              {healthImprovements.map(renderSuggestion)}
+            </div>
+          </div>
         </div>
       </HealthWizardCard>
 
@@ -2359,6 +2486,8 @@ export default function SymptomCheckScreen() {
         {step === "intro" && (
           <IntroScreen
             onStart={(clue) => startChatDirectly(clue, false)}
+            onNavigate={(route) => navigate(route)}
+            personalizedSuggestions={triageContext?.personalizedSuggestions}
           />
         )}
 
