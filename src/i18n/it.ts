@@ -734,6 +734,49 @@ const it = {
       finish: "Termina",
     },
   },
+  triageScan: {
+    eyebrow: "Puoi scegliere",
+    resultAdded: "Nota del controllo aggiunta",
+    photoError: "Non siamo riusciti a controllare quella foto. Puoi riprovare o continuare senza foto.",
+    actions: {
+      checkNow: "Controlla ora",
+      takePhoto: "Scatta foto",
+      notNow: "Non ora",
+      tryAgain: "Riprova",
+      continue: "Continua",
+    },
+    labels: {
+      vitals: "Controllo di polso e respiro",
+    },
+    vitals: {
+      pulseSummary: "Polso {{bpm}} bpm",
+      breathingSummary: "respiro {{rate}}/min",
+      noReading: "Nessuna lettura registrata.",
+      pulseFinding: "Polso: {{bpm}} bpm",
+      breathingFinding: "Frequenza respiratoria: {{rate}}/min",
+    },
+    offers: {
+      vitals: {
+        title: "Controlla polso e respiro",
+        body: "Se te la senti, questo rapido controllo aiuta VYVA a capire come sta il tuo corpo adesso.",
+      },
+      wound_photo: {
+        title: "Foto del cambiamento sulla pelle",
+        body: "Se vuoi, puoi scattare una foto del cambiamento sulla pelle cosi VYVA puo guardare cosa si vede.",
+        privacyNote: "Fotografa solo la zona che vuoi controllare. La foto viene analizzata e poi eliminata.",
+      },
+      urine_photo: {
+        title: "Foto dell'aspetto dell'urina",
+        body: "Se colore o torbidita sembrano diversi, una foto puo aiutare VYVA ad annotare il cambiamento.",
+        privacyNote: "Fotografa solo l'urina. Evita volti e documenti. Una foto non puo dire se hai un'infezione urinaria.",
+      },
+      stool_photo: {
+        title: "Foto dell'aspetto delle feci",
+        body: "Se le feci ti sono sembrate insolite, una foto puo aiutare VYVA ad annotare il cambiamento.",
+        privacyNote: "Fotografa solo le feci. Evita volti e documenti. Una foto non puo dire se c'e sanguinamento o malattia dello stomaco.",
+      },
+    },
+  },
   informes: {
     fastServiceAccess: "Accesso rapido ai servizi",
     actions: {

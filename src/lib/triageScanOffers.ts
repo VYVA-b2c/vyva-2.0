@@ -14,6 +14,8 @@ export type TriageScanOffer = {
   privacyNote?: string;
 };
 
+export type TriageScanTextLocalizer = (path: string, fallback?: string) => string;
+
 type SelectTriageScanOfferInput = {
   selectedAnswers: TriageScanAnswer[];
   symptomId?: string | null;
@@ -21,6 +23,7 @@ type SelectTriageScanOfferInput = {
   declinedScanTypes?: TriageScanType[];
   safetyAlertActive?: boolean;
   loading?: boolean;
+  localize?: TriageScanTextLocalizer;
 };
 
 const VITALS_SYMPTOMS = new Set(["breathing", "chest", "dizzy", "tired", "fever", "confusion"]);
@@ -133,35 +136,67 @@ function hasCompletedOrDeclined(
   return declined.includes(type) || results.some((result) => result.type === type);
 }
 
-function offer(type: TriageScanType): TriageScanOffer {
+function scanText(localize: TriageScanTextLocalizer | undefined, path: string, fallback: string) {
+  return localize ? localize(path, fallback) : fallback;
+}
+
+function offer(type: TriageScanType, localize?: TriageScanTextLocalizer): TriageScanOffer {
   if (type === "vitals") {
     return {
       type,
-      title: "Check pulse & breathing",
-      body: "If you feel comfortable, this quick check can help VYVA understand how your body is doing right now.",
+      title: scanText(localize, "triageScan.offers.vitals.title", "Check pulse & breathing"),
+      body: scanText(
+        localize,
+        "triageScan.offers.vitals.body",
+        "If you feel comfortable, this quick check can help VYVA understand how your body is doing right now.",
+      ),
     };
   }
   if (type === "wound_photo") {
     return {
       type,
-      title: "Photo of the skin change",
-      body: "If you want, you can take a photo of the skin change so VYVA can look for visible changes.",
-      privacyNote: "Only photograph the area you want checked. The photo is reviewed and then discarded.",
+      title: scanText(localize, "triageScan.offers.wound_photo.title", "Photo of the skin change"),
+      body: scanText(
+        localize,
+        "triageScan.offers.wound_photo.body",
+        "If you want, you can take a photo of the skin change so VYVA can look for visible changes.",
+      ),
+      privacyNote: scanText(
+        localize,
+        "triageScan.offers.wound_photo.privacyNote",
+        "Only photograph the area you want checked. The photo is reviewed and then discarded.",
+      ),
     };
   }
   if (type === "urine_photo") {
     return {
       type,
-      title: "Photo of urine appearance",
-      body: "If the color or cloudiness looks different, a photo may help VYVA note what changed.",
-      privacyNote: "Only photograph the urine itself. Keep faces and ID cards out of the photo. A photo cannot tell if you have a urine infection.",
+      title: scanText(localize, "triageScan.offers.urine_photo.title", "Photo of urine appearance"),
+      body: scanText(
+        localize,
+        "triageScan.offers.urine_photo.body",
+        "If the color or cloudiness looks different, a photo may help VYVA note what changed.",
+      ),
+      privacyNote: scanText(
+        localize,
+        "triageScan.offers.urine_photo.privacyNote",
+        "Only photograph the urine itself. Keep faces and ID cards out of the photo. A photo cannot tell if you have a urine infection.",
+      ),
     };
   }
   return {
     type,
-    title: "Photo of stool appearance",
-    body: "If the stool looked unusual for you, a photo may help VYVA note the change.",
-    privacyNote: "Only photograph the stool itself. Keep faces and ID cards out of the photo. A photo cannot tell if there is bleeding or stomach disease.",
+    title: scanText(localize, "triageScan.offers.stool_photo.title", "Photo of stool appearance"),
+    body: scanText(
+      localize,
+      "triageScan.offers.stool_photo.body",
+      "If the stool looked unusual for you, a photo may help VYVA note the change.",
+    ),
+    privacyNote: scanText(
+      localize,
+      "triageScan.offers.stool_photo.privacyNote",
+      "Only photograph the stool itself. Keep faces and ID cards out of the photo. A photo cannot tell if there is bleeding or stomach disease.",
+    ),
   };
 }
 
@@ -172,6 +207,7 @@ export function selectTriageScanOffer({
   declinedScanTypes = [],
   safetyAlertActive = false,
   loading = false,
+  localize,
 }: SelectTriageScanOfferInput): TriageScanOffer | null {
   if (loading || safetyAlertActive) return null;
   if (!selectedAnswers.some((answer) => answer.kind === "red_flag")) return null;
@@ -181,11 +217,11 @@ export function selectTriageScanOffer({
 
   const selectedSymptomId = firstSymptomId(selectedAnswers, symptomId);
   if (VITALS_SYMPTOMS.has(selectedSymptomId) && !hasCompletedOrDeclined("vitals", scanResults, declinedScanTypes)) {
-    return offer("vitals");
+    return offer("vitals", localize);
   }
 
   if (WOUND_SYMPTOMS.has(selectedSymptomId) && !hasCompletedOrDeclined("wound_photo", scanResults, declinedScanTypes)) {
-    return offer("wound_photo");
+    return offer("wound_photo", localize);
   }
 
   if (
@@ -193,7 +229,7 @@ export function selectTriageScanOffer({
     ![...ids].some((id) => URINE_SCAN_BLOCKERS.has(id)) &&
     !hasCompletedOrDeclined("urine_photo", scanResults, declinedScanTypes)
   ) {
-    return offer("urine_photo");
+    return offer("urine_photo", localize);
   }
 
   if (
@@ -201,7 +237,7 @@ export function selectTriageScanOffer({
     ![...ids].some((id) => STOOL_SCAN_BLOCKERS.has(id)) &&
     !hasCompletedOrDeclined("stool_photo", scanResults, declinedScanTypes)
   ) {
-    return offer("stool_photo");
+    return offer("stool_photo", localize);
   }
 
   return null;

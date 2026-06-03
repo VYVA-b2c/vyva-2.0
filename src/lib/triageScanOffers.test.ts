@@ -49,6 +49,23 @@ describe("selectTriageScanOffer", () => {
     })).toBeNull();
   });
 
+  it("can localize offer copy through the shared language controller translator", () => {
+    const offer = selectTriageScanOffer({
+      selectedAnswers: [symptom("stomach"), answer("no_red_flag"), answer("constipation_passing_gas", "duration")],
+      localize: (path, fallback) => {
+        if (path === "triageScan.offers.stool_photo.title") return "Foto del aspecto de las heces";
+        if (path === "triageScan.offers.stool_photo.body") return "Texto localizado";
+        if (path === "triageScan.offers.stool_photo.privacyNote") return "Nota localizada";
+        return fallback ?? path;
+      },
+    });
+
+    expect(offer?.type).toBe("stool_photo");
+    expect(offer?.title).toBe("Foto del aspecto de las heces");
+    expect(offer?.body).toBe("Texto localizado");
+    expect(offer?.privacyNote).toBe("Nota localizada");
+  });
+
   it("does not repeat completed or declined scans", () => {
     expect(selectTriageScanOffer({
       selectedAnswers: [symptom("breathing"), answer("worse_but_speaking")],

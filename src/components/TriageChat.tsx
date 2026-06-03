@@ -283,7 +283,7 @@ export default function TriageChat({
   onComplete,
 }: TriageChatProps) {
   const { t } = useTranslation();
-  const { language: appLanguage } = useLanguage();
+  const { language: appLanguage, t: appT } = useLanguage();
   const activeLanguage = language ?? appLanguage;
   const hasInitialDraft = Boolean(initialDraft);
   const [messages, setMessages] = useState<ChatMessage[]>(() => initialDraft?.messages ?? []);
@@ -627,6 +627,7 @@ export default function TriageChat({
     declinedScanTypes,
     safetyAlertActive: Boolean(safetyAlert),
     loading,
+    localize: appT,
   });
   const answeredCount = selectedQuickAnswers.length;
   const confidenceSignals = Math.min(5, Math.max(2, answeredCount + 2));

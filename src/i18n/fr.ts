@@ -792,6 +792,49 @@ const fr = {
       finish: "Terminer",
     },
   },
+  triageScan: {
+    eyebrow: "Votre choix",
+    resultAdded: "Note du controle ajoutee",
+    photoError: "Nous n'avons pas pu verifier cette photo. Vous pouvez reessayer ou continuer sans elle.",
+    actions: {
+      checkNow: "Verifier maintenant",
+      takePhoto: "Prendre une photo",
+      notNow: "Pas maintenant",
+      tryAgain: "Reessayer",
+      continue: "Continuer",
+    },
+    labels: {
+      vitals: "Controle du pouls et de la respiration",
+    },
+    vitals: {
+      pulseSummary: "Pouls {{bpm}} bpm",
+      breathingSummary: "respiration {{rate}}/min",
+      noReading: "Aucune mesure enregistree.",
+      pulseFinding: "Pouls : {{bpm}} bpm",
+      breathingFinding: "Frequence respiratoire : {{rate}}/min",
+    },
+    offers: {
+      vitals: {
+        title: "Verifier le pouls et la respiration",
+        body: "Si vous etes d'accord, ce controle rapide aide VYVA a comprendre comment va votre corps maintenant.",
+      },
+      wound_photo: {
+        title: "Photo du changement sur la peau",
+        body: "Si vous le souhaitez, prenez une photo du changement sur la peau pour que VYVA regarde ce qui est visible.",
+        privacyNote: "Photographiez seulement la zone a verifier. La photo est analysee puis supprimee.",
+      },
+      urine_photo: {
+        title: "Photo de l'apparence de l'urine",
+        body: "Si la couleur ou l'aspect trouble semble different, une photo peut aider VYVA a noter le changement.",
+        privacyNote: "Photographiez seulement l'urine. Evitez les visages et les papiers d'identite. Une photo ne peut pas dire si vous avez une infection urinaire.",
+      },
+      stool_photo: {
+        title: "Photo de l'apparence des selles",
+        body: "Si les selles vous ont semble inhabituelles, une photo peut aider VYVA a noter le changement.",
+        privacyNote: "Photographiez seulement les selles. Evitez les visages et les papiers d'identite. Une photo ne peut pas dire s'il y a un saignement ou une maladie de l'estomac.",
+      },
+    },
+  },
   informes: {
     fastServiceAccess: "Acces rapide aux services",
     actions: {
