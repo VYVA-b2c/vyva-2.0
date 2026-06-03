@@ -19,6 +19,7 @@ import InviteLandingPage from "@/pages/InviteLandingPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import AccessLinkPage from "@/pages/AccessLinkPage";
 import CareTeamInvitePage from "@/pages/CareTeamInvitePage";
+import ProfileSelectPage from "@/pages/ProfileSelectPage";
 import AppShell from "./components/AppShell";
 import ServiceGateRoute from "./components/ServiceGateRoute";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -375,6 +376,7 @@ const App = () => (
                 <Route path="/admin/voice-readiness" element={<AdminRoute><VoiceReadinessAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-supplies" element={<AdminRoute><ConciergeSuppliesAdminPage /></AdminRoute>} />
                 <Route element={<ProtectedRoute />}>
+                  <Route path="/profiles/select" element={<ProfileSelectPage />} />
                   <Route element={<OnboardingGuard />}>
                     <Route path="/onboarding" element={<WelcomeScreen />} />
                     <Route path="/onboarding/who-for" element={<WhoForStep />} />

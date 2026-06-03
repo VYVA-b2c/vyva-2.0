@@ -304,7 +304,15 @@ onboardingRouter.get("/state", async (req: Request, res: Response) => {
       return res.json({
         profile: null,
         onboardingState: null,
-        account: { id: accountUserId, activeProfileId: null, role: null },
+        account: {
+          id: accountUserId,
+          activeProfileId: null,
+          activeProfileRole: null,
+          role: null,
+          profileCount: context.profileCount,
+          needsProfileSetup: context.needsProfileSetup,
+          needsProfileSelection: context.needsProfileSelection,
+        },
       });
     }
 
@@ -370,7 +378,15 @@ onboardingRouter.get("/state", async (req: Request, res: Response) => {
           }
         : null,
       onboardingState: stateRow,
-      account: { id: accountUserId, activeProfileId: context.profileId, role: context.role },
+      account: {
+        id: accountUserId,
+        activeProfileId: context.profileId,
+        activeProfileRole: context.role,
+        role: context.role,
+        profileCount: context.profileCount,
+        needsProfileSetup: context.needsProfileSetup,
+        needsProfileSelection: context.needsProfileSelection,
+      },
     });
   } catch (e) {
     console.error("[onboarding] GET /state error:", e);

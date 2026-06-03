@@ -1520,6 +1520,14 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
       navigate(inviteReturnPath, { replace: true });
       return;
     }
+    if (user.needsProfileSelection) {
+      navigate("/profiles/select", { replace: true });
+      return;
+    }
+    if (user.needsProfileSetup) {
+      navigate("/onboarding/who-for", { replace: true });
+      return;
+    }
     if (from) {
       navigate(from, { replace: true });
       return;
@@ -1629,13 +1637,16 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         const setupFor = rememberSetupIntent();
         const inviteId = currentSignupInviteId(location.search);
         trackSignupInviteEvent(inviteId, "profile_started", { destination: "/", keepalive: true });
-        await register(authContactPayload(true), password);
+        await register({ ...authContactPayload(true), setup_for: setupFor }, password);
         if (inviteReturnPath) {
           navigate(inviteReturnPath, { replace: true });
         } else if (from) {
           navigate(from, { replace: true });
         } else {
-          navigate("/onboarding/who-for", { replace: true, state: { setupFor } });
+          navigate(setupFor === "someone_else" ? "/onboarding/proxy-setup" : "/onboarding/basics", {
+            replace: true,
+            state: { setupFor },
+          });
         }
       } else {
         await login(authContactPayload(), password);
