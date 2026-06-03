@@ -4,6 +4,8 @@ export {
   evaluateTriageRules,
 } from "./engine/evaluateTriage.js";
 
+export { mergeTriageRecommendations } from "./engine/recommendationDedupe.js";
+
 export {
   CRITICAL_RED_FLAG_IDS,
   applyTriageSafetyFloor,

@@ -12,8 +12,9 @@ const mocks = vi.hoisted(() => ({
   language: {
     language: "en",
     setLanguage: vi.fn(),
-    setAccountLanguage: vi.fn(),
+    setBootstrapLanguage: vi.fn(),
   },
+  fetch: vi.fn(),
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
@@ -21,7 +22,7 @@ vi.mock("@/contexts/AuthContext", () => ({
 }));
 
 vi.mock("@/i18n", () => ({
-  setAccountLanguage: (language: string) => mocks.language.setAccountLanguage(language),
+  setBootstrapLanguage: (language: string) => mocks.language.setBootstrapLanguage(language),
   useLanguage: () => ({
     language: mocks.language.language,
     setLanguage: mocks.language.setLanguage,
@@ -50,12 +51,15 @@ function renderInvite(initialEntry: string) {
 }
 
 beforeEach(() => {
+  window.sessionStorage.clear();
   mocks.auth.user = null;
   mocks.auth.isLoading = false;
   mocks.auth.logout = vi.fn().mockResolvedValue(undefined);
   mocks.language.language = "en";
   mocks.language.setLanguage = vi.fn();
-  mocks.language.setAccountLanguage = vi.fn();
+  mocks.language.setBootstrapLanguage = vi.fn();
+  mocks.fetch = vi.fn().mockResolvedValue({ ok: true });
+  vi.stubGlobal("fetch", mocks.fetch);
 });
 
 afterEach(() => {
@@ -69,15 +73,25 @@ describe("invite landing compatibility redirect", () => {
     );
   });
 
+  it("routes caregiver setup invites into the who-for onboarding step", () => {
+    expect(inviteSetupPath("?lang=en&email=care%40example.com&setup_for=someone_else")).toBe(
+      "/login?lang=en&email=care%40example.com&setup_for=someone_else&mode=register&invite=1&returnTo=%2Fonboarding%2Fwho-for",
+    );
+  });
+
   it("redirects signed-out invite links to account creation", async () => {
-    renderInvite("/invite?lang=fr&email=maria%40example.com");
+    renderInvite("/invite?lang=fr&email=maria%40example.com&invite_id=invite-123456");
 
     await waitFor(() => {
       expect(screen.getByTestId("location")).toHaveTextContent(
-        "/login?lang=fr&email=maria%40example.com&mode=register&invite=1&returnTo=%2F",
+        "/login?lang=fr&email=maria%40example.com&invite_id=invite-123456&mode=register&invite=1&returnTo=%2F",
       );
     });
-    expect(mocks.language.setAccountLanguage).toHaveBeenCalledWith("fr");
+    expect(mocks.language.setBootstrapLanguage).toHaveBeenCalledWith("fr");
+    expect(mocks.fetch).toHaveBeenCalledWith("/api/auth/signup-invite/track", expect.objectContaining({
+      method: "POST",
+      body: expect.stringContaining("invite-123456"),
+    }));
     expect(mocks.auth.logout).not.toHaveBeenCalled();
   });
 

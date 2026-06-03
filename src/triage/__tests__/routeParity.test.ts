@@ -444,4 +444,25 @@ describe("triage route outcome parity", () => {
     expect(refined.nextStepLevel).toBe("emergency");
     expect(refined.vitalsNotes).toContain("Temperature was 38.5 C.");
   });
+
+  it("deduplicates semantically repeated report recommendations", () => {
+    const refined = applyTriageSafetyFloor({
+      ...baseSummary(),
+      recommendations: [
+        "Contact your doctor or clinic within 24-48 hours if this continues.",
+        "Keep track of any changes in your symptoms",
+      ],
+    }, wizard([
+      { id: "other", label: "Something else", value: "Something else.", kind: "symptom" },
+      { id: "no_red_flag", label: "No warning signs", value: "No warning signs.", kind: "red_flag" },
+      { id: "ongoing_not_improving", label: "Ongoing", value: "It is not improving.", kind: "trend" },
+    ]), "en");
+
+    const doctorWindowSteps = refined.recommendations.filter((item) => /doctor|clinic|medical advice/i.test(item) && /24-48/.test(item));
+
+    expect(refined.recommendations).toHaveLength(4);
+    expect(doctorWindowSteps).toHaveLength(1);
+    expect(refined.recommendations.join(" ")).not.toContain("Contact your doctor or clinic within 24-48 hours if this continues.");
+    expect(refined.recommendations.join(" ")).not.toContain("Keep track of any changes in your symptoms");
+  });
 });

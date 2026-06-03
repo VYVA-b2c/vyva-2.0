@@ -2,12 +2,12 @@ import React, { lazy, Suspense } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams, useNavigate } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { LanguageControllerProvider, LanguageFrameBoundary, useLanguage } from "@/i18n";
 import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { ProfileProvider } from "@/contexts/ProfileContext";
 import { VoiceActionProvider } from "@/contexts/VoiceActionContext";
@@ -18,6 +18,7 @@ import LandingPage from "@/pages/LandingPage";
 import InviteLandingPage from "@/pages/InviteLandingPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import AccessLinkPage from "@/pages/AccessLinkPage";
+import CareTeamInvitePage from "@/pages/CareTeamInvitePage";
 import AppShell from "./components/AppShell";
 import ServiceGateRoute from "./components/ServiceGateRoute";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -121,7 +122,7 @@ const SECTION_MAP: Record<string, React.ComponentType> = {
 function SectionRouter() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t } = useLanguage();
   const Section = id ? SECTION_MAP[id] : null;
 
   if (Section) return <Section />;
@@ -343,22 +344,25 @@ function AgentAppContextTracker() {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <ProfileProvider>
+    <LanguageControllerProvider>
+      <AuthProvider>
+        <ProfileProvider>
           <TooltipProvider>
             <Toaster />
             <Sonner />
             <BrowserRouter>
-              <VyvaVoiceProvider>
-                <VoiceActionProvider>
-                  <AgentAppContextTracker />
-                  <Routes>
+              <LanguageFrameBoundary>
+                <VyvaVoiceProvider>
+                  <VoiceActionProvider>
+                    <AgentAppContextTracker />
+                    <Routes>
                 <Route path="/" element={<RootRoute />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/invite" element={<InviteLandingPage />} />
                 <Route path="/admin/login" element={<LoginPage adminOnly />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/access/:token" element={<AccessLinkPage />} />
+                <Route path="/care-team/invite/:token" element={<CareTeamInvitePage />} />
                 <Route path="/confirm/:token" element={<ElderConfirmByToken />} />
                 <Route path="/shared/check-in/:token" element={<SharedCheckinReport />} />
                 <Route path="/admin/proxy-pending" element={<AdminRoute><ProxyPendingPage /></AdminRoute>} />
@@ -427,13 +431,15 @@ const App = () => (
                   <Route path="/history" element={<AppShell><HistoryScreen /></AppShell>} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </VoiceActionProvider>
-              </VyvaVoiceProvider>
+                    </Routes>
+                  </VoiceActionProvider>
+                </VyvaVoiceProvider>
+              </LanguageFrameBoundary>
             </BrowserRouter>
           </TooltipProvider>
-      </ProfileProvider>
-    </AuthProvider>
+        </ProfileProvider>
+      </AuthProvider>
+    </LanguageControllerProvider>
   </QueryClientProvider>
 );
 

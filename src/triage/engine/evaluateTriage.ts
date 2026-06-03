@@ -1,5 +1,6 @@
 import { evaluateProfileModifiers } from "./evaluateProfileModifiers.js";
 import { evaluateVitalsOverlay } from "./evaluateVitalsOverlay.js";
+import { mergeTriageRecommendations } from "./recommendationDedupe.js";
 import type {
   ProtocolProfileModifier,
   ProtocolRule,
@@ -466,7 +467,7 @@ function recommendationsFor(locale: string, symptomId: string | undefined, level
     return [
       text(locale, "Contact your doctor or clinic within 24-48 hours if this continues.", "Contacta con tu medico o clinica en 24-48 horas si continua."),
       text(locale, "Use this report to explain the symptom clearly.", "Usa este informe para explicar el sintoma claramente."),
-      text(locale, "Seek same-day help if it gets worse or feels unusual for you.", "Busca ayuda el mismo dia si empeora o se siente raro para ti."),
+      text(locale, "Write down what changes, what helps, and what makes it worse.", "Apunta que cambia, que ayuda y que lo empeora."),
       text(locale, "Keep watching for the warning signs below.", "Sigue vigilando las senales de alerta de abajo."),
     ];
   }
@@ -749,7 +750,7 @@ export function evaluateTriage(input: TriageRuleInput): TriageRuleDecision {
   });
 
   const defaultRecommendations = recommendationsFor(locale, symptomId, level);
-  const uniqueRecommendations = [...new Set([...recommendations, ...defaultRecommendations])];
+  const uniqueRecommendations = mergeTriageRecommendations(recommendations, defaultRecommendations);
   const selectedAnswerReason = selectedAnswerReasonFor(locale, symptomId, ids);
   const finalReasons = [...new Set([
     ...(selectedAnswerReason ? [selectedAnswerReason] : []),

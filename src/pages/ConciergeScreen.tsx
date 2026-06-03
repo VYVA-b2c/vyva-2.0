@@ -28,6 +28,7 @@ import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
+import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 
 interface ChatMessage {
@@ -36,9 +37,9 @@ interface ChatMessage {
 }
 
 type ConciergeRoutePrefill = {
-  kind: "ride" | "appointment" | "home_care_quote";
+  kind: "ride" | "appointment" | "home_care_quote" | "task";
   message: string;
-  source?: "symptom_report";
+  source?: "symptom_report" | "daily_checkin" | "shared_checkin" | "visual_scan" | "caregiver_alert" | "doctor_choice" | "adherence_report" | "medication_support" | "safe_home_scan" | "scam_guard" | "health_home_doctor" | "specialist_finder" | "vitals_safety" | "activity_support" | "home_quick_action";
 };
 
 type ConciergeLocationState = {
@@ -693,6 +694,13 @@ async function cancelPendingAction(id: string) {
   }
 }
 
+function phoneHref(phone?: string | null): string {
+  const raw = phone?.trim();
+  if (!raw) return "";
+  const normalized = raw.replace(/[^\d+]/g, "");
+  return `tel:${normalized || raw}`;
+}
+
 function getBookingUrl(item: ConciergePendingItem): string {
   return typeof item.action_payload?.booking_url === "string"
     ? item.action_payload.booking_url.trim()
@@ -752,10 +760,11 @@ type SpeechRecognitionWindow = Window & typeof globalThis & {
 };
 
 const ConciergeScreen = () => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const { language } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
-  const locale = i18n.language.split("-")[0].toLowerCase();
+  const locale = language.split("-")[0].toLowerCase();
   const isSpanish = locale === "es";
   const autoStartVoice = useRouteVoiceAutoStart();
   const queryClient = useQueryClient();
@@ -770,7 +779,7 @@ const ConciergeScreen = () => {
   const reqIdRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const chatSectionRef = useRef<HTMLElement>(null);
-  const currentLocaleRef = useRef(i18n.language);
+  const currentLocaleRef = useRef(language);
   const saveReadyRef = useRef(false);
   const billInputRef = useRef<HTMLInputElement>(null);
   const lastAppliedConciergeVoiceActionRef = useRef<string | null>(null);
@@ -877,7 +886,7 @@ const ConciergeScreen = () => {
   }, [pendingActions]);
 
   useEffect(() => {
-    currentLocaleRef.current = i18n.language;
+    currentLocaleRef.current = language;
   });
 
   useEffect(() => {
@@ -914,13 +923,8 @@ const ConciergeScreen = () => {
     setRoutePrefill(nextPrefill);
     setInput((current) => current.trim() ? current : message);
     setOffersOpen(false);
-
-    if (prefill.kind === "appointment") {
-      setAppointmentOpen(true);
-      setAppointmentNote((current) => current.trim() ? current : message);
-    } else {
-      setAppointmentOpen(false);
-    }
+    setAppointmentOpen(prefill.kind === "appointment");
+    setAppointmentNote((current) => current.trim() ? current : message);
 
     window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
     navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
@@ -928,7 +932,7 @@ const ConciergeScreen = () => {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(chatHistoryKey(i18n.language));
+      const raw = localStorage.getItem(chatHistoryKey(language));
       if (raw) {
         const stored = JSON.parse(raw) as StoredChatHistory;
         const age = Date.now() - new Date(stored.savedAt).getTime();
@@ -937,14 +941,14 @@ const ConciergeScreen = () => {
           setHasRestoredHistory(true);
           return;
         }
-        localStorage.removeItem(chatHistoryKey(i18n.language));
+        localStorage.removeItem(chatHistoryKey(language));
       }
     } catch {
       // Ignore corrupt cache.
     }
     setMessages([]);
     setHasRestoredHistory(false);
-  }, [i18n.language]);
+  }, [language]);
 
   useEffect(() => {
     if (!saveReadyRef.current) {
@@ -978,7 +982,7 @@ const ConciergeScreen = () => {
     setMessages([]);
     setHasRestoredHistory(false);
     try {
-      localStorage.removeItem(chatHistoryKey(i18n.language));
+      localStorage.removeItem(chatHistoryKey(language));
     } catch {
       // Ignore.
     }
@@ -989,7 +993,7 @@ const ConciergeScreen = () => {
     setChatLoading(true);
     setChatError(null);
     try {
-      const response = await callConcierge(text, history, i18n.language);
+      const response = await callConcierge(text, history, language);
       if (reqIdRef.current !== myReqId) return;
       setMessages((prev) => [...prev, { role: "assistant", content: response }]);
     } catch {
@@ -1018,6 +1022,7 @@ const ConciergeScreen = () => {
     setMessages(nextHistory);
     setInput("");
     setRoutePrefill(null);
+    setAppointmentOpen(false);
     sendMessage(text, nextHistory);
   }
 
@@ -1031,6 +1036,17 @@ const ConciergeScreen = () => {
   function handleQuickAction(key: string) {
     if (key === "shoppingHelper") {
       navigate("/concierge/shopping");
+      return;
+    }
+    if (key === "bookRide") {
+      const message = isSpanish
+        ? "Ayudame a reservar un transporte seguro. Preguntame destino y horario, prepara opciones claras y no reserves nada sin mi confirmacion."
+        : "Help me book safe transport. Ask for destination and timing, prepare clear options, and do not book anything without my confirmation.";
+      setRoutePrefill({ kind: "ride", message });
+      setInput((current) => current.trim() ? current : message);
+      setAppointmentOpen(false);
+      setOffersOpen(false);
+      window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
       return;
     }
     if (key === "scheduleAppt") {
@@ -1076,7 +1092,7 @@ const ConciergeScreen = () => {
     setOffersLoading(true);
     setOffersError(null);
     try {
-      const result = await searchOffers(query, i18n.language, documentContext);
+      const result = await searchOffers(query, language, documentContext);
       setOffersResult(result);
     } catch {
       setOffersError(isSpanish
@@ -1128,7 +1144,7 @@ const ConciergeScreen = () => {
       const extracted = billAnalysisToUtilityExtracted(analysis);
       const normalized = await normalizeUtilityReview({
         input_method: inputMethod,
-        locale: i18n.language,
+        locale: language,
         extracted_data: extracted,
       });
       setUtilityNormalized(normalized.normalized_input);
@@ -1154,7 +1170,7 @@ const ConciergeScreen = () => {
     if (!file) return;
     const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
     if (!file.type.startsWith("image/") && !isPdf) {
-      setBillAnalysisError(billClientMessage(i18n.language, "unsupported"));
+      setBillAnalysisError(billClientMessage(language, "unsupported"));
       return;
     }
     setBillAnalysisLoading(true);
@@ -1167,12 +1183,12 @@ const ConciergeScreen = () => {
       const documentDataUrl = isPdf ? await readFileAsDataUrl(file) : await compressBillImage(file);
       let analysis: BillDocumentAnalysis;
       try {
-        analysis = await analyzeBillDocument(documentDataUrl, i18n.language);
+        analysis = await analyzeBillDocument(documentDataUrl, language);
       } catch (err) {
         const status = (err as { status?: number }).status;
         if (status !== 413 || isPdf) throw err;
         const emergencyDataUrl = await compressBillImage(file, 75_000);
-        analysis = await analyzeBillDocument(emergencyDataUrl, i18n.language);
+        analysis = await analyzeBillDocument(emergencyDataUrl, language);
       }
       setBillAnalysis(analysis);
       setOffersQuery(analysis.suggested_query);
@@ -1191,7 +1207,7 @@ const ConciergeScreen = () => {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "";
-      setBillAnalysisError(message || billClientMessage(i18n.language, "read_failed"));
+      setBillAnalysisError(message || billClientMessage(language, "read_failed"));
     } finally {
       setBillAnalysisLoading(false);
     }
@@ -1231,7 +1247,7 @@ const ConciergeScreen = () => {
     try {
       const normalized = await normalizeUtilityReview({
         input_method: "manual",
-        locale: i18n.language,
+        locale: language,
         fields: utilityForm,
       });
       setUtilityNormalized(normalized.normalized_input);
@@ -1264,7 +1280,7 @@ const ConciergeScreen = () => {
     try {
       const normalized = await normalizeUtilityReview({
         input_method: "voice",
-        locale: i18n.language,
+        locale: language,
         voice_answers: nextAnswers,
       });
       setUtilityNormalized(normalized.normalized_input);
@@ -1290,7 +1306,7 @@ const ConciergeScreen = () => {
       return;
     }
     const recognition = new SpeechRecognition();
-    recognition.lang = isSpanish ? "es-ES" : i18n.language;
+    recognition.lang = isSpanish ? "es-ES" : language;
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
     recognition.onresult = (event) => {
@@ -1332,7 +1348,7 @@ const ConciergeScreen = () => {
     try {
       const result = await compareUtilityReview({
         input_method: utilityMethod ?? "manual",
-        locale: i18n.language,
+        locale: language,
         normalized_input: comparableInput,
         extracted_data: billAnalysis ? billAnalysisToUtilityExtracted(billAnalysis) : {},
       });
@@ -1433,7 +1449,7 @@ const ConciergeScreen = () => {
     chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function handleOfferAction(option: OfferOption) {
+  function handleOfferAssistance(option: OfferOption) {
     if (option.phone) {
       setInput(isSpanish
         ? `Ayudame a contactar con ${option.name} para revisar esta opcion y confirmar el siguiente paso.`
@@ -1451,6 +1467,37 @@ const ConciergeScreen = () => {
   const queuedActionCount = queuedActions.length;
   const priorityOfferIdeas = OFFER_IDEA_CHIPS.slice(0, 3);
   const visibleOfferIdeas = OFFER_IDEA_CHIPS.slice(3 + offersIdeaPage * 4, 3 + offersIdeaPage * 4 + 4);
+  const activeActionPhoneHref = phoneHref(activeAction?.provider_phone);
+  const activeActionBookingUrl = activeAction ? getBookingUrl(activeAction) : "";
+  const routePrefillMeta = routePrefill
+    ? {
+        Icon: routePrefill.kind === "ride" ? Car : routePrefill.kind === "appointment" ? Calendar : PencilLine,
+        title: routePrefill.kind === "ride"
+          ? (isSpanish ? "Transporte seguro preparado" : "Safe transport ready")
+          : routePrefill.kind === "appointment"
+            ? (isSpanish ? "Solicitud de cita preparada" : "Appointment request ready")
+            : routePrefill.kind === "home_care_quote"
+              ? (isSpanish ? "Presupuesto de apoyo preparado" : "Support quote ready")
+              : (isSpanish ? "Solicitud preparada" : "Request ready"),
+        detail: routePrefill.kind === "ride"
+          ? (isSpanish ? "VYVA puede buscar opciones y dejarte confirmar antes de reservar." : "VYVA can find options and let you confirm before booking.")
+          : routePrefill.kind === "appointment"
+            ? (isSpanish ? "VYVA prepara el motivo, proveedor y horario antes de confirmar." : "VYVA prepares the reason, provider, and timing before confirming.")
+            : routePrefill.kind === "home_care_quote"
+              ? (isSpanish ? "VYVA puede solicitar una ayuda en casa o compania con confirmacion previa." : "VYVA can request home support or companionship with confirmation first.")
+              : (isSpanish ? "VYVA prepara opciones y te pide confirmar antes de actuar." : "VYVA prepares options and asks you to confirm before acting."),
+        primaryLabel: routePrefill.kind === "ride"
+          ? (isSpanish ? "Buscar transporte" : "Find ride options")
+          : routePrefill.kind === "appointment"
+            ? (isSpanish ? "Iniciar solicitud" : "Start appointment request")
+            : routePrefill.kind === "home_care_quote"
+              ? (isSpanish ? "Pedir presupuesto" : "Request quote")
+              : (isSpanish ? "Iniciar solicitud" : "Start request"),
+        secondaryLabel: routePrefill.kind === "appointment"
+          ? (isSpanish ? "Anadir detalles" : "Add details")
+          : (isSpanish ? "Editar solicitud" : "Edit request"),
+      }
+    : null;
 
   function showNextQueuedAction() {
     const nextAction = queuedActions[0] ?? pendingActions[0];
@@ -1482,63 +1529,78 @@ const ConciergeScreen = () => {
         className="mt-5"
       />
 
-      {routePrefill && (
+      {routePrefill && routePrefillMeta && (
         <section
-          className="mt-4 rounded-[24px] border border-[#D8B4FE] bg-[#F5F3FF] p-4"
-          style={{ boxShadow: "0 12px 32px rgba(107,33,168,0.12)" }}
+          className="mt-4 overflow-hidden rounded-[28px] border border-[#D8B4FE] bg-white"
+          style={{ boxShadow: "0 18px 42px rgba(107,33,168,0.16)" }}
           data-testid="panel-concierge-route-prefill"
         >
-          <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-vyva-purple">
-              {routePrefill.kind === "ride" ? <Car size={20} /> : routePrefill.kind === "appointment" ? <Calendar size={20} /> : <PencilLine size={20} />}
+          <div className="bg-[linear-gradient(135deg,#7C2BE8_0%,#3D0D82_100%)] p-4 text-white">
+            <div className="flex items-start gap-3">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-white/16 text-white shadow-sm">
+                <routePrefillMeta.Icon size={22} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#FFD84D]">
+                  {isSpanish ? "Listo para actuar" : "Ready to act"}
+                </p>
+                <h2 className="mt-1 font-body text-[23px] font-black leading-tight">
+                  {routePrefillMeta.title}
+                </h2>
+                <p className="mt-2 font-body text-[15px] font-bold leading-snug text-white/88">
+                  {routePrefillMeta.detail}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRoutePrefill(null)}
+                className="vyva-tap flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/14 text-white"
+                aria-label={isSpanish ? "Cerrar" : "Close"}
+              >
+                <X size={17} />
+              </button>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-vyva-purple">
-                {isSpanish ? "Preparado desde salud" : "Prepared from health"}
+          </div>
+          <div className="p-4">
+            <div className="rounded-[22px] border border-[#E8DED4] bg-[#FFFCF8] p-3">
+              <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-text-3">
+                {isSpanish ? "Solicitud" : "Request"}
               </p>
-              <h2 className="mt-1 font-body text-[18px] font-extrabold leading-tight text-vyva-text-1">
-                {routePrefill.kind === "ride"
-                  ? (isSpanish ? "Ayuda para ir con seguridad" : "Help getting there safely")
-                  : routePrefill.kind === "appointment"
-                    ? (isSpanish ? "Cita preparada" : "Appointment request ready")
-                    : (isSpanish ? "Presupuesto de apoyo en casa" : "Home support quote")}
-              </h2>
-              <p className="mt-2 font-body text-[15px] font-semibold leading-relaxed text-vyva-text-2">
+              <p className="mt-1 font-body text-[15px] font-bold leading-relaxed text-vyva-text-1">
                 {routePrefill.message}
               </p>
             </div>
-          </div>
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-            {routePrefill.kind === "appointment" ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setAppointmentOpen(true);
-                  chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                }}
-                className="vyva-tap inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-[15px] font-black text-white"
-              >
-                <Calendar size={18} />
-                {isSpanish ? "Revisar cita" : "Review appointment"}
-              </button>
-            ) : (
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
                 onClick={sendPrefillToConcierge}
                 disabled={chatLoading}
-                className="vyva-tap inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-[15px] font-black text-white disabled:opacity-60"
+                data-testid="button-concierge-prefill-send"
+                className="vyva-tap inline-flex min-h-[54px] flex-1 items-center justify-center gap-2 rounded-full bg-vyva-purple px-5 font-body text-[17px] font-black text-white shadow-[0_12px_26px_rgba(107,33,168,0.22)] disabled:opacity-60"
               >
                 {chatLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                {isSpanish ? "Pedir a Concierge" : "Ask Concierge"}
+                {routePrefillMeta.primaryLabel}
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setRoutePrefill(null)}
-              className="vyva-tap inline-flex min-h-[48px] flex-1 items-center justify-center rounded-full border border-[#D8B4FE] bg-white px-4 font-body text-[15px] font-black text-vyva-purple"
-            >
-              {isSpanish ? "Cerrar" : "Close"}
-            </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (routePrefill.kind === "appointment") {
+                    setAppointmentOpen(true);
+                    window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+                    return;
+                  }
+                  setInput(routePrefill.message);
+                  setRoutePrefill(null);
+                }}
+                className="vyva-tap inline-flex min-h-[54px] flex-1 items-center justify-center gap-2 rounded-full border border-[#D8B4FE] bg-white px-5 font-body text-[17px] font-black text-vyva-purple"
+              >
+                <PencilLine size={18} />
+                {routePrefillMeta.secondaryLabel}
+              </button>
+            </div>
+            <p className="mt-3 rounded-full bg-[#ECFDF5] px-3 py-2 text-center font-body text-[13px] font-black text-[#047857]">
+              {isSpanish ? "Nada se reserva ni solicita sin tu confirmacion." : "Nothing is booked or requested without your confirmation."}
+            </p>
           </div>
         </section>
       )}
@@ -1707,17 +1769,26 @@ const ConciergeScreen = () => {
             </p>
 
             <div className="mt-4 flex flex-wrap gap-2">
-              {activeAction.provider_phone && (
-                <span className="inline-flex items-center gap-2 rounded-full bg-[#F5F3FF] px-3 py-2 font-body text-[12px] text-vyva-text-1">
+              {activeActionPhoneHref && (
+                <a
+                  href={activeActionPhoneHref}
+                  className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#F5F3FF] px-3 py-2 font-body text-[12px] font-black text-vyva-purple"
+                  aria-label={`${isSpanish ? "Llamar" : "Call"} ${activeAction.provider_phone}`}
+                >
                   <PhoneCall size={13} style={{ color: "#6B21A8" }} />
                   {activeAction.provider_phone}
-                </span>
+                </a>
               )}
-              {!activeAction.provider_phone && getBookingUrl(activeAction) && (
-                <span className="inline-flex items-center gap-2 rounded-full bg-[#ECFDF5] px-3 py-2 font-body text-[12px] text-vyva-text-1">
+              {!activeAction.provider_phone && activeActionBookingUrl && (
+                <a
+                  href={activeActionBookingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]"
+                >
                   <Calendar size={13} style={{ color: "#0A7C4E" }} />
                   {isSpanish ? "Reserva online disponible" : "Online booking available"}
-                </span>
+                </a>
               )}
             </div>
 
@@ -1729,8 +1800,8 @@ const ConciergeScreen = () => {
                   disabled={confirmMutation.isPending || cancelMutation.isPending}
                   className="vyva-primary-action h-auto hover:bg-vyva-purple/90"
                 >
-                  <PhoneCall size={16} className="mr-2" />
-                  {!activeAction.provider_phone && getBookingUrl(activeAction)
+                  {!activeAction.provider_phone && activeActionBookingUrl ? <ExternalLink size={16} className="mr-2" /> : <PhoneCall size={16} className="mr-2" />}
+                  {!activeAction.provider_phone && activeActionBookingUrl
                     ? (isSpanish ? "Abrir reserva" : "Open booking")
                     : (isSpanish ? "Confirmar y llamar" : "Confirm and call")}
                 </Button>
@@ -2390,7 +2461,17 @@ const ConciergeScreen = () => {
                     </p>
                   </div>
                 ) : (
-                  offersResult.options.map((option) => (
+                  offersResult.options.map((option) => {
+                    const offerPhoneHref = phoneHref(option.phone);
+                    const offerUrl = option.website || option.maps_url || "";
+                    const primaryLabel = offerPhoneHref
+                      ? (isSpanish ? "Llamar ahora" : "Call now")
+                      : offerUrl
+                        ? (isSpanish ? "Abrir ahora" : "Open now")
+                        : (isSpanish ? "Pedir ayuda a VYVA" : "Ask VYVA to help");
+                    const PrimaryIcon = offerPhoneHref ? PhoneCall : offerUrl ? ExternalLink : Send;
+
+                    return (
                     <div key={`${option.label}-${option.name}`} className="rounded-[20px] border border-vyva-border bg-white p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -2415,19 +2496,43 @@ const ConciergeScreen = () => {
                         <p className="font-body text-[12px] leading-relaxed text-vyva-text-2">{option.trust_note}</p>
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          onClick={() => handleOfferAction(option)}
-                          className="h-[40px] rounded-full bg-vyva-purple px-4 font-body text-[13px] hover:bg-vyva-purple/90"
-                        >
-                          {option.phone ? (isSpanish ? "Contactar proveedor" : "Contact provider") : option.website || option.maps_url ? (isSpanish ? "Revisar ahora" : "Review now") : (isSpanish ? "Ver contacto" : "View contact")}
-                        </Button>
+                        {offerPhoneHref || offerUrl ? (
+                          <a
+                            href={offerPhoneHref || offerUrl}
+                            target={offerUrl ? "_blank" : undefined}
+                            rel={offerUrl ? "noopener noreferrer" : undefined}
+                            className="vyva-tap inline-flex min-h-[40px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-[13px] font-bold text-white"
+                          >
+                            <PrimaryIcon size={15} />
+                            {primaryLabel}
+                          </a>
+                        ) : (
+                          <Button
+                            type="button"
+                            onClick={() => handleOfferAssistance(option)}
+                            className="h-[40px] rounded-full bg-vyva-purple px-4 font-body text-[13px] hover:bg-vyva-purple/90"
+                          >
+                            <Send size={15} className="mr-2" />
+                            {primaryLabel}
+                          </Button>
+                        )}
+                        {(offerPhoneHref || offerUrl) && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => handleOfferAssistance(option)}
+                            className="h-[40px] rounded-full border-vyva-border bg-white px-4 font-body text-[13px] font-bold text-vyva-purple"
+                          >
+                            {isSpanish ? "Que VYVA ayude" : "Let VYVA help"}
+                          </Button>
+                        )}
                         <span className="inline-flex items-center rounded-full bg-[#FBF8F4] px-3 py-2 font-body text-[12px] text-vyva-text-2">
                           {option.contact_method}
                         </span>
                       </div>
                     </div>
-                  ))
+                    );
+                  })
                 )}
 
                 <div className="rounded-[18px] border border-vyva-border bg-white p-3">

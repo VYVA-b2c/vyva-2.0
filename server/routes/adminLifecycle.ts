@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { and, desc, eq, inArray, or, sql, type SQL } from "drizzle-orm";
+import { randomUUID } from "crypto";
+import { and, desc, eq, gte, inArray, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { db, pool } from "../db.js";
 import { getActiveProfileContext } from "../lib/profileAccess.js";
@@ -22,6 +23,7 @@ import {
   consentAttempts,
   consentLog,
   heroMessages,
+  heroMessageEvents,
   homePlanCards,
   homeScans,
   lifecycleEvents,
@@ -379,6 +381,8 @@ type SignupShareRecipient = {
   name?: string;
 };
 
+type SignupInviteType = "elder" | "caregiver";
+
 function inviteRecipientNameKey(name: string | null | undefined): string | null {
   const normalized = (name ?? "").replace(/\s+/g, " ").trim().toLowerCase();
   return normalized || null;
@@ -404,6 +408,116 @@ function matchingInviteRecipient(
     if (matched) return matched;
   }
   return candidates.length === 1 ? candidates[0] : undefined;
+}
+
+function looksLikeInviteContact(value: string | null | undefined) {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) return false;
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return true;
+  const digits = trimmed.replace(/\D/g, "");
+  return digits.length >= 7 && /^[+\d\s().-]+$/.test(trimmed);
+}
+
+function signupInviteDisplayName(name: string | null | undefined) {
+  const normalized = (name ?? "").replace(/\s+/g, " ").trim();
+  return normalized && !looksLikeInviteContact(normalized) ? normalized : "Invited user";
+}
+
+async function findSignupInviteIntake(input: { email?: string | null; phone?: string | null }) {
+  const clauses: SQL[] = [];
+  const email = (input.email ?? "").trim().toLowerCase();
+  const phone = normalizePhone(input.phone ?? "");
+  const phoneDigits = phone.replace(/\D/g, "");
+
+  if (email) clauses.push(sql`lower(coalesce(${userIntakes.email}, '')) = ${email}`);
+  if (phone) clauses.push(sql`regexp_replace(coalesce(${userIntakes.phone}, ''), '[^0-9+]', '', 'g') = ${phone}`);
+  if (phoneDigits) clauses.push(sql`regexp_replace(coalesce(${userIntakes.phone}, ''), '[^0-9]', '', 'g') = ${phoneDigits}`);
+  if (!clauses.length) return null;
+
+  const [intake] = await db
+    .select()
+    .from(userIntakes)
+    .where(and(
+      or(...clauses),
+      sql`${userIntakes.journey_step} <> 'admin_deleted'`,
+      sql`coalesce(${userIntakes.metadata}->>'hidden_from_lifecycle', 'false') <> 'true'`,
+      sql`coalesce(${userIntakes.metadata}->>'deleted_from_lifecycle', 'false') <> 'true'`,
+    ))
+    .orderBy(desc(userIntakes.updated_at))
+    .limit(1);
+
+  return intake ?? null;
+}
+
+async function ensureSignupInviteIntake(input: {
+  inviteId: string;
+  inviteType: SignupInviteType;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  channel: string;
+  language: string;
+  sharedBy: string | null;
+}) {
+  const now = new Date();
+  const email = (input.email ?? "").trim().toLowerCase() || null;
+  const phone = normalizePhone(input.phone ?? "") || null;
+  const userType = input.inviteType === "caregiver" ? "family" : "elder";
+  const consentStatus = input.inviteType === "caregiver" ? "pending" : "not_required";
+  const metadataPatch = {
+    source: "admin_share_invite",
+    invite_type: input.inviteType,
+    latest_invite_id: input.inviteId,
+    invite_language: input.language,
+    invite_channel: input.channel,
+    invited_email: email,
+    invited_phone: phone,
+    ...(input.name ? { recipient_name: input.name } : {}),
+    shared_by: input.sharedBy,
+  };
+  const existing = await findSignupInviteIntake({ email, phone });
+
+  if (existing) {
+    const [updated] = await db
+      .update(userIntakes)
+      .set({
+        name: existing.name === "Invited user" ? signupInviteDisplayName(input.name) : existing.name,
+        email: existing.email ?? email,
+        phone: existing.phone || phone || "",
+        user_type: existing.status === "active" ? existing.user_type : userType,
+        status: existing.status === "active" ? "active" : "link_sent",
+        journey_step: existing.status === "active" ? existing.journey_step : "signup_invite_sent",
+        consent_status: existing.status === "active" ? existing.consent_status : consentStatus,
+        link_sent_at: now,
+        last_activity_at: now,
+        updated_at: now,
+        metadata: { ...jsonRecord(existing.metadata), ...metadataPatch },
+      })
+      .where(eq(userIntakes.id, existing.id))
+      .returning();
+    return updated;
+  }
+
+  const [created] = await db
+    .insert(userIntakes)
+    .values({
+      name: signupInviteDisplayName(input.name),
+      phone: phone ?? "",
+      email,
+      user_type: userType,
+      entry_point: "admin",
+      tier: "free",
+      status: "link_sent",
+      journey_step: "signup_invite_sent",
+      consent_status: consentStatus,
+      source_payload: { source: "admin_share_invite", channel: input.channel, invite_type: input.inviteType },
+      metadata: metadataPatch,
+      link_sent_at: now,
+      last_activity_at: now,
+    })
+    .returning();
+
+  return created;
 }
 
 function publicBaseUrl(req: Request): string {
@@ -1764,9 +1878,17 @@ adminLifecycleRouter.get("/home-plan-cards", async (req: Request, res: Response)
     const rows = await db.select().from(homePlanCards).orderBy(desc(homePlanCards.base_priority));
     return res.json({ cards: rows });
   } catch (error) {
-    return res.status(503).json({
-      error: "Home cards are not migrated yet. Run schema/home_plan_cards.sql.",
-    });
+    const code = typeof error === "object" && error !== null && "code" in error
+      ? (error as { code?: unknown }).code
+      : undefined;
+    if (code === "42P01") {
+      return res.status(503).json({
+        error: "Home cards are not available yet. Deploy and run migrations, including migrations/0032_home_plan_cards.sql.",
+      });
+    }
+
+    console.error("[adminLifecycle] GET /home-plan-cards error:", error);
+    return res.status(500).json({ error: "Could not load home cards." });
   }
 });
 
@@ -1833,6 +1955,58 @@ adminLifecycleRouter.get("/hero-messages", async (req: Request, res: Response) =
   } catch (error) {
     return res.status(503).json({
       error: "Hero messages are not migrated yet. Run schema/hero_messages.sql.",
+    });
+  }
+});
+
+adminLifecycleRouter.get("/hero-messages/metrics", async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+
+  const days = Math.min(Math.max(Number(req.query.days ?? 7) || 7, 1), 90);
+  const surface = typeof req.query.surface === "string" && req.query.surface !== "all"
+    ? req.query.surface
+    : undefined;
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const where = surface
+    ? and(gte(heroMessageEvents.created_at, since), eq(heroMessageEvents.surface, surface))
+    : gte(heroMessageEvents.created_at, since);
+
+  try {
+    const rows = await db
+      .select({
+        surface: heroMessageEvents.surface,
+        message_id: heroMessageEvents.message_id,
+        language: heroMessageEvents.language,
+        source: heroMessageEvents.source,
+        event_type: heroMessageEvents.event_type,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(heroMessageEvents)
+      .where(where)
+      .groupBy(
+        heroMessageEvents.surface,
+        heroMessageEvents.message_id,
+        heroMessageEvents.language,
+        heroMessageEvents.source,
+        heroMessageEvents.event_type,
+      );
+
+    const metrics = rows.map((row) => ({ ...row, count: Number(row.count ?? 0) }));
+    return res.json({
+      metrics,
+      summary: {
+        days,
+        surface: surface ?? "all",
+        impressions: metrics.filter((row) => row.event_type === "impression").reduce((sum, row) => sum + row.count, 0),
+        cta_clicks: metrics.filter((row) => row.event_type === "cta_click").reduce((sum, row) => sum + row.count, 0),
+        fallbacks: metrics.filter((row) => row.event_type === "fallback").reduce((sum, row) => sum + row.count, 0),
+      },
+    });
+  } catch {
+    return res.json({
+      metrics: [],
+      summary: { days, surface: surface ?? "all", impressions: 0, cta_clicks: 0, fallbacks: 0 },
+      warning: "Hero message metrics are not migrated yet. Run schema/hero_messages.sql.",
     });
   }
 });
@@ -3549,15 +3723,18 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
     whatsapp_recipients: z.array(namedInviteRecipientSchema.extend({
       recipient: z.string().trim().min(3),
     })).optional().default([]),
+    invite_type: z.enum(["elder", "caregiver"]).optional().default("elder"),
     message: z.string().trim().max(500).optional(),
     language: z.string().trim().optional(),
   }).safeParse(req.body ?? {});
   if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid signup share request" });
 
   const language = normalizeSignupInviteLanguage(parsed.data.language);
+  const inviteType = parsed.data.invite_type;
+  const setupFor = inviteType === "caregiver" ? "someone_else" : "self";
   const copy = signupInviteCopyFor(language);
   const baseUrl = publicBaseUrl(req);
-  const signupUrl = buildSignupInviteUrl(baseUrl, language);
+  const signupUrl = buildSignupInviteUrl(baseUrl, language, { setupFor });
   const emailRecipients = mergeSignupInviteRecipients(
     parsed.data.emails,
     parsed.data.email_recipients,
@@ -3577,62 +3754,112 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
   const phoneInviteChannel = signupPhoneInviteChannel();
   const intro = parsed.data.message || copy.defaultIntro;
   const buildBody = (setupUrl: string) => `${intro}\n\n${copy.startHere}: ${setupUrl}`;
-  const buildSetupUrl = (prefill: SignupInvitePrefill) => buildSignupInviteUrl(baseUrl, language, prefill);
-  const rows = [
-    ...emailRecipients.map((emailRecipient) => {
-      const { recipient, name } = emailRecipient;
-      const matchedWhatsapp = matchingInviteRecipient(emailRecipient, whatsappRecipients, whatsappByName);
-      const setupUrl = buildSetupUrl({
-        name,
-        email: recipient,
-        phone: matchedWhatsapp?.recipient,
-        whatsapp: matchedWhatsapp?.recipient,
-      });
-      return {
-        user_id: req.user?.id ?? null,
-        channel: "email",
-        recipient,
-        purpose: "share_signup_form",
-        status: "queued",
-        body: buildBody(setupUrl),
-        metadata: {
-          url: setupUrl,
-          language,
-          intro,
-          subject: copy.subject,
-          ...(name ? { recipient_name: name } : {}),
-          shared_by: req.user?.email ?? req.user?.id ?? null,
-        },
-      };
-    }),
-    ...whatsappRecipients.map((whatsappRecipient) => {
-      const { recipient, name } = whatsappRecipient;
-      const matchedEmail = matchingInviteRecipient(whatsappRecipient, emailRecipients, emailByName);
-      const setupUrl = buildSetupUrl({
-        name,
-        email: matchedEmail?.recipient,
-        phone: recipient,
-        whatsapp: recipient,
-      });
-      return {
-        user_id: req.user?.id ?? null,
-        channel: phoneInviteChannel,
-        recipient,
-        purpose: "share_signup_form",
-        status: "queued",
-        body: buildBody(setupUrl),
-        metadata: {
-          url: setupUrl,
-          language,
-          requested_channel: "phone",
-          delivery_channel: phoneInviteChannel,
-          whatsapp_fallback_to_sms: phoneInviteChannel === "sms",
-          ...(name ? { recipient_name: name } : {}),
-          shared_by: req.user?.email ?? req.user?.id ?? null,
-        },
-      };
-    }),
-  ];
+  const buildSetupUrl = (prefill: SignupInvitePrefill) => buildSignupInviteUrl(baseUrl, language, { ...prefill, setupFor });
+  const sharedBy = req.user?.email ?? req.user?.id ?? null;
+  const rows: Array<typeof communicationsLog.$inferInsert> = [];
+
+  for (const emailRecipient of emailRecipients) {
+    const { recipient, name } = emailRecipient;
+    const matchedWhatsapp = matchingInviteRecipient(emailRecipient, whatsappRecipients, whatsappByName);
+    const inviteId = randomUUID();
+    const intake = await ensureSignupInviteIntake({
+      inviteId,
+      inviteType,
+      name,
+      email: recipient,
+      phone: matchedWhatsapp?.recipient,
+      channel: "email",
+      language,
+      sharedBy,
+    });
+    const setupUrl = buildSetupUrl({
+      name,
+      email: recipient,
+      phone: matchedWhatsapp?.recipient,
+      whatsapp: matchedWhatsapp?.recipient,
+      inviteId,
+    });
+    rows.push({
+      intake_id: intake.id,
+      user_id: req.user?.id ?? null,
+      channel: "email",
+      recipient,
+      purpose: "share_signup_form",
+      status: "queued",
+      body: buildBody(setupUrl),
+      metadata: {
+        invite_id: inviteId,
+        invite_type: inviteType,
+        url: setupUrl,
+        language,
+        intro,
+        subject: copy.subject,
+        ...(name ? { recipient_name: name } : {}),
+        shared_by: sharedBy,
+      },
+    });
+    await lifecycleService.recordLifecycleEvent({
+      intakeId: intake.id,
+      userId: intake.user_id,
+      eventType: "signup_invite_sent",
+      fromStatus: intake.status,
+      toStatus: intake.status,
+      channel: "email",
+      metadata: { invite_id: inviteId, invite_type: inviteType, recipient, language, shared_by: sharedBy },
+    });
+  }
+
+  for (const whatsappRecipient of whatsappRecipients) {
+    const { recipient, name } = whatsappRecipient;
+    const matchedEmail = matchingInviteRecipient(whatsappRecipient, emailRecipients, emailByName);
+    const inviteId = randomUUID();
+    const intake = await ensureSignupInviteIntake({
+      inviteId,
+      inviteType,
+      name,
+      email: matchedEmail?.recipient,
+      phone: recipient,
+      channel: phoneInviteChannel,
+      language,
+      sharedBy,
+    });
+    const setupUrl = buildSetupUrl({
+      name,
+      email: matchedEmail?.recipient,
+      phone: recipient,
+      whatsapp: recipient,
+      inviteId,
+    });
+    rows.push({
+      intake_id: intake.id,
+      user_id: req.user?.id ?? null,
+      channel: phoneInviteChannel,
+      recipient,
+      purpose: "share_signup_form",
+      status: "queued",
+      body: buildBody(setupUrl),
+      metadata: {
+        invite_id: inviteId,
+        invite_type: inviteType,
+        url: setupUrl,
+        language,
+        requested_channel: "phone",
+        delivery_channel: phoneInviteChannel,
+        whatsapp_fallback_to_sms: phoneInviteChannel === "sms",
+        ...(name ? { recipient_name: name } : {}),
+        shared_by: sharedBy,
+      },
+    });
+    await lifecycleService.recordLifecycleEvent({
+      intakeId: intake.id,
+      userId: intake.user_id,
+      eventType: "signup_invite_sent",
+      fromStatus: intake.status,
+      toStatus: intake.status,
+      channel: phoneInviteChannel,
+      metadata: { invite_id: inviteId, invite_type: inviteType, recipient, language, shared_by: sharedBy },
+    });
+  }
 
   const communications = await db.insert(communicationsLog).values(rows).returning();
   const dispatchResult = await dispatchCommunicationsByIds(communications.map((item) => item.id));
@@ -3641,6 +3868,7 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
 
   return res.status(201).json({
     signup_url: signupUrl,
+    invite_type: inviteType,
     queued: communications.length,
     sent,
     failed,

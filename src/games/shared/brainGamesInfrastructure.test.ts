@@ -47,8 +47,8 @@ describe("brain game shared infrastructure", () => {
     });
   });
 
-  it("falls back to Spanish for missing language overrides", () => {
-    expect(translate("cy", "brainGames.dualTask.title")).toBe(translate("es", "brainGames.dualTask.title"));
+  it("falls back to English for dormant language overrides", () => {
+    expect(translate("cy", "brainGames.dualTask.title")).toBe(translate("en", "brainGames.dualTask.title"));
   });
 
   it("keeps current games off local copy dictionaries", () => {
@@ -60,7 +60,13 @@ describe("brain game shared infrastructure", () => {
     });
   });
 
-  it("provides localized short story payloads with Spanish fallback", () => {
+  it("does not preselect the first Dual Task subtraction answer", () => {
+    expect(dualTaskSource).not.toContain("setPickerValue(clamp(seq.start_number - 7");
+    expect(dualTaskSource).toContain("setPickerTouched(false)");
+    expect(dualTaskSource).toContain("disabled={!pickerTouched}");
+  });
+
+  it("provides localized short story payloads with English fallback", () => {
     const storyLevel = getGameLevel("story_recall", 5);
 
     languages.forEach((language) => {
@@ -81,6 +87,6 @@ describe("brain game shared infrastructure", () => {
     });
 
     const firstVariant = storyLevel.variants[0];
-    expect(getVariantContent(firstVariant, "cy").title).toBe(getVariantContent(firstVariant, "es").title);
+    expect(getVariantContent(firstVariant, "cy").title).toBe(getVariantContent(firstVariant, "en").title);
   });
 });

@@ -11,6 +11,7 @@ import {
 } from "../../shared/schema.js";
 import { genderInstruction, inferProfileGender, type GrammaticalGender } from "../lib/userPersonalization.js";
 import { getGooglePlacesApiKey } from "../lib/googlePlacesKey.js";
+import { normalizeAppLanguage } from "../../shared/language.js";
 
 const DEMO_USER_ID = "demo-user";
 
@@ -21,7 +22,6 @@ const LOCALE_TO_LANGUAGE: Record<string, string> = {
   pt: "Portuguese",
   de: "German",
   it: "Italian",
-  cy: "Welsh",
 };
 
 const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -209,8 +209,7 @@ function uniqueStrings(values: string[]): string[] {
 }
 
 function normaliseLocale(locale: unknown): string {
-  const baseLocale = typeof locale === "string" ? locale.split("-")[0].toLowerCase() : "en";
-  return baseLocale in LOCALE_TO_LANGUAGE ? baseLocale : "en";
+  return normalizeAppLanguage(typeof locale === "string" ? locale : null, "en");
 }
 
 function emptyProfileContext(): UserProfileContext {

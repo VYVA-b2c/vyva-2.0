@@ -22,6 +22,7 @@ describe("signup invite language", () => {
       email: "maria@example.com",
       phone: "+34 612 345 678",
       whatsapp: "+34 612 345 678",
+      inviteId: "invite-123456",
     });
     const parsed = new URL(setupUrl);
 
@@ -33,6 +34,20 @@ describe("signup invite language", () => {
     expect(parsed.searchParams.get("email")).toBe("maria@example.com");
     expect(parsed.searchParams.get("phone")).toBe("+34 612 345 678");
     expect(parsed.searchParams.get("whatsapp")).toBe("+34 612 345 678");
+    expect(parsed.searchParams.get("invite_id")).toBe("invite-123456");
+  });
+
+  it("can mark invite links for caregiver or family setup", () => {
+    const setupUrl = buildSignupInviteUrl("https://v2.vyva.life", "en", {
+      email: "care@example.com",
+      inviteId: "invite-caregiver",
+      setupFor: "someone_else",
+    });
+    const parsed = new URL(setupUrl);
+
+    expect(parsed.searchParams.get("email")).toBe("care@example.com");
+    expect(parsed.searchParams.get("invite_id")).toBe("invite-caregiver");
+    expect(parsed.searchParams.get("setup_for")).toBe("someone_else");
   });
 
   it("does not use email or phone contacts as invite names", () => {

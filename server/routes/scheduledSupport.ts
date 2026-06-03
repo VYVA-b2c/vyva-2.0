@@ -13,6 +13,7 @@ import {
   scheduledInteractions,
   userMedications,
 } from "../../shared/schema.js";
+import { normalizeAppLanguage } from "../../shared/language.js";
 
 const router = Router();
 
@@ -313,7 +314,7 @@ async function createDefaultSchedules(userId: string) {
     db.select().from(userMedications).where(and(eq(userMedications.user_id, userId), eq(userMedications.active, true))),
   ]);
   const existingKeys = new Set(existing.filter((row) => row.status !== "CANCELLED").map((row) => `${row.interaction_type}:${row.source_ref_id ?? ""}`));
-  const language = profile?.language || "es";
+  const language = normalizeAppLanguage(profile?.language_preference ?? profile?.language, "es");
   const timezone = profile?.timezone || "Europe/Madrid";
   const quietStart = "21:00";
   const quietEnd = "08:00";

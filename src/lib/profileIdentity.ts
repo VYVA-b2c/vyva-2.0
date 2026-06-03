@@ -36,6 +36,7 @@ export type ProfileIdentityResponse = {
   whatsapp?: string | null;
   country?: string | null;
   language?: string | null;
+  languagePreference?: string | null;
   avatarUrl?: string | null;
 };
 
@@ -46,6 +47,7 @@ export type OnboardingIdentityProfile = {
   phone_number?: string | null;
   email?: string | null;
   language?: string | null;
+  language_preference?: string | null;
   avatar_url?: string | null;
 };
 
@@ -134,7 +136,7 @@ export function identityFromProfileResponse(
     phoneCountry: phoneParts.phoneCountry,
     phoneLocal: phoneParts.phoneLocal,
     email: profile?.email ?? "",
-    language: normalizeLanguageCode(profile?.language, fallbackLanguage),
+    language: normalizeLanguageCode(profile?.languagePreference ?? profile?.language, fallbackLanguage),
     avatarUrl: profile?.avatarUrl ?? null,
   };
 }
@@ -153,7 +155,7 @@ export function identityFromOnboardingProfile(
     phoneCountry: phoneParts.phoneCountry,
     phoneLocal: phoneParts.phoneLocal,
     email: profile?.email ?? "",
-    language: normalizeLanguageCode(profile?.language, fallbackLanguage),
+    language: normalizeLanguageCode(profile?.language_preference ?? profile?.language, fallbackLanguage),
     avatarUrl: profile?.avatar_url ?? null,
   };
 }

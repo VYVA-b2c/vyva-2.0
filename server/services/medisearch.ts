@@ -21,7 +21,17 @@ export type MediSearchTriageContext = {
 type TriageWizardContext = {
   mode?: "with_vitals" | "without_vitals";
   vitalsScanCompleted?: boolean;
-  vitals?: { bpm?: number | null; respiratoryRate?: number | null };
+  vitals?: {
+    bpm?: number | null;
+    respiratoryRate?: number | null;
+    oxygenSaturation?: number | null;
+    temperatureC?: number | null;
+    systolicBp?: number | null;
+    diastolicBp?: number | null;
+    glucoseMgdl?: number | null;
+    painScore?: number | null;
+    energyLevel?: number | null;
+  };
   quickAnswers?: Array<{ id: string; label: string; value: string; kind?: string }>;
 };
 
@@ -59,6 +69,12 @@ function wizardContextLine(wizard?: TriageWizardContext) {
     wizard.mode === "without_vitals" ? "User skipped vitals scan." : null,
     typeof wizard.vitals?.bpm === "number" ? `Pulse estimate: ${wizard.vitals.bpm} bpm.` : null,
     typeof wizard.vitals?.respiratoryRate === "number" ? `Respiratory rate estimate: ${wizard.vitals.respiratoryRate} breaths/min.` : null,
+    typeof wizard.vitals?.oxygenSaturation === "number" ? `Oxygen saturation: ${wizard.vitals.oxygenSaturation}%.` : null,
+    typeof wizard.vitals?.temperatureC === "number" ? `Temperature: ${wizard.vitals.temperatureC} C.` : null,
+    typeof wizard.vitals?.systolicBp === "number" && typeof wizard.vitals?.diastolicBp === "number" ? `Blood pressure: ${wizard.vitals.systolicBp}/${wizard.vitals.diastolicBp}.` : null,
+    typeof wizard.vitals?.glucoseMgdl === "number" ? `Glucose: ${wizard.vitals.glucoseMgdl} mg/dL.` : null,
+    typeof wizard.vitals?.painScore === "number" ? `Pain score: ${wizard.vitals.painScore}/10.` : null,
+    typeof wizard.vitals?.energyLevel === "number" ? `Energy level: ${wizard.vitals.energyLevel}/10.` : null,
     wizard.quickAnswers?.length
       ? `Tapped answers: ${wizard.quickAnswers.map((answer) => answer.label).join(", ")}.`
       : null,

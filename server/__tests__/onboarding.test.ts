@@ -6,7 +6,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { authMiddleware } from "../middleware/auth.js";
 import { onboardingRouter } from "../routes/onboarding.js";
 import { db } from "../db.js";
-import { profiles, onboardingState, userChannelPreferences, teamInvitations, userMedications } from "../../shared/schema.js";
+import { communicationsLog, profiles, onboardingState, userChannelPreferences, teamInvitations, userMedications } from "../../shared/schema.js";
 import { eq } from "drizzle-orm";
 
 function buildApp() {
@@ -23,6 +23,7 @@ const TEST_USER_ID = randomUUID();
 async function cleanupUser(userId: string) {
   try {
     await db.delete(teamInvitations).where(eq(teamInvitations.senior_id, userId));
+    await db.delete(communicationsLog).where(eq(communicationsLog.user_id, userId));
     await db.delete(userMedications).where(eq(userMedications.user_id, userId));
     await db.delete(userChannelPreferences).where(eq(userChannelPreferences.user_id, userId));
     await db.delete(onboardingState).where(eq(onboardingState.user_id, userId));
@@ -233,6 +234,8 @@ describe("Onboarding journey — end-to-end", () => {
         gp_phone: "020 7946 0958",
         gp_email: "gp@example.com",
         gp_address: "1 Health Centre, London",
+        gp_maps_url: "",
+        gp_place_id: "",
       })
       .expect(200);
 
@@ -243,6 +246,7 @@ describe("Onboarding journey — end-to-end", () => {
         gp_name: profiles.gp_name,
         gp_phone: profiles.gp_phone,
         gp_email: profiles.gp_email,
+        gp_address: profiles.gp_address,
       })
       .from(profiles)
       .where(eq(profiles.id, TEST_USER_ID))
@@ -252,7 +256,59 @@ describe("Onboarding journey — end-to-end", () => {
       gp_name: "Dr. Jane Smith",
       gp_phone: "020 7946 0958",
       gp_email: "gp@example.com",
+      gp_address: "1 Health Centre, London",
     });
+
+    const [state] = await db
+      .select({ has_gp_details: onboardingState.has_gp_details })
+      .from(onboardingState)
+      .where(eq(onboardingState.user_id, TEST_USER_ID))
+      .limit(1);
+
+    expect(state?.has_gp_details).toBe(true);
+  });
+
+  it("POST /section/gp clears GP details without leaving the section complete", async () => {
+    const res = await request(app)
+      .post("/api/onboarding/section/gp")
+      .set("x-user-id", TEST_USER_ID)
+      .send({
+        gp_name: "",
+        gp_phone: "",
+        gp_email: "",
+        gp_address: "",
+        gp_maps_url: "",
+        gp_place_id: "",
+      })
+      .expect(200);
+
+    expect(res.body).toMatchObject({ ok: true, section: "gp" });
+
+    const [profile] = await db
+      .select({
+        gp_name: profiles.gp_name,
+        gp_phone: profiles.gp_phone,
+        gp_email: profiles.gp_email,
+        gp_address: profiles.gp_address,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, TEST_USER_ID))
+      .limit(1);
+
+    expect(profile).toMatchObject({
+      gp_name: null,
+      gp_phone: null,
+      gp_email: null,
+      gp_address: null,
+    });
+
+    const [state] = await db
+      .select({ has_gp_details: onboardingState.has_gp_details })
+      .from(onboardingState)
+      .where(eq(onboardingState.user_id, TEST_USER_ID))
+      .limit(1);
+
+    expect(state?.has_gp_details).toBe(false);
   });
 
   it("POST /section/hobbies saves hobbies", async () => {
@@ -285,13 +341,79 @@ describe("Onboarding journey — end-to-end", () => {
       .set("x-user-id", TEST_USER_ID)
       .send({
         role: "family",
-        person: { name: "Mary User", relationship: "Daughter", phone: "07700900000" },
+        person: { name: "Mary User", relationship: "Daughter", phone: "07700900000", email: "mary@example.com" },
         consent: { daily_summary: true, emergency_alerts: true },
-        invite_channel: "whatsapp",
+        invite_channel: "sms",
       })
       .expect(200);
 
     expect(res.body).toMatchObject({ ok: true, section: "careteam" });
+    expect(res.body.invitation).toMatchObject({ status: "pending" });
+    expect(res.body.delivery.queued).toBe(2);
+    expect(res.body._devInviteUrl).toContain("/care-team/invite/");
+
+    const channels = (res.body.delivery.results as Array<{ channel: string }>).map((item) => item.channel).sort();
+    expect(channels).toEqual(["email", "sms"]);
+
+    const communications = await db
+      .select()
+      .from(communicationsLog)
+      .where(eq(communicationsLog.user_id, TEST_USER_ID));
+    expect(communications.filter((row) => row.purpose === "care_team_invite")).toHaveLength(2);
+
+    const roster = await request(app)
+      .get("/api/onboarding/careteam")
+      .set("x-user-id", TEST_USER_ID)
+      .expect(200);
+    const mary = roster.body.members.find((member: { invitee_name: string }) => member.invitee_name === "Mary User");
+    expect(mary.latest_delivery_status).toBeTruthy();
+    expect(mary.latest_delivery_channel).toBeTruthy();
+    expect(mary).toMatchObject({
+      can_receive_daily_digest: true,
+      can_receive_safety_alerts: true,
+      can_receive_health_alerts: false,
+      can_view_health_reports: false,
+      can_view_journal_summaries: false,
+    });
+  });
+
+  it("POST /section/careteam requires caregiver email because invites always send SMS and email", async () => {
+    const res = await request(app)
+      .post("/api/onboarding/section/careteam")
+      .set("x-user-id", TEST_USER_ID)
+      .send({
+        role: "family",
+        person: { name: "Email Missing", relationship: "Daughter", phone: "07700900001" },
+        consent: { daily_summary: true, emergency_alerts: true },
+        invite_channel: "sms",
+      })
+      .expect(400);
+
+    expect(res.body).toHaveProperty("error");
+  });
+
+  it("POST /careteam/:id/resend refreshes a pending invitation token and queues delivery", async () => {
+    const [before] = await db
+      .select()
+      .from(teamInvitations)
+      .where(eq(teamInvitations.senior_id, TEST_USER_ID))
+      .limit(1);
+
+    const res = await request(app)
+      .post(`/api/onboarding/careteam/${before.id}/resend`)
+      .set("x-user-id", TEST_USER_ID)
+      .expect(200);
+
+    expect(res.body).toMatchObject({ ok: true, status: "pending", newId: before.id });
+    expect(res.body.delivery.queued).toBe(2);
+    expect(res.body._devInviteUrl).toContain("/care-team/invite/");
+
+    const [after] = await db
+      .select()
+      .from(teamInvitations)
+      .where(eq(teamInvitations.id, before.id))
+      .limit(1);
+    expect(after.invite_token).not.toBe(before.invite_token);
   });
 
   it("POST /section/:unknown returns 400 for unknown sections", async () => {

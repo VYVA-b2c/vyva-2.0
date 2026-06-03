@@ -5,9 +5,9 @@ import {
   Stethoscope,
   Camera,
   UserSearch,
-  Video,
   Phone,
-  MessageCircle,
+  PhoneCall,
+  Mail,
   MapPin,
   Share2,
   ChevronRight,
@@ -17,6 +17,8 @@ import {
   Lock,
   Pill,
   Activity,
+  Calendar,
+  Car,
   ClipboardList,
   HeartPulse,
   Trash2,
@@ -33,6 +35,8 @@ import {
   ChevronUp,
   AlertTriangle,
   CheckCircle2,
+  ShoppingBasket,
+  type LucideIcon,
 } from "lucide-react";
 import VoiceHero from "@/components/VoiceHero";
 import { ActionCard, ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
@@ -42,6 +46,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useDoctorVoice } from "@/hooks/useDoctorVoice";
 import { serviceForPath, useServiceGate } from "@/hooks/useServiceGate";
+import { getSymptomRecommendationActionKinds, type SymptomRecommendationActionKind } from "@/lib/symptomReportActions";
+import { useLanguage } from "@/i18n";
 
 type WoundScan = {
   id: string;
@@ -92,6 +98,39 @@ type ReportsSummary = {
   todayMeds: { taken: number; total: number; adherencePct: number | null };
 };
 
+type ProfileContactsResponse = {
+  country?: string | null;
+  gpPhone?: string | null;
+  gpEmail?: string | null;
+} | null;
+
+type HealthHomeServiceActionKind = SymptomRecommendationActionKind | "open_report";
+
+export type HealthHomeServiceAction = {
+  kind: HealthHomeServiceActionKind;
+  label: string;
+  href?: string;
+  to?: string;
+  state?: unknown;
+};
+
+type HealthDoctorQuickActionKind =
+  | "call_gp"
+  | "email_gp"
+  | "doctor_help"
+  | "schedule_appointment"
+  | "book_ride"
+  | "add_doctor_contact";
+
+export type HealthDoctorQuickAction = {
+  kind: HealthDoctorQuickActionKind;
+  label: string;
+  description: string;
+  href?: string;
+  to?: string;
+  state?: unknown;
+};
+
 type DailyCheckinToday = {
   status: "completed" | "upcoming" | "due_now" | "overdue" | "not_scheduled";
   date_key: string;
@@ -128,7 +167,7 @@ type DailyCheckinToday = {
   action_label: string;
 };
 
-type SpecialistProvider = {
+export type SpecialistProvider = {
   name: string;
   specialty: string;
   specialtyLabel?: string;
@@ -342,6 +381,23 @@ function deriveSpecialistExamples(conditions: string[] | undefined, language: st
 
 type TFunction = (key: string, fallback?: string) => string;
 
+type VisualScanActionKind = "call_gp" | "email_gp" | "doctor_help" | "schedule_appointment" | "book_ride";
+
+type VisualScanAction = {
+  kind: VisualScanActionKind;
+  label: string;
+  Icon: LucideIcon;
+  href?: string;
+  onClick?: () => void;
+};
+
+type SpecialistProviderServiceActionKind = "call_provider" | "book_appointment" | "book_ride" | "open_map";
+
+type SpecialistProviderServiceAction = {
+  kind: SpecialistProviderServiceActionKind;
+  href?: string;
+};
+
 export const VISUAL_SCAN_CATEGORY_KEYS = [
   { key: "wounds", fallback: "Wounds" },
   { key: "bruises", fallback: "Bruises" },
@@ -370,6 +426,46 @@ function visualScanImageTypeLabel(t: TFunction, imageType?: VisualScanImageType)
 
 function visualScanList(items?: string[]) {
   return Array.isArray(items) ? items.filter(Boolean) : [];
+}
+
+function visualScanReviewText(result: VisualScanResult) {
+  return [
+    result.severity,
+    result.resultTitle,
+    result.advice,
+    result.recommendedNextStep,
+    ...(result.potentialConcerns ?? []),
+  ].filter(Boolean).join(" ");
+}
+
+export function visualScanServiceActionKindsFor(
+  result: VisualScanResult,
+  contacts: { hasGpPhone?: boolean; hasGpEmail?: boolean } = {},
+): VisualScanActionKind[] {
+  const text = normalizeForMatching(visualScanReviewText(result));
+  const needsClinicalReview = /\b(doctor|clinician|clinical|healthcare|professional|radiologist|review|appointment|clinic|urgent|emergency|medico|medecin|arzt|dottore|medico)\b/.test(text);
+  if (!needsClinicalReview && result.severity !== "Serious" && result.severity !== "Moderate") return [];
+  return [
+    ...(contacts.hasGpPhone ? ["call_gp" as const] : []),
+    ...(contacts.hasGpEmail ? ["email_gp" as const] : []),
+    "doctor_help",
+    "schedule_appointment",
+    "book_ride",
+  ];
+}
+
+export function visualScanDoctorContext(result: VisualScanResult) {
+  return [
+    "VYVA visual health scan",
+    `Image type: ${result.imageType ?? "unclear"}`,
+    `Severity: ${result.severity}`,
+    `Result: ${result.resultTitle}`,
+    result.advice ? `Advice: ${result.advice}` : "",
+    result.recommendedNextStep ? `Suggested next step: ${result.recommendedNextStep}` : "",
+    result.visibleObservations?.length ? `Visible observations: ${result.visibleObservations.join("; ")}` : "",
+    result.potentialConcerns?.length ? `Potential concerns: ${result.potentialConcerns.join("; ")}` : "",
+    result.uncertainty?.length ? `Limits: ${result.uncertainty.join("; ")}` : "",
+  ].filter(Boolean).join("\n");
 }
 
 export function VisualHealthScanCardContent({
@@ -425,10 +521,12 @@ export function VisualScanResultPanel({
   result,
   t,
   onClose,
+  actions = [],
 }: {
   result: VisualScanResult;
   t: TFunction;
   onClose: () => void;
+  actions?: VisualScanAction[];
 }) {
   const visibleObservations = visualScanList(result.visibleObservations);
   const potentialConcerns = visualScanList(result.potentialConcerns);
@@ -500,6 +598,44 @@ export function VisualScanResultPanel({
         </p>
       )}
 
+      {actions.length ? (
+        <div className="mt-3 grid gap-2 sm:grid-cols-3" data-testid="visual-scan-service-actions">
+          {actions.map((action) => {
+            const ActionIcon = action.Icon;
+            const content = (
+              <>
+                <ActionIcon size={17} />
+                <span>{action.label}</span>
+              </>
+            );
+            const className = "vyva-tap flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] bg-white px-3 text-center font-body text-[13px] font-extrabold text-vyva-purple shadow-[0_8px_20px_rgba(63,45,35,0.07)]";
+            if (action.href) {
+              return (
+                <a
+                  key={action.kind}
+                  href={action.href}
+                  className={className}
+                  data-testid={`button-visual-scan-action-${action.kind}`}
+                >
+                  {content}
+                </a>
+              );
+            }
+            return (
+              <button
+                key={action.kind}
+                type="button"
+                onClick={action.onClick}
+                className={className}
+                data-testid={`button-visual-scan-action-${action.kind}`}
+              >
+                {content}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
       <p className="mt-3 rounded-[12px] bg-white/72 px-3 py-2 font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
         {t("health.scanWound.disclaimer", "Assistive description only, not medical advice or diagnosis. A qualified clinician should review anything concerning.")}
       </p>
@@ -548,24 +684,24 @@ export function DailyCheckinCard({
     checkin?.status === "completed" ? t("health.dailyCheckin.completed", "Checked in today") :
     checkin?.status === "overdue" ? t("health.dailyCheckin.overdue", "Check-in overdue") :
     checkin?.status === "due_now" ? t("health.dailyCheckin.due", "Ready now") :
-    checkin?.status === "not_scheduled" ? t("health.dailyCheckin.setup", "Set up daily check-in") :
-    t("health.dailyCheckin.upcoming", "Scheduled today");
+    checkin?.status === "not_scheduled" ? t("health.dailyCheckin.setup", "Set up") :
+    t("health.dailyCheckin.upcoming", "Scheduled");
   const message =
-    !checkin ? t("health.dailyCheckin.loadingMessage", "A short daily check helps VYVA know you are okay.") :
-    checkin.status === "completed" ? t("health.dailyCheckin.messages.completed", "You checked in today. VYVA has a fresh wellbeing signal.") :
-    checkin.status === "due_now" ? t("health.dailyCheckin.messages.dueNow", "Your daily check-in is ready. A quick answer lets everyone know you are okay.") :
+    !checkin ? t("health.dailyCheckin.loadingMessage", "A quick check helps VYVA keep watch.") :
+    checkin.status === "completed" ? t("health.dailyCheckin.messages.completed", "VYVA has today's signal.") :
+    checkin.status === "due_now" ? t("health.dailyCheckin.messages.dueNow", "Answer in a few seconds.") :
     checkin.status === "overdue" ? (
       checkin.no_response.reason
-        ? t("health.dailyCheckin.messages.overdueNeedsContact", "The daily check-in is overdue. Add or confirm a caregiver contact so VYVA can escalate when needed.")
-        : t("health.dailyCheckin.messages.overdueAlerted", "The daily check-in is overdue, so VYVA has recorded a caregiver safety alert.")
+        ? t("health.dailyCheckin.messages.overdueNeedsContact", "Add a caregiver contact for alerts.")
+        : t("health.dailyCheckin.messages.overdueAlerted", "Caregiver safety alert recorded.")
     ) :
-    checkin.status === "upcoming" ? t("health.dailyCheckin.messages.upcoming", "Your daily check-in is scheduled for later today.") :
-    t("health.dailyCheckin.messages.notScheduled", "Set a daily check-in time so VYVA can notice if you do not respond.");
+    checkin.status === "upcoming" ? t("health.dailyCheckin.messages.upcoming", "Scheduled for later today.") :
+    t("health.dailyCheckin.messages.notScheduled", "Pick a daily check-in time.");
   const primaryLabel =
-    checkin?.status === "completed" ? t("health.dailyCheckin.actions.viewHistory", "View history") :
-    checkin?.status === "upcoming" ? t("health.dailyCheckin.actions.checkInEarly", "Check in early") :
-    checkin?.status === "not_scheduled" ? t("health.dailyCheckin.actions.setup", "Set up check-in") :
-    t("health.dailyCheckin.actions.primary", "Check in now");
+    checkin?.status === "completed" ? t("health.dailyCheckin.actions.viewHistory", "History") :
+    checkin?.status === "upcoming" ? t("health.dailyCheckin.actions.checkInEarly", "Check early") :
+    checkin?.status === "not_scheduled" ? t("health.dailyCheckin.actions.setup", "Set up") :
+    t("health.dailyCheckin.actions.primary", "Check in");
   const showHistoryAction = checkin?.status !== "completed";
   const detail =
     checkin?.status === "completed" && completedTime
@@ -576,36 +712,31 @@ export function DailyCheckinCard({
 
   return (
     <section className="mt-[18px] rounded-[26px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="daily-checkin-status-card">
-      <div className="flex items-start gap-4">
+      <div className="flex items-center gap-3">
         <span
-          className="flex h-[58px] w-[58px] flex-shrink-0 items-center justify-center rounded-[20px]"
+          className="flex h-[54px] w-[54px] flex-shrink-0 items-center justify-center rounded-[18px]"
           style={{ background: tone.bg, color: tone.text }}
         >
-          <Icon size={28} />
+          <Icon size={26} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.12em]" style={{ color: tone.text }}>
-              {t("health.dailyCheckin.kicker", "Daily are-you-okay check")}
+            <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em]" style={{ color: tone.text }}>
+              {t("health.dailyCheckin.kicker", "Daily check-in")}
             </p>
             <span className="rounded-full px-3 py-1 font-body text-[12px] font-bold" style={{ background: tone.bg, color: tone.text }}>
               {statusLabel}
             </span>
           </div>
-          <p className="mt-2 font-body text-[20px] font-extrabold leading-tight text-vyva-text-1">
-            {checkin?.latest_checkin?.feeling_label ?? t("health.dailyCheckin.title", "Let VYVA know how today feels")}
-          </p>
-          <p className="mt-2 font-body text-[15px] font-semibold leading-relaxed text-vyva-text-2">
-            {message}
-          </p>
-          <p className="mt-2 font-body text-[13px] font-bold text-vyva-text-3">{detail}</p>
-          {checkin?.no_response.reason ? (
-            <p className="mt-2 rounded-[16px] bg-[#FFF7ED] px-3 py-2 font-body text-[13px] font-bold text-[#9A3412]">
-              {t("health.dailyCheckin.needsCaregiver", "Caregiver escalation needs a contact or consent setting.")}
-            </p>
-          ) : null}
+          <p className="mt-1 font-body text-[13px] font-bold text-vyva-text-3">{detail}</p>
         </div>
       </div>
+      <p className="mt-3 font-body text-[19px] font-extrabold leading-tight text-vyva-text-1">
+        {checkin?.latest_checkin?.feeling_label ?? t("health.dailyCheckin.title", "How are you today?")}
+      </p>
+      <p className="mt-2 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
+        {message}
+      </p>
       <div className={`mt-4 grid gap-3 ${showHistoryAction ? "grid-cols-2" : "grid-cols-1"}`}>
         <button
           type="button"
@@ -626,6 +757,278 @@ export function DailyCheckinCard({
       </div>
     </section>
   );
+}
+
+function sanitizePhoneHref(phone?: string | null): string {
+  const raw = phone?.trim();
+  if (!raw) return "";
+  const normalized = raw.replace(/[^\d+]/g, "");
+  return `tel:${normalized || raw}`;
+}
+
+function emergencyContactForCountry(country?: string | null) {
+  const code = (country ?? "ES").trim().toUpperCase() || "ES";
+  const numberByCountry: Record<string, string> = {
+    ES: "112",
+    FR: "112",
+    DE: "112",
+    IT: "112",
+    PT: "112",
+    IE: "112",
+    GB: "999",
+    UK: "999",
+    US: "911",
+    CA: "911",
+    AU: "000",
+  };
+  const number = numberByCountry[code];
+  return number ? { label: number, telHref: `tel:${number}` } : null;
+}
+
+type LatestTriageActionOptions = {
+  report: TriageReport | null;
+  country?: string | null;
+  gpPhone?: string | null;
+  gpEmail?: string | null;
+  doctorContext: string;
+  labels?: Partial<Record<HealthHomeServiceActionKind, string>>;
+};
+
+export function latestTriageServiceActionsFor({
+  report,
+  country,
+  gpPhone,
+  gpEmail,
+  doctorContext,
+  labels = {},
+}: LatestTriageActionOptions): HealthHomeServiceAction[] {
+  if (!report) return [];
+  const emergencyContact = emergencyContactForCountry(country);
+  const gpPhoneHref = sanitizePhoneHref(gpPhone);
+  const gpEmailValue = gpEmail?.trim() ?? "";
+  const recommendationTexts = [
+    report.urgency === "urgent" ? "Call emergency services now" : "",
+    ...(report.recommendations ?? []),
+  ].filter(Boolean);
+  const seen = new Set<HealthHomeServiceActionKind>();
+  const actions: HealthHomeServiceAction[] = [];
+  const defaultLabels: Record<SymptomRecommendationActionKind, string> = {
+    call_emergency: emergencyContact?.label ? `Call ${emergencyContact.label}` : "Call emergency",
+    call_gp: "Call GP",
+    email_gp: "Email GP",
+    doctor_help: "Doctor help",
+    book_ride: "Book ride",
+    schedule_appointment: "Appointment",
+    online_order: "Online order",
+    request_quote: "Request quote",
+  };
+  const add = (action: HealthHomeServiceAction) => {
+    if (seen.has(action.kind)) return;
+    seen.add(action.kind);
+    actions.push(action);
+  };
+
+  recommendationTexts.forEach((recommendation) => {
+    getSymptomRecommendationActionKinds(recommendation, {
+      hasEmergencyContact: Boolean(emergencyContact?.telHref),
+      hasGpPhone: Boolean(gpPhoneHref),
+      hasGpEmail: Boolean(gpEmailValue),
+    }).forEach((kind) => {
+      const label = labels[kind] ?? defaultLabels[kind];
+      if (kind === "call_emergency" && emergencyContact?.telHref) {
+        add({ kind, label, href: emergencyContact.telHref });
+      } else if (kind === "call_gp" && gpPhoneHref) {
+        add({ kind, label, href: gpPhoneHref });
+      } else if (kind === "email_gp" && gpEmailValue) {
+        add({
+          kind,
+          label,
+          href: `mailto:${gpEmailValue}?subject=${encodeURIComponent("VYVA symptom report")}&body=${encodeURIComponent(doctorContext)}`,
+        });
+      } else if (kind === "doctor_help") {
+        add({
+          kind,
+          label,
+          to: "/health/doctor",
+          state: { autoStartVoice: true, latestSymptomReport: doctorContext || report.chief_complaint },
+        });
+      } else if (kind === "book_ride" || kind === "schedule_appointment" || kind === "request_quote") {
+        add({
+          kind,
+          label,
+          to: "/concierge",
+          state: {
+            conciergePrefill: {
+              kind: kind === "book_ride" ? "ride" : kind === "schedule_appointment" ? "appointment" : "home_care_quote",
+              message: recommendation,
+              source: "symptom_report",
+            },
+          },
+        });
+      } else if (kind === "online_order") {
+        add({
+          kind,
+          label,
+          to: "/concierge/shopping",
+          state: {
+            shoppingPrefill: {
+              needText: recommendation,
+              category: "groceries",
+              priorities: ["delivery", "simplicity"],
+            },
+          },
+        });
+      }
+    });
+  });
+
+  return actions;
+}
+
+type HealthDoctorQuickActionOptions = {
+  gpPhone?: string | null;
+  gpEmail?: string | null;
+  gpName?: string | null;
+  doctorContext: string;
+  labels?: Partial<Record<HealthDoctorQuickActionKind, string>>;
+  descriptions?: Partial<Record<HealthDoctorQuickActionKind, string>>;
+  messages?: Partial<Record<"appointment" | "ride", string>>;
+};
+
+export function healthDoctorQuickActionsFor({
+  gpPhone,
+  gpEmail,
+  gpName,
+  doctorContext,
+  labels = {},
+  descriptions = {},
+  messages = {},
+}: HealthDoctorQuickActionOptions): HealthDoctorQuickAction[] {
+  const gpPhoneHref = sanitizePhoneHref(gpPhone);
+  const gpEmailValue = gpEmail?.trim() ?? "";
+  const gpLabelName = gpName?.trim() || "GP";
+  const safeContext = doctorContext.trim() || "Health home doctor support request.";
+  const appointmentMessage = messages.appointment
+    ?? `Please help me schedule a doctor appointment. Ask me to confirm before booking anything.\n\n${safeContext}`;
+  const rideMessage = messages.ride
+    ?? `Please help me arrange safe transport for a medical appointment. Ask me to confirm before booking anything.\n\n${safeContext}`;
+  const actions: HealthDoctorQuickAction[] = [];
+
+  if (gpPhoneHref) {
+    actions.push({
+      kind: "call_gp",
+      label: labels.call_gp ?? `Call ${gpLabelName}`,
+      description: descriptions.call_gp ?? "Speak to your practice now.",
+      href: gpPhoneHref,
+    });
+  }
+
+  if (gpEmailValue) {
+    actions.push({
+      kind: "email_gp",
+      label: labels.email_gp ?? "Email GP",
+      description: descriptions.email_gp ?? "Open a message with context filled in.",
+      href: `mailto:${gpEmailValue}?subject=${encodeURIComponent("VYVA doctor support request")}&body=${encodeURIComponent(safeContext)}`,
+    });
+  }
+
+  if (!gpPhoneHref && !gpEmailValue) {
+    actions.push({
+      kind: "add_doctor_contact",
+      label: labels.add_doctor_contact ?? "Add GP contact",
+      description: descriptions.add_doctor_contact ?? "Save phone or email first.",
+      to: "/onboarding/profile/gp",
+    });
+  }
+
+  actions.push(
+    {
+      kind: "doctor_help",
+      label: labels.doctor_help ?? "Doctor help",
+      description: descriptions.doctor_help ?? "Talk through the next step with VYVA.",
+      to: "/health/doctor",
+      state: { autoStartVoice: true, latestSymptomReport: safeContext, source: "health_home_doctor" },
+    },
+    {
+      kind: "schedule_appointment",
+      label: labels.schedule_appointment ?? "Book appointment",
+      description: descriptions.schedule_appointment ?? "VYVA prepares the request for approval.",
+      to: "/concierge",
+      state: {
+        conciergePrefill: {
+          kind: "appointment",
+          message: appointmentMessage,
+          source: "health_home_doctor",
+        },
+      },
+    },
+    {
+      kind: "book_ride",
+      label: labels.book_ride ?? "Book transport",
+      description: descriptions.book_ride ?? "Arrange a safe ride to care.",
+      to: "/concierge",
+      state: {
+        conciergePrefill: {
+          kind: "ride",
+          message: rideMessage,
+          source: "health_home_doctor",
+        },
+      },
+    },
+  );
+
+  return actions;
+}
+
+export function specialistProviderContext(provider: SpecialistProvider, condition: string, language = "en") {
+  const specialty = displaySpecialty(provider, language);
+  const providerName = provider.clinicName ?? provider.name;
+
+  return [
+    "VYVA specialist finder",
+    condition.trim() ? `Reason: ${condition.trim()}` : "",
+    `Provider: ${providerName}`,
+    `Specialist: ${provider.name}`,
+    specialty ? `Specialty: ${specialty}` : "",
+    provider.phone ? `Phone: ${provider.phone}` : "",
+    provider.address ? `Address: ${provider.address}` : "",
+    provider.openingTimes ? `Hours: ${provider.openingTimes}` : "",
+    provider.distanceLabel ? `Distance: ${provider.distanceLabel}` : "",
+    provider.bookingUrl ? `Booking link: ${provider.bookingUrl}` : "",
+  ].filter(Boolean).join("\n");
+}
+
+export function specialistRideState(provider: SpecialistProvider, condition: string, language = "en") {
+  const isSpanish = activeLanguage(language) === "es";
+  const context = specialistProviderContext(provider, condition, language);
+
+  return {
+    conciergePrefill: {
+      kind: "ride" as const,
+      source: "specialist_finder" as const,
+      message: isSpanish
+        ? `Ayudame a preparar transporte seguro para esta cita o visita medica. Confirma conmigo antes de reservar.\n\n${context}`
+        : `Help me prepare safe transport for this medical appointment or visit. Ask me to confirm before booking.\n\n${context}`,
+    },
+  };
+}
+
+export function specialistProviderServiceActionsFor(provider: SpecialistProvider): SpecialistProviderServiceAction[] {
+  const actions: SpecialistProviderServiceAction[] = [];
+  const phoneHref = sanitizePhoneHref(provider.phone);
+
+  if (phoneHref) {
+    actions.push({ kind: "call_provider", href: phoneHref });
+  }
+
+  actions.push({ kind: "book_appointment", href: provider.bookingUrl?.trim() || undefined });
+  actions.push({ kind: "book_ride" });
+
+  if (provider.mapsUrl) {
+    actions.push({ kind: "open_map", href: provider.mapsUrl });
+  }
+
+  return actions;
 }
 
 const ScanFullScreenModal = ({
@@ -710,7 +1113,8 @@ const ScanFullScreenModal = ({
 };
 
 const HealthScreen = () => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const { language: appLanguage } = useLanguage();
   const { firstName, profile } = useProfile();
   const navigate = useNavigate();
   const { guardPath, canUseService, readiness } = useServiceGate();
@@ -745,7 +1149,7 @@ const HealthScreen = () => {
 
   const headlineBase = t("health.allGoodToday", "All good today");
   const headlineText = firstName ? `${headlineBase}, ${firstName}` : headlineBase;
-  const specialistLanguage = activeLanguage(profile?.language || i18n.language);
+  const specialistLanguage = activeLanguage(appLanguage);
 
   const profileLocation = useMemo(() => {
     const parts = [
@@ -793,6 +1197,11 @@ const HealthScreen = () => {
     retry: false,
     staleTime: 60 * 1000,
   });
+  const { data: profileContacts } = useQuery<ProfileContactsResponse>({
+    queryKey: ["/api/profile"],
+    retry: false,
+    staleTime: 2 * 60 * 1000,
+  });
   const latestTriage = reportsSummary?.latestTriage ?? null;
   const latestTriageDate = latestTriage?.created_at
     ? new Date(latestTriage.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short" })
@@ -813,6 +1222,178 @@ const HealthScreen = () => {
         latestTriage.recommendations?.length ? `${t("health.symptomCheck.report.recommendations", "What to do next")}: ${latestTriage.recommendations.join(" ")}` : "",
       ].filter(Boolean).join("\n")
     : "";
+  const latestTriageEmergencyContact = emergencyContactForCountry(profileContacts?.country ?? profile?.country);
+  const latestTriageActions = latestTriageServiceActionsFor({
+    report: latestTriage,
+    country: profileContacts?.country ?? profile?.country,
+    gpPhone: profileContacts?.gpPhone,
+    gpEmail: profileContacts?.gpEmail,
+    doctorContext: latestTriageDoctorContext,
+    labels: {
+      call_emergency: latestTriageEmergencyContact?.label ? `${t("common.call", "Call")} ${latestTriageEmergencyContact.label}` : t("health.symptomCheck.report.contactEmergencyServices", "Contact emergency services"),
+      call_gp: t("health.symptomCheck.report.actions.callGp", "Call GP"),
+      email_gp: t("health.symptomCheck.report.actions.emailGp", "Email GP"),
+      doctor_help: t("health.symptomCheck.report.actions.doctorHelp", "Doctor help"),
+      book_ride: t("health.symptomCheck.report.actions.bookRide", "Book ride"),
+      schedule_appointment: t("health.symptomCheck.report.actions.scheduleAppointment", "Appointment"),
+      online_order: t("health.symptomCheck.report.actions.onlineOrder", "Online order"),
+      request_quote: t("health.symptomCheck.report.actions.requestQuote", "Request quote"),
+    },
+  });
+  const latestTriageActionIcons: Record<HealthHomeServiceActionKind, LucideIcon> = {
+    call_emergency: PhoneCall,
+    call_gp: PhoneCall,
+    email_gp: Mail,
+    doctor_help: Stethoscope,
+    book_ride: Car,
+    schedule_appointment: Calendar,
+    online_order: ShoppingBasket,
+    request_quote: ClipboardList,
+    open_report: ClipboardList,
+  };
+  const openLatestTriageAction = (action: HealthHomeServiceAction) => {
+    if (action.to) {
+      navigate(action.to, action.state ? { state: action.state } : undefined);
+    }
+  };
+  const seeDoctorContext = latestTriageDoctorContext
+    || t(
+      "health.seeDoctor.actions.defaultContext",
+      "Health home doctor support request. Ask what is needed and help prepare a safe next step.",
+    );
+  const seeDoctorActions = healthDoctorQuickActionsFor({
+    gpPhone: profileContacts?.gpPhone ?? profile?.gpPhone,
+    gpEmail: profileContacts?.gpEmail ?? profile?.gpEmail,
+    gpName: profile?.gpName,
+    doctorContext: seeDoctorContext,
+    labels: {
+      call_gp: profile?.gpName
+        ? t("health.seeDoctor.actions.callGpNamed", "Call {{name}}", { name: profile.gpName })
+        : t("health.seeDoctor.actions.callGp", "Call GP"),
+      email_gp: t("health.seeDoctor.actions.emailGp", "Email GP"),
+      doctor_help: t("health.seeDoctor.actions.doctorHelp", "Doctor help"),
+      schedule_appointment: t("health.seeDoctor.actions.bookAppointment", "Book appointment"),
+      book_ride: t("health.seeDoctor.actions.bookTransport", "Book transport"),
+      add_doctor_contact: t("health.seeDoctor.actions.addGp", "Add GP contact"),
+    },
+    descriptions: {
+      call_gp: t("health.seeDoctor.actions.callGpSub", "Speak to your practice now."),
+      email_gp: t("health.seeDoctor.actions.emailGpSub", "Open an email with context filled in."),
+      doctor_help: t("health.seeDoctor.actions.doctorHelpSub", "Talk through the next step with VYVA."),
+      schedule_appointment: t("health.seeDoctor.actions.bookAppointmentSub", "VYVA prepares the request for approval."),
+      book_ride: t("health.seeDoctor.actions.bookTransportSub", "Arrange a safe ride to care."),
+      add_doctor_contact: t("health.seeDoctor.actions.addGpSub", "Save phone or email first."),
+    },
+    messages: {
+      appointment: t(
+        "health.seeDoctor.actions.appointmentPrefill",
+        "Please help me schedule a doctor appointment. Ask me to confirm before booking anything.\n\n{{context}}",
+        { context: seeDoctorContext },
+      ),
+      ride: t(
+        "health.seeDoctor.actions.ridePrefill",
+        "Please help me arrange safe transport for a medical appointment. Ask me to confirm before booking anything.\n\n{{context}}",
+        { context: seeDoctorContext },
+      ),
+    },
+  });
+  const seeDoctorActionIcons: Record<HealthDoctorQuickActionKind, LucideIcon> = {
+    call_gp: PhoneCall,
+    email_gp: Mail,
+    doctor_help: Stethoscope,
+    schedule_appointment: Calendar,
+    book_ride: Car,
+    add_doctor_contact: UserSearch,
+  };
+  const openSeeDoctorAction = (action: HealthDoctorQuickAction) => {
+    if (action.to) {
+      navigate(action.to, action.state ? { state: action.state } : undefined);
+    }
+  };
+  const visualScanContext = woundResult ? visualScanDoctorContext(woundResult) : "";
+  const visualScanGpPhoneHref = sanitizePhoneHref(profileContacts?.gpPhone ?? profile?.gpPhone);
+  const visualScanGpEmail = (profileContacts?.gpEmail ?? profile?.gpEmail ?? "").trim();
+  const visualScanGpName = (profile?.gpName ?? "").trim();
+  const visualScanGpEmailHref = visualScanGpEmail && visualScanContext
+    ? `mailto:${visualScanGpEmail}?subject=${encodeURIComponent(t("health.scanWound.actions.emailSubject", "VYVA visual health scan"))}&body=${encodeURIComponent(visualScanContext)}`
+    : "";
+  const visualScanActions: VisualScanAction[] = woundResult
+    ? visualScanServiceActionKindsFor(woundResult, {
+        hasGpPhone: Boolean(visualScanGpPhoneHref),
+        hasGpEmail: Boolean(visualScanGpEmailHref),
+      }).map((kind) => {
+        if (kind === "call_gp") {
+          return {
+            kind,
+            label: visualScanGpName
+              ? t("health.scanWound.actions.callGpNamed", "Call {{name}}", { name: visualScanGpName })
+              : t("health.scanWound.actions.callGp", "Call GP"),
+            Icon: PhoneCall,
+            href: visualScanGpPhoneHref,
+          };
+        }
+
+        if (kind === "email_gp") {
+          return {
+            kind,
+            label: t("health.scanWound.actions.emailGp", "Email GP"),
+            Icon: Mail,
+            href: visualScanGpEmailHref,
+          };
+        }
+
+        if (kind === "doctor_help") {
+          return {
+            kind,
+            label: t("health.scanWound.actions.doctorHelp", "Doctor help"),
+            Icon: Stethoscope,
+            onClick: () => guardPath("/health/doctor", {
+              state: {
+                autoStartVoice: true,
+                latestSymptomReport: visualScanContext,
+                source: "visual_scan",
+              },
+            }),
+          };
+        }
+
+        if (kind === "schedule_appointment") {
+          return {
+            kind,
+            label: t("health.scanWound.actions.appointment", "Appointment"),
+            Icon: Calendar,
+            onClick: () => navigate("/concierge", {
+              state: {
+                conciergePrefill: {
+                  kind: "appointment",
+                  message: activeLanguage(appLanguage) === "es"
+                    ? `Ayudame a preparar una cita clinica para revisar este escaneo visual de VYVA. Confirma conmigo antes de reservar.\n\n${visualScanContext}`
+                    : `Help me prepare a clinical appointment to review this VYVA visual scan. Ask me to confirm before booking.\n\n${visualScanContext}`,
+                  source: "visual_scan",
+                },
+              },
+            }),
+          };
+        }
+
+        return {
+          kind,
+          label: t("health.scanWound.actions.ride", "Book ride"),
+          Icon: Car,
+          onClick: () => navigate("/concierge", {
+            state: {
+              conciergePrefill: {
+                kind: "ride",
+                message: activeLanguage(appLanguage) === "es"
+                  ? `Ayudame a preparar transporte seguro para una revision clinica de este escaneo visual de VYVA. Confirma conmigo antes de reservar.\n\n${visualScanContext}`
+                  : `Help me prepare safe transport for a clinical review of this VYVA visual scan. Ask me to confirm before booking.\n\n${visualScanContext}`,
+                source: "visual_scan",
+              },
+            },
+          }),
+        };
+      })
+    : [];
 
   const deleteScanMutation = useMutation({
     mutationFn: (id: string) =>
@@ -964,25 +1545,6 @@ const HealthScreen = () => {
     },
   });
 
-  const contactSpecialist = (provider: SpecialistProvider) => {
-    if (provider.phone) {
-      window.location.href = `tel:${provider.phone.replace(/\s+/g, "")}`;
-      return;
-    }
-
-    if (provider.bookingUrl) {
-      window.open(provider.bookingUrl, "_blank", "noopener,noreferrer");
-      return;
-    }
-
-    if (provider.mapsUrl) {
-      window.open(provider.mapsUrl, "_blank", "noopener,noreferrer");
-      return;
-    }
-
-    bookSpecialistMutation.mutate(provider);
-  };
-
   const shareSpecialistProvider = async (provider: SpecialistProvider) => {
     const specialty = displaySpecialty(provider, specialistLanguage);
     const location = provider.address ?? provider.clinicName ?? specialistLocation;
@@ -1054,7 +1616,7 @@ const HealthScreen = () => {
       .then(async (dataUrl) => {
         const res = await apiFetch("/api/wound-scan", {
           method: "POST",
-          body: JSON.stringify({ image: dataUrl, language: i18n.language }),
+          body: JSON.stringify({ image: dataUrl, language: appLanguage }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json() as VisualScanResult;
@@ -1099,7 +1661,7 @@ const HealthScreen = () => {
         {/* ── 1. Hero ── */}
         <VoiceHero
           heroSurface="health"
-          headline={<>{headlineText}</>}
+          headline={headlineText}
           contextHint="health symptoms"
           talkLabel={t("health.talkToDoctor", "Connect with a real doctor")}
           onTalkClick={() => {
@@ -1176,6 +1738,39 @@ const HealthScreen = () => {
               </span>
               <ChevronRight size={24} className="flex-shrink-0 text-vyva-purple" />
             </button>
+            {latestTriageActions.length ? (
+              <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="health-latest-triage-actions">
+                {latestTriageActions.map((action) => {
+                  const ActionIcon = latestTriageActionIcons[action.kind];
+                  const className = "vyva-tap inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#E7DCF8] bg-[#FFFCF8] px-4 py-3 text-center font-body text-[14px] font-black leading-tight text-vyva-purple shadow-sm";
+                  if (action.href) {
+                    return (
+                      <a
+                        key={action.kind}
+                        href={action.href}
+                        data-testid={`button-health-latest-triage-action-${action.kind}`}
+                        className={className}
+                      >
+                        <ActionIcon size={18} />
+                        <span>{action.label}</span>
+                      </a>
+                    );
+                  }
+                  return (
+                    <button
+                      key={action.kind}
+                      type="button"
+                      onClick={() => openLatestTriageAction(action)}
+                      data-testid={`button-health-latest-triage-action-${action.kind}`}
+                      className={className}
+                    >
+                      <ActionIcon size={18} />
+                      <span>{action.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
           </section>
         ) : null}
 
@@ -1229,7 +1824,7 @@ const HealthScreen = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-body text-[21px] font-extrabold leading-tight text-vyva-text-1">{t("health.seeDoctor.title", "See a Doctor")}</p>
-                  <p className="mt-2 font-body text-[14px] font-medium leading-snug text-vyva-text-2">{t("health.seeDoctor.subtitle", "Phone, video, or live chat")}</p>
+                  <p className="mt-2 font-body text-[14px] font-medium leading-snug text-vyva-text-2">{t("health.seeDoctor.subtitle", "Call, appointment, or transport help")}</p>
                 </div>
                 <button
                   data-testid="button-see-doctor"
@@ -1243,21 +1838,51 @@ const HealthScreen = () => {
 
               {seeDoctorOpen && (
                 <div className="px-[18px] pb-[16px] flex flex-col gap-2" style={{ borderTop: "1px solid #F0FDF4" }}>
-                  {[
-                    { Icon: Video, label: t("health.seeDoctor.videoCall", "Video Call"), testId: "button-video-call" },
-                    { Icon: Phone, label: t("health.seeDoctor.phoneCall", "Phone Call"), testId: "button-phone-call" },
-                    { Icon: MessageCircle, label: t("health.seeDoctor.liveChat", "Live Chat"), testId: "button-live-chat" },
-                  ].map(({ Icon, label, testId }) => (
-                    <div key={label} className="flex items-center gap-3 rounded-[12px] px-[14px] py-[11px] mt-2" style={{ background: "#F9FAFB", border: "1px solid #E5E7EB" }}>
-                      <div className="w-[34px] h-[34px] rounded-[10px] flex items-center justify-center flex-shrink-0" style={{ background: "#F0FDF4" }}>
-                        <Icon size={16} style={{ color: "#0A7C4E" }} />
-                      </div>
-                      <p className="font-body text-[14px] font-medium text-vyva-text-1 flex-1">{label}</p>
-                      <button data-testid={testId} className="px-[12px] py-[5px] rounded-full font-body text-[12px] font-semibold" style={{ background: "#E5E7EB", color: "#6B7280" }}>
-                        {t("health.seeDoctor.comingSoonBtn", "Coming soon")}
-                      </button>
-                    </div>
-                  ))}
+                  <p className="mt-3 font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#0A7C4E]">
+                    {t("health.seeDoctor.actions.title", "Doctor access")}
+                  </p>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {seeDoctorActions.map((action) => {
+                      const Icon = seeDoctorActionIcons[action.kind];
+                      const className = "vyva-tap flex min-h-[74px] items-center gap-3 rounded-[16px] border border-[#BBF7D0] bg-[#F0FDF4] px-3 py-3 text-left transition active:scale-[0.98]";
+                      const content = (
+                        <>
+                          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-white text-[#0A7C4E] shadow-[0_6px_14px_rgba(10,124,78,0.10)]">
+                            <Icon size={19} />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block font-body text-[15px] font-black leading-tight text-vyva-text-1">{action.label}</span>
+                            <span className="mt-0.5 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">{action.description}</span>
+                          </span>
+                        </>
+                      );
+
+                      if (action.href) {
+                        return (
+                          <a
+                            key={action.kind}
+                            href={action.href}
+                            data-testid={`button-see-doctor-action-${action.kind}`}
+                            className={className}
+                          >
+                            {content}
+                          </a>
+                        );
+                      }
+
+                      return (
+                        <button
+                          key={action.kind}
+                          type="button"
+                          onClick={() => openSeeDoctorAction(action)}
+                          data-testid={`button-see-doctor-action-${action.kind}`}
+                          className={className}
+                        >
+                          {content}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
@@ -1274,7 +1899,12 @@ const HealthScreen = () => {
               />
 
               {woundResult && (
-                <VisualScanResultPanel result={woundResult} t={t} onClose={() => setWoundResult(null)} />
+                <VisualScanResultPanel
+                  result={woundResult}
+                  t={t}
+                  actions={visualScanActions}
+                  onClose={() => setWoundResult(null)}
+                />
               )}
 
               {/* ── History toggle ── */}
@@ -1572,7 +2202,7 @@ const HealthScreen = () => {
                         </div>
                       ) : specialistResult.providers.map((spec, i) => {
                         const location = spec.address ?? spec.clinicName ?? specialistLocation;
-                        const actionColumns = spec.mapsUrl ? "grid-cols-3" : "grid-cols-2";
+                        const providerActions = specialistProviderServiceActionsFor(spec);
 
                         return (
                         <div key={`${spec.name}-${i}`} className="rounded-[16px] px-[14px] py-[13px]" style={{ background: "#F9F6F2", border: "1px solid #EDE5DB" }}>
@@ -1617,32 +2247,95 @@ const HealthScreen = () => {
                             )}
                           </div>
 
-                          <div className={`mt-[12px] grid ${actionColumns} gap-2`}>
-                            <button
-                              data-testid={`button-book-specialist-${i}`}
-                              onClick={() => contactSpecialist(spec)}
-                              disabled={bookSpecialistMutation.isPending}
-                              className="min-h-[44px] rounded-full font-body text-[14px] font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
-                              style={{ background: "#7C3AED", color: "#FFFFFF" }}
-                            >
-                              <Phone size={15} />
-                              {t("health.findSpecialist.contact", "Contact")}
-                            </button>
-                            {spec.mapsUrl && (
-                              <button
-                                data-testid={`button-map-specialist-${i}`}
-                                onClick={() => window.open(spec.mapsUrl!, "_blank", "noopener,noreferrer")}
-                                className="min-h-[44px] rounded-full font-body text-[14px] font-semibold flex items-center justify-center gap-2"
-                                style={{ background: "#F0FDF4", color: "#047857", border: "1px solid #BBF7D0" }}
-                              >
-                                <MapPin size={15} />
-                                {t("health.findSpecialist.map", "Map")}
-                              </button>
-                            )}
+                          <div className="mt-[12px] grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            {providerActions.map((action) => {
+                              if (action.kind === "call_provider" && action.href) {
+                                return (
+                                  <a
+                                    key={action.kind}
+                                    href={action.href}
+                                    data-testid={`button-specialist-call-provider-${i}`}
+                                    className="min-h-[48px] rounded-full font-body text-[14px] font-semibold flex items-center justify-center gap-2"
+                                    style={{ background: "#7C3AED", color: "#FFFFFF" }}
+                                  >
+                                    <PhoneCall size={15} />
+                                    {t("health.findSpecialist.call", "Call")}
+                                  </a>
+                                );
+                              }
+
+                              if (action.kind === "book_appointment") {
+                                if (action.href) {
+                                  return (
+                                    <a
+                                      key={action.kind}
+                                      href={action.href}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      data-testid={`button-specialist-book-appointment-${i}`}
+                                      className="min-h-[48px] rounded-full font-body text-[14px] font-semibold flex items-center justify-center gap-2"
+                                      style={{ background: "#F5F3FF", color: "#7C3AED", border: "1px solid #DDD6FE" }}
+                                    >
+                                      <Calendar size={15} />
+                                      {t("health.findSpecialist.bookAppointment", "Appointment")}
+                                    </a>
+                                  );
+                                }
+
+                                return (
+                                  <button
+                                    key={action.kind}
+                                    type="button"
+                                    data-testid={`button-specialist-book-appointment-${i}`}
+                                    onClick={() => bookSpecialistMutation.mutate(spec)}
+                                    disabled={bookSpecialistMutation.isPending}
+                                    className="min-h-[48px] rounded-full font-body text-[14px] font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+                                    style={{ background: "#F5F3FF", color: "#7C3AED", border: "1px solid #DDD6FE" }}
+                                  >
+                                    <Calendar size={15} />
+                                    {t("health.findSpecialist.bookAppointment", "Appointment")}
+                                  </button>
+                                );
+                              }
+
+                              if (action.kind === "book_ride") {
+                                return (
+                                  <button
+                                    key={action.kind}
+                                    type="button"
+                                    data-testid={`button-specialist-book-ride-${i}`}
+                                    onClick={() => navigate("/concierge", { state: specialistRideState(spec, specialistCondition, specialistLanguage) })}
+                                    className="min-h-[48px] rounded-full font-body text-[14px] font-semibold flex items-center justify-center gap-2"
+                                    style={{ background: "#F0FDF4", color: "#047857", border: "1px solid #BBF7D0" }}
+                                  >
+                                    <Car size={15} />
+                                    {t("health.findSpecialist.bookRide", "Book ride")}
+                                  </button>
+                                );
+                              }
+
+                              if (action.kind === "open_map" && action.href) {
+                                return (
+                                  <button
+                                    key={action.kind}
+                                    type="button"
+                                    data-testid={`button-map-specialist-${i}`}
+                                    onClick={() => window.open(action.href!, "_blank", "noopener,noreferrer")}
+                                    className="min-h-[48px] rounded-full font-body text-[14px] font-semibold flex items-center justify-center gap-2"
+                                    style={{ background: "#F0FDF4", color: "#047857", border: "1px solid #BBF7D0" }}
+                                  >
+                                    <MapPin size={15} />
+                                    {t("health.findSpecialist.map", "Map")}
+                                  </button>
+                                );
+                              }
+
+                              return null;
+                            })}
                             <button
                               data-testid={`button-share-specialist-${i}`}
                               onClick={() => shareSpecialistProvider(spec)}
-                              className="min-h-[44px] rounded-full font-body text-[14px] font-semibold flex items-center justify-center gap-2"
+                              className="min-h-[48px] rounded-full font-body text-[14px] font-semibold flex items-center justify-center gap-2"
                               style={{ background: "#FFFFFF", color: "#7C3AED", border: "1px solid #DDD6FE" }}
                             >
                               <Share2 size={15} />

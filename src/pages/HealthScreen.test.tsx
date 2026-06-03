@@ -1,8 +1,14 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { TFunction } from "i18next";
 import { describe, expect, it, vi } from "vitest";
 import { translate } from "@/i18n";
-import { DailyCheckinCard, VisualHealthScanCardContent, VisualScanResultPanel } from "./HealthScreen";
+import {
+  DailyCheckinCard,
+  VisualHealthScanCardContent,
+  VisualScanResultPanel,
+  visualScanDoctorContext,
+  visualScanServiceActionKindsFor,
+} from "./HealthScreen";
 
 const spanishT = ((key: string, fallback?: string) => translate("es", key, fallback)) as TFunction;
 const englishT = ((key: string, fallback?: string) => translate("en", key, fallback)) as TFunction;
@@ -41,11 +47,11 @@ describe("DailyCheckinCard", () => {
       />,
     );
 
-    expect(screen.getByText("Control diario de bienestar")).toBeInTheDocument();
+    expect(screen.getByText("Control diario")).toBeInTheDocument();
     expect(screen.getByText("Hecho hoy")).toBeInTheDocument();
-    expect(screen.getByText("Cu\u00e9ntale a VYVA c\u00f3mo te sientes hoy")).toBeInTheDocument();
-    expect(screen.getByText("Has completado el control de hoy. VYVA tiene una nueva se\u00f1al de bienestar.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Ver historial" })).toBeInTheDocument();
+    expect(screen.getByText("Como estas hoy?")).toBeInTheDocument();
+    expect(screen.getByText("VYVA tiene la senal de hoy.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Historial" })).toBeInTheDocument();
     expect(screen.queryByText("Daily are-you-okay check")).not.toBeInTheDocument();
     expect(screen.queryByText("You checked in today. VYVA has a fresh wellbeing signal.")).not.toBeInTheDocument();
   });
@@ -90,5 +96,67 @@ describe("VisualScanResultPanel", () => {
     expect(screen.getByText("Limits of this image")).toBeInTheDocument();
     expect(screen.getByText("Suggested next step")).toBeInTheDocument();
     expect(screen.getByText("Assistive description only, not medical advice or diagnosis. A qualified clinician should review anything concerning.")).toBeInTheDocument();
+  });
+
+  it("renders senior-friendly service actions when clinical review is suggested", () => {
+    const doctorHelp = vi.fn();
+    const appointment = vi.fn();
+    const ride = vi.fn();
+
+    render(
+      <VisualScanResultPanel
+        t={englishT}
+        onClose={vi.fn()}
+        actions={[
+          { kind: "call_gp", label: "Call GP", Icon: vi.fn(() => null), href: "tel:+34612345678" },
+          { kind: "email_gp", label: "Email GP", Icon: vi.fn(() => null), href: "mailto:gp@example.com" },
+          { kind: "doctor_help", label: "Doctor help", Icon: vi.fn(() => null), onClick: doctorHelp },
+          { kind: "schedule_appointment", label: "Appointment", Icon: vi.fn(() => null), onClick: appointment },
+          { kind: "book_ride", label: "Book ride", Icon: vi.fn(() => null), onClick: ride },
+        ]}
+        result={{
+          severity: "Moderate",
+          resultTitle: "Possible X-ray finding",
+          advice: "Ask a clinician to review this.",
+          imageType: "xray",
+          recommendedNextStep: "Ask a qualified clinician to review the image.",
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId("button-visual-scan-action-call_gp")).toHaveAttribute("href", "tel:+34612345678");
+    expect(screen.getByTestId("button-visual-scan-action-email_gp")).toHaveAttribute("href", "mailto:gp@example.com");
+    fireEvent.click(screen.getByTestId("button-visual-scan-action-doctor_help"));
+    fireEvent.click(screen.getByTestId("button-visual-scan-action-schedule_appointment"));
+    fireEvent.click(screen.getByTestId("button-visual-scan-action-book_ride"));
+
+    expect(doctorHelp).toHaveBeenCalledTimes(1);
+    expect(appointment).toHaveBeenCalledTimes(1);
+    expect(ride).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps visual scan review advice to doctor, appointment, and ride actions", () => {
+    const result = {
+      severity: "Moderate",
+      resultTitle: "Possible skin concern",
+      advice: "Ask a clinician to review this.",
+      imageType: "skin_lesion" as const,
+      recommendedNextStep: "Book a clinical review.",
+    };
+
+    expect(visualScanServiceActionKindsFor(result)).toEqual([
+      "doctor_help",
+      "schedule_appointment",
+      "book_ride",
+    ]);
+    expect(visualScanServiceActionKindsFor(result, { hasGpPhone: true, hasGpEmail: true })).toEqual([
+      "call_gp",
+      "email_gp",
+      "doctor_help",
+      "schedule_appointment",
+      "book_ride",
+    ]);
+    expect(visualScanDoctorContext(result)).toContain("VYVA visual health scan");
+    expect(visualScanDoctorContext(result)).toContain("Suggested next step: Book a clinical review.");
   });
 });

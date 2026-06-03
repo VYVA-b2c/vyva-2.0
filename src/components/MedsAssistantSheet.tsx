@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useLanguage } from "@/i18n";
 
 const EN_DISCLAIMER =
   "This is information only, not medical advice - always check with your doctor or pharmacist.";
@@ -43,7 +44,8 @@ const MedsAssistantSheet = ({
   title,
   initialPrompt,
 }: MedsAssistantSheetProps) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const { language } = useLanguage();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -57,7 +59,7 @@ const MedsAssistantSheet = ({
     setLoading(true);
     setError(null);
     try {
-      const response = await callAssistant(text, history, i18n.language);
+      const response = await callAssistant(text, history, language);
       if (reqIdRef.current !== myReqId) return;
       setMessages((prev) => [
         ...prev,
@@ -69,7 +71,7 @@ const MedsAssistantSheet = ({
     } finally {
       if (reqIdRef.current === myReqId) setLoading(false);
     }
-  }, [i18n.language, t]);
+  }, [language, t]);
 
   useEffect(() => {
     if (open && !sentInitial.current) {

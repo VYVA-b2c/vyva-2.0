@@ -11,6 +11,9 @@ export type SignalSummary = {
   trend: string;
   max_deviation: number | null;
   reading_count: number;
+  latest_source?: string | null;
+  source_confidence?: "low" | "medium" | "high";
+  source_confidence_reason?: string | null;
 };
 
 export type MedicationSafetyContext = {
@@ -132,14 +135,22 @@ function signalRule(summary: SignalSummary): { status: SafetyStatus; reason: str
   const value = latestValue(summary);
   if (value == null) return null;
   const signal = summary.signal;
+  const lowConfidenceEstimate = summary.source_confidence === "low" && (signal === "resting_hr_bpm" || signal === "hr" || signal === "respiratory_rate" || signal === "rr");
+  const confirmEstimate = (label: string, reason: string) => ({
+    status: "recheck" as SafetyStatus,
+    label,
+    reason: `${reason} This is a phone estimate, so VYVA recommends confirming with a device or repeating the scan.`,
+  });
 
   if (signal === "resting_hr_bpm" || signal === "hr") {
+    if (lowConfidenceEstimate && (value >= 100 || value <= 55)) return confirmEstimate("pulse", `Estimated pulse is ${value} bpm.`);
     if (value >= 130 || value <= 40) return { status: "urgent_help", label: "pulse", reason: `Pulse is ${value} bpm.` };
     if (value >= 110 || value <= 50) return { status: "contact_doctor", label: "pulse", reason: `Pulse is ${value} bpm.` };
     if (value >= 100 || value <= 55) return { status: "recheck", label: "pulse", reason: `Pulse is near the edge at ${value} bpm.` };
   }
 
   if (signal === "respiratory_rate" || signal === "rr") {
+    if (lowConfidenceEstimate && (value >= 21 || value <= 10)) return confirmEstimate("breathing rate", `Estimated breathing rate is ${value} breaths per minute.`);
     if (value >= 30 || value <= 8) return { status: "urgent_help", label: "breathing rate", reason: `Breathing rate is ${value} breaths per minute.` };
     if (value >= 24 || value <= 10) return { status: "contact_doctor", label: "breathing rate", reason: `Breathing rate is ${value} breaths per minute.` };
     if (value >= 21) return { status: "recheck", label: "breathing rate", reason: `Breathing rate is a little raised at ${value}.` };
@@ -167,12 +178,18 @@ function signalRule(summary: SignalSummary): { status: SafetyStatus; reason: str
     if (value >= 38) return { status: "contact_doctor", label: "temperature", reason: `Temperature is ${value} C.` };
   }
 
+  if (signal === "pain_score") {
+    if (value >= 8) return { status: "contact_doctor", label: "pain", reason: `Pain is high at ${value}/10.` };
+    if (value >= 5) return { status: "recheck", label: "pain", reason: `Pain is ${value}/10.` };
+  }
+
   if (signal === "medication_confirmed" && value === 0) {
     return { status: "recheck", label: "medication", reason: "Medication has not been confirmed today." };
   }
 
-  if ((signal === "sleep_quality_score" || signal === "mood_score") && value <= 2) {
-    return { status: "recheck", label: signal === "sleep_quality_score" ? "sleep" : "mood", reason: `${signal === "sleep_quality_score" ? "Sleep" : "Mood"} score is low at ${value}/10.` };
+  if ((signal === "sleep_quality_score" || signal === "mood_score" || signal === "energy_level") && value <= 2) {
+    const label = signal === "sleep_quality_score" ? "sleep" : signal === "energy_level" ? "energy" : "mood";
+    return { status: "recheck", label, reason: `${label[0].toUpperCase()}${label.slice(1)} score is low at ${value}/10.` };
   }
 
   return null;
@@ -232,10 +249,16 @@ export function buildDailySafetyCheck(input: DailySafetyInput): DailySafetyCheck
   }
 
   const baselineChanges = input.signalSummary.filter((summary) => (summary.max_deviation ?? 0) >= 25);
-  const repeatedBaselineChanges = baselineChanges.filter((summary) => summary.reading_count >= 2);
+  const lowConfidenceBaselineChanges = baselineChanges.filter((summary) => summary.source_confidence === "low");
+  const reliableBaselineChanges = baselineChanges.filter((summary) => summary.source_confidence !== "low");
+  const repeatedBaselineChanges = reliableBaselineChanges.filter((summary) => summary.reading_count >= 2);
   if (baselineChanges.length === 1 && STATUS_RANK[status] < STATUS_RANK.recheck) {
     status = "recheck";
-    reasons.push(`${baselineChanges[0].signal} is different from the personal baseline.`);
+    reasons.push(
+      lowConfidenceBaselineChanges.length === 1
+        ? `${baselineChanges[0].signal} is different from the personal baseline, but it is a phone estimate and should be confirmed.`
+        : `${baselineChanges[0].signal} is different from the personal baseline.`,
+    );
     labels.add("baseline_shift");
   }
   if (repeatedBaselineChanges.length >= 1 && STATUS_RANK[status] < STATUS_RANK.share_with_caregiver) {
@@ -243,7 +266,7 @@ export function buildDailySafetyCheck(input: DailySafetyInput): DailySafetyCheck
     reasons.push("A repeated change from the personal baseline is visible.");
     labels.add("repeated_baseline_shift");
   }
-  if (baselineChanges.length >= 2 && STATUS_RANK[status] < STATUS_RANK.contact_doctor) {
+  if (reliableBaselineChanges.length >= 2 && STATUS_RANK[status] < STATUS_RANK.contact_doctor) {
     status = "contact_doctor";
     reasons.push("More than one signal is away from the personal baseline.");
     labels.add("multi_signal_shift");
@@ -289,6 +312,9 @@ export function buildDailySafetyCheck(input: DailySafetyInput): DailySafetyCheck
         context: summary.context,
         max_deviation: summary.max_deviation,
         reading_count: summary.reading_count,
+        latest_source: summary.latest_source ?? null,
+        source_confidence: summary.source_confidence ?? null,
+        source_confidence_reason: summary.source_confidence_reason ?? null,
       })),
       medication,
       latest_triage: input.latestTriage ? {

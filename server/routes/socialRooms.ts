@@ -25,6 +25,7 @@ import {
   buildUserConversationContext,
   type ConversationContextSummary,
 } from "../lib/conversationContext.js";
+import { normalizeAppLanguage } from "../../shared/language.js";
 
 type SocialLanguage = "es" | "de" | "en";
 
@@ -82,10 +83,9 @@ function resolvePublicUserId(req: Request): string {
 }
 
 function normalizeLanguage(raw?: string | null): SocialLanguage {
-  if (!raw) return "es";
-  if (raw.startsWith("de")) return "de";
-  if (raw.startsWith("en")) return "en";
-  return "es";
+  const language = normalizeAppLanguage(raw, "es");
+  if (language === "es" || language === "de") return language;
+  return "en";
 }
 
 function buildConnectionKey(a: string, b: string) {
@@ -117,6 +117,7 @@ async function loadProfileSummary(userId: string) {
       const [row] = await db
         .select({
           language: profiles.language,
+          language_preference: profiles.language_preference,
           preferred_name: profiles.preferred_name,
           full_name: profiles.full_name,
           discoverable: profiles.discoverable,
@@ -132,7 +133,7 @@ async function loadProfileSummary(userId: string) {
 
       return {
         firstName,
-        language: normalizeLanguage(row?.language ?? "es"),
+        language: normalizeLanguage(row?.language_preference ?? row?.language ?? "es"),
         discoverable: row?.discoverable ?? false,
       };
     },
@@ -704,7 +705,8 @@ router.get("/hub", async (req: Request, res: Response) => {
 
 router.get("/rooms/:slug", async (req: Request, res: Response) => {
   const userId = resolvePublicUserId(req);
-  const language = normalizeLanguage(req.query.lang as string | undefined);
+  const profile = await loadProfileSummary(userId);
+  const language = normalizeLanguage((req.query.lang as string | undefined) ?? profile.language);
   const room = buildRoomPayload(req.params.slug, language);
   if (!room) return res.status(404).json({ error: "Room not found" });
 

@@ -57,8 +57,22 @@ import { getActiveProfileContext } from "../lib/profileAccess.js";
 
 const DEMO_USER_ID = "demo-user";
 const IS_PROD = process.env.NODE_ENV === "production";
+const SUPPORTED_PROFILE_LANGUAGES = ["es", "en", "fr", "de", "it", "pt"] as const;
+type ProfileLanguage = (typeof SUPPORTED_PROFILE_LANGUAGES)[number];
 
 const router = Router();
+
+function normalizeProfileLanguage(value: unknown): ProfileLanguage {
+  if (typeof value !== "string") return "es";
+  const language = value.trim().toLowerCase().split("-")[0];
+  return SUPPORTED_PROFILE_LANGUAGES.includes(language as ProfileLanguage)
+    ? language as ProfileLanguage
+    : "es";
+}
+
+function resolvedProfileLanguage(profile: { language?: string | null; language_preference?: string | null }): ProfileLanguage {
+  return normalizeProfileLanguage(profile.language_preference ?? profile.language);
+}
 
 /**
  * Returns the authenticated user's ID if a valid JWT was present (set by
@@ -88,7 +102,7 @@ const profileBodySchema = z.object({
   whatsapp:        z.string().max(50).optional().default(""),
   country:         z.string().max(100).optional().default(""),
   timezone:        z.string().max(100).optional().default(""),
-  language:        z.string().max(50).optional().default("en"),
+  language:        z.string().max(50).optional(),
   street:          z.string().max(200).optional().default(""),
   cityState:       z.string().max(200).optional().default(""),
   postalCode:      z.string().max(30).optional().default(""),
@@ -910,6 +924,7 @@ router.get("/", async (req: Request, res: Response) => {
     const nameParts = (p.full_name ?? "").trim().split(/\s+/);
     const firstName = nameParts[0] ?? "";
     const lastName  = nameParts.slice(1).join(" ");
+    const language = resolvedProfileLanguage(p);
 
     return res.json({
       firstName,
@@ -925,7 +940,8 @@ router.get("/", async (req: Request, res: Response) => {
       whatsapp:         p.whatsapp_number ?? "",
       country:          p.country_code ?? "",
       timezone:         p.timezone ?? "",
-      language:         p.language ?? "en",
+      language,
+      languagePreference: p.language_preference ?? null,
       street:           p.address_line_1 ?? "",
       cityState:        p.city ?? "",
       postalCode:       p.postcode ?? "",
@@ -971,6 +987,45 @@ router.get("/doctor-context", async (req: Request, res: Response) => {
   }
 });
 
+const languagePreferenceBodySchema = z.object({
+  language: z.string().max(50),
+});
+
+router.patch("/language", async (req: Request, res: Response) => {
+  const userId = await resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  const parsed = languagePreferenceBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  const language = normalizeProfileLanguage(parsed.data.language);
+
+  try {
+    await db
+      .insert(profiles)
+      .values({
+        id: userId,
+        language,
+        language_preference: language,
+      })
+      .onConflictDoUpdate({
+        target: profiles.id,
+        set: {
+          language,
+          language_preference: language,
+          updated_at: new Date(),
+        },
+      });
+
+    return res.json({ ok: true, language, languagePreference: language });
+  } catch (err) {
+    console.error("[profile PATCH /language]", err);
+    return res.status(500).json({ error: "Failed to save language preference" });
+  }
+});
+
 router.post("/", async (req: Request, res: Response) => {
   const userId = await resolveUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
@@ -981,6 +1036,7 @@ router.post("/", async (req: Request, res: Response) => {
   }
 
   const d = parsed.data;
+  const language = normalizeProfileLanguage(d.language ?? req.language);
   const full_name = [d.firstName, d.lastName].filter(Boolean).join(" ").trim();
   const hasGpNameInput = Object.prototype.hasOwnProperty.call(req.body, "gpName");
   const hasGpPhoneInput = Object.prototype.hasOwnProperty.call(req.body, "gpPhone");
@@ -1006,7 +1062,8 @@ router.post("/", async (req: Request, res: Response) => {
         whatsapp_number:  d.whatsapp || null,
         country_code:     d.country || null,
         timezone:         d.timezone || "Europe/Madrid",
-        language:         d.language || "en",
+        language,
+        language_preference: language,
         address_line_1:   d.street || null,
         city:             d.cityState || null,
         postcode:         d.postalCode || null,
@@ -1028,7 +1085,8 @@ router.post("/", async (req: Request, res: Response) => {
           whatsapp_number:  d.whatsapp || null,
           country_code:     d.country || null,
           timezone:         d.timezone || "Europe/Madrid",
-          language:         d.language || "en",
+          language,
+          language_preference: language,
           address_line_1:   d.street || null,
           city:             d.cityState || null,
           postcode:         d.postalCode || null,

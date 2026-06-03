@@ -370,6 +370,11 @@ export default function SettingsHome() {
             title={t("settings.home.rows.deleteAccount")}
             sub={t("settings.home.rows.deleteAccountSub")}
             danger
+            onClick={() => openSupportEmail(
+              t("settings.home.rows.deleteAccountRequestSubject", "VYVA account deletion request"),
+              t("settings.home.rows.deleteAccountRequestBody", "Please help me delete my VYVA account and all associated data. I understand this is permanent and cannot be undone."),
+            )}
+            data-testid="button-settings-delete-account"
           />
         </Section>
       </div>

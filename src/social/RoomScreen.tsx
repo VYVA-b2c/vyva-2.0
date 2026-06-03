@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { apiFetch } from "@/lib/queryClient";
 import { useProfile } from "@/contexts/ProfileContext";
+import { useLanguage } from "@/i18n";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 import SocialStyles from "./SocialStyles";
 import { getSocialCopy, getSocialLanguage } from "./roomUtils";
@@ -1086,7 +1087,8 @@ const RoomScreen = () => {
   const navigate = useNavigate();
   const { slug = "" } = useParams();
   const { profile, firstName } = useProfile();
-  const language = getSocialLanguage(profile?.language);
+  const { language: appLanguage } = useLanguage();
+  const language = getSocialLanguage(appLanguage);
   const copy = getSocialCopy(language);
 
   const [visitId, setVisitId] = useState<string | null>(null);

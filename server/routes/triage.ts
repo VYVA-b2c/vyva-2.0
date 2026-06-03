@@ -39,6 +39,7 @@ import {
   type TriageWizardMatrixReply,
   type TriageWizardMatrixStage,
 } from "../lib/triageWizardMatrix.js";
+import { languageName, normalizeAppLanguage } from "../../shared/language.js";
 
 const router = Router();
 
@@ -49,7 +50,6 @@ const LOCALE_TO_LANGUAGE: Record<string, string> = {
   pt: "Portuguese",
   de: "German",
   it: "Italian",
-  cy: "Welsh",
 };
 
 interface ChatMessage {
@@ -76,6 +76,8 @@ interface TriageRequestBody {
     systolicBp?: number | null;
     diastolicBp?: number | null;
     glucoseMgdl?: number | null;
+    painScore?: number | null;
+    energyLevel?: number | null;
   };
   locale?: string;
   wizard?: TriageWizardContext;
@@ -112,6 +114,8 @@ function wizardContextText(wizard?: TriageWizardContext, healthMemory?: TriageHe
     typeof wizard.vitals?.temperatureC === "number" ? `Temperature: ${wizard.vitals.temperatureC} C.` : "",
     typeof wizard.vitals?.systolicBp === "number" && typeof wizard.vitals?.diastolicBp === "number" ? `Blood pressure: ${wizard.vitals.systolicBp}/${wizard.vitals.diastolicBp}.` : "",
     typeof wizard.vitals?.glucoseMgdl === "number" ? `Glucose: ${wizard.vitals.glucoseMgdl} mg/dL.` : "",
+    typeof wizard.vitals?.painScore === "number" ? `Pain score: ${wizard.vitals.painScore}/10.` : "",
+    typeof wizard.vitals?.energyLevel === "number" ? `Energy level: ${wizard.vitals.energyLevel}/10.` : "",
     wizard.scanResults?.length
       ? `Optional scan results completed: ${wizard.scanResults.map((scan) => `${scan.label}: ${scan.summary}${scan.findings.length ? ` (${scan.findings.join("; ")})` : ""}`).join(" | ")}.`
       : "",
@@ -824,10 +828,8 @@ router.post("/message", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "messages must be an array" });
   }
 
-  const normalizedLocale = typeof locale === "string"
-    ? locale.split("-")[0].toLowerCase()
-    : "en";
-  const language = LOCALE_TO_LANGUAGE[normalizedLocale] ?? "English";
+  const normalizedLocale = normalizeAppLanguage(locale, "en");
+  const language = LOCALE_TO_LANGUAGE[normalizedLocale] ?? languageName(normalizedLocale);
   const gender = await getRequestGender(req).catch(() => "neutral" as const);
 
   const validMessages: ChatMessage[] = messages

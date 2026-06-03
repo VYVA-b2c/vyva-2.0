@@ -1,11 +1,13 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, Mic, MicOff, PhoneOff } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { AlertCircle, Mic, MicOff, PhoneCall, PhoneOff, UserRound } from "lucide-react";
 import StatusBar from "./StatusBar";
 import BottomNav from "./BottomNav";
 import VoiceActionCard from "./VoiceActionCard";
 import VoiceActionSimulator from "./VoiceActionSimulator";
+import { useProfile } from "@/contexts/ProfileContext";
 import { type TranscriptEntry, useVyvaVoice } from "@/hooks/useVyvaVoice";
 import {
   actionForSpecialistTransfer,
@@ -21,12 +23,46 @@ import {
 import { useServiceGate } from "@/hooks/useServiceGate";
 import { useToastSurface } from "@/hooks/useToastSurface";
 import { useVoiceActionContext } from "@/contexts/VoiceActionContext";
+import { emergencyContactForCountry, sanitizePhoneHref } from "@/lib/emergencyContacts";
+import { apiFetch } from "@/lib/queryClient";
 import { recordVoiceTimelineEvent } from "@/lib/voiceTimeline";
 import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
 
 const FULL_SCREEN_ROUTES = ["/chat", "/spatial-navigator", "/face-name-match"];
 const WIDE_ROUTES = ["/social-rooms", "/spatial-navigator", "/face-name-match"];
 const RESPONSIVE_APP_ROUTES = ["/settings"];
+
+type EmergencyProfileContact = {
+  name?: string | null;
+  relationship?: string | null;
+  primaryPhone?: string | null;
+  secondaryPhone?: string | null;
+};
+
+type OnboardingStateResponse = {
+  profile?: {
+    emergency_contact?: {
+      name?: string | null;
+      relationship?: string | null;
+      primary_phone?: string | null;
+      secondary_phone?: string | null;
+    } | null;
+  } | null;
+} | null;
+
+export function emergencyProfileContactFromState(data?: OnboardingStateResponse): EmergencyProfileContact | null {
+  const contact = data?.profile?.emergency_contact;
+  if (!contact) return null;
+  const primaryPhone = contact.primary_phone?.trim() ?? "";
+  const secondaryPhone = contact.secondary_phone?.trim() ?? "";
+  if (!primaryPhone && !secondaryPhone) return null;
+  return {
+    name: contact.name?.trim() || null,
+    relationship: contact.relationship?.trim() || null,
+    primaryPhone,
+    secondaryPhone,
+  };
+}
 
 type VoiceSessionDockProps = {
   isSpeaking: boolean;
@@ -99,8 +135,24 @@ const VoiceSessionDock = ({
   );
 };
 
-const SosSheet = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
+export const SosSheet = ({
+  open,
+  onOpenChange,
+  country,
+  profileContact,
+  contactLoading = false,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  country?: string | null;
+  profileContact?: EmergencyProfileContact | null;
+  contactLoading?: boolean;
+}) => {
   const { t } = useTranslation();
+  const localEmergency = emergencyContactForCountry(country);
+  const contactPhone = profileContact?.primaryPhone || profileContact?.secondaryPhone || "";
+  const contactHref = sanitizePhoneHref(contactPhone);
+  const contactName = profileContact?.name || t("sos.emergencyContact", "emergency contact");
 
   if (!open) return null;
 
@@ -121,26 +173,49 @@ const SosSheet = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: 
           <AlertCircle size={28} style={{ color: "#B91C1C" }} />
         </div>
 
-        <h3 className="mb-1 text-center font-display text-[22px] text-vyva-text-1">{t("sos.title")}</h3>
-        <p className="mb-6 px-2 text-center font-body text-[14px] text-vyva-text-2">
-          {t("sos.description")}
+        <h3 className="mb-1 text-center font-display text-[22px] text-vyva-text-1">{t("sos.title", "Need urgent help?")}</h3>
+        <p className="mb-5 px-2 text-center font-body text-[15px] font-semibold leading-relaxed text-vyva-text-2">
+          {t("sos.description", "Call emergency services now, or call the emergency contact saved in your profile.")}
         </p>
 
-        <div className="flex gap-3">
-          <button
+        <div className="grid gap-3">
+          <a
+            href={localEmergency.telHref}
             onClick={() => onOpenChange(false)}
-            className="vyva-secondary-action flex-1"
-            data-testid="button-sos-cancel"
-          >
-            {t("sos.cancel")}
-          </button>
-          <button
-            onClick={() => onOpenChange(false)}
-            className="vyva-primary-action flex-1"
+            className="vyva-primary-action flex min-h-[58px] items-center justify-center gap-2 rounded-full text-[18px] font-black"
             style={{ background: "#B91C1C" }}
             data-testid="button-sos-confirm"
+            aria-label={t("sos.callEmergencyAria", "Call emergency services now")}
           >
-            {t("sos.sendNow")}
+            <PhoneCall size={20} />
+            <span>
+              {localEmergency.telHref
+                ? t("sos.callEmergencyNumber", "Call {{number}} now", { number: localEmergency.label })
+                : t("sos.callEmergency", "Call emergency now")}
+            </span>
+          </a>
+          {contactHref ? (
+            <a
+              href={contactHref}
+              onClick={() => onOpenChange(false)}
+              className="vyva-secondary-action flex min-h-[54px] items-center justify-center gap-2 rounded-full text-[16px] font-black"
+              data-testid="button-sos-call-contact"
+              aria-label={t("sos.callContactAria", "Call {{name}}", { name: contactName })}
+            >
+              <UserRound size={19} />
+              <span>{t("sos.callContact", "Call {{name}}", { name: contactName })}</span>
+            </a>
+          ) : contactLoading ? (
+            <div className="min-h-[54px] rounded-full border border-vyva-border bg-[#FFFCF8] px-4 py-4 text-center font-body text-[14px] font-bold text-vyva-text-2">
+              {t("sos.loadingContact", "Checking emergency contact...")}
+            </div>
+          ) : null}
+          <button
+            onClick={() => onOpenChange(false)}
+            className="vyva-secondary-action min-h-[50px]"
+            data-testid="button-sos-cancel"
+          >
+            {t("sos.cancel", "Cancel")}
           </button>
         </div>
       </div>
@@ -150,6 +225,7 @@ const SosSheet = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: 
 
 const AppShell = ({ children }: { children: ReactNode }) => {
   const location = useLocation();
+  const { profile } = useProfile();
   const { canUseService, guardPath } = useServiceGate();
   const [sosOpen, setSosOpen] = useState(false);
   const lastVoiceActionRef = useRef<{ key: string; at: number } | null>(null);
@@ -173,7 +249,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     completeActiveAction,
     dismissActiveAction,
   } = useVoiceActionContext();
-  const isFullScreen = FULL_SCREEN_ROUTES.includes(location.pathname);
+  const isFullScreen = FULL_SCREEN_ROUTES.includes(location.pathname) || location.pathname.startsWith("/memory-games/");
   const isWideRoute = WIDE_ROUTES.some((route) => location.pathname.startsWith(route));
   const isResponsiveAppRoute = RESPONSIVE_APP_ROUTES.some((route) => location.pathname.startsWith(route));
   const shellMaxWidthClassName = isWideRoute || isResponsiveAppRoute ? "max-w-[920px]" : "max-w-[520px]";
@@ -183,6 +259,18 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const showInlineVoiceAction = Boolean(!isFullScreen && activeVoiceAction && voiceActionRouteMatches);
   const showVoiceDock = status === "connected" || isConnecting || voiceSessionPhase === "transferring";
   const toastSurfaceRef = useToastSurface<HTMLDivElement>(isFullScreen ? 24 : 128);
+  const { data: onboardingState, isLoading: sosContactLoading } = useQuery<OnboardingStateResponse>({
+    queryKey: ["/api/onboarding/state"],
+    queryFn: async () => {
+      const response = await apiFetch("/api/onboarding/state");
+      if (!response.ok) throw new Error(`onboarding-state ${response.status}`);
+      return response.json();
+    },
+    enabled: sosOpen,
+    staleTime: 2 * 60 * 1000,
+    retry: false,
+  });
+  const sosProfileContact = emergencyProfileContactFromState(onboardingState);
 
   const openVoiceAppAction = useCallback((action: VoiceAppAction) => {
     const actionKey = `${action.id}:${action.route}`;
@@ -354,7 +442,15 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         {!isFullScreen && <BottomNav wide={isWideRoute || isResponsiveAppRoute} onSosClick={() => {
           if (canUseService("sos", "/sos")) setSosOpen(true);
         }} />}
-        {!isFullScreen && <SosSheet open={sosOpen} onOpenChange={setSosOpen} />}
+        {!isFullScreen && (
+          <SosSheet
+            open={sosOpen}
+            onOpenChange={setSosOpen}
+            country={profile?.country}
+            profileContact={sosProfileContact}
+            contactLoading={sosContactLoading}
+          />
+        )}
         {!isFullScreen && <VoiceActionSimulator />}
         {showVoiceDock && (
           <VoiceSessionDock

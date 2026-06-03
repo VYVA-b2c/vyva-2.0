@@ -105,6 +105,16 @@ describe("senior triage protocols", () => {
     expect(result.watchSigns.join(" ")).toContain("Fever");
   });
 
+  it("keeps one clear 24-48 hour doctor action in next steps", () => {
+    const result = decision("other", ["no_red_flag", "other_not_sure", "ongoing_not_improving"]);
+    const doctorWindowSteps = result.recommendations.filter((item) => /doctor|clinic|medical advice/i.test(item) && /24-48/.test(item));
+
+    expect(result.level).toBe("doctor_24_48");
+    expect(result.recommendations).toHaveLength(4);
+    expect(doctorWindowSteps).toHaveLength(1);
+    expect(result.recommendations.join(" ")).not.toContain("Contact your doctor or clinic within 24-48 hours if this continues.");
+  });
+
   it("does not over-call cloudy or smelly urine alone when no illness signs are selected", () => {
     const result = decision("urinary", ["cloudy_smelly_only"]);
 
@@ -251,6 +261,8 @@ describe("senior triage protocols", () => {
 
     expect(result.level).toBe("doctor_24_48");
     expect(result.reasons.join(" ")).toContain("unclear");
+    expect(result.recommendations.filter((item) => /doctor|clinic/i.test(item))).toHaveLength(1);
+    expect(result.recommendations.join(" ")).not.toContain("same-day help");
   });
 
   it.each([

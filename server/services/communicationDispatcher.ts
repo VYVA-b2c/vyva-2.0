@@ -3,6 +3,7 @@ import nodemailer from "nodemailer";
 import { db } from "../db.js";
 import { communicationsLog } from "../../shared/schema.js";
 import { explainEmailProviderError, requireEmailFromAddress } from "../lib/emailSenderConfig.js";
+import { buildCareTeamInviteEmail } from "../lib/careTeamInviteEmail.js";
 import { buildSignupInviteEmail, signupInviteRecipientNameFromMetadata } from "../lib/signupInviteEmail.js";
 import { queueDueCallbackOnboardingCalls } from "./callbackOnboarding.js";
 import { queueDueConsentCalls } from "./lifecycle.js";
@@ -138,6 +139,10 @@ function buildEmailPayload(item: Communication): EmailPayload {
 
   if (item.purpose === "share_signup_form") {
     return buildSignupInviteEmail(metadata, item.body);
+  }
+
+  if (item.purpose === "care_team_invite") {
+    return buildCareTeamInviteEmail(metadata, item.body);
   }
 
   return {

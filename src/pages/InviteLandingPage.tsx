@@ -3,8 +3,9 @@ import { useEffect, useMemo, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { useAuth } from "@/contexts/AuthContext";
-import { setAccountLanguage, useLanguage } from "@/i18n";
+import { setBootstrapLanguage, useLanguage } from "@/i18n";
 import type { LanguageCode } from "@/i18n/languages";
+import { rememberSignupInviteId, signupInviteIdFromSearch, trackSignupInviteEvent } from "@/lib/signupInviteAudit";
 
 const INVITE_LANGUAGE_CODES: LanguageCode[] = ["en", "es", "fr", "de", "it", "pt"];
 
@@ -55,9 +56,11 @@ const REDIRECT_COPY: Record<LanguageCode, { eyebrow: string; title: string; body
 
 export function inviteSetupPath(search: string) {
   const params = new URLSearchParams(search);
+  const setupFor = (params.get("setup_for") ?? params.get("setup") ?? params.get("intent") ?? "").trim().toLowerCase();
+  const caregiverInvite = ["someone_else", "caregiver", "family", "proxy"].includes(setupFor);
   params.set("mode", "register");
   params.set("invite", "1");
-  params.set("returnTo", "/");
+  params.set("returnTo", caregiverInvite ? "/onboarding/who-for" : "/");
   return `/login?${params.toString()}`;
 }
 
@@ -84,15 +87,19 @@ export default function InviteLandingPage() {
   useEffect(() => {
     const requestedLanguage = inviteLanguageFromSearch(location.search);
     if (requestedLanguage && requestedLanguage !== language) {
-      setAccountLanguage(requestedLanguage);
+      setBootstrapLanguage(requestedLanguage);
     }
   }, [language, location.search]);
 
   useEffect(() => {
     if (isLoading || redirectStartedRef.current) return;
     redirectStartedRef.current = true;
-    navigate(user ? inviteHomePath() : setupPath, { replace: true });
-  }, [isLoading, navigate, setupPath, user]);
+    const destination = user ? inviteHomePath() : setupPath;
+    const inviteId = signupInviteIdFromSearch(location.search);
+    rememberSignupInviteId(inviteId);
+    trackSignupInviteEvent(inviteId, "clicked", { destination, keepalive: true });
+    navigate(destination, { replace: true });
+  }, [isLoading, location.search, navigate, setupPath, user]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#FFF9F1] px-5 py-8 text-vyva-text-1">

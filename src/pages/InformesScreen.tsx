@@ -6,17 +6,32 @@ import {
   Activity,
   AlertTriangle,
   ArrowRight,
+  Calendar,
+  Car,
   CheckCircle2,
   ChevronLeft,
   ClipboardList,
+  Droplets,
+  ExternalLink,
+  Gauge,
   Heart,
+  Mail,
   MessageCircle,
   Pill,
+  PhoneCall,
+  Send,
   ShieldCheck,
+  ShoppingBasket,
+  Stethoscope,
+  Thermometer,
   TrendingUp,
+  Users,
   Wind,
+  Zap,
+  type LucideIcon,
 } from "lucide-react";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
+import { compactReportRecommendations } from "@/lib/reportRecommendations";
 import {
   HealthWizardCard,
   HealthWizardHero,
@@ -24,7 +39,9 @@ import {
   HealthWizardShell,
   HealthWizardTopBar,
 } from "@/components/health/HealthWizard";
+import { getSymptomRecommendationActionKinds, type SymptomRecommendationActionKind } from "@/lib/symptomReportActions";
 import type { TriageScanResult } from "../../shared/triageScans";
+import { vitalsEvidenceFor } from "../../shared/vitalsEvidence";
 
 type TriageReport = {
   id: string;
@@ -55,14 +72,40 @@ type VitalsReading = {
   recorded_at: string;
 };
 
+type SignalReading = {
+  signal_type: string;
+  value: string | number;
+  recorded_at: string;
+  source: string;
+  context_tag: string | null;
+};
+
 type Summary = {
   latestTriage: TriageReport | null;
   latestVitals: VitalsReading | null;
+  latestSignals?: SignalReading[];
   todayMeds: { taken: number; total: number; adherencePct: number | null };
 };
 
 type VitalsHistory = {
   readings: VitalsReading[];
+  signalReadings?: SignalReading[];
+};
+
+type ProfileContactsResponse = {
+  country?: string | null;
+  gpName?: string | null;
+  gpPhone?: string | null;
+  gpEmail?: string | null;
+} | null;
+
+type ReportAction = {
+  kind: SymptomRecommendationActionKind | "add_doctor_contact";
+  label: string;
+  ariaLabel: string;
+  Icon: LucideIcon;
+  href?: string;
+  onClick?: () => void;
 };
 
 const cardShell = "rounded-[28px] border border-[#E8DED4] bg-white shadow-[0_12px_30px_rgba(63,45,35,0.07)]";
@@ -102,20 +145,53 @@ function formatDuration(seconds: number): string {
   return rest > 0 ? `${minutes}m ${rest}s` : `${minutes}m`;
 }
 
+const signalConfig: Record<string, { label: string; unit: string; Icon: LucideIcon; bg: string; color: string }> = {
+  resting_hr_bpm: { label: "Pulse", unit: "bpm", Icon: Heart, bg: "#FFF1F2", color: "#BE123C" },
+  respiratory_rate: { label: "Breathing", unit: "/min", Icon: Wind, bg: "#EFF6FF", color: "#0369A1" },
+  oxygen_saturation: { label: "Oxygen", unit: "%", Icon: Wind, bg: "#ECFDF5", color: "#047857" },
+  temperature_c: { label: "Temperature", unit: "C", Icon: Thermometer, bg: "#FFF7ED", color: "#B45309" },
+  bp_systolic: { label: "BP top", unit: "mmHg", Icon: Gauge, bg: "#F5F3FF", color: "#6B21A8" },
+  bp_diastolic: { label: "BP bottom", unit: "mmHg", Icon: Gauge, bg: "#F5F3FF", color: "#6B21A8" },
+  glucose_mgdl: { label: "Glucose", unit: "mg/dL", Icon: Droplets, bg: "#ECFEFF", color: "#0E7490" },
+  pain_score: { label: "Pain", unit: "/10", Icon: Activity, bg: "#FEF2F2", color: "#B91C1C" },
+  energy_level: { label: "Energy", unit: "/10", Icon: Zap, bg: "#FFFBEB", color: "#B45309" },
+};
+
+function signalMeta(signalType: string) {
+  return signalConfig[signalType] ?? { label: signalType.replace(/_/g, " "), unit: "", Icon: Activity, bg: "#F5F3FF", color: "#6B21A8" };
+}
+
+function signalDisplay(reading: SignalReading) {
+  const meta = signalMeta(reading.signal_type);
+  const numeric = Number(reading.value);
+  const value = Number.isFinite(numeric) ? numeric.toString() : String(reading.value ?? "--");
+  return `${value}${meta.unit ? ` ${meta.unit}` : ""}`;
+}
+
+function sourceLabel(source?: string | null) {
+  return vitalsEvidenceFor(source).displayLabel;
+}
+
 function reportSignal(summary?: Summary | null) {
   if (!summary) return { tone: "neutral", text: "No report data yet" };
-  const { latestTriage, latestVitals, todayMeds } = summary;
+  const { latestTriage, latestVitals, latestSignals = [], todayMeds } = summary;
   if (latestTriage?.urgency === "urgent") return { tone: "urgent", text: "Needs attention" };
   if (latestTriage?.urgency === "routine") return { tone: "routine", text: "Routine follow-up" };
+  const signalMap = new Map(latestSignals.map((reading) => [reading.signal_type, Number(reading.value)]));
+  if ((signalMap.get("oxygen_saturation") ?? 100) <= 92) return { tone: "routine", text: "Oxygen to review" };
+  if ((signalMap.get("temperature_c") ?? 0) >= 38) return { tone: "routine", text: "Temperature to review" };
+  if ((signalMap.get("pain_score") ?? 0) >= 8) return { tone: "routine", text: "Pain to review" };
   if (latestVitals && (latestVitals.bpm < 55 || latestVitals.bpm > 100)) return { tone: "routine", text: "Vitals to review" };
+  if ((signalMap.get("resting_hr_bpm") ?? 72) < 55 || (signalMap.get("resting_hr_bpm") ?? 72) > 100) return { tone: "routine", text: "Pulse to review" };
   if (todayMeds.total > 0 && todayMeds.taken < todayMeds.total) return { tone: "routine", text: "Medication pending" };
-  if (latestTriage || latestVitals || todayMeds.total > 0) return { tone: "good", text: "Looks steady" };
+  if (latestTriage || latestVitals || latestSignals.length > 0 || todayMeds.total > 0) return { tone: "good", text: "Looks steady" };
   return { tone: "neutral", text: "Ready for first report" };
 }
 
 function SummaryPhrase({ summary }: { summary: Summary }) {
   const { t } = useTranslation();
-  if (!summary.latestTriage && !summary.latestVitals && summary.todayMeds.total === 0) {
+  const latestSignals = summary.latestSignals ?? [];
+  if (!summary.latestTriage && !summary.latestVitals && latestSignals.length === 0 && summary.todayMeds.total === 0) {
     return <p className="font-body text-[15px] leading-relaxed text-white/86">{t("informes.summaryEmpty")}</p>;
   }
 
@@ -124,8 +200,11 @@ function SummaryPhrase({ summary }: { summary: Summary }) {
   else if (summary.latestTriage?.urgency === "routine") phrase = t("informes.summaryRoutine");
   else if (summary.todayMeds.total > 0 && summary.todayMeds.taken < summary.todayMeds.total) {
     phrase = t("informes.summaryMedsPending", { pending: summary.todayMeds.total - summary.todayMeds.taken });
-  } else if (summary.latestVitals && summary.latestVitals.bpm > 100) phrase = t("informes.summaryHighHR");
-  else if (summary.latestVitals && summary.latestVitals.bpm < 55) phrase = t("informes.summaryLowHR");
+  } else {
+    const latestPulse = Number(latestSignals.find((reading) => reading.signal_type === "resting_hr_bpm")?.value ?? summary.latestVitals?.bpm);
+    if (Number.isFinite(latestPulse) && latestPulse > 100) phrase = t("informes.summaryHighHR");
+    else if (Number.isFinite(latestPulse) && latestPulse < 55) phrase = t("informes.summaryLowHR");
+  }
 
   return <p className="font-body text-[17px] font-semibold leading-relaxed text-white">{phrase}</p>;
 }
@@ -170,16 +249,177 @@ function EmptyCard({ icon: Icon, title, body }: { icon: typeof ClipboardList; ti
   );
 }
 
-function DetailView({ report, onBack }: { report: TriageReport; onBack: () => void }) {
+function sanitizePhoneHref(phone?: string | null): string {
+  const raw = phone?.trim();
+  if (!raw) return "";
+  const normalized = raw.replace(/[^\d+]/g, "");
+  return `tel:${normalized || raw}`;
+}
+
+function emergencyContactForCountry(country?: string | null) {
+  const countryCode = (country ?? "ES").trim().toUpperCase() || "ES";
+  const emergencyNumberByCountry: Record<string, string> = {
+    ES: "112",
+    FR: "112",
+    DE: "112",
+    IT: "112",
+    PT: "112",
+    IE: "112",
+    GB: "999",
+    UK: "999",
+    US: "911",
+    CA: "911",
+    AU: "000",
+  };
+  const number = emergencyNumberByCountry[countryCode];
+  return number ? { label: number, telHref: `tel:${number}` } : null;
+}
+
+function reportDoctorNote(report: TriageReport, t: ReturnType<typeof useTranslation>["t"]) {
+  return [
+    `${t("health.symptomCheck.report.tellMainSymptom", "Main symptom")}: ${report.chief_complaint}`,
+    report.symptoms.length ? `${t("health.symptomCheck.report.symptoms", "Symptoms noted")}: ${report.symptoms.join(", ")}` : "",
+    report.next_step_label ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${report.next_step_label}` : "",
+    report.triage_reasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Initial Assessment")}: ${report.triage_reasons.join(" ")}` : "",
+    report.vitals_notes?.length ? `${t("health.symptomCheck.report.vitalsUsed", "Vitals used")}: ${report.vitals_notes.join(" ")}` : "",
+    report.scan_notes?.length ? `${t("health.symptomCheck.report.scanNotes", "Scan notes")}: ${report.scan_notes.join(" ")}` : "",
+    report.recommendations.length ? `${t("informes.reportDetail.recommendations", "What to do next")}: ${report.recommendations.join(" ")}` : "",
+  ].filter(Boolean).join("\n");
+}
+
+export function DetailView({ report, onBack }: { report: TriageReport; onBack: () => void }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { data: profileContacts } = useQuery<ProfileContactsResponse>({
+    queryKey: ["/api/profile"],
+  });
   const cfg = urgencyConfig(report.urgency);
   const UrgencyIcon = cfg.icon;
   const triageReasons = report.triage_reasons ?? [];
   const watchSigns = report.watch_signs ?? [];
   const profileConsiderations = report.profile_considerations ?? [];
   const vitalsNotes = report.vitals_notes ?? [];
+  const recommendations = compactReportRecommendations(report.recommendations, {
+    max: 4,
+    level: report.next_step_level ?? undefined,
+  });
   const scanNotes = report.scan_notes ?? [];
+  const doctorNote = reportDoctorNote({ ...report, recommendations }, t);
+  const gpPhone = profileContacts?.gpPhone?.trim() ?? "";
+  const gpEmail = profileContacts?.gpEmail?.trim() ?? "";
+  const telHref = sanitizePhoneHref(gpPhone);
+  const emergencyContact = emergencyContactForCountry(profileContacts?.country);
+  const mailtoHref = gpEmail
+    ? `mailto:${gpEmail}?subject=${encodeURIComponent(t("health.symptomCheck.report.actions.emailSubject", "VYVA symptom report"))}&body=${encodeURIComponent(doctorNote)}`
+    : "";
+
+  const openDoctorWithContext = () => {
+    navigate("/health/doctor", {
+      state: {
+        autoStartVoice: true,
+        latestSymptomReport: doctorNote,
+      },
+    });
+  };
+
+  const openConciergePrefill = (kind: "ride" | "appointment" | "home_care_quote", recommendation: string) => {
+    const key = kind === "ride"
+      ? "health.symptomCheck.report.actions.ridePrefill"
+      : kind === "appointment"
+        ? "health.symptomCheck.report.actions.appointmentPrefill"
+        : "health.symptomCheck.report.actions.quotePrefill";
+    const fallback = kind === "ride"
+      ? "Please help me book a safe ride for this health recommendation: {{recommendation}}. Report: {{report}}. Ask me to confirm before booking."
+      : kind === "appointment"
+        ? "Please help me schedule care for this health recommendation: {{recommendation}}. Report: {{report}}. Ask me to confirm before booking."
+        : "Please help me request a quote for someone to stay with me or support me at home: {{recommendation}}. Report: {{report}}. Ask me to confirm before requesting anything.";
+    navigate("/concierge", {
+      state: {
+        conciergePrefill: {
+          kind,
+          message: t(key, fallback, { recommendation, report: doctorNote }),
+          source: "symptom_report",
+        },
+      },
+    });
+  };
+
+  const openHydrationOrder = (recommendation: string) => {
+    navigate("/concierge/shopping", {
+      state: {
+        shoppingPrefill: {
+          needText: t(
+            "health.symptomCheck.report.actions.hydrationPrefill",
+            "Hydration support for this health recommendation: {{recommendation}}. Please suggest easy delivery options such as water, oral rehydration salts, or electrolyte drinks.",
+            { recommendation, report: doctorNote },
+          ),
+          category: "groceries",
+          priorities: ["delivery", "simplicity"],
+        },
+      },
+    });
+  };
+
+  const actionLabels: Record<SymptomRecommendationActionKind, string> = {
+    call_emergency: emergencyContact?.telHref
+      ? t("health.symptomCheck.report.callEmergencyNumber", "Call {{number}}", { number: emergencyContact.label })
+      : t("health.symptomCheck.report.contactEmergencyServices", "Contact emergency services"),
+    call_gp: t("health.symptomCheck.report.actions.callGp", "Call GP"),
+    email_gp: t("health.symptomCheck.report.actions.emailGp", "Email GP"),
+    doctor_help: t("health.symptomCheck.report.actions.doctorHelp", "Doctor help"),
+    book_ride: t("health.symptomCheck.report.actions.bookRide", "Book ride"),
+    schedule_appointment: t("health.symptomCheck.report.actions.scheduleAppointment", "Appointment"),
+    online_order: t("health.symptomCheck.report.actions.onlineOrder", "Online order"),
+    request_quote: t("health.symptomCheck.report.actions.requestQuote", "Request quote"),
+  };
+  const actionIcons: Record<SymptomRecommendationActionKind, LucideIcon> = {
+    call_emergency: PhoneCall,
+    call_gp: PhoneCall,
+    email_gp: Mail,
+    doctor_help: Stethoscope,
+    book_ride: Car,
+    schedule_appointment: Calendar,
+    online_order: ShoppingBasket,
+    request_quote: ClipboardList,
+  };
+
+  const recommendationActions = (recommendation: string): ReportAction[] => {
+    const actions = getSymptomRecommendationActionKinds(recommendation, {
+      hasEmergencyContact: Boolean(emergencyContact?.telHref),
+      hasGpPhone: Boolean(gpPhone),
+      hasGpEmail: Boolean(gpEmail),
+    }).map((kind): ReportAction => {
+      const label = actionLabels[kind];
+      const base = {
+        kind,
+        label,
+        ariaLabel: t("health.symptomCheck.report.actions.aria", "{{action}} for: {{recommendation}}", { action: label, recommendation }),
+        Icon: actionIcons[kind],
+      };
+      if (kind === "call_emergency") return { ...base, href: emergencyContact?.telHref };
+      if (kind === "call_gp") return { ...base, href: telHref };
+      if (kind === "email_gp") return { ...base, href: mailtoHref };
+      if (kind === "doctor_help") return { ...base, onClick: openDoctorWithContext };
+      if (kind === "book_ride") return { ...base, onClick: () => openConciergePrefill("ride", recommendation) };
+      if (kind === "schedule_appointment") return { ...base, onClick: () => openConciergePrefill("appointment", recommendation) };
+      if (kind === "online_order") return { ...base, onClick: () => openHydrationOrder(recommendation) };
+      return { ...base, onClick: () => openConciergePrefill("home_care_quote", recommendation) };
+    }).filter((action) => action.href || action.onClick);
+
+    const hasDoctorAction = actions.some((action) => action.kind === "doctor_help" || action.kind === "call_gp" || action.kind === "email_gp");
+    if (hasDoctorAction && !gpPhone && !gpEmail) {
+      actions.push({
+        kind: "add_doctor_contact",
+        label: t("health.symptomCheck.report.addDoctorContact", "Add doctor contact"),
+        ariaLabel: t("health.symptomCheck.report.addDoctorContact", "Add doctor contact"),
+        Icon: Users,
+        onClick: () => navigate("/onboarding/profile/gp"),
+      });
+    }
+
+    return actions;
+  };
+  const nextStepActions = report.next_step_label ? recommendationActions(report.next_step_label) : [];
 
   return (
     <HealthWizardShell contentClassName="pb-10">
@@ -277,23 +517,98 @@ function DetailView({ report, onBack }: { report: TriageReport; onBack: () => vo
               </ul>
             </div>
           )}
+          {nextStepActions.length ? (
+            <div className="mt-4 grid gap-2 sm:grid-cols-2" data-testid="report-detail-next-step-actions">
+              {nextStepActions.map((action, index) => {
+                const ActionIcon = action.Icon;
+                const className = "vyva-tap inline-flex min-h-[50px] items-center justify-center gap-2 rounded-[17px] border border-[#E7DCF8] bg-white px-4 py-3 text-center font-body text-[14px] font-black leading-tight text-vyva-purple shadow-sm";
+                if (action.href) {
+                  return (
+                    <a
+                      key={`${action.kind}-${index}`}
+                      href={action.href}
+                      aria-label={action.ariaLabel}
+                      data-testid={`button-report-detail-next-step-action-${index}-${action.kind}`}
+                      className={className}
+                    >
+                      <ActionIcon size={18} />
+                      <span>{action.label}</span>
+                    </a>
+                  );
+                }
+                return (
+                  <button
+                    key={`${action.kind}-${index}`}
+                    type="button"
+                    onClick={action.onClick}
+                    aria-label={action.ariaLabel}
+                    data-testid={`button-report-detail-next-step-action-${index}-${action.kind}`}
+                    className={className}
+                  >
+                    <ActionIcon size={18} />
+                    <span>{action.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
         </section>
       )}
 
-      {report.recommendations.length > 0 && (
+      {recommendations.length > 0 && (
         <section className={`${cardShell} mt-4 p-5`}>
           <p className="mb-4 font-body text-[13px] font-bold uppercase tracking-[0.12em] text-vyva-text-2">
             {t("informes.reportDetail.recommendations", "What to do next")}
           </p>
           <ol className="flex flex-col gap-3">
-            {report.recommendations.map((recommendation, index) => (
-              <li key={`${index}-${recommendation}`} className="flex items-start gap-3 rounded-[20px] bg-[#FFFCF8] p-3">
-                <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[#6B21A8] font-body text-[12px] font-bold text-white">
-                  {index + 1}
-                </span>
-                <span className="pt-1 font-body text-[15px] leading-relaxed text-vyva-text-1">{recommendation}</span>
-              </li>
-            ))}
+            {recommendations.map((recommendation, index) => {
+              const actions = recommendationActions(recommendation);
+              return (
+                <li key={`${index}-${recommendation}`} className="rounded-[20px] bg-[#FFFCF8] p-3">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[#6B21A8] font-body text-[12px] font-bold text-white">
+                      {index + 1}
+                    </span>
+                    <span className="pt-1 font-body text-[15px] leading-relaxed text-vyva-text-1">{recommendation}</span>
+                  </div>
+                  {actions.length ? (
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2" data-testid={`report-detail-actions-${index}`}>
+                      {actions.map((action) => {
+                        const ActionIcon = action.Icon;
+                        const className = "vyva-tap inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#E7DCF8] bg-white px-4 py-3 text-center font-body text-[14px] font-black leading-tight text-vyva-purple shadow-sm";
+                        if (action.href) {
+                          return (
+                            <a
+                              key={action.kind}
+                              href={action.href}
+                              aria-label={action.ariaLabel}
+                              data-testid={`button-report-detail-action-${index}-${action.kind}`}
+                              className={className}
+                            >
+                              <ActionIcon size={18} />
+                              <span>{action.label}</span>
+                            </a>
+                          );
+                        }
+                        return (
+                          <button
+                            key={action.kind}
+                            type="button"
+                            onClick={action.onClick}
+                            aria-label={action.ariaLabel}
+                            data-testid={`button-report-detail-action-${index}-${action.kind}`}
+                            className={className}
+                          >
+                            <ActionIcon size={18} />
+                            <span>{action.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
           </ol>
         </section>
       )}
@@ -349,7 +664,18 @@ function DetailView({ report, onBack }: { report: TriageReport; onBack: () => vo
   );
 }
 
-function InformesMain() {
+function uniqueReportActions(actions: ReportAction[]) {
+  const seen = new Set<string>();
+  return actions.filter((action) => {
+    if (seen.has(action.kind)) return false;
+    seen.add(action.kind);
+    return true;
+  });
+}
+
+const overviewActionClass = "vyva-tap inline-flex min-h-[50px] items-center justify-center gap-2 rounded-[17px] border border-[#E7DCF8] bg-white px-4 py-3 text-center font-body text-[14px] font-black leading-tight text-vyva-purple shadow-sm";
+
+export function InformesMain() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { id: urlId } = useParams<{ id?: string }>();
@@ -360,6 +686,9 @@ function InformesMain() {
   });
   const { data: vitalsHistory } = useQuery<VitalsHistory>({
     queryKey: ["/api/reports/vitals/history"],
+  });
+  const { data: profileContacts } = useQuery<ProfileContactsResponse>({
+    queryKey: ["/api/profile"],
   });
   const { data: directReport, isLoading: directLoading, isError: directError } = useQuery<TriageReport>({
     queryKey: [`/api/reports/triage/${selectedReportId}`],
@@ -372,18 +701,267 @@ function InformesMain() {
     navigate("/informes");
   };
 
-  const respReadings = vitalsHistory?.readings.filter((reading) => reading.respiratory_rate != null) ?? [];
-  const bpmReadings = vitalsHistory?.readings ?? [];
-  const hasRespHistory = respReadings.length >= 2;
-  const hasBpmHistory = bpmReadings.length >= 2;
-  const hasData = summary && (summary.latestTriage || summary.latestVitals || summary.todayMeds.total > 0);
+  const signalHistory = vitalsHistory?.signalReadings ?? [];
+  const signalHistoryValues = (signalType: string) =>
+    signalHistory
+      .filter((reading) => reading.signal_type === signalType)
+      .map((reading) => Number(reading.value))
+      .filter(Number.isFinite);
+  const oldRespValues = vitalsHistory?.readings
+    .filter((reading) => reading.respiratory_rate != null)
+    .map((reading) => reading.respiratory_rate!) ?? [];
+  const oldBpmValues = vitalsHistory?.readings.map((reading) => reading.bpm) ?? [];
+  const respSignalValues = signalHistoryValues("respiratory_rate");
+  const bpmSignalValues = signalHistoryValues("resting_hr_bpm");
+  const respValues = respSignalValues.length >= 2 ? respSignalValues : oldRespValues;
+  const bpmValues = bpmSignalValues.length >= 2 ? bpmSignalValues : oldBpmValues;
+  const hasRespHistory = respValues.length >= 2;
+  const hasBpmHistory = bpmValues.length >= 2;
+  const latestSignals = summary?.latestSignals ?? [];
+  const primarySignal = latestSignals[0] ?? null;
+  const hasData = summary && (summary.latestTriage || summary.latestVitals || latestSignals.length > 0 || summary.todayMeds.total > 0);
   const signal = reportSignal(summary);
   const pendingMeds = summary?.todayMeds.total ? Math.max(summary.todayMeds.total - summary.todayMeds.taken, 0) : 0;
   const statusTone = signal.tone === "urgent" ? "#B91C1C" : signal.tone === "routine" ? "#B45309" : signal.tone === "good" ? "#047857" : "#6B7280";
+  const latestTriage = summary?.latestTriage ?? null;
+  const latestDoctorNote = latestTriage ? reportDoctorNote(latestTriage, t) : "";
+  const latestVitals = summary?.latestVitals ?? null;
+  const latestVitalsNeedReview = Boolean(latestVitals && (latestVitals.bpm < 55 || latestVitals.bpm > 100 || (latestVitals.respiratory_rate != null && (latestVitals.respiratory_rate < 12 || latestVitals.respiratory_rate > 24))));
+  const vitalsContext = latestVitals
+    ? t(
+      "informes.actions.vitalsContext",
+      "Latest VYVA vitals: pulse {{bpm}} bpm{{resp}}. Please help me decide the safest next step.",
+      {
+        bpm: latestVitals.bpm,
+        resp: latestVitals.respiratory_rate != null ? `, breathing ${latestVitals.respiratory_rate}/min` : "",
+      },
+    )
+    : "";
+  const medicationContext = summary?.todayMeds.total
+    ? t(
+      "informes.actions.medsContext",
+      "Today's medication status: {{taken}} of {{total}} taken, {{pending}} still pending.",
+      {
+        taken: summary.todayMeds.taken,
+        total: summary.todayMeds.total,
+        pending: pendingMeds,
+      },
+    )
+    : "";
+  const gpPhone = profileContacts?.gpPhone?.trim() ?? "";
+  const gpEmail = profileContacts?.gpEmail?.trim() ?? "";
+  const gpName = profileContacts?.gpName?.trim() ?? "";
+  const telHref = sanitizePhoneHref(gpPhone);
+  const emergencyContact = emergencyContactForCountry(profileContacts?.country);
+  const mailtoHref = gpEmail && latestDoctorNote
+    ? `mailto:${gpEmail}?subject=${encodeURIComponent(t("health.symptomCheck.report.actions.emailSubject", "VYVA symptom report"))}&body=${encodeURIComponent(latestDoctorNote)}`
+    : "";
+  const callGpLabel = gpName
+    ? t("meds.callGpNamed", "Call {{name}}", { name: gpName })
+    : t("health.symptomCheck.report.actions.callGp", "Call GP");
+  const vitalsMailtoHref = gpEmail && vitalsContext
+    ? `mailto:${gpEmail}?subject=${encodeURIComponent(t("informes.actions.vitalsEmailSubject", "VYVA vitals report"))}&body=${encodeURIComponent(vitalsContext)}`
+    : "";
+  const medicationMailtoHref = gpEmail && medicationContext
+    ? `mailto:${gpEmail}?subject=${encodeURIComponent(t("meds.adherenceService.doctorNoteTitle", "VYVA medication adherence report"))}&body=${encodeURIComponent(medicationContext)}`
+    : "";
+
+  const openLatestReport = () => {
+    if (!latestTriage) return;
+    setSelectedReportId(latestTriage.id);
+    navigate(`/informes/${latestTriage.id}`);
+  };
+
+  const openLatestDoctorWithContext = () => {
+    if (!latestDoctorNote) return;
+    navigate("/health/doctor", {
+      state: {
+        autoStartVoice: true,
+        latestSymptomReport: latestDoctorNote,
+      },
+    });
+  };
+
+  const openLatestConciergePrefill = (kind: "ride" | "appointment" | "home_care_quote", recommendation: string) => {
+    const key = kind === "ride"
+      ? "health.symptomCheck.report.actions.ridePrefill"
+      : kind === "appointment"
+        ? "health.symptomCheck.report.actions.appointmentPrefill"
+        : "health.symptomCheck.report.actions.quotePrefill";
+    const fallback = kind === "ride"
+      ? "Please help me book a safe ride for this health recommendation: {{recommendation}}. Report: {{report}}. Ask me to confirm before booking."
+      : kind === "appointment"
+        ? "Please help me schedule care for this health recommendation: {{recommendation}}. Report: {{report}}. Ask me to confirm before booking."
+        : "Please help me request a quote for someone to stay with me or support me at home: {{recommendation}}. Report: {{report}}. Ask me to confirm before requesting anything.";
+    navigate("/concierge", {
+      state: {
+        conciergePrefill: {
+          kind,
+          message: t(key, fallback, { recommendation, report: latestDoctorNote }),
+          source: "symptom_report",
+        },
+      },
+    });
+  };
+
+  const openLatestHydrationOrder = (recommendation: string) => {
+    navigate("/concierge/shopping", {
+      state: {
+        shoppingPrefill: {
+          needText: t(
+            "health.symptomCheck.report.actions.hydrationPrefill",
+            "Hydration support for this health recommendation: {{recommendation}}. Please suggest easy delivery options such as water, oral rehydration salts, or electrolyte drinks.",
+            { recommendation, report: latestDoctorNote },
+          ),
+          category: "groceries",
+          priorities: ["delivery", "simplicity"],
+        },
+      },
+    });
+  };
+
+  const openVitalsDoctorHelp = () => {
+    if (!vitalsContext) return;
+    navigate("/health/doctor", {
+      state: {
+        autoStartVoice: true,
+        latestSymptomReport: vitalsContext,
+      },
+    });
+  };
+
+  const openVitalsConciergePrefill = (kind: "appointment" | "ride") => {
+    if (!vitalsContext) return;
+    const key = kind === "appointment" ? "informes.actions.vitalsAppointmentPrefill" : "informes.actions.vitalsRidePrefill";
+    const fallback = kind === "appointment"
+      ? "Please help me schedule care to review these VYVA vitals. {{context}} Ask me to confirm before booking."
+      : "Please help me arrange safe transport for a medical visit to review these VYVA vitals. {{context}} Ask me to confirm before booking.";
+    navigate("/concierge", {
+      state: {
+        conciergePrefill: {
+          kind,
+          message: t(key, fallback, { context: vitalsContext }),
+          source: "vitals_safety",
+        },
+      },
+    });
+  };
+
+  const openMedicationRefill = () => {
+    if (!medicationContext) return;
+    navigate("/concierge/shopping", {
+      state: {
+        shoppingPrefill: {
+          needText: t(
+            "informes.actions.medsRefillPrefill",
+            "Please help me prepare a safe pharmacy refill or delivery based on this medication status: {{context}} Ask me to confirm before ordering or paying.",
+            { context: medicationContext },
+          ),
+          category: "pharmacy_basics",
+          priorities: ["safety", "delivery", "simplicity"],
+        },
+      },
+    });
+  };
+
+  const openMedicationDoctorHelp = () => {
+    if (!medicationContext) return;
+    navigate("/health/doctor", {
+      state: {
+        autoStartVoice: true,
+        latestSymptomReport: t(
+          "informes.actions.medsDoctorContext",
+          "VYVA medication support request. {{context}} Please help me decide if I should contact my doctor or pharmacist.",
+          { context: medicationContext },
+        ),
+      },
+    });
+  };
+
+  const openMedicationAppointment = () => {
+    if (!medicationContext) return;
+    navigate("/concierge", {
+      state: {
+        conciergePrefill: {
+          kind: "appointment",
+          message: t(
+            "informes.actions.medsAppointmentPrefill",
+            "Please help me schedule a medication review appointment. {{context}} Ask me to confirm before booking.",
+            { context: medicationContext },
+          ),
+          source: "medication_support",
+        },
+      },
+    });
+  };
+
+  const latestActionLabels: Record<SymptomRecommendationActionKind, string> = {
+    call_emergency: emergencyContact?.telHref
+      ? t("health.symptomCheck.report.callEmergencyNumber", "Call {{number}}", { number: emergencyContact.label })
+      : t("health.symptomCheck.report.contactEmergencyServices", "Contact emergency services"),
+    call_gp: t("health.symptomCheck.report.actions.callGp", "Call GP"),
+    email_gp: t("health.symptomCheck.report.actions.emailGp", "Email GP"),
+    doctor_help: t("health.symptomCheck.report.actions.doctorHelp", "Doctor help"),
+    book_ride: t("health.symptomCheck.report.actions.bookRide", "Book ride"),
+    schedule_appointment: t("health.symptomCheck.report.actions.scheduleAppointment", "Appointment"),
+    online_order: t("health.symptomCheck.report.actions.onlineOrder", "Online order"),
+    request_quote: t("health.symptomCheck.report.actions.requestQuote", "Request quote"),
+  };
+  const latestActionIcons: Record<SymptomRecommendationActionKind, LucideIcon> = {
+    call_emergency: PhoneCall,
+    call_gp: PhoneCall,
+    email_gp: Mail,
+    doctor_help: Stethoscope,
+    book_ride: Car,
+    schedule_appointment: Calendar,
+    online_order: ShoppingBasket,
+    request_quote: ClipboardList,
+  };
+  const latestReportActions = latestTriage ? uniqueReportActions(
+    [
+      latestTriage.next_step_label,
+      ...latestTriage.recommendations,
+    ].filter((text): text is string => Boolean(text?.trim())).flatMap((recommendation) => {
+      const actions = getSymptomRecommendationActionKinds(recommendation, {
+        hasEmergencyContact: Boolean(emergencyContact?.telHref),
+        hasGpPhone: Boolean(gpPhone),
+        hasGpEmail: Boolean(gpEmail),
+      }).map((kind): ReportAction => {
+        const label = latestActionLabels[kind];
+        const base = {
+          kind,
+          label,
+          ariaLabel: t("health.symptomCheck.report.actions.aria", "{{action}} for: {{recommendation}}", { action: label, recommendation }),
+          Icon: latestActionIcons[kind],
+        };
+        if (kind === "call_emergency") return { ...base, href: emergencyContact?.telHref };
+        if (kind === "call_gp") return { ...base, href: telHref };
+        if (kind === "email_gp") return { ...base, href: mailtoHref };
+        if (kind === "doctor_help") return { ...base, onClick: openLatestDoctorWithContext };
+        if (kind === "book_ride") return { ...base, onClick: () => openLatestConciergePrefill("ride", recommendation) };
+        if (kind === "schedule_appointment") return { ...base, onClick: () => openLatestConciergePrefill("appointment", recommendation) };
+        if (kind === "online_order") return { ...base, onClick: () => openLatestHydrationOrder(recommendation) };
+        return { ...base, onClick: () => openLatestConciergePrefill("home_care_quote", recommendation) };
+      }).filter((action) => action.href || action.onClick);
+
+      const hasDoctorAction = actions.some((action) => action.kind === "doctor_help" || action.kind === "call_gp" || action.kind === "email_gp");
+      if (hasDoctorAction && !gpPhone && !gpEmail) {
+        actions.push({
+          kind: "add_doctor_contact",
+          label: t("health.symptomCheck.report.addDoctorContact", "Add doctor contact"),
+          ariaLabel: t("health.symptomCheck.report.addDoctorContact", "Add doctor contact"),
+          Icon: Users,
+          onClick: () => navigate("/onboarding/profile/gp"),
+        });
+      }
+
+      return actions;
+    }),
+  ) : [];
 
   const voiceHighlights = [
     ...(summary?.latestTriage ? [{ label: t("informes.cards.symptom.title"), value: formatDate(summary.latestTriage.created_at), tone: "neutral" as const }] : []),
-    ...(summary?.latestVitals ? [{ label: t("health.quickTiles.status.label", "Vitals"), value: `${summary.latestVitals.bpm} bpm`, tone: "good" as const }] : []),
+    ...(primarySignal ? [{ label: t("health.quickTiles.status.label", "Status"), value: signalDisplay(primarySignal), tone: "good" as const }] : summary?.latestVitals ? [{ label: t("health.quickTiles.status.label", "Status"), value: `${summary.latestVitals.bpm} bpm`, tone: "good" as const }] : []),
     ...(summary?.todayMeds.total ? [{ label: t("health.quickTiles.medication.label", "Medication"), value: `${summary.todayMeds.taken}/${summary.todayMeds.total}`, tone: pendingMeds ? "warning" as const : "good" as const }] : []),
   ];
 
@@ -459,7 +1037,7 @@ function InformesMain() {
                   </h2>
                 </div>
                 <span className="rounded-full bg-white px-3 py-1 font-body text-[12px] font-bold" style={{ color: statusTone }}>
-                  {formatTime(summary.latestTriage?.created_at ?? summary.latestVitals?.recorded_at)}
+                  {formatTime(summary.latestTriage?.created_at ?? primarySignal?.recorded_at ?? summary.latestVitals?.recorded_at)}
                 </span>
               </div>
               {hasData ? <SummaryPhrase summary={summary} /> : <p className="font-body text-[15px] text-white/86">{t("informes.summaryEmpty")}</p>}
@@ -469,8 +1047,8 @@ function InformesMain() {
                   <p className="font-body text-[11px] leading-tight text-white/66">{t("informes.cards.symptom.title")}</p>
                 </div>
                 <div>
-                  <p className="font-body text-[20px] font-bold text-white">{summary.latestVitals ? summary.latestVitals.bpm : "--"}</p>
-                  <p className="font-body text-[11px] leading-tight text-white/66">bpm</p>
+                  <p className="font-body text-[20px] font-bold text-white">{primarySignal ? signalDisplay(primarySignal).split(" ")[0] : summary.latestVitals ? summary.latestVitals.bpm : "--"}</p>
+                  <p className="font-body text-[11px] leading-tight text-white/66">{primarySignal ? signalMeta(primarySignal.signal_type).label : "bpm"}</p>
                 </div>
                 <div>
                   <p className="font-body text-[20px] font-bold text-white">{summary.todayMeds.total ? `${summary.todayMeds.taken}/${summary.todayMeds.total}` : "--"}</p>
@@ -484,13 +1062,9 @@ function InformesMain() {
 
           <div className="flex flex-col gap-3">
             {summary.latestTriage ? (
-              <button
+              <section
                 data-testid="card-symptom-report"
-                onClick={() => {
-                  setSelectedReportId(summary.latestTriage!.id);
-                  navigate(`/informes/${summary.latestTriage!.id}`);
-                }}
-                className={`${cardShell} w-full p-5 text-left active:scale-[0.99]`}
+                className={`${cardShell} w-full p-5 text-left`}
               >
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
@@ -514,17 +1088,62 @@ function InformesMain() {
                     {summary.latestTriage.bpm != null && <span className="font-body text-[12px] font-bold text-vyva-text-2">{summary.latestTriage.bpm} bpm</span>}
                     {summary.latestTriage.respiratory_rate != null && <span className="font-body text-[12px] font-bold text-vyva-text-2">{summary.latestTriage.respiratory_rate} breaths/min</span>}
                   </div>
-                  <span className="inline-flex items-center gap-1 font-body text-[12px] font-bold text-[#6B21A8]">
+                  <button
+                    type="button"
+                    onClick={openLatestReport}
+                    data-testid="button-open-latest-symptom-report"
+                    className="vyva-tap inline-flex min-h-[42px] items-center gap-1 rounded-full bg-[#F5F3FF] px-4 font-body text-[12px] font-bold text-[#6B21A8]"
+                  >
                     {t("informes.cards.symptom.cta")}
                     <ArrowRight size={15} />
-                  </span>
+                  </button>
                 </div>
-              </button>
+                {latestReportActions.length ? (
+                  <div className="mt-4 border-t border-[#E8DED4] pt-4" data-testid="latest-report-service-actions">
+                    <p className="mb-2 font-body text-[12px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+                      {t("informes.fastServiceAccess", "Fast service access")}
+                    </p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {latestReportActions.map((action) => {
+                        const ActionIcon = action.Icon;
+                        const className = "vyva-tap inline-flex min-h-[50px] items-center justify-center gap-2 rounded-[17px] border border-[#E7DCF8] bg-white px-4 py-3 text-center font-body text-[14px] font-black leading-tight text-vyva-purple shadow-sm";
+                        if (action.href) {
+                          return (
+                            <a
+                              key={action.kind}
+                              href={action.href}
+                              aria-label={action.ariaLabel}
+                              data-testid={`button-latest-report-service-${action.kind}`}
+                              className={className}
+                            >
+                              <ActionIcon size={18} />
+                              <span>{action.label}</span>
+                            </a>
+                          );
+                        }
+                        return (
+                          <button
+                            key={action.kind}
+                            type="button"
+                            onClick={action.onClick}
+                            aria-label={action.ariaLabel}
+                            data-testid={`button-latest-report-service-${action.kind}`}
+                            className={className}
+                          >
+                            <ActionIcon size={18} />
+                            <span>{action.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </section>
             ) : (
               <EmptyCard icon={Activity} title={t("informes.cards.symptom.title")} body={t("informes.cards.symptom.empty")} />
             )}
 
-            {summary.latestVitals ? (
+            {summary.latestVitals || latestSignals.length ? (
               <section className={`${cardShell} p-5`} data-testid="card-vitals">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
@@ -533,21 +1152,113 @@ function InformesMain() {
                     </div>
                     <div>
                       <p className="font-body text-[16px] font-bold text-vyva-text-1">{t("informes.cards.vitals.title")}</p>
-                      <p className="font-body text-[12px] text-vyva-text-2">{formatDate(summary.latestVitals.recorded_at)}</p>
+                      <p className="font-body text-[12px] text-vyva-text-2">{formatDate(primarySignal?.recorded_at ?? summary.latestVitals?.recorded_at)}</p>
                     </div>
                   </div>
                   <span className="rounded-full bg-[#ECFDF5] px-3 py-1 font-body text-[11px] font-bold text-[#047857]">
-                    {t("informes.cards.vitals.statusNormal")}
+                    {latestVitalsNeedReview
+                      ? t("informes.cards.vitals.statusReview")
+                      : primarySignal
+                        ? sourceLabel(primarySignal.source)
+                        : t("informes.cards.vitals.statusNormal")}
                   </span>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-[18px] bg-[#FFF7F8] p-4">
-                    <Heart size={16} style={{ color: "#BE123C" }} />
-                    <p className="mt-3 font-body text-[30px] font-bold leading-none text-vyva-text-1">{summary.latestVitals.bpm}<span className="ml-1 text-[13px] text-vyva-text-2">bpm</span></p>
+                {latestSignals.length ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    {latestSignals.slice(0, 6).map((reading) => {
+                      const meta = signalMeta(reading.signal_type);
+                      const Icon = meta.Icon;
+                      return (
+                        <div key={`${reading.signal_type}-${reading.recorded_at}`} className="rounded-[18px] p-4" style={{ background: meta.bg }}>
+                          <div className="flex items-center justify-between gap-2">
+                            <Icon size={16} style={{ color: meta.color }} />
+                            <span className="rounded-full bg-white/80 px-2 py-1 font-body text-[10px] font-bold" style={{ color: meta.color }}>
+                              {sourceLabel(reading.source)}
+                            </span>
+                          </div>
+                          <p className="mt-3 font-body text-[12px] font-bold text-vyva-text-2">{meta.label}</p>
+                          <p className="font-body text-[24px] font-bold leading-none text-vyva-text-1">{signalDisplay(reading)}</p>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div className="rounded-[18px] bg-[#EFF6FF] p-4">
-                    <Wind size={16} style={{ color: "#0369A1" }} />
-                    <p className="mt-3 font-body text-[30px] font-bold leading-none text-vyva-text-1">{summary.latestVitals.respiratory_rate ?? "--"}<span className="ml-1 text-[13px] text-vyva-text-2">breaths/min</span></p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-[18px] bg-[#FFF7F8] p-4">
+                      <Heart size={16} style={{ color: "#BE123C" }} />
+                      <p className="mt-3 font-body text-[30px] font-bold leading-none text-vyva-text-1">{summary.latestVitals?.bpm}<span className="ml-1 text-[13px] text-vyva-text-2">bpm</span></p>
+                    </div>
+                    <div className="rounded-[18px] bg-[#EFF6FF] p-4">
+                      <Wind size={16} style={{ color: "#0369A1" }} />
+                      <p className="mt-3 font-body text-[30px] font-bold leading-none text-vyva-text-1">{summary.latestVitals?.respiratory_rate ?? "--"}<span className="ml-1 text-[13px] text-vyva-text-2">breaths/min</span></p>
+                    </div>
+                  </div>
+                )}
+                <div className="mt-4 border-t border-[#E8DED4] pt-4" data-testid="reports-vitals-service-actions">
+                  <p className="mb-2 font-body text-[12px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+                    {t("informes.fastServiceAccess", "Fast service access")}
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => navigate("/health/vitals")}
+                      data-testid="button-reports-vitals-review"
+                      className={overviewActionClass}
+                    >
+                      <Activity size={18} />
+                      <span>{t("informes.actions.reviewVitals", "Review vitals")}</span>
+                    </button>
+                    {latestVitalsNeedReview ? (
+                      <>
+                        {telHref ? (
+                          <a
+                            href={telHref}
+                            data-testid="button-reports-vitals-call-gp"
+                            className={overviewActionClass}
+                          >
+                            <PhoneCall size={18} />
+                            <span>{callGpLabel}</span>
+                          </a>
+                        ) : null}
+                        {vitalsMailtoHref ? (
+                          <a
+                            href={vitalsMailtoHref}
+                            data-testid="button-reports-vitals-email-gp"
+                            className={overviewActionClass}
+                          >
+                            <Mail size={18} />
+                            <span>{t("health.symptomCheck.report.actions.emailGp", "Email GP")}</span>
+                          </a>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={openVitalsDoctorHelp}
+                          data-testid="button-reports-vitals-doctor"
+                          className={overviewActionClass}
+                        >
+                          <Stethoscope size={18} />
+                          <span>{t("informes.actions.doctorHelp", "Doctor help")}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openVitalsConciergePrefill("appointment")}
+                          data-testid="button-reports-vitals-appointment"
+                          className={overviewActionClass}
+                        >
+                          <Calendar size={18} />
+                          <span>{t("informes.actions.bookAppointment", "Appointment")}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openVitalsConciergePrefill("ride")}
+                          data-testid="button-reports-vitals-ride"
+                          className={overviewActionClass}
+                        >
+                          <Car size={18} />
+                          <span>{t("informes.actions.bookRide", "Book ride")}</span>
+                        </button>
+                      </>
+                    ) : null}
                   </div>
                 </div>
               </section>
@@ -566,20 +1277,89 @@ function InformesMain() {
                 </div>
               </div>
               {summary.todayMeds.total > 0 ? (
-                <div className="flex items-end justify-between gap-3">
-                  <div>
-                    <p className="font-body text-[34px] font-bold leading-none text-vyva-text-1">{summary.todayMeds.adherencePct ?? 0}%</p>
-                    <p className="mt-1 font-body text-[13px] text-vyva-text-2">
-                      {t("informes.cards.meds.taken", { taken: summary.todayMeds.taken, total: summary.todayMeds.total })}
-                    </p>
+                <div>
+                  <div className="flex items-end justify-between gap-3">
+                    <div>
+                      <p className="font-body text-[34px] font-bold leading-none text-vyva-text-1">{summary.todayMeds.adherencePct ?? 0}%</p>
+                      <p className="mt-1 font-body text-[13px] text-vyva-text-2">
+                        {t("informes.cards.meds.taken", { taken: summary.todayMeds.taken, total: summary.todayMeds.total })}
+                      </p>
+                    </div>
+                    <button
+                      data-testid="button-meds-details"
+                      onClick={() => navigate("/meds/adherence-report")}
+                      className="rounded-full bg-[#FDF4FF] px-4 py-2 font-body text-[13px] font-bold text-[#86198F] active:scale-95"
+                    >
+                      {t("informes.cards.meds.cta")}
+                    </button>
                   </div>
-                  <button
-                    data-testid="button-meds-details"
-                    onClick={() => navigate("/meds/adherence-report")}
-                    className="rounded-full bg-[#FDF4FF] px-4 py-2 font-body text-[13px] font-bold text-[#86198F] active:scale-95"
-                  >
-                    {t("informes.cards.meds.cta")}
-                  </button>
+                  <div className="mt-4 border-t border-[#E8DED4] pt-4" data-testid="reports-meds-service-actions">
+                    <p className="mb-2 font-body text-[12px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+                      {t("informes.fastServiceAccess", "Fast service access")}
+                    </p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() => navigate("/meds")}
+                        data-testid="button-reports-meds-review"
+                        className={overviewActionClass}
+                      >
+                        <Pill size={18} />
+                        <span>{t("informes.actions.reviewMeds", "Review meds")}</span>
+                      </button>
+                      {pendingMeds > 0 ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={openMedicationRefill}
+                            data-testid="button-reports-meds-refill"
+                            className={overviewActionClass}
+                          >
+                            <ShoppingBasket size={18} />
+                            <span>{t("informes.actions.prepareRefill", "Prepare refill")}</span>
+                          </button>
+                          {telHref ? (
+                            <a
+                              href={telHref}
+                              data-testid="button-reports-meds-call-gp"
+                              className={overviewActionClass}
+                            >
+                              <PhoneCall size={18} />
+                              <span>{callGpLabel}</span>
+                            </a>
+                          ) : null}
+                          {medicationMailtoHref ? (
+                            <a
+                              href={medicationMailtoHref}
+                              data-testid="button-reports-meds-email-gp"
+                              className={overviewActionClass}
+                            >
+                              <Mail size={18} />
+                              <span>{t("health.symptomCheck.report.actions.emailGp", "Email GP")}</span>
+                            </a>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={openMedicationDoctorHelp}
+                            data-testid="button-reports-meds-doctor"
+                            className={overviewActionClass}
+                          >
+                            <Stethoscope size={18} />
+                            <span>{t("informes.actions.doctorHelp", "Doctor help")}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={openMedicationAppointment}
+                            data-testid="button-reports-meds-appointment"
+                            className={overviewActionClass}
+                          >
+                            <Calendar size={18} />
+                            <span>{t("informes.actions.bookAppointment", "Appointment")}</span>
+                          </button>
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <p className="font-body text-[14px] leading-relaxed text-vyva-text-2">{t("informes.cards.meds.empty")}</p>
@@ -601,12 +1381,12 @@ function InformesMain() {
               <div className="mb-3 flex items-center gap-2">
                 <Heart size={16} style={{ color: "#BE123C" }} />
                 <p className="font-body text-[15px] font-bold text-vyva-text-1">{t("informes.trends.heartRate")}</p>
-                <span className="ml-auto font-body text-[12px] text-vyva-text-2">{t("informes.trends.readings", { count: bpmReadings.length })}</span>
+                <span className="ml-auto font-body text-[12px] text-vyva-text-2">{t("informes.trends.readings", { count: bpmValues.length })}</span>
               </div>
-              <LineChart values={bpmReadings.map((reading) => reading.bpm)} color="#BE123C" />
+              <LineChart values={bpmValues} color="#BE123C" />
               <div className="mt-2 flex items-center justify-between">
-                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.min")}: {Math.min(...bpmReadings.map((reading) => reading.bpm))} bpm</span>
-                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.max")}: {Math.max(...bpmReadings.map((reading) => reading.bpm))} bpm</span>
+                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.min")}: {Math.min(...bpmValues)} bpm</span>
+                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.max")}: {Math.max(...bpmValues)} bpm</span>
               </div>
             </section>
           )}
@@ -616,12 +1396,12 @@ function InformesMain() {
               <div className="mb-3 flex items-center gap-2">
                 <Wind size={16} style={{ color: "#0369A1" }} />
                 <p className="font-body text-[15px] font-bold text-vyva-text-1">{t("informes.trends.respiratoryRate")}</p>
-                <span className="ml-auto font-body text-[12px] text-vyva-text-2">{t("informes.trends.readings", { count: respReadings.length })}</span>
+                <span className="ml-auto font-body text-[12px] text-vyva-text-2">{t("informes.trends.readings", { count: respValues.length })}</span>
               </div>
-              <LineChart values={respReadings.map((reading) => reading.respiratory_rate!)} color="#0369A1" />
+              <LineChart values={respValues} color="#0369A1" />
               <div className="mt-2 flex items-center justify-between">
-                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.min")}: {Math.min(...respReadings.map((reading) => reading.respiratory_rate!))} breaths/min</span>
-                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.max")}: {Math.max(...respReadings.map((reading) => reading.respiratory_rate!))} breaths/min</span>
+                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.min")}: {Math.min(...respValues)} breaths/min</span>
+                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.max")}: {Math.max(...respValues)} breaths/min</span>
               </div>
             </section>
           )}

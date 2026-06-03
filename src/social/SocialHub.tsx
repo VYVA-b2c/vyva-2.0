@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useProfile } from "@/contexts/ProfileContext";
+import { useLanguage } from "@/i18n";
 import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { BottomSheet, EmptyState, ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
@@ -103,7 +103,21 @@ function RoomDetailSheet({ room, language, onClose, onEnter }: RoomDetailSheetPr
   const description = room.contentBody || room.opener || room.topic;
 
   return (
-    <BottomSheet open onOpenChange={(open) => { if (!open) onClose(); }} closeLabel={copy.closeDetails}>
+    <BottomSheet
+      open
+      onOpenChange={(open) => { if (!open) onClose(); }}
+      closeLabel={copy.closeDetails}
+      footer={
+        <button
+          type="button"
+          onClick={() => onEnter(room.slug)}
+          data-testid="button-social-room-enter"
+          className="min-h-[62px] w-full rounded-full bg-[#6D28D9] px-6 font-body text-[20px] font-bold text-white shadow-[0_14px_28px_rgba(109,40,217,0.22)]"
+        >
+          {copy.enterSelectedRoom}
+        </button>
+      }
+    >
       <div>
         <div className="flex items-start justify-between gap-4">
           <AgentAvatar
@@ -124,36 +138,26 @@ function RoomDetailSheet({ room, language, onClose, onEnter }: RoomDetailSheetPr
           </span>
         </div>
 
-        <h2 className="mt-5 font-display text-[38px] leading-[1.02] text-[#24172F]">
+        <h2 className="mt-5 font-display text-[34px] leading-[1.02] text-[#24172F] sm:text-[38px]">
           {room.name}
         </h2>
-        <p className="mt-2 font-body text-[22px] font-semibold text-[#5D4777]">
+        <p className="mt-2 font-body text-[20px] font-semibold text-[#5D4777] sm:text-[22px]">
           {room.agentFullName}
         </p>
         <p className="mt-1 font-body text-[18px] text-[#7A677F]">
           {room.agentCredential}
         </p>
 
-        <div className="mt-5 rounded-[26px] bg-white p-5">
+        <div className="mt-5 rounded-[26px] bg-white p-4 sm:p-5">
           <p className="font-body text-[16px] font-bold uppercase tracking-[0.16em] text-[#6D28D9]">
             {copy.topicLabel}
           </p>
-          <p className="mt-2 font-body text-[22px] leading-[1.35] text-[#24172F]">
+          <p className="mt-2 font-body text-[21px] leading-[1.35] text-[#24172F] sm:text-[22px]">
             {room.topic}
           </p>
-          <p className="mt-3 font-body text-[18px] leading-[1.45] text-[#7A677F]">
+          <p className="mt-3 font-body text-[17px] leading-[1.45] text-[#7A677F] sm:text-[18px]">
             {description}
           </p>
-        </div>
-
-        <div className="mt-6">
-          <button
-            type="button"
-            onClick={() => onEnter(room.slug)}
-            className="min-h-[64px] w-full rounded-full bg-[#6D28D9] px-6 font-body text-[21px] font-bold text-white shadow-[0_14px_28px_rgba(109,40,217,0.22)]"
-          >
-            {copy.enterSelectedRoom}
-          </button>
         </div>
       </div>
     </BottomSheet>
@@ -163,8 +167,8 @@ function RoomDetailSheet({ room, language, onClose, onEnter }: RoomDetailSheetPr
 const SocialHub = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { profile } = useProfile();
-  const language = getSocialLanguage(profile?.language);
+  const { language: appLanguage } = useLanguage();
+  const language = getSocialLanguage(appLanguage);
   const copy = getSocialCopy(language);
   const autoStartVoice = useRouteVoiceAutoStart();
   const [category, setCategory] = useState<"all" | SocialRoomCategory>("all");

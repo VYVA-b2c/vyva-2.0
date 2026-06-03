@@ -1,8 +1,9 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "../db.js";
 import {
+  communicationsLog,
   profiles,
   profileMemberships,
   onboardingState,
@@ -14,6 +15,7 @@ import {
 } from "../../shared/schema.js";
 import { z } from "zod";
 import { notifyElderOfProxySetup } from "../services/notifications.js";
+import { dispatchCommunicationsByIds } from "../services/communicationDispatcher.js";
 import { getActiveProfileContext, requireActiveProfileId } from "../lib/profileAccess.js";
 import { premiumTrialEndsAt, premiumTrialProfilePatch } from "../lib/premiumTrial.js";
 
@@ -165,6 +167,10 @@ async function markField(userId: string, field: string): Promise<void> {
 
 function hasText(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function trimmedTextOrNull(value: unknown): string | null {
+  return hasText(value) ? value.trim() : null;
 }
 
 function splitTimes(value: unknown): string[] | undefined {
@@ -385,12 +391,69 @@ onboardingRouter.get("/careteam", async (req: Request, res: Response) => {
         created_at:     teamInvitations.created_at,
         expires_at:     teamInvitations.expires_at,
         accepted_at:    teamInvitations.accepted_at,
+        can_receive_daily_digest:      teamInvitations.can_receive_daily_digest,
+        can_receive_safety_alerts:     teamInvitations.can_receive_safety_alerts,
+        can_receive_health_alerts:     teamInvitations.can_receive_health_alerts,
+        can_receive_mood_alerts:       teamInvitations.can_receive_mood_alerts,
+        can_receive_medication_alerts: teamInvitations.can_receive_medication_alerts,
+        can_view_dashboard:            teamInvitations.can_view_dashboard,
+        can_view_health_reports:       teamInvitations.can_view_health_reports,
+        can_view_vital_signs:          teamInvitations.can_view_vital_signs,
+        can_view_journal_summaries:    teamInvitations.can_view_journal_summaries,
       })
       .from(teamInvitations)
       .where(eq(teamInvitations.senior_id, userId))
       .orderBy(teamInvitations.created_at);
 
-    return res.json({ members });
+    const inviteCommunications = await db
+      .select({
+        channel: communicationsLog.channel,
+        status: communicationsLog.status,
+        metadata: communicationsLog.metadata,
+        sent_at: communicationsLog.sent_at,
+        created_at: communicationsLog.created_at,
+      })
+      .from(communicationsLog)
+      .where(and(
+        eq(communicationsLog.user_id, userId),
+        eq(communicationsLog.purpose, "care_team_invite"),
+      ))
+      .orderBy(desc(communicationsLog.created_at))
+      .limit(200);
+
+    const latestDeliveryByInvitationId = new Map<string, {
+      channel: string;
+      status: string;
+      sent_at: Date | null;
+      created_at: Date;
+    }>();
+
+    for (const communication of inviteCommunications) {
+      const metadata = communication.metadata && typeof communication.metadata === "object"
+        ? communication.metadata as Record<string, unknown>
+        : {};
+      const invitationId = typeof metadata.invitation_id === "string" ? metadata.invitation_id : null;
+      if (invitationId && !latestDeliveryByInvitationId.has(invitationId)) {
+        latestDeliveryByInvitationId.set(invitationId, {
+          channel: communication.channel,
+          status: communication.status,
+          sent_at: communication.sent_at,
+          created_at: communication.created_at,
+        });
+      }
+    }
+
+    return res.json({
+      members: members.map((member) => {
+        const latestDelivery = latestDeliveryByInvitationId.get(member.id);
+        return {
+          ...member,
+          latest_delivery_status: latestDelivery?.status ?? null,
+          latest_delivery_channel: latestDelivery?.channel ?? null,
+          latest_delivery_at: latestDelivery?.sent_at ?? latestDelivery?.created_at ?? null,
+        };
+      }),
+    });
   } catch (e) {
     console.error("[onboarding] GET /careteam error:", e);
     return res.status(500).json({ error: "Internal server error" });
@@ -479,41 +542,67 @@ onboardingRouter.post("/careteam/:id/resend", async (req: Request, res: Response
       return res.status(403).json({ error: "Forbidden" });
     }
 
-    if (orig.status !== "expired") {
-      return res.status(400).json({ error: "Only expired invitations can be resent" });
+    if (orig.status !== "expired" && orig.status !== "pending") {
+      return res.status(400).json({ error: "Only pending or expired invitations can be resent" });
     }
 
-    // Insert a new invitation row; original stays as audit history
+    if (!normalizeRecipient(orig.invitee_phone) || !normalizeRecipient(orig.invitee_email)) {
+      return res.status(400).json({ error: "Caregiver phone and email are required to resend an invitation" });
+    }
+
     const newToken = crypto.randomUUID();
     const newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-    const [newRow] = await db
-      .insert(teamInvitations)
-      .values({
-        senior_id:        orig.senior_id,
-        invitee_name:     orig.invitee_name,
-        invitee_phone:    orig.invitee_phone,
-        invitee_email:    orig.invitee_email,
-        invitee_whatsapp: orig.invitee_whatsapp,
-        role:             orig.role,
-        relationship:     orig.relationship,
-        invite_token:     newToken,
-        invite_channel:   orig.invite_channel,
-        status:           "pending",
-        expires_at:       newExpiresAt,
-        can_receive_daily_digest:      orig.can_receive_daily_digest,
-        can_receive_safety_alerts:     orig.can_receive_safety_alerts,
-        can_receive_health_alerts:     orig.can_receive_health_alerts,
-        can_receive_mood_alerts:       orig.can_receive_mood_alerts,
-        can_receive_medication_alerts: orig.can_receive_medication_alerts,
-        can_view_dashboard:            orig.can_view_dashboard,
-        can_view_health_reports:       orig.can_view_health_reports,
-        can_view_vital_signs:          orig.can_view_vital_signs,
-        can_view_journal_summaries:    orig.can_view_journal_summaries,
-      })
-      .returning({ id: teamInvitations.id });
+    const [newRow] = orig.status === "pending"
+      ? await db
+          .update(teamInvitations)
+          .set({ invite_token: newToken, expires_at: newExpiresAt, updated_at: new Date() })
+          .where(eq(teamInvitations.id, orig.id))
+          .returning()
+      : await db
+          .insert(teamInvitations)
+          .values({
+            senior_id:        orig.senior_id,
+            invitee_name:     orig.invitee_name,
+            invitee_phone:    orig.invitee_phone,
+            invitee_email:    orig.invitee_email,
+            invitee_whatsapp: orig.invitee_whatsapp,
+            role:             orig.role,
+            relationship:     orig.relationship,
+            invite_token:     newToken,
+            invite_channel:   orig.invite_channel,
+            status:           "pending",
+            expires_at:       newExpiresAt,
+            can_receive_daily_digest:      orig.can_receive_daily_digest,
+            can_receive_safety_alerts:     orig.can_receive_safety_alerts,
+            can_receive_health_alerts:     orig.can_receive_health_alerts,
+            can_receive_mood_alerts:       orig.can_receive_mood_alerts,
+            can_receive_medication_alerts: orig.can_receive_medication_alerts,
+            can_view_dashboard:            orig.can_view_dashboard,
+            can_view_health_reports:       orig.can_view_health_reports,
+            can_view_vital_signs:          orig.can_view_vital_signs,
+            can_view_journal_summaries:    orig.can_view_journal_summaries,
+          })
+          .returning();
 
-    return res.json({ ok: true, status: "pending", newId: newRow.id });
+    const [senior] = await db
+      .select({ full_name: profiles.full_name, preferred_name: profiles.preferred_name })
+      .from(profiles)
+      .where(eq(profiles.id, newRow.senior_id))
+      .limit(1);
+    const delivery = await queueAndDispatchCareTeamInvite({
+      req,
+      invitation: newRow,
+      seniorName: senior?.preferred_name ?? senior?.full_name ?? null,
+    });
+
+    return res.json({
+      ok: true,
+      status: "pending",
+      newId: newRow.id,
+      delivery: careTeamDeliveryResponse(delivery),
+      ...(process.env.NODE_ENV !== "production" ? { _devInviteUrl: delivery.inviteUrl } : {}),
+    });
   } catch (e) {
     console.error("[onboarding] POST /careteam/:id/resend error:", e);
     return res.status(500).json({ error: "Internal server error" });
@@ -1124,6 +1213,13 @@ const sectionSchemas: Record<string, z.ZodTypeAny> = {
   }),
   cognitive: z.object({
     cognitive_notes: z.string().optional(),
+    memory_difficulties: z.string().optional(),
+    cognitive_diagnosis: z.string().optional(),
+    session_length_mins: z.number().int().min(5).max(20).optional(),
+    training_time: z.string().optional(),
+    pace: z.string().optional(),
+    variety: z.string().optional(),
+    communication_style: z.string().optional(),
   }),
   diet: z.object({
     dietary_notes:      z.string().optional(),
@@ -1191,9 +1287,9 @@ const sectionSchemas: Record<string, z.ZodTypeAny> = {
     person: z.object({
       name:         z.string(),
       relationship: z.string().optional(),
-      phone:        z.string().optional(),
+      phone:        z.string().trim().min(1, "Phone is required"),
       whatsapp:     z.string().optional(),
-      email:        z.string().optional(),
+      email:        z.string().trim().email("Email is required"),
     }),
     consent: z.object({
       // Fields that map directly to team_invitations columns:
@@ -1240,6 +1336,127 @@ const CARETEAM_ONBOARDING_FIELD: Record<string, string> = {
   carer:  "has_caregiver",
   doctor: "has_doctor",
 };
+
+type CareTeamDeliveryResult = {
+  communications: Array<typeof communicationsLog.$inferSelect>;
+  dispatch: Awaited<ReturnType<typeof dispatchCommunicationsByIds>>;
+  inviteUrl: string;
+};
+
+function appBaseUrl(req: Request) {
+  const configured = process.env.APP_BASE_URL ?? process.env.APP_URL;
+  if (configured?.trim()) return configured.trim().replace(/\/+$/, "");
+
+  const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const host = forwardedHost || req.get("host")?.trim() || `localhost:${process.env.PORT || "5000"}`;
+  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const proto = forwardedProto || req.protocol || "http";
+  return `${proto}://${host}`.replace(/\/+$/, "");
+}
+
+function careTeamInviteUrl(req: Request, token: string) {
+  return `${appBaseUrl(req)}/care-team/invite/${encodeURIComponent(token)}`;
+}
+
+function displayNameOrFallback(value: string | null | undefined) {
+  return value?.trim() || "someone you support";
+}
+
+function normalizeRecipient(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : null;
+}
+
+function requiredCareTeamRecipients(invitation: {
+  invitee_phone: string | null;
+  invitee_email: string | null;
+}) {
+  const smsRecipient = normalizeRecipient(invitation.invitee_phone);
+  const emailRecipient = normalizeRecipient(invitation.invitee_email);
+
+  if (!smsRecipient || !emailRecipient) {
+    throw new Error("Caregiver phone and email are required to send a care-team invitation.");
+  }
+
+  return [
+    { channel: "sms", recipient: smsRecipient },
+    { channel: "email", recipient: emailRecipient },
+  ];
+}
+
+function careTeamInviteBody(input: {
+  seniorName: string | null;
+  inviteeName: string;
+  inviteUrl: string;
+}) {
+  const seniorName = displayNameOrFallback(input.seniorName);
+  return `VYVA: ${seniorName} invited you to their care team. Review and accept securely: ${input.inviteUrl}`;
+}
+
+async function queueAndDispatchCareTeamInvite(input: {
+  req: Request;
+  invitation: typeof teamInvitations.$inferSelect;
+  seniorName: string | null;
+}): Promise<CareTeamDeliveryResult> {
+  const inviteUrl = careTeamInviteUrl(input.req, input.invitation.invite_token);
+  const body = careTeamInviteBody({
+    seniorName: input.seniorName,
+    inviteeName: input.invitation.invitee_name,
+    inviteUrl,
+  });
+  const recipients = requiredCareTeamRecipients(input.invitation);
+
+  const dedupedRecipients = Array.from(
+    new Map(recipients.map((item) => [`${item.channel}:${item.recipient.toLowerCase()}`, item])).values(),
+  );
+
+  if (dedupedRecipients.length === 0) {
+    return { inviteUrl, communications: [], dispatch: { processed: 0, results: [] } };
+  }
+
+  const communications = await db
+    .insert(communicationsLog)
+    .values(dedupedRecipients.map((target) => ({
+      user_id: input.invitation.senior_id,
+      channel: target.channel,
+      recipient: target.recipient,
+      purpose: "care_team_invite",
+      status: "queued",
+      body,
+      metadata: {
+        url: inviteUrl,
+        subject: `${displayNameOrFallback(input.seniorName)} invited you to their VYVA care team`,
+        invitation_id: input.invitation.id,
+        senior_id: input.invitation.senior_id,
+        senior_name: displayNameOrFallback(input.seniorName),
+        invitee_name: input.invitation.invitee_name,
+        recipient_name: input.invitation.invitee_name,
+        target_role: input.invitation.role,
+        relationship: input.invitation.relationship,
+      },
+    })))
+    .returning();
+
+  const dispatch = await dispatchCommunicationsByIds(communications.map((item) => item.id));
+  return { inviteUrl, communications, dispatch };
+}
+
+function careTeamDeliveryResponse(delivery: CareTeamDeliveryResult) {
+  const sent = delivery.dispatch.results.filter((item) => item.status === "sent").length;
+  const failed = delivery.dispatch.results.filter((item) => item.status === "failed").length;
+  return {
+    queued: delivery.communications.length,
+    sent,
+    failed,
+    results: delivery.dispatch.results.map((item) => ({
+      id: item.id,
+      channel: item.channel,
+      recipient: item.recipient,
+      status: item.status,
+      ...(item.error ? { error: item.error } : {}),
+    })),
+  };
+}
 
 async function mergeSectionIntoConsent(
   userId: string,
@@ -1383,19 +1600,46 @@ onboardingRouter.post("/section/:sectionId", async (req: Request, res: Response)
       await Promise.all(fieldsToMark.map((f) => markField(userId, f)));
     } else if (sectionId === "gp") {
       const profileUpdates: Record<string, unknown> = { updated_at: new Date() };
-      if (data.gp_name     !== undefined) profileUpdates.gp_name     = data.gp_name;
-      if (data.gp_phone    !== undefined) profileUpdates.gp_phone    = data.gp_phone;
-      if (data.gp_email    !== undefined) profileUpdates.gp_email    = data.gp_email;
-      if (data.gp_address  !== undefined) profileUpdates.gp_address  = data.gp_address;
-      if (data.gp_maps_url !== undefined) profileUpdates.gp_maps_url = data.gp_maps_url;
-      if (data.gp_place_id !== undefined) profileUpdates.gp_place_id = data.gp_place_id;
+      if (data.gp_name     !== undefined) profileUpdates.gp_name     = trimmedTextOrNull(data.gp_name);
+      if (data.gp_phone    !== undefined) profileUpdates.gp_phone    = trimmedTextOrNull(data.gp_phone);
+      if (data.gp_email    !== undefined) profileUpdates.gp_email    = trimmedTextOrNull(data.gp_email);
+      if (data.gp_address  !== undefined) profileUpdates.gp_address  = trimmedTextOrNull(data.gp_address);
+      if (data.gp_maps_url !== undefined) profileUpdates.gp_maps_url = trimmedTextOrNull(data.gp_maps_url);
+      if (data.gp_place_id !== undefined) profileUpdates.gp_place_id = trimmedTextOrNull(data.gp_place_id);
+
+      const [currentProfile] = await db
+        .select({
+          gp_name: profiles.gp_name,
+          gp_phone: profiles.gp_phone,
+          gp_email: profiles.gp_email,
+          gp_address: profiles.gp_address,
+        })
+        .from(profiles)
+        .where(eq(profiles.id, userId))
+        .limit(1);
+
+      const nextGpDetails = {
+        gp_name: data.gp_name !== undefined ? profileUpdates.gp_name : currentProfile?.gp_name,
+        gp_phone: data.gp_phone !== undefined ? profileUpdates.gp_phone : currentProfile?.gp_phone,
+        gp_email: data.gp_email !== undefined ? profileUpdates.gp_email : currentProfile?.gp_email,
+        gp_address: data.gp_address !== undefined ? profileUpdates.gp_address : currentProfile?.gp_address,
+      };
+
+      const hasGpDetails = Object.values(nextGpDetails).some(hasText);
 
       await db.update(profiles).set(profileUpdates).where(eq(profiles.id, userId));
-      await markField(userId, "has_gp_details");
+      if (hasGpDetails) {
+        await markField(userId, "has_gp_details");
+      } else {
+        await db
+          .update(onboardingState)
+          .set({ has_gp_details: false, updated_at: new Date() })
+          .where(eq(onboardingState.user_id, userId));
+      }
     } else if (sectionId === "careteam") {
       const ct = data as {
         role: "family" | "carer" | "doctor";
-        person: { name: string; relationship?: string; phone?: string; whatsapp?: string; email?: string };
+        person: { name: string; relationship?: string; phone: string; whatsapp?: string; email: string };
         consent?: Record<string, boolean>;
         invite_channel?: "whatsapp" | "sms";
       };
@@ -1404,13 +1648,11 @@ onboardingRouter.post("/section/:sectionId", async (req: Request, res: Response)
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       const inviteToken = crypto.randomUUID();
 
-      const inviteChannel = ct.invite_channel === "sms"
-        ? ("whatsapp_text" as const)
-        : ("whatsapp_outbound" as const);
+      const inviteChannel = "whatsapp_text" as const;
 
       const consent = ct.consent ?? {};
 
-      await db.insert(teamInvitations).values({
+      const [invitation] = await db.insert(teamInvitations).values({
         senior_id:        userId,
         invitee_name:     ct.person.name,
         invitee_phone:    ct.person.phone ?? null,
@@ -1432,10 +1674,34 @@ onboardingRouter.post("/section/:sectionId", async (req: Request, res: Response)
         can_view_health_reports:       consent.health_reports     ?? false,
         can_view_vital_signs:          consent.vital_signs        ?? false,
         can_view_journal_summaries:    consent.cognitive_results  ?? false,
-      });
+      }).returning();
 
       const fieldToMark = CARETEAM_ONBOARDING_FIELD[ct.role];
       if (fieldToMark) await markField(userId, fieldToMark);
+
+      const [senior] = await db
+        .select({ full_name: profiles.full_name, preferred_name: profiles.preferred_name })
+        .from(profiles)
+        .where(eq(profiles.id, userId))
+        .limit(1);
+
+      const delivery = await queueAndDispatchCareTeamInvite({
+        req,
+        invitation,
+        seniorName: senior?.preferred_name ?? senior?.full_name ?? null,
+      });
+
+      return res.json({
+        ok: true,
+        section: sectionId,
+        invitation: {
+          id: invitation.id,
+          status: invitation.status,
+          expires_at: invitation.expires_at,
+        },
+        delivery: careTeamDeliveryResponse(delivery),
+        ...(process.env.NODE_ENV !== "production" ? { _devInviteUrl: delivery.inviteUrl } : {}),
+      });
     } else if (sectionId === "emergency") {
       const payload = {
         emergency_name: hasText(data.emergency_name) ? data.emergency_name.trim() : hasText(data.name) ? data.name.trim() : "",

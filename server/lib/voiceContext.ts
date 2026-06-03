@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { db } from "../db.js";
 import {
   activityLogs,
@@ -16,8 +16,15 @@ import {
   userMedications,
   vitalsReadings,
   sessionExchanges,
+  cognitiveSessionIndex,
+  cognitiveDailyPlans,
+  cognitiveDailyPlanItems,
 } from "../../shared/schema.js";
+import { vitalsEvidenceFor } from "../../shared/vitalsEvidence.js";
 import { formatMemoryBlock, searchMemories } from "./mem0.js";
+import { extractBrainCoachPreferences } from "./brainCoachPlan.js";
+import { buildBrainCoachVoiceContext, type BrainCoachVoiceContext } from "./brainCoachVoiceContext.js";
+import { buildPersistedBrainCoachPlan } from "./brainCoachPlanLifecycle.js";
 import { socialRoomSeeds } from "./socialRoomsSeed.js";
 import { buildAgentOperatingRules, buildConversationPlan } from "./voiceAgentPolicy.js";
 import {
@@ -31,6 +38,7 @@ import {
   recommendationFeedbackScoreAdjustment,
   type VoiceRecommendationFeedbackSummary,
 } from "./voiceRecommendationFeedback.js";
+import { normalizeAppLanguage } from "../../shared/language.js";
 
 export type VoiceContextDomain =
   | "safety"
@@ -61,7 +69,26 @@ type BuildVoiceContextOptions = {
   priorVoiceExchangeCount?: number;
 };
 
+type SignalReadingRow = {
+  signal_type: string;
+  value: string | number;
+  recorded_at: Date | string;
+  source: string;
+  context_tag: string | null;
+};
+
 type JsonRecord = Record<string, unknown>;
+
+function queryRows<T>(result: unknown): T[] {
+  if (result && typeof result === "object" && "rows" in result && Array.isArray((result as { rows: unknown }).rows)) {
+    return (result as { rows: T[] }).rows;
+  }
+  return Array.isArray(result) ? result as T[] : [];
+}
+
+function looksLikeUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
 
 function asRecord(value: unknown): JsonRecord {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -147,6 +174,77 @@ function formatVital(vital: typeof vitalsReadings.$inferSelect) {
   return valueList([vital.metric_type ?? "vital", value], ": ");
 }
 
+function signalLabel(signal: string | null | undefined) {
+  switch (signal) {
+    case "resting_hr_bpm":
+      return "pulse";
+    case "respiratory_rate":
+      return "breathing rate";
+    case "oxygen_saturation":
+      return "oxygen saturation";
+    case "temperature_c":
+      return "temperature";
+    case "bp_systolic":
+      return "blood pressure top number";
+    case "bp_diastolic":
+      return "blood pressure bottom number";
+    case "glucose_mgdl":
+      return "glucose";
+    case "pain_score":
+      return "pain score";
+    case "energy_level":
+      return "energy level";
+    case "mood_score":
+      return "mood score";
+    case "sleep_quality_score":
+      return "sleep quality";
+    case "medication_confirmed":
+      return "medication confirmed";
+    default:
+      return signal?.replace(/_/g, " ") || "vital";
+  }
+}
+
+function signalUnit(signal: string | null | undefined) {
+  switch (signal) {
+    case "resting_hr_bpm":
+      return "bpm";
+    case "respiratory_rate":
+      return "breaths/min";
+    case "oxygen_saturation":
+      return "%";
+    case "temperature_c":
+      return "C";
+    case "bp_systolic":
+    case "bp_diastolic":
+      return "mmHg";
+    case "glucose_mgdl":
+      return "mg/dL";
+    case "pain_score":
+    case "energy_level":
+    case "mood_score":
+    case "sleep_quality_score":
+      return "/10";
+    default:
+      return "";
+  }
+}
+
+function signalSourceLabel(source: string | null | undefined, signalType?: string | null) {
+  return vitalsEvidenceFor(source, signalType).contextLabel;
+}
+
+function formatSignalReading(reading: SignalReadingRow) {
+  const unit = signalUnit(reading.signal_type);
+  const value = `${reading.value}${unit ? ` ${unit}` : ""}`;
+  return valueList([
+    signalLabel(reading.signal_type),
+    value,
+    signalSourceLabel(reading.source, reading.signal_type),
+    reading.recorded_at ? `recorded ${formatDateTime(reading.recorded_at)}` : null,
+  ], ": ");
+}
+
 function dateKeyFor(value: Date | string) {
   return new Date(value).toISOString().slice(0, 10);
 }
@@ -156,6 +254,19 @@ function daysAgo(days: number) {
   date.setUTCHours(0, 0, 0, 0);
   date.setUTCDate(date.getUTCDate() - days);
   return date;
+}
+
+async function getLatestSignalReadings(userId: string): Promise<SignalReadingRow[]> {
+  if (!looksLikeUuid(userId)) return [];
+  const result = await db.execute(sql`
+    SELECT signal_type, value, recorded_at, source, context_tag
+    FROM vyva_signal_readings
+    WHERE user_id = ${userId}
+      AND recorded_at >= ${daysAgo(29)}
+    ORDER BY recorded_at DESC
+    LIMIT 30
+  `);
+  return queryRows<SignalReadingRow>(result);
 }
 
 function formatDateTime(value: Date | string | null | undefined) {
@@ -241,6 +352,17 @@ function latestVitalsScan(readings: Array<typeof vitalsReadings.$inferSelect>) {
   ]);
 }
 
+function latestSignalSummary(readings: SignalReadingRow[]) {
+  if (readings.length === 0) return "";
+  return valueList([
+    readings[0]?.recorded_at ? `recorded ${formatDateTime(readings[0].recorded_at)}` : "",
+    ...readings.slice(0, 6).map((reading) => {
+      const unit = signalUnit(reading.signal_type);
+      return `${signalLabel(reading.signal_type)} ${reading.value}${unit ? ` ${unit}` : ""} (${signalSourceLabel(reading.source, reading.signal_type)})`;
+    }),
+  ]);
+}
+
 function vitalsTrendSummary(readings: Array<typeof vitalsReadings.$inferSelect>) {
   const entriesByMetric = new Map<string, Array<{ value: string; recordedAt: Date }>>();
   for (const entry of readings.flatMap(vitalMetricEntries)) {
@@ -253,6 +375,27 @@ function vitalsTrendSummary(readings: Array<typeof vitalsReadings.$inferSelect>)
     const sorted = [...entries].sort((a, b) => b.recordedAt.getTime() - a.recordedAt.getTime()).slice(0, 7);
     const values = sorted.map((entry) => `${dateKeyFor(entry.recordedAt)} ${entry.value}`);
     return `${metricLabel(metric)} recent values: ${values.join(" | ")}`;
+  });
+  return compactLines(lines, 1200);
+}
+
+function signalTrendSummary(readings: SignalReadingRow[]) {
+  const entriesBySignal = new Map<string, Array<SignalReadingRow>>();
+  for (const reading of readings) {
+    const bucket = entriesBySignal.get(reading.signal_type) ?? [];
+    bucket.push(reading);
+    entriesBySignal.set(reading.signal_type, bucket);
+  }
+
+  const lines = Array.from(entriesBySignal.entries()).map(([signal, entries]) => {
+    const sorted = [...entries]
+      .sort((a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime())
+      .slice(0, 7);
+    const values = sorted.map((entry) => {
+      const unit = signalUnit(entry.signal_type);
+      return `${dateKeyFor(entry.recorded_at)} ${entry.value}${unit ? ` ${unit}` : ""}`;
+    });
+    return `${signalLabel(signal)} recent values: ${values.join(" | ")}`;
   });
   return compactLines(lines, 1200);
 }
@@ -573,6 +716,7 @@ function buildNextBestConversation(input: {
   localInterestOpportunities: string;
   recentActivitySummary: string;
   socialActivitySummary: string;
+  brainCoachVoiceContext: BrainCoachVoiceContext | null;
   feedbackSummary: VoiceRecommendationFeedbackSummary;
   now: Date;
 }) {
@@ -854,15 +998,23 @@ function buildNextBestConversation(input: {
   }
 
   if (input.domain === "brain_coach") {
+    const brainCoach = input.brainCoachVoiceContext;
     add({
-      id: "brain_coach_specialist_session_focus",
+      id: "brain_coach_daily_plan",
       domain: "brain_coach",
-      score: 74,
-      title: "Brain coach session focus",
-      reason: "The active agent is Brain Coach and should provide encouraging company around games, memory practice, puzzles, or cognitive activity.",
-      openingCue: "Offer a short, positive brain activity and keep the tone encouraging rather than clinical.",
-      suggestedAction: "Ask whether they would like to play, continue, or choose a lighter activity.",
-      evidence: joinList([...input.allInterests, ...input.allHobbies, ...input.allPreferredActivities], "Brain Coach specialist session requested."),
+      score: brainCoach?.state === "lapsed" ? 88 : brainCoach?.state === "new_user" ? 84 : 82,
+      title: brainCoach?.firstRecommendedActivityTitle
+        ? `Start ${brainCoach.firstRecommendedActivityTitle}`
+        : "Brain coach daily plan",
+      reason: brainCoach?.missedSessionAwareness
+        ?? "The active agent is Brain Coach and should provide encouraging company around games, memory practice, puzzles, or cognitive activity.",
+      openingCue: brainCoach?.recommendedActivityPrompt
+        ?? "Offer a short, positive brain activity and keep the tone encouraging rather than clinical.",
+      suggestedAction: brainCoach?.firstRecommendedActivityRoute
+        ? `Open ${brainCoach.firstRecommendedActivityRoute} if the user accepts the recommended activity.`
+        : "Ask whether they would like to play, continue, or choose a lighter activity.",
+      evidence: brainCoach?.summary
+        ?? joinList([...input.allInterests, ...input.allHobbies, ...input.allPreferredActivities], "Brain Coach specialist session requested."),
     });
   }
 
@@ -1023,6 +1175,7 @@ export async function buildVoiceContext(
     socialInterestRows,
     latestReports,
     latestVitals,
+    latestSignalReadings,
     medicationAdherenceRows,
     scheduledEventRows,
     userRows,
@@ -1031,6 +1184,7 @@ export async function buildVoiceContext(
     recentSocialVisitRows,
     voiceExchangeCountRows,
     recommendationFeedbackRows,
+    brainCoachSessionRows,
   ] = await Promise.all([
     db.select().from(profiles).where(eq(profiles.id, userId)).limit(1),
     db.select().from(userMedications).where(eq(userMedications.user_id, userId)).limit(20),
@@ -1040,6 +1194,10 @@ export async function buildVoiceContext(
     db.select().from(socialUserInterests).where(eq(socialUserInterests.user_id, userId)).limit(1),
     db.select().from(triageReports).where(eq(triageReports.user_id, userId)).orderBy(desc(triageReports.created_at)).limit(5),
     db.select().from(vitalsReadings).where(eq(vitalsReadings.user_id, userId)).orderBy(desc(vitalsReadings.recorded_at)).limit(12),
+    getLatestSignalReadings(userId).catch((err) => {
+      console.warn("[voiceContext] signal readings unavailable", err);
+      return [];
+    }),
     db
       .select()
       .from(medicationAdherence)
@@ -1060,6 +1218,14 @@ export async function buildVoiceContext(
       ? db.select({ value: count() }).from(sessionExchanges).where(eq(sessionExchanges.user_id, userId))
       : Promise.resolve([{ value: options.priorVoiceExchangeCount }]),
     getVoiceRecommendationFeedbackRows(userId),
+    domain === "brain_coach"
+      ? db
+          .select()
+          .from(cognitiveSessionIndex)
+          .where(eq(cognitiveSessionIndex.userId, userId))
+          .orderBy(desc(cognitiveSessionIndex.playedAt))
+          .limit(300)
+      : Promise.resolve([]),
   ]);
 
   const profile = profileRows[0] ?? null;
@@ -1102,12 +1268,19 @@ export async function buildVoiceContext(
   const memoryBlock = formatMemoryBlock(memories);
   const recentHealthEvents = [
     ...latestReports.map(formatTriageReport),
+    ...latestSignalReadings.slice(0, 8).map(formatSignalReading),
     ...latestVitals.map(formatVital),
   ].filter(Boolean);
   const latestSymptomReport = latestReports[0] ? formatTriageReportDetailed(latestReports[0]) : "";
   const recentSymptomReports = latestReports.map(formatTriageReportDetailed).filter(Boolean);
-  const latestVitalsScanSummary = latestVitalsScan(latestVitals);
-  const vitalsTrend = vitalsTrendSummary(latestVitals);
+  const latestVitalsScanSummary = compactLines([
+    latestSignalSummary(latestSignalReadings),
+    latestVitalsScan(latestVitals),
+  ], 1000);
+  const vitalsTrend = compactLines([
+    signalTrendSummary(latestSignalReadings),
+    vitalsTrendSummary(latestVitals),
+  ], 1200);
   const medicationAdherenceSummary = buildMedicationAdherenceSummary(
     activeMedicationRows,
     medicationAdherenceRows,
@@ -1117,6 +1290,35 @@ export async function buildVoiceContext(
   const latestMedicalVisit = formatScheduledHealthEvent(latestVisit);
   const upcomingMedicalAppointment = formatScheduledHealthEvent(upcomingAppointment);
   const now = new Date();
+  const todayPlanDate = now.toISOString().slice(0, 10);
+  const [brainCoachPlanRow] = domain === "brain_coach"
+    ? await db
+        .select()
+        .from(cognitiveDailyPlans)
+        .where(and(
+          eq(cognitiveDailyPlans.userId, userId),
+          eq(cognitiveDailyPlans.planDate, todayPlanDate),
+        ))
+        .limit(1)
+    : [];
+  const brainCoachPlanItemRows = brainCoachPlanRow
+    ? await db
+        .select()
+        .from(cognitiveDailyPlanItems)
+        .where(eq(cognitiveDailyPlanItems.planId, brainCoachPlanRow.id))
+        .orderBy(asc(cognitiveDailyPlanItems.sortOrder))
+    : [];
+  const persistedBrainCoachPlan = brainCoachPlanRow
+    ? buildPersistedBrainCoachPlan(brainCoachPlanRow, brainCoachPlanItemRows)
+    : null;
+  const brainCoachVoiceContext = domain === "brain_coach"
+    ? buildBrainCoachVoiceContext({
+        sessions: brainCoachSessionRows,
+        preferences: extractBrainCoachPreferences(consent),
+        plan: persistedBrainCoachPlan,
+        now,
+      })
+    : null;
   const userRow = userRows[0] ?? null;
   const latestVoiceExchange = latestVoiceExchangeRows[0] ?? null;
   const allHobbies = [...new Set([
@@ -1171,6 +1373,7 @@ export async function buildVoiceContext(
     localInterestOpportunities,
     recentActivitySummary,
     socialActivitySummary,
+    brainCoachVoiceContext,
     feedbackSummary: recommendationFeedbackSummary,
     now,
   });
@@ -1194,6 +1397,7 @@ export async function buildVoiceContext(
     preferenceContext,
     upcomingEvents.length ? `Upcoming events/reminders: ${joinList(upcomingEvents)}` : "",
     recentActivitySummary ? `Activity history: ${recentActivitySummary}` : "",
+    brainCoachVoiceContext?.summary ? `Brain Coach context: ${brainCoachVoiceContext.summary}` : "",
     socialActivitySummary ? `Social activity: ${socialActivitySummary}` : "",
     matchingSocialRooms ? `Suggested social rooms: ${matchingSocialRooms}` : "",
     localInterestOpportunities ? `Nearby interest opportunities: ${localInterestOpportunities}` : "",
@@ -1206,6 +1410,7 @@ export async function buildVoiceContext(
     matchingSocialRooms ? "Offer one social room or companion activity that matches the user's interests." : "",
     localInterestOpportunities ? "Offer Concierge to verify a nearby event or place before naming specifics." : "",
     recentActivitySummary ? "Use recent activity to suggest a balanced movement, rest, or routine step." : "",
+    brainCoachVoiceContext ? "Use today's Brain Coach plan and recent cognitive history when the user wants a brain activity." : "",
     birthday ? "Use birthday context warmly only when it feels natural." : "",
   ], 1400);
   const orchestratorContext = compactLines([
@@ -1225,6 +1430,7 @@ export async function buildVoiceContext(
     appEntrypoint: options.appEntrypoint ?? memoryQuery,
     priorVoiceExchangeCount,
   });
+  const preferredLanguage = normalizeAppLanguage(profile?.language_preference ?? profile?.language, "en");
 
   const variables: VoiceDynamicVariables = {
     user_id: userId,
@@ -1241,14 +1447,14 @@ export async function buildVoiceContext(
     date_of_birth: dateOfBirth,
     age_years: ageYears,
     birthday_context: birthday,
-    preferred_language: profile?.language ?? "en",
+    preferred_language: preferredLanguage,
     timezone: profile?.timezone ?? "Europe/Madrid",
     city: profile?.city ?? "",
     country_code: profile?.country_code ?? "",
     onboarding_complete: Boolean(profile?.onboarding_complete),
     profile_summary: compactLines([
       `Name: ${profile?.preferred_name || profile?.full_name || "Not recorded"}`,
-      `Language: ${profile?.language ?? "en"}`,
+      `Language: ${preferredLanguage}`,
       ageYears ? `Age: ${ageYears}` : "",
       profile?.timezone ? `Timezone: ${profile.timezone}` : "",
       profile?.city || profile?.country_code ? `Location: ${valueList([profile.city, profile.country_code])}` : "",
@@ -1373,6 +1579,23 @@ export async function buildVoiceContext(
 
   if (domain === "brain_coach") {
     variables.cognitive_notes = asString(cognitiveSection.cognitive_notes);
+    variables.brain_coach_state = brainCoachVoiceContext?.state ?? "new_user";
+    variables.brain_coach_plan_id = brainCoachVoiceContext?.planId ?? "";
+    variables.brain_coach_plan_complete = brainCoachVoiceContext?.planComplete ?? false;
+    variables.brain_coach_context = brainCoachVoiceContext?.summary ?? "No Brain Coach history is available yet.";
+    variables.brain_coach_recent_history = brainCoachVoiceContext?.recentHistory ?? "No completed Brain Coach activities are recorded yet.";
+    variables.brain_coach_plan = brainCoachVoiceContext?.planPrompt ?? "";
+    variables.brain_coach_recommended_activity_prompt = brainCoachVoiceContext?.recommendedActivityPrompt ?? "";
+    variables.brain_coach_recommended_activity_title = brainCoachVoiceContext?.firstRecommendedActivityTitle ?? "";
+    variables.brain_coach_recommended_activity_route = brainCoachVoiceContext?.firstRecommendedActivityRoute ?? "";
+    variables.brain_coach_recommended_plan_item_id = brainCoachVoiceContext?.firstRecommendedPlanItemId ?? "";
+    variables.brain_coach_missed_session_awareness = brainCoachVoiceContext?.missedSessionAwareness ?? "";
+    variables.brain_coach_streak_awareness = brainCoachVoiceContext?.streakAwareness ?? "";
+    variables.brain_coach_completed_yesterday = brainCoachVoiceContext?.completedYesterday ?? "";
+    variables.brain_coach_plan_estimated_minutes = brainCoachVoiceContext?.plan.estimatedDurationMinutes ?? 0;
+    variables.brain_coach_plan_completion = brainCoachVoiceContext
+      ? `${brainCoachVoiceContext.plan.completion.completedCount}/${brainCoachVoiceContext.plan.completion.totalCount} recommended activities completed today`
+      : "";
   }
 
   if (domainAllows(domain, "safety")) {

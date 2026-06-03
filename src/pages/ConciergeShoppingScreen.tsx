@@ -13,9 +13,9 @@ import {
   SlidersHorizontal,
   Sparkles,
 } from "lucide-react";
-import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import {
   getStaticShoppingSupportPackages,
@@ -362,8 +362,8 @@ const RecommendationCard = ({
 const ConciergeShoppingScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { i18n } = useTranslation();
-  const locale = localeKey(i18n.language);
+  const { language } = useLanguage();
+  const locale = localeKey(language);
   const copy = COPY[locale];
   const [category, setCategory] = useState<ShoppingCategoryChoice>("safe_home");
   const [needText, setNeedText] = useState("");
@@ -511,8 +511,7 @@ const ConciergeShoppingScreen = () => {
     setError(null);
   }
 
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault();
+  async function runShoppingSearch() {
     const trimmedNeed = needText.trim();
     if (!trimmedNeed) {
       setError(locale === "es" ? "Escriba una frase corta para empezar." : "Write a short sentence to start.");
@@ -531,7 +530,7 @@ const ConciergeShoppingScreen = () => {
         category,
         priorities,
         constraints,
-        locale: i18n.language,
+        locale: language,
         packageId: routePackageId,
       });
       setResult(next);
@@ -544,6 +543,11 @@ const ConciergeShoppingScreen = () => {
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    void runShoppingSearch();
   }
 
   function toggleSaved(id: string) {

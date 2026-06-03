@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { Activity, AlertTriangle, ArrowLeft, Bell, Check, HeartPulse, Loader2, Moon, PhoneCall, Pill, Plus, RefreshCw, Share2, ShieldCheck, Smile, Sparkles, Stethoscope } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Activity, AlertTriangle, ArrowLeft, Bell, Calendar, Car, Check, HeartPulse, Loader2, Mail, Moon, PhoneCall, Pill, Plus, RefreshCw, Scale, Share2, ShieldCheck, Smile, Sparkles, Stethoscope, Thermometer, UserPlus, Users, Wind, Zap } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 
-type Language = "es" | "de" | "en";
+type Language = "es" | "de" | "en" | "fr" | "it" | "pt";
 type Screen = "dashboard" | "add";
 type SignalKey = keyof typeof SIGNAL_CONFIG;
 
@@ -11,6 +11,11 @@ interface Props {
   userId: string;
   userConditions: string[];
   language?: Language;
+  country?: string | null;
+  gpName?: string | null;
+  gpPhone?: string | null;
+  gpEmail?: string | null;
+  caregiverContact?: string | null;
 }
 
 interface LatestAnalysis {
@@ -28,7 +33,17 @@ interface LatestAnalysis {
   model_version?: string | null;
 }
 
-type SafetyStatus = "steady" | "recheck" | "share_with_caregiver" | "contact_doctor" | "urgent_help";
+export type SafetyStatus = "steady" | "recheck" | "share_with_caregiver" | "contact_doctor" | "urgent_help";
+type VitalsSafetyActionKind =
+  | "call_emergency"
+  | "call_gp"
+  | "email_gp"
+  | "doctor_help"
+  | "add_doctor_contact"
+  | "schedule_appointment"
+  | "book_ride"
+  | "share_summary"
+  | "recheck";
 
 interface LatestAlert {
   id: string;
@@ -43,6 +58,10 @@ interface RecentReading {
   value: string | number;
   recorded_at: string;
   source: string;
+  source_confidence?: "low" | "medium" | "high";
+  source_confidence_reason?: string;
+  source_display_label?: string;
+  source_context_label?: string;
   deviation_pct: string | number | null;
   context_tag: string | null;
 }
@@ -78,6 +97,27 @@ const COPY = {
     share: "Compartir",
     doctor: "Medico",
     urgent: "Urgente",
+    call: "Llamar",
+    callGp: "Llamar medico",
+    emailGp: "Email medico",
+    doctorHelp: "Ayuda medica",
+    addDoctor: "Anadir medico",
+    appointment: "Cita medica",
+    ride: "Transporte",
+    shareSummary: "Compartir resumen",
+    sourceEstimated: "Estimado",
+    sourceManual: "Manual",
+    sourceDevice: "Dispositivo",
+    confidenceLow: "Baja",
+    confidenceMedium: "Media",
+    confidenceHigh: "Alta",
+    evidenceTitle: "Calidad de los datos",
+    evidenceBody: "VYVA combina estimaciones del telefono con datos que introduces de dispositivos. Las estimaciones ayudan con tendencias; los dispositivos y lecturas clinicas pesan mas.",
+    evidencePhone: "Telefono: pulso y respiracion estimados",
+    evidenceManual: "Manual: dolor, animo, energia, sueno y medicacion",
+    evidenceDevice: "Dispositivo: oxigeno, temperatura, tension, glucosa y peso",
+    addEvidenceNote: "Introduce el numero tal como aparece en tu dispositivo, o registra como te sientes. Esto ayuda a VYVA a refinar la evaluacion.",
+    sourceClinical: "ClÃ­nico",
   },
   de: {
     logo: "VYVA",
@@ -103,6 +143,27 @@ const COPY = {
     share: "Teilen",
     doctor: "Arzt",
     urgent: "Dringend",
+    call: "Anrufen",
+    callGp: "Arzt anrufen",
+    emailGp: "Arzt mailen",
+    doctorHelp: "Arzthilfe",
+    addDoctor: "Arzt hinzufugen",
+    appointment: "Termin buchen",
+    ride: "Fahrt buchen",
+    shareSummary: "Zusammenfassung teilen",
+    sourceEstimated: "Geschatzt",
+    sourceManual: "Manuell",
+    sourceDevice: "Gerat",
+    confidenceLow: "Niedrig",
+    confidenceMedium: "Mittel",
+    confidenceHigh: "Hoch",
+    evidenceTitle: "Datenqualitat",
+    evidenceBody: "VYVA kombiniert Telefonschatzungen mit Werten, die Sie von Geraten eingeben. Schatzungen helfen bei Trends; Gerate- und klinische Werte zahlen starker.",
+    evidencePhone: "Telefon: geschatzter Puls und Atmung",
+    evidenceManual: "Manuell: Schmerz, Stimmung, Energie, Schlaf und Medikamente",
+    evidenceDevice: "Gerat: Sauerstoff, Temperatur, Blutdruck, Glukose und Gewicht",
+    addEvidenceNote: "Geben Sie den Wert so ein, wie er auf dem Gerat steht, oder erfassen Sie, wie Sie sich fuhlen. Das hilft VYVA, die Einschatzung zu verfeinern.",
+    sourceClinical: "Klinisch",
   },
   en: {
     logo: "VYVA",
@@ -128,14 +189,238 @@ const COPY = {
     share: "Share",
     doctor: "Doctor",
     urgent: "Urgent",
+    call: "Call",
+    callGp: "Call GP",
+    emailGp: "Email GP",
+    doctorHelp: "Doctor help",
+    addDoctor: "Add doctor",
+    appointment: "Book appointment",
+    ride: "Book ride",
+    shareSummary: "Share summary",
+    sourceEstimated: "Estimated",
+    sourceManual: "Manual",
+    sourceDevice: "Device",
+    confidenceLow: "Low",
+    confidenceMedium: "Medium",
+    confidenceHigh: "High",
+    evidenceTitle: "Reading quality",
+    evidenceBody: "VYVA combines phone estimates with numbers you enter from devices. Estimates help spot trends; device and clinical readings carry stronger weight.",
+    evidencePhone: "Phone: estimated pulse and breathing",
+    evidenceManual: "Manual: pain, mood, energy, sleep and medication",
+    evidenceDevice: "Device: oxygen, temperature, blood pressure, glucose and weight",
+    addEvidenceNote: "Enter the number exactly as it appears on your device, or record how you feel. This helps VYVA refine the assessment.",
+    sourceClinical: "Clinical",
   },
 };
+
+type LocalizedText = Partial<Record<Language, string>>;
+
+interface ExtraTrackerCopy {
+  loadError: string;
+  saveError: string;
+  analysisError: string;
+  actionError: string;
+  checkConnectedSensor: string;
+  manualGlucoseEntry: string;
+  connectedGlucoseHelp: string;
+  manualGlucoseHelp: string;
+  whenReading: string;
+  ok: string;
+}
+
+const COPY_BASE: Partial<Record<Language, typeof COPY.en>> = COPY;
+
+const COPY_OVERRIDES: Record<Language, Partial<typeof COPY.en> & ExtraTrackerCopy> = {
+  es: {
+    loadError: "No pude cargar tus signos ahora.",
+    saveError: "No pude guardar este dato.",
+    analysisError: "El analisis no se pudo completar.",
+    actionError: "No pude guardar esta accion.",
+    checkConnectedSensor: "Buscar sensor conectado",
+    manualGlucoseEntry: "Entrada manual de glucosa",
+    connectedGlucoseHelp: "Si no hay lectura automatica disponible, introduce el numero del glucometro aqui.",
+    manualGlucoseHelp: "Escribe el numero del glucometro para guardarlo con tus signos.",
+    whenReading: "Cuando fue esta medicion?",
+    ok: "OK",
+  },
+  de: {
+    loadError: "Vitalwerte konnten gerade nicht geladen werden.",
+    saveError: "Dieser Wert konnte nicht gespeichert werden.",
+    analysisError: "Die Analyse konnte nicht abgeschlossen werden.",
+    actionError: "Diese Aktion konnte nicht gespeichert werden.",
+    checkConnectedSensor: "Verbundenen Sensor prufen",
+    manualGlucoseEntry: "Manuelle Glukoseeingabe",
+    connectedGlucoseHelp: "Wenn kein automatischer Wert verfugbar ist, geben Sie den Wert vom Glukosemessgerat hier ein.",
+    manualGlucoseHelp: "Geben Sie den Wert vom Glukosemessgerat ein, um ihn mit Ihren Vitalwerten zu speichern.",
+    whenReading: "Wann war diese Messung?",
+    ok: "OK",
+  },
+  en: {
+    loadError: "Could not load vitals right now.",
+    saveError: "Could not save this reading.",
+    analysisError: "The analysis could not finish.",
+    actionError: "Could not record this action.",
+    checkConnectedSensor: "Check connected sensor",
+    manualGlucoseEntry: "Manual glucose entry",
+    connectedGlucoseHelp: "If no automatic reading is available, enter the number from the glucose meter here.",
+    manualGlucoseHelp: "Type the number from the glucose meter to save it with your vitals.",
+    whenReading: "When was this reading?",
+    ok: "OK",
+  },
+  fr: {
+    add: "Ajouter une mesure",
+    analyse: "Analyser maintenant",
+    analysing: "Analyse...",
+    loading: "Preparation de vos constantes...",
+    back: "Retour",
+    save: "Enregistrer la mesure",
+    saving: "Enregistrement...",
+    lastAnalysis: "Derniere analyse",
+    noAnalysis: "Aucune analyse encore",
+    now: "Maintenant",
+    normal: "Normal",
+    today: "Aujourd'hui",
+    yes: "Oui, pris",
+    no: "Pas encore",
+    messageFallback: "Bonjour. VYVA est prete a revoir vos constantes avec vous.",
+    safetyTitle: "Controle quotidien",
+    safetyAck: "Enregistre",
+    recheck: "Verifier a nouveau",
+    share: "Partager",
+    doctor: "Medecin",
+    urgent: "Urgent",
+    sourceEstimated: "Estime",
+    sourceManual: "Manuel",
+    sourceDevice: "Appareil",
+    confidenceLow: "Faible",
+    confidenceMedium: "Moyenne",
+    confidenceHigh: "Elevee",
+    evidenceTitle: "Qualite des donnees",
+    evidenceBody: "VYVA combine les estimations du telephone avec les valeurs saisies depuis des appareils. Les estimations aident a voir les tendances; les appareils et mesures cliniques ont plus de poids.",
+    evidencePhone: "Telephone : pouls et respiration estimes",
+    evidenceManual: "Manuel : douleur, humeur, energie, sommeil et medication",
+    evidenceDevice: "Appareil : oxygene, temperature, tension, glycemie et poids",
+    addEvidenceNote: "Saisissez le nombre tel qu'il apparait sur votre appareil, ou notez comment vous vous sentez. Cela aide VYVA a affiner l'evaluation.",
+    sourceClinical: "Clinique",
+    loadError: "Impossible de charger vos constantes maintenant.",
+    saveError: "Impossible d'enregistrer cette mesure.",
+    analysisError: "L'analyse n'a pas pu se terminer.",
+    actionError: "Impossible d'enregistrer cette action.",
+    checkConnectedSensor: "Verifier le capteur connecte",
+    manualGlucoseEntry: "Saisie manuelle de glycemie",
+    connectedGlucoseHelp: "Si aucune mesure automatique n'est disponible, saisissez ici le nombre du lecteur de glycemie.",
+    manualGlucoseHelp: "Saisissez le nombre du lecteur de glycemie pour l'enregistrer avec vos constantes.",
+    whenReading: "Quand cette mesure a-t-elle ete prise?",
+    ok: "OK",
+  },
+  it: {
+    add: "Aggiungi lettura",
+    analyse: "Analizza ora",
+    analysing: "Analisi...",
+    loading: "Preparazione dei parametri...",
+    back: "Indietro",
+    save: "Salva lettura",
+    saving: "Salvataggio...",
+    lastAnalysis: "Ultima analisi",
+    noAnalysis: "Nessuna analisi ancora",
+    now: "Ora",
+    normal: "Normale",
+    today: "Oggi",
+    yes: "Si, presa",
+    no: "Non ancora",
+    messageFallback: "Buongiorno. VYVA e pronta a rivedere i tuoi segnali con te.",
+    safetyTitle: "Controllo quotidiano",
+    safetyAck: "Registrato",
+    recheck: "Ricontrolla",
+    share: "Condividi",
+    doctor: "Medico",
+    urgent: "Urgente",
+    sourceEstimated: "Stimato",
+    sourceManual: "Manuale",
+    sourceDevice: "Dispositivo",
+    confidenceLow: "Bassa",
+    confidenceMedium: "Media",
+    confidenceHigh: "Alta",
+    evidenceTitle: "Qualita dei dati",
+    evidenceBody: "VYVA combina stime del telefono con valori inseriti da dispositivi. Le stime aiutano con i trend; dispositivi e letture cliniche hanno piu peso.",
+    evidencePhone: "Telefono: polso e respirazione stimati",
+    evidenceManual: "Manuale: dolore, umore, energia, sonno e farmaci",
+    evidenceDevice: "Dispositivo: ossigeno, temperatura, pressione, glucosio e peso",
+    addEvidenceNote: "Inserisci il numero esattamente come appare sul dispositivo, o registra come ti senti. Questo aiuta VYVA a perfezionare la valutazione.",
+    sourceClinical: "Clinico",
+    loadError: "Impossibile caricare i parametri ora.",
+    saveError: "Impossibile salvare questa lettura.",
+    analysisError: "L'analisi non e stata completata.",
+    actionError: "Impossibile registrare questa azione.",
+    checkConnectedSensor: "Controlla sensore connesso",
+    manualGlucoseEntry: "Inserimento manuale glucosio",
+    connectedGlucoseHelp: "Se non e disponibile una lettura automatica, inserisci qui il numero del glucometro.",
+    manualGlucoseHelp: "Digita il numero del glucometro per salvarlo con i tuoi parametri.",
+    whenReading: "Quando e stata presa questa misura?",
+    ok: "OK",
+  },
+  pt: {
+    add: "Adicionar leitura",
+    analyse: "Analisar agora",
+    analysing: "A analisar...",
+    loading: "A preparar os seus sinais...",
+    back: "Voltar",
+    save: "Guardar leitura",
+    saving: "A guardar...",
+    lastAnalysis: "Ultima analise",
+    noAnalysis: "Sem analise ainda",
+    now: "Agora",
+    normal: "Normal",
+    today: "Hoje",
+    yes: "Sim, tomado",
+    no: "Ainda nao",
+    messageFallback: "Bom dia. A VYVA esta pronta para rever os seus sinais consigo.",
+    safetyTitle: "Verificacao diaria",
+    safetyAck: "Registado",
+    recheck: "Rever",
+    share: "Partilhar",
+    doctor: "Medico",
+    urgent: "Urgente",
+    sourceEstimated: "Estimado",
+    sourceManual: "Manual",
+    sourceDevice: "Dispositivo",
+    confidenceLow: "Baixa",
+    confidenceMedium: "Media",
+    confidenceHigh: "Alta",
+    evidenceTitle: "Qualidade dos dados",
+    evidenceBody: "A VYVA combina estimativas do telefone com valores introduzidos de dispositivos. As estimativas ajudam nas tendencias; dispositivos e leituras clinicas tem mais peso.",
+    evidencePhone: "Telefone: pulso e respiracao estimados",
+    evidenceManual: "Manual: dor, humor, energia, sono e medicacao",
+    evidenceDevice: "Dispositivo: oxigenio, temperatura, tensao, glicose e peso",
+    addEvidenceNote: "Introduza o numero exatamente como aparece no dispositivo, ou registe como se sente. Isto ajuda a VYVA a refinar a avaliacao.",
+    sourceClinical: "Clinico",
+    loadError: "Nao foi possivel carregar os seus sinais agora.",
+    saveError: "Nao foi possivel guardar esta leitura.",
+    analysisError: "A analise nao conseguiu terminar.",
+    actionError: "Nao foi possivel registar esta acao.",
+    checkConnectedSensor: "Verificar sensor ligado",
+    manualGlucoseEntry: "Entrada manual de glicose",
+    connectedGlucoseHelp: "Se nao houver leitura automatica disponivel, introduza aqui o numero do medidor de glicose.",
+    manualGlucoseHelp: "Digite o numero do medidor de glicose para guardar com os seus sinais.",
+    whenReading: "Quando foi esta medicao?",
+    ok: "OK",
+  },
+};
+
+function copyFor(language: Language) {
+  return { ...COPY.en, ...(COPY_BASE[language] ?? {}), ...COPY_OVERRIDES[language] };
+}
+
+function textFor(values: LocalizedText, language: Language): string {
+  return values[language] ?? values.en ?? values.es ?? "";
+}
 
 const SIGNAL_CONFIG = {
   glucose_mgdl: {
     label: { es: "Glucosa", de: "Blutzucker", en: "Glucose" },
     unit: "mg/dL",
     icon: "drop",
+    placeholder: "142",
     question: { es: "¿Cuánto marca tu glucómetro?", de: "Was zeigt dein Blutzuckermessgerät?", en: "What does your glucose meter show?" },
     contexts: [
       { key: "fasting", label: { es: "Ayunas", de: "Nüchtern", en: "Fasting" } },
@@ -143,12 +428,13 @@ const SIGNAL_CONFIG = {
       { key: "nocturnal", label: { es: "Noche", de: "Nachts", en: "Night" } },
       { key: "general", label: { es: "Ahora", de: "Jetzt", en: "Now" } },
     ],
-    conditions: ["diabetes_t2"],
+    conditions: [],
   },
   resting_hr_bpm: {
     label: { es: "Pulso", de: "Puls", en: "Heart rate" },
     unit: "bpm",
     icon: "heart",
+    placeholder: "72",
     question: { es: "¿Cuántas pulsaciones por minuto?", de: "Wie viele Herzschläge pro Minute?", en: "How many beats per minute?" },
     contexts: [
       { key: "morning", label: { es: "Por la mañana", de: "Morgens", en: "Morning" } },
@@ -156,29 +442,98 @@ const SIGNAL_CONFIG = {
     ],
     conditions: [],
   },
+  respiratory_rate: {
+    label: { es: "Respiracion", de: "Atemfrequenz", en: "Breathing rate" },
+    unit: "/min",
+    icon: "wind",
+    placeholder: "16",
+    question: { es: "Cuantas respiraciones por minuto?", de: "Wie viele Atemzuge pro Minute?", en: "How many breaths per minute?" },
+    contexts: [
+      { key: "resting", label: { es: "En reposo", de: "In Ruhe", en: "Resting" } },
+      { key: "general", label: { es: "Ahora", de: "Jetzt", en: "Now" } },
+    ],
+    conditions: [],
+  },
+  oxygen_saturation: {
+    label: { es: "Oxigeno", de: "Sauerstoff", en: "Oxygen" },
+    unit: "%",
+    icon: "oxygen",
+    placeholder: "97",
+    question: { es: "Cuanto marca el oximetro?", de: "Was zeigt das Pulsoximeter?", en: "What does the pulse oximeter show?" },
+    contexts: [
+      { key: "resting", label: { es: "En reposo", de: "In Ruhe", en: "Resting" } },
+      { key: "general", label: { es: "Ahora", de: "Jetzt", en: "Now" } },
+    ],
+    conditions: [],
+  },
+  temperature_c: {
+    label: { es: "Temperatura", de: "Temperatur", en: "Temperature" },
+    unit: "C",
+    icon: "thermometer",
+    placeholder: "37.2",
+    question: { es: "Cuanto marca el termometro?", de: "Was zeigt das Thermometer?", en: "What does the thermometer show?" },
+    contexts: [
+      { key: "general", label: { es: "Ahora", de: "Jetzt", en: "Now" } },
+      { key: "evening", label: { es: "Tarde", de: "Abends", en: "Evening" } },
+    ],
+    conditions: [],
+  },
   bp_systolic: {
     label: { es: "Tensión", de: "Blutdruck", en: "Blood pressure" },
     unit: "mmHg",
     icon: "stethoscope",
+    placeholder: "128",
     question: { es: "¿Cuánto marca el tensiómetro? (número alto)", de: "Was zeigt das Blutdruckmessgerät? (obere Zahl)", en: "What does the BP monitor show? (top number)" },
     contexts: [
       { key: "morning", label: { es: "Mañana", de: "Morgens", en: "Morning" } },
       { key: "evening", label: { es: "Tarde", de: "Abends", en: "Evening" } },
     ],
-    conditions: ["hypertension", "chf"],
+    conditions: [],
+  },
+  weight_kg: {
+    label: { es: "Peso", de: "Gewicht", en: "Weight" },
+    unit: "kg",
+    icon: "scale",
+    placeholder: "70",
+    question: { es: "Cuanto marca la bascula?", de: "Was zeigt die Waage?", en: "What does the scale show?" },
+    contexts: [
+      { key: "morning", label: { es: "Manana", de: "Morgens", en: "Morning" } },
+      { key: "general", label: { es: "Ahora", de: "Jetzt", en: "Now" } },
+    ],
+    conditions: [],
+  },
+  pain_score: {
+    label: { es: "Dolor", de: "Schmerz", en: "Pain" },
+    unit: "/10",
+    icon: "pain",
+    placeholder: "4",
+    question: { es: "Cuanto dolor tienes? (0 = nada, 10 = mucho)", de: "Wie stark sind die Schmerzen? (0 = keine, 10 = stark)", en: "How much pain do you have? (0 = none, 10 = severe)" },
+    contexts: [{ key: "general", label: { es: "Ahora", de: "Jetzt", en: "Now" } }],
+    conditions: [],
   },
   sleep_quality_score: {
     label: { es: "Sueño", de: "Schlaf", en: "Sleep" },
     unit: "/10",
     icon: "moon",
+    placeholder: "7",
     question: { es: "¿Cómo dormiste anoche? (1 = muy mal, 10 = muy bien)", de: "Wie haben Sie letzte Nacht geschlafen? (1 = sehr schlecht, 10 = sehr gut)", en: "How did you sleep last night? (1 = very badly, 10 = very well)" },
     contexts: [{ key: "general", label: { es: "Anoche", de: "Letzte Nacht", en: "Last night" } }],
+    conditions: [],
+  },
+  energy_level: {
+    label: { es: "Energia", de: "Energie", en: "Energy" },
+    unit: "/10",
+    icon: "energy",
+    placeholder: "6",
+    question: { es: "Cuanta energia tienes hoy? (1 = muy baja, 10 = alta)", de: "Wie viel Energie haben Sie heute? (1 = sehr niedrig, 10 = hoch)", en: "How much energy do you have today? (1 = very low, 10 = high)" },
+    contexts: [{ key: "general", label: { es: "Hoy", de: "Heute", en: "Today" } }],
     conditions: [],
   },
   medication_confirmed: {
     label: { es: "Medicación", de: "Medikamente", en: "Medication" },
     unit: "",
     icon: "pill",
+    placeholder: "1",
     question: { es: "¿Has tomado tu medicación hoy?", de: "Haben Sie heute Ihre Medikamente genommen?", en: "Have you taken your medication today?" },
     contexts: [
       { key: "morning", label: { es: "Mañana", de: "Morgens", en: "Morning" } },
@@ -191,17 +546,230 @@ const SIGNAL_CONFIG = {
     label: { es: "Ánimo", de: "Stimmung", en: "Mood" },
     unit: "/10",
     icon: "smile",
+    placeholder: "7",
     question: { es: "¿Cómo te sientes hoy? (1 = muy mal, 10 = excelente)", de: "Wie fühlen Sie sich heute? (1 = sehr schlecht, 10 = ausgezeichnet)", en: "How are you feeling today? (1 = very bad, 10 = excellent)" },
     contexts: [{ key: "general", label: { es: "Hoy", de: "Heute", en: "Today" } }],
     conditions: [],
   },
 } as const;
 
-const DASHBOARD_SIGNALS: SignalKey[] = ["glucose_mgdl", "resting_hr_bpm", "sleep_quality_score", "medication_confirmed"];
+interface SignalTranslation {
+  label?: string;
+  question?: string;
+  contexts?: Record<string, string>;
+}
+
+const SIGNAL_TRANSLATIONS: Partial<Record<Language, Partial<Record<SignalKey, SignalTranslation>>>> = {
+  fr: {
+    glucose_mgdl: {
+      label: "Glycemie",
+      question: "Que montre votre lecteur de glycemie?",
+      contexts: { fasting: "A jeun", post_meal_2h: "Apres repas", nocturnal: "Nuit", general: "Maintenant" },
+    },
+    resting_hr_bpm: {
+      label: "Pouls",
+      question: "Combien de battements par minute?",
+      contexts: { morning: "Matin", general: "Maintenant" },
+    },
+    respiratory_rate: {
+      label: "Respiration",
+      question: "Combien de respirations par minute?",
+      contexts: { resting: "Au repos", general: "Maintenant" },
+    },
+    oxygen_saturation: {
+      label: "Oxygene",
+      question: "Que montre l'oxymetre?",
+      contexts: { resting: "Au repos", general: "Maintenant" },
+    },
+    temperature_c: {
+      label: "Temperature",
+      question: "Que montre le thermometre?",
+      contexts: { general: "Maintenant", evening: "Soir" },
+    },
+    bp_systolic: {
+      label: "Tension",
+      question: "Que montre le tensiometre? (nombre du haut)",
+      contexts: { morning: "Matin", evening: "Soir" },
+    },
+    weight_kg: {
+      label: "Poids",
+      question: "Que montre la balance?",
+      contexts: { morning: "Matin", general: "Maintenant" },
+    },
+    pain_score: {
+      label: "Douleur",
+      question: "Quel niveau de douleur avez-vous? (0 = aucune, 10 = forte)",
+      contexts: { general: "Maintenant" },
+    },
+    sleep_quality_score: {
+      label: "Sommeil",
+      question: "Comment avez-vous dormi cette nuit? (1 = tres mal, 10 = tres bien)",
+      contexts: { general: "Cette nuit" },
+    },
+    energy_level: {
+      label: "Energie",
+      question: "Quel est votre niveau d'energie aujourd'hui? (1 = tres bas, 10 = eleve)",
+      contexts: { general: "Aujourd'hui" },
+    },
+    medication_confirmed: {
+      label: "Medicament",
+      question: "Avez-vous pris votre medicament aujourd'hui?",
+      contexts: { morning: "Matin", evening: "Soir" },
+    },
+    mood_score: {
+      label: "Humeur",
+      question: "Comment vous sentez-vous aujourd'hui? (1 = tres mal, 10 = excellent)",
+      contexts: { general: "Aujourd'hui" },
+    },
+  },
+  it: {
+    glucose_mgdl: {
+      label: "Glucosio",
+      question: "Cosa mostra il glucometro?",
+      contexts: { fasting: "A digiuno", post_meal_2h: "Dopo pasto", nocturnal: "Notte", general: "Ora" },
+    },
+    resting_hr_bpm: {
+      label: "Polso",
+      question: "Quanti battiti al minuto?",
+      contexts: { morning: "Mattina", general: "Ora" },
+    },
+    respiratory_rate: {
+      label: "Respirazione",
+      question: "Quanti respiri al minuto?",
+      contexts: { resting: "A riposo", general: "Ora" },
+    },
+    oxygen_saturation: {
+      label: "Ossigeno",
+      question: "Cosa mostra il pulsossimetro?",
+      contexts: { resting: "A riposo", general: "Ora" },
+    },
+    temperature_c: {
+      label: "Temperatura",
+      question: "Cosa mostra il termometro?",
+      contexts: { general: "Ora", evening: "Sera" },
+    },
+    bp_systolic: {
+      label: "Pressione",
+      question: "Cosa mostra il misuratore di pressione? (numero alto)",
+      contexts: { morning: "Mattina", evening: "Sera" },
+    },
+    weight_kg: {
+      label: "Peso",
+      question: "Cosa mostra la bilancia?",
+      contexts: { morning: "Mattina", general: "Ora" },
+    },
+    pain_score: {
+      label: "Dolore",
+      question: "Quanto dolore hai? (0 = niente, 10 = forte)",
+      contexts: { general: "Ora" },
+    },
+    sleep_quality_score: {
+      label: "Sonno",
+      question: "Come hai dormito questa notte? (1 = molto male, 10 = molto bene)",
+      contexts: { general: "Questa notte" },
+    },
+    energy_level: {
+      label: "Energia",
+      question: "Quanta energia hai oggi? (1 = molto bassa, 10 = alta)",
+      contexts: { general: "Oggi" },
+    },
+    medication_confirmed: {
+      label: "Farmaci",
+      question: "Hai preso i farmaci oggi?",
+      contexts: { morning: "Mattina", evening: "Sera" },
+    },
+    mood_score: {
+      label: "Umore",
+      question: "Come ti senti oggi? (1 = molto male, 10 = eccellente)",
+      contexts: { general: "Oggi" },
+    },
+  },
+  pt: {
+    glucose_mgdl: {
+      label: "Glicose",
+      question: "O que mostra o medidor de glicose?",
+      contexts: { fasting: "Em jejum", post_meal_2h: "Depois da refeicao", nocturnal: "Noite", general: "Agora" },
+    },
+    resting_hr_bpm: {
+      label: "Pulso",
+      question: "Quantas batidas por minuto?",
+      contexts: { morning: "Manha", general: "Agora" },
+    },
+    respiratory_rate: {
+      label: "Respiracao",
+      question: "Quantas respiracoes por minuto?",
+      contexts: { resting: "Em repouso", general: "Agora" },
+    },
+    oxygen_saturation: {
+      label: "Oxigenio",
+      question: "O que mostra o oximetro?",
+      contexts: { resting: "Em repouso", general: "Agora" },
+    },
+    temperature_c: {
+      label: "Temperatura",
+      question: "O que mostra o termometro?",
+      contexts: { general: "Agora", evening: "Noite" },
+    },
+    bp_systolic: {
+      label: "Tensao",
+      question: "O que mostra o medidor de tensao? (numero alto)",
+      contexts: { morning: "Manha", evening: "Noite" },
+    },
+    weight_kg: {
+      label: "Peso",
+      question: "O que mostra a balanca?",
+      contexts: { morning: "Manha", general: "Agora" },
+    },
+    pain_score: {
+      label: "Dor",
+      question: "Quanta dor sente? (0 = nenhuma, 10 = forte)",
+      contexts: { general: "Agora" },
+    },
+    sleep_quality_score: {
+      label: "Sono",
+      question: "Como dormiu esta noite? (1 = muito mal, 10 = muito bem)",
+      contexts: { general: "Esta noite" },
+    },
+    energy_level: {
+      label: "Energia",
+      question: "Quanta energia tem hoje? (1 = muito baixa, 10 = alta)",
+      contexts: { general: "Hoje" },
+    },
+    medication_confirmed: {
+      label: "Medicacao",
+      question: "Tomou a sua medicacao hoje?",
+      contexts: { morning: "Manha", evening: "Noite" },
+    },
+    mood_score: {
+      label: "Humor",
+      question: "Como se sente hoje? (1 = muito mal, 10 = excelente)",
+      contexts: { general: "Hoje" },
+    },
+  },
+};
+
+function signalLabel(signalKey: SignalKey, cfg: typeof SIGNAL_CONFIG[SignalKey], language: Language): string {
+  return SIGNAL_TRANSLATIONS[language]?.[signalKey]?.label ?? textFor(cfg.label, language);
+}
+
+function signalQuestion(signalKey: SignalKey, cfg: typeof SIGNAL_CONFIG[SignalKey], language: Language): string {
+  return SIGNAL_TRANSLATIONS[language]?.[signalKey]?.question ?? textFor(cfg.question, language);
+}
+
+function signalContextLabel(signalKey: SignalKey, context: { key: string; label: LocalizedText }, language: Language): string {
+  return SIGNAL_TRANSLATIONS[language]?.[signalKey]?.contexts?.[context.key] ?? textFor(context.label, language);
+}
+
+const DASHBOARD_SIGNALS: SignalKey[] = ["resting_hr_bpm", "oxygen_saturation", "temperature_c", "glucose_mgdl", "mood_score", "sleep_quality_score"];
 
 function SignalIcon({ type, className = "" }: { type: string; className?: string }) {
   const common = `h-8 w-8 ${className}`;
   if (type === "heart") return <HeartPulse className={common} />;
+  if (type === "wind") return <Wind className={common} />;
+  if (type === "oxygen") return <Activity className={common} />;
+  if (type === "thermometer") return <Thermometer className={common} />;
+  if (type === "scale") return <Scale className={common} />;
+  if (type === "energy") return <Zap className={common} />;
   if (type === "stethoscope") return <Stethoscope className={common} />;
   if (type === "moon") return <Moon className={common} />;
   if (type === "pill") return <Pill className={common} />;
@@ -222,10 +790,13 @@ function getRiskColor(score: number) {
 }
 
 function getRiskLabel(score: number, language: Language) {
-  const labels = {
+  const labels: Record<Language, string[]> = {
     es: ["Todo bien", "Atención leve", "Requiere atención", "Urgente"],
     de: ["Alles gut", "Leichte Aufmerksamkeit", "Aufmerksamkeit erforderlich", "Dringend"],
     en: ["All good", "Mild attention", "Needs attention", "Urgent"],
+    fr: ["Tout va bien", "Attention legere", "Attention necessaire", "Urgent"],
+    it: ["Tutto bene", "Lieve attenzione", "Richiede attenzione", "Urgente"],
+    pt: ["Tudo bem", "Atencao ligeira", "Requer atencao", "Urgente"],
   };
   const lang = labels[language];
   if (score < 30) return lang[0];
@@ -274,13 +845,152 @@ function safetyLabel(status: SafetyStatus, language: Language) {
       contact_doctor: "Contact doctor",
       urgent_help: "Urgent help",
     },
+    fr: {
+      steady: "Stable",
+      recheck: "Verifier a nouveau",
+      share_with_caregiver: "Partager avec l'aidant",
+      contact_doctor: "Contacter le medecin",
+      urgent_help: "Aide urgente",
+    },
+    it: {
+      steady: "Stabile",
+      recheck: "Ricontrolla",
+      share_with_caregiver: "Condividi con caregiver",
+      contact_doctor: "Contatta medico",
+      urgent_help: "Aiuto urgente",
+    },
+    pt: {
+      steady: "Estavel",
+      recheck: "Rever",
+      share_with_caregiver: "Partilhar com cuidador",
+      contact_doctor: "Contactar medico",
+      urgent_help: "Ajuda urgente",
+    },
   };
   return labels[language][status];
 }
 
+function sanitizePhoneHref(phone?: string | null): string {
+  const raw = phone?.trim();
+  if (!raw) return "";
+  const normalized = raw.replace(/[^\d+]/g, "");
+  return `tel:${normalized || raw}`;
+}
+
+function emailHref(email?: string | null, subject = "", body = ""): string {
+  const raw = email?.trim();
+  if (!raw) return "";
+  return `mailto:${raw}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+function emergencyContactForCountry(country?: string | null) {
+  const code = (country ?? "ES").trim().toUpperCase() || "ES";
+  const numberByCountry: Record<string, string> = {
+    ES: "112",
+    FR: "112",
+    DE: "112",
+    IT: "112",
+    PT: "112",
+    IE: "112",
+    GB: "999",
+    UK: "999",
+    US: "911",
+    CA: "911",
+    AU: "000",
+  };
+  const number = numberByCountry[code];
+  return number ? { label: number, telHref: `tel:${number}` } : null;
+}
+
+function isEmailContact(value?: string | null) {
+  return Boolean(value?.includes("@"));
+}
+
+function contactHref(value?: string | null, subject = "", body = "") {
+  if (!value?.trim()) return "";
+  return isEmailContact(value) ? emailHref(value, subject, body) : sanitizePhoneHref(value);
+}
+
+export function vitalsSafetyActionKindsFor(
+  status: SafetyStatus,
+  availability: { hasEmergencyContact?: boolean; hasGpPhone?: boolean; hasGpEmail?: boolean; hasCaregiverContact?: boolean } = {},
+): VitalsSafetyActionKind[] {
+  if (status === "urgent_help") {
+    return availability.hasEmergencyContact ? ["call_emergency", "doctor_help", "book_ride"] : ["doctor_help", "book_ride"];
+  }
+
+  if (status === "contact_doctor") {
+    const actions: VitalsSafetyActionKind[] = [];
+    if (availability.hasGpPhone) actions.push("call_gp");
+    if (availability.hasGpEmail) actions.push("email_gp");
+    actions.push("doctor_help");
+    actions.push("schedule_appointment", "book_ride");
+    if (!availability.hasGpPhone && !availability.hasGpEmail) actions.push("add_doctor_contact");
+    return actions;
+  }
+
+  if (status === "share_with_caregiver") return ["share_summary"];
+
+  if (status === "recheck") return ["recheck"];
+  return [];
+}
+
+function buildVitalsContext({
+  analysis,
+  recentReadings,
+  language,
+}: {
+  analysis: LatestAnalysis | null;
+  recentReadings: RecentReading[];
+  language: Language;
+}) {
+  const lines = [
+    language === "de" ? "VYVA Vitalwerte" : language === "en" ? "VYVA vitals summary" : "Resumen de signos VYVA",
+    analysis?.senior_message ? `${language === "en" ? "VYVA note" : "Nota VYVA"}: ${analysis.senior_message}` : "",
+    analysis?.risk_score != null ? `${language === "en" ? "Risk score" : "Nivel"}: ${analysis.risk_score}/100` : "",
+    ...recentReadings.slice(0, 5).map((reading) => `${reading.signal_type}: ${reading.value}${reading.context_tag ? ` (${reading.context_tag})` : ""}`),
+  ];
+  return lines.filter(Boolean).join("\n");
+}
+
+function readingSourceBadge(reading: RecentReading | undefined, language: Language) {
+  if (!reading) return null;
+  const copy = copyFor(language);
+  const source = reading.source;
+  const confidence = reading.source_confidence ?? (source === "phone_estimate" ? "low" : source === "connected_device" || source === "clinical" ? "high" : "medium");
+  const confidenceLabel =
+    confidence === "high"
+      ? copy.confidenceHigh
+      : confidence === "low"
+        ? copy.confidenceLow
+        : copy.confidenceMedium;
+  if (source === "phone_estimate") return { label: `${copy.sourceEstimated} - ${confidenceLabel}`, bg: "#F5F3FF", color: "#6B21A8" };
+  if (source === "connected_device") return { label: `${copy.sourceDevice} - ${confidenceLabel}`, bg: "#D1FAE5", color: "#047857" };
+  if (source === "clinical") return { label: `${copy.sourceClinical} - ${confidenceLabel}`, bg: "#E0F2FE", color: "#0369A1" };
+  return { label: `${copy.sourceManual} - ${confidenceLabel}`, bg: "#FEF3C7", color: "#92400E" };
+}
+
 function relativeTime(iso: string | null | undefined, language: Language) {
-  if (!iso) return COPY[language].noAnalysis;
+  if (!iso) return copyFor(language).noAnalysis;
   const diffMinutes = Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (language === "fr") {
+    if (diffMinutes < 60) return `il y a ${diffMinutes} min`;
+    const hours = Math.round(diffMinutes / 60);
+    if (hours < 24) return `il y a ${hours} h`;
+    return `il y a ${Math.round(hours / 24)} jours`;
+  }
+  if (language === "it") {
+    if (diffMinutes < 60) return `${diffMinutes} min fa`;
+    const hours = Math.round(diffMinutes / 60);
+    if (hours < 24) return `${hours} ore fa`;
+    return `${Math.round(hours / 24)} giorni fa`;
+  }
+  if (language === "pt") {
+    if (diffMinutes < 60) return `ha ${diffMinutes} min`;
+    const hours = Math.round(diffMinutes / 60);
+    if (hours < 24) return `ha ${hours} horas`;
+    return `ha ${Math.round(hours / 24)} dias`;
+  }
   if (diffMinutes < 60) return language === "es" ? `hace ${diffMinutes} min` : language === "de" ? `vor ${diffMinutes} Min.` : `${diffMinutes} min ago`;
   const hours = Math.round(diffMinutes / 60);
   if (hours < 24) return language === "es" ? `hace ${hours} horas` : language === "de" ? `vor ${hours} Std.` : `${hours} hours ago`;
@@ -288,7 +998,17 @@ function relativeTime(iso: string | null | undefined, language: Language) {
   return language === "es" ? `hace ${days} días` : language === "de" ? `vor ${days} Tagen` : `${days} days ago`;
 }
 
-export default function VitalsTracker({ userId, userConditions, language = "es" }: Props) {
+export default function VitalsTracker({
+  userId,
+  userConditions,
+  language = "es",
+  country,
+  gpName,
+  gpPhone,
+  gpEmail,
+  caregiverContact,
+}: Props) {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [screen, setScreen] = useState<Screen>("dashboard");
   const [analysis, setAnalysis] = useState<LatestAnalysis | null>(null);
@@ -298,13 +1018,14 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
   const [analysing, setAnalysing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [selectedSignal, setSelectedSignal] = useState<SignalKey>("glucose_mgdl");
+  const [selectedSignal, setSelectedSignal] = useState<SignalKey>("resting_hr_bpm");
   const [inputValue, setInputValue] = useState("");
   const [selectedContext, setSelectedContext] = useState("general");
   const [saving, setSaving] = useState(false);
   const [acknowledging, setAcknowledging] = useState<string | null>(null);
 
-  const copy = COPY[language];
+  const copy = useMemo(() => copyFor(language), [language]);
+  const gpCallLabel = gpName?.trim() ? `${copy.call} ${gpName.trim()}` : copy.callGp;
   const visibleSignals = useMemo(() => getVisibleSignals(userConditions), [userConditions]);
   const selectedConfig = SIGNAL_CONFIG[selectedSignal];
   const riskScore = analysis?.risk_score ?? 0;
@@ -315,6 +1036,24 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
   const safety = safetyTone(safetyStatus);
   const SafetyIcon = safety.Icon;
   const safetyAcknowledged = Boolean(analysis?.acknowledged_at);
+  const emergencyContact = emergencyContactForCountry(country);
+  const gpPhoneHref = sanitizePhoneHref(gpPhone);
+  const gpEmailHref = emailHref(
+    gpEmail,
+    language === "en" ? "VYVA vitals summary" : language === "de" ? "VYVA Vitalwerte" : "Resumen de signos VYVA",
+    buildVitalsContext({ analysis, recentReadings, language }),
+  );
+  const caregiverHref = contactHref(
+    caregiverContact,
+    language === "en" ? "VYVA vitals summary" : language === "de" ? "VYVA Vitalwerte" : "Resumen de signos VYVA",
+    buildVitalsContext({ analysis, recentReadings, language }),
+  );
+  const safetyActionKinds = vitalsSafetyActionKindsFor(safetyStatus, {
+    hasEmergencyContact: Boolean(emergencyContact?.telHref),
+    hasGpPhone: Boolean(gpPhoneHref),
+    hasGpEmail: Boolean(gpEmailHref),
+    hasCaregiverContact: Boolean(caregiverHref),
+  });
 
   useEffect(() => {
     const signalParam = searchParams.get("add");
@@ -337,11 +1076,11 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
       setRecentReadings(data.recent_readings ?? []);
       setLatestAlert(data.latest_alert ?? null);
     } catch {
-      setError(language === "es" ? "No pude cargar tus signos ahora." : "Could not load vitals right now.");
+      setError(copy.loadError);
     } finally {
       setLoading(false);
     }
-  }, [language, userId]);
+  }, [copy.loadError, userId]);
 
   async function saveReading() {
     const numeric = selectedConfig.isBinary ? Number(inputValue) : Number(inputValue);
@@ -356,7 +1095,7 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
         body: JSON.stringify({
           signal_type: selectedSignal,
           value: numeric,
-          source: "manual",
+          source: "manual_entry",
           context_tag: selectedContext,
           condition_tags: userConditions,
         }),
@@ -370,7 +1109,7 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
         await triggerAnalysis();
       }
     } catch {
-      setError(language === "es" ? "No pude guardar este dato." : "Could not save this reading.");
+      setError(copy.saveError);
     } finally {
       setSaving(false);
     }
@@ -388,7 +1127,7 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
       if (!response.ok) throw new Error("Analysis failed");
       await loadDashboard();
     } catch {
-      setError(language === "es" ? "El análisis no se pudo completar." : "The analysis could not finish.");
+      setError(copy.analysisError);
     } finally {
       setAnalysing(false);
     }
@@ -411,9 +1150,65 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
       setAnalysis((current) => ({ ...(current ?? {}), ...updated }));
       await loadDashboard();
     } catch {
-      setError(language === "es" ? "No pude guardar esta accion." : "Could not record this action.");
+      setError(copy.actionError);
     } finally {
       setAcknowledging(null);
+    }
+  }
+
+  function openDoctorHelp() {
+    void acknowledgeSafety(safetyStatus === "urgent_help" ? "urgent_guidance_followed" : "contacted_doctor");
+    navigate("/health/doctor", {
+      state: {
+        autoStartVoice: true,
+        latestSymptomReport: buildVitalsContext({ analysis, recentReadings, language }),
+        source: "vitals_safety",
+      },
+    });
+  }
+
+  function openDoctorContactSetup() {
+    navigate("/onboarding/profile/gp");
+  }
+
+  function openConciergeService(kind: "appointment" | "ride") {
+    const context = buildVitalsContext({ analysis, recentReadings, language });
+    const request = kind === "ride"
+      ? language === "de"
+        ? "Bitte hilf mir, eine sichere Fahrt wegen meiner VYVA Vitalwerte zu organisieren. Vor der Buchung bitte bestaetigen lassen."
+        : language === "en"
+          ? "Please help me arrange safe transport based on my VYVA vitals. Ask me to confirm before booking."
+          : "Ayudame a organizar transporte seguro segun mis signos de VYVA. Pideme confirmacion antes de reservar."
+      : language === "de"
+        ? "Bitte hilf mir, einen Arzttermin wegen meiner VYVA Vitalwerte zu vereinbaren. Vor der Buchung bitte bestaetigen lassen."
+        : language === "en"
+          ? "Please help me schedule a doctor appointment based on my VYVA vitals. Ask me to confirm before booking."
+          : "Ayudame a programar una cita medica segun mis signos de VYVA. Pideme confirmacion antes de reservar.";
+
+    void acknowledgeSafety(safetyStatus === "urgent_help" ? "urgent_guidance_followed" : "contacted_doctor");
+    navigate("/concierge", {
+      state: {
+        conciergePrefill: {
+          kind,
+          message: `${request}\n\nContext:\n${context}`,
+          source: "vitals_safety",
+        },
+      },
+    });
+  }
+
+  async function shareVitalsSummary() {
+    const text = buildVitalsContext({ analysis, recentReadings, language });
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: COPY[language].safetyTitle, text });
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      }
+      await acknowledgeSafety("shared");
+    } catch (shareError) {
+      if (shareError instanceof Error && shareError.name === "AbortError") return;
+      await acknowledgeSafety("shared");
     }
   }
 
@@ -432,6 +1227,172 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
       selectSignal(visibleSignals[0]?.[0] ?? "resting_hr_bpm");
     }
   }, [visibleSignals, selectedSignal]);
+
+  const safetyActionBaseClass = "flex min-h-[58px] items-center justify-center gap-2 rounded-[18px] px-4 text-center font-body text-[16px] font-bold transition active:scale-[0.98] disabled:opacity-60";
+
+  function renderSafetyAction(kind: VitalsSafetyActionKind) {
+    if (kind === "call_emergency" && emergencyContact?.telHref) {
+      return (
+        <a
+          key={kind}
+          href={emergencyContact.telHref}
+          onClick={() => void acknowledgeSafety("urgent_guidance_followed")}
+          className={`${safetyActionBaseClass} bg-[#DC2626] text-white`}
+          data-testid="button-safety-call-emergency"
+        >
+          <PhoneCall className="h-5 w-5" />
+          {copy.call} {emergencyContact.label}
+        </a>
+      );
+    }
+
+    if (kind === "call_gp" && gpPhoneHref) {
+      return (
+        <a
+          key={kind}
+          href={gpPhoneHref}
+          onClick={() => void acknowledgeSafety("contacted_doctor")}
+          className={`${safetyActionBaseClass} bg-[#B45309] text-white`}
+          data-testid="button-safety-call-gp"
+        >
+          <PhoneCall className="h-5 w-5" />
+          {gpCallLabel}
+        </a>
+      );
+    }
+
+    if (kind === "email_gp" && gpEmailHref) {
+      return (
+        <a
+          key={kind}
+          href={gpEmailHref}
+          onClick={() => void acknowledgeSafety("contacted_doctor")}
+          className={`${safetyActionBaseClass} border border-[#F6C177] bg-[#FFF7ED] text-[#92400E]`}
+          data-testid="button-safety-email-gp"
+        >
+          <Mail className="h-5 w-5" />
+          {copy.emailGp}
+        </a>
+      );
+    }
+
+    if (kind === "doctor_help") {
+      const doctorHelpAckAction = safetyStatus === "urgent_help" ? "urgent_guidance_followed" : "contacted_doctor";
+      return (
+        <button
+          key={kind}
+          type="button"
+          onClick={openDoctorHelp}
+          disabled={acknowledging !== null}
+          className={`${safetyActionBaseClass} bg-[#6B21A8] text-white`}
+          data-testid="button-safety-doctor-help"
+        >
+          {acknowledging === doctorHelpAckAction ? <Loader2 className="h-5 w-5 animate-spin" /> : <Stethoscope className="h-5 w-5" />}
+          {copy.doctorHelp}
+        </button>
+      );
+    }
+
+    if (kind === "add_doctor_contact") {
+      return (
+        <button
+          key={kind}
+          type="button"
+          onClick={openDoctorContactSetup}
+          className={`${safetyActionBaseClass} border border-[#E8DED4] bg-white text-[#6B21A8]`}
+          data-testid="button-safety-add-doctor"
+        >
+          <UserPlus className="h-5 w-5" />
+          {copy.addDoctor}
+        </button>
+      );
+    }
+
+    if (kind === "schedule_appointment") {
+      return (
+        <button
+          key={kind}
+          type="button"
+          onClick={() => openConciergeService("appointment")}
+          disabled={acknowledging !== null}
+          className={`${safetyActionBaseClass} border border-[#DDD6FE] bg-white text-[#6B21A8]`}
+          data-testid="button-safety-schedule-appointment"
+        >
+          <Calendar className="h-5 w-5" />
+          {copy.appointment}
+        </button>
+      );
+    }
+
+    if (kind === "book_ride") {
+      return (
+        <button
+          key={kind}
+          type="button"
+          onClick={() => openConciergeService("ride")}
+          disabled={acknowledging !== null}
+          className={`${safetyActionBaseClass} border border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]`}
+          data-testid="button-safety-book-ride"
+        >
+          <Car className="h-5 w-5" />
+          {copy.ride}
+        </button>
+      );
+    }
+
+    if (kind === "share_summary") {
+      if (caregiverHref) {
+        const ContactIcon = isEmailContact(caregiverContact) ? Mail : Users;
+        return (
+          <a
+            key={kind}
+            href={caregiverHref}
+            onClick={() => void acknowledgeSafety("shared")}
+            className={`${safetyActionBaseClass} bg-[#6B21A8] text-white`}
+            data-testid="button-safety-contact-caregiver"
+          >
+            <ContactIcon className="h-5 w-5" />
+            {copy.share}
+          </a>
+        );
+      }
+
+      return (
+        <button
+          key={kind}
+          type="button"
+          onClick={() => void shareVitalsSummary()}
+          disabled={acknowledging !== null}
+          className={`${safetyActionBaseClass} bg-[#6B21A8] text-white`}
+          data-testid="button-safety-share-summary"
+        >
+          {acknowledging === "shared" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Share2 className="h-5 w-5" />}
+          {copy.shareSummary}
+        </button>
+      );
+    }
+
+    if (kind === "recheck") {
+      return (
+        <button
+          key={kind}
+          type="button"
+          onClick={() => {
+            void acknowledgeSafety("recheck");
+            setScreen("add");
+          }}
+          disabled={acknowledging !== null}
+          className={`${safetyActionBaseClass} bg-[#0369A1] text-white`}
+          data-testid="button-safety-recheck"
+        >
+          {acknowledging === "recheck" ? <Loader2 className="h-5 w-5 animate-spin" /> : <RefreshCw className="h-5 w-5" />}
+          {copy.recheck}
+        </button>
+      );
+    }
+
+    return null;
+  }
 
   // TODO: Device connection settings screen for Apple Health / LibreView / Withings.
   // TODO: Nightly cron job should call POST /api/vitals/baseline/update for active users.
@@ -470,7 +1431,7 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
                 }}
               >
                 <SignalIcon type={cfg.icon} className={active ? "text-white" : "text-[#6B21A8]"} />
-                {cfg.label[language]}
+                {signalLabel(key, cfg, language)}
               </button>
             );
           })}
@@ -479,8 +1440,11 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
         <div className="my-7 h-px bg-[#E8DED4]" />
 
         <h2 className="font-display text-[30px] italic leading-tight text-[#2F241F]">
-          {selectedConfig.question[language]}
+          {signalQuestion(selectedSignal, selectedConfig, language)}
         </h2>
+        <p className="mt-3 rounded-[20px] border border-[#DDD6FE] bg-white px-4 py-3 font-body text-[16px] font-bold leading-snug text-[#6B5B52]">
+          {copy.addEvidenceNote}
+        </p>
 
         {openedFromGlucoseAction ? (
           <div className="mt-5 rounded-[24px] border border-[#DDD6FE] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]">
@@ -490,18 +1454,10 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
               </span>
               <div>
                 <p className="font-body text-[19px] font-black leading-tight text-[#2F241F]">
-                  {addSource === "connected"
-                    ? language === "es" ? "Buscar sensor conectado" : "Check connected sensor"
-                    : language === "es" ? "Entrada manual de glucosa" : "Manual glucose entry"}
+                  {addSource === "connected" ? copy.checkConnectedSensor : copy.manualGlucoseEntry}
                 </p>
                 <p className="mt-1 font-body text-[16px] font-bold leading-snug text-[#6B5B52]">
-                  {addSource === "connected"
-                    ? language === "es"
-                      ? "Si no hay lectura automatica disponible, introduce el numero del glucometro aqui."
-                      : "If no automatic reading is available, enter the number from the glucose meter here."
-                    : language === "es"
-                      ? "Escribe el numero del glucometro para guardarlo con tus signos."
-                      : "Type the number from the glucose meter to save it with your vitals."}
+                  {addSource === "connected" ? copy.connectedGlucoseHelp : copy.manualGlucoseHelp}
                 </p>
               </div>
             </div>
@@ -543,7 +1499,7 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
               inputMode="decimal"
               value={inputValue}
               onChange={(event) => setInputValue(event.target.value)}
-              placeholder={copy.valuePlaceholder}
+              placeholder={selectedConfig.placeholder}
               className="min-w-0 flex-1 bg-transparent font-body text-[72px] font-bold leading-none text-[#2F241F] outline-none placeholder:text-[#D6C7BA]"
             />
             <span className="pb-3 font-body text-[22px] font-bold text-[#7A6A60]">{selectedConfig.unit}</span>
@@ -551,7 +1507,7 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
         )}
 
         <p className="mt-7 font-body text-[20px] font-bold text-[#3B2C25]">
-          {language === "es" ? "¿Cuándo fue esta medición?" : language === "de" ? "Wann war diese Messung?" : "When was this reading?"}
+          {copy.whenReading}
         </p>
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {selectedConfig.contexts.map((context) => {
@@ -568,7 +1524,7 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
                   color: active ? "#2F241F" : "#6B5B52",
                 }}
               >
-                {context.label[language]}
+                {signalContextLabel(selectedSignal, context, language)}
               </button>
             );
           })}
@@ -631,6 +1587,26 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
             </p>
           </div>
 
+          <div className="mt-4 rounded-[26px] border border-[#DDD6FE] bg-white p-5 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="vitals-evidence-guide">
+            <div className="flex items-start gap-4">
+              <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px] bg-[#F5F3FF] text-[#6B21A8]">
+                <ShieldCheck className="h-7 w-7" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-body text-[13px] font-bold uppercase tracking-[0.12em] text-[#6B21A8]">{copy.evidenceTitle}</p>
+                <p className="mt-2 font-body text-[17px] font-bold leading-snug text-[#3B2C25]">{copy.evidenceBody}</p>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-2">
+              {[copy.evidencePhone, copy.evidenceManual, copy.evidenceDevice].map((item) => (
+                <div key={item} className="flex items-center gap-3 rounded-[18px] bg-[#FAF9F6] px-4 py-3 font-body text-[15px] font-bold text-[#6B5B52]">
+                  <Check className="h-5 w-5 flex-shrink-0 text-[#047857]" />
+                  <span>{item}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="mt-4 rounded-[26px] border border-[#EDE5DB] bg-white p-5 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="daily-safety-check">
             <div className="flex items-start gap-4">
               <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px]" style={{ background: safety.bg, color: safety.color }}>
@@ -660,52 +1636,8 @@ export default function VitalsTracker({ userId, userConditions, language = "es" 
             </div>
 
             {!safetyAcknowledged && (
-              <div className="mt-5 grid grid-cols-2 gap-3">
-                {safetyStatus === "urgent_help" ? (
-                  <button
-                    type="button"
-                    onClick={() => acknowledgeSafety("urgent_guidance_followed")}
-                    disabled={acknowledging !== null}
-                    className="flex min-h-[58px] items-center justify-center gap-2 rounded-[18px] bg-[#DC2626] px-4 font-body text-[17px] font-bold text-white disabled:opacity-60"
-                    data-testid="button-safety-urgent"
-                  >
-                    {acknowledging === "urgent_guidance_followed" ? <Loader2 className="h-5 w-5 animate-spin" /> : <AlertTriangle className="h-5 w-5" />}
-                    {copy.urgent}
-                  </button>
-                ) : safetyStatus === "contact_doctor" ? (
-                  <button
-                    type="button"
-                    onClick={() => acknowledgeSafety("contacted_doctor")}
-                    disabled={acknowledging !== null}
-                    className="flex min-h-[58px] items-center justify-center gap-2 rounded-[18px] bg-[#B45309] px-4 font-body text-[17px] font-bold text-white disabled:opacity-60"
-                    data-testid="button-safety-doctor"
-                  >
-                    {acknowledging === "contacted_doctor" ? <Loader2 className="h-5 w-5 animate-spin" /> : <PhoneCall className="h-5 w-5" />}
-                    {copy.doctor}
-                  </button>
-                ) : safetyStatus === "share_with_caregiver" ? (
-                  <button
-                    type="button"
-                    onClick={() => acknowledgeSafety("shared")}
-                    disabled={acknowledging !== null}
-                    className="flex min-h-[58px] items-center justify-center gap-2 rounded-[18px] bg-[#6B21A8] px-4 font-body text-[17px] font-bold text-white disabled:opacity-60"
-                    data-testid="button-safety-share"
-                  >
-                    {acknowledging === "shared" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Share2 className="h-5 w-5" />}
-                    {copy.share}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => acknowledgeSafety("recheck")}
-                    disabled={acknowledging !== null}
-                    className="flex min-h-[58px] items-center justify-center gap-2 rounded-[18px] bg-[#0369A1] px-4 font-body text-[17px] font-bold text-white disabled:opacity-60"
-                    data-testid="button-safety-recheck"
-                  >
-                    {acknowledging === "recheck" ? <Loader2 className="h-5 w-5 animate-spin" /> : <RefreshCw className="h-5 w-5" />}
-                    {copy.recheck}
-                  </button>
-                )}
+              <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {safetyActionKinds.map(renderSafetyAction)}
                 <button
                   type="button"
                   onClick={() => acknowledgeSafety("dismissed")}
@@ -809,12 +1741,21 @@ function SignalCard({
         ? normalLabel
         : `${deviation > 0 ? "+" : ""}${deviation}% ${deviation > 0 ? "↑" : "↓"}`;
 
+  const sourceBadge = readingSourceBadge(reading, language);
+
   return (
     <article className="min-h-[152px] rounded-[24px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]">
-      <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-[20px] bg-[#F5F3FF] text-[#6B21A8]">
-        <SignalIcon type={cfg.icon} className="h-7 w-7" />
+      <div className="mb-3 flex items-start justify-between gap-2">
+        <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-[#F5F3FF] text-[#6B21A8]">
+          <SignalIcon type={cfg.icon} className="h-7 w-7" />
+        </div>
+        {sourceBadge && (
+          <span className="rounded-full px-3 py-1 font-body text-[11px] font-bold" style={{ background: sourceBadge.bg, color: sourceBadge.color }}>
+            {sourceBadge.label}
+          </span>
+        )}
       </div>
-      <p className="font-body text-[18px] font-bold text-[#6B5B52]">{cfg.label[language]}</p>
+      <p className="font-body text-[18px] font-bold text-[#6B5B52]">{signalLabel(signalKey, cfg, language)}</p>
       <p className="mt-1 font-body text-[24px] font-bold leading-tight text-[#2F241F]">{display}</p>
       <p className="mt-2 font-body text-[18px] font-bold text-[#7A6A60]">{subLabel}</p>
     </article>

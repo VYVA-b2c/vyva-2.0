@@ -24,7 +24,8 @@ import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 import { localizeAuthErrorMessage } from "@/lib/authErrorLocalization";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { stageToRoute } from "@/lib/onboardingRoute";
-import { setAccountLanguage, useLanguage } from "@/i18n";
+import { currentSignupInviteId, trackSignupInviteEvent } from "@/lib/signupInviteAudit";
+import { setBootstrapLanguage, useLanguage } from "@/i18n";
 import { LANGUAGES, type LanguageCode } from "@/i18n/languages";
 
 type View = "login" | "register" | "forgot" | "magic";
@@ -152,7 +153,10 @@ function setupInviteParamsFromSearch(search: string): URLSearchParams | null {
     params.has("phone") ||
     params.has("whatsapp") ||
     params.has("first_name") ||
-    params.has("last_name");
+    params.has("last_name") ||
+    params.has("setup_for") ||
+    params.has("setup") ||
+    params.has("intent");
   return hasInviteSetup ? params : null;
 }
 
@@ -161,6 +165,21 @@ function inviteReturnPathFromSearch(search: string): string | null {
   const returnTo = normalizeReturnPath(params.get("returnTo") ?? undefined);
   if (returnTo) return returnTo;
   return params.get("invite") === "1" ? "/" : null;
+}
+
+function isCareTeamInviteReturnPath(value: string | null): boolean {
+  return Boolean(value?.startsWith("/care-team/invite/"));
+}
+
+function careTeamInviteTokenFromReturnPath(value: string | null): string | null {
+  if (!value?.startsWith("/care-team/invite/")) return null;
+  const rawToken = value.slice("/care-team/invite/".length).split(/[?#]/)[0]?.trim();
+  if (!rawToken) return null;
+  try {
+    return decodeURIComponent(rawToken);
+  } catch {
+    return rawToken;
+  }
 }
 
 function setupLanguageFromParams(params: URLSearchParams): LanguageCode | null {
@@ -174,6 +193,16 @@ function setupLanguageFromParams(params: URLSearchParams): LanguageCode | null {
 
 function setupContactFromParams(params: URLSearchParams): string {
   return (params.get("email") ?? params.get("phone") ?? params.get("whatsapp") ?? "").trim();
+}
+
+function setupIntentFromParams(params: URLSearchParams): SetupIntent | null {
+  const raw = (params.get("setup_for") ?? params.get("setup") ?? params.get("intent") ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/-/g, "_");
+  if (["someone_else", "caregiver", "family", "proxy"].includes(raw)) return "caregiver";
+  if (["self", "elder"].includes(raw)) return "self";
+  return null;
 }
 
 type LoginCopy = {
@@ -1383,10 +1412,12 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   const from = adminOnly ? "/admin/lifecycle" : normalizeReturnPath(rawFrom);
   const requestedAuthMode = new URLSearchParams(location.search).get("mode") === "login" ? "login" : "register";
   const initialAuthMode = adminOnly ? "login" : requestedAuthMode;
+  const inviteReturnPath = adminOnly ? null : inviteReturnPathFromSearch(location.search);
+  const isCareTeamInviteAuth = isCareTeamInviteReturnPath(inviteReturnPath);
 
   const [mode, setMode] = useState<"login" | "register">(initialAuthMode);
   const [view, setView] = useState<View>(initialAuthMode);
-  const [setupIntent, setSetupIntent] = useState<SetupIntent>("self");
+  const [setupIntent, setSetupIntent] = useState<SetupIntent>(isCareTeamInviteAuth ? "caregiver" : "self");
   const [contact, setContact] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -1448,33 +1479,42 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
 
   const authContactPayload = (includeLanguage = false) => {
     const trimmedContact = contact.trim();
+    const inviteId = includeLanguage ? currentSignupInviteId(location.search) : null;
+    const careTeamInviteToken = includeLanguage ? careTeamInviteTokenFromReturnPath(inviteReturnPath) : null;
     return {
       ...(trimmedContact.includes("@") ? { email: trimmedContact } : { phone: trimmedContact }),
       ...(includeLanguage ? { language } : {}),
+      ...(inviteId ? { invite_id: inviteId } : {}),
+      ...(careTeamInviteToken ? { care_team_invite_token: careTeamInviteToken } : {}),
     };
   };
 
   const rememberSetupIntent = () => {
-    const setupFor = setupIntent === "caregiver" ? "someone_else" : "self";
+    const setupFor = isCareTeamInviteAuth || setupIntent === "caregiver" ? "someone_else" : "self";
     window.sessionStorage.setItem("vyva_setup_for", setupFor);
     return setupFor;
   };
 
   useEffect(() => {
+    if (isCareTeamInviteAuth) setSetupIntent("caregiver");
+  }, [isCareTeamInviteAuth]);
+
+  useEffect(() => {
     const setupParams = setupInviteParamsFromPath(from) ?? setupInviteParamsFromSearch(location.search);
     if (!setupParams) return;
     const setupLanguage = setupLanguageFromParams(setupParams);
-    if (setupLanguage && setupLanguage !== language) setAccountLanguage(setupLanguage);
+    if (setupLanguage && setupLanguage !== language) setBootstrapLanguage(setupLanguage);
+    const setupIntentParam = setupIntentFromParams(setupParams);
+    if (setupIntentParam && setupIntentParam !== setupIntent) setSetupIntent(setupIntentParam);
     if (!contact.trim()) {
       const setupContact = setupContactFromParams(setupParams);
       if (setupContact) setContact(setupContact);
     }
-  }, [contact, from, language, location.search]);
+  }, [contact, from, language, location.search, setupIntent]);
 
   useEffect(() => {
     if (isLoading) return;
     if (!user) return;
-    const inviteReturnPath = adminOnly ? null : inviteReturnPathFromSearch(location.search);
     if (adminOnly) {
       navigate("/admin/lifecycle", { replace: true });
       return;
@@ -1494,7 +1534,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         navigate(stageToRoute(stage), { replace: true });
       })
       .catch(() => navigate("/onboarding/basics", { replace: true }));
-  }, [adminOnly, from, isLoading, location.search, user, navigate]);
+  }, [adminOnly, from, inviteReturnPath, isLoading, user, navigate]);
 
   useEffect(() => {
     if (magicTokenHandledRef.current || user) return;
@@ -1584,13 +1624,14 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
     if (loading) return;
     setError(null);
     setLoading(true);
-    const inviteReturnPath = adminOnly ? null : inviteReturnPathFromSearch(location.search);
     try {
       if (mode === "register") {
         if (adminOnly) {
           throw new Error("Admin accounts can only be created by the super admin after sign in.");
         }
         const setupFor = rememberSetupIntent();
+        const inviteId = currentSignupInviteId(location.search);
+        trackSignupInviteEvent(inviteId, "profile_started", { destination: "/", keepalive: true });
         await register(authContactPayload(true), password);
         if (inviteReturnPath) {
           navigate(inviteReturnPath, { replace: true });
@@ -2359,43 +2400,57 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
               ) : (
                 <div className="flex flex-col gap-4">
                   {!adminOnly && mode === "register" && view !== "magic" && (
-                    <div className="space-y-2" data-testid="auth-setup-intent">
-                      <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-vyva-text-3">
-                        {copy.setupIntentLabel}
-                      </p>
-                      <div className="grid grid-cols-2 gap-2">
-                        {(["self", "caregiver"] as const).map((intent) => {
-                          const active = setupIntent === intent;
-                          const Icon = intent === "self" ? UserRound : UsersRound;
-                          return (
-                            <button
-                              key={intent}
-                              type="button"
-                              onClick={() => setSetupIntent(intent)}
-                              data-testid={`button-auth-intent-${intent}`}
-                              className={`flex min-h-[58px] items-center gap-2 rounded-[18px] border px-2.5 py-2 text-left transition sm:min-h-[74px] sm:gap-3 sm:px-3 sm:py-2.5 ${
-                                active
-                                  ? "border-vyva-purple bg-[#F5F0FF] text-vyva-text-1 shadow-[0_10px_24px_rgba(107,33,168,0.10)]"
-                                  : "border-[#EFE7DB] bg-white text-vyva-text-2 hover:border-[#E1D6C8]"
-                              }`}
-                            >
-                              <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[13px] ${active ? "bg-vyva-purple text-white" : "bg-[#F8F3EA] text-vyva-purple"}`}>
-                                <Icon size={18} />
-                              </span>
-                              <span className="min-w-0">
-                                <span className="block font-body text-[12px] font-extrabold leading-tight sm:text-[13px]">{copy.setupIntent[intent].title}</span>
-                                <span className="mt-0.5 hidden font-body text-[11px] leading-[1.3] text-vyva-text-2 sm:block">{copy.setupIntent[intent].subtitle}</span>
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {setupIntent === "caregiver" && (
-                        <p data-testid="text-auth-caregiver-hint" className="rounded-[16px] border border-[#E8DDF3] bg-[#FBF8FF] px-3 py-2 font-body text-[12px] leading-[1.45] text-vyva-purple">
-                          {copy.caregiverHint}
+                    isCareTeamInviteAuth ? (
+                      <div
+                        className="rounded-[18px] border border-[#E8DDF3] bg-[#FBF8FF] px-4 py-3"
+                        data-testid="auth-careteam-invite"
+                      >
+                        <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-vyva-purple">
+                          Care team invitation
                         </p>
-                      )}
-                    </div>
+                        <p className="mt-1 font-body text-[13px] font-bold leading-relaxed text-vyva-text-2">
+                          Create or sign in with the invited email or mobile number. You will return to the invitation to accept access.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2" data-testid="auth-setup-intent">
+                        <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-vyva-text-3">
+                          {copy.setupIntentLabel}
+                        </p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {(["self", "caregiver"] as const).map((intent) => {
+                            const active = setupIntent === intent;
+                            const Icon = intent === "self" ? UserRound : UsersRound;
+                            return (
+                              <button
+                                key={intent}
+                                type="button"
+                                onClick={() => setSetupIntent(intent)}
+                                data-testid={`button-auth-intent-${intent}`}
+                                className={`flex min-h-[58px] items-center gap-2 rounded-[18px] border px-2.5 py-2 text-left transition sm:min-h-[74px] sm:gap-3 sm:px-3 sm:py-2.5 ${
+                                  active
+                                    ? "border-vyva-purple bg-[#F5F0FF] text-vyva-text-1 shadow-[0_10px_24px_rgba(107,33,168,0.10)]"
+                                    : "border-[#EFE7DB] bg-white text-vyva-text-2 hover:border-[#E1D6C8]"
+                                }`}
+                              >
+                                <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[13px] ${active ? "bg-vyva-purple text-white" : "bg-[#F8F3EA] text-vyva-purple"}`}>
+                                  <Icon size={18} />
+                                </span>
+                                <span className="min-w-0">
+                                  <span className="block font-body text-[12px] font-extrabold leading-tight sm:text-[13px]">{copy.setupIntent[intent].title}</span>
+                                  <span className="mt-0.5 hidden font-body text-[11px] leading-[1.3] text-vyva-text-2 sm:block">{copy.setupIntent[intent].subtitle}</span>
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {setupIntent === "caregiver" && (
+                          <p data-testid="text-auth-caregiver-hint" className="rounded-[16px] border border-[#E8DDF3] bg-[#FBF8FF] px-3 py-2 font-body text-[12px] leading-[1.45] text-vyva-purple">
+                            {copy.caregiverHint}
+                          </p>
+                        )}
+                      </div>
+                    )
                   )}
 
                   <label className="font-body text-[13px] font-bold text-vyva-text-2">

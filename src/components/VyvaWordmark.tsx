@@ -14,7 +14,6 @@ const LOGO_BY_LANGUAGE: Partial<Record<LanguageCode, string>> = {
   fr: logoFr,
   it: logoIt,
   pt: logoPt,
-  cy: logoEn,
 };
 
 type VyvaWordmarkProps = {

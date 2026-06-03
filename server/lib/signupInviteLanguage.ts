@@ -357,6 +357,8 @@ export type SignupInvitePrefill = {
   email?: string | null;
   phone?: string | null;
   whatsapp?: string | null;
+  inviteId?: string | null;
+  setupFor?: "self" | "someone_else" | null;
 };
 
 function looksLikeContactIdentifier(value: string | null | undefined) {
@@ -395,5 +397,7 @@ export function buildSignupInviteUrl(baseUrl: string, value: unknown, prefill: S
   setInviteParam(url.searchParams, "email", prefill.email);
   setInviteParam(url.searchParams, "phone", prefill.phone);
   setInviteParam(url.searchParams, "whatsapp", prefill.whatsapp);
+  setInviteParam(url.searchParams, "invite_id", prefill.inviteId);
+  setInviteParam(url.searchParams, "setup_for", prefill.setupFor);
   return url.toString();
 }

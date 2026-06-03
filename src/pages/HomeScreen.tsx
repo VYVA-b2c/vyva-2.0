@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Heart, Brain, Users, ConciergeBell, Lock, type LucideIcon } from "lucide-react";
+import { Heart, Brain, Users, ConciergeBell, Lock, Stethoscope, Calendar, Car, PhoneCall, Mail, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import { ActionCard, ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
@@ -21,6 +21,15 @@ type WeatherData = {
   city: string;
   temperature: number;
   description: string;
+};
+
+type HomeFastAction = {
+  id: "callGp" | "emailGp" | "doctor" | "appointment" | "ride";
+  icon: LucideIcon;
+  tone: "call" | "email" | "doctor" | "appointment" | "ride";
+  label: string;
+  sub: string;
+  href?: string;
 };
 
 const COORDS_WEATHER_CACHE_KEY = "vyva_coords_weather_cache";
@@ -46,11 +55,30 @@ function writeCoordsWeatherCache(data: WeatherData) {
   }
 }
 
+function sanitizePhoneHref(phone?: string | null) {
+  const raw = phone?.trim();
+  if (!raw) return "";
+  const normalized = raw.replace(/[^\d+]/g, "");
+  return `tel:${normalized || raw}`;
+}
+
+function homeDoctorMailto(email: string | undefined | null, subject: string, body: string) {
+  const raw = email?.trim();
+  if (!raw) return "";
+  return `mailto:${raw}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
 const HOME_AGENT_CARDS: HomeAgentCard[] = [
   { id: "health", icon: Heart, path: "/health", theme: "pink" },
   { id: "cognitive", icon: Brain, path: "/activities", theme: "purple" },
   { id: "social", icon: Users, path: "/social-rooms", theme: "blue" },
   { id: "concierge", icon: ConciergeBell, path: "/concierge", theme: "green" },
+];
+
+const HOME_FAST_ACTIONS: Array<Pick<HomeFastAction, "id" | "icon" | "tone">> = [
+  { id: "doctor", icon: Stethoscope, tone: "doctor" },
+  { id: "appointment", icon: Calendar, tone: "appointment" },
+  { id: "ride", icon: Car, tone: "ride" },
 ];
 
 const SECTION_VOICE_AUTO_START_OPTIONS: NavigateOptions = {
@@ -84,12 +112,58 @@ const HOME_AGENT_THEMES: Record<HomeAgentCard["theme"], {
   },
 };
 
+const HOME_FAST_ACTION_THEMES: Record<HomeFastAction["tone"], {
+  iconBg: string;
+  iconColor: string;
+  border: string;
+  shadow: string;
+}> = {
+  call: {
+    iconBg: "#ECFDF5",
+    iconColor: "#047857",
+    border: "#BBF7D0",
+    shadow: "rgba(4,120,87,0.10)",
+  },
+  email: {
+    iconBg: "#EFF6FF",
+    iconColor: "#2563EB",
+    border: "#BFDBFE",
+    shadow: "rgba(37,99,235,0.10)",
+  },
+  doctor: {
+    iconBg: "#EEF6FF",
+    iconColor: "#2563EB",
+    border: "#BFDBFE",
+    shadow: "rgba(37,99,235,0.10)",
+  },
+  appointment: {
+    iconBg: "#F5F3FF",
+    iconColor: "#6B21A8",
+    border: "#D8B4FE",
+    shadow: "rgba(107,33,168,0.11)",
+  },
+  ride: {
+    iconBg: "#ECFDF5",
+    iconColor: "#047857",
+    border: "#BBF7D0",
+    shadow: "rgba(4,120,87,0.10)",
+  },
+};
+
 const HomeScreen = () => {
   const { guardPath, readiness } = useServiceGate();
   const { t } = useTranslation();
-  const { firstName: profileFirstName } = useProfile();
+  const { firstName: profileFirstName, profile } = useProfile();
 
   const firstName = profileFirstName || "";
+  const homeDoctorContext = t("home.fastHelp.doctorContext", "Home quick doctor help request. Ask what is happening and help prepare a safe next step.");
+  const gpName = profile?.gpName?.trim();
+  const gpPhoneHref = sanitizePhoneHref(profile?.gpPhone);
+  const gpEmailHref = homeDoctorMailto(
+    profile?.gpEmail,
+    t("health.symptomCheck.report.actions.emailSubject", "VYVA symptom report"),
+    homeDoctorContext,
+  );
 
   const {
     data: profileWeatherData,
@@ -196,6 +270,59 @@ const HomeScreen = () => {
     handleNavigate(card.path, SECTION_VOICE_AUTO_START_OPTIONS);
   };
 
+  const handleFastActionOpen = (action: HomeFastAction) => {
+    if (action.id === "doctor") {
+      handleNavigate("/health/doctor", {
+        state: {
+          autoStartVoice: true,
+          latestSymptomReport: homeDoctorContext,
+        },
+      });
+      return;
+    }
+
+    const isRide = action.id === "ride";
+    handleNavigate("/concierge", {
+      state: {
+        conciergePrefill: {
+          kind: isRide ? "ride" : "appointment",
+          message: isRide
+            ? t("home.fastHelp.ridePrefill", "Please help me arrange safe transport. Ask for destination and timing, and do not book anything without my confirmation.")
+            : t("home.fastHelp.appointmentPrefill", "Please help me schedule an appointment. Ask what kind of appointment I need and do not book anything without my confirmation."),
+          source: "home_quick_action",
+        },
+      },
+    });
+  };
+
+  const homeFastActions: HomeFastAction[] = [
+    ...(gpPhoneHref
+      ? [{
+          id: "callGp" as const,
+          icon: PhoneCall,
+          tone: "call" as const,
+          label: gpName ? t("meds.callGpNamed", "Call {{name}}", { name: gpName }) : t("meds.callGp", "Call GP"),
+          sub: t("meds.callGpSub", "Speak to your practice now."),
+          href: gpPhoneHref,
+        }]
+      : []),
+    ...(gpEmailHref
+      ? [{
+          id: "emailGp" as const,
+          icon: Mail,
+          tone: "email" as const,
+          label: t("meds.emailGp", "Email GP"),
+          sub: t("meds.emailGpSub", "Open an email with context filled in."),
+          href: gpEmailHref,
+        }]
+      : []),
+    ...HOME_FAST_ACTIONS.map((action) => ({
+      ...action,
+      label: t(`home.fastHelp.${action.id}.label`),
+      sub: t(`home.fastHelp.${action.id}.sub`),
+    })),
+  ];
+
   const isSubscriptionLocked = (path: string) => {
     const serviceId = serviceForPath(path);
     if (!serviceId) return false;
@@ -255,6 +382,76 @@ const HomeScreen = () => {
           })}
         </ResponsiveGrid>
       </div>
+
+      <section
+        className="mt-[18px] rounded-[28px] border border-[#EDE2D1] bg-[#FFFCF8] p-5 shadow-[0_14px_32px_rgba(60,38,20,0.07)]"
+        data-testid="home-fast-help"
+      >
+        <div className="mb-4">
+          <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-purple">
+            {t("home.fastHelp.kicker", "Fast help")}
+          </p>
+          <h2 className="mt-1 font-body text-[22px] font-black leading-tight text-vyva-text-1">
+            {t("home.fastHelp.title", "What do you need now?")}
+          </h2>
+        </div>
+        <div className="grid grid-cols-1 gap-3">
+          {homeFastActions.map((action) => {
+            const theme = HOME_FAST_ACTION_THEMES[action.tone];
+            const Icon = action.icon;
+            const content = (
+              <>
+                <span
+                  className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[18px]"
+                  style={{ background: theme.iconBg, color: theme.iconColor }}
+                >
+                  <Icon size={24} strokeWidth={2.4} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-body text-[18px] font-black leading-tight text-vyva-text-1">
+                    {action.label}
+                  </span>
+                  <span className="mt-1 block max-w-[24rem] font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
+                    {action.sub}
+                  </span>
+                </span>
+              </>
+            );
+            const className = "vyva-tap flex min-h-[86px] w-full items-center gap-4 rounded-[22px] border bg-white px-4 py-4 text-left transition-transform hover:-translate-y-0.5";
+            const style = {
+              borderColor: theme.border,
+              boxShadow: `0 10px 24px ${theme.shadow}`,
+            };
+
+            if (action.href) {
+              return (
+                <a
+                  key={action.id}
+                  data-testid={`button-home-fast-${action.id}`}
+                  href={action.href}
+                  className={className}
+                  style={style}
+                >
+                  {content}
+                </a>
+              );
+            }
+
+            return (
+              <button
+                key={action.id}
+                type="button"
+                data-testid={`button-home-fast-${action.id}`}
+                onClick={() => handleFastActionOpen(action)}
+                className={className}
+                style={style}
+              >
+                {content}
+              </button>
+            );
+          })}
+        </div>
+      </section>
     </div>
   );
 };
