@@ -361,6 +361,7 @@ const registerSchema = z.object({
   identifier: z.string().optional(),
   language:   z.string().optional(),
   invite_id:  z.string().trim().min(8).max(120).optional(),
+  care_team_invite_token: z.string().trim().min(8).max(120).optional(),
   password:   z.string().min(8, "Password must be at least 8 characters"),
 });
 
@@ -400,6 +401,40 @@ type CareTeamInvitePublicStatus = "pending" | "accepted" | "declined" | "revoked
 function careTeamInviteStatus(invitation: CareTeamInviteRow): CareTeamInvitePublicStatus {
   if (invitation.status === "pending" && new Date() > invitation.expires_at) return "expired";
   return invitation.status as CareTeamInvitePublicStatus;
+}
+
+function normalizedInviteContacts(invitation: CareTeamInviteRow) {
+  return {
+    invitedEmails: [
+      normalizeEmail(invitation.invitee_email),
+    ].filter((value): value is string => Boolean(value)),
+    invitedPhones: [
+      normalizePhone(invitation.invitee_phone),
+      normalizePhone(invitation.invitee_whatsapp),
+    ].filter((value): value is string => Boolean(value)),
+  };
+}
+
+function invitedContactMatchesValues(input: {
+  invitation: CareTeamInviteRow;
+  emails?: Array<string | null | undefined>;
+  phones?: Array<string | null | undefined>;
+}) {
+  const { invitedEmails, invitedPhones } = normalizedInviteContacts(input.invitation);
+
+  if (invitedEmails.length === 0 && invitedPhones.length === 0) return true;
+
+  const accountEmails = (input.emails ?? [])
+    .map((email) => normalizeEmail(email))
+    .filter((value): value is string => Boolean(value));
+  const accountPhones = (input.phones ?? [])
+    .map((phone) => normalizePhone(phone))
+    .filter((value): value is string => Boolean(value));
+
+  return (
+    accountEmails.some((email) => invitedEmails.includes(email)) ||
+    accountPhones.some((phone) => invitedPhones.includes(phone))
+  );
 }
 
 function seniorDisplayName(profile?: Pick<(typeof profiles.$inferSelect), "full_name" | "preferred_name"> | null): string {
@@ -445,29 +480,11 @@ function invitedContactMatchesAccount(input: {
   user: typeof users.$inferSelect;
   requestUser?: Request["user"];
 }) {
-  const invitedEmails = [
-    normalizeEmail(input.invitation.invitee_email),
-  ].filter((value): value is string => Boolean(value));
-  const invitedPhones = [
-    normalizePhone(input.invitation.invitee_phone),
-    normalizePhone(input.invitation.invitee_whatsapp),
-  ].filter((value): value is string => Boolean(value));
-
-  if (invitedEmails.length === 0 && invitedPhones.length === 0) return true;
-
-  const accountEmails = [
-    normalizeEmail(input.user.email),
-    normalizeEmail(input.requestUser?.email),
-  ].filter((value): value is string => Boolean(value));
-  const accountPhones = [
-    normalizePhone(input.user.phone_number),
-    normalizePhone(input.requestUser?.phone),
-  ].filter((value): value is string => Boolean(value));
-
-  return (
-    accountEmails.some((email) => invitedEmails.includes(email)) ||
-    accountPhones.some((phone) => invitedPhones.includes(phone))
-  );
+  return invitedContactMatchesValues({
+    invitation: input.invitation,
+    emails: [input.user.email, input.requestUser?.email],
+    phones: [input.user.phone_number, input.requestUser?.phone],
+  });
 }
 
 function profileMembershipRoleForInvite(role: CareTeamInviteRow["role"]): (typeof profileMemberships.$inferSelect)["role"] {
@@ -625,6 +642,43 @@ async function recordSignupInviteAudit(input: {
   return { tracked: Boolean(intake), intake_id: intake?.id ?? null };
 }
 
+async function validateCareTeamInviteForRegistration(token: string, contact: ContactIdentifier) {
+  const [invitation] = await db
+    .select()
+    .from(teamInvitations)
+    .where(eq(teamInvitations.invite_token, token))
+    .limit(1);
+
+  if (!invitation) {
+    throw new RouteHttpError(404, "This care-team invitation is invalid.");
+  }
+
+  if (invitation.status === "accepted") {
+    throw new RouteHttpError(409, "This invitation has already been accepted.");
+  }
+
+  const status = careTeamInviteStatus(invitation);
+  if (status === "expired" || status === "revoked" || status === "declined") {
+    if (status === "expired" && invitation.status === "pending") {
+      await db
+        .update(teamInvitations)
+        .set({ status: "expired", updated_at: new Date() })
+        .where(eq(teamInvitations.id, invitation.id));
+    }
+    throw new RouteHttpError(410, "This invitation link is no longer active.");
+  }
+
+  if (!invitedContactMatchesValues({
+    invitation,
+    emails: [contact.email],
+    phones: [contact.phone],
+  })) {
+    throw new RouteHttpError(403, "Please create or sign in with the invited email or mobile number.");
+  }
+
+  return invitation;
+}
+
 authRouter.post("/signup-invite/track", async (req: Request, res: Response) => {
   const parsed = signupInviteTrackSchema.safeParse(req.body ?? {});
   if (!parsed.success) return res.status(204).end();
@@ -671,14 +725,27 @@ authRouter.post("/register", async (req: Request, res: Response) => {
       });
     }
 
+    const careTeamInvite = parsed.data.care_team_invite_token
+      ? await validateCareTeamInviteForRegistration(parsed.data.care_team_invite_token, contact)
+      : null;
+
     const password_hash = await hashPassword(password);
     const [user] = await db
       .insert(users)
       .values({ email: contact.email, phone_number: contact.phone, password_hash })
       .returning();
 
-    await seedRegistrationProfile(user, language);
-    const registeredUser = { ...user, active_profile_id: user.id, onboarding_intent: "self" };
+    let registeredUser = user;
+    if (careTeamInvite) {
+      await db
+        .update(users)
+        .set({ onboarding_intent: "someone_else" })
+        .where(eq(users.id, user.id));
+      registeredUser = { ...user, active_profile_id: null, onboarding_intent: "someone_else" };
+    } else {
+      await seedRegistrationProfile(user, language);
+      registeredUser = { ...user, active_profile_id: user.id, onboarding_intent: "self" };
+    }
     if (parsed.data.invite_id) {
       try {
         await recordSignupInviteAudit({
@@ -696,6 +763,9 @@ authRouter.post("/register", async (req: Request, res: Response) => {
     const token = await issueAuthSessionCookie(res, user.id);
     return res.status(201).json({ token, ...authResponseUser(registeredUser, null, language, "user") });
   } catch (err) {
+    if (err instanceof RouteHttpError) {
+      return res.status(err.status).json({ error: err.message });
+    }
     console.error("[auth/register]", err);
     return res.status(500).json({ error: friendlyAuthWriteError(err) });
   }
