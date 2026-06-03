@@ -91,7 +91,7 @@ export default function CareTeamInvitePage() {
 
   const returnTo = useMemo(() => invitePath(token), [token]);
   const signInHref = `/login?mode=login&returnTo=${encodeURIComponent(returnTo)}`;
-  const createHref = `/login?returnTo=${encodeURIComponent(returnTo)}`;
+  const createHref = `/login?mode=register&returnTo=${encodeURIComponent(returnTo)}`;
 
   useEffect(() => {
     let cancelled = false;
