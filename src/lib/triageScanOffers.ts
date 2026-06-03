@@ -137,31 +137,31 @@ function offer(type: TriageScanType): TriageScanOffer {
   if (type === "vitals") {
     return {
       type,
-      title: "Scan pulse & breathing",
-      body: "Optional. This can help VYVA understand breathlessness, dizziness, fever, weakness, or chest symptoms.",
+      title: "Check pulse & breathing",
+      body: "If you feel comfortable, this quick check can help VYVA understand how your body is doing right now.",
     };
   }
   if (type === "wound_photo") {
     return {
       type,
-      title: "Scan skin or wound",
-      body: "Optional photo. VYVA looks for visible changes like spreading redness, drainage, swelling, or bruising.",
-      privacyNote: "The photo is analyzed and discarded. VYVA saves only the scan note.",
+      title: "Photo of the skin change",
+      body: "If you want, you can take a photo of the skin change so VYVA can look for visible changes.",
+      privacyNote: "Only photograph the area you want checked. The photo is reviewed and then discarded.",
     };
   }
   if (type === "urine_photo") {
     return {
       type,
-      title: "Scan urine appearance",
-      body: "Optional photo for visible color or cloudiness changes.",
-      privacyNote: "No faces, ID, or body parts. VYVA cannot diagnose a urine infection from a photo.",
+      title: "Photo of urine appearance",
+      body: "If the color or cloudiness looks different, a photo may help VYVA note what changed.",
+      privacyNote: "Only photograph the urine itself. Keep faces and ID cards out of the photo. A photo cannot tell if you have a urine infection.",
     };
   }
   return {
     type,
-    title: "Scan stool appearance",
-    body: "Optional photo when stool appearance is part of what changed.",
-    privacyNote: "No faces, ID, or body parts. VYVA cannot diagnose bleeding or stomach disease from a photo.",
+    title: "Photo of stool appearance",
+    body: "If the stool looked unusual for you, a photo may help VYVA note the change.",
+    privacyNote: "Only photograph the stool itself. Keep faces and ID cards out of the photo. A photo cannot tell if there is bleeding or stomach disease.",
   };
 }
 

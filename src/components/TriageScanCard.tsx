@@ -52,6 +52,7 @@ export default function TriageScanCard({
   onVitalsCaptured,
 }: TriageScanCardProps) {
   const Icon = iconFor(offer.type);
+  const primaryLabel = offer.type === "vitals" ? "Check now" : "Take photo";
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [mode, setMode] = useState<"offer" | "vitals" | "result">("offer");
   const [result, setResult] = useState<TriageScanResult | null>(null);
@@ -196,7 +197,7 @@ export default function TriageScanCard({
           <Icon size={22} />
         </span>
         <div className="min-w-0">
-          <p className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-vyva-purple">Optional scan</p>
+          <p className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-vyva-purple">Your choice</p>
           <p className="mt-1 font-body text-[19px] font-black leading-snug text-vyva-text-1">{offer.title}</p>
           <p className="mt-1 font-body text-[15px] font-semibold leading-snug text-vyva-text-2">{offer.body}</p>
           {offer.privacyNote ? (
@@ -216,7 +217,7 @@ export default function TriageScanCard({
           className="vyva-tap flex min-h-[56px] items-center justify-center gap-2 rounded-[18px] bg-vyva-purple px-3 font-body text-[16px] font-black text-white disabled:opacity-60"
         >
           {busy ? <Loader2 size={18} className="animate-spin" /> : offer.type === "vitals" ? <HeartPulse size={18} /> : <ImagePlus size={18} />}
-          Scan now
+          {primaryLabel}
         </button>
         <button
           type="button"
@@ -226,7 +227,7 @@ export default function TriageScanCard({
           className="vyva-tap flex min-h-[56px] items-center justify-center gap-2 rounded-[18px] border border-[#E8DED4] bg-white px-3 font-body text-[16px] font-black text-vyva-text-1 disabled:opacity-60"
         >
           <SkipForward size={16} />
-          Skip for now
+          Not now
         </button>
       </div>
     </HealthWizardCard>
