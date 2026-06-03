@@ -13,6 +13,7 @@ type AuthErrorMessages = {
   loginFailed: string;
   registrationFailed: string;
   adminRegistrationOnly: string;
+  accountSetupUnavailable: string;
 };
 
 const AUTH_ERROR_MESSAGES: Record<LanguageCode, AuthErrorMessages> = {
@@ -26,6 +27,7 @@ const AUTH_ERROR_MESSAGES: Record<LanguageCode, AuthErrorMessages> = {
     loginFailed: "Login failed. Please try again.",
     registrationFailed: "Registration failed. Please try again.",
     adminRegistrationOnly: "Admin accounts can only be created by the super admin after sign in.",
+    accountSetupUnavailable: "We could not create this account right now. Please try again later or contact VYVA support.",
   },
   es: {
     invalidContact: "Introduce un email o numero movil valido.",
@@ -37,6 +39,7 @@ const AUTH_ERROR_MESSAGES: Record<LanguageCode, AuthErrorMessages> = {
     loginFailed: "No se pudo iniciar sesion. Intentalo de nuevo.",
     registrationFailed: "No se pudo crear la cuenta. Intentalo de nuevo.",
     adminRegistrationOnly: "Las cuentas de administrador solo puede crearlas el superadministrador despues de iniciar sesion.",
+    accountSetupUnavailable: "No se pudo crear esta cuenta ahora. Intentalo mas tarde o contacta con soporte de VYVA.",
   },
   fr: {
     invalidContact: "Veuillez saisir une adresse e-mail ou un numero mobile valide.",
@@ -48,6 +51,7 @@ const AUTH_ERROR_MESSAGES: Record<LanguageCode, AuthErrorMessages> = {
     loginFailed: "Connexion impossible. Reessayez.",
     registrationFailed: "Impossible de creer le compte. Reessayez.",
     adminRegistrationOnly: "Les comptes administrateur ne peuvent etre crees que par le super administrateur apres connexion.",
+    accountSetupUnavailable: "Impossible de creer ce compte pour le moment. Reessayez plus tard ou contactez le support VYVA.",
   },
   de: {
     invalidContact: "Bitte geben Sie eine gueltige E-Mail-Adresse oder Mobilnummer ein.",
@@ -59,6 +63,7 @@ const AUTH_ERROR_MESSAGES: Record<LanguageCode, AuthErrorMessages> = {
     loginFailed: "Anmeldung fehlgeschlagen. Bitte erneut versuchen.",
     registrationFailed: "Konto konnte nicht erstellt werden. Bitte erneut versuchen.",
     adminRegistrationOnly: "Admin-Konten koennen nur vom Super-Admin nach der Anmeldung erstellt werden.",
+    accountSetupUnavailable: "Dieses Konto konnte gerade nicht erstellt werden. Bitte versuchen Sie es spaeter erneut oder kontaktieren Sie den VYVA Support.",
   },
   it: {
     invalidContact: "Inserisci un indirizzo email o un numero di cellulare valido.",
@@ -70,6 +75,7 @@ const AUTH_ERROR_MESSAGES: Record<LanguageCode, AuthErrorMessages> = {
     loginFailed: "Accesso non riuscito. Riprova.",
     registrationFailed: "Impossibile creare l'account. Riprova.",
     adminRegistrationOnly: "Gli account amministratore possono essere creati solo dal super admin dopo l'accesso.",
+    accountSetupUnavailable: "Non possiamo creare questo account ora. Riprova piu tardi o contatta il supporto VYVA.",
   },
   pt: {
     invalidContact: "Introduza um email ou numero de telemovel valido.",
@@ -81,6 +87,7 @@ const AUTH_ERROR_MESSAGES: Record<LanguageCode, AuthErrorMessages> = {
     loginFailed: "Nao foi possivel iniciar sessao. Tente novamente.",
     registrationFailed: "Nao foi possivel criar a conta. Tente novamente.",
     adminRegistrationOnly: "As contas de administrador so podem ser criadas pelo super administrador apos iniciar sessao.",
+    accountSetupUnavailable: "Nao foi possivel criar esta conta agora. Tente mais tarde ou contacte o suporte VYVA.",
   },
   cy: {
     invalidContact: "Rhowch gyfeiriad e-bost neu rif symudol dilys.",
@@ -92,6 +99,7 @@ const AUTH_ERROR_MESSAGES: Record<LanguageCode, AuthErrorMessages> = {
     loginFailed: "Methodd y mewngofnodi. Rhowch gynnig arall.",
     registrationFailed: "Methu creu'r cyfrif. Rhowch gynnig arall.",
     adminRegistrationOnly: "Dim ond y super admin all greu cyfrifon gweinyddol ar ol mewngofnodi.",
+    accountSetupUnavailable: "Ni allem greu'r cyfrif hwn ar hyn o bryd. Rhowch gynnig arall yn nes ymlaen neu cysylltwch a chymorth VYVA.",
   },
 };
 
@@ -116,6 +124,13 @@ export function localizeAuthErrorMessage(error: unknown, language: LanguageCode,
   if (normalized.includes("password must be at least 8 characters")) return copy.passwordTooShort;
   if (normalized.includes("local api is not running")) return message;
   if (normalized.includes("api proxy failed")) return LOCAL_API_UNAVAILABLE_MESSAGE;
+  if (
+    normalized.includes("database schema is out of date") ||
+    normalized.includes("account setup is not ready") ||
+    normalized.includes("could not create the account right now")
+  ) {
+    return copy.accountSetupUnavailable;
+  }
   if (normalized === "login failed") return copy.loginFailed;
   if (normalized === "registration failed" || normalized.startsWith("registration failed:")) {
     return copy.registrationFailed;
