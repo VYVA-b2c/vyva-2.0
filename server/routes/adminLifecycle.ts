@@ -381,6 +381,8 @@ type SignupShareRecipient = {
   name?: string;
 };
 
+type SignupInviteType = "elder" | "caregiver";
+
 function inviteRecipientNameKey(name: string | null | undefined): string | null {
   const normalized = (name ?? "").replace(/\s+/g, " ").trim().toLowerCase();
   return normalized || null;
@@ -449,6 +451,7 @@ async function findSignupInviteIntake(input: { email?: string | null; phone?: st
 
 async function ensureSignupInviteIntake(input: {
   inviteId: string;
+  inviteType: SignupInviteType;
   name?: string | null;
   email?: string | null;
   phone?: string | null;
@@ -459,8 +462,11 @@ async function ensureSignupInviteIntake(input: {
   const now = new Date();
   const email = (input.email ?? "").trim().toLowerCase() || null;
   const phone = normalizePhone(input.phone ?? "") || null;
+  const userType = input.inviteType === "caregiver" ? "family" : "elder";
+  const consentStatus = input.inviteType === "caregiver" ? "pending" : "not_required";
   const metadataPatch = {
     source: "admin_share_invite",
+    invite_type: input.inviteType,
     latest_invite_id: input.inviteId,
     invite_language: input.language,
     invite_channel: input.channel,
@@ -478,8 +484,10 @@ async function ensureSignupInviteIntake(input: {
         name: existing.name === "Invited user" ? signupInviteDisplayName(input.name) : existing.name,
         email: existing.email ?? email,
         phone: existing.phone || phone || "",
+        user_type: existing.status === "active" ? existing.user_type : userType,
         status: existing.status === "active" ? "active" : "link_sent",
         journey_step: existing.status === "active" ? existing.journey_step : "signup_invite_sent",
+        consent_status: existing.status === "active" ? existing.consent_status : consentStatus,
         link_sent_at: now,
         last_activity_at: now,
         updated_at: now,
@@ -496,13 +504,13 @@ async function ensureSignupInviteIntake(input: {
       name: signupInviteDisplayName(input.name),
       phone: phone ?? "",
       email,
-      user_type: "elder",
+      user_type: userType,
       entry_point: "admin",
       tier: "free",
       status: "link_sent",
       journey_step: "signup_invite_sent",
-      consent_status: "not_required",
-      source_payload: { source: "admin_share_invite", channel: input.channel },
+      consent_status: consentStatus,
+      source_payload: { source: "admin_share_invite", channel: input.channel, invite_type: input.inviteType },
       metadata: metadataPatch,
       link_sent_at: now,
       last_activity_at: now,
@@ -3715,15 +3723,18 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
     whatsapp_recipients: z.array(namedInviteRecipientSchema.extend({
       recipient: z.string().trim().min(3),
     })).optional().default([]),
+    invite_type: z.enum(["elder", "caregiver"]).optional().default("elder"),
     message: z.string().trim().max(500).optional(),
     language: z.string().trim().optional(),
   }).safeParse(req.body ?? {});
   if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid signup share request" });
 
   const language = normalizeSignupInviteLanguage(parsed.data.language);
+  const inviteType = parsed.data.invite_type;
+  const setupFor = inviteType === "caregiver" ? "someone_else" : "self";
   const copy = signupInviteCopyFor(language);
   const baseUrl = publicBaseUrl(req);
-  const signupUrl = buildSignupInviteUrl(baseUrl, language);
+  const signupUrl = buildSignupInviteUrl(baseUrl, language, { setupFor });
   const emailRecipients = mergeSignupInviteRecipients(
     parsed.data.emails,
     parsed.data.email_recipients,
@@ -3743,7 +3754,7 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
   const phoneInviteChannel = signupPhoneInviteChannel();
   const intro = parsed.data.message || copy.defaultIntro;
   const buildBody = (setupUrl: string) => `${intro}\n\n${copy.startHere}: ${setupUrl}`;
-  const buildSetupUrl = (prefill: SignupInvitePrefill) => buildSignupInviteUrl(baseUrl, language, prefill);
+  const buildSetupUrl = (prefill: SignupInvitePrefill) => buildSignupInviteUrl(baseUrl, language, { ...prefill, setupFor });
   const sharedBy = req.user?.email ?? req.user?.id ?? null;
   const rows: Array<typeof communicationsLog.$inferInsert> = [];
 
@@ -3753,6 +3764,7 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
     const inviteId = randomUUID();
     const intake = await ensureSignupInviteIntake({
       inviteId,
+      inviteType,
       name,
       email: recipient,
       phone: matchedWhatsapp?.recipient,
@@ -3777,6 +3789,7 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
       body: buildBody(setupUrl),
       metadata: {
         invite_id: inviteId,
+        invite_type: inviteType,
         url: setupUrl,
         language,
         intro,
@@ -3792,7 +3805,7 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
       fromStatus: intake.status,
       toStatus: intake.status,
       channel: "email",
-      metadata: { invite_id: inviteId, recipient, language, shared_by: sharedBy },
+      metadata: { invite_id: inviteId, invite_type: inviteType, recipient, language, shared_by: sharedBy },
     });
   }
 
@@ -3802,6 +3815,7 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
     const inviteId = randomUUID();
     const intake = await ensureSignupInviteIntake({
       inviteId,
+      inviteType,
       name,
       email: matchedEmail?.recipient,
       phone: recipient,
@@ -3826,6 +3840,7 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
       body: buildBody(setupUrl),
       metadata: {
         invite_id: inviteId,
+        invite_type: inviteType,
         url: setupUrl,
         language,
         requested_channel: "phone",
@@ -3842,7 +3857,7 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
       fromStatus: intake.status,
       toStatus: intake.status,
       channel: phoneInviteChannel,
-      metadata: { invite_id: inviteId, recipient, language, shared_by: sharedBy },
+      metadata: { invite_id: inviteId, invite_type: inviteType, recipient, language, shared_by: sharedBy },
     });
   }
 
@@ -3853,6 +3868,7 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
 
   return res.status(201).json({
     signup_url: signupUrl,
+    invite_type: inviteType,
     queued: communications.length,
     sent,
     failed,

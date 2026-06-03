@@ -56,9 +56,11 @@ const REDIRECT_COPY: Record<LanguageCode, { eyebrow: string; title: string; body
 
 export function inviteSetupPath(search: string) {
   const params = new URLSearchParams(search);
+  const setupFor = (params.get("setup_for") ?? params.get("setup") ?? params.get("intent") ?? "").trim().toLowerCase();
+  const caregiverInvite = ["someone_else", "caregiver", "family", "proxy"].includes(setupFor);
   params.set("mode", "register");
   params.set("invite", "1");
-  params.set("returnTo", "/");
+  params.set("returnTo", caregiverInvite ? "/onboarding/who-for" : "/");
   return `/login?${params.toString()}`;
 }
 

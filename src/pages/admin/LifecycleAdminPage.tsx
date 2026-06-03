@@ -1,4 +1,4 @@
-import { Copy, Send, Upload } from "lucide-react";
+import { Copy, Send, Upload, UserRound, UsersRound } from "lucide-react";
 import { useEffect, useState, type ChangeEvent } from "react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
@@ -53,6 +53,8 @@ type SignupShareResult = {
   status: string;
   error?: string;
 };
+
+type SignupInviteType = "elder" | "caregiver";
 
 type SignupShareNotice = {
   tone: "success" | "warning" | "error";
@@ -334,6 +336,7 @@ export default function LifecycleAdminPage() {
     whatsapp: "",
     message: "",
     language: "en",
+    inviteType: "elder" as SignupInviteType,
   });
   const [sharingSignup, setSharingSignup] = useState(false);
   const [signupShareNotice, setSignupShareNotice] = useState<SignupShareNotice | null>(null);
@@ -739,6 +742,7 @@ export default function LifecycleAdminPage() {
         body: JSON.stringify({
           email_recipients: emailRecipients,
           whatsapp_recipients: whatsappRecipients,
+          invite_type: signupShare.inviteType,
           message: signupShare.message.trim() || undefined,
           language: signupShare.language,
         }),
@@ -754,17 +758,18 @@ export default function LifecycleAdminPage() {
         .filter((item) => item.status === "sent")
         .map((item) => `${item.channel} to ${item.recipient}: sent`);
       const tone = failed === 0 ? "success" : sent > 0 ? "warning" : "error";
+      const inviteLabel = signupShare.inviteType === "caregiver" ? "Caregiver invite" : "Signup link";
       const title = failed === 0
-        ? `Signup link sent to ${sent} recipient${sent === 1 ? "" : "s"}.`
+        ? `${inviteLabel} sent to ${sent} recipient${sent === 1 ? "" : "s"}.`
         : sent > 0
-          ? `Signup link partially sent: ${sent} sent, ${failed} failed.`
-          : `Signup link failed for ${failed || queued} recipient${(failed || queued) === 1 ? "" : "s"}.`;
+          ? `${inviteLabel} partially sent: ${sent} sent, ${failed} failed.`
+          : `${inviteLabel} failed for ${failed || queued} recipient${(failed || queued) === 1 ? "" : "s"}.`;
       setSignupShareNotice({
         tone,
         title,
         details: [...failedDetails, ...(failedDetails.length ? sentDetails : sentDetails.slice(0, 3))],
       });
-      if (sent > 0) setSignupShare({ emails: "", whatsapp: "", message: signupShare.message, language: signupShare.language });
+      if (sent > 0) setSignupShare({ emails: "", whatsapp: "", message: signupShare.message, language: signupShare.language, inviteType: signupShare.inviteType });
       await refresh();
     } catch (err) {
       setSignupShareNotice({
@@ -1545,6 +1550,39 @@ export default function LifecycleAdminPage() {
                     {copiedSignupLink ? "Copied" : "Copy"}
                   </button>
                 </div>
+              </div>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-2">
+                {(["elder", "caregiver"] as SignupInviteType[]).map((inviteType) => {
+                  const active = signupShare.inviteType === inviteType;
+                  const Icon = inviteType === "elder" ? UserRound : UsersRound;
+                  return (
+                    <button
+                      key={inviteType}
+                      type="button"
+                      onClick={() => setSignupShare((current) => ({ ...current, inviteType }))}
+                      className={`flex min-h-[92px] items-start gap-3 rounded-[24px] border px-4 py-4 text-left transition ${
+                        active
+                          ? "border-purple-300 bg-purple-50 shadow-[0_12px_28px_rgba(126,34,206,0.12)]"
+                          : "border-[#eadfd5] bg-white hover:border-purple-200 hover:bg-purple-50/50"
+                      }`}
+                    >
+                      <span className={`mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${active ? "bg-purple-700 text-white" : "bg-[#f7efff] text-purple-700"}`}>
+                        <Icon size={21} />
+                      </span>
+                      <span>
+                        <span className="block text-sm font-black text-[#2f2135]">
+                          {inviteType === "elder" ? "Elder self-signup" : "Caregiver / family setup"}
+                        </span>
+                        <span className="mt-1 block text-xs font-semibold leading-relaxed text-[#7d6b65]">
+                          {inviteType === "elder"
+                            ? "Recipient creates their own VYVA profile and app access."
+                            : "Recipient starts proxy setup for someone they care for, with elder consent next."}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="mt-5 grid gap-4 xl:grid-cols-[1.25fr_0.95fr]">
