@@ -823,6 +823,49 @@ const de = {
       finish: "Fertig",
     },
   },
+  triageScan: {
+    eyebrow: "Ihre Wahl",
+    resultAdded: "Hinweis zur Prufung hinzugefugt",
+    photoError: "Wir konnten dieses Foto nicht prufen. Sie konnen es erneut versuchen oder ohne Foto fortfahren.",
+    actions: {
+      checkNow: "Jetzt prufen",
+      takePhoto: "Foto aufnehmen",
+      notNow: "Jetzt nicht",
+      tryAgain: "Erneut versuchen",
+      continue: "Weiter",
+    },
+    labels: {
+      vitals: "Puls- und Atemprufung",
+    },
+    vitals: {
+      pulseSummary: "Puls {{bpm}} bpm",
+      breathingSummary: "Atmung {{rate}}/min",
+      noReading: "Keine Messung erfasst.",
+      pulseFinding: "Puls: {{bpm}} bpm",
+      breathingFinding: "Atemfrequenz: {{rate}}/min",
+    },
+    offers: {
+      vitals: {
+        title: "Puls und Atmung prufen",
+        body: "Wenn es fur Sie in Ordnung ist, hilft diese kurze Prufung VYVA zu verstehen, wie es Ihrem Korper jetzt geht.",
+      },
+      wound_photo: {
+        title: "Foto der Hautveranderung",
+        body: "Wenn Sie mochten, konnen Sie ein Foto der Hautveranderung aufnehmen, damit VYVA sichtbare Anderungen prufen kann.",
+        privacyNote: "Fotografieren Sie nur den Bereich, den Sie prufen lassen mochten. Das Foto wird analysiert und danach verworfen.",
+      },
+      urine_photo: {
+        title: "Foto des Urinaussehens",
+        body: "Wenn Farbe oder Trubung anders aussehen, kann ein Foto VYVA helfen, die Anderung zu notieren.",
+        privacyNote: "Fotografieren Sie nur den Urin. Keine Gesichter oder Ausweise zeigen. Ein Foto kann keine Harnwegsinfektion feststellen.",
+      },
+      stool_photo: {
+        title: "Foto des Stuhlaussehens",
+        body: "Wenn der Stuhl fur Sie ungewohnt aussah, kann ein Foto VYVA helfen, die Anderung zu notieren.",
+        privacyNote: "Fotografieren Sie nur den Stuhl. Keine Gesichter oder Ausweise zeigen. Ein Foto kann keine Blutung oder Magenkrankheit feststellen.",
+      },
+    },
+  },
   informes: {
     fastServiceAccess: "Schneller Servicezugang",
     actions: {

@@ -391,6 +391,15 @@ onboardingRouter.get("/careteam", async (req: Request, res: Response) => {
         created_at:     teamInvitations.created_at,
         expires_at:     teamInvitations.expires_at,
         accepted_at:    teamInvitations.accepted_at,
+        can_receive_daily_digest:      teamInvitations.can_receive_daily_digest,
+        can_receive_safety_alerts:     teamInvitations.can_receive_safety_alerts,
+        can_receive_health_alerts:     teamInvitations.can_receive_health_alerts,
+        can_receive_mood_alerts:       teamInvitations.can_receive_mood_alerts,
+        can_receive_medication_alerts: teamInvitations.can_receive_medication_alerts,
+        can_view_dashboard:            teamInvitations.can_view_dashboard,
+        can_view_health_reports:       teamInvitations.can_view_health_reports,
+        can_view_vital_signs:          teamInvitations.can_view_vital_signs,
+        can_view_journal_summaries:    teamInvitations.can_view_journal_summaries,
       })
       .from(teamInvitations)
       .where(eq(teamInvitations.senior_id, userId))

@@ -153,7 +153,10 @@ function setupInviteParamsFromSearch(search: string): URLSearchParams | null {
     params.has("phone") ||
     params.has("whatsapp") ||
     params.has("first_name") ||
-    params.has("last_name");
+    params.has("last_name") ||
+    params.has("setup_for") ||
+    params.has("setup") ||
+    params.has("intent");
   return hasInviteSetup ? params : null;
 }
 
@@ -179,6 +182,16 @@ function setupLanguageFromParams(params: URLSearchParams): LanguageCode | null {
 
 function setupContactFromParams(params: URLSearchParams): string {
   return (params.get("email") ?? params.get("phone") ?? params.get("whatsapp") ?? "").trim();
+}
+
+function setupIntentFromParams(params: URLSearchParams): SetupIntent | null {
+  const raw = (params.get("setup_for") ?? params.get("setup") ?? params.get("intent") ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/-/g, "_");
+  if (["someone_else", "caregiver", "family", "proxy"].includes(raw)) return "caregiver";
+  if (["self", "elder"].includes(raw)) return "self";
+  return null;
 }
 
 type LoginCopy = {
@@ -1478,11 +1491,13 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
     if (!setupParams) return;
     const setupLanguage = setupLanguageFromParams(setupParams);
     if (setupLanguage && setupLanguage !== language) setBootstrapLanguage(setupLanguage);
+    const setupIntentParam = setupIntentFromParams(setupParams);
+    if (setupIntentParam && setupIntentParam !== setupIntent) setSetupIntent(setupIntentParam);
     if (!contact.trim()) {
       const setupContact = setupContactFromParams(setupParams);
       if (setupContact) setContact(setupContact);
     }
-  }, [contact, from, language, location.search]);
+  }, [contact, from, language, location.search, setupIntent]);
 
   useEffect(() => {
     if (isLoading) return;

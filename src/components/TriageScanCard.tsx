@@ -1,5 +1,6 @@
 import { useRef, useState, type ChangeEvent } from "react";
 import { Camera, CheckCircle, Droplets, HeartPulse, ImagePlus, Loader2, RefreshCw, SkipForward } from "lucide-react";
+import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import { compressImageFile } from "@/lib/imageCompression";
 import type { TriageScanOffer } from "@/lib/triageScanOffers";
@@ -16,6 +17,8 @@ type TriageScanCardProps = {
   onVitalsCaptured?: (bpm: number | null, respiratoryRate: number | null) => void;
 };
 
+type ScanTranslator = ReturnType<typeof useLanguage>["t"];
+
 function createId() {
   return globalThis.crypto?.randomUUID?.() ?? `triage-scan-${Date.now()}`;
 }
@@ -30,12 +33,12 @@ function concernForVitals(bpm: number | null, respiratoryRate: number | null): T
   return "normal";
 }
 
-function vitalsSummary(bpm: number | null, respiratoryRate: number | null) {
+function vitalsSummary(bpm: number | null, respiratoryRate: number | null, t: ScanTranslator) {
   const parts = [
-    typeof bpm === "number" ? `Pulse ${bpm} bpm` : "",
-    typeof respiratoryRate === "number" ? `breathing ${respiratoryRate}/min` : "",
+    typeof bpm === "number" ? t("triageScan.vitals.pulseSummary", "Pulse {{bpm}} bpm", { bpm }) : "",
+    typeof respiratoryRate === "number" ? t("triageScan.vitals.breathingSummary", "breathing {{rate}}/min", { rate: respiratoryRate }) : "",
   ].filter(Boolean);
-  return parts.length ? parts.join(", ") : "No reading captured.";
+  return parts.length ? parts.join(", ") : t("triageScan.vitals.noReading", "No reading captured.");
 }
 
 function iconFor(type: TriageScanType) {
@@ -51,8 +54,11 @@ export default function TriageScanCard({
   onSkip,
   onVitalsCaptured,
 }: TriageScanCardProps) {
+  const { t } = useLanguage();
   const Icon = iconFor(offer.type);
-  const primaryLabel = offer.type === "vitals" ? "Check now" : "Take photo";
+  const primaryLabel = offer.type === "vitals"
+    ? t("triageScan.actions.checkNow", "Check now")
+    : t("triageScan.actions.takePhoto", "Take photo");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [mode, setMode] = useState<"offer" | "vitals" | "result">("offer");
   const [result, setResult] = useState<TriageScanResult | null>(null);
@@ -77,12 +83,12 @@ export default function TriageScanCard({
     setResult({
       id: createId(),
       type: "vitals",
-      label: triageScanLabel("vitals"),
+      label: t("triageScan.labels.vitals", triageScanLabel("vitals")),
       concernLevel: concernForVitals(bpm, respiratoryRate),
-      summary: vitalsSummary(bpm, respiratoryRate),
+      summary: vitalsSummary(bpm, respiratoryRate, t),
       findings: [
-        typeof bpm === "number" ? `Pulse: ${bpm} bpm` : "",
-        typeof respiratoryRate === "number" ? `Breathing rate: ${respiratoryRate}/min` : "",
+        typeof bpm === "number" ? t("triageScan.vitals.pulseFinding", "Pulse: {{bpm}} bpm", { bpm }) : "",
+        typeof respiratoryRate === "number" ? t("triageScan.vitals.breathingFinding", "Breathing rate: {{rate}}/min", { rate: respiratoryRate }) : "",
       ].filter(Boolean),
       capturedAt: new Date().toISOString(),
       values: {
@@ -115,7 +121,7 @@ export default function TriageScanCard({
       setResult(payload);
       setMode("result");
     } catch {
-      setError("Could not analyze that photo. You can try again or skip for now.");
+      setError(t("triageScan.photoError", "We could not check that photo. You can try again or continue without it."));
     } finally {
       setBusy(false);
     }
@@ -149,7 +155,9 @@ export default function TriageScanCard({
             <CheckCircle size={21} />
           </span>
           <div className="min-w-0">
-            <p className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-vyva-text-3">Optional scan added</p>
+            <p className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-vyva-text-3">
+              {t("triageScan.resultAdded", "Scan note added")}
+            </p>
             <p className="mt-1 font-body text-[18px] font-black leading-snug text-vyva-text-1">{result.summary}</p>
             {result.findings.length > 0 ? (
               <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
@@ -166,7 +174,7 @@ export default function TriageScanCard({
             className="vyva-tap flex min-h-[54px] items-center justify-center gap-2 rounded-[18px] border border-[#E8DED4] bg-white px-3 font-body text-[15px] font-black text-vyva-text-1"
           >
             <RefreshCw size={17} />
-            Retake
+            {t("triageScan.actions.tryAgain", "Try again")}
           </button>
           <button
             type="button"
@@ -174,7 +182,7 @@ export default function TriageScanCard({
             data-testid="button-triage-scan-continue"
             className="vyva-tap flex min-h-[54px] items-center justify-center rounded-[18px] bg-vyva-purple px-3 font-body text-[15px] font-black text-white"
           >
-            Continue
+            {t("triageScan.actions.continue", "Continue")}
           </button>
         </div>
       </HealthWizardCard>
@@ -197,7 +205,9 @@ export default function TriageScanCard({
           <Icon size={22} />
         </span>
         <div className="min-w-0">
-          <p className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-vyva-purple">Your choice</p>
+          <p className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+            {t("triageScan.eyebrow", "Your choice")}
+          </p>
           <p className="mt-1 font-body text-[19px] font-black leading-snug text-vyva-text-1">{offer.title}</p>
           <p className="mt-1 font-body text-[15px] font-semibold leading-snug text-vyva-text-2">{offer.body}</p>
           {offer.privacyNote ? (
@@ -227,7 +237,7 @@ export default function TriageScanCard({
           className="vyva-tap flex min-h-[56px] items-center justify-center gap-2 rounded-[18px] border border-[#E8DED4] bg-white px-3 font-body text-[16px] font-black text-vyva-text-1 disabled:opacity-60"
         >
           <SkipForward size={16} />
-          Not now
+          {t("triageScan.actions.notNow", "Not now")}
         </button>
       </div>
     </HealthWizardCard>

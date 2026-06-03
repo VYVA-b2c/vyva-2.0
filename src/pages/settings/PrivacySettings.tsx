@@ -33,26 +33,8 @@ import {
 } from "@/lib/brainCoachCaregiverPermissions";
 import { apiFetch } from "@/lib/queryClient";
 
-const PEOPLE = [
-  { id: "sarah", name: "Sarah Collins", role: "profile.roles.daughter" },
-  { id: "james", name: "James Collins", role: "profile.roles.son" },
-  { id: "linda", name: "Linda Hughes", role: "profile.roles.carer" },
-  { id: "dr_patel", name: "Dr. Anita Patel", role: "profile.roles.gp" },
-];
-
-interface PersonConsent {
-  health: boolean;
-  location: boolean;
-  conversations: boolean;
-}
-
-const DEFAULT_CONSENT: PersonConsent = {
-  health: false,
-  location: false,
-  conversations: false,
-};
-
 const BRAIN_COACH_PERMISSIONS_QUERY_KEY = "/api/caregiver/brain-coach/permissions";
+const CARE_TEAM_QUERY_KEY = "/api/onboarding/careteam";
 
 interface BrainCoachPermissionMember {
   id: string;
@@ -72,8 +54,50 @@ interface BrainCoachPermissionUpdateResponse {
   member: BrainCoachPermissionMember;
 }
 
+interface CareTeamRosterMember {
+  id: string;
+  invitee_name: string;
+  invitee_phone?: string | null;
+  invitee_email?: string | null;
+  role: string;
+  relationship?: string | null;
+  status: string;
+  accepted_at?: string | null;
+  can_receive_daily_digest?: boolean;
+  can_receive_safety_alerts?: boolean;
+  can_receive_health_alerts?: boolean;
+  can_receive_mood_alerts?: boolean;
+  can_receive_medication_alerts?: boolean;
+  can_view_dashboard?: boolean;
+  can_view_health_reports?: boolean;
+  can_view_vital_signs?: boolean;
+  can_view_journal_summaries?: boolean;
+}
+
+interface CareTeamRosterResponse {
+  members: CareTeamRosterMember[];
+}
+
 interface BrainCoachPermissionCopy {
   key: BrainCoachCaregiverPermissionKey;
+  icon: LucideIcon;
+  label: string;
+  description: string;
+}
+
+interface SharingPermissionCopy {
+  key: keyof Pick<
+    CareTeamRosterMember,
+    | "can_receive_daily_digest"
+    | "can_receive_safety_alerts"
+    | "can_receive_health_alerts"
+    | "can_receive_mood_alerts"
+    | "can_receive_medication_alerts"
+    | "can_view_dashboard"
+    | "can_view_health_reports"
+    | "can_view_vital_signs"
+    | "can_view_journal_summaries"
+  >;
   icon: LucideIcon;
   label: string;
   description: string;
@@ -112,6 +136,63 @@ const BRAIN_COACH_PERMISSION_COPY: BrainCoachPermissionCopy[] = [
   },
 ];
 
+const SHARING_PERMISSION_COPY: SharingPermissionCopy[] = [
+  {
+    key: "can_receive_daily_digest",
+    icon: FileText,
+    label: "Daily wellbeing summary",
+    description: "Daily wellbeing and care highlights.",
+  },
+  {
+    key: "can_receive_safety_alerts",
+    icon: Shield,
+    label: "Safety alerts",
+    description: "Important safety events and urgent check-ins.",
+  },
+  {
+    key: "can_receive_health_alerts",
+    icon: Heart,
+    label: "Health updates",
+    description: "Health changes and wellbeing alerts.",
+  },
+  {
+    key: "can_receive_mood_alerts",
+    icon: Sparkles,
+    label: "Mood updates",
+    description: "Mood and daily wellbeing changes.",
+  },
+  {
+    key: "can_receive_medication_alerts",
+    icon: Bell,
+    label: "Medication alerts",
+    description: "Medication reminders and missed-dose alerts.",
+  },
+  {
+    key: "can_view_dashboard",
+    icon: Eye,
+    label: "Caregiver dashboard",
+    description: "Read-only access to the caregiver dashboard.",
+  },
+  {
+    key: "can_view_health_reports",
+    icon: FileText,
+    label: "Health reports",
+    description: "Reports shared from the senior profile.",
+  },
+  {
+    key: "can_view_vital_signs",
+    icon: Heart,
+    label: "Vital signs",
+    description: "Vitals shared from health tracking.",
+  },
+  {
+    key: "can_view_journal_summaries",
+    icon: Share2,
+    label: "Conversation summaries",
+    description: "Daily highlights from conversations.",
+  },
+];
+
 async function readJsonResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
   const body = await response.json().catch(() => null);
   if (!response.ok) {
@@ -138,6 +219,63 @@ function memberDisplayName(member: BrainCoachPermissionMember) {
   return member.displayName?.trim() || memberRoleLabel(member);
 }
 
+const CARE_TEAM_ROLE_LABELS: Record<string, string> = {
+  family: "Family member",
+  family_member: "Family member",
+  caregiver: "Caregiver",
+  carer: "Caregiver",
+  doctor: "Doctor",
+};
+
+const CARE_TEAM_RELATIONSHIP_LABELS: Record<string, string> = {
+  son: "Son",
+  daughter: "Daughter",
+  spouse_partner: "Spouse or partner",
+  sibling: "Sibling",
+  friend: "Friend",
+  neighbour: "Neighbour",
+  professional_carer: "Professional carer",
+  gp: "GP",
+  specialist_doctor: "Specialist doctor",
+  other: "Other",
+};
+
+function humanizeValue(value: string | null | undefined) {
+  if (!value) return null;
+  return value
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function careTeamDisplayName(member: CareTeamRosterMember) {
+  return member.invitee_name?.trim() || "Care team member";
+}
+
+function careTeamRoleLabel(member: CareTeamRosterMember) {
+  const relationship = member.relationship?.trim();
+  if (relationship) {
+    return CARE_TEAM_RELATIONSHIP_LABELS[relationship] ?? humanizeValue(relationship) ?? relationship;
+  }
+  return CARE_TEAM_ROLE_LABELS[member.role] ?? humanizeValue(member.role) ?? "Care team member";
+}
+
+function careTeamStatusLabel(status: string) {
+  return humanizeValue(status) ?? "Pending";
+}
+
+function careTeamStatusClassName(status: string) {
+  if (status === "accepted") return "bg-green-100 text-green-800";
+  if (status === "pending") return "bg-amber-100 text-amber-800";
+  if (status === "expired") return "bg-gray-100 text-gray-600";
+  return "bg-red-100 text-red-700";
+}
+
+function careTeamMembersForPrivacy(members: CareTeamRosterMember[]) {
+  return members.filter((member) => member.status !== "revoked" && member.status !== "declined");
+}
+
 const PrivacySettings = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
@@ -147,11 +285,17 @@ const PrivacySettings = () => {
     analytics: false,
     dataImprovement: false,
   });
-  const [personConsents, setPersonConsents] = useState<Record<string, PersonConsent>>(
-    Object.fromEntries(PEOPLE.map((p) => [p.id, { ...DEFAULT_CONSENT, health: p.id !== "dr_patel" }]))
-  );
-  const [expandedPerson, setExpandedPerson] = useState<string | null>("sarah");
+  const [expandedPerson, setExpandedPerson] = useState<string | null | undefined>(undefined);
   const [savingPermissionId, setSavingPermissionId] = useState<string | null>(null);
+
+  const careTeamQuery = useQuery<CareTeamRosterResponse>({
+    queryKey: [CARE_TEAM_QUERY_KEY],
+    queryFn: async () => {
+      const response = await apiFetch(CARE_TEAM_QUERY_KEY);
+      return readJsonResponse<CareTeamRosterResponse>(response, "Care team could not be loaded.");
+    },
+    retry: false,
+  });
 
   const brainCoachPermissionsQuery = useQuery<BrainCoachPermissionsResponse>({
     queryKey: [BRAIN_COACH_PERMISSIONS_QUERY_KEY],
@@ -202,12 +346,6 @@ const PrivacySettings = () => {
   const toggleGlobal = (key: keyof typeof globalToggles) =>
     setGlobalToggles((prev) => ({ ...prev, [key]: !prev[key] }));
 
-  const togglePersonConsent = (personId: string, key: keyof PersonConsent) =>
-    setPersonConsents((prev) => ({
-      ...prev,
-      [personId]: { ...prev[personId], [key]: !prev[personId][key] },
-    }));
-
   const handleBrainCoachPermissionToggle = (
     member: BrainCoachPermissionMember,
     key: BrainCoachCaregiverPermissionKey,
@@ -217,6 +355,124 @@ const PrivacySettings = () => {
     const savingId = `${member.id}:${key}`;
     setSavingPermissionId(savingId);
     updateBrainCoachPermission.mutate({ member, key, nextValue });
+  };
+
+  const renderReadOnlySwitch = (enabled: boolean, label: string, memberName: string) => (
+    <div
+      role="status"
+      aria-label={`${label} for ${memberName}: ${enabled ? "shared" : "not shared"}`}
+      className={`relative h-8 w-14 flex-shrink-0 rounded-full ${enabled ? "bg-vyva-purple" : "bg-[#DDD5C8]"}`}
+    >
+      <div
+        className={`absolute top-0.5 h-7 w-7 rounded-full bg-white shadow ${
+          enabled ? "left-[26px]" : "left-0.5"
+        }`}
+      />
+    </div>
+  );
+
+  const renderCareTeamPrivacy = () => {
+    if (careTeamQuery.isLoading) {
+      return (
+        <div className="px-5 py-5 font-body text-[14px] font-semibold text-vyva-text-2">
+          Loading care-team sharing
+        </div>
+      );
+    }
+
+    if (careTeamQuery.isError) {
+      return (
+        <div className="px-5 py-5">
+          <p className="font-body text-[15px] font-black text-vyva-text-1">Care-team sharing could not be loaded.</p>
+          <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">
+            Open Care Team to review invitations and sharing access.
+          </p>
+        </div>
+      );
+    }
+
+    const members = careTeamMembersForPrivacy(careTeamQuery.data?.members ?? []);
+    if (members.length === 0) {
+      return (
+        <div className="px-5 py-6" data-testid="privacy-careteam-empty">
+          <p className="font-body text-[16px] font-black text-vyva-text-1">No care-team members yet.</p>
+          <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">
+            Add a caregiver, family member, or doctor before sharing profile updates.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate("/onboarding/profile/care-team")}
+            className="mt-4 rounded-full bg-vyva-purple px-5 py-3 font-body text-[14px] font-black text-white shadow-[0_10px_22px_rgba(107,33,168,0.16)]"
+            data-testid="button-privacy-add-careteam"
+          >
+            Add care team member
+          </button>
+        </div>
+      );
+    }
+
+    const activeExpandedPerson = expandedPerson === undefined ? members[0]?.id ?? null : expandedPerson;
+    return members.map((member) => {
+      const memberName = careTeamDisplayName(member);
+      const isOpen = activeExpandedPerson === member.id;
+      return (
+        <div
+          key={member.id}
+          className="border-t border-vyva-border first:border-t-0"
+          data-testid={`item-privacy-person-${member.id}`}
+        >
+          <button
+            data-testid={`button-privacy-expand-${member.id}`}
+            onClick={() => setExpandedPerson(isOpen ? null : member.id)}
+            className="flex w-full items-center gap-4 px-5 py-4 text-left hover:bg-vyva-warm/40"
+          >
+            <div
+              className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl font-body text-[16px] font-black text-white shadow-[0_10px_22px_rgba(107,33,168,0.16)]"
+              style={{ background: "#6B21A8" }}
+              data-testid={`avatar-privacy-${member.id}`}
+            >
+              {memberName.charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="font-body text-[17px] font-black text-vyva-text-1">{memberName}</p>
+                <span className={`rounded-full px-2.5 py-1 font-body text-[11px] font-black ${careTeamStatusClassName(member.status)}`}>
+                  {careTeamStatusLabel(member.status)}
+                </span>
+              </div>
+              <p className="font-body text-[14px] text-vyva-text-2">{careTeamRoleLabel(member)}</p>
+            </div>
+            <ChevronDown
+              size={18}
+              className={`text-vyva-text-3 transition-transform ${isOpen ? "rotate-180" : ""}`}
+            />
+          </button>
+
+          {isOpen && (
+            <div
+              className="border-t border-vyva-border bg-vyva-cream/60"
+              data-testid={`section-privacy-detail-${member.id}`}
+            >
+              {SHARING_PERMISSION_COPY.map((permission) => (
+                <ToggleRow
+                  key={permission.key}
+                  icon={permission.icon}
+                  iconBg="#F5F3FF"
+                  iconColor="#6B21A8"
+                  label={permission.label}
+                  sub={permission.description}
+                  rightContent={renderReadOnlySwitch(Boolean(member[permission.key]), permission.label, memberName)}
+                  testId={`sharing-status-${member.id}-${permission.key}`}
+                />
+              ))}
+              <p className="border-t border-vyva-border px-5 py-3 font-body text-[12px] font-bold text-vyva-text-3">
+                Sharing access is based on the latest care-team invitation settings.
+              </p>
+            </div>
+          )}
+        </div>
+      );
+    });
   };
 
   const renderBrainCoachPermissions = () => {
@@ -418,77 +674,7 @@ const PrivacySettings = () => {
             </span>
           </div>
 
-          {PEOPLE.map((person) => {
-            const consents = personConsents[person.id];
-            const isOpen = expandedPerson === person.id;
-            return (
-              <div
-                key={person.id}
-                className="border-t border-vyva-border first:border-t-0"
-                data-testid={`item-privacy-person-${person.id}`}
-              >
-                <button
-                  data-testid={`button-privacy-expand-${person.id}`}
-                  onClick={() => setExpandedPerson(isOpen ? null : person.id)}
-                  className="flex w-full items-center gap-4 px-5 py-4 text-left hover:bg-vyva-warm/40"
-                >
-                  <div
-                    className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl font-body text-[16px] font-black text-white shadow-[0_10px_22px_rgba(107,33,168,0.16)]"
-                    style={{ background: "#6B21A8" }}
-                    data-testid={`avatar-privacy-${person.id}`}
-                  >
-                    {person.name.charAt(0)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-body text-[17px] font-black text-vyva-text-1">{person.name}</p>
-                    <p className="font-body text-[14px] text-vyva-text-2">{t(person.role)}</p>
-                  </div>
-                  <ChevronDown
-                    size={18}
-                    className={`text-vyva-text-3 transition-transform ${isOpen ? "rotate-180" : ""}`}
-                  />
-                </button>
-
-                {isOpen && (
-                  <div
-                    className="border-t border-vyva-border bg-vyva-cream/60"
-                    data-testid={`section-privacy-detail-${person.id}`}
-                  >
-                    <ToggleRow
-                      icon={Heart}
-                      iconBg="#FDF2F8"
-                      iconColor="#B0355A"
-                      label={t("settings.privacy.healthLabel")}
-                      sub={t("settings.privacy.healthSub")}
-                      value={consents.health}
-                      onToggle={() => togglePersonConsent(person.id, "health")}
-                      testId={`toggle-privacy-${person.id}-health`}
-                    />
-                    <ToggleRow
-                      icon={Shield}
-                      iconBg="#FEF2F2"
-                      iconColor="#B91C1C"
-                      label={t("settings.privacy.locationLabel")}
-                      sub={t("settings.privacy.locationSub")}
-                      value={consents.location}
-                      onToggle={() => togglePersonConsent(person.id, "location")}
-                      testId={`toggle-privacy-${person.id}-location`}
-                    />
-                    <ToggleRow
-                      icon={Share2}
-                      iconBg="#F5F3FF"
-                      iconColor="#6B21A8"
-                      label={t("settings.privacy.conversationsLabel")}
-                      sub={t("settings.privacy.conversationsSub")}
-                      value={consents.conversations}
-                      onToggle={() => togglePersonConsent(person.id, "conversations")}
-                      testId={`toggle-privacy-${person.id}-conversations`}
-                    />
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          {renderCareTeamPrivacy()}
         </div>
 
         <p className="font-body text-center text-[13px] font-semibold text-vyva-text-3">

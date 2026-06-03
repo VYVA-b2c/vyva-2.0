@@ -245,6 +245,7 @@ describe("TriageChat MediSearch follow-ups", () => {
 
   it("renders an optional scan card from restored structured answers and can skip it", async () => {
     const onDraftChange = vi.fn();
+    setLanguage("es");
 
     renderTriageChat({
       initialClue: "",
@@ -261,7 +262,9 @@ describe("TriageChat MediSearch follow-ups", () => {
     });
 
     expect(screen.getByTestId("triage-scan-card")).toBeInTheDocument();
-    expect(screen.getByText("Check pulse & breathing")).toBeInTheDocument();
+    expect(screen.getByText("Revisar pulso y respiracion")).toBeInTheDocument();
+    expect(screen.getByText("Tu decides")).toBeInTheDocument();
+    expect(screen.getByText("Ahora no")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-triage-scan-skip"));
 
@@ -324,7 +327,7 @@ describe("TriageChat MediSearch follow-ups", () => {
       },
     });
 
-    await screen.findByText("Optional scan added");
+    await screen.findByText("Scan note added");
     expect(screen.getByText("Mild redness is visible.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-triage-scan-retake"));
