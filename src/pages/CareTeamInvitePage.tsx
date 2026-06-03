@@ -4,6 +4,7 @@ import { ArrowRight, CheckCircle2, Loader2, ShieldCheck, UserRoundCheck, UsersRo
 import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import { clearCareTeamInviteReturnPath, rememberCareTeamInviteReturnPath } from "@/lib/careTeamInviteReturn";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 
 type CareTeamInviteSummary = {
@@ -94,6 +95,10 @@ export default function CareTeamInvitePage() {
   const createHref = `/login?mode=register&returnTo=${encodeURIComponent(returnTo)}`;
 
   useEffect(() => {
+    rememberCareTeamInviteReturnPath(returnTo);
+  }, [returnTo]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function loadInvite() {
@@ -148,6 +153,7 @@ export default function CareTeamInvitePage() {
         queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] }),
         queryClient.invalidateQueries({ queryKey: ["/api/caregiver/brain-coach/summary"] }),
       ]);
+      clearCareTeamInviteReturnPath();
       navigate(body.destination ?? "/caregiver", { replace: true });
     } catch (err) {
       setAcceptError(err instanceof Error ? err.message : "This invitation could not be accepted.");

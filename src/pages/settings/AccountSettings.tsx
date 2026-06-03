@@ -41,24 +41,6 @@ type AccountForm = IdentityBasicsForm & {
   timezone: string;
 };
 
-async function readProfileSaveError(res: Response): Promise<string> {
-  try {
-    const body = await res.clone().json();
-    if (body && typeof body === "object" && "error" in body) {
-      const error = (body as { error?: unknown }).error;
-      if (typeof error === "string" && error.trim()) return error;
-    }
-  } catch {
-    try {
-      const text = await res.text();
-      if (text.trim()) return text;
-    } catch {
-      // fall through to the generic message
-    }
-  }
-  return "Failed to save profile";
-}
-
 const ACCOUNT_LANGUAGE_COPY: Record<LanguageCode, Record<string, string>> = {
   es: {
     required: "Obligatorio",
@@ -295,6 +277,22 @@ function accountInvitePrefillFromSearch(search: string): AccountInvitePrefill | 
   return Object.values(prefill).some(Boolean) ? prefill : null;
 }
 
+async function accountSaveErrorMessage(response: Response) {
+  try {
+    const body = await response.clone().json() as { error?: unknown; message?: unknown };
+    if (typeof body.error === "string" && body.error.trim()) return body.error.trim();
+    if (typeof body.message === "string" && body.message.trim()) return body.message.trim();
+  } catch {
+    try {
+      const text = await response.text();
+      if (text.trim()) return text.trim();
+    } catch {
+      // Fall through to the generic message.
+    }
+  }
+  return "Failed to save profile";
+}
+
 export default function AccountSettings() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -408,7 +406,7 @@ export default function AccountSettings() {
         method: "PATCH",
         body: JSON.stringify({ avatarUrl: dataUrl }),
       });
-      if (!res.ok) throw new Error(await readProfileSaveError(res));
+      if (!res.ok) throw new Error(await accountSaveErrorMessage(res));
       return res.json();
     },
     onSuccess: () => {
@@ -456,9 +454,9 @@ export default function AccountSettings() {
       return;
     }
 
+    const identityPayload = buildProfileIdentityPayload(form);
     setSaving(true);
     try {
-      const identityPayload = buildProfileIdentityPayload(form);
       const res = await apiFetch("/api/profile", {
         method: "POST",
         body: JSON.stringify({
@@ -469,9 +467,24 @@ export default function AccountSettings() {
         }),
       });
 
-      if (!res.ok) throw new Error(await readProfileSaveError(res));
+      if (!res.ok) throw new Error(await accountSaveErrorMessage(res));
+    } catch (error) {
+      toast({
+        title: accountCopy.saveError,
+        description: error instanceof Error && error.message ? error.message : undefined,
+        variant: "destructive",
+      });
+      setSaving(false);
+      return;
+    }
 
+    try {
       await queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+    } catch (error) {
+      console.warn("[account-settings] profile refresh skipped after save", error);
+    }
+
+    try {
       const inviteId = currentSignupInviteId(location.search);
       trackSignupInviteEvent(inviteId, "profile_completed", {
         destination: "/settings/account",
@@ -479,16 +492,12 @@ export default function AccountSettings() {
         clearAfter: true,
       });
       clearSignupInviteId(inviteId);
-      toast({ title: accountCopy.saved });
-    } catch (err) {
-      toast({
-        title: accountCopy.saveError,
-        description: err instanceof Error ? err.message : undefined,
-        variant: "destructive",
-      });
-    } finally {
-      setSaving(false);
+    } catch (error) {
+      console.warn("[account-settings] invite completion tracking skipped", error);
     }
+
+    setSaving(false);
+    toast({ title: accountCopy.saved });
   };
 
   return (

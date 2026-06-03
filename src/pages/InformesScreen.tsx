@@ -701,6 +701,10 @@ export function InformesMain() {
     navigate("/informes");
   };
 
+  const handleOverviewBack = () => {
+    navigate("/health");
+  };
+
   const signalHistory = vitalsHistory?.signalReadings ?? [];
   const signalHistoryValues = (signalType: string) =>
     signalHistory
@@ -998,6 +1002,8 @@ export function InformesMain() {
       <HealthWizardTopBar
         title={t("informes.subtitle")}
         kicker={t("informes.title")}
+        onBack={handleOverviewBack}
+        backLabel={t("informes.back")}
         action={(
           <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#EFF6FF] text-[#1D4ED8] shadow-sm">
             <ClipboardList size={22} />

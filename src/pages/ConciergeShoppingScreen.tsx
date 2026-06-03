@@ -18,11 +18,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import {
+  getStaticShoppingSupportPackages,
   SHOPPING_CATEGORY_CHOICE_LABELS,
+  SHOPPING_SUPPORT_PACKAGES,
   type ShoppingCategoryChoice,
   type ShoppingPriority,
   type ShoppingRecommendation,
   type ShoppingRecommendationResponse,
+  type ShoppingSupportPackageDefinition,
+  type ShoppingSupportPackageId,
 } from "../../shared/shopping";
 
 type Copy = {
@@ -55,18 +59,20 @@ type Copy = {
   tryIdeas: string;
   checkBeforeBuying: string;
   confidence: string;
-  prefillKicker: string;
-  prefillTitle: string;
-  prefillBody: string;
-  prefillFind: string;
-  prefillEdit: string;
-  prefillSafe: string;
+  packageTitle: string;
+  packageBody: string;
+  packageSource: string;
+  packageNoCheckout: string;
+  packageServiceNotice: string;
 };
 
 type ShoppingRoutePrefill = {
   needText: string;
   category: ShoppingCategoryChoice;
   priorities: ShoppingPriority[];
+  constraints?: string[];
+  packageId?: ShoppingSupportPackageId;
+  sourceRecommendation?: string;
 };
 
 type ShoppingLocationState = {
@@ -104,12 +110,11 @@ const COPY: Record<"en" | "es", Copy> = {
     tryIdeas: "Try one",
     checkBeforeBuying: "Check before choosing",
     confidence: "Fit",
-    prefillKicker: "Ready to order",
-    prefillTitle: "Hydration delivery prepared",
-    prefillBody: "VYVA can compare simple delivery options now. You stay in control before any order or checkout.",
-    prefillFind: "Find delivery options",
-    prefillEdit: "Edit request",
-    prefillSafe: "No checkout starts without your confirmation.",
+    packageTitle: "Choose a support package",
+    packageBody: "Packages prepare a short request from VYVA-approved supplies or Concierge. VYVA will not place an order or start checkout.",
+    packageSource: "From your health recommendation",
+    packageNoCheckout: "No checkout starts here.",
+    packageServiceNotice: "Service request only.",
   },
   es: {
     title: "Ayuda para comprar",
@@ -141,12 +146,11 @@ const COPY: Record<"en" | "es", Copy> = {
     tryIdeas: "Probar",
     checkBeforeBuying: "Comprobar antes de elegir",
     confidence: "Encaje",
-    prefillKicker: "Listo para pedir",
-    prefillTitle: "Entrega de hidratacion preparada",
-    prefillBody: "VYVA puede comparar opciones sencillas de entrega ahora. Usted mantiene el control antes de cualquier pedido o pago.",
-    prefillFind: "Buscar opciones de entrega",
-    prefillEdit: "Editar solicitud",
-    prefillSafe: "No se inicia ningun pago sin su confirmacion.",
+    packageTitle: "Elija un paquete de apoyo",
+    packageBody: "Los paquetes preparan una solicitud corta con suministros aprobados por VYVA o Concierge. VYVA no hace pedidos ni inicia pagos.",
+    packageSource: "Desde su recomendacion de salud",
+    packageNoCheckout: "No se inicia compra aqui.",
+    packageServiceNotice: "Solo solicitud de servicio.",
   },
 };
 
@@ -169,6 +173,7 @@ const PRIORITY_OPTIONS: Array<{ id: ShoppingPriority; en: string; es: string }> 
 
 const VALID_SHOPPING_CATEGORIES = new Set(CATEGORY_OPTIONS.map((option) => option.id));
 const VALID_SHOPPING_PRIORITIES = new Set(PRIORITY_OPTIONS.map((option) => option.id));
+const FALLBACK_SUPPORT_PACKAGE_OPTIONS = getStaticShoppingSupportPackages();
 
 const IDEA_CHIPS = [
   {
@@ -259,6 +264,7 @@ async function requestRecommendations(input: {
   priorities: ShoppingPriority[];
   constraints: string[];
   locale: string;
+  packageId?: string | null;
 }): Promise<ShoppingRecommendationResponse> {
   const response = await apiFetch("/api/concierge/shopping/recommendations", {
     method: "POST",
@@ -368,9 +374,13 @@ const ConciergeShoppingScreen = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
-  const [routePrefill, setRoutePrefill] = useState<ShoppingRoutePrefill | null>(null);
+  const [routePackageId, setRoutePackageId] = useState<ShoppingSupportPackageId | null>(null);
+  const [sourceRecommendation, setSourceRecommendation] = useState("");
+  const [supportPackages, setSupportPackages] = useState<ShoppingSupportPackageDefinition[]>(FALLBACK_SUPPORT_PACKAGE_OPTIONS);
   const resultsRef = useRef<HTMLElement | null>(null);
   const lastRoutePrefillKeyRef = useRef<string | null>(null);
+  const supportPackageMap = useMemo(() => new Map(supportPackages.map((item) => [item.id, item])), [supportPackages]);
+  const activeRoutePackage = routePackageId ? supportPackageMap.get(routePackageId) ?? SHOPPING_SUPPORT_PACKAGES[routePackageId] : null;
 
   const savedRecommendations = useMemo(
     () => result?.recommendations.filter((item) => savedIds.includes(item.product.id)) ?? [],
@@ -378,30 +388,67 @@ const ConciergeShoppingScreen = () => {
   );
 
   useEffect(() => {
+    let active = true;
+    async function loadSupportPackages() {
+      try {
+        const response = await apiFetch("/api/concierge/shopping/support-packages");
+        if (!response?.ok) throw new Error("Support packages unavailable");
+        const data = await response.json().catch(() => ({}));
+        const packages = Array.isArray(data.packages)
+          ? data.packages.filter((item): item is ShoppingSupportPackageDefinition => (
+            item && typeof item.id === "string" && item.label && item.description && item.needText
+          ))
+          : [];
+        if (active && packages.length > 0) setSupportPackages(packages);
+      } catch {
+        if (active) setSupportPackages(FALLBACK_SUPPORT_PACKAGE_OPTIONS);
+      }
+    }
+    loadSupportPackages();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
     const prefill = (location.state as ShoppingLocationState)?.shoppingPrefill;
     if (!prefill) return;
-    const prefillKey = `${prefill.category}:${prefill.needText}:${prefill.priorities.join(",")}`;
+    const prefillKey = `${prefill.packageId ?? ""}:${prefill.category}:${prefill.needText}:${prefill.priorities.join(",")}:${prefill.constraints?.join(",") ?? ""}`;
     if (lastRoutePrefillKeyRef.current === prefillKey) return;
     lastRoutePrefillKeyRef.current = prefillKey;
+    const packageId = typeof prefill.packageId === "string" && prefill.packageId.trim() ? prefill.packageId.trim() : null;
+    const packageDefinition = packageId ? supportPackageMap.get(packageId) ?? SHOPPING_SUPPORT_PACKAGES[packageId] : null;
 
-    const nextPrefill: ShoppingRoutePrefill = {
-      needText: prefill.needText.trim(),
-      category: VALID_SHOPPING_CATEGORIES.has(prefill.category) ? prefill.category : "safe_home",
-      priorities: prefill.priorities.filter((priority) => VALID_SHOPPING_PRIORITIES.has(priority)),
-    };
-    if (nextPrefill.needText) {
-      setNeedText(nextPrefill.needText);
+    if (prefill.needText.trim()) {
+      setNeedText(prefill.needText.trim());
+    } else if (packageDefinition) {
+      setNeedText(packageDefinition.needText[locale]);
     }
-    setCategory(nextPrefill.category);
-    if (nextPrefill.priorities.length) {
-      setPriorities(nextPrefill.priorities);
+    if (VALID_SHOPPING_CATEGORIES.has(prefill.category)) {
+      setCategory(prefill.category);
+    } else if (packageDefinition) {
+      setCategory(packageDefinition.category);
+    }
+    const safePriorities = prefill.priorities.filter((priority) => VALID_SHOPPING_PRIORITIES.has(priority));
+    if (safePriorities.length) {
+      setPriorities(safePriorities);
+      setPreferencesOpen(true);
+    } else if (packageDefinition) {
+      setPriorities(packageDefinition.priorities);
       setPreferencesOpen(true);
     }
-    setRoutePrefill(nextPrefill);
+    const packageConstraints = packageDefinition?.constraints[locale] ?? [];
+    const safeConstraints = prefill.constraints?.filter(Boolean) ?? packageConstraints;
+    if (safeConstraints.length) {
+      setConstraintsText(safeConstraints.join(", "));
+      setPreferencesOpen(true);
+    }
+    setRoutePackageId(packageId);
+    setSourceRecommendation(prefill.sourceRecommendation?.trim() ?? "");
     setResult(null);
     setError(null);
     navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
-  }, [location.pathname, location.search, location.state, navigate]);
+  }, [locale, location.pathname, location.search, location.state, navigate, supportPackageMap]);
 
   function togglePriority(priority: ShoppingPriority) {
     setPriorities((current) => (
@@ -436,6 +483,34 @@ const ConciergeShoppingScreen = () => {
     setError(null);
   }
 
+  function applySupportPackage(packageDefinition: ShoppingSupportPackageDefinition) {
+    if (packageDefinition.serviceRequest) {
+      const requestText = [
+        packageDefinition.needText[locale],
+        sourceRecommendation ? `${copy.packageSource}: ${sourceRecommendation}` : "",
+      ].filter(Boolean).join("\n\n");
+      navigate("/concierge", {
+        state: {
+          conciergePrefill: {
+            kind: "home_care_quote",
+            message: requestText,
+            source: "symptom_report",
+          },
+        },
+      });
+      return;
+    }
+
+    setRoutePackageId(packageDefinition.id);
+    setNeedText(packageDefinition.needText[locale]);
+    setCategory(packageDefinition.category);
+    setPriorities(packageDefinition.priorities);
+    setConstraintsText(packageDefinition.constraints[locale].join(", "));
+    setPreferencesOpen(true);
+    setResult(null);
+    setError(null);
+  }
+
   async function runShoppingSearch() {
     const trimmedNeed = needText.trim();
     if (!trimmedNeed) {
@@ -456,9 +531,9 @@ const ConciergeShoppingScreen = () => {
         priorities,
         constraints,
         locale: language,
+        packageId: routePackageId,
       });
       setResult(next);
-      setRoutePrefill(null);
       setSavedIds((current) => current.filter((id) => next.recommendations.some((item) => item.product.id === id)));
       window.setTimeout(() => {
         resultsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
@@ -472,10 +547,6 @@ const ConciergeShoppingScreen = () => {
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    void runShoppingSearch();
-  }
-
-  function handleRoutePrefillSearch() {
     void runShoppingSearch();
   }
 
@@ -523,61 +594,62 @@ const ConciergeShoppingScreen = () => {
         </p>
       </header>
 
-      {routePrefill && (
+      {activeRoutePackage && (
         <section
-          className="mt-4 overflow-hidden rounded-[24px] border border-[#D8B4FE] bg-white shadow-[0_16px_36px_rgba(107,33,168,0.14)]"
-          data-testid="panel-shopping-route-prefill"
+          className="mt-4 rounded-[20px] border border-[#D8B4FE] bg-white p-4 shadow-[0_14px_34px_rgba(107,33,168,0.12)]"
+          data-testid="shopping-support-packages"
         >
-          <div className="bg-[linear-gradient(135deg,#7C2BE8_0%,#3D0D82_100%)] p-4 text-white">
-            <div className="flex items-start gap-3">
-              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-white/16">
-                <ShoppingBasket size={23} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#FFD84D]">
-                  {copy.prefillKicker}
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[#F5F3FF] text-vyva-purple">
+              <PackageCheck size={23} />
+            </div>
+            <div className="min-w-0">
+              <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-purple">
+                {copy.packageTitle}
+              </p>
+              <p className="mt-1 font-body text-[15px] font-semibold leading-relaxed text-vyva-text-2">
+                {copy.packageBody}
+              </p>
+              {sourceRecommendation && (
+                <p className="mt-2 rounded-[14px] bg-[#FFFCF8] px-3 py-2 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+                  {copy.packageSource}: {sourceRecommendation}
                 </p>
-                <h2 className="mt-1 font-body text-[22px] font-black leading-tight">
-                  {copy.prefillTitle}
-                </h2>
-                <p className="mt-2 font-body text-[15px] font-bold leading-snug text-white/88">
-                  {copy.prefillBody}
-                </p>
-              </div>
+              )}
             </div>
           </div>
-          <div className="p-4">
-            <div className="rounded-[20px] border border-vyva-border bg-[#FFFCF8] p-3">
-              <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-text-3">
-                {copy.needLabel}
-              </p>
-              <p className="mt-1 font-body text-[15px] font-bold leading-relaxed text-vyva-text-1">
-                {routePrefill.needText}
-              </p>
-            </div>
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              <Button
-                type="button"
-                onClick={handleRoutePrefillSearch}
-                disabled={loading}
-                data-testid="button-shopping-prefill-find"
-                className="vyva-primary-action h-auto min-h-[54px] rounded-full px-5 text-[17px] shadow-[0_12px_26px_rgba(107,33,168,0.22)] hover:bg-vyva-purple/90"
-              >
-                {loading ? <Loader2 size={19} className="animate-spin" /> : <Search size={19} />}
-                {loading ? copy.loading : copy.prefillFind}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setRoutePrefill(null)}
-                className="vyva-secondary-action h-auto min-h-[54px] rounded-full px-5 text-[17px]"
-              >
-                {copy.prefillEdit}
-              </Button>
-            </div>
-            <p className="mt-3 rounded-full bg-[#ECFDF5] px-3 py-2 text-center font-body text-[13px] font-black text-[#047857]">
-              {copy.prefillSafe}
-            </p>
+
+          <div className="mt-3 grid gap-2 sm:grid-cols-2" role="list">
+            {supportPackages.map((packageDefinition) => {
+              const selected = packageDefinition.id === routePackageId;
+              return (
+                <button
+                  key={packageDefinition.id}
+                  type="button"
+                  onClick={() => applySupportPackage(packageDefinition)}
+                  aria-pressed={selected}
+                  data-testid={`button-shopping-package-${packageDefinition.id}`}
+                  className={`vyva-tap flex min-h-[136px] flex-col items-start rounded-[16px] border px-3 py-3 text-left transition ${
+                    selected ? "border-vyva-purple bg-[#F5F3FF]" : "border-vyva-border bg-[#FFFCF8]"
+                  }`}
+                >
+                  <span className="font-body text-[16px] font-black leading-tight text-vyva-text-1">
+                    {packageDefinition.label[locale]}
+                  </span>
+                  <span className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
+                    {packageDefinition.description[locale]}
+                  </span>
+                  <span className={`mt-2 rounded-full px-2 py-1 font-body text-[11px] font-black ${
+                    packageDefinition.serviceRequest ? "bg-[#EEF2FF] text-[#4338CA]" : "bg-[#F0FDFA] text-[#0F766E]"
+                  }`}>
+                    {packageDefinition.serviceRequest ? copy.packageServiceNotice : copy.packageNoCheckout}
+                  </span>
+                  <span className="mt-auto inline-flex items-center gap-1 pt-3 font-body text-[13px] font-black text-vyva-purple">
+                    {packageDefinition.ctaLabel[locale]}
+                    <ChevronRight size={15} />
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </section>
       )}

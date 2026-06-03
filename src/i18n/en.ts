@@ -413,7 +413,7 @@ const en = {
           doctorHelp: "Doctor help",
           bookRide: "Book ride",
           scheduleAppointment: "Appointment",
-          onlineOrder: "Online order",
+          onlineOrder: "Get support package",
           requestQuote: "Request quote",
           aria: "{{action}} for: {{recommendation}}",
           emailSubject: "VYVA symptom report",

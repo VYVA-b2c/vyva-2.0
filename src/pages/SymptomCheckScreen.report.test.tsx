@@ -19,7 +19,12 @@ vi.mock("react-i18next", async (importOriginal) => {
 
 function LocationProbe() {
   const location = useLocation();
-  return <span data-testid="location-path">{location.pathname}</span>;
+  return (
+    <>
+      <span data-testid="location-path">{location.pathname}</span>
+      <span data-testid="route-state">{JSON.stringify(location.state)}</span>
+    </>
+  );
 }
 
 type ReportScreenProps = ComponentProps<typeof ReportScreen>;
@@ -27,17 +32,17 @@ type ReportScreenProps = ComponentProps<typeof ReportScreen>;
 const summary: ReportScreenProps["summary"] = {
   chiefComplaint: "Chest discomfort",
   symptoms: ["pressure"],
-  urgency: "routine" as const,
+  urgency: "routine",
   recommendations: [],
   disclaimer: "This is not emergency medical care.",
   nextStepLabel: "Talk to a doctor today",
-  nextStepLevel: "doctor_today" as const,
+  nextStepLevel: "doctor_today",
   triageReasons: [],
   watchSigns: [],
 };
 
 function renderReport(
-  profileContacts: { gpPhone?: string | null; gpEmail?: string | null },
+  profileContacts: { gpPhone?: string | null; gpEmail?: string | null } = {},
   options: {
     summaryOverride?: Partial<ReportScreenProps["summary"]>;
     emergencyContact?: { label: string; telHref?: string };
@@ -94,7 +99,7 @@ describe("SymptomCheck report service actions", () => {
   });
 
   it("offers doctor contact setup directly on the live next step when GP contact is missing", async () => {
-    renderReport({});
+    renderReport();
 
     expect(screen.getByTestId("button-report-doctor")).toHaveTextContent("Talk to doctor");
     expect(screen.getByTestId("button-report-next-step-action-0-doctor_help")).toBeInTheDocument();
@@ -105,5 +110,36 @@ describe("SymptomCheck report service actions", () => {
     await waitFor(() => {
       expect(screen.getByTestId("location-path")).toHaveTextContent("/onboarding/profile/gp");
     });
+  });
+
+  it("routes practical hydration advice to a support package instead of a generic order", async () => {
+    renderReport({}, {
+      summaryOverride: {
+        recommendations: ["Stay hydrated and drink fluids"],
+      },
+    });
+
+    const packageAction = screen.getByTestId("button-report-action-0-online_order");
+    expect(packageAction).toHaveTextContent("Get support package");
+
+    fireEvent.click(packageAction);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/shopping");
+      expect(screen.getByTestId("route-state")).toHaveTextContent("\"packageId\":\"hydration_support\"");
+      expect(screen.getByTestId("route-state")).toHaveTextContent("\"sourceRecommendation\":\"Stay hydrated and drink fluids\"");
+    });
+  });
+
+  it("does not show a package action when fluids are part of a medical warning", () => {
+    renderReport({}, {
+      summaryOverride: {
+        recommendations: ["Talk to a doctor today if symptoms worsen or fluids are difficult."],
+      },
+    });
+
+    expect(screen.getByTestId("button-report-action-0-doctor_help")).toBeInTheDocument();
+    expect(screen.queryByTestId("button-report-action-0-online_order")).not.toBeInTheDocument();
+    expect(screen.queryByText("Get support package")).not.toBeInTheDocument();
   });
 });

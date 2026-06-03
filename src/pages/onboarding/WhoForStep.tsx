@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { HeartHandshake, UserRound, UsersRound } from "lucide-react";
 import { OnboardingStepLayout } from "@/components/onboarding/OnboardingStepLayout";
+import { currentCareTeamInviteReturnPath } from "@/lib/careTeamInviteReturn";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { friendlyError } from "@/lib/apiError";
 import { useLanguage } from "@/i18n";
@@ -169,6 +170,13 @@ export default function WhoForStep() {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const pendingCareTeamInviteReturnPath = currentCareTeamInviteReturnPath();
+
+  useEffect(() => {
+    if (pendingCareTeamInviteReturnPath) {
+      navigate(pendingCareTeamInviteReturnPath, { replace: true });
+    }
+  }, [navigate, pendingCareTeamInviteReturnPath]);
 
   const handleContinue = async () => {
     if (saving) return;
@@ -195,6 +203,8 @@ export default function WhoForStep() {
       setSaving(false);
     }
   };
+
+  if (pendingCareTeamInviteReturnPath) return null;
 
   return (
     <OnboardingStepLayout
