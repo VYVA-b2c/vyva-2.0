@@ -119,6 +119,14 @@ afterEach(() => {
 });
 
 describe("Informes report detail actions", () => {
+  it("offers a back button to the health screen", async () => {
+    renderMain(null);
+
+    fireEvent.click(await screen.findByRole("button", { name: "informes.back" }));
+
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/health");
+  });
+
   it("surfaces fast service actions on the reports overview latest report", async () => {
     renderMain({
       country: "ES",
