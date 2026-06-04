@@ -136,13 +136,47 @@ describe("Together Room safe haven API", () => {
   it("creates reusable Music Room threads and blocks unsafe memories", async () => {
     const userId = "music-thread-safe-haven-user";
 
+    const circleItem = await request(socialApp)
+      .post("/api/social/rooms/music-room/music-circle/items")
+      .set("x-user-id", userId)
+      .send({
+        lang: "en",
+        songText: "Stand By Me",
+        causeId: "bridge",
+        memoryText: "",
+      })
+      .expect(200);
+
+    expect(circleItem.body.item.id).toEqual(expect.any(String));
+    expect(circleItem.body.item.songText).toBe("Stand By Me");
+    expect(circleItem.body.item.reactionCount).toBe(0);
+    expect(circleItem.body.musicCircle.items.map((item: { songText: string }) => item.songText)).toContain("Stand By Me");
+
+    const reaction = await request(socialApp)
+      .post(`/api/social/rooms/music-room/music-circle/items/${circleItem.body.item.id}/reactions`)
+      .set("x-user-id", userId)
+      .send({ lang: "en", kind: "heart" })
+      .expect(200);
+
+    expect(reaction.body.item.reactionCount).toBe(1);
+    expect(reaction.body.item.myReaction).toBe(true);
+
+    const reactionOff = await request(socialApp)
+      .post(`/api/social/rooms/music-room/music-circle/items/${circleItem.body.item.id}/reactions`)
+      .set("x-user-id", userId)
+      .send({ lang: "en", kind: "heart" })
+      .expect(200);
+
+    expect(reactionOff.body.item.reactionCount).toBe(0);
+    expect(reactionOff.body.item.myReaction).toBe(false);
+
     const firstHello = await request(socialApp)
       .post("/api/social/rooms/music-room/connect")
       .set("x-user-id", userId)
       .send({
         lang: "en",
         memberId: "member-arthur",
-        songText: "Stand By Me",
+        circleItemId: circleItem.body.item.id,
         matchedTopic: "Soul",
         bridgePrompt: "Arthur, I added Stand By Me.",
       })
@@ -184,8 +218,23 @@ describe("Together Room safe haven API", () => {
       .set("x-user-id", userId)
       .expect(200);
 
+    expect(room.body.musicCircle.items.map((item: { songText: string }) => item.songText)).toContain("Stand By Me");
     const savedThread = room.body.musicThreads.find((thread: { id: string }) => thread.id === firstHello.body.thread.id);
     expect(savedThread.entries.map((entry: { body: string }) => entry.body)).toContain("It played on my old radio.");
+
+    const unsafeCircle = await request(socialApp)
+      .post("/api/social/rooms/music-room/music-circle/items")
+      .set("x-user-id", userId)
+      .send({
+        lang: "en",
+        songText: "Text me your phone number and I can pay outside the app.",
+        causeId: "bridge",
+      })
+      .expect(400);
+
+    expect(unsafeCircle.body.error).toMatch(/VYVA review/i);
+    expect(unsafeCircle.body.safetyFlags).toContain("private_contact");
+    expect(unsafeCircle.body.safetyFlags).toContain("money");
 
     const unsafe = await request(socialApp)
       .post(`/api/social/rooms/music-room/music-threads/${firstHello.body.thread.id}/entries`)

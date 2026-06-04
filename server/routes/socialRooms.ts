@@ -8,6 +8,8 @@ import {
   companionProfiles,
   profiles,
   socialConnections,
+  socialRoomMusicCircleItems,
+  socialRoomMusicItemReactions,
   socialRoomMusicThreadEntries,
   socialRoomMusicThreads,
   socialRoomSafetyReports,
@@ -18,6 +20,9 @@ import {
 } from "../../shared/schema.js";
 import type {
   SocialGameLanguage,
+  SocialMusicCircle,
+  SocialMusicCircleItem,
+  SocialMusicCauseId,
   SocialMusicThread,
   SocialMusicThreadEntry,
   SocialRoomSafetyFlag,
@@ -88,6 +93,17 @@ type MemoryMusicThread = SocialMusicThread & {
   roomSlug: string;
 };
 
+type MemoryMusicCircleItem = SocialMusicCircleItem & {
+  roomSlug: string;
+};
+
+type MemoryMusicReaction = {
+  itemId: string;
+  userId: string;
+  kind: "heart";
+  createdAt: string;
+};
+
 const router = Router();
 const IS_PROD = process.env.NODE_ENV === "production";
 const DEMO_USER_ID = "demo-user";
@@ -104,6 +120,8 @@ const visitSessionMemory = new Map<string, { userId: string; roomSlug: string; e
 const memoryInterests = new Map<string, InterestSnapshot>();
 const memoryConnections = new Map<string, { matchedUserId: string; matchedViaRoom: string; matchedAt: string }>();
 const memoryMusicThreads = new Map<string, MemoryMusicThread>();
+const memoryMusicCircleItems = new Map<string, MemoryMusicCircleItem>();
+const memoryMusicReactions = new Map<string, MemoryMusicReaction>();
 const memoryRoomOccupancy = new Map<string, number>();
 const memberCatalog = [
   { id: "member-ana", name: "Ana", topics: ["plantas", "cocina", "paseos"] },
@@ -199,7 +217,7 @@ const safetyReportSchema = z.object({
   visitId: z.string().optional(),
   reason: z.string().trim().min(1).max(80),
   details: z.string().trim().max(480).optional().default(""),
-  targetType: z.enum(["room", "plan", "message", "question", "poll", "reply", "music_thread_entry"]).optional().default("room"),
+  targetType: z.enum(["room", "plan", "message", "question", "poll", "reply", "music_thread_entry", "music_circle_item"]).optional().default("room"),
   targetId: z.string().trim().min(1).max(140).optional(),
 }).superRefine((value, ctx) => {
   if (value.targetType !== "room" && !value.targetId) {
@@ -224,6 +242,20 @@ const musicThreadEntrySchema = z.object({
       message: "Memory text is required",
     });
   }
+});
+
+const musicCircleItemSchema = z.object({
+  lang: z.string().optional(),
+  visitId: z.string().optional(),
+  songText: z.string().trim().min(1).max(160),
+  causeId: z.enum(["anthem", "memory", "bridge"]).optional().default("bridge"),
+  memoryText: z.string().trim().max(280).optional().default(""),
+});
+
+const musicCircleReactionSchema = z.object({
+  lang: z.string().optional(),
+  visitId: z.string().optional(),
+  kind: z.enum(["heart"]).optional().default("heart"),
 });
 
 const agreementAcknowledgementSchema = z.object({
@@ -784,6 +816,340 @@ function musicVoiceLabel(language: SocialLanguage) {
   return "Nota de voz";
 }
 
+function musicCirclePrompt(language: SocialLanguage) {
+  if (language === "de") return "Lied des Tages";
+  if (language === "en") return "Today's Song";
+  return "Cancion de hoy";
+}
+
+function musicDayKey(date = new Date()) {
+  return date.toISOString().slice(0, 10);
+}
+
+function normalizeMusicCauseId(value: string): SocialMusicCauseId {
+  if (value === "anthem" || value === "memory" || value === "bridge") return value;
+  return "bridge";
+}
+
+function musicReactionKey(itemId: string, userId: string, kind: "heart") {
+  return `${itemId}:${userId}:${kind}`;
+}
+
+function summarizeMusicReactions(
+  rows: Array<typeof socialRoomMusicItemReactions.$inferSelect>,
+  userId: string,
+) {
+  const summary = new Map<string, { reactionCount: number; myReaction: boolean }>();
+  for (const row of rows) {
+    if (row.kind !== "heart") continue;
+    const current = summary.get(row.item_id) ?? { reactionCount: 0, myReaction: false };
+    current.reactionCount += 1;
+    if (row.user_id === userId) current.myReaction = true;
+    summary.set(row.item_id, current);
+  }
+  return summary;
+}
+
+function countMemoryMusicReactions(itemId: string, userId: string) {
+  let reactionCount = 0;
+  let myReaction = false;
+  for (const reaction of memoryMusicReactions.values()) {
+    if (reaction.itemId !== itemId || reaction.kind !== "heart") continue;
+    reactionCount += 1;
+    if (reaction.userId === userId) myReaction = true;
+  }
+  return { reactionCount, myReaction };
+}
+
+function formatMusicCircleItem(
+  row: typeof socialRoomMusicCircleItems.$inferSelect,
+  reactions: { reactionCount: number; myReaction: boolean },
+): SocialMusicCircleItem {
+  return {
+    id: row.id,
+    roomId: row.room_id,
+    dayKey: row.day_key,
+    authorId: row.author_id,
+    authorName: row.author_name,
+    songText: row.song_text,
+    causeId: normalizeMusicCauseId(row.cause_id),
+    memoryText: row.memory_text,
+    status: row.status,
+    reactionCount: reactions.reactionCount,
+    myReaction: reactions.myReaction,
+    createdAt: isoDate(row.created_at),
+    updatedAt: isoDate(row.updated_at),
+  };
+}
+
+function formatMemoryMusicCircleItem(item: MemoryMusicCircleItem, userId: string): SocialMusicCircleItem {
+  const { roomSlug: _roomSlug, reactionCount: _reactionCount, myReaction: _myReaction, ...publicItem } = item;
+  return {
+    ...publicItem,
+    ...countMemoryMusicReactions(item.id, userId),
+  };
+}
+
+function buildMemoryMusicCircle(
+  userId: string,
+  roomSlug: string,
+  language: SocialLanguage,
+  dayKey = musicDayKey(),
+): SocialMusicCircle {
+  const items = Array.from(memoryMusicCircleItems.values())
+    .filter((item) => item.roomSlug === roomSlug && item.dayKey === dayKey && item.status === "active")
+    .sort((first, second) => Date.parse(second.updatedAt) - Date.parse(first.updatedAt))
+    .slice(0, 8)
+    .map((item) => formatMemoryMusicCircleItem(item, userId));
+
+  return {
+    dayKey,
+    prompt: musicCirclePrompt(language),
+    featuredItemId: items[0]?.id ?? null,
+    items,
+  };
+}
+
+async function loadMusicCircle(
+  userId: string,
+  roomSlug: string,
+  roomId: string | null,
+  language: SocialLanguage,
+): Promise<SocialMusicCircle> {
+  const dayKey = musicDayKey();
+  const prompt = musicCirclePrompt(language);
+
+  return safeDb(
+    "load music circle",
+    async () => {
+      if (!roomId) throw new Error("Missing room id");
+      const itemRows = await db
+        .select()
+        .from(socialRoomMusicCircleItems)
+        .where(and(
+          eq(socialRoomMusicCircleItems.room_id, roomId),
+          eq(socialRoomMusicCircleItems.day_key, dayKey),
+          eq(socialRoomMusicCircleItems.status, "active"),
+        ))
+        .orderBy(desc(socialRoomMusicCircleItems.updated_at))
+        .limit(8);
+      if (!itemRows.length) return { dayKey, prompt, featuredItemId: null, items: [] };
+
+      const reactionRows = await db
+        .select()
+        .from(socialRoomMusicItemReactions)
+        .where(inArray(socialRoomMusicItemReactions.item_id, itemRows.map((item) => item.id)));
+      const reactions = summarizeMusicReactions(reactionRows, userId);
+      const items = itemRows.map((item) => formatMusicCircleItem(item, reactions.get(item.id) ?? { reactionCount: 0, myReaction: false }));
+
+      return {
+        dayKey,
+        prompt,
+        featuredItemId: items[0]?.id ?? null,
+        items,
+      };
+    },
+    async () => buildMemoryMusicCircle(userId, roomSlug, language, dayKey),
+  );
+}
+
+async function loadMusicCircleItemForConnect(input: {
+  userId: string;
+  roomSlug: string;
+  roomId: string | null;
+  itemId: string;
+}): Promise<SocialMusicCircleItem | null> {
+  if (!input.itemId) return null;
+  return safeDb(
+    "load music circle item",
+    async () => {
+      if (!input.roomId) throw new Error("Missing room id");
+      const [itemRow] = await db
+        .select()
+        .from(socialRoomMusicCircleItems)
+        .where(and(
+          eq(socialRoomMusicCircleItems.id, input.itemId),
+          eq(socialRoomMusicCircleItems.room_id, input.roomId),
+          eq(socialRoomMusicCircleItems.status, "active"),
+        ))
+        .limit(1);
+      if (!itemRow) return null;
+
+      const reactionRows = await db
+        .select()
+        .from(socialRoomMusicItemReactions)
+        .where(eq(socialRoomMusicItemReactions.item_id, itemRow.id));
+      const reactions = summarizeMusicReactions(reactionRows, input.userId);
+      return formatMusicCircleItem(itemRow, reactions.get(itemRow.id) ?? { reactionCount: 0, myReaction: false });
+    },
+    async () => {
+      const item = memoryMusicCircleItems.get(input.itemId);
+      if (!item || item.roomSlug !== input.roomSlug || item.status !== "active") return null;
+      return formatMemoryMusicCircleItem(item, input.userId);
+    },
+  );
+}
+
+async function createMusicCircleItem(input: {
+  userId: string;
+  roomSlug: string;
+  roomId: string | null;
+  language: SocialLanguage;
+  songText: string;
+  causeId: SocialMusicCauseId;
+  memoryText: string;
+}): Promise<{ item?: SocialMusicCircleItem; musicCircle?: SocialMusicCircle; error?: string; safetyFlags?: SocialRoomSafetyFlag[] }> {
+  const songText = input.songText.trim();
+  const memoryText = input.memoryText.trim();
+  const safetyFlags = detectSafetyFlags({ category: "other", title: songText, details: memoryText });
+  if (shouldBlockReply(safetyFlags)) {
+    await createMusicSafetyReport({
+      userId: input.userId,
+      roomId: input.roomId,
+      language: input.language,
+      targetId: randomUUID(),
+      safetyFlags,
+      targetType: "music_circle_item",
+      reason: "music_circle_item_review",
+    });
+    return {
+      error: "Reply needs VYVA review before it can be shared",
+      safetyFlags,
+    };
+  }
+
+  return safeDb(
+    "create music circle item",
+    async () => {
+      if (!input.roomId) throw new Error("Missing room id");
+      const now = new Date();
+      const [itemRow] = await db
+        .insert(socialRoomMusicCircleItems)
+        .values({
+          room_id: input.roomId,
+          day_key: musicDayKey(now),
+          author_id: input.userId,
+          author_name: musicYouLabel(input.language),
+          song_text: songText,
+          cause_id: input.causeId,
+          memory_text: memoryText,
+          status: "active",
+          updated_at: now,
+        })
+        .returning();
+      if (!itemRow) return { error: "Music circle item was not created" };
+
+      const item = formatMusicCircleItem(itemRow, { reactionCount: 0, myReaction: false });
+      const musicCircle = await loadMusicCircle(input.userId, input.roomSlug, input.roomId, input.language);
+      return { item, musicCircle };
+    },
+    async () => {
+      const now = new Date().toISOString();
+      const item: MemoryMusicCircleItem = {
+        id: randomUUID(),
+        roomId: input.roomId,
+        roomSlug: input.roomSlug,
+        dayKey: musicDayKey(),
+        authorId: input.userId,
+        authorName: musicYouLabel(input.language),
+        songText,
+        causeId: input.causeId,
+        memoryText,
+        status: "active",
+        reactionCount: 0,
+        myReaction: false,
+        createdAt: now,
+        updatedAt: now,
+      };
+      memoryMusicCircleItems.set(item.id, item);
+      return {
+        item: formatMemoryMusicCircleItem(item, input.userId),
+        musicCircle: buildMemoryMusicCircle(input.userId, input.roomSlug, input.language, item.dayKey),
+      };
+    },
+  );
+}
+
+async function toggleMusicCircleReaction(input: {
+  userId: string;
+  roomSlug: string;
+  roomId: string | null;
+  itemId: string;
+  language: SocialLanguage;
+  kind: "heart";
+}): Promise<{ item?: SocialMusicCircleItem; musicCircle?: SocialMusicCircle; error?: string }> {
+  return safeDb(
+    "toggle music circle reaction",
+    async () => {
+      if (!input.roomId) throw new Error("Missing room id");
+      const [itemRow] = await db
+        .select()
+        .from(socialRoomMusicCircleItems)
+        .where(and(
+          eq(socialRoomMusicCircleItems.id, input.itemId),
+          eq(socialRoomMusicCircleItems.room_id, input.roomId),
+          eq(socialRoomMusicCircleItems.status, "active"),
+        ))
+        .limit(1);
+      if (!itemRow) return { error: "Music circle item not found" };
+
+      const [existing] = await db
+        .select()
+        .from(socialRoomMusicItemReactions)
+        .where(and(
+          eq(socialRoomMusicItemReactions.item_id, itemRow.id),
+          eq(socialRoomMusicItemReactions.user_id, input.userId),
+          eq(socialRoomMusicItemReactions.kind, input.kind),
+        ))
+        .limit(1);
+
+      if (existing) {
+        await db
+          .delete(socialRoomMusicItemReactions)
+          .where(eq(socialRoomMusicItemReactions.id, existing.id));
+      } else {
+        await db
+          .insert(socialRoomMusicItemReactions)
+          .values({
+            item_id: itemRow.id,
+            user_id: input.userId,
+            kind: input.kind,
+          });
+      }
+
+      const musicCircle = await loadMusicCircle(input.userId, input.roomSlug, input.roomId, input.language);
+      return {
+        item: musicCircle.items.find((item) => item.id === input.itemId),
+        musicCircle,
+      };
+    },
+    async () => {
+      const item = memoryMusicCircleItems.get(input.itemId);
+      if (!item || item.roomSlug !== input.roomSlug || item.status !== "active") {
+        return { error: "Music circle item not found" };
+      }
+
+      const key = musicReactionKey(input.itemId, input.userId, input.kind);
+      if (memoryMusicReactions.has(key)) {
+        memoryMusicReactions.delete(key);
+      } else {
+        memoryMusicReactions.set(key, {
+          itemId: input.itemId,
+          userId: input.userId,
+          kind: input.kind,
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      const musicCircle = buildMemoryMusicCircle(input.userId, input.roomSlug, input.language, item.dayKey);
+      return {
+        item: musicCircle.items.find((circleItem) => circleItem.id === input.itemId),
+        musicCircle,
+      };
+    },
+  );
+}
+
 function buildMusicThreadReply(input: {
   language: SocialLanguage;
   matchedMemberName: string;
@@ -1009,7 +1375,7 @@ async function createMusicSafetyReport(input: {
   language: SocialLanguage;
   targetId: string;
   safetyFlags: SocialRoomSafetyFlag[];
-  targetType?: "room" | "music_thread_entry";
+  targetType?: "room" | "music_thread_entry" | "music_circle_item";
   reason?: string;
   details?: string;
 }) {
@@ -1576,6 +1942,9 @@ router.get("/rooms/:slug", async (req: Request, res: Response) => {
   const musicThreads = room.slug === "music-room"
     ? await loadMusicThreads(room.slug, roomRecords?.roomId ?? null)
     : undefined;
+  const musicCircle = room.slug === "music-room"
+    ? await loadMusicCircle(userId, room.slug, roomRecords?.roomId ?? null, language)
+    : undefined;
 
   return res.json({
     room: {
@@ -1600,6 +1969,7 @@ router.get("/rooms/:slug", async (req: Request, res: Response) => {
       : {}),
     ...(pulse ? { pulse } : {}),
     ...(readingClub ? { readingClub } : {}),
+    ...(musicCircle ? { musicCircle } : {}),
     ...(musicThreads ? { musicThreads } : {}),
   });
 });
@@ -1707,6 +2077,64 @@ router.post("/rooms/:slug/music-threads/:threadId/entries", async (req: Request,
   return res.json({ ok: true, entry: result.entry, thread: result.thread });
 });
 
+router.post("/rooms/:slug/music-circle/items", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  const parsed = musicCircleItemSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  const slug = resolveSocialRoomSlug(req.params.slug);
+  if (slug !== "music-room") return res.status(400).json({ error: "This room does not support music circle items" });
+
+  const records = await ensureRoomRecords(slug);
+  const result = await createMusicCircleItem({
+    userId,
+    roomSlug: slug,
+    roomId: records?.roomId ?? null,
+    language: normalizeLanguage(parsed.data.lang),
+    songText: parsed.data.songText,
+    causeId: parsed.data.causeId,
+    memoryText: parsed.data.memoryText,
+  });
+
+  if (result.error) {
+    return res.status(result.safetyFlags ? 400 : 404).json({
+      error: result.error,
+      ...(result.safetyFlags ? { safetyFlags: result.safetyFlags } : {}),
+    });
+  }
+  return res.json({ ok: true, item: result.item, musicCircle: result.musicCircle });
+});
+
+router.post("/rooms/:slug/music-circle/items/:itemId/reactions", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  const parsed = musicCircleReactionSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  const slug = resolveSocialRoomSlug(req.params.slug);
+  if (slug !== "music-room") return res.status(400).json({ error: "This room does not support music circle reactions" });
+
+  const records = await ensureRoomRecords(slug);
+  const result = await toggleMusicCircleReaction({
+    userId,
+    roomSlug: slug,
+    roomId: records?.roomId ?? null,
+    itemId: req.params.itemId,
+    language: normalizeLanguage(parsed.data.lang),
+    kind: parsed.data.kind,
+  });
+
+  if (result.error) return res.status(404).json({ error: result.error });
+  return res.json({ ok: true, item: result.item, musicCircle: result.musicCircle });
+});
+
 router.post("/rooms/:slug/polls/:pollId/vote", async (req: Request, res: Response) => {
   const userId = resolveUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
@@ -1781,8 +2209,8 @@ router.post("/rooms/:slug/safety-reports", async (req: Request, res: Response) =
 
   const slug = resolveSocialRoomSlug(req.params.slug);
   if (slug !== "together-room" && slug !== "reading-room" && slug !== "music-room") return res.status(400).json({ error: "This room does not support safety reports" });
-  if (slug === "music-room" && parsed.data.targetType !== "room" && parsed.data.targetType !== "music_thread_entry") {
-    return res.status(400).json({ error: "Music Room reports can target the room or a music thread entry" });
+  if (slug === "music-room" && parsed.data.targetType !== "room" && parsed.data.targetType !== "music_thread_entry" && parsed.data.targetType !== "music_circle_item") {
+    return res.status(400).json({ error: "Music Room reports can target the room, a music circle item or a music thread entry" });
   }
 
   const records = await ensureRoomRecords(slug);
@@ -1803,7 +2231,9 @@ router.post("/rooms/:slug/safety-reports", async (req: Request, res: Response) =
       language: payload.language,
       targetId: parsed.data.targetId ?? "room",
       safetyFlags: [],
-      targetType: parsed.data.targetType === "music_thread_entry" ? "music_thread_entry" : "room",
+      targetType: parsed.data.targetType === "music_thread_entry" || parsed.data.targetType === "music_circle_item"
+        ? parsed.data.targetType
+        : "room",
       reason: parsed.data.reason,
       details: parsed.data.details,
     });
@@ -2229,13 +2659,25 @@ router.post("/rooms/:slug/connect", async (req: Request, res: Response) => {
   if (!member) return res.status(404).json({ error: "Member not found" });
 
   if (canonicalSlug === "music-room") {
-    const songText = typeof req.body?.songText === "string" && req.body.songText.trim()
+    const records = await ensureRoomRecords(canonicalSlug);
+    const circleItemId = typeof req.body?.circleItemId === "string" ? req.body.circleItemId.trim().slice(0, 140) : "";
+    const circleItem = circleItemId
+      ? await loadMusicCircleItemForConnect({
+        userId,
+        roomSlug: canonicalSlug,
+        roomId: records?.roomId ?? null,
+        itemId: circleItemId,
+      })
+      : null;
+    const requestSongText = typeof req.body?.songText === "string" && req.body.songText.trim()
       ? req.body.songText.trim().slice(0, 160)
-      : bridgePrompt || (language === "de" ? "Geteiltes Lied" : language === "en" ? "Shared song" : "Cancion compartida");
+      : "";
+    const songText = circleItem?.songText || requestSongText || bridgePrompt || (
+      language === "de" ? "Geteiltes Lied" : language === "en" ? "Shared song" : "Cancion compartida"
+    );
     const matchedTopic = typeof req.body?.matchedTopic === "string" && req.body.matchedTopic.trim()
       ? req.body.matchedTopic.trim().slice(0, 80)
       : member.sharedTopic ?? "";
-    const records = await ensureRoomRecords(canonicalSlug);
     const thread = await createOrReuseMusicThread({
       userId,
       roomSlug: canonicalSlug,
