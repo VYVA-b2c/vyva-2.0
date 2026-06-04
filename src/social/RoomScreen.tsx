@@ -7,7 +7,8 @@ import { useProfile } from "@/contexts/ProfileContext";
 import { useLanguage } from "@/i18n";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 import SocialStyles from "./SocialStyles";
-import { getSocialCopy, getSocialLanguage } from "./roomUtils";
+import GamesRoomScreen from "./GamesRoomScreen";
+import { getSocialCopy, getSocialGameLanguage, getSocialLanguage } from "./roomUtils";
 import type {
   SocialLanguage,
   SocialConversationContext,
@@ -1089,6 +1090,8 @@ const RoomScreen = () => {
   const { profile, firstName } = useProfile();
   const { language: appLanguage } = useLanguage();
   const language = getSocialLanguage(appLanguage);
+  const gameLanguage = getSocialGameLanguage(appLanguage);
+  const requestLanguage = slug === "games-room" ? gameLanguage : language;
   const copy = getSocialCopy(language);
 
   const [visitId, setVisitId] = useState<string | null>(null);
@@ -1140,7 +1143,7 @@ const RoomScreen = () => {
   const reconnectFallbackTimeoutRef = useRef<number | null>(null);
 
   const { data, isLoading, isError } = useQuery<SocialRoomResponse>({
-    queryKey: [`/api/social/rooms/${slug}?lang=${language}`],
+    queryKey: [`/api/social/rooms/${slug}?lang=${requestLanguage}`],
     enabled: Boolean(slug),
     staleTime: 30 * 1000,
   });
@@ -1748,6 +1751,17 @@ const RoomScreen = () => {
           {copy.back}
         </button>
       </div>
+    );
+  }
+
+  if (room.slug === "games-room") {
+    return (
+      <GamesRoomScreen
+        roomResponse={roomResponse}
+        language={gameLanguage}
+        visitId={visitId}
+        onBack={handleBackToRooms}
+      />
     );
   }
 
