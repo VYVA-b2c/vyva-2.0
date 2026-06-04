@@ -833,7 +833,7 @@ export default function MusicRoomScreen({
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF7FF] px-4 pb-8 pt-4 text-[#261637] sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#F8F3FF] px-4 pb-8 pt-4 text-[#261637] sm:px-6 lg:px-8">
       <SocialStyles />
 
       <div className="mx-auto max-w-6xl">
@@ -848,7 +848,7 @@ export default function MusicRoomScreen({
           </button>
 
           <div className="min-w-0 text-center">
-            <h1 className="font-display text-[34px] leading-[0.98] text-[#261637] sm:text-[56px] lg:text-[64px]">
+            <h1 className="font-display text-[34px] leading-[0.98] text-[#261637] sm:text-[48px] lg:text-[56px]">
               {copy.headline}
             </h1>
           </div>
@@ -859,7 +859,7 @@ export default function MusicRoomScreen({
           </div>
         </header>
 
-        <section className="mt-4 rounded-[22px] bg-[#27113B] px-4 py-3 text-white shadow-[0_18px_42px_rgba(77,39,119,0.2)] sm:px-5">
+        <section className="mt-4 rounded-[24px] bg-[#27113B] px-4 py-3 text-white shadow-[0_18px_42px_rgba(77,39,119,0.18)] sm:px-5">
           <div className="flex items-center gap-3">
             <AgentAvatar
               agentSlug={room.agentSlug}
@@ -878,17 +878,17 @@ export default function MusicRoomScreen({
         </section>
 
         <main className="mt-4">
-          <section className="rounded-[28px] border border-[#E5DAF2] bg-white p-4 shadow-[0_16px_34px_rgba(77,39,119,0.08)] sm:p-5">
-            <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)_300px] lg:items-center">
+          <section className="rounded-[30px] border border-[#E7D9F4] bg-[#FFFDFE] p-4 shadow-[0_18px_44px_rgba(77,39,119,0.08)] sm:p-5 lg:p-6">
+            <div className="grid gap-5 lg:grid-cols-[240px_minmax(330px,1fr)_260px] lg:items-center">
               <div className="order-2 lg:order-1">
-                <div className="grid gap-3">
+                <div className="grid gap-2.5">
                   {visibleCircleItems.length > 0 ? visibleCircleItems.map((item) => {
                     const active = item.id === featuredItem?.id;
                     const tone = causeTones[item.causeId];
                     return (
                       <div
                         key={item.id}
-                        className="grid min-h-[76px] grid-cols-[minmax(0,1fr)_58px] items-center gap-2 rounded-[20px] border px-2 py-2"
+                        className="grid min-h-[66px] grid-cols-[minmax(0,1fr)_48px] items-center gap-2 rounded-[18px] border px-2.5 py-2"
                         style={{
                           background: active ? tone.soft : "#FFFDFC",
                           borderColor: active ? tone.accent : "#EEE5F7",
@@ -901,20 +901,20 @@ export default function MusicRoomScreen({
                           className="flex min-w-0 items-center gap-3 text-left"
                         >
                           <span
-                            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] text-white"
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white"
                             style={{ background: tone.accent }}
                           >
-                            <Music2 size={23} strokeWidth={2.8} />
+                            <Music2 size={21} strokeWidth={2.8} />
                           </span>
                           <span className="min-w-0">
-                            <span className="block truncate font-body text-[18px] font-extrabold leading-tight text-[#261637]">
+                            <span className="block truncate font-body text-[17px] font-extrabold leading-tight text-[#261637]">
                               {item.songText}
                             </span>
-                            <span className="mt-1 flex items-center gap-1.5">
-                              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white font-body text-[12px] font-extrabold text-[#6D28D9]">
+                            <span className="mt-1 flex items-center gap-1">
+                              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white font-body text-[11px] font-extrabold text-[#6D28D9]">
                                 {getInitial(item.authorName)}
                               </span>
-                              {active && <Check size={16} strokeWidth={3} className="text-[#0F766E]" />}
+                              {active && <Check size={15} strokeWidth={3} className="text-[#0F766E]" />}
                             </span>
                           </span>
                         </button>
@@ -923,10 +923,10 @@ export default function MusicRoomScreen({
                           onClick={() => void toggleCircleReaction(item)}
                           aria-label={item.myReaction ? copy.unreactLabel : copy.reactLabel}
                           aria-pressed={item.myReaction}
-                          className="flex h-12 min-w-12 items-center justify-center gap-1 rounded-[16px] bg-white px-2 font-body text-[16px] font-extrabold text-[#6D28D9] shadow-[0_8px_16px_rgba(77,39,119,0.08)] disabled:opacity-50"
+                          className="flex h-11 min-w-11 items-center justify-center gap-1 rounded-full bg-white px-2 font-body text-[15px] font-extrabold text-[#6D28D9] shadow-[0_8px_16px_rgba(77,39,119,0.08)] disabled:opacity-50"
                           disabled={Boolean(reactingItems[item.id])}
                         >
-                          <Heart size={20} strokeWidth={2.6} fill={item.myReaction ? "currentColor" : "none"} />
+                          <Heart size={18} strokeWidth={2.6} fill={item.myReaction ? "currentColor" : "none"} />
                           {item.reactionCount}
                         </button>
                       </div>
@@ -936,7 +936,7 @@ export default function MusicRoomScreen({
                       key={starter}
                       type="button"
                       onClick={() => setSongDraft(starter)}
-                      className="flex min-h-[62px] items-center gap-3 rounded-[20px] border border-[#EEE5F7] bg-[#FFFDFC] px-3 py-2 text-left font-body text-[17px] font-extrabold leading-snug text-[#4A365B] transition-transform active:scale-[0.99]"
+                      className="flex min-h-[58px] items-center gap-3 rounded-full border border-[#E8DAF6] bg-[#FFFDFC] px-4 py-2 text-left font-body text-[17px] font-extrabold leading-snug text-[#3E2A50] shadow-[0_8px_18px_rgba(77,39,119,0.04)] transition-transform active:scale-[0.99]"
                     >
                       <Music2 size={22} strokeWidth={2.6} className="text-[#7E22CE]" />
                       <span className="min-w-0 truncate">{starter}</span>
@@ -946,21 +946,25 @@ export default function MusicRoomScreen({
               </div>
 
               <div className="order-1 lg:order-2">
-                <div className="relative mx-auto flex aspect-square max-w-[360px] items-center justify-center rounded-full bg-[#E9D8FF] p-4 shadow-[0_22px_54px_rgba(109,40,217,0.18)]">
+                <div className="relative mx-auto flex h-[284px] w-[284px] items-center justify-center rounded-full bg-[#EDE0FF] p-4 shadow-[0_24px_54px_rgba(109,40,217,0.16)] sm:h-[340px] sm:w-[340px] lg:h-[330px] lg:w-[330px]">
                   <div
                     className="flex h-full w-full items-center justify-center rounded-full border-[10px] border-[#1A1224] text-white shadow-inner"
                     style={{
                       background: "repeating-radial-gradient(circle at center, #111111 0 8px, #19131f 9px 12px, #0B090D 13px 17px)",
                     }}
                   >
-                    <div className="flex h-[42%] w-[42%] flex-col items-center justify-center rounded-full bg-[#6D28D9] px-3 text-center shadow-[0_10px_26px_rgba(0,0,0,0.25)]">
+                    <div className="flex h-[40%] w-[40%] flex-col items-center justify-center rounded-full bg-[#6D28D9] px-3 text-center shadow-[0_10px_26px_rgba(0,0,0,0.25)]">
                       <Music2 size={38} strokeWidth={2.7} />
-                      <span className="mt-2 max-w-[150px] truncate font-body text-[18px] font-extrabold leading-tight">
-                        {featuredItem?.songText ?? copy.todaySong}
-                      </span>
+                      {featuredItem ? (
+                        <span className="mt-2 max-w-[136px] truncate font-body text-[17px] font-extrabold leading-tight">
+                          {featuredItem.songText}
+                        </span>
+                      ) : (
+                        <span className="sr-only">{copy.todaySong}</span>
+                      )}
                     </div>
                   </div>
-                  <span className="absolute top-8 rounded-full bg-white px-4 py-2 font-body text-[16px] font-extrabold text-[#6D28D9] shadow-[0_10px_22px_rgba(77,39,119,0.1)]">
+                  <span className="absolute top-6 rounded-full bg-white px-4 py-2 font-body text-[16px] font-extrabold text-[#6D28D9] shadow-[0_10px_22px_rgba(77,39,119,0.1)]">
                     {roomResponse.musicCircle?.prompt || copy.todaySong}
                   </span>
                   {featuredItem && (
@@ -969,75 +973,18 @@ export default function MusicRoomScreen({
                       onClick={() => void toggleCircleReaction(featuredItem)}
                       aria-label={featuredItem.myReaction ? copy.unreactLabel : copy.reactLabel}
                       aria-pressed={featuredItem.myReaction}
-                      className="absolute bottom-5 flex min-h-12 items-center gap-2 rounded-full bg-white px-4 font-body text-[21px] font-extrabold text-[#6D28D9] shadow-[0_12px_24px_rgba(77,39,119,0.16)]"
+                      className="absolute bottom-4 flex min-h-12 items-center gap-2 rounded-full bg-white px-4 font-body text-[21px] font-extrabold text-[#6D28D9] shadow-[0_12px_24px_rgba(77,39,119,0.16)]"
                     >
                       <Heart size={27} strokeWidth={2.6} fill={featuredItem.myReaction ? "currentColor" : "none"} />
                       {featuredItem.reactionCount}
                     </button>
                   )}
                 </div>
-
-                <div className="mt-4">
-                  <p id="music-cause-heading" className="sr-only">
-                    {copy.chooseCause}
-                  </p>
-                  <div aria-labelledby="music-cause-heading" className="grid grid-cols-3 gap-2">
-                    {copy.causes.map((cause) => {
-                      const Icon = cause.icon;
-                      const active = cause.id === selectedCauseId;
-                      const tone = causeTones[cause.id];
-                      return (
-                        <button
-                          key={cause.id}
-                          type="button"
-                          onClick={() => setSelectedCauseId(cause.id)}
-                          aria-pressed={active}
-                          className="flex min-h-[52px] items-center justify-center gap-1 rounded-[18px] border px-2 font-body text-[15px] font-extrabold leading-tight transition-transform active:scale-[0.99]"
-                          style={{
-                            background: active ? "#FFFFFF" : "#F7F2FF",
-                            borderColor: active ? tone.accent : "#EEE5F7",
-                            color: active ? tone.accent : "#4A365B",
-                            boxShadow: active ? "0 8px 18px rgba(77,39,119,0.1)" : "none",
-                          }}
-                        >
-                          <Icon size={19} strokeWidth={2.5} />
-                          <span>{cause.title}</span>
-                          {active && <Check size={16} strokeWidth={3} />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <form
-                  className="mt-3 grid grid-cols-[minmax(0,1fr)_96px] gap-2 sm:grid-cols-[minmax(0,1fr)_112px] sm:gap-3"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void submitSong();
-                  }}
-                >
-                  <input
-                    value={songDraft}
-                    onChange={(event) => setSongDraft(event.target.value)}
-                    disabled={isSubmitting}
-                    placeholder={copy.addPlaceholder}
-                    aria-label={copy.addPlaceholder}
-                    className="h-[58px] min-w-0 rounded-[20px] border border-[#E5DAF2] bg-[#FFFDFC] px-4 font-body text-[19px] font-semibold text-[#3E2A50] outline-none placeholder:text-[#9E8FAE] focus:border-[#7E22CE]"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!songDraft.trim() || isSubmitting}
-                    className="inline-flex min-h-[58px] items-center justify-center gap-2 rounded-[20px] bg-[#7E22CE] px-3 font-body text-[18px] font-extrabold text-white shadow-[0_14px_28px_rgba(126,34,206,0.2)] disabled:opacity-50"
-                  >
-                    <Send size={20} />
-                    {copy.addButton}
-                  </button>
-                </form>
               </div>
 
               <div className="order-3 lg:border-l lg:border-[#EEE5F7] lg:pl-5">
                 <h2 className="font-body text-[20px] font-extrabold leading-tight text-[#261637]">{copy.connectionTitle}</h2>
-                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-1">
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1">
                   {visibleMembers.map((member, index) => {
                     const sent = Boolean(pendingConnections[member.id]);
                     const replied = Boolean(repliedConnections[member.id]);
@@ -1056,26 +1003,26 @@ export default function MusicRoomScreen({
                           void sendConnectionRequest(member);
                         }}
                         disabled={sending || (sent && !replied)}
-                        className="relative flex min-h-[74px] items-center gap-3 rounded-[18px] border border-[#EEE5F7] bg-[#FFFDFC] px-3 py-2 text-left transition-transform active:scale-[0.99] disabled:opacity-80"
+                        className="relative flex min-h-[68px] items-center gap-3 rounded-[18px] border border-[#EEE5F7] bg-[#FFFDFC] px-3 py-2 text-left shadow-[0_8px_18px_rgba(77,39,119,0.04)] transition-transform active:scale-[0.99] disabled:opacity-80"
                         aria-label={replied ? `${member.name} ${copy.replied}` : sent ? `${member.name} ${copy.sent}` : copy.connect(member.name)}
                       >
                         <span
-                          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-[18px] font-extrabold text-white"
+                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[18px] font-extrabold text-white"
                           style={{ background: memberColours[index % memberColours.length] }}
                         >
                           {sent ? <Check size={23} strokeWidth={3} /> : getInitial(member.name)}
                         </span>
                         <span className="min-w-0">
-                          <span className="block truncate font-body text-[18px] font-extrabold leading-tight text-[#261637]">{member.name}</span>
-                          <span className="mt-1 flex items-center gap-1.5">
-                            {[0, 1, 2, 3, 4].map((dot) => (
+                          <span className="block truncate font-body text-[17px] font-extrabold leading-tight text-[#261637]">{member.name}</span>
+                          <span className="mt-1 flex items-center gap-1.5 overflow-hidden">
+                            {[0, 1, 2].map((dot) => (
                               <span
                                 key={dot}
-                                className="h-2 w-2 rounded-full"
-                                style={{ background: dot < 3 ? memberColours[index % memberColours.length] : "#D8CFDF" }}
+                                className="h-1.5 w-3 shrink-0 rounded-full"
+                                style={{ background: memberColours[index % memberColours.length], opacity: dot === 0 ? 1 : 0.45 }}
                               />
                             ))}
-                            <span className="ml-1 truncate font-body text-[14px] font-bold leading-tight text-[#6D6170]">
+                            <span className="truncate font-body text-[13px] font-bold leading-tight text-[#6D6170]">
                               {cue}
                             </span>
                           </span>
@@ -1085,6 +1032,63 @@ export default function MusicRoomScreen({
                   })}
                 </div>
               </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 border-t border-[#EEE5F7] pt-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,430px)] lg:items-center">
+              <div>
+                <p id="music-cause-heading" className="sr-only">
+                  {copy.chooseCause}
+                </p>
+                <div aria-labelledby="music-cause-heading" className="grid grid-cols-3 gap-2 rounded-[22px] bg-[#F6F0FF] p-1">
+                  {copy.causes.map((cause) => {
+                    const Icon = cause.icon;
+                    const active = cause.id === selectedCauseId;
+                    const tone = causeTones[cause.id];
+                    return (
+                      <button
+                        key={cause.id}
+                        type="button"
+                        onClick={() => setSelectedCauseId(cause.id)}
+                        aria-pressed={active}
+                        className="flex min-h-[48px] items-center justify-center gap-1.5 rounded-[18px] px-2 font-body text-[15px] font-extrabold leading-tight transition-transform active:scale-[0.99]"
+                        style={{
+                          background: active ? "#FFFFFF" : "transparent",
+                          color: active ? tone.accent : "#4A365B",
+                          boxShadow: active ? "0 8px 18px rgba(77,39,119,0.1)" : "none",
+                        }}
+                      >
+                        <Icon size={19} strokeWidth={2.5} />
+                        <span>{cause.title}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <form
+                className="grid grid-cols-[minmax(0,1fr)_96px] gap-2 sm:grid-cols-[minmax(0,1fr)_112px] sm:gap-3"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void submitSong();
+                }}
+              >
+                <input
+                  value={songDraft}
+                  onChange={(event) => setSongDraft(event.target.value)}
+                  disabled={isSubmitting}
+                  placeholder={copy.addPlaceholder}
+                  aria-label={copy.addPlaceholder}
+                  className="h-[58px] min-w-0 rounded-[20px] border border-[#E5DAF2] bg-[#FFFDFC] px-4 font-body text-[19px] font-semibold text-[#3E2A50] outline-none placeholder:text-[#9E8FAE] focus:border-[#7E22CE]"
+                />
+                <button
+                  type="submit"
+                  disabled={!songDraft.trim() || isSubmitting}
+                  className="inline-flex min-h-[58px] items-center justify-center gap-2 rounded-[20px] bg-[#7E22CE] px-3 font-body text-[18px] font-extrabold text-white shadow-[0_14px_28px_rgba(126,34,206,0.2)] disabled:opacity-50"
+                >
+                  <Send size={20} />
+                  {copy.addButton}
+                </button>
+              </form>
             </div>
 
             {activeThread && activeThreadMember && activeThreadEntries.length > 0 && (
