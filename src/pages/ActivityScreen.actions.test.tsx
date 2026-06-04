@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import ActivityScreen from "./ActivityScreen";
 
 const queryMock = vi.fn();
+const mutateMock = vi.fn();
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
@@ -12,7 +13,7 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
     ...actual,
     useQuery: (options: { queryKey: unknown[] }) => queryMock(options.queryKey),
     useMutation: () => ({
-      mutate: vi.fn(),
+      mutate: mutateMock,
       isPending: false,
       isSuccess: false,
       isError: false,
@@ -172,6 +173,52 @@ describe("Activity safe-home service actions", () => {
     expect(screen.getByTestId("button-log-activity")).toBeEnabled();
   });
 
+  it("shows today's gentle routine above the exercise library", () => {
+    renderActivity();
+
+    const routineSection = screen.getByTestId("section-todays-gentle-routine");
+    const exerciseSection = screen.getByTestId("section-gentle-exercises");
+
+    expect(routineSection).toHaveTextContent("Today's gentle routine");
+    expect(routineSection).toHaveTextContent("Start routine");
+    expect(screen.getAllByTestId(/^senior-routine-preview-/)).toHaveLength(3);
+    expect(routineSection.compareDocumentPosition(exerciseSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("opens the daily routine sheet and moves through all 3 stages", () => {
+    renderActivity();
+
+    fireEvent.click(screen.getByTestId("button-start-senior-routine"));
+
+    expect(screen.getByRole("dialog")).toHaveTextContent("Step 1 of 3");
+    expect(screen.getByTestId("senior-routine-stepper")).toHaveTextContent("Step 1 of 3");
+
+    fireEvent.click(screen.getByTestId("button-next-senior-routine"));
+    expect(screen.getByTestId("senior-routine-stepper")).toHaveTextContent("Step 2 of 3");
+
+    fireEvent.click(screen.getByTestId("button-next-senior-routine"));
+    expect(screen.getByTestId("senior-routine-stepper")).toHaveTextContent("Step 3 of 3");
+    expect(screen.getByTestId("button-finish-senior-routine")).toHaveTextContent("Finish routine");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Move gently. Stop if you feel pain, dizzy, or short of breath.");
+
+    fireEvent.click(screen.getByTestId("button-back-senior-routine"));
+    expect(screen.getByTestId("senior-routine-stepper")).toHaveTextContent("Step 2 of 3");
+  });
+
+  it("finishes the daily routine as a 10 minute Gentle routine log", () => {
+    renderActivity();
+
+    fireEvent.click(screen.getByTestId("button-start-senior-routine"));
+    fireEvent.click(screen.getByTestId("button-next-senior-routine"));
+    fireEvent.click(screen.getByTestId("button-next-senior-routine"));
+    fireEvent.click(screen.getByTestId("button-finish-senior-routine"));
+
+    expect(mutateMock).toHaveBeenCalledWith(
+      { activity_type: "GentleRoutine", duration_minutes: 10 },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+  });
+
   it("shows the senior-friendly gentle exercise cards", () => {
     renderActivity();
 
@@ -248,6 +295,38 @@ describe("Activity safe-home service actions", () => {
     renderActivity();
 
     expect(screen.getByTestId("row-activity-0")).toHaveTextContent("Wall push-ups");
+    expect(screen.getByTestId("row-activity-0")).not.toHaveTextContent("Walking");
+    expect(screen.getByTestId("row-activity-0").querySelector("svg")).not.toBeNull();
+  });
+
+  it("shows Gentle routine labels in today's summary instead of falling back to walking", () => {
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/home-scan") return { data: [] };
+      if (key === "/api/activity") {
+        return {
+          data: {
+            entries: [{
+              id: "activity-1",
+              user_id: "user-1",
+              activity_type: "GentleRoutine",
+              duration_minutes: 10,
+              calories: 30,
+              logged_at: "2026-06-04T08:30:00.000Z",
+            }],
+            total_active_minutes: 10,
+            total_calories: 30,
+            today_steps: 0,
+          },
+          isLoading: false,
+        };
+      }
+      return {};
+    });
+
+    renderActivity();
+
+    expect(screen.getByTestId("row-activity-0")).toHaveTextContent("Gentle routine");
     expect(screen.getByTestId("row-activity-0")).not.toHaveTextContent("Walking");
     expect(screen.getByTestId("row-activity-0").querySelector("svg")).not.toBeNull();
   });

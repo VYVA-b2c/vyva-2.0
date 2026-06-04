@@ -55,6 +55,20 @@ type SeniorExercise = {
   steps: Array<{ key: string; fallback: string }>;
 };
 
+type SeniorRoutine = {
+  id: string;
+  logType: string;
+  titleKey: string;
+  title: string;
+  subtitleKey: string;
+  subtitle: string;
+  exerciseIds: [string, string, string];
+  duration: number;
+  accent: string;
+  softBg: string;
+  border: string;
+};
+
 const ACTIVITY_TYPES: ActivityTypeMeta[] = [
   { key: "Walking",    icon: Footprints,     labelKey: "activity.types.walking",    fallbackLabel: "Walking",    bg: "#FEF3C7", color: "#B45309" },
   { key: "Cycling",    icon: Bike,           labelKey: "activity.types.cycling",    fallbackLabel: "Cycling",    bg: "#ECFDF5", color: "#059669" },
@@ -427,6 +441,59 @@ const SENIOR_EXERCISE_GROUPS: Array<{
   },
 ];
 
+const SENIOR_EXERCISE_BY_ID = new Map(SENIOR_EXERCISES.map((exercise) => [exercise.id, exercise]));
+
+const SENIOR_ROUTINES: SeniorRoutine[] = [
+  {
+    id: "morning-mobility",
+    logType: "GentleRoutine",
+    titleKey: "activity.gentleRoutines.morningMobility.title",
+    title: "Morning mobility",
+    subtitleKey: "activity.gentleRoutines.morningMobility.subtitle",
+    subtitle: "Loosen shoulders, chest, and ankles before the day gets going.",
+    exerciseIds: ["chair-yoga", "chest-opener", "ankle-mobility"],
+    duration: 10,
+    accent: "#6B21A8",
+    softBg: "#F5F3FF",
+    border: "#D8B4FE",
+  },
+  {
+    id: "steady-legs",
+    logType: "GentleRoutine",
+    titleKey: "activity.gentleRoutines.steadyLegs.title",
+    title: "Steady legs",
+    subtitleKey: "activity.gentleRoutines.steadyLegs.subtitle",
+    subtitle: "Practice supported leg strength and balance in small steps.",
+    exerciseIds: ["sit-to-stand", "heel-raises", "side-steps"],
+    duration: 10,
+    accent: "#33691E",
+    softBg: "#EEF8DF",
+    border: "#CFE8B8",
+  },
+  {
+    id: "calm-reset",
+    logType: "GentleRoutine",
+    titleKey: "activity.gentleRoutines.calmReset.title",
+    title: "Calm reset",
+    subtitleKey: "activity.gentleRoutines.calmReset.subtitle",
+    subtitle: "Release the shoulders, slow the breath, and finish softly.",
+    exerciseIds: ["shoulder-release", "hand-breathing", "calm-breathing"],
+    duration: 10,
+    accent: "#2F66D0",
+    softBg: "#EFF6FF",
+    border: "#BFDBFE",
+  },
+];
+
+const GENTLE_ROUTINE_ACTIVITY: ActivityTypeMeta = {
+  key: "GentleRoutine",
+  icon: CheckCircle2,
+  labelKey: "activity.types.gentleRoutine",
+  fallbackLabel: "Gentle routine",
+  bg: "#FFF7ED",
+  color: "#B45309",
+};
+
 const SENIOR_ACTIVITY_TYPES: ActivityTypeMeta[] = SENIOR_EXERCISES.map((exercise) => ({
   key: exercise.logType,
   icon: exercise.icon,
@@ -437,12 +504,24 @@ const SENIOR_ACTIVITY_TYPES: ActivityTypeMeta[] = SENIOR_EXERCISES.map((exercise
 }));
 
 const ACTIVITY_ICON_MAP: Record<string, ActivityTypeMeta> = Object.fromEntries(
-  [...ACTIVITY_TYPES, ...SENIOR_ACTIVITY_TYPES].map((a) => [a.key, a]),
+  [...ACTIVITY_TYPES, GENTLE_ROUTINE_ACTIVITY, ...SENIOR_ACTIVITY_TYPES].map((a) => [a.key, a]),
 );
 
 const DURATIONS = [10, 20, 30, 45, 60];
 const TARGET_STEPS = 6_000;
 const OUTING_ACTIVITY_TYPES = new Set(["Walking", "Cycling", "Exercise"]);
+
+function getSeniorRoutineExercises(routine: SeniorRoutine): SeniorExercise[] {
+  return routine.exerciseIds
+    .map((id) => SENIOR_EXERCISE_BY_ID.get(id))
+    .filter((exercise): exercise is SeniorExercise => Boolean(exercise));
+}
+
+function getDailySeniorRoutine(date = new Date()): SeniorRoutine {
+  const localDayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const dayNumber = Math.floor(localDayStart / 86_400_000);
+  return SENIOR_ROUTINES[dayNumber % SENIOR_ROUTINES.length];
+}
 
 function formatTime(date: Date | string) {
   const d = typeof date === "string" ? new Date(date) : date;
@@ -528,6 +607,8 @@ const ActivityScreen = () => {
   const [selected, setSelected] = useState<string | null>(() => incomingActivity);
   const [duration, setDuration] = useState<number>(() => incomingDuration);
   const [guidedExerciseId, setGuidedExerciseId] = useState<string | null>(null);
+  const [guidedRoutineId, setGuidedRoutineId] = useState<string | null>(null);
+  const [routineStepIndex, setRoutineStepIndex] = useState(0);
   const [editingSteps, setEditingSteps] = useState(false);
   const [stepsInput, setStepsInput] = useState("");
   const [homeAnalyzing, setHomeAnalyzing] = useState(false);
@@ -622,10 +703,27 @@ const ActivityScreen = () => {
     ? t("activity.headlineWithName", { name: firstName })
     : t("activity.headline");
 
+  const todayRoutine = getDailySeniorRoutine();
+  const todayRoutineExercises = getSeniorRoutineExercises(todayRoutine);
   const guidedExercise = SENIOR_EXERCISES.find((exercise) => exercise.id === guidedExerciseId) ?? null;
+  const guidedRoutine = SENIOR_ROUTINES.find((routine) => routine.id === guidedRoutineId) ?? null;
+  const guidedRoutineExercises = guidedRoutine ? getSeniorRoutineExercises(guidedRoutine) : [];
+  const currentRoutineExercise = guidedRoutineExercises[routineStepIndex] ?? guidedRoutineExercises[0] ?? null;
+  const CurrentRoutineIcon = currentRoutineExercise?.icon ?? PersonStanding;
   const activityLabel = (meta: ActivityTypeMeta) => t(meta.labelKey, meta.fallbackLabel);
   const selectedType = selected ? ACTIVITY_ICON_MAP[selected] : undefined;
   const selectedIsOuting = Boolean(selected && OUTING_ACTIVITY_TYPES.has(selected));
+
+  const closeGuidedRoutine = () => {
+    setGuidedRoutineId(null);
+    setRoutineStepIndex(0);
+  };
+
+  const openGuidedRoutine = (routine: SeniorRoutine) => {
+    setGuidedRoutineId(routine.id);
+    setRoutineStepIndex(0);
+  };
+
   const handleUseSeniorExercise = (exercise: SeniorExercise) => {
     setSelected(exercise.logType);
     setDuration(exercise.duration);
@@ -633,6 +731,14 @@ const ActivityScreen = () => {
     window.setTimeout(() => {
       logSectionRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
     }, 0);
+  };
+
+  const handleFinishSeniorRoutine = (routine: SeniorRoutine) => {
+    if (logMutation.isPending) return;
+    logMutation.mutate(
+      { activity_type: routine.logType, duration_minutes: routine.duration },
+      { onSuccess: closeGuidedRoutine },
+    );
   };
 
   const openActivitySupport = (kind: "ride" | "companion") => {
@@ -817,6 +923,85 @@ const ActivityScreen = () => {
           </p>
         </div>
       </div>
+
+      <section className="mt-[18px]" data-testid="section-todays-gentle-routine">
+        <SectionTitle
+          title={t("activity.gentleRoutines.todayTitle", "Today's gentle routine")}
+          subtitle={t("activity.gentleRoutines.todaySubtitle", "One simple 10-minute session picked for today.")}
+        />
+
+        <div
+          className="mt-3 overflow-hidden rounded-[24px] border bg-[#FFFCF8]"
+          style={{
+            borderColor: todayRoutine.border,
+            boxShadow: "0 16px 34px rgba(60,38,20,0.09)",
+          }}
+        >
+          <div className="grid grid-cols-1 min-[720px]:grid-cols-[1fr_210px]">
+            <div className="min-w-0 p-4 min-[520px]:p-5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 font-body text-[13px] font-extrabold"
+                  style={{ background: todayRoutine.softBg, color: todayRoutine.accent }}
+                >
+                  <Clock3 size={15} />
+                  {todayRoutine.duration} {t("activity.min", "min")}
+                </span>
+                <span className="rounded-full bg-[#FFF7ED] px-3 py-1.5 font-body text-[13px] font-extrabold text-[#92400E]">
+                  {t("activity.gentleRoutines.threeMoves", "3 gentle moves")}
+                </span>
+              </div>
+
+              <h3 className="mt-3 font-display text-[30px] leading-tight text-vyva-text-1 [overflow-wrap:anywhere] min-[520px]:text-[34px]">
+                {t(todayRoutine.titleKey, todayRoutine.title)}
+              </h3>
+              <p className="mt-1 max-w-[520px] font-body text-[16px] font-semibold leading-snug text-vyva-text-2 [overflow-wrap:anywhere]">
+                {t(todayRoutine.subtitleKey, todayRoutine.subtitle)}
+              </p>
+
+              <div className="mt-4 grid grid-cols-3 gap-2.5">
+                {todayRoutineExercises.map((exercise) => (
+                  <div key={exercise.id} className="min-w-0" data-testid={`senior-routine-preview-${exercise.id}`}>
+                    <div className="aspect-square overflow-hidden rounded-[18px] bg-[#F5EFE4]">
+                      <img src={exercise.image} alt="" className="h-full w-full object-cover" loading="lazy" />
+                    </div>
+                    <p className="mt-1.5 truncate font-body text-[12px] font-extrabold text-vyva-text-1">
+                      {t(exercise.titleKey, exercise.title)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div
+              className="flex min-h-[150px] flex-col items-stretch justify-between gap-3 border-t p-4 min-[720px]:min-h-0 min-[720px]:border-l min-[720px]:border-t-0 min-[720px]:p-5"
+              style={{ background: todayRoutine.softBg, borderColor: todayRoutine.border }}
+            >
+              <div className="min-w-0">
+                <p className="font-body text-[13px] font-black uppercase text-vyva-text-2">
+                  {t("activity.gentleRoutines.readyWhenYouAre", "Ready when you are")}
+                </p>
+                <p className="mt-1 font-body text-[15px] font-semibold leading-snug text-vyva-text-1">
+                  {t("activity.gentleRoutines.cardHint", "Vyva will guide each move one at a time.")}
+                </p>
+              </div>
+              <button
+                type="button"
+                data-testid="button-start-senior-routine"
+                onClick={() => openGuidedRoutine(todayRoutine)}
+                className="vyva-tap flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[18px] px-5 py-3 font-body text-[16px] font-extrabold text-white"
+                style={{
+                  background: todayRoutine.accent,
+                  boxShadow: `0 12px 24px ${todayRoutine.accent}30`,
+                }}
+              >
+                {t("activity.gentleRoutines.start", "Start routine")}
+                <ChevronRight size={20} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <section className="mt-[18px]" data-testid="section-gentle-exercises">
         <SectionTitle
@@ -1325,6 +1510,153 @@ const ActivityScreen = () => {
           })
         )}
       </div>
+
+      {guidedRoutine && currentRoutineExercise && (
+        <BottomSheet
+          open
+          onOpenChange={(open) => {
+            if (!open) closeGuidedRoutine();
+          }}
+          title={t(guidedRoutine.titleKey, guidedRoutine.title)}
+          description={t("activity.gentleRoutines.sheetDescription", "A 10-minute routine with 3 gentle moves.")}
+          closeLabel={t("common.close", "Close")}
+          footer={(
+            <div className="space-y-3">
+              <p
+                data-testid="senior-routine-safety"
+                className="rounded-[14px] border px-3 py-2 font-body text-[13px] font-semibold leading-snug"
+                style={{ background: "#FFF7ED", borderColor: "#FED7AA", color: "#7C2D12" }}
+              >
+                {t("activity.gentleExercises.safety", "Move gently. Stop if you feel pain, dizzy, or short of breath.")}
+              </p>
+              <div className="grid grid-cols-[0.82fr_1fr] gap-3">
+                <button
+                  type="button"
+                  data-testid="button-back-senior-routine"
+                  onClick={() => setRoutineStepIndex((index) => Math.max(0, index - 1))}
+                  disabled={routineStepIndex === 0}
+                  className="vyva-tap flex min-h-[56px] items-center justify-center rounded-[18px] border px-4 py-3 font-body text-[16px] font-extrabold"
+                  style={
+                    routineStepIndex === 0
+                      ? { background: "#F5EFE4", borderColor: "#EDE2D1", color: "#BFA08A" }
+                      : { background: "#FFFFFF", borderColor: guidedRoutine.border, color: guidedRoutine.accent }
+                  }
+                >
+                  {t("common.back", "Back")}
+                </button>
+                {routineStepIndex < guidedRoutineExercises.length - 1 ? (
+                  <button
+                    type="button"
+                    data-testid="button-next-senior-routine"
+                    onClick={() => setRoutineStepIndex((index) => Math.min(guidedRoutineExercises.length - 1, index + 1))}
+                    className="vyva-tap flex min-h-[56px] items-center justify-center gap-2 rounded-[18px] px-4 py-3 font-body text-[16px] font-extrabold text-white"
+                    style={{
+                      background: guidedRoutine.accent,
+                      boxShadow: `0 12px 24px ${guidedRoutine.accent}30`,
+                    }}
+                  >
+                    {t("common.next", "Next")}
+                    <ChevronRight size={19} />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    data-testid="button-finish-senior-routine"
+                    onClick={() => handleFinishSeniorRoutine(guidedRoutine)}
+                    disabled={logMutation.isPending}
+                    className="vyva-tap flex min-h-[56px] items-center justify-center gap-2 rounded-[18px] px-4 py-3 font-body text-[16px] font-extrabold text-white"
+                    style={{
+                      background: guidedRoutine.accent,
+                      boxShadow: `0 12px 24px ${guidedRoutine.accent}30`,
+                    }}
+                  >
+                    {logMutation.isPending ? <Loader2 size={19} className="animate-spin" /> : <CheckCircle2 size={20} />}
+                    {logMutation.isPending
+                      ? t("activity.saving", "Saving...")
+                      : t("activity.gentleRoutines.finish", "Finish routine")}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        >
+          <div data-testid="senior-routine-stepper" className="rounded-[20px] border bg-white p-3" style={{ borderColor: guidedRoutine.border }}>
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-body text-[13px] font-black uppercase text-vyva-text-2">
+                {t("activity.gentleRoutines.stepCount", "Step {{current}} of {{total}}", {
+                  current: routineStepIndex + 1,
+                  total: guidedRoutineExercises.length,
+                })}
+              </p>
+              <span
+                className="flex items-center gap-1.5 rounded-full px-3 py-1.5 font-body text-[13px] font-extrabold"
+                style={{ background: guidedRoutine.softBg, color: guidedRoutine.accent }}
+              >
+                <Clock3 size={14} />
+                {guidedRoutine.duration} {t("activity.min", "min")}
+              </span>
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {guidedRoutineExercises.map((exercise, index) => (
+                <span
+                  key={exercise.id}
+                  className="h-2 rounded-full"
+                  style={{
+                    background: index <= routineStepIndex ? guidedRoutine.accent : "#EDE2D1",
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-4 overflow-hidden rounded-[22px] border" style={{ borderColor: currentRoutineExercise.border }}>
+            <img
+              src={currentRoutineExercise.image}
+              alt=""
+              className="aspect-[2/1] w-full object-cover min-[520px]:aspect-[16/9]"
+            />
+          </div>
+
+          <div className="mt-4 flex items-start gap-3 rounded-[20px] border bg-white p-3 min-[520px]:p-4" style={{ borderColor: currentRoutineExercise.border }}>
+            <span
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px]"
+              style={{ background: currentRoutineExercise.softBg, color: currentRoutineExercise.accent }}
+            >
+              <CurrentRoutineIcon size={23} strokeWidth={2.4} />
+            </span>
+            <div className="min-w-0">
+              <h3 className="font-display text-[26px] leading-tight text-vyva-text-1 [overflow-wrap:anywhere]">
+                {t(currentRoutineExercise.titleKey, currentRoutineExercise.title)}
+              </h3>
+              <p className="mt-1 font-body text-[15px] font-semibold leading-snug text-vyva-text-2 [overflow-wrap:anywhere]">
+                {t(currentRoutineExercise.benefitKey, currentRoutineExercise.benefit)}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-[20px] border bg-white p-3 min-[520px]:p-4" style={{ borderColor: "#EDE2D1" }}>
+            <p className="font-body text-[13px] font-black uppercase text-vyva-text-2">
+              {t("activity.gentleExercises.simpleSteps", "Simple steps")}
+            </p>
+            <ol className="mt-3 space-y-2">
+              {currentRoutineExercise.steps.map((step, index) => (
+                <li key={step.key} className="flex items-start gap-3">
+                  <span
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-body text-[14px] font-extrabold"
+                    style={{ background: currentRoutineExercise.softBg, color: currentRoutineExercise.accent }}
+                  >
+                    {index + 1}
+                  </span>
+                  <span className="pt-1 font-body text-[15px] font-semibold leading-snug text-vyva-text-1 [overflow-wrap:anywhere]">
+                    {t(step.key, step.fallback)}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+        </BottomSheet>
+      )}
 
       {guidedExercise && (
         <BottomSheet
