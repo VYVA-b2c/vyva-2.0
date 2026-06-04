@@ -130,7 +130,7 @@ describe("RoomScreen movement room", () => {
     });
   });
 
-  it("surfaces the gentle exercise library from the Movement room", async () => {
+  it("starts a gentle exercise session from a Movement room card", async () => {
     renderRoom();
 
     expect(screen.queryByText("Amara welcomes you")).not.toBeInTheDocument();
@@ -146,10 +146,24 @@ describe("RoomScreen movement room", () => {
 
     fireEvent.click(screen.getByTestId("movement-room-exercise-card-chair-yoga"));
 
-    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/activity"));
-    expect(screen.getByTestId("route-state")).toHaveTextContent("\"startGentleExerciseId\":\"chair-yoga\"");
-    expect(screen.getByTestId("route-state")).toHaveTextContent("\"scrollToGentleExercises\":true");
-    expect(screen.getByTestId("route-state")).toHaveTextContent("\"routineSource\":\"movement_room\"");
+    expect(screen.queryByTestId("current-route")).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toHaveTextContent("Chair yoga");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Session started");
+    expect(screen.getByTestId("movement-room-exercise-session-steps")).toHaveTextContent("Sit tall with both feet flat.");
+    expect(screen.getByTestId("movement-room-exercise-safety")).toHaveTextContent("Move gently. Stop if you feel pain, dizzy, or short of breath.");
+
+    fireEvent.click(screen.getByTestId("button-finish-movement-room-exercise-chair-yoga"));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByTestId("movement-room-exercise-logged-status")).toHaveTextContent("Chair yoga logged for 10 min.");
+    expect(screen.getByTestId("movement-room-exercise-card-chair-yoga")).toHaveTextContent("Logged");
+
+    const logCall = apiFetchMock.mock.calls.find(([url]) => url === "/api/activity/log");
+    expect(logCall).toBeTruthy();
+    expect(logCall?.[1]).toEqual(expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ activity_type: "ChairYoga", duration_minutes: 10 }),
+    }));
   });
 
   it("keeps a browse-all exercise path from the Movement room", async () => {

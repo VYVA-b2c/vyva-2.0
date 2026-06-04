@@ -618,6 +618,7 @@ const ActivityScreen = () => {
   const [guidedExerciseId, setGuidedExerciseId] = useState<string | null>(() => incomingGentleExerciseId);
   const [guidedRoutineId, setGuidedRoutineId] = useState<string | null>(() => incomingStartGentleRoutine ? getDailySeniorRoutine().id : null);
   const [routineStepIndex, setRoutineStepIndex] = useState(0);
+  const [recentSeniorLog, setRecentSeniorLog] = useState<SeniorExercise | null>(null);
   const [editingSteps, setEditingSteps] = useState(false);
   const [stepsInput, setStepsInput] = useState("");
   const [homeAnalyzing, setHomeAnalyzing] = useState(false);
@@ -694,6 +695,7 @@ const ActivityScreen = () => {
 
   const handleLog = () => {
     if (!selected || logMutation.isPending) return;
+    setRecentSeniorLog(null);
     logMutation.mutate({ activity_type: selected, duration_minutes: duration });
   };
 
@@ -746,17 +748,22 @@ const ActivityScreen = () => {
     setRoutineStepIndex(0);
   };
 
-  const handleUseSeniorExercise = (exercise: SeniorExercise) => {
-    setSelected(exercise.logType);
-    setDuration(exercise.duration);
-    setGuidedExerciseId(null);
-    window.setTimeout(() => {
-      logSectionRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
-    }, 0);
+  const handleLogSeniorExercise = (exercise: SeniorExercise) => {
+    if (logMutation.isPending) return;
+    logMutation.mutate(
+      { activity_type: exercise.logType, duration_minutes: exercise.duration },
+      {
+        onSuccess: () => {
+          setRecentSeniorLog(exercise);
+          setGuidedExerciseId(null);
+        },
+      },
+    );
   };
 
   const handleFinishSeniorRoutine = (routine: SeniorRoutine) => {
     if (logMutation.isPending) return;
+    setRecentSeniorLog(null);
     logMutation.mutate(
       { activity_type: routine.logType, duration_minutes: routine.duration },
       { onSuccess: closeGuidedRoutine },
@@ -1009,6 +1016,26 @@ const ActivityScreen = () => {
           title={t("activity.gentleExercises.title", "Gentle exercises")}
           subtitle={t("activity.gentleExercises.subtitle", "Three simple choices for strength, balance, mobility, and calm.")}
         />
+        {recentSeniorLog ? (
+          <div
+            className="mt-3 flex items-center gap-3 rounded-[18px] border px-3 py-3"
+            style={{ background: recentSeniorLog.softBg, borderColor: recentSeniorLog.border }}
+            data-testid="status-senior-exercise-logged"
+          >
+            <span
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-white"
+              style={{ color: recentSeniorLog.accent }}
+            >
+              <CheckCircle2 size={22} strokeWidth={2.5} />
+            </span>
+            <span className="min-w-0 font-body text-[15px] font-extrabold leading-snug text-vyva-text-1 [overflow-wrap:anywhere]">
+              {t("activity.gentleExercises.loggedConfirmation", "{{title}} logged for {{duration}} min.", {
+                title: t(recentSeniorLog.titleKey, recentSeniorLog.title),
+                duration: recentSeniorLog.duration,
+              })}
+            </span>
+          </div>
+        ) : null}
         <div className="mt-3 space-y-5">
           {SENIOR_EXERCISE_GROUPS.map((group) => {
             const exercises = SENIOR_EXERCISES.filter((exercise) => exercise.group === group.key);
@@ -1033,7 +1060,8 @@ const ActivityScreen = () => {
                     const title = t(exercise.titleKey, exercise.title);
                     const benefit = t(exercise.benefitKey, exercise.benefit);
                     const focus = t(exercise.focusKey, exercise.focus);
-                    const selectedExercise = selected === exercise.logType;
+                    const selectedExercise = selected === exercise.logType || recentSeniorLog?.id === exercise.id;
+                    const exerciseLogged = recentSeniorLog?.id === exercise.id;
                     const Icon = exercise.icon;
                     return (
                       <button
@@ -1095,7 +1123,9 @@ const ActivityScreen = () => {
                               }}
                             >
                               {selectedExercise
-                                ? t("activity.gentleExercises.ready", "Ready")
+                                ? exerciseLogged
+                                  ? t("activity.gentleExercises.logged", "Logged")
+                                  : t("activity.gentleExercises.ready", "Ready")
                                 : t("activity.gentleExercises.choose", "Choose")}
                             </span>
                           </div>
@@ -1669,19 +1699,42 @@ const ActivityScreen = () => {
           description={t(guidedExercise.benefitKey, guidedExercise.benefit)}
           closeLabel={t("common.close", "Close")}
           footer={(
-            <button
-              type="button"
-              data-testid={`button-use-senior-exercise-${guidedExercise.id}`}
-              onClick={() => handleUseSeniorExercise(guidedExercise)}
-              className="vyva-tap flex min-h-[58px] w-full items-center justify-center gap-2 rounded-[18px] px-5 py-3 font-body text-[17px] font-extrabold text-white"
-              style={{
-                background: guidedExercise.accent,
-                boxShadow: `0 12px 24px ${guidedExercise.accent}30`,
-              }}
-            >
-              <CheckCircle2 size={21} />
-              {t("activity.gentleExercises.useExercise", "Use this exercise")}
-            </button>
+            <div className="space-y-3">
+              <p
+                className="rounded-[14px] border px-3 py-2 font-body text-[13px] font-semibold leading-snug"
+                style={{ background: "#FFF7ED", borderColor: "#FED7AA", color: "#7C2D12" }}
+              >
+                {t("activity.gentleExercises.safety", "Move gently. Stop if you feel pain, dizzy, or short of breath.")}
+              </p>
+              {logMutation.isError ? (
+                <p
+                  className="rounded-[14px] border px-3 py-2 font-body text-[13px] font-semibold leading-snug"
+                  style={{ background: "#FFF1F2", borderColor: "#FECDD3", color: "#BE185D" }}
+                  data-testid="senior-exercise-log-error"
+                >
+                  {t("activity.couldNotSave", "Could not save. Try again.")}
+                </p>
+              ) : null}
+              <button
+                type="button"
+                data-testid={`button-use-senior-exercise-${guidedExercise.id}`}
+                onClick={() => handleLogSeniorExercise(guidedExercise)}
+                disabled={logMutation.isPending}
+                className="vyva-tap flex min-h-[58px] w-full items-center justify-center gap-2 rounded-[18px] px-5 py-3 font-body text-[17px] font-extrabold text-white disabled:opacity-70"
+                style={{
+                  background: guidedExercise.accent,
+                  boxShadow: `0 12px 24px ${guidedExercise.accent}30`,
+                }}
+              >
+                {logMutation.isPending ? <Loader2 size={21} className="animate-spin" /> : <CheckCircle2 size={21} />}
+                {logMutation.isPending
+                  ? t("activity.saving", "Saving...")
+                  : t("activity.gentleExercises.logExercise", "Log {{duration}}m {{title}}", {
+                    duration: guidedExercise.duration,
+                    title: t(guidedExercise.titleKey, guidedExercise.title),
+                  })}
+              </button>
+            </div>
           )}
         >
           <div className="overflow-hidden rounded-[22px] border" style={{ borderColor: guidedExercise.border }}>
@@ -1741,14 +1794,6 @@ const ActivityScreen = () => {
             </ol>
           </div>
 
-          <div
-            className="mt-3 rounded-[18px] border p-3"
-            style={{ background: "#FFF7ED", borderColor: "#FED7AA" }}
-          >
-            <p className="font-body text-[14px] font-semibold leading-snug text-[#7C2D12]">
-              {t("activity.gentleExercises.safety", "Move gently. Stop if you feel pain, dizzy, or short of breath.")}
-            </p>
-          </div>
         </BottomSheet>
       )}
     </div>

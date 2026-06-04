@@ -78,6 +78,7 @@ function renderActivity(initialEntries: ComponentProps<typeof MemoryRouter>["ini
 describe("Activity safe-home service actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mutateMock.mockReset();
     queryMock.mockImplementation((queryKey: unknown[]) => {
       const [key] = queryKey;
       if (key === "/api/home-scan") return { data: [homeScan] };
@@ -271,6 +272,7 @@ describe("Activity safe-home service actions", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("Vyva tip");
     expect(screen.getByRole("dialog")).toHaveTextContent("Shift weight gently from one foot to the other.");
     expect(screen.getByRole("dialog")).toHaveTextContent("Move gently. Stop if you feel pain, dizzy, or short of breath.");
+    expect(screen.getByTestId("button-use-senior-exercise-tai-chi")).toHaveTextContent("Log 10m Tai chi");
   });
 
   it("opens a guided exercise from Movement room route state", () => {
@@ -278,20 +280,31 @@ describe("Activity safe-home service actions", () => {
 
     expect(screen.getByRole("dialog")).toHaveTextContent("Calm breathing");
     expect(screen.getByRole("dialog")).toHaveTextContent("Settle your breath");
-    expect(screen.getByTestId("button-use-senior-exercise-calm-breathing")).toHaveTextContent("Use this exercise");
+    expect(screen.getByTestId("button-use-senior-exercise-calm-breathing")).toHaveTextContent("Log 10m Calm breathing");
   });
 
-  it("uses a guided exercise to preselect 10 minutes for logging", () => {
+  it("logs a guided exercise directly without sending seniors to the manual form", () => {
+    const scrollIntoViewMock = vi.fn();
+    window.HTMLElement.prototype.scrollIntoView = scrollIntoViewMock;
+    mutateMock.mockImplementation((_body, options?: { onSuccess?: () => void }) => {
+      options?.onSuccess?.();
+    });
+
     renderActivity();
 
     fireEvent.click(screen.getByTestId("senior-exercise-card-chair-yoga"));
     fireEvent.click(screen.getByTestId("button-use-senior-exercise-chair-yoga"));
 
+    expect(mutateMock).toHaveBeenCalledWith(
+      { activity_type: "ChairYoga", duration_minutes: 10 },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(screen.getByTestId("senior-exercise-card-chair-yoga")).toHaveTextContent("Ready");
-    expect(screen.getByTestId("button-log-activity")).toBeEnabled();
-    expect(screen.getByTestId("button-log-activity")).toHaveTextContent("Log 10m Chair yoga");
+    expect(screen.getByTestId("status-senior-exercise-logged")).toHaveTextContent("Chair yoga logged for 10 min.");
+    expect(screen.getByTestId("senior-exercise-card-chair-yoga")).toHaveTextContent("Logged");
+    expect(screen.getByTestId("button-log-activity")).toBeDisabled();
     expect(screen.queryByTestId("activity-support-actions")).not.toBeInTheDocument();
+    expect(scrollIntoViewMock).not.toHaveBeenCalled();
   });
 
   it("shows senior exercise labels in today's summary instead of falling back to walking", () => {
