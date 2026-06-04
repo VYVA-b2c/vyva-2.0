@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Heart, Brain, Users, ConciergeBell, Lock, Stethoscope, Calendar, Car, PhoneCall, Mail, Activity, CheckCircle2, ChevronRight, Clock3, type LucideIcon } from "lucide-react";
+import { Heart, Brain, Users, ConciergeBell, Lock, Stethoscope, Calendar, Car, PhoneCall, Mail, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import { ActionCard, ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
@@ -9,16 +9,6 @@ import { useProfile } from "@/contexts/ProfileContext";
 import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import { serviceForPath, useServiceGate } from "@/hooks/useServiceGate";
 import { incrementChatNavigationCount } from "@/lib/personaliseCards";
-import chairYogaImage from "@/assets/senior-activities/chair-yoga.jpg";
-import ankleMobilityImage from "@/assets/senior-activities/ankle-mobility.jpg";
-import chestOpenerImage from "@/assets/senior-activities/chest-opener.jpg";
-import sitToStandImage from "@/assets/senior-activities/sit-to-stand.jpg";
-import heelRaisesImage from "@/assets/senior-activities/heel-raises.jpg";
-import sideStepsImage from "@/assets/senior-activities/side-steps.jpg";
-import seatedStrengthImage from "@/assets/senior-activities/seated-strength.jpg";
-import shoulderReleaseImage from "@/assets/senior-activities/shoulder-release.jpg";
-import handBreathingImage from "@/assets/senior-activities/hand-breathing.jpg";
-import calmBreathingImage from "@/assets/senior-activities/calm-breathing.jpg";
 
 type HomeAgentCard = {
   id: "health" | "cognitive" | "social" | "concierge";
@@ -42,100 +32,8 @@ type HomeFastAction = {
   href?: string;
 };
 
-type HomeRoutineComfort = "seated" | "supported" | "standing";
-
-type HomeRoutineFeedback = "easy" | "justRight" | "tooMuch";
-
-type HomeGentleExercisePreview = {
-  id: string;
-  titleKey: string;
-  title: string;
-  image: string;
-};
-
-type HomeGentleRoutine = {
-  id: string;
-  titleKey: string;
-  title: string;
-  subtitleKey: string;
-  subtitle: string;
-  exerciseIds: [string, string, string];
-  comfortExerciseIds?: Partial<Record<HomeRoutineComfort, [string, string, string]>>;
-  duration: number;
-  accent: string;
-  softBg: string;
-  border: string;
-};
-
-type HomeActivitySummary = {
-  entries?: Array<{
-    activity_type: string;
-    logged_at?: string;
-  }>;
-};
-
 const COORDS_WEATHER_CACHE_KEY = "vyva_coords_weather_cache";
 const COORDS_WEATHER_TTL_MS = 30 * 60 * 1000;
-const ROUTINE_COMFORT_STORAGE_KEY = "vyva_activity_routine_comfort";
-const ROUTINE_FEEDBACK_STORAGE_KEY = "vyva_activity_routine_feedback";
-
-const HOME_GENTLE_EXERCISE_PREVIEWS: HomeGentleExercisePreview[] = [
-  { id: "chair-yoga", titleKey: "activity.gentleExercises.chairYoga.title", title: "Chair yoga", image: chairYogaImage },
-  { id: "chest-opener", titleKey: "activity.gentleExercises.chestOpener.title", title: "Chest opener", image: chestOpenerImage },
-  { id: "ankle-mobility", titleKey: "activity.gentleExercises.ankleMobility.title", title: "Ankle mobility", image: ankleMobilityImage },
-  { id: "sit-to-stand", titleKey: "activity.gentleExercises.sitToStand.title", title: "Sit-to-stand", image: sitToStandImage },
-  { id: "heel-raises", titleKey: "activity.gentleExercises.heelRaises.title", title: "Heel raises", image: heelRaisesImage },
-  { id: "side-steps", titleKey: "activity.gentleExercises.sideSteps.title", title: "Side steps", image: sideStepsImage },
-  { id: "seated-strength", titleKey: "activity.gentleExercises.seatedStrength.title", title: "Seated strength", image: seatedStrengthImage },
-  { id: "shoulder-release", titleKey: "activity.gentleExercises.shoulderRelease.title", title: "Shoulder release", image: shoulderReleaseImage },
-  { id: "hand-breathing", titleKey: "activity.gentleExercises.handBreathing.title", title: "Hand breathing", image: handBreathingImage },
-  { id: "calm-breathing", titleKey: "activity.gentleExercises.calmBreathing.title", title: "Calm breathing", image: calmBreathingImage },
-];
-
-const HOME_GENTLE_EXERCISE_BY_ID = new Map(HOME_GENTLE_EXERCISE_PREVIEWS.map((exercise) => [exercise.id, exercise]));
-
-const HOME_GENTLE_ROUTINES: HomeGentleRoutine[] = [
-  {
-    id: "morning-mobility",
-    titleKey: "activity.gentleRoutines.morningMobility.title",
-    title: "Morning mobility",
-    subtitleKey: "activity.gentleRoutines.morningMobility.subtitle",
-    subtitle: "Loosen shoulders, chest, and ankles before the day gets going.",
-    exerciseIds: ["chair-yoga", "chest-opener", "ankle-mobility"],
-    duration: 10,
-    accent: "#6B21A8",
-    softBg: "#F5F3FF",
-    border: "#D8B4FE",
-  },
-  {
-    id: "steady-legs",
-    titleKey: "activity.gentleRoutines.steadyLegs.title",
-    title: "Steady legs",
-    subtitleKey: "activity.gentleRoutines.steadyLegs.subtitle",
-    subtitle: "Practice supported leg strength and balance in small steps.",
-    exerciseIds: ["sit-to-stand", "heel-raises", "side-steps"],
-    comfortExerciseIds: {
-      seated: ["seated-strength", "heel-raises", "side-steps"],
-      standing: ["sit-to-stand", "heel-raises", "side-steps"],
-    },
-    duration: 10,
-    accent: "#33691E",
-    softBg: "#EEF8DF",
-    border: "#CFE8B8",
-  },
-  {
-    id: "calm-reset",
-    titleKey: "activity.gentleRoutines.calmReset.title",
-    title: "Calm reset",
-    subtitleKey: "activity.gentleRoutines.calmReset.subtitle",
-    subtitle: "Release the shoulders, slow the breath, and finish softly.",
-    exerciseIds: ["shoulder-release", "hand-breathing", "calm-breathing"],
-    duration: 10,
-    accent: "#2F66D0",
-    softBg: "#EFF6FF",
-    border: "#BFDBFE",
-  },
-];
 
 function readCoordsWeatherCache(): WeatherData | null {
   try {
@@ -168,46 +66,6 @@ function homeDoctorMailto(email: string | undefined | null, subject: string, bod
   const raw = email?.trim();
   if (!raw) return "";
   return `mailto:${raw}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-}
-
-function isRoutineComfort(value: string | null): value is HomeRoutineComfort {
-  return value === "seated" || value === "supported" || value === "standing";
-}
-
-function readHomeRoutineComfort(): HomeRoutineComfort {
-  try {
-    const stored = window.localStorage.getItem(ROUTINE_COMFORT_STORAGE_KEY);
-    return isRoutineComfort(stored) ? stored : "supported";
-  } catch {
-    return "supported";
-  }
-}
-
-function readHomeRoutineFeedbackFeeling(): HomeRoutineFeedback | null {
-  try {
-    const raw = window.localStorage.getItem(ROUTINE_FEEDBACK_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as { feeling?: HomeRoutineFeedback };
-    if (parsed.feeling === "easy" || parsed.feeling === "justRight" || parsed.feeling === "tooMuch") {
-      return parsed.feeling;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function getHomeDailyGentleRoutine(date = new Date()): HomeGentleRoutine {
-  const localDayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-  const dayNumber = Math.floor(localDayStart / 86_400_000);
-  return HOME_GENTLE_ROUTINES[dayNumber % HOME_GENTLE_ROUTINES.length];
-}
-
-function getHomeRoutineExercises(routine: HomeGentleRoutine, comfort: HomeRoutineComfort): HomeGentleExercisePreview[] {
-  const exerciseIds = routine.comfortExerciseIds?.[comfort] ?? routine.exerciseIds;
-  return exerciseIds
-    .map((id) => HOME_GENTLE_EXERCISE_BY_ID.get(id))
-    .filter((exercise): exercise is HomeGentleExercisePreview => Boolean(exercise));
 }
 
 const HOME_AGENT_CARDS: HomeAgentCard[] = [
@@ -319,16 +177,7 @@ const HomeScreen = () => {
     retry: false,
   });
 
-  const { data: activitySummary } = useQuery<HomeActivitySummary>({
-    queryKey: ["/api/activity"],
-    staleTime: 0,
-    refetchOnMount: true,
-    retry: false,
-  });
-
   const [coordsWeatherData, setCoordsWeatherData] = useState<WeatherData | null>(() => readCoordsWeatherCache());
-  const [homeRoutineComfort] = useState<HomeRoutineComfort>(() => readHomeRoutineComfort());
-  const [homeRoutineFeedback] = useState<HomeRoutineFeedback | null>(() => readHomeRoutineFeedbackFeeling());
   const geoAttemptedRef = useRef(false);
 
   const noCityInProfile =
@@ -385,14 +234,6 @@ const HomeScreen = () => {
   }, [fetchIpWeather, noCityInProfile]);
 
   const weatherData = profileWeatherData ?? coordsWeatherData;
-  const homeGentleRoutine = getHomeDailyGentleRoutine();
-  const homeGentleRoutineExercises = getHomeRoutineExercises(homeGentleRoutine, homeRoutineComfort);
-  const gentleRoutineDoneToday = Boolean(activitySummary?.entries?.some((entry) => entry.activity_type === "GentleRoutine"));
-  const homeRoutineComfortCopy = homeRoutineFeedback === "tooMuch"
-    ? t("home.gentleRoutine.gentlerMode", "Gentler seated mode ready")
-    : homeRoutineComfort === "seated"
-      ? t("home.gentleRoutine.seatedMode", "Seated mode ready")
-      : t("home.gentleRoutine.comfortHint", "Chair support is okay");
 
   const timeGreetingKey = useMemo(() => {
     const hour = new Date().getHours();
@@ -454,23 +295,6 @@ const HomeScreen = () => {
     });
   };
 
-  const handleHomeGentleRoutineOpen = () => {
-    handleNavigate("/activity", {
-      state: gentleRoutineDoneToday
-        ? { highlightGentleRoutine: true, routineSource: "home" }
-        : { startGentleRoutine: true, routineSource: "home" },
-    });
-  };
-
-  const handleHomeGentleExerciseBrowse = () => {
-    handleNavigate("/activity", {
-      state: {
-        scrollToGentleExercises: true,
-        routineSource: "home",
-      },
-    });
-  };
-
   const homeFastActions: HomeFastAction[] = [
     ...(gpPhoneHref
       ? [{
@@ -518,119 +342,6 @@ const HomeScreen = () => {
         voiceDynamicVariables={{ app_entrypoint: "home_open" }}
         onChatClick={() => handleNavigate("/chat")}
       />
-
-      <section className="mt-[22px]" data-testid="home-gentle-routine-card">
-        <SectionTitle
-          className="mb-3"
-          title={t("home.gentleRoutine.sectionTitle", "Today's movement")}
-          titleClassName="font-body text-[16px] font-semibold not-italic text-vyva-text-2"
-        />
-        <div
-          className="overflow-hidden rounded-[28px] border bg-[#FFFCF8] shadow-[0_18px_40px_rgba(60,38,20,0.09)]"
-          style={{ borderColor: homeGentleRoutine.border }}
-        >
-          <div className="grid grid-cols-1 min-[760px]:grid-cols-[1fr_220px]">
-            <div className="min-w-0 p-5">
-              <div className="flex flex-wrap items-center gap-2">
-                <span
-                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 font-body text-[13px] font-extrabold"
-                  style={{ background: homeGentleRoutine.softBg, color: homeGentleRoutine.accent }}
-                >
-                  <Clock3 size={15} />
-                  {homeGentleRoutine.duration} {t("activity.min", "min")}
-                </span>
-                <span
-                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 font-body text-[13px] font-extrabold"
-                  style={{
-                    background: gentleRoutineDoneToday ? "#ECFDF5" : "#FFF7ED",
-                    color: gentleRoutineDoneToday ? "#047857" : "#92400E",
-                  }}
-                >
-                  {gentleRoutineDoneToday ? <CheckCircle2 size={15} /> : <Activity size={15} />}
-                  {gentleRoutineDoneToday
-                    ? t("home.gentleRoutine.done", "Well done today")
-                    : t("activity.gentleRoutines.threeMoves", "3 gentle moves")}
-                </span>
-              </div>
-
-              <h2 className="mt-3 font-display text-[31px] leading-tight text-vyva-text-1 [overflow-wrap:anywhere]">
-                {t(homeGentleRoutine.titleKey, homeGentleRoutine.title)}
-              </h2>
-              <p className="mt-1 max-w-[520px] font-body text-[16px] font-semibold leading-snug text-vyva-text-2 [overflow-wrap:anywhere]">
-                {gentleRoutineDoneToday
-                  ? t("home.gentleRoutine.doneSub", "Your gentle routine is logged. Come back tomorrow for a fresh one.")
-                  : t(homeGentleRoutine.subtitleKey, homeGentleRoutine.subtitle)}
-              </p>
-
-              <div className="mt-4 flex max-w-[420px] flex-col gap-2">
-                <button
-                  type="button"
-                  data-testid="button-home-start-gentle-routine"
-                  onClick={handleHomeGentleRoutineOpen}
-                  className="vyva-tap flex min-h-[54px] w-full items-center justify-center gap-2 rounded-[18px] px-5 py-3 font-body text-[16px] font-extrabold text-white"
-                  style={{
-                    background: homeGentleRoutine.accent,
-                    boxShadow: `0 12px 24px ${homeGentleRoutine.accent}30`,
-                  }}
-                >
-                  {gentleRoutineDoneToday
-                    ? t("home.gentleRoutine.viewActivity", "View activity")
-                    : t("home.gentleRoutine.start", "Start")}
-                  <ChevronRight size={20} />
-                </button>
-                <button
-                  type="button"
-                  data-testid="button-home-browse-gentle-exercises"
-                  onClick={handleHomeGentleExerciseBrowse}
-                  className="vyva-tap flex min-h-[50px] w-full items-center justify-center gap-2 rounded-[18px] border bg-white px-5 py-3 font-body text-[15px] font-extrabold"
-                  style={{
-                    borderColor: homeGentleRoutine.border,
-                    color: homeGentleRoutine.accent,
-                  }}
-                >
-                  {t("home.gentleRoutine.browseExercises", "Browse all exercises")}
-                  <ChevronRight size={18} />
-                </button>
-                <p
-                  className="rounded-[16px] px-3 py-2 font-body text-[13px] font-black uppercase leading-snug [overflow-wrap:anywhere] min-[760px]:hidden"
-                  style={{ background: homeGentleRoutine.softBg, color: homeGentleRoutine.accent }}
-                >
-                  {homeRoutineComfortCopy}
-                </p>
-              </div>
-
-              <div className="mt-4 grid grid-cols-3 gap-2.5" data-testid="home-gentle-routine-previews">
-                {homeGentleRoutineExercises.map((exercise) => (
-                  <div key={exercise.id} className="min-w-0" data-testid={`home-routine-preview-${exercise.id}`}>
-                    <div className="aspect-square overflow-hidden rounded-[18px] bg-[#F5EFE4]">
-                      <img src={exercise.image} alt="" className="h-full w-full object-cover" loading="lazy" />
-                    </div>
-                    <p className="mt-1.5 truncate font-body text-[12px] font-extrabold text-vyva-text-1">
-                      {t(exercise.titleKey, exercise.title)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div
-              className="flex min-h-[130px] flex-col justify-start gap-3 border-t p-5 min-[760px]:border-l min-[760px]:border-t-0"
-              style={{ background: homeGentleRoutine.softBg, borderColor: homeGentleRoutine.border }}
-            >
-              <div className="min-w-0">
-                <p className="font-body text-[13px] font-black uppercase text-vyva-text-2">
-                  {homeRoutineComfortCopy}
-                </p>
-                <p className="mt-1 font-body text-[15px] font-semibold leading-snug text-vyva-text-1">
-                  {gentleRoutineDoneToday
-                    ? t("home.gentleRoutine.doneHint", "Vyva saved this as 10 minutes of movement.")
-                    : t("home.gentleRoutine.startHint", "Vyva will guide one move at a time.")}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
 
       <div className="mt-[22px]">
         <SectionTitle
