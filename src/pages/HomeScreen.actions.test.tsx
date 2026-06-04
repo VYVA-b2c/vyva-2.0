@@ -153,10 +153,10 @@ describe("Home fast service actions", () => {
   });
 
   it("uses the gentler seated preview after too-much routine feedback", () => {
-    vi.useFakeTimers({ now: new Date("2026-06-05T12:00:00.000Z") });
+    vi.useFakeTimers({ now: new Date("2026-06-04T23:30:00.000Z") });
     window.localStorage.setItem("vyva_activity_routine_comfort", "seated");
     window.localStorage.setItem("vyva_activity_routine_feedback", JSON.stringify({
-      routineId: "morning-mobility",
+      routineId: "steady-legs",
       comfort: "supported",
       feeling: "tooMuch",
     }));

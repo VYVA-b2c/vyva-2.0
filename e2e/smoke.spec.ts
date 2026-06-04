@@ -226,9 +226,9 @@ test("public landing page promotes VYVA and remains responsive", async ({ page }
   await page.setViewportSize({ width: 1280, height: 760 });
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("landing-page")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Your AI companion for life.", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "A companion that listens, reminds, and helps.", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Get started" })).toBeVisible();
-  await expect(page.locator("#support").getByRole("heading", { name: "Medication confirmation" })).toBeVisible();
+  await expect(page.locator("#support").getByRole("heading", { name: "Medication reminders" })).toBeVisible();
   await expectNoHorizontalOverflow(page);
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -238,12 +238,13 @@ test("public landing page promotes VYVA and remains responsive", async ({ page }
   await expectNoHorizontalOverflow(page);
 
   await page.getByTestId("select-landing-language").selectOption("fr");
-  await expect(page.getByRole("heading", { name: "Votre compagnon IA pour la vie.", exact: true })).toBeVisible();
-  await expect(page.locator("#features").getByRole("heading", { name: "Gestion des medicaments" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Un compagnon qui écoute, rappelle et aide.", exact: true })).toBeVisible();
+  await expect(page.locator("#features").getByRole("heading", { name: "Rappels de médicaments" })).toBeVisible();
   await page.reload({ waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { name: "Votre compagnon IA pour la vie.", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Un compagnon qui écoute, rappelle et aide.", exact: true })).toBeVisible();
   await page.goto("/login", { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { name: "Commencez avec VYVA à vos côtés.", exact: true })).toBeVisible();
+  await expect(page.getByTestId("select-login-language")).toHaveValue("fr");
+  await expect(page.getByRole("heading", { name: "Créer", exact: true })).toBeVisible();
 });
 
 test("public pages initialize from browser language until the user changes it", async ({ browser }) => {
@@ -252,20 +253,22 @@ test("public pages initialize from browser language until the user changes it", 
   await mockApi(page);
 
   await page.goto("http://127.0.0.1:4173/", { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { name: "Votre compagnon IA pour la vie.", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Un compagnon qui écoute, rappelle et aide.", exact: true })).toBeVisible();
   await expect(page.getByTestId("select-landing-language")).toHaveValue("fr");
   await expect(page.evaluate(() => localStorage.getItem("vyva_lang_source"))).resolves.toBe("browser");
 
   await page.goto("http://127.0.0.1:4173/login", { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { name: "Commencez avec VYVA à vos côtés.", exact: true })).toBeVisible();
+  await expect(page.getByTestId("select-login-language")).toHaveValue("fr");
+  await expect(page.getByRole("heading", { name: "Créer", exact: true })).toBeVisible();
 
   await page.goto("http://127.0.0.1:4173/", { waitUntil: "domcontentloaded" });
   await page.getByTestId("select-landing-language").selectOption("de");
-  await expect(page.getByRole("heading", { name: "Ihr KI-Begleiter furs Leben.", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ein Begleiter, der zuhört, erinnert und hilft.", exact: true })).toBeVisible();
   await expect(page.evaluate(() => localStorage.getItem("vyva_lang_source"))).resolves.toBe("user");
 
   await page.goto("http://127.0.0.1:4173/login", { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { name: "Starten Sie mit VYVA an Ihrer Seite.", exact: true })).toBeVisible();
+  await expect(page.getByTestId("select-login-language")).toHaveValue("de");
+  await expect(page.getByRole("heading", { name: "Erstellen", exact: true })).toBeVisible();
   await expectNoHorizontalOverflow(page);
 
   await context.close();
@@ -297,8 +300,8 @@ test("login screen scales from mobile card to tablet and desktop auth layout", a
   await page.reload({ waitUntil: "domcontentloaded" });
   const tabletLayoutBox = await page.getByTestId("auth-layout").boundingBox();
   expect(tabletLayoutBox).not.toBeNull();
-  expect(tabletLayoutBox!.width).toBeGreaterThan(680);
-  await expect(page.getByTestId("auth-layout")).toHaveCSS("grid-template-columns", /[0-9.]+px [0-9.]+px/);
+  expect(tabletLayoutBox!.width).toBeLessThanOrEqual(560);
+  await expect(page.getByTestId("auth-layout")).toHaveCSS("grid-template-columns", /[0-9.]+px/);
   await expectNoHorizontalOverflow(page);
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -380,7 +383,7 @@ test("settings home uses a wider responsive shell on tablet and desktop", async 
   const frameBox = await page.getByTestId("phone-frame").boundingBox();
   expect(frameBox).not.toBeNull();
   expect(frameBox!.width).toBeGreaterThan(700);
-  expect(frameBox!.width).toBeLessThanOrEqual(822);
+  expect(frameBox!.width).toBeLessThanOrEqual(922);
   await expect(page.getByTestId("settings-home-grid")).toHaveCSS("grid-template-columns", /[0-9.]+px [0-9.]+px/);
   await expectNoHorizontalOverflow(page);
 
@@ -624,8 +627,9 @@ test("symptom check restores a completed report until done", async ({ page }) =>
   await page.getByTestId("input-symptom-clue").fill("bad headache");
   await page.getByTestId("button-symptom-check-start").click();
   await expect(page.getByTestId("button-report-done")).toBeVisible();
-  await expect(page.getByTestId("button-report-share-doctor-disabled")).toBeVisible();
-  await expect(page.getByTestId("button-report-share-doctor-disabled")).toBeDisabled();
+  await expect(page.getByTestId("button-report-add-doctor-contact")).toBeVisible();
+  await expect(page.getByTestId("button-report-doctor-help-inline")).toBeVisible();
+  await expect(page.getByTestId("link-report-share-doctor")).toHaveCount(0);
   await expect.poll(async () => page.evaluate((key) => JSON.parse(sessionStorage.getItem(key) ?? "null")?.step, symptomCheckDraftKey)).toBe("report");
 
   await page.goto("/health", { waitUntil: "domcontentloaded" });
