@@ -23,6 +23,7 @@ import type {
   SocialMusicCircle,
   SocialMusicCircleItem,
   SocialMusicCauseId,
+  SocialMusicCircleSeedSong,
   SocialMusicThread,
   SocialMusicThreadEntry,
   SocialRoomSafetyFlag,
@@ -102,6 +103,10 @@ type MemoryMusicReaction = {
   userId: string;
   kind: "heart";
   createdAt: string;
+};
+
+type SocialMusicCircleWithSeed = SocialMusicCircle & {
+  seedSong: SocialMusicCircleSeedSong;
 };
 
 const router = Router();
@@ -816,10 +821,90 @@ function musicVoiceLabel(language: SocialLanguage) {
   return "Nota de voz";
 }
 
-function musicCirclePrompt(language: SocialLanguage) {
-  if (language === "de") return "Lied des Tages";
-  if (language === "en") return "Today's Song";
-  return "Cancion de hoy";
+const musicCircleDailyPrompts: Record<SocialLanguage, string[]> = {
+  es: [
+    "Cancion de hoy",
+    "Radio vieja",
+    "Para levantar",
+    "De familia",
+    "De camino",
+    "De cocina",
+    "En calma",
+  ],
+  de: [
+    "Lied des Tages",
+    "Altes Radio",
+    "Zum Heben",
+    "Familienlied",
+    "Unterwegs",
+    "Kuechenlied",
+    "Leise Runde",
+  ],
+  en: [
+    "Today's Song",
+    "Old Radio",
+    "Lift Song",
+    "Family Song",
+    "Road Song",
+    "Kitchen Song",
+    "Quiet Song",
+  ],
+};
+
+const musicCircleDailySeeds: Record<SocialLanguage, Array<{ songText: string; causeId: SocialMusicCauseId }>> = {
+  es: [
+    { songText: "Besame Mucho", causeId: "bridge" },
+    { songText: "Guantanamera", causeId: "anthem" },
+    { songText: "Quizas, Quizas, Quizas", causeId: "memory" },
+    { songText: "Stand By Me", causeId: "bridge" },
+    { songText: "Gracias a la Vida", causeId: "memory" },
+    { songText: "Lean On Me", causeId: "bridge" },
+    { songText: "What a Wonderful World", causeId: "memory" },
+  ],
+  de: [
+    { songText: "Stand By Me", causeId: "bridge" },
+    { songText: "Que Sera, Sera", causeId: "memory" },
+    { songText: "Here Comes the Sun", causeId: "anthem" },
+    { songText: "Blue Moon", causeId: "memory" },
+    { songText: "Lean On Me", causeId: "bridge" },
+    { songText: "What a Wonderful World", causeId: "memory" },
+    { songText: "Besame Mucho", causeId: "bridge" },
+  ],
+  en: [
+    { songText: "Stand By Me", causeId: "bridge" },
+    { songText: "Lean On Me", causeId: "bridge" },
+    { songText: "What a Wonderful World", causeId: "memory" },
+    { songText: "Here Comes the Sun", causeId: "anthem" },
+    { songText: "Que Sera, Sera", causeId: "memory" },
+    { songText: "Blue Moon", causeId: "memory" },
+    { songText: "Besame Mucho", causeId: "bridge" },
+  ],
+};
+
+function musicDayIndex(dayKey: string) {
+  const parsed = Date.parse(`${dayKey}T00:00:00.000Z`);
+  if (Number.isNaN(parsed)) return 0;
+  return Math.floor(parsed / 86_400_000);
+}
+
+function pickDailyMusicValue<T>(items: T[], dayKey: string): T {
+  return items[Math.abs(musicDayIndex(dayKey)) % items.length];
+}
+
+function musicCirclePrompt(language: SocialLanguage, dayKey = musicDayKey()) {
+  return pickDailyMusicValue(musicCircleDailyPrompts[language], dayKey);
+}
+
+function musicCircleSeedSong(language: SocialLanguage, dayKey = musicDayKey()): SocialMusicCircleSeedSong {
+  const seed = pickDailyMusicValue(musicCircleDailySeeds[language], dayKey);
+  return {
+    ...seed,
+    nudge: language === "de"
+      ? "Diego legt vor. Fueg deins dazu."
+      : language === "en"
+        ? "Diego picked one. Add yours."
+        : "Diego puso una. Suma la tuya.",
+  };
 }
 
 function musicDayKey(date = new Date()) {
@@ -895,7 +980,7 @@ function buildMemoryMusicCircle(
   roomSlug: string,
   language: SocialLanguage,
   dayKey = musicDayKey(),
-): SocialMusicCircle {
+): SocialMusicCircleWithSeed {
   const items = Array.from(memoryMusicCircleItems.values())
     .filter((item) => item.roomSlug === roomSlug && item.dayKey === dayKey && item.status === "active")
     .sort((first, second) => Date.parse(second.updatedAt) - Date.parse(first.updatedAt))
@@ -904,8 +989,9 @@ function buildMemoryMusicCircle(
 
   return {
     dayKey,
-    prompt: musicCirclePrompt(language),
+    prompt: musicCirclePrompt(language, dayKey),
     featuredItemId: items[0]?.id ?? null,
+    seedSong: musicCircleSeedSong(language, dayKey),
     items,
   };
 }
@@ -915,9 +1001,10 @@ async function loadMusicCircle(
   roomSlug: string,
   roomId: string | null,
   language: SocialLanguage,
-): Promise<SocialMusicCircle> {
+): Promise<SocialMusicCircleWithSeed> {
   const dayKey = musicDayKey();
-  const prompt = musicCirclePrompt(language);
+  const prompt = musicCirclePrompt(language, dayKey);
+  const seedSong = musicCircleSeedSong(language, dayKey);
 
   return safeDb(
     "load music circle",
@@ -933,7 +1020,7 @@ async function loadMusicCircle(
         ))
         .orderBy(desc(socialRoomMusicCircleItems.updated_at))
         .limit(8);
-      if (!itemRows.length) return { dayKey, prompt, featuredItemId: null, items: [] };
+      if (!itemRows.length) return { dayKey, prompt, featuredItemId: null, seedSong, items: [] };
 
       const reactionRows = await db
         .select()
@@ -946,6 +1033,7 @@ async function loadMusicCircle(
         dayKey,
         prompt,
         featuredItemId: items[0]?.id ?? null,
+        seedSong,
         items,
       };
     },
@@ -998,7 +1086,7 @@ async function createMusicCircleItem(input: {
   songText: string;
   causeId: SocialMusicCauseId;
   memoryText: string;
-}): Promise<{ item?: SocialMusicCircleItem; musicCircle?: SocialMusicCircle; error?: string; safetyFlags?: SocialRoomSafetyFlag[] }> {
+}): Promise<{ item?: SocialMusicCircleItem; musicCircle?: SocialMusicCircleWithSeed; error?: string; safetyFlags?: SocialRoomSafetyFlag[] }> {
   const songText = input.songText.trim();
   const memoryText = input.memoryText.trim();
   const safetyFlags = detectSafetyFlags({ category: "other", title: songText, details: memoryText });
@@ -1077,7 +1165,7 @@ async function toggleMusicCircleReaction(input: {
   itemId: string;
   language: SocialLanguage;
   kind: "heart";
-}): Promise<{ item?: SocialMusicCircleItem; musicCircle?: SocialMusicCircle; error?: string }> {
+}): Promise<{ item?: SocialMusicCircleItem; musicCircle?: SocialMusicCircleWithSeed; error?: string }> {
   return safeDb(
     "toggle music circle reaction",
     async () => {
