@@ -14,6 +14,7 @@ const CALORIES_PER_MINUTE: Record<string, number> = {
   Stretching:      3,
   Exercise:        7,
   Breathing:       2,
+  GentleRoutine:   3,
   ChairYoga:       3,
   TaiChi:          4,
   SeatedStrength:  4,
