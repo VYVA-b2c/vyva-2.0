@@ -109,6 +109,56 @@ function createDominoesRound(index: number): SocialGameRound {
 
 const dominoesRounds = Array.from({ length: 80 }, (_, index) => createDominoesRound(index));
 
+function createBridgeRound(index: number): SocialGameRound {
+  if (index === 0) {
+    return {
+      id: "bridge-opening-bid-five-hearts",
+      kind: "bridge",
+      title: "Bridge table",
+      body: "Choose a calm opening bid.",
+      prompt: "You have 13 points and 5 hearts. Which calm choice fits best?",
+      choices: ["Bid 1 hearts", "Bid 1 no-trump", "Pass"],
+      answer: "Bid 1 hearts",
+      hint: "Bid the longest suit",
+      tags: ["games", "bridge", "cards", "game:bridge", "bridge:opening-bid"],
+      estimatedDurationSeconds: 85,
+      successMessage: "Good start. A clear opening helps partner relax.",
+    };
+  }
+
+  if (index === 1) {
+    return {
+      id: "bridge-opening-bid-five-spades",
+      kind: "bridge",
+      title: "Bridge table",
+      body: "Choose a calm opening bid.",
+      prompt: "You have 12 points and 5 spades. Which calm choice fits best?",
+      choices: ["Bid 1 spades", "Bid 1 clubs", "Pass"],
+      answer: "Bid 1 spades",
+      hint: "Bid the longest suit",
+      tags: ["games", "bridge", "cards", "game:bridge", "bridge:opening-bid"],
+      estimatedDurationSeconds: 85,
+      successMessage: "Good start. A clear opening helps partner relax.",
+    };
+  }
+
+  return {
+    id: `bridge-test-${index + 1}`,
+    kind: "bridge",
+    title: "Bridge table",
+    body: "Solve a gentle bridge table puzzle.",
+    prompt: `Choose the useful bridge test action ${index + 1}.`,
+    choices: [`Bridge ${index + 1}`, `Pass ${index + 1}`, `Lead ${index + 1}`],
+    answer: `Bridge ${index + 1}`,
+    hint: "Pick the first bridge action.",
+    tags: ["games", "bridge", "cards", "game:bridge", "bridge:test"],
+    estimatedDurationSeconds: 85,
+    successMessage: "Nice bridge table choice.",
+  };
+}
+
+const bridgeRounds = Array.from({ length: 80 }, (_, index) => createBridgeRound(index));
+
 const roomResponse: SocialRoomResponse = {
   room: {
     slug: "games-room",
@@ -130,7 +180,7 @@ const roomResponse: SocialRoomResponse = {
     activityType: "game",
     contentTag: "",
     contentTitle: "A short challenge",
-    contentBody: "Choose chess, word tiles, dominoes or trivia.",
+    contentBody: "Choose chess, word tiles, dominoes or bridge.",
     options: [],
     liveBadge: "6 in the room",
   },
@@ -198,19 +248,7 @@ const roomResponse: SocialRoomResponse = {
       },
       ...wordRounds,
       ...dominoesRounds,
-      {
-        id: "trivia-round",
-        kind: "trivia",
-        title: "Trivia",
-        body: "Answer one cheerful question.",
-        prompt: "Which classic board game uses rooks and bishops?",
-        choices: ["Chess", "Dominoes", "Bingo"],
-        answer: "Chess",
-        hint: "It is played on black and white squares.",
-        tags: ["games", "quiz", "trivia", "game:trivia"],
-        estimatedDurationSeconds: 70,
-        successMessage: "That was a clean answer.",
-      },
+      ...bridgeRounds,
     ],
   },
 };
@@ -242,7 +280,8 @@ describe("GamesRoomScreen", () => {
     render(<GamesRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
 
     expect(screen.getByText("Dominoes")).toBeInTheDocument();
-    expect(screen.getByText("Trivia")).toBeInTheDocument();
+    expect(screen.getByText("Bridge table")).toBeInTheDocument();
+    expect(screen.queryByText("Trivia")).not.toBeInTheDocument();
     expect(screen.queryByText("Memory match")).not.toBeInTheDocument();
     expect(screen.getByText("Puzzle 1 of 2")).toBeInTheDocument();
     expect(screen.getByText("White's knight can check the king and attack the queen. What tactic is this?")).toBeInTheDocument();
@@ -330,6 +369,63 @@ describe("GamesRoomScreen", () => {
         expect.objectContaining({
           method: "POST",
           body: expect.stringMatching(/"roundId":"dominoes-open-double-five".*"gameKind":"dominoes"/),
+        }),
+      );
+    });
+  });
+
+  it("lets the Bridge table card browse an 80-puzzle bridge bank", async () => {
+    render(<GamesRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("games-round-bridge"));
+
+    expect(screen.getByText("Puzzle 1 of 80")).toBeInTheDocument();
+    expect(screen.getByText("You have 13 points and 5 hearts. Which calm choice fits best?")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("games-next-puzzle"));
+
+    expect(screen.getByText("Puzzle 2 of 80")).toBeInTheDocument();
+    expect(screen.getByText("You have 12 points and 5 spades. Which calm choice fits best?")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("games-start-round"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/social/rooms/games-room/game-round",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringMatching(/"roundId":"bridge-opening-bid-five-spades".*"gameKind":"bridge"/),
+        }),
+      );
+    });
+  });
+
+  it("searches for a Bridge partner using the bridge game kind", async () => {
+    render(<GamesRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("games-round-bridge"));
+    fireEvent.click(screen.getByTestId("games-start-round"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/social/rooms/games-room/game-round",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining('"gameKind":"bridge"'),
+        }),
+      );
+    });
+
+    fireEvent.click(screen.getByText("Bid 1 hearts"));
+    fireEvent.click(screen.getByTestId("games-complete-round"));
+    fireEvent.click(screen.getByTestId("games-find-partner"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/social/rooms/games-room/match",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining('"gameKind":"bridge"'),
         }),
       );
     });

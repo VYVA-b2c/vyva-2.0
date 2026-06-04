@@ -4,13 +4,13 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  CircleHelp,
   Crown,
   Dice5,
   Gamepad2,
   HeartHandshake,
   MessageCircle,
   Send,
+  Spade,
   Sparkles,
   Users,
   type LucideIcon,
@@ -40,7 +40,7 @@ const roundIcons: Record<SocialGameKind, LucideIcon> = {
   chess: Crown,
   word: Gamepad2,
   dominoes: Dice5,
-  trivia: CircleHelp,
+  bridge: Spade,
 };
 
 function fallbackGameTable(roomResponse: SocialRoomResponse) {

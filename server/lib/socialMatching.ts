@@ -78,7 +78,7 @@ export function formatSharedTopic(tag: string | undefined, language: SocialLangu
 
   if (tag.startsWith("game:")) {
     const kind = tag.slice("game:".length) as SocialGameKind;
-    if (["chess", "word", "dominoes", "trivia"].includes(kind)) {
+    if (["chess", "word", "dominoes", "bridge"].includes(kind)) {
       return labelForGameKind(kind, language);
     }
   }

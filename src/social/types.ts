@@ -13,7 +13,7 @@ export type SocialActivityType =
   | "story"
   | "advice";
 
-export type SocialGameKind = "chess" | "word" | "dominoes" | "trivia";
+export type SocialGameKind = "chess" | "word" | "dominoes" | "bridge";
 
 export type SocialGameRound = {
   id: string;

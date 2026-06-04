@@ -22,7 +22,14 @@ const gameKindLabels: Record<SocialGameKind, Record<SocialGameLanguage, string>>
     pt: "jogos de palavras",
   },
   dominoes: { es: "domino", en: "dominoes", fr: "dominos", de: "Domino", it: "domino", pt: "domino" },
-  trivia: { es: "preguntas", en: "trivia", fr: "quiz", de: "Quizfragen", it: "quiz", pt: "perguntas" },
+  bridge: {
+    es: "mesa de bridge",
+    en: "Bridge table",
+    fr: "table de bridge",
+    de: "Bridgetisch",
+    it: "tavolo di bridge",
+    pt: "mesa de bridge",
+  },
 };
 
 const readyMembers: Record<SocialGameLanguage, SocialGameReadyMember[]> = {
@@ -41,6 +48,13 @@ const readyMembers: Record<SocialGameLanguage, SocialGameReadyMember[]> = {
       statusLabel: "Luis is solving chess",
       sharedTopic: "chess clues",
     },
+    {
+      id: "member-marta",
+      name: "Marta",
+      gameKind: "bridge",
+      statusLabel: "Marta enjoys Bridge table",
+      sharedTopic: "gentle bridge",
+    },
   ],
   es: [
     {
@@ -56,6 +70,13 @@ const readyMembers: Record<SocialGameLanguage, SocialGameReadyMember[]> = {
       gameKind: "chess",
       statusLabel: "Luis esta resolviendo ajedrez",
       sharedTopic: "pistas de ajedrez",
+    },
+    {
+      id: "member-marta",
+      name: "Marta",
+      gameKind: "bridge",
+      statusLabel: "Marta disfruta la mesa de bridge",
+      sharedTopic: "bridge tranquilo",
     },
   ],
   de: [
@@ -73,6 +94,13 @@ const readyMembers: Record<SocialGameLanguage, SocialGameReadyMember[]> = {
       statusLabel: "Luis loest Schach",
       sharedTopic: "Schachhinweise",
     },
+    {
+      id: "member-marta",
+      name: "Marta",
+      gameKind: "bridge",
+      statusLabel: "Marta mag den Bridgetisch",
+      sharedTopic: "ruhiges Bridge",
+    },
   ],
   fr: [
     {
@@ -88,6 +116,13 @@ const readyMembers: Record<SocialGameLanguage, SocialGameReadyMember[]> = {
       gameKind: "chess",
       statusLabel: "Luis resout des indices d'echecs",
       sharedTopic: "indices d'echecs",
+    },
+    {
+      id: "member-marta",
+      name: "Marta",
+      gameKind: "bridge",
+      statusLabel: "Marta aime la table de bridge",
+      sharedTopic: "bridge calme",
     },
   ],
   it: [
@@ -105,6 +140,13 @@ const readyMembers: Record<SocialGameLanguage, SocialGameReadyMember[]> = {
       statusLabel: "Luis risolve indizi di scacchi",
       sharedTopic: "indizi di scacchi",
     },
+    {
+      id: "member-marta",
+      name: "Marta",
+      gameKind: "bridge",
+      statusLabel: "A Marta piace il tavolo di bridge",
+      sharedTopic: "bridge tranquillo",
+    },
   ],
   pt: [
     {
@@ -120,6 +162,13 @@ const readyMembers: Record<SocialGameLanguage, SocialGameReadyMember[]> = {
       gameKind: "chess",
       statusLabel: "Luis esta resolvendo pistas de xadrez",
       sharedTopic: "pistas de xadrez",
+    },
+    {
+      id: "member-marta",
+      name: "Marta",
+      gameKind: "bridge",
+      statusLabel: "Marta gosta da mesa de bridge",
+      sharedTopic: "bridge tranquilo",
     },
   ],
 };
@@ -3947,118 +3996,677 @@ const dominoesPuzzleBank: Record<SocialGameLanguage, SocialGameRound[]> = {
   pt: buildExtraDominoesPuzzleBank("pt"),
 };
 
+type GameLocalizedText = Record<SocialGameLanguage, string>;
+type BridgeSuit = "clubs" | "diamonds" | "hearts" | "spades" | "noTrump";
+type BridgeRank = "ace" | "king" | "queen" | "jack" | "ten" | "small";
+type BridgeTermKey =
+  | "pass"
+  | "drawTrumps"
+  | "finesse"
+  | "establishLongSuit"
+  | "keepEntry"
+  | "secondHandLow"
+  | "thirdHandHigh"
+  | "coverHonor"
+  | "trustPartner"
+  | "topSequence"
+  | "safeSmallCard"
+  | "leadPartnerSuit"
+  | "leadSingleton"
+  | "dummy"
+  | "declarer"
+  | "trump"
+  | "contract"
+  | "balancedHand"
+  | "bidLongestSuit";
+
+type BridgeChoice =
+  | { type: "bid"; level: number; suit: BridgeSuit }
+  | { type: "pass" }
+  | { type: "lead"; suit: BridgeSuit; rank?: BridgeRank }
+  | { type: "term"; key: BridgeTermKey }
+  | { type: "number"; value: number };
+
+type BridgePuzzleVariant = {
+  suffix: string;
+  points?: number;
+  suit?: BridgeSuit;
+  secondSuit?: BridgeSuit;
+  length?: number;
+  secondLength?: number;
+  partnerSuit?: BridgeSuit;
+  partnerLevel?: number;
+  support?: number;
+  contractSuit?: BridgeSuit;
+  contractLevel?: number;
+  sequence?: BridgeRank[];
+  holding?: BridgeRank[];
+  missing?: BridgeRank;
+  winners?: number;
+  choices: BridgeChoice[];
+  answer: BridgeChoice;
+  estimatedDurationSeconds?: number;
+};
+
+type BridgePuzzleTheme = {
+  id: string;
+  tag: string;
+  body: GameLocalizedText;
+  successMessage: GameLocalizedText;
+  prompt: (variant: BridgePuzzleVariant, language: SocialGameLanguage) => string;
+  hint: (variant: BridgePuzzleVariant, language: SocialGameLanguage) => string;
+  variants: BridgePuzzleVariant[];
+};
+
+const bridgeRoundTitles: GameLocalizedText = {
+  en: "Bridge table",
+  es: "Mesa de bridge",
+  de: "Bridgetisch",
+  fr: "Table de bridge",
+  it: "Tavolo di bridge",
+  pt: "Mesa de bridge",
+};
+
+const bridgeSuitLabels: Record<BridgeSuit, GameLocalizedText> = {
+  clubs: { en: "clubs", es: "treboles", de: "Treff", fr: "trefles", it: "fiori", pt: "paus" },
+  diamonds: { en: "diamonds", es: "diamantes", de: "Karo", fr: "carreaux", it: "quadri", pt: "ouros" },
+  hearts: { en: "hearts", es: "corazones", de: "Herz", fr: "coeurs", it: "cuori", pt: "copas" },
+  spades: { en: "spades", es: "picas", de: "Pik", fr: "piques", it: "picche", pt: "espadas" },
+  noTrump: { en: "no-trump", es: "sin triunfo", de: "Ohne Trumpf", fr: "sans-atout", it: "senza atout", pt: "sem trunfo" },
+};
+
+const bridgeRankLabels: Record<BridgeRank, GameLocalizedText> = {
+  ace: { en: "ace", es: "as", de: "Ass", fr: "as", it: "asso", pt: "as" },
+  king: { en: "king", es: "rey", de: "Koenig", fr: "roi", it: "re", pt: "rei" },
+  queen: { en: "queen", es: "dama", de: "Dame", fr: "dame", it: "donna", pt: "dama" },
+  jack: { en: "jack", es: "sota", de: "Bube", fr: "valet", it: "fante", pt: "valete" },
+  ten: { en: "ten", es: "diez", de: "Zehn", fr: "dix", it: "dieci", pt: "dez" },
+  small: { en: "small card", es: "carta pequena", de: "kleine Karte", fr: "petite carte", it: "carta piccola", pt: "carta pequena" },
+};
+
+const bridgeTermLabels: Record<BridgeTermKey, GameLocalizedText> = {
+  pass: { en: "Pass", es: "Paso", de: "Passe", fr: "Passe", it: "Passo", pt: "Passo" },
+  drawTrumps: { en: "Draw trumps", es: "Sacar triunfos", de: "Truempfe ziehen", fr: "Enlever les atouts", it: "Battere gli atout", pt: "Tirar trunfos" },
+  finesse: { en: "Try a finesse", es: "Intentar una finesse", de: "Einen Schnitt versuchen", fr: "Tenter une impasse", it: "Provare un impasse", pt: "Tentar uma finesse" },
+  establishLongSuit: { en: "Establish the long suit", es: "Afirmar el palo largo", de: "Die lange Farbe entwickeln", fr: "Affranchir la longue couleur", it: "Affrancare il seme lungo", pt: "Estabelecer o naipe longo" },
+  keepEntry: { en: "Keep an entry", es: "Guardar una entrada", de: "Einen Eingang behalten", fr: "Garder une entree", it: "Tenere un ingresso", pt: "Guardar uma entrada" },
+  secondHandLow: { en: "Second hand low", es: "Segunda mano baja", de: "Zweite Hand klein", fr: "Deuxieme main petit", it: "Seconda mano bassa", pt: "Segunda mao baixa" },
+  thirdHandHigh: { en: "Third hand high", es: "Tercera mano alta", de: "Dritte Hand hoch", fr: "Troisieme main fort", it: "Terza mano alta", pt: "Terceira mao alta" },
+  coverHonor: { en: "Cover an honor", es: "Cubrir un honor", de: "Eine Figur decken", fr: "Couvrir un honneur", it: "Coprire un onore", pt: "Cobrir uma honra" },
+  trustPartner: { en: "Trust partner and stay kind", es: "Confiar y ser amable", de: "Partner vertrauen und freundlich bleiben", fr: "Faire confiance et rester aimable", it: "Fidarsi e restare gentili", pt: "Confiar e ser gentil" },
+  topSequence: { en: "Lead top of a sequence", es: "Salir con la carta alta de la secuencia", de: "Die hoechste Karte der Sequenz ausspielen", fr: "Entamer la tete de sequence", it: "Uscire con la cima della sequenza", pt: "Sair com o topo da sequencia" },
+  safeSmallCard: { en: "Lead a safe small card", es: "Salir con una carta pequena segura", de: "Eine sichere kleine Karte ausspielen", fr: "Entamer une petite carte sure", it: "Uscire con una carta piccola sicura", pt: "Sair com uma carta pequena segura" },
+  leadPartnerSuit: { en: "Lead partner's suit", es: "Salir al palo del companero", de: "Partners Farbe ausspielen", fr: "Entamer la couleur du partenaire", it: "Uscire nel seme del partner", pt: "Sair no naipe do parceiro" },
+  leadSingleton: { en: "Lead the singleton", es: "Salir con el singleton", de: "Das Singleton ausspielen", fr: "Entamer le singleton", it: "Uscire col singleton", pt: "Sair com o singleton" },
+  dummy: { en: "Dummy", es: "Muerto", de: "Dummy", fr: "Mort", it: "Morto", pt: "Morto" },
+  declarer: { en: "Declarer", es: "Declarante", de: "Alleinspieler", fr: "Declarant", it: "Dichiarante", pt: "Declarante" },
+  trump: { en: "Trump", es: "Triunfo", de: "Trumpf", fr: "Atout", it: "Atout", pt: "Trunfo" },
+  contract: { en: "Contract", es: "Contrato", de: "Kontrakt", fr: "Contrat", it: "Contratto", pt: "Contrato" },
+  balancedHand: { en: "Balanced hand", es: "Mano equilibrada", de: "Ausgeglichene Hand", fr: "Main reguliere", it: "Mano bilanciata", pt: "Mao equilibrada" },
+  bidLongestSuit: { en: "Bid the longest suit", es: "Cantar el palo mas largo", de: "Die laengste Farbe reizen", fr: "Annoncer la couleur la plus longue", it: "Dichiarare il seme piu lungo", pt: "Declarar o naipe mais longo" },
+};
+
+function bridgeText(en: string, es: string, de: string, fr: string, it: string, pt: string): GameLocalizedText {
+  return { en, es, de, fr, it, pt };
+}
+
+function bridgeSuitLabel(suit: BridgeSuit | undefined, language: SocialGameLanguage) {
+  return bridgeSuitLabels[suit ?? "clubs"][language];
+}
+
+function bridgeRankLabel(rank: BridgeRank | undefined, language: SocialGameLanguage) {
+  return bridgeRankLabels[rank ?? "small"][language];
+}
+
+function bridgeCardsLabel(ranks: BridgeRank[] | undefined, suit: BridgeSuit | undefined, language: SocialGameLanguage) {
+  const rankText = (ranks ?? ["small"]).map((rank) => bridgeRankLabel(rank, language)).join("-").replace(/-/g, language === "en" ? "-" : "-");
+  const suitText = bridgeSuitLabel(suit, language);
+  if (language === "de") return `${rankText} in ${suitText}`;
+  if (language === "en") return `${rankText} of ${suitText}`;
+  if (language === "it") return `${rankText} di ${suitText}`;
+  return `${rankText} de ${suitText}`;
+}
+
+function bridgeBidLabel(level: number, suit: BridgeSuit, language: SocialGameLanguage) {
+  const suitText = bridgeSuitLabel(suit, language);
+  if (language === "de") return `${level} ${suitText} reizen`;
+  if (language === "fr") return `Annoncer ${level} ${suitText}`;
+  if (language === "it") return `Dichiarare ${level} ${suitText}`;
+  if (language === "pt") return `Declarar ${level} ${suitText}`;
+  if (language === "es") return `Cantar ${level} ${suitText}`;
+  return `Bid ${level} ${suitText}`;
+}
+
+function bridgeChoiceText(choice: BridgeChoice, language: SocialGameLanguage) {
+  if (choice.type === "bid") return bridgeBidLabel(choice.level, choice.suit, language);
+  if (choice.type === "pass") return bridgeTermLabels.pass[language];
+  if (choice.type === "term") return bridgeTermLabels[choice.key][language];
+  if (choice.type === "number") return String(choice.value);
+
+  if (choice.rank) {
+    const card = bridgeCardsLabel([choice.rank], choice.suit, language);
+    if (language === "de") return `${card} ausspielen`;
+    if (language === "fr") return `Entamer ${card}`;
+    if (language === "it") return `Uscire con ${card}`;
+    if (language === "pt") return `Sair com ${card}`;
+    if (language === "es") return `Salir con ${card}`;
+    return `Lead ${card}`;
+  }
+
+  const suitText = bridgeSuitLabel(choice.suit, language);
+  if (language === "de") return `${suitText} ausspielen`;
+  if (language === "fr") return `Entamer ${suitText}`;
+  if (language === "it") return `Uscire a ${suitText}`;
+  if (language === "pt") return `Sair em ${suitText}`;
+  if (language === "es") return `Salir a ${suitText}`;
+  return `Lead ${suitText}`;
+}
+
+function bridgePoints(points: number | undefined, language: SocialGameLanguage) {
+  const value = points ?? 0;
+  if (language === "de") return `${value} Punkte`;
+  if (language === "fr") return `${value} points`;
+  if (language === "it") return `${value} punti`;
+  if (language === "pt") return `${value} pontos`;
+  if (language === "es") return `${value} puntos`;
+  return `${value} points`;
+}
+
+function bridgeLength(length: number | undefined, suit: BridgeSuit | undefined, language: SocialGameLanguage) {
+  const value = length ?? 0;
+  const suitText = bridgeSuitLabel(suit, language);
+  if (language === "de") return `${value} Karten in ${suitText}`;
+  if (language === "fr") return `${value} cartes en ${suitText}`;
+  if (language === "it") return `${value} carte a ${suitText}`;
+  if (language === "pt") return `${value} cartas em ${suitText}`;
+  if (language === "es") return `${value} cartas de ${suitText}`;
+  return `${value} ${suitText}`;
+}
+
+function bridgeQuestion(language: SocialGameLanguage) {
+  if (language === "de") return "Welche ruhige Wahl passt am besten?";
+  if (language === "fr") return "Quel choix calme convient le mieux?";
+  if (language === "it") return "Quale scelta tranquilla va meglio?";
+  if (language === "pt") return "Qual escolha tranquila combina melhor?";
+  if (language === "es") return "Que opcion tranquila encaja mejor?";
+  return "Which calm choice fits best?";
+}
+
+const bid = (level: number, suit: BridgeSuit): BridgeChoice => ({ type: "bid", level, suit });
+const passBridge: BridgeChoice = { type: "pass" };
+const term = (key: BridgeTermKey): BridgeChoice => ({ type: "term", key });
+const lead = (suit: BridgeSuit, rank?: BridgeRank): BridgeChoice => ({ type: "lead", suit, rank });
+const numberChoice = (value: number): BridgeChoice => ({ type: "number", value });
+
+function openingPrompt(variant: BridgePuzzleVariant, language: SocialGameLanguage) {
+  if (variant.suit === "noTrump") {
+    const intro = bridgeText(
+      `You have ${bridgePoints(variant.points, language)}, a balanced hand, and no long major.`,
+      `Tienes ${bridgePoints(variant.points, language)}, una mano equilibrada y ningun mayor largo.`,
+      `Du hast ${bridgePoints(variant.points, language)}, eine ausgeglichene Hand und keine lange Oberfarbe.`,
+      `Tu as ${bridgePoints(variant.points, language)}, une main reguliere et pas de majeure longue.`,
+      `Hai ${bridgePoints(variant.points, language)}, una mano bilanciata e nessun maggiore lungo.`,
+      `Voce tem ${bridgePoints(variant.points, language)}, uma mao equilibrada e nenhum maior longo.`,
+    );
+    return `${intro[language]} ${bridgeQuestion(language)}`;
+  }
+
+  const intro = bridgeText(
+    `You have ${bridgePoints(variant.points, language)} and ${bridgeLength(variant.length, variant.suit, language)}.`,
+    `Tienes ${bridgePoints(variant.points, language)} y ${bridgeLength(variant.length, variant.suit, language)}.`,
+    `Du hast ${bridgePoints(variant.points, language)} und ${bridgeLength(variant.length, variant.suit, language)}.`,
+    `Tu as ${bridgePoints(variant.points, language)} et ${bridgeLength(variant.length, variant.suit, language)}.`,
+    `Hai ${bridgePoints(variant.points, language)} e ${bridgeLength(variant.length, variant.suit, language)}.`,
+    `Voce tem ${bridgePoints(variant.points, language)} e ${bridgeLength(variant.length, variant.suit, language)}.`,
+  );
+  return `${intro[language]} ${bridgeQuestion(language)}`;
+}
+
+function partnerPrompt(variant: BridgePuzzleVariant, language: SocialGameLanguage) {
+  const partnerBid = bridgeBidLabel(variant.partnerLevel ?? 1, variant.partnerSuit ?? "clubs", language);
+  const intro = bridgeText(
+    `Partner opened ${partnerBid}. You have ${bridgePoints(variant.points, language)} and ${bridgeLength(variant.length, variant.suit, language)}.`,
+    `El companero abrio ${partnerBid}. Tienes ${bridgePoints(variant.points, language)} y ${bridgeLength(variant.length, variant.suit, language)}.`,
+    `Partner hat ${partnerBid} eroeffnet. Du hast ${bridgePoints(variant.points, language)} und ${bridgeLength(variant.length, variant.suit, language)}.`,
+    `Le partenaire a ouvert ${partnerBid}. Tu as ${bridgePoints(variant.points, language)} et ${bridgeLength(variant.length, variant.suit, language)}.`,
+    `Il partner ha aperto ${partnerBid}. Hai ${bridgePoints(variant.points, language)} e ${bridgeLength(variant.length, variant.suit, language)}.`,
+    `O parceiro abriu ${partnerBid}. Voce tem ${bridgePoints(variant.points, language)} e ${bridgeLength(variant.length, variant.suit, language)}.`,
+  );
+  return `${intro[language]} ${bridgeQuestion(language)}`;
+}
+
+function raisePrompt(variant: BridgePuzzleVariant, language: SocialGameLanguage) {
+  const partnerSuit = bridgeSuitLabel(variant.partnerSuit, language);
+  const intro = bridgeText(
+    `Partner opened ${partnerSuit}. You have ${bridgePoints(variant.points, language)} and ${variant.support ?? 0} cards supporting partner.`,
+    `El companero abrio ${partnerSuit}. Tienes ${bridgePoints(variant.points, language)} y ${variant.support ?? 0} cartas de apoyo.`,
+    `Partner eroeffnete ${partnerSuit}. Du hast ${bridgePoints(variant.points, language)} und ${variant.support ?? 0} Karten Unterstuetzung.`,
+    `Le partenaire a ouvert ${partnerSuit}. Tu as ${bridgePoints(variant.points, language)} et ${variant.support ?? 0} cartes de soutien.`,
+    `Il partner ha aperto ${partnerSuit}. Hai ${bridgePoints(variant.points, language)} e ${variant.support ?? 0} carte di appoggio.`,
+    `O parceiro abriu ${partnerSuit}. Voce tem ${bridgePoints(variant.points, language)} e ${variant.support ?? 0} cartas de apoio.`,
+  );
+  return `${intro[language]} ${bridgeQuestion(language)}`;
+}
+
+function twoSuitPrompt(variant: BridgePuzzleVariant, language: SocialGameLanguage) {
+  const first = bridgeLength(variant.length, variant.suit, language);
+  const second = bridgeLength(variant.secondLength, variant.secondSuit, language);
+  const intro = bridgeText(
+    `Your hand has ${first} and ${second}.`,
+    `Tu mano tiene ${first} y ${second}.`,
+    `Deine Hand hat ${first} und ${second}.`,
+    `Ta main a ${first} et ${second}.`,
+    `La tua mano ha ${first} e ${second}.`,
+    `Sua mao tem ${first} e ${second}.`,
+  );
+  return `${intro[language]} ${bridgeQuestion(language)}`;
+}
+
+function leadPrompt(variant: BridgePuzzleVariant, language: SocialGameLanguage) {
+  const contract = bridgeBidLabel(variant.contractLevel ?? 3, variant.contractSuit ?? "noTrump", language);
+  const holding = bridgeCardsLabel(variant.sequence ?? variant.holding, variant.suit, language);
+  const intro = bridgeText(
+    `You are making the opening lead against ${contract}. Your useful holding is ${holding}.`,
+    `Vas a hacer la salida contra ${contract}. Tu grupo util es ${holding}.`,
+    `Du machst das Ausspiel gegen ${contract}. Deine nuetzliche Haltung ist ${holding}.`,
+    `Tu fais l'entame contre ${contract}. Ta tenue utile est ${holding}.`,
+    `Devi fare l'attacco contro ${contract}. La tua tenuta utile e ${holding}.`,
+    `Voce vai fazer a saida contra ${contract}. Sua sequencia util e ${holding}.`,
+  );
+  return `${intro[language]} ${bridgeQuestion(language)}`;
+}
+
+function conceptPrompt(variant: BridgePuzzleVariant, language: SocialGameLanguage) {
+  const suit = bridgeSuitLabel(variant.suit ?? variant.contractSuit, language);
+  const cards = bridgeCardsLabel(variant.holding, variant.suit ?? variant.contractSuit, language);
+  const intro = bridgeText(
+    `At the bridge table, the key clue is ${cards} in ${suit}.`,
+    `En la mesa de bridge, la pista clave es ${cards} en ${suit}.`,
+    `Am Bridgetisch ist der wichtige Hinweis ${cards} in ${suit}.`,
+    `A la table de bridge, l'indice cle est ${cards} en ${suit}.`,
+    `Al tavolo di bridge, l'indizio chiave e ${cards} a ${suit}.`,
+    `Na mesa de bridge, a pista principal e ${cards} em ${suit}.`,
+  );
+  return `${intro[language]} ${bridgeQuestion(language)}`;
+}
+
+function tablePrompt(variant: BridgePuzzleVariant, language: SocialGameLanguage) {
+  const situation = {
+    mistake: bridgeText("Partner misplayed a card.", "El companero jugo una carta floja.", "Partner hat eine Karte ungluecklich gespielt.", "Le partenaire a mal joue une carte.", "Il partner ha giocato male una carta.", "O parceiro jogou uma carta ruim."),
+    hurry: bridgeText("Someone at the table needs more time.", "Alguien en la mesa necesita mas tiempo.", "Jemand am Tisch braucht mehr Zeit.", "Quelqu'un a la table a besoin de temps.", "Qualcuno al tavolo ha bisogno di tempo.", "Alguem na mesa precisa de mais tempo."),
+    signal: bridgeText("Partner made a lead you do not understand yet.", "El companero hizo una salida que aun no entiendes.", "Partner spielte eine Karte aus, die du noch nicht verstehst.", "Le partenaire a entame une couleur que tu ne comprends pas encore.", "Il partner ha fatto un attacco che non capisci ancora.", "O parceiro fez uma saida que voce ainda nao entende."),
+    win: bridgeText("You just made the contract together.", "Acabais de cumplir el contrato juntos.", "Ihr habt den Kontrakt gemeinsam erfuellt.", "Vous venez de reussir le contrat ensemble.", "Avete appena mantenuto il contratto insieme.", "Voces acabaram de cumprir o contrato juntos."),
+  }[variant.suffix] ?? bridgeText("The table needs a kind bridge choice.", "La mesa necesita una opcion amable.", "Der Tisch braucht eine freundliche Wahl.", "La table a besoin d'un choix aimable.", "Il tavolo ha bisogno di una scelta gentile.", "A mesa precisa de uma escolha gentil.");
+  return `${situation[language]} ${bridgeQuestion(language)}`;
+}
+
+const bridgePuzzleThemes: BridgePuzzleTheme[] = [
+  {
+    id: "bridge-opening-bid",
+    tag: "opening-bid",
+    body: bridgeText("Choose a calm opening bid.", "Elige una apertura tranquila.", "Waehle eine ruhige Eroeffnung.", "Choisis une ouverture calme.", "Scegli un'apertura tranquilla.", "Escolha uma abertura tranquila."),
+    successMessage: bridgeText("Good start. A clear opening helps partner relax.", "Buen inicio. Una apertura clara tranquiliza al companero.", "Guter Start. Eine klare Eroeffnung beruhigt den Partner.", "Bon depart. Une ouverture claire rassure le partenaire.", "Buon inizio. Un'apertura chiara rassicura il partner.", "Bom inicio. Uma abertura clara ajuda o parceiro."),
+    prompt: openingPrompt,
+    hint: (variant, language) => variant.suit === "noTrump" ? bridgeTermLabels.balancedHand[language] : bridgeTermLabels.bidLongestSuit[language],
+    variants: [
+      { suffix: "five-hearts", points: 13, suit: "hearts", length: 5, choices: [bid(1, "hearts"), bid(1, "noTrump"), passBridge], answer: bid(1, "hearts") },
+      { suffix: "five-spades", points: 12, suit: "spades", length: 5, choices: [bid(1, "spades"), bid(1, "clubs"), passBridge], answer: bid(1, "spades") },
+      { suffix: "long-diamonds", points: 14, suit: "diamonds", length: 5, choices: [bid(1, "diamonds"), bid(1, "hearts"), passBridge], answer: bid(1, "diamonds") },
+      { suffix: "balanced-fifteen", points: 15, suit: "noTrump", choices: [bid(1, "noTrump"), bid(1, "spades"), passBridge], answer: bid(1, "noTrump") },
+    ],
+  },
+  {
+    id: "bridge-no-trump",
+    tag: "no-trump-basics",
+    body: bridgeText("Recognize a no-trump hand.", "Reconoce una mano sin triunfo.", "Erkenne eine Ohne-Trumpf-Hand.", "Reconnais une main sans-atout.", "Riconosci una mano senza atout.", "Reconheca uma mao sem trunfo."),
+    successMessage: bridgeText("Nice. No-trump is about balance and steady points.", "Bien. Sin triunfo trata de equilibrio y puntos seguros.", "Gut. Ohne Trumpf bedeutet Balance und ruhige Punkte.", "Bien. Le sans-atout parle d'equilibre et de points solides.", "Bene. Il senza atout parla di equilibrio e punti solidi.", "Boa. Sem trunfo fala de equilibrio e pontos firmes."),
+    prompt: openingPrompt,
+    hint: (_variant, language) => bridgeTermLabels.balancedHand[language],
+    variants: [
+      { suffix: "sixteen-balanced", points: 16, suit: "noTrump", choices: [bid(1, "noTrump"), bid(2, "hearts"), passBridge], answer: bid(1, "noTrump") },
+      { suffix: "twenty-balanced", points: 20, suit: "noTrump", choices: [bid(2, "noTrump"), bid(1, "clubs"), passBridge], answer: bid(2, "noTrump") },
+      { suffix: "long-hearts", points: 13, suit: "hearts", length: 6, choices: [bid(1, "hearts"), bid(1, "noTrump"), passBridge], answer: bid(1, "hearts") },
+      { suffix: "long-spades", points: 14, suit: "spades", length: 6, choices: [bid(1, "spades"), bid(1, "noTrump"), bid(1, "diamonds")], answer: bid(1, "spades") },
+    ],
+  },
+  {
+    id: "bridge-respond",
+    tag: "responding",
+    body: bridgeText("Answer partner's opening gently.", "Responde a la apertura del companero.", "Antworte ruhig auf Partners Eroeffnung.", "Reponds doucement a l'ouverture du partenaire.", "Rispondi con calma all'apertura del partner.", "Responda com calma a abertura do parceiro."),
+    successMessage: bridgeText("Good partnership. Small responses keep the auction friendly.", "Buena pareja. Las respuestas pequenas mantienen la subasta clara.", "Gute Partnerschaft. Kleine Antworten halten die Reizung freundlich.", "Bon partenariat. Les petites reponses gardent l'enchere claire.", "Buona coppia. Le piccole risposte tengono chiara l'asta.", "Boa parceria. Respostas pequenas mantem o leilao claro."),
+    prompt: partnerPrompt,
+    hint: (_variant, language) => bridgeTermLabels.trustPartner[language],
+    variants: [
+      { suffix: "raise-hearts", partnerSuit: "hearts", partnerLevel: 1, points: 7, suit: "hearts", length: 3, choices: [bid(2, "hearts"), bid(1, "spades"), passBridge], answer: bid(2, "hearts") },
+      { suffix: "raise-spades", partnerSuit: "spades", partnerLevel: 1, points: 9, suit: "spades", length: 3, choices: [bid(2, "spades"), bid(2, "clubs"), passBridge], answer: bid(2, "spades") },
+      { suffix: "new-heart", partnerSuit: "clubs", partnerLevel: 1, points: 6, suit: "hearts", length: 4, choices: [bid(1, "hearts"), bid(2, "clubs"), passBridge], answer: bid(1, "hearts") },
+      { suffix: "new-spade", partnerSuit: "diamonds", partnerLevel: 1, points: 6, suit: "spades", length: 4, choices: [bid(1, "spades"), bid(2, "diamonds"), passBridge], answer: bid(1, "spades") },
+    ],
+  },
+  {
+    id: "bridge-raise-suit",
+    tag: "raise-suit",
+    body: bridgeText("Choose the size of a raise.", "Elige el tamano del apoyo.", "Waehle die Hoehe der Hebung.", "Choisis la taille du soutien.", "Scegli la misura dell'appoggio.", "Escolha o tamanho do apoio."),
+    successMessage: bridgeText("Clear support tells partner a lot.", "Un apoyo claro dice mucho al companero.", "Klare Unterstuetzung sagt Partner viel.", "Un soutien clair aide beaucoup le partenaire.", "Un appoggio chiaro dice molto al partner.", "Um apoio claro diz muito ao parceiro."),
+    prompt: raisePrompt,
+    hint: (_variant, language) => bridgeTermLabels.trustPartner[language],
+    variants: [
+      { suffix: "simple-heart", partnerSuit: "hearts", points: 8, support: 3, choices: [bid(2, "hearts"), bid(4, "hearts"), passBridge], answer: bid(2, "hearts") },
+      { suffix: "invite-spade", partnerSuit: "spades", points: 11, support: 4, choices: [bid(3, "spades"), bid(1, "noTrump"), passBridge], answer: bid(3, "spades") },
+      { suffix: "game-heart", partnerSuit: "hearts", points: 13, support: 4, choices: [bid(4, "hearts"), bid(2, "hearts"), passBridge], answer: bid(4, "hearts") },
+      { suffix: "too-light", partnerSuit: "spades", points: 3, support: 3, choices: [passBridge, bid(2, "spades"), bid(4, "spades")], answer: passBridge },
+    ],
+  },
+  {
+    id: "bridge-choose-major",
+    tag: "choose-major",
+    body: bridgeText("Pick the major suit that tells the story.", "Elige el mayor que cuenta la historia.", "Waehle die Oberfarbe, die die Hand erklaert.", "Choisis la majeure qui raconte la main.", "Scegli il maggiore che racconta la mano.", "Escolha o maior que conta a mao."),
+    successMessage: bridgeText("Nice. Long majors make bridge feel familiar.", "Bien. Los mayores largos hacen bridge mas claro.", "Gut. Lange Oberfarben machen Bridge vertraut.", "Bien. Les majeures longues rendent le bridge clair.", "Bene. I maggiori lunghi rendono il bridge chiaro.", "Boa. Maiores longos deixam o bridge claro."),
+    prompt: twoSuitPrompt,
+    hint: (_variant, language) => bridgeTermLabels.bidLongestSuit[language],
+    variants: [
+      { suffix: "five-hearts-four-spades", suit: "hearts", length: 5, secondSuit: "spades", secondLength: 4, choices: [bid(1, "hearts"), bid(1, "spades"), passBridge], answer: bid(1, "hearts") },
+      { suffix: "five-spades-four-hearts", suit: "spades", length: 5, secondSuit: "hearts", secondLength: 4, choices: [bid(1, "spades"), bid(1, "hearts"), passBridge], answer: bid(1, "spades") },
+      { suffix: "six-hearts-five-clubs", suit: "hearts", length: 6, secondSuit: "clubs", secondLength: 5, choices: [bid(1, "hearts"), bid(1, "clubs"), bid(1, "noTrump")], answer: bid(1, "hearts") },
+      { suffix: "six-spades-five-diamonds", suit: "spades", length: 6, secondSuit: "diamonds", secondLength: 5, choices: [bid(1, "spades"), bid(1, "diamonds"), bid(1, "noTrump")], answer: bid(1, "spades") },
+    ],
+  },
+  {
+    id: "bridge-when-pass",
+    tag: "when-to-pass",
+    body: bridgeText("Know when passing is kind and clear.", "Saber cuando pasar es claro y amable.", "Wissen, wann Passen klar und freundlich ist.", "Savoir quand passer est clair et aimable.", "Sapere quando passare e chiaro e gentile.", "Saber quando passar e claro e gentil."),
+    successMessage: bridgeText("Passing is a real bridge skill.", "Pasar tambien es una habilidad real.", "Passen ist eine echte Bridge-Faehigkeit.", "Passer est une vraie competence au bridge.", "Passare e una vera abilita di bridge.", "Passar tambem e habilidade de bridge."),
+    prompt: (variant, language) => `${openingPrompt(variant, language)} ${bridgeTermLabels.pass[language]}?`,
+    hint: (_variant, language) => bridgeTermLabels.pass[language],
+    variants: [
+      { suffix: "flat-eight", points: 8, suit: "noTrump", choices: [passBridge, bid(1, "noTrump"), bid(2, "clubs")], answer: passBridge },
+      { suffix: "three-points", partnerSuit: "spades", points: 3, suit: "spades", length: 2, choices: [passBridge, bid(2, "spades"), bid(3, "spades")], answer: passBridge },
+      { suffix: "five-no-fit", partnerSuit: "hearts", points: 5, suit: "clubs", length: 3, choices: [passBridge, bid(2, "hearts"), bid(1, "noTrump")], answer: passBridge },
+      { suffix: "opponents-bid", points: 4, suit: "diamonds", length: 4, choices: [passBridge, bid(2, "diamonds"), bid(2, "noTrump")], answer: passBridge },
+    ],
+  },
+  {
+    id: "bridge-opening-lead",
+    tag: "opening-lead",
+    body: bridgeText("Choose an opening lead.", "Elige una salida inicial.", "Waehle ein erstes Ausspiel.", "Choisis une entame.", "Scegli un attacco iniziale.", "Escolha uma saida inicial."),
+    successMessage: bridgeText("Good lead. The first card sets the table tone.", "Buena salida. La primera carta marca el tono.", "Gutes Ausspiel. Die erste Karte setzt den Ton.", "Bonne entame. La premiere carte donne le ton.", "Buon attacco. La prima carta da il tono.", "Boa saida. A primeira carta define o tom."),
+    prompt: leadPrompt,
+    hint: (_variant, language) => bridgeTermLabels.topSequence[language],
+    variants: [
+      { suffix: "king-sequence", contractLevel: 3, contractSuit: "noTrump", suit: "spades", sequence: ["king", "queen", "jack"], choices: [lead("spades", "king"), lead("hearts", "small"), lead("clubs", "ace")], answer: lead("spades", "king") },
+      { suffix: "queen-sequence", contractLevel: 2, contractSuit: "noTrump", suit: "hearts", sequence: ["queen", "jack", "ten"], choices: [lead("hearts", "queen"), lead("diamonds", "small"), lead("spades", "ace")], answer: lead("hearts", "queen") },
+      { suffix: "ace-king", contractLevel: 4, contractSuit: "spades", suit: "diamonds", sequence: ["ace", "king", "queen"], choices: [lead("diamonds", "ace"), lead("clubs", "small"), lead("hearts", "small")], answer: lead("diamonds", "ace") },
+      { suffix: "singleton", contractLevel: 4, contractSuit: "hearts", suit: "clubs", holding: ["small"], choices: [lead("clubs", "small"), lead("hearts", "small"), lead("diamonds", "queen")], answer: lead("clubs", "small") },
+    ],
+  },
+  {
+    id: "bridge-lead-partner",
+    tag: "lead-partner-suit",
+    body: bridgeText("Listen to partner's suit.", "Escucha el palo del companero.", "Hoere auf Partners Farbe.", "Ecoute la couleur du partenaire.", "Ascolta il seme del partner.", "Ouça o naipe do parceiro."),
+    successMessage: bridgeText("Nice partnership. Partner's suit is often a good clue.", "Buena pareja. El palo del companero suele ser una buena pista.", "Gute Partnerschaft. Partners Farbe ist oft ein guter Hinweis.", "Bon partenariat. La couleur du partenaire est souvent un bon indice.", "Buona coppia. Il seme del partner e spesso un buon indizio.", "Boa parceria. O naipe do parceiro costuma ser uma boa pista."),
+    prompt: (variant, language) => `${bridgeTermLabels.leadPartnerSuit[language]}: ${bridgeSuitLabel(variant.partnerSuit, language)}. ${bridgeQuestion(language)}`,
+    hint: (_variant, language) => bridgeTermLabels.leadPartnerSuit[language],
+    variants: [
+      { suffix: "partner-spades", partnerSuit: "spades", choices: [lead("spades"), lead("clubs"), lead("diamonds")], answer: lead("spades") },
+      { suffix: "partner-hearts", partnerSuit: "hearts", choices: [lead("hearts"), lead("spades"), lead("clubs")], answer: lead("hearts") },
+      { suffix: "partner-diamonds", partnerSuit: "diamonds", choices: [lead("diamonds"), lead("hearts"), lead("clubs")], answer: lead("diamonds") },
+      { suffix: "partner-clubs", partnerSuit: "clubs", choices: [lead("clubs"), lead("spades"), lead("diamonds")], answer: lead("clubs") },
+    ],
+  },
+  {
+    id: "bridge-top-sequence",
+    tag: "top-sequence",
+    body: bridgeText("Lead the top of touching honors.", "Sale con la carta alta de honores seguidos.", "Spiele die hoechste Karte beruehrender Figuren.", "Entame la tete des honneurs lies.", "Esci con la cima degli onori collegati.", "Saia com o topo das honras ligadas."),
+    successMessage: bridgeText("Good memory. Sequences make leads easier.", "Buena memoria. Las secuencias facilitan las salidas.", "Gutes Gedaechtnis. Sequenzen machen Ausspiele leichter.", "Bonne memoire. Les sequences rendent l'entame plus simple.", "Buona memoria. Le sequenze rendono l'attacco piu facile.", "Boa memoria. Sequencias facilitam a saida."),
+    prompt: leadPrompt,
+    hint: (_variant, language) => bridgeTermLabels.topSequence[language],
+    variants: [
+      { suffix: "akq", contractLevel: 3, contractSuit: "noTrump", suit: "hearts", sequence: ["ace", "king", "queen"], choices: [lead("hearts", "ace"), lead("hearts", "queen"), lead("clubs", "small")], answer: lead("hearts", "ace") },
+      { suffix: "kqj", contractLevel: 4, contractSuit: "spades", suit: "clubs", sequence: ["king", "queen", "jack"], choices: [lead("clubs", "king"), lead("clubs", "jack"), lead("diamonds", "small")], answer: lead("clubs", "king") },
+      { suffix: "qjt", contractLevel: 2, contractSuit: "noTrump", suit: "diamonds", sequence: ["queen", "jack", "ten"], choices: [lead("diamonds", "queen"), lead("diamonds", "ten"), lead("spades", "small")], answer: lead("diamonds", "queen") },
+      { suffix: "jt9", contractLevel: 3, contractSuit: "hearts", suit: "spades", sequence: ["jack", "ten", "small"], choices: [lead("spades", "jack"), lead("spades", "small"), lead("clubs", "ace")], answer: lead("spades", "jack") },
+    ],
+  },
+  {
+    id: "bridge-safe-lead",
+    tag: "safe-lead",
+    body: bridgeText("Find a safe defensive lead.", "Encuentra una salida defensiva segura.", "Finde ein sicheres Verteidigungsausspiel.", "Trouve une entame defensive sure.", "Trova un attacco difensivo sicuro.", "Encontre uma saida defensiva segura."),
+    successMessage: bridgeText("Safe is often wise at a friendly table.", "Seguro suele ser sabio en una mesa amable.", "Sicher ist am freundlichen Tisch oft klug.", "La securite est souvent sage a une table amicale.", "La sicurezza e spesso saggia a un tavolo gentile.", "Seguro costuma ser sabio numa mesa amiga."),
+    prompt: leadPrompt,
+    hint: (_variant, language) => bridgeTermLabels.safeSmallCard[language],
+    variants: [
+      { suffix: "small-long-club", contractLevel: 3, contractSuit: "noTrump", suit: "clubs", holding: ["small", "small", "small", "small"], choices: [lead("clubs", "small"), lead("spades", "ace"), term("drawTrumps")], answer: lead("clubs", "small") },
+      { suffix: "small-long-diamond", contractLevel: 2, contractSuit: "noTrump", suit: "diamonds", holding: ["small", "small", "small", "small"], choices: [lead("diamonds", "small"), lead("hearts", "ace"), passBridge], answer: lead("diamonds", "small") },
+      { suffix: "avoid-unsupported-ace", contractLevel: 4, contractSuit: "hearts", suit: "spades", holding: ["small", "small", "small"], choices: [term("safeSmallCard"), lead("clubs", "ace"), term("finesse")], answer: term("safeSmallCard") },
+      { suffix: "quiet-defense", contractLevel: 3, contractSuit: "spades", suit: "hearts", holding: ["small", "small", "small"], choices: [term("safeSmallCard"), term("coverHonor"), term("keepEntry")], answer: term("safeSmallCard") },
+    ],
+  },
+  {
+    id: "bridge-count-winners",
+    tag: "count-winners",
+    body: bridgeText("Count sure winners.", "Cuenta bazas seguras.", "Zaehle sichere Stiche.", "Compte les levees sures.", "Conta le prese sicure.", "Conte vazas seguras."),
+    successMessage: bridgeText("Good count. Bridge gets calmer when winners are visible.", "Buena cuenta. Bridge se calma cuando ves las bazas.", "Gut gezaehlt. Bridge wird ruhiger, wenn Stiche sichtbar sind.", "Bon compte. Le bridge devient plus calme quand les levees sont visibles.", "Buon conto. Il bridge e piu calmo quando vedi le prese.", "Boa conta. Bridge fica mais calmo quando as vazas aparecem."),
+    prompt: (variant, language) => {
+      const cards = bridgeCardsLabel(variant.holding, variant.suit, language);
+      return bridgeText(
+        `You are counting sure winners from ${cards}. How many sure winners are there?`,
+        `Cuentas bazas seguras con ${cards}. Cuantas bazas seguras hay?`,
+        `Du zaehlst sichere Stiche mit ${cards}. Wie viele sichere Stiche gibt es?`,
+        `Tu comptes les levees sures avec ${cards}. Combien de levees sures y a-t-il?`,
+        `Conti le prese sicure con ${cards}. Quante prese sicure ci sono?`,
+        `Voce conta vazas seguras com ${cards}. Quantas vazas seguras ha?`,
+      )[language];
+    },
+    hint: (_variant, language) => bridgeText(
+      "Aces are sure winners. Ace-king is two. King-queen without the ace is not sure yet.",
+      "Los ases son bazas seguras. As-rey son dos. Rey-dama sin el as aun no es seguro.",
+      "Asse sind sichere Stiche. Ass-Koenig sind zwei. Koenig-Dame ohne Ass ist noch nicht sicher.",
+      "Les as sont des levees sures. As-roi en fait deux. Roi-dame sans l'as n'est pas encore sur.",
+      "Gli assi sono prese sicure. Asso-re sono due. Re-donna senza asso non e ancora sicura.",
+      "Ases sao vazas seguras. As-rei sao duas. Rei-dama sem o as ainda nao e seguro.",
+    )[language],
+    variants: [
+      { suffix: "ace-king", suit: "spades", holding: ["ace", "king"], winners: 2, choices: [numberChoice(1), numberChoice(2), numberChoice(3)], answer: numberChoice(2) },
+      { suffix: "akq", suit: "hearts", holding: ["ace", "king", "queen"], winners: 3, choices: [numberChoice(2), numberChoice(3), numberChoice(4)], answer: numberChoice(3) },
+      { suffix: "ace-only", suit: "diamonds", holding: ["ace"], winners: 1, choices: [numberChoice(0), numberChoice(1), numberChoice(2)], answer: numberChoice(1) },
+      { suffix: "king-queen-no-ace", suit: "clubs", holding: ["king", "queen"], winners: 0, choices: [numberChoice(0), numberChoice(1), numberChoice(2)], answer: numberChoice(0) },
+    ],
+  },
+  {
+    id: "bridge-draw-trumps",
+    tag: "draw-trumps",
+    body: bridgeText("Know when to draw trumps.", "Sabe cuando sacar triunfos.", "Wisse, wann man Truempfe zieht.", "Savoir quand enlever les atouts.", "Sapere quando battere gli atout.", "Saber quando tirar trunfos."),
+    successMessage: bridgeText("Good declarer habit. Drawing trumps can steady the hand.", "Buen habito de declarante. Sacar triunfos estabiliza la mano.", "Gute Alleinspieler-Gewohnheit. Truempfe ziehen beruhigt die Hand.", "Bonne habitude de declarant. Enlever les atouts stabilise la main.", "Buona abitudine da dichiarante. Battere gli atout stabilizza la mano.", "Bom habito de declarante. Tirar trunfos estabiliza a mao."),
+    prompt: (variant, language) => `${bridgeBidLabel(variant.contractLevel ?? 4, variant.contractSuit ?? "hearts", language)}. ${bridgeQuestion(language)}`,
+    hint: (_variant, language) => bridgeTermLabels.drawTrumps[language],
+    variants: [
+      { suffix: "heart-contract", contractLevel: 4, contractSuit: "hearts", choices: [term("drawTrumps"), term("finesse"), passBridge], answer: term("drawTrumps") },
+      { suffix: "spade-contract", contractLevel: 4, contractSuit: "spades", choices: [term("drawTrumps"), term("keepEntry"), term("safeSmallCard")], answer: term("drawTrumps") },
+      { suffix: "diamond-contract", contractLevel: 3, contractSuit: "diamonds", choices: [term("drawTrumps"), term("leadPartnerSuit"), passBridge], answer: term("drawTrumps") },
+      { suffix: "club-contract", contractLevel: 5, contractSuit: "clubs", choices: [term("drawTrumps"), term("coverHonor"), term("thirdHandHigh")], answer: term("drawTrumps") },
+    ],
+  },
+  {
+    id: "bridge-finesse",
+    tag: "simple-finesse",
+    body: bridgeText("Spot a simple finesse.", "Reconoce una finesse sencilla.", "Erkenne einen einfachen Schnitt.", "Repere une impasse simple.", "Riconosci un impasse semplice.", "Reconheca uma finesse simples."),
+    successMessage: bridgeText("Nice touch. A finesse is a classic bridge puzzle.", "Buen toque. La finesse es un puzzle clasico de bridge.", "Fein. Ein Schnitt ist ein klassisches Bridge-Raetsel.", "Joli. L'impasse est un puzzle classique du bridge.", "Bel tocco. L'impasse e un classico puzzle di bridge.", "Bom toque. A finesse e um puzzle classico de bridge."),
+    prompt: (variant, language) => `${conceptPrompt(variant, language)} ${bridgeText("A key honor is missing.", "Falta un honor clave.", "Eine wichtige Figur fehlt.", "Un honneur cle manque.", "Manca un onore chiave.", "Falta uma honra chave.")[language]} ${bridgeQuestion(language)}`,
+    hint: (_variant, language) => bridgeTermLabels.finesse[language],
+    variants: [
+      { suffix: "ace-queen", suit: "hearts", holding: ["ace", "queen"], missing: "king", choices: [term("finesse"), term("drawTrumps"), passBridge], answer: term("finesse") },
+      { suffix: "king-jack", suit: "spades", holding: ["king", "jack"], missing: "queen", choices: [term("finesse"), term("coverHonor"), term("safeSmallCard")], answer: term("finesse") },
+      { suffix: "queen-ten", suit: "diamonds", holding: ["queen", "ten"], missing: "king", choices: [term("finesse"), term("leadPartnerSuit"), passBridge], answer: term("finesse") },
+      { suffix: "ace-jack", suit: "clubs", holding: ["ace", "jack"], missing: "queen", choices: [term("finesse"), term("thirdHandHigh"), term("drawTrumps")], answer: term("finesse") },
+    ],
+  },
+  {
+    id: "bridge-long-suit",
+    tag: "establish-long-suit",
+    body: bridgeText("Make a long suit useful.", "Haz util un palo largo.", "Mache eine lange Farbe nuetzlich.", "Rends une longue couleur utile.", "Rendi utile un seme lungo.", "Torne util um naipe longo."),
+    successMessage: bridgeText("Good plan. Long suits can become friendly winners.", "Buen plan. Los palos largos pueden dar bazas.", "Guter Plan. Lange Farben koennen Stiche werden.", "Bon plan. Les longues couleurs peuvent donner des levees.", "Buon piano. I semi lunghi possono diventare prese.", "Bom plano. Naipes longos podem virar vazas."),
+    prompt: conceptPrompt,
+    hint: (_variant, language) => bridgeTermLabels.establishLongSuit[language],
+    variants: [
+      { suffix: "long-diamonds", suit: "diamonds", holding: ["ace", "king", "queen", "small", "small"], choices: [term("establishLongSuit"), term("pass"), term("coverHonor")], answer: term("establishLongSuit") },
+      { suffix: "long-clubs", suit: "clubs", holding: ["king", "queen", "jack", "small", "small"], choices: [term("establishLongSuit"), term("drawTrumps"), term("secondHandLow")], answer: term("establishLongSuit") },
+      { suffix: "long-hearts", suit: "hearts", holding: ["ace", "queen", "small", "small", "small"], choices: [term("establishLongSuit"), term("leadSingleton"), passBridge], answer: term("establishLongSuit") },
+      { suffix: "long-spades", suit: "spades", holding: ["king", "jack", "ten", "small", "small"], choices: [term("establishLongSuit"), term("keepEntry"), term("thirdHandHigh")], answer: term("establishLongSuit") },
+    ],
+  },
+  {
+    id: "bridge-keep-entry",
+    tag: "keep-entry",
+    body: bridgeText("Keep a way back to the table.", "Guarda una entrada a la mesa.", "Behalte den Weg zurueck zum Tisch.", "Garde un retour vers la table.", "Tieni un rientro al morto.", "Guarde uma entrada para a mesa."),
+    successMessage: bridgeText("Smart. Entries help you reach the winners later.", "Inteligente. Las entradas ayudan a cobrar luego.", "Klug. Eingaenge helfen spaeter zu den Stichen.", "Bien vu. Les entrees aident a rejoindre les levees.", "Furbo. Gli ingressi aiutano a raggiungere le prese.", "Esperto. Entradas ajudam a chegar as vazas depois."),
+    prompt: conceptPrompt,
+    hint: (_variant, language) => bridgeTermLabels.keepEntry[language],
+    variants: [
+      { suffix: "club-entry", suit: "clubs", holding: ["ace"], choices: [term("keepEntry"), term("drawTrumps"), passBridge], answer: term("keepEntry") },
+      { suffix: "diamond-entry", suit: "diamonds", holding: ["king"], choices: [term("keepEntry"), term("finesse"), term("coverHonor")], answer: term("keepEntry") },
+      { suffix: "heart-entry", suit: "hearts", holding: ["ace"], choices: [term("keepEntry"), term("secondHandLow"), passBridge], answer: term("keepEntry") },
+      { suffix: "spade-entry", suit: "spades", holding: ["queen"], choices: [term("keepEntry"), term("leadPartnerSuit"), term("safeSmallCard")], answer: term("keepEntry") },
+    ],
+  },
+  {
+    id: "bridge-second-hand-low",
+    tag: "second-hand-low",
+    body: bridgeText("Remember second hand low.", "Recuerda segunda mano baja.", "Merke: zweite Hand klein.", "Souviens-toi: deuxieme main petit.", "Ricorda: seconda mano bassa.", "Lembre: segunda mao baixa."),
+    successMessage: bridgeText("Classic table wisdom. Low often keeps partner in the hand.", "Sabiduria clasica. Bajo suele ayudar al companero.", "Klassische Weisheit. Klein haelt Partner oft im Spiel.", "Sagesse classique. Petit aide souvent le partenaire.", "Saggezza classica. Basso spesso aiuta il partner.", "Sabedoria classica. Baixo muitas vezes ajuda o parceiro."),
+    prompt: conceptPrompt,
+    hint: (_variant, language) => bridgeTermLabels.secondHandLow[language],
+    variants: [
+      { suffix: "clubs", suit: "clubs", holding: ["queen", "small"], choices: [term("secondHandLow"), term("thirdHandHigh"), term("coverHonor")], answer: term("secondHandLow") },
+      { suffix: "diamonds", suit: "diamonds", holding: ["king", "small"], choices: [term("secondHandLow"), term("drawTrumps"), passBridge], answer: term("secondHandLow") },
+      { suffix: "hearts", suit: "hearts", holding: ["jack", "small"], choices: [term("secondHandLow"), term("finesse"), term("topSequence")], answer: term("secondHandLow") },
+      { suffix: "spades", suit: "spades", holding: ["queen", "small"], choices: [term("secondHandLow"), term("leadSingleton"), term("coverHonor")], answer: term("secondHandLow") },
+    ],
+  },
+  {
+    id: "bridge-third-hand-high",
+    tag: "third-hand-high",
+    body: bridgeText("Remember third hand high.", "Recuerda tercera mano alta.", "Merke: dritte Hand hoch.", "Souviens-toi: troisieme main fort.", "Ricorda: terza mano alta.", "Lembre: terceira mao alta."),
+    successMessage: bridgeText("Good defense habit. Help partner's lead do its work.", "Buen habito defensivo. Ayuda a la salida del companero.", "Gute Verteidigung. Hilf Partners Ausspiel.", "Bonne defense. Aide l'entame du partenaire.", "Buona difesa. Aiuta l'attacco del partner.", "Boa defesa. Ajude a saida do parceiro."),
+    prompt: conceptPrompt,
+    hint: (_variant, language) => bridgeTermLabels.thirdHandHigh[language],
+    variants: [
+      { suffix: "ace", suit: "hearts", holding: ["ace", "small"], choices: [term("thirdHandHigh"), term("secondHandLow"), passBridge], answer: term("thirdHandHigh") },
+      { suffix: "king", suit: "spades", holding: ["king", "small"], choices: [term("thirdHandHigh"), term("drawTrumps"), term("keepEntry")], answer: term("thirdHandHigh") },
+      { suffix: "queen", suit: "diamonds", holding: ["queen", "small"], choices: [term("thirdHandHigh"), term("finesse"), term("leadPartnerSuit")], answer: term("thirdHandHigh") },
+      { suffix: "jack", suit: "clubs", holding: ["jack", "small"], choices: [term("thirdHandHigh"), term("coverHonor"), term("safeSmallCard")], answer: term("thirdHandHigh") },
+    ],
+  },
+  {
+    id: "bridge-cover-honor",
+    tag: "cover-honor",
+    body: bridgeText("Cover an honor when it helps.", "Cubre un honor cuando ayuda.", "Decke eine Figur, wenn es hilft.", "Couvre un honneur quand cela aide.", "Copri un onore quando serve.", "Cubra uma honra quando ajuda."),
+    successMessage: bridgeText("Good eye. Covering can promote partner's cards.", "Buen ojo. Cubrir puede subir cartas del companero.", "Guter Blick. Decken kann Partners Karten staerken.", "Bon regard. Couvrir peut promouvoir les cartes du partenaire.", "Bel colpo d'occhio. Coprire puo promuovere il partner.", "Boa visao. Cobrir pode promover cartas do parceiro."),
+    prompt: conceptPrompt,
+    hint: (_variant, language) => bridgeTermLabels.coverHonor[language],
+    variants: [
+      { suffix: "king-over-queen", suit: "spades", holding: ["king"], choices: [term("coverHonor"), term("secondHandLow"), passBridge], answer: term("coverHonor") },
+      { suffix: "queen-over-jack", suit: "hearts", holding: ["queen"], choices: [term("coverHonor"), term("drawTrumps"), term("safeSmallCard")], answer: term("coverHonor") },
+      { suffix: "ace-over-king", suit: "diamonds", holding: ["ace"], choices: [term("coverHonor"), term("keepEntry"), term("finesse")], answer: term("coverHonor") },
+      { suffix: "king-clubs", suit: "clubs", holding: ["king"], choices: [term("coverHonor"), term("thirdHandHigh"), term("leadSingleton")], answer: term("coverHonor") },
+    ],
+  },
+  {
+    id: "bridge-table-trust",
+    tag: "table-trust",
+    body: bridgeText("Keep the partnership warm.", "Mantiene calida la pareja.", "Halte die Partnerschaft warm.", "Garde le partenariat chaleureux.", "Mantieni calda la partnership.", "Mantenha a parceria acolhedora."),
+    successMessage: bridgeText("That is the spirit. Good bridge is kind bridge.", "Ese es el espiritu. Buen bridge es bridge amable.", "Das ist der Geist. Gutes Bridge ist freundliches Bridge.", "C'est l'esprit. Le bon bridge reste aimable.", "Questo e lo spirito. Il buon bridge e gentile.", "Esse e o espirito. Bom bridge e bridge gentil."),
+    prompt: tablePrompt,
+    hint: (_variant, language) => bridgeTermLabels.trustPartner[language],
+    variants: [
+      { suffix: "mistake", choices: [term("trustPartner"), term("coverHonor"), lead("spades")], answer: term("trustPartner") },
+      { suffix: "hurry", choices: [term("trustPartner"), term("drawTrumps"), passBridge], answer: term("trustPartner") },
+      { suffix: "signal", choices: [term("trustPartner"), term("finesse"), bid(1, "noTrump")], answer: term("trustPartner") },
+      { suffix: "win", choices: [term("trustPartner"), term("safeSmallCard"), term("secondHandLow")], answer: term("trustPartner") },
+    ],
+  },
+  {
+    id: "bridge-vocabulary",
+    tag: "vocabulary",
+    body: bridgeText("Name a bridge table word.", "Nombra una palabra de bridge.", "Benenne ein Bridge-Wort.", "Nomme un mot du bridge.", "Nomina una parola del bridge.", "Nomeie uma palavra de bridge."),
+    successMessage: bridgeText("Good word. Shared language makes the table easier.", "Buena palabra. El lenguaje comun hace la mesa facil.", "Gutes Wort. Gemeinsame Sprache macht den Tisch leichter.", "Bon mot. Le langage partage rend la table plus simple.", "Bella parola. Il linguaggio comune facilita il tavolo.", "Boa palavra. Linguagem comum facilita a mesa."),
+    prompt: (_variant, language) => `${bridgeText("Which bridge word fits the clue?", "Que palabra de bridge encaja con la pista?", "Welches Bridge-Wort passt zum Hinweis?", "Quel mot du bridge correspond a l'indice?", "Quale parola di bridge si adatta all'indizio?", "Que palavra de bridge combina com a pista?")[language]} ${bridgeQuestion(language)}`,
+    hint: (_variant, language) => bridgeTermLabels.contract[language],
+    variants: [
+      { suffix: "dummy", choices: [term("dummy"), term("trump"), term("contract")], answer: term("dummy") },
+      { suffix: "declarer", choices: [term("declarer"), term("pass"), term("topSequence")], answer: term("declarer") },
+      { suffix: "trump", choices: [term("trump"), term("dummy"), term("finesse")], answer: term("trump") },
+      { suffix: "contract", choices: [term("contract"), term("keepEntry"), term("leadSingleton")], answer: term("contract") },
+    ],
+  },
+];
+
+function buildBridgePuzzleBank(language: SocialGameLanguage): SocialGameRound[] {
+  return bridgePuzzleThemes.flatMap((theme) =>
+    theme.variants.map((variant) => ({
+      id: `${theme.id}-${variant.suffix}`,
+      kind: "bridge" as const,
+      title: bridgeRoundTitles[language],
+      body: theme.body[language],
+      prompt: theme.prompt(variant, language),
+      choices: variant.choices.map((choice) => bridgeChoiceText(choice, language)),
+      answer: bridgeChoiceText(variant.answer, language),
+      hint: theme.hint(variant, language),
+      tags: ["games", "bridge", "cards", "game:bridge", `bridge:${theme.tag}`],
+      estimatedDurationSeconds: variant.estimatedDurationSeconds ?? 85,
+      successMessage: theme.successMessage[language],
+    })),
+  );
+}
+
+const bridgePuzzleBank: Record<SocialGameLanguage, SocialGameRound[]> = {
+  en: buildBridgePuzzleBank("en"),
+  es: buildBridgePuzzleBank("es"),
+  de: buildBridgePuzzleBank("de"),
+  fr: buildBridgePuzzleBank("fr"),
+  it: buildBridgePuzzleBank("it"),
+  pt: buildBridgePuzzleBank("pt"),
+};
+
 const rounds: Record<SocialGameLanguage, SocialGameRound[]> = {
   en: [
     ...chessPuzzleBank.en,
     ...wordPuzzleBank.en,
     ...dominoesPuzzleBank.en,
-    {
-      id: "trivia-round",
-      kind: "trivia",
-      title: "Trivia",
-      body: "Answer one cheerful question.",
-      prompt: "Which classic board game uses rooks and bishops?",
-      choices: ["Chess", "Dominoes", "Bingo"],
-      answer: "Chess",
-      hint: "It is played on black and white squares.",
-      tags: ["games", "quiz", "trivia", "game:trivia"],
-      estimatedDurationSeconds: 70,
-      successMessage: "That was a clean answer. Trivia gives people an easy reason to talk.",
-    },
+    ...bridgePuzzleBank.en,
   ],
   es: [
     ...chessPuzzleBank.es,
     ...wordPuzzleBank.es,
     ...dominoesPuzzleBank.es,
-    {
-      id: "trivia-round",
-      kind: "trivia",
-      title: "Trivia",
-      body: "Responde una pregunta alegre.",
-      prompt: "Que juego clasico usa torres y alfiles?",
-      choices: ["Ajedrez", "Domino", "Bingo"],
-      answer: "Ajedrez",
-      hint: "Se juega en casillas claras y oscuras.",
-      tags: ["games", "quiz", "trivia", "game:trivia"],
-      estimatedDurationSeconds: 70,
-      successMessage: "Respuesta clara. La trivia da una razon facil para hablar.",
-    },
+    ...bridgePuzzleBank.es,
   ],
   de: [
     ...chessPuzzleBank.de,
     ...wordPuzzleBank.de,
     ...dominoesPuzzleBank.de,
-    {
-      id: "trivia-round",
-      kind: "trivia",
-      title: "Quiz",
-      body: "Beantworte eine freundliche Frage.",
-      prompt: "Welches klassische Spiel nutzt Tuerme und Laeufer?",
-      choices: ["Schach", "Domino", "Bingo"],
-      answer: "Schach",
-      hint: "Es wird auf hellen und dunklen Feldern gespielt.",
-      tags: ["games", "quiz", "trivia", "game:trivia"],
-      estimatedDurationSeconds: 70,
-      successMessage: "Klare Antwort. Quizfragen geben einen leichten Gespraechsanfang.",
-    },
+    ...bridgePuzzleBank.de,
   ],
   fr: [
     ...chessPuzzleBank.fr,
     ...wordPuzzleBank.fr,
     ...dominoesPuzzleBank.fr,
-    {
-      id: "trivia-round",
-      kind: "trivia",
-      title: "Quiz",
-      body: "Reponds a une question joyeuse.",
-      prompt: "Quel jeu classique utilise des tours et des fous?",
-      choices: ["Echecs", "Dominos", "Bingo"],
-      answer: "Echecs",
-      hint: "Il se joue sur des cases claires et foncees.",
-      tags: ["games", "quiz", "trivia", "game:trivia"],
-      estimatedDurationSeconds: 70,
-      successMessage: "Reponse claire. Le quiz donne une raison simple de parler.",
-    },
+    ...bridgePuzzleBank.fr,
   ],
   it: [
     ...chessPuzzleBank.it,
     ...wordPuzzleBank.it,
     ...dominoesPuzzleBank.it,
-    {
-      id: "trivia-round",
-      kind: "trivia",
-      title: "Quiz",
-      body: "Rispondi a una domanda allegra.",
-      prompt: "Quale gioco classico usa torri e alfieri?",
-      choices: ["Scacchi", "Domino", "Bingo"],
-      answer: "Scacchi",
-      hint: "Si gioca su case chiare e scure.",
-      tags: ["games", "quiz", "trivia", "game:trivia"],
-      estimatedDurationSeconds: 70,
-      successMessage: "Risposta chiara. Il quiz offre un motivo facile per parlare.",
-    },
+    ...bridgePuzzleBank.it,
   ],
   pt: [
     ...chessPuzzleBank.pt,
     ...wordPuzzleBank.pt,
     ...dominoesPuzzleBank.pt,
-    {
-      id: "trivia-round",
-      kind: "trivia",
-      title: "Perguntas",
-      body: "Responda uma pergunta alegre.",
-      prompt: "Que jogo classico usa torres e bispos?",
-      choices: ["Xadrez", "Domino", "Bingo"],
-      answer: "Xadrez",
-      hint: "Ele e jogado em casas claras e escuras.",
-      tags: ["games", "quiz", "trivia", "game:trivia"],
-      estimatedDurationSeconds: 70,
-      successMessage: "Resposta clara. Perguntas dao uma razao facil para conversar.",
-    },
+    ...bridgePuzzleBank.pt,
   ],
 };
 
-export const socialGameKinds: SocialGameKind[] = ["chess", "word", "dominoes", "trivia"];
+export const socialGameKinds: SocialGameKind[] = ["chess", "word", "dominoes", "bridge"];
 
 export function isSocialGameKind(value: unknown): value is SocialGameKind {
   return typeof value === "string" && socialGameKinds.includes(value as SocialGameKind);
