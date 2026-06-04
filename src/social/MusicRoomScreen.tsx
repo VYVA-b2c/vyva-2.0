@@ -111,7 +111,7 @@ const copyByLanguage: Record<SocialLanguage, {
     queueTitle: "Canciones",
     reactLabel: "Enviar corazon",
     unreactLabel: "Quitar corazon",
-    connectionTitle: "Personas",
+    connectionTitle: "Quien la recuerda?",
     connectionBody: "",
     roomPulse: "Pulso de la sala",
     rallyTitle: "Hoy",
@@ -215,7 +215,7 @@ const copyByLanguage: Record<SocialLanguage, {
     queueTitle: "Lieder",
     reactLabel: "Herz senden",
     unreactLabel: "Herz entfernen",
-    connectionTitle: "Menschen",
+    connectionTitle: "Wer erinnert sich?",
     connectionBody: "",
     roomPulse: "Raumpuls",
     rallyTitle: "Heute",
@@ -319,7 +319,7 @@ const copyByLanguage: Record<SocialLanguage, {
     queueTitle: "Songs",
     reactLabel: "Send heart",
     unreactLabel: "Remove heart",
-    connectionTitle: "People",
+    connectionTitle: "Who remembers it?",
     connectionBody: "",
     roomPulse: "Room pulse",
     rallyTitle: "Today",
@@ -472,6 +472,10 @@ const songAssociations: Array<{ patterns: string[]; signals: string[] }> = [
   { patterns: ["stand by me", "ben e king"], signals: ["soul", "sixties", "friend", "chorus", "oldies"] },
   { patterns: ["motown", "temptations", "marvin gaye", "stevie wonder"], signals: ["soul", "motown", "chorus", "dance"] },
   { patterns: ["besame", "bolero", "trio", "lucho"], signals: ["bolero", "boleros", "romance", "latin"] },
+  { patterns: ["cielito lindo", "la bamba", "volare", "mas que nada"], signals: ["chorus", "dance", "latin", "sing"] },
+  { patterns: ["la vie en rose", "non je ne regrette rien", "o sole mio"], signals: ["romance", "oldies", "memory", "classic"] },
+  { patterns: ["resistire", "marmor", "grandola", "we'll meet again"], signals: ["chorus", "resilience", "oldies", "memory"] },
+  { patterns: ["here comes the sun", "hey jude", "99 luftballons", "azzurro"], signals: ["chorus", "radio", "oldies", "sing"] },
   { patterns: ["choir", "chorus", "hymn", "church", "sunday"], signals: ["choir", "chorus", "hymn", "sunday"] },
   { patterns: ["market", "radio", "work", "street", "block"], signals: ["market", "radio", "work", "street", "block"] },
   { patterns: ["wedding", "boda", "party", "fiesta", "dance"], signals: ["wedding", "boda", "party", "fiesta", "dance"] },
@@ -494,7 +498,7 @@ function normalizeCue(text: string) {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
-function getMusicSignals(text: string, causeId?: MusicCauseId) {
+function getMusicSignals(text: string, causeId?: MusicCauseId, extraSignals: string[] = []) {
   const normalized = normalizeCue(text);
   const signals = new Set(
     normalized
@@ -509,13 +513,17 @@ function getMusicSignals(text: string, causeId?: MusicCauseId) {
   }
 
   if (causeId) causeSignals[causeId].forEach((signal) => signals.add(signal));
+  extraSignals.forEach((signal) => {
+    const normalizedSignal = normalizeCue(signal);
+    if (normalizedSignal) signals.add(normalizedSignal);
+  });
   return signals;
 }
 
-function scoreMusicMember(member: SocialRoomMember, songText: string, causeId: MusicCauseId) {
+function scoreMusicMember(member: SocialRoomMember, songText: string, causeId: MusicCauseId, extraSignals: string[] = []) {
   if (!songText.trim()) return 0;
 
-  const songSignals = getMusicSignals(songText, causeId);
+  const songSignals = getMusicSignals(songText, causeId, extraSignals);
   const memberSignals = getMusicSignals(
     `${member.name} ${member.sharedTopic ?? ""} ${member.statusLabel ?? ""} ${(musicMemberProfiles[member.id] ?? []).join(" ")}`,
   );
@@ -534,13 +542,11 @@ function scoreMusicMember(member: SocialRoomMember, songText: string, causeId: M
   return score;
 }
 
-function getMemberMusicCue(member: SocialRoomMember, language: SocialLanguage) {
+function getMemberMusicCue(member: SocialRoomMember) {
   const topic = member.sharedTopic?.trim();
   if (!topic) return member.statusLabel || "";
 
-  if (language === "de") return `Kennt ${topic}`;
-  if (language === "es") return `Conoce ${topic}`;
-  return `Knows ${topic}`;
+  return topic;
 }
 
 function buildSongBridge(member: SocialRoomMember, songText: string | undefined, language: SocialLanguage, copy: { bridgeOptions: (name: string, sharedTopic?: string) => MusicBridgeChoice[] }) {
@@ -586,7 +592,9 @@ function normalizeMusicCircle(circle: SocialMusicCircle | undefined) {
     dayKey: circle?.dayKey ?? new Date().toISOString().slice(0, 10),
     prompt: circle?.prompt ?? "",
     featuredItemId: circle?.featuredItemId ?? items[0]?.id ?? null,
+    culture: circle?.culture,
     seedSong: circle?.seedSong ?? null,
+    starterSongs: [...(circle?.starterSongs ?? [])].filter((song) => song.songText.trim().length > 0),
     items,
   };
 }
@@ -669,24 +677,42 @@ export default function MusicRoomScreen({
     ? musicCircleItems.find((item) => item.id === featuredItemId) ?? null
     : musicCircleItems[0] ?? null;
   const seedSong: SocialMusicCircleSeedSong | null = musicCircleItems.length === 0 ? initialCircle.seedSong : null;
-  const starterSongs = useMemo(() => {
-    const starters = selectedCause.starters.filter((starter) => starter !== seedSong?.songText);
-    return seedSong ? [seedSong.songText, ...starters].slice(0, 3) : starters;
-  }, [seedSong, selectedCause.starters]);
+  const starterSongs = useMemo<SocialMusicCircleSeedSong[]>(() => {
+    const catalogStarters = initialCircle.starterSongs.length > 0
+      ? initialCircle.starterSongs
+      : seedSong
+        ? [seedSong]
+        : [];
+    const fallbackStarters = selectedCause.starters
+      .filter((starter) => !catalogStarters.some((song) => normalizeCue(song.songText) === normalizeCue(starter)))
+      .map((starter) => ({
+        songText: starter,
+        causeId: selectedCause.id,
+        nudge: seedSong?.nudge ?? "",
+      }));
+
+    return [...catalogStarters, ...fallbackStarters].slice(0, 3);
+  }, [initialCircle.starterSongs, seedSong, selectedCause.id, selectedCause.starters]);
   const activeThread = activeThreadId
     ? musicThreads.find((thread) => thread.id === activeThreadId) ?? null
     : musicThreads[0] ?? null;
-  const currentSongText = featuredItem?.songText ?? seedSong?.songText ?? activeThread?.songText ?? "";
+  const draftSongText = songDraft.trim();
+  const activeStarterSong = !featuredItem
+    ? starterSongs.find((song) => normalizeCue(song.songText) === normalizeCue(draftSongText || seedSong?.songText || "")) ?? seedSong
+    : null;
+  const currentSongText = featuredItem?.songText ?? (draftSongText || seedSong?.songText || activeThread?.songText || "");
+  const currentCauseId = featuredItem?.causeId ?? activeStarterSong?.causeId ?? selectedCauseId;
+  const currentMatchTags = activeStarterSong?.matchTags ?? [];
   const visibleMembers = useMemo(() => {
     const baseMembers = members.map((member, index) => ({ member, index }));
     if (!currentSongText) return baseMembers;
 
     return [...baseMembers].sort((first, second) => {
-      const firstScore = scoreMusicMember(first.member, currentSongText, selectedCauseId);
-      const secondScore = scoreMusicMember(second.member, currentSongText, selectedCauseId);
+      const firstScore = scoreMusicMember(first.member, currentSongText, currentCauseId, currentMatchTags);
+      const secondScore = scoreMusicMember(second.member, currentSongText, currentCauseId, currentMatchTags);
       return secondScore - firstScore || first.index - second.index;
     });
-  }, [currentSongText, members, selectedCauseId]).slice(0, 4).map(({ member }) => member);
+  }, [currentCauseId, currentMatchTags, currentSongText, members]).slice(0, 4).map(({ member }) => member);
   const activeThreadMember = useMemo(
     () => activeThread
       ? members.find((member) => member.id === activeThread.matchedMemberId) ?? {
@@ -713,6 +739,7 @@ export default function MusicRoomScreen({
           causeId: selectedCause.id,
           memoryText: "",
           lang: language,
+          countryCode: initialCircle.culture?.countryCode,
           visitId: visitId ?? undefined,
         }),
       });
@@ -742,6 +769,7 @@ export default function MusicRoomScreen({
         method: "POST",
         body: JSON.stringify({
           lang: language,
+          countryCode: initialCircle.culture?.countryCode,
           visitId: visitId ?? undefined,
           kind: "heart",
         }),
@@ -940,16 +968,16 @@ export default function MusicRoomScreen({
                     );
                   }) : starterSongs.map((starter) => (
                     <button
-                      key={starter}
+                      key={starter.id ?? starter.songText}
                       type="button"
                       onClick={() => {
-                        if (seedSong?.songText === starter) setSelectedCauseId(seedSong.causeId);
-                        setSongDraft(starter);
+                        setSelectedCauseId(starter.causeId);
+                        setSongDraft(starter.songText);
                       }}
                       className="flex min-h-[58px] items-center gap-3 rounded-full border border-[#E8DAF6] bg-[#FFFDFC] px-4 py-2 text-left font-body text-[17px] font-extrabold leading-snug text-[#3E2A50] shadow-[0_8px_18px_rgba(77,39,119,0.04)] transition-transform active:scale-[0.99]"
                     >
                       <Music2 size={22} strokeWidth={2.6} className="text-[#7E22CE]" />
-                      <span className="min-w-0 truncate">{starter}</span>
+                      <span className="min-w-0 truncate">{starter.songText}</span>
                     </button>
                   ))}
                 </div>
@@ -1008,7 +1036,7 @@ export default function MusicRoomScreen({
                     const replied = Boolean(repliedConnections[member.id]);
                     const sending = Boolean(connectingMembers[member.id]);
                     const existingThread = musicThreads.find((thread) => thread.matchedMemberId === member.id && thread.status === "active");
-                    const cue = replied ? copy.replied : sent ? copy.sent : sending ? copy.sending : member.sharedTopic || getMemberMusicCue(member, language);
+                    const cue = replied ? copy.replied : sent ? copy.sent : sending ? copy.sending : member.sharedTopic || getMemberMusicCue(member);
                     return (
                       <button
                         key={member.id}

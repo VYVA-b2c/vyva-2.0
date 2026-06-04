@@ -108,9 +108,48 @@ function withMusicCircle(items: SocialMusicCircleItem[] = [circleItem()]): Socia
       prompt: "Today's Song",
       featuredItemId: items[0]?.id ?? null,
       seedSong: {
+        id: "us-stand-by-me",
         songText: "Stand By Me",
         causeId: "bridge",
         nudge: "Diego picked one. Add yours.",
+        originCountryCode: "US",
+        originLabel: "United States",
+        matchTags: ["soul", "friend"],
+      },
+      starterSongs: [
+        {
+          id: "us-stand-by-me",
+          songText: "Stand By Me",
+          causeId: "bridge",
+          nudge: "Diego picked one. Add yours.",
+          originCountryCode: "US",
+          originLabel: "United States",
+          matchTags: ["soul", "friend"],
+        },
+        {
+          id: "us-lean-on-me",
+          songText: "Lean On Me",
+          causeId: "bridge",
+          nudge: "Diego picked one. Add yours.",
+          originCountryCode: "US",
+          originLabel: "United States",
+          matchTags: ["support", "friend"],
+        },
+        {
+          id: "global-besame-mucho",
+          songText: "Besame Mucho",
+          causeId: "bridge",
+          nudge: "Diego picked one. Add yours.",
+          originCountryCode: "MX",
+          originLabel: "Global bridge",
+          matchTags: ["bolero", "bridge"],
+        },
+      ],
+      culture: {
+        countryCode: "US",
+        originLabel: "United States",
+        language: "en",
+        fallback: false,
       },
       items,
     },
@@ -212,9 +251,48 @@ describe("MusicRoomScreen", () => {
             prompt: "Old Radio",
             featuredItemId: null,
             seedSong: {
+              id: "us-stand-by-me",
               songText: "Stand By Me",
               causeId: "bridge",
               nudge: "Diego picked one. Add yours.",
+              originCountryCode: "US",
+              originLabel: "United States",
+              matchTags: ["soul", "friend"],
+            },
+            starterSongs: [
+              {
+                id: "us-stand-by-me",
+                songText: "Stand By Me",
+                causeId: "bridge",
+                nudge: "Diego picked one. Add yours.",
+                originCountryCode: "US",
+                originLabel: "United States",
+                matchTags: ["soul", "friend"],
+              },
+              {
+                id: "us-lean-on-me",
+                songText: "Lean On Me",
+                causeId: "bridge",
+                nudge: "Diego picked one. Add yours.",
+                originCountryCode: "US",
+                originLabel: "United States",
+                matchTags: ["support", "friend"],
+              },
+              {
+                id: "global-besame-mucho",
+                songText: "Besame Mucho",
+                causeId: "bridge",
+                nudge: "Diego picked one. Add yours.",
+                originCountryCode: "MX",
+                originLabel: "Global bridge",
+                matchTags: ["bolero", "bridge"],
+              },
+            ],
+            culture: {
+              countryCode: "US",
+              originLabel: "United States",
+              language: "en",
+              fallback: false,
             },
             items: [],
           },
@@ -226,6 +304,7 @@ describe("MusicRoomScreen", () => {
     );
 
     expect(screen.getByText("Old Radio")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Who remembers it?" })).toBeInTheDocument();
     expect(screen.getAllByText("Stand By Me").length).toBeGreaterThan(0);
     expect(screen.getByText("Diego picked one. Add yours.")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /^Say hello to/ })[0]).toHaveAccessibleName("Say hello to Arthur");
@@ -247,6 +326,93 @@ describe("MusicRoomScreen", () => {
     const connectBody = JSON.parse(String(connectCall?.[1]?.body)) as { circleItemId?: string; songText: string };
     expect(connectBody.circleItemId).toBeUndefined();
     expect(connectBody.songText).toBe("Stand By Me");
+  });
+
+  it("uses country-aware starter metadata when adding an empty-room song", async () => {
+    const item = circleItem({ songText: "Cielito Lindo", causeId: "anthem" });
+    apiFetchMock.mockResolvedValueOnce(jsonResponse({
+      item,
+      musicCircle: {
+        dayKey: "2026-06-04",
+        prompt: "Today's Song",
+        featuredItemId: item.id,
+        items: [item],
+      },
+    }));
+
+    render(
+      <MusicRoomScreen
+        roomResponse={{
+          ...withMusicCircle([]),
+          musicCircle: {
+            dayKey: "2026-06-04",
+            prompt: "Today's Song",
+            featuredItemId: null,
+            culture: {
+              countryCode: "MX",
+              originLabel: "Mexico",
+              language: "es",
+              fallback: false,
+            },
+            seedSong: {
+              id: "mx-cielito-lindo",
+              songText: "Cielito Lindo",
+              causeId: "anthem",
+              nudge: "Diego picked one. Add yours.",
+              originCountryCode: "MX",
+              originLabel: "Mexico",
+              matchTags: ["chorus", "family", "mexican"],
+            },
+            starterSongs: [
+              {
+                id: "mx-cielito-lindo",
+                songText: "Cielito Lindo",
+                causeId: "anthem",
+                nudge: "Diego picked one. Add yours.",
+                originCountryCode: "MX",
+                originLabel: "Mexico",
+                matchTags: ["chorus", "family", "mexican"],
+              },
+              {
+                id: "mx-besame-mucho",
+                songText: "Besame Mucho",
+                causeId: "bridge",
+                nudge: "Diego picked one. Add yours.",
+                originCountryCode: "MX",
+                originLabel: "Mexico",
+                matchTags: ["bolero", "romance"],
+              },
+              {
+                id: "global-stand-by-me",
+                songText: "Stand By Me",
+                causeId: "bridge",
+                nudge: "Diego picked one. Add yours.",
+                originCountryCode: "US",
+                originLabel: "Global bridge",
+                matchTags: ["soul", "friend"],
+              },
+            ],
+            items: [],
+          },
+        }}
+        language="en"
+        visitId="visit-1"
+        onBack={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Cielito Lindo" }));
+    expect(screen.getByLabelText("Song or memory...")).toHaveValue("Cielito Lindo");
+
+    fireEvent.click(screen.getByRole("button", { name: /Add/i }));
+
+    await waitFor(() => {
+      const addCall = apiFetchMock.mock.calls.find(([url]) => url === "/api/social/rooms/music-room/music-circle/items");
+      const addBody = JSON.parse(String(addCall?.[1]?.body)) as { songText: string; causeId: string; countryCode?: string };
+      expect(addBody.songText).toBe("Cielito Lindo");
+      expect(addBody.causeId).toBe("anthem");
+      expect(addBody.countryCode).toBe("MX");
+    });
   });
 
   it("toggles a heart reaction on a circle item", async () => {

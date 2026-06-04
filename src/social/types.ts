@@ -169,10 +169,21 @@ export type SocialRoomReplyTone = "support" | "curious" | "help" | "different";
 
 export type SocialMusicCauseId = "anthem" | "memory" | "bridge";
 
+export type SocialMusicCircleCulture = {
+  countryCode: string;
+  originLabel: string;
+  language: string;
+  fallback: boolean;
+};
+
 export type SocialMusicCircleSeedSong = {
+  id?: string;
   songText: string;
   causeId: SocialMusicCauseId;
   nudge: string;
+  originCountryCode?: string;
+  originLabel?: string;
+  matchTags?: string[];
 };
 
 export type SocialMusicCircleItem = {
@@ -195,7 +206,9 @@ export type SocialMusicCircle = {
   dayKey: string;
   prompt: string;
   featuredItemId?: string | null;
+  culture?: SocialMusicCircleCulture;
   seedSong?: SocialMusicCircleSeedSong | null;
+  starterSongs?: SocialMusicCircleSeedSong[];
   items: SocialMusicCircleItem[];
 };
 

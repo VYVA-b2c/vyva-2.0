@@ -34,6 +34,36 @@ const adminApp = buildProtectedAdminApp();
 const bypassAdminApp = buildBypassAdminApp();
 
 describe("Together Room safe haven API", () => {
+  it("returns country-aware Music Room seeds and regional fallbacks", async () => {
+    const countryCodes = ["ES", "MX", "US", "GB", "DE", "FR", "IT", "PT", "BR"];
+    const responses = await Promise.all(countryCodes.map((country) => (
+      request(socialApp)
+        .get(`/api/social/rooms/music-room?lang=en&country=${country}`)
+        .set("x-user-id", `music-country-${country.toLowerCase()}-user`)
+        .expect(200)
+    )));
+
+    const seedTitles = responses.map((response) => response.body.musicCircle.seedSong.songText);
+    expect(new Set(seedTitles).size).toBe(countryCodes.length);
+    responses.forEach((response, index) => {
+      expect(response.body.musicCircle.culture.countryCode).toBe(countryCodes[index]);
+      expect(response.body.musicCircle.culture.fallback).toBe(false);
+      expect(response.body.musicCircle.starterSongs).toHaveLength(3);
+      expect(response.body.musicCircle.starterSongs[0].songText).toBe(response.body.musicCircle.seedSong.songText);
+      expect(response.body.musicCircle.seedSong.originCountryCode).toBe(countryCodes[index]);
+      expect(response.body.musicCircle.seedSong.matchTags.length).toBeGreaterThan(0);
+    });
+
+    const regionalFallback = await request(socialApp)
+      .get("/api/social/rooms/music-room?lang=fr&country=ZZ")
+      .set("x-user-id", "music-country-fallback-user")
+      .expect(200);
+
+    expect(regionalFallback.body.musicCircle.culture.countryCode).toBe("FR");
+    expect(regionalFallback.body.musicCircle.culture.fallback).toBe(true);
+    expect(regionalFallback.body.musicCircle.seedSong.originCountryCode).toBe("FR");
+  });
+
   it("returns a destination Reading Club payload and preserves the Book Club alias", async () => {
     const readingRoom = await request(socialApp)
       .get("/api/social/rooms/reading-room?lang=en")

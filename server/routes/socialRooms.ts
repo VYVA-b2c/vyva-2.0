@@ -21,6 +21,7 @@ import {
 import type {
   SocialGameLanguage,
   SocialMusicCircle,
+  SocialMusicCircleCulture,
   SocialMusicCircleItem,
   SocialMusicCauseId,
   SocialMusicCircleSeedSong,
@@ -105,8 +106,19 @@ type MemoryMusicReaction = {
   createdAt: string;
 };
 
+type MusicCatalogSong = {
+  id: string;
+  songText: string;
+  causeId: SocialMusicCauseId;
+  originCountryCode: string;
+  originLabel: string;
+  matchTags: string[];
+};
+
 type SocialMusicCircleWithSeed = SocialMusicCircle & {
   seedSong: SocialMusicCircleSeedSong;
+  culture: SocialMusicCircleCulture;
+  starterSongs: SocialMusicCircleSeedSong[];
 };
 
 const router = Router();
@@ -253,6 +265,8 @@ const musicCircleItemSchema = z.object({
   lang: z.string().optional(),
   visitId: z.string().optional(),
   songText: z.string().trim().min(1).max(160),
+  country: z.string().optional(),
+  countryCode: z.string().optional(),
   causeId: z.enum(["anthem", "memory", "bridge"]).optional().default("bridge"),
   memoryText: z.string().trim().max(280).optional().default(""),
 });
@@ -261,6 +275,8 @@ const musicCircleReactionSchema = z.object({
   lang: z.string().optional(),
   visitId: z.string().optional(),
   kind: z.enum(["heart"]).optional().default("heart"),
+  country: z.string().optional(),
+  countryCode: z.string().optional(),
 });
 
 const agreementAcknowledgementSchema = z.object({
@@ -293,6 +309,25 @@ function normalizeLanguage(raw?: string | null): SocialLanguage {
   const language = normalizeAppLanguage(raw, "es");
   if (language === "es" || language === "de") return language;
   return "en";
+}
+
+function normalizeCountryCode(raw?: string | null): string | null {
+  const country = String(raw ?? "").trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(country) ? country : null;
+}
+
+function requestCountryCode(req: Request, body?: { country?: unknown; countryCode?: unknown }): string | null {
+  return normalizeCountryCode(
+    typeof body?.countryCode === "string"
+      ? body.countryCode
+      : typeof body?.country === "string"
+        ? body.country
+        : typeof req.query.countryCode === "string"
+          ? req.query.countryCode
+          : typeof req.query.country === "string"
+            ? req.query.country
+            : req.get("x-vyva-country"),
+  );
 }
 
 function normalizeGameLanguage(raw?: string | null): SocialGameLanguage {
@@ -463,6 +498,7 @@ async function loadProfileSummary(userId: string) {
           language: profiles.language,
           language_preference: profiles.language_preference,
           preferred_name: profiles.preferred_name,
+          country_code: profiles.country_code,
           full_name: profiles.full_name,
           discoverable: profiles.discoverable,
         })
@@ -478,13 +514,17 @@ async function loadProfileSummary(userId: string) {
       return {
         firstName,
         language: normalizeLanguage(row?.language_preference ?? row?.language ?? "es"),
+        appLanguage: normalizeAppLanguage(row?.language_preference ?? row?.language ?? "es", "es"),
         discoverable: row?.discoverable ?? false,
+        countryCode: normalizeCountryCode(row?.country_code),
       };
     },
     () => ({
       firstName: "amiga",
       language: "es" as SocialLanguage,
+      appLanguage: "es",
       discoverable: false,
+      countryCode: null,
     }),
   );
 }
@@ -851,35 +891,81 @@ const musicCircleDailyPrompts: Record<SocialLanguage, string[]> = {
   ],
 };
 
-const musicCircleDailySeeds: Record<SocialLanguage, Array<{ songText: string; causeId: SocialMusicCauseId }>> = {
-  es: [
-    { songText: "Besame Mucho", causeId: "bridge" },
-    { songText: "Guantanamera", causeId: "anthem" },
-    { songText: "Quizas, Quizas, Quizas", causeId: "memory" },
-    { songText: "Stand By Me", causeId: "bridge" },
-    { songText: "Gracias a la Vida", causeId: "memory" },
-    { songText: "Lean On Me", causeId: "bridge" },
-    { songText: "What a Wonderful World", causeId: "memory" },
+const musicOriginLabels: Record<string, string> = {
+  BR: "Brazil",
+  DE: "Germany",
+  ES: "Spain",
+  FR: "France",
+  GB: "Britain",
+  IT: "Italy",
+  MX: "Mexico",
+  PT: "Portugal",
+  US: "United States",
+};
+
+const musicCountryByLanguage: Record<string, string> = {
+  de: "DE",
+  en: "US",
+  es: "ES",
+  fr: "FR",
+  it: "IT",
+  pt: "PT",
+};
+
+const musicCatalogByCountry: Record<string, MusicCatalogSong[]> = {
+  ES: [
+    { id: "es-resistire", songText: "Resistire", causeId: "anthem", originCountryCode: "ES", originLabel: "Spain", matchTags: ["chorus", "resilience", "oldies", "spanish"] },
+    { id: "es-mediterraneo", songText: "Mediterraneo", causeId: "memory", originCountryCode: "ES", originLabel: "Spain", matchTags: ["sea", "home", "memory", "spanish"] },
+    { id: "es-libre", songText: "Libre", causeId: "bridge", originCountryCode: "ES", originLabel: "Spain", matchTags: ["freedom", "chorus", "oldies", "spanish"] },
   ],
-  de: [
-    { songText: "Stand By Me", causeId: "bridge" },
-    { songText: "Que Sera, Sera", causeId: "memory" },
-    { songText: "Here Comes the Sun", causeId: "anthem" },
-    { songText: "Blue Moon", causeId: "memory" },
-    { songText: "Lean On Me", causeId: "bridge" },
-    { songText: "What a Wonderful World", causeId: "memory" },
-    { songText: "Besame Mucho", causeId: "bridge" },
+  MX: [
+    { id: "mx-cielito-lindo", songText: "Cielito Lindo", causeId: "anthem", originCountryCode: "MX", originLabel: "Mexico", matchTags: ["chorus", "family", "mexican", "sing"] },
+    { id: "mx-besame-mucho", songText: "Besame Mucho", causeId: "bridge", originCountryCode: "MX", originLabel: "Mexico", matchTags: ["bolero", "romance", "latin", "mexican"] },
+    { id: "mx-la-bamba", songText: "La Bamba", causeId: "anthem", originCountryCode: "MX", originLabel: "Mexico", matchTags: ["dance", "party", "latin", "mexican"] },
   ],
-  en: [
-    { songText: "Stand By Me", causeId: "bridge" },
-    { songText: "Lean On Me", causeId: "bridge" },
-    { songText: "What a Wonderful World", causeId: "memory" },
-    { songText: "Here Comes the Sun", causeId: "anthem" },
-    { songText: "Que Sera, Sera", causeId: "memory" },
-    { songText: "Blue Moon", causeId: "memory" },
-    { songText: "Besame Mucho", causeId: "bridge" },
+  US: [
+    { id: "us-stand-by-me", songText: "Stand By Me", causeId: "bridge", originCountryCode: "US", originLabel: "United States", matchTags: ["soul", "friend", "sixties", "oldies"] },
+    { id: "us-lean-on-me", songText: "Lean On Me", causeId: "bridge", originCountryCode: "US", originLabel: "United States", matchTags: ["friend", "chorus", "soul", "support"] },
+    { id: "us-what-a-wonderful-world", songText: "What a Wonderful World", causeId: "memory", originCountryCode: "US", originLabel: "United States", matchTags: ["jazz", "oldies", "memory", "calm"] },
+  ],
+  GB: [
+    { id: "gb-here-comes-the-sun", songText: "Here Comes the Sun", causeId: "anthem", originCountryCode: "GB", originLabel: "Britain", matchTags: ["chorus", "sun", "oldies", "british"] },
+    { id: "gb-well-meet-again", songText: "We'll Meet Again", causeId: "memory", originCountryCode: "GB", originLabel: "Britain", matchTags: ["wartime", "oldies", "friend", "british"] },
+    { id: "gb-hey-jude", songText: "Hey Jude", causeId: "bridge", originCountryCode: "GB", originLabel: "Britain", matchTags: ["chorus", "oldies", "sing", "british"] },
+  ],
+  DE: [
+    { id: "de-lili-marleen", songText: "Lili Marleen", causeId: "memory", originCountryCode: "DE", originLabel: "Germany", matchTags: ["oldies", "memory", "wartime", "german"] },
+    { id: "de-marmor-stein", songText: "Marmor, Stein und Eisen bricht", causeId: "anthem", originCountryCode: "DE", originLabel: "Germany", matchTags: ["chorus", "oldies", "german", "sing"] },
+    { id: "de-99-luftballons", songText: "99 Luftballons", causeId: "bridge", originCountryCode: "DE", originLabel: "Germany", matchTags: ["german", "eighties", "chorus", "radio"] },
+  ],
+  FR: [
+    { id: "fr-la-vie-en-rose", songText: "La Vie en Rose", causeId: "memory", originCountryCode: "FR", originLabel: "France", matchTags: ["romance", "oldies", "french", "memory"] },
+    { id: "fr-non-je-ne-regrette-rien", songText: "Non, Je Ne Regrette Rien", causeId: "anthem", originCountryCode: "FR", originLabel: "France", matchTags: ["french", "chorus", "oldies", "resilience"] },
+    { id: "fr-les-champs-elysees", songText: "Les Champs-Elysees", causeId: "bridge", originCountryCode: "FR", originLabel: "France", matchTags: ["street", "french", "chorus", "walk"] },
+  ],
+  IT: [
+    { id: "it-volare", songText: "Volare", causeId: "anthem", originCountryCode: "IT", originLabel: "Italy", matchTags: ["italian", "chorus", "sing", "oldies"] },
+    { id: "it-o-sole-mio", songText: "O Sole Mio", causeId: "memory", originCountryCode: "IT", originLabel: "Italy", matchTags: ["italian", "sun", "memory", "classic"] },
+    { id: "it-azzurro", songText: "Azzurro", causeId: "bridge", originCountryCode: "IT", originLabel: "Italy", matchTags: ["italian", "summer", "chorus", "radio"] },
+  ],
+  PT: [
+    { id: "pt-uma-casa-portuguesa", songText: "Uma Casa Portuguesa", causeId: "memory", originCountryCode: "PT", originLabel: "Portugal", matchTags: ["home", "portuguese", "family", "memory"] },
+    { id: "pt-grandola-vila-morena", songText: "Grandola Vila Morena", causeId: "anthem", originCountryCode: "PT", originLabel: "Portugal", matchTags: ["portuguese", "chorus", "freedom", "oldies"] },
+    { id: "pt-coimbra", songText: "Coimbra", causeId: "bridge", originCountryCode: "PT", originLabel: "Portugal", matchTags: ["portuguese", "memory", "city", "classic"] },
+  ],
+  BR: [
+    { id: "br-garota-de-ipanema", songText: "Garota de Ipanema", causeId: "memory", originCountryCode: "BR", originLabel: "Brazil", matchTags: ["brazil", "jazz", "street", "memory"] },
+    { id: "br-aquarela-do-brasil", songText: "Aquarela do Brasil", causeId: "anthem", originCountryCode: "BR", originLabel: "Brazil", matchTags: ["brazil", "chorus", "radio", "anthem"] },
+    { id: "br-mas-que-nada", songText: "Mas Que Nada", causeId: "bridge", originCountryCode: "BR", originLabel: "Brazil", matchTags: ["brazil", "dance", "party", "latin"] },
   ],
 };
+
+const musicGlobalBridgeSongs: MusicCatalogSong[] = [
+  { id: "global-stand-by-me", songText: "Stand By Me", causeId: "bridge", originCountryCode: "US", originLabel: "Global bridge", matchTags: ["friend", "soul", "oldies", "bridge"] },
+  { id: "global-lean-on-me", songText: "Lean On Me", causeId: "bridge", originCountryCode: "US", originLabel: "Global bridge", matchTags: ["friend", "support", "chorus", "bridge"] },
+  { id: "global-besame-mucho", songText: "Besame Mucho", causeId: "bridge", originCountryCode: "MX", originLabel: "Global bridge", matchTags: ["bolero", "romance", "latin", "bridge"] },
+  { id: "global-what-a-wonderful-world", songText: "What a Wonderful World", causeId: "memory", originCountryCode: "US", originLabel: "Global bridge", matchTags: ["jazz", "memory", "calm", "bridge"] },
+];
 
 function musicDayIndex(dayKey: string) {
   const parsed = Date.parse(`${dayKey}T00:00:00.000Z`);
@@ -895,15 +981,78 @@ function musicCirclePrompt(language: SocialLanguage, dayKey = musicDayKey()) {
   return pickDailyMusicValue(musicCircleDailyPrompts[language], dayKey);
 }
 
-function musicCircleSeedSong(language: SocialLanguage, dayKey = musicDayKey()): SocialMusicCircleSeedSong {
-  const seed = pickDailyMusicValue(musicCircleDailySeeds[language], dayKey);
+function musicCircleNudge(language: SocialLanguage) {
+  return language === "de"
+    ? "Diego legt vor. Fueg deins dazu."
+    : language === "en"
+      ? "Diego picked one. Add yours."
+      : "Diego puso una. Suma la tuya.";
+}
+
+function resolveMusicCulture(input: { countryCode?: string | null; appLanguage?: string | null }): SocialMusicCircleCulture {
+  const appLanguage = normalizeAppLanguage(input.appLanguage, "es");
+  const requestedCountry = normalizeCountryCode(input.countryCode);
+  const fallbackCountry = musicCountryByLanguage[appLanguage] ?? "US";
+  const countryCode = requestedCountry && musicCatalogByCountry[requestedCountry] ? requestedCountry : fallbackCountry;
+
   return {
-    ...seed,
-    nudge: language === "de"
-      ? "Diego legt vor. Fueg deins dazu."
-      : language === "en"
-        ? "Diego picked one. Add yours."
-        : "Diego puso una. Suma la tuya.",
+    countryCode,
+    originLabel: musicOriginLabels[countryCode] ?? "Regional mix",
+    language: appLanguage,
+    fallback: !requestedCountry || !musicCatalogByCountry[requestedCountry],
+  };
+}
+
+function toMusicCircleSeedSong(song: MusicCatalogSong, language: SocialLanguage): SocialMusicCircleSeedSong {
+  return {
+    id: song.id,
+    songText: song.songText,
+    causeId: song.causeId,
+    nudge: musicCircleNudge(language),
+    originCountryCode: song.originCountryCode,
+    originLabel: song.originLabel,
+    matchTags: song.matchTags,
+  };
+}
+
+function normalizeMusicSongKey(text: string) {
+  return text.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function addUniqueMusicStarter(
+  starters: SocialMusicCircleSeedSong[],
+  song: MusicCatalogSong,
+  language: SocialLanguage,
+) {
+  const normalized = normalizeMusicSongKey(song.songText);
+  if (starters.some((starter) => normalizeMusicSongKey(starter.songText) === normalized)) return;
+  starters.push(toMusicCircleSeedSong(song, language));
+}
+
+function buildMusicCircleCatalog(
+  language: SocialLanguage,
+  culture: SocialMusicCircleCulture,
+  dayKey = musicDayKey(),
+) {
+  const localSongs = musicCatalogByCountry[culture.countryCode] ?? musicCatalogByCountry.US;
+  const seedIndex = Math.abs(musicDayIndex(dayKey)) % localSongs.length;
+  const seed = localSongs[seedIndex];
+  const starters: SocialMusicCircleSeedSong[] = [];
+  addUniqueMusicStarter(starters, seed, language);
+  addUniqueMusicStarter(starters, localSongs[(seedIndex + 1) % localSongs.length], language);
+
+  const bridgeStartIndex = (Math.abs(musicDayIndex(dayKey)) + 1) % musicGlobalBridgeSongs.length;
+  for (let offset = 0; starters.length < 3 && offset < musicGlobalBridgeSongs.length; offset += 1) {
+    addUniqueMusicStarter(
+      starters,
+      musicGlobalBridgeSongs[(bridgeStartIndex + offset) % musicGlobalBridgeSongs.length],
+      language,
+    );
+  }
+
+  return {
+    seedSong: starters[0],
+    starterSongs: starters,
   };
 }
 
@@ -979,6 +1128,7 @@ function buildMemoryMusicCircle(
   userId: string,
   roomSlug: string,
   language: SocialLanguage,
+  culture: SocialMusicCircleCulture,
   dayKey = musicDayKey(),
 ): SocialMusicCircleWithSeed {
   const items = Array.from(memoryMusicCircleItems.values())
@@ -987,11 +1137,14 @@ function buildMemoryMusicCircle(
     .slice(0, 8)
     .map((item) => formatMemoryMusicCircleItem(item, userId));
 
+  const catalog = buildMusicCircleCatalog(language, culture, dayKey);
   return {
     dayKey,
     prompt: musicCirclePrompt(language, dayKey),
     featuredItemId: items[0]?.id ?? null,
-    seedSong: musicCircleSeedSong(language, dayKey),
+    culture,
+    seedSong: catalog.seedSong,
+    starterSongs: catalog.starterSongs,
     items,
   };
 }
@@ -1001,10 +1154,11 @@ async function loadMusicCircle(
   roomSlug: string,
   roomId: string | null,
   language: SocialLanguage,
+  culture: SocialMusicCircleCulture,
 ): Promise<SocialMusicCircleWithSeed> {
   const dayKey = musicDayKey();
   const prompt = musicCirclePrompt(language, dayKey);
-  const seedSong = musicCircleSeedSong(language, dayKey);
+  const catalog = buildMusicCircleCatalog(language, culture, dayKey);
 
   return safeDb(
     "load music circle",
@@ -1020,7 +1174,17 @@ async function loadMusicCircle(
         ))
         .orderBy(desc(socialRoomMusicCircleItems.updated_at))
         .limit(8);
-      if (!itemRows.length) return { dayKey, prompt, featuredItemId: null, seedSong, items: [] };
+      if (!itemRows.length) {
+        return {
+          dayKey,
+          prompt,
+          featuredItemId: null,
+          culture,
+          seedSong: catalog.seedSong,
+          starterSongs: catalog.starterSongs,
+          items: [],
+        };
+      }
 
       const reactionRows = await db
         .select()
@@ -1033,11 +1197,13 @@ async function loadMusicCircle(
         dayKey,
         prompt,
         featuredItemId: items[0]?.id ?? null,
-        seedSong,
+        culture,
+        seedSong: catalog.seedSong,
+        starterSongs: catalog.starterSongs,
         items,
       };
     },
-    async () => buildMemoryMusicCircle(userId, roomSlug, language, dayKey),
+    async () => buildMemoryMusicCircle(userId, roomSlug, language, culture, dayKey),
   );
 }
 
@@ -1084,6 +1250,7 @@ async function createMusicCircleItem(input: {
   roomId: string | null;
   language: SocialLanguage;
   songText: string;
+  culture: SocialMusicCircleCulture;
   causeId: SocialMusicCauseId;
   memoryText: string;
 }): Promise<{ item?: SocialMusicCircleItem; musicCircle?: SocialMusicCircleWithSeed; error?: string; safetyFlags?: SocialRoomSafetyFlag[] }> {
@@ -1128,7 +1295,7 @@ async function createMusicCircleItem(input: {
       if (!itemRow) return { error: "Music circle item was not created" };
 
       const item = formatMusicCircleItem(itemRow, { reactionCount: 0, myReaction: false });
-      const musicCircle = await loadMusicCircle(input.userId, input.roomSlug, input.roomId, input.language);
+      const musicCircle = await loadMusicCircle(input.userId, input.roomSlug, input.roomId, input.language, input.culture);
       return { item, musicCircle };
     },
     async () => {
@@ -1152,7 +1319,7 @@ async function createMusicCircleItem(input: {
       memoryMusicCircleItems.set(item.id, item);
       return {
         item: formatMemoryMusicCircleItem(item, input.userId),
-        musicCircle: buildMemoryMusicCircle(input.userId, input.roomSlug, input.language, item.dayKey),
+        musicCircle: buildMemoryMusicCircle(input.userId, input.roomSlug, input.language, input.culture, item.dayKey),
       };
     },
   );
@@ -1165,6 +1332,7 @@ async function toggleMusicCircleReaction(input: {
   itemId: string;
   language: SocialLanguage;
   kind: "heart";
+  culture: SocialMusicCircleCulture;
 }): Promise<{ item?: SocialMusicCircleItem; musicCircle?: SocialMusicCircleWithSeed; error?: string }> {
   return safeDb(
     "toggle music circle reaction",
@@ -1205,7 +1373,7 @@ async function toggleMusicCircleReaction(input: {
           });
       }
 
-      const musicCircle = await loadMusicCircle(input.userId, input.roomSlug, input.roomId, input.language);
+      const musicCircle = await loadMusicCircle(input.userId, input.roomSlug, input.roomId, input.language, input.culture);
       return {
         item: musicCircle.items.find((item) => item.id === input.itemId),
         musicCircle,
@@ -1229,7 +1397,7 @@ async function toggleMusicCircleReaction(input: {
         });
       }
 
-      const musicCircle = buildMemoryMusicCircle(input.userId, input.roomSlug, input.language, item.dayKey);
+      const musicCircle = buildMemoryMusicCircle(input.userId, input.roomSlug, input.language, input.culture, item.dayKey);
       return {
         item: musicCircle.items.find((circleItem) => circleItem.id === input.itemId),
         musicCircle,
@@ -2005,10 +2173,15 @@ router.get("/hub", async (req: Request, res: Response) => {
 router.get("/rooms/:slug", async (req: Request, res: Response) => {
   const userId = resolvePublicUserId(req);
   const profile = await loadProfileSummary(userId);
-  const rawLanguage = (req.query.lang as string | undefined) ?? profile.language;
+  const rawLanguage = (req.query.lang as string | undefined) ?? profile.appLanguage;
+  const appLanguage = normalizeAppLanguage(rawLanguage ?? profile.appLanguage, profile.appLanguage);
   const language = normalizeLanguage(rawLanguage);
   const gameLanguage = normalizeGameLanguage(rawLanguage);
   const room = buildRoomPayload(req.params.slug, language);
+  const musicCulture = resolveMusicCulture({
+    countryCode: profile.countryCode ?? requestCountryCode(req),
+    appLanguage,
+  });
   if (!room) return res.status(404).json({ error: "Room not found" });
 
   const members = buildRoomMembers(room.slug, language, room.participantCount);
@@ -2031,7 +2204,7 @@ router.get("/rooms/:slug", async (req: Request, res: Response) => {
     ? await loadMusicThreads(room.slug, roomRecords?.roomId ?? null)
     : undefined;
   const musicCircle = room.slug === "music-room"
-    ? await loadMusicCircle(userId, room.slug, roomRecords?.roomId ?? null, language)
+    ? await loadMusicCircle(userId, room.slug, roomRecords?.roomId ?? null, language, musicCulture)
     : undefined;
 
   return res.json({
@@ -2178,11 +2351,19 @@ router.post("/rooms/:slug/music-circle/items", async (req: Request, res: Respons
   if (slug !== "music-room") return res.status(400).json({ error: "This room does not support music circle items" });
 
   const records = await ensureRoomRecords(slug);
+  const profile = await loadProfileSummary(userId);
+  const rawLanguage = parsed.data.lang ?? profile.appLanguage;
+  const language = normalizeLanguage(rawLanguage);
+  const musicCulture = resolveMusicCulture({
+    countryCode: profile.countryCode ?? requestCountryCode(req, parsed.data),
+    appLanguage: normalizeAppLanguage(rawLanguage, profile.appLanguage),
+  });
   const result = await createMusicCircleItem({
     userId,
     roomSlug: slug,
     roomId: records?.roomId ?? null,
-    language: normalizeLanguage(parsed.data.lang),
+    language,
+    culture: musicCulture,
     songText: parsed.data.songText,
     causeId: parsed.data.causeId,
     memoryText: parsed.data.memoryText,
@@ -2210,12 +2391,20 @@ router.post("/rooms/:slug/music-circle/items/:itemId/reactions", async (req: Req
   if (slug !== "music-room") return res.status(400).json({ error: "This room does not support music circle reactions" });
 
   const records = await ensureRoomRecords(slug);
+  const profile = await loadProfileSummary(userId);
+  const rawLanguage = parsed.data.lang ?? profile.appLanguage;
+  const language = normalizeLanguage(rawLanguage);
+  const musicCulture = resolveMusicCulture({
+    countryCode: profile.countryCode ?? requestCountryCode(req, parsed.data),
+    appLanguage: normalizeAppLanguage(rawLanguage, profile.appLanguage),
+  });
   const result = await toggleMusicCircleReaction({
     userId,
     roomSlug: slug,
     roomId: records?.roomId ?? null,
     itemId: req.params.itemId,
-    language: normalizeLanguage(parsed.data.lang),
+    language,
+    culture: musicCulture,
     kind: parsed.data.kind,
   });
 
