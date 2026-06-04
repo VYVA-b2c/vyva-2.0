@@ -63,6 +63,21 @@ describe("social games room helpers", () => {
     }
   });
 
+  it("keeps early chess puzzle boards distinct when browsing variants", () => {
+    for (const language of supportedGameLanguages) {
+      const chessRounds = buildGameTable(language, 6).rounds.filter((round) => round.kind === "chess");
+      const firstFourBoards = chessRounds.slice(0, 4).map((round) => JSON.stringify(round.visual));
+
+      expect(new Set(firstFourBoards).size).toBe(4);
+
+      const secondBoard = chessRounds[1].visual;
+      expect(secondBoard?.kind).toBe("chessBoard");
+      if (secondBoard?.kind !== "chessBoard") continue;
+      expect(secondBoard.pieces.some((piece) => piece.piece === "whiteRook")).toBe(true);
+      expect(secondBoard.pieces.some((piece) => piece.piece === "blackBishop")).toBe(true);
+    }
+  });
+
   it("keeps word prompts from spelling out tile racks", () => {
     const tileListPattern = /[A-Z],\s*[A-Z]/;
     const oldTilePromptPattern = /Use the tiles|Usa las letras|Nutze die Buchstaben|Avec les lettres|Con le lettere|Com as letras/;

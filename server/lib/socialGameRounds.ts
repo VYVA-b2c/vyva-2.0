@@ -1493,88 +1493,256 @@ function chessVisualCaption(tag: string, language: SocialGameLanguage) {
   return (captions[tag] ?? fallback)[language];
 }
 
-function buildChessVisual(tag: string, language: SocialGameLanguage): SocialGameRoundVisual {
+function buildChessVisual(tag: string, language: SocialGameLanguage, variantIndex = 0): SocialGameRoundVisual {
   const caption = chessVisualCaption(tag, language);
+  const variant = ((variantIndex % 4) + 4) % 4;
 
   if (tag === "fork" || tag === "double-attack") {
-    return {
-      kind: "chessBoard",
-      caption,
-      pieces: [
-        { square: "d5", piece: "whiteKnight" },
-        { square: "f6", piece: "blackKing" },
-        { square: "b6", piece: "blackQueen" },
-        { square: "g1", piece: "whiteKing" },
-      ],
-      highlights: ["d5", "f6", "b6"],
-      arrows: [{ from: "d5", to: "f6" }, { from: "d5", to: "b6" }],
-    };
+    const forkPositions: Array<Omit<Extract<SocialGameRoundVisual, { kind: "chessBoard" }>, "kind" | "caption">> = [
+      {
+        pieces: [
+          { square: "d5", piece: "whiteKnight" },
+          { square: "f6", piece: "blackKing" },
+          { square: "b6", piece: "blackQueen" },
+          { square: "g1", piece: "whiteKing" },
+        ],
+        highlights: ["d5", "f6", "b6"],
+        arrows: [{ from: "d5", to: "f6" }, { from: "d5", to: "b6" }],
+      },
+      {
+        pieces: [
+          { square: "e4", piece: "whiteRook" },
+          { square: "e8", piece: "blackKing" },
+          { square: "b4", piece: "blackBishop" },
+          { square: "g1", piece: "whiteKing" },
+        ],
+        highlights: ["e4", "e8", "b4"],
+        arrows: [{ from: "e4", to: "e8" }, { from: "e4", to: "b4" }],
+      },
+      {
+        pieces: [
+          { square: "d4", piece: "whiteQueen" },
+          { square: "d8", piece: "blackRook" },
+          { square: "h4", piece: "blackKnight" },
+          { square: "g1", piece: "whiteKing" },
+        ],
+        highlights: ["d4", "d8", "h4"],
+        arrows: [{ from: "d4", to: "d8" }, { from: "d4", to: "h4" }],
+      },
+      {
+        pieces: [
+          { square: "e6", piece: "whitePawn" },
+          { square: "f7", piece: "blackKing" },
+          { square: "b5", piece: "whiteBishop" },
+          { square: "e8", piece: "blackRook" },
+          { square: "g1", piece: "whiteKing" },
+        ],
+        highlights: ["e6", "f7", "b5", "e8"],
+        arrows: [{ from: "e6", to: "f7" }, { from: "b5", to: "e8" }],
+      },
+    ];
+
+    return { kind: "chessBoard", caption, ...forkPositions[variant] };
   }
 
   if (tag === "back-rank-mate" || tag === "mate-net") {
-    return {
-      kind: "chessBoard",
-      caption,
-      pieces: [
-        { square: "e8", piece: "whiteRook" },
-        { square: "g8", piece: "blackKing" },
-        { square: "f7", piece: "blackPawn" },
-        { square: "g7", piece: "blackPawn" },
-        { square: "h7", piece: "blackPawn" },
-        { square: "g1", piece: "whiteKing" },
-      ],
-      highlights: ["e8", "g8", "f7", "g7", "h7"],
-      arrows: [{ from: "e8", to: "g8" }],
-    };
+    const backRankPositions: Array<Omit<Extract<SocialGameRoundVisual, { kind: "chessBoard" }>, "kind" | "caption">> = [
+      {
+        pieces: [
+          { square: "e8", piece: "whiteRook" },
+          { square: "g8", piece: "blackKing" },
+          { square: "f7", piece: "blackPawn" },
+          { square: "g7", piece: "blackPawn" },
+          { square: "h7", piece: "blackPawn" },
+          { square: "g1", piece: "whiteKing" },
+        ],
+        highlights: ["e8", "g8", "f7", "g7", "h7"],
+        arrows: [{ from: "e8", to: "g8" }],
+      },
+      {
+        pieces: [
+          { square: "e8", piece: "whiteQueen" },
+          { square: "g8", piece: "blackKing" },
+          { square: "f7", piece: "blackPawn" },
+          { square: "g7", piece: "blackPawn" },
+          { square: "h7", piece: "blackPawn" },
+          { square: "b1", piece: "whiteKing" },
+        ],
+        highlights: ["e8", "g8", "f7", "g7", "h7"],
+        arrows: [{ from: "e8", to: "g8" }],
+      },
+      {
+        pieces: [
+          { square: "a8", piece: "whiteRook" },
+          { square: "g8", piece: "blackKing" },
+          { square: "f7", piece: "blackPawn" },
+          { square: "g7", piece: "blackPawn" },
+          { square: "h7", piece: "blackPawn" },
+          { square: "g1", piece: "whiteKing" },
+        ],
+        highlights: ["a8", "g8", "f7", "g7", "h7"],
+        arrows: [{ from: "a8", to: "g8" }],
+      },
+      {
+        pieces: [
+          { square: "e1", piece: "whiteRook" },
+          { square: "g8", piece: "blackKing" },
+          { square: "f7", piece: "blackPawn" },
+          { square: "g7", piece: "blackPawn" },
+          { square: "h7", piece: "blackPawn" },
+          { square: "g1", piece: "whiteKing" },
+        ],
+        highlights: ["e1", "g8", "f7", "g7", "h7"],
+        arrows: [{ from: "e1", to: "e8" }],
+      },
+    ];
+
+    return { kind: "chessBoard", caption, ...backRankPositions[variant] };
   }
 
   if (tag === "pin" || tag === "overloaded-defender" || tag === "remove-defender") {
-    return {
-      kind: "chessBoard",
-      caption,
-      pieces: [
-        { square: "e1", piece: "whiteRook" },
-        { square: "e5", piece: "blackKnight" },
-        { square: "e8", piece: "blackKing" },
-        { square: "g1", piece: "whiteKing" },
-      ],
-      highlights: ["e1", "e5", "e8"],
-      arrows: [{ from: "e1", to: "e8" }],
-    };
+    const pinPositions: Array<Omit<Extract<SocialGameRoundVisual, { kind: "chessBoard" }>, "kind" | "caption">> = [
+      {
+        pieces: [
+          { square: "e1", piece: "whiteRook" },
+          { square: "e5", piece: "blackKnight" },
+          { square: "e8", piece: "blackKing" },
+          { square: "g1", piece: "whiteKing" },
+        ],
+        highlights: ["e1", "e5", "e8"],
+        arrows: [{ from: "e1", to: "e8" }],
+      },
+      {
+        pieces: [
+          { square: "d1", piece: "whiteRook" },
+          { square: "d5", piece: "blackBishop" },
+          { square: "d8", piece: "blackQueen" },
+          { square: "g1", piece: "whiteKing" },
+        ],
+        highlights: ["d1", "d5", "d8"],
+        arrows: [{ from: "d1", to: "d8" }],
+      },
+      {
+        pieces: [
+          { square: "e1", piece: "whiteRook" },
+          { square: "e6", piece: "blackKnight" },
+          { square: "e8", piece: "blackKing" },
+          { square: "g1", piece: "whiteKing" },
+        ],
+        highlights: ["e1", "e6", "e8"],
+        arrows: [{ from: "e1", to: "e8" }],
+      },
+      {
+        pieces: [
+          { square: "b5", piece: "whiteBishop" },
+          { square: "d7", piece: "blackKnight" },
+          { square: "e8", piece: "blackKing" },
+          { square: "g1", piece: "whiteKing" },
+        ],
+        highlights: ["b5", "d7", "e8"],
+        arrows: [{ from: "b5", to: "e8" }],
+      },
+    ];
+
+    return { kind: "chessBoard", caption, ...pinPositions[variant] };
   }
 
   if (tag === "skewer" || tag === "discovered-attack" || tag === "zwischenzug") {
-    return {
-      kind: "chessBoard",
-      caption,
-      pieces: [
-        { square: "a4", piece: "whiteBishop" },
-        { square: "d7", piece: "blackKing" },
-        { square: "f7", piece: "blackRook" },
-        { square: "g1", piece: "whiteKing" },
-      ],
-      highlights: ["a4", "d7", "f7"],
-      arrows: [{ from: "a4", to: "f7" }],
-    };
+    const linePositions: Array<Omit<Extract<SocialGameRoundVisual, { kind: "chessBoard" }>, "kind" | "caption">> = [
+      {
+        pieces: [
+          { square: "a4", piece: "whiteBishop" },
+          { square: "d7", piece: "blackKing" },
+          { square: "f7", piece: "blackRook" },
+          { square: "g1", piece: "whiteKing" },
+        ],
+        highlights: ["a4", "d7", "f7"],
+        arrows: [{ from: "a4", to: "f7" }],
+      },
+      {
+        pieces: [
+          { square: "d1", piece: "whiteRook" },
+          { square: "d7", piece: "blackKing" },
+          { square: "d8", piece: "blackQueen" },
+          { square: "g1", piece: "whiteKing" },
+        ],
+        highlights: ["d1", "d7", "d8"],
+        arrows: [{ from: "d1", to: "d8" }],
+      },
+      {
+        pieces: [
+          { square: "c4", piece: "whiteBishop" },
+          { square: "e6", piece: "blackKing" },
+          { square: "g8", piece: "blackRook" },
+          { square: "g1", piece: "whiteKing" },
+        ],
+        highlights: ["c4", "e6", "g8"],
+        arrows: [{ from: "c4", to: "g8" }],
+      },
+      {
+        pieces: [
+          { square: "e2", piece: "whiteQueen" },
+          { square: "e7", piece: "blackKing" },
+          { square: "e8", piece: "blackRook" },
+          { square: "g1", piece: "whiteKing" },
+        ],
+        highlights: ["e2", "e7", "e8"],
+        arrows: [{ from: "e2", to: "e8" }],
+      },
+    ];
+
+    return { kind: "chessBoard", caption, ...linePositions[variant] };
   }
 
-  return {
-    kind: "chessBoard",
-    caption,
-    pieces: [
-      { square: "d4", piece: "whiteQueen" },
-      { square: "e6", piece: "blackKnight" },
-      { square: "g8", piece: "blackKing" },
-      { square: "g1", piece: "whiteKing" },
-    ],
-    highlights: ["d4", "e6", "g8"],
-    arrows: [{ from: "d4", to: "e6" }],
-  };
+  const defaultPositions: Array<Omit<Extract<SocialGameRoundVisual, { kind: "chessBoard" }>, "kind" | "caption">> = [
+    {
+      pieces: [
+        { square: "d4", piece: "whiteQueen" },
+        { square: "e6", piece: "blackKnight" },
+        { square: "g8", piece: "blackKing" },
+        { square: "g1", piece: "whiteKing" },
+      ],
+      highlights: ["d4", "e6", "g8"],
+      arrows: [{ from: "d4", to: "e6" }],
+    },
+    {
+      pieces: [
+        { square: "c3", piece: "whiteKnight" },
+        { square: "d5", piece: "blackPawn" },
+        { square: "e7", piece: "blackKing" },
+        { square: "g1", piece: "whiteKing" },
+      ],
+      highlights: ["c3", "d5", "e7"],
+      arrows: [{ from: "c3", to: "d5" }],
+    },
+    {
+      pieces: [
+        { square: "f3", piece: "whiteBishop" },
+        { square: "c6", piece: "blackKnight" },
+        { square: "g8", piece: "blackKing" },
+        { square: "g1", piece: "whiteKing" },
+      ],
+      highlights: ["f3", "c6", "g8"],
+      arrows: [{ from: "f3", to: "c6" }],
+    },
+    {
+      pieces: [
+        { square: "a1", piece: "whiteRook" },
+        { square: "a7", piece: "blackPawn" },
+        { square: "g8", piece: "blackKing" },
+        { square: "g1", piece: "whiteKing" },
+      ],
+      highlights: ["a1", "a7", "g8"],
+      arrows: [{ from: "a1", to: "a7" }],
+    },
+  ];
+
+  return { kind: "chessBoard", caption, ...defaultPositions[variant] };
 }
 
 function buildChessPuzzleBank(language: SocialLanguage): SocialGameRound[] {
   return chessPuzzleThemes.flatMap((theme) =>
-    theme.variants.map((variant) => ({
+    theme.variants.map((variant, index) => ({
       id: variant.suffix ? `${theme.id}-${variant.suffix}` : theme.id,
       kind: "chess" as const,
       title: chessRoundTitles[language],
@@ -1586,7 +1754,7 @@ function buildChessPuzzleBank(language: SocialLanguage): SocialGameRound[] {
       tags: ["games", "chess", "game:chess", `chess:${theme.tag}`],
       estimatedDurationSeconds: variant.estimatedDurationSeconds ?? 95,
       successMessage: (variant.successMessage ?? theme.successMessage)[language],
-      visual: buildChessVisual(theme.tag, language),
+      visual: buildChessVisual(theme.tag, language, index),
     })),
   );
 }
@@ -1743,7 +1911,7 @@ function buildExtraChessPuzzleBank(language: ExtraGameLanguage): SocialGameRound
       tags: ["games", "chess", "game:chess", `chess:${theme.tag}`],
       estimatedDurationSeconds: variant.estimatedDurationSeconds ?? 95,
       successMessage: copy.successMessage,
-      visual: buildChessVisual(theme.tag, language),
+      visual: buildChessVisual(theme.tag, language, index),
     }));
   });
 }
@@ -5001,11 +5169,11 @@ const gameTableCopy: Record<SocialGameLanguage, Omit<SocialGameTable, "readyLabe
     chooseRoundLabel: "Elige una ronda",
     connectionTitle: "Encuentra compania para jugar",
     connectionBody: "VYVA solo busca personas que aceptaron ser visibles. Los datos de contacto siguen privados.",
-    startRoundLabel: "Empezar ronda",
-    completeRoundLabel: "Terminar ronda",
+    startRoundLabel: "Empezar puzle",
+    completeRoundLabel: "Comprobar respuesta",
     findPartnerLabel: "Buscar compania para jugar",
     sayHelloLabel: "Saludar",
-    roundCompleteLabel: "Ronda completada",
+    roundCompleteLabel: "Puzle completado",
   },
   en: {
     hostLine: "Viktor is hosting short classic rounds.",
@@ -5014,11 +5182,11 @@ const gameTableCopy: Record<SocialGameLanguage, Omit<SocialGameTable, "readyLabe
     chooseRoundLabel: "Choose a round",
     connectionTitle: "Find a playing partner",
     connectionBody: "VYVA only looks for people who opted in. Contact details stay private.",
-    startRoundLabel: "Start round",
-    completeRoundLabel: "Complete round",
+    startRoundLabel: "Start puzzle",
+    completeRoundLabel: "Check answer",
     findPartnerLabel: "Find a playing partner",
     sayHelloLabel: "Say hello",
-    roundCompleteLabel: "Round complete",
+    roundCompleteLabel: "Puzzle complete",
   },
   fr: {
     hostLine: "Viktor anime de courtes rondes classiques.",
@@ -5027,11 +5195,11 @@ const gameTableCopy: Record<SocialGameLanguage, Omit<SocialGameTable, "readyLabe
     chooseRoundLabel: "Choisir une ronde",
     connectionTitle: "Trouver un partenaire de jeu",
     connectionBody: "VYVA cherche seulement les personnes qui ont choisi d'etre visibles. Les coordonnees restent privees.",
-    startRoundLabel: "Commencer la ronde",
-    completeRoundLabel: "Terminer la ronde",
+    startRoundLabel: "Commencer le puzzle",
+    completeRoundLabel: "Verifier la reponse",
     findPartnerLabel: "Trouver un partenaire de jeu",
     sayHelloLabel: "Dire bonjour",
-    roundCompleteLabel: "Ronde terminee",
+    roundCompleteLabel: "Puzzle termine",
   },
   de: {
     hostLine: "Viktor leitet kurze klassische Runden.",
@@ -5040,11 +5208,11 @@ const gameTableCopy: Record<SocialGameLanguage, Omit<SocialGameTable, "readyLabe
     chooseRoundLabel: "Runde waehlen",
     connectionTitle: "Spielpartner finden",
     connectionBody: "VYVA sucht nur nach Menschen, die sichtbar sein moechten. Kontaktdaten bleiben privat.",
-    startRoundLabel: "Runde starten",
-    completeRoundLabel: "Runde abschliessen",
+    startRoundLabel: "Raetsel starten",
+    completeRoundLabel: "Antwort pruefen",
     findPartnerLabel: "Spielpartner suchen",
     sayHelloLabel: "Hallo sagen",
-    roundCompleteLabel: "Runde geschafft",
+    roundCompleteLabel: "Raetsel geschafft",
   },
   it: {
     hostLine: "Viktor guida brevi turni classici.",
@@ -5053,11 +5221,11 @@ const gameTableCopy: Record<SocialGameLanguage, Omit<SocialGameTable, "readyLabe
     chooseRoundLabel: "Scegli un turno",
     connectionTitle: "Trova un compagno di gioco",
     connectionBody: "VYVA cerca solo persone che hanno scelto di essere visibili. I contatti restano privati.",
-    startRoundLabel: "Avvia turno",
-    completeRoundLabel: "Completa turno",
+    startRoundLabel: "Avvia puzzle",
+    completeRoundLabel: "Controlla risposta",
     findPartnerLabel: "Trova un compagno di gioco",
     sayHelloLabel: "Saluta",
-    roundCompleteLabel: "Turno completato",
+    roundCompleteLabel: "Puzzle completato",
   },
   pt: {
     hostLine: "Viktor conduz rodadas classicas e curtas.",
@@ -5066,11 +5234,11 @@ const gameTableCopy: Record<SocialGameLanguage, Omit<SocialGameTable, "readyLabe
     chooseRoundLabel: "Escolha uma rodada",
     connectionTitle: "Encontrar parceiro de jogo",
     connectionBody: "A VYVA procura apenas pessoas que optaram por aparecer. Os contatos continuam privados.",
-    startRoundLabel: "Comecar rodada",
-    completeRoundLabel: "Concluir rodada",
+    startRoundLabel: "Comecar puzzle",
+    completeRoundLabel: "Verificar resposta",
     findPartnerLabel: "Encontrar parceiro de jogo",
     sayHelloLabel: "Dizer ola",
-    roundCompleteLabel: "Rodada concluida",
+    roundCompleteLabel: "Puzzle concluido",
   },
 };
 

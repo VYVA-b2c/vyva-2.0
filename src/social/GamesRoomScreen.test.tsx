@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import GamesRoomScreen from "./GamesRoomScreen";
 import type { SocialGameRound, SocialRoomResponse } from "./types";
@@ -251,11 +251,11 @@ const roomResponse: SocialRoomResponse = {
     chooseRoundLabel: "Choose a round",
     connectionTitle: "Find a playing partner",
     connectionBody: "Contact details stay private.",
-    startRoundLabel: "Start round",
-    completeRoundLabel: "Complete round",
+    startRoundLabel: "Start puzzle",
+    completeRoundLabel: "Check answer",
     findPartnerLabel: "Find a playing partner",
     sayHelloLabel: "Say hello",
-    roundCompleteLabel: "Round complete",
+    roundCompleteLabel: "Puzzle complete",
     defaultRoundId: "chess-clue-fork",
     readyMembers: [
       {
@@ -356,7 +356,12 @@ describe("GamesRoomScreen", () => {
     expect(screen.queryByText("Memory match")).not.toBeInTheDocument();
     expect(screen.getByText("Puzzle 1 of 2")).toBeInTheDocument();
     expect(screen.getByText("White's knight can check the king and attack the queen. What tactic is this?")).toBeInTheDocument();
-    expect(screen.getByTestId("games-visual-chess")).toBeInTheDocument();
+    const chessBoard = screen.getByTestId("games-visual-chess");
+    expect(chessBoard).toBeInTheDocument();
+    expect(within(chessBoard).getByRole("img", { name: "White knight" })).toBeInTheDocument();
+    expect(within(chessBoard).getByRole("img", { name: "Black queen" })).toBeInTheDocument();
+    expect(within(chessBoard).queryByText("WN")).not.toBeInTheDocument();
+    expect(within(chessBoard).queryByText("BQ")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-next-puzzle"));
 
@@ -364,6 +369,7 @@ describe("GamesRoomScreen", () => {
     expect(screen.getByText("Black's king is stuck behind its own pawns and White has a rook on the open file. What idea should White look for?")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-start-round"));
+    expect(screen.queryByTestId("games-start-round")).not.toBeInTheDocument();
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
@@ -496,8 +502,16 @@ describe("GamesRoomScreen", () => {
       );
     });
 
+    fireEvent.click(screen.getByText("Pass"));
+    expect(screen.getByTestId("games-complete-round")).toHaveTextContent("Check answer");
+    expect(screen.queryByText("Complete round")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("games-complete-round"));
+    expect(screen.getByText("Not quite. Try another answer.")).toBeInTheDocument();
+    expect(screen.queryByText("Puzzle complete")).not.toBeInTheDocument();
+
     fireEvent.click(screen.getByText("Bid 1 hearts"));
     fireEvent.click(screen.getByTestId("games-complete-round"));
+    expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("games-find-partner"));
 
     await waitFor(() => {
@@ -539,7 +553,7 @@ describe("GamesRoomScreen", () => {
     expect(screen.getByText("SMILE")).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("SMILE"));
-    expect(screen.getByText("Round complete")).toBeInTheDocument();
+    expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
   });
 
   it("runs a guided round and searches for a partner using the selected game kind", async () => {
@@ -567,7 +581,7 @@ describe("GamesRoomScreen", () => {
     fireEvent.click(screen.getByTestId("word-tile-3"));
     fireEvent.click(screen.getByTestId("word-tile-0"));
     fireEvent.click(screen.getByTestId("word-check-answer"));
-    expect(screen.getByText("Round complete")).toBeInTheDocument();
+    expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-find-partner"));
 

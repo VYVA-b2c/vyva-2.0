@@ -10,7 +10,6 @@ import {
   Gamepad2,
   HeartHandshake,
   HelpCircle,
-  MessageCircle,
   Send,
   Spade,
   Sparkles,
@@ -57,11 +56,11 @@ function fallbackGameTable(roomResponse: SocialRoomResponse) {
     chooseRoundLabel: "Choose a round",
     connectionTitle: "Find a playing partner",
     connectionBody: "VYVA only looks for people who opted in. Contact details stay private.",
-    startRoundLabel: "Start round",
-    completeRoundLabel: "Complete round",
+    startRoundLabel: "Start puzzle",
+    completeRoundLabel: "Check answer",
     findPartnerLabel: "Find a playing partner",
     sayHelloLabel: "Say hello",
-    roundCompleteLabel: "Round complete",
+    roundCompleteLabel: "Puzzle complete",
     defaultRoundId: "chess-clue-fork",
     readyMembers: [
       {
@@ -204,19 +203,37 @@ function getPuzzleBankLabels(language: SocialGameLanguage, index: number, total:
 
 const memberColours = ["#0F766E", "#F97316", "#7C3AED", "#DB2777"];
 
-const chessPieceLabels: Record<Extract<SocialGameRoundVisual, { kind: "chessBoard" }>["pieces"][number]["piece"], string> = {
-  whiteKing: "WK",
-  whiteQueen: "WQ",
-  whiteRook: "WR",
-  whiteBishop: "WB",
-  whiteKnight: "WN",
-  whitePawn: "WP",
-  blackKing: "BK",
-  blackQueen: "BQ",
-  blackRook: "BR",
-  blackBishop: "BB",
-  blackKnight: "BN",
-  blackPawn: "BP",
+type ChessPieceName = Extract<SocialGameRoundVisual, { kind: "chessBoard" }>["pieces"][number]["piece"];
+type ChessPieceShape = "king" | "queen" | "rook" | "bishop" | "knight" | "pawn";
+
+const chessPieceDescriptions: Record<ChessPieceName, string> = {
+  whiteKing: "White king",
+  whiteQueen: "White queen",
+  whiteRook: "White rook",
+  whiteBishop: "White bishop",
+  whiteKnight: "White knight",
+  whitePawn: "White pawn",
+  blackKing: "Black king",
+  blackQueen: "Black queen",
+  blackRook: "Black rook",
+  blackBishop: "Black bishop",
+  blackKnight: "Black knight",
+  blackPawn: "Black pawn",
+};
+
+const chessPieceShapes: Record<ChessPieceName, ChessPieceShape> = {
+  whiteKing: "king",
+  whiteQueen: "queen",
+  whiteRook: "rook",
+  whiteBishop: "bishop",
+  whiteKnight: "knight",
+  whitePawn: "pawn",
+  blackKing: "king",
+  blackQueen: "queen",
+  blackRook: "rook",
+  blackBishop: "bishop",
+  blackKnight: "knight",
+  blackPawn: "pawn",
 };
 
 function normalizeWordAnswer(value: string) {
@@ -286,6 +303,24 @@ function getWordTryAgainCopy(language: SocialGameLanguage) {
   return "Casi. Prueba otro orden o usa la ayuda.";
 }
 
+function normalizeChoiceAnswer(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function getChoiceTryAgainCopy(language: SocialGameLanguage) {
+  if (language === "fr") return "Pas tout a fait. Essaie une autre reponse.";
+  if (language === "it") return "Non proprio. Prova un'altra risposta.";
+  if (language === "pt") return "Ainda nao. Tente outra resposta.";
+  if (language === "de") return "Noch nicht ganz. Probiere eine andere Antwort.";
+  if (language === "en") return "Not quite. Try another answer.";
+  return "Todavia no. Prueba otra respuesta.";
+}
+
 function DominoTile({ tile, muted = false }: { tile: [number, number]; muted?: boolean }) {
   return (
     <div
@@ -298,6 +333,64 @@ function DominoTile({ tile, muted = false }: { tile: [number, number]; muted?: b
         </span>
       ))}
     </div>
+  );
+}
+
+function ChessPieceGlyph({ piece, cutout }: { piece: ChessPieceName; cutout: string }) {
+  const shape = chessPieceShapes[piece];
+
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-[84%] w-[84%] drop-shadow-[0_1px_0_rgba(255,255,255,0.35)]"
+      fill="none"
+      viewBox="0 0 64 64"
+    >
+      {shape === "king" && (
+        <g fill="currentColor" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M32 8v14M25 15h14" strokeWidth="5" />
+          <path d="M24 28c1-7 15-7 16 0l4 18H20l4-18Z" strokeWidth="2" />
+          <path d="M18 51h28v6H18z" strokeWidth="2" />
+        </g>
+      )}
+      {shape === "queen" && (
+        <g fill="currentColor" stroke="currentColor" strokeLinejoin="round">
+          <circle cx="17" cy="18" r="4" />
+          <circle cx="32" cy="13" r="4" />
+          <circle cx="47" cy="18" r="4" />
+          <path d="M14 25l10 18h16l10-18-12 8-6-15-6 15-12-8Z" strokeWidth="2" />
+          <path d="M20 49h24v7H20z" strokeWidth="2" />
+        </g>
+      )}
+      {shape === "rook" && (
+        <g fill="currentColor" stroke="currentColor" strokeLinejoin="round">
+          <path d="M18 13h9v7h10v-7h9v20H18V13Z" strokeWidth="2" />
+          <path d="M24 33h16l4 15H20l4-15Z" strokeWidth="2" />
+          <path d="M18 51h28v6H18z" strokeWidth="2" />
+        </g>
+      )}
+      {shape === "bishop" && (
+        <g fill="currentColor" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M32 9c-8 7-13 17-13 27 0 7 5 11 13 11s13-4 13-11c0-10-5-20-13-27Z" strokeWidth="2" />
+          <path d="M35 19 25 35" stroke={cutout} strokeWidth="4" />
+          <path d="M24 49h16l5 8H19l5-8Z" strokeWidth="2" />
+        </g>
+      )}
+      {shape === "knight" && (
+        <g fill="currentColor" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 54h28l-5-10c4-6 5-13 3-20-3-8-10-14-21-17l-3 11-9 5 9 6-5 10 12 3-9 12Z" strokeWidth="2" />
+          <circle cx="32" cy="22" r="2.5" fill={cutout} stroke="none" />
+          <path d="M24 29h7" stroke={cutout} strokeWidth="3" />
+        </g>
+      )}
+      {shape === "pawn" && (
+        <g fill="currentColor" stroke="currentColor" strokeLinejoin="round">
+          <circle cx="32" cy="18" r="9" strokeWidth="2" />
+          <path d="M25 31h14l5 16H20l5-16Z" strokeWidth="2" />
+          <path d="M18 51h28v6H18z" strokeWidth="2" />
+        </g>
+      )}
+    </svg>
   );
 }
 
@@ -325,8 +418,12 @@ function ChessBoardVisual({ visual }: { visual: Extract<SocialGameRoundVisual, {
             >
               {marked && <span className="absolute inset-1 rounded-[8px] border-2 border-[#F59E0B]" />}
               {piece && (
-                <span className={`relative z-10 flex h-[78%] w-[78%] items-center justify-center rounded-full border font-body text-[12px] font-extrabold shadow-sm ${piece.piece.startsWith("white") ? "border-[#C9B99D] bg-white text-[#07313A]" : "border-[#173941] bg-[#173941] text-white"}`}>
-                  {chessPieceLabels[piece.piece]}
+                <span
+                  aria-label={chessPieceDescriptions[piece.piece]}
+                  className={`relative z-10 flex h-[82%] w-[82%] items-center justify-center rounded-full border shadow-[0_7px_14px_rgba(23,57,65,0.18)] ${piece.piece.startsWith("white") ? "border-[#C9B99D] bg-[#FFFDF7] text-[#07313A]" : "border-[#173941] bg-[#173941] text-[#FFFDF7]"}`}
+                  role="img"
+                >
+                  <ChessPieceGlyph piece={piece.piece} cutout={piece.piece.startsWith("white") ? "#FFFDF7" : "#173941"} />
                 </span>
               )}
             </div>
@@ -605,6 +702,7 @@ export default function GamesRoomScreen({
   const [selectedWordTileIndices, setSelectedWordTileIndices] = useState<number[]>([]);
   const [showWordHelp, setShowWordHelp] = useState(false);
   const [wordFeedback, setWordFeedback] = useState<string | null>(null);
+  const [choiceFeedback, setChoiceFeedback] = useState<string | null>(null);
 
   const selectedRound = useMemo(
     () => gameTable.rounds.find((round) => round.id === selectedRoundId) ?? gameTable.rounds[0],
@@ -632,6 +730,7 @@ export default function GamesRoomScreen({
     setSelectedWordTileIndices([]);
     setShowWordHelp(false);
     setWordFeedback(null);
+    setChoiceFeedback(null);
   };
 
   const selectPuzzleAtOffset = (offset: number) => {
@@ -652,6 +751,7 @@ export default function GamesRoomScreen({
     setSelectedWordTileIndices([]);
     setShowWordHelp(false);
     setWordFeedback(null);
+    setChoiceFeedback(null);
     setIsPersistingRound(true);
 
     try {
@@ -670,8 +770,15 @@ export default function GamesRoomScreen({
   };
 
   const completeRound = () => {
-    if (!selectedRound) return;
-    setCompletedRoundId(selectedRound.id);
+    if (!selectedRound || !selectedChoice) return;
+
+    if (normalizeChoiceAnswer(selectedChoice) === normalizeChoiceAnswer(selectedRound.answer)) {
+      setCompletedRoundId(selectedRound.id);
+      setChoiceFeedback(null);
+      return;
+    }
+
+    setChoiceFeedback(getChoiceTryAgainCopy(language));
   };
 
   const chooseWordTile = (index: number) => {
@@ -847,27 +954,29 @@ export default function GamesRoomScreen({
                   </div>
                 </div>
                 {puzzleBankLabels && selectedKindRounds.length > 1 && (
-                  <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-[20px] bg-[#F4FAF8] px-4 py-3">
-                    <p className="font-body text-[17px] font-extrabold text-[#087C82]">
+                  <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-[#D8E6E2] bg-[#F4FAF8] px-4 py-3">
+                    <p className="font-body text-[18px] font-extrabold text-[#087C82]">
                       {puzzleBankLabels.progress}
                     </p>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
                         onClick={() => selectPuzzleAtOffset(-1)}
+                        aria-label={puzzleBankLabels.previous}
                         data-testid="games-previous-puzzle"
-                        className="flex min-h-[46px] items-center justify-center gap-2 rounded-[15px] border border-[#BFDAD7] bg-white px-3 font-body text-[15px] font-extrabold text-[#075C64]"
+                        className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-3 font-body text-[15px] font-extrabold text-[#075C64] shadow-[0_8px_18px_rgba(11,60,66,0.06)]"
                       >
                         <ChevronLeft size={19} />
-                        {puzzleBankLabels.previous}
+                        <span className="hidden sm:inline">{puzzleBankLabels.previous}</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => selectPuzzleAtOffset(1)}
+                        aria-label={puzzleBankLabels.next}
                         data-testid="games-next-puzzle"
-                        className="flex min-h-[46px] items-center justify-center gap-2 rounded-[15px] border border-[#087C82] bg-white px-3 font-body text-[15px] font-extrabold text-[#075C64]"
+                        className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] bg-[#087C82] px-4 font-body text-[16px] font-extrabold text-white shadow-[0_10px_22px_rgba(8,124,130,0.16)]"
                       >
-                        {puzzleBankLabels.next}
+                        <span>{puzzleBankLabels.next}</span>
                         <ChevronRight size={19} />
                       </button>
                     </div>
@@ -912,7 +1021,11 @@ export default function GamesRoomScreen({
                                 <button
                                   key={choice}
                                   type="button"
-                                  onClick={() => setSelectedChoice(choice)}
+                                  onClick={() => {
+                                    setSelectedChoice(choice);
+                                    setChoiceFeedback(null);
+                                  }}
+                                  aria-pressed={active}
                                   className="min-h-[56px] rounded-[18px] border px-4 font-body text-[18px] font-bold"
                                   style={{
                                     borderColor: active ? "#087C82" : "#D8E6E2",
@@ -926,6 +1039,11 @@ export default function GamesRoomScreen({
                             })}
                           </div>
                         </div>
+                        {choiceFeedback && (
+                          <p className="mt-3 rounded-[18px] bg-[#FFF7E8] px-4 py-3 font-body text-[17px] font-bold leading-snug text-[#8A5200]" role="status">
+                            {choiceFeedback}
+                          </p>
+                        )}
 
                         {hasCompletedSelectedRound ? (
                           <div className="mt-5 rounded-[22px] border border-[#BDE8D4] bg-[#EFFBF4] px-4 py-4">
@@ -943,8 +1061,9 @@ export default function GamesRoomScreen({
                             onClick={completeRound}
                             disabled={!selectedChoice}
                             data-testid="games-complete-round"
-                            className="mt-5 min-h-[62px] w-full rounded-[20px] bg-[#087C82] px-5 font-body text-[21px] font-extrabold text-white shadow-[0_14px_30px_rgba(8,124,130,0.18)] disabled:opacity-50"
+                            className="mt-5 flex min-h-[62px] w-full items-center justify-center gap-3 rounded-[20px] bg-[#087C82] px-5 font-body text-[21px] font-extrabold text-white shadow-[0_14px_30px_rgba(8,124,130,0.18)] disabled:bg-[#D8E6E2] disabled:text-[#61777D] disabled:shadow-none"
                           >
+                            <Check size={24} strokeWidth={3} />
                             {gameTable.completeRoundLabel}
                           </button>
                         )}
@@ -959,6 +1078,16 @@ export default function GamesRoomScreen({
                     <p className="mt-5 font-body text-[20px] font-semibold leading-snug text-[#466871]">
                       {selectedRound.prompt}
                     </p>
+                    <button
+                      type="button"
+                      onClick={() => void startRound()}
+                      disabled={!selectedRound || isPersistingRound}
+                      data-testid="games-start-round"
+                      className="mt-5 flex min-h-[64px] w-full items-center justify-center gap-3 rounded-[22px] bg-[#007B7E] px-5 font-body text-[21px] font-extrabold text-white shadow-[0_16px_34px_rgba(0,123,126,0.18)] disabled:opacity-55"
+                    >
+                      <Users size={25} />
+                      {gameTable.startRoundLabel}
+                    </button>
                   </>
                 )}
               </section>
@@ -1046,47 +1175,15 @@ export default function GamesRoomScreen({
           </aside>
         </main>
 
-        <div className="sticky bottom-3 z-10 mt-5 grid gap-3 rounded-[26px] border border-[#D8E6E2] bg-white/95 p-3 shadow-[0_18px_44px_rgba(7,49,58,0.16)] backdrop-blur sm:grid-cols-2 lg:hidden">
-          <button
-            type="button"
-            onClick={() => void startRound()}
-            disabled={!selectedRound || isPersistingRound}
-            data-testid="games-start-round-mobile"
-            className="flex min-h-[64px] items-center justify-center gap-3 rounded-[22px] bg-[#007B7E] px-5 font-body text-[21px] font-extrabold text-white disabled:opacity-55"
-          >
-            <Users size={25} />
-            {gameTable.startRoundLabel}
-          </button>
+        <div className="sticky bottom-3 z-10 mt-5 rounded-[26px] border border-[#D8E6E2] bg-white/95 p-3 shadow-[0_18px_44px_rgba(7,49,58,0.16)] backdrop-blur lg:hidden">
           <button
             type="button"
             onClick={() => void findPartner()}
             disabled={isMatching || !selectedRound}
-            className="flex min-h-[64px] items-center justify-center gap-3 rounded-[22px] border border-[#087C82] bg-white px-5 font-body text-[21px] font-extrabold text-[#087C82] disabled:opacity-55"
+            className="flex min-h-[64px] w-full items-center justify-center gap-3 rounded-[22px] border border-[#087C82] bg-white px-5 font-body text-[21px] font-extrabold text-[#087C82] disabled:opacity-55"
           >
             <Send size={24} />
-            {gameTable.sayHelloLabel}
-          </button>
-        </div>
-
-        <div className="mt-5 hidden grid-cols-2 gap-3 lg:grid">
-          <button
-            type="button"
-            onClick={() => void startRound()}
-            disabled={!selectedRound || isPersistingRound}
-            data-testid="games-start-round"
-            className="flex min-h-[68px] items-center justify-center gap-3 rounded-[22px] bg-[#007B7E] px-5 font-body text-[22px] font-extrabold text-white shadow-[0_16px_34px_rgba(0,123,126,0.18)] disabled:opacity-55"
-          >
-            <Users size={26} />
-            {gameTable.startRoundLabel}
-          </button>
-          <button
-            type="button"
-            onClick={() => void findPartner()}
-            disabled={isMatching || !selectedRound}
-            className="flex min-h-[68px] items-center justify-center gap-3 rounded-[22px] border border-[#087C82] bg-white px-5 font-body text-[22px] font-extrabold text-[#087C82] shadow-[0_16px_34px_rgba(8,124,130,0.1)] disabled:opacity-55"
-          >
-            <MessageCircle size={26} />
-            {gameTable.sayHelloLabel}
+            {gameTable.findPartnerLabel}
           </button>
         </div>
       </div>
