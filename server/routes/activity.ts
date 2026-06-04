@@ -9,11 +9,23 @@ import { requireUser } from "../middleware/auth.js";
 const router = Router();
 
 const CALORIES_PER_MINUTE: Record<string, number> = {
-  Walking:    4,
-  Cycling:    8,
-  Stretching: 3,
-  Exercise:   7,
-  Breathing:  2,
+  Walking:         4,
+  Cycling:         8,
+  Stretching:      3,
+  Exercise:        7,
+  Breathing:       2,
+  ChairYoga:       3,
+  TaiChi:          4,
+  SeatedStrength:  4,
+  CalmBreathing:   2,
+  SitToStand:      5,
+  HeelRaises:      4,
+  WallPushUps:     4,
+  AnkleMobility:   2,
+  ChestOpener:     2,
+  SideSteps:       4,
+  HandBreathing:   2,
+  ShoulderRelease: 2,
 };
 
 function todayDateString(): string {
