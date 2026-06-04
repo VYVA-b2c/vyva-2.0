@@ -140,6 +140,9 @@ const copyByLanguage: Record<SocialLanguage, {
   helpSent: string;
   helpFailed: string;
   viewStarter: string;
+  sharePlanTitle: string;
+  sharePlanBody: string;
+  sharePlanAction: string;
   agreementTitle: string;
   agreementLines: string[];
   acknowledgementLabel: string;
@@ -284,6 +287,9 @@ const copyByLanguage: Record<SocialLanguage, {
     helpSent: "VYVA revisara esto con cuidado.",
     helpFailed: "No se pudo avisar a VYVA. Intentalo de nuevo.",
     viewStarter: "Compartir opinion",
+    sharePlanTitle: "Compartir un plan",
+    sharePlanBody: "Propón una idea sencilla para que otras personas puedan apuntarse o decir quizá.",
+    sharePlanAction: "Compartir un plan",
     agreementTitle: "Nuestra promesa de sala",
     agreementLines: [
       "Palabras amables y sin presion.",
@@ -296,7 +302,7 @@ const copyByLanguage: Record<SocialLanguage, {
     starterDetails: {
       hello: "Me gustaria saludar al grupo.",
       view: "Me gustaria compartir una opinion breve con la sala.",
-      plan: "Me gustaria sugerir un plan tranquilo.",
+      plan: "Me gustaria compartir un plan tranquilo.",
       ask: "VYVA, ayudame a elegir una forma sencilla de participar.",
     },
   },
@@ -437,6 +443,9 @@ const copyByLanguage: Record<SocialLanguage, {
     helpSent: "VYVA prueft das behutsam.",
     helpFailed: "VYVA konnte nicht benachrichtigt werden. Bitte versuche es erneut.",
     viewStarter: "Ansicht teilen",
+    sharePlanTitle: "Plan teilen",
+    sharePlanBody: "Schlage eine einfache Idee vor, damit andere mitmachen oder vielleicht sagen koennen.",
+    sharePlanAction: "Plan teilen",
     agreementTitle: "Unser Raumversprechen",
     agreementLines: [
       "Freundliche Worte, kein Druck.",
@@ -449,7 +458,7 @@ const copyByLanguage: Record<SocialLanguage, {
     starterDetails: {
       hello: "Ich moechte die Runde gruessen.",
       view: "Ich moechte eine kleine Ansicht mit dem Raum teilen.",
-      plan: "Ich moechte einen ruhigen Plan vorschlagen.",
+      plan: "Ich moechte einen ruhigen Plan teilen.",
       ask: "VYVA, hilf mir, einfach mitzumachen.",
     },
   },
@@ -590,6 +599,9 @@ const copyByLanguage: Record<SocialLanguage, {
     helpSent: "VYVA will review this gently.",
     helpFailed: "Could not alert VYVA. Please try again.",
     viewStarter: "Share a view",
+    sharePlanTitle: "Share a plan",
+    sharePlanBody: "Suggest one simple idea so others can join or say maybe.",
+    sharePlanAction: "Share a plan",
     agreementTitle: "Our room promise",
     agreementLines: [
       "Use kind words and no pressure.",
@@ -602,7 +614,7 @@ const copyByLanguage: Record<SocialLanguage, {
     starterDetails: {
       hello: "I would like to say hello to the group.",
       view: "I would like to share a small view with the room.",
-      plan: "I would like to suggest a gentle plan.",
+      plan: "I would like to share a gentle plan.",
       ask: "VYVA, help me choose an easy way to join in.",
     },
   },
@@ -730,14 +742,9 @@ function fallbackPulse(language: SocialLanguage): SocialRoomPulse {
     },
     discussionPrompt: {
       id: "gentle-start",
-      title: language === "en" ? "What would you like to say?" : language === "de" ? "Was moechtest du sagen?" : "Que te gustaria decir?",
-      body: "",
-      starterButtons:
-        language === "en"
-          ? ["Say hello", "Suggest a plan", "Ask VYVA"]
-          : language === "de"
-            ? ["Hallo sagen", "Plan vorschlagen", "VYVA fragen"]
-            : ["Saludar", "Sugerir plan", "Preguntar a VYVA"],
+      title: copyByLanguage[language].sharePlanTitle,
+      body: copyByLanguage[language].sharePlanBody,
+      starterButtons: [copyByLanguage[language].sharePlanAction],
     },
     safety: safety[language],
     notifications: [],
@@ -1217,39 +1224,16 @@ export default function TogetherRoomScreen({
     }
   };
 
-  const starterActions: Array<{ id: StarterAction; label: string; icon: typeof MessageCircle }> = [
-    { id: "hello", label: pulse.discussionPrompt.starterButtons[0] ?? "Say hello", icon: MessageCircle },
-    { id: "view", label: copy.viewStarter, icon: MessageCircle },
-    { id: "plan", label: pulse.discussionPrompt.starterButtons[1] ?? "Suggest a plan", icon: Sparkles },
-    { id: "ask", label: pulse.discussionPrompt.starterButtons[2] ?? "Ask VYVA", icon: HeartHandshake },
-  ];
-
-  const handleStarter = (action: StarterAction, label: string) => {
-    const details = copy.starterDetails[action];
+  const openPlanComposer = () => {
+    const details = copy.starterDetails.plan;
     setProposalDraft(details);
-    if (action === "hello") {
-      void submitProposal(label, details, "online", "message");
-      return;
-    }
-    if (action === "view") {
-      setProposalKind("message");
-      setProposalLocationLabel("online");
-      setSelectedComfortNeeds([]);
-      setProposalCategory("other");
-      setProposalPreferredTime("flexible");
-      setProposalCostRange("discuss");
-      setProposalGroupSize("open_room");
-      setShowProposalComposer(true);
-      return;
-    }
-    const nextKind = action === "ask" ? "question" : "plan";
-    setProposalKind(nextKind);
-    setProposalLocationLabel(nextKind === "plan" ? "nearby" : "online");
-    setSelectedComfortNeeds(nextKind === "plan" ? ["quiet_pace"] : []);
-    setProposalCategory(nextKind === "plan" ? "outing" : "other");
+    setProposalKind("plan");
+    setProposalLocationLabel("nearby");
+    setSelectedComfortNeeds(["quiet_pace"]);
+    setProposalCategory("outing");
     setProposalPreferredTime("flexible");
     setProposalCostRange("discuss");
-    setProposalGroupSize(nextKind === "plan" ? "one_to_one" : "open_room");
+    setProposalGroupSize("one_to_one");
     setShowProposalComposer(true);
   };
 
@@ -1715,28 +1699,18 @@ export default function TogetherRoomScreen({
         </section>
 
         <section className="rounded-[28px] border border-[#E7DDF4] bg-white px-5 py-5 shadow-[0_16px_32px_rgba(109,40,217,0.06)]">
-          <h2 className="font-display text-[28px] leading-[1.08] text-[#2F2135]">{pulse.discussionPrompt.title}</h2>
-          {pulse.discussionPrompt.body && (
-            <p className="mt-2 font-body text-[18px] leading-[1.35] text-[#62556B]">{pulse.discussionPrompt.body}</p>
-          )}
+          <h2 className="font-display text-[28px] leading-[1.08] text-[#2F2135]">{copy.sharePlanTitle}</h2>
+          <p className="mt-2 font-body text-[18px] leading-[1.35] text-[#62556B]">{copy.sharePlanBody}</p>
 
-          <div className="mt-4 grid gap-3">
-            {starterActions.map((action) => {
-              const Icon = action.icon;
-              return (
-                <button
-                  key={action.id}
-                  type="button"
-                  onClick={() => handleStarter(action.id, action.label)}
-                  data-testid={`together-starter-${action.id}`}
-                  className="flex min-h-[62px] items-center gap-3 rounded-[20px] border border-[#E8DEF8] bg-[#FBF8FF] px-4 text-left font-body text-[19px] font-bold text-[#4B2E6E]"
-                >
-                  <Icon size={22} aria-hidden="true" />
-                  {action.label}
-                </button>
-              );
-            })}
-          </div>
+          <button
+            type="button"
+            onClick={openPlanComposer}
+            data-testid="together-starter-plan"
+            className="mt-4 flex min-h-[62px] w-full items-center gap-3 rounded-[20px] border border-[#E8DEF8] bg-[#FBF8FF] px-4 text-left font-body text-[19px] font-bold text-[#4B2E6E]"
+          >
+            <Sparkles size={22} aria-hidden="true" />
+            {copy.sharePlanAction}
+          </button>
 
           {showProposalComposer && (
             <form
