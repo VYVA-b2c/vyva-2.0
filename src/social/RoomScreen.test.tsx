@@ -130,15 +130,44 @@ describe("RoomScreen movement room", () => {
     });
   });
 
-  it("surfaces the gentle exercise library from the Movement room", async () => {
+  it("starts a gentle exercise session from a Movement room card", async () => {
     renderRoom();
 
-    expect(screen.getByTestId("movement-room-exercise-library")).toHaveTextContent("Gentle exercise cards");
-    expect(screen.getByTestId("movement-room-exercise-library")).toHaveTextContent("Pick from 12 photo-led routines");
-    expect(screen.getByTestId("movement-room-exercise-library")).toHaveTextContent("Each starts with plain steps");
-    expect(screen.getByText("Chair yoga")).toBeInTheDocument();
-    expect(screen.getByText("Tai chi")).toBeInTheDocument();
-    expect(screen.getByText("Seated strength")).toBeInTheDocument();
+    expect(screen.queryByText("Amara welcomes you")).not.toBeInTheDocument();
+    expect(screen.queryByText("Hello, I'm Amara. We can move gently and without hurry.")).not.toBeInTheDocument();
+    expect(screen.getByTestId("movement-room-exercise-library")).toHaveTextContent("Choose a gentle activity");
+    expect(screen.getByTestId("movement-room-exercise-library")).toHaveTextContent("Tap a photo");
+    expect(screen.getByTestId("movement-room-exercise-library")).toHaveTextContent("Need more choices?");
+    expect(screen.getByTestId("movement-room-exercise-cards")).toHaveTextContent("Chair yoga");
+    expect(screen.getByTestId("movement-room-exercise-cards")).toHaveTextContent("Tai chi");
+    expect(screen.getByTestId("movement-room-exercise-cards")).toHaveTextContent("Seated strength");
+    expect(screen.getByTestId("movement-room-exercise-cards")).toHaveTextContent("Calm breathing");
+    expect(screen.getAllByTestId(/^movement-room-exercise-card-/)).toHaveLength(4);
+
+    fireEvent.click(screen.getByTestId("movement-room-exercise-card-chair-yoga"));
+
+    expect(screen.queryByTestId("current-route")).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toHaveTextContent("Chair yoga");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Session started");
+    expect(screen.getByTestId("movement-room-exercise-session-steps")).toHaveTextContent("Sit tall with both feet flat.");
+    expect(screen.getByTestId("movement-room-exercise-safety")).toHaveTextContent("Move gently. Stop if you feel pain, dizzy, or short of breath.");
+
+    fireEvent.click(screen.getByTestId("button-finish-movement-room-exercise-chair-yoga"));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByTestId("movement-room-exercise-logged-status")).toHaveTextContent("Chair yoga logged for 10 min.");
+    expect(screen.getByTestId("movement-room-exercise-card-chair-yoga")).toHaveTextContent("Logged");
+
+    const logCall = apiFetchMock.mock.calls.find(([url]) => url === "/api/activity/log");
+    expect(logCall).toBeTruthy();
+    expect(logCall?.[1]).toEqual(expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ activity_type: "ChairYoga", duration_minutes: 10 }),
+    }));
+  });
+
+  it("keeps a browse-all exercise path from the Movement room", async () => {
+    renderRoom();
 
     fireEvent.click(screen.getByTestId("button-movement-room-browse-exercises"));
 

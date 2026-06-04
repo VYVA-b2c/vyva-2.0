@@ -10,6 +10,7 @@ import {
   Clock,
   Dumbbell,
   Library,
+  Loader2,
   MessageCircle,
   PenLine,
   Search,
@@ -23,6 +24,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { apiFetch } from "@/lib/queryClient";
+import { BottomSheet } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useLanguage } from "@/i18n";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
@@ -83,12 +85,62 @@ import type {
   SocialRoomResponse,
   SocialRoomVisitState,
 } from "./types";
+import chairYogaImage from "@/assets/senior-activities/chair-yoga.jpg";
+import taiChiImage from "@/assets/senior-activities/tai-chi.jpg";
+import seatedStrengthImage from "@/assets/senior-activities/seated-strength.jpg";
+import calmBreathingImage from "@/assets/senior-activities/calm-breathing.jpg";
 
 const FALLBACK_MEMBER_NAMES = ["Carmen", "Josefa", "Manuel", "Ana"];
 const MEMBER_COLOURS = ["#F59E0B", "#0EA5A4", "#EC4899", "#3B82F6"];
+const MOVEMENT_EXERCISE_VISUALS: Record<MovementExerciseCardId, { image: string; accent: string; softBg: string; border: string }> = {
+  "chair-yoga":      { image: chairYogaImage,      accent: "#6B21A8", softBg: "#F5F3FF", border: "#D8B4FE" },
+  "tai-chi":         { image: taiChiImage,         accent: "#33691E", softBg: "#EEF8DF", border: "#CFE8B8" },
+  "seated-strength": { image: seatedStrengthImage, accent: "#0F766E", softBg: "#F0FDFA", border: "#99F6E4" },
+  "calm-breathing":  { image: calmBreathingImage,  accent: "#2F66D0", softBg: "#EFF6FF", border: "#BFDBFE" },
+};
 
 type AgentPresence = "idle" | "thinking" | "speaking";
 type RoomMode = "welcome" | "chat";
+type MovementExerciseCardId = "chair-yoga" | "tai-chi" | "seated-strength" | "calm-breathing";
+type MovementExerciseLogStatus = "idle" | "saving" | "saved" | "error";
+
+const MOVEMENT_EXERCISE_SESSIONS: Record<MovementExerciseCardId, {
+  logType: string;
+  steps: Record<SocialLanguage, string[]>;
+}> = {
+  "chair-yoga": {
+    logType: "ChairYoga",
+    steps: {
+      en: ["Sit tall with both feet flat.", "Roll your shoulders back twice.", "Reach one arm overhead and breathe.", "Change sides slowly."],
+      de: ["Sitz aufrecht, beide Fuesse flach.", "Rolle die Schultern zweimal zurueck.", "Heb einen Arm langsam nach oben und atme.", "Wechsle die Seite langsam."],
+      es: ["Sientate erguido con ambos pies apoyados.", "Rueda los hombros hacia atras dos veces.", "Eleva un brazo despacio y respira.", "Cambia de lado lentamente."],
+    },
+  },
+  "tai-chi": {
+    logType: "TaiChi",
+    steps: {
+      en: ["Stand tall with a chair nearby if helpful.", "Soften your knees.", "Shift weight gently from one foot to the other.", "Float your hands forward and back slowly."],
+      de: ["Steh aufrecht, mit einem Stuhl in der Naehe.", "Beuge die Knie nur leicht.", "Verlagere das Gewicht sanft von einem Fuss zum anderen.", "Fuehre die Haende langsam vor und zurueck."],
+      es: ["Ponte de pie con una silla cerca si ayuda.", "Flexiona un poco las rodillas.", "Cambia el peso suavemente de un pie al otro.", "Mueve las manos hacia delante y atras despacio."],
+    },
+  },
+  "seated-strength": {
+    logType: "SeatedStrength",
+    steps: {
+      en: ["Sit near the front of the chair.", "Hold the chair sides lightly.", "Lift one knee or straighten one leg.", "Lower slowly and change sides."],
+      de: ["Sitz nah an der Stuhlkante.", "Halte den Stuhl leicht an den Seiten.", "Heb ein Knie oder strecke ein Bein.", "Senke langsam und wechsle die Seite."],
+      es: ["Sientate cerca del borde de la silla.", "Sujeta los lados de la silla suavemente.", "Levanta una rodilla o estira una pierna.", "Baja despacio y cambia de lado."],
+    },
+  },
+  "calm-breathing": {
+    logType: "CalmBreathing",
+    steps: {
+      en: ["Sit comfortably with shoulders relaxed.", "Place one hand on chest and one on belly.", "Breathe in slowly through your nose.", "Breathe out gently and relax your jaw."],
+      de: ["Sitz bequem mit entspannten Schultern.", "Lege eine Hand auf die Brust und eine auf den Bauch.", "Atme langsam durch die Nase ein.", "Atme sanft aus und entspanne den Kiefer."],
+      es: ["Sientate comodo con los hombros relajados.", "Pon una mano en el pecho y otra en el abdomen.", "Inspira lentamente por la nariz.", "Suelta el aire suave y relaja la mandibula."],
+    },
+  },
+};
 
 type FeedComment = {
   id: string;
@@ -1374,32 +1426,86 @@ function getMovementExerciseLibraryCopy(language: SocialLanguage) {
   if (language === "en") {
     return {
       eyebrow: "Movement room",
-      title: "Gentle exercise cards",
-      body: "Pick from 12 photo-led routines for strength, balance, mobility, and calm.",
-      detail: "Each starts with plain steps and a safety note.",
-      cta: "Browse exercises",
-      previews: ["Chair yoga", "Tai chi", "Seated strength"],
+      title: "Choose a gentle activity",
+      body: "Tap a photo to start.",
+      detail: "Need more choices? Browse all 12 photo-led routines.",
+      cta: "Browse all exercises",
+      cards: [
+        { id: "chair-yoga" as MovementExerciseCardId, title: "Chair yoga", benefit: "Loosen shoulders", focus: "Mobility" },
+        { id: "tai-chi" as MovementExerciseCardId, title: "Tai chi", benefit: "Balance practice", focus: "Balance" },
+        { id: "seated-strength" as MovementExerciseCardId, title: "Seated strength", benefit: "Build leg strength", focus: "Strength" },
+        { id: "calm-breathing" as MovementExerciseCardId, title: "Calm breathing", benefit: "Settle your breath", focus: "Calm" },
+      ],
     };
   }
 
   if (language === "de") {
     return {
       eyebrow: "Bewegungsraum",
-      title: "Sanfte Uebungskarten",
-      body: "Waehle aus 12 Foto-Uebungen fuer Kraft, Gleichgewicht, Beweglichkeit und Ruhe.",
-      detail: "Jede beginnt mit klaren Schritten und Sicherheitshinweis.",
-      cta: "Uebungen ansehen",
-      previews: ["Stuhl-Yoga", "Tai Chi", "Kraft im Sitzen"],
+      title: "Sanfte Aktivitaet waehlen",
+      body: "Tippe auf ein Foto zum Starten.",
+      detail: "Mehr Auswahl? Sieh alle 12 Foto-Uebungen an.",
+      cta: "Alle Uebungen ansehen",
+      cards: [
+        { id: "chair-yoga" as MovementExerciseCardId, title: "Stuhl-Yoga", benefit: "Schultern lockern", focus: "Beweglichkeit" },
+        { id: "tai-chi" as MovementExerciseCardId, title: "Tai Chi", benefit: "Gleichgewicht ueben", focus: "Balance" },
+        { id: "seated-strength" as MovementExerciseCardId, title: "Kraft im Sitzen", benefit: "Beine kraeftigen", focus: "Kraft" },
+        { id: "calm-breathing" as MovementExerciseCardId, title: "Ruhiges Atmen", benefit: "Atem beruhigen", focus: "Ruhe" },
+      ],
     };
   }
 
   return {
     eyebrow: "Sala de movimiento",
-    title: "Tarjetas de ejercicio suave",
-    body: "Elige entre 12 rutinas con fotos para fuerza, equilibrio, movilidad y calma.",
-    detail: "Cada una empieza con pasos claros y una nota de seguridad.",
-    cta: "Ver ejercicios",
-    previews: ["Yoga en silla", "Tai chi", "Fuerza sentada"],
+    title: "Elige una actividad suave",
+    body: "Toca una foto para empezar.",
+    detail: "Quieres mas opciones? Mira las 12 rutinas con foto.",
+    cta: "Ver todos los ejercicios",
+    cards: [
+      { id: "chair-yoga" as MovementExerciseCardId, title: "Yoga en silla", benefit: "Soltar hombros", focus: "Movilidad" },
+      { id: "tai-chi" as MovementExerciseCardId, title: "Tai chi", benefit: "Practicar equilibrio", focus: "Equilibrio" },
+      { id: "seated-strength" as MovementExerciseCardId, title: "Fuerza sentada", benefit: "Fortalecer piernas", focus: "Fuerza" },
+      { id: "calm-breathing" as MovementExerciseCardId, title: "Respiracion tranquila", benefit: "Calmar la respiracion", focus: "Calma" },
+    ],
+  };
+}
+
+function getMovementSessionUiCopy(language: SocialLanguage) {
+  if (language === "en") {
+    return {
+      sessionStarted: "Session started",
+      stepsTitle: "Move with me",
+      safety: "Move gently. Stop if you feel pain, dizzy, or short of breath.",
+      done: "Done, log 10 min",
+      saving: "Saving...",
+      logged: (title: string) => `${title} logged for 10 min.`,
+      error: "Could not save. Try again.",
+      loggedBadge: "Logged",
+    };
+  }
+
+  if (language === "de") {
+    return {
+      sessionStarted: "Sitzung gestartet",
+      stepsTitle: "Beweg dich mit mir",
+      safety: "Bewege dich sanft. Stopp, wenn du Schmerzen hast, schwindelig wirst oder ausser Atem kommst.",
+      done: "Fertig, 10 Min speichern",
+      saving: "Speichern...",
+      logged: (title: string) => `${title} fuer 10 Min gespeichert.`,
+      error: "Speichern fehlgeschlagen. Bitte erneut versuchen.",
+      loggedBadge: "Gespeichert",
+    };
+  }
+
+  return {
+    sessionStarted: "Sesion iniciada",
+    stepsTitle: "Muevete conmigo",
+    safety: "Muevete con suavidad. Para si sientes dolor, mareo o falta de aire.",
+    done: "Listo, registrar 10 min",
+    saving: "Guardando...",
+    logged: (title: string) => `${title} registrado durante 10 min.`,
+    error: "No se pudo guardar. Intentalo de nuevo.",
+    loggedBadge: "Registrado",
   };
 }
 
@@ -2171,6 +2277,9 @@ const RoomScreen = () => {
   const [readingClubStatus, setReadingClubStatus] = useState("");
   const [isReadingPulseSending, setIsReadingPulseSending] = useState(false);
   const [readingClubDesk, setReadingClubDesk] = useState<ReadingClubDeskState>(() => loadReadingClubDeskState());
+  const [activeMovementExerciseId, setActiveMovementExerciseId] = useState<MovementExerciseCardId | null>(null);
+  const [completedMovementExerciseId, setCompletedMovementExerciseId] = useState<MovementExerciseCardId | null>(null);
+  const [movementExerciseLogStatus, setMovementExerciseLogStatus] = useState<MovementExerciseLogStatus>("idle");
   const {
     startVoice,
     stopVoice,
@@ -2220,6 +2329,15 @@ const RoomScreen = () => {
   const readingRoomActive = isReadingRoomSlug(room?.slug ?? slug);
   const movementRoomActive = canonicalRoomSlug === "morning-movement";
   const movementExerciseCopy = useMemo(() => getMovementExerciseLibraryCopy(language), [language]);
+  const movementSessionUiCopy = useMemo(() => getMovementSessionUiCopy(language), [language]);
+  const activeMovementExercise = activeMovementExerciseId
+    ? movementExerciseCopy.cards.find((card) => card.id === activeMovementExerciseId) ?? null
+    : null;
+  const activeMovementExerciseSession = activeMovementExerciseId ? MOVEMENT_EXERCISE_SESSIONS[activeMovementExerciseId] : null;
+  const activeMovementExerciseVisual = activeMovementExerciseId ? MOVEMENT_EXERCISE_VISUALS[activeMovementExerciseId] : null;
+  const completedMovementExercise = completedMovementExerciseId
+    ? movementExerciseCopy.cards.find((card) => card.id === completedMovementExerciseId) ?? null
+    : null;
   const readingClubCopy = useMemo(() => getReadingClubCopy(language), [language]);
   const readingClub = useMemo(
     () => (
@@ -2318,6 +2436,37 @@ const RoomScreen = () => {
       },
     });
   }, [navigate]);
+
+  const openMovementExerciseCard = useCallback((exerciseId: MovementExerciseCardId) => {
+    setActiveMovementExerciseId(exerciseId);
+    setMovementExerciseLogStatus("idle");
+  }, []);
+
+  const closeMovementExerciseSession = useCallback(() => {
+    if (movementExerciseLogStatus === "saving") return;
+    setActiveMovementExerciseId(null);
+    setMovementExerciseLogStatus("idle");
+  }, [movementExerciseLogStatus]);
+
+  const finishMovementExerciseSession = useCallback(async () => {
+    if (!activeMovementExerciseId || !activeMovementExerciseSession || movementExerciseLogStatus === "saving") return;
+    setMovementExerciseLogStatus("saving");
+    try {
+      const response = await apiFetch("/api/activity/log", {
+        method: "POST",
+        body: JSON.stringify({
+          activity_type: activeMovementExerciseSession.logType,
+          duration_minutes: 10,
+        }),
+      });
+      if (!response.ok) throw new Error("Failed to log movement room exercise");
+      setCompletedMovementExerciseId(activeMovementExerciseId);
+      setActiveMovementExerciseId(null);
+      setMovementExerciseLogStatus("saved");
+    } catch {
+      setMovementExerciseLogStatus("error");
+    }
+  }, [activeMovementExerciseId, activeMovementExerciseSession, movementExerciseLogStatus]);
 
   const agentName = useMemo(() => {
     if (!room) return "";
@@ -3393,68 +3542,70 @@ const RoomScreen = () => {
         {copy.back}
       </button>
 
-      <header className="mt-5 rounded-[30px] border border-[#E8DDCF] bg-[#FFFDFC] px-5 py-5 shadow-[0_16px_34px_rgba(91,33,182,0.05)]">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <p className="font-display text-[34px] leading-[1.08] text-[#45325B]">{room.agentFullName}</p>
-            <p className="mt-2 font-body text-[20px] text-[#6E627D]">{room.agentCredential}</p>
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <span className="font-body text-[20px] font-semibold text-[#6B3CC7]">
-                {getPeopleLabel(language, room.participantCount)}
-              </span>
-              <button
-                type="button"
-                onClick={() => setMembersOpen(true)}
-                className="min-h-[42px] rounded-full border border-[#DECBEF] bg-[#F8F3FF] px-4 font-body text-[18px] font-semibold text-[#6B3CC7]"
-              >
-                {copy.viewMembers}
-              </button>
+      {!movementRoomActive && (
+        <header className="mt-5 rounded-[30px] border border-[#E8DDCF] bg-[#FFFDFC] px-5 py-5 shadow-[0_16px_34px_rgba(91,33,182,0.05)]">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="font-display text-[34px] leading-[1.08] text-[#45325B]">{room.agentFullName}</p>
+              <p className="mt-2 font-body text-[20px] text-[#6E627D]">{room.agentCredential}</p>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <span className="font-body text-[20px] font-semibold text-[#6B3CC7]">
+                  {getPeopleLabel(language, room.participantCount)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setMembersOpen(true)}
+                  className="min-h-[42px] rounded-full border border-[#DECBEF] bg-[#F8F3FF] px-4 font-body text-[18px] font-semibold text-[#6B3CC7]"
+                >
+                  {copy.viewMembers}
+                </button>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-2 text-[#5A456D]">
+                {agentPresence === "speaking" ? (
+                  <>
+                    <span className="font-body text-[20px] font-semibold text-[#6B3CC7]">
+                      {getAgentSpeakingLabel(language, room.agentFullName.split(" ")[0] ?? room.agentFullName)}
+                    </span>
+                    <span className="social-mini-wave text-[#6B3CC7]" aria-hidden="true">
+                      <b></b>
+                      <b></b>
+                      <b></b>
+                    </span>
+                  </>
+                ) : agentPresence === "thinking" ? (
+                  <>
+                    <span className="font-body text-[20px] font-semibold text-[#7D66A0]">
+                      {getAgentThinkingLabel(language, room.agentFullName.split(" ")[0] ?? room.agentFullName)}
+                    </span>
+                    <span className="social-thinking-dot text-[#7D66A0]" aria-hidden="true"></span>
+                  </>
+                ) : (
+                  <>
+                    <span className="font-body text-[20px] font-semibold text-[#786A86]">
+                      {room.agentFullName.split(" ")[0] ?? room.agentFullName}
+                    </span>
+                    <span className="social-presence-dot text-[#786A86]" aria-hidden="true"></span>
+                  </>
+                )}
+              </div>
             </div>
-            <div className="mt-4 flex flex-wrap items-center gap-2 text-[#5A456D]">
-              {agentPresence === "speaking" ? (
-                <>
-                  <span className="font-body text-[20px] font-semibold text-[#6B3CC7]">
-                    {getAgentSpeakingLabel(language, room.agentFullName.split(" ")[0] ?? room.agentFullName)}
-                  </span>
-                  <span className="social-mini-wave text-[#6B3CC7]" aria-hidden="true">
-                    <b></b>
-                    <b></b>
-                    <b></b>
-                  </span>
-                </>
-              ) : agentPresence === "thinking" ? (
-                <>
-                  <span className="font-body text-[20px] font-semibold text-[#7D66A0]">
-                    {getAgentThinkingLabel(language, room.agentFullName.split(" ")[0] ?? room.agentFullName)}
-                  </span>
-                  <span className="social-thinking-dot text-[#7D66A0]" aria-hidden="true"></span>
-                </>
-              ) : (
-                <>
-                  <span className="font-body text-[20px] font-semibold text-[#786A86]">
-                    {room.agentFullName.split(" ")[0] ?? room.agentFullName}
-                  </span>
-                  <span className="social-presence-dot text-[#786A86]" aria-hidden="true"></span>
-                </>
-              )}
-            </div>
-          </div>
 
-          <div className="flex -space-x-2">
-            {roomMembers.slice(0, 3).map((member, index) => (
-              <button
-                key={member.id}
-                type="button"
-                onClick={() => setSelectedMember(member)}
-                className="flex h-[42px] w-[42px] items-center justify-center rounded-full border-2 border-[#FFFDFC] text-[15px] font-semibold text-white shadow-[0_6px_12px_rgba(91,33,182,0.08)]"
-                style={{ background: getParticipantColour(index) }}
-              >
-                {member.name.slice(0, 1).toUpperCase()}
-              </button>
-            ))}
+            <div className="flex -space-x-2">
+              {roomMembers.slice(0, 3).map((member, index) => (
+                <button
+                  key={member.id}
+                  type="button"
+                  onClick={() => setSelectedMember(member)}
+                  className="flex h-[42px] w-[42px] items-center justify-center rounded-full border-2 border-[#FFFDFC] text-[15px] font-semibold text-white shadow-[0_6px_12px_rgba(91,33,182,0.08)]"
+                  style={{ background: getParticipantColour(index) }}
+                >
+                  {member.name.slice(0, 1).toUpperCase()}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       <main className="mt-5 space-y-4">
         {togetherRoomActive && togetherCopy && (
@@ -3565,38 +3716,198 @@ const RoomScreen = () => {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={openMovementExerciseLibrary}
-              className="mt-4 inline-flex min-h-[58px] w-[190px] max-w-full items-center justify-center gap-2 rounded-[20px] bg-[#0284C7] px-4 font-body text-[18px] font-bold text-white shadow-[0_14px_28px_rgba(2,132,199,0.18)] sm:ml-[72px] sm:w-auto sm:px-5 sm:text-[19px]"
-              data-testid="button-movement-room-browse-exercises"
-            >
-              <Sparkles size={21} strokeWidth={2.4} aria-hidden="true" />
-              <span>{movementExerciseCopy.cta}</span>
-              <ArrowRight className="hidden sm:block" size={20} strokeWidth={2.5} aria-hidden="true" />
-            </button>
-
             <p className="mt-4 max-w-[720px] break-words font-body text-[18px] leading-[1.35] text-[#51606C] sm:ml-[72px]">
               {movementExerciseCopy.body}
             </p>
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              {movementExerciseCopy.previews.map((preview) => (
-                <span
-                  key={preview}
-                  className="rounded-full border border-[#BFE3EC] bg-white px-3 py-1.5 font-body text-[15px] font-bold text-[#0369A1]"
-                >
-                  {preview}
+            {completedMovementExercise ? (
+              <div
+                className="mt-3 flex items-center gap-2 rounded-[18px] border border-[#BBF7D0] bg-[#F0FDF4] px-3 py-3 font-body text-[16px] font-extrabold leading-snug text-[#047857] sm:ml-[72px]"
+                data-testid="movement-room-exercise-logged-status"
+              >
+                <Check size={19} strokeWidth={2.6} aria-hidden="true" />
+                <span className="min-w-0 [overflow-wrap:anywhere]">
+                  {movementSessionUiCopy.logged(completedMovementExercise.title)}
                 </span>
-              ))}
+              </div>
+            ) : null}
+
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:ml-[72px] sm:grid-cols-4" data-testid="movement-room-exercise-cards">
+              {movementExerciseCopy.cards.map((card) => {
+                const visual = MOVEMENT_EXERCISE_VISUALS[card.id];
+                const exerciseCompleted = completedMovementExerciseId === card.id;
+                return (
+                  <button
+                    key={card.id}
+                    type="button"
+                    onClick={() => openMovementExerciseCard(card.id)}
+                    aria-label={`${card.title}. ${card.benefit}. 10 min.`}
+                    className="group min-w-0 overflow-hidden rounded-[22px] border bg-white text-left shadow-[0_12px_24px_rgba(2,132,199,0.08)] transition-transform active:scale-[0.98]"
+                    style={{
+                      borderColor: exerciseCompleted ? visual.accent : visual.border,
+                      boxShadow: exerciseCompleted
+                        ? `0 12px 24px ${visual.accent}20, 0 0 0 2px ${visual.accent} inset`
+                        : "0 12px 24px rgba(2,132,199,0.08)",
+                    }}
+                    data-testid={`movement-room-exercise-card-${card.id}`}
+                  >
+                    <div className="aspect-[16/10] overflow-hidden bg-[#EEF7F9]">
+                      <img
+                        src={visual.image}
+                        alt=""
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                        loading="lazy"
+                      />
+                    </div>
+                    <div className="px-3 pb-3 pt-2.5">
+                      <span
+                        className="mb-1 inline-flex max-w-full rounded-full px-2.5 py-1 font-body text-[11px] font-black leading-tight"
+                        style={{ background: visual.softBg, color: visual.accent }}
+                      >
+                        {card.focus}
+                      </span>
+                      <p className="font-body text-[16px] font-black leading-[1.1] text-[#123047] [overflow-wrap:anywhere]">
+                        {card.title}
+                      </p>
+                      <p className="mt-1 font-body text-[13px] font-bold leading-[1.18] text-[#66717B] [overflow-wrap:anywhere]">
+                        {card.benefit}
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                        <span className="inline-flex items-center gap-1.5 font-body text-[12px] font-black" style={{ color: visual.accent }}>
+                          <Clock size={14} strokeWidth={2.4} aria-hidden="true" />
+                          10 min
+                        </span>
+                        {exerciseCompleted ? (
+                          <span
+                            className="rounded-full px-2.5 py-1 font-body text-[11px] font-black"
+                            style={{ background: visual.softBg, color: visual.accent }}
+                          >
+                            {movementSessionUiCopy.loggedBadge}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
 
-            <div className="mt-4 rounded-[18px] bg-white/72 px-3 py-3">
-              <p className="font-body text-[17px] font-semibold leading-[1.35] text-[#66717B]">
+            <div className="mt-4 flex flex-col gap-3 sm:ml-[72px] sm:flex-row sm:items-center sm:justify-between">
+              <p className="rounded-[18px] bg-white/72 px-3 py-3 font-body text-[17px] font-semibold leading-[1.35] text-[#66717B]">
                 {movementExerciseCopy.detail}
               </p>
+              <button
+                type="button"
+                onClick={openMovementExerciseLibrary}
+                className="inline-flex min-h-[54px] w-full items-center justify-center gap-2 rounded-[18px] border border-[#BFE3EC] bg-white px-4 font-body text-[17px] font-black text-[#0369A1] shadow-[0_10px_22px_rgba(2,132,199,0.08)] sm:w-auto"
+                data-testid="button-movement-room-browse-exercises"
+              >
+                <Sparkles size={20} strokeWidth={2.4} aria-hidden="true" />
+                <span>{movementExerciseCopy.cta}</span>
+                <ArrowRight size={19} strokeWidth={2.5} aria-hidden="true" />
+              </button>
             </div>
           </section>
+        )}
+
+        {movementRoomActive && activeMovementExercise && activeMovementExerciseSession && activeMovementExerciseVisual && (
+          <BottomSheet
+            open
+            onOpenChange={(open) => {
+              if (!open) closeMovementExerciseSession();
+            }}
+            title={activeMovementExercise.title}
+            description={activeMovementExercise.benefit}
+            closeLabel="Close"
+            footer={(
+              <div className="space-y-3">
+                <p
+                  className="rounded-[14px] border px-3 py-2 font-body text-[13px] font-semibold leading-snug"
+                  style={{ background: "#FFF7ED", borderColor: "#FED7AA", color: "#7C2D12" }}
+                  data-testid="movement-room-exercise-safety"
+                >
+                  {movementSessionUiCopy.safety}
+                </p>
+                {movementExerciseLogStatus === "error" ? (
+                  <p
+                    className="rounded-[14px] border px-3 py-2 font-body text-[13px] font-semibold leading-snug"
+                    style={{ background: "#FFF1F2", borderColor: "#FECDD3", color: "#BE185D" }}
+                    data-testid="movement-room-exercise-log-error"
+                  >
+                    {movementSessionUiCopy.error}
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={finishMovementExerciseSession}
+                  disabled={movementExerciseLogStatus === "saving"}
+                  className="vyva-tap flex min-h-[58px] w-full items-center justify-center gap-2 rounded-[18px] px-5 py-3 font-body text-[17px] font-extrabold text-white disabled:opacity-70"
+                  style={{
+                    background: activeMovementExerciseVisual.accent,
+                    boxShadow: `0 12px 24px ${activeMovementExerciseVisual.accent}30`,
+                  }}
+                  data-testid={`button-finish-movement-room-exercise-${activeMovementExercise.id}`}
+                >
+                  {movementExerciseLogStatus === "saving" ? (
+                    <Loader2 size={21} className="animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Check size={21} strokeWidth={2.6} aria-hidden="true" />
+                  )}
+                  {movementExerciseLogStatus === "saving" ? movementSessionUiCopy.saving : movementSessionUiCopy.done}
+                </button>
+              </div>
+            )}
+          >
+            <div className="overflow-hidden rounded-[22px] border" style={{ borderColor: activeMovementExerciseVisual.border }}>
+              <img
+                src={activeMovementExerciseVisual.image}
+                alt=""
+                className="aspect-[2/1] w-full object-cover min-[520px]:aspect-[16/9]"
+              />
+            </div>
+
+            <div className="mt-4 rounded-[20px] border bg-white p-3 min-[520px]:p-4" style={{ borderColor: activeMovementExerciseVisual.border }}>
+              <p className="font-body text-[13px] font-black uppercase text-vyva-text-2">
+                {movementSessionUiCopy.sessionStarted}
+              </p>
+              <p className="mt-2 font-body text-[17px] font-extrabold leading-snug text-vyva-text-1 [overflow-wrap:anywhere]">
+                {activeMovementExercise.title}
+              </p>
+              <p className="mt-1 font-body text-[15px] font-semibold leading-snug text-vyva-text-2 [overflow-wrap:anywhere]">
+                {activeMovementExercise.benefit}
+              </p>
+            </div>
+
+            <div className="mt-3 rounded-[20px] border bg-white p-3 min-[520px]:p-4" style={{ borderColor: "#EDE2D1" }}>
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-body text-[13px] font-black uppercase text-vyva-text-2">
+                  {movementSessionUiCopy.stepsTitle}
+                </p>
+                <span
+                  className="flex items-center gap-1.5 rounded-full px-3 py-1.5 font-body text-[13px] font-extrabold"
+                  style={{ background: activeMovementExerciseVisual.softBg, color: activeMovementExerciseVisual.accent }}
+                >
+                  <Clock size={14} strokeWidth={2.4} aria-hidden="true" />
+                  10 min
+                </span>
+              </div>
+              <ol className="mt-3 space-y-2" data-testid="movement-room-exercise-session-steps">
+                {activeMovementExerciseSession.steps[language].map((step, index) => (
+                  <li key={step} className="flex items-start gap-3">
+                    <span
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-body text-[14px] font-extrabold"
+                      style={{ background: activeMovementExerciseVisual.softBg, color: activeMovementExerciseVisual.accent }}
+                    >
+                      {index + 1}
+                    </span>
+                    <span className="pt-1 font-body text-[15px] font-semibold leading-snug text-vyva-text-1 [overflow-wrap:anywhere]">
+                      {step}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </BottomSheet>
         )}
 
         {readingRoomActive && (
@@ -4750,7 +5061,7 @@ const RoomScreen = () => {
           </section>
         )}
 
-        {roomMode === "welcome" ? (
+        {!movementRoomActive && (roomMode === "welcome" ? (
             <section className="rounded-[34px] border border-[#E8DDCF] bg-[#FFFDFC] p-5 shadow-[0_16px_34px_rgba(91,33,182,0.05)]">
               <div className="rounded-[28px] bg-[#F8F3FF] px-5 py-5">
                 <div className="flex items-center gap-3">
@@ -4878,7 +5189,7 @@ const RoomScreen = () => {
                 </button>
               </form>
             </section>
-          )}
+          ))}
       </main>
 
       {membersOpen && (
