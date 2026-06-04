@@ -1,5 +1,7 @@
 export type SocialLanguage = "es" | "de" | "en";
 
+export type SocialGameLanguage = "es" | "en" | "fr" | "de" | "it" | "pt";
+
 export type SocialRoomCategory = "activity" | "social" | "useful" | "connection";
 
 export type SocialActivityType =
@@ -10,6 +12,47 @@ export type SocialActivityType =
   | "game"
   | "story"
   | "advice";
+
+export type SocialGameKind = "chess" | "word" | "dominoes" | "trivia";
+
+export type SocialGameRound = {
+  id: string;
+  kind: SocialGameKind;
+  title: string;
+  body: string;
+  prompt: string;
+  choices: string[];
+  answer: string;
+  hint: string;
+  tags: string[];
+  estimatedDurationSeconds: number;
+  successMessage: string;
+};
+
+export type SocialGameReadyMember = {
+  id: string;
+  name: string;
+  gameKind: SocialGameKind;
+  statusLabel: string;
+  sharedTopic: string;
+};
+
+export type SocialGameTable = {
+  hostLine: string;
+  tableLabel: string;
+  readyLabel: string;
+  chooseRoundLabel: string;
+  connectionTitle: string;
+  connectionBody: string;
+  startRoundLabel: string;
+  completeRoundLabel: string;
+  findPartnerLabel: string;
+  sayHelloLabel: string;
+  roundCompleteLabel: string;
+  rounds: SocialGameRound[];
+  defaultRoundId: string;
+  readyMembers: SocialGameReadyMember[];
+};
 
 export type SocialRoom = {
   slug: string;
@@ -96,6 +139,7 @@ export type SocialRoomResponse = {
   memberChat: SocialRoomChatItem[];
   visitState?: SocialRoomVisitState;
   conversationContext?: SocialConversationContext;
+  gameTable?: SocialGameTable;
 };
 
 export type SocialMatchResponse = {

@@ -1,4 +1,4 @@
-import type { SocialLanguage, SocialRoom, SocialRoomCategory } from "./types";
+import type { SocialGameLanguage, SocialLanguage, SocialRoom, SocialRoomCategory } from "./types";
 
 type CopyShape = {
   dayLabel: string;
@@ -284,6 +284,15 @@ export function getSocialLanguage(language?: string | null): SocialLanguage {
   if (!language) return "es";
   const base = language.split("-")[0]?.toLowerCase();
   if (base === "es" || base === "de") return base;
+  return "en";
+}
+
+export function getSocialGameLanguage(language?: string | null): SocialGameLanguage {
+  if (!language) return "es";
+  const base = language.split("-")[0]?.toLowerCase();
+  if (base === "es" || base === "en" || base === "fr" || base === "de" || base === "it" || base === "pt") {
+    return base;
+  }
   return "en";
 }
 

@@ -13,6 +13,7 @@ import {
   socialRooms,
   socialUserInterests,
 } from "../../shared/schema.js";
+import type { SocialGameLanguage } from "../../src/social/types";
 import {
   buildDailyRoomSession,
   getSocialRoomBySlug,
@@ -21,6 +22,16 @@ import {
   resolveSocialRoomSlug,
   socialRoomSeeds,
 } from "../lib/socialRoomsSeed.js";
+import {
+  buildGamePreferenceTag,
+  buildGameTable,
+  isSocialGameKind,
+} from "../lib/socialGameRounds.js";
+import {
+  formatSharedTopic,
+  pickBestSocialMatch,
+  supportsSocialMatching,
+} from "../lib/socialMatching.js";
 import {
   buildUserConversationContext,
   type ConversationContextSummary,
@@ -72,6 +83,14 @@ const roomActionSchema = z.object({
   durationSeconds: z.number().int().min(0).max(24 * 60 * 60).optional(),
 });
 
+const gameRoundSchema = z.object({
+  lang: z.string().optional(),
+  visitId: z.string().optional(),
+  roundId: z.string().trim().min(1).max(80).optional(),
+  gameKind: z.enum(["chess", "word", "dominoes", "trivia"]),
+  completed: z.boolean().optional(),
+});
+
 function resolveUserId(req: Request): string | null {
   if (req.user?.id) return req.user.id;
   if (!IS_PROD) return DEMO_USER_ID;
@@ -86,6 +105,10 @@ function normalizeLanguage(raw?: string | null): SocialLanguage {
   const language = normalizeAppLanguage(raw, "es");
   if (language === "es" || language === "de") return language;
   return "en";
+}
+
+function normalizeGameLanguage(raw?: string | null): SocialGameLanguage {
+  return normalizeAppLanguage(raw, "es");
 }
 
 function buildConnectionKey(a: string, b: string) {
@@ -226,6 +249,20 @@ async function persistInterestSnapshot(userId: string, snapshot: InterestSnapsho
     },
     async () => undefined,
   );
+}
+
+async function persistGamePreference(userId: string, gameKind: "chess" | "word" | "dominoes" | "trivia") {
+  const existing = await loadUserInterestSnapshot(userId);
+  const nextTags = Array.from(new Set([
+    ...existing.interestTags,
+    "games",
+    buildGamePreferenceTag(gameKind),
+  ]));
+
+  await persistInterestSnapshot(userId, {
+    ...existing,
+    interestTags: nextTags,
+  });
 }
 
 function buildRoomVisitState(snapshot: InterestSnapshot, roomSlug: string, incrementBy = 0): RoomVisitState {
@@ -706,7 +743,9 @@ router.get("/hub", async (req: Request, res: Response) => {
 router.get("/rooms/:slug", async (req: Request, res: Response) => {
   const userId = resolvePublicUserId(req);
   const profile = await loadProfileSummary(userId);
-  const language = normalizeLanguage((req.query.lang as string | undefined) ?? profile.language);
+  const rawLanguage = (req.query.lang as string | undefined) ?? profile.language;
+  const language = normalizeLanguage(rawLanguage);
+  const gameLanguage = normalizeGameLanguage(rawLanguage);
   const room = buildRoomPayload(req.params.slug, language);
   if (!room) return res.status(404).json({ error: "Room not found" });
 
@@ -736,6 +775,9 @@ router.get("/rooms/:slug", async (req: Request, res: Response) => {
     memberChat,
     visitState,
     conversationContext,
+    ...(room.slug === "games-room"
+      ? { gameTable: buildGameTable(gameLanguage, room.participantCount) }
+      : {}),
   });
 });
 
@@ -811,6 +853,31 @@ router.post("/rooms/:slug/leave", async (req: Request, res: Response) => {
   return res.json({ ok: true });
 });
 
+router.post("/rooms/:slug/game-round", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  const parsed = gameRoundSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  const slug = resolveSocialRoomSlug(req.params.slug);
+  if (slug !== "games-room") {
+    return res.status(400).json({ error: "This room does not support game rounds" });
+  }
+
+  await persistGamePreference(userId, parsed.data.gameKind);
+
+  return res.json({
+    ok: true,
+    roomSlug: slug,
+    roundId: parsed.data.roundId ?? null,
+    gameKind: parsed.data.gameKind,
+    interestTag: buildGamePreferenceTag(parsed.data.gameKind),
+  });
+});
+
 router.post("/rooms/:slug/message", async (req: Request, res: Response) => {
   const userId = resolveUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
@@ -846,10 +913,17 @@ router.post("/rooms/:slug/match", async (req: Request, res: Response) => {
   const userId = resolveUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
 
-  const language = normalizeLanguage((req.body as { lang?: string } | undefined)?.lang);
-  const slug = req.params.slug;
-  if (!["pen-pals", "heritage-exchange"].includes(slug)) {
+  const body = (req.body ?? {}) as { lang?: string; gameKind?: unknown };
+  const language = normalizeLanguage(body.lang);
+  const slug = resolveSocialRoomSlug(req.params.slug);
+  const gameKind = isSocialGameKind(body.gameKind) ? body.gameKind : null;
+
+  if (!supportsSocialMatching(slug)) {
     return res.status(400).json({ error: "This room does not support matching" });
+  }
+
+  if (slug === "games-room" && gameKind) {
+    await persistGamePreference(userId, gameKind);
   }
 
   const userInterests = await loadUserInterestSnapshot(userId);
@@ -883,6 +957,7 @@ router.post("/rooms/:slug/match", async (req: Request, res: Response) => {
         .map((row) => ({
           userId: row.userId,
           interestTags: row.interestTags ?? [],
+          discoverable: true,
           displayName:
             profileMap.get(row.userId)?.preferred_name ||
             profileMap.get(row.userId)?.full_name?.split(/\s+/).filter(Boolean)[0] ||
@@ -890,30 +965,21 @@ router.post("/rooms/:slug/match", async (req: Request, res: Response) => {
         }));
     },
     async () => {
+      if (IS_PROD) return [];
       return Array.from(memoryInterests.entries())
         .filter(([candidateId]) => candidateId !== userId)
         .map(([candidateId, snapshot]) => ({
           userId: candidateId,
           interestTags: snapshot.interestTags,
+          discoverable: true,
           displayName: "Amiga",
         }));
     },
   );
 
-  const best = candidates
-    .map((candidate) => {
-      const shared = userInterests.interestTags.filter((tag) => candidate.interestTags.includes(tag));
-      const union = Array.from(new Set([...userInterests.interestTags, ...candidate.interestTags]));
-      const score = union.length === 0 ? 0 : shared.length / union.length;
-      return {
-        ...candidate,
-        shared,
-        score,
-      };
-    })
-    .sort((a, b) => b.score - a.score)[0];
+  const best = pickBestSocialMatch(userInterests.interestTags, candidates, { roomSlug: slug, gameKind });
 
-  if (!best || best.score <= 0) {
+  if (!best) {
     const agentMessage = language === "de"
       ? "Heute ist noch niemand passend verfügbar. Schau später noch einmal vorbei."
       : language === "en"
@@ -945,12 +1011,20 @@ router.post("/rooms/:slug/match", async (req: Request, res: Response) => {
     async () => undefined,
   );
 
-  const sharedTopic = best.shared[0] ?? (language === "de" ? "Lieblingsthemen" : language === "en" ? "favourite hobbies" : "aficiones favoritas");
-  const agentMessage = language === "de"
-    ? `Ich habe jemanden mit ähnlichen Interessen gefunden. Ihr könnt mit ${sharedTopic} beginnen.`
-    : language === "en"
-      ? `I found someone with similar interests. You could begin with ${sharedTopic}.`
-      : `He encontrado a alguien con intereses parecidos. Podéis empezar por ${sharedTopic}.`;
+  const fallbackGameTopic = gameKind ? buildGamePreferenceTag(gameKind) : undefined;
+  const sharedTopic = formatSharedTopic(best.shared[0] ?? fallbackGameTopic, language);
+  const agentMessage =
+    slug === "games-room"
+      ? language === "de"
+        ? `Ich habe jemanden gefunden, der auch ${sharedTopic} mag. Wenn ihr beide zustimmt, bleibt der Kontakt geschuetzt.`
+        : language === "en"
+          ? `I found someone who also enjoys ${sharedTopic}. If you both accept, contact stays private until you are ready.`
+          : `He encontrado a alguien que tambien disfruta ${sharedTopic}. Si ambos aceptais, el contacto sigue protegido.`
+      : language === "de"
+        ? `Ich habe jemanden mit aehnlichen Interessen gefunden. Ihr koennt mit ${sharedTopic} beginnen.`
+        : language === "en"
+          ? `I found someone with similar interests. You could begin with ${sharedTopic}.`
+          : `He encontrado a alguien con intereses parecidos. Podeis empezar por ${sharedTopic}.`;
 
   return res.json({
     noMatch: false,
