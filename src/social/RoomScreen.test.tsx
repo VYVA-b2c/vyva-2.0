@@ -135,12 +135,25 @@ describe("RoomScreen movement room", () => {
 
     expect(screen.queryByText("Amara welcomes you")).not.toBeInTheDocument();
     expect(screen.queryByText("Hello, I'm Amara. We can move gently and without hurry.")).not.toBeInTheDocument();
-    expect(screen.getByTestId("movement-room-exercise-library")).toHaveTextContent("Gentle exercise cards");
-    expect(screen.getByTestId("movement-room-exercise-library")).toHaveTextContent("Pick from 12 photo-led routines");
-    expect(screen.getByTestId("movement-room-exercise-library")).toHaveTextContent("Each starts with plain steps");
-    expect(screen.getByText("Chair yoga")).toBeInTheDocument();
-    expect(screen.getByText("Tai chi")).toBeInTheDocument();
-    expect(screen.getByText("Seated strength")).toBeInTheDocument();
+    expect(screen.getByTestId("movement-room-exercise-library")).toHaveTextContent("Choose a gentle activity");
+    expect(screen.getByTestId("movement-room-exercise-library")).toHaveTextContent("Tap a photo");
+    expect(screen.getByTestId("movement-room-exercise-library")).toHaveTextContent("Need more choices?");
+    expect(screen.getByTestId("movement-room-exercise-cards")).toHaveTextContent("Chair yoga");
+    expect(screen.getByTestId("movement-room-exercise-cards")).toHaveTextContent("Tai chi");
+    expect(screen.getByTestId("movement-room-exercise-cards")).toHaveTextContent("Seated strength");
+    expect(screen.getByTestId("movement-room-exercise-cards")).toHaveTextContent("Calm breathing");
+    expect(screen.getAllByTestId(/^movement-room-exercise-card-/)).toHaveLength(4);
+
+    fireEvent.click(screen.getByTestId("movement-room-exercise-card-chair-yoga"));
+
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/activity"));
+    expect(screen.getByTestId("route-state")).toHaveTextContent("\"startGentleExerciseId\":\"chair-yoga\"");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("\"scrollToGentleExercises\":true");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("\"routineSource\":\"movement_room\"");
+  });
+
+  it("keeps a browse-all exercise path from the Movement room", async () => {
+    renderRoom();
 
     fireEvent.click(screen.getByTestId("button-movement-room-browse-exercises"));
 

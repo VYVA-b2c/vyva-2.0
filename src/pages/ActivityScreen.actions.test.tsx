@@ -273,6 +273,14 @@ describe("Activity safe-home service actions", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("Move gently. Stop if you feel pain, dizzy, or short of breath.");
   });
 
+  it("opens a guided exercise from Movement room route state", () => {
+    renderActivity([{ pathname: "/activity", state: { startGentleExerciseId: "calm-breathing", scrollToGentleExercises: true, routineSource: "movement_room" } }]);
+
+    expect(screen.getByRole("dialog")).toHaveTextContent("Calm breathing");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Settle your breath");
+    expect(screen.getByTestId("button-use-senior-exercise-calm-breathing")).toHaveTextContent("Use this exercise");
+  });
+
   it("uses a guided exercise to preselect 10 minutes for logging", () => {
     renderActivity();
 

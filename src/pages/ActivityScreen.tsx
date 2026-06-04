@@ -550,6 +550,7 @@ type ActivityLocationState = {
   preselectActivity?: string;
   duration?: number;
   startGentleRoutine?: boolean;
+  startGentleExerciseId?: string;
   highlightGentleRoutine?: boolean;
   scrollToGentleExercises?: boolean;
   routineSource?: string;
@@ -609,9 +610,12 @@ const ActivityScreen = () => {
     ? incomingState.duration
     : 20;
   const incomingStartGentleRoutine = incomingState?.startGentleRoutine === true;
+  const incomingGentleExerciseId = typeof incomingState?.startGentleExerciseId === "string" && SENIOR_EXERCISE_BY_ID.has(incomingState.startGentleExerciseId)
+    ? incomingState.startGentleExerciseId
+    : null;
   const [selected, setSelected] = useState<string | null>(() => incomingActivity);
   const [duration, setDuration] = useState<number>(() => incomingDuration);
-  const [guidedExerciseId, setGuidedExerciseId] = useState<string | null>(null);
+  const [guidedExerciseId, setGuidedExerciseId] = useState<string | null>(() => incomingGentleExerciseId);
   const [guidedRoutineId, setGuidedRoutineId] = useState<string | null>(() => incomingStartGentleRoutine ? getDailySeniorRoutine().id : null);
   const [routineStepIndex, setRoutineStepIndex] = useState(0);
   const [editingSteps, setEditingSteps] = useState(false);
@@ -726,6 +730,11 @@ const ActivityScreen = () => {
       gentleExercisesSectionRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
     }, 0);
   }, [incomingState?.scrollToGentleExercises]);
+
+  useEffect(() => {
+    if (!incomingGentleExerciseId) return;
+    setGuidedExerciseId(incomingGentleExerciseId);
+  }, [incomingGentleExerciseId]);
 
   const closeGuidedRoutine = () => {
     setGuidedRoutineId(null);

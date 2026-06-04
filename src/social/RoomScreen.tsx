@@ -83,12 +83,23 @@ import type {
   SocialRoomResponse,
   SocialRoomVisitState,
 } from "./types";
+import chairYogaImage from "@/assets/senior-activities/chair-yoga.jpg";
+import taiChiImage from "@/assets/senior-activities/tai-chi.jpg";
+import seatedStrengthImage from "@/assets/senior-activities/seated-strength.jpg";
+import calmBreathingImage from "@/assets/senior-activities/calm-breathing.jpg";
 
 const FALLBACK_MEMBER_NAMES = ["Carmen", "Josefa", "Manuel", "Ana"];
 const MEMBER_COLOURS = ["#F59E0B", "#0EA5A4", "#EC4899", "#3B82F6"];
+const MOVEMENT_EXERCISE_VISUALS: Record<MovementExerciseCardId, { image: string; accent: string; softBg: string; border: string }> = {
+  "chair-yoga":      { image: chairYogaImage,      accent: "#6B21A8", softBg: "#F5F3FF", border: "#D8B4FE" },
+  "tai-chi":         { image: taiChiImage,         accent: "#33691E", softBg: "#EEF8DF", border: "#CFE8B8" },
+  "seated-strength": { image: seatedStrengthImage, accent: "#0F766E", softBg: "#F0FDFA", border: "#99F6E4" },
+  "calm-breathing":  { image: calmBreathingImage,  accent: "#2F66D0", softBg: "#EFF6FF", border: "#BFDBFE" },
+};
 
 type AgentPresence = "idle" | "thinking" | "speaking";
 type RoomMode = "welcome" | "chat";
+type MovementExerciseCardId = "chair-yoga" | "tai-chi" | "seated-strength" | "calm-breathing";
 
 type FeedComment = {
   id: string;
@@ -1374,32 +1385,47 @@ function getMovementExerciseLibraryCopy(language: SocialLanguage) {
   if (language === "en") {
     return {
       eyebrow: "Movement room",
-      title: "Gentle exercise cards",
-      body: "Pick from 12 photo-led routines for strength, balance, mobility, and calm.",
-      detail: "Each starts with plain steps and a safety note.",
-      cta: "Browse exercises",
-      previews: ["Chair yoga", "Tai chi", "Seated strength"],
+      title: "Choose a gentle activity",
+      body: "Tap a photo to start.",
+      detail: "Need more choices? Browse all 12 photo-led routines.",
+      cta: "Browse all exercises",
+      cards: [
+        { id: "chair-yoga" as MovementExerciseCardId, title: "Chair yoga", benefit: "Loosen shoulders", focus: "Mobility" },
+        { id: "tai-chi" as MovementExerciseCardId, title: "Tai chi", benefit: "Balance practice", focus: "Balance" },
+        { id: "seated-strength" as MovementExerciseCardId, title: "Seated strength", benefit: "Build leg strength", focus: "Strength" },
+        { id: "calm-breathing" as MovementExerciseCardId, title: "Calm breathing", benefit: "Settle your breath", focus: "Calm" },
+      ],
     };
   }
 
   if (language === "de") {
     return {
       eyebrow: "Bewegungsraum",
-      title: "Sanfte Uebungskarten",
-      body: "Waehle aus 12 Foto-Uebungen fuer Kraft, Gleichgewicht, Beweglichkeit und Ruhe.",
-      detail: "Jede beginnt mit klaren Schritten und Sicherheitshinweis.",
-      cta: "Uebungen ansehen",
-      previews: ["Stuhl-Yoga", "Tai Chi", "Kraft im Sitzen"],
+      title: "Sanfte Aktivitaet waehlen",
+      body: "Tippe auf ein Foto zum Starten.",
+      detail: "Mehr Auswahl? Sieh alle 12 Foto-Uebungen an.",
+      cta: "Alle Uebungen ansehen",
+      cards: [
+        { id: "chair-yoga" as MovementExerciseCardId, title: "Stuhl-Yoga", benefit: "Schultern lockern", focus: "Beweglichkeit" },
+        { id: "tai-chi" as MovementExerciseCardId, title: "Tai Chi", benefit: "Gleichgewicht ueben", focus: "Balance" },
+        { id: "seated-strength" as MovementExerciseCardId, title: "Kraft im Sitzen", benefit: "Beine kraeftigen", focus: "Kraft" },
+        { id: "calm-breathing" as MovementExerciseCardId, title: "Ruhiges Atmen", benefit: "Atem beruhigen", focus: "Ruhe" },
+      ],
     };
   }
 
   return {
     eyebrow: "Sala de movimiento",
-    title: "Tarjetas de ejercicio suave",
-    body: "Elige entre 12 rutinas con fotos para fuerza, equilibrio, movilidad y calma.",
-    detail: "Cada una empieza con pasos claros y una nota de seguridad.",
-    cta: "Ver ejercicios",
-    previews: ["Yoga en silla", "Tai chi", "Fuerza sentada"],
+    title: "Elige una actividad suave",
+    body: "Toca una foto para empezar.",
+    detail: "Quieres mas opciones? Mira las 12 rutinas con foto.",
+    cta: "Ver todos los ejercicios",
+    cards: [
+      { id: "chair-yoga" as MovementExerciseCardId, title: "Yoga en silla", benefit: "Soltar hombros", focus: "Movilidad" },
+      { id: "tai-chi" as MovementExerciseCardId, title: "Tai chi", benefit: "Practicar equilibrio", focus: "Equilibrio" },
+      { id: "seated-strength" as MovementExerciseCardId, title: "Fuerza sentada", benefit: "Fortalecer piernas", focus: "Fuerza" },
+      { id: "calm-breathing" as MovementExerciseCardId, title: "Respiracion tranquila", benefit: "Calmar la respiracion", focus: "Calma" },
+    ],
   };
 }
 
@@ -2314,6 +2340,16 @@ const RoomScreen = () => {
     navigate("/activity", {
       state: {
         scrollToGentleExercises: true,
+        routineSource: "movement_room",
+      },
+    });
+  }, [navigate]);
+
+  const openMovementExerciseCard = useCallback((exerciseId: MovementExerciseCardId) => {
+    navigate("/activity", {
+      state: {
+        scrollToGentleExercises: true,
+        startGentleExerciseId: exerciseId,
         routineSource: "movement_room",
       },
     });
@@ -3393,68 +3429,70 @@ const RoomScreen = () => {
         {copy.back}
       </button>
 
-      <header className="mt-5 rounded-[30px] border border-[#E8DDCF] bg-[#FFFDFC] px-5 py-5 shadow-[0_16px_34px_rgba(91,33,182,0.05)]">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <p className="font-display text-[34px] leading-[1.08] text-[#45325B]">{room.agentFullName}</p>
-            <p className="mt-2 font-body text-[20px] text-[#6E627D]">{room.agentCredential}</p>
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <span className="font-body text-[20px] font-semibold text-[#6B3CC7]">
-                {getPeopleLabel(language, room.participantCount)}
-              </span>
-              <button
-                type="button"
-                onClick={() => setMembersOpen(true)}
-                className="min-h-[42px] rounded-full border border-[#DECBEF] bg-[#F8F3FF] px-4 font-body text-[18px] font-semibold text-[#6B3CC7]"
-              >
-                {copy.viewMembers}
-              </button>
+      {!movementRoomActive && (
+        <header className="mt-5 rounded-[30px] border border-[#E8DDCF] bg-[#FFFDFC] px-5 py-5 shadow-[0_16px_34px_rgba(91,33,182,0.05)]">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="font-display text-[34px] leading-[1.08] text-[#45325B]">{room.agentFullName}</p>
+              <p className="mt-2 font-body text-[20px] text-[#6E627D]">{room.agentCredential}</p>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <span className="font-body text-[20px] font-semibold text-[#6B3CC7]">
+                  {getPeopleLabel(language, room.participantCount)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setMembersOpen(true)}
+                  className="min-h-[42px] rounded-full border border-[#DECBEF] bg-[#F8F3FF] px-4 font-body text-[18px] font-semibold text-[#6B3CC7]"
+                >
+                  {copy.viewMembers}
+                </button>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-2 text-[#5A456D]">
+                {agentPresence === "speaking" ? (
+                  <>
+                    <span className="font-body text-[20px] font-semibold text-[#6B3CC7]">
+                      {getAgentSpeakingLabel(language, room.agentFullName.split(" ")[0] ?? room.agentFullName)}
+                    </span>
+                    <span className="social-mini-wave text-[#6B3CC7]" aria-hidden="true">
+                      <b></b>
+                      <b></b>
+                      <b></b>
+                    </span>
+                  </>
+                ) : agentPresence === "thinking" ? (
+                  <>
+                    <span className="font-body text-[20px] font-semibold text-[#7D66A0]">
+                      {getAgentThinkingLabel(language, room.agentFullName.split(" ")[0] ?? room.agentFullName)}
+                    </span>
+                    <span className="social-thinking-dot text-[#7D66A0]" aria-hidden="true"></span>
+                  </>
+                ) : (
+                  <>
+                    <span className="font-body text-[20px] font-semibold text-[#786A86]">
+                      {room.agentFullName.split(" ")[0] ?? room.agentFullName}
+                    </span>
+                    <span className="social-presence-dot text-[#786A86]" aria-hidden="true"></span>
+                  </>
+                )}
+              </div>
             </div>
-            <div className="mt-4 flex flex-wrap items-center gap-2 text-[#5A456D]">
-              {agentPresence === "speaking" ? (
-                <>
-                  <span className="font-body text-[20px] font-semibold text-[#6B3CC7]">
-                    {getAgentSpeakingLabel(language, room.agentFullName.split(" ")[0] ?? room.agentFullName)}
-                  </span>
-                  <span className="social-mini-wave text-[#6B3CC7]" aria-hidden="true">
-                    <b></b>
-                    <b></b>
-                    <b></b>
-                  </span>
-                </>
-              ) : agentPresence === "thinking" ? (
-                <>
-                  <span className="font-body text-[20px] font-semibold text-[#7D66A0]">
-                    {getAgentThinkingLabel(language, room.agentFullName.split(" ")[0] ?? room.agentFullName)}
-                  </span>
-                  <span className="social-thinking-dot text-[#7D66A0]" aria-hidden="true"></span>
-                </>
-              ) : (
-                <>
-                  <span className="font-body text-[20px] font-semibold text-[#786A86]">
-                    {room.agentFullName.split(" ")[0] ?? room.agentFullName}
-                  </span>
-                  <span className="social-presence-dot text-[#786A86]" aria-hidden="true"></span>
-                </>
-              )}
-            </div>
-          </div>
 
-          <div className="flex -space-x-2">
-            {roomMembers.slice(0, 3).map((member, index) => (
-              <button
-                key={member.id}
-                type="button"
-                onClick={() => setSelectedMember(member)}
-                className="flex h-[42px] w-[42px] items-center justify-center rounded-full border-2 border-[#FFFDFC] text-[15px] font-semibold text-white shadow-[0_6px_12px_rgba(91,33,182,0.08)]"
-                style={{ background: getParticipantColour(index) }}
-              >
-                {member.name.slice(0, 1).toUpperCase()}
-              </button>
-            ))}
+            <div className="flex -space-x-2">
+              {roomMembers.slice(0, 3).map((member, index) => (
+                <button
+                  key={member.id}
+                  type="button"
+                  onClick={() => setSelectedMember(member)}
+                  className="flex h-[42px] w-[42px] items-center justify-center rounded-full border-2 border-[#FFFDFC] text-[15px] font-semibold text-white shadow-[0_6px_12px_rgba(91,33,182,0.08)]"
+                  style={{ background: getParticipantColour(index) }}
+                >
+                  {member.name.slice(0, 1).toUpperCase()}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       <main className="mt-5 space-y-4">
         {togetherRoomActive && togetherCopy && (
@@ -3565,36 +3603,68 @@ const RoomScreen = () => {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={openMovementExerciseLibrary}
-              className="mt-4 inline-flex min-h-[58px] w-[190px] max-w-full items-center justify-center gap-2 rounded-[20px] bg-[#0284C7] px-4 font-body text-[18px] font-bold text-white shadow-[0_14px_28px_rgba(2,132,199,0.18)] sm:ml-[72px] sm:w-auto sm:px-5 sm:text-[19px]"
-              data-testid="button-movement-room-browse-exercises"
-            >
-              <Sparkles size={21} strokeWidth={2.4} aria-hidden="true" />
-              <span>{movementExerciseCopy.cta}</span>
-              <ArrowRight className="hidden sm:block" size={20} strokeWidth={2.5} aria-hidden="true" />
-            </button>
-
             <p className="mt-4 max-w-[720px] break-words font-body text-[18px] leading-[1.35] text-[#51606C] sm:ml-[72px]">
               {movementExerciseCopy.body}
             </p>
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              {movementExerciseCopy.previews.map((preview) => (
-                <span
-                  key={preview}
-                  className="rounded-full border border-[#BFE3EC] bg-white px-3 py-1.5 font-body text-[15px] font-bold text-[#0369A1]"
-                >
-                  {preview}
-                </span>
-              ))}
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:ml-[72px] sm:grid-cols-4" data-testid="movement-room-exercise-cards">
+              {movementExerciseCopy.cards.map((card) => {
+                const visual = MOVEMENT_EXERCISE_VISUALS[card.id];
+                return (
+                  <button
+                    key={card.id}
+                    type="button"
+                    onClick={() => openMovementExerciseCard(card.id)}
+                    aria-label={`${card.title}. ${card.benefit}. 10 min.`}
+                    className="group min-w-0 overflow-hidden rounded-[22px] border bg-white text-left shadow-[0_12px_24px_rgba(2,132,199,0.08)] transition-transform active:scale-[0.98]"
+                    style={{ borderColor: visual.border }}
+                    data-testid={`movement-room-exercise-card-${card.id}`}
+                  >
+                    <div className="aspect-[16/10] overflow-hidden bg-[#EEF7F9]">
+                      <img
+                        src={visual.image}
+                        alt=""
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                        loading="lazy"
+                      />
+                    </div>
+                    <div className="px-3 pb-3 pt-2.5">
+                      <span
+                        className="mb-1 inline-flex max-w-full rounded-full px-2.5 py-1 font-body text-[11px] font-black leading-tight"
+                        style={{ background: visual.softBg, color: visual.accent }}
+                      >
+                        {card.focus}
+                      </span>
+                      <p className="font-body text-[16px] font-black leading-[1.1] text-[#123047] [overflow-wrap:anywhere]">
+                        {card.title}
+                      </p>
+                      <p className="mt-1 font-body text-[13px] font-bold leading-[1.18] text-[#66717B] [overflow-wrap:anywhere]">
+                        {card.benefit}
+                      </p>
+                      <span className="mt-2 inline-flex items-center gap-1.5 font-body text-[12px] font-black" style={{ color: visual.accent }}>
+                        <Clock size={14} strokeWidth={2.4} aria-hidden="true" />
+                        10 min
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
 
-            <div className="mt-4 rounded-[18px] bg-white/72 px-3 py-3">
-              <p className="font-body text-[17px] font-semibold leading-[1.35] text-[#66717B]">
+            <div className="mt-4 flex flex-col gap-3 sm:ml-[72px] sm:flex-row sm:items-center sm:justify-between">
+              <p className="rounded-[18px] bg-white/72 px-3 py-3 font-body text-[17px] font-semibold leading-[1.35] text-[#66717B]">
                 {movementExerciseCopy.detail}
               </p>
+              <button
+                type="button"
+                onClick={openMovementExerciseLibrary}
+                className="inline-flex min-h-[54px] w-full items-center justify-center gap-2 rounded-[18px] border border-[#BFE3EC] bg-white px-4 font-body text-[17px] font-black text-[#0369A1] shadow-[0_10px_22px_rgba(2,132,199,0.08)] sm:w-auto"
+                data-testid="button-movement-room-browse-exercises"
+              >
+                <Sparkles size={20} strokeWidth={2.4} aria-hidden="true" />
+                <span>{movementExerciseCopy.cta}</span>
+                <ArrowRight size={19} strokeWidth={2.5} aria-hidden="true" />
+              </button>
             </div>
           </section>
         )}
