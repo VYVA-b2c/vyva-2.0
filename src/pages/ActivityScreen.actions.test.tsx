@@ -173,6 +173,13 @@ describe("Activity safe-home service actions", () => {
     expect(screen.getByTestId("button-log-activity")).toBeEnabled();
   });
 
+  it("opens the guided routine from Home route state", () => {
+    renderActivity([{ pathname: "/activity", state: { startGentleRoutine: true, routineSource: "home" } }]);
+
+    expect(screen.getByRole("dialog")).toHaveTextContent("Step 1 of 3");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Move gently. Stop if you feel pain, dizzy, or short of breath.");
+  });
+
   it("shows today's gentle routine above the exercise library", () => {
     renderActivity();
 

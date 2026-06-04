@@ -1,18 +1,15 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import HomeScreen from "./HomeScreen";
 
 const guardPathMock = vi.fn();
+const queryMock = vi.fn();
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
   return {
     ...actual,
-    useQuery: () => ({
-      data: null,
-      isError: false,
-      error: null,
-    }),
+    useQuery: (options: { queryKey: unknown[] }) => queryMock(options.queryKey),
   };
 });
 
@@ -88,8 +85,87 @@ vi.mock("react-i18next", async (importOriginal) => {
 
 describe("Home fast service actions", () => {
   beforeEach(() => {
+    vi.useRealTimers();
     vi.clearAllMocks();
+    window.localStorage.clear();
     window.sessionStorage.clear();
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/activity") return { data: { entries: [] } };
+      return {
+        data: null,
+        isError: false,
+        error: null,
+      };
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("renders today's movement quick-start card above the topic cards", () => {
+    render(<HomeScreen />);
+
+    const routineCard = screen.getByTestId("home-gentle-routine-card");
+    const firstTopicCard = screen.getByTestId("card-home-agent-health");
+
+    expect(routineCard).toHaveTextContent("Today's movement");
+    expect(routineCard).toHaveTextContent("10 min");
+    expect(routineCard).toHaveTextContent("Start");
+    expect(screen.getAllByTestId(/^home-routine-preview-/)).toHaveLength(3);
+    expect(routineCard.compareDocumentPosition(firstTopicCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("starts the guided Activity routine from Home", () => {
+    render(<HomeScreen />);
+
+    fireEvent.click(screen.getByTestId("button-home-start-gentle-routine"));
+
+    expect(guardPathMock).toHaveBeenCalledWith("/activity", {
+      state: {
+        startGentleRoutine: true,
+        routineSource: "home",
+      },
+    });
+  });
+
+  it("shows a completed state when today's gentle routine is already logged", () => {
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/activity") return { data: { entries: [{ activity_type: "GentleRoutine" }] } };
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("home-gentle-routine-card")).toHaveTextContent("Well done today");
+    expect(screen.getByTestId("button-home-start-gentle-routine")).toHaveTextContent("View activity");
+
+    fireEvent.click(screen.getByTestId("button-home-start-gentle-routine"));
+
+    expect(guardPathMock).toHaveBeenCalledWith("/activity", {
+      state: {
+        highlightGentleRoutine: true,
+        routineSource: "home",
+      },
+    });
+  });
+
+  it("uses the gentler seated preview after too-much routine feedback", () => {
+    vi.useFakeTimers({ now: new Date("2026-06-05T12:00:00.000Z") });
+    window.localStorage.setItem("vyva_activity_routine_comfort", "seated");
+    window.localStorage.setItem("vyva_activity_routine_feedback", JSON.stringify({
+      routineId: "morning-mobility",
+      comfort: "supported",
+      feeling: "tooMuch",
+    }));
+
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("home-gentle-routine-card")).toHaveTextContent("Gentler seated mode ready");
+    expect(screen.getByTestId("home-routine-preview-seated-strength")).toHaveTextContent("Seated strength");
+    expect(screen.queryByTestId("home-routine-preview-sit-to-stand")).not.toBeInTheDocument();
   });
 
   it("renders direct fast-help buttons on Home", () => {
