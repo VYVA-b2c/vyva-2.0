@@ -6,12 +6,15 @@ import {
   ChevronRight,
   Crown,
   Dice5,
+  Eraser,
   Gamepad2,
   HeartHandshake,
+  HelpCircle,
   MessageCircle,
   Send,
   Spade,
   Sparkles,
+  Undo2,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -24,6 +27,7 @@ import type {
   SocialGameKind,
   SocialGameLanguage,
   SocialGameRound,
+  SocialGameRoundVisual,
   SocialMatchResponse,
   SocialRoomChatItem,
   SocialRoomResponse,
@@ -200,6 +204,376 @@ function getPuzzleBankLabels(language: SocialGameLanguage, index: number, total:
 
 const memberColours = ["#0F766E", "#F97316", "#7C3AED", "#DB2777"];
 
+const chessPieceLabels: Record<Extract<SocialGameRoundVisual, { kind: "chessBoard" }>["pieces"][number]["piece"], string> = {
+  whiteKing: "WK",
+  whiteQueen: "WQ",
+  whiteRook: "WR",
+  whiteBishop: "WB",
+  whiteKnight: "WN",
+  whitePawn: "WP",
+  blackKing: "BK",
+  blackQueen: "BQ",
+  blackRook: "BR",
+  blackBishop: "BB",
+  blackKnight: "BN",
+  blackPawn: "BP",
+};
+
+function normalizeWordAnswer(value: string) {
+  return value.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+}
+
+function getWordHelpLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Afficher l'aide";
+  if (language === "it") return "Mostra aiuto";
+  if (language === "pt") return "Mostrar ajuda";
+  if (language === "de") return "Hilfe zeigen";
+  if (language === "en") return "Show help";
+  return "Mostrar ayuda";
+}
+
+function getWordCheckLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Verifier le mot";
+  if (language === "it") return "Controlla parola";
+  if (language === "pt") return "Verificar palavra";
+  if (language === "de") return "Wort pruefen";
+  if (language === "en") return "Check word";
+  return "Comprobar palabra";
+}
+
+function getWordUndoLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Annuler";
+  if (language === "it") return "Annulla";
+  if (language === "pt") return "Desfazer";
+  if (language === "de") return "Rueckgaengig";
+  if (language === "en") return "Undo";
+  return "Deshacer";
+}
+
+function getWordClearLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Effacer";
+  if (language === "it") return "Cancella";
+  if (language === "pt") return "Limpar";
+  if (language === "de") return "Leeren";
+  if (language === "en") return "Clear";
+  return "Borrar";
+}
+
+function getWordTrayLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Ta reponse";
+  if (language === "it") return "La tua risposta";
+  if (language === "pt") return "Sua resposta";
+  if (language === "de") return "Deine Antwort";
+  if (language === "en") return "Your answer";
+  return "Tu respuesta";
+}
+
+function getWordRackLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Lettres";
+  if (language === "it") return "Lettere";
+  if (language === "pt") return "Letras";
+  if (language === "de") return "Steine";
+  if (language === "en") return "Tiles";
+  return "Letras";
+}
+
+function getWordTryAgainCopy(language: SocialGameLanguage) {
+  if (language === "fr") return "Presque. Essaie un autre ordre ou utilise l'aide.";
+  if (language === "it") return "Quasi. Prova un altro ordine o usa l'aiuto.";
+  if (language === "pt") return "Quase. Tente outra ordem ou use a ajuda.";
+  if (language === "de") return "Fast. Probiere eine andere Reihenfolge oder nutze die Hilfe.";
+  if (language === "en") return "Close. Try another order or use the help.";
+  return "Casi. Prueba otro orden o usa la ayuda.";
+}
+
+function DominoTile({ tile, muted = false }: { tile: [number, number]; muted?: boolean }) {
+  return (
+    <div
+      className={`grid h-[72px] w-[116px] grid-cols-2 overflow-hidden rounded-[14px] border-2 bg-[#FFFDF7] shadow-[0_10px_20px_rgba(24,60,66,0.12)] ${muted ? "border-[#D8E6E2] opacity-75" : "border-[#087C82]"}`}
+      aria-label={`Domino ${tile[0]}-${tile[1]}`}
+    >
+      {tile.map((value, index) => (
+        <span key={`${value}-${index}`} className="flex items-center justify-center border-l border-[#E9DED0] first:border-l-0 font-body text-[24px] font-extrabold text-[#173941]">
+          {value === 0 ? "-" : value}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function ChessBoardVisual({ visual }: { visual: Extract<SocialGameRoundVisual, { kind: "chessBoard" }> }) {
+  const piecesBySquare = new Map(visual.pieces.map((piece) => [piece.square, piece]));
+  const highlightSet = new Set(visual.highlights ?? []);
+  const arrowTargets = new Set((visual.arrows ?? []).flatMap((arrow) => [arrow.from, arrow.to]));
+
+  return (
+    <div className="rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-4" data-testid="games-visual-chess">
+      <p className="font-body text-[16px] font-extrabold leading-snug text-[#31555D]">{visual.caption}</p>
+      <div className="mt-3 grid aspect-square max-w-[360px] grid-cols-8 overflow-hidden rounded-[18px] border border-[#BFDAD7]">
+        {Array.from({ length: 64 }, (_, index) => {
+          const file = index % 8;
+          const rank = 8 - Math.floor(index / 8);
+          const square = `${String.fromCharCode("a".charCodeAt(0) + file)}${rank}`;
+          const piece = piecesBySquare.get(square);
+          const dark = (file + rank) % 2 === 0;
+          const marked = highlightSet.has(square) || arrowTargets.has(square);
+
+          return (
+            <div
+              key={square}
+              className={`relative flex items-center justify-center text-[11px] font-black ${dark ? "bg-[#8CB5A7]" : "bg-[#F2E7D5]"}`}
+            >
+              {marked && <span className="absolute inset-1 rounded-[8px] border-2 border-[#F59E0B]" />}
+              {piece && (
+                <span className={`relative z-10 flex h-[78%] w-[78%] items-center justify-center rounded-full border font-body text-[12px] font-extrabold shadow-sm ${piece.piece.startsWith("white") ? "border-[#C9B99D] bg-white text-[#07313A]" : "border-[#173941] bg-[#173941] text-white"}`}>
+                  {chessPieceLabels[piece.piece]}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function DominoesVisual({ visual }: { visual: Extract<SocialGameRoundVisual, { kind: "dominoes" }> }) {
+  const tiles = visual.candidateTiles ?? visual.hand ?? (visual.focusTile ? [visual.focusTile] : []);
+
+  return (
+    <div className="rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-4" data-testid="games-visual-dominoes">
+      <p className="font-body text-[16px] font-extrabold leading-snug text-[#31555D]">{visual.caption}</p>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        {visual.openEnds && (
+          <div className="flex items-center gap-2 rounded-[18px] bg-white px-4 py-3 font-body text-[16px] font-extrabold text-[#075C64]">
+            <span>{visual.openEnds[0]}</span>
+            <span className="h-px w-8 bg-[#BFDAD7]" />
+            <span>{visual.openEnds[1]}</span>
+          </div>
+        )}
+        {visual.playedTile && <DominoTile tile={visual.playedTile} />}
+        {tiles.map((tile, index) => (
+          <DominoTile key={`${tile[0]}-${tile[1]}-${index}`} tile={tile} muted={Boolean(visual.playedTile)} />
+        ))}
+      </div>
+      {(visual.target !== undefined || visual.desired !== undefined || visual.avoid !== undefined) && (
+        <div className="mt-3 flex flex-wrap gap-2 font-body text-[14px] font-extrabold text-[#597178]">
+          {visual.target !== undefined && <span className="rounded-full bg-white px-3 py-1">Target {visual.target}</span>}
+          {visual.desired !== undefined && <span className="rounded-full bg-white px-3 py-1">Keep {visual.desired}</span>}
+          {visual.avoid !== undefined && <span className="rounded-full bg-white px-3 py-1">Avoid {visual.avoid}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BridgeCardsVisual({ visual }: { visual: Extract<SocialGameRoundVisual, { kind: "bridgeCards" }> }) {
+  return (
+    <div className="rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-4" data-testid="games-visual-bridge">
+      <p className="font-body text-[16px] font-extrabold leading-snug text-[#31555D]">{visual.caption}</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {visual.points !== undefined && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#075C64]">{visual.points} points</span>}
+        {visual.partnerBid && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#075C64]">Partner: {visual.partnerBid}</span>}
+        {visual.contract && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#075C64]">Contract: {visual.contract}</span>}
+      </div>
+      {visual.suitLengths && (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {visual.suitLengths.map((item) => (
+            <div key={`${item.suit}-${item.length}`} className="rounded-[16px] bg-white px-4 py-3 font-body text-[16px] font-extrabold text-[#173941]">
+              {item.length} {item.suit}
+            </div>
+          ))}
+        </div>
+      )}
+      {visual.cards && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {visual.cards.map((card, index) => (
+            <div key={`${card.rank}-${card.suit}-${index}`} className="flex h-[92px] w-[68px] flex-col justify-between rounded-[14px] border border-[#D9C8AD] bg-white px-2 py-2 shadow-[0_10px_20px_rgba(24,60,66,0.12)]">
+              <span className="font-body text-[15px] font-black text-[#173941]">{card.rank}</span>
+              <span className="font-body text-[13px] font-extrabold text-[#A86200]">{card.suit}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {visual.missingCard && (
+        <p className="mt-3 rounded-[16px] bg-white px-4 py-3 font-body text-[15px] font-extrabold text-[#597178]">
+          Missing: {visual.missingCard.rank} of {visual.missingCard.suit}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function PuzzleVisualPanel({ visual }: { visual?: SocialGameRoundVisual }) {
+  if (!visual || visual.kind === "wordTiles") return null;
+  if (visual.kind === "chessBoard") return <ChessBoardVisual visual={visual} />;
+  if (visual.kind === "dominoes") return <DominoesVisual visual={visual} />;
+  return <BridgeCardsVisual visual={visual} />;
+}
+
+type WordTilesInteractionProps = {
+  round: SocialGameRound;
+  visual: Extract<SocialGameRoundVisual, { kind: "wordTiles" }>;
+  language: SocialGameLanguage;
+  selectedTileIndices: number[];
+  showHelp: boolean;
+  feedback: string | null;
+  isComplete: boolean;
+  roundCompleteLabel: string;
+  onChooseTile: (index: number) => void;
+  onUndo: () => void;
+  onClear: () => void;
+  onShowHelp: () => void;
+  onCheckAnswer: () => void;
+  onChooseHelpChoice: (choice: string) => void;
+};
+
+function WordTilesInteraction({
+  round,
+  visual,
+  language,
+  selectedTileIndices,
+  showHelp,
+  feedback,
+  isComplete,
+  roundCompleteLabel,
+  onChooseTile,
+  onUndo,
+  onClear,
+  onShowHelp,
+  onCheckAnswer,
+  onChooseHelpChoice,
+}: WordTilesInteractionProps) {
+  const selectedSet = new Set(selectedTileIndices);
+  const selectedTiles = selectedTileIndices.map((index) => visual.tiles[index]).filter(Boolean);
+  const traySlots = Array.from({ length: Math.max(1, visual.answerLength) }, (_, index) => selectedTiles[index] ?? "");
+
+  return (
+    <div className="mt-5 space-y-4" data-testid="games-word-tiles-panel">
+      <div className="rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-4">
+        <div className="flex flex-wrap gap-2">
+          {visual.baseWord && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#075C64]">Base: {visual.baseWord}</span>}
+          {visual.pattern && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#075C64]">{visual.pattern}</span>}
+          {visual.clue && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#597178]">{visual.clue}</span>}
+        </div>
+
+        <div className="mt-4">
+          <p className="font-body text-[15px] font-extrabold uppercase text-[#597178]">{getWordRackLabel(language)}</p>
+          <div className="mt-2 flex flex-wrap gap-2" aria-label={getWordRackLabel(language)}>
+            {visual.tiles.map((tile, index) => {
+              const used = selectedSet.has(index);
+              return (
+                <button
+                  key={`${tile}-${index}`}
+                  type="button"
+                  onClick={() => onChooseTile(index)}
+                  disabled={used || isComplete || selectedTileIndices.length >= visual.answerLength}
+                  data-testid={`word-tile-${index}`}
+                  className="flex min-h-[58px] min-w-[58px] items-center justify-center rounded-[16px] border border-[#D9C8AD] bg-[#FFF7E6] px-3 font-body text-[22px] font-black text-[#173941] shadow-[0_10px_18px_rgba(24,60,66,0.10)] disabled:opacity-35"
+                >
+                  {tile}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <p className="font-body text-[15px] font-extrabold uppercase text-[#597178]">{getWordTrayLabel(language)}</p>
+          <div className="mt-2 flex flex-wrap gap-2" data-testid="word-answer-tray">
+            {traySlots.map((tile, index) => (
+              <div
+                key={`${tile || "slot"}-${index}`}
+                className="flex min-h-[58px] min-w-[58px] items-center justify-center rounded-[16px] border-2 border-dashed border-[#BFDAD7] bg-white px-3 font-body text-[22px] font-black text-[#075C64]"
+              >
+                {tile}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-4">
+          <button
+            type="button"
+            onClick={onUndo}
+            disabled={!selectedTileIndices.length || isComplete}
+            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-3 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40"
+          >
+            <Undo2 size={18} />
+            {getWordUndoLabel(language)}
+          </button>
+          <button
+            type="button"
+            onClick={onClear}
+            disabled={!selectedTileIndices.length || isComplete}
+            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-3 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40"
+          >
+            <Eraser size={18} />
+            {getWordClearLabel(language)}
+          </button>
+          <button
+            type="button"
+            onClick={onShowHelp}
+            disabled={isComplete}
+            data-testid="word-show-help"
+            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-3 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40"
+          >
+            <HelpCircle size={18} />
+            {getWordHelpLabel(language)}
+          </button>
+          <button
+            type="button"
+            onClick={onCheckAnswer}
+            disabled={selectedTileIndices.length < visual.answerLength || isComplete}
+            data-testid="word-check-answer"
+            className="min-h-[48px] rounded-[16px] bg-[#087C82] px-3 font-body text-[15px] font-extrabold text-white disabled:opacity-45"
+          >
+            {getWordCheckLabel(language)}
+          </button>
+        </div>
+      </div>
+
+      {feedback && !isComplete && (
+        <p className="rounded-[18px] bg-[#FFF7E6] px-4 py-3 font-body text-[17px] font-extrabold leading-snug text-[#A86200]">
+          {feedback}
+        </p>
+      )}
+
+      {showHelp && !isComplete && (
+        <div className="rounded-[20px] bg-[#F4FAF8] px-4 py-3" data-testid="word-help-choices">
+          <p className="font-body text-[16px] font-extrabold leading-snug text-[#527079]">
+            {getHintLabel(language)}: {round.hint}
+          </p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            {round.choices.map((choice) => (
+              <button
+                key={choice}
+                type="button"
+                onClick={() => onChooseHelpChoice(choice)}
+                className="min-h-[50px] rounded-[16px] border border-[#D8E6E2] bg-white px-4 font-body text-[17px] font-bold text-[#173941]"
+              >
+                {choice}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {isComplete && (
+        <div className="rounded-[22px] border border-[#BDE8D4] bg-[#EFFBF4] px-4 py-4">
+          <p className="flex items-center gap-2 font-body text-[19px] font-extrabold text-[#087443]">
+            <Check size={21} strokeWidth={3} />
+            {roundCompleteLabel}
+          </p>
+          <p className="mt-2 font-body text-[18px] font-semibold leading-snug text-[#31594A]">
+            {round.successMessage}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function GamesRoomScreen({
   roomResponse,
   language,
@@ -228,6 +602,9 @@ export default function GamesRoomScreen({
   const [isPersistingRound, setIsPersistingRound] = useState(false);
   const [isMatching, setIsMatching] = useState(false);
   const [matchResponse, setMatchResponse] = useState<SocialMatchResponse | null>(null);
+  const [selectedWordTileIndices, setSelectedWordTileIndices] = useState<number[]>([]);
+  const [showWordHelp, setShowWordHelp] = useState(false);
+  const [wordFeedback, setWordFeedback] = useState<string | null>(null);
 
   const selectedRound = useMemo(
     () => gameTable.rounds.find((round) => round.id === selectedRoundId) ?? gameTable.rounds[0],
@@ -244,6 +621,7 @@ export default function GamesRoomScreen({
   const visibleChat = memberChat.slice(0, 3);
   const hasStartedSelectedRound = startedRoundId === selectedRound?.id;
   const hasCompletedSelectedRound = completedRoundId === selectedRound?.id;
+  const selectedWordVisual = selectedRound?.visual?.kind === "wordTiles" ? selectedRound.visual : null;
 
   const selectRound = (round: SocialGameRound) => {
     setSelectedRoundId(round.id);
@@ -251,6 +629,9 @@ export default function GamesRoomScreen({
     setSelectedChoice("");
     setCompletedRoundId(null);
     setMatchResponse(null);
+    setSelectedWordTileIndices([]);
+    setShowWordHelp(false);
+    setWordFeedback(null);
   };
 
   const selectPuzzleAtOffset = (offset: number) => {
@@ -268,6 +649,9 @@ export default function GamesRoomScreen({
     setSelectedChoice("");
     setCompletedRoundId(null);
     setMatchResponse(null);
+    setSelectedWordTileIndices([]);
+    setShowWordHelp(false);
+    setWordFeedback(null);
     setIsPersistingRound(true);
 
     try {
@@ -288,6 +672,45 @@ export default function GamesRoomScreen({
   const completeRound = () => {
     if (!selectedRound) return;
     setCompletedRoundId(selectedRound.id);
+  };
+
+  const chooseWordTile = (index: number) => {
+    if (!selectedWordVisual || hasCompletedSelectedRound) return;
+    setSelectedWordTileIndices((current) => {
+      if (current.includes(index) || current.length >= selectedWordVisual.answerLength) return current;
+      return [...current, index];
+    });
+    setWordFeedback(null);
+  };
+
+  const undoWordTile = () => {
+    setSelectedWordTileIndices((current) => current.slice(0, -1));
+    setWordFeedback(null);
+  };
+
+  const clearWordTiles = () => {
+    setSelectedWordTileIndices([]);
+    setWordFeedback(null);
+  };
+
+  const completeWordChoice = (choice: string) => {
+    if (!selectedRound) return;
+
+    if (normalizeWordAnswer(choice) === normalizeWordAnswer(selectedRound.answer)) {
+      setSelectedChoice(selectedRound.answer);
+      setCompletedRoundId(selectedRound.id);
+      setWordFeedback(null);
+    } else {
+      setShowWordHelp(true);
+      setWordFeedback(getWordTryAgainCopy(language));
+    }
+  };
+
+  const checkWordAnswer = () => {
+    if (!selectedRound || !selectedWordVisual) return;
+
+    const answer = selectedWordTileIndices.map((index) => selectedWordVisual.tiles[index]).join("");
+    completeWordChoice(answer);
   };
 
   const findPartner = async () => {
@@ -453,60 +876,90 @@ export default function GamesRoomScreen({
 
                 {hasStartedSelectedRound ? (
                   <div className="mt-5">
-                    <p className="font-body text-[22px] font-bold leading-snug text-[#173941]">{selectedRound.prompt}</p>
-                    <p className="mt-3 rounded-[18px] bg-[#F4FAF8] px-4 py-3 font-body text-[17px] font-semibold leading-snug text-[#527079]">
-                      {getHintLabel(language)}: {selectedRound.hint}
-                    </p>
-
-                    <div className="mt-4" aria-label={getRoundActionLabel(language)}>
-                      <div className="grid gap-2 sm:grid-cols-3">
-                        {selectedRound.choices.map((choice) => {
-                          const active = choice === selectedChoice;
-                          return (
-                            <button
-                              key={choice}
-                              type="button"
-                              onClick={() => setSelectedChoice(choice)}
-                              className="min-h-[56px] rounded-[18px] border px-4 font-body text-[18px] font-bold"
-                              style={{
-                                borderColor: active ? "#087C82" : "#D8E6E2",
-                                background: active ? "#E8F7F6" : "#FFFFFF",
-                                color: active ? "#075C64" : "#173941",
-                              }}
-                            >
-                              {choice}
-                            </button>
-                          );
-                        })}
-                      </div>
+                    <div className="mb-4">
+                      <PuzzleVisualPanel visual={selectedRound.visual} />
                     </div>
+                    <p className="font-body text-[22px] font-bold leading-snug text-[#173941]">{selectedRound.prompt}</p>
 
-                    {hasCompletedSelectedRound ? (
-                      <div className="mt-5 rounded-[22px] border border-[#BDE8D4] bg-[#EFFBF4] px-4 py-4">
-                        <p className="flex items-center gap-2 font-body text-[19px] font-extrabold text-[#087443]">
-                          <Check size={21} strokeWidth={3} />
-                          {gameTable.roundCompleteLabel}
-                        </p>
-                        <p className="mt-2 font-body text-[18px] font-semibold leading-snug text-[#31594A]">
-                          {selectedRound.successMessage}
-                        </p>
-                      </div>
+                    {selectedWordVisual ? (
+                      <WordTilesInteraction
+                        round={selectedRound}
+                        visual={selectedWordVisual}
+                        language={language}
+                        selectedTileIndices={selectedWordTileIndices}
+                        showHelp={showWordHelp}
+                        feedback={wordFeedback}
+                        isComplete={hasCompletedSelectedRound}
+                        roundCompleteLabel={gameTable.roundCompleteLabel}
+                        onChooseTile={chooseWordTile}
+                        onUndo={undoWordTile}
+                        onClear={clearWordTiles}
+                        onShowHelp={() => setShowWordHelp(true)}
+                        onCheckAnswer={checkWordAnswer}
+                        onChooseHelpChoice={completeWordChoice}
+                      />
                     ) : (
-                      <button
-                        type="button"
-                        onClick={completeRound}
-                        disabled={!selectedChoice}
-                        data-testid="games-complete-round"
-                        className="mt-5 min-h-[62px] w-full rounded-[20px] bg-[#087C82] px-5 font-body text-[21px] font-extrabold text-white shadow-[0_14px_30px_rgba(8,124,130,0.18)] disabled:opacity-50"
-                      >
-                        {gameTable.completeRoundLabel}
-                      </button>
+                      <>
+                        <p className="mt-3 rounded-[18px] bg-[#F4FAF8] px-4 py-3 font-body text-[17px] font-semibold leading-snug text-[#527079]">
+                          {getHintLabel(language)}: {selectedRound.hint}
+                        </p>
+
+                        <div className="mt-4" aria-label={getRoundActionLabel(language)}>
+                          <div className="grid gap-2 sm:grid-cols-3">
+                            {selectedRound.choices.map((choice) => {
+                              const active = choice === selectedChoice;
+                              return (
+                                <button
+                                  key={choice}
+                                  type="button"
+                                  onClick={() => setSelectedChoice(choice)}
+                                  className="min-h-[56px] rounded-[18px] border px-4 font-body text-[18px] font-bold"
+                                  style={{
+                                    borderColor: active ? "#087C82" : "#D8E6E2",
+                                    background: active ? "#E8F7F6" : "#FFFFFF",
+                                    color: active ? "#075C64" : "#173941",
+                                  }}
+                                >
+                                  {choice}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {hasCompletedSelectedRound ? (
+                          <div className="mt-5 rounded-[22px] border border-[#BDE8D4] bg-[#EFFBF4] px-4 py-4">
+                            <p className="flex items-center gap-2 font-body text-[19px] font-extrabold text-[#087443]">
+                              <Check size={21} strokeWidth={3} />
+                              {gameTable.roundCompleteLabel}
+                            </p>
+                            <p className="mt-2 font-body text-[18px] font-semibold leading-snug text-[#31594A]">
+                              {selectedRound.successMessage}
+                            </p>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={completeRound}
+                            disabled={!selectedChoice}
+                            data-testid="games-complete-round"
+                            className="mt-5 min-h-[62px] w-full rounded-[20px] bg-[#087C82] px-5 font-body text-[21px] font-extrabold text-white shadow-[0_14px_30px_rgba(8,124,130,0.18)] disabled:opacity-50"
+                          >
+                            {gameTable.completeRoundLabel}
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
                 ) : (
-                  <p className="mt-5 font-body text-[20px] font-semibold leading-snug text-[#466871]">
-                    {selectedRound.prompt}
-                  </p>
+                  <>
+                    <div className="mt-5">
+                      <PuzzleVisualPanel visual={selectedRound.visual} />
+                    </div>
+                    <p className="mt-5 font-body text-[20px] font-semibold leading-snug text-[#466871]">
+                      {selectedRound.prompt}
+                    </p>
+                  </>
                 )}
               </section>
             )}
