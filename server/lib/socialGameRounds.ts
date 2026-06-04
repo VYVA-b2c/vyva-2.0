@@ -3,6 +3,7 @@ import type {
   SocialGameLanguage,
   SocialGameReadyMember,
   SocialGameRound,
+  SocialGameRoundVisual,
   SocialGameTable,
   SocialLanguage,
 } from "../../src/social/types";
@@ -1444,6 +1445,133 @@ const chessPuzzleThemes: CuratedGamePuzzleTheme[] = [
   },
 ];
 
+function chessVisualCaption(tag: string, language: SocialGameLanguage) {
+  const captions: Record<string, Record<SocialGameLanguage, string>> = {
+    fork: {
+      en: "One white piece points at two black targets.",
+      es: "Una pieza blanca apunta a dos objetivos negros.",
+      fr: "Une piece blanche vise deux cibles noires.",
+      de: "Eine weisse Figur greift zwei schwarze Ziele an.",
+      it: "Un pezzo bianco punta a due bersagli neri.",
+      pt: "Uma peca branca mira dois alvos pretos.",
+    },
+    "back-rank-mate": {
+      en: "The black king is boxed in behind its own pawns.",
+      es: "El rey negro esta encerrado detras de sus peones.",
+      fr: "Le roi noir est enferme derriere ses pions.",
+      de: "Der schwarze Koenig steht hinter eigenen Bauern fest.",
+      it: "Il re nero e chiuso dietro i propri pedoni.",
+      pt: "O rei preto esta preso atras dos proprios peoes.",
+    },
+    pin: {
+      en: "A line piece presses through a loose defender.",
+      es: "Una pieza en linea presiona a traves de un defensor.",
+      fr: "Une piece en ligne presse un defenseur.",
+      de: "Eine Linienfigur drueckt durch einen Verteidiger.",
+      it: "Un pezzo in linea preme su un difensore.",
+      pt: "Uma peca em linha pressiona um defensor.",
+    },
+    skewer: {
+      en: "The valuable piece stands in front of another target.",
+      es: "La pieza valiosa esta delante de otro objetivo.",
+      fr: "La piece de valeur est devant une autre cible.",
+      de: "Die wertvolle Figur steht vor einem weiteren Ziel.",
+      it: "Il pezzo prezioso sta davanti a un altro bersaglio.",
+      pt: "A peca valiosa esta diante de outro alvo.",
+    },
+  };
+
+  const fallback: Record<SocialGameLanguage, string> = {
+    en: "The highlights show the small tactic to name.",
+    es: "Las marcas muestran la pequena tactica a nombrar.",
+    fr: "Les marques montrent la petite tactique a nommer.",
+    de: "Die Markierungen zeigen die kleine Taktik.",
+    it: "I segni mostrano la piccola tattica da nominare.",
+    pt: "As marcas mostram a pequena tatica a nomear.",
+  };
+
+  return (captions[tag] ?? fallback)[language];
+}
+
+function buildChessVisual(tag: string, language: SocialGameLanguage): SocialGameRoundVisual {
+  const caption = chessVisualCaption(tag, language);
+
+  if (tag === "fork" || tag === "double-attack") {
+    return {
+      kind: "chessBoard",
+      caption,
+      pieces: [
+        { square: "d5", piece: "whiteKnight" },
+        { square: "f6", piece: "blackKing" },
+        { square: "b6", piece: "blackQueen" },
+        { square: "g1", piece: "whiteKing" },
+      ],
+      highlights: ["d5", "f6", "b6"],
+      arrows: [{ from: "d5", to: "f6" }, { from: "d5", to: "b6" }],
+    };
+  }
+
+  if (tag === "back-rank-mate" || tag === "mate-net") {
+    return {
+      kind: "chessBoard",
+      caption,
+      pieces: [
+        { square: "e8", piece: "whiteRook" },
+        { square: "g8", piece: "blackKing" },
+        { square: "f7", piece: "blackPawn" },
+        { square: "g7", piece: "blackPawn" },
+        { square: "h7", piece: "blackPawn" },
+        { square: "g1", piece: "whiteKing" },
+      ],
+      highlights: ["e8", "g8", "f7", "g7", "h7"],
+      arrows: [{ from: "e8", to: "g8" }],
+    };
+  }
+
+  if (tag === "pin" || tag === "overloaded-defender" || tag === "remove-defender") {
+    return {
+      kind: "chessBoard",
+      caption,
+      pieces: [
+        { square: "e1", piece: "whiteRook" },
+        { square: "e5", piece: "blackKnight" },
+        { square: "e8", piece: "blackKing" },
+        { square: "g1", piece: "whiteKing" },
+      ],
+      highlights: ["e1", "e5", "e8"],
+      arrows: [{ from: "e1", to: "e8" }],
+    };
+  }
+
+  if (tag === "skewer" || tag === "discovered-attack" || tag === "zwischenzug") {
+    return {
+      kind: "chessBoard",
+      caption,
+      pieces: [
+        { square: "a4", piece: "whiteBishop" },
+        { square: "d7", piece: "blackKing" },
+        { square: "f7", piece: "blackRook" },
+        { square: "g1", piece: "whiteKing" },
+      ],
+      highlights: ["a4", "d7", "f7"],
+      arrows: [{ from: "a4", to: "f7" }],
+    };
+  }
+
+  return {
+    kind: "chessBoard",
+    caption,
+    pieces: [
+      { square: "d4", piece: "whiteQueen" },
+      { square: "e6", piece: "blackKnight" },
+      { square: "g8", piece: "blackKing" },
+      { square: "g1", piece: "whiteKing" },
+    ],
+    highlights: ["d4", "e6", "g8"],
+    arrows: [{ from: "d4", to: "e6" }],
+  };
+}
+
 function buildChessPuzzleBank(language: SocialLanguage): SocialGameRound[] {
   return chessPuzzleThemes.flatMap((theme) =>
     theme.variants.map((variant) => ({
@@ -1458,6 +1586,7 @@ function buildChessPuzzleBank(language: SocialLanguage): SocialGameRound[] {
       tags: ["games", "chess", "game:chess", `chess:${theme.tag}`],
       estimatedDurationSeconds: variant.estimatedDurationSeconds ?? 95,
       successMessage: (variant.successMessage ?? theme.successMessage)[language],
+      visual: buildChessVisual(theme.tag, language),
     })),
   );
 }
@@ -1614,6 +1743,7 @@ function buildExtraChessPuzzleBank(language: ExtraGameLanguage): SocialGameRound
       tags: ["games", "chess", "game:chess", `chess:${theme.tag}`],
       estimatedDurationSeconds: variant.estimatedDurationSeconds ?? 95,
       successMessage: copy.successMessage,
+      visual: buildChessVisual(theme.tag, language),
     }));
   });
 }
@@ -1660,6 +1790,108 @@ function localizedField(variant: WordPuzzleVariant, field: keyof WordPuzzleVaria
   return (value as LocalizedText)[language] ?? "";
 }
 
+function wordAnswerLetters(answer: string) {
+  return answer.replace(/[^A-Za-z0-9]/g, "").split("");
+}
+
+function scrambleWordTiles(tiles: string[], answer: string, seed: string) {
+  const scoredTiles = tiles.map((tile, index) => {
+    const scoreSeed = `${seed}:${tile}:${index}`;
+    const score = scoreSeed.split("").reduce((total, char, charIndex) => total + char.charCodeAt(0) * (charIndex + 3), 0);
+    return { tile, index, score };
+  });
+
+  const scrambled = scoredTiles
+    .sort((a, b) => a.score - b.score || a.index - b.index)
+    .map(({ tile }) => tile);
+  const answerText = wordAnswerLetters(answer).join("").toUpperCase();
+  const tileText = scrambled.join("").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+
+  if (scrambled.length > 2 && tileText === answerText) {
+    const offset = Math.max(1, Math.floor(scrambled.length / 2));
+    return [...scrambled.slice(offset), ...scrambled.slice(0, offset)];
+  }
+
+  return scrambled;
+}
+
+function splitWordTiles(value: string, answer: string) {
+  const commaTiles = value
+    .split(",")
+    .map((tile) => tile.trim())
+    .filter(Boolean);
+
+  return commaTiles.length > 1 ? commaTiles : wordAnswerLetters(answer);
+}
+
+function wordTilesPrompt(themeTag: string, variant: WordPuzzleVariant, language: SocialLanguage) {
+  const baseWord = localizedField(variant, "baseWord", language);
+  const clue = localizedField(variant, "clue", language);
+
+  const copy: Record<SocialLanguage, Record<string, string>> = {
+    en: {
+      anagram: "Arrange the tiles into a friendly word.",
+      "best-word": "Build the clearest friendly word from the rack.",
+      "add-letter": baseWord ? `Use the rack to grow ${baseWord} into a new word.` : "Use the rack to grow a new word.",
+      "front-hook": baseWord ? `Add a beginning to ${baseWord}.` : "Add a beginning to make a new word.",
+      "back-hook": baseWord ? `Add an ending to ${baseWord}.` : "Add an ending to make a new word.",
+      blank: clue ? `Fill the blank pattern: ${clue}.` : "Fill the blank pattern.",
+      prefix: baseWord ? `Add a helpful beginning to ${baseWord}.` : "Add a helpful beginning.",
+      suffix: baseWord ? `Add a meaningful ending to ${baseWord}.` : "Add a meaningful ending.",
+      "two-letter": clue || "Find the tiny helper word.",
+      score: clue || "Find the high-value word.",
+      default: clue || "Look at the rack and clue to make the word.",
+    },
+    es: {
+      anagram: "Ordena las letras para formar una palabra amable.",
+      "best-word": "Forma la palabra amable mas clara.",
+      "add-letter": baseWord ? `Haz crecer ${baseWord} para formar otra palabra.` : "Forma una palabra nueva desde el estante.",
+      "front-hook": baseWord ? `Anade un comienzo a ${baseWord}.` : "Anade un comienzo para formar otra palabra.",
+      "back-hook": baseWord ? `Anade un final a ${baseWord}.` : "Anade un final para formar otra palabra.",
+      blank: clue ? `Completa el patron: ${clue}.` : "Completa el patron en blanco.",
+      prefix: baseWord ? `Anade un comienzo util a ${baseWord}.` : "Anade un comienzo util.",
+      suffix: baseWord ? `Anade un final con sentido a ${baseWord}.` : "Anade un final con sentido.",
+      "two-letter": clue || "Encuentra la palabra corta.",
+      score: clue || "Encuentra la palabra de mas valor.",
+      default: clue || "Mira el estante y la pista para formar la palabra.",
+    },
+    de: {
+      anagram: "Ordne die Steine zu einem freundlichen Wort.",
+      "best-word": "Bilde das klarste freundliche Wort.",
+      "add-letter": baseWord ? `Lass ${baseWord} mit den Steinen wachsen.` : "Bilde mit den Steinen ein neues Wort.",
+      "front-hook": baseWord ? `Setze einen Anfang vor ${baseWord}.` : "Setze einen Anfang vor ein Wort.",
+      "back-hook": baseWord ? `Setze ein Ende an ${baseWord}.` : "Setze ein Ende an ein Wort.",
+      blank: clue ? `Fuellen das Muster: ${clue}.` : "Fuellen das leere Muster.",
+      prefix: baseWord ? `Fuege einen passenden Anfang zu ${baseWord} hinzu.` : "Fuege einen passenden Anfang hinzu.",
+      suffix: baseWord ? `Haenge ein sinnvolles Ende an ${baseWord}.` : "Haenge ein sinnvolles Ende an.",
+      "two-letter": clue || "Finde das kleine Hilfswort.",
+      score: clue || "Finde das wertvolle Wort.",
+      default: clue || "Nutze Steine und Hinweis fuer das Wort.",
+    },
+  };
+
+  return copy[language][themeTag] ?? copy[language].default;
+}
+
+function buildWordTilesVisual(themeTag: string, variant: WordPuzzleVariant, language: SocialLanguage): SocialGameRoundVisual {
+  const answer = variant.answer[language];
+  const clue = localizedField(variant, "clue", language);
+  const baseWord = localizedField(variant, "baseWord", language);
+  const answerLetters = wordAnswerLetters(answer);
+  const choiceTiles = answerLetters.length <= 2 ? variant.choices[language] : [];
+  const rawTiles = choiceTiles.length ? choiceTiles : splitWordTiles(localizedField(variant, "tiles", language), answer);
+  const tiles = scrambleWordTiles(rawTiles, answer, `${themeTag}:${variant.suffix}:${language}`);
+
+  return {
+    kind: "wordTiles",
+    tiles,
+    answerLength: choiceTiles.length ? 1 : answerLetters.length,
+    ...(baseWord ? { baseWord } : {}),
+    ...(themeTag === "blank" && clue ? { pattern: clue } : {}),
+    ...(clue && themeTag !== "blank" ? { clue } : {}),
+  };
+}
+
 function buildWordPuzzleBank(language: SocialLanguage): SocialGameRound[] {
   return wordPuzzleThemes.flatMap((theme) =>
     theme.variants.map((variant) => ({
@@ -1667,13 +1899,14 @@ function buildWordPuzzleBank(language: SocialLanguage): SocialGameRound[] {
       kind: "word" as const,
       title: wordRoundTitles[language],
       body: theme.body[language],
-      prompt: theme.prompt(variant, language),
+      prompt: wordTilesPrompt(theme.tag, variant, language),
       choices: variant.choices[language],
       answer: variant.answer[language],
       hint: variant.hint[language],
       tags: ["games", "scrabble", "words", "game:word", `word:${theme.tag}`],
       estimatedDurationSeconds: variant.estimatedDurationSeconds ?? 80,
       successMessage: theme.successMessage[language],
+      visual: buildWordTilesVisual(theme.tag, variant, language),
     })),
   );
 }
@@ -2589,20 +2822,23 @@ const wordThemeTags: Record<string, string> = {
   "word-tiles-rhyme": "rhyme",
 };
 
-const extraWordCopy: Record<ExtraGameLanguage, { title: string; body: string; successMessage: string }> = {
+const extraWordCopy: Record<ExtraGameLanguage, { title: string; body: string; prompt: string; successMessage: string }> = {
   fr: {
     title: "Lettres",
     body: "Resous un petit defi de mots.",
+    prompt: "Observe les lettres et la piste, puis construis le mot.",
     successMessage: "Bien joue. Les mots courts donnent une raison simple de discuter.",
   },
   it: {
     title: "Tessere",
     body: "Risolvi una breve sfida di parole.",
+    prompt: "Guarda le lettere e l'indizio, poi costruisci la parola.",
     successMessage: "Ben fatto. Le parole brevi aprono una conversazione facile.",
   },
   pt: {
     title: "Letras",
     body: "Resolva um pequeno desafio de palavras.",
+    prompt: "Olhe as letras e a dica, depois monte a palavra.",
     successMessage: "Muito bem. Palavras curtas criam uma conversa facil.",
   },
 };
@@ -2859,19 +3095,30 @@ const extraWordPuzzleData: Record<ExtraGameLanguage, CompactExtraWordPuzzle[]> =
 function buildExtraWordPuzzleBank(language: ExtraGameLanguage): SocialGameRound[] {
   const copy = extraWordCopy[language];
 
-  return extraWordPuzzleData[language].map(([themeId, suffix, prompt, choices, answer, hint]) => ({
-    id: `${themeId}-${suffix}`,
-    kind: "word" as const,
-    title: copy.title,
-    body: copy.body,
-    prompt,
-    choices: [...choices],
-    answer,
-    hint,
-    tags: ["games", "scrabble", "words", "game:word", `word:${wordThemeTags[themeId] ?? "word"}`],
-    estimatedDurationSeconds: 80,
-    successMessage: copy.successMessage,
-  }));
+  return extraWordPuzzleData[language].map(([themeId, suffix, _prompt, choices, answer, hint]) => {
+    const answerLetters = wordAnswerLetters(answer);
+    const choiceTiles = answerLetters.length <= 2 ? [...choices] : [];
+
+    return {
+      id: `${themeId}-${suffix}`,
+      kind: "word" as const,
+      title: copy.title,
+      body: copy.body,
+      prompt: copy.prompt,
+      choices: [...choices],
+      answer,
+      hint,
+      tags: ["games", "scrabble", "words", "game:word", `word:${wordThemeTags[themeId] ?? "word"}`],
+      estimatedDurationSeconds: 80,
+      successMessage: copy.successMessage,
+      visual: {
+        kind: "wordTiles" as const,
+        tiles: scrambleWordTiles(choiceTiles.length ? choiceTiles : answerLetters, answer, `${themeId}:${suffix}:${language}`),
+        answerLength: choiceTiles.length ? 1 : answerLetters.length,
+        clue: hint,
+      },
+    };
+  });
 }
 
 const wordPuzzleBank: Record<SocialGameLanguage, SocialGameRound[]> = {
@@ -3094,6 +3341,31 @@ function dominoTextChoice(value: string, language: SocialGameLanguage) {
   return labels[value][language];
 }
 
+function dominoVisualTile(tile: DominoTile | undefined): [number, number] | undefined {
+  return tile ? [tile[0], tile[1]] : undefined;
+}
+
+function dominoVisualTiles(tiles: DominoTile[] | undefined): Array<[number, number]> | undefined {
+  return tiles?.map((tile) => [tile[0], tile[1]]);
+}
+
+function buildDominoesVisual(variant: DominoesPuzzleVariant, caption: string): SocialGameRoundVisual {
+  return {
+    kind: "dominoes",
+    caption,
+    ...(variant.openEnds ? { openEnds: [variant.openEnds[0], variant.openEnds[1]] as [number, number] } : {}),
+    ...(variant.hand?.length ? { hand: dominoVisualTiles(variant.hand) } : {}),
+    ...(variant.tileChoices?.length ? { candidateTiles: dominoVisualTiles(variant.tileChoices) } : {}),
+    ...(dominoVisualTile(variant.playedTile) ? { playedTile: dominoVisualTile(variant.playedTile) } : {}),
+    ...(dominoVisualTile(variant.tile ?? variant.lastTile ?? variant.answerTile) ? { focusTile: dominoVisualTile(variant.tile ?? variant.lastTile ?? variant.answerTile) } : {}),
+    ...(variant.target !== undefined ? { target: variant.target } : {}),
+    ...(variant.desired !== undefined ? { desired: variant.desired } : {}),
+    ...(variant.avoid !== undefined ? { avoid: variant.avoid } : {}),
+    ...(variant.playOn !== undefined ? { playOn: variant.playOn } : {}),
+    ...(variant.otherEnd !== undefined ? { otherEnd: variant.otherEnd } : {}),
+  };
+}
+
 function buildDominoesPuzzleBank(language: SocialLanguage): SocialGameRound[] {
   return dominoesPuzzleThemes.flatMap((theme) =>
     theme.variants.map((variant) => ({
@@ -3112,6 +3384,7 @@ function buildDominoesPuzzleBank(language: SocialLanguage): SocialGameRound[] {
       tags: ["games", "dominoes", "game:dominoes", `dominoes:${theme.tag}`],
       estimatedDurationSeconds: variant.estimatedDurationSeconds ?? 75,
       successMessage: theme.successMessage[language],
+      visual: buildDominoesVisual(variant, theme.body[language]),
     })),
   );
 }
@@ -3261,6 +3534,7 @@ function buildExtraDominoesPuzzleBank(language: ExtraGameLanguage): SocialGameRo
         tags: ["games", "dominoes", "game:dominoes", `dominoes:${theme.tag}`],
         estimatedDurationSeconds: variant.estimatedDurationSeconds ?? 75,
         successMessage: copy.successMessage,
+        visual: buildDominoesVisual(variant, copy.body),
       };
     }),
   );
@@ -4198,6 +4472,44 @@ const term = (key: BridgeTermKey): BridgeChoice => ({ type: "term", key });
 const lead = (suit: BridgeSuit, rank?: BridgeRank): BridgeChoice => ({ type: "lead", suit, rank });
 const numberChoice = (value: number): BridgeChoice => ({ type: "number", value });
 
+function bridgeVisualCards(variant: BridgePuzzleVariant, language: SocialGameLanguage) {
+  const ranks = variant.holding ?? variant.sequence ?? [];
+  return ranks.map((rank) => ({
+    rank: bridgeRankLabel(rank, language),
+    suit: bridgeSuitLabel(variant.suit, language),
+  }));
+}
+
+function bridgeVisualSuitLengths(variant: BridgePuzzleVariant, language: SocialGameLanguage) {
+  const lengths: Array<{ suit: string; length: number }> = [];
+  if (variant.suit && variant.length !== undefined) {
+    lengths.push({ suit: bridgeSuitLabel(variant.suit, language), length: variant.length });
+  }
+  if (variant.secondSuit && variant.secondLength !== undefined) {
+    lengths.push({ suit: bridgeSuitLabel(variant.secondSuit, language), length: variant.secondLength });
+  }
+  if (variant.partnerSuit && variant.support !== undefined) {
+    lengths.push({ suit: bridgeSuitLabel(variant.partnerSuit, language), length: variant.support });
+  }
+  return lengths;
+}
+
+function buildBridgeVisual(variant: BridgePuzzleVariant, language: SocialGameLanguage, caption: string): SocialGameRoundVisual {
+  const cards = bridgeVisualCards(variant, language);
+  const suitLengths = bridgeVisualSuitLengths(variant, language);
+
+  return {
+    kind: "bridgeCards",
+    caption,
+    ...(variant.points !== undefined ? { points: variant.points } : {}),
+    ...(variant.contractLevel && variant.contractSuit ? { contract: bridgeBidLabel(variant.contractLevel, variant.contractSuit, language) } : {}),
+    ...(variant.partnerLevel && variant.partnerSuit ? { partnerBid: bridgeBidLabel(variant.partnerLevel, variant.partnerSuit, language) } : {}),
+    ...(cards.length ? { cards } : {}),
+    ...(suitLengths.length ? { suitLengths } : {}),
+    ...(variant.missing && variant.suit ? { missingCard: { rank: bridgeRankLabel(variant.missing, language), suit: bridgeSuitLabel(variant.suit, language) } } : {}),
+  };
+}
+
 function openingPrompt(variant: BridgePuzzleVariant, language: SocialGameLanguage) {
   if (variant.suit === "noTrump") {
     const intro = bridgeText(
@@ -4614,6 +4926,7 @@ function buildBridgePuzzleBank(language: SocialGameLanguage): SocialGameRound[] 
       tags: ["games", "bridge", "cards", "game:bridge", `bridge:${theme.tag}`],
       estimatedDurationSeconds: variant.estimatedDurationSeconds ?? 85,
       successMessage: theme.successMessage[language],
+      visual: buildBridgeVisual(variant, language, theme.body[language]),
     })),
   );
 }

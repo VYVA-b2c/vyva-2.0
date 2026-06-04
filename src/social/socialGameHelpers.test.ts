@@ -48,6 +48,39 @@ describe("social games room helpers", () => {
     }
   });
 
+  it("adds visual puzzle metadata to every generated round", () => {
+    for (const language of supportedGameLanguages) {
+      const table = buildGameTable(language, 6);
+
+      for (const round of table.rounds) {
+        expect(round.visual).toBeDefined();
+        if (round.kind === "word") expect(round.visual?.kind).toBe("wordTiles");
+        if (round.kind === "chess") expect(round.visual?.kind).toBe("chessBoard");
+        if (round.kind === "dominoes") expect(round.visual?.kind).toBe("dominoes");
+        if (round.kind === "bridge") expect(round.visual?.kind).toBe("bridgeCards");
+      }
+    }
+  });
+
+  it("keeps word prompts from spelling out tile racks", () => {
+    const tileListPattern = /[A-Z],\s*[A-Z]/;
+    const oldTilePromptPattern = /Use the tiles|Usa las letras|Nutze die Buchstaben|Avec les lettres|Con le lettere|Com as letras/;
+
+    for (const language of supportedGameLanguages) {
+      const wordRounds = buildGameTable(language, 6).rounds.filter((round) => round.kind === "word");
+
+      expect(wordRounds.every((round) => !tileListPattern.test(round.prompt))).toBe(true);
+      expect(wordRounds.every((round) => !oldTilePromptPattern.test(round.prompt))).toBe(true);
+
+      for (const round of wordRounds) {
+        if (round.visual?.kind !== "wordTiles" || round.visual.answerLength <= 2) continue;
+        const rackText = round.visual.tiles.join("").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+        const answerText = round.answer.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+        expect(rackText).not.toBe(answerText);
+      }
+    }
+  });
+
   it("keeps the dominoes puzzle bank available in each supported app language", () => {
     for (const language of supportedGameLanguages) {
       const table = buildGameTable(language, 6);
