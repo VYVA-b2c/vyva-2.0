@@ -1,4 +1,5 @@
 import {
+  ArrowRight,
   ArrowLeft,
   BookMarked,
   BookOpen,
@@ -7,6 +8,7 @@ import {
   CalendarDays,
   Check,
   Clock,
+  Dumbbell,
   Library,
   MessageCircle,
   PenLine,
@@ -1368,6 +1370,39 @@ function getLanguageLabel(language: SocialLanguage) {
   return "Spanish";
 }
 
+function getMovementExerciseLibraryCopy(language: SocialLanguage) {
+  if (language === "en") {
+    return {
+      eyebrow: "Movement room",
+      title: "Gentle exercise cards",
+      body: "Pick from 12 photo-led routines for strength, balance, mobility, and calm.",
+      detail: "Each starts with plain steps and a safety note.",
+      cta: "Browse exercises",
+      previews: ["Chair yoga", "Tai chi", "Seated strength"],
+    };
+  }
+
+  if (language === "de") {
+    return {
+      eyebrow: "Bewegungsraum",
+      title: "Sanfte Uebungskarten",
+      body: "Waehle aus 12 Foto-Uebungen fuer Kraft, Gleichgewicht, Beweglichkeit und Ruhe.",
+      detail: "Jede beginnt mit klaren Schritten und Sicherheitshinweis.",
+      cta: "Uebungen ansehen",
+      previews: ["Stuhl-Yoga", "Tai Chi", "Kraft im Sitzen"],
+    };
+  }
+
+  return {
+    eyebrow: "Sala de movimiento",
+    title: "Tarjetas de ejercicio suave",
+    body: "Elige entre 12 rutinas con fotos para fuerza, equilibrio, movilidad y calma.",
+    detail: "Cada una empieza con pasos claros y una nota de seguridad.",
+    cta: "Ver ejercicios",
+    previews: ["Yoga en silla", "Tai chi", "Fuerza sentada"],
+  };
+}
+
 function buildAgentPrompt(
   language: SocialLanguage,
   roomName: string,
@@ -2183,6 +2218,8 @@ const RoomScreen = () => {
   const togetherRoomActive = isTogetherRoom(room?.slug ?? slug);
   const togetherCopy = togetherRoomActive ? getTogetherRoomCopy(language) : null;
   const readingRoomActive = isReadingRoomSlug(room?.slug ?? slug);
+  const movementRoomActive = canonicalRoomSlug === "morning-movement";
+  const movementExerciseCopy = useMemo(() => getMovementExerciseLibraryCopy(language), [language]);
   const readingClubCopy = useMemo(() => getReadingClubCopy(language), [language]);
   const readingClub = useMemo(
     () => (
@@ -2272,6 +2309,15 @@ const RoomScreen = () => {
   const selectedTogetherMember = roomMembers.length
     ? roomMembers[selectedTogetherPlan.memberIndex % roomMembers.length]
     : null;
+
+  const openMovementExerciseLibrary = useCallback(() => {
+    navigate("/activity", {
+      state: {
+        scrollToGentleExercises: true,
+        routineSource: "movement_room",
+      },
+    });
+  }, [navigate]);
 
   const agentName = useMemo(() => {
     if (!room) return "";
@@ -3493,6 +3539,62 @@ const RoomScreen = () => {
                   <span>{rule}</span>
                 </div>
               ))}
+            </div>
+          </section>
+        )}
+
+        {movementRoomActive && (
+          <section
+            className="rounded-[34px] border border-[#C9E8F1] bg-[linear-gradient(135deg,#F7FEFF_0%,#FFFDFC_52%,#F3FBF7_100%)] p-5 shadow-[0_16px_34px_rgba(2,132,199,0.08)]"
+            data-testid="movement-room-exercise-library"
+          >
+            <div className="flex items-start gap-4">
+              <div
+                className="flex h-[56px] w-[56px] shrink-0 items-center justify-center rounded-[18px] bg-[#0284C7] text-white shadow-[0_12px_26px_rgba(2,132,199,0.18)]"
+                aria-hidden="true"
+              >
+                <Dumbbell size={27} strokeWidth={2.4} />
+              </div>
+              <div className="min-w-0">
+                <p className="font-body text-[15px] font-bold uppercase tracking-[0.12em] text-[#0369A1]">
+                  {movementExerciseCopy.eyebrow}
+                </p>
+                <h2 className="mt-1 break-words font-display text-[32px] leading-[1.04] text-[#123047]">
+                  {movementExerciseCopy.title}
+                </h2>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={openMovementExerciseLibrary}
+              className="mt-4 inline-flex min-h-[58px] w-[190px] max-w-full items-center justify-center gap-2 rounded-[20px] bg-[#0284C7] px-4 font-body text-[18px] font-bold text-white shadow-[0_14px_28px_rgba(2,132,199,0.18)] sm:ml-[72px] sm:w-auto sm:px-5 sm:text-[19px]"
+              data-testid="button-movement-room-browse-exercises"
+            >
+              <Sparkles size={21} strokeWidth={2.4} aria-hidden="true" />
+              <span>{movementExerciseCopy.cta}</span>
+              <ArrowRight className="hidden sm:block" size={20} strokeWidth={2.5} aria-hidden="true" />
+            </button>
+
+            <p className="mt-4 max-w-[720px] break-words font-body text-[18px] leading-[1.35] text-[#51606C] sm:ml-[72px]">
+              {movementExerciseCopy.body}
+            </p>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {movementExerciseCopy.previews.map((preview) => (
+                <span
+                  key={preview}
+                  className="rounded-full border border-[#BFE3EC] bg-white px-3 py-1.5 font-body text-[15px] font-bold text-[#0369A1]"
+                >
+                  {preview}
+                </span>
+              ))}
+            </div>
+
+            <div className="mt-4 rounded-[18px] bg-white/72 px-3 py-3">
+              <p className="font-body text-[17px] font-semibold leading-[1.35] text-[#66717B]">
+                {movementExerciseCopy.detail}
+              </p>
             </div>
           </section>
         )}
