@@ -180,6 +180,18 @@ describe("Activity safe-home service actions", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("Move gently. Stop if you feel pain, dizzy, or short of breath.");
   });
 
+  it("scrolls straight to the gentle exercise library from Home route state", async () => {
+    const scrollIntoViewMock = vi.fn();
+    window.HTMLElement.prototype.scrollIntoView = scrollIntoViewMock;
+
+    renderActivity([{ pathname: "/activity", state: { scrollToGentleExercises: true, routineSource: "home" } }]);
+
+    expect(screen.getByTestId("section-gentle-exercises")).toHaveTextContent("Gentle exercises");
+    await waitFor(() => {
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
+    });
+  });
+
   it("shows today's gentle routine above the exercise library", () => {
     renderActivity();
 
