@@ -2348,7 +2348,7 @@ const RoomScreen = () => {
     setReadingClubStatus(readingClubCopy.conversationReadyStatusLabel);
   }, [readingClubCopy.conversationReadyStatusLabel, updateReadingDesk]);
 
-  const useReadingJournalPrompt = useCallback((prompt: ReturnType<typeof getReadingClubCopy>["journalPrompts"][number]) => {
+  const handleReadingJournalPrompt = useCallback((prompt: ReturnType<typeof getReadingClubCopy>["journalPrompts"][number]) => {
     setReadingReflectionDraft(prompt.draft);
     setReadingClubStatus(readingClubCopy.journalPromptReadyLabel);
   }, [readingClubCopy.journalPromptReadyLabel]);
@@ -2377,7 +2377,7 @@ const RoomScreen = () => {
     setReadingClubStatus(readingClubCopy.journalRemovedLabel);
   }, [readingClubCopy.journalRemovedLabel, updateReadingDesk]);
 
-  const useReadingLetterPrompt = useCallback((prompt: ReturnType<typeof getReadingClubCopy>["letterPrompts"][number]) => {
+  const handleReadingLetterPrompt = useCallback((prompt: ReturnType<typeof getReadingClubCopy>["letterPrompts"][number]) => {
     if (!readingLetterRecipientDraft.trim()) {
       setReadingLetterRecipientDraft(readingLetterRecipientSuggestion);
     }
@@ -4352,7 +4352,7 @@ const RoomScreen = () => {
                           <button
                             key={prompt.id}
                             type="button"
-                            onClick={() => useReadingLetterPrompt(prompt)}
+                            onClick={() => handleReadingLetterPrompt(prompt)}
                             className="min-h-[62px] rounded-[18px] border border-[#BDE8D7] bg-white px-3 py-3 text-left"
                             data-testid={`button-reading-letter-prompt-${prompt.id}`}
                           >
@@ -4575,7 +4575,7 @@ const RoomScreen = () => {
                               </div>
                               <button
                                 type="button"
-                                onClick={() => useReadingJournalPrompt(prompt)}
+                                onClick={() => handleReadingJournalPrompt(prompt)}
                                 className="inline-flex min-h-[38px] items-center gap-2 rounded-full border border-[#BDE8D7] bg-[#F7FFFB] px-3 font-body text-[14px] font-bold text-[#0F766E]"
                                 data-testid={`button-reading-journal-prompt-${prompt.id}`}
                               >
