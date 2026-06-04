@@ -4750,7 +4750,7 @@ const RoomScreen = () => {
           </section>
         )}
 
-        {roomMode === "welcome" ? (
+        {!movementRoomActive && (roomMode === "welcome" ? (
             <section className="rounded-[34px] border border-[#E8DDCF] bg-[#FFFDFC] p-5 shadow-[0_16px_34px_rgba(91,33,182,0.05)]">
               <div className="rounded-[28px] bg-[#F8F3FF] px-5 py-5">
                 <div className="flex items-center gap-3">
@@ -4878,7 +4878,7 @@ const RoomScreen = () => {
                 </button>
               </form>
             </section>
-          )}
+          ))}
       </main>
 
       {membersOpen && (

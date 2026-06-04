@@ -133,6 +133,8 @@ describe("RoomScreen movement room", () => {
   it("surfaces the gentle exercise library from the Movement room", async () => {
     renderRoom();
 
+    expect(screen.queryByText("Amara welcomes you")).not.toBeInTheDocument();
+    expect(screen.queryByText("Hello, I'm Amara. We can move gently and without hurry.")).not.toBeInTheDocument();
     expect(screen.getByTestId("movement-room-exercise-library")).toHaveTextContent("Gentle exercise cards");
     expect(screen.getByTestId("movement-room-exercise-library")).toHaveTextContent("Pick from 12 photo-led routines");
     expect(screen.getByTestId("movement-room-exercise-library")).toHaveTextContent("Each starts with plain steps");
