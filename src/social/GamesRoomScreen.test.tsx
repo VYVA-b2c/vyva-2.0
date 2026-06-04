@@ -16,13 +16,18 @@ function createWordRound(index: number): SocialGameRound {
       kind: "word",
       title: "Word tiles",
       body: "Make a word from the tiles.",
-      prompt: "Use the tiles S, M, I, L, E. Which word can you make?",
+      prompt: "Arrange the tiles into a friendly word.",
       choices: ["SMILE", "LIMES", "MILES"],
       answer: "SMILE",
       hint: "Choose the word you could send as a greeting.",
       tags: ["games", "scrabble", "words", "game:word", "word:anagram"],
       estimatedDurationSeconds: 75,
       successMessage: "Lovely. Anagrams make word games feel quick and social.",
+      visual: {
+        kind: "wordTiles",
+        tiles: ["E", "I", "M", "L", "S"],
+        answerLength: 5,
+      },
     };
   }
 
@@ -32,13 +37,18 @@ function createWordRound(index: number): SocialGameRound {
       kind: "word",
       title: "Word tiles",
       body: "Make a word from the tiles.",
-      prompt: "Use the tiles P, E, A, C, E. Which word can you make?",
+      prompt: "Arrange the tiles into a friendly word.",
       choices: ["PEACE", "PACES", "CAPES"],
       answer: "PEACE",
       hint: "It means calm between people.",
       tags: ["games", "scrabble", "words", "game:word", "word:anagram"],
       estimatedDurationSeconds: 80,
       successMessage: "Lovely. Anagrams make word games feel quick and social.",
+      visual: {
+        kind: "wordTiles",
+        tiles: ["E", "A", "P", "C", "E"],
+        answerLength: 5,
+      },
     };
   }
 
@@ -54,6 +64,11 @@ function createWordRound(index: number): SocialGameRound {
     tags: ["games", "scrabble", "words", "game:word", "word:test"],
     estimatedDurationSeconds: 80,
     successMessage: "Nice word choice.",
+    visual: {
+      kind: "wordTiles",
+      tiles: [`D${index + 1}`, `WOR${index + 1}`],
+      answerLength: 2,
+    },
   };
 }
 
@@ -73,6 +88,11 @@ function createDominoesRound(index: number): SocialGameRound {
       tags: ["games", "dominoes", "game:dominoes", "dominoes:opening-double"],
       estimatedDurationSeconds: 75,
       successMessage: "Nice table sense. A strong double gives everyone an easy start.",
+      visual: {
+        kind: "dominoes",
+        caption: "Choose the strongest opening tile.",
+        candidateTiles: [[6, 6], [5, 5], [3, 3]],
+      },
     };
   }
 
@@ -89,6 +109,11 @@ function createDominoesRound(index: number): SocialGameRound {
       tags: ["games", "dominoes", "game:dominoes", "dominoes:opening-double"],
       estimatedDurationSeconds: 75,
       successMessage: "Nice table sense. A strong double gives everyone an easy start.",
+      visual: {
+        kind: "dominoes",
+        caption: "Choose the strongest opening tile.",
+        candidateTiles: [[5, 5], [4, 4], [2, 2]],
+      },
     };
   }
 
@@ -104,10 +129,82 @@ function createDominoesRound(index: number): SocialGameRound {
     tags: ["games", "dominoes", "game:dominoes", "dominoes:test"],
     estimatedDurationSeconds: 75,
     successMessage: "Nice table sense.",
+    visual: {
+      kind: "dominoes",
+      caption: "Solve a short dominoes table clue.",
+      candidateTiles: [[1, 2], [2, 3], [3, 4]],
+    },
   };
 }
 
 const dominoesRounds = Array.from({ length: 80 }, (_, index) => createDominoesRound(index));
+
+function createBridgeRound(index: number): SocialGameRound {
+  if (index === 0) {
+    return {
+      id: "bridge-opening-bid-five-hearts",
+      kind: "bridge",
+      title: "Bridge table",
+      body: "Choose a calm opening bid.",
+      prompt: "You have 13 points and 5 hearts. Which calm choice fits best?",
+      choices: ["Bid 1 hearts", "Bid 1 no-trump", "Pass"],
+      answer: "Bid 1 hearts",
+      hint: "Bid the longest suit",
+      tags: ["games", "bridge", "cards", "game:bridge", "bridge:opening-bid"],
+      estimatedDurationSeconds: 85,
+      successMessage: "Good start. A clear opening helps partner relax.",
+      visual: {
+        kind: "bridgeCards",
+        caption: "Choose a calm opening bid.",
+        points: 13,
+        suitLengths: [{ suit: "hearts", length: 5 }],
+      },
+    };
+  }
+
+  if (index === 1) {
+    return {
+      id: "bridge-opening-bid-five-spades",
+      kind: "bridge",
+      title: "Bridge table",
+      body: "Choose a calm opening bid.",
+      prompt: "You have 12 points and 5 spades. Which calm choice fits best?",
+      choices: ["Bid 1 spades", "Bid 1 clubs", "Pass"],
+      answer: "Bid 1 spades",
+      hint: "Bid the longest suit",
+      tags: ["games", "bridge", "cards", "game:bridge", "bridge:opening-bid"],
+      estimatedDurationSeconds: 85,
+      successMessage: "Good start. A clear opening helps partner relax.",
+      visual: {
+        kind: "bridgeCards",
+        caption: "Choose a calm opening bid.",
+        points: 12,
+        suitLengths: [{ suit: "spades", length: 5 }],
+      },
+    };
+  }
+
+  return {
+    id: `bridge-test-${index + 1}`,
+    kind: "bridge",
+    title: "Bridge table",
+    body: "Solve a gentle bridge table puzzle.",
+    prompt: `Choose the useful bridge test action ${index + 1}.`,
+    choices: [`Bridge ${index + 1}`, `Pass ${index + 1}`, `Lead ${index + 1}`],
+    answer: `Bridge ${index + 1}`,
+    hint: "Pick the first bridge action.",
+    tags: ["games", "bridge", "cards", "game:bridge", "bridge:test"],
+    estimatedDurationSeconds: 85,
+    successMessage: "Nice bridge table choice.",
+    visual: {
+      kind: "bridgeCards",
+      caption: "Solve a gentle bridge table puzzle.",
+      cards: [{ rank: "ace", suit: "spades" }],
+    },
+  };
+}
+
+const bridgeRounds = Array.from({ length: 80 }, (_, index) => createBridgeRound(index));
 
 const roomResponse: SocialRoomResponse = {
   room: {
@@ -130,7 +227,7 @@ const roomResponse: SocialRoomResponse = {
     activityType: "game",
     contentTag: "",
     contentTitle: "A short challenge",
-    contentBody: "Choose chess, word tiles, dominoes or trivia.",
+    contentBody: "Choose chess, word tiles, dominoes or bridge.",
     options: [],
     liveBadge: "6 in the room",
   },
@@ -182,6 +279,17 @@ const roomResponse: SocialRoomResponse = {
         tags: ["games", "chess", "game:chess", "chess:fork"],
         estimatedDurationSeconds: 90,
         successMessage: "Nice steady thinking. Forks are a classic way to start a chess chat.",
+        visual: {
+          kind: "chessBoard",
+          caption: "One white piece points at two black targets.",
+          pieces: [
+            { square: "d5", piece: "whiteKnight" },
+            { square: "f6", piece: "blackKing" },
+            { square: "b6", piece: "blackQueen" },
+            { square: "g1", piece: "whiteKing" },
+          ],
+          highlights: ["d5", "f6", "b6"],
+        },
       },
       {
         id: "chess-clue-back-rank",
@@ -195,22 +303,23 @@ const roomResponse: SocialRoomResponse = {
         tags: ["games", "chess", "game:chess", "chess:mate"],
         estimatedDurationSeconds: 95,
         successMessage: "Good eye. Back-rank patterns are small puzzles that many chess players enjoy.",
+        visual: {
+          kind: "chessBoard",
+          caption: "The black king is boxed in behind its own pawns.",
+          pieces: [
+            { square: "e8", piece: "whiteRook" },
+            { square: "g8", piece: "blackKing" },
+            { square: "f7", piece: "blackPawn" },
+            { square: "g7", piece: "blackPawn" },
+            { square: "h7", piece: "blackPawn" },
+            { square: "g1", piece: "whiteKing" },
+          ],
+          highlights: ["e8", "g8", "f7", "g7", "h7"],
+        },
       },
       ...wordRounds,
       ...dominoesRounds,
-      {
-        id: "trivia-round",
-        kind: "trivia",
-        title: "Trivia",
-        body: "Answer one cheerful question.",
-        prompt: "Which classic board game uses rooks and bishops?",
-        choices: ["Chess", "Dominoes", "Bingo"],
-        answer: "Chess",
-        hint: "It is played on black and white squares.",
-        tags: ["games", "quiz", "trivia", "game:trivia"],
-        estimatedDurationSeconds: 70,
-        successMessage: "That was a clean answer.",
-      },
+      ...bridgeRounds,
     ],
   },
 };
@@ -242,10 +351,12 @@ describe("GamesRoomScreen", () => {
     render(<GamesRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
 
     expect(screen.getByText("Dominoes")).toBeInTheDocument();
-    expect(screen.getByText("Trivia")).toBeInTheDocument();
+    expect(screen.getByText("Bridge table")).toBeInTheDocument();
+    expect(screen.queryByText("Trivia")).not.toBeInTheDocument();
     expect(screen.queryByText("Memory match")).not.toBeInTheDocument();
     expect(screen.getByText("Puzzle 1 of 2")).toBeInTheDocument();
     expect(screen.getByText("White's knight can check the king and attack the queen. What tactic is this?")).toBeInTheDocument();
+    expect(screen.getByTestId("games-visual-chess")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-next-puzzle"));
 
@@ -289,14 +400,20 @@ describe("GamesRoomScreen", () => {
     fireEvent.click(screen.getByTestId("games-round-word"));
 
     expect(screen.getByText("Puzzle 1 of 80")).toBeInTheDocument();
-    expect(screen.getByText("Use the tiles S, M, I, L, E. Which word can you make?")).toBeInTheDocument();
+    expect(screen.getByText("Arrange the tiles into a friendly word.")).toBeInTheDocument();
+    expect(screen.queryByText("SMILE")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-next-puzzle"));
 
     expect(screen.getByText("Puzzle 2 of 80")).toBeInTheDocument();
-    expect(screen.getByText("Use the tiles P, E, A, C, E. Which word can you make?")).toBeInTheDocument();
+    expect(screen.getByText("Arrange the tiles into a friendly word.")).toBeInTheDocument();
+    expect(screen.queryByText("PEACE")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-start-round"));
+
+    expect(screen.getByTestId("games-word-tiles-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("word-answer-tray")).toBeInTheDocument();
+    expect(screen.queryByTestId("word-help-choices")).not.toBeInTheDocument();
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
@@ -316,6 +433,7 @@ describe("GamesRoomScreen", () => {
 
     expect(screen.getByText("Puzzle 1 of 80")).toBeInTheDocument();
     expect(screen.getByText("You are starting and have these doubles: Double six, Double five, Double three. Which tile is the strongest opener?")).toBeInTheDocument();
+    expect(screen.getByTestId("games-visual-dominoes")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-next-puzzle"));
 
@@ -333,6 +451,95 @@ describe("GamesRoomScreen", () => {
         }),
       );
     });
+  });
+
+  it("lets the Bridge table card browse an 80-puzzle bridge bank", async () => {
+    render(<GamesRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("games-round-bridge"));
+
+    expect(screen.getByText("Puzzle 1 of 80")).toBeInTheDocument();
+    expect(screen.getByText("You have 13 points and 5 hearts. Which calm choice fits best?")).toBeInTheDocument();
+    expect(screen.getByTestId("games-visual-bridge")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("games-next-puzzle"));
+
+    expect(screen.getByText("Puzzle 2 of 80")).toBeInTheDocument();
+    expect(screen.getByText("You have 12 points and 5 spades. Which calm choice fits best?")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("games-start-round"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/social/rooms/games-room/game-round",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringMatching(/"roundId":"bridge-opening-bid-five-spades".*"gameKind":"bridge"/),
+        }),
+      );
+    });
+  });
+
+  it("searches for a Bridge partner using the bridge game kind", async () => {
+    render(<GamesRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("games-round-bridge"));
+    fireEvent.click(screen.getByTestId("games-start-round"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/social/rooms/games-room/game-round",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining('"gameKind":"bridge"'),
+        }),
+      );
+    });
+
+    fireEvent.click(screen.getByText("Bid 1 hearts"));
+    fireEvent.click(screen.getByTestId("games-complete-round"));
+    fireEvent.click(screen.getByTestId("games-find-partner"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/social/rooms/games-room/match",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining('"gameKind":"bridge"'),
+        }),
+      );
+    });
+  });
+
+  it("reveals Word tiles help after a wrong tile attempt", async () => {
+    render(<GamesRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("games-round-word"));
+    fireEvent.click(screen.getByTestId("games-start-round"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/social/rooms/games-room/game-round",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringMatching(/"roundId":"word-tiles-anagram-smile".*"gameKind":"word"/),
+        }),
+      );
+    });
+
+    fireEvent.click(screen.getByTestId("word-tile-0"));
+    fireEvent.click(screen.getByTestId("word-tile-1"));
+    fireEvent.click(screen.getByTestId("word-tile-2"));
+    fireEvent.click(screen.getByTestId("word-tile-3"));
+    fireEvent.click(screen.getByTestId("word-tile-4"));
+    fireEvent.click(screen.getByTestId("word-check-answer"));
+
+    expect(screen.getByText("Close. Try another order or use the help.")).toBeInTheDocument();
+    expect(screen.getByTestId("word-help-choices")).toBeInTheDocument();
+    expect(screen.getByText("SMILE")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("SMILE"));
+    expect(screen.getByText("Round complete")).toBeInTheDocument();
   });
 
   it("runs a guided round and searches for a partner using the selected game kind", async () => {
@@ -354,8 +561,12 @@ describe("GamesRoomScreen", () => {
       );
     });
 
-    fireEvent.click(screen.getByText("SMILE"));
-    fireEvent.click(screen.getByTestId("games-complete-round"));
+    fireEvent.click(screen.getByTestId("word-tile-4"));
+    fireEvent.click(screen.getByTestId("word-tile-2"));
+    fireEvent.click(screen.getByTestId("word-tile-1"));
+    fireEvent.click(screen.getByTestId("word-tile-3"));
+    fireEvent.click(screen.getByTestId("word-tile-0"));
+    fireEvent.click(screen.getByTestId("word-check-answer"));
     expect(screen.getByText("Round complete")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-find-partner"));

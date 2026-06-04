@@ -13,7 +13,51 @@ export type SocialActivityType =
   | "story"
   | "advice";
 
-export type SocialGameKind = "chess" | "word" | "dominoes" | "trivia";
+export type SocialGameKind = "chess" | "word" | "dominoes" | "bridge";
+
+export type SocialGameRoundVisual =
+  | {
+      kind: "wordTiles";
+      tiles: string[];
+      answerLength: number;
+      baseWord?: string;
+      pattern?: string;
+      clue?: string;
+    }
+  | {
+      kind: "chessBoard";
+      caption: string;
+      pieces: Array<{
+        square: string;
+        piece: "whiteKing" | "whiteQueen" | "whiteRook" | "whiteBishop" | "whiteKnight" | "whitePawn" | "blackKing" | "blackQueen" | "blackRook" | "blackBishop" | "blackKnight" | "blackPawn";
+      }>;
+      highlights?: string[];
+      arrows?: Array<{ from: string; to: string; label?: string }>;
+    }
+  | {
+      kind: "dominoes";
+      caption: string;
+      openEnds?: [number, number];
+      hand?: Array<[number, number]>;
+      candidateTiles?: Array<[number, number]>;
+      playedTile?: [number, number];
+      focusTile?: [number, number];
+      target?: number;
+      desired?: number;
+      avoid?: number;
+      playOn?: number;
+      otherEnd?: number;
+    }
+  | {
+      kind: "bridgeCards";
+      caption: string;
+      points?: number;
+      contract?: string;
+      partnerBid?: string;
+      cards?: Array<{ rank: string; suit: string }>;
+      suitLengths?: Array<{ suit: string; length: number }>;
+      missingCard?: { rank: string; suit: string };
+    };
 
 export type SocialGameRound = {
   id: string;
@@ -27,6 +71,7 @@ export type SocialGameRound = {
   tags: string[];
   estimatedDurationSeconds: number;
   successMessage: string;
+  visual?: SocialGameRoundVisual;
 };
 
 export type SocialGameReadyMember = {
