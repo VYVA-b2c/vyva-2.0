@@ -172,10 +172,12 @@ const copyByLanguage: Record<SocialLanguage, {
     replyActions: {
       support: "Yo tambien",
       curious: "Cuantame mas",
+      help: "Puedo ayudar",
     },
     replyBodies: {
       support: "Yo tambien lo siento asi. Gracias por compartirlo.",
       curious: "Me gustaria saber un poco mas, si te apetece compartirlo.",
+      help: "Puedo ayudar con un paso sencillo dentro de la sala.",
     },
     supportIdea: "Me apunto",
     maybeIdea: "Quizas",
@@ -300,10 +302,12 @@ const copyByLanguage: Record<SocialLanguage, {
     replyActions: {
       support: "Geht mir auch so",
       curious: "Erzaehl mehr",
+      help: "Ich kann helfen",
     },
     replyBodies: {
       support: "Mir geht es auch so. Danke, dass du das teilst.",
       curious: "Ich wuerde gern etwas mehr hoeren, wenn du teilen moechtest.",
+      help: "Ich kann bei einem kleinen Schritt im Raum helfen.",
     },
     supportIdea: "Mitmachen",
     maybeIdea: "Vielleicht",
@@ -428,10 +432,12 @@ const copyByLanguage: Record<SocialLanguage, {
     replyActions: {
       support: "I feel the same",
       curious: "Tell me more",
+      help: "I can help",
     },
     replyBodies: {
       support: "I feel the same. Thank you for sharing it.",
       curious: "I would like to hear a little more, if you want to share it.",
+      help: "I can help with one small step inside the room.",
     },
     supportIdea: "Join this",
     maybeIdea: "Maybe",
@@ -1693,8 +1699,8 @@ export default function TogetherRoomScreen({
                           ))}
                         </div>
                       )}
-                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                        {(["support", "curious"] as const).map((tone) => (
+                      <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                        {(["support", "curious", "help"] as const).map((tone) => (
                           <button
                             key={tone}
                             type="button"

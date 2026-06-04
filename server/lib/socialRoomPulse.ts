@@ -222,7 +222,7 @@ function normalizeSafetyFlags(value: unknown): SocialRoomSafetyFlag[] {
   return Array.from(new Set(value.filter((item): item is SocialRoomSafetyFlag => allowed.has(item as SocialRoomSafetyFlag)))).slice(0, 5);
 }
 
-function detectSafetyFlags(input: {
+export function detectSafetyFlags(input: {
   category: SocialRoomExperienceCategory;
   title: string;
   details: string;
@@ -257,11 +257,11 @@ function shouldReviewExperience(kind: SocialRoomPlanKind, safetyFlags: SocialRoo
   return kind === "plan" && safetyFlags.length > 0;
 }
 
-function shouldBlockReply(safetyFlags: SocialRoomSafetyFlag[]) {
+export function shouldBlockReply(safetyFlags: SocialRoomSafetyFlag[]) {
   return safetyFlags.length > 0;
 }
 
-function blockedReplyDetails(safetyFlags: SocialRoomSafetyFlag[], language: SocialLanguage) {
+export function blockedReplyDetails(safetyFlags: SocialRoomSafetyFlag[], language: SocialLanguage) {
   const flags = safetyFlags.join(", ");
   if (language === "de") return `Eine Antwort wurde vor dem Teilen gestoppt, weil sie geschuetzte Kontaktdaten, Zahlung, Wohnen, Service oder Transport betreffen koennte. Hinweise: ${flags}.`;
   if (language === "en") return `A reply was stopped before sharing because it may involve protected contact, payment, housing, services or transport. Signals: ${flags}.`;
@@ -348,6 +348,7 @@ function buildFitReasons(input: {
 }
 
 function normalizeReplyTone(value: unknown): SocialRoomReplyTone {
+  if (value === "help") return "help";
   return value === "curious" ? "curious" : "support";
 }
 

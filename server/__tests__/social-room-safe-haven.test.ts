@@ -312,21 +312,21 @@ describe("Together Room safe haven API", () => {
       .set("x-user-id", replierId)
       .send({
         lang: "en",
-        tone: "support",
-        body: "I feel the same. Thank you for sharing it.",
+        tone: "help",
+        body: "I can help with one small step inside the room.",
       })
       .expect(200);
 
-    expect(reply.body.reply.body).toBe("I feel the same. Thank you for sharing it.");
-    expect(reply.body.reply.tone).toBe("support");
-    expect(reply.body.pulse.postedExperiences[0].replies[0].body).toMatch(/feel the same/i);
+    expect(reply.body.reply.body).toBe("I can help with one small step inside the room.");
+    expect(reply.body.reply.tone).toBe("help");
+    expect(reply.body.pulse.postedExperiences[0].replies[0].body).toMatch(/can help/i);
 
     const ownerPulse = await request(socialApp)
       .get("/api/social/rooms/together-room/pulse?lang=en")
       .set("x-user-id", ownerId)
       .expect(200);
 
-    expect(ownerPulse.body.pulse.postedExperiences[0].replies[0].body).toMatch(/feel the same/i);
+    expect(ownerPulse.body.pulse.postedExperiences[0].replies[0].body).toMatch(/can help/i);
     const replyNotification = ownerPulse.body.pulse.notifications.find((notification: { id: string; type: string; title: string; body: string }) => (
       notification.type === "reply_added" &&
       /Someone replied gently/i.test(notification.title) &&
@@ -368,7 +368,7 @@ describe("Together Room safe haven API", () => {
       .expect(200);
     expect(
       moderation.body.replies.some((item: { id?: string; body?: string }) => (
-        item.id === reply.body.reply.id && /feel the same/i.test(item.body ?? "")
+        item.id === reply.body.reply.id && /can help/i.test(item.body ?? "")
       )),
     ).toBe(true);
 

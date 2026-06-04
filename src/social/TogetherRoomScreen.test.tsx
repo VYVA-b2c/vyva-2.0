@@ -646,8 +646,8 @@ describe("TogetherRoomScreen", () => {
                 id: "reply-2",
                 planKey: "experience-1",
                 authorName: "Member",
-                body: "I feel the same. Thank you for sharing it.",
-                tone: "support",
+                body: "I can help with one small step inside the room.",
+                tone: "help",
                 status: "active",
                 createdAt: "2026-06-04T10:06:00.000Z",
               },
@@ -661,21 +661,22 @@ describe("TogetherRoomScreen", () => {
     render(<TogetherRoomScreen roomResponse={responseWithSharedIdea} language="en" visitId="visit-1" onBack={vi.fn()} />);
 
     expect(screen.getByTestId("together-gentle-replies-experience-1")).toHaveTextContent("That sounds gentle.");
+    expect(screen.getByTestId("together-reply-help-experience-1")).toHaveTextContent("I can help");
 
-    fireEvent.click(screen.getByTestId("together-reply-support-experience-1"));
+    fireEvent.click(screen.getByTestId("together-reply-help-experience-1"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
         "/api/social/rooms/together-room/plans/experience-1/replies",
         expect.objectContaining({
           method: "POST",
-          body: expect.stringContaining('"tone":"support"'),
+          body: expect.stringContaining('"tone":"help"'),
         }),
       );
     });
     const body = JSON.parse(String(apiFetchMock.mock.calls[0][1]?.body));
-    expect(body.body).toBe("I feel the same. Thank you for sharing it.");
-    expect(screen.getByTestId("together-reply-reply-2")).toHaveTextContent("I feel the same");
+    expect(body.body).toBe("I can help with one small step inside the room.");
+    expect(screen.getByTestId("together-reply-reply-2")).toHaveTextContent("I can help");
   });
 
   it("can ask VYVA to review a specific shared item", async () => {
