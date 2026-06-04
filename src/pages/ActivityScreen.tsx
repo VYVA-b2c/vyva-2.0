@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Footprints, Bike, PersonStanding, Dumbbell, Wind, CheckCircle2, Loader2, Pencil, Home, Camera, AlertTriangle, ShieldAlert, ChevronRight, ShoppingBasket, Wrench, Car, Users, Clock3, type LucideIcon } from "lucide-react";
@@ -551,6 +551,7 @@ type ActivityLocationState = {
   duration?: number;
   startGentleRoutine?: boolean;
   highlightGentleRoutine?: boolean;
+  scrollToGentleExercises?: boolean;
   routineSource?: string;
 } | null;
 
@@ -619,6 +620,7 @@ const ActivityScreen = () => {
   const [homeResult, setHomeResult] = useState<HomeScanResult | null>(null);
   const homeScanRef = useRef<HTMLInputElement>(null);
   const logSectionRef = useRef<HTMLDivElement>(null);
+  const gentleExercisesSectionRef = useRef<HTMLElement>(null);
   const { data: homeScanHistory } = useQuery<HomeScanRow[]>({ queryKey: ["/api/home-scan"] });
   const { firstName } = useProfile();
 
@@ -717,6 +719,13 @@ const ActivityScreen = () => {
   const activityLabel = (meta: ActivityTypeMeta) => t(meta.labelKey, meta.fallbackLabel);
   const selectedType = selected ? ACTIVITY_ICON_MAP[selected] : undefined;
   const selectedIsOuting = Boolean(selected && OUTING_ACTIVITY_TYPES.has(selected));
+
+  useEffect(() => {
+    if (incomingState?.scrollToGentleExercises !== true) return;
+    window.setTimeout(() => {
+      gentleExercisesSectionRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    }, 0);
+  }, [incomingState?.scrollToGentleExercises]);
 
   const closeGuidedRoutine = () => {
     setGuidedRoutineId(null);
@@ -1007,7 +1016,7 @@ const ActivityScreen = () => {
         </div>
       </section>
 
-      <section className="mt-[18px]" data-testid="section-gentle-exercises">
+      <section ref={gentleExercisesSectionRef} className="mt-[18px]" data-testid="section-gentle-exercises">
         <SectionTitle
           title={t("activity.gentleExercises.title", "Gentle exercises")}
           subtitle={t("activity.gentleExercises.subtitle", "Three simple choices for strength, balance, mobility, and calm.")}

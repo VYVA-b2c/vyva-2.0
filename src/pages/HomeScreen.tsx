@@ -462,6 +462,15 @@ const HomeScreen = () => {
     });
   };
 
+  const handleHomeGentleExerciseBrowse = () => {
+    handleNavigate("/activity", {
+      state: {
+        scrollToGentleExercises: true,
+        routineSource: "home",
+      },
+    });
+  };
+
   const homeFastActions: HomeFastAction[] = [
     ...(gpPhoneHref
       ? [{
@@ -568,6 +577,19 @@ const HomeScreen = () => {
                     ? t("home.gentleRoutine.viewActivity", "View activity")
                     : t("home.gentleRoutine.start", "Start")}
                   <ChevronRight size={20} />
+                </button>
+                <button
+                  type="button"
+                  data-testid="button-home-browse-gentle-exercises"
+                  onClick={handleHomeGentleExerciseBrowse}
+                  className="vyva-tap flex min-h-[50px] w-full items-center justify-center gap-2 rounded-[18px] border bg-white px-5 py-3 font-body text-[15px] font-extrabold"
+                  style={{
+                    borderColor: homeGentleRoutine.border,
+                    color: homeGentleRoutine.accent,
+                  }}
+                >
+                  {t("home.gentleRoutine.browseExercises", "Browse all exercises")}
+                  <ChevronRight size={18} />
                 </button>
                 <p
                   className="rounded-[16px] px-3 py-2 font-body text-[13px] font-black uppercase leading-snug [overflow-wrap:anywhere] min-[760px]:hidden"

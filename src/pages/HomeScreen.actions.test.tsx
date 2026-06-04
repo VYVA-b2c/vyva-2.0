@@ -113,6 +113,7 @@ describe("Home fast service actions", () => {
     expect(routineCard).toHaveTextContent("Today's movement");
     expect(routineCard).toHaveTextContent("10 min");
     expect(routineCard).toHaveTextContent("Start");
+    expect(routineCard).toHaveTextContent("Browse all exercises");
     expect(screen.getAllByTestId(/^home-routine-preview-/)).toHaveLength(3);
     expect(routineCard.compareDocumentPosition(firstTopicCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
@@ -125,6 +126,19 @@ describe("Home fast service actions", () => {
     expect(guardPathMock).toHaveBeenCalledWith("/activity", {
       state: {
         startGentleRoutine: true,
+        routineSource: "home",
+      },
+    });
+  });
+
+  it("opens the full gentle exercise library from Home", () => {
+    render(<HomeScreen />);
+
+    fireEvent.click(screen.getByTestId("button-home-browse-gentle-exercises"));
+
+    expect(guardPathMock).toHaveBeenCalledWith("/activity", {
+      state: {
+        scrollToGentleExercises: true,
         routineSource: "home",
       },
     });
