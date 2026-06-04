@@ -946,79 +946,58 @@ const ActivityScreen = () => {
         </div>
       </div>
 
-      <section className="mt-[18px]" data-testid="section-todays-gentle-routine">
-        <SectionTitle
-          title={t("activity.gentleRoutines.todayTitle", "Today's gentle routine")}
-          subtitle={t("activity.gentleRoutines.todaySubtitle", "One simple 10-minute session picked for today.")}
-        />
-
+      <section className="mt-[12px]" data-testid="section-todays-gentle-routine">
         <div
-          className="mt-3 overflow-hidden rounded-[24px] border bg-[#FFFCF8]"
+          className="rounded-[20px] border bg-[#FFFCF8] p-3"
           style={{
             borderColor: todayRoutine.border,
-            boxShadow: "0 16px 34px rgba(60,38,20,0.09)",
+            boxShadow: "0 8px 20px rgba(60,38,20,0.07)",
           }}
         >
-          <div className="grid grid-cols-1 min-[720px]:grid-cols-[1fr_210px]">
-            <div className="min-w-0 p-4 min-[520px]:p-5">
-              <div className="flex flex-wrap items-center gap-2">
-                <span
-                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 font-body text-[13px] font-extrabold"
-                  style={{ background: todayRoutine.softBg, color: todayRoutine.accent }}
-                >
-                  <Clock3 size={15} />
-                  {todayRoutine.duration} {t("activity.min", "min")}
-                </span>
-                <span className="rounded-full bg-[#FFF7ED] px-3 py-1.5 font-body text-[13px] font-extrabold text-[#92400E]">
-                  {t("activity.gentleRoutines.threeMoves", "3 gentle moves")}
-                </span>
-              </div>
-
-              <h3 className="mt-3 font-display text-[30px] leading-tight text-vyva-text-1 [overflow-wrap:anywhere] min-[520px]:text-[34px]">
-                {t(todayRoutine.titleKey, todayRoutine.title)}
-              </h3>
-              <p className="mt-1 max-w-[520px] font-body text-[16px] font-semibold leading-snug text-vyva-text-2 [overflow-wrap:anywhere]">
-                {t(todayRoutine.subtitleKey, todayRoutine.subtitle)}
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+            <div className="min-w-0">
+              <p className="font-body text-[12px] font-black uppercase tracking-[0.08em]" style={{ color: todayRoutine.accent }}>
+                  {t("activity.gentleRoutines.todayTitle", "Today's gentle routine")}
               </p>
-
-              <div className="mt-4 grid grid-cols-3 gap-2.5">
+              <h2 className="mt-1 font-display text-[24px] leading-[1.02] text-vyva-text-1 [overflow-wrap:anywhere]">
+                {t(todayRoutine.titleKey, todayRoutine.title)}
+              </h2>
+              <p className="mt-1 line-clamp-2 font-body text-[12px] font-bold leading-snug text-vyva-text-2 [overflow-wrap:anywhere]">
+                {todayRoutineExercises.map((exercise) => t(exercise.titleKey, exercise.title)).join(" • ")}
+              </p>
+              <div className="mt-3 flex min-w-0 -space-x-2">
                 {todayRoutineExercises.map((exercise) => (
-                  <div key={exercise.id} className="min-w-0" data-testid={`senior-routine-preview-${exercise.id}`}>
-                    <div className="aspect-square overflow-hidden rounded-[18px] bg-[#F5EFE4]">
-                      <img src={exercise.image} alt="" className="h-full w-full object-cover" loading="lazy" />
-                    </div>
-                    <p className="mt-1.5 truncate font-body text-[12px] font-extrabold text-vyva-text-1">
-                      {t(exercise.titleKey, exercise.title)}
-                    </p>
+                  <div
+                    key={exercise.id}
+                    className="h-[42px] w-[42px] overflow-hidden rounded-[13px] border-2 border-[#FFFCF8] bg-[#F5EFE4] shadow-sm min-[520px]:h-[46px] min-[520px]:w-[46px]"
+                    data-testid={`senior-routine-preview-${exercise.id}`}
+                  >
+                    <img src={exercise.image} alt="" className="h-full w-full object-cover" loading="lazy" />
                   </div>
                 ))}
               </div>
             </div>
 
-            <div
-              className="flex min-h-[150px] flex-col items-stretch justify-between gap-3 border-t p-4 min-[720px]:min-h-0 min-[720px]:border-l min-[720px]:border-t-0 min-[720px]:p-5"
-              style={{ background: todayRoutine.softBg, borderColor: todayRoutine.border }}
-            >
-              <div className="min-w-0">
-                <p className="font-body text-[13px] font-black uppercase text-vyva-text-2">
-                  {t("activity.gentleRoutines.readyWhenYouAre", "Ready when you are")}
-                </p>
-                <p className="mt-1 font-body text-[15px] font-semibold leading-snug text-vyva-text-1">
-                  {t("activity.gentleRoutines.cardHint", "Vyva will guide each move one at a time.")}
-                </p>
-              </div>
+            <div className="flex w-[136px] shrink-0 flex-col items-stretch gap-2 min-[420px]:w-[150px]">
+              <span
+                className="inline-flex min-h-[32px] items-center justify-center gap-1.5 rounded-full px-3 font-body text-[13px] font-extrabold"
+                style={{ background: todayRoutine.softBg, color: todayRoutine.accent }}
+              >
+                <Clock3 size={15} />
+                {todayRoutine.duration} {t("activity.min", "min")}
+              </span>
               <button
                 type="button"
                 data-testid="button-start-senior-routine"
                 onClick={() => openGuidedRoutine(todayRoutine)}
-                className="vyva-tap flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[18px] px-5 py-3 font-body text-[16px] font-extrabold text-white"
+                className="vyva-tap flex min-h-[52px] w-full items-center justify-center gap-1.5 rounded-[16px] px-3 py-3 font-body text-[15px] font-extrabold text-white"
                 style={{
                   background: todayRoutine.accent,
-                  boxShadow: `0 12px 24px ${todayRoutine.accent}30`,
+                  boxShadow: `0 10px 20px ${todayRoutine.accent}2B`,
                 }}
               >
-                {t("activity.gentleRoutines.start", "Start routine")}
-                <ChevronRight size={20} />
+                <span className="whitespace-nowrap">{t("activity.gentleRoutines.start", "Start routine")}</span>
+                <ChevronRight size={19} />
               </button>
             </div>
           </div>
