@@ -234,12 +234,13 @@ test.describe("onboarding responsive layout", () => {
   });
 
   test("shared onboarding step layout keeps migrated CTAs responsive", async ({ page }) => {
+    test.setTimeout(60_000);
     await mockSignedInOnboarding(page);
 
     const steps = [
       {
         route: "/onboarding/who-for",
-        heading: "Who is VYVA for?",
+        heading: "Set up your VYVA profile",
         cta: "button-who-for-continue",
       },
       {
@@ -295,6 +296,10 @@ test.describe("onboarding responsive layout", () => {
     await expectNoHorizontalOverflow(page);
 
     await page.setViewportSize({ width: 390, height: 844 });
+    await expect(conditionGrid).toHaveCSS("grid-template-columns", /[0-9.]+px$/);
+    await expectNoHorizontalOverflow(page);
+
+    await page.setViewportSize({ width: 640, height: 844 });
     await expect(conditionGrid).toHaveCSS("grid-template-columns", /[0-9.]+px [0-9.]+px/);
     await expectNoHorizontalOverflow(page);
   });
