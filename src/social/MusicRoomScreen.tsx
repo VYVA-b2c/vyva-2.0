@@ -886,8 +886,8 @@ export default function MusicRoomScreen({
 
         <main className="mt-4">
           <section className="rounded-[30px] border border-[#E7D9F4] bg-[#FFFDFE] p-4 shadow-[0_18px_44px_rgba(77,39,119,0.08)] sm:p-5 lg:p-6">
-            <div className="grid gap-5 lg:grid-cols-[240px_minmax(330px,1fr)_260px] lg:items-center">
-              <div className="order-2 lg:order-1">
+            <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,0.78fr)_minmax(230px,1fr)_minmax(0,0.9fr)] lg:items-center">
+              <div className="order-2 min-w-0 lg:order-1">
                 <div className="grid gap-2.5">
                   {visibleCircleItems.length > 0 ? visibleCircleItems.map((item) => {
                     const active = item.id === featuredItem?.id;
@@ -955,18 +955,21 @@ export default function MusicRoomScreen({
                 </div>
               </div>
 
-              <div className="order-1 lg:order-2">
-                <div className="relative mx-auto flex h-[284px] w-[284px] items-center justify-center rounded-full bg-[#EDE0FF] p-4 shadow-[0_24px_54px_rgba(109,40,217,0.16)] sm:h-[340px] sm:w-[340px] lg:h-[330px] lg:w-[330px]">
+              <div className="order-1 min-w-0 lg:order-2">
+                <div className="relative mx-auto flex aspect-square w-full max-w-[284px] items-center justify-center rounded-full bg-[#EDE0FF] p-4 shadow-[0_24px_54px_rgba(109,40,217,0.16)] sm:max-w-[340px] lg:max-w-[300px] xl:max-w-[330px]">
                   <div
                     className="flex h-full w-full items-center justify-center rounded-full border-[10px] border-[#1A1224] text-white shadow-inner"
                     style={{
                       background: "repeating-radial-gradient(circle at center, #111111 0 8px, #19131f 9px 12px, #0B090D 13px 17px)",
                     }}
                   >
-                    <div className="flex h-[40%] w-[40%] flex-col items-center justify-center rounded-full bg-[#6D28D9] px-3 text-center shadow-[0_10px_26px_rgba(0,0,0,0.25)]">
-                      <Music2 size={38} strokeWidth={2.7} />
+                    <div className="flex h-[48%] w-[48%] flex-col items-center justify-center rounded-full bg-[#6D28D9] px-1.5 text-center shadow-[0_10px_26px_rgba(0,0,0,0.25)]">
+                      <Music2 size={34} strokeWidth={2.7} />
                       {currentSongText ? (
-                        <span className="mt-2 max-w-[136px] truncate font-body text-[17px] font-extrabold leading-tight">
+                        <span
+                          className="mt-1.5 max-w-[136px] overflow-hidden font-body text-[16px] font-extrabold leading-tight sm:text-[17px]"
+                          style={{ display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2 }}
+                        >
                           {currentSongText}
                         </span>
                       ) : (
@@ -997,7 +1000,7 @@ export default function MusicRoomScreen({
                 )}
               </div>
 
-              <div className="order-3 lg:border-l lg:border-[#EEE5F7] lg:pl-5">
+              <div className="order-3 min-w-0 lg:border-l lg:border-[#EEE5F7] lg:pl-5">
                 <h2 className="font-body text-[20px] font-extrabold leading-tight text-[#261637]">{copy.connectionTitle}</h2>
                 <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1">
                   {visibleMembers.map((member, index) => {
