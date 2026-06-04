@@ -726,6 +726,9 @@ type HomeScanRow = {
 type ActivityLocationState = {
   preselectActivity?: string;
   duration?: number;
+  startGentleRoutine?: boolean;
+  highlightGentleRoutine?: boolean;
+  routineSource?: string;
 } | null;
 
 const HOME_RISK_COLORS: Record<string, { bg: string; text: string; icon: typeof CheckCircle2 }> = {
@@ -781,10 +784,11 @@ const ActivityScreen = () => {
   const incomingDuration = typeof incomingState?.duration === "number" && DURATIONS.includes(incomingState.duration)
     ? incomingState.duration
     : 20;
+  const incomingStartGentleRoutine = incomingState?.startGentleRoutine === true;
   const [selected, setSelected] = useState<string | null>(() => incomingActivity);
   const [duration, setDuration] = useState<number>(() => incomingDuration);
   const [guidedExerciseId, setGuidedExerciseId] = useState<string | null>(null);
-  const [guidedRoutineId, setGuidedRoutineId] = useState<string | null>(null);
+  const [guidedRoutineId, setGuidedRoutineId] = useState<string | null>(() => incomingStartGentleRoutine ? getDailySeniorRoutine().id : null);
   const [routineStepIndex, setRoutineStepIndex] = useState(0);
   const [routineComfort, setRoutineComfort] = useState<RoutineComfort>(() => readStoredRoutineComfort());
   const [routineFeedbackRequest, setRoutineFeedbackRequest] = useState<RoutineFeedbackRequest | null>(null);
