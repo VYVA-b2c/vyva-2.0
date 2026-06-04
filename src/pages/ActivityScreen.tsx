@@ -32,9 +32,6 @@ type ActivityTypeMeta = {
   color: string;
 };
 
-type RoutineComfort = "seated" | "supported" | "standing";
-type RoutineFeedback = "easy" | "justRight" | "tooMuch";
-
 type SeniorExercise = {
   id: string;
   logType: string;
@@ -56,7 +53,6 @@ type SeniorExercise = {
   border: string;
   icon: LucideIcon;
   steps: Array<{ key: string; fallback: string }>;
-  routineSteps?: Partial<Record<RoutineComfort, Array<{ key: string; fallback: string }>>>;
 };
 
 type SeniorRoutine = {
@@ -67,17 +63,10 @@ type SeniorRoutine = {
   subtitleKey: string;
   subtitle: string;
   exerciseIds: [string, string, string];
-  comfortExerciseIds?: Partial<Record<RoutineComfort, [string, string, string]>>;
   duration: number;
   accent: string;
   softBg: string;
   border: string;
-};
-
-type RoutineFeedbackRequest = {
-  routineId: string;
-  title: string;
-  comfort: RoutineComfort;
 };
 
 const ACTIVITY_TYPES: ActivityTypeMeta[] = [
@@ -86,75 +75,6 @@ const ACTIVITY_TYPES: ActivityTypeMeta[] = [
   { key: "Stretching", icon: PersonStanding, labelKey: "activity.types.stretching", fallbackLabel: "Stretching", bg: "#F5F3FF", color: "#6B21A8" },
   { key: "Exercise",   icon: Dumbbell,       labelKey: "activity.types.exercise",   fallbackLabel: "Exercise",   bg: "#FFF1F2", color: "#BE185D" },
   { key: "Breathing",  icon: Wind,           labelKey: "activity.types.breathing",  fallbackLabel: "Breathing",  bg: "#F0FDFA", color: "#0F766E" },
-];
-
-const ROUTINE_COMFORT_STORAGE_KEY = "vyva_activity_routine_comfort";
-const ROUTINE_FEEDBACK_STORAGE_KEY = "vyva_activity_routine_feedback";
-
-const ROUTINE_COMFORT_LEVELS: Array<{
-  key: RoutineComfort;
-  labelKey: string;
-  label: string;
-  hintKey: string;
-  hint: string;
-}> = [
-  {
-    key: "supported",
-    labelKey: "activity.gentleRoutines.comfort.supported",
-    label: "Chair nearby",
-    hintKey: "activity.gentleRoutines.comfort.supportedHint",
-    hint: "Keep support close.",
-  },
-  {
-    key: "seated",
-    labelKey: "activity.gentleRoutines.comfort.seated",
-    label: "Seated only",
-    hintKey: "activity.gentleRoutines.comfort.seatedHint",
-    hint: "Stay seated today.",
-  },
-  {
-    key: "standing",
-    labelKey: "activity.gentleRoutines.comfort.standing",
-    label: "Standing is okay",
-    hintKey: "activity.gentleRoutines.comfort.standingHint",
-    hint: "Move where steady.",
-  },
-];
-
-const ROUTINE_COMFORT_GUIDANCE: Record<RoutineComfort, {
-  labelKey: string;
-  label: string;
-  guidanceKey: string;
-  guidance: string;
-}> = {
-  supported: {
-    labelKey: "activity.gentleRoutines.comfort.supported",
-    label: "Chair nearby",
-    guidanceKey: "activity.gentleRoutines.comfort.supportedGuidance",
-    guidance: "Keep a chair or counter close. Use it lightly whenever you want steadier balance.",
-  },
-  seated: {
-    labelKey: "activity.gentleRoutines.comfort.seated",
-    label: "Seated only",
-    guidanceKey: "activity.gentleRoutines.comfort.seatedGuidance",
-    guidance: "Stay seated for this routine. Keep both feet flat and make each move small.",
-  },
-  standing: {
-    labelKey: "activity.gentleRoutines.comfort.standing",
-    label: "Standing is okay",
-    guidanceKey: "activity.gentleRoutines.comfort.standingGuidance",
-    guidance: "Stand only where you feel steady. Slow down and use support if balance changes.",
-  },
-};
-
-const ROUTINE_FEEDBACK_OPTIONS: Array<{
-  key: RoutineFeedback;
-  labelKey: string;
-  label: string;
-}> = [
-  { key: "easy", labelKey: "activity.gentleRoutines.feedback.easy", label: "Easy" },
-  { key: "justRight", labelKey: "activity.gentleRoutines.feedback.justRight", label: "Just right" },
-  { key: "tooMuch", labelKey: "activity.gentleRoutines.feedback.tooMuch", label: "Too much" },
 ];
 
 const SENIOR_EXERCISES: SeniorExercise[] = [
@@ -523,49 +443,6 @@ const SENIOR_EXERCISE_GROUPS: Array<{
 
 const SENIOR_EXERCISE_BY_ID = new Map(SENIOR_EXERCISES.map((exercise) => [exercise.id, exercise]));
 
-const ROUTINE_STEP_OVERRIDES: Record<string, Partial<Record<RoutineComfort, Array<{ key: string; fallback: string }>>>> = {
-  "chair-yoga": {
-    seated: [
-      { key: "activity.gentleRoutines.steps.chairYoga.seated.1", fallback: "Sit tall with your back supported if helpful." },
-      { key: "activity.gentleRoutines.steps.chairYoga.seated.2", fallback: "Keep both feet flat and shoulders relaxed." },
-      { key: "activity.gentleRoutines.steps.chairYoga.seated.3", fallback: "Reach one arm only as far as comfortable." },
-      { key: "activity.gentleRoutines.steps.chairYoga.seated.4", fallback: "Change sides slowly and breathe out." },
-    ],
-  },
-  "sit-to-stand": {
-    seated: [
-      { key: "activity.gentleRoutines.steps.sitToStand.seated.1", fallback: "Sit near the front of a stable chair." },
-      { key: "activity.gentleRoutines.steps.sitToStand.seated.2", fallback: "Press both feet into the floor." },
-      { key: "activity.gentleRoutines.steps.sitToStand.seated.3", fallback: "Lean forward a little without standing." },
-      { key: "activity.gentleRoutines.steps.sitToStand.seated.4", fallback: "Sit tall again and relax your shoulders." },
-    ],
-  },
-  "heel-raises": {
-    seated: [
-      { key: "activity.gentleRoutines.steps.heelRaises.seated.1", fallback: "Sit tall with both feet flat." },
-      { key: "activity.gentleRoutines.steps.heelRaises.seated.2", fallback: "Hold the chair sides lightly." },
-      { key: "activity.gentleRoutines.steps.heelRaises.seated.3", fallback: "Lift both heels slowly while toes stay down." },
-      { key: "activity.gentleRoutines.steps.heelRaises.seated.4", fallback: "Lower your heels and pause." },
-    ],
-  },
-  "side-steps": {
-    seated: [
-      { key: "activity.gentleRoutines.steps.sideSteps.seated.1", fallback: "Sit tall near the front of the chair." },
-      { key: "activity.gentleRoutines.steps.sideSteps.seated.2", fallback: "Step one foot a little to the side." },
-      { key: "activity.gentleRoutines.steps.sideSteps.seated.3", fallback: "Bring the foot back under your knee." },
-      { key: "activity.gentleRoutines.steps.sideSteps.seated.4", fallback: "Change sides when ready." },
-    ],
-  },
-  "shoulder-release": {
-    seated: [
-      { key: "activity.gentleRoutines.steps.shoulderRelease.seated.1", fallback: "Sit with your back supported if helpful." },
-      { key: "activity.gentleRoutines.steps.shoulderRelease.seated.2", fallback: "Let your arms rest comfortably." },
-      { key: "activity.gentleRoutines.steps.shoulderRelease.seated.3", fallback: "Roll your shoulders back softly." },
-      { key: "activity.gentleRoutines.steps.shoulderRelease.seated.4", fallback: "Let them drop and breathe out." },
-    ],
-  },
-};
-
 const SENIOR_ROUTINES: SeniorRoutine[] = [
   {
     id: "morning-mobility",
@@ -588,10 +465,6 @@ const SENIOR_ROUTINES: SeniorRoutine[] = [
     subtitleKey: "activity.gentleRoutines.steadyLegs.subtitle",
     subtitle: "Practice supported leg strength and balance in small steps.",
     exerciseIds: ["sit-to-stand", "heel-raises", "side-steps"],
-    comfortExerciseIds: {
-      seated: ["seated-strength", "heel-raises", "side-steps"],
-      standing: ["sit-to-stand", "heel-raises", "side-steps"],
-    },
     duration: 10,
     accent: "#33691E",
     softBg: "#EEF8DF",
@@ -638,60 +511,10 @@ const DURATIONS = [10, 20, 30, 45, 60];
 const TARGET_STEPS = 6_000;
 const OUTING_ACTIVITY_TYPES = new Set(["Walking", "Cycling", "Exercise"]);
 
-function isRoutineComfort(value: string | null): value is RoutineComfort {
-  return value === "seated" || value === "supported" || value === "standing";
-}
-
-function readStoredRoutineComfort(): RoutineComfort {
-  if (typeof window === "undefined") return "supported";
-  try {
-    const stored = window.localStorage.getItem(ROUTINE_COMFORT_STORAGE_KEY);
-    return isRoutineComfort(stored) ? stored : "supported";
-  } catch {
-    return "supported";
-  }
-}
-
-function writeStoredRoutineComfort(comfort: RoutineComfort) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(ROUTINE_COMFORT_STORAGE_KEY, comfort);
-  } catch {
-    // Local preferences are optional.
-  }
-}
-
-function writeStoredRoutineFeedback(feedback: {
-  routineId: string;
-  comfort: RoutineComfort;
-  feeling: RoutineFeedback;
-}) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(ROUTINE_FEEDBACK_STORAGE_KEY, JSON.stringify({
-      ...feedback,
-      recordedAt: new Date().toISOString(),
-    }));
-  } catch {
-    // Local preferences are optional.
-  }
-}
-
-function comfortAfterFeedback(comfort: RoutineComfort, feeling: RoutineFeedback): RoutineComfort {
-  if (feeling === "tooMuch") return "seated";
-  if (feeling === "easy" && comfort === "seated") return "supported";
-  return comfort;
-}
-
-function getSeniorRoutineExercises(routine: SeniorRoutine, comfort: RoutineComfort = "supported"): SeniorExercise[] {
-  const exerciseIds = routine.comfortExerciseIds?.[comfort] ?? routine.exerciseIds;
-  return exerciseIds
+function getSeniorRoutineExercises(routine: SeniorRoutine): SeniorExercise[] {
+  return routine.exerciseIds
     .map((id) => SENIOR_EXERCISE_BY_ID.get(id))
     .filter((exercise): exercise is SeniorExercise => Boolean(exercise));
-}
-
-function getRoutineExerciseSteps(exercise: SeniorExercise, comfort: RoutineComfort): Array<{ key: string; fallback: string }> {
-  return exercise.routineSteps?.[comfort] ?? ROUTINE_STEP_OVERRIDES[exercise.id]?.[comfort] ?? exercise.steps;
 }
 
 function getDailySeniorRoutine(date = new Date()): SeniorRoutine {
@@ -786,9 +609,6 @@ const ActivityScreen = () => {
   const [guidedExerciseId, setGuidedExerciseId] = useState<string | null>(null);
   const [guidedRoutineId, setGuidedRoutineId] = useState<string | null>(null);
   const [routineStepIndex, setRoutineStepIndex] = useState(0);
-  const [routineComfort, setRoutineComfort] = useState<RoutineComfort>(() => readStoredRoutineComfort());
-  const [routineFeedbackRequest, setRoutineFeedbackRequest] = useState<RoutineFeedbackRequest | null>(null);
-  const [routineFeedbackChoice, setRoutineFeedbackChoice] = useState<RoutineFeedback | null>(null);
   const [editingSteps, setEditingSteps] = useState(false);
   const [stepsInput, setStepsInput] = useState("");
   const [homeAnalyzing, setHomeAnalyzing] = useState(false);
@@ -884,14 +704,12 @@ const ActivityScreen = () => {
     : t("activity.headline");
 
   const todayRoutine = getDailySeniorRoutine();
-  const todayRoutineExercises = getSeniorRoutineExercises(todayRoutine, routineComfort);
+  const todayRoutineExercises = getSeniorRoutineExercises(todayRoutine);
   const guidedExercise = SENIOR_EXERCISES.find((exercise) => exercise.id === guidedExerciseId) ?? null;
   const guidedRoutine = SENIOR_ROUTINES.find((routine) => routine.id === guidedRoutineId) ?? null;
-  const guidedRoutineExercises = guidedRoutine ? getSeniorRoutineExercises(guidedRoutine, routineComfort) : [];
+  const guidedRoutineExercises = guidedRoutine ? getSeniorRoutineExercises(guidedRoutine) : [];
   const currentRoutineExercise = guidedRoutineExercises[routineStepIndex] ?? guidedRoutineExercises[0] ?? null;
-  const currentRoutineSteps = currentRoutineExercise ? getRoutineExerciseSteps(currentRoutineExercise, routineComfort) : [];
   const CurrentRoutineIcon = currentRoutineExercise?.icon ?? PersonStanding;
-  const routineComfortMeta = ROUTINE_COMFORT_GUIDANCE[routineComfort];
   const activityLabel = (meta: ActivityTypeMeta) => t(meta.labelKey, meta.fallbackLabel);
   const selectedType = selected ? ACTIVITY_ICON_MAP[selected] : undefined;
   const selectedIsOuting = Boolean(selected && OUTING_ACTIVITY_TYPES.has(selected));
@@ -906,12 +724,6 @@ const ActivityScreen = () => {
     setRoutineStepIndex(0);
   };
 
-  const handleRoutineComfortChange = (comfort: RoutineComfort) => {
-    setRoutineComfort(comfort);
-    setRoutineFeedbackChoice(null);
-    writeStoredRoutineComfort(comfort);
-  };
-
   const handleUseSeniorExercise = (exercise: SeniorExercise) => {
     setSelected(exercise.logType);
     setDuration(exercise.duration);
@@ -923,32 +735,10 @@ const ActivityScreen = () => {
 
   const handleFinishSeniorRoutine = (routine: SeniorRoutine) => {
     if (logMutation.isPending) return;
-    const routineTitle = t(routine.titleKey, routine.title);
     logMutation.mutate(
       { activity_type: routine.logType, duration_minutes: routine.duration },
-      {
-        onSuccess: () => {
-          closeGuidedRoutine();
-          setRoutineFeedbackRequest({ routineId: routine.id, title: routineTitle, comfort: routineComfort });
-          setRoutineFeedbackChoice(null);
-        },
-      },
+      { onSuccess: closeGuidedRoutine },
     );
-  };
-
-  const handleRoutineFeedback = (feeling: RoutineFeedback) => {
-    if (!routineFeedbackRequest) return;
-    setRoutineFeedbackChoice(feeling);
-    writeStoredRoutineFeedback({
-      routineId: routineFeedbackRequest.routineId,
-      comfort: routineFeedbackRequest.comfort,
-      feeling,
-    });
-    const nextComfort = comfortAfterFeedback(routineFeedbackRequest.comfort, feeling);
-    if (nextComfort !== routineComfort) {
-      setRoutineComfort(nextComfort);
-      writeStoredRoutineComfort(nextComfort);
-    }
   };
 
   const openActivitySupport = (kind: "ride" | "companion") => {
@@ -1169,41 +959,6 @@ const ActivityScreen = () => {
                 {t(todayRoutine.subtitleKey, todayRoutine.subtitle)}
               </p>
 
-              <div className="mt-4" data-testid="senior-routine-comfort-picker">
-                <p className="font-body text-[13px] font-black uppercase text-vyva-text-2">
-                  {t("activity.gentleRoutines.comfort.title", "Comfort level")}
-                </p>
-                <div className="mt-2 grid grid-cols-3 gap-2">
-                  {ROUTINE_COMFORT_LEVELS.map((comfort) => {
-                    const isSelected = routineComfort === comfort.key;
-                    return (
-                      <button
-                        key={comfort.key}
-                        type="button"
-                        data-testid={`button-routine-comfort-${comfort.key}`}
-                        onClick={() => handleRoutineComfortChange(comfort.key)}
-                        className="vyva-tap min-w-0 rounded-[16px] border px-2 py-3 text-center transition-all"
-                        style={
-                          isSelected
-                            ? { background: todayRoutine.softBg, borderColor: todayRoutine.accent, boxShadow: `0 0 0 2px ${todayRoutine.accent} inset` }
-                            : { background: "#FFFFFF", borderColor: "#EDE2D1" }
-                        }
-                      >
-                        <span
-                          className="block font-body text-[13px] font-extrabold leading-tight [overflow-wrap:anywhere]"
-                          style={{ color: isSelected ? todayRoutine.accent : "#4A3428" }}
-                        >
-                          {t(comfort.labelKey, comfort.label)}
-                        </span>
-                        <span className="mt-1 block font-body text-[11px] font-semibold leading-snug text-vyva-text-2 [overflow-wrap:anywhere]">
-                          {t(comfort.hintKey, comfort.hint)}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
               <div className="mt-4 grid grid-cols-3 gap-2.5">
                 {todayRoutineExercises.map((exercise) => (
                   <div key={exercise.id} className="min-w-0" data-testid={`senior-routine-preview-${exercise.id}`}>
@@ -1246,49 +1001,6 @@ const ActivityScreen = () => {
             </div>
           </div>
         </div>
-
-        {routineFeedbackRequest && (
-          <div
-            className="mt-3 rounded-[22px] border bg-white p-4"
-            style={{ borderColor: todayRoutine.border, boxShadow: "0 12px 26px rgba(60,38,20,0.07)" }}
-            data-testid="senior-routine-feedback"
-          >
-            <p className="font-body text-[13px] font-black uppercase text-vyva-text-2">
-              {t("activity.gentleRoutines.feedback.title", "How did that feel?")}
-            </p>
-            <p className="mt-1 font-body text-[15px] font-semibold leading-snug text-vyva-text-1 [overflow-wrap:anywhere]">
-              {t("activity.gentleRoutines.feedback.subtitle", "{{routine}} is logged.", {
-                routine: routineFeedbackRequest.title,
-              })}
-            </p>
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              {ROUTINE_FEEDBACK_OPTIONS.map((option) => {
-                const isSelected = routineFeedbackChoice === option.key;
-                return (
-                  <button
-                    key={option.key}
-                    type="button"
-                    data-testid={`button-routine-feedback-${option.key}`}
-                    onClick={() => handleRoutineFeedback(option.key)}
-                    className="vyva-tap min-h-[48px] rounded-[16px] border px-2 py-2 font-body text-[14px] font-extrabold leading-tight transition-all [overflow-wrap:anywhere]"
-                    style={
-                      isSelected
-                        ? { background: todayRoutine.accent, borderColor: todayRoutine.accent, color: "#FFFFFF" }
-                        : { background: "#FFFCF8", borderColor: "#EDE2D1", color: "#4A3428" }
-                    }
-                  >
-                    {t(option.labelKey, option.label)}
-                  </button>
-                );
-              })}
-            </div>
-            {routineFeedbackChoice && (
-              <p className="mt-3 rounded-[16px] bg-[#ECFDF5] px-3 py-2 font-body text-[13px] font-bold leading-snug text-[#047857]">
-                {t("activity.gentleRoutines.feedback.thanks", "Thanks. Vyva will keep this in mind for your next routine.")}
-              </p>
-            )}
-          </div>
-        )}
       </section>
 
       <section className="mt-[18px]" data-testid="section-gentle-exercises">
@@ -1884,13 +1596,6 @@ const ActivityScreen = () => {
                 {guidedRoutine.duration} {t("activity.min", "min")}
               </span>
             </div>
-            <p
-              className="mt-2 rounded-[14px] px-3 py-2 font-body text-[13px] font-bold leading-snug [overflow-wrap:anywhere]"
-              style={{ background: guidedRoutine.softBg, color: guidedRoutine.accent }}
-              data-testid="senior-routine-comfort-guidance"
-            >
-              {t(routineComfortMeta.guidanceKey, routineComfortMeta.guidance)}
-            </p>
             <div className="mt-3 grid grid-cols-3 gap-2">
               {guidedRoutineExercises.map((exercise, index) => (
                 <span
@@ -1934,7 +1639,7 @@ const ActivityScreen = () => {
               {t("activity.gentleExercises.simpleSteps", "Simple steps")}
             </p>
             <ol className="mt-3 space-y-2">
-              {currentRoutineSteps.map((step, index) => (
+              {currentRoutineExercise.steps.map((step, index) => (
                 <li key={step.key} className="flex items-start gap-3">
                   <span
                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-body text-[14px] font-extrabold"

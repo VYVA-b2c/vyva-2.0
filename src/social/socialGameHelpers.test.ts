@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildGamePreferenceTag, buildGameTable } from "../../server/lib/socialGameRounds";
+import { buildReadingClubDestination } from "../../server/lib/readingClubDestination";
 import { formatSharedTopic, pickBestSocialMatch, supportsSocialMatching } from "../../server/lib/socialMatching";
 import type { SocialGameLanguage } from "./types";
 
@@ -77,10 +78,10 @@ describe("social games room helpers", () => {
     expect(buildGameTable("pt", 6).rounds.find((round) => round.id === "word-tiles-anagram-smile")?.answer).toBe("SORRISO");
   });
 
-  it("supports matching in games and legacy connection rooms but not ordinary activity rooms", () => {
+  it("supports matching in games, reading, and aliases but not ordinary activity rooms", () => {
     expect(supportsSocialMatching("games-room")).toBe(true);
-    expect(supportsSocialMatching("pen-pals")).toBe(true);
-    expect(supportsSocialMatching("heritage-exchange")).toBe(true);
+    expect(supportsSocialMatching("reading-room")).toBe(true);
+    expect(supportsSocialMatching("book-club")).toBe(true);
     expect(supportsSocialMatching("garden-corner")).toBe(false);
   });
 
@@ -138,5 +139,87 @@ describe("social games room helpers", () => {
     expect(formatSharedTopic("game:word", "en")).toBe("word games");
     expect(formatSharedTopic("game:dominoes", "es")).toBe("domino");
     expect(formatSharedTopic("game:chess", "de")).toBe("Schach");
+  });
+
+  it("prioritizes discoverable readers who share book and literature interests", () => {
+    const best = pickBestSocialMatch(
+      ["books", "literature", "stories", "memoir", "library"],
+      [
+        {
+          userId: "hidden-reader",
+          displayName: "Hidden",
+          interestTags: ["books", "literature", "stories", "memoir", "library"],
+          discoverable: false,
+        },
+        {
+          userId: "casual-reader",
+          displayName: "Luis",
+          interestTags: ["books", "garden"],
+          discoverable: true,
+        },
+        {
+          userId: "literary-reader",
+          displayName: "Maria",
+          interestTags: ["books", "literature", "poetry", "memoir", "library"],
+          discoverable: true,
+        },
+      ],
+      { roomSlug: "book-club" },
+    );
+
+    expect(best).toMatchObject({
+      userId: "literary-reader",
+      displayName: "Maria",
+    });
+    expect(best?.shared).toEqual(["books", "literature", "memoir", "library"]);
+    expect(formatSharedTopic("book_memories", "en")).toBe("book memories");
+    expect(formatSharedTopic("memoir", "es")).toBe("memorias");
+  });
+
+  it("uses reading profile tags to rank a suitable shelf companion", () => {
+    const best = pickBestSocialMatch(
+      ["books", "reading"],
+      [
+        {
+          userId: "memoir-reader",
+          displayName: "Elena",
+          interestTags: ["books", "memoir", "book_memories"],
+          discoverable: true,
+        },
+        {
+          userId: "poetry-reader",
+          displayName: "Marta",
+          interestTags: ["books", "poetry", "literature", "reading_companion"],
+          discoverable: true,
+        },
+      ],
+      {
+        roomSlug: "reading-room",
+        readingPreferenceTags: ["poetry", "literature", "reading_companion"],
+      },
+    );
+
+    expect(best).toMatchObject({
+      userId: "poetry-reader",
+      displayName: "Marta",
+    });
+    expect(best?.shared).toEqual(["books", "poetry", "literature", "reading_companion"]);
+  });
+
+  it("builds a destination-level reading club program in each launch language", () => {
+    for (const language of ["en", "es", "de"] as const) {
+      const club = buildReadingClubDestination(language, [
+        { id: "member-maria", name: "Maria", sharedTopic: "memoir" },
+        { id: "member-jose", name: "Jose", sharedTopic: "history" },
+        { id: "member-carmen", name: "Carmen", sharedTopic: "stories" },
+      ], 9);
+
+      expect(club.metrics).toHaveLength(3);
+      expect(club.agenda).toHaveLength(3);
+      expect(club.shelves.length).toBeGreaterThanOrEqual(2);
+      expect(club.companionModes.map((mode) => mode.id)).toEqual(["one-to-one", "small-circle", "pen-note"]);
+      expect(club.passportItems.map((item) => item.id)).toEqual(["share", "recommend", "greet"]);
+      expect(club.guidelines.length).toBeGreaterThanOrEqual(3);
+    }
   });
 });

@@ -1015,6 +1015,172 @@ export const insertSocialConnectionSchema = createInsertSchema(socialConnections
 export type InsertSocialConnection = z.infer<typeof insertSocialConnectionSchema>;
 export type SocialConnection = typeof socialConnections.$inferSelect;
 
+export const socialRoomPlans = pgTable("social_room_plans", {
+  id:              uuid("id").primaryKey().defaultRandom(),
+  room_id:         uuid("room_id").notNull().references(() => socialRooms.id, { onDelete: "cascade" }),
+  plan_key:        text("plan_key").notNull(),
+  kind:            text("kind").notNull().default("plan"),
+  title_es:        text("title_es").notNull(),
+  title_de:        text("title_de").notNull(),
+  title_en:        text("title_en").notNull(),
+  body_es:         text("body_es").notNull().default(""),
+  body_de:         text("body_de").notNull().default(""),
+  body_en:         text("body_en").notNull().default(""),
+  location_label:  text("location_label").notNull().default(""),
+  comfort_needs:   text("comfort_needs").array().notNull().default([]),
+  experience_category: text("experience_category").notNull().default("other"),
+  preferred_time:      text("preferred_time").notNull().default("flexible"),
+  cost_range:          text("cost_range").notNull().default("discuss"),
+  group_size:          text("group_size").notNull().default("one_to_one"),
+  safety_flags:        text("safety_flags").array().notNull().default([]),
+  needs_review:        boolean("needs_review").notNull().default(false),
+  starts_at:       timestamp("starts_at", { withTimezone: true }),
+  status:          text("status").notNull().default("active"),
+  source:          text("source").notNull().default("seed"),
+  created_by:      text("created_by").references(() => profiles.id, { onDelete: "set null" }),
+  created_at:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:      timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("social_room_plans_room_key_unique").on(t.room_id, t.plan_key),
+]);
+
+export const insertSocialRoomPlanSchema = createInsertSchema(socialRoomPlans).omit({ id: true, created_at: true, updated_at: true });
+export type InsertSocialRoomPlan = z.infer<typeof insertSocialRoomPlanSchema>;
+export type SocialRoomPlan = typeof socialRoomPlans.$inferSelect;
+
+export const socialRoomPlanResponses = pgTable("social_room_plan_responses", {
+  id:          uuid("id").primaryKey().defaultRandom(),
+  plan_id:     uuid("plan_id").notNull().references(() => socialRoomPlans.id, { onDelete: "cascade" }),
+  user_id:     text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  response:    text("response").notNull(),
+  created_at:  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:  timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("social_room_plan_responses_plan_user_unique").on(t.plan_id, t.user_id),
+]);
+
+export const insertSocialRoomPlanResponseSchema = createInsertSchema(socialRoomPlanResponses).omit({ id: true, created_at: true, updated_at: true });
+export type InsertSocialRoomPlanResponse = z.infer<typeof insertSocialRoomPlanResponseSchema>;
+export type SocialRoomPlanResponse = typeof socialRoomPlanResponses.$inferSelect;
+
+export const socialRoomReplies = pgTable("social_room_replies", {
+  id:          uuid("id").primaryKey().defaultRandom(),
+  plan_id:     uuid("plan_id").notNull().references(() => socialRoomPlans.id, { onDelete: "cascade" }),
+  user_id:     text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  body:        text("body").notNull(),
+  tone:        text("tone").notNull().default("support"),
+  status:      text("status").notNull().default("active"),
+  created_at:  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:  timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertSocialRoomReplySchema = createInsertSchema(socialRoomReplies).omit({ id: true, created_at: true, updated_at: true });
+export type InsertSocialRoomReply = z.infer<typeof insertSocialRoomReplySchema>;
+export type SocialRoomReply = typeof socialRoomReplies.$inferSelect;
+
+export const socialRoomPolls = pgTable("social_room_polls", {
+  id:          uuid("id").primaryKey().defaultRandom(),
+  room_id:     uuid("room_id").notNull().references(() => socialRooms.id, { onDelete: "cascade" }),
+  poll_key:    text("poll_key").notNull(),
+  question_es: text("question_es").notNull(),
+  question_de: text("question_de").notNull(),
+  question_en: text("question_en").notNull(),
+  options:     jsonb("options").$type<Array<{ id: string; label_es: string; label_de: string; label_en: string }>>().notNull().default([]),
+  status:      text("status").notNull().default("active"),
+  closes_at:   timestamp("closes_at", { withTimezone: true }),
+  created_by:  text("created_by").references(() => profiles.id, { onDelete: "set null" }),
+  created_at:  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:  timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("social_room_polls_room_key_unique").on(t.room_id, t.poll_key),
+]);
+
+export const insertSocialRoomPollSchema = createInsertSchema(socialRoomPolls).omit({ id: true, created_at: true, updated_at: true });
+export type InsertSocialRoomPoll = z.infer<typeof insertSocialRoomPollSchema>;
+export type SocialRoomPoll = typeof socialRoomPolls.$inferSelect;
+
+export const socialRoomVotes = pgTable("social_room_votes", {
+  id:          uuid("id").primaryKey().defaultRandom(),
+  poll_id:     uuid("poll_id").notNull().references(() => socialRoomPolls.id, { onDelete: "cascade" }),
+  user_id:     text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  option_id:   text("option_id").notNull(),
+  created_at:  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:  timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("social_room_votes_poll_user_unique").on(t.poll_id, t.user_id),
+]);
+
+export const insertSocialRoomVoteSchema = createInsertSchema(socialRoomVotes).omit({ id: true, created_at: true, updated_at: true });
+export type InsertSocialRoomVote = z.infer<typeof insertSocialRoomVoteSchema>;
+export type SocialRoomVote = typeof socialRoomVotes.$inferSelect;
+
+export const socialRoomSafetyReports = pgTable("social_room_safety_reports", {
+  id:           uuid("id").primaryKey().defaultRandom(),
+  room_id:      uuid("room_id").notNull().references(() => socialRooms.id, { onDelete: "cascade" }),
+  reporter_id:  text("reporter_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  target_type:  text("target_type").notNull().default("room"),
+  target_id:    text("target_id"),
+  reason:       text("reason").notNull(),
+  details:      text("details").notNull().default(""),
+  status:       text("status").notNull().default("open"),
+  created_at:   timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  reviewed_at:  timestamp("reviewed_at", { withTimezone: true }),
+  reviewed_by:  text("reviewed_by").references(() => profiles.id, { onDelete: "set null" }),
+});
+
+export const insertSocialRoomSafetyReportSchema = createInsertSchema(socialRoomSafetyReports).omit({ id: true, created_at: true, reviewed_at: true });
+export type InsertSocialRoomSafetyReport = z.infer<typeof insertSocialRoomSafetyReportSchema>;
+export type SocialRoomSafetyReport = typeof socialRoomSafetyReports.$inferSelect;
+
+export const socialRoomModerationActions = pgTable("social_room_moderation_actions", {
+  id:            uuid("id").primaryKey().defaultRandom(),
+  room_id:       uuid("room_id").notNull().references(() => socialRooms.id, { onDelete: "cascade" }),
+  admin_user_id: text("admin_user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  action_type:   text("action_type").notNull(),
+  target_type:   text("target_type").notNull(),
+  target_id:     text("target_id").notNull(),
+  notes:         text("notes").notNull().default(""),
+  created_at:    timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertSocialRoomModerationActionSchema = createInsertSchema(socialRoomModerationActions).omit({ id: true, created_at: true });
+export type InsertSocialRoomModerationAction = z.infer<typeof insertSocialRoomModerationActionSchema>;
+export type SocialRoomModerationAction = typeof socialRoomModerationActions.$inferSelect;
+
+export const socialRoomMemberRoles = pgTable("social_room_member_roles", {
+  id:                          uuid("id").primaryKey().defaultRandom(),
+  room_id:                     uuid("room_id").notNull().references(() => socialRooms.id, { onDelete: "cascade" }),
+  user_id:                     text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  role:                        text("role").notNull().default("member"),
+  status:                      text("status").notNull().default("active"),
+  comfort_needs:               text("comfort_needs").array().notNull().default([]),
+  agreement_acknowledged_at:   timestamp("agreement_acknowledged_at", { withTimezone: true }),
+  created_at:                  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:                  timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("social_room_member_roles_room_user_unique").on(t.room_id, t.user_id),
+]);
+
+export const insertSocialRoomMemberRoleSchema = createInsertSchema(socialRoomMemberRoles).omit({ id: true, created_at: true, updated_at: true });
+export type InsertSocialRoomMemberRole = z.infer<typeof insertSocialRoomMemberRoleSchema>;
+export type SocialRoomMemberRole = typeof socialRoomMemberRoles.$inferSelect;
+
+export const socialRoomNotifications = pgTable("social_room_notifications", {
+  id:          uuid("id").primaryKey().defaultRandom(),
+  user_id:     text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  room_id:     uuid("room_id").references(() => socialRooms.id, { onDelete: "cascade" }),
+  type:        text("type").notNull(),
+  title:       text("title").notNull(),
+  body:        text("body").notNull().default(""),
+  metadata:    jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+  read_at:     timestamp("read_at", { withTimezone: true }),
+  created_at:  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertSocialRoomNotificationSchema = createInsertSchema(socialRoomNotifications).omit({ id: true, created_at: true });
+export type InsertSocialRoomNotification = z.infer<typeof insertSocialRoomNotificationSchema>;
+export type SocialRoomNotification = typeof socialRoomNotifications.$inferSelect;
+
 
 // ============================================================
 // NEW TABLE: triage_reports — persisted completed TriageSummary + vitals
@@ -1905,6 +2071,15 @@ export const schema = {
   socialRoomVisits,
   socialUserInterests,
   socialConnections,
+  socialRoomPlans,
+  socialRoomPlanResponses,
+  socialRoomReplies,
+  socialRoomPolls,
+  socialRoomVotes,
+  socialRoomSafetyReports,
+  socialRoomModerationActions,
+  socialRoomMemberRoles,
+  socialRoomNotifications,
   triageReports,
   vitalsReadings,
   vyvaSignalReadings,

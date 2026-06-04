@@ -245,7 +245,7 @@ const ROOM_BADGES: Record<string, Record<SocialLanguage, string>> = {
   "morning-movement": { es: "Movimiento", de: "Bewegung", en: "Movement" },
   "evening-wind-down": { es: "Calma", de: "Ruhe", en: "Calm" },
   "music-room": { es: "Música", de: "Musik", en: "Music" },
-  "reading-room": { es: "Lectura", de: "Lesen", en: "Reading" },
+  "reading-room": { es: "Club", de: "Club", en: "Club" },
   "memory-lane": { es: "Recuerdos", de: "Erinnerungen", en: "Memories" },
   "morning-circle": { es: "Diario", de: "Täglich", en: "Daily" },
   "news-world-affairs": { es: "Noticias", de: "Nachrichten", en: "News" },
@@ -253,9 +253,10 @@ const ROOM_BADGES: Record<string, Record<SocialLanguage, string>> = {
   "garden-chat": { es: "Jardín", de: "Garten", en: "Garden" },
   "chess-corner": { es: "Juegos", de: "Spiele", en: "Games" },
   "music-salon": { es: "Música", de: "Musik", en: "Music" },
-  "book-club": { es: "Lectura", de: "Lesen", en: "Reading" },
+  "book-club": { es: "Club", de: "Club", en: "Club" },
   "walking-club": { es: "Paseo", de: "Spaziergang", en: "Walk" },
   "news-cafe": { es: "Noticias", de: "Nachrichten", en: "News" },
+  "together-room": { es: "Juntos", de: "Zusammen", en: "Together" },
 };
 
 const ROOM_PICKER_NAMES: Record<string, Record<SocialLanguage, string>> = {
@@ -265,7 +266,7 @@ const ROOM_PICKER_NAMES: Record<string, Record<SocialLanguage, string>> = {
   "morning-movement": { es: "Movimiento", de: "Bewegung", en: "Movement" },
   "evening-wind-down": { es: "Calma", de: "Ruhe", en: "Calm" },
   "music-room": { es: "Música", de: "Musik", en: "Music" },
-  "reading-room": { es: "Lectura", de: "Lesen", en: "Reading" },
+  "reading-room": { es: "Club literario", de: "Literarischer Club", en: "Literary Club" },
   "memory-lane": { es: "Recuerdos", de: "Erinnerung", en: "Memories" },
   "morning-circle": { es: "Encuentro", de: "Treffpunkt", en: "Circle" },
   "news-world-affairs": { es: "Noticias", de: "Nachrichten", en: "News" },
@@ -275,9 +276,10 @@ const ROOM_PICKER_NAMES: Record<string, Record<SocialLanguage, string>> = {
   "garden-chat": { es: "Jardín", de: "Garten", en: "Garden" },
   "chess-corner": { es: "Juegos", de: "Spiele", en: "Games" },
   "music-salon": { es: "Música", de: "Musik", en: "Music" },
-  "book-club": { es: "Lectura", de: "Lesen", en: "Reading" },
+  "book-club": { es: "Club literario", de: "Literarischer Club", en: "Literary Club" },
   "walking-club": { es: "Paseo", de: "Spaziergang", en: "Walk" },
   "news-cafe": { es: "Noticias", de: "Nachrichten", en: "News" },
+  "together-room": { es: "Juntos", de: "Zusammen", en: "Together" },
 };
 
 export function getSocialLanguage(language?: string | null): SocialLanguage {

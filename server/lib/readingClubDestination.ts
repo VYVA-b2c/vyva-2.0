@@ -1,0 +1,490 @@
+import type {
+  SocialLanguage,
+  SocialReadingClubDestination,
+  SocialRoomMember,
+} from "../../src/social/types";
+
+type Localized<T> = Record<SocialLanguage, T>;
+
+const pick = <T>(values: Localized<T>, language: SocialLanguage): T => values[language] ?? values.es;
+
+function memberName(members: SocialRoomMember[], index: number, fallback: string) {
+  return members[index]?.name || fallback;
+}
+
+export function buildReadingClubDestination(
+  language: SocialLanguage,
+  members: SocialRoomMember[],
+  participantCount: number,
+): SocialReadingClubDestination {
+  const spotlightNames = [
+    memberName(members, 0, language === "de" ? "Maria" : language === "en" ? "Maria" : "Maria"),
+    memberName(members, 1, language === "de" ? "Jose" : language === "en" ? "Jose" : "Jose"),
+    memberName(members, 2, language === "de" ? "Carmen" : language === "en" ? "Carmen" : "Carmen"),
+  ];
+
+  return pick<SocialReadingClubDestination>({
+    en: {
+      title: "The Reading Room Literary Club",
+      subtitle: "A daily club table for books, life stories, recommendations and gentle new friendships.",
+      hostNote: "Isabel keeps the room moving: short prompts, protected greetings, and no pressure to finish a book before joining.",
+      todayQuestion: "Which book, character or remembered scene would you enjoy sharing with someone new?",
+      metrics: [
+        { id: "readers", label: "Readers today", value: String(Math.max(participantCount, 7)), detail: "drop-in members" },
+        { id: "tables", label: "Club tables", value: "3", detail: "morning, afternoon, evening" },
+        { id: "shelves", label: "Shelves open", value: "4", detail: "books, stories, memoirs, poems" },
+      ],
+      agendaTitle: "Today's club program",
+      agenda: [
+        {
+          id: "morning-welcome",
+          timeLabel: "Morning",
+          title: "Welcome table",
+          body: "Share one book, one line you remember, or one memory a story opened for you.",
+          statusLabel: "Open now",
+        },
+        {
+          id: "afternoon-exchange",
+          timeLabel: "Afternoon",
+          title: "Recommendation exchange",
+          body: "Members trade gentle suggestions by mood: comforting, funny, thoughtful, familiar.",
+          statusLabel: "Next table",
+        },
+        {
+          id: "evening-salon",
+          timeLabel: "Evening",
+          title: "Small salon",
+          body: "Isabel forms small discussion circles around memoirs, short stories and favourite characters.",
+          statusLabel: "Later today",
+        },
+      ],
+      shelvesTitle: "Club shelves",
+      shelves: [
+        {
+          id: "currently-reading",
+          title: "Currently reading",
+          body: "A light shelf for what members are reading or rereading now.",
+          items: [
+            {
+              id: "gentle-novel",
+              title: "A gentle family novel",
+              authorLabel: "Member pick",
+              tag: "Family",
+              body: "For conversations about home, siblings and the small details people remember.",
+              discussionStarter: "Which family scene felt true to you?",
+            },
+            {
+              id: "history-pages",
+              title: "Pages from history",
+              authorLabel: "Shared shelf",
+              tag: "History",
+              body: "For readers who like real events, newspapers, biographies and remembered places.",
+              discussionStarter: "What period of history still feels close?",
+            },
+          ],
+        },
+        {
+          id: "memory-shelf",
+          title: "Memory shelf",
+          body: "Stories that bring back a person, street, season or song.",
+          items: [
+            {
+              id: "childhood-story",
+              title: "A childhood story",
+              authorLabel: "Story prompt",
+              tag: "Memory",
+              body: "Bring a schoolbook, library card, bedtime story or first poem.",
+              discussionStarter: "Who first read something aloud to you?",
+            },
+            {
+              id: "short-poem",
+              title: "A short poem remembered",
+              authorLabel: "Public-domain safe",
+              tag: "Poetry",
+              body: "Share the feeling or memory it brings, without needing long quoted passages.",
+              discussionStarter: "What image from a poem stayed with you?",
+            },
+          ],
+        },
+      ],
+      spotlightsTitle: "Members at the table",
+      memberSpotlights: [
+        {
+          memberId: members[0]?.id ?? "member-maria",
+          name: spotlightNames[0],
+          roleLine: "Memoir and family stories",
+          body: "Looking for someone who enjoys stories about ordinary days and big turning points.",
+          starter: "Ask about a family story that still makes her smile.",
+        },
+        {
+          memberId: members[1]?.id ?? "member-jose",
+          name: spotlightNames[1],
+          roleLine: "History and biographies",
+          body: "Brought a question about how history changes when people tell it from memory.",
+          starter: "Ask which biography felt most alive.",
+        },
+        {
+          memberId: members[2]?.id ?? "member-carmen",
+          name: spotlightNames[2],
+          roleLine: "Theatre, stories and recommendations",
+          body: "Enjoys swapping short recommendations that are easy to begin.",
+          starter: "Ask for a story with a hopeful ending.",
+        },
+      ],
+      companionTitle: "Find your place at the table",
+      companionBody: "Choose the kind of literary connection you want today. Isabel will keep the introduction protected.",
+      companionModes: [
+        {
+          id: "one-to-one",
+          title: "One reader",
+          body: "A private, consent-based greeting with one compatible reader.",
+          ctaLabel: "Find one reader",
+          bridgePrompt: "a book, character or memory you would like to share one-to-one.",
+        },
+        {
+          id: "small-circle",
+          title: "Small circle",
+          body: "A calmer table with two or three people around the same theme.",
+          ctaLabel: "Find a small circle",
+          bridgePrompt: "a theme for a small reading circle.",
+        },
+        {
+          id: "pen-note",
+          title: "Pen note",
+          body: "Start with a short written greeting before any live conversation.",
+          ctaLabel: "Start with a note",
+          bridgePrompt: "a short note about a book or scene you would enjoy exchanging.",
+        },
+      ],
+      passportTitle: "Reading passport",
+      passportBody: "A simple way to make today's visit feel complete.",
+      passportItems: [
+        { id: "share", label: "Share", body: "Add one book, scene or memory to the club table." },
+        { id: "recommend", label: "Recommend", body: "Leave one gentle suggestion for another reader." },
+        { id: "greet", label: "Greet", body: "Send one protected greeting or companion request." },
+      ],
+      reflectionTitle: "Add to the club table",
+      reflectionPlaceholder: "Write a book, scene, character or memory...",
+      reflectionSubmitLabel: "Post reflection",
+      reflectionPrompts: [
+        "A book that kept me company was...",
+        "A character I still remember is...",
+        "A story I would recommend gently is...",
+      ],
+      guidelinesTitle: "Club care",
+      guidelines: [
+        "Share memories and summaries in your own words.",
+        "Use short excerpts only when needed.",
+        "Every greeting stays protected until both people agree.",
+      ],
+    },
+    es: {
+      title: "El Club Literario de Reading Room",
+      subtitle: "Una mesa diaria para libros, historias de vida, recomendaciones y nuevas amistades tranquilas.",
+      hostNote: "Isabel mantiene el ritmo: preguntas breves, saludos protegidos y ninguna presion por terminar un libro.",
+      todayQuestion: "Que libro, personaje o escena recordada te gustaria compartir con alguien nuevo?",
+      metrics: [
+        { id: "readers", label: "Lectores hoy", value: String(Math.max(participantCount, 7)), detail: "miembros que entran" },
+        { id: "tables", label: "Mesas del club", value: "3", detail: "manana, tarde, noche" },
+        { id: "shelves", label: "Estantes abiertos", value: "4", detail: "libros, relatos, memorias, poemas" },
+      ],
+      agendaTitle: "Programa de hoy",
+      agenda: [
+        {
+          id: "morning-welcome",
+          timeLabel: "Manana",
+          title: "Mesa de bienvenida",
+          body: "Comparte un libro, una frase que recuerdas o una memoria que abrio una historia.",
+          statusLabel: "Abierta ahora",
+        },
+        {
+          id: "afternoon-exchange",
+          timeLabel: "Tarde",
+          title: "Intercambio de recomendaciones",
+          body: "Los miembros recomiendan por estado de animo: comodo, divertido, reflexivo, familiar.",
+          statusLabel: "Siguiente mesa",
+        },
+        {
+          id: "evening-salon",
+          timeLabel: "Noche",
+          title: "Salon pequeno",
+          body: "Isabel forma circulos pequenos sobre memorias, cuentos y personajes favoritos.",
+          statusLabel: "Mas tarde",
+        },
+      ],
+      shelvesTitle: "Estantes del club",
+      shelves: [
+        {
+          id: "currently-reading",
+          title: "Leyendo ahora",
+          body: "Un estante ligero para lo que se lee o se relee hoy.",
+          items: [
+            {
+              id: "gentle-novel",
+              title: "Una novela familiar tranquila",
+              authorLabel: "Eleccion del club",
+              tag: "Familia",
+              body: "Para hablar de casa, hermanos y pequenos detalles que se recuerdan.",
+              discussionStarter: "Que escena familiar te parecio verdadera?",
+            },
+            {
+              id: "history-pages",
+              title: "Paginas de historia",
+              authorLabel: "Estante compartido",
+              tag: "Historia",
+              body: "Para lectores que disfrutan hechos reales, periodicos, biografias y lugares recordados.",
+              discussionStarter: "Que epoca historica todavia sientes cercana?",
+            },
+          ],
+        },
+        {
+          id: "memory-shelf",
+          title: "Estante de recuerdos",
+          body: "Historias que traen de vuelta una persona, una calle, una estacion o una cancion.",
+          items: [
+            {
+              id: "childhood-story",
+              title: "Una historia de infancia",
+              authorLabel: "Pregunta del club",
+              tag: "Recuerdo",
+              body: "Trae un libro escolar, carnet de biblioteca, cuento nocturno o primer poema.",
+              discussionStarter: "Quien te leyo algo en voz alta por primera vez?",
+            },
+            {
+              id: "short-poem",
+              title: "Un poema breve recordado",
+              authorLabel: "Seguro para dominio publico",
+              tag: "Poesia",
+              body: "Comparte la sensacion o recuerdo que trae, sin necesitar citas largas.",
+              discussionStarter: "Que imagen de un poema se quedo contigo?",
+            },
+          ],
+        },
+      ],
+      spotlightsTitle: "Personas en la mesa",
+      memberSpotlights: [
+        {
+          memberId: members[0]?.id ?? "member-maria",
+          name: spotlightNames[0],
+          roleLine: "Memorias e historias familiares",
+          body: "Busca a alguien que disfrute historias de dias corrientes y grandes cambios.",
+          starter: "Pregunta por una historia familiar que todavia le haga sonreir.",
+        },
+        {
+          memberId: members[1]?.id ?? "member-jose",
+          name: spotlightNames[1],
+          roleLine: "Historia y biografias",
+          body: "Trajo una pregunta sobre como cambia la historia cuando se cuenta desde la memoria.",
+          starter: "Pregunta que biografia le parecio mas viva.",
+        },
+        {
+          memberId: members[2]?.id ?? "member-carmen",
+          name: spotlightNames[2],
+          roleLine: "Teatro, relatos y recomendaciones",
+          body: "Disfruta cambiar recomendaciones cortas que son faciles de empezar.",
+          starter: "Pide una historia con final esperanzador.",
+        },
+      ],
+      companionTitle: "Encuentra tu lugar en la mesa",
+      companionBody: "Elige el tipo de conexion literaria que quieres hoy. Isabel protege la presentacion.",
+      companionModes: [
+        {
+          id: "one-to-one",
+          title: "Un lector",
+          body: "Un saludo privado y protegido con una persona compatible.",
+          ctaLabel: "Buscar un lector",
+          bridgePrompt: "un libro, personaje o recuerdo que quieras compartir a solas.",
+        },
+        {
+          id: "small-circle",
+          title: "Circulo pequeno",
+          body: "Una mesa tranquila con dos o tres personas alrededor del mismo tema.",
+          ctaLabel: "Buscar circulo",
+          bridgePrompt: "un tema para un pequeno circulo de lectura.",
+        },
+        {
+          id: "pen-note",
+          title: "Nota escrita",
+          body: "Empieza con un saludo escrito antes de cualquier conversacion en directo.",
+          ctaLabel: "Empezar con nota",
+          bridgePrompt: "una nota breve sobre un libro o escena que quieras intercambiar.",
+        },
+      ],
+      passportTitle: "Pasaporte lector",
+      passportBody: "Una forma sencilla de cerrar la visita de hoy.",
+      passportItems: [
+        { id: "share", label: "Compartir", body: "Anade un libro, escena o recuerdo a la mesa." },
+        { id: "recommend", label: "Recomendar", body: "Deja una sugerencia amable para otra persona." },
+        { id: "greet", label: "Saludar", body: "Envia un saludo protegido o una peticion de compania." },
+      ],
+      reflectionTitle: "Anadir a la mesa",
+      reflectionPlaceholder: "Escribe un libro, escena, personaje o recuerdo...",
+      reflectionSubmitLabel: "Publicar reflexion",
+      reflectionPrompts: [
+        "Un libro que me hizo compania fue...",
+        "Un personaje que todavia recuerdo es...",
+        "Una historia que recomendaria con calma es...",
+      ],
+      guidelinesTitle: "Cuidado del club",
+      guidelines: [
+        "Comparte recuerdos y resumenes con tus propias palabras.",
+        "Usa citas cortas solo cuando hagan falta.",
+        "Cada saludo queda protegido hasta que ambas personas aceptan.",
+      ],
+    },
+    de: {
+      title: "Der Reading Room Literaturclub",
+      subtitle: "Ein taeglicher Clubtisch fuer Buecher, Lebensgeschichten, Empfehlungen und ruhige neue Kontakte.",
+      hostNote: "Isabel haelt den Raum in Bewegung: kurze Fragen, geschuetzte Gruesse und kein Druck, ein Buch fertig zu haben.",
+      todayQuestion: "Welches Buch, welche Figur oder erinnerte Szene wuerdest du gern mit jemand Neuem teilen?",
+      metrics: [
+        { id: "readers", label: "Lesende heute", value: String(Math.max(participantCount, 7)), detail: "offene Mitglieder" },
+        { id: "tables", label: "Clubtische", value: "3", detail: "Morgen, Nachmittag, Abend" },
+        { id: "shelves", label: "Offene Regale", value: "4", detail: "Buecher, Geschichten, Memoiren, Gedichte" },
+      ],
+      agendaTitle: "Heutiges Clubprogramm",
+      agenda: [
+        {
+          id: "morning-welcome",
+          timeLabel: "Morgen",
+          title: "Willkommenstisch",
+          body: "Teile ein Buch, eine erinnerte Zeile oder eine Erinnerung, die eine Geschichte geoeffnet hat.",
+          statusLabel: "Jetzt offen",
+        },
+        {
+          id: "afternoon-exchange",
+          timeLabel: "Nachmittag",
+          title: "Empfehlungsaustausch",
+          body: "Mitglieder tauschen sanfte Vorschlaege nach Stimmung: troestlich, lustig, nachdenklich, vertraut.",
+          statusLabel: "Naechster Tisch",
+        },
+        {
+          id: "evening-salon",
+          timeLabel: "Abend",
+          title: "Kleiner Salon",
+          body: "Isabel bildet kleine Gespraechskreise zu Memoiren, Kurzgeschichten und Lieblingsfiguren.",
+          statusLabel: "Spaeter heute",
+        },
+      ],
+      shelvesTitle: "Clubregale",
+      shelves: [
+        {
+          id: "currently-reading",
+          title: "Gerade gelesen",
+          body: "Ein leichtes Regal fuer das, was Mitglieder jetzt lesen oder wiederlesen.",
+          items: [
+            {
+              id: "gentle-novel",
+              title: "Ein ruhiger Familienroman",
+              authorLabel: "Clubauswahl",
+              tag: "Familie",
+              body: "Fuer Gespraeche ueber Zuhause, Geschwister und kleine Details, die bleiben.",
+              discussionStarter: "Welche Familienszene fuehlte sich wahr an?",
+            },
+            {
+              id: "history-pages",
+              title: "Seiten aus der Geschichte",
+              authorLabel: "Geteiltes Regal",
+              tag: "Geschichte",
+              body: "Fuer Menschen, die echte Ereignisse, Zeitungen, Biografien und erinnerte Orte moegen.",
+              discussionStarter: "Welche Zeit der Geschichte fuehlt sich noch nah an?",
+            },
+          ],
+        },
+        {
+          id: "memory-shelf",
+          title: "Erinnerungsregal",
+          body: "Geschichten, die eine Person, Strasse, Jahreszeit oder ein Lied zurueckbringen.",
+          items: [
+            {
+              id: "childhood-story",
+              title: "Eine Kindheitsgeschichte",
+              authorLabel: "Clubfrage",
+              tag: "Erinnerung",
+              body: "Bring ein Schulbuch, einen Bibliotheksausweis, eine Gute-Nacht-Geschichte oder ein erstes Gedicht.",
+              discussionStarter: "Wer hat dir zuerst etwas vorgelesen?",
+            },
+            {
+              id: "short-poem",
+              title: "Ein kurzes erinnertes Gedicht",
+              authorLabel: "Sicher fuer Gemeingut",
+              tag: "Poesie",
+              body: "Teile das Gefuehl oder die Erinnerung, ohne lange Textstellen zitieren zu muessen.",
+              discussionStarter: "Welches Bild aus einem Gedicht blieb bei dir?",
+            },
+          ],
+        },
+      ],
+      spotlightsTitle: "Menschen am Tisch",
+      memberSpotlights: [
+        {
+          memberId: members[0]?.id ?? "member-maria",
+          name: spotlightNames[0],
+          roleLine: "Memoiren und Familiengeschichten",
+          body: "Sucht jemanden, der Geschichten ueber gewoehnliche Tage und grosse Wendepunkte mag.",
+          starter: "Frage nach einer Familiengeschichte, die sie noch laecheln laesst.",
+        },
+        {
+          memberId: members[1]?.id ?? "member-jose",
+          name: spotlightNames[1],
+          roleLine: "Geschichte und Biografien",
+          body: "Hat eine Frage dazu mitgebracht, wie Geschichte sich veraendert, wenn Menschen sie aus Erinnerung erzaehlen.",
+          starter: "Frage, welche Biografie am lebendigsten wirkte.",
+        },
+        {
+          memberId: members[2]?.id ?? "member-carmen",
+          name: spotlightNames[2],
+          roleLine: "Theater, Geschichten und Empfehlungen",
+          body: "Tauscht gern kurze Empfehlungen aus, die leicht zu beginnen sind.",
+          starter: "Bitte um eine Geschichte mit hoffnungsvollem Ende.",
+        },
+      ],
+      companionTitle: "Finde deinen Platz am Tisch",
+      companionBody: "Waehle die Art literarischer Verbindung fuer heute. Isabel haelt die Vorstellung geschuetzt.",
+      companionModes: [
+        {
+          id: "one-to-one",
+          title: "Eine Leserin",
+          body: "Ein privater, geschuetzter Gruss mit einer passenden Person.",
+          ctaLabel: "Eine Leserin finden",
+          bridgePrompt: "ein Buch, eine Figur oder eine Erinnerung fuer ein Zweiergespraech.",
+        },
+        {
+          id: "small-circle",
+          title: "Kleiner Kreis",
+          body: "Ein ruhiger Tisch mit zwei oder drei Menschen um dasselbe Thema.",
+          ctaLabel: "Kleinen Kreis finden",
+          bridgePrompt: "ein Thema fuer einen kleinen Lesekreis.",
+        },
+        {
+          id: "pen-note",
+          title: "Schreibnotiz",
+          body: "Beginne mit einem kurzen geschriebenen Gruss vor jedem Live-Gespraech.",
+          ctaLabel: "Mit Notiz beginnen",
+          bridgePrompt: "eine kurze Notiz ueber ein Buch oder eine Szene zum Austauschen.",
+        },
+      ],
+      passportTitle: "Lesepass",
+      passportBody: "Eine einfache Art, den heutigen Besuch rund zu machen.",
+      passportItems: [
+        { id: "share", label: "Teilen", body: "Fuege ein Buch, eine Szene oder Erinnerung zum Clubtisch hinzu." },
+        { id: "recommend", label: "Empfehlen", body: "Hinterlasse eine freundliche Empfehlung fuer eine andere Person." },
+        { id: "greet", label: "Gruessen", body: "Sende einen geschuetzten Gruss oder eine Begleit-Anfrage." },
+      ],
+      reflectionTitle: "Zum Clubtisch hinzufuegen",
+      reflectionPlaceholder: "Schreibe ein Buch, eine Szene, Figur oder Erinnerung...",
+      reflectionSubmitLabel: "Beitrag posten",
+      reflectionPrompts: [
+        "Ein Buch, das mir Gesellschaft geleistet hat, war...",
+        "Eine Figur, die ich noch erinnere, ist...",
+        "Eine Geschichte, die ich sanft empfehlen wuerde, ist...",
+      ],
+      guidelinesTitle: "Clubachtsamkeit",
+      guidelines: [
+        "Teile Erinnerungen und Zusammenfassungen in eigenen Worten.",
+        "Nutze kurze Auszuege nur, wenn sie wirklich helfen.",
+        "Jeder Gruss bleibt geschuetzt, bis beide Personen zustimmen.",
+      ],
+    },
+  }, language);
+}

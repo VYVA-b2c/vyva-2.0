@@ -18,6 +18,13 @@ import {
   getSocialCopy,
   getSocialLanguage,
 } from "./roomUtils";
+import {
+  TogetherProximityIcon,
+  TogetherSafetyIcon,
+  getTogetherPlans,
+  getTogetherRoomCopy,
+  isTogetherRoom,
+} from "./togetherRoom";
 import type { SocialHubResponse, SocialLanguage, SocialRoom, SocialRoomCategory } from "./types";
 
 const ROOM_WINDOW_SIZE = 4;
@@ -39,6 +46,8 @@ function RoomPickerTile({ room, language, onSelect }: RoomPickerTileProps) {
   const topic = room.contentTitle || room.topic;
   const pickerName = getRoomPickerName(room.slug, language, room.name);
   const participantLabel = room.participantCount.toLocaleString(language);
+  const togetherCopy = isTogetherRoom(room.slug) ? getTogetherRoomCopy(language) : null;
+  const togetherPlans = togetherCopy ? getTogetherPlans(language).slice(1, 4) : [];
 
   return (
     <article
@@ -51,7 +60,11 @@ function RoomPickerTile({ room, language, onSelect }: RoomPickerTileProps) {
           onSelect(room);
         }
       }}
-      className="min-h-[188px] cursor-pointer overflow-hidden rounded-[28px] border border-[#E6DCCF] bg-white p-4 shadow-[0_18px_42px_rgba(45,31,66,0.08)] transition-transform active:scale-[0.99]"
+      className={`min-h-[188px] cursor-pointer overflow-hidden rounded-[28px] border p-4 shadow-[0_18px_42px_rgba(45,31,66,0.08)] transition-transform active:scale-[0.99] ${
+        togetherCopy
+          ? "border-[#D9C7F8] bg-[linear-gradient(135deg,#FFFDFC_0%,#F7F2FF_48%,#ECFDF5_100%)]"
+          : "border-[#E6DCCF] bg-white"
+      }`}
     >
       <div className="flex items-start justify-between gap-3">
         <AgentAvatar
@@ -87,6 +100,31 @@ function RoomPickerTile({ room, language, onSelect }: RoomPickerTileProps) {
       >
         {topic}
       </p>
+
+      {togetherCopy && (
+        <div className="mt-4">
+          <div className="grid grid-cols-3 gap-2">
+            {togetherPlans.map((plan) => {
+              const Icon = plan.icon;
+              return (
+                <div
+                  key={plan.id}
+                  className="flex min-h-[56px] flex-col items-center justify-center gap-1 rounded-[18px] bg-white/82 px-2 py-2 text-center shadow-[0_8px_18px_rgba(45,31,66,0.06)]"
+                >
+                  <Icon size={18} strokeWidth={2.4} className="text-[#6D28D9]" aria-hidden="true" />
+                  <span className="max-w-full overflow-hidden text-ellipsis whitespace-nowrap font-body text-[12px] font-bold text-[#45325B]">
+                    {plan.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-3 flex items-center gap-2 rounded-[18px] bg-[#ECFDF5] px-3 py-2 font-body text-[13px] font-bold text-[#0F766E]">
+            <TogetherProximityIcon size={15} strokeWidth={2.5} aria-hidden="true" />
+            <span>{togetherCopy.proximityTitle}</span>
+          </div>
+        </div>
+      )}
     </article>
   );
 }
@@ -101,6 +139,8 @@ type RoomDetailSheetProps = {
 function RoomDetailSheet({ room, language, onClose, onEnter }: RoomDetailSheetProps) {
   const copy = getSocialCopy(language);
   const description = room.contentBody || room.opener || room.topic;
+  const togetherCopy = isTogetherRoom(room.slug) ? getTogetherRoomCopy(language) : null;
+  const togetherPlans = togetherCopy ? getTogetherPlans(language) : [];
 
   return (
     <BottomSheet
@@ -114,7 +154,7 @@ function RoomDetailSheet({ room, language, onClose, onEnter }: RoomDetailSheetPr
           data-testid="button-social-room-enter"
           className="min-h-[62px] w-full rounded-full bg-[#6D28D9] px-6 font-body text-[20px] font-bold text-white shadow-[0_14px_28px_rgba(109,40,217,0.22)]"
         >
-          {copy.enterSelectedRoom}
+          {togetherCopy ? room.ctaLabel : copy.enterSelectedRoom}
         </button>
       }
     >
@@ -159,6 +199,76 @@ function RoomDetailSheet({ room, language, onClose, onEnter }: RoomDetailSheetPr
             {description}
           </p>
         </div>
+
+        {togetherCopy && (
+          <>
+            <section className="mt-5">
+              <p className="font-body text-[16px] font-bold uppercase tracking-[0.14em] text-[#6D28D9]">
+                {togetherCopy.planLabel}
+              </p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                {togetherPlans.map((plan) => {
+                  const Icon = plan.icon;
+                  return (
+                    <div
+                      key={plan.id}
+                      className="rounded-[22px] border border-[#E8DDCF] bg-white px-4 py-4 shadow-[0_10px_22px_rgba(45,31,66,0.05)]"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] ${
+                            plan.proximityMatters ? "bg-[#ECFDF5] text-[#0F766E]" : "bg-[#F7F2FF] text-[#6D28D9]"
+                          }`}
+                        >
+                          <Icon size={22} strokeWidth={2.35} aria-hidden="true" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-body text-[18px] font-bold leading-[1.16] text-[#24172F]">
+                            {plan.label}
+                          </p>
+                          <p className="mt-1 font-body text-[15px] leading-[1.32] text-[#7A677F]">
+                            {plan.detail}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#FBF7F0] px-3 py-1.5 font-body text-[13px] font-bold text-[#6E5A8A]">
+                        <TogetherProximityIcon size={14} strokeWidth={2.4} aria-hidden="true" />
+                        {plan.proximity}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className="mt-5 rounded-[24px] border border-[#BDEBD8] bg-[#F0FDF7] px-4 py-4">
+              <div className="flex items-start gap-3">
+                <TogetherProximityIcon size={23} strokeWidth={2.5} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+                <div>
+                  <p className="font-body text-[19px] font-bold text-[#124C3D]">{togetherCopy.proximityTitle}</p>
+                  <p className="mt-1 font-body text-[16px] leading-[1.38] text-[#346B5D]">{togetherCopy.proximityBody}</p>
+                </div>
+              </div>
+            </section>
+
+            <section className="mt-4 rounded-[24px] border border-[#E8DDCF] bg-[#FFFDFC] px-4 py-4">
+              <div className="flex items-center gap-2">
+                <TogetherSafetyIcon size={21} strokeWidth={2.4} className="text-[#6D28D9]" aria-hidden="true" />
+                <p className="font-body text-[18px] font-bold text-[#24172F]">{togetherCopy.rulesLabel}</p>
+              </div>
+              <div className="mt-3 grid gap-2">
+                {togetherCopy.rules.map((rule, index) => (
+                  <div key={rule} className="flex items-center gap-3 font-body text-[16px] leading-[1.3] text-[#5D4777]">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#F2EBFF] text-[14px] font-bold text-[#6D28D9]">
+                      {index + 1}
+                    </span>
+                    <span>{rule}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </>
+        )}
       </div>
     </BottomSheet>
   );

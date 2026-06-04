@@ -1,4 +1,22 @@
-import { ArrowLeft, MessageCircle } from "lucide-react";
+import {
+  ArrowLeft,
+  BookMarked,
+  BookOpen,
+  BookmarkCheck,
+  CalendarPlus,
+  CalendarDays,
+  Check,
+  Clock,
+  Library,
+  MessageCircle,
+  PenLine,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  Trash2,
+  Users,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
@@ -8,13 +26,53 @@ import { useLanguage } from "@/i18n";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 import SocialStyles from "./SocialStyles";
 import GamesRoomScreen from "./GamesRoomScreen";
+import MusicRoomScreen from "./MusicRoomScreen";
+import TogetherRoomScreen from "./TogetherRoomScreen";
 import { getSocialCopy, getSocialGameLanguage, getSocialLanguage } from "./roomUtils";
+import {
+  TogetherProximityIcon,
+  TogetherSafetyIcon,
+  getTogetherPlans,
+  getTogetherRoomCopy,
+  isTogetherRoom,
+} from "./togetherRoom";
+import {
+  addReadingClubShelfItem,
+  buildReadingClubBridgePrompt,
+  getReadingClubMilestones,
+  getReadingClubNextStepId,
+  getReadingClubPreferenceTags,
+  incrementReadingClubProgress,
+  joinReadingClubCircle,
+  leaveReadingClubCircle,
+  loadReadingClubDeskState,
+  markReadingClubConversationCardUsed,
+  markReadingClubPassport,
+  recordReadingClubVisit,
+  removeReadingClubProgramSession,
+  removeReadingClubShelfItem,
+  saveReadingClubProgramSession,
+  saveReadingClubDeskState,
+  updateReadingClubDeskState,
+  type ReadingClubDeskState,
+  type ReadingClubIntentId,
+  type ReadingClubMilestoneId,
+  type ReadingClubNextStepId,
+  type ReadingClubPaceId,
+  type ReadingClubProgressMetricId,
+  type ReadingClubShelfId,
+} from "./readingClubDesk";
 import type {
   SocialLanguage,
   SocialConversationContext,
   SocialRoom,
   SocialRoomChatItem,
+  SocialMatchResponse,
+  SocialReadingClubDestination,
   SocialRoomMember,
+  SocialRoomPlan,
+  SocialRoomPlanResponseValue,
+  SocialRoomPulse,
   SocialRoomResponse,
   SocialRoomVisitState,
 } from "./types";
@@ -55,6 +113,16 @@ const ROOM_TOPIC_HINTS: Record<string, Record<SocialLanguage, string>> = {
     de: "Heute suchen wir eine einfache Idee zum Beginnen.",
     en: "Today we are looking for a simple idea to begin.",
   },
+  "reading-room": {
+    es: "Hoy el club comparte libros, recuerdos y recomendaciones.",
+    de: "Heute teilt der Club Buecher, Erinnerungen und Empfehlungen.",
+    en: "Today the club is sharing books, memories and recommendations.",
+  },
+  "together-room": {
+    es: "Hoy puedes elegir un plan y encontrar compania.",
+    de: "Heute kannst du einen Plan waehlen und Begleitung finden.",
+    en: "Today you can pick a plan and find company.",
+  },
 };
 
 const ROOM_QUICK_QUESTIONS: Record<string, Record<SocialLanguage, string[]>> = {
@@ -72,6 +140,16 @@ const ROOM_QUICK_QUESTIONS: Record<string, Record<SocialLanguage, string[]>> = {
     es: ["Dame una idea sencilla", "¿Qué colores van bien?", "Quiero empezar despacio"],
     de: ["Gib mir eine einfache Idee", "Welche Farben passen gut?", "Ich möchte langsam anfangen"],
     en: ["Give me a simple idea", "Which colours work well?", "I want to begin gently"],
+  },
+  "reading-room": {
+    es: ["Compartir un libro querido", "Buscar companero de lectura", "Preguntar que estan leyendo"],
+    de: ["Ein liebes Buch teilen", "Lesegefaehrtin finden", "Fragen, was andere lesen"],
+    en: ["Share a loved book", "Find a reading companion", "Ask what others are reading"],
+  },
+  "together-room": {
+    es: ["Quiero un plan cerca", "Buscame una cita de pelicula", "Ayudame con un trato"],
+    de: ["Ich moechte einen Plan in der Naehe", "Finde ein Film-Date", "Hilf mir mit einem Deal"],
+    en: ["I want a nearby plan", "Find a movie date", "Help me with a deal"],
   },
 };
 
@@ -161,6 +239,50 @@ const ROOM_KNOWLEDGE_FEED: Record<string, Record<SocialLanguage, Array<Omit<Know
         question: "Should the queen move right away?",
         answer: "Not always. It often helps to see whether another piece solves it more calmly.",
         comments: [{ id: "c2", author: "Ana", text: "That keeps me from rushing the queen." }],
+      },
+    ],
+  },
+  "reading-room": {
+    es: [
+      {
+        asker: "Maria",
+        question: "Que libro te gustaria comentar con alguien nuevo?",
+        answer: "Empieza por un libro que te dejo una escena clara. La escena abre una conversacion sin tener que resumirlo todo.",
+        comments: [{ id: "c1", author: "Carmen", text: "A mi me ayuda contar primero el lugar de la escena." }],
+      },
+      {
+        asker: "Jose",
+        question: "Como saludo a otra persona del club?",
+        answer: "Puedes empezar con una pregunta sencilla: que personaje te hizo compania mas tiempo?",
+        comments: [{ id: "c2", author: "Ana", text: "Esa pregunta se siente amable y facil." }],
+      },
+    ],
+    de: [
+      {
+        asker: "Maria",
+        question: "Welches Buch wuerdest du gern mit jemand Neuem besprechen?",
+        answer: "Beginne mit einem Buch, das eine klare Szene hinterlassen hat. Eine Szene oeffnet das Gespraech ohne lange Zusammenfassung.",
+        comments: [{ id: "c1", author: "Carmen", text: "Mir hilft es, zuerst den Ort der Szene zu nennen." }],
+      },
+      {
+        asker: "Jose",
+        question: "Wie gruesse ich eine andere Person im Club?",
+        answer: "Du kannst mit einer einfachen Frage beginnen: Welche Figur hat dir am laengsten Gesellschaft geleistet?",
+        comments: [{ id: "c2", author: "Ana", text: "Diese Frage wirkt freundlich und leicht." }],
+      },
+    ],
+    en: [
+      {
+        asker: "Maria",
+        question: "Which book would you like to discuss with someone new?",
+        answer: "Start with a book that left you one clear scene. A scene opens conversation without needing a full summary.",
+        comments: [{ id: "c1", author: "Carmen", text: "It helps me to name the place in the scene first." }],
+      },
+      {
+        asker: "Jose",
+        question: "How do I greet someone else in the club?",
+        answer: "You can begin with a simple question: which character kept you company the longest?",
+        comments: [{ id: "c2", author: "Ana", text: "That question feels kind and easy." }],
       },
     ],
   },
@@ -270,6 +392,690 @@ function getRoomInteractionHint(language: SocialLanguage) {
   return "El agente de la sala empieza automáticamente. Puedes hablar, escribir o tocar una sugerencia.";
 }
 
+function isReadingRoomSlug(slug?: string | null) {
+  return slug === "reading-room" || slug === "book-club";
+}
+
+function getReadingClubCopy(language: SocialLanguage) {
+  if (language === "en") {
+    return {
+      title: "Today's literary club",
+      body: "Share a book, scene or memory, then meet another reader through a gentle, consent-based greeting.",
+      chips: ["Books", "Stories", "Recommendations"],
+      findLabel: "Find a reading companion",
+      findingLabel: "Looking for a companion...",
+      resultLabel: "Reading companion",
+      safeLine: "Contact stays protected until both people are ready.",
+      deskTitle: "My club desk",
+      deskBody: "Your small place in the club remembers today's intention and what you have already done.",
+      visitsLabel: "Club visits",
+      streakLabel: "Day streak",
+      preferredModeLabel: "Preferred greeting",
+      favoriteShelfLabel: "Favourite shelf",
+      preferredPaceLabel: "Club pace",
+      intentionLabel: "Today I want to",
+      lastReflectionLabel: "Last reflection",
+      noLastReflectionLabel: "No reflection saved yet.",
+      intentions: [
+        { id: "share-memory" as ReadingClubIntentId, label: "Share a memory", body: "Bring a scene, character or moment." },
+        { id: "recommend-book" as ReadingClubIntentId, label: "Recommend gently", body: "Leave a book or story for someone else." },
+        { id: "meet-reader" as ReadingClubIntentId, label: "Meet a reader", body: "Start with a protected hello." },
+        { id: "quiet-reading" as ReadingClubIntentId, label: "Read quietly", body: "Follow the club without pressure." },
+      ],
+      profileTitle: "Reader profile",
+      profileBody: "Tune your match around the shelf and conversation pace that feel right today.",
+      shelfTitle: "Favourite shelf",
+      shelfOptions: [
+        { id: "memoir" as ReadingClubShelfId, label: "Memoirs", body: "Life stories, family memories and turning points." },
+        { id: "short-stories" as ReadingClubShelfId, label: "Short stories", body: "Small scenes that open easy conversation." },
+        { id: "poetry" as ReadingClubShelfId, label: "Poetry", body: "Lines, images and feelings remembered." },
+        { id: "classics" as ReadingClubShelfId, label: "Classics", body: "Old favourites and rereads." },
+      ],
+      paceTitle: "Conversation pace",
+      paceOptions: [
+        { id: "quiet" as ReadingClubPaceId, label: "Quiet", body: "A calm one-to-one exchange." },
+        { id: "chatty" as ReadingClubPaceId, label: "Chatty", body: "More back-and-forth at the table." },
+        { id: "letters" as ReadingClubPaceId, label: "Letters", body: "Begin with a written note." },
+      ],
+      matchedTopicsLabel: "Shared shelves",
+      protectedGreetingLabel: "Protected greeting",
+      greetingPreviewLabel: "Isabel will suggest starting with",
+      greetingCta: "Send protected greeting",
+      greetingSendingLabel: "Sending greeting...",
+      greetingSentLabel: "Greeting sent safely.",
+      greetingFailedLabel: "I could not send the greeting just now.",
+      milestonesTitle: "Club milestones",
+      milestonesBody: "Your club history grows as you share, greet, vote and return.",
+      milestonesCompleteLabel: "Complete",
+      nextStepTitle: "Next gentle step",
+      lifetimeStatsLabel: "Club history",
+      statsLabels: {
+        reflectionsShared: "reflections",
+        greetingsSent: "greetings",
+        tablesJoined: "tables",
+        shelfVotes: "votes",
+      },
+      savedShelfTitle: "My saved shelf",
+      savedShelfBody: "Keep reflections, prompts and recommendations you may want to return to.",
+      savedShelfEmptyLabel: "Your saved shelf is ready for a first note.",
+      savedShelfReflectionLabel: "Reflection",
+      savedShelfRecommendationLabel: "Recommendation",
+      savedShelfPromptLabel: "Prompt",
+      savedShelfRemoveLabel: "Remove from shelf",
+      savedShelfSavedLabel: "Saved to your shelf.",
+      programTitle: "This week's club program",
+      programBody: "Save a seat for gentle sessions you may want to return to. Nothing is public until you choose to join.",
+      programMyWeekTitle: "My club program",
+      programEmptyLabel: "No seats saved yet.",
+      programSaveLabel: "Save seat",
+      programSavedLabel: "Seat saved",
+      programRemoveLabel: "Remove seat",
+      programSavedStatusLabel: "Saved in your club program.",
+      programRemovedStatusLabel: "Removed from your club program.",
+      programSessions: [
+        { id: "monday-memory", dayLabel: "Monday", timeLabel: "Morning", title: "Memory pages", body: "Bring one scene from a book or from life.", hostLine: "Good for first visits" },
+        { id: "wednesday-recommendations", dayLabel: "Wednesday", timeLabel: "Afternoon", title: "Gentle recommendations", body: "Exchange books by mood, not homework.", hostLine: "Easy conversation" },
+        { id: "friday-poetry", dayLabel: "Friday", timeLabel: "Evening", title: "Short poem salon", body: "Share a feeling, image or line in your own words.", hostLine: "Quiet pace" },
+      ],
+      readerCirclesTitle: "Reader circles",
+      readerCirclesBody: "Choose a smaller corner of the club so familiar voices can gather around the same kind of reading.",
+      myCirclesTitle: "My circles",
+      circleEmptyLabel: "No reader circles joined yet.",
+      circleJoinLabel: "Join circle",
+      circleJoinedLabel: "Joined",
+      circleLeaveLabel: "Leave circle",
+      circleJoinedStatusLabel: "You joined a reader circle.",
+      circleLeftStatusLabel: "Removed from your reader circles.",
+      readerCircles: [
+        { id: "memory-keepers", badge: "Memoir", title: "Memory keepers", body: "Share scenes from life, family and remembered places.", memberLine: "4 readers this week" },
+        { id: "poetry-corner", badge: "Poetry", title: "Poetry corner", body: "Talk about images, feelings and short lines in your own words.", memberLine: "3 readers this week" },
+        { id: "gentle-recommendations", badge: "Exchange", title: "Gentle recommendations", body: "Trade books by mood and comfort, not homework.", memberLine: "5 readers this week" },
+      ],
+      conversationKitTitle: "Conversation kit",
+      conversationKitBody: "Choose a card when you want an easy way into the table. Each starter is short, original and safe to share.",
+      conversationUseLabel: "Use card",
+      conversationUsedLabel: "Used",
+      conversationReadyStatusLabel: "Conversation card ready in the reflection box.",
+      conversationCards: [
+        { id: "memory-scene", badge: "For sharing", title: "Memory scene", body: "Name one place, character or feeling. No full summary needed.", prompt: "A scene I still carry is..." },
+        { id: "gentle-question", badge: "For greeting", title: "Gentle question", body: "A soft opener for another reader or small circle.", prompt: "What kind of story has kept you company lately?" },
+        { id: "recommendation-bridge", badge: "For recommending", title: "Recommendation bridge", body: "Offer a book by mood so it feels like a gift, not homework.", prompt: "I would recommend something gentle if you enjoy..." },
+      ],
+      milestones: [
+        { id: "first-reflection" as ReadingClubMilestoneId, label: "First reflection", body: "Add one book, scene or memory to the table." },
+        { id: "warm-greeting" as ReadingClubMilestoneId, label: "Warm greeting", body: "Send one protected hello to another reader." },
+        { id: "shelf-voice" as ReadingClubMilestoneId, label: "Shelf voice", body: "Vote twice on what the club reads next." },
+        { id: "table-regular" as ReadingClubMilestoneId, label: "Table regular", body: "Join three live club tables." },
+        { id: "three-visits" as ReadingClubMilestoneId, label: "Three visits", body: "Come back to the club three times." },
+        { id: "three-day-streak" as ReadingClubMilestoneId, label: "Three-day streak", body: "Visit three days in a row." },
+      ],
+      nextSteps: {
+        share: { id: "share" as ReadingClubNextStepId, label: "Share a reflection", body: "Add one book, scene or memory so the table knows your voice." },
+        greet: { id: "greet" as ReadingClubNextStepId, label: "Greet a reader", body: "Find a reading companion and send a protected hello." },
+        vote: { id: "vote" as ReadingClubNextStepId, label: "Vote on a shelf", body: "Help choose what the club should open next." },
+        join: { id: "join" as ReadingClubNextStepId, label: "Join a live table", body: "Pick join on one club table that feels comfortable." },
+        recommend: { id: "recommend" as ReadingClubNextStepId, label: "Leave a recommendation", body: "Choose a shelf prompt or write a gentle suggestion." },
+        return: { id: "return" as ReadingClubNextStepId, label: "Return tomorrow", body: "Today is full. Come back to keep your club streak alive." },
+      },
+      liveTablesLabel: "Live club tables",
+      joinLabel: "Join",
+      maybeLabel: "Maybe",
+      joinedLabel: "You joined the table.",
+      maybeSavedLabel: "Saved for later.",
+      shelfPollLabel: "Next shelf vote",
+      votedLabel: "Your vote is in.",
+      sharedTableLabel: "Shared at the table",
+      noPostsLabel: "The table is ready for the first reflection.",
+      clubHelpLabel: "Ask Isabel for club help",
+      helpSentLabel: "Isabel has been alerted.",
+      postFailedLabel: "I could not update the club just now.",
+      updatesLabel: "Club updates",
+    };
+  }
+
+  if (language === "de") {
+    return {
+      title: "Heutiger Literaturclub",
+      body: "Teile ein Buch, eine Szene oder eine Erinnerung und lerne eine andere Leserin ueber einen geschuetzten Gruss kennen.",
+      chips: ["Buecher", "Geschichten", "Empfehlungen"],
+      findLabel: "Lesegefaehrtin finden",
+      findingLabel: "Suche eine Begleitung...",
+      resultLabel: "Leseverbindung",
+      safeLine: "Kontakt bleibt geschuetzt, bis beide bereit sind.",
+      deskTitle: "Mein Clubtisch",
+      deskBody: "Dein kleiner Platz im Club merkt sich die heutige Absicht und was schon erledigt ist.",
+      visitsLabel: "Clubbesuche",
+      streakLabel: "Tage in Folge",
+      preferredModeLabel: "Lieblingsgruss",
+      favoriteShelfLabel: "Lieblingsregal",
+      preferredPaceLabel: "Clubtempo",
+      intentionLabel: "Heute moechte ich",
+      lastReflectionLabel: "Letzte Reflexion",
+      noLastReflectionLabel: "Noch keine Reflexion gespeichert.",
+      intentions: [
+        { id: "share-memory" as ReadingClubIntentId, label: "Erinnerung teilen", body: "Bringe eine Szene, Figur oder einen Moment mit." },
+        { id: "recommend-book" as ReadingClubIntentId, label: "Sanft empfehlen", body: "Hinterlasse ein Buch oder eine Geschichte." },
+        { id: "meet-reader" as ReadingClubIntentId, label: "Leserin treffen", body: "Beginne mit einem geschuetzten Gruss." },
+        { id: "quiet-reading" as ReadingClubIntentId, label: "Leise mitlesen", body: "Folge dem Club ohne Druck." },
+      ],
+      profileTitle: "Leseprofil",
+      profileBody: "Stimme deine Verbindung auf Regal und Gespraechstempo ab, die heute passen.",
+      shelfTitle: "Lieblingsregal",
+      shelfOptions: [
+        { id: "memoir" as ReadingClubShelfId, label: "Memoiren", body: "Lebensgeschichten, Familie und Wendepunkte." },
+        { id: "short-stories" as ReadingClubShelfId, label: "Kurzgeschichten", body: "Kleine Szenen fuer leichte Gespraeche." },
+        { id: "poetry" as ReadingClubShelfId, label: "Poesie", body: "Zeilen, Bilder und erinnerte Gefuehle." },
+        { id: "classics" as ReadingClubShelfId, label: "Klassiker", body: "Alte Lieblingsbuecher und Wiederlesen." },
+      ],
+      paceTitle: "Gespraechstempo",
+      paceOptions: [
+        { id: "quiet" as ReadingClubPaceId, label: "Ruhig", body: "Ein stiller Austausch zu zweit." },
+        { id: "chatty" as ReadingClubPaceId, label: "Gespraechig", body: "Mehr Hin und Her am Tisch." },
+        { id: "letters" as ReadingClubPaceId, label: "Notizen", body: "Mit einer geschriebenen Notiz beginnen." },
+      ],
+      matchedTopicsLabel: "Gemeinsame Regale",
+      protectedGreetingLabel: "Geschuetzter Gruss",
+      greetingPreviewLabel: "Isabel schlaegt als Anfang vor",
+      greetingCta: "Geschuetzten Gruss senden",
+      greetingSendingLabel: "Sende Gruss...",
+      greetingSentLabel: "Gruss sicher gesendet.",
+      greetingFailedLabel: "Ich konnte den Gruss gerade nicht senden.",
+      milestonesTitle: "Club-Meilensteine",
+      milestonesBody: "Deine Clubgeschichte waechst, wenn du teilst, gruesst, abstimmst und wiederkommst.",
+      milestonesCompleteLabel: "Fertig",
+      nextStepTitle: "Naechster ruhiger Schritt",
+      lifetimeStatsLabel: "Clubgeschichte",
+      statsLabels: {
+        reflectionsShared: "Beitraege",
+        greetingsSent: "Gruesse",
+        tablesJoined: "Tische",
+        shelfVotes: "Stimmen",
+      },
+      savedShelfTitle: "Mein gespeichertes Regal",
+      savedShelfBody: "Bewahre Beitraege, Impulse und Empfehlungen auf, zu denen du zurueckkehren moechtest.",
+      savedShelfEmptyLabel: "Dein gespeichertes Regal wartet auf die erste Notiz.",
+      savedShelfReflectionLabel: "Beitrag",
+      savedShelfRecommendationLabel: "Empfehlung",
+      savedShelfPromptLabel: "Impuls",
+      savedShelfRemoveLabel: "Aus Regal entfernen",
+      savedShelfSavedLabel: "In deinem Regal gespeichert.",
+      programTitle: "Clubprogramm der Woche",
+      programBody: "Merke dir ruhige Treffen, zu denen du zurueckkehren moechtest. Oeffentlich wird nichts, bis du dich dazusetzt.",
+      programMyWeekTitle: "Meine Clubwoche",
+      programEmptyLabel: "Noch kein Platz gemerkt.",
+      programSaveLabel: "Platz merken",
+      programSavedLabel: "Platz gemerkt",
+      programRemoveLabel: "Platz entfernen",
+      programSavedStatusLabel: "In deinem Clubprogramm gespeichert.",
+      programRemovedStatusLabel: "Aus deinem Clubprogramm entfernt.",
+      programSessions: [
+        { id: "monday-memory", dayLabel: "Montag", timeLabel: "Morgen", title: "Erinnerungsseiten", body: "Bring eine Szene aus einem Buch oder aus dem Leben mit.", hostLine: "Gut fuer erste Besuche" },
+        { id: "wednesday-recommendations", dayLabel: "Mittwoch", timeLabel: "Nachmittag", title: "Sanfte Empfehlungen", body: "Tauscht Buecher nach Stimmung, nicht als Hausaufgabe.", hostLine: "Leichtes Gespraech" },
+        { id: "friday-poetry", dayLabel: "Freitag", timeLabel: "Abend", title: "Kurzer Poesiesalon", body: "Teile ein Gefuehl, ein Bild oder eine Zeile in eigenen Worten.", hostLine: "Ruhiges Tempo" },
+      ],
+      readerCirclesTitle: "Lesekreise",
+      readerCirclesBody: "Waehle eine kleinere Ecke des Clubs, damit vertraute Stimmen rund um dieselbe Leseart zusammenfinden.",
+      myCirclesTitle: "Meine Kreise",
+      circleEmptyLabel: "Noch kein Lesekreis gewaehlt.",
+      circleJoinLabel: "Kreis beitreten",
+      circleJoinedLabel: "Dabei",
+      circleLeaveLabel: "Kreis verlassen",
+      circleJoinedStatusLabel: "Du bist im Lesekreis dabei.",
+      circleLeftStatusLabel: "Aus deinen Lesekreisen entfernt.",
+      readerCircles: [
+        { id: "memory-keepers", badge: "Memoiren", title: "Erinnerungshueter", body: "Teile Szenen aus Leben, Familie und erinnerten Orten.", memberLine: "4 Leserinnen diese Woche" },
+        { id: "poetry-corner", badge: "Poesie", title: "Poesieecke", body: "Sprich ueber Bilder, Gefuehle und kurze Zeilen in eigenen Worten.", memberLine: "3 Leserinnen diese Woche" },
+        { id: "gentle-recommendations", badge: "Tausch", title: "Sanfte Empfehlungen", body: "Tauscht Buecher nach Stimmung und Trost, nicht als Pflicht.", memberLine: "5 Leserinnen diese Woche" },
+      ],
+      conversationKitTitle: "Gespraechskarten",
+      conversationKitBody: "Waehle eine Karte, wenn du leicht an den Tisch kommen moechtest. Jeder Anfang ist kurz, original und sicher.",
+      conversationUseLabel: "Karte nutzen",
+      conversationUsedLabel: "Genutzt",
+      conversationReadyStatusLabel: "Gespraechskarte steht im Reflexionsfeld bereit.",
+      conversationCards: [
+        { id: "memory-scene", badge: "Zum Teilen", title: "Erinnerungsszene", body: "Nenne einen Ort, eine Figur oder ein Gefuehl. Keine Zusammenfassung noetig.", prompt: "Eine Szene, die ich noch bei mir trage, ist..." },
+        { id: "gentle-question", badge: "Zum Gruessen", title: "Sanfte Frage", body: "Ein ruhiger Anfang fuer eine andere Leserin oder einen kleinen Kreis.", prompt: "Welche Art Geschichte hat dir zuletzt Gesellschaft geleistet?" },
+        { id: "recommendation-bridge", badge: "Zum Empfehlen", title: "Empfehlungsbruecke", body: "Empfiehl nach Stimmung, damit es wie ein Geschenk wirkt.", prompt: "Ich wuerde etwas Ruhiges empfehlen, wenn du magst..." },
+      ],
+      milestones: [
+        { id: "first-reflection" as ReadingClubMilestoneId, label: "Erster Beitrag", body: "Fuege ein Buch, eine Szene oder Erinnerung hinzu." },
+        { id: "warm-greeting" as ReadingClubMilestoneId, label: "Warmer Gruss", body: "Sende einen geschuetzten Gruss an eine andere Leserin." },
+        { id: "shelf-voice" as ReadingClubMilestoneId, label: "Regalstimme", body: "Stimme zweimal ab, was der Club als Naechstes oeffnet." },
+        { id: "table-regular" as ReadingClubMilestoneId, label: "Stammgast am Tisch", body: "Komm zu drei Live-Clubtischen dazu." },
+        { id: "three-visits" as ReadingClubMilestoneId, label: "Drei Besuche", body: "Komm dreimal in den Club zurueck." },
+        { id: "three-day-streak" as ReadingClubMilestoneId, label: "Drei Tage", body: "Besuche den Club drei Tage hintereinander." },
+      ],
+      nextSteps: {
+        share: { id: "share" as ReadingClubNextStepId, label: "Beitrag teilen", body: "Fuege ein Buch, eine Szene oder Erinnerung hinzu." },
+        greet: { id: "greet" as ReadingClubNextStepId, label: "Leserin gruessen", body: "Finde eine Leseverbindung und sende einen geschuetzten Gruss." },
+        vote: { id: "vote" as ReadingClubNextStepId, label: "Regal waehlen", body: "Hilf mit, was der Club als Naechstes oeffnet." },
+        join: { id: "join" as ReadingClubNextStepId, label: "Live-Tisch besuchen", body: "Waehle Dazukommen bei einem Tisch, der angenehm wirkt." },
+        recommend: { id: "recommend" as ReadingClubNextStepId, label: "Empfehlung geben", body: "Waehle einen Regalimpuls oder schreibe einen freundlichen Vorschlag." },
+        return: { id: "return" as ReadingClubNextStepId, label: "Morgen wiederkommen", body: "Heute ist rund. Komm wieder, damit deine Serie weitergeht." },
+      },
+      liveTablesLabel: "Live-Clubtische",
+      joinLabel: "Dazukommen",
+      maybeLabel: "Vielleicht",
+      joinedLabel: "Du bist am Tisch dabei.",
+      maybeSavedLabel: "Fuer spaeter gemerkt.",
+      shelfPollLabel: "Naechstes Regal",
+      votedLabel: "Deine Stimme ist gespeichert.",
+      sharedTableLabel: "Auf dem Clubtisch",
+      noPostsLabel: "Der Tisch wartet auf die erste Reflexion.",
+      clubHelpLabel: "Isabel um Clubhilfe bitten",
+      helpSentLabel: "Isabel ist benachrichtigt.",
+      postFailedLabel: "Ich konnte den Club gerade nicht aktualisieren.",
+      updatesLabel: "Club-Neuigkeiten",
+    };
+  }
+
+  return {
+    title: "Club literario de hoy",
+    body: "Comparte un libro, una escena o un recuerdo y conoce a otra persona con un saludo protegido y amable.",
+    chips: ["Libros", "Historias", "Recomendaciones"],
+    findLabel: "Buscar compania de lectura",
+    findingLabel: "Buscando compania...",
+    resultLabel: "Compania de lectura",
+    safeLine: "El contacto queda protegido hasta que ambas personas esten listas.",
+    deskTitle: "Mi mesa del club",
+    deskBody: "Tu pequeno lugar en el club recuerda la intencion de hoy y lo que ya has hecho.",
+    visitsLabel: "Visitas al club",
+    streakLabel: "Dias seguidos",
+    preferredModeLabel: "Saludo preferido",
+    favoriteShelfLabel: "Estante favorito",
+    preferredPaceLabel: "Ritmo del club",
+    intentionLabel: "Hoy quiero",
+    lastReflectionLabel: "Ultima reflexion",
+    noLastReflectionLabel: "Aun no hay reflexion guardada.",
+    intentions: [
+      { id: "share-memory" as ReadingClubIntentId, label: "Compartir recuerdo", body: "Trae una escena, personaje o momento." },
+      { id: "recommend-book" as ReadingClubIntentId, label: "Recomendar con calma", body: "Deja un libro o historia para otra persona." },
+      { id: "meet-reader" as ReadingClubIntentId, label: "Conocer lector", body: "Empieza con un saludo protegido." },
+      { id: "quiet-reading" as ReadingClubIntentId, label: "Leer tranquila", body: "Sigue el club sin presion." },
+    ],
+    profileTitle: "Perfil lector",
+    profileBody: "Ajusta tu encuentro al estante y ritmo de conversacion que hoy te sienten bien.",
+    shelfTitle: "Estante favorito",
+    shelfOptions: [
+      { id: "memoir" as ReadingClubShelfId, label: "Memorias", body: "Historias de vida, familia y cambios." },
+      { id: "short-stories" as ReadingClubShelfId, label: "Cuentos", body: "Escenas pequenas para conversar facil." },
+      { id: "poetry" as ReadingClubShelfId, label: "Poesia", body: "Lineas, imagenes y sentimientos recordados." },
+      { id: "classics" as ReadingClubShelfId, label: "Clasicos", body: "Viejos favoritos y relecturas." },
+    ],
+    paceTitle: "Ritmo de conversacion",
+    paceOptions: [
+      { id: "quiet" as ReadingClubPaceId, label: "Tranquilo", body: "Un intercambio calmado de uno a uno." },
+      { id: "chatty" as ReadingClubPaceId, label: "Conversador", body: "Mas ida y vuelta en la mesa." },
+      { id: "letters" as ReadingClubPaceId, label: "Notas", body: "Empezar con una nota escrita." },
+    ],
+    matchedTopicsLabel: "Estantes compartidos",
+    protectedGreetingLabel: "Saludo protegido",
+    greetingPreviewLabel: "Isabel sugerira empezar con",
+    greetingCta: "Enviar saludo protegido",
+    greetingSendingLabel: "Enviando saludo...",
+    greetingSentLabel: "Saludo enviado con seguridad.",
+    greetingFailedLabel: "No he podido enviar el saludo ahora.",
+    milestonesTitle: "Logros del club",
+    milestonesBody: "Tu historia en el club crece cuando compartes, saludas, votas y vuelves.",
+    milestonesCompleteLabel: "Completo",
+    nextStepTitle: "Siguiente paso tranquilo",
+    lifetimeStatsLabel: "Historia del club",
+    statsLabels: {
+      reflectionsShared: "reflexiones",
+      greetingsSent: "saludos",
+      tablesJoined: "mesas",
+      shelfVotes: "votos",
+    },
+    savedShelfTitle: "Mi estante guardado",
+    savedShelfBody: "Guarda reflexiones, preguntas y recomendaciones para volver a ellas.",
+    savedShelfEmptyLabel: "Tu estante guardado espera la primera nota.",
+    savedShelfReflectionLabel: "Reflexion",
+    savedShelfRecommendationLabel: "Recomendacion",
+    savedShelfPromptLabel: "Pregunta",
+    savedShelfRemoveLabel: "Quitar del estante",
+    savedShelfSavedLabel: "Guardado en tu estante.",
+    programTitle: "Programa del club esta semana",
+    programBody: "Guarda un lugar para encuentros tranquilos a los que quieras volver. Nada es publico hasta que decidas unirte.",
+    programMyWeekTitle: "Mi semana del club",
+    programEmptyLabel: "Aun no hay lugares guardados.",
+    programSaveLabel: "Guardar lugar",
+    programSavedLabel: "Lugar guardado",
+    programRemoveLabel: "Quitar lugar",
+    programSavedStatusLabel: "Guardado en tu programa del club.",
+    programRemovedStatusLabel: "Quitado de tu programa del club.",
+    programSessions: [
+      { id: "monday-memory", dayLabel: "Lunes", timeLabel: "Manana", title: "Paginas de memoria", body: "Trae una escena de un libro o de la vida.", hostLine: "Bueno para primera visita" },
+      { id: "wednesday-recommendations", dayLabel: "Miercoles", timeLabel: "Tarde", title: "Recomendaciones tranquilas", body: "Intercambia libros por animo, no como tarea.", hostLine: "Conversacion facil" },
+      { id: "friday-poetry", dayLabel: "Viernes", timeLabel: "Noche", title: "Salon breve de poesia", body: "Comparte una sensacion, imagen o linea con tus palabras.", hostLine: "Ritmo tranquilo" },
+    ],
+    readerCirclesTitle: "Circulos de lectura",
+    readerCirclesBody: "Elige un rincon pequeno del club para que voces conocidas se reunan alrededor del mismo tipo de lectura.",
+    myCirclesTitle: "Mis circulos",
+    circleEmptyLabel: "Aun no te has unido a ningun circulo.",
+    circleJoinLabel: "Unirme al circulo",
+    circleJoinedLabel: "Dentro",
+    circleLeaveLabel: "Salir del circulo",
+    circleJoinedStatusLabel: "Estas en el circulo de lectura.",
+    circleLeftStatusLabel: "Quitado de tus circulos.",
+    readerCircles: [
+      { id: "memory-keepers", badge: "Memorias", title: "Guardianes de memoria", body: "Comparte escenas de la vida, familia y lugares recordados.", memberLine: "4 personas lectoras esta semana" },
+      { id: "poetry-corner", badge: "Poesia", title: "Rincon de poesia", body: "Habla de imagenes, sentimientos y lineas breves con tus palabras.", memberLine: "3 personas lectoras esta semana" },
+      { id: "gentle-recommendations", badge: "Intercambio", title: "Recomendaciones tranquilas", body: "Intercambia libros por animo y compania, no como tarea.", memberLine: "5 personas lectoras esta semana" },
+    ],
+    conversationKitTitle: "Kit de conversacion",
+    conversationKitBody: "Elige una tarjeta cuando quieras entrar en la mesa con calma. Cada inicio es breve, original y seguro.",
+    conversationUseLabel: "Usar tarjeta",
+    conversationUsedLabel: "Usada",
+    conversationReadyStatusLabel: "Tarjeta lista en el cuadro de reflexion.",
+    conversationCards: [
+      { id: "memory-scene", badge: "Para compartir", title: "Escena de memoria", body: "Nombra un lugar, personaje o sentimiento. No hace falta resumir.", prompt: "Una escena que todavia llevo conmigo es..." },
+      { id: "gentle-question", badge: "Para saludar", title: "Pregunta amable", body: "Un inicio suave para otra persona lectora o un circulo pequeno.", prompt: "Que tipo de historia te ha hecho compania ultimamente?" },
+      { id: "recommendation-bridge", badge: "Para recomendar", title: "Puente de recomendacion", body: "Recomienda por animo para que se sienta como un regalo.", prompt: "Recomendaria algo tranquilo si disfrutas..." },
+    ],
+    milestones: [
+      { id: "first-reflection" as ReadingClubMilestoneId, label: "Primera reflexion", body: "Anade un libro, una escena o un recuerdo a la mesa." },
+      { id: "warm-greeting" as ReadingClubMilestoneId, label: "Saludo amable", body: "Envia un saludo protegido a otra persona lectora." },
+      { id: "shelf-voice" as ReadingClubMilestoneId, label: "Voz de estante", body: "Vota dos veces que abre el club despues." },
+      { id: "table-regular" as ReadingClubMilestoneId, label: "Habitual de mesa", body: "Unete a tres mesas del club en vivo." },
+      { id: "three-visits" as ReadingClubMilestoneId, label: "Tres visitas", body: "Vuelve al club tres veces." },
+      { id: "three-day-streak" as ReadingClubMilestoneId, label: "Tres dias seguidos", body: "Visita el club tres dias seguidos." },
+    ],
+    nextSteps: {
+      share: { id: "share" as ReadingClubNextStepId, label: "Compartir reflexion", body: "Anade un libro, escena o recuerdo para que la mesa conozca tu voz." },
+      greet: { id: "greet" as ReadingClubNextStepId, label: "Saludar lector", body: "Busca compania de lectura y envia un saludo protegido." },
+      vote: { id: "vote" as ReadingClubNextStepId, label: "Votar estante", body: "Ayuda a elegir que abre el club despues." },
+      join: { id: "join" as ReadingClubNextStepId, label: "Unirme a una mesa", body: "Toca unirme en una mesa que te parezca comoda." },
+      recommend: { id: "recommend" as ReadingClubNextStepId, label: "Dejar recomendacion", body: "Elige una pregunta de estante o escribe una sugerencia amable." },
+      return: { id: "return" as ReadingClubNextStepId, label: "Volver manana", body: "Hoy esta completo. Vuelve para mantener tu racha del club." },
+    },
+    liveTablesLabel: "Mesas del club en vivo",
+    joinLabel: "Unirme",
+    maybeLabel: "Quizas",
+    joinedLabel: "Te has unido a la mesa.",
+    maybeSavedLabel: "Guardado para mas tarde.",
+    shelfPollLabel: "Votar proximo estante",
+    votedLabel: "Tu voto esta guardado.",
+    sharedTableLabel: "Compartido en la mesa",
+    noPostsLabel: "La mesa espera la primera reflexion.",
+    clubHelpLabel: "Pedir ayuda a Isabel",
+    helpSentLabel: "Isabel ha sido avisada.",
+    postFailedLabel: "No he podido actualizar el club ahora.",
+    updatesLabel: "Novedades del club",
+  };
+}
+
+function getReadingMatchError(language: SocialLanguage) {
+  if (language === "en") return "I could not look for a reading companion right now. Try again a little later.";
+  if (language === "de") return "Ich konnte gerade keine Lesegefaehrtin suchen. Versuch es spaeter noch einmal.";
+  return "No he podido buscar una compania de lectura ahora. Intentalo un poco mas tarde.";
+}
+
+function getReadingBridgePrompt(language: SocialLanguage) {
+  if (language === "en") return "a book, character or memory you would like to share.";
+  if (language === "de") return "ein Buch, eine Figur oder eine Erinnerung, die ihr teilen moechtet.";
+  return "un libro, un personaje o un recuerdo que querais compartir.";
+}
+
+function getReadingTopicLabel(tag: string, language: SocialLanguage) {
+  const labels: Record<string, Record<SocialLanguage, string>> = {
+    books: { es: "libros", de: "Buecher", en: "books" },
+    literature: { es: "literatura", de: "Literatur", en: "literature" },
+    poetry: { es: "poesia", de: "Poesie", en: "poetry" },
+    reading: { es: "lectura", de: "Lesen", en: "reading" },
+    stories: { es: "historias", de: "Geschichten", en: "stories" },
+    memoir: { es: "memorias", de: "Memoiren", en: "memoirs" },
+    library: { es: "biblioteca", de: "Bibliothek", en: "library" },
+    short_stories: { es: "cuentos", de: "Kurzgeschichten", en: "short stories" },
+    classics: { es: "clasicos", de: "Klassiker", en: "classics" },
+    book_memories: { es: "recuerdos", de: "Bucherinnerungen", en: "book memories" },
+    reading_companion: { es: "compania lectora", de: "Lesebegleitung", en: "reading companionship" },
+    book_recommendations: { es: "recomendaciones", de: "Empfehlungen", en: "recommendations" },
+  };
+
+  return labels[tag]?.[language] ?? tag.replace(/^game:/, "").replace(/_/g, " ");
+}
+
+function getSavedShelfKindLabel(
+  kind: "reflection" | "recommendation" | "prompt",
+  copy: ReturnType<typeof getReadingClubCopy>,
+) {
+  if (kind === "recommendation") return copy.savedShelfRecommendationLabel;
+  if (kind === "prompt") return copy.savedShelfPromptLabel;
+  return copy.savedShelfReflectionLabel;
+}
+
+function getReadingPassportDoneLabel(language: SocialLanguage) {
+  if (language === "en") return "Done";
+  if (language === "de") return "Fertig";
+  return "Hecho";
+}
+
+function buildFallbackReadingClubDestination(
+  language: SocialLanguage,
+  members: SocialRoomMember[],
+  participantCount: number,
+): SocialReadingClubDestination {
+  const copy = getReadingClubCopy(language);
+  const memberName = (index: number, fallback: string) => members[index]?.name ?? fallback;
+
+  if (language === "en") {
+    return {
+      title: "The Reading Room Literary Club",
+      subtitle: "A daily table for books, memories, recommendations and gentle new friendships.",
+      hostNote: "Isabel keeps the room moving with short prompts and protected greetings.",
+      todayQuestion: "Which book, character or remembered scene would you enjoy sharing?",
+      metrics: [
+        { id: "readers", label: "Readers today", value: String(Math.max(participantCount, 7)), detail: "drop-in members" },
+        { id: "tables", label: "Club tables", value: "3", detail: "morning, afternoon, evening" },
+        { id: "shelves", label: "Shelves open", value: "4", detail: "books and memories" },
+      ],
+      agendaTitle: "Today's club program",
+      agenda: [
+        { id: "welcome", timeLabel: "Morning", title: "Welcome table", body: "Share one book, scene or memory.", statusLabel: "Open now" },
+        { id: "exchange", timeLabel: "Afternoon", title: "Recommendation exchange", body: "Trade gentle suggestions by mood.", statusLabel: "Next table" },
+        { id: "salon", timeLabel: "Evening", title: "Small salon", body: "Meet around memoirs, stories and characters.", statusLabel: "Later today" },
+      ],
+      shelvesTitle: "Club shelves",
+      shelves: [
+        {
+          id: "current",
+          title: "Currently reading",
+          body: "What members are reading or rereading now.",
+          items: [
+            { id: "family", title: "A gentle family novel", authorLabel: "Member pick", tag: "Family", body: "A place for home and family stories.", discussionStarter: "Which family scene felt true?" },
+            { id: "history", title: "Pages from history", authorLabel: "Shared shelf", tag: "History", body: "For biographies and remembered places.", discussionStarter: "What period still feels close?" },
+          ],
+        },
+      ],
+      spotlightsTitle: "Members at the table",
+      memberSpotlights: [
+        { memberId: members[0]?.id ?? "member-maria", name: memberName(0, "Maria"), roleLine: "Memoir and family stories", body: "Looking for someone who enjoys ordinary days and big turning points.", starter: "Ask about a family story." },
+        { memberId: members[1]?.id ?? "member-jose", name: memberName(1, "Jose"), roleLine: "History and biographies", body: "Brought a question about memory and history.", starter: "Ask which biography felt alive." },
+      ],
+      companionTitle: copy.title,
+      companionBody: copy.body,
+      companionModes: [
+        { id: "one-to-one", title: "One reader", body: "A private, consent-based greeting.", ctaLabel: "Find one reader", bridgePrompt: getReadingBridgePrompt(language) },
+        { id: "small-circle", title: "Small circle", body: "A quiet table with a shared theme.", ctaLabel: "Find a small circle", bridgePrompt: "a theme for a small reading circle." },
+        { id: "pen-note", title: "Pen note", body: "Start with a written greeting.", ctaLabel: "Start with a note", bridgePrompt: "a short note about a book or scene." },
+      ],
+      passportTitle: "Reading passport",
+      passportBody: "Make today's visit feel complete.",
+      passportItems: [
+        { id: "share", label: "Share", body: "Add one book, scene or memory." },
+        { id: "recommend", label: "Recommend", body: "Leave one gentle suggestion." },
+        { id: "greet", label: "Greet", body: "Send one protected greeting." },
+      ],
+      reflectionTitle: "Add to the club table",
+      reflectionPlaceholder: "Write a book, scene, character or memory...",
+      reflectionSubmitLabel: "Post reflection",
+      reflectionPrompts: ["A book that kept me company was...", "A character I still remember is...", "A story I would recommend gently is..."],
+      guidelinesTitle: "Club care",
+      guidelines: ["Share in your own words.", "Use short excerpts only when needed.", "Every greeting stays protected."],
+    };
+  }
+
+  if (language === "de") {
+    return {
+      title: "Der Reading Room Literaturclub",
+      subtitle: "Ein taeglicher Tisch fuer Buecher, Erinnerungen, Empfehlungen und ruhige Kontakte.",
+      hostNote: "Isabel haelt den Raum mit kurzen Fragen und geschuetzten Gruessen in Bewegung.",
+      todayQuestion: "Welches Buch, welche Figur oder Szene wuerdest du gern teilen?",
+      metrics: [
+        { id: "readers", label: "Lesende heute", value: String(Math.max(participantCount, 7)), detail: "offene Mitglieder" },
+        { id: "tables", label: "Clubtische", value: "3", detail: "Morgen, Nachmittag, Abend" },
+        { id: "shelves", label: "Offene Regale", value: "4", detail: "Buecher und Erinnerungen" },
+      ],
+      agendaTitle: "Heutiges Clubprogramm",
+      agenda: [
+        { id: "welcome", timeLabel: "Morgen", title: "Willkommenstisch", body: "Teile ein Buch, eine Szene oder Erinnerung.", statusLabel: "Jetzt offen" },
+        { id: "exchange", timeLabel: "Nachmittag", title: "Empfehlungsaustausch", body: "Tausche sanfte Vorschlaege nach Stimmung.", statusLabel: "Naechster Tisch" },
+        { id: "salon", timeLabel: "Abend", title: "Kleiner Salon", body: "Triff andere rund um Memoiren, Geschichten und Figuren.", statusLabel: "Spaeter heute" },
+      ],
+      shelvesTitle: "Clubregale",
+      shelves: [
+        {
+          id: "current",
+          title: "Gerade gelesen",
+          body: "Was Mitglieder jetzt lesen oder wiederlesen.",
+          items: [
+            { id: "family", title: "Ein ruhiger Familienroman", authorLabel: "Clubauswahl", tag: "Familie", body: "Ein Ort fuer Zuhause und Familiengeschichten.", discussionStarter: "Welche Familienszene fuehlte sich wahr an?" },
+            { id: "history", title: "Seiten aus der Geschichte", authorLabel: "Geteiltes Regal", tag: "Geschichte", body: "Fuer Biografien und erinnerte Orte.", discussionStarter: "Welche Zeit fuehlt sich noch nah an?" },
+          ],
+        },
+      ],
+      spotlightsTitle: "Menschen am Tisch",
+      memberSpotlights: [
+        { memberId: members[0]?.id ?? "member-maria", name: memberName(0, "Maria"), roleLine: "Memoiren und Familiengeschichten", body: "Sucht jemanden fuer gewoehnliche Tage und grosse Wendepunkte.", starter: "Frage nach einer Familiengeschichte." },
+        { memberId: members[1]?.id ?? "member-jose", name: memberName(1, "Jose"), roleLine: "Geschichte und Biografien", body: "Hat eine Frage ueber Erinnerung und Geschichte.", starter: "Frage, welche Biografie lebendig war." },
+      ],
+      companionTitle: copy.title,
+      companionBody: copy.body,
+      companionModes: [
+        { id: "one-to-one", title: "Eine Leserin", body: "Ein privater, geschuetzter Gruss.", ctaLabel: "Eine Leserin finden", bridgePrompt: getReadingBridgePrompt(language) },
+        { id: "small-circle", title: "Kleiner Kreis", body: "Ein ruhiger Tisch mit gemeinsamem Thema.", ctaLabel: "Kleinen Kreis finden", bridgePrompt: "ein Thema fuer einen kleinen Lesekreis." },
+        { id: "pen-note", title: "Schreibnotiz", body: "Beginne mit einem geschriebenen Gruss.", ctaLabel: "Mit Notiz beginnen", bridgePrompt: "eine kurze Notiz ueber ein Buch oder eine Szene." },
+      ],
+      passportTitle: "Lesepass",
+      passportBody: "Mache den heutigen Besuch rund.",
+      passportItems: [
+        { id: "share", label: "Teilen", body: "Fuege ein Buch, eine Szene oder Erinnerung hinzu." },
+        { id: "recommend", label: "Empfehlen", body: "Hinterlasse eine freundliche Empfehlung." },
+        { id: "greet", label: "Gruessen", body: "Sende einen geschuetzten Gruss." },
+      ],
+      reflectionTitle: "Zum Clubtisch hinzufuegen",
+      reflectionPlaceholder: "Schreibe ein Buch, eine Szene, Figur oder Erinnerung...",
+      reflectionSubmitLabel: "Beitrag posten",
+      reflectionPrompts: ["Ein Buch, das mir Gesellschaft geleistet hat, war...", "Eine Figur, die ich noch erinnere, ist...", "Eine Geschichte, die ich sanft empfehlen wuerde, ist..."],
+      guidelinesTitle: "Clubachtsamkeit",
+      guidelines: ["Teile in eigenen Worten.", "Nutze kurze Auszuege nur bei Bedarf.", "Jeder Gruss bleibt geschuetzt."],
+    };
+  }
+
+  return {
+    title: "El Club Literario de Reading Room",
+    subtitle: "Una mesa diaria para libros, recuerdos, recomendaciones y amistades tranquilas.",
+    hostNote: "Isabel mantiene el ritmo con preguntas breves y saludos protegidos.",
+    todayQuestion: "Que libro, personaje o escena recordada te gustaria compartir?",
+    metrics: [
+      { id: "readers", label: "Lectores hoy", value: String(Math.max(participantCount, 7)), detail: "miembros que entran" },
+      { id: "tables", label: "Mesas del club", value: "3", detail: "manana, tarde, noche" },
+      { id: "shelves", label: "Estantes abiertos", value: "4", detail: "libros y recuerdos" },
+    ],
+    agendaTitle: "Programa de hoy",
+    agenda: [
+      { id: "welcome", timeLabel: "Manana", title: "Mesa de bienvenida", body: "Comparte un libro, una escena o un recuerdo.", statusLabel: "Abierta ahora" },
+      { id: "exchange", timeLabel: "Tarde", title: "Intercambio de recomendaciones", body: "Cambia sugerencias amables por estado de animo.", statusLabel: "Siguiente mesa" },
+      { id: "salon", timeLabel: "Noche", title: "Salon pequeno", body: "Encuentro sobre memorias, relatos y personajes.", statusLabel: "Mas tarde" },
+    ],
+    shelvesTitle: "Estantes del club",
+    shelves: [
+      {
+        id: "current",
+        title: "Leyendo ahora",
+        body: "Lo que se lee o relee hoy.",
+        items: [
+          { id: "family", title: "Una novela familiar tranquila", authorLabel: "Eleccion del club", tag: "Familia", body: "Un lugar para casa e historias familiares.", discussionStarter: "Que escena familiar te parecio verdadera?" },
+          { id: "history", title: "Paginas de historia", authorLabel: "Estante compartido", tag: "Historia", body: "Para biografias y lugares recordados.", discussionStarter: "Que epoca todavia sientes cercana?" },
+        ],
+      },
+    ],
+    spotlightsTitle: "Personas en la mesa",
+    memberSpotlights: [
+      { memberId: members[0]?.id ?? "member-maria", name: memberName(0, "Maria"), roleLine: "Memorias e historias familiares", body: "Busca alguien para dias corrientes y grandes cambios.", starter: "Pregunta por una historia familiar." },
+      { memberId: members[1]?.id ?? "member-jose", name: memberName(1, "Jose"), roleLine: "Historia y biografias", body: "Trajo una pregunta sobre memoria e historia.", starter: "Pregunta que biografia le parecio viva." },
+    ],
+    companionTitle: copy.title,
+    companionBody: copy.body,
+    companionModes: [
+      { id: "one-to-one", title: "Un lector", body: "Un saludo privado y protegido.", ctaLabel: "Buscar un lector", bridgePrompt: getReadingBridgePrompt(language) },
+      { id: "small-circle", title: "Circulo pequeno", body: "Una mesa tranquila con tema compartido.", ctaLabel: "Buscar circulo", bridgePrompt: "un tema para un pequeno circulo de lectura." },
+      { id: "pen-note", title: "Nota escrita", body: "Empieza con un saludo escrito.", ctaLabel: "Empezar con nota", bridgePrompt: "una nota breve sobre un libro o escena." },
+    ],
+    passportTitle: "Pasaporte lector",
+    passportBody: "Cierra la visita de hoy.",
+    passportItems: [
+      { id: "share", label: "Compartir", body: "Anade un libro, escena o recuerdo." },
+      { id: "recommend", label: "Recomendar", body: "Deja una sugerencia amable." },
+      { id: "greet", label: "Saludar", body: "Envia un saludo protegido." },
+    ],
+    reflectionTitle: "Anadir a la mesa",
+    reflectionPlaceholder: "Escribe un libro, escena, personaje o recuerdo...",
+    reflectionSubmitLabel: "Publicar reflexion",
+    reflectionPrompts: ["Un libro que me hizo compania fue...", "Un personaje que todavia recuerdo es...", "Una historia que recomendaria con calma es..."],
+    guidelinesTitle: "Cuidado del club",
+    guidelines: ["Comparte con tus propias palabras.", "Usa citas cortas solo si hacen falta.", "Cada saludo queda protegido."],
+  };
+}
+
+function updateReadingPlanResponse(
+  pulse: SocialRoomPulse,
+  planKey: string,
+  response: SocialRoomPlanResponseValue,
+): SocialRoomPulse {
+  const updatePlan = (plan: SocialRoomPlan): SocialRoomPlan => {
+    if (plan.key !== planKey) return plan;
+    const previous = plan.myResponse;
+    const responseCounts = { ...plan.responseCounts };
+    if (previous) responseCounts[previous] = Math.max(0, responseCounts[previous] - 1);
+    responseCounts[response] = (responseCounts[response] ?? 0) + 1;
+    return { ...plan, myResponse: response, responseCounts };
+  };
+
+  return {
+    ...pulse,
+    featuredPlan: updatePlan(pulse.featuredPlan),
+    secondaryPlans: pulse.secondaryPlans.map(updatePlan),
+    postedExperiences: pulse.postedExperiences.map(updatePlan),
+  };
+}
+
+function updateReadingShelfVote(pulse: SocialRoomPulse, optionId: string): SocialRoomPulse {
+  const previousVote = pulse.activePoll.myVote;
+  const options = pulse.activePoll.options.map((option) => {
+    let votes = option.votes;
+    if (previousVote === option.id) votes = Math.max(0, votes - 1);
+    if (optionId === option.id) votes += 1;
+    return { ...option, votes };
+  });
+
+  return {
+    ...pulse,
+    activePoll: {
+      ...pulse.activePoll,
+      myVote: optionId,
+      options,
+      totalVotes: options.reduce((sum, option) => sum + option.votes, 0),
+    },
+  };
+}
+
+function summarizeReadingPostTitle(text: string) {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (normalized.length <= 88) return normalized;
+  return `${normalized.slice(0, 85).trim()}...`;
+}
+
 function getRoomVoiceUnavailableLabel(language: SocialLanguage, error?: string | null) {
   const missingAgentMatch = error?.match(/(ELEVENLABS_[A-Z0-9_]+_AGENT_ID|ELEVENLABS_AGENT_[A-Z0-9_]+)/);
   if (missingAgentMatch) {
@@ -311,6 +1117,31 @@ function formatChatTime(createdAt: string, language: SocialLanguage) {
 
 function buildFallbackMembers(room: SocialRoomResponse["room"], language: SocialLanguage) {
   const visibleCount = Math.min(Math.max(room.participantCount - 1, 2), 4);
+
+  if (isReadingRoomSlug(room.slug)) {
+    const members = {
+      es: [
+        { id: "member-maria", name: "Maria", sharedTopic: "Comparte novelas familiares y poesia breve" },
+        { id: "member-jose", name: "Jose", sharedTopic: "Le gustan historia, periodicos y biografias" },
+        { id: "member-carmen", name: "Carmen", sharedTopic: "Recuerda escenas de teatro y cuentos" },
+        { id: "member-ana", name: "Ana", sharedTopic: "Disfruta historias tranquilas" },
+      ],
+      de: [
+        { id: "member-maria", name: "Maria", sharedTopic: "Teilt Familienromane und kurze Gedichte" },
+        { id: "member-jose", name: "Jose", sharedTopic: "Mag Geschichte, Zeitungen und Biografien" },
+        { id: "member-carmen", name: "Carmen", sharedTopic: "Erinnert Theaterszenen und Erzaehlungen" },
+        { id: "member-ana", name: "Ana", sharedTopic: "Mag ruhige Geschichten" },
+      ],
+      en: [
+        { id: "member-maria", name: "Maria", sharedTopic: "Shares family novels and short poems" },
+        { id: "member-jose", name: "Jose", sharedTopic: "Enjoys history, newspapers and biographies" },
+        { id: "member-carmen", name: "Carmen", sharedTopic: "Remembers theatre scenes and short stories" },
+        { id: "member-ana", name: "Ana", sharedTopic: "Likes gentle stories" },
+      ],
+    };
+
+    return members[language].slice(0, visibleCount);
+  }
 
   return Array.from({ length: visibleCount }, (_, index) => ({
     id: `${room.slug}-member-${index}`,
@@ -482,6 +1313,7 @@ function looksLikeGreeting(text: string) {
 
 function buildFallbackRoomResponse(slug: string, language: SocialLanguage): SocialRoomResponse | null {
   const today = new Date().toISOString().slice(0, 10);
+  const canonicalSlug = isReadingRoomSlug(slug) ? "reading-room" : slug;
 
   const roomMap: Record<string, SocialRoom> = {
     "garden-chat": {
@@ -625,7 +1457,7 @@ function buildFallbackRoomResponse(slug: string, language: SocialLanguage): Soci
           : language === "de"
             ? "Musikwissenschaftlerin · geführtes Hören"
             : "Musicóloga · escucha guiada",
-      ctaLabel: language === "en" ? "Listen with Clara" : language === "de" ? "Mit Clara hören" : "Escuchar con Clara",
+      ctaLabel: language === "en" ? "Join the circle" : language === "de" ? "Dem Kreis beitreten" : "Unirme al circulo",
       topicTags: ["music", "classical"],
       timeSlots: ["afternoon", "evening"],
       featured: true,
@@ -633,72 +1465,92 @@ function buildFallbackRoomResponse(slug: string, language: SocialLanguage): Soci
       sessionDate: today,
       topic:
         language === "en"
-          ? "A classical piece with a story"
+          ? "Songs from every life"
           : language === "de"
-            ? "Ein klassisches Stück mit Geschichte"
-            : "Una pieza clásica con historia",
+            ? "Ein Lied, das unterschiedliche Lebensgeschichten verbindet"
+            : "Una canción que une historias de vida diferentes",
       opener:
         language === "en"
-          ? "Hello, I’m Clara. Shall we discover one beautiful piece and the story behind it?"
+          ? "Hello, I'm Clara. Bring a song."
           : language === "de"
-            ? "Hallo, ich bin Clara. Entdecken wir ein schönes Stück und seine Geschichte?"
-            : "Hola, soy Clara. ¿Descubrimos una pieza bonita y la historia que guarda?",
-      quote: "",
-      activityType: "story",
-      contentTag: "",
-      contentTitle:
-        language === "en"
-          ? "Music to listen to slowly"
-          : language === "de"
-            ? "Musik zum ruhigen Hören"
-            : "Música para escuchar con calma",
-      contentBody: "",
-      options: [],
-      liveBadge: language === "en" ? "5 in the room" : language === "de" ? "5 im Raum" : "5 en la sala",
-    },
-    "book-club": {
-      slug: "book-club",
-      name: language === "en" ? "Book Club" : language === "de" ? "Der Buchclub" : "El Club del Libro",
-      category: "activity",
-      agentSlug: "isabel",
-      agentFullName: "Isabel Ferrer",
-      agentColour: "#7C2D12",
-      agentCredential:
-        language === "en"
-          ? "Philologist · Spanish literature"
-          : language === "de"
-            ? "Philologin · Spanische Literatur"
-            : "Filóloga · Literatura española",
-      ctaLabel: language === "en" ? "Read with Isabel" : language === "de" ? "Mit Isabel lesen" : "Leer con Isabel",
-      topicTags: ["books", "reading"],
-      timeSlots: ["afternoon", "evening"],
-      featured: false,
-      participantCount: 4,
-      sessionDate: today,
-      topic:
-        language === "en"
-          ? "A page that stays with you"
-          : language === "de"
-            ? "Eine Seite, die bei dir bleibt"
-            : "Una página que se queda contigo",
-      opener:
-        language === "en"
-          ? "Hello, I’m Isabel. Which line from a book has stayed with you?"
-          : language === "de"
-            ? "Hallo, ich bin Isabel. Welche Zeile aus einem Buch ist dir geblieben?"
-            : "Hola, soy Isabel. ¿Qué frase de un libro se te ha quedado dentro?",
+            ? "Hallo, ich bin Clara. Bring ein Lied aus deinem Leben mit oder entdecke eines mit Menschen aus anderen Lebenswegen."
+            : "Hola, soy Clara. Trae una canción de tu vida o descubre una con personas de otros caminos.",
       quote: "",
       activityType: "discussion",
       contentTag: "",
       contentTitle:
         language === "en"
-          ? "A gentle literary question"
+          ? "Music connects us"
           : language === "de"
-            ? "Eine sanfte literarische Frage"
-            : "Una pregunta literaria suave",
-      contentBody: "",
-      options: [],
-      liveBadge: language === "en" ? "4 in the room" : language === "de" ? "4 im Raum" : "4 en la sala",
+            ? "Musik ist unser gemeinsamer Anlass"
+            : "La música es nuestra causa común",
+      contentBody:
+        language === "en"
+          ? "Songs connect us."
+          : language === "de"
+            ? "Teile ein Lied, eine Erinnerung oder einen Rhythmus und triff ältere Menschen mit unterschiedlichen Hintergründen."
+            : "Comparte una canción, un recuerdo o un ritmo y conoce a mayores de distintos orígenes.",
+      options:
+        language === "en"
+          ? ["Share a song from my life", "Meet someone through music", "Find a joyful anthem"]
+          : language === "de"
+            ? ["Ein Lied aus meinem Leben teilen", "Jemanden über Musik kennenlernen", "Ein froehliches Lied finden"]
+            : ["Compartir una canción de mi vida", "Conocer a alguien con música", "Buscar un himno alegre"],
+      liveBadge: language === "en" ? "5 in the room" : language === "de" ? "5 im Raum" : "5 en la sala",
+    },
+    "reading-room": {
+      slug: "reading-room",
+      name: language === "en" ? "Literary Club" : language === "de" ? "Literarischer Club" : "Club literario",
+      category: "social",
+      agentSlug: "isabel-fuentes",
+      agentFullName: "Isabel Fuentes",
+      agentColour: "#7C2D12",
+      agentCredential:
+        language === "en"
+          ? "Literary host"
+          : language === "de"
+            ? "Literarische Gastgeberin"
+            : "Anfitriona literaria",
+      ctaLabel: language === "en" ? "Join the club" : language === "de" ? "Dem Club beitreten" : "Unirme al club",
+      topicTags: ["books", "literature", "poetry", "reading", "stories", "book_club", "conversation"],
+      timeSlots: ["morning", "afternoon", "evening"],
+      featured: true,
+      participantCount: 7,
+      sessionDate: today,
+      topic:
+        language === "en"
+          ? "One line, one memory and one conversation"
+          : language === "de"
+            ? "Eine Zeile, eine Erinnerung und ein Gespraech"
+            : "Una frase, un recuerdo y una conversacion",
+      opener:
+        language === "en"
+          ? "Hello, I'm Isabel. Today we share books, stories and small memories so we can know one another better."
+          : language === "de"
+            ? "Hallo, ich bin Isabel. Heute teilen wir Buecher, Geschichten und kleine Erinnerungen, um einander besser kennenzulernen."
+            : "Hola, soy Isabel. Hoy compartimos libros, historias y pequenos recuerdos para conocernos mejor.",
+      quote: "",
+      activityType: "discussion",
+      contentTag: "",
+      contentTitle:
+        language === "en"
+          ? "The club table"
+          : language === "de"
+            ? "Der Clubtisch"
+            : "La mesa del club",
+      contentBody:
+        language === "en"
+          ? "Bring a loved book, a remembered line or a short story. The conversation matters more than finishing a text."
+          : language === "de"
+            ? "Bring ein liebes Buch, eine erinnerte Zeile oder eine kurze Geschichte mit. Das Gespraech ist wichtiger als ein Textende."
+            : "Trae un libro querido, una frase recordada o una historia breve. La conversacion importa mas que terminar una lectura.",
+      options:
+        language === "en"
+          ? ["Share a book I remember", "Find someone with similar taste", "Start with a literary question"]
+          : language === "de"
+            ? ["Ein Buch teilen, an das ich mich erinnere", "Jemanden mit aehnlichem Geschmack finden", "Mit einer literarischen Frage beginnen"]
+            : ["Compartir un libro que recuerdo", "Buscar alguien con gustos parecidos", "Empezar con una pregunta literaria"],
+      liveBadge: language === "en" ? "7 in the room" : language === "de" ? "7 im Raum" : "7 en la sala",
     },
     "morning-circle": {
       slug: "morning-circle",
@@ -1054,20 +1906,20 @@ function buildFallbackRoomResponse(slug: string, language: SocialLanguage): Soci
     },
   };
 
-  const room = roomMap[slug];
+  const room = roomMap[canonicalSlug];
   if (!room) return null;
 
   return {
     room,
     transcript: [
       {
-        id: `${slug}-fallback-welcome`,
+        id: `${canonicalSlug}-fallback-welcome`,
         speaker: "agent",
         text: room.opener,
         createdAt: new Date().toISOString(),
       },
     ],
-    promptChips: getQuickQuestions(slug, language, []),
+    promptChips: getQuickQuestions(canonicalSlug, language, []),
     members: buildFallbackMembers(room, language),
     memberChat: [],
     visitState: {
@@ -1108,11 +1960,23 @@ const RoomScreen = () => {
   const [extraComments, setExtraComments] = useState<Record<string, FeedComment[]>>({});
   const [voiceAttempted, setVoiceAttempted] = useState(false);
   const [roomMode, setRoomMode] = useState<RoomMode>("welcome");
+  const [selectedTogetherPlanId, setSelectedTogetherPlanId] = useState("restaurant");
   const [chatDraft, setChatDraft] = useState("");
   const [isChatSending, setIsChatSending] = useState(false);
   const [localChatMessages, setLocalChatMessages] = useState<SocialRoomChatItem[]>([]);
   const [roomEntryVisitState, setRoomEntryVisitState] = useState<SocialRoomVisitState | null>(null);
   const [roomEntryConversationContext, setRoomEntryConversationContext] = useState<SocialConversationContext | null>(null);
+  const [readingMatchResponse, setReadingMatchResponse] = useState<SocialMatchResponse | null>(null);
+  const [isReadingMatching, setIsReadingMatching] = useState(false);
+  const [isReadingGreetingSending, setIsReadingGreetingSending] = useState(false);
+  const [readingGreetingStatus, setReadingGreetingStatus] = useState("");
+  const [selectedReadingModeId, setSelectedReadingModeId] = useState("one-to-one");
+  const [readingReflectionDraft, setReadingReflectionDraft] = useState("");
+  const [readingPassportCompletions, setReadingPassportCompletions] = useState<Record<string, boolean>>({});
+  const [readingPulse, setReadingPulse] = useState<SocialRoomPulse | null>(null);
+  const [readingClubStatus, setReadingClubStatus] = useState("");
+  const [isReadingPulseSending, setIsReadingPulseSending] = useState(false);
+  const [readingClubDesk, setReadingClubDesk] = useState<ReadingClubDeskState>(() => loadReadingClubDeskState());
   const {
     startVoice,
     stopVoice,
@@ -1150,11 +2014,90 @@ const RoomScreen = () => {
 
   const roomResponse = useMemo(() => data ?? buildFallbackRoomResponse(slug, language), [data, language, slug]);
   const room = roomResponse?.room;
+  const canonicalRoomSlug = room?.slug ?? (isReadingRoomSlug(slug) ? "reading-room" : slug);
 
   const roomMembers = useMemo(() => {
     if (!room) return [];
     return roomResponse?.members?.length ? roomResponse.members : buildFallbackMembers(room, language);
   }, [language, room, roomResponse]);
+
+  const togetherRoomActive = isTogetherRoom(room?.slug ?? slug);
+  const togetherCopy = togetherRoomActive ? getTogetherRoomCopy(language) : null;
+  const readingRoomActive = isReadingRoomSlug(room?.slug ?? slug);
+  const readingClubCopy = useMemo(() => getReadingClubCopy(language), [language]);
+  const readingClub = useMemo(
+    () => (
+      roomResponse?.readingClub ??
+      buildFallbackReadingClubDestination(language, roomMembers, room?.participantCount ?? 7)
+    ),
+    [language, room?.participantCount, roomResponse?.readingClub, roomMembers],
+  );
+  const selectedReadingMode = useMemo(
+    () => readingClub.companionModes.find((mode) => mode.id === selectedReadingModeId) ?? readingClub.companionModes[0],
+    [readingClub.companionModes, selectedReadingModeId],
+  );
+  const selectedReadingIntent = useMemo(
+    () => readingClubCopy.intentions.find((intent) => intent.id === readingClubDesk.selectedIntentId) ?? readingClubCopy.intentions[0],
+    [readingClubCopy.intentions, readingClubDesk.selectedIntentId],
+  );
+  const selectedReadingShelf = useMemo(
+    () => readingClubCopy.shelfOptions.find((shelf) => shelf.id === readingClubDesk.favoriteShelfId) ?? readingClubCopy.shelfOptions[0],
+    [readingClubCopy.shelfOptions, readingClubDesk.favoriteShelfId],
+  );
+  const selectedReadingPace = useMemo(
+    () => readingClubCopy.paceOptions.find((pace) => pace.id === readingClubDesk.preferredPaceId) ?? readingClubCopy.paceOptions[0],
+    [readingClubCopy.paceOptions, readingClubDesk.preferredPaceId],
+  );
+  const readingBridgePrompt = useMemo(
+    () => buildReadingClubBridgePrompt(readingClubDesk, language),
+    [language, readingClubDesk],
+  );
+  const readingPreferenceTags = useMemo(
+    () => getReadingClubPreferenceTags(readingClubDesk),
+    [readingClubDesk],
+  );
+  const readingClubMilestones = useMemo(
+    () => getReadingClubMilestones(readingClubDesk),
+    [readingClubDesk],
+  );
+  const readingClubNextStepId = useMemo(
+    () => getReadingClubNextStepId(readingClubDesk),
+    [readingClubDesk],
+  );
+  const readingClubNextStep = readingClubCopy.nextSteps[readingClubNextStepId];
+  const readingPassportDoneCount = useMemo(
+    () => readingClub.passportItems.filter((item) => readingPassportCompletions[item.id]).length,
+    [readingClub.passportItems, readingPassportCompletions],
+  );
+  const activeReadingPulse = useMemo(
+    () => (readingRoomActive ? readingPulse ?? roomResponse?.pulse ?? null : null),
+    [readingPulse, readingRoomActive, roomResponse?.pulse],
+  );
+  const activeReadingPosts = useMemo(
+    () => activeReadingPulse?.postedExperiences.filter((plan) => plan.status === "active").slice(0, 4) ?? [],
+    [activeReadingPulse?.postedExperiences],
+  );
+  const readingClubUpdates = useMemo(
+    () => activeReadingPulse?.notifications.slice(0, 2) ?? [],
+    [activeReadingPulse?.notifications],
+  );
+  const savedReadingProgramSessions = useMemo(() => {
+    const plannedIds = new Set(readingClubDesk.plannedProgramSessionIds);
+    return readingClubCopy.programSessions.filter((session) => plannedIds.has(session.id));
+  }, [readingClubCopy.programSessions, readingClubDesk.plannedProgramSessionIds]);
+  const joinedReadingCircles = useMemo(() => {
+    const circleIds = new Set(readingClubDesk.joinedReaderCircleIds);
+    return readingClubCopy.readerCircles.filter((circle) => circleIds.has(circle.id));
+  }, [readingClubCopy.readerCircles, readingClubDesk.joinedReaderCircleIds]);
+  const readingPollClosed = activeReadingPulse?.activePoll.status !== "active";
+  const togetherPlans = useMemo(() => getTogetherPlans(language), [language]);
+  const selectedTogetherPlan = useMemo(
+    () => togetherPlans.find((plan) => plan.id === selectedTogetherPlanId) ?? togetherPlans[0],
+    [selectedTogetherPlanId, togetherPlans],
+  );
+  const selectedTogetherMember = roomMembers.length
+    ? roomMembers[selectedTogetherPlan.memberIndex % roomMembers.length]
+    : null;
 
   const agentName = useMemo(() => {
     if (!room) return "";
@@ -1162,8 +2105,8 @@ const RoomScreen = () => {
   }, [room]);
 
   const quickQuestions = useMemo(
-    () => getQuickQuestions(slug, language, roomResponse?.promptChips ?? []),
-    [language, roomResponse?.promptChips, slug],
+    () => getQuickQuestions(canonicalRoomSlug, language, roomResponse?.promptChips ?? []),
+    [canonicalRoomSlug, language, roomResponse?.promptChips],
   );
 
   const roomChat = useMemo<SocialRoomChatItem[]>(
@@ -1173,6 +2116,111 @@ const RoomScreen = () => {
 
   const currentVisitState = roomEntryVisitState ?? roomResponse?.visitState ?? null;
   const currentConversationContext = roomEntryConversationContext ?? roomResponse?.conversationContext ?? null;
+
+  const updateReadingDesk = useCallback((updater: (current: ReadingClubDeskState) => ReadingClubDeskState) => {
+    setReadingClubDesk((current) => {
+      const next = updater(current);
+      saveReadingClubDeskState(next);
+      return next;
+    });
+  }, []);
+
+  const completeReadingPassportItem = useCallback((itemId: string, completed = true) => {
+    setReadingPassportCompletions((current) => ({ ...current, [itemId]: completed }));
+    updateReadingDesk((current) => markReadingClubPassport(current, itemId, completed));
+  }, [updateReadingDesk]);
+
+  const incrementReadingProgressMetric = useCallback((metricId: ReadingClubProgressMetricId) => {
+    updateReadingDesk((current) => incrementReadingClubProgress(current, metricId));
+  }, [updateReadingDesk]);
+
+  const saveReadingShelfItem = useCallback((
+    item: Parameters<typeof addReadingClubShelfItem>[1],
+    showStatus = true,
+  ) => {
+    updateReadingDesk((current) => addReadingClubShelfItem(current, item));
+    if (showStatus) {
+      setReadingClubStatus(readingClubCopy.savedShelfSavedLabel);
+    }
+  }, [readingClubCopy.savedShelfSavedLabel, updateReadingDesk]);
+
+  const removeReadingShelfItem = useCallback((itemId: string) => {
+    updateReadingDesk((current) => removeReadingClubShelfItem(current, itemId));
+  }, [updateReadingDesk]);
+
+  const saveReadingProgramSeat = useCallback((sessionId: string) => {
+    updateReadingDesk((current) => saveReadingClubProgramSession(current, sessionId));
+    setReadingClubStatus(readingClubCopy.programSavedStatusLabel);
+  }, [readingClubCopy.programSavedStatusLabel, updateReadingDesk]);
+
+  const removeReadingProgramSeat = useCallback((sessionId: string) => {
+    updateReadingDesk((current) => removeReadingClubProgramSession(current, sessionId));
+    setReadingClubStatus(readingClubCopy.programRemovedStatusLabel);
+  }, [readingClubCopy.programRemovedStatusLabel, updateReadingDesk]);
+
+  const joinReadingCircle = useCallback((circleId: string) => {
+    updateReadingDesk((current) => joinReadingClubCircle(current, circleId));
+    setReadingClubStatus(readingClubCopy.circleJoinedStatusLabel);
+  }, [readingClubCopy.circleJoinedStatusLabel, updateReadingDesk]);
+
+  const leaveReadingCircle = useCallback((circleId: string) => {
+    updateReadingDesk((current) => leaveReadingClubCircle(current, circleId));
+    setReadingClubStatus(readingClubCopy.circleLeftStatusLabel);
+  }, [readingClubCopy.circleLeftStatusLabel, updateReadingDesk]);
+
+  const useReadingConversationCard = useCallback((card: ReturnType<typeof getReadingClubCopy>["conversationCards"][number]) => {
+    setReadingReflectionDraft(card.prompt);
+    updateReadingDesk((current) => markReadingClubConversationCardUsed(current, card.id));
+    setReadingClubStatus(readingClubCopy.conversationReadyStatusLabel);
+  }, [readingClubCopy.conversationReadyStatusLabel, updateReadingDesk]);
+
+  const toggleReadingPassportItem = useCallback((itemId: string) => {
+    const completed = !readingPassportCompletions[itemId];
+    completeReadingPassportItem(itemId, completed);
+  }, [completeReadingPassportItem, readingPassportCompletions]);
+
+  const selectReadingMode = useCallback((modeId: string) => {
+    setSelectedReadingModeId(modeId);
+    updateReadingDesk((current) => updateReadingClubDeskState(current, { selectedModeId: modeId }));
+  }, [updateReadingDesk]);
+
+  const selectReadingShelf = useCallback((shelfId: ReadingClubShelfId) => {
+    updateReadingDesk((current) => updateReadingClubDeskState(current, { favoriteShelfId: shelfId }));
+  }, [updateReadingDesk]);
+
+  const selectReadingPace = useCallback((paceId: ReadingClubPaceId) => {
+    if (paceId === "letters") {
+      setSelectedReadingModeId("pen-note");
+    }
+    updateReadingDesk((current) => updateReadingClubDeskState(current, {
+      preferredPaceId: paceId,
+      ...(paceId === "letters" ? { selectedModeId: "pen-note" } : {}),
+    }));
+  }, [updateReadingDesk]);
+
+  const selectReadingIntent = useCallback((intentId: ReadingClubIntentId) => {
+    updateReadingDesk((current) => updateReadingClubDeskState(current, { selectedIntentId: intentId }));
+    if (intentId === "meet-reader") {
+      selectReadingMode("one-to-one");
+    }
+    if (intentId === "recommend-book") {
+      completeReadingPassportItem("recommend", true);
+    }
+  }, [completeReadingPassportItem, selectReadingMode, updateReadingDesk]);
+
+  useEffect(() => {
+    if (readingRoomActive && roomResponse?.pulse) {
+      setReadingPulse(roomResponse.pulse);
+      return;
+    }
+
+    if (!readingRoomActive) {
+      setReadingPulse(null);
+      setReadingClubStatus("");
+      setReadingMatchResponse(null);
+      setReadingGreetingStatus("");
+    }
+  }, [readingRoomActive, roomResponse?.pulse]);
 
   const visibleRoomChat = useMemo<SocialRoomChatItem[]>(
     () => [...roomChat, ...localChatMessages],
@@ -1194,8 +2242,8 @@ const RoomScreen = () => {
   }, [agentName, agentTranscript, firstName, language, profile?.firstName, room?.opener, roomResponse?.transcript]);
 
   const baseKnowledgeFeed = useMemo(
-    () => buildKnowledgeFeed(slug, language, roomMembers),
-    [language, roomMembers, slug],
+    () => buildKnowledgeFeed(canonicalRoomSlug, language, roomMembers),
+    [canonicalRoomSlug, language, roomMembers],
   );
 
   const knowledgeFeed = useMemo(() => {
@@ -1274,7 +2322,7 @@ const RoomScreen = () => {
 
   const startRoomAgentSession = useCallback(
     (skipMicrophone = true) => {
-      if (!room?.slug || !room.agentSlug) return;
+      if (!room?.slug || !room.agentSlug || room.slug === "games-room" || room.slug === "music-room") return;
       void startVoice(undefined, undefined, {
         agentSlug: room.agentSlug,
         roomSlug: room.slug,
@@ -1347,13 +2395,36 @@ const RoomScreen = () => {
   }, [quietRoomAgent]);
 
   useEffect(() => {
+    if (room?.slug === "games-room" || room?.slug === "music-room") {
+      autoStartedRoomRef.current = null;
+      quietRoomAgent();
+    }
+  }, [quietRoomAgent, room?.slug]);
+
+  useEffect(() => {
     setRoomMode("welcome");
     setChatDraft("");
     setLocalChatMessages([]);
     setIsChatSending(false);
     setRoomEntryVisitState(null);
     setRoomEntryConversationContext(null);
+    setReadingMatchResponse(null);
+    setIsReadingMatching(false);
+    setSelectedReadingModeId("one-to-one");
+    setReadingReflectionDraft("");
+    setReadingPassportCompletions({});
+    setSelectedTogetherPlanId("restaurant");
   }, [slug]);
+
+  useEffect(() => {
+    if (!readingRoomActive) return;
+
+    const nextDesk = recordReadingClubVisit(loadReadingClubDeskState());
+    saveReadingClubDeskState(nextDesk);
+    setReadingClubDesk(nextDesk);
+    setSelectedReadingModeId(nextDesk.selectedModeId);
+    setReadingPassportCompletions(Object.fromEntries(nextDesk.completedPassportIds.map((itemId) => [itemId, true])));
+  }, [readingRoomActive, slug]);
 
   useEffect(() => {
     if (!room?.slug || !room.agentSlug) return;
@@ -1369,7 +2440,7 @@ const RoomScreen = () => {
   }, [room?.agentSlug, room?.slug]);
 
   useEffect(() => {
-    if (!room?.slug || !room.agentSlug) return;
+    if (!room?.slug || !room.agentSlug || room.slug === "games-room" || room.slug === "music-room") return;
     if (roomMode === "chat") return;
     if (agentSessionStatus !== "idle" || agentIsConnecting) return;
 
@@ -1634,9 +2705,8 @@ const RoomScreen = () => {
     navigate("/social-rooms");
   };
 
-  const submitChatMessage = async () => {
-    const trimmed = chatDraft.trim();
-    if (!trimmed || isChatSending) return;
+  const postChatMessage = async (trimmed: string) => {
+    if (!trimmed || isChatSending) return false;
 
     const userName = firstName || profile?.firstName?.trim() || (language === "en" ? "You" : language === "de" ? "Du" : "Tú");
     const now = new Date().toISOString();
@@ -1651,7 +2721,6 @@ const RoomScreen = () => {
         connectable: false,
       },
     ]);
-    setChatDraft("");
     setIsChatSending(true);
     setAgentPresence("thinking");
 
@@ -1699,6 +2768,211 @@ const RoomScreen = () => {
     } finally {
       setIsChatSending(false);
     }
+
+    return true;
+  };
+
+  const postReadingPulseJson = async (url: string, body: Record<string, unknown>) => {
+    const response = await apiFetch(url, {
+      method: "POST",
+      body: JSON.stringify({ lang: language, visitId: visitId ?? undefined, ...body }),
+    });
+    if (!response.ok) return null;
+    return response.json() as Promise<{ pulse?: SocialRoomPulse }>;
+  };
+
+  const respondToReadingPlan = async (
+    planKey: string,
+    response: SocialRoomPlanResponseValue,
+  ) => {
+    if (!activeReadingPulse || isReadingPulseSending) return;
+
+    const previous = activeReadingPulse;
+    setReadingPulse(updateReadingPlanResponse(previous, planKey, response));
+    setReadingClubStatus(response === "join" ? readingClubCopy.joinedLabel : readingClubCopy.maybeSavedLabel);
+    setIsReadingPulseSending(true);
+
+    try {
+      const result = await postReadingPulseJson(`/api/social/rooms/${slug}/plans/${planKey}/respond`, { response });
+      if (result?.pulse) {
+        setReadingPulse(result.pulse);
+        if (response === "join") {
+          incrementReadingProgressMetric("tablesJoined");
+        }
+      } else {
+        setReadingPulse(previous);
+        setReadingClubStatus(readingClubCopy.postFailedLabel);
+      }
+    } catch {
+      setReadingPulse(previous);
+      setReadingClubStatus(readingClubCopy.postFailedLabel);
+    } finally {
+      setIsReadingPulseSending(false);
+    }
+  };
+
+  const voteReadingShelf = async (optionId: string) => {
+    if (!activeReadingPulse || readingPollClosed || isReadingPulseSending) return;
+
+    const previous = activeReadingPulse;
+    setReadingPulse(updateReadingShelfVote(previous, optionId));
+    setReadingClubStatus(readingClubCopy.votedLabel);
+    setIsReadingPulseSending(true);
+
+    try {
+      const result = await postReadingPulseJson(`/api/social/rooms/${slug}/polls/${activeReadingPulse.activePoll.key}/vote`, { optionId });
+      if (result?.pulse) {
+        setReadingPulse(result.pulse);
+        incrementReadingProgressMetric("shelfVotes");
+      } else {
+        setReadingPulse(previous);
+        setReadingClubStatus(readingClubCopy.postFailedLabel);
+      }
+    } catch {
+      setReadingPulse(previous);
+      setReadingClubStatus(readingClubCopy.postFailedLabel);
+    } finally {
+      setIsReadingPulseSending(false);
+    }
+  };
+
+  const sendReadingClubHelp = async () => {
+    if (!readingRoomActive || isReadingPulseSending) return;
+
+    setIsReadingPulseSending(true);
+    try {
+      const result = await postReadingPulseJson(`/api/social/rooms/${slug}/safety-reports`, {
+        reason: "club_help",
+        details: activeReadingPulse?.safety.body ?? readingClub.hostNote,
+        targetType: "room",
+      });
+      if (result?.pulse) {
+        setReadingPulse(result.pulse);
+        setReadingClubStatus(readingClubCopy.helpSentLabel);
+      } else {
+        setReadingClubStatus(readingClubCopy.postFailedLabel);
+      }
+    } catch {
+      setReadingClubStatus(readingClubCopy.postFailedLabel);
+    } finally {
+      setIsReadingPulseSending(false);
+    }
+  };
+
+  const submitChatMessage = async () => {
+    const trimmed = chatDraft.trim();
+    if (!trimmed || isChatSending) return;
+
+    setChatDraft("");
+    await postChatMessage(trimmed);
+  };
+
+  const submitReadingReflection = async () => {
+    const trimmed = readingReflectionDraft.trim();
+    if (!trimmed || isChatSending) return;
+
+    setReadingReflectionDraft("");
+    completeReadingPassportItem("share", true);
+    if (readingClubDesk.selectedIntentId === "recommend-book") {
+      completeReadingPassportItem("recommend", true);
+      incrementReadingProgressMetric("recommendationsMade");
+    }
+    updateReadingDesk((current) => (
+      addReadingClubShelfItem(
+        incrementReadingClubProgress(
+          updateReadingClubDeskState(current, { lastReflection: trimmed }),
+          "reflectionsShared",
+        ),
+        {
+          kind: readingClubDesk.selectedIntentId === "recommend-book" ? "recommendation" : "reflection",
+          title: summarizeReadingPostTitle(trimmed),
+          body: trimmed,
+        },
+      )
+    ));
+    setReadingClubStatus(readingClubCopy.savedShelfSavedLabel);
+    setRoomMode("chat");
+
+    try {
+      const result = await postReadingPulseJson(`/api/social/rooms/${slug}/proposals`, {
+        title: summarizeReadingPostTitle(trimmed),
+        details: trimmed,
+        locationLabel: "online",
+        kind: "message",
+      });
+      if (result?.pulse) {
+        setReadingPulse(result.pulse);
+      }
+    } catch {
+      setReadingClubStatus(readingClubCopy.postFailedLabel);
+    }
+
+    await postChatMessage(trimmed);
+  };
+
+  const findReadingCompanion = async () => {
+    if (!readingRoomActive || isReadingMatching) return;
+
+    setIsReadingMatching(true);
+    setReadingMatchResponse(null);
+    setReadingGreetingStatus("");
+
+    try {
+      const response = await apiFetch(`/api/social/rooms/${slug}/match`, {
+        method: "POST",
+        body: JSON.stringify({
+          lang: language,
+          readingMode: selectedReadingMode?.id,
+          readingIntent: readingClubDesk.selectedIntentId,
+          favoriteShelf: readingClubDesk.favoriteShelfId,
+          preferredPace: readingClubDesk.preferredPaceId,
+          readingPreferenceTags,
+          bridgePrompt: readingBridgePrompt || selectedReadingMode?.bridgePrompt || getReadingBridgePrompt(language),
+        }),
+      });
+      if (!response.ok) throw new Error(`reading match ${response.status}`);
+
+      const result = (await response.json()) as SocialMatchResponse;
+      setReadingMatchResponse(result);
+    } catch {
+      setReadingMatchResponse({
+        noMatch: true,
+        agentMessage: getReadingMatchError(language),
+      });
+    } finally {
+      setIsReadingMatching(false);
+    }
+  };
+
+  const sendMatchedReadingGreeting = async () => {
+    const matchedUser = readingMatchResponse?.matchedUser;
+    if (!readingRoomActive || !matchedUser || isReadingGreetingSending) return;
+
+    setIsReadingGreetingSending(true);
+    setReadingGreetingStatus("");
+
+    try {
+      const response = await apiFetch(`/api/social/rooms/${slug}/connect`, {
+        method: "POST",
+        body: JSON.stringify({
+          memberId: matchedUser.userId,
+          lang: language,
+          bridgePrompt: readingBridgePrompt || selectedReadingMode?.bridgePrompt || getReadingBridgePrompt(language),
+        }),
+      });
+      if (!response.ok) throw new Error(`reading greeting ${response.status}`);
+
+      const result = (await response.json()) as { reply?: string };
+      setPendingConnections((current) => ({ ...current, [matchedUser.userId]: true }));
+      completeReadingPassportItem("greet", true);
+      incrementReadingProgressMetric("greetingsSent");
+      setReadingGreetingStatus(result.reply || readingClubCopy.greetingSentLabel);
+      setReadingClubStatus(readingClubCopy.greetingSentLabel);
+    } catch {
+      setReadingGreetingStatus(readingClubCopy.greetingFailedLabel);
+    } finally {
+      setIsReadingGreetingSending(false);
+    }
   };
 
   const addComment = (itemId: string) => {
@@ -1725,11 +2999,21 @@ const RoomScreen = () => {
 
     const response = await apiFetch(`/api/social/rooms/${slug}/connect`, {
       method: "POST",
-      body: JSON.stringify({ memberId: member.id, lang: language }),
+      body: JSON.stringify({
+        memberId: member.id,
+        lang: language,
+        ...(readingRoomActive
+          ? { bridgePrompt: readingBridgePrompt || selectedReadingMode?.bridgePrompt || getReadingBridgePrompt(language) }
+          : {}),
+      }),
     });
     if (!response.ok) return;
 
     setPendingConnections((current) => ({ ...current, [member.id]: true }));
+    if (readingRoomActive) {
+      completeReadingPassportItem("greet", true);
+      incrementReadingProgressMetric("greetingsSent");
+    }
   };
 
   if (isLoading) {
@@ -1754,11 +3038,33 @@ const RoomScreen = () => {
     );
   }
 
+  if (room.slug === "together-room") {
+    return (
+      <TogetherRoomScreen
+        roomResponse={roomResponse}
+        language={language}
+        visitId={visitId}
+        onBack={handleBackToRooms}
+      />
+    );
+  }
+
   if (room.slug === "games-room") {
     return (
       <GamesRoomScreen
         roomResponse={roomResponse}
         language={gameLanguage}
+        visitId={visitId}
+        onBack={handleBackToRooms}
+      />
+    );
+  }
+
+  if (room.slug === "music-room" || room.slug === "music-salon") {
+    return (
+      <MusicRoomScreen
+        roomResponse={roomResponse}
+        language={language}
         visitId={visitId}
         onBack={handleBackToRooms}
       />
@@ -1845,6 +3151,1022 @@ const RoomScreen = () => {
       </header>
 
       <main className="mt-5 space-y-4">
+        {togetherRoomActive && togetherCopy && (
+          <section className="rounded-[34px] border border-[#D9C7F8] bg-[linear-gradient(135deg,#FFFDFC_0%,#F7F2FF_46%,#ECFDF5_100%)] p-5 shadow-[0_16px_34px_rgba(91,33,182,0.08)]">
+            <div className="flex items-start gap-3">
+              <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[18px] bg-[#6D28D9] text-white shadow-[0_12px_26px_rgba(109,40,217,0.18)]">
+                <TogetherSafetyIcon size={25} strokeWidth={2.4} aria-hidden="true" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-display text-[31px] leading-[1.08] text-[#45325B]">{togetherCopy.previewTitle}</p>
+                <p className="mt-2 font-body text-[18px] leading-[1.35] text-[#6E627D]">{togetherCopy.previewSubtitle}</p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {togetherPlans.map((plan) => {
+                const Icon = plan.icon;
+                const active = plan.id === selectedTogetherPlan.id;
+                return (
+                  <button
+                    key={plan.id}
+                    type="button"
+                    onClick={() => setSelectedTogetherPlanId(plan.id)}
+                    aria-pressed={active}
+                    className={`min-h-[108px] rounded-[22px] border px-3 py-3 text-left transition-transform active:scale-[0.98] ${
+                      active
+                        ? "border-[#6D28D9] bg-white text-[#24172F] shadow-[0_12px_24px_rgba(109,40,217,0.12)]"
+                        : "border-[#E8DDCF] bg-white/78 text-[#5D4777]"
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <Icon
+                        size={21}
+                        strokeWidth={2.4}
+                        className={`mt-0.5 shrink-0 ${active ? "text-[#6D28D9]" : "text-[#0F766E]"}`}
+                        aria-hidden="true"
+                      />
+                      <span className="min-w-0 break-words font-body text-[15px] font-bold leading-[1.18] sm:text-[16px]">
+                        {plan.label}
+                      </span>
+                    </div>
+                    <p className="mt-2 font-body text-[14px] leading-[1.25] text-[#7A677F]">{plan.detail}</p>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-5 border-t border-[#E4D8F7] pt-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-white px-3 py-1.5 font-body text-[14px] font-bold uppercase tracking-[0.08em] text-[#6D28D9]">
+                  {togetherCopy.selectedPlanLabel}
+                </span>
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 font-body text-[14px] font-bold ${
+                    selectedTogetherPlan.proximityMatters
+                      ? "bg-[#ECFDF5] text-[#0F766E]"
+                      : "bg-[#F7F2FF] text-[#6D28D9]"
+                  }`}
+                >
+                  <TogetherProximityIcon size={15} strokeWidth={2.4} aria-hidden="true" />
+                  {selectedTogetherPlan.proximity}
+                </span>
+              </div>
+              <p className="mt-3 font-body text-[20px] leading-[1.34] text-[#45325B]">{selectedTogetherPlan.matchLine}</p>
+
+              <button
+                type="button"
+                disabled={!selectedTogetherMember}
+                onClick={() => selectedTogetherMember && setSelectedMember(selectedTogetherMember)}
+                className="mt-4 min-h-[58px] w-full rounded-[20px] bg-[#6D28D9] px-5 font-body text-[20px] font-semibold text-white shadow-[0_14px_28px_rgba(109,40,217,0.18)] disabled:opacity-50"
+              >
+                {selectedTogetherMember ? togetherCopy.sayHello(selectedTogetherMember.name) : copy.viewMembers}
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+              {togetherCopy.rules.map((rule, index) => (
+                <div key={rule} className="flex items-center gap-2 rounded-[18px] bg-white/82 px-3 py-3 font-body text-[15px] font-semibold leading-[1.28] text-[#5D4777]">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#F2EBFF] text-[14px] font-bold text-[#6D28D9]">
+                    {index + 1}
+                  </span>
+                  <span>{rule}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {readingRoomActive && (
+          <section
+            className="overflow-hidden rounded-[34px] border border-[#E8DDCF] bg-[#FFFDFC] shadow-[0_18px_42px_rgba(124,45,18,0.1)]"
+            data-testid="reading-club-panel"
+          >
+            <div className="bg-[linear-gradient(135deg,#FFF8ED_0%,#FFFDFC_48%,#EEFDF8_100%)] px-5 py-5">
+              <div className="flex items-start gap-3">
+                <div className="flex h-[56px] w-[56px] shrink-0 items-center justify-center rounded-[18px] bg-[#7C2D12] text-white shadow-[0_12px_26px_rgba(124,45,18,0.16)]">
+                  <BookOpen size={26} strokeWidth={2.4} aria-hidden="true" />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-display text-[34px] leading-[1.04] text-[#3F2447]">{readingClub.title}</p>
+                  <p className="mt-2 max-w-[720px] font-body text-[18px] leading-[1.35] text-[#5F5370]">{readingClub.subtitle}</p>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-2 sm:grid-cols-3">
+                {readingClub.metrics.map((metric) => (
+                  <div key={metric.id} className="min-h-[92px] rounded-[22px] border border-[#E8DDCF] bg-white/88 px-4 py-3">
+                    <p className="font-body text-[15px] font-bold uppercase tracking-[0.08em] text-[#7C2D12]">{metric.label}</p>
+                    <div className="mt-1 flex items-end gap-2">
+                      <p className="font-display text-[34px] leading-none text-[#3F2447]">{metric.value}</p>
+                      <p className="pb-1 font-body text-[15px] leading-[1.2] text-[#6E627D]">{metric.detail}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-5 grid gap-3 rounded-[26px] border border-[#E8DDCF] bg-white/88 px-4 py-4 lg:grid-cols-[0.92fr_1.08fr]" data-testid="reading-club-desk">
+                <div className="min-w-0">
+                  <p className="font-display text-[27px] leading-[1.06] text-[#3F2447]">{readingClubCopy.deskTitle}</p>
+                  <p className="mt-2 font-body text-[16px] leading-[1.32] text-[#6E627D]">{readingClubCopy.deskBody}</p>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="rounded-[18px] bg-[#F0FDF8] px-3 py-3">
+                      <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#0F766E]">{readingClubCopy.visitsLabel}</p>
+                      <p className="mt-1 font-display text-[28px] leading-none text-[#244D47]">{readingClubDesk.visitCount}</p>
+                    </div>
+                    <div className="rounded-[18px] bg-[#FCF9FF] px-3 py-3">
+                      <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#6B3CC7]">{readingClubCopy.streakLabel}</p>
+                      <p className="mt-1 font-display text-[28px] leading-none text-[#45325B]">{readingClubDesk.streakDays}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 rounded-[18px] bg-[#FFFCF7] px-3 py-3">
+                    <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#7C2D12]">{readingClubCopy.preferredModeLabel}</p>
+                    <p className="mt-1 font-body text-[17px] font-bold leading-[1.22] text-[#3F2447]">{selectedReadingMode?.title ?? selectedReadingIntent?.label}</p>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="rounded-[18px] bg-[#F7FFFB] px-3 py-3">
+                      <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#0F766E]">{readingClubCopy.favoriteShelfLabel}</p>
+                      <p className="mt-1 font-body text-[16px] font-bold leading-[1.22] text-[#244D47]">{selectedReadingShelf?.label}</p>
+                    </div>
+                    <div className="rounded-[18px] bg-[#FFF7ED] px-3 py-3">
+                      <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#7C2D12]">{readingClubCopy.preferredPaceLabel}</p>
+                      <p className="mt-1 font-body text-[16px] font-bold leading-[1.22] text-[#3F2447]">{selectedReadingPace?.label}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 rounded-[18px] bg-[#F8F3FF] px-3 py-3">
+                    <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#6B3CC7]">{readingClubCopy.lastReflectionLabel}</p>
+                    <p className="mt-1 font-body text-[15px] leading-[1.3] text-[#5B4A68]">
+                      {readingClubDesk.lastReflection || readingClubCopy.noLastReflectionLabel}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="font-body text-[14px] font-bold uppercase tracking-[0.08em] text-[#7C2D12]">{readingClubCopy.intentionLabel}</p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {readingClubCopy.intentions.map((intent) => {
+                      const active = intent.id === readingClubDesk.selectedIntentId;
+                      return (
+                        <button
+                          key={intent.id}
+                          type="button"
+                          onClick={() => selectReadingIntent(intent.id)}
+                          aria-pressed={active}
+                          className={`min-h-[94px] rounded-[20px] border px-3 py-3 text-left ${
+                            active ? "border-[#7C2D12] bg-[#FBF7F0]" : "border-[#E8DDCF] bg-white"
+                          }`}
+                        >
+                          <span className="block font-body text-[17px] font-bold leading-[1.18] text-[#3F2447]">{intent.label}</span>
+                          <span className="mt-1 block font-body text-[14px] leading-[1.28] text-[#6E627D]">{intent.body}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 border-t border-[#F0E4D4] px-5 py-5 lg:grid-cols-[1.05fr_0.95fr]">
+              <div>
+                <div className="flex items-center gap-2">
+                  <CalendarDays size={22} strokeWidth={2.4} className="text-[#0F766E]" aria-hidden="true" />
+                  <p className="font-display text-[28px] leading-[1.08] text-[#45325B]">{readingClub.agendaTitle}</p>
+                </div>
+                <div className="mt-3 space-y-3">
+                  {readingClub.agenda.map((item) => (
+                    <div key={item.id} className="grid gap-3 rounded-[22px] border border-[#E8DDCF] bg-[#FFFCF7] px-4 py-4 sm:grid-cols-[112px_1fr]">
+                      <div>
+                        <span className="inline-flex min-h-[34px] items-center gap-1.5 rounded-full bg-[#ECFDF5] px-3 font-body text-[14px] font-bold text-[#0F766E]">
+                          <Clock size={15} strokeWidth={2.4} aria-hidden="true" />
+                          {item.timeLabel}
+                        </span>
+                        <p className="mt-2 font-body text-[14px] font-bold text-[#7C2D12]">{item.statusLabel}</p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-body text-[20px] font-bold leading-[1.2] text-[#3F2447]">{item.title}</p>
+                        <p className="mt-1 font-body text-[17px] leading-[1.34] text-[#6E627D]">{item.body}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 rounded-[24px] border border-[#D9C7F8] bg-[#FCF9FF] px-4 py-4" data-testid="reading-club-program">
+                  <div className="flex items-center gap-2">
+                    <CalendarPlus size={22} strokeWidth={2.4} className="text-[#6B3CC7]" aria-hidden="true" />
+                    <p className="font-display text-[27px] leading-[1.06] text-[#45325B]">{readingClubCopy.programTitle}</p>
+                  </div>
+                  <p className="mt-2 font-body text-[16px] leading-[1.32] text-[#6E627D]">{readingClubCopy.programBody}</p>
+
+                  <div className="mt-4 grid gap-3">
+                    {readingClubCopy.programSessions.map((session) => {
+                      const saved = readingClubDesk.plannedProgramSessionIds.includes(session.id);
+                      return (
+                        <div key={session.id} className="rounded-[20px] border border-[#E5D9F0] bg-white px-4 py-4">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="rounded-full bg-[#F0FDF8] px-3 py-1 font-body text-[13px] font-bold text-[#0F766E]">{session.dayLabel}</span>
+                                <span className="rounded-full bg-[#FBF7F0] px-3 py-1 font-body text-[13px] font-bold text-[#7C2D12]">{session.timeLabel}</span>
+                              </div>
+                              <p className="mt-2 font-body text-[20px] font-bold leading-[1.18] text-[#45325B]">{session.title}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (saved) {
+                                  removeReadingProgramSeat(session.id);
+                                  return;
+                                }
+                                saveReadingProgramSeat(session.id);
+                              }}
+                              aria-pressed={saved}
+                              className={`inline-flex min-h-[42px] items-center gap-2 rounded-full px-4 font-body text-[15px] font-bold ${
+                                saved
+                                  ? "bg-[#6B3CC7] text-white"
+                                  : "border border-[#D9C7F8] bg-[#FCF9FF] text-[#6B3CC7]"
+                              }`}
+                            >
+                              {saved ? <Check size={17} strokeWidth={2.4} aria-hidden="true" /> : <CalendarPlus size={17} strokeWidth={2.4} aria-hidden="true" />}
+                              {saved ? readingClubCopy.programSavedLabel : readingClubCopy.programSaveLabel}
+                            </button>
+                          </div>
+                          <p className="mt-2 font-body text-[16px] leading-[1.32] text-[#6E627D]">{session.body}</p>
+                          <p className="mt-2 font-body text-[14px] font-bold text-[#7C2D12]">{session.hostLine}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-4 rounded-[20px] border border-[#E5D9F0] bg-[#FFFDFC] px-4 py-4" data-testid="reading-club-my-program">
+                    <p className="font-body text-[17px] font-bold text-[#45325B]">{readingClubCopy.programMyWeekTitle}</p>
+                    {savedReadingProgramSessions.length > 0 ? (
+                      <div className="mt-3 grid gap-2">
+                        {savedReadingProgramSessions.map((session) => (
+                          <div key={session.id} className="flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-[#D9C7F8] bg-white px-3 py-3">
+                            <div>
+                              <p className="font-body text-[16px] font-bold leading-[1.18] text-[#45325B]">{session.title}</p>
+                              <p className="mt-1 font-body text-[14px] leading-[1.24] text-[#6E627D]">{session.dayLabel} / {session.timeLabel}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeReadingProgramSeat(session.id)}
+                              aria-label={readingClubCopy.programRemoveLabel}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#E5D9F0] bg-[#FCF9FF] text-[#6B3CC7]"
+                            >
+                              <Trash2 size={16} strokeWidth={2.4} aria-hidden="true" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-3 rounded-[18px] border border-dashed border-[#D9C7F8] bg-white px-3 py-3 font-body text-[15px] font-bold text-[#6B3CC7]">
+                        {readingClubCopy.programEmptyLabel}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                {activeReadingPulse && (
+                  <div className="mt-4 rounded-[24px] border border-[#D7F2E8] bg-[#F7FFFB] px-4 py-4" data-testid="reading-club-live-tables">
+                    <p className="font-body text-[14px] font-bold uppercase tracking-[0.08em] text-[#0F766E]">{readingClubCopy.liveTablesLabel}</p>
+                    <p className="mt-2 font-body text-[22px] font-bold leading-[1.18] text-[#244D47]">{activeReadingPulse.featuredPlan.title}</p>
+                    <p className="mt-1 font-body text-[17px] leading-[1.34] text-[#41655F]">{activeReadingPulse.featuredPlan.body}</p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void respondToReadingPlan(activeReadingPulse.featuredPlan.key, "join")}
+                        disabled={isReadingPulseSending}
+                        aria-pressed={activeReadingPulse.featuredPlan.myResponse === "join"}
+                        className={`min-h-[46px] rounded-full px-4 font-body text-[16px] font-bold ${
+                          activeReadingPulse.featuredPlan.myResponse === "join"
+                            ? "bg-[#0F766E] text-white"
+                            : "border border-[#BDE8D7] bg-white text-[#0F766E]"
+                        } disabled:opacity-60`}
+                      >
+                        {readingClubCopy.joinLabel} ({activeReadingPulse.featuredPlan.responseCounts.join})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void respondToReadingPlan(activeReadingPulse.featuredPlan.key, "maybe")}
+                        disabled={isReadingPulseSending}
+                        aria-pressed={activeReadingPulse.featuredPlan.myResponse === "maybe"}
+                        className={`min-h-[46px] rounded-full px-4 font-body text-[16px] font-bold ${
+                          activeReadingPulse.featuredPlan.myResponse === "maybe"
+                            ? "bg-[#7C2D12] text-white"
+                            : "border border-[#E8DDCF] bg-white text-[#7C2D12]"
+                        } disabled:opacity-60`}
+                      >
+                        {readingClubCopy.maybeLabel} ({activeReadingPulse.featuredPlan.responseCounts.maybe})
+                      </button>
+                    </div>
+                    {activeReadingPulse.secondaryPlans.length > 0 && (
+                      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                        {activeReadingPulse.secondaryPlans.slice(0, 2).map((plan) => (
+                          <button
+                            key={plan.key}
+                            type="button"
+                            onClick={() => void respondToReadingPlan(plan.key, "join")}
+                            disabled={isReadingPulseSending}
+                            className="min-h-[86px] rounded-[20px] border border-[#D7F2E8] bg-white px-3 py-3 text-left font-body"
+                          >
+                            <span className="block text-[17px] font-bold leading-[1.2] text-[#244D47]">{plan.title}</span>
+                            <span className="mt-1 block text-[14px] leading-[1.28] text-[#41655F]">
+                              {readingClubCopy.joinLabel}: {plan.responseCounts.join} / {readingClubCopy.maybeLabel}: {plan.responseCounts.maybe}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <div className="rounded-[24px] border border-[#D7F2E8] bg-[#F0FDF8] px-4 py-4">
+                  <div className="flex items-center gap-2">
+                    <Sparkles size={21} strokeWidth={2.4} className="text-[#0F766E]" aria-hidden="true" />
+                    <p className="font-body text-[18px] font-bold text-[#0F766E]">{readingClub.todayQuestion}</p>
+                  </div>
+                  <p className="mt-3 font-body text-[18px] leading-[1.34] text-[#4D5D5A]">{readingClub.hostNote}</p>
+                </div>
+
+                <div className="rounded-[24px] border border-[#E8DDCF] bg-[#FBF7F0] px-4 py-4">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck size={21} strokeWidth={2.4} className="text-[#7C2D12]" aria-hidden="true" />
+                    <p className="font-body text-[18px] font-bold text-[#7C2D12]">{readingClub.guidelinesTitle}</p>
+                  </div>
+                  <div className="mt-3 grid gap-2">
+                    {readingClub.guidelines.map((guideline) => (
+                      <div key={guideline} className="flex gap-2 font-body text-[16px] leading-[1.32] text-[#5B4A68]">
+                        <Check size={18} strokeWidth={2.4} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+                        <span>{guideline}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void sendReadingClubHelp()}
+                    disabled={isReadingPulseSending}
+                    className="mt-4 inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[18px] border border-[#E8DDCF] bg-white px-4 font-body text-[16px] font-bold text-[#7C2D12] disabled:opacity-60"
+                  >
+                    <ShieldCheck size={18} strokeWidth={2.4} aria-hidden="true" />
+                    {readingClubCopy.clubHelpLabel}
+                  </button>
+                </div>
+
+                {activeReadingPulse && (
+                  <div className="rounded-[24px] border border-[#D9C7F8] bg-[#FCF9FF] px-4 py-4" data-testid="reading-club-shelf-vote">
+                    <p className="font-body text-[14px] font-bold uppercase tracking-[0.08em] text-[#6B3CC7]">{readingClubCopy.shelfPollLabel}</p>
+                    <p className="mt-2 font-body text-[21px] font-bold leading-[1.18] text-[#45325B]">{activeReadingPulse.activePoll.question}</p>
+                    <div className="mt-3 grid gap-2">
+                      {activeReadingPulse.activePoll.options.map((option) => {
+                        const selected = activeReadingPulse.activePoll.myVote === option.id;
+                        const percent = activeReadingPulse.activePoll.totalVotes > 0
+                          ? Math.round((option.votes / activeReadingPulse.activePoll.totalVotes) * 100)
+                          : 0;
+                        return (
+                          <button
+                            key={option.id}
+                            type="button"
+                            onClick={() => void voteReadingShelf(option.id)}
+                            disabled={readingPollClosed || isReadingPulseSending}
+                            aria-pressed={selected}
+                            className={`min-h-[54px] rounded-[18px] border px-3 py-2 text-left ${
+                              selected ? "border-[#6B3CC7] bg-white" : "border-[#E5D9F0] bg-[#FFFDFC]"
+                            } disabled:opacity-60`}
+                          >
+                            <span className="flex items-center justify-between gap-3 font-body text-[16px] font-bold text-[#45325B]">
+                              <span>{option.label}</span>
+                              <span>{percent}%</span>
+                            </span>
+                            <span className="mt-2 block h-2 overflow-hidden rounded-full bg-[#EDE4FB]">
+                              <span className="block h-full rounded-full bg-[#6B3CC7]" style={{ width: `${percent}%` }} />
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t border-[#F0E4D4] px-5 py-5">
+              <div className="flex items-center gap-2">
+                <Library size={22} strokeWidth={2.4} className="text-[#7C2D12]" aria-hidden="true" />
+                <p className="font-display text-[28px] leading-[1.08] text-[#45325B]">{readingClub.shelvesTitle}</p>
+              </div>
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                {readingClub.shelves.map((shelf) => (
+                  <div key={shelf.id} className="rounded-[24px] border border-[#E8DDCF] bg-[#FFFDFC] px-4 py-4">
+                    <p className="font-body text-[21px] font-bold text-[#3F2447]">{shelf.title}</p>
+                    <p className="mt-1 font-body text-[16px] leading-[1.32] text-[#6E627D]">{shelf.body}</p>
+                    <div className="mt-3 grid gap-3">
+                      {shelf.items.map((item) => (
+                        <div key={item.id} className="rounded-[20px] bg-[#FBF7F0] px-4 py-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full bg-white px-3 py-1 font-body text-[13px] font-bold text-[#7C2D12]">{item.tag}</span>
+                            <span className="font-body text-[14px] font-semibold text-[#7A677F]">{item.authorLabel}</span>
+                          </div>
+                          <p className="mt-2 font-body text-[19px] font-bold leading-[1.22] text-[#45325B]">{item.title}</p>
+                          <p className="mt-1 font-body text-[16px] leading-[1.32] text-[#6E627D]">{item.body}</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReadingReflectionDraft(item.discussionStarter);
+                              completeReadingPassportItem("recommend", true);
+                              incrementReadingProgressMetric("recommendationsMade");
+                              saveReadingShelfItem({
+                                kind: "prompt",
+                                title: item.title,
+                                body: item.discussionStarter,
+                              });
+                            }}
+                            className="mt-3 inline-flex min-h-[42px] items-center gap-2 rounded-full border border-[#E8DDCF] bg-white px-4 font-body text-[15px] font-bold text-[#7C2D12]"
+                          >
+                            <BookMarked size={17} strokeWidth={2.4} aria-hidden="true" />
+                            {item.discussionStarter}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 rounded-[24px] border border-[#D7F2E8] bg-[#F7FFFB] px-4 py-4" data-testid="reading-saved-shelf">
+                <div className="flex items-center gap-2">
+                  <BookmarkCheck size={22} strokeWidth={2.4} className="text-[#0F766E]" aria-hidden="true" />
+                  <p className="font-display text-[27px] leading-[1.06] text-[#244D47]">{readingClubCopy.savedShelfTitle}</p>
+                </div>
+                <p className="mt-2 font-body text-[16px] leading-[1.32] text-[#41655F]">{readingClubCopy.savedShelfBody}</p>
+
+                {readingClubDesk.savedShelfItems.length > 0 ? (
+                  <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                    {readingClubDesk.savedShelfItems.slice(0, 4).map((item) => (
+                      <div key={item.id} className="rounded-[20px] border border-[#BDE8D7] bg-white px-4 py-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="rounded-full bg-[#ECFDF5] px-3 py-1 font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#0F766E]">
+                            {getSavedShelfKindLabel(item.kind, readingClubCopy)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removeReadingShelfItem(item.id)}
+                            aria-label={readingClubCopy.savedShelfRemoveLabel}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#D7F2E8] bg-[#F7FFFB] text-[#0F766E]"
+                          >
+                            <Trash2 size={16} strokeWidth={2.4} aria-hidden="true" />
+                          </button>
+                        </div>
+                        <p className="mt-2 font-body text-[18px] font-bold leading-[1.18] text-[#244D47]">{item.title}</p>
+                        {item.body && <p className="mt-2 font-body text-[15px] leading-[1.32] text-[#41655F]">{item.body}</p>}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-[20px] border border-dashed border-[#BDE8D7] bg-white px-4 py-5 font-body text-[16px] font-bold text-[#0F766E]">
+                    {readingClubCopy.savedShelfEmptyLabel}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {activeReadingPulse && (
+              <div className="border-t border-[#F0E4D4] px-5 py-5" data-testid="reading-club-shared-table">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <MessageCircle size={22} strokeWidth={2.4} className="text-[#6B3CC7]" aria-hidden="true" />
+                    <p className="font-display text-[28px] leading-[1.08] text-[#45325B]">{readingClubCopy.sharedTableLabel}</p>
+                  </div>
+                  {readingClubStatus && (
+                    <p className="rounded-full bg-[#ECFDF5] px-3 py-1.5 font-body text-[14px] font-bold text-[#0F766E]">
+                      {readingClubStatus}
+                    </p>
+                  )}
+                </div>
+
+                {readingClubUpdates.length > 0 && (
+                  <div className="mt-3 rounded-[22px] border border-[#D7F2E8] bg-[#F7FFFB] px-4 py-3">
+                    <p className="font-body text-[14px] font-bold uppercase tracking-[0.08em] text-[#0F766E]">{readingClubCopy.updatesLabel}</p>
+                    <div className="mt-2 grid gap-2">
+                      {readingClubUpdates.map((update) => (
+                        <p key={update.id} className="font-body text-[16px] leading-[1.3] text-[#41655F]">
+                          <span className="font-bold">{update.title}</span> {update.body}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                  {activeReadingPosts.length > 0 ? activeReadingPosts.map((post) => (
+                    <div key={post.key} className="rounded-[24px] border border-[#E8DDCF] bg-[#FFFCF7] px-4 py-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-white px-3 py-1 font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#7C2D12]">
+                          {post.kind ?? "message"}
+                        </span>
+                        <span className="font-body text-[13px] font-bold text-[#6E627D]">{post.locationLabel}</span>
+                      </div>
+                      <p className="mt-2 font-body text-[20px] font-bold leading-[1.18] text-[#3F2447]">{post.title}</p>
+                      {post.body && <p className="mt-2 font-body text-[16px] leading-[1.34] text-[#6E627D]">{post.body}</p>}
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void respondToReadingPlan(post.key, "join")}
+                          disabled={isReadingPulseSending}
+                          aria-pressed={post.myResponse === "join"}
+                          className={`min-h-[42px] rounded-full px-3 font-body text-[14px] font-bold ${
+                            post.myResponse === "join"
+                              ? "bg-[#0F766E] text-white"
+                              : "border border-[#BDE8D7] bg-white text-[#0F766E]"
+                          } disabled:opacity-60`}
+                        >
+                          {readingClubCopy.joinLabel} ({post.responseCounts.join})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void respondToReadingPlan(post.key, "maybe")}
+                          disabled={isReadingPulseSending}
+                          aria-pressed={post.myResponse === "maybe"}
+                          className={`min-h-[42px] rounded-full px-3 font-body text-[14px] font-bold ${
+                            post.myResponse === "maybe"
+                              ? "bg-[#7C2D12] text-white"
+                              : "border border-[#E8DDCF] bg-white text-[#7C2D12]"
+                          } disabled:opacity-60`}
+                        >
+                          {readingClubCopy.maybeLabel} ({post.responseCounts.maybe})
+                        </button>
+                      </div>
+                    </div>
+                  )) : (
+                    <div className="rounded-[24px] border border-dashed border-[#D9C7F8] bg-[#FCF9FF] px-4 py-5 font-body text-[17px] font-semibold text-[#6B3CC7]">
+                      {readingClubCopy.noPostsLabel}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="grid gap-4 border-t border-[#F0E4D4] px-5 py-5 lg:grid-cols-[1.1fr_0.9fr]">
+              <div className="space-y-4">
+                <div className="rounded-[24px] border border-[#D7F2E8] bg-[#F7FFFB] px-4 py-4" data-testid="reading-reader-circles">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-[18px] bg-[#0F766E] text-white">
+                      <Users size={23} strokeWidth={2.4} aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-display text-[28px] leading-[1.08] text-[#244D47]">{readingClubCopy.readerCirclesTitle}</p>
+                      <p className="mt-1 font-body text-[16px] leading-[1.32] text-[#41655F]">{readingClubCopy.readerCirclesBody}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 overflow-hidden rounded-[20px] border border-[#BDE8D7] bg-white">
+                    {readingClubCopy.readerCircles.map((circle) => {
+                      const joined = readingClubDesk.joinedReaderCircleIds.includes(circle.id);
+                      return (
+                        <div key={circle.id} className="border-b border-[#D7F2E8] px-3 py-3 last:border-b-0">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="rounded-full bg-[#ECFDF5] px-3 py-1 font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#0F766E]">
+                                  {circle.badge}
+                                </span>
+                                <span className="font-body text-[14px] font-bold text-[#7C2D12]">{circle.memberLine}</span>
+                              </div>
+                              <p className="mt-2 font-body text-[19px] font-bold leading-[1.18] text-[#244D47]">{circle.title}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (joined) {
+                                  leaveReadingCircle(circle.id);
+                                  return;
+                                }
+                                joinReadingCircle(circle.id);
+                              }}
+                              aria-pressed={joined}
+                              className={`inline-flex min-h-[42px] items-center gap-2 rounded-full px-4 font-body text-[15px] font-bold ${
+                                joined
+                                  ? "bg-[#0F766E] text-white"
+                                  : "border border-[#BDE8D7] bg-[#F7FFFB] text-[#0F766E]"
+                              }`}
+                            >
+                              {joined ? <Check size={17} strokeWidth={2.5} aria-hidden="true" /> : <Users size={17} strokeWidth={2.4} aria-hidden="true" />}
+                              {joined ? readingClubCopy.circleJoinedLabel : readingClubCopy.circleJoinLabel}
+                            </button>
+                          </div>
+                          <p className="mt-2 font-body text-[15px] leading-[1.3] text-[#41655F]">{circle.body}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-4 rounded-[20px] border border-dashed border-[#BDE8D7] bg-white px-3 py-3" data-testid="reading-my-circles">
+                    <p className="font-body text-[16px] font-bold text-[#244D47]">{readingClubCopy.myCirclesTitle}</p>
+                    {joinedReadingCircles.length > 0 ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {joinedReadingCircles.map((circle) => (
+                          <span key={circle.id} className="inline-flex min-h-[38px] items-center gap-2 rounded-full bg-[#ECFDF5] px-3 font-body text-[14px] font-bold text-[#0F766E]">
+                            {circle.title}
+                            <button
+                              type="button"
+                              onClick={() => leaveReadingCircle(circle.id)}
+                              aria-label={`${readingClubCopy.circleLeaveLabel}: ${circle.title}`}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-[#0F766E]"
+                            >
+                              <Trash2 size={14} strokeWidth={2.4} aria-hidden="true" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-2 font-body text-[15px] font-bold text-[#0F766E]">{readingClubCopy.circleEmptyLabel}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Users size={22} strokeWidth={2.4} className="text-[#0F766E]" aria-hidden="true" />
+                    <p className="font-display text-[28px] leading-[1.08] text-[#45325B]">{readingClub.spotlightsTitle}</p>
+                  </div>
+                  <div className="mt-4 grid gap-3">
+                    {readingClub.memberSpotlights.map((spotlight, index) => {
+                      const member = roomMembers.find((item) => item.id === spotlight.memberId);
+                      return (
+                        <button
+                          key={spotlight.memberId}
+                          type="button"
+                          onClick={() => {
+                            selectReadingMode("one-to-one");
+                            setSelectedMember(member ?? {
+                              id: spotlight.memberId,
+                              name: spotlight.name,
+                              sharedTopic: spotlight.body,
+                              statusLabel: spotlight.roleLine,
+                            });
+                          }}
+                          className="flex w-full gap-3 rounded-[24px] border border-[#E8DDCF] bg-[#FFFCF7] px-4 py-4 text-left transition-transform active:scale-[0.99]"
+                        >
+                          <div
+                            className="flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-full text-[18px] font-bold text-white"
+                            style={{ background: getParticipantColour(index) }}
+                          >
+                            {spotlight.name.slice(0, 1).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <p className="font-body text-[20px] font-bold text-[#45325B]">{spotlight.name}</p>
+                              <span className="rounded-full bg-[#ECFDF5] px-2.5 py-1 font-body text-[13px] font-bold text-[#0F766E]">{spotlight.roleLine}</span>
+                            </div>
+                            <p className="mt-2 font-body text-[16px] leading-[1.32] text-[#6E627D]">{spotlight.body}</p>
+                            <p className="mt-2 font-body text-[15px] font-semibold text-[#7C2D12]">{spotlight.starter}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="rounded-[24px] border border-[#D9C7F8] bg-[#FCF9FF] px-4 py-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-display text-[27px] leading-[1.06] text-[#45325B]">{readingClub.passportTitle}</p>
+                      <p className="mt-1 font-body text-[16px] leading-[1.32] text-[#6E627D]">{readingClub.passportBody}</p>
+                    </div>
+                    <div className="flex h-[58px] w-[58px] shrink-0 items-center justify-center rounded-[20px] bg-[#6B3CC7] font-display text-[25px] text-white">
+                      {readingPassportDoneCount}/{readingClub.passportItems.length}
+                    </div>
+                  </div>
+                  <div className="mt-4 grid gap-2">
+                    {readingClub.passportItems.map((item) => {
+                      const completed = Boolean(readingPassportCompletions[item.id]);
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => toggleReadingPassportItem(item.id)}
+                          aria-pressed={completed}
+                          className={`flex min-h-[70px] items-center gap-3 rounded-[20px] border px-3 py-3 text-left ${
+                            completed ? "border-[#0F766E] bg-[#ECFDF5]" : "border-[#E8DDCF] bg-white"
+                          }`}
+                        >
+                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${completed ? "bg-[#0F766E] text-white" : "bg-[#FBF7F0] text-[#7C2D12]"}`}>
+                            {completed ? <Check size={20} strokeWidth={2.6} aria-hidden="true" /> : <BookmarkCheck size={20} strokeWidth={2.4} aria-hidden="true" />}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-body text-[17px] font-bold text-[#45325B]">{item.label}</p>
+                            <p className="mt-1 font-body text-[14px] leading-[1.28] text-[#6E627D]">{completed ? getReadingPassportDoneLabel(language) : item.body}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] border border-[#D7F2E8] bg-[#F7FFFB] px-4 py-4" data-testid="reading-club-milestones">
+                  <div className="flex items-center gap-2">
+                    <Star size={21} strokeWidth={2.4} className="text-[#0F766E]" aria-hidden="true" />
+                    <p className="font-display text-[26px] leading-[1.08] text-[#244D47]">{readingClubCopy.milestonesTitle}</p>
+                  </div>
+                  <p className="mt-2 font-body text-[16px] leading-[1.32] text-[#41655F]">{readingClubCopy.milestonesBody}</p>
+
+                  <div className="mt-3 rounded-[20px] border border-[#BDE8D7] bg-white px-3 py-3">
+                    <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#0F766E]">{readingClubCopy.nextStepTitle}</p>
+                    <p className="mt-1 font-body text-[18px] font-bold leading-[1.18] text-[#244D47]">{readingClubNextStep.label}</p>
+                    <p className="mt-1 font-body text-[15px] leading-[1.32] text-[#41655F]">{readingClubNextStep.body}</p>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="rounded-[18px] bg-white px-3 py-3">
+                      <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#0F766E]">{readingClubCopy.statsLabels.reflectionsShared}</p>
+                      <p className="mt-1 font-display text-[27px] leading-none text-[#244D47]">{readingClubDesk.reflectionsShared}</p>
+                    </div>
+                    <div className="rounded-[18px] bg-white px-3 py-3">
+                      <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#7C2D12]">{readingClubCopy.statsLabels.greetingsSent}</p>
+                      <p className="mt-1 font-display text-[27px] leading-none text-[#3F2447]">{readingClubDesk.greetingsSent}</p>
+                    </div>
+                    <div className="rounded-[18px] bg-white px-3 py-3">
+                      <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#6B3CC7]">{readingClubCopy.statsLabels.tablesJoined}</p>
+                      <p className="mt-1 font-display text-[27px] leading-none text-[#45325B]">{readingClubDesk.tablesJoined}</p>
+                    </div>
+                    <div className="rounded-[18px] bg-white px-3 py-3">
+                      <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#0F766E]">{readingClubCopy.statsLabels.shelfVotes}</p>
+                      <p className="mt-1 font-display text-[27px] leading-none text-[#244D47]">{readingClubDesk.shelfVotes}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid gap-2">
+                    {readingClubMilestones.map((milestone) => {
+                      const milestoneCopy = readingClubCopy.milestones.find((item) => item.id === milestone.id);
+                      if (!milestoneCopy) return null;
+                      const progressPercent = Math.round((milestone.progress / milestone.target) * 100);
+                      return (
+                        <div key={milestone.id} className="rounded-[18px] border border-[#D7F2E8] bg-white px-3 py-3">
+                          <div className="flex items-start gap-3">
+                            <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${milestone.completed ? "bg-[#0F766E] text-white" : "bg-[#ECFDF5] text-[#0F766E]"}`}>
+                              {milestone.completed ? <Check size={19} strokeWidth={2.6} aria-hidden="true" /> : <Star size={18} strokeWidth={2.4} aria-hidden="true" />}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="font-body text-[16px] font-bold leading-[1.18] text-[#244D47]">{milestoneCopy.label}</p>
+                                <span className="rounded-full bg-[#ECFDF5] px-2.5 py-1 font-body text-[13px] font-bold text-[#0F766E]">
+                                  {milestone.completed ? readingClubCopy.milestonesCompleteLabel : `${milestone.progress}/${milestone.target}`}
+                                </span>
+                              </div>
+                              <p className="mt-1 font-body text-[14px] leading-[1.28] text-[#41655F]">{milestoneCopy.body}</p>
+                              <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#D7F2E8]">
+                                <div className="h-full rounded-full bg-[#0F766E]" style={{ width: `${progressPercent}%` }} />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-[#F0E4D4] px-5 py-5">
+              <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+                <div className="rounded-[24px] border border-[#E8DDCF] bg-[#FFFCF7] px-4 py-4">
+                  <div className="flex items-center gap-2">
+                    <Search size={22} strokeWidth={2.4} className="text-[#7C2D12]" aria-hidden="true" />
+                    <p className="font-display text-[27px] leading-[1.06] text-[#45325B]">{readingClub.companionTitle}</p>
+                  </div>
+                  <p className="mt-2 font-body text-[17px] leading-[1.34] text-[#6E627D]">{readingClub.companionBody}</p>
+
+                  <div className="mt-4 rounded-[22px] border border-[#E8DDCF] bg-white px-4 py-4" data-testid="reading-reader-profile">
+                    <p className="font-body text-[18px] font-bold text-[#45325B]">{readingClubCopy.profileTitle}</p>
+                    <p className="mt-1 font-body text-[15px] leading-[1.32] text-[#6E627D]">{readingClubCopy.profileBody}</p>
+
+                    <div className="mt-4">
+                      <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#0F766E]">{readingClubCopy.shelfTitle}</p>
+                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                        {readingClubCopy.shelfOptions.map((shelf) => {
+                          const active = shelf.id === readingClubDesk.favoriteShelfId;
+                          return (
+                            <button
+                              key={shelf.id}
+                              type="button"
+                              onClick={() => selectReadingShelf(shelf.id)}
+                              aria-pressed={active}
+                              className={`min-h-[82px] rounded-[18px] border px-3 py-3 text-left ${
+                                active ? "border-[#0F766E] bg-[#F0FDF8]" : "border-[#E8DDCF] bg-[#FFFDFC]"
+                              }`}
+                            >
+                              <span className="block font-body text-[16px] font-bold leading-[1.2] text-[#244D47]">{shelf.label}</span>
+                              <span className="mt-1 block font-body text-[13px] leading-[1.28] text-[#5F6C68]">{shelf.body}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="mt-4">
+                      <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#7C2D12]">{readingClubCopy.paceTitle}</p>
+                      <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                        {readingClubCopy.paceOptions.map((pace) => {
+                          const active = pace.id === readingClubDesk.preferredPaceId;
+                          return (
+                            <button
+                              key={pace.id}
+                              type="button"
+                              onClick={() => selectReadingPace(pace.id)}
+                              aria-pressed={active}
+                              className={`min-h-[78px] rounded-[18px] border px-3 py-3 text-left ${
+                                active ? "border-[#7C2D12] bg-[#FFF7ED]" : "border-[#E8DDCF] bg-[#FFFDFC]"
+                              }`}
+                            >
+                              <span className="block font-body text-[16px] font-bold leading-[1.2] text-[#3F2447]">{pace.label}</span>
+                              <span className="mt-1 block font-body text-[13px] leading-[1.28] text-[#6E627D]">{pace.body}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-2">
+                    {readingClub.companionModes.map((mode) => {
+                      const active = mode.id === selectedReadingMode?.id;
+                      return (
+                        <button
+                          key={mode.id}
+                          type="button"
+                          onClick={() => selectReadingMode(mode.id)}
+                          aria-pressed={active}
+                          className={`rounded-[20px] border px-4 py-3 text-left ${
+                            active ? "border-[#7C2D12] bg-[#FBF7F0]" : "border-[#E8DDCF] bg-white"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="font-body text-[18px] font-bold text-[#45325B]">{mode.title}</p>
+                            {active && <Star size={18} fill="#7C2D12" strokeWidth={2.2} className="text-[#7C2D12]" aria-hidden="true" />}
+                          </div>
+                          <p className="mt-1 font-body text-[15px] leading-[1.3] text-[#6E627D]">{mode.body}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => void findReadingCompanion()}
+                    disabled={isReadingMatching}
+                    className="mt-4 inline-flex min-h-[58px] w-full items-center justify-center gap-3 rounded-[20px] bg-[#7C2D12] px-5 font-body text-[20px] font-semibold text-white shadow-[0_14px_28px_rgba(124,45,18,0.16)] disabled:opacity-60"
+                    data-testid="button-reading-find-companion"
+                  >
+                    <Search size={22} strokeWidth={2.4} aria-hidden="true" />
+                    {isReadingMatching ? readingClubCopy.findingLabel : selectedReadingMode?.ctaLabel ?? readingClubCopy.findLabel}
+                  </button>
+
+                  {readingMatchResponse && (
+                    <div className="mt-4 rounded-[22px] border border-[#E8DDCF] bg-white px-4 py-4" data-testid="reading-match-result">
+                      {!readingMatchResponse.noMatch && readingMatchResponse.matchedUser && (
+                        <p className="font-body text-[18px] font-bold text-[#45325B]">
+                          {readingClubCopy.resultLabel}: {readingMatchResponse.matchedUser.name}
+                        </p>
+                      )}
+                      <p className="mt-2 font-body text-[18px] leading-[1.35] text-[#5B4A68]">{readingMatchResponse.agentMessage}</p>
+                      {!readingMatchResponse.noMatch && readingMatchResponse.matchedUser && (
+                        <>
+                          {readingMatchResponse.sharedTopics && readingMatchResponse.sharedTopics.length > 0 && (
+                            <div className="mt-3">
+                              <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#0F766E]">{readingClubCopy.matchedTopicsLabel}</p>
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {readingMatchResponse.sharedTopics.slice(0, 5).map((topic) => (
+                                  <span key={topic} className="rounded-full bg-[#F0FDF8] px-3 py-1.5 font-body text-[14px] font-bold text-[#0F766E]">
+                                    {getReadingTopicLabel(topic, language)}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          <div className="mt-3 rounded-[18px] bg-[#FFFCF7] px-3 py-3">
+                            <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#7C2D12]">{readingClubCopy.protectedGreetingLabel}</p>
+                            <p className="mt-1 font-body text-[15px] leading-[1.32] text-[#5B4A68]">
+                              {readingClubCopy.greetingPreviewLabel}: {readingBridgePrompt}
+                            </p>
+                            <p className="mt-2 font-body text-[15px] font-semibold text-[#7C2D12]">{readingClubCopy.safeLine}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void sendMatchedReadingGreeting()}
+                            disabled={isReadingGreetingSending || Boolean(pendingConnections[readingMatchResponse.matchedUser.userId])}
+                            className="mt-3 inline-flex min-h-[50px] w-full items-center justify-center gap-2 rounded-[18px] bg-[#0F766E] px-4 font-body text-[17px] font-bold text-white disabled:opacity-60"
+                            data-testid="button-reading-send-greeting"
+                          >
+                            <ShieldCheck size={19} strokeWidth={2.4} aria-hidden="true" />
+                            {isReadingGreetingSending
+                              ? readingClubCopy.greetingSendingLabel
+                              : pendingConnections[readingMatchResponse.matchedUser.userId]
+                                ? readingClubCopy.greetingSentLabel
+                                : readingClubCopy.greetingCta}
+                          </button>
+                          {readingGreetingStatus && (
+                            <p className="mt-3 rounded-[16px] bg-[#ECFDF5] px-3 py-2 font-body text-[15px] font-bold leading-[1.28] text-[#0F766E]" role="status">
+                              {readingGreetingStatus}
+                            </p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-[24px] border border-[#E8DDCF] bg-[#FFFDFC] px-4 py-4">
+                  <div className="flex items-center gap-2">
+                    <PenLine size={22} strokeWidth={2.4} className="text-[#6B3CC7]" aria-hidden="true" />
+                    <p className="font-display text-[27px] leading-[1.06] text-[#45325B]">{readingClub.reflectionTitle}</p>
+                  </div>
+                  {readingClubStatus && (
+                    <p
+                      className="mt-3 rounded-full bg-[#ECFDF5] px-3 py-1.5 font-body text-[14px] font-bold text-[#0F766E]"
+                      data-testid="reading-club-status"
+                      role="status"
+                    >
+                      {readingClubStatus}
+                    </p>
+                  )}
+                  <div className="mt-4 border-y border-[#E5D9F0] py-4" data-testid="reading-conversation-kit">
+                    <div className="flex items-center gap-2">
+                      <MessageCircle size={21} strokeWidth={2.4} className="text-[#6B3CC7]" aria-hidden="true" />
+                      <p className="font-body text-[18px] font-bold text-[#45325B]">{readingClubCopy.conversationKitTitle}</p>
+                    </div>
+                    <p className="mt-1 font-body text-[15px] leading-[1.32] text-[#6E627D]">{readingClubCopy.conversationKitBody}</p>
+                    <div className="mt-3 grid gap-3">
+                      {readingClubCopy.conversationCards.map((card) => {
+                        const used = readingClubDesk.usedConversationCardIds.includes(card.id);
+                        return (
+                          <div key={card.id} className="rounded-[20px] border border-[#E5D9F0] bg-[#FCF9FF] px-3 py-3">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <span className="rounded-full bg-white px-3 py-1 font-body text-[13px] font-bold text-[#6B3CC7]">{card.badge}</span>
+                                <p className="mt-2 font-body text-[18px] font-bold leading-[1.18] text-[#45325B]">{card.title}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => useReadingConversationCard(card)}
+                                aria-pressed={used}
+                                className={`inline-flex min-h-[40px] items-center gap-2 rounded-full px-3 font-body text-[14px] font-bold ${
+                                  used ? "bg-[#6B3CC7] text-white" : "border border-[#D9C7F8] bg-white text-[#6B3CC7]"
+                                }`}
+                              >
+                                {used ? <Check size={16} strokeWidth={2.5} aria-hidden="true" /> : <PenLine size={16} strokeWidth={2.4} aria-hidden="true" />}
+                                {used ? readingClubCopy.conversationUsedLabel : readingClubCopy.conversationUseLabel}
+                              </button>
+                            </div>
+                            <p className="mt-2 font-body text-[15px] leading-[1.3] text-[#6E627D]">{card.body}</p>
+                            <p className="mt-2 rounded-[16px] bg-white px-3 py-2 font-body text-[15px] font-semibold leading-[1.28] text-[#5B4A68]">{card.prompt}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {readingClub.reflectionPrompts.map((prompt) => (
+                      <button
+                        key={prompt}
+                        type="button"
+                        onClick={() => setReadingReflectionDraft(prompt)}
+                        className="min-h-[38px] rounded-full border border-[#D9C7F8] bg-[#FCF9FF] px-3 font-body text-[14px] font-bold text-[#6B3CC7]"
+                      >
+                        {prompt}
+                      </button>
+                    ))}
+                  </div>
+
+                  <form
+                    className="mt-4"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void submitReadingReflection();
+                    }}
+                  >
+                    <textarea
+                      value={readingReflectionDraft}
+                      onChange={(event) => setReadingReflectionDraft(event.target.value)}
+                      placeholder={readingClub.reflectionPlaceholder}
+                      aria-label={readingClub.reflectionPlaceholder}
+                      rows={5}
+                      className="min-h-[138px] w-full resize-none rounded-[22px] border border-[#E5D9F0] bg-[#FFFCF7] px-4 py-3 font-body text-[19px] leading-[1.35] text-[#5B4A68] outline-none placeholder:text-[#9A8EA8] focus:border-[#D8C8FB]"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isChatSending || !readingReflectionDraft.trim()}
+                      className="mt-3 inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[20px] bg-[#6B3CC7] px-5 font-body text-[19px] font-semibold text-white disabled:opacity-50"
+                    >
+                      <PenLine size={21} strokeWidth={2.4} aria-hidden="true" />
+                      {readingClub.reflectionSubmitLabel}
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
         {roomMode === "welcome" ? (
             <section className="rounded-[34px] border border-[#E8DDCF] bg-[#FFFDFC] p-5 shadow-[0_16px_34px_rgba(91,33,182,0.05)]">
               <div className="rounded-[28px] bg-[#F8F3FF] px-5 py-5">
@@ -1863,7 +4185,7 @@ const RoomScreen = () => {
                         : copy.welcomeLabel(agentName)}
                     </p>
                     <p className="mt-1 font-body text-[17px] leading-[1.35] text-[#7D66A0]">
-                      {getTopicHint(slug, language, room.topic)}
+                      {getTopicHint(canonicalRoomSlug, language, room.topic)}
                     </p>
                   </div>
                 </div>

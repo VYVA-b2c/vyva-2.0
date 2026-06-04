@@ -1,7 +1,7 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps, ReactNode } from "react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import ActivityScreen from "./ActivityScreen";
 
 const queryMock = vi.fn();
@@ -75,18 +75,8 @@ function renderActivity(initialEntries: ComponentProps<typeof MemoryRouter>["ini
   );
 }
 
-function completeLatestMutation() {
-  const latestCall = mutateMock.mock.calls[mutateMock.mock.calls.length - 1];
-  const options = latestCall?.[1] as { onSuccess?: () => void } | undefined;
-  act(() => {
-    options?.onSuccess?.();
-  });
-}
-
 describe("Activity safe-home service actions", () => {
   beforeEach(() => {
-    vi.useRealTimers();
-    window.localStorage.clear();
     vi.clearAllMocks();
     queryMock.mockImplementation((queryKey: unknown[]) => {
       const [key] = queryKey;
@@ -104,10 +94,6 @@ describe("Activity safe-home service actions", () => {
       }
       return {};
     });
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
   });
 
   it("shows safe-home service actions in the Activity scan preview", () => {
@@ -195,30 +181,8 @@ describe("Activity safe-home service actions", () => {
 
     expect(routineSection).toHaveTextContent("Today's gentle routine");
     expect(routineSection).toHaveTextContent("Start routine");
-    expect(screen.getByTestId("senior-routine-comfort-picker")).toHaveTextContent("Comfort level");
-    expect(screen.getByTestId("button-routine-comfort-supported")).toHaveTextContent("Chair nearby");
-    expect(screen.getByTestId("button-routine-comfort-seated")).toHaveTextContent("Seated only");
-    expect(screen.getByTestId("button-routine-comfort-standing")).toHaveTextContent("Standing is okay");
     expect(screen.getAllByTestId(/^senior-routine-preview-/)).toHaveLength(3);
     expect(routineSection.compareDocumentPosition(exerciseSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
-  it("adapts the daily routine cards and steps to the selected comfort level", () => {
-    vi.useFakeTimers({ now: new Date("2026-06-05T12:00:00.000Z") });
-    renderActivity();
-
-    expect(screen.getByTestId("section-todays-gentle-routine")).toHaveTextContent("Steady legs");
-    expect(screen.getByTestId("senior-routine-preview-sit-to-stand")).toHaveTextContent("Sit-to-stand");
-
-    fireEvent.click(screen.getByTestId("button-routine-comfort-seated"));
-
-    expect(screen.getByTestId("senior-routine-preview-seated-strength")).toHaveTextContent("Seated strength");
-    expect(screen.queryByTestId("senior-routine-preview-sit-to-stand")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId("button-start-senior-routine"));
-
-    expect(screen.getByTestId("senior-routine-comfort-guidance")).toHaveTextContent("Stay seated for this routine");
-    expect(screen.getByRole("dialog")).toHaveTextContent("Sit near the front of the chair.");
   });
 
   it("opens the daily routine sheet and moves through all 3 stages", () => {
@@ -228,7 +192,6 @@ describe("Activity safe-home service actions", () => {
 
     expect(screen.getByRole("dialog")).toHaveTextContent("Step 1 of 3");
     expect(screen.getByTestId("senior-routine-stepper")).toHaveTextContent("Step 1 of 3");
-    expect(screen.getByTestId("senior-routine-comfort-guidance")).toHaveTextContent("Keep a chair or counter close.");
 
     fireEvent.click(screen.getByTestId("button-next-senior-routine"));
     expect(screen.getByTestId("senior-routine-stepper")).toHaveTextContent("Step 2 of 3");
@@ -254,26 +217,6 @@ describe("Activity safe-home service actions", () => {
       { activity_type: "GentleRoutine", duration_minutes: 10 },
       expect.objectContaining({ onSuccess: expect.any(Function) }),
     );
-  });
-
-  it("asks how the routine felt after completion and remembers a gentler preference", () => {
-    renderActivity();
-
-    fireEvent.click(screen.getByTestId("button-start-senior-routine"));
-    fireEvent.click(screen.getByTestId("button-next-senior-routine"));
-    fireEvent.click(screen.getByTestId("button-next-senior-routine"));
-    fireEvent.click(screen.getByTestId("button-finish-senior-routine"));
-    completeLatestMutation();
-
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(screen.getByTestId("senior-routine-feedback")).toHaveTextContent("How did that feel?");
-    expect(screen.getByTestId("senior-routine-feedback")).toHaveTextContent("Morning mobility is logged.");
-
-    fireEvent.click(screen.getByTestId("button-routine-feedback-tooMuch"));
-
-    expect(screen.getByTestId("senior-routine-feedback")).toHaveTextContent("Thanks. Vyva will keep this in mind for your next routine.");
-    expect(window.localStorage.getItem("vyva_activity_routine_comfort")).toBe("seated");
-    expect(window.localStorage.getItem("vyva_activity_routine_feedback")).toContain("\"feeling\":\"tooMuch\"");
   });
 
   it("shows the senior-friendly gentle exercise cards", () => {
