@@ -10,12 +10,14 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/queryClient";
 import AgentAvatar from "./AgentAvatar";
 import SocialStyles from "./SocialStyles";
 import type {
   SocialLanguage,
+  SocialMusicThread,
+  SocialMusicThreadEntry,
   SocialRoomMember,
   SocialRoomResponse,
 } from "./types";
@@ -53,13 +55,6 @@ type MusicBridgeChoice = {
   title: string;
   body: string;
   message: string;
-};
-
-type MusicThreadEntry = {
-  id: string;
-  authorName: string;
-  text: string;
-  kind: "memory" | "voice";
 };
 
 const copyByLanguage: Record<SocialLanguage, {
@@ -570,20 +565,33 @@ function buildSongBridge(member: SocialRoomMember, songText: string | undefined,
   return { id: "song-match", title, body: topic || "", message };
 }
 
-function buildThreadReply(member: SocialRoomMember, songText: string, language: SocialLanguage) {
-  const topic = member.sharedTopic?.trim();
-  if (language === "de") {
-    if (topic) return `${topic}: alte Erinnerungen.`;
-    return `${songText}: alte Erinnerungen.`;
-  }
+function normalizeMusicThreads(threads: SocialMusicThread[] | undefined) {
+  return [...(threads ?? [])]
+    .filter((thread) => thread.status === "active")
+    .map((thread) => ({
+      ...thread,
+      entries: thread.entries.filter((entry) => entry.status === "active"),
+    }))
+    .sort((first, second) => Date.parse(second.updatedAt) - Date.parse(first.updatedAt));
+}
 
-  if (language === "es") {
-    if (topic) return `${topic}: recuerdos vivos.`;
-    return `${songText}: recuerdos vivos.`;
-  }
+function buildThreadMemberFlags(threads: SocialMusicThread[]) {
+  return threads.reduce<Record<string, boolean>>((flags, thread) => {
+    flags[thread.matchedMemberId] = true;
+    return flags;
+  }, {});
+}
 
-  if (topic) return `${topic}: old friends.`;
-  return `${songText}: old friends.`;
+function mergeMusicThread(current: SocialMusicThread[], thread: SocialMusicThread) {
+  return normalizeMusicThreads([thread, ...current.filter((item) => item.id !== thread.id)]);
+}
+
+function appendMusicThreadEntry(current: SocialMusicThread[], threadId: string, entry: SocialMusicThreadEntry) {
+  return current.map((thread) => (
+    thread.id === threadId
+      ? { ...thread, entries: [...thread.entries, entry], updatedAt: entry.createdAt }
+      : thread
+  ));
 }
 
 export default function MusicRoomScreen({
@@ -595,39 +603,61 @@ export default function MusicRoomScreen({
   const { room, members } = roomResponse;
   const copy = copyByLanguage[language];
   const seedContributions = useMemo(() => buildSeedContributions(roomResponse, language), [language, roomResponse]);
+  const initialThreads = useMemo(() => normalizeMusicThreads(roomResponse.musicThreads), [roomResponse.musicThreads]);
   const [selectedCauseId, setSelectedCauseId] = useState<MusicCauseId>("bridge");
   const [songDraft, setSongDraft] = useState("");
   const [contributions, setContributions] = useState<MusicContribution[]>([]);
-  const [pendingConnections, setPendingConnections] = useState<Record<string, boolean>>({});
+  const [musicThreads, setMusicThreads] = useState<SocialMusicThread[]>(initialThreads);
+  const [pendingConnections, setPendingConnections] = useState<Record<string, boolean>>(() => buildThreadMemberFlags(initialThreads));
   const [connectingMembers, setConnectingMembers] = useState<Record<string, boolean>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
-  const [repliedConnections, setRepliedConnections] = useState<Record<string, boolean>>({});
-  const [activeThreadMemberId, setActiveThreadMemberId] = useState<string | null>(null);
-  const [threadEntries, setThreadEntries] = useState<Record<string, MusicThreadEntry[]>>({});
+  const [repliedConnections, setRepliedConnections] = useState<Record<string, boolean>>(() => buildThreadMemberFlags(initialThreads));
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(() => initialThreads[0]?.id ?? null);
   const [threadDraft, setThreadDraft] = useState("");
+
+  useEffect(() => {
+    setMusicThreads(initialThreads);
+    setPendingConnections(buildThreadMemberFlags(initialThreads));
+    setRepliedConnections(buildThreadMemberFlags(initialThreads));
+    setActiveThreadId((current) => (
+      current && initialThreads.some((thread) => thread.id === current)
+        ? current
+        : initialThreads[0]?.id ?? null
+    ));
+  }, [initialThreads]);
 
   const selectedCause = copy.causes.find((cause) => cause.id === selectedCauseId) ?? copy.causes[0];
   const allContributions = useMemo(() => [...contributions, ...seedContributions], [contributions, seedContributions]);
   const visibleContributions = allContributions.slice(0, 4);
   const latestContribution = allContributions[0];
+  const activeThread = activeThreadId
+    ? musicThreads.find((thread) => thread.id === activeThreadId) ?? null
+    : musicThreads[0] ?? null;
+  const currentSongText = latestContribution?.text ?? activeThread?.songText ?? "";
   const hasSentConnection = Object.values(pendingConnections).some(Boolean);
-  const showComposer = composerOpen || !latestContribution;
+  const showComposer = composerOpen || !currentSongText;
   const visibleMembers = useMemo(() => {
     const baseMembers = members.map((member, index) => ({ member, index }));
-    if (!latestContribution?.text) return baseMembers;
+    if (!currentSongText) return baseMembers;
 
     return [...baseMembers].sort((first, second) => {
-      const firstScore = scoreMusicMember(first.member, latestContribution.text, selectedCauseId);
-      const secondScore = scoreMusicMember(second.member, latestContribution.text, selectedCauseId);
+      const firstScore = scoreMusicMember(first.member, currentSongText, selectedCauseId);
+      const secondScore = scoreMusicMember(second.member, currentSongText, selectedCauseId);
       return secondScore - firstScore || first.index - second.index;
     });
-  }, [latestContribution?.text, members, selectedCauseId]).slice(0, 4).map(({ member }) => member);
+  }, [currentSongText, members, selectedCauseId]).slice(0, 4).map(({ member }) => member);
   const activeThreadMember = useMemo(
-    () => visibleMembers.find((member) => member.id === activeThreadMemberId) ?? members.find((member) => member.id === activeThreadMemberId),
-    [activeThreadMemberId, members, visibleMembers],
+    () => activeThread
+      ? members.find((member) => member.id === activeThread.matchedMemberId) ?? {
+        id: activeThread.matchedMemberId,
+        name: activeThread.matchedMemberName,
+        sharedTopic: activeThread.matchedTopic,
+      }
+      : null,
+    [activeThread, members],
   );
-  const activeThreadEntries = activeThreadMemberId ? threadEntries[activeThreadMemberId] ?? [] : [];
+  const activeThreadEntries = activeThread?.entries ?? [];
 
   const submitSong = async () => {
     const trimmed = songDraft.trim();
@@ -677,7 +707,7 @@ export default function MusicRoomScreen({
   const sendConnectionRequest = async (member: SocialRoomMember) => {
     if (connectingMembers[member.id] || pendingConnections[member.id]) return;
     setConnectingMembers((current) => ({ ...current, [member.id]: true }));
-    const bridge = buildSongBridge(member, latestContribution?.text, language, copy);
+    const bridge = buildSongBridge(member, currentSongText, language, copy);
 
     try {
       const response = await apiFetch(`/api/social/rooms/${room.slug}/connect`, {
@@ -687,77 +717,69 @@ export default function MusicRoomScreen({
           lang: language,
           bridgeTitle: bridge?.title,
           bridgePrompt: bridge?.message,
+          songText: currentSongText || undefined,
+          matchedTopic: member.sharedTopic,
         }),
       });
       if (!response.ok) return;
+      const result = (await response.json()) as { thread?: SocialMusicThread };
 
       setPendingConnections((current) => ({ ...current, [member.id]: true }));
-      const song = latestContribution?.text.trim();
-      if (song) {
-        window.setTimeout(() => {
-          setThreadEntries((current) => {
-            if (current[member.id]?.length) return current;
-            return {
-              ...current,
-              [member.id]: [
-                {
-                  id: `${member.id}-song`,
-                  authorName: copy.you,
-                  text: song,
-                  kind: "memory",
-                },
-                {
-                  id: `${member.id}-reply`,
-                  authorName: member.name,
-                  text: buildThreadReply(member, song, language),
-                  kind: "memory",
-                },
-              ],
-            };
-          });
-          setRepliedConnections((current) => ({ ...current, [member.id]: true }));
-          setActiveThreadMemberId(member.id);
-        }, 650);
+      if (result.thread) {
+        setMusicThreads((current) => mergeMusicThread(current, result.thread!));
+        setRepliedConnections((current) => ({ ...current, [member.id]: true }));
+        setActiveThreadId(result.thread.id);
       }
     } finally {
       setConnectingMembers((current) => ({ ...current, [member.id]: false }));
     }
   };
 
-  const addThreadMemory = () => {
-    if (!activeThreadMemberId) return;
+  const addThreadMemory = async () => {
+    if (!activeThread) return;
     const trimmed = threadDraft.trim();
     if (!trimmed) return;
 
-    setThreadEntries((current) => ({
-      ...current,
-      [activeThreadMemberId]: [
-        ...(current[activeThreadMemberId] ?? []),
-        {
-          id: `thread-memory-${Date.now()}`,
-          authorName: copy.you,
-          text: trimmed,
-          kind: "memory",
-        },
-      ],
-    }));
+    const response = await apiFetch(`/api/social/rooms/${room.slug}/music-threads/${activeThread.id}/entries`, {
+      method: "POST",
+      body: JSON.stringify({
+        lang: language,
+        visitId: visitId ?? undefined,
+        kind: "memory",
+        body: trimmed,
+      }),
+    });
+    if (!response.ok) return;
+
+    const result = (await response.json()) as { entry?: SocialMusicThreadEntry; thread?: SocialMusicThread };
+    if (result.thread) {
+      setMusicThreads((current) => mergeMusicThread(current, result.thread!));
+    } else if (result.entry) {
+      setMusicThreads((current) => appendMusicThreadEntry(current, activeThread.id, result.entry!));
+    }
     setThreadDraft("");
   };
 
-  const addVoiceNote = () => {
-    if (!activeThreadMemberId) return;
-    setThreadEntries((current) => ({
-      ...current,
-      [activeThreadMemberId]: [
-        ...(current[activeThreadMemberId] ?? []),
-        {
-          id: `thread-voice-${Date.now()}`,
-          authorName: copy.you,
-          text: copy.voiceNoteLabel,
-          kind: "voice",
-        },
-      ],
-    }));
+  const addVoiceNote = async () => {
+    if (!activeThread) return;
+
+    const response = await apiFetch(`/api/social/rooms/${room.slug}/music-threads/${activeThread.id}/entries`, {
+      method: "POST",
+      body: JSON.stringify({
+        lang: language,
+        visitId: visitId ?? undefined,
+        kind: "voice",
+        body: "",
+      }),
+    });
+    if (!response.ok) return;
+
+    const result = (await response.json()) as { entry?: SocialMusicThreadEntry; thread?: SocialMusicThread };
+    if (result.thread) {
+      setMusicThreads((current) => mergeMusicThread(current, result.thread!));
+    } else if (result.entry) {
+      setMusicThreads((current) => appendMusicThreadEntry(current, activeThread.id, result.entry!));
+    }
   };
 
   return (
@@ -842,7 +864,7 @@ export default function MusicRoomScreen({
                       </div>
                     </div>
 
-                    {!latestContribution && (
+                    {!currentSongText && (
                       <div className="mt-3 grid grid-cols-3 gap-2">
                         {selectedCause.starters.map((starter) => (
                           <button
@@ -884,14 +906,14 @@ export default function MusicRoomScreen({
                   </>
                 )}
                 {isSubmitting && <p className="mt-3 font-body text-[16px] font-bold text-[#7E22CE]">{copy.typing}</p>}
-                {latestContribution && (
+                {currentSongText && (
                   <div className="mt-3 rounded-[18px] border border-[#E8D8F7] bg-[#FAF6FF] px-3 py-2.5">
                     <div className="flex items-center gap-2">
                       <span className="rounded-full bg-white px-3 py-1 font-body text-[12px] font-extrabold uppercase text-[#7E22CE]">
                         {copy.queueTitle}
                       </span>
                       <span className="truncate font-body text-[16px] font-extrabold text-[#261637]">
-                        {latestContribution.text}
+                        {currentSongText}
                       </span>
                       {!showComposer && (
                         <button
@@ -904,14 +926,14 @@ export default function MusicRoomScreen({
                         </button>
                       )}
                     </div>
-                    {latestContribution.agentReply && !hasSentConnection && (
+                    {latestContribution?.agentReply && !hasSentConnection && (
                       <p className="mt-2 font-body text-[15px] font-semibold leading-snug text-[#6D28D9]">
                         {latestContribution.agentReply}
                       </p>
                     )}
                   </div>
                 )}
-                {activeThreadMember && latestContribution && activeThreadEntries.length > 0 && (
+                {activeThread && activeThreadMember && activeThreadEntries.length > 0 && (
                   <div className="mt-3 rounded-[20px] border border-[#D9C7F8] bg-[#FFFDFC] px-3 py-3">
                     <div className="flex items-center gap-2">
                       <span className="rounded-full bg-[#F4ECFF] px-3 py-1 font-body text-[12px] font-extrabold uppercase text-[#6D28D9]">
@@ -923,7 +945,7 @@ export default function MusicRoomScreen({
                     </div>
 
                     <div className="mt-2 rounded-[16px] bg-[#FAF6FF] px-3 py-2 font-body text-[15px] font-extrabold text-[#261637]">
-                      {latestContribution.text}
+                      {activeThread.songText}
                     </div>
 
                     <div className="mt-2 grid gap-1.5">
@@ -934,7 +956,7 @@ export default function MusicRoomScreen({
                           </span>
                           <span className="truncate font-semibold">
                             {entry.kind === "voice" && <Mic size={14} strokeWidth={2.4} className="mr-1 inline text-[#0F766E]" />}
-                            {entry.text}
+                            {entry.body}
                           </span>
                         </div>
                       ))}
@@ -944,7 +966,7 @@ export default function MusicRoomScreen({
                       className="mt-2 grid grid-cols-[minmax(0,1fr)_42px_42px] gap-2"
                       onSubmit={(event) => {
                         event.preventDefault();
-                        addThreadMemory();
+                        void addThreadMemory();
                       }}
                     >
                       <input
@@ -956,7 +978,7 @@ export default function MusicRoomScreen({
                       />
                       <button
                         type="button"
-                        onClick={addVoiceNote}
+                        onClick={() => void addVoiceNote()}
                         aria-label={copy.voiceButtonLabel}
                         className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-[#ECFDF5] text-[#0F766E]"
                       >
@@ -975,20 +997,21 @@ export default function MusicRoomScreen({
                 )}
               </div>
 
-              <div className={activeThreadMember ? "hidden lg:block lg:border-l lg:border-[#EEE5F7] lg:pl-5" : "lg:border-l lg:border-[#EEE5F7] lg:pl-5"}>
+              <div className={activeThread ? "hidden lg:block lg:border-l lg:border-[#EEE5F7] lg:pl-5" : "lg:border-l lg:border-[#EEE5F7] lg:pl-5"}>
                 <h2 className="font-body text-[20px] font-extrabold leading-tight text-[#261637]">{copy.connectionTitle}</h2>
                 <div className="mt-2 grid grid-cols-4 gap-2 lg:grid-cols-1">
                   {visibleMembers.map((member, index) => {
                     const sent = Boolean(pendingConnections[member.id]);
                     const replied = Boolean(repliedConnections[member.id]);
                     const sending = Boolean(connectingMembers[member.id]);
+                    const existingThread = musicThreads.find((thread) => thread.matchedMemberId === member.id && thread.status === "active");
                     return (
                       <button
                         key={member.id}
                         type="button"
                         onClick={() => {
-                          if (replied) {
-                            setActiveThreadMemberId(member.id);
+                          if (existingThread) {
+                            setActiveThreadId(existingThread.id);
                             return;
                           }
                           void sendConnectionRequest(member);

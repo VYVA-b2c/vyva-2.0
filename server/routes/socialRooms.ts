@@ -1,19 +1,27 @@
 import { randomUUID } from "crypto";
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { and, eq, inArray, ne, or } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, or } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
 import {
   companionProfiles,
   profiles,
   socialConnections,
+  socialRoomMusicThreadEntries,
+  socialRoomMusicThreads,
+  socialRoomSafetyReports,
   socialRoomSessions,
   socialRoomVisits,
   socialRooms,
   socialUserInterests,
 } from "../../shared/schema.js";
-import type { SocialGameLanguage } from "../../src/social/types";
+import type {
+  SocialGameLanguage,
+  SocialMusicThread,
+  SocialMusicThreadEntry,
+  SocialRoomSafetyFlag,
+} from "../../src/social/types";
 import {
   buildDailyRoomSession,
   getSocialRoomBySlug,
@@ -39,13 +47,16 @@ import {
 } from "../lib/conversationContext.js";
 import {
   acknowledgeTogetherAgreement,
+  blockedReplyDetails,
   buildTogetherRoomPulse,
   createTogetherProposal,
   createTogetherSafetyReport,
+  detectSafetyFlags,
   markTogetherNotificationRead,
   replyToTogetherPlan,
   respondToTogetherPlan,
   saveTogetherComfortCheck,
+  shouldBlockReply,
   voteTogetherPoll,
 } from "../lib/socialRoomPulse.js";
 import {
@@ -73,6 +84,10 @@ type RoomVisitState = {
   visitCount: number;
 };
 
+type MemoryMusicThread = SocialMusicThread & {
+  roomSlug: string;
+};
+
 const router = Router();
 const IS_PROD = process.env.NODE_ENV === "production";
 const DEMO_USER_ID = "demo-user";
@@ -88,6 +103,7 @@ const ROOM_VISIT_STATE_TIMEOUT_MS = 1200;
 const visitSessionMemory = new Map<string, { userId: string; roomSlug: string; enteredAt: number }>();
 const memoryInterests = new Map<string, InterestSnapshot>();
 const memoryConnections = new Map<string, { matchedUserId: string; matchedViaRoom: string; matchedAt: string }>();
+const memoryMusicThreads = new Map<string, MemoryMusicThread>();
 const memoryRoomOccupancy = new Map<string, number>();
 const memberCatalog = [
   { id: "member-ana", name: "Ana", topics: ["plantas", "cocina", "paseos"] },
@@ -183,7 +199,7 @@ const safetyReportSchema = z.object({
   visitId: z.string().optional(),
   reason: z.string().trim().min(1).max(80),
   details: z.string().trim().max(480).optional().default(""),
-  targetType: z.enum(["room", "plan", "message", "question", "poll", "reply"]).optional().default("room"),
+  targetType: z.enum(["room", "plan", "message", "question", "poll", "reply", "music_thread_entry"]).optional().default("room"),
   targetId: z.string().trim().min(1).max(140).optional(),
 }).superRefine((value, ctx) => {
   if (value.targetType !== "room" && !value.targetId) {
@@ -191,6 +207,21 @@ const safetyReportSchema = z.object({
       code: z.ZodIssueCode.custom,
       path: ["targetId"],
       message: "targetId is required when reporting a shared item",
+    });
+  }
+});
+
+const musicThreadEntrySchema = z.object({
+  lang: z.string().optional(),
+  visitId: z.string().optional(),
+  kind: z.enum(["memory", "voice"]).optional().default("memory"),
+  body: z.string().trim().max(480).optional().default(""),
+}).superRefine((value, ctx) => {
+  if (value.kind === "memory" && !value.body.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["body"],
+      message: "Memory text is required",
     });
   }
 });
@@ -741,6 +772,374 @@ function buildMusicRoomMembers(language: SocialLanguage): DisplayRoomMember[] {
   return musicMembers[language];
 }
 
+function musicYouLabel(language: SocialLanguage) {
+  if (language === "de") return "Du";
+  if (language === "en") return "You";
+  return "Tu";
+}
+
+function musicVoiceLabel(language: SocialLanguage) {
+  if (language === "de") return "Sprachnotiz";
+  if (language === "en") return "Voice note";
+  return "Nota de voz";
+}
+
+function buildMusicThreadReply(input: {
+  language: SocialLanguage;
+  matchedMemberName: string;
+  matchedTopic: string;
+  songText: string;
+  bridgePrompt?: string;
+}) {
+  const topic = input.matchedTopic.trim();
+  if (input.language === "de") return topic ? `${topic}: alte Freunde.` : `${input.matchedMemberName} erinnert sich.`;
+  if (input.language === "en") return topic ? `${topic}: old friends.` : `${input.matchedMemberName} remembers that one.`;
+  return topic ? `${topic}: viejas amistades.` : `${input.matchedMemberName} recuerda esa cancion.`;
+}
+
+function isoDate(value: Date | string | null | undefined) {
+  if (!value) return new Date().toISOString();
+  if (value instanceof Date) return value.toISOString();
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+}
+
+function formatMusicThreadEntry(row: typeof socialRoomMusicThreadEntries.$inferSelect): SocialMusicThreadEntry {
+  return {
+    id: row.id,
+    threadId: row.thread_id,
+    authorId: row.author_id,
+    authorName: row.author_name,
+    kind: row.kind === "voice" ? "voice" : "memory",
+    body: row.body,
+    status: row.status,
+    createdAt: isoDate(row.created_at),
+    updatedAt: isoDate(row.updated_at),
+  };
+}
+
+function formatMusicThread(
+  row: typeof socialRoomMusicThreads.$inferSelect,
+  entries: Array<typeof socialRoomMusicThreadEntries.$inferSelect>,
+): SocialMusicThread {
+  return {
+    id: row.id,
+    roomId: row.room_id,
+    creatorId: row.creator_id,
+    matchedMemberId: row.matched_member_id,
+    matchedMemberName: row.matched_member_name,
+    songText: row.song_text,
+    matchedTopic: row.matched_topic,
+    status: row.status,
+    createdAt: isoDate(row.created_at),
+    updatedAt: isoDate(row.updated_at),
+    entries: entries.filter((entry) => entry.status === "active").map(formatMusicThreadEntry),
+  };
+}
+
+function formatMemoryMusicThread(thread: MemoryMusicThread): SocialMusicThread {
+  const { roomSlug: _roomSlug, ...publicThread } = thread;
+  return {
+    ...publicThread,
+    entries: publicThread.entries.filter((entry) => entry.status === "active"),
+  };
+}
+
+function createMemoryMusicThread(input: {
+  userId: string;
+  roomSlug: string;
+  roomId: string | null;
+  language: SocialLanguage;
+  matchedMemberId: string;
+  matchedMemberName: string;
+  songText: string;
+  matchedTopic: string;
+  bridgePrompt?: string;
+}) {
+  const existing = Array.from(memoryMusicThreads.values()).find((thread) => (
+    thread.roomSlug === input.roomSlug &&
+    thread.creatorId === input.userId &&
+    thread.matchedMemberId === input.matchedMemberId &&
+    thread.status === "active"
+  ));
+  if (existing) return formatMemoryMusicThread(existing);
+
+  const now = new Date().toISOString();
+  const threadId = randomUUID();
+  const entry: SocialMusicThreadEntry = {
+    id: randomUUID(),
+    threadId,
+    authorId: input.matchedMemberId,
+    authorName: input.matchedMemberName,
+    kind: "memory",
+    body: buildMusicThreadReply(input),
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+  };
+  const thread: MemoryMusicThread = {
+    id: threadId,
+    roomId: input.roomId,
+    roomSlug: input.roomSlug,
+    creatorId: input.userId,
+    matchedMemberId: input.matchedMemberId,
+    matchedMemberName: input.matchedMemberName,
+    songText: input.songText,
+    matchedTopic: input.matchedTopic,
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+    entries: [entry],
+  };
+
+  memoryMusicThreads.set(thread.id, thread);
+  return formatMemoryMusicThread(thread);
+}
+
+async function loadMusicThreads(roomSlug: string, roomId: string | null): Promise<SocialMusicThread[]> {
+  return safeDb(
+    "load music threads",
+    async () => {
+      if (!roomId) throw new Error("Missing room id");
+      const threadRows = await db
+        .select()
+        .from(socialRoomMusicThreads)
+        .where(and(eq(socialRoomMusicThreads.room_id, roomId), eq(socialRoomMusicThreads.status, "active")))
+        .orderBy(desc(socialRoomMusicThreads.updated_at))
+        .limit(12);
+      if (!threadRows.length) return [];
+
+      const entryRows = await db
+        .select()
+        .from(socialRoomMusicThreadEntries)
+        .where(and(
+          inArray(socialRoomMusicThreadEntries.thread_id, threadRows.map((thread) => thread.id)),
+          eq(socialRoomMusicThreadEntries.status, "active"),
+        ))
+        .orderBy(socialRoomMusicThreadEntries.created_at);
+      const entriesByThread = new Map<string, Array<typeof socialRoomMusicThreadEntries.$inferSelect>>();
+      for (const entry of entryRows) {
+        entriesByThread.set(entry.thread_id, [...(entriesByThread.get(entry.thread_id) ?? []), entry]);
+      }
+
+      return threadRows.map((thread) => formatMusicThread(thread, entriesByThread.get(thread.id) ?? []));
+    },
+    async () => Array.from(memoryMusicThreads.values())
+      .filter((thread) => thread.roomSlug === roomSlug && thread.status === "active")
+      .sort((first, second) => Date.parse(second.updatedAt) - Date.parse(first.updatedAt))
+      .slice(0, 12)
+      .map(formatMemoryMusicThread),
+  );
+}
+
+async function createOrReuseMusicThread(input: {
+  userId: string;
+  roomSlug: string;
+  roomId: string | null;
+  language: SocialLanguage;
+  matchedMemberId: string;
+  matchedMemberName: string;
+  songText: string;
+  matchedTopic: string;
+  bridgePrompt?: string;
+}): Promise<SocialMusicThread> {
+  return safeDb(
+    "create music thread",
+    async () => {
+      if (!input.roomId) throw new Error("Missing room id");
+      const [existing] = await db
+        .select()
+        .from(socialRoomMusicThreads)
+        .where(and(
+          eq(socialRoomMusicThreads.room_id, input.roomId),
+          eq(socialRoomMusicThreads.creator_id, input.userId),
+          eq(socialRoomMusicThreads.matched_member_id, input.matchedMemberId),
+          eq(socialRoomMusicThreads.status, "active"),
+        ))
+        .limit(1);
+      if (existing) {
+        const entries = await db
+          .select()
+          .from(socialRoomMusicThreadEntries)
+          .where(and(
+            eq(socialRoomMusicThreadEntries.thread_id, existing.id),
+            eq(socialRoomMusicThreadEntries.status, "active"),
+          ))
+          .orderBy(socialRoomMusicThreadEntries.created_at);
+        return formatMusicThread(existing, entries);
+      }
+
+      const now = new Date();
+      const [thread] = await db
+        .insert(socialRoomMusicThreads)
+        .values({
+          room_id: input.roomId,
+          creator_id: input.userId,
+          matched_member_id: input.matchedMemberId,
+          matched_member_name: input.matchedMemberName,
+          song_text: input.songText,
+          matched_topic: input.matchedTopic,
+          status: "active",
+          updated_at: now,
+        })
+        .returning();
+      if (!thread) throw new Error("Music thread was not created");
+
+      const [entry] = await db
+        .insert(socialRoomMusicThreadEntries)
+        .values({
+          thread_id: thread.id,
+          author_id: input.matchedMemberId,
+          author_name: input.matchedMemberName,
+          kind: "memory",
+          body: buildMusicThreadReply(input),
+          status: "active",
+          updated_at: now,
+        })
+        .returning();
+      return formatMusicThread(thread, entry ? [entry] : []);
+    },
+    async () => createMemoryMusicThread(input),
+  );
+}
+
+async function createMusicSafetyReport(input: {
+  userId: string;
+  roomId: string | null;
+  language: SocialLanguage;
+  targetId: string;
+  safetyFlags: SocialRoomSafetyFlag[];
+  targetType?: "room" | "music_thread_entry";
+  reason?: string;
+  details?: string;
+}) {
+  await safeDb(
+    "persist music safety report",
+    async () => {
+      if (!input.roomId) return;
+      await db
+        .insert(socialRoomSafetyReports)
+        .values({
+          room_id: input.roomId,
+          reporter_id: input.userId,
+          target_type: input.targetType ?? "music_thread_entry",
+          target_id: input.targetType === "room" ? null : input.targetId,
+          reason: input.reason ?? "music_memory_review",
+          details: input.details ?? blockedReplyDetails(input.safetyFlags, input.language),
+          status: "open",
+        });
+    },
+    async () => undefined,
+  );
+}
+
+async function addMusicThreadEntry(input: {
+  userId: string;
+  roomSlug: string;
+  roomId: string | null;
+  threadId: string;
+  language: SocialLanguage;
+  kind: "memory" | "voice";
+  body: string;
+}): Promise<{ entry?: SocialMusicThreadEntry; thread?: SocialMusicThread; error?: string; safetyFlags?: SocialRoomSafetyFlag[] }> {
+  const body = input.kind === "voice" ? musicVoiceLabel(input.language) : input.body.trim();
+
+  if (input.kind === "memory") {
+    const safetyFlags = detectSafetyFlags({ category: "other", title: "", details: body });
+    if (shouldBlockReply(safetyFlags)) {
+      await createMusicSafetyReport({
+        userId: input.userId,
+        roomId: input.roomId,
+        language: input.language,
+        targetId: input.threadId,
+        safetyFlags,
+      });
+      return {
+        error: "Reply needs VYVA review before it can be shared",
+        safetyFlags,
+      };
+    }
+  }
+
+  return safeDb(
+    "add music thread entry",
+    async () => {
+      if (!input.roomId) throw new Error("Missing room id");
+      const [threadRow] = await db
+        .select()
+        .from(socialRoomMusicThreads)
+        .where(and(
+          eq(socialRoomMusicThreads.id, input.threadId),
+          eq(socialRoomMusicThreads.room_id, input.roomId),
+          eq(socialRoomMusicThreads.status, "active"),
+        ))
+        .limit(1);
+      if (!threadRow) return { error: "Music thread not found" };
+
+      const now = new Date();
+      const [entryRow] = await db
+        .insert(socialRoomMusicThreadEntries)
+        .values({
+          thread_id: threadRow.id,
+          author_id: input.userId,
+          author_name: musicYouLabel(input.language),
+          kind: input.kind,
+          body,
+          status: "active",
+          updated_at: now,
+        })
+        .returning();
+      if (!entryRow) return { error: "Music thread entry was not created" };
+
+      const [updatedThreadRow] = await db
+        .update(socialRoomMusicThreads)
+        .set({ updated_at: now })
+        .where(eq(socialRoomMusicThreads.id, threadRow.id))
+        .returning();
+      const entries = await db
+        .select()
+        .from(socialRoomMusicThreadEntries)
+        .where(and(
+          eq(socialRoomMusicThreadEntries.thread_id, threadRow.id),
+          eq(socialRoomMusicThreadEntries.status, "active"),
+        ))
+        .orderBy(socialRoomMusicThreadEntries.created_at);
+
+      return {
+        entry: formatMusicThreadEntry(entryRow),
+        thread: formatMusicThread(updatedThreadRow ?? threadRow, entries),
+      };
+    },
+    async () => {
+      const thread = memoryMusicThreads.get(input.threadId);
+      if (!thread || thread.roomSlug !== input.roomSlug || thread.status !== "active") {
+        return { error: "Music thread not found" };
+      }
+
+      const now = new Date().toISOString();
+      const entry: SocialMusicThreadEntry = {
+        id: randomUUID(),
+        threadId: thread.id,
+        authorId: input.userId,
+        authorName: musicYouLabel(input.language),
+        kind: input.kind,
+        body,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      };
+      thread.entries.push(entry);
+      thread.updatedAt = now;
+      memoryMusicThreads.set(thread.id, thread);
+
+      return {
+        entry,
+        thread: formatMemoryMusicThread(thread),
+      };
+    },
+  );
+}
+
 function buildAgentReply(
   slug: string,
   language: SocialLanguage,
@@ -1165,14 +1564,17 @@ router.get("/rooms/:slug", async (req: Request, res: Response) => {
     roomSlug: room.slug,
     roomVisitState: visitState,
   });
-  const pulseRecords = room.slug === "together-room" || room.slug === "reading-room" ? await ensureRoomRecords(room.slug) : null;
+  const roomRecords = room.slug === "together-room" || room.slug === "reading-room" || room.slug === "music-room" ? await ensureRoomRecords(room.slug) : null;
   const pulse = room.slug === "together-room"
-    ? await buildTogetherRoomPulse(userId, language, pulseRecords?.roomId ?? null, members)
+    ? await buildTogetherRoomPulse(userId, language, roomRecords?.roomId ?? null, members)
     : room.slug === "reading-room"
-      ? await buildReadingClubPulse(userId, language, pulseRecords?.roomId ?? null, members)
+      ? await buildReadingClubPulse(userId, language, roomRecords?.roomId ?? null, members)
       : undefined;
   const readingClub = room.slug === "reading-room"
     ? buildReadingClubDestination(language, members, room.participantCount)
+    : undefined;
+  const musicThreads = room.slug === "music-room"
+    ? await loadMusicThreads(room.slug, roomRecords?.roomId ?? null)
     : undefined;
 
   return res.json({
@@ -1198,6 +1600,7 @@ router.get("/rooms/:slug", async (req: Request, res: Response) => {
       : {}),
     ...(pulse ? { pulse } : {}),
     ...(readingClub ? { readingClub } : {}),
+    ...(musicThreads ? { musicThreads } : {}),
   });
 });
 
@@ -1270,6 +1673,38 @@ router.post("/rooms/:slug/plans/:planId/replies", async (req: Request, res: Resp
 
   if ("error" in result) return res.status(400).json({ error: result.error });
   return res.json({ ok: true, ...result });
+});
+
+router.post("/rooms/:slug/music-threads/:threadId/entries", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  const parsed = musicThreadEntrySchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  const slug = resolveSocialRoomSlug(req.params.slug);
+  if (slug !== "music-room") return res.status(400).json({ error: "This room does not support music thread entries" });
+
+  const records = await ensureRoomRecords(slug);
+  const result = await addMusicThreadEntry({
+    userId,
+    roomSlug: slug,
+    roomId: records?.roomId ?? null,
+    threadId: req.params.threadId,
+    language: normalizeLanguage(parsed.data.lang),
+    kind: parsed.data.kind,
+    body: parsed.data.body,
+  });
+
+  if (result.error) {
+    return res.status(result.safetyFlags ? 400 : 404).json({
+      error: result.error,
+      ...(result.safetyFlags ? { safetyFlags: result.safetyFlags } : {}),
+    });
+  }
+  return res.json({ ok: true, entry: result.entry, thread: result.thread });
 });
 
 router.post("/rooms/:slug/polls/:pollId/vote", async (req: Request, res: Response) => {
@@ -1345,7 +1780,10 @@ router.post("/rooms/:slug/safety-reports", async (req: Request, res: Response) =
   }
 
   const slug = resolveSocialRoomSlug(req.params.slug);
-  if (slug !== "together-room" && slug !== "reading-room") return res.status(400).json({ error: "This room does not support safety reports" });
+  if (slug !== "together-room" && slug !== "reading-room" && slug !== "music-room") return res.status(400).json({ error: "This room does not support safety reports" });
+  if (slug === "music-room" && parsed.data.targetType !== "room" && parsed.data.targetType !== "music_thread_entry") {
+    return res.status(400).json({ error: "Music Room reports can target the room or a music thread entry" });
+  }
 
   const records = await ensureRoomRecords(slug);
   const payload = {
@@ -1358,6 +1796,33 @@ router.post("/rooms/:slug/safety-reports", async (req: Request, res: Response) =
     targetId: parsed.data.targetId,
     language: normalizeLanguage(parsed.data.lang),
   };
+  if (slug === "music-room") {
+    await createMusicSafetyReport({
+      userId,
+      roomId: records?.roomId ?? null,
+      language: payload.language,
+      targetId: parsed.data.targetId ?? "room",
+      safetyFlags: [],
+      targetType: parsed.data.targetType === "music_thread_entry" ? "music_thread_entry" : "room",
+      reason: parsed.data.reason,
+      details: parsed.data.details,
+    });
+    return res.json({
+      ok: true,
+      report: {
+        id: randomUUID(),
+        roomSlug: slug,
+        reporterId: userId,
+        targetType: parsed.data.targetType,
+        targetId: parsed.data.targetId,
+        reason: parsed.data.reason,
+        details: parsed.data.details,
+        status: "open",
+        createdAt: new Date().toISOString(),
+      },
+    });
+  }
+
   const result = slug === "together-room"
     ? await createTogetherSafetyReport(payload)
     : await createReadingClubSafetyReport(payload);
@@ -1764,6 +2229,24 @@ router.post("/rooms/:slug/connect", async (req: Request, res: Response) => {
   if (!member) return res.status(404).json({ error: "Member not found" });
 
   if (canonicalSlug === "music-room") {
+    const songText = typeof req.body?.songText === "string" && req.body.songText.trim()
+      ? req.body.songText.trim().slice(0, 160)
+      : bridgePrompt || (language === "de" ? "Geteiltes Lied" : language === "en" ? "Shared song" : "Cancion compartida");
+    const matchedTopic = typeof req.body?.matchedTopic === "string" && req.body.matchedTopic.trim()
+      ? req.body.matchedTopic.trim().slice(0, 80)
+      : member.sharedTopic ?? "";
+    const records = await ensureRoomRecords(canonicalSlug);
+    const thread = await createOrReuseMusicThread({
+      userId,
+      roomSlug: canonicalSlug,
+      roomId: records?.roomId ?? null,
+      language,
+      matchedMemberId: member.id,
+      matchedMemberName: member.name,
+      songText,
+      matchedTopic,
+      bridgePrompt,
+    });
     const reply =
       language === "de"
         ? `${member.name} hat deinen Gruss.`
@@ -1771,7 +2254,7 @@ router.post("/rooms/:slug/connect", async (req: Request, res: Response) => {
           ? `${member.name} got your hello.`
           : `${member.name} recibio tu saludo.`;
 
-    return res.json({ ok: true, reply });
+    return res.json({ ok: true, reply, thread });
   }
 
   const reply =

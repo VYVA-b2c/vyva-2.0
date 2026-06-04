@@ -163,9 +163,37 @@ export type SocialRoomPreferredTime = "morning" | "afternoon" | "evening" | "fle
 export type SocialRoomCostRange = "free" | "low" | "shared" | "discuss";
 export type SocialRoomGroupSize = "one_to_one" | "small_group" | "open_room";
 export type SocialRoomSafetyFlag = "money" | "housing" | "service" | "private_contact" | "transport";
-export type SocialRoomSafetyReportTargetType = "room" | "plan" | "message" | "question" | "poll" | "reply";
+export type SocialRoomSafetyReportTargetType = "room" | "plan" | "message" | "question" | "poll" | "reply" | "music_thread_entry";
 
 export type SocialRoomReplyTone = "support" | "curious" | "help" | "different";
+
+export type SocialMusicThreadEntryKind = "memory" | "voice";
+
+export type SocialMusicThreadEntry = {
+  id: string;
+  threadId: string;
+  authorId: string;
+  authorName: string;
+  kind: SocialMusicThreadEntryKind;
+  body: string;
+  status: "active" | "hidden" | "pending_review" | string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SocialMusicThread = {
+  id: string;
+  roomId?: string | null;
+  creatorId: string;
+  matchedMemberId: string;
+  matchedMemberName: string;
+  songText: string;
+  matchedTopic: string;
+  status: "active" | "hidden" | "closed" | string;
+  createdAt: string;
+  updatedAt: string;
+  entries: SocialMusicThreadEntry[];
+};
 
 export type SocialRoomComfortCheckOption = {
   id: SocialRoomComfortNeed;
@@ -403,6 +431,7 @@ export type SocialRoomResponse = {
   gameTable?: SocialGameTable;
   pulse?: SocialRoomPulse;
   readingClub?: SocialReadingClubDestination;
+  musicThreads?: SocialMusicThread[];
 };
 
 export type SocialMatchResponse = {

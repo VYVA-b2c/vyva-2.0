@@ -133,6 +133,75 @@ describe("Together Room safe haven API", () => {
     ).toBe(true);
   });
 
+  it("creates reusable Music Room threads and blocks unsafe memories", async () => {
+    const userId = "music-thread-safe-haven-user";
+
+    const firstHello = await request(socialApp)
+      .post("/api/social/rooms/music-room/connect")
+      .set("x-user-id", userId)
+      .send({
+        lang: "en",
+        memberId: "member-arthur",
+        songText: "Stand By Me",
+        matchedTopic: "Soul",
+        bridgePrompt: "Arthur, I added Stand By Me.",
+      })
+      .expect(200);
+
+    expect(firstHello.body.thread.id).toEqual(expect.any(String));
+    expect(firstHello.body.thread.songText).toBe("Stand By Me");
+    expect(firstHello.body.thread.matchedMemberId).toBe("member-arthur");
+    expect(firstHello.body.thread.entries.map((entry: { body: string }) => entry.body)).toContain("Soul: old friends.");
+
+    const secondHello = await request(socialApp)
+      .post("/api/social/rooms/music-room/connect")
+      .set("x-user-id", userId)
+      .send({
+        lang: "en",
+        memberId: "member-arthur",
+        songText: "Stand By Me",
+        matchedTopic: "Soul",
+      })
+      .expect(200);
+
+    expect(secondHello.body.thread.id).toBe(firstHello.body.thread.id);
+
+    const memory = await request(socialApp)
+      .post(`/api/social/rooms/music-room/music-threads/${firstHello.body.thread.id}/entries`)
+      .set("x-user-id", userId)
+      .send({
+        lang: "en",
+        kind: "memory",
+        body: "It played on my old radio.",
+      })
+      .expect(200);
+
+    expect(memory.body.entry.body).toBe("It played on my old radio.");
+    expect(memory.body.thread.entries.map((entry: { body: string }) => entry.body)).toContain("It played on my old radio.");
+
+    const room = await request(socialApp)
+      .get("/api/social/rooms/music-room?lang=en")
+      .set("x-user-id", userId)
+      .expect(200);
+
+    const savedThread = room.body.musicThreads.find((thread: { id: string }) => thread.id === firstHello.body.thread.id);
+    expect(savedThread.entries.map((entry: { body: string }) => entry.body)).toContain("It played on my old radio.");
+
+    const unsafe = await request(socialApp)
+      .post(`/api/social/rooms/music-room/music-threads/${firstHello.body.thread.id}/entries`)
+      .set("x-user-id", userId)
+      .send({
+        lang: "en",
+        kind: "memory",
+        body: "Text me your phone number and I can pay outside the app.",
+      })
+      .expect(400);
+
+    expect(unsafe.body.error).toMatch(/VYVA review/i);
+    expect(unsafe.body.safetyFlags).toContain("private_contact");
+    expect(unsafe.body.safetyFlags).toContain("money");
+  });
+
   it("matches Reading Room companions from reader profile preferences and sends a protected greeting", async () => {
     await request(socialApp)
       .post("/api/social/rooms/reading-room/enter")
@@ -290,6 +359,32 @@ describe("Together Room safe haven API", () => {
     const lunch = res.body.vote.options.find((option: { id: string }) => option.id === "lunch");
     expect(res.body.pulse.activePoll.myVote).toBe("lunch");
     expect(lunch.votes).toBeGreaterThanOrEqual(1);
+  });
+
+  it("persists collaboration replies on the featured Together Room plan", async () => {
+    const userId = "safe-haven-featured-plan-helper";
+
+    const reply = await request(socialApp)
+      .post("/api/social/rooms/together-room/plans/tea-film-chat/replies")
+      .set("x-user-id", userId)
+      .send({
+        lang: "en",
+        tone: "help",
+        body: "I can help choose one simple option for the group.",
+      })
+      .expect(200);
+
+    expect(reply.body.reply.tone).toBe("help");
+    expect(reply.body.pulse.featuredPlan.replies[0].body).toMatch(/simple option/i);
+
+    const refreshed = await request(socialApp)
+      .get("/api/social/rooms/together-room/pulse?lang=en")
+      .set("x-user-id", userId)
+      .expect(200);
+
+    expect(
+      refreshed.body.pulse.featuredPlan.replies.some((item: { body?: string }) => /simple option/i.test(item.body ?? "")),
+    ).toBe(true);
   });
 
   it("supports gentle replies on shared Together Room ideas with reporting and moderation", async () => {
