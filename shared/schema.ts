@@ -1055,6 +1055,41 @@ export const insertSocialRoomMusicThreadEntrySchema = createInsertSchema(socialR
 export type InsertSocialRoomMusicThreadEntry = z.infer<typeof insertSocialRoomMusicThreadEntrySchema>;
 export type SocialRoomMusicThreadEntry = typeof socialRoomMusicThreadEntries.$inferSelect;
 
+export const socialRoomMusicCircleItems = pgTable("social_room_music_circle_items", {
+  id:          uuid("id").primaryKey().defaultRandom(),
+  room_id:     uuid("room_id").notNull().references(() => socialRooms.id, { onDelete: "cascade" }),
+  day_key:     text("day_key").notNull(),
+  author_id:   text("author_id").notNull(),
+  author_name: text("author_name").notNull(),
+  song_text:   text("song_text").notNull(),
+  cause_id:    text("cause_id").notNull().default("bridge"),
+  memory_text: text("memory_text").notNull().default(""),
+  status:      text("status").notNull().default("active"),
+  created_at:  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:  timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("social_room_music_circle_items_room_day_status_idx").on(t.room_id, t.day_key, t.status, t.updated_at),
+]);
+
+export const insertSocialRoomMusicCircleItemSchema = createInsertSchema(socialRoomMusicCircleItems).omit({ id: true, created_at: true, updated_at: true });
+export type InsertSocialRoomMusicCircleItem = z.infer<typeof insertSocialRoomMusicCircleItemSchema>;
+export type SocialRoomMusicCircleItem = typeof socialRoomMusicCircleItems.$inferSelect;
+
+export const socialRoomMusicItemReactions = pgTable("social_room_music_item_reactions", {
+  id:         uuid("id").primaryKey().defaultRandom(),
+  item_id:    uuid("item_id").notNull().references(() => socialRoomMusicCircleItems.id, { onDelete: "cascade" }),
+  user_id:    text("user_id").notNull(),
+  kind:       text("kind").notNull().default("heart"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("social_room_music_item_reactions_item_user_kind_unique").on(t.item_id, t.user_id, t.kind),
+  index("social_room_music_item_reactions_item_kind_idx").on(t.item_id, t.kind),
+]);
+
+export const insertSocialRoomMusicItemReactionSchema = createInsertSchema(socialRoomMusicItemReactions).omit({ id: true, created_at: true });
+export type InsertSocialRoomMusicItemReaction = z.infer<typeof insertSocialRoomMusicItemReactionSchema>;
+export type SocialRoomMusicItemReaction = typeof socialRoomMusicItemReactions.$inferSelect;
+
 export const socialRoomPlans = pgTable("social_room_plans", {
   id:              uuid("id").primaryKey().defaultRandom(),
   room_id:         uuid("room_id").notNull().references(() => socialRooms.id, { onDelete: "cascade" }),
@@ -2113,6 +2148,8 @@ export const schema = {
   socialConnections,
   socialRoomMusicThreads,
   socialRoomMusicThreadEntries,
+  socialRoomMusicCircleItems,
+  socialRoomMusicItemReactions,
   socialRoomPlans,
   socialRoomPlanResponses,
   socialRoomReplies,
