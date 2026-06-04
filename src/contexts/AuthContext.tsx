@@ -14,6 +14,10 @@ interface AuthUser {
   phone: string | null;
   language: string | null;
   activeProfileId: string | null;
+  activeProfileRole: string | null;
+  profileCount: number;
+  needsProfileSetup: boolean;
+  needsProfileSelection: boolean;
   role: string;
 }
 
@@ -24,6 +28,7 @@ interface AuthIdentifier {
   language?: string;
   invite_id?: string;
   care_team_invite_token?: string;
+  setup_for?: "self" | "someone_else";
 }
 
 interface MagicLinkResponse {
@@ -45,6 +50,7 @@ interface AuthContextValue {
   register: (identifier: string | AuthIdentifier, password: string) => Promise<void>;
   requestMagicLink: (identifier: string | AuthIdentifier) => Promise<MagicLinkResponse>;
   loginWithMagicToken: (magicToken: string) => Promise<void>;
+  refreshCurrentUser: () => Promise<AuthUser | null>;
   logout: () => Promise<void>;
 }
 
@@ -99,6 +105,10 @@ function responseUser(data: {
   phone?: string | null;
   language?: string | null;
   activeProfileId?: string | null;
+  activeProfileRole?: string | null;
+  profileCount?: number | null;
+  needsProfileSetup?: boolean | null;
+  needsProfileSelection?: boolean | null;
   role?: string | null;
 }): AuthUser {
   return {
@@ -107,6 +117,10 @@ function responseUser(data: {
     phone: data.phone ?? null,
     language: data.language ?? null,
     activeProfileId: data.activeProfileId ?? null,
+    activeProfileRole: data.activeProfileRole ?? null,
+    profileCount: typeof data.profileCount === "number" ? data.profileCount : 0,
+    needsProfileSetup: Boolean(data.needsProfileSetup),
+    needsProfileSelection: Boolean(data.needsProfileSelection),
     role: data.role ?? "user",
   };
 }
@@ -166,6 +180,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       queryClient.removeQueries({ queryKey: ["/api/onboarding/state"] });
       queryClient.removeQueries({ queryKey: ["/api/profile"] });
     }
+  }, []);
+
+  const refreshCurrentUser = useCallback(async () => {
+    const stored = getToken();
+    const currentUser = await loadCurrentUser(stored);
+    if (currentUser.token) {
+      setToken(currentUser.token);
+    } else {
+      clearToken();
+    }
+    setTokenState(currentUser.token);
+    setUser(currentUser.user);
+    setLastSeenAt(currentUser.prevSeenAt);
+    if (currentUser.user.language) setAccountLanguage(currentUser.user.language);
+    queryClient.invalidateQueries({ queryKey: ONBOARDING_STATE_KEY });
+    queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+    return currentUser.user;
   }, []);
 
   useEffect(() => {
@@ -266,7 +297,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, token, isLoading, lastSeenAt, login, register, requestMagicLink, loginWithMagicToken, logout }}
+      value={{ user, token, isLoading, lastSeenAt, login, register, requestMagicLink, loginWithMagicToken, refreshCurrentUser, logout }}
     >
       {children}
     </AuthContext.Provider>

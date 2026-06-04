@@ -53,7 +53,7 @@ import { signMedicalProfileToolToken } from "../lib/jwt.js";
 import { syncProfileEntitlement } from "../lib/entitlementSync.js";
 import { entitlementForTier } from "../lib/plans.js";
 import { mergeIdentityGender, readProfileGender } from "../lib/userPersonalization.js";
-import { getActiveProfileContext } from "../lib/profileAccess.js";
+import { getActiveProfileContext, getProfileChoices } from "../lib/profileAccess.js";
 
 const DEMO_USER_ID = "demo-user";
 const IS_PROD = process.env.NODE_ENV === "production";
@@ -339,6 +339,69 @@ function hasUsableMedication(med: typeof userMedications.$inferSelect): boolean 
     )
   );
 }
+
+const activeProfileSchema = z.object({
+  profileId: z.string().min(1),
+});
+
+router.get("/linked-profiles", async (req: Request, res: Response) => {
+  const accountUserId = req.user?.id;
+  if (!accountUserId) return res.status(401).json({ error: "Not authenticated" });
+
+  const context = await getActiveProfileContext(accountUserId);
+  const choices = await getProfileChoices(accountUserId);
+
+  return res.json({
+    activeProfileId: context.profileId,
+    activeProfileRole: context.role,
+    profileCount: context.profileCount,
+    needsProfileSetup: context.needsProfileSetup,
+    needsProfileSelection: context.needsProfileSelection,
+    profiles: choices,
+  });
+});
+
+router.post("/active-profile", async (req: Request, res: Response) => {
+  const accountUserId = req.user?.id;
+  if (!accountUserId) return res.status(401).json({ error: "Not authenticated" });
+
+  const parsed = activeProfileSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Profile selection is required" });
+  }
+
+  const choices = await getProfileChoices(accountUserId);
+  const selected = choices.find((choice) => choice.profileId === parsed.data.profileId);
+  if (!selected) {
+    return res.status(403).json({ error: "This profile is not linked to your account." });
+  }
+
+  const now = new Date();
+  await db
+    .update(profileMemberships)
+    .set({ is_primary: false, updated_at: now })
+    .where(eq(profileMemberships.user_id, accountUserId));
+
+  await db
+    .update(profileMemberships)
+    .set({ is_primary: true, updated_at: now })
+    .where(and(
+      eq(profileMemberships.user_id, accountUserId),
+      eq(profileMemberships.profile_id, selected.profileId),
+      eq(profileMemberships.status, "active"),
+    ));
+
+  await db
+    .update(users)
+    .set({ active_profile_id: selected.profileId })
+    .where(eq(users.id, accountUserId));
+
+  return res.json({
+    ok: true,
+    activeProfileId: selected.profileId,
+    activeProfileRole: selected.role,
+  });
+});
 
 router.get("/readiness", async (req: Request, res: Response) => {
   const userId = await resolveUserId(req);

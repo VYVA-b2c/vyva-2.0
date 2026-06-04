@@ -135,6 +135,12 @@ describe("social games room helpers", () => {
     expect(best).toBeNull();
   });
 
+  it("formats selected game tags for match copy", () => {
+    expect(formatSharedTopic("game:word", "en")).toBe("word games");
+    expect(formatSharedTopic("game:dominoes", "es")).toBe("domino");
+    expect(formatSharedTopic("game:chess", "de")).toBe("Schach");
+  });
+
   it("prioritizes discoverable readers who share book and literature interests", () => {
     const best = pickBestSocialMatch(
       ["books", "literature", "stories", "memoir", "library"],

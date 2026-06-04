@@ -1,15 +1,15 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { and, desc, eq, sql } from "drizzle-orm";
-import { scrypt, randomBytes } from "crypto";
+import { scrypt, randomBytes, randomUUID } from "crypto";
 import { promisify } from "util";
 import { z } from "zod";
 import { db } from "../db.js";
-import { accessLinks, communicationsLog, lifecycleEvents, profileMemberships, profiles, teamInvitations, userIntakes, users } from "../../shared/schema.js";
+import { accessLinks, communicationsLog, lifecycleEvents, onboardingState, profileMemberships, profiles, teamInvitations, userIntakes, users } from "../../shared/schema.js";
 import { signMagicLoginToken, verifyMagicLoginToken } from "../lib/jwt.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { sendMagicLoginEmail, sendPasswordResetEmail } from "../lib/email.js";
-import { getActiveProfileContext } from "../lib/profileAccess.js";
+import { getActiveProfileContext, type ActiveProfileContext } from "../lib/profileAccess.js";
 import { getSupabaseConfig } from "../lib/supabaseAuth.js";
 import { clearAuthSessionCookie, issueAuthSessionCookie } from "../lib/sessionCookie.js";
 import { premiumTrialProfilePatch } from "../lib/premiumTrial.js";
@@ -231,49 +231,63 @@ async function getOrCreateAuthenticatedProfile(userId: string, email?: unknown) 
   return profile ?? null;
 }
 
-async function getUserProfileLanguage(userId: string): Promise<ProfileLanguage> {
-  const context = await getActiveProfileContext(userId);
-  if (!context.profileId) return "es";
+async function getUserProfileLanguage(
+  userId: string,
+  context?: ActiveProfileContext,
+): Promise<ProfileLanguage> {
+  const activeContext = context ?? await getActiveProfileContext(userId);
+  if (!activeContext.profileId) return "es";
 
   const [profile] = await db
     .select({ language: profiles.language, language_preference: profiles.language_preference })
     .from(profiles)
-    .where(eq(profiles.id, context.profileId))
+    .where(eq(profiles.id, activeContext.profileId))
     .limit(1);
 
   return resolveProfileLanguage(profile);
 }
 
-function authResponseUser(
+async function authResponseUser(
   user: typeof users.$inferSelect,
   prevSeenAt: string | null,
-  language: ProfileLanguage,
   role = "user",
+  languageOverride?: ProfileLanguage,
 ) {
+  const context = await getActiveProfileContext(user.id);
   return {
     userId: user.id,
     email: user.email,
     phone: user.phone_number,
-    language,
-    activeProfileId: user.active_profile_id ?? null,
+    language: languageOverride ?? await getUserProfileLanguage(user.id, context),
+    activeProfileId: context.profileId,
+    activeProfileRole: context.role,
+    profileCount: context.profileCount,
+    needsProfileSetup: context.needsProfileSetup,
+    needsProfileSelection: context.needsProfileSelection,
     role,
     prevSeenAt,
   };
 }
 
-async function seedRegistrationProfile(user: typeof users.$inferSelect, language: ProfileLanguage) {
+async function createInitialSignupProfile(
+  user: typeof users.$inferSelect,
+  setupFor: "self" | "someone_else",
+  language: ProfileLanguage,
+) {
+  const isSelf = setupFor === "self";
+  const profileId = isSelf ? user.id : randomUUID();
   const trialPatch = premiumTrialProfilePatch();
   const now = new Date();
 
   await db
     .insert(profiles)
     .values({
-      id: user.id,
-      email: user.email,
-      phone_number: user.phone_number,
+      id: profileId,
+      email: isSelf ? user.email : null,
+      phone_number: isSelf ? user.phone_number : null,
       language,
       language_preference: language,
-      onboarding_channel: "web_form",
+      onboarding_channel: isSelf ? "web_form" : "proxy_web",
       current_stage: "stage_1_identity",
       ...trialPatch,
     })
@@ -284,6 +298,7 @@ async function seedRegistrationProfile(user: typeof users.$inferSelect, language
         ...(user.phone_number ? { phone_number: user.phone_number } : {}),
         language,
         language_preference: language,
+        onboarding_channel: isSelf ? "web_form" : "proxy_web",
         updated_at: now,
       },
     });
@@ -292,9 +307,9 @@ async function seedRegistrationProfile(user: typeof users.$inferSelect, language
     .insert(profileMemberships)
     .values({
       user_id: user.id,
-      profile_id: user.id,
-      role: "elder",
-      relationship: "self",
+      profile_id: profileId,
+      role: isSelf ? "elder" : "caregiver",
+      relationship: isSelf ? "self" : "setup_initiator",
       is_primary: true,
       status: "active",
       accepted_at: now,
@@ -302,8 +317,8 @@ async function seedRegistrationProfile(user: typeof users.$inferSelect, language
     .onConflictDoUpdate({
       target: [profileMemberships.user_id, profileMemberships.profile_id],
       set: {
-        role: "elder",
-        relationship: "self",
+        role: isSelf ? "elder" : "caregiver",
+        relationship: isSelf ? "self" : "setup_initiator",
         status: "active",
         is_primary: true,
         accepted_at: now,
@@ -314,10 +329,15 @@ async function seedRegistrationProfile(user: typeof users.$inferSelect, language
   await db
     .update(users)
     .set({
-      active_profile_id: user.id,
-      onboarding_intent: "self",
+      active_profile_id: profileId,
+      onboarding_intent: setupFor,
     })
     .where(eq(users.id, user.id));
+
+  await db
+    .insert(onboardingState)
+    .values({ user_id: profileId })
+    .onConflictDoNothing();
 }
 
 async function hashPassword(password: string): Promise<string> {
@@ -362,6 +382,7 @@ const registerSchema = z.object({
   language:   z.string().optional(),
   invite_id:  z.string().trim().min(8).max(120).optional(),
   care_team_invite_token: z.string().trim().min(8).max(120).optional(),
+  setup_for: z.enum(["self", "someone_else"]).optional(),
   password:   z.string().min(8, "Password must be at least 8 characters"),
 });
 
@@ -738,17 +759,15 @@ authRouter.post("/register", async (req: Request, res: Response) => {
       .values({ email: contact.email, phone_number: contact.phone, password_hash })
       .returning();
 
-    let registeredUser = user;
     if (careTeamInvite) {
       await db
         .update(users)
         .set({ onboarding_intent: "someone_else" })
         .where(eq(users.id, user.id));
-      registeredUser = { ...user, active_profile_id: null, onboarding_intent: "someone_else" };
-    } else {
-      await seedRegistrationProfile(user, language);
-      registeredUser = { ...user, active_profile_id: user.id, onboarding_intent: "self" };
+    } else if (parsed.data.setup_for) {
+      await createInitialSignupProfile(user, parsed.data.setup_for, language);
     }
+
     if (parsed.data.invite_id) {
       try {
         await recordSignupInviteAudit({
@@ -764,7 +783,7 @@ authRouter.post("/register", async (req: Request, res: Response) => {
     }
 
     const token = await issueAuthSessionCookie(res, user.id);
-    return res.status(201).json({ token, ...authResponseUser(registeredUser, null, language, "user") });
+    return res.status(201).json({ token, ...(await authResponseUser(user, null, "user", language)) });
   } catch (err) {
     if (err instanceof RouteHttpError) {
       return res.status(err.status).json({ error: err.message });
@@ -808,12 +827,11 @@ authRouter.post("/login", async (req: Request, res: Response) => {
   const token = await issueAuthSessionCookie(res, user.id);
   return res.json({
     token,
-    ...authResponseUser(
+    ...(await authResponseUser(
       user,
       prevSeenAt,
-      await getUserProfileLanguage(user.id),
       await getProfileRole(user.id, user.email),
-    ),
+    )),
   });
 });
 
@@ -841,6 +859,10 @@ authRouter.get("/me", authMiddleware, async (req: Request, res: Response) => {
         email: profile.email ?? (typeof req.user.email === "string" ? req.user.email : null),
         phone: profile.phone ?? null,
         activeProfileId: profile.id,
+        activeProfileRole: "elder",
+        profileCount: 1,
+        needsProfileSetup: false,
+        needsProfileSelection: false,
         language: resolveProfileLanguage(profile),
         role: isSuperAdminEmail(profile.email) || isSuperAdminEmail(req.user.email) ? "admin" : profile.role ?? "user",
         prevSeenAt: null,
@@ -863,14 +885,13 @@ authRouter.get("/me", authMiddleware, async (req: Request, res: Response) => {
     const token = await issueAuthSessionCookie(res, user.id);
 
     return res.json({
+      ...(await authResponseUser(
+        user,
+        prevSeenAt,
+        await getProfileRole(user.id, user.email ?? req.user.email),
+      )),
       id: user.id,
       token,
-      email: user.email,
-      phone: user.phone_number,
-      activeProfileId: user.active_profile_id ?? null,
-      language: await getUserProfileLanguage(user.id),
-      role: await getProfileRole(user.id, user.email ?? req.user.email),
-      prevSeenAt,
     });
   } catch (err) {
     console.error("[auth/me]", err);
@@ -965,12 +986,11 @@ authRouter.post("/magic-login", async (req: Request, res: Response) => {
   const token = await issueAuthSessionCookie(res, user.id);
   return res.json({
     token,
-    ...authResponseUser(
+    ...(await authResponseUser(
       user,
       prevSeenAt,
-      await getUserProfileLanguage(user.id),
       await getProfileRole(user.id),
-    ),
+    )),
   });
 });
 

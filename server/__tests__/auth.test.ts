@@ -5,8 +5,8 @@ import request from "supertest";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { authRouter } from "../routes/auth.js";
 import { db } from "../db.js";
-import { profileMemberships, profiles, teamInvitations, users } from "../../shared/schema.js";
-import { and, eq, or } from "drizzle-orm";
+import { onboardingState, profileMemberships, profiles, teamInvitations, users } from "../../shared/schema.js";
+import { and, eq, inArray, or } from "drizzle-orm";
 import { AUTH_SESSION_COOKIE } from "../lib/sessionCookie.js";
 
 function buildApp() {
@@ -29,11 +29,21 @@ async function cleanupEmail(email: string) {
       .where(eq(users.email, email.toLowerCase()))
       .limit(1);
     if (user) {
+      const memberships = await db
+        .select({ profile_id: profileMemberships.profile_id })
+        .from(profileMemberships)
+        .where(eq(profileMemberships.user_id, user.id));
+      const profileIds = Array.from(new Set([user.id, ...memberships.map((membership) => membership.profile_id)]));
       await db.delete(teamInvitations).where(or(
         eq(teamInvitations.senior_id, user.id),
         eq(teamInvitations.accepted_user_id, user.id),
       ));
-      await db.delete(profiles).where(eq(profiles.id, user.id));
+      await db.update(users).set({ active_profile_id: null }).where(eq(users.id, user.id));
+      await db.delete(profileMemberships).where(eq(profileMemberships.user_id, user.id));
+      if (profileIds.length > 0) {
+        await db.delete(onboardingState).where(inArray(onboardingState.user_id, profileIds));
+        await db.delete(profiles).where(inArray(profiles.id, profileIds));
+      }
       await db.delete(users).where(eq(users.id, user.id));
     }
   } catch (err) {
@@ -66,6 +76,10 @@ describe("Auth endpoints", () => {
     expect(typeof res.body.token).toBe("string");
     expect(res.body.token.length).toBeGreaterThan(0);
     expect(res.body.language).toBe("fr");
+    expect(res.body.activeProfileId).toBeNull();
+    expect(res.body.activeProfileRole).toBeNull();
+    expect(res.body.needsProfileSetup).toBe(true);
+    expect(res.body.needsProfileSelection).toBe(false);
     const setCookie = res.headers["set-cookie"] as unknown as string[] | undefined;
     registeredCookie = setCookie?.find((cookie) => cookie.startsWith(`${AUTH_SESSION_COOKIE}=`))?.split(";")[0] ?? "";
     expect(registeredCookie).toMatch(new RegExp(`^${AUTH_SESSION_COOKIE}=`));
@@ -73,20 +87,30 @@ describe("Auth endpoints", () => {
     registeredToken = res.body.token;
   });
 
-  it("stores the registered language in the canonical profile preference", async () => {
-    const [user] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.email, TEST_EMAIL.toLowerCase()))
-      .limit(1);
-    const [profile] = await db
-      .select({ language: profiles.language, language_preference: profiles.language_preference })
-      .from(profiles)
-      .where(eq(profiles.id, user.id))
-      .limit(1);
+  it("POST /register can seed a self signup profile choice and language preference", async () => {
+    const email = `test-signup-self-${randomUUID()}@example.com`;
+    try {
+      const res = await request(app)
+        .post("/api/auth/register")
+        .send({ email, password: TEST_PASSWORD, setup_for: "self", language: "fr" })
+        .expect(201);
 
-    expect(profile.language).toBe("fr");
-    expect(profile.language_preference).toBe("fr");
+      expect(res.body.activeProfileId).toBe(res.body.userId);
+      expect(res.body.activeProfileRole).toBe("elder");
+      expect(res.body.needsProfileSetup).toBe(false);
+      expect(res.body.needsProfileSelection).toBe(false);
+
+      const [profile] = await db
+        .select({ language: profiles.language, language_preference: profiles.language_preference })
+        .from(profiles)
+        .where(eq(profiles.id, res.body.userId))
+        .limit(1);
+
+      expect(profile.language).toBe("fr");
+      expect(profile.language_preference).toBe("fr");
+    } finally {
+      await cleanupEmail(email);
+    }
   });
 
   it("POST /register rejects duplicate emails with 409", async () => {
@@ -110,6 +134,32 @@ describe("Auth endpoints", () => {
     expect(res.body.error).toMatch(/8 char/i);
   });
 
+  it("POST /register can seed a caregiver signup profile choice", async () => {
+    const email = `test-signup-caregiver-${randomUUID()}@example.com`;
+    try {
+      const res = await request(app)
+        .post("/api/auth/register")
+        .send({ email, password: TEST_PASSWORD, setup_for: "someone_else", language: "en" })
+        .expect(201);
+
+      expect(res.body.activeProfileId).toBeTruthy();
+      expect(res.body.activeProfileId).not.toBe(res.body.userId);
+      expect(res.body.activeProfileRole).toBe("caregiver");
+      expect(res.body.needsProfileSetup).toBe(false);
+      expect(res.body.needsProfileSelection).toBe(false);
+
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email.toLowerCase()))
+        .limit(1);
+      expect(user.onboarding_intent).toBe("someone_else");
+      expect(user.active_profile_id).toBe(res.body.activeProfileId);
+    } finally {
+      await cleanupEmail(email);
+    }
+  });
+
   it("POST /login returns a JWT for correct credentials", async () => {
     const res = await request(app)
       .post("/api/auth/login")
@@ -121,6 +171,99 @@ describe("Auth endpoints", () => {
     expect(res.body.email).toBe(TEST_EMAIL.toLowerCase());
     expect(typeof res.body.token).toBe("string");
     expect(res.body.token.length).toBeGreaterThan(0);
+    expect(res.body.activeProfileId).toBeNull();
+    expect(res.body.activeProfileRole).toBeNull();
+    expect(res.body.needsProfileSetup).toBe(true);
+    expect(res.body.needsProfileSelection).toBe(false);
+  });
+
+  it("POST /login returns active profile role from profile membership", async () => {
+    const email = `test-caregiver-${randomUUID()}@example.com`;
+    const profileId = randomUUID();
+    try {
+      await request(app)
+        .post("/api/auth/register")
+        .send({ email, password: TEST_PASSWORD })
+        .expect(201);
+
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email.toLowerCase()))
+        .limit(1);
+
+      await db.insert(profiles).values({
+        id: profileId,
+        full_name: "Care recipient",
+        language: "en",
+      });
+      await db.insert(profileMemberships).values({
+        user_id: user.id,
+        profile_id: profileId,
+        role: "caregiver",
+        relationship: "daughter",
+        status: "active",
+        is_primary: true,
+        accepted_at: new Date(),
+      });
+      await db.update(users).set({ active_profile_id: profileId }).where(eq(users.id, user.id));
+
+      const res = await request(app)
+        .post("/api/auth/login")
+        .send({ email, password: TEST_PASSWORD })
+        .expect(200);
+
+      expect(res.body.activeProfileId).toBe(profileId);
+      expect(res.body.activeProfileRole).toBe("caregiver");
+      expect(res.body.needsProfileSetup).toBe(false);
+      expect(res.body.needsProfileSelection).toBe(false);
+    } finally {
+      await cleanupEmail(email);
+    }
+  });
+
+  it("POST /login asks for profile selection when several profiles are linked and none is active", async () => {
+    const email = `test-multi-profile-${randomUUID()}@example.com`;
+    const profileIds = [randomUUID(), randomUUID()];
+    try {
+      await request(app)
+        .post("/api/auth/register")
+        .send({ email, password: TEST_PASSWORD })
+        .expect(201);
+
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email.toLowerCase()))
+        .limit(1);
+
+      await db.insert(profiles).values(profileIds.map((id, index) => ({
+        id,
+        full_name: `Care profile ${index + 1}`,
+        language: "en",
+      })));
+      await db.insert(profileMemberships).values(profileIds.map((id, index) => ({
+        user_id: user.id,
+        profile_id: id,
+        role: index === 0 ? "elder" : "caregiver",
+        relationship: index === 0 ? "self" : "family",
+        status: "active",
+        is_primary: index === 0,
+        accepted_at: new Date(),
+      })));
+
+      const res = await request(app)
+        .post("/api/auth/login")
+        .send({ email, password: TEST_PASSWORD })
+        .expect(200);
+
+      expect(res.body.profileCount).toBe(2);
+      expect(res.body.needsProfileSetup).toBe(false);
+      expect(res.body.needsProfileSelection).toBe(true);
+      expect(profileIds).toContain(res.body.activeProfileId);
+    } finally {
+      await cleanupEmail(email);
+    }
   });
 
   it("POST /login returns 401 for wrong password", async () => {
@@ -142,27 +285,7 @@ describe("Auth endpoints", () => {
     expect(res.body).toHaveProperty("id");
     expect(res.body).toHaveProperty("email");
     expect(res.body.email).toBe(TEST_EMAIL.toLowerCase());
-    expect(res.body.language).toBe("fr");
-  });
-
-  it("GET /me resolves language_preference before legacy profile language", async () => {
-    const [user] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.email, TEST_EMAIL.toLowerCase()))
-      .limit(1);
-
-    await db
-      .update(profiles)
-      .set({ language: "es", language_preference: "de" })
-      .where(eq(profiles.id, user.id));
-
-    const res = await request(app)
-      .get("/api/auth/me")
-      .set("Authorization", `Bearer ${registeredToken}`)
-      .expect(200);
-
-    expect(res.body.language).toBe("de");
+    expect(res.body.needsProfileSetup).toBe(true);
   });
 
   it("GET /me restores the user from the session cookie", async () => {
