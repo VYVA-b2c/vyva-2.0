@@ -133,7 +133,7 @@ const gameRoundSchema = z.object({
   lang: z.string().optional(),
   visitId: z.string().optional(),
   roundId: z.string().trim().min(1).max(80).optional(),
-  gameKind: z.enum(["chess", "word", "dominoes", "trivia"]),
+  gameKind: z.enum(["chess", "word", "dominoes", "bridge"]),
   completed: z.boolean().optional(),
 });
 
@@ -504,7 +504,7 @@ async function persistInterestSnapshot(userId: string, snapshot: InterestSnapsho
   );
 }
 
-async function persistGamePreference(userId: string, gameKind: "chess" | "word" | "dominoes" | "trivia") {
+async function persistGamePreference(userId: string, gameKind: "chess" | "word" | "dominoes" | "bridge") {
   const existing = await loadUserInterestSnapshot(userId);
   const nextTags = Array.from(new Set([
     ...existing.interestTags,
