@@ -20,7 +20,7 @@
 // ============================================================
 
 import {
-  pgTable, pgEnum, unique, primaryKey, index,
+  pgTable, pgEnum, unique, uniqueIndex, primaryKey, index,
   text, integer, boolean, real, timestamp, uuid, jsonb, date, time, numeric
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -1014,6 +1014,46 @@ export const socialConnections = pgTable("social_connections", {
 export const insertSocialConnectionSchema = createInsertSchema(socialConnections).omit({ id: true, matched_at: true });
 export type InsertSocialConnection = z.infer<typeof insertSocialConnectionSchema>;
 export type SocialConnection = typeof socialConnections.$inferSelect;
+
+export const socialRoomMusicThreads = pgTable("social_room_music_threads", {
+  id:                  uuid("id").primaryKey().defaultRandom(),
+  room_id:             uuid("room_id").notNull().references(() => socialRooms.id, { onDelete: "cascade" }),
+  creator_id:          text("creator_id").notNull(),
+  matched_member_id:   text("matched_member_id").notNull(),
+  matched_member_name: text("matched_member_name").notNull(),
+  song_text:           text("song_text").notNull(),
+  matched_topic:       text("matched_topic").notNull().default(""),
+  status:              text("status").notNull().default("active"),
+  created_at:          timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:          timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("social_room_music_threads_active_unique")
+    .on(t.room_id, t.creator_id, t.matched_member_id)
+    .where(sql`${t.status} = 'active'`),
+  index("social_room_music_threads_room_status_idx").on(t.room_id, t.status, t.updated_at),
+]);
+
+export const insertSocialRoomMusicThreadSchema = createInsertSchema(socialRoomMusicThreads).omit({ id: true, created_at: true, updated_at: true });
+export type InsertSocialRoomMusicThread = z.infer<typeof insertSocialRoomMusicThreadSchema>;
+export type SocialRoomMusicThread = typeof socialRoomMusicThreads.$inferSelect;
+
+export const socialRoomMusicThreadEntries = pgTable("social_room_music_thread_entries", {
+  id:          uuid("id").primaryKey().defaultRandom(),
+  thread_id:   uuid("thread_id").notNull().references(() => socialRoomMusicThreads.id, { onDelete: "cascade" }),
+  author_id:   text("author_id").notNull(),
+  author_name: text("author_name").notNull(),
+  kind:        text("kind").notNull().default("memory"),
+  body:        text("body").notNull().default(""),
+  status:      text("status").notNull().default("active"),
+  created_at:  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:  timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("social_room_music_thread_entries_thread_status_idx").on(t.thread_id, t.status, t.created_at),
+]);
+
+export const insertSocialRoomMusicThreadEntrySchema = createInsertSchema(socialRoomMusicThreadEntries).omit({ id: true, created_at: true, updated_at: true });
+export type InsertSocialRoomMusicThreadEntry = z.infer<typeof insertSocialRoomMusicThreadEntrySchema>;
+export type SocialRoomMusicThreadEntry = typeof socialRoomMusicThreadEntries.$inferSelect;
 
 export const socialRoomPlans = pgTable("social_room_plans", {
   id:              uuid("id").primaryKey().defaultRandom(),
@@ -2071,6 +2111,8 @@ export const schema = {
   socialRoomVisits,
   socialUserInterests,
   socialConnections,
+  socialRoomMusicThreads,
+  socialRoomMusicThreadEntries,
   socialRoomPlans,
   socialRoomPlanResponses,
   socialRoomReplies,
