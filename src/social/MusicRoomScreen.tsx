@@ -1,10 +1,10 @@
 import {
   ArrowLeft,
   Check,
+  Heart,
   HeartHandshake,
   Mic,
   Music2,
-  Plus,
   Radio,
   Send,
   Users,
@@ -16,6 +16,8 @@ import AgentAvatar from "./AgentAvatar";
 import SocialStyles from "./SocialStyles";
 import type {
   SocialLanguage,
+  SocialMusicCircle,
+  SocialMusicCircleItem,
   SocialMusicThread,
   SocialMusicThreadEntry,
   SocialRoomMember,
@@ -41,15 +43,6 @@ type MusicCause = {
   starters: string[];
 };
 
-type MusicContribution = {
-  id: string;
-  authorName: string;
-  text: string;
-  causeTitle: string;
-  createdAt: string;
-  agentReply?: string;
-};
-
 type MusicBridgeChoice = {
   id: string;
   title: string;
@@ -62,6 +55,7 @@ const copyByLanguage: Record<SocialLanguage, {
   headline: string;
   hostLine: string;
   liveLabel: (count: number) => string;
+  todaySong: string;
   chooseCause: string;
   addTitle: string;
   addPlaceholder: string;
@@ -69,6 +63,8 @@ const copyByLanguage: Record<SocialLanguage, {
   addAnother: string;
   emptyQueue: string;
   queueTitle: string;
+  reactLabel: string;
+  unreactLabel: string;
   connectionTitle: string;
   connectionBody: string;
   roomPulse: string;
@@ -104,6 +100,7 @@ const copyByLanguage: Record<SocialLanguage, {
     headline: "Canciones",
     hostLine: "Anfitrion",
     liveLabel: (count) => `${count} personas escuchando`,
+    todaySong: "Cancion de hoy",
     chooseCause: "Ronda",
     addTitle: "Sumar",
     addPlaceholder: "Cancion o recuerdo...",
@@ -111,6 +108,8 @@ const copyByLanguage: Record<SocialLanguage, {
     addAnother: "Sumar otra",
     emptyQueue: "Aun no hay canciones.",
     queueTitle: "Canciones",
+    reactLabel: "Enviar corazon",
+    unreactLabel: "Quitar corazon",
     connectionTitle: "Personas",
     connectionBody: "",
     roomPulse: "Pulso de la sala",
@@ -205,6 +204,7 @@ const copyByLanguage: Record<SocialLanguage, {
     headline: "Lieder",
     hostLine: "Host",
     liveLabel: (count) => `${count} hoeren zu`,
+    todaySong: "Lied des Tages",
     chooseCause: "Runde",
     addTitle: "Dazu",
     addPlaceholder: "Lied oder Erinnerung...",
@@ -212,6 +212,8 @@ const copyByLanguage: Record<SocialLanguage, {
     addAnother: "Noch eins",
     emptyQueue: "Noch keine Lieder.",
     queueTitle: "Lieder",
+    reactLabel: "Herz senden",
+    unreactLabel: "Herz entfernen",
     connectionTitle: "Menschen",
     connectionBody: "",
     roomPulse: "Raumpuls",
@@ -306,6 +308,7 @@ const copyByLanguage: Record<SocialLanguage, {
     headline: "Song Circle",
     hostLine: "Host",
     liveLabel: (count) => `${count} listening`,
+    todaySong: "Today's Song",
     chooseCause: "Round",
     addTitle: "Add",
     addPlaceholder: "Song or memory...",
@@ -313,6 +316,8 @@ const copyByLanguage: Record<SocialLanguage, {
     addAnother: "Add another",
     emptyQueue: "No songs yet.",
     queueTitle: "Songs",
+    reactLabel: "Send heart",
+    unreactLabel: "Remove heart",
     connectionTitle: "People",
     connectionBody: "",
     roomPulse: "Room pulse",
@@ -480,10 +485,6 @@ function getInitial(name: string) {
   return name.trim().slice(0, 1).toUpperCase();
 }
 
-function buildSeedContributions(_roomResponse: SocialRoomResponse, _language: SocialLanguage): MusicContribution[] {
-  return [];
-}
-
 function normalizeCue(text: string) {
   return text
     .trim()
@@ -575,6 +576,29 @@ function normalizeMusicThreads(threads: SocialMusicThread[] | undefined) {
     .sort((first, second) => Date.parse(second.updatedAt) - Date.parse(first.updatedAt));
 }
 
+function normalizeMusicCircle(circle: SocialMusicCircle | undefined) {
+  const items = [...(circle?.items ?? [])]
+    .filter((item) => item.status === "active")
+    .sort((first, second) => Date.parse(second.updatedAt) - Date.parse(first.updatedAt));
+
+  return {
+    dayKey: circle?.dayKey ?? new Date().toISOString().slice(0, 10),
+    prompt: circle?.prompt ?? "",
+    featuredItemId: circle?.featuredItemId ?? items[0]?.id ?? null,
+    items,
+  };
+}
+
+function normalizeMusicCircleItems(items: SocialMusicCircleItem[]) {
+  return [...items]
+    .filter((item) => item.status === "active")
+    .sort((first, second) => Date.parse(second.updatedAt) - Date.parse(first.updatedAt));
+}
+
+function mergeMusicCircleItem(current: SocialMusicCircleItem[], item: SocialMusicCircleItem) {
+  return normalizeMusicCircleItems([item, ...current.filter((currentItem) => currentItem.id !== item.id)]);
+}
+
 function buildThreadMemberFlags(threads: SocialMusicThread[]) {
   return threads.reduce<Record<string, boolean>>((flags, thread) => {
     flags[thread.matchedMemberId] = true;
@@ -602,16 +626,17 @@ export default function MusicRoomScreen({
 }: MusicRoomScreenProps) {
   const { room, members } = roomResponse;
   const copy = copyByLanguage[language];
-  const seedContributions = useMemo(() => buildSeedContributions(roomResponse, language), [language, roomResponse]);
   const initialThreads = useMemo(() => normalizeMusicThreads(roomResponse.musicThreads), [roomResponse.musicThreads]);
+  const initialCircle = useMemo(() => normalizeMusicCircle(roomResponse.musicCircle), [roomResponse.musicCircle]);
   const [selectedCauseId, setSelectedCauseId] = useState<MusicCauseId>("bridge");
   const [songDraft, setSongDraft] = useState("");
-  const [contributions, setContributions] = useState<MusicContribution[]>([]);
+  const [musicCircleItems, setMusicCircleItems] = useState<SocialMusicCircleItem[]>(initialCircle.items);
+  const [featuredItemId, setFeaturedItemId] = useState<string | null>(initialCircle.featuredItemId);
+  const [reactingItems, setReactingItems] = useState<Record<string, boolean>>({});
   const [musicThreads, setMusicThreads] = useState<SocialMusicThread[]>(initialThreads);
   const [pendingConnections, setPendingConnections] = useState<Record<string, boolean>>(() => buildThreadMemberFlags(initialThreads));
   const [connectingMembers, setConnectingMembers] = useState<Record<string, boolean>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [composerOpen, setComposerOpen] = useState(false);
   const [repliedConnections, setRepliedConnections] = useState<Record<string, boolean>>(() => buildThreadMemberFlags(initialThreads));
   const [activeThreadId, setActiveThreadId] = useState<string | null>(() => initialThreads[0]?.id ?? null);
   const [threadDraft, setThreadDraft] = useState("");
@@ -628,15 +653,23 @@ export default function MusicRoomScreen({
   }, [initialThreads]);
 
   const selectedCause = copy.causes.find((cause) => cause.id === selectedCauseId) ?? copy.causes[0];
-  const allContributions = useMemo(() => [...contributions, ...seedContributions], [contributions, seedContributions]);
-  const visibleContributions = allContributions.slice(0, 4);
-  const latestContribution = allContributions[0];
+  useEffect(() => {
+    setMusicCircleItems(initialCircle.items);
+    setFeaturedItemId((current) => (
+      current && initialCircle.items.some((item) => item.id === current)
+        ? current
+        : initialCircle.featuredItemId
+    ));
+  }, [initialCircle]);
+
+  const visibleCircleItems = musicCircleItems.slice(0, 4);
+  const featuredItem = featuredItemId
+    ? musicCircleItems.find((item) => item.id === featuredItemId) ?? null
+    : musicCircleItems[0] ?? null;
   const activeThread = activeThreadId
     ? musicThreads.find((thread) => thread.id === activeThreadId) ?? null
     : musicThreads[0] ?? null;
-  const currentSongText = latestContribution?.text ?? activeThread?.songText ?? "";
-  const hasSentConnection = Object.values(pendingConnections).some(Boolean);
-  const showComposer = composerOpen || !currentSongText;
+  const currentSongText = featuredItem?.songText ?? activeThread?.songText ?? "";
   const visibleMembers = useMemo(() => {
     const baseMembers = members.map((member, index) => ({ member, index }));
     if (!currentSongText) return baseMembers;
@@ -663,44 +696,60 @@ export default function MusicRoomScreen({
     const trimmed = songDraft.trim();
     if (!trimmed || isSubmitting) return;
 
-    const contributionId = `music-contribution-${Date.now()}`;
-    const contribution: MusicContribution = {
-      id: contributionId,
-      authorName: copy.you,
-      text: trimmed,
-      causeTitle: selectedCause.title,
-      createdAt: new Date().toISOString(),
-    };
-
-    setContributions((current) => [contribution, ...current]);
-    setSongDraft("");
-    setComposerOpen(false);
     setIsSubmitting(true);
 
     try {
-      const response = await apiFetch(`/api/social/rooms/${room.slug}/message`, {
+      const response = await apiFetch(`/api/social/rooms/${room.slug}/music-circle/items`, {
         method: "POST",
         body: JSON.stringify({
-          message: `${selectedCause.prompt} ${trimmed}`,
+          songText: trimmed,
+          causeId: selectedCause.id,
+          memoryText: "",
           lang: language,
           visitId: visitId ?? undefined,
         }),
       });
 
       if (!response.ok) return;
-      const result = (await response.json()) as { reply?: string };
-      const reply = result.reply?.trim();
-      if (!reply) return;
-
-      setContributions((current) =>
-        current.map((item) =>
-          item.id === contributionId
-            ? { ...item, agentReply: selectedCause.replyLead ? `${selectedCause.replyLead} ${reply}` : reply }
-            : item,
-        ),
-      );
+      const result = (await response.json()) as { item?: SocialMusicCircleItem; musicCircle?: SocialMusicCircle };
+      if (result.musicCircle) {
+        const circle = normalizeMusicCircle(result.musicCircle);
+        setMusicCircleItems(circle.items);
+        setFeaturedItemId(result.item?.id ?? circle.featuredItemId);
+      } else if (result.item) {
+        setMusicCircleItems((current) => mergeMusicCircleItem(current, result.item!));
+        setFeaturedItemId(result.item.id);
+      }
+      setSongDraft("");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const toggleCircleReaction = async (item: SocialMusicCircleItem) => {
+    if (reactingItems[item.id]) return;
+    setReactingItems((current) => ({ ...current, [item.id]: true }));
+
+    try {
+      const response = await apiFetch(`/api/social/rooms/${room.slug}/music-circle/items/${item.id}/reactions`, {
+        method: "POST",
+        body: JSON.stringify({
+          lang: language,
+          visitId: visitId ?? undefined,
+          kind: "heart",
+        }),
+      });
+      if (!response.ok) return;
+      const result = (await response.json()) as { item?: SocialMusicCircleItem; musicCircle?: SocialMusicCircle };
+      if (result.musicCircle) {
+        const circle = normalizeMusicCircle(result.musicCircle);
+        setMusicCircleItems(circle.items);
+        setFeaturedItemId((current) => current ?? circle.featuredItemId);
+      } else if (result.item) {
+        setMusicCircleItems((current) => mergeMusicCircleItem(current, result.item!));
+      }
+    } finally {
+      setReactingItems((current) => ({ ...current, [item.id]: false }));
     }
   };
 
@@ -717,6 +766,7 @@ export default function MusicRoomScreen({
           lang: language,
           bridgeTitle: bridge?.title,
           bridgePrompt: bridge?.message,
+          circleItemId: featuredItem?.id,
           songText: currentSongText || undefined,
           matchedTopic: member.sharedTopic,
         }),
@@ -827,184 +877,173 @@ export default function MusicRoomScreen({
           </div>
         </section>
 
-        <main className="mt-4 space-y-4">
+        <main className="mt-4">
           <section className="rounded-[28px] border border-[#E5DAF2] bg-white p-4 shadow-[0_16px_34px_rgba(77,39,119,0.08)] sm:p-5">
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
-              <div>
-                {showComposer && (
-                  <>
-                    <div>
-                      <p id="music-cause-heading" className="sr-only">
-                        {copy.chooseCause}
-                      </p>
-                      <div aria-labelledby="music-cause-heading" className="grid grid-cols-3 gap-1 rounded-[18px] bg-[#F6F0FF] p-1">
-                        {copy.causes.map((cause) => {
-                          const Icon = cause.icon;
-                          const active = cause.id === selectedCauseId;
-                          const tone = causeTones[cause.id];
-                          return (
-                            <button
-                              key={cause.id}
-                              type="button"
-                              onClick={() => setSelectedCauseId(cause.id)}
-                              aria-pressed={active}
-                              className="flex min-h-[48px] items-center justify-center gap-1 rounded-[15px] px-2 font-body text-[15px] font-extrabold leading-tight transition-transform active:scale-[0.99]"
-                              style={{
-                                background: active ? "#FFFFFF" : "transparent",
-                                color: active ? tone.accent : "#4A365B",
-                                boxShadow: active ? "0 8px 18px rgba(77,39,119,0.1)" : "none",
-                              }}
-                            >
-                              <Icon size={19} strokeWidth={2.5} />
-                              <span>{cause.title}</span>
-                              {active && <Check size={17} strokeWidth={3} />}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {!currentSongText && (
-                      <div className="mt-3 grid grid-cols-3 gap-2">
-                        {selectedCause.starters.map((starter) => (
-                          <button
-                            key={starter}
-                            type="button"
-                            onClick={() => setSongDraft(starter)}
-                            className="min-h-[48px] rounded-[17px] border border-[#EEE5F7] bg-[#FFFDFC] px-3 py-2 text-left font-body text-[15px] font-bold leading-snug text-[#4A365B] transition-transform active:scale-[0.99]"
-                          >
-                            {starter}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    <form
-                      className="mt-3 grid grid-cols-[minmax(0,1fr)_96px] gap-2 sm:grid-cols-[minmax(0,1fr)_112px] sm:gap-3"
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        void submitSong();
-                      }}
-                    >
-                      <input
-                        value={songDraft}
-                        onChange={(event) => setSongDraft(event.target.value)}
-                        disabled={isSubmitting}
-                        placeholder={copy.addPlaceholder}
-                        aria-label={copy.addPlaceholder}
-                        className="h-[56px] min-w-0 rounded-[19px] border border-[#E5DAF2] bg-[#FFFDFC] px-4 font-body text-[19px] font-semibold text-[#3E2A50] outline-none placeholder:text-[#9E8FAE] focus:border-[#7E22CE]"
-                      />
-                      <button
-                        type="submit"
-                        disabled={!songDraft.trim() || isSubmitting}
-                        className="inline-flex min-h-[56px] items-center justify-center gap-2 rounded-[19px] bg-[#7E22CE] px-3 font-body text-[18px] font-extrabold text-white shadow-[0_14px_28px_rgba(126,34,206,0.2)] disabled:opacity-50"
+            <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)_300px] lg:items-center">
+              <div className="order-2 lg:order-1">
+                <div className="grid gap-3">
+                  {visibleCircleItems.length > 0 ? visibleCircleItems.map((item) => {
+                    const active = item.id === featuredItem?.id;
+                    const tone = causeTones[item.causeId];
+                    return (
+                      <div
+                        key={item.id}
+                        className="grid min-h-[76px] grid-cols-[minmax(0,1fr)_58px] items-center gap-2 rounded-[20px] border px-2 py-2"
+                        style={{
+                          background: active ? tone.soft : "#FFFDFC",
+                          borderColor: active ? tone.accent : "#EEE5F7",
+                        }}
                       >
-                        <Send size={20} />
-                        {copy.addButton}
-                      </button>
-                    </form>
-                  </>
-                )}
-                {isSubmitting && <p className="mt-3 font-body text-[16px] font-bold text-[#7E22CE]">{copy.typing}</p>}
-                {currentSongText && (
-                  <div className="mt-3 rounded-[18px] border border-[#E8D8F7] bg-[#FAF6FF] px-3 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <span className="rounded-full bg-white px-3 py-1 font-body text-[12px] font-extrabold uppercase text-[#7E22CE]">
-                        {copy.queueTitle}
-                      </span>
-                      <span className="truncate font-body text-[16px] font-extrabold text-[#261637]">
-                        {currentSongText}
-                      </span>
-                      {!showComposer && (
                         <button
                           type="button"
-                          onClick={() => setComposerOpen(true)}
-                          className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#6D28D9] shadow-[0_8px_16px_rgba(77,39,119,0.08)]"
-                          aria-label={copy.addAnother}
+                          onClick={() => setFeaturedItemId(item.id)}
+                          aria-pressed={active}
+                          className="flex min-w-0 items-center gap-3 text-left"
                         >
-                          <Plus size={18} strokeWidth={2.8} />
+                          <span
+                            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] text-white"
+                            style={{ background: tone.accent }}
+                          >
+                            <Music2 size={23} strokeWidth={2.8} />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block truncate font-body text-[18px] font-extrabold leading-tight text-[#261637]">
+                              {item.songText}
+                            </span>
+                            <span className="mt-1 flex items-center gap-1.5">
+                              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white font-body text-[12px] font-extrabold text-[#6D28D9]">
+                                {getInitial(item.authorName)}
+                              </span>
+                              {active && <Check size={16} strokeWidth={3} className="text-[#0F766E]" />}
+                            </span>
+                          </span>
                         </button>
-                      )}
-                    </div>
-                    {latestContribution?.agentReply && !hasSentConnection && (
-                      <p className="mt-2 font-body text-[15px] font-semibold leading-snug text-[#6D28D9]">
-                        {latestContribution.agentReply}
-                      </p>
-                    )}
-                  </div>
-                )}
-                {activeThread && activeThreadMember && activeThreadEntries.length > 0 && (
-                  <div className="mt-3 rounded-[20px] border border-[#D9C7F8] bg-[#FFFDFC] px-3 py-3">
-                    <div className="flex items-center gap-2">
-                      <span className="rounded-full bg-[#F4ECFF] px-3 py-1 font-body text-[12px] font-extrabold uppercase text-[#6D28D9]">
-                        {copy.threadTitle}
-                      </span>
-                      <span className="truncate font-body text-[15px] font-extrabold text-[#261637]">
-                        {activeThreadMember.name} {copy.replied.toLowerCase()}
-                      </span>
-                    </div>
-
-                    <div className="mt-2 rounded-[16px] bg-[#FAF6FF] px-3 py-2 font-body text-[15px] font-extrabold text-[#261637]">
-                      {activeThread.songText}
-                    </div>
-
-                    <div className="mt-2 grid gap-1.5">
-                      {activeThreadEntries.slice(-3).map((entry) => (
-                        <div key={entry.id} className="flex items-center gap-2 rounded-[14px] bg-white px-3 py-2 font-body text-[14px] leading-snug text-[#4A365B]">
-                          <span className="shrink-0 font-extrabold text-[#6D28D9]">
-                            {entry.authorName}
-                          </span>
-                          <span className="truncate font-semibold">
-                            {entry.kind === "voice" && <Mic size={14} strokeWidth={2.4} className="mr-1 inline text-[#0F766E]" />}
-                            {entry.body}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-
-                    <form
-                      className="mt-2 grid grid-cols-[minmax(0,1fr)_42px_42px] gap-2"
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        void addThreadMemory();
-                      }}
+                        <button
+                          type="button"
+                          onClick={() => void toggleCircleReaction(item)}
+                          aria-label={item.myReaction ? copy.unreactLabel : copy.reactLabel}
+                          aria-pressed={item.myReaction}
+                          className="flex h-12 min-w-12 items-center justify-center gap-1 rounded-[16px] bg-white px-2 font-body text-[16px] font-extrabold text-[#6D28D9] shadow-[0_8px_16px_rgba(77,39,119,0.08)] disabled:opacity-50"
+                          disabled={Boolean(reactingItems[item.id])}
+                        >
+                          <Heart size={20} strokeWidth={2.6} fill={item.myReaction ? "currentColor" : "none"} />
+                          {item.reactionCount}
+                        </button>
+                      </div>
+                    );
+                  }) : selectedCause.starters.map((starter) => (
+                    <button
+                      key={starter}
+                      type="button"
+                      onClick={() => setSongDraft(starter)}
+                      className="flex min-h-[62px] items-center gap-3 rounded-[20px] border border-[#EEE5F7] bg-[#FFFDFC] px-3 py-2 text-left font-body text-[17px] font-extrabold leading-snug text-[#4A365B] transition-transform active:scale-[0.99]"
                     >
-                      <input
-                        value={threadDraft}
-                        onChange={(event) => setThreadDraft(event.target.value)}
-                        placeholder={copy.memoryPlaceholder}
-                        aria-label={copy.memoryPlaceholder}
-                        className="h-11 min-w-0 rounded-[16px] border border-[#E5DAF2] bg-white px-3 font-body text-[15px] font-semibold text-[#3E2A50] outline-none placeholder:text-[#9E8FAE] focus:border-[#7E22CE]"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => void addVoiceNote()}
-                        aria-label={copy.voiceButtonLabel}
-                        className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-[#ECFDF5] text-[#0F766E]"
-                      >
-                        <Mic size={19} strokeWidth={2.5} />
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={!threadDraft.trim()}
-                        aria-label={copy.memoryButtonLabel}
-                        className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-[#7E22CE] text-white disabled:opacity-45"
-                      >
-                        <Send size={18} strokeWidth={2.6} />
-                      </button>
-                    </form>
-                  </div>
-                )}
+                      <Music2 size={22} strokeWidth={2.6} className="text-[#7E22CE]" />
+                      <span className="min-w-0 truncate">{starter}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              <div className={activeThread ? "hidden lg:block lg:border-l lg:border-[#EEE5F7] lg:pl-5" : "lg:border-l lg:border-[#EEE5F7] lg:pl-5"}>
+              <div className="order-1 lg:order-2">
+                <div className="relative mx-auto flex aspect-square max-w-[360px] items-center justify-center rounded-full bg-[#E9D8FF] p-4 shadow-[0_22px_54px_rgba(109,40,217,0.18)]">
+                  <div
+                    className="flex h-full w-full items-center justify-center rounded-full border-[10px] border-[#1A1224] text-white shadow-inner"
+                    style={{
+                      background: "repeating-radial-gradient(circle at center, #111111 0 8px, #19131f 9px 12px, #0B090D 13px 17px)",
+                    }}
+                  >
+                    <div className="flex h-[42%] w-[42%] flex-col items-center justify-center rounded-full bg-[#6D28D9] px-3 text-center shadow-[0_10px_26px_rgba(0,0,0,0.25)]">
+                      <Music2 size={38} strokeWidth={2.7} />
+                      <span className="mt-2 max-w-[150px] truncate font-body text-[18px] font-extrabold leading-tight">
+                        {featuredItem?.songText ?? copy.todaySong}
+                      </span>
+                    </div>
+                  </div>
+                  <span className="absolute top-8 rounded-full bg-white px-4 py-2 font-body text-[16px] font-extrabold text-[#6D28D9] shadow-[0_10px_22px_rgba(77,39,119,0.1)]">
+                    {roomResponse.musicCircle?.prompt || copy.todaySong}
+                  </span>
+                  {featuredItem && (
+                    <button
+                      type="button"
+                      onClick={() => void toggleCircleReaction(featuredItem)}
+                      aria-label={featuredItem.myReaction ? copy.unreactLabel : copy.reactLabel}
+                      aria-pressed={featuredItem.myReaction}
+                      className="absolute bottom-5 flex min-h-12 items-center gap-2 rounded-full bg-white px-4 font-body text-[21px] font-extrabold text-[#6D28D9] shadow-[0_12px_24px_rgba(77,39,119,0.16)]"
+                    >
+                      <Heart size={27} strokeWidth={2.6} fill={featuredItem.myReaction ? "currentColor" : "none"} />
+                      {featuredItem.reactionCount}
+                    </button>
+                  )}
+                </div>
+
+                <div className="mt-4">
+                  <p id="music-cause-heading" className="sr-only">
+                    {copy.chooseCause}
+                  </p>
+                  <div aria-labelledby="music-cause-heading" className="grid grid-cols-3 gap-2">
+                    {copy.causes.map((cause) => {
+                      const Icon = cause.icon;
+                      const active = cause.id === selectedCauseId;
+                      const tone = causeTones[cause.id];
+                      return (
+                        <button
+                          key={cause.id}
+                          type="button"
+                          onClick={() => setSelectedCauseId(cause.id)}
+                          aria-pressed={active}
+                          className="flex min-h-[52px] items-center justify-center gap-1 rounded-[18px] border px-2 font-body text-[15px] font-extrabold leading-tight transition-transform active:scale-[0.99]"
+                          style={{
+                            background: active ? "#FFFFFF" : "#F7F2FF",
+                            borderColor: active ? tone.accent : "#EEE5F7",
+                            color: active ? tone.accent : "#4A365B",
+                            boxShadow: active ? "0 8px 18px rgba(77,39,119,0.1)" : "none",
+                          }}
+                        >
+                          <Icon size={19} strokeWidth={2.5} />
+                          <span>{cause.title}</span>
+                          {active && <Check size={16} strokeWidth={3} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <form
+                  className="mt-3 grid grid-cols-[minmax(0,1fr)_96px] gap-2 sm:grid-cols-[minmax(0,1fr)_112px] sm:gap-3"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void submitSong();
+                  }}
+                >
+                  <input
+                    value={songDraft}
+                    onChange={(event) => setSongDraft(event.target.value)}
+                    disabled={isSubmitting}
+                    placeholder={copy.addPlaceholder}
+                    aria-label={copy.addPlaceholder}
+                    className="h-[58px] min-w-0 rounded-[20px] border border-[#E5DAF2] bg-[#FFFDFC] px-4 font-body text-[19px] font-semibold text-[#3E2A50] outline-none placeholder:text-[#9E8FAE] focus:border-[#7E22CE]"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!songDraft.trim() || isSubmitting}
+                    className="inline-flex min-h-[58px] items-center justify-center gap-2 rounded-[20px] bg-[#7E22CE] px-3 font-body text-[18px] font-extrabold text-white shadow-[0_14px_28px_rgba(126,34,206,0.2)] disabled:opacity-50"
+                  >
+                    <Send size={20} />
+                    {copy.addButton}
+                  </button>
+                </form>
+              </div>
+
+              <div className="order-3 lg:border-l lg:border-[#EEE5F7] lg:pl-5">
                 <h2 className="font-body text-[20px] font-extrabold leading-tight text-[#261637]">{copy.connectionTitle}</h2>
-                <div className="mt-2 grid grid-cols-4 gap-2 lg:grid-cols-1">
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-1">
                   {visibleMembers.map((member, index) => {
                     const sent = Boolean(pendingConnections[member.id]);
                     const replied = Boolean(repliedConnections[member.id]);
                     const sending = Boolean(connectingMembers[member.id]);
                     const existingThread = musicThreads.find((thread) => thread.matchedMemberId === member.id && thread.status === "active");
+                    const cue = replied ? copy.replied : sent ? copy.sent : sending ? copy.sending : member.sharedTopic || getMemberMusicCue(member, language);
                     return (
                       <button
                         key={member.id}
@@ -1017,32 +1056,91 @@ export default function MusicRoomScreen({
                           void sendConnectionRequest(member);
                         }}
                         disabled={sending || (sent && !replied)}
-                        className="relative flex min-h-[70px] flex-col items-center justify-center gap-2 rounded-[18px] border border-[#EEE5F7] bg-[#FFFDFC] px-2 py-2 text-center transition-transform active:scale-[0.99] disabled:opacity-80 lg:min-h-[68px] lg:flex-row lg:justify-start lg:text-left"
+                        className="relative flex min-h-[74px] items-center gap-3 rounded-[18px] border border-[#EEE5F7] bg-[#FFFDFC] px-3 py-2 text-left transition-transform active:scale-[0.99] disabled:opacity-80"
                         aria-label={replied ? `${member.name} ${copy.replied}` : sent ? `${member.name} ${copy.sent}` : copy.connect(member.name)}
                       >
                         <span
-                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[17px] font-extrabold text-white"
+                          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-[18px] font-extrabold text-white"
                           style={{ background: memberColours[index % memberColours.length] }}
                         >
-                          {sent ? <Check size={22} strokeWidth={3} /> : getInitial(member.name)}
+                          {sent ? <Check size={23} strokeWidth={3} /> : getInitial(member.name)}
                         </span>
                         <span className="min-w-0">
-                          <span className="block truncate font-body text-[15px] font-extrabold leading-tight text-[#261637] lg:text-[17px]">{member.name}</span>
-                          <span className="hidden truncate font-body text-[14px] font-semibold leading-snug text-[#7A6A86] sm:block">
-                            {replied ? copy.replied : sent ? copy.sent : sending ? copy.sending : getMemberMusicCue(member, language)}
+                          <span className="block truncate font-body text-[18px] font-extrabold leading-tight text-[#261637]">{member.name}</span>
+                          <span className="mt-1 flex items-center gap-1.5">
+                            {[0, 1, 2, 3, 4].map((dot) => (
+                              <span
+                                key={dot}
+                                className="h-2 w-2 rounded-full"
+                                style={{ background: dot < 3 ? memberColours[index % memberColours.length] : "#D8CFDF" }}
+                              />
+                            ))}
+                            <span className="ml-1 truncate font-body text-[14px] font-bold leading-tight text-[#6D6170]">
+                              {cue}
+                            </span>
                           </span>
                         </span>
-                        {sent && (
-                          <span className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#0F766E] text-white lg:hidden">
-                            <Check size={14} strokeWidth={3} />
-                          </span>
-                        )}
                       </button>
                     );
                   })}
                 </div>
               </div>
             </div>
+
+            {activeThread && activeThreadMember && activeThreadEntries.length > 0 && (
+              <div className="mt-5 grid gap-3 border-t border-[#EEE5F7] pt-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {activeThreadEntries.slice(-2).map((entry) => (
+                    <div key={entry.id} className="flex min-h-[68px] items-center gap-3 rounded-[18px] bg-[#FAF6FF] px-3 py-2 font-body text-[#4A365B]">
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#6D28D9] text-[16px] font-extrabold text-white">
+                        {getInitial(entry.authorName)}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-[14px] font-extrabold text-[#6D28D9]">
+                          {entry.authorName}
+                        </span>
+                        <span className="block truncate text-[15px] font-semibold leading-snug">
+                          {entry.kind === "voice" && <Mic size={14} strokeWidth={2.4} className="mr-1 inline text-[#0F766E]" />}
+                          {entry.body}
+                        </span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <form
+                  className="grid grid-cols-[minmax(0,1fr)_46px_46px] gap-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void addThreadMemory();
+                  }}
+                >
+                  <input
+                    value={threadDraft}
+                    onChange={(event) => setThreadDraft(event.target.value)}
+                    placeholder={copy.memoryPlaceholder}
+                    aria-label={copy.memoryPlaceholder}
+                    className="h-12 min-w-0 rounded-[17px] border border-[#E5DAF2] bg-white px-3 font-body text-[15px] font-semibold text-[#3E2A50] outline-none placeholder:text-[#9E8FAE] focus:border-[#7E22CE]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void addVoiceNote()}
+                    aria-label={copy.voiceButtonLabel}
+                    className="flex h-12 w-12 items-center justify-center rounded-[17px] bg-[#ECFDF5] text-[#0F766E]"
+                  >
+                    <Mic size={20} strokeWidth={2.5} />
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!threadDraft.trim()}
+                    aria-label={copy.memoryButtonLabel}
+                    className="flex h-12 w-12 items-center justify-center rounded-[17px] bg-[#7E22CE] text-white disabled:opacity-45"
+                  >
+                    <Send size={19} strokeWidth={2.6} />
+                  </button>
+                </form>
+              </div>
+            )}
           </section>
         </main>
       </div>

@@ -28,6 +28,7 @@ import type {
   SocialRoomPlanKind,
   SocialRoomPlanResponseValue,
   SocialRoomPreferredTime,
+  SocialRoomReply,
   SocialRoomReplyTone,
   SocialRoomPulse,
   SocialRoomResponse,
@@ -41,12 +42,13 @@ type TogetherRoomScreenProps = {
   onBack: () => void;
 };
 
-type StarterAction = "hello" | "plan" | "ask";
+type StarterAction = "hello" | "view" | "plan" | "ask";
 type ProposalLocationLabel = "nearby" | "online";
+type PlanCollaborationAction = "choose" | "pace" | "notify";
 
 const memberColours = ["#0F766E", "#7C3AED", "#D97706"];
 const defaultPlanKind: SocialRoomPlanKind = "plan";
-const comfortNeedOptions: SocialRoomComfortNeed[] = ["quiet_pace", "easy_access", "seating"];
+const comfortNeedOptions: SocialRoomComfortNeed[] = ["quiet_pace", "easy_access", "seating", "transport_help"];
 const experienceCategoryOptions: SocialRoomExperienceCategory[] = [
   "movie_date",
   "restaurant_date",
@@ -59,6 +61,12 @@ const experienceCategoryOptions: SocialRoomExperienceCategory[] = [
 const preferredTimeOptions: SocialRoomPreferredTime[] = ["morning", "afternoon", "evening", "flexible"];
 const costRangeOptions: SocialRoomCostRange[] = ["free", "low", "shared", "discuss"];
 const groupSizeOptions: SocialRoomGroupSize[] = ["one_to_one", "small_group", "open_room"];
+const planCollaborationActions: PlanCollaborationAction[] = ["choose", "pace", "notify"];
+const planCollaborationTones: Record<PlanCollaborationAction, SocialRoomReplyTone> = {
+  choose: "help",
+  pace: "curious",
+  notify: "support",
+};
 
 const copyByLanguage: Record<SocialLanguage, {
   back: string;
@@ -80,6 +88,8 @@ const copyByLanguage: Record<SocialLanguage, {
   roomDirectionTitle: string;
   roomDirectionWaiting: string;
   roomDirectionBody: (choice: string | null, needs: string[]) => string;
+  roomDirectionAction: string;
+  roomDirectionDraft: (choice: string | null, needs: string[]) => string;
   responseNone: string;
   responseJoinCount: (count: number) => string;
   responseMaybeCount: (count: number) => string;
@@ -92,7 +102,12 @@ const copyByLanguage: Record<SocialLanguage, {
   sharedResponseSaved: string;
   reviewItem: string;
   reviewItemSent: string;
+  reviewReply: string;
   gentleReplies: string;
+  planSupportTitle: string;
+  planSupportBody: string;
+  planSupportActions: Record<PlanCollaborationAction, string>;
+  planSupportReplies: Record<PlanCollaborationAction, string>;
   replySent: string;
   replyFailed: string;
   replyActions: Record<SocialRoomReplyTone, string>;
@@ -124,6 +139,7 @@ const copyByLanguage: Record<SocialLanguage, {
   sent: string;
   helpSent: string;
   helpFailed: string;
+  viewStarter: string;
   agreementTitle: string;
   agreementLines: string[];
   acknowledgementLabel: string;
@@ -154,6 +170,11 @@ const copyByLanguage: Record<SocialLanguage, {
       const base = choice ? `La sala se inclina por ${choice}.` : "La sala aun esta eligiendo.";
       return needs.length ? `${base} Preparadlo con ${needs.join(", ")}.` : base;
     },
+    roomDirectionAction: "Crear plan tranquilo",
+    roomDirectionDraft: (choice, needs) => {
+      const base = `Una version tranquila de ${choice ?? "la eleccion de hoy"}`;
+      return needs.length ? `${base} con ${needs.join(", ")}.` : `${base}.`;
+    },
     responseNone: "Puedes empezar eligiendo una opcion.",
     responseJoinCount: (count) => `${count} ${count === 1 ? "se apunta" : "se apuntan"}`,
     responseMaybeCount: (count) => `${count} quizas`,
@@ -166,18 +187,33 @@ const copyByLanguage: Record<SocialLanguage, {
     sharedResponseSaved: "Tu respuesta esta guardada",
     reviewItem: "Pedir revision a VYVA",
     reviewItemSent: "VYVA revisara esto con cuidado.",
+    reviewReply: "Revisar respuesta",
     gentleReplies: "Respuestas amables",
+    planSupportTitle: "Hacerlo facil",
+    planSupportBody: "Elige una ayuda pequena para que el plan sea mas comodo para todos.",
+    planSupportActions: {
+      choose: "Ayudar a elegir",
+      pace: "Ritmo tranquilo",
+      notify: "Avisadme",
+    },
+    planSupportReplies: {
+      choose: "Puedo ayudar a elegir una opcion sencilla para el grupo.",
+      pace: "Un ritmo tranquilo, con pausas, me ayudaria.",
+      notify: "Por favor avisadme cuando haya un siguiente paso.",
+    },
     replySent: "Respuesta compartida",
     replyFailed: "No se pudo responder. Intentalo de nuevo.",
     replyActions: {
       support: "Yo tambien",
       curious: "Cuantame mas",
       help: "Puedo ayudar",
+      different: "Lo veo distinto",
     },
     replyBodies: {
       support: "Yo tambien lo siento asi. Gracias por compartirlo.",
       curious: "Me gustaria saber un poco mas, si te apetece compartirlo.",
       help: "Puedo ayudar con un paso sencillo dentro de la sala.",
+      different: "Lo veo un poco distinto, pero agradezco que lo compartas.",
     },
     supportIdea: "Me apunto",
     maybeIdea: "Quizas",
@@ -204,6 +240,7 @@ const copyByLanguage: Record<SocialLanguage, {
       quiet_pace: "Ritmo tranquilo",
       easy_access: "Acceso facil",
       seating: "Sentarse",
+      transport_help: "Ayuda para llegar",
     },
     categoryLabels: {
       movie_date: "Cita de pelicula",
@@ -246,6 +283,7 @@ const copyByLanguage: Record<SocialLanguage, {
     sent: "Enviado",
     helpSent: "VYVA revisara esto con cuidado.",
     helpFailed: "No se pudo avisar a VYVA. Intentalo de nuevo.",
+    viewStarter: "Compartir opinion",
     agreementTitle: "Nuestra promesa de sala",
     agreementLines: [
       "Palabras amables y sin presion.",
@@ -257,6 +295,7 @@ const copyByLanguage: Record<SocialLanguage, {
     acknowledgementFailed: "No se pudo guardar. Intentalo de nuevo.",
     starterDetails: {
       hello: "Me gustaria saludar al grupo.",
+      view: "Me gustaria compartir una opinion breve con la sala.",
       plan: "Me gustaria sugerir un plan tranquilo.",
       ask: "VYVA, ayudame a elegir una forma sencilla de participar.",
     },
@@ -284,6 +323,11 @@ const copyByLanguage: Record<SocialLanguage, {
       const base = choice ? `Der Raum tendiert zu ${choice}.` : "Der Raum waehlt noch.";
       return needs.length ? `${base} Plant es mit ${needs.join(", ")}.` : base;
     },
+    roomDirectionAction: "Als Plan vorschlagen",
+    roomDirectionDraft: (choice, needs) => {
+      const base = `Eine ruhige Version von ${choice ?? "der heutigen Raumwahl"}`;
+      return needs.length ? `${base} mit ${needs.join(", ")}.` : `${base}.`;
+    },
     responseNone: "Du kannst den Anfang machen.",
     responseJoinCount: (count) => `${count} ${count === 1 ? "macht mit" : "machen mit"}`,
     responseMaybeCount: (count) => `${count} vielleicht`,
@@ -296,18 +340,33 @@ const copyByLanguage: Record<SocialLanguage, {
     sharedResponseSaved: "Deine Antwort ist gespeichert",
     reviewItem: "VYVA pruefen lassen",
     reviewItemSent: "VYVA prueft diesen Beitrag behutsam.",
+    reviewReply: "Antwort pruefen",
     gentleReplies: "Freundliche Antworten",
+    planSupportTitle: "Einfach machen",
+    planSupportBody: "Waehle eine kleine Hilfe, damit der Plan fuer alle angenehmer wird.",
+    planSupportActions: {
+      choose: "Auswaehlen helfen",
+      pace: "Ruhiges Tempo",
+      notify: "Mich informieren",
+    },
+    planSupportReplies: {
+      choose: "Ich kann helfen, eine einfache Option fuer die Gruppe auszuwaehlen.",
+      pace: "Ein ruhiges Tempo mit Pausen wuerde mir helfen.",
+      notify: "Bitte haltet mich auf dem Laufenden, wenn es einen naechsten Schritt gibt.",
+    },
     replySent: "Antwort geteilt",
     replyFailed: "Antwort konnte nicht geteilt werden. Bitte versuche es erneut.",
     replyActions: {
       support: "Geht mir auch so",
       curious: "Erzaehl mehr",
       help: "Ich kann helfen",
+      different: "Andere Sicht",
     },
     replyBodies: {
       support: "Mir geht es auch so. Danke, dass du das teilst.",
       curious: "Ich wuerde gern etwas mehr hoeren, wenn du teilen moechtest.",
       help: "Ich kann bei einem kleinen Schritt im Raum helfen.",
+      different: "Ich sehe es etwas anders, danke aber fuer das Teilen.",
     },
     supportIdea: "Mitmachen",
     maybeIdea: "Vielleicht",
@@ -334,6 +393,7 @@ const copyByLanguage: Record<SocialLanguage, {
       quiet_pace: "Ruhiges Tempo",
       easy_access: "Einfacher Zugang",
       seating: "Sitzplatz",
+      transport_help: "Hilfe beim Hinkommen",
     },
     categoryLabels: {
       movie_date: "Film-Date",
@@ -376,6 +436,7 @@ const copyByLanguage: Record<SocialLanguage, {
     sent: "Gesendet",
     helpSent: "VYVA prueft das behutsam.",
     helpFailed: "VYVA konnte nicht benachrichtigt werden. Bitte versuche es erneut.",
+    viewStarter: "Ansicht teilen",
     agreementTitle: "Unser Raumversprechen",
     agreementLines: [
       "Freundliche Worte, kein Druck.",
@@ -387,6 +448,7 @@ const copyByLanguage: Record<SocialLanguage, {
     acknowledgementFailed: "Konnte nicht gespeichert werden. Bitte versuche es erneut.",
     starterDetails: {
       hello: "Ich moechte die Runde gruessen.",
+      view: "Ich moechte eine kleine Ansicht mit dem Raum teilen.",
       plan: "Ich moechte einen ruhigen Plan vorschlagen.",
       ask: "VYVA, hilf mir, einfach mitzumachen.",
     },
@@ -414,6 +476,11 @@ const copyByLanguage: Record<SocialLanguage, {
       const base = choice ? `The room is leaning toward ${choice}.` : "The room is still choosing.";
       return needs.length ? `${base} Shape it around ${needs.join(", ")}.` : base;
     },
+    roomDirectionAction: "Make this a plan",
+    roomDirectionDraft: (choice, needs) => {
+      const base = `A gentle version of ${choice ?? "today's room choice"}`;
+      return needs.length ? `${base} with ${needs.join(", ")}.` : `${base}.`;
+    },
     responseNone: "You can be first to choose.",
     responseJoinCount: (count) => `${count} joining`,
     responseMaybeCount: (count) => `${count} maybe`,
@@ -426,18 +493,33 @@ const copyByLanguage: Record<SocialLanguage, {
     sharedResponseSaved: "Your response is saved",
     reviewItem: "Ask VYVA to review",
     reviewItemSent: "VYVA will review this item gently.",
+    reviewReply: "Review reply",
     gentleReplies: "Gentle replies",
+    planSupportTitle: "Make this easy",
+    planSupportBody: "Choose one small kind of help so the plan feels easier for everyone.",
+    planSupportActions: {
+      choose: "Help choose",
+      pace: "Quiet pace",
+      notify: "Keep me posted",
+    },
+    planSupportReplies: {
+      choose: "I can help choose one simple option for the group.",
+      pace: "A quiet pace with room to pause would help me.",
+      notify: "Please keep me posted when there is a next step.",
+    },
     replySent: "Reply shared",
     replyFailed: "Could not share the reply. Please try again.",
     replyActions: {
       support: "I feel the same",
       curious: "Tell me more",
       help: "I can help",
+      different: "Another view",
     },
     replyBodies: {
       support: "I feel the same. Thank you for sharing it.",
       curious: "I would like to hear a little more, if you want to share it.",
       help: "I can help with one small step inside the room.",
+      different: "I see it a little differently, and I appreciate you sharing it.",
     },
     supportIdea: "Join this",
     maybeIdea: "Maybe",
@@ -464,6 +546,7 @@ const copyByLanguage: Record<SocialLanguage, {
       quiet_pace: "Quiet pace",
       easy_access: "Easy access",
       seating: "Place to sit",
+      transport_help: "Transport help",
     },
     categoryLabels: {
       movie_date: "Movie date",
@@ -506,6 +589,7 @@ const copyByLanguage: Record<SocialLanguage, {
     sent: "Sent",
     helpSent: "VYVA will review this gently.",
     helpFailed: "Could not alert VYVA. Please try again.",
+    viewStarter: "Share a view",
     agreementTitle: "Our room promise",
     agreementLines: [
       "Use kind words and no pressure.",
@@ -517,6 +601,7 @@ const copyByLanguage: Record<SocialLanguage, {
     acknowledgementFailed: "Could not save it. Please try again.",
     starterDetails: {
       hello: "I would like to say hello to the group.",
+      view: "I would like to share a small view with the room.",
       plan: "I would like to suggest a gentle plan.",
       ask: "VYVA, help me choose an easy way to join in.",
     },
@@ -706,7 +791,7 @@ function updatePollVote(pulse: SocialRoomPulse, optionId: string): SocialRoomPul
 }
 
 function normalizeComfortSelection(needs: SocialRoomComfortNeed[]) {
-  return Array.from(new Set(needs.filter((need) => comfortNeedOptions.includes(need)))).slice(0, 3);
+  return Array.from(new Set(needs.filter((need) => comfortNeedOptions.includes(need)))).slice(0, 4);
 }
 
 function updateComfortCheck(pulse: SocialRoomPulse, comfortNeeds: SocialRoomComfortNeed[]): SocialRoomPulse {
@@ -751,6 +836,20 @@ function getTopComfortLabels(pulse: SocialRoomPulse) {
     .sort((a, b) => b.count - a.count)
     .slice(0, 2)
     .map((option) => option.label);
+}
+
+function getTopComfortNeeds(pulse: SocialRoomPulse) {
+  return [...pulse.comfortCheck.options]
+    .filter((option) => option.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 2)
+    .map((option) => option.id);
+}
+
+function categoryForRoomDirection(optionId?: string | null): SocialRoomExperienceCategory {
+  if (optionId === "film") return "movie_date";
+  if (optionId === "lunch") return "restaurant_date";
+  return "outing";
 }
 
 function formatResponseSummary(plan: SocialRoomPlan, copy: (typeof copyByLanguage)[SocialLanguage]) {
@@ -1120,6 +1219,7 @@ export default function TogetherRoomScreen({
 
   const starterActions: Array<{ id: StarterAction; label: string; icon: typeof MessageCircle }> = [
     { id: "hello", label: pulse.discussionPrompt.starterButtons[0] ?? "Say hello", icon: MessageCircle },
+    { id: "view", label: copy.viewStarter, icon: MessageCircle },
     { id: "plan", label: pulse.discussionPrompt.starterButtons[1] ?? "Suggest a plan", icon: Sparkles },
     { id: "ask", label: pulse.discussionPrompt.starterButtons[2] ?? "Ask VYVA", icon: HeartHandshake },
   ];
@@ -1131,6 +1231,17 @@ export default function TogetherRoomScreen({
       void submitProposal(label, details, "online", "message");
       return;
     }
+    if (action === "view") {
+      setProposalKind("message");
+      setProposalLocationLabel("online");
+      setSelectedComfortNeeds([]);
+      setProposalCategory("other");
+      setProposalPreferredTime("flexible");
+      setProposalCostRange("discuss");
+      setProposalGroupSize("open_room");
+      setShowProposalComposer(true);
+      return;
+    }
     const nextKind = action === "ask" ? "question" : "plan";
     setProposalKind(nextKind);
     setProposalLocationLabel(nextKind === "plan" ? "nearby" : "online");
@@ -1139,6 +1250,21 @@ export default function TogetherRoomScreen({
     setProposalPreferredTime("flexible");
     setProposalCostRange("discuss");
     setProposalGroupSize(nextKind === "plan" ? "one_to_one" : "open_room");
+    setShowProposalComposer(true);
+  };
+
+  const startRoomDirectionPlan = () => {
+    const comfortNeeds = normalizeComfortSelection(
+      pulse.comfortCheck.myComfortNeeds.length ? pulse.comfortCheck.myComfortNeeds : getTopComfortNeeds(pulse),
+    );
+    setProposalKind("plan");
+    setProposalLocationLabel(leadingPollOption?.id === "lunch" ? "nearby" : "online");
+    setSelectedComfortNeeds(comfortNeeds);
+    setProposalCategory(categoryForRoomDirection(leadingPollOption?.id));
+    setProposalPreferredTime("flexible");
+    setProposalCostRange("discuss");
+    setProposalGroupSize("small_group");
+    setProposalDraft(copy.roomDirectionDraft(leadingPollOption?.label ?? null, topComfortLabels));
     setShowProposalComposer(true);
   };
 
@@ -1199,6 +1325,48 @@ export default function TogetherRoomScreen({
       });
       if (result?.pulse) {
         setPulse(result.pulse);
+      } else {
+        setStatusMessage(copy.replyFailed);
+      }
+    } catch {
+      setStatusMessage(copy.replyFailed);
+    } finally {
+      setReplyingPlanKey(null);
+    }
+  };
+
+  const sendReplyReport = async (plan: SocialRoomPlan, reply: SocialRoomReply) => {
+    const details = `${plan.title}: ${reply.body}`.slice(0, 460);
+    setStatusMessage(copy.reviewItemSent);
+    try {
+      const result = await postJson(`/api/social/rooms/${room.slug}/safety-reports`, {
+        reason: "reply_review",
+        targetType: "reply",
+        targetId: reply.id,
+        details,
+      });
+      if (result?.pulse) {
+        setPulse(result.pulse);
+      } else {
+        setStatusMessage(copy.helpFailed);
+      }
+    } catch {
+      setStatusMessage(copy.helpFailed);
+    }
+  };
+
+  const sendPlanCollaboration = async (action: PlanCollaborationAction) => {
+    if (replyingPlanKey) return;
+
+    setReplyingPlanKey(featuredPlan.key);
+    try {
+      const result = await postJson(`/api/social/rooms/${room.slug}/plans/${featuredPlan.key}/replies`, {
+        body: copy.planSupportReplies[action],
+        tone: planCollaborationTones[action],
+      });
+      if (result?.pulse) {
+        setPulse(result.pulse);
+        setStatusMessage(copy.replySent);
       } else {
         setStatusMessage(copy.replyFailed);
       }
@@ -1390,6 +1558,49 @@ export default function TogetherRoomScreen({
           <p className="mt-4 rounded-[18px] bg-[#EAF8F4] px-4 py-3 font-body text-[17px] font-bold leading-[1.3] text-[#315C55]">
             {pulse.safety.consentLine}
           </p>
+
+          <div className="mt-4 rounded-[22px] bg-[#F7FAF7] px-4 py-4" data-testid="together-plan-collaboration">
+            <div className="flex items-center gap-2">
+              <MessageCircle size={18} className="text-[#0F766E]" aria-hidden="true" />
+              <h3 className="font-body text-[18px] font-bold text-[#315C55]">{copy.planSupportTitle}</h3>
+            </div>
+            <p className="mt-1 font-body text-[16px] font-bold leading-[1.35] text-[#55706B]">{copy.planSupportBody}</p>
+            {(featuredPlan.replies?.length ?? 0) > 0 && (
+              <div className="mt-3 grid gap-2" data-testid="together-featured-replies">
+                {featuredPlan.replies!.map((reply) => (
+                  <article
+                    key={reply.id}
+                    className="rounded-[15px] bg-white px-3 py-2 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]"
+                    data-testid={`together-featured-reply-${reply.id}`}
+                  >
+                    <p>{reply.body}</p>
+                    <button
+                      type="button"
+                      onClick={() => void sendReplyReport(featuredPlan, reply)}
+                      data-testid={`together-review-reply-${reply.id}`}
+                      className="mt-2 min-h-[38px] rounded-[13px] border border-[#CFECE3] bg-[#F7FAF7] px-3 font-body text-[14px] font-bold text-[#0F766E]"
+                    >
+                      {copy.reviewReply}
+                    </button>
+                  </article>
+                ))}
+              </div>
+            )}
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              {planCollaborationActions.map((action) => (
+                <button
+                  key={action}
+                  type="button"
+                  onClick={() => void sendPlanCollaboration(action)}
+                  disabled={replyingPlanKey === featuredPlan.key}
+                  data-testid={`together-plan-collaboration-${action}`}
+                  className="min-h-[52px] rounded-[17px] border border-[#CFECE3] bg-white px-3 font-body text-[16px] font-bold text-[#0F766E] disabled:opacity-55"
+                >
+                  {copy.planSupportActions[action]}
+                </button>
+              ))}
+            </div>
+          </div>
         </section>
 
         <section className="rounded-[28px] border border-[#DBE7F6] bg-white px-5 py-5 shadow-[0_16px_32px_rgba(30,64,175,0.06)]">
@@ -1489,6 +1700,17 @@ export default function TogetherRoomScreen({
                 ? copy.roomDirectionBody(leadingPollOption?.label ?? null, topComfortLabels)
                 : copy.roomDirectionWaiting}
             </p>
+            {(leadingPollOption || topComfortLabels.length > 0) && (
+              <button
+                type="button"
+                onClick={startRoomDirectionPlan}
+                data-testid="together-use-room-direction"
+                className="mt-3 inline-flex min-h-[54px] w-full items-center justify-center gap-2 rounded-[17px] bg-[#0F766E] px-4 font-body text-[17px] font-bold text-white shadow-[0_12px_22px_rgba(15,118,110,0.14)] sm:w-auto"
+              >
+                <Sparkles size={19} aria-hidden="true" />
+                {copy.roomDirectionAction}
+              </button>
+            )}
           </div>
         </section>
 
@@ -1689,18 +1911,26 @@ export default function TogetherRoomScreen({
                       {(plan.replies?.length ?? 0) > 0 && (
                         <div className="mt-2 grid gap-2">
                           {plan.replies!.map((reply) => (
-                            <p
+                            <article
                               key={reply.id}
                               className="rounded-[15px] bg-white px-3 py-2 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]"
                               data-testid={`together-reply-${reply.id}`}
                             >
-                              {reply.body}
-                            </p>
+                              <p>{reply.body}</p>
+                              <button
+                                type="button"
+                                onClick={() => void sendReplyReport(plan, reply)}
+                                data-testid={`together-review-reply-${reply.id}`}
+                                className="mt-2 min-h-[38px] rounded-[13px] border border-[#CFECE3] bg-[#F7FAF7] px-3 font-body text-[14px] font-bold text-[#0F766E]"
+                              >
+                                {copy.reviewReply}
+                              </button>
+                            </article>
                           ))}
                         </div>
                       )}
-                      <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                        {(["support", "curious", "help"] as const).map((tone) => (
+                      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        {(["support", "curious", "help", "different"] as const).map((tone) => (
                           <button
                             key={tone}
                             type="button"

@@ -150,7 +150,7 @@ export type SocialRoomChatItem = {
 
 export type SocialRoomPlanResponseValue = "join" | "maybe";
 export type SocialRoomPlanKind = "plan" | "message" | "question";
-export type SocialRoomComfortNeed = "quiet_pace" | "easy_access" | "seating";
+export type SocialRoomComfortNeed = "quiet_pace" | "easy_access" | "seating" | "transport_help";
 export type SocialRoomExperienceCategory =
   | "movie_date"
   | "restaurant_date"
@@ -163,9 +163,34 @@ export type SocialRoomPreferredTime = "morning" | "afternoon" | "evening" | "fle
 export type SocialRoomCostRange = "free" | "low" | "shared" | "discuss";
 export type SocialRoomGroupSize = "one_to_one" | "small_group" | "open_room";
 export type SocialRoomSafetyFlag = "money" | "housing" | "service" | "private_contact" | "transport";
-export type SocialRoomSafetyReportTargetType = "room" | "plan" | "message" | "question" | "poll" | "reply" | "music_thread_entry";
+export type SocialRoomSafetyReportTargetType = "room" | "plan" | "message" | "question" | "poll" | "reply" | "music_thread_entry" | "music_circle_item";
 
 export type SocialRoomReplyTone = "support" | "curious" | "help" | "different";
+
+export type SocialMusicCauseId = "anthem" | "memory" | "bridge";
+
+export type SocialMusicCircleItem = {
+  id: string;
+  roomId?: string | null;
+  dayKey: string;
+  authorId: string;
+  authorName: string;
+  songText: string;
+  causeId: SocialMusicCauseId;
+  memoryText: string;
+  status: "active" | "hidden" | "pending_review" | string;
+  reactionCount: number;
+  myReaction: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SocialMusicCircle = {
+  dayKey: string;
+  prompt: string;
+  featuredItemId?: string | null;
+  items: SocialMusicCircleItem[];
+};
 
 export type SocialMusicThreadEntryKind = "memory" | "voice";
 
@@ -431,6 +456,7 @@ export type SocialRoomResponse = {
   gameTable?: SocialGameTable;
   pulse?: SocialRoomPulse;
   readingClub?: SocialReadingClubDestination;
+  musicCircle?: SocialMusicCircle;
   musicThreads?: SocialMusicThread[];
 };
 

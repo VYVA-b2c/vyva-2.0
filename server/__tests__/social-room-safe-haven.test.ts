@@ -136,13 +136,47 @@ describe("Together Room safe haven API", () => {
   it("creates reusable Music Room threads and blocks unsafe memories", async () => {
     const userId = "music-thread-safe-haven-user";
 
+    const circleItem = await request(socialApp)
+      .post("/api/social/rooms/music-room/music-circle/items")
+      .set("x-user-id", userId)
+      .send({
+        lang: "en",
+        songText: "Stand By Me",
+        causeId: "bridge",
+        memoryText: "",
+      })
+      .expect(200);
+
+    expect(circleItem.body.item.id).toEqual(expect.any(String));
+    expect(circleItem.body.item.songText).toBe("Stand By Me");
+    expect(circleItem.body.item.reactionCount).toBe(0);
+    expect(circleItem.body.musicCircle.items.map((item: { songText: string }) => item.songText)).toContain("Stand By Me");
+
+    const reaction = await request(socialApp)
+      .post(`/api/social/rooms/music-room/music-circle/items/${circleItem.body.item.id}/reactions`)
+      .set("x-user-id", userId)
+      .send({ lang: "en", kind: "heart" })
+      .expect(200);
+
+    expect(reaction.body.item.reactionCount).toBe(1);
+    expect(reaction.body.item.myReaction).toBe(true);
+
+    const reactionOff = await request(socialApp)
+      .post(`/api/social/rooms/music-room/music-circle/items/${circleItem.body.item.id}/reactions`)
+      .set("x-user-id", userId)
+      .send({ lang: "en", kind: "heart" })
+      .expect(200);
+
+    expect(reactionOff.body.item.reactionCount).toBe(0);
+    expect(reactionOff.body.item.myReaction).toBe(false);
+
     const firstHello = await request(socialApp)
       .post("/api/social/rooms/music-room/connect")
       .set("x-user-id", userId)
       .send({
         lang: "en",
         memberId: "member-arthur",
-        songText: "Stand By Me",
+        circleItemId: circleItem.body.item.id,
         matchedTopic: "Soul",
         bridgePrompt: "Arthur, I added Stand By Me.",
       })
@@ -184,8 +218,23 @@ describe("Together Room safe haven API", () => {
       .set("x-user-id", userId)
       .expect(200);
 
+    expect(room.body.musicCircle.items.map((item: { songText: string }) => item.songText)).toContain("Stand By Me");
     const savedThread = room.body.musicThreads.find((thread: { id: string }) => thread.id === firstHello.body.thread.id);
     expect(savedThread.entries.map((entry: { body: string }) => entry.body)).toContain("It played on my old radio.");
+
+    const unsafeCircle = await request(socialApp)
+      .post("/api/social/rooms/music-room/music-circle/items")
+      .set("x-user-id", userId)
+      .send({
+        lang: "en",
+        songText: "Text me your phone number and I can pay outside the app.",
+        causeId: "bridge",
+      })
+      .expect(400);
+
+    expect(unsafeCircle.body.error).toMatch(/VYVA review/i);
+    expect(unsafeCircle.body.safetyFlags).toContain("private_contact");
+    expect(unsafeCircle.body.safetyFlags).toContain("money");
 
     const unsafe = await request(socialApp)
       .post(`/api/social/rooms/music-room/music-threads/${firstHello.body.thread.id}/entries`)
@@ -256,6 +305,7 @@ describe("Together Room safe haven API", () => {
       "quiet_pace",
       "easy_access",
       "seating",
+      "transport_help",
     ]);
     expect(res.body.pulse.safety.consentLine).toMatch(/both people agree/i);
     expect(res.body.pulse.safety.agreementLines).toContain("Use kind words and no pressure.");
@@ -290,11 +340,11 @@ describe("Together Room safe haven API", () => {
     const saved = await request(socialApp)
       .post("/api/social/rooms/together-room/comfort-check")
       .set("x-user-id", userId)
-      .send({ lang: "en", comfortNeeds: ["quiet_pace", "seating"] })
+      .send({ lang: "en", comfortNeeds: ["quiet_pace", "seating", "transport_help"] })
       .expect(200);
 
-    expect(saved.body.comfortNeeds).toEqual(["quiet_pace", "seating"]);
-    expect(saved.body.pulse.comfortCheck.myComfortNeeds).toEqual(["quiet_pace", "seating"]);
+    expect(saved.body.comfortNeeds).toEqual(["quiet_pace", "seating", "transport_help"]);
+    expect(saved.body.pulse.comfortCheck.myComfortNeeds).toEqual(["quiet_pace", "seating", "transport_help"]);
     expect(
       saved.body.pulse.comfortCheck.options.find((option: { id: string }) => option.id === "quiet_pace").count,
     ).toBeGreaterThanOrEqual(1);
@@ -557,7 +607,7 @@ describe("Together Room safe haven API", () => {
         details: "Friday afternoon, nearby if possible.",
         kind: "plan",
         locationLabel: "nearby",
-        comfortNeeds: ["quiet_pace", "easy_access"],
+        comfortNeeds: ["quiet_pace", "easy_access", "transport_help"],
         experienceCategory: "restaurant_date",
         preferredTime: "afternoon",
         costRange: "shared",
@@ -565,13 +615,13 @@ describe("Together Room safe haven API", () => {
       })
       .expect(200);
 
-    expect(activityProposal.body.proposal.comfortNeeds).toEqual(["quiet_pace", "easy_access"]);
+    expect(activityProposal.body.proposal.comfortNeeds).toEqual(["quiet_pace", "easy_access", "transport_help"]);
     expect(activityProposal.body.proposal.experienceCategory).toBe("restaurant_date");
     expect(activityProposal.body.proposal.preferredTime).toBe("afternoon");
     expect(activityProposal.body.proposal.costRange).toBe("shared");
     expect(activityProposal.body.proposal.groupSize).toBe("small_group");
     expect(activityProposal.body.proposal.needsReview).toBe(false);
-    expect(activityProposal.body.pulse.postedExperiences[0].comfortNeeds).toEqual(["quiet_pace", "easy_access"]);
+    expect(activityProposal.body.pulse.postedExperiences[0].comfortNeeds).toEqual(["quiet_pace", "easy_access", "transport_help"]);
     expect(activityProposal.body.pulse.postedExperiences[0].fitReasons).toContain("Afternoon");
 
     const dealProposal = await request(socialApp)

@@ -37,6 +37,7 @@ import {
   isTogetherRoom,
 } from "./togetherRoom";
 import {
+  addReadingClubJournalEntry,
   addReadingClubShelfItem,
   buildReadingClubBridgePrompt,
   getReadingClubMilestones,
@@ -46,11 +47,15 @@ import {
   joinReadingClubCircle,
   leaveReadingClubCircle,
   loadReadingClubDeskState,
+  markReadingClubLetterSent,
   markReadingClubConversationCardUsed,
   markReadingClubPassport,
   recordReadingClubVisit,
+  removeReadingClubJournalEntry,
+  removeReadingClubLetter,
   removeReadingClubProgramSession,
   removeReadingClubShelfItem,
+  saveReadingClubLetterDraft,
   saveReadingClubProgramSession,
   saveReadingClubDeskState,
   updateReadingClubDeskState,
@@ -501,6 +506,49 @@ function getReadingClubCopy(language: SocialLanguage) {
         { id: "gentle-question", badge: "For greeting", title: "Gentle question", body: "A soft opener for another reader or small circle.", prompt: "What kind of story has kept you company lately?" },
         { id: "recommendation-bridge", badge: "For recommending", title: "Recommendation bridge", body: "Offer a book by mood so it feels like a gift, not homework.", prompt: "I would recommend something gentle if you enjoy..." },
       ],
+      journalTitle: "Club journal",
+      journalBody: "Keep private pages from today's table so the club has a thread to return to.",
+      journalPromptLabel: "Journal starters",
+      journalUsePromptLabel: "Use starter",
+      journalSaveLabel: "Save page",
+      journalSavedLabel: "Saved in your club journal.",
+      journalRemovedLabel: "Removed from your club journal.",
+      journalPromptReadyLabel: "Journal starter ready in the reflection box.",
+      journalEmptyLabel: "Your journal is ready for today's first page.",
+      journalRemoveLabel: "Remove journal page",
+      journalDefaultTitle: "Today's club page",
+      journalCircleLabel: "Circle",
+      journalPrompts: [
+        { id: "line", title: "One line", body: "Save the sentence you want to remember.", draft: "One line I want to carry from today is..." },
+        { id: "voice", title: "One voice", body: "Notice a person or character who stayed with you.", draft: "A voice that stayed with me today was..." },
+        { id: "next-visit", title: "Next visit", body: "Leave a small thread for your next club visit.", draft: "Next time I come back, I want to ask about..." },
+      ],
+      letterboxTitle: "Club letterbox",
+      letterboxBody: "Write a short protected note for a companion or circle. Nothing leaves the room until you choose to send it.",
+      letterPromptLabel: "Letter starters",
+      letterUsePromptLabel: "Use starter",
+      letterRecipientLabel: "To",
+      letterRecipientPlaceholder: "Reading companion or circle",
+      letterSubjectLabel: "Subject",
+      letterSubjectPlaceholder: "A kind note about...",
+      letterBodyLabel: "Letter",
+      letterBodyPlaceholder: "Write a short note in your own words...",
+      letterSaveLabel: "Save draft",
+      letterSendLabel: "Mark sent",
+      letterDraftLabel: "Draft",
+      letterSentLabel: "Sent",
+      letterSavedStatusLabel: "Letter saved in your club letterbox.",
+      letterSentStatusLabel: "Letter marked as sent.",
+      letterRemovedStatusLabel: "Letter removed.",
+      letterEmptyLabel: "Your letterbox is ready for a first note.",
+      letterRemoveLabel: "Remove letter",
+      letterDefaultRecipient: "A reading companion",
+      letterDefaultSubject: "A gentle club note",
+      letterPrompts: [
+        { id: "thanks", title: "Thank you note", subject: "Thank you for the memory", body: "Thank you for the memory you shared. It made me think of..." },
+        { id: "question", title: "Gentle question", subject: "A question for next time", body: "Next time we meet at the club, I would enjoy hearing more about..." },
+        { id: "recommend", title: "Recommendation note", subject: "A quiet recommendation", body: "I thought you might enjoy this kind of story because..." },
+      ],
       milestones: [
         { id: "first-reflection" as ReadingClubMilestoneId, label: "First reflection", body: "Add one book, scene or memory to the table." },
         { id: "warm-greeting" as ReadingClubMilestoneId, label: "Warm greeting", body: "Send one protected hello to another reader." },
@@ -637,6 +685,49 @@ function getReadingClubCopy(language: SocialLanguage) {
         { id: "gentle-question", badge: "Zum Gruessen", title: "Sanfte Frage", body: "Ein ruhiger Anfang fuer eine andere Leserin oder einen kleinen Kreis.", prompt: "Welche Art Geschichte hat dir zuletzt Gesellschaft geleistet?" },
         { id: "recommendation-bridge", badge: "Zum Empfehlen", title: "Empfehlungsbruecke", body: "Empfiehl nach Stimmung, damit es wie ein Geschenk wirkt.", prompt: "Ich wuerde etwas Ruhiges empfehlen, wenn du magst..." },
       ],
+      journalTitle: "Clubjournal",
+      journalBody: "Bewahre private Seiten vom heutigen Tisch auf, damit der Club einen Faden zum Wiederkommen hat.",
+      journalPromptLabel: "Journalstarter",
+      journalUsePromptLabel: "Starter nutzen",
+      journalSaveLabel: "Seite speichern",
+      journalSavedLabel: "In deinem Clubjournal gespeichert.",
+      journalRemovedLabel: "Aus deinem Clubjournal entfernt.",
+      journalPromptReadyLabel: "Journalstarter steht im Reflexionsfeld bereit.",
+      journalEmptyLabel: "Dein Journal wartet auf die erste Seite von heute.",
+      journalRemoveLabel: "Journal-Seite entfernen",
+      journalDefaultTitle: "Heutige Clubseite",
+      journalCircleLabel: "Kreis",
+      journalPrompts: [
+        { id: "line", title: "Eine Zeile", body: "Bewahre den Satz, an den du dich erinnern moechtest.", draft: "Eine Zeile, die ich von heute mitnehmen moechte, ist..." },
+        { id: "voice", title: "Eine Stimme", body: "Merke dir eine Person oder Figur, die geblieben ist.", draft: "Eine Stimme, die heute bei mir geblieben ist, war..." },
+        { id: "next-visit", title: "Naechster Besuch", body: "Lass einen kleinen Faden fuer deinen naechsten Clubbesuch.", draft: "Wenn ich wiederkomme, moechte ich fragen..." },
+      ],
+      letterboxTitle: "Clubbriefkasten",
+      letterboxBody: "Schreibe eine kurze geschuetzte Notiz fuer eine Begleitung oder einen Kreis. Nichts verlaesst den Raum, bis du es sendest.",
+      letterPromptLabel: "Briefstarter",
+      letterUsePromptLabel: "Starter nutzen",
+      letterRecipientLabel: "An",
+      letterRecipientPlaceholder: "Lesebegleitung oder Kreis",
+      letterSubjectLabel: "Betreff",
+      letterSubjectPlaceholder: "Eine freundliche Notiz ueber...",
+      letterBodyLabel: "Brief",
+      letterBodyPlaceholder: "Schreibe eine kurze Notiz in eigenen Worten...",
+      letterSaveLabel: "Entwurf speichern",
+      letterSendLabel: "Als gesendet markieren",
+      letterDraftLabel: "Entwurf",
+      letterSentLabel: "Gesendet",
+      letterSavedStatusLabel: "Brief im Clubbriefkasten gespeichert.",
+      letterSentStatusLabel: "Brief als gesendet markiert.",
+      letterRemovedStatusLabel: "Brief entfernt.",
+      letterEmptyLabel: "Dein Briefkasten wartet auf die erste Notiz.",
+      letterRemoveLabel: "Brief entfernen",
+      letterDefaultRecipient: "Eine Lesebegleitung",
+      letterDefaultSubject: "Eine freundliche Clubnotiz",
+      letterPrompts: [
+        { id: "thanks", title: "Dankesnotiz", subject: "Danke fuer die Erinnerung", body: "Danke fuer die Erinnerung, die du geteilt hast. Sie hat mich denken lassen an..." },
+        { id: "question", title: "Sanfte Frage", subject: "Eine Frage fuer naechstes Mal", body: "Wenn wir uns wieder im Club treffen, wuerde ich gern mehr hoeren ueber..." },
+        { id: "recommend", title: "Empfehlungsnotiz", subject: "Eine ruhige Empfehlung", body: "Ich dachte, diese Art Geschichte koennte dir gefallen, weil..." },
+      ],
       milestones: [
         { id: "first-reflection" as ReadingClubMilestoneId, label: "Erster Beitrag", body: "Fuege ein Buch, eine Szene oder Erinnerung hinzu." },
         { id: "warm-greeting" as ReadingClubMilestoneId, label: "Warmer Gruss", body: "Sende einen geschuetzten Gruss an eine andere Leserin." },
@@ -771,6 +862,49 @@ function getReadingClubCopy(language: SocialLanguage) {
       { id: "memory-scene", badge: "Para compartir", title: "Escena de memoria", body: "Nombra un lugar, personaje o sentimiento. No hace falta resumir.", prompt: "Una escena que todavia llevo conmigo es..." },
       { id: "gentle-question", badge: "Para saludar", title: "Pregunta amable", body: "Un inicio suave para otra persona lectora o un circulo pequeno.", prompt: "Que tipo de historia te ha hecho compania ultimamente?" },
       { id: "recommendation-bridge", badge: "Para recomendar", title: "Puente de recomendacion", body: "Recomienda por animo para que se sienta como un regalo.", prompt: "Recomendaria algo tranquilo si disfrutas..." },
+    ],
+    journalTitle: "Diario del club",
+    journalBody: "Guarda paginas privadas de la mesa de hoy para que el club tenga un hilo al que volver.",
+    journalPromptLabel: "Inicios del diario",
+    journalUsePromptLabel: "Usar inicio",
+    journalSaveLabel: "Guardar pagina",
+    journalSavedLabel: "Guardado en tu diario del club.",
+    journalRemovedLabel: "Quitado de tu diario del club.",
+    journalPromptReadyLabel: "Inicio listo en el cuadro de reflexion.",
+    journalEmptyLabel: "Tu diario espera la primera pagina de hoy.",
+    journalRemoveLabel: "Quitar pagina del diario",
+    journalDefaultTitle: "Pagina del club de hoy",
+    journalCircleLabel: "Circulo",
+    journalPrompts: [
+      { id: "line", title: "Una linea", body: "Guarda la frase que quieres recordar.", draft: "Una linea que quiero llevarme de hoy es..." },
+      { id: "voice", title: "Una voz", body: "Nota una persona o personaje que se quedo contigo.", draft: "Una voz que se quedo conmigo hoy fue..." },
+      { id: "next-visit", title: "Proxima visita", body: "Deja un hilo pequeno para tu proxima visita.", draft: "La proxima vez que vuelva, quiero preguntar..." },
+    ],
+    letterboxTitle: "Buzon del club",
+    letterboxBody: "Escribe una nota protegida para una compania o circulo. Nada sale de la sala hasta que decidas enviarla.",
+    letterPromptLabel: "Inicios de carta",
+    letterUsePromptLabel: "Usar inicio",
+    letterRecipientLabel: "Para",
+    letterRecipientPlaceholder: "Compania de lectura o circulo",
+    letterSubjectLabel: "Asunto",
+    letterSubjectPlaceholder: "Una nota amable sobre...",
+    letterBodyLabel: "Carta",
+    letterBodyPlaceholder: "Escribe una nota breve con tus palabras...",
+    letterSaveLabel: "Guardar borrador",
+    letterSendLabel: "Marcar enviada",
+    letterDraftLabel: "Borrador",
+    letterSentLabel: "Enviada",
+    letterSavedStatusLabel: "Carta guardada en tu buzon del club.",
+    letterSentStatusLabel: "Carta marcada como enviada.",
+    letterRemovedStatusLabel: "Carta quitada.",
+    letterEmptyLabel: "Tu buzon espera la primera nota.",
+    letterRemoveLabel: "Quitar carta",
+    letterDefaultRecipient: "Una compania de lectura",
+    letterDefaultSubject: "Una nota amable del club",
+    letterPrompts: [
+      { id: "thanks", title: "Nota de gracias", subject: "Gracias por el recuerdo", body: "Gracias por el recuerdo que compartiste. Me hizo pensar en..." },
+      { id: "question", title: "Pregunta tranquila", subject: "Una pregunta para la proxima vez", body: "La proxima vez que nos encontremos en el club, me gustaria escuchar mas sobre..." },
+      { id: "recommend", title: "Nota de recomendacion", subject: "Una recomendacion tranquila", body: "Pense que podrias disfrutar este tipo de historia porque..." },
     ],
     milestones: [
       { id: "first-reflection" as ReadingClubMilestoneId, label: "Primera reflexion", body: "Anade un libro, una escena o un recuerdo a la mesa." },
@@ -1112,6 +1246,28 @@ function formatChatTime(createdAt: string, language: SocialLanguage) {
   return date.toLocaleTimeString(language, {
     hour: "2-digit",
     minute: "2-digit",
+  });
+}
+
+function formatReadingJournalDay(dayKey: string, language: SocialLanguage) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dayKey);
+  if (!match) return dayKey;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  if (Number.isNaN(date.getTime())) return dayKey;
+
+  return date.toLocaleDateString(language, {
+    day: "numeric",
+    month: "short",
+  });
+}
+
+function formatReadingLetterDate(createdAt: string, language: SocialLanguage) {
+  const date = new Date(createdAt);
+  if (Number.isNaN(date.getTime())) return "";
+
+  return date.toLocaleDateString(language, {
+    day: "numeric",
+    month: "short",
   });
 }
 
@@ -1972,6 +2128,9 @@ const RoomScreen = () => {
   const [readingGreetingStatus, setReadingGreetingStatus] = useState("");
   const [selectedReadingModeId, setSelectedReadingModeId] = useState("one-to-one");
   const [readingReflectionDraft, setReadingReflectionDraft] = useState("");
+  const [readingLetterRecipientDraft, setReadingLetterRecipientDraft] = useState("");
+  const [readingLetterSubjectDraft, setReadingLetterSubjectDraft] = useState("");
+  const [readingLetterBodyDraft, setReadingLetterBodyDraft] = useState("");
   const [readingPassportCompletions, setReadingPassportCompletions] = useState<Record<string, boolean>>({});
   const [readingPulse, setReadingPulse] = useState<SocialRoomPulse | null>(null);
   const [readingClubStatus, setReadingClubStatus] = useState("");
@@ -2089,6 +2248,21 @@ const RoomScreen = () => {
     const circleIds = new Set(readingClubDesk.joinedReaderCircleIds);
     return readingClubCopy.readerCircles.filter((circle) => circleIds.has(circle.id));
   }, [readingClubCopy.readerCircles, readingClubDesk.joinedReaderCircleIds]);
+  const latestReadingJournalEntries = useMemo(
+    () => readingClubDesk.journalEntries.slice(0, 3),
+    [readingClubDesk.journalEntries],
+  );
+  const selectedReadingCircleForJournal = joinedReadingCircles[0] ?? null;
+  const canSaveReadingJournalPage = Boolean(readingReflectionDraft.trim() || readingClubDesk.lastReflection.trim());
+  const latestReadingLetters = useMemo(
+    () => readingClubDesk.letters.slice(0, 3),
+    [readingClubDesk.letters],
+  );
+  const readingLetterRecipientSuggestion =
+    readingMatchResponse?.matchedUser?.name ??
+    selectedReadingCircleForJournal?.title ??
+    readingClubCopy.letterDefaultRecipient;
+  const canSaveReadingLetter = Boolean(readingLetterBodyDraft.trim());
   const readingPollClosed = activeReadingPulse?.activePoll.status !== "active";
   const togetherPlans = useMemo(() => getTogetherPlans(language), [language]);
   const selectedTogetherPlan = useMemo(
@@ -2174,6 +2348,83 @@ const RoomScreen = () => {
     setReadingClubStatus(readingClubCopy.conversationReadyStatusLabel);
   }, [readingClubCopy.conversationReadyStatusLabel, updateReadingDesk]);
 
+  const useReadingJournalPrompt = useCallback((prompt: ReturnType<typeof getReadingClubCopy>["journalPrompts"][number]) => {
+    setReadingReflectionDraft(prompt.draft);
+    setReadingClubStatus(readingClubCopy.journalPromptReadyLabel);
+  }, [readingClubCopy.journalPromptReadyLabel]);
+
+  const saveReadingJournalPage = useCallback(() => {
+    const body = readingReflectionDraft.trim() || readingClubDesk.lastReflection.trim();
+    if (!body) return;
+
+    updateReadingDesk((current) => addReadingClubJournalEntry(current, {
+      title: summarizeReadingPostTitle(body) || readingClubCopy.journalDefaultTitle,
+      body,
+      circleId: selectedReadingCircleForJournal?.id ?? null,
+    }));
+    setReadingClubStatus(readingClubCopy.journalSavedLabel);
+  }, [
+    readingClubCopy.journalDefaultTitle,
+    readingClubCopy.journalSavedLabel,
+    readingClubDesk.lastReflection,
+    readingReflectionDraft,
+    selectedReadingCircleForJournal?.id,
+    updateReadingDesk,
+  ]);
+
+  const removeReadingJournalPage = useCallback((entryId: string) => {
+    updateReadingDesk((current) => removeReadingClubJournalEntry(current, entryId));
+    setReadingClubStatus(readingClubCopy.journalRemovedLabel);
+  }, [readingClubCopy.journalRemovedLabel, updateReadingDesk]);
+
+  const useReadingLetterPrompt = useCallback((prompt: ReturnType<typeof getReadingClubCopy>["letterPrompts"][number]) => {
+    if (!readingLetterRecipientDraft.trim()) {
+      setReadingLetterRecipientDraft(readingLetterRecipientSuggestion);
+    }
+    setReadingLetterSubjectDraft(prompt.subject);
+    setReadingLetterBodyDraft(prompt.body);
+    setSelectedReadingModeId("pen-note");
+    updateReadingDesk((current) => updateReadingClubDeskState(current, {
+      selectedModeId: "pen-note",
+      preferredPaceId: "letters",
+    }));
+  }, [readingLetterRecipientDraft, readingLetterRecipientSuggestion, updateReadingDesk]);
+
+  const saveReadingLetterDraft = useCallback(() => {
+    const body = readingLetterBodyDraft.trim();
+    if (!body) return;
+
+    updateReadingDesk((current) => saveReadingClubLetterDraft(current, {
+      recipientName: readingLetterRecipientDraft.trim() || readingLetterRecipientSuggestion,
+      subject: readingLetterSubjectDraft.trim() || readingClubCopy.letterDefaultSubject,
+      body,
+    }));
+    setReadingClubStatus(readingClubCopy.letterSavedStatusLabel);
+  }, [
+    readingClubCopy.letterDefaultSubject,
+    readingClubCopy.letterSavedStatusLabel,
+    readingLetterBodyDraft,
+    readingLetterRecipientDraft,
+    readingLetterRecipientSuggestion,
+    readingLetterSubjectDraft,
+    updateReadingDesk,
+  ]);
+
+  const markReadingLetterSent = useCallback((letterId: string) => {
+    updateReadingDesk((current) => markReadingClubPassport(
+      incrementReadingClubProgress(markReadingClubLetterSent(current, letterId), "greetingsSent"),
+      "greet",
+      true,
+    ));
+    setReadingPassportCompletions((current) => ({ ...current, greet: true }));
+    setReadingClubStatus(readingClubCopy.letterSentStatusLabel);
+  }, [readingClubCopy.letterSentStatusLabel, updateReadingDesk]);
+
+  const removeReadingLetterDraft = useCallback((letterId: string) => {
+    updateReadingDesk((current) => removeReadingClubLetter(current, letterId));
+    setReadingClubStatus(readingClubCopy.letterRemovedStatusLabel);
+  }, [readingClubCopy.letterRemovedStatusLabel, updateReadingDesk]);
+
   const toggleReadingPassportItem = useCallback((itemId: string) => {
     const completed = !readingPassportCompletions[itemId];
     completeReadingPassportItem(itemId, completed);
@@ -2221,6 +2472,12 @@ const RoomScreen = () => {
       setReadingGreetingStatus("");
     }
   }, [readingRoomActive, roomResponse?.pulse]);
+
+  useEffect(() => {
+    const matchedName = readingMatchResponse?.matchedUser?.name;
+    if (!matchedName || readingLetterRecipientDraft.trim()) return;
+    setReadingLetterRecipientDraft(matchedName);
+  }, [readingLetterRecipientDraft, readingMatchResponse?.matchedUser?.name]);
 
   const visibleRoomChat = useMemo<SocialRoomChatItem[]>(
     () => [...roomChat, ...localChatMessages],
@@ -2412,6 +2669,9 @@ const RoomScreen = () => {
     setIsReadingMatching(false);
     setSelectedReadingModeId("one-to-one");
     setReadingReflectionDraft("");
+    setReadingLetterRecipientDraft("");
+    setReadingLetterSubjectDraft("");
+    setReadingLetterBodyDraft("");
     setReadingPassportCompletions({});
     setSelectedTogetherPlanId("restaurant");
   }, [slug]);
@@ -4073,6 +4333,133 @@ const RoomScreen = () => {
                       )}
                     </div>
                   )}
+
+                  <div className="mt-4 rounded-[22px] border border-[#D7F2E8] bg-[#F7FFFB] px-4 py-4" data-testid="reading-club-letterbox">
+                    <div className="flex items-start gap-2">
+                      <PenLine size={22} strokeWidth={2.4} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+                      <div className="min-w-0">
+                        <p className="font-body text-[19px] font-bold leading-[1.18] text-[#244D47]">{readingClubCopy.letterboxTitle}</p>
+                        <p className="mt-1 font-body text-[15px] leading-[1.32] text-[#41655F]">{readingClubCopy.letterboxBody}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4">
+                      <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#0F766E]">
+                        {readingClubCopy.letterPromptLabel}
+                      </p>
+                      <div className="mt-2 grid gap-2">
+                        {readingClubCopy.letterPrompts.map((prompt) => (
+                          <button
+                            key={prompt.id}
+                            type="button"
+                            onClick={() => useReadingLetterPrompt(prompt)}
+                            className="min-h-[62px] rounded-[18px] border border-[#BDE8D7] bg-white px-3 py-3 text-left"
+                            data-testid={`button-reading-letter-prompt-${prompt.id}`}
+                          >
+                            <span className="block font-body text-[16px] font-bold leading-[1.18] text-[#244D47]">{prompt.title}</span>
+                            <span className="mt-1 inline-flex items-center gap-1.5 font-body text-[14px] font-bold text-[#0F766E]">
+                              <PenLine size={15} strokeWidth={2.4} aria-hidden="true" />
+                              {readingClubCopy.letterUsePromptLabel}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-3">
+                      <label className="block">
+                        <span className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#0F766E]">{readingClubCopy.letterRecipientLabel}</span>
+                        <input
+                          value={readingLetterRecipientDraft}
+                          onChange={(event) => setReadingLetterRecipientDraft(event.target.value)}
+                          placeholder={readingClubCopy.letterRecipientPlaceholder}
+                          className="mt-1 min-h-[46px] w-full rounded-[16px] border border-[#BDE8D7] bg-white px-3 font-body text-[16px] font-semibold text-[#244D47] outline-none placeholder:text-[#7A9B96] focus:border-[#0F766E]"
+                          data-testid="input-reading-letter-recipient"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#0F766E]">{readingClubCopy.letterSubjectLabel}</span>
+                        <input
+                          value={readingLetterSubjectDraft}
+                          onChange={(event) => setReadingLetterSubjectDraft(event.target.value)}
+                          placeholder={readingClubCopy.letterSubjectPlaceholder}
+                          className="mt-1 min-h-[46px] w-full rounded-[16px] border border-[#BDE8D7] bg-white px-3 font-body text-[16px] font-semibold text-[#244D47] outline-none placeholder:text-[#7A9B96] focus:border-[#0F766E]"
+                          data-testid="input-reading-letter-subject"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#0F766E]">{readingClubCopy.letterBodyLabel}</span>
+                        <textarea
+                          value={readingLetterBodyDraft}
+                          onChange={(event) => setReadingLetterBodyDraft(event.target.value)}
+                          placeholder={readingClubCopy.letterBodyPlaceholder}
+                          rows={4}
+                          className="mt-1 min-h-[112px] w-full resize-none rounded-[16px] border border-[#BDE8D7] bg-white px-3 py-3 font-body text-[16px] leading-[1.34] text-[#244D47] outline-none placeholder:text-[#7A9B96] focus:border-[#0F766E]"
+                          data-testid="textarea-reading-letter-body"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={saveReadingLetterDraft}
+                        disabled={!canSaveReadingLetter}
+                        className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-[18px] bg-[#0F766E] px-4 font-body text-[17px] font-bold text-white disabled:opacity-50"
+                        data-testid="button-reading-save-letter"
+                      >
+                        <BookMarked size={18} strokeWidth={2.4} aria-hidden="true" />
+                        {readingClubCopy.letterSaveLabel}
+                      </button>
+                    </div>
+
+                    {latestReadingLetters.length > 0 ? (
+                      <div className="mt-4 grid gap-2">
+                        {latestReadingLetters.map((letter) => (
+                          <div key={letter.id} className="rounded-[18px] border border-[#BDE8D7] bg-white px-3 py-3">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="rounded-full bg-[#ECFDF5] px-3 py-1 font-body text-[13px] font-bold text-[#0F766E]">
+                                    {letter.status === "sent" ? readingClubCopy.letterSentLabel : readingClubCopy.letterDraftLabel}
+                                  </span>
+                                  <span className="rounded-full bg-[#FCF9FF] px-3 py-1 font-body text-[13px] font-bold text-[#6B3CC7]">
+                                    {formatReadingLetterDate(letter.createdAt, language)}
+                                  </span>
+                                </div>
+                                <p className="mt-2 font-body text-[17px] font-bold leading-[1.18] text-[#244D47]">{letter.subject}</p>
+                                <p className="mt-1 font-body text-[14px] font-bold leading-[1.2] text-[#0F766E]">
+                                  {readingClubCopy.letterRecipientLabel}: {letter.recipientName || readingClubCopy.letterDefaultRecipient}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeReadingLetterDraft(letter.id)}
+                                aria-label={readingClubCopy.letterRemoveLabel}
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#BDE8D7] bg-[#F7FFFB] text-[#0F766E]"
+                                data-testid="button-reading-remove-letter"
+                              >
+                                <Trash2 size={16} strokeWidth={2.4} aria-hidden="true" />
+                              </button>
+                            </div>
+                            <p className="mt-2 font-body text-[15px] leading-[1.32] text-[#41655F]">{letter.body}</p>
+                            {letter.status !== "sent" && (
+                              <button
+                                type="button"
+                                onClick={() => markReadingLetterSent(letter.id)}
+                                className="mt-3 inline-flex min-h-[40px] items-center gap-2 rounded-full border border-[#BDE8D7] bg-[#F7FFFB] px-3 font-body text-[14px] font-bold text-[#0F766E]"
+                                data-testid="button-reading-send-letter"
+                              >
+                                <ShieldCheck size={16} strokeWidth={2.4} aria-hidden="true" />
+                                {readingClubCopy.letterSendLabel}
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-4 rounded-[18px] border border-dashed border-[#BDE8D7] bg-white px-3 py-3 font-body text-[15px] font-bold leading-[1.28] text-[#0F766E]">
+                        {readingClubCopy.letterEmptyLabel}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 <div className="rounded-[24px] border border-[#E8DDCF] bg-[#FFFDFC] px-4 py-4">
@@ -4161,6 +4548,100 @@ const RoomScreen = () => {
                       {readingClub.reflectionSubmitLabel}
                     </button>
                   </form>
+
+                  <div
+                    className="mt-4 rounded-[22px] border border-[#D7F2E8] bg-[#F7FFFB] px-4 py-4"
+                    data-testid="reading-club-journal"
+                  >
+                    <div className="flex items-start gap-2">
+                      <BookMarked size={22} strokeWidth={2.4} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+                      <div className="min-w-0">
+                        <p className="font-body text-[19px] font-bold leading-[1.18] text-[#244D47]">{readingClubCopy.journalTitle}</p>
+                        <p className="mt-1 font-body text-[15px] leading-[1.32] text-[#41655F]">{readingClubCopy.journalBody}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4">
+                      <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#0F766E]">
+                        {readingClubCopy.journalPromptLabel}
+                      </p>
+                      <div className="mt-2 grid gap-2">
+                        {readingClubCopy.journalPrompts.map((prompt) => (
+                          <div key={prompt.id} className="rounded-[18px] border border-[#BDE8D7] bg-white px-3 py-3">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="font-body text-[16px] font-bold leading-[1.18] text-[#244D47]">{prompt.title}</p>
+                                <p className="mt-1 font-body text-[14px] leading-[1.28] text-[#41655F]">{prompt.body}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => useReadingJournalPrompt(prompt)}
+                                className="inline-flex min-h-[38px] items-center gap-2 rounded-full border border-[#BDE8D7] bg-[#F7FFFB] px-3 font-body text-[14px] font-bold text-[#0F766E]"
+                                data-testid={`button-reading-journal-prompt-${prompt.id}`}
+                              >
+                                <PenLine size={15} strokeWidth={2.4} aria-hidden="true" />
+                                {readingClubCopy.journalUsePromptLabel}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={saveReadingJournalPage}
+                      disabled={!canSaveReadingJournalPage}
+                      className="mt-4 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-[18px] bg-[#0F766E] px-4 font-body text-[17px] font-bold text-white disabled:opacity-50"
+                      data-testid="button-reading-save-journal"
+                    >
+                      <BookMarked size={18} strokeWidth={2.4} aria-hidden="true" />
+                      {readingClubCopy.journalSaveLabel}
+                    </button>
+
+                    {latestReadingJournalEntries.length > 0 ? (
+                      <div className="mt-4 grid gap-2">
+                        {latestReadingJournalEntries.map((entry) => {
+                          const circle = entry.circleId
+                            ? readingClubCopy.readerCircles.find((item) => item.id === entry.circleId)
+                            : null;
+                          return (
+                            <div key={entry.id} className="rounded-[18px] border border-[#BDE8D7] bg-white px-3 py-3">
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="rounded-full bg-[#ECFDF5] px-3 py-1 font-body text-[13px] font-bold text-[#0F766E]">
+                                      {formatReadingJournalDay(entry.dayKey, language)}
+                                    </span>
+                                    {circle && (
+                                      <span className="rounded-full bg-[#FCF9FF] px-3 py-1 font-body text-[13px] font-bold text-[#6B3CC7]">
+                                        {readingClubCopy.journalCircleLabel}: {circle.title}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="mt-2 font-body text-[17px] font-bold leading-[1.18] text-[#244D47]">{entry.title}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => removeReadingJournalPage(entry.id)}
+                                  aria-label={readingClubCopy.journalRemoveLabel}
+                                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#BDE8D7] bg-[#F7FFFB] text-[#0F766E]"
+                                  data-testid="button-reading-remove-journal-entry"
+                                >
+                                  <Trash2 size={16} strokeWidth={2.4} aria-hidden="true" />
+                                </button>
+                              </div>
+                              <p className="mt-2 font-body text-[15px] leading-[1.32] text-[#41655F]">{entry.body}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="mt-4 rounded-[18px] border border-dashed border-[#BDE8D7] bg-white px-3 py-3 font-body text-[15px] font-bold leading-[1.28] text-[#0F766E]">
+                        {readingClubCopy.journalEmptyLabel}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

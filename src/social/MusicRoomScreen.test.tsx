@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import MusicRoomScreen from "./MusicRoomScreen";
-import type { SocialMusicThread, SocialRoomResponse } from "./types";
+import type { SocialMusicCircleItem, SocialMusicThread, SocialRoomResponse } from "./types";
 
 const apiFetchMock = vi.fn();
 
@@ -81,6 +81,37 @@ function jsonResponse(body: unknown) {
   });
 }
 
+function circleItem(overrides: Partial<SocialMusicCircleItem> = {}): SocialMusicCircleItem {
+  return {
+    id: "circle-item-1",
+    roomId: "room-1",
+    dayKey: "2026-06-04",
+    authorId: "music-user",
+    authorName: "You",
+    songText: "Stand By Me",
+    causeId: "bridge",
+    memoryText: "",
+    status: "active",
+    reactionCount: 6,
+    myReaction: false,
+    createdAt: "2026-06-04T10:00:00.000Z",
+    updatedAt: "2026-06-04T10:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function withMusicCircle(items: SocialMusicCircleItem[] = [circleItem()]): SocialRoomResponse {
+  return {
+    ...roomResponse,
+    musicCircle: {
+      dayKey: "2026-06-04",
+      prompt: "Today's Song",
+      featuredItemId: items[0]?.id ?? null,
+      items,
+    },
+  };
+}
+
 function musicThread(overrides: Partial<SocialMusicThread> = {}): SocialMusicThread {
   return {
     id: "thread-1",
@@ -95,6 +126,7 @@ function musicThread(overrides: Partial<SocialMusicThread> = {}): SocialMusicThr
     entries: [
       {
         id: "entry-song",
+        threadId: "thread-1",
         authorId: "music-user",
         authorName: "You",
         kind: "memory",
@@ -105,6 +137,7 @@ function musicThread(overrides: Partial<SocialMusicThread> = {}): SocialMusicThr
       },
       {
         id: "entry-reply",
+        threadId: "thread-1",
         authorId: "member-arthur",
         authorName: "Arthur",
         kind: "memory",
@@ -121,50 +154,104 @@ function musicThread(overrides: Partial<SocialMusicThread> = {}): SocialMusicThr
 describe("MusicRoomScreen", () => {
   beforeEach(() => {
     apiFetchMock.mockReset();
-    apiFetchMock.mockResolvedValue(jsonResponse({
-      reply: "In the circle. Who should hear it?",
-    }));
   });
 
-  it("adds a song memory to the circle and shows Diego's response", async () => {
+  it("adds a daily circle song and ranks Arthur first for Stand By Me", async () => {
+    const item = circleItem();
+    apiFetchMock.mockResolvedValueOnce(jsonResponse({
+      item,
+      musicCircle: {
+        dayKey: "2026-06-04",
+        prompt: "Today's Song",
+        featuredItemId: item.id,
+        items: [item],
+      },
+    }));
+
     render(<MusicRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
 
     expect(screen.getByRole("heading", { name: "Song Circle" })).toBeInTheDocument();
-    expect(screen.getAllByText("Bridge").length).toBeGreaterThan(0);
-    expect(screen.getByText("Round")).toBeInTheDocument();
+    expect(screen.getAllByText("Today's Song").length).toBeGreaterThan(0);
 
     fireEvent.change(screen.getByLabelText("Song or memory..."), {
-      target: { value: "Stand By Me, because it played at every family party" },
+      target: { value: "Stand By Me" },
     });
     fireEvent.click(screen.getByRole("button", { name: /Add/i }));
 
-    expect(screen.getByText("Stand By Me, because it played at every family party")).toBeInTheDocument();
-
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
-        "/api/social/rooms/music-room/message",
+        "/api/social/rooms/music-room/music-circle/items",
         expect.objectContaining({
           method: "POST",
-          body: expect.stringContaining("What song shows your path?"),
+          body: expect.stringContaining('"songText":"Stand By Me"'),
         }),
       );
     });
 
-    expect(await screen.findByText(/In the circle/)).toBeInTheDocument();
+    expect(screen.getAllByText("Stand By Me").length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: /^Say hello to/ })[0]).toHaveAccessibleName("Say hello to Arthur");
   });
 
-  it("fills the song field from a song spark", () => {
-    render(<MusicRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+  it("toggles a heart reaction on a circle item", async () => {
+    const updatedItem = circleItem({ reactionCount: 7, myReaction: true });
+    apiFetchMock.mockResolvedValueOnce(jsonResponse({
+      item: updatedItem,
+      musicCircle: {
+        dayKey: "2026-06-04",
+        prompt: "Today's Song",
+        featuredItemId: updatedItem.id,
+        items: [updatedItem],
+      },
+    }));
 
-    fireEvent.click(screen.getByRole("button", { name: "My place" }));
+    render(<MusicRoomScreen roomResponse={withMusicCircle()} language="en" visitId="visit-1" onBack={vi.fn()} />);
 
-    expect(screen.getByLabelText("Song or memory...")).toHaveValue("My place");
+    fireEvent.click(screen.getAllByRole("button", { name: "Send heart" })[0]);
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/social/rooms/music-room/music-circle/items/circle-item-1/reactions",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining('"kind":"heart"'),
+        }),
+      );
+    });
+    expect(await screen.findAllByRole("button", { name: "Remove heart" })).toHaveLength(2);
+    expect(screen.getAllByText("7").length).toBeGreaterThan(0);
   });
 
-  it("sends a music-based greeting with one tap", async () => {
+  it("sends a music greeting from the featured circle item", async () => {
+    apiFetchMock.mockResolvedValueOnce(jsonResponse({
+      reply: "Arthur got your hello.",
+      thread: musicThread(),
+    }));
+
+    render(<MusicRoomScreen roomResponse={withMusicCircle()} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Say hello to Arthur" }));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/social/rooms/music-room/connect",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining('"circleItemId":"circle-item-1"'),
+        }),
+      );
+    });
+    const connectCall = apiFetchMock.mock.calls.find(([url]) => url === "/api/social/rooms/music-room/connect");
+    const connectBody = JSON.parse(String(connectCall?.[1]?.body)) as { circleItemId: string; songText: string; matchedTopic: string };
+    expect(connectBody.circleItemId).toBe("circle-item-1");
+    expect(connectBody.songText).toBe("Stand By Me");
+    expect(connectBody.matchedTopic).toBe("Soul");
+    expect(await screen.findByText("Soul: old friends.")).toBeInTheDocument();
+  });
+
+  it("adds memory and voice markers to the active persisted thread", async () => {
     const memoryEntry = {
       id: "entry-memory",
+      threadId: "thread-1",
       authorId: "music-user",
       authorName: "You",
       kind: "memory" as const,
@@ -175,6 +262,7 @@ describe("MusicRoomScreen", () => {
     };
     const voiceEntry = {
       id: "entry-voice",
+      threadId: "thread-1",
       authorId: "music-user",
       authorName: "You",
       kind: "voice" as const,
@@ -185,13 +273,6 @@ describe("MusicRoomScreen", () => {
     };
     const baseThread = musicThread();
     apiFetchMock
-      .mockResolvedValueOnce(jsonResponse({
-        reply: "In the circle. Who should hear it?",
-      }))
-      .mockResolvedValueOnce(jsonResponse({
-        reply: "Arthur got your hello.",
-        thread: baseThread,
-      }))
       .mockResolvedValueOnce(jsonResponse({
         entry: memoryEntry,
         thread: musicThread({
@@ -207,37 +288,20 @@ describe("MusicRoomScreen", () => {
         }),
       }));
 
-    render(<MusicRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
-
-    fireEvent.change(screen.getByLabelText("Song or memory..."), {
-      target: { value: "Stand By Me" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /Add/i }));
-    fireEvent.click(await screen.findByRole("button", { name: "Say hello to Arthur" }));
-
-    await waitFor(() => {
-      expect(apiFetchMock).toHaveBeenCalledWith(
-        "/api/social/rooms/music-room/connect",
-        expect.objectContaining({
-          method: "POST",
-          body: expect.stringContaining('"memberId":"member-arthur"'),
-        }),
-      );
-    });
-    const connectCall = apiFetchMock.mock.calls.find(([url]) => url === "/api/social/rooms/music-room/connect");
-    const connectBody = JSON.parse(String(connectCall?.[1]?.body)) as { bridgePrompt: string; songText: string; matchedTopic: string };
-    expect(connectBody.bridgePrompt).toContain('I added "Stand By Me"');
-    expect(connectBody.bridgePrompt).toContain('"Soul" caught my ear');
-    expect(connectBody.songText).toBe("Stand By Me");
-    expect(connectBody.matchedTopic).toBe("Soul");
-    expect(await screen.findByRole("button", { name: "Arthur Replied" })).toBeInTheDocument();
-    expect(screen.getByText("Arthur replied")).toBeInTheDocument();
-    expect(screen.getByText("Soul: old friends.")).toBeInTheDocument();
+    render(
+      <MusicRoomScreen
+        roomResponse={{ ...withMusicCircle(), musicThreads: [baseThread] }}
+        language="en"
+        visitId="visit-1"
+        onBack={vi.fn()}
+      />,
+    );
 
     fireEvent.change(screen.getByLabelText("Add memory..."), {
       target: { value: "It played on my old radio." },
     });
     fireEvent.click(screen.getByRole("button", { name: "Add memory" }));
+
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
         "/api/social/rooms/music-room/music-threads/thread-1/entries",
@@ -257,10 +321,10 @@ describe("MusicRoomScreen", () => {
     expect(await screen.findByText("Voice note")).toBeInTheDocument();
   });
 
-  it("renders a saved music thread on room reload", () => {
+  it("renders saved circle items and saved music threads on room reload", () => {
     render(
       <MusicRoomScreen
-        roomResponse={{ ...roomResponse, musicThreads: [musicThread()] }}
+        roomResponse={{ ...withMusicCircle(), musicThreads: [musicThread()] }}
         language="en"
         visitId="visit-1"
         onBack={vi.fn()}
@@ -268,7 +332,7 @@ describe("MusicRoomScreen", () => {
     );
 
     expect(screen.getAllByText("Stand By Me").length).toBeGreaterThan(0);
-    expect(screen.getByText("Arthur replied")).toBeInTheDocument();
     expect(screen.getByText("Soul: old friends.")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Send heart" }).length).toBeGreaterThan(0);
   });
 });

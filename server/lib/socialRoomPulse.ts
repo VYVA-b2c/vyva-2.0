@@ -105,7 +105,7 @@ type MemoryNotification = SocialRoomNotification & {
 const TOGETHER_ROOM_SLUG = "together-room";
 const DAILY_POLL_KEY = "daily-room-choice";
 const SAFE_DB_TIMEOUT_MS = 1400;
-const COMFORT_NEED_OPTIONS: SocialRoomComfortNeed[] = ["quiet_pace", "easy_access", "seating"];
+const COMFORT_NEED_OPTIONS: SocialRoomComfortNeed[] = ["quiet_pace", "easy_access", "seating", "transport_help"];
 
 const t = (es: string, en: string, de: string): LocalizedText => ({ es, en, de });
 
@@ -134,7 +134,7 @@ const seedPlans: SeedPlan[] = [
       "VYVA hilft, einen nahen, barrierearmen und ruhigen Ort zu waehlen.",
     ),
     locationLabel: "nearby",
-    comfortNeeds: ["easy_access", "seating"],
+    comfortNeeds: ["easy_access", "seating", "transport_help"],
     experienceCategory: "restaurant_date",
     preferredTime: "afternoon",
     costRange: "shared",
@@ -184,8 +184,8 @@ function normalizePlanKind(value: unknown): SocialRoomPlanKind {
 
 function normalizeComfortNeeds(value: unknown): SocialRoomComfortNeed[] {
   if (!Array.isArray(value)) return [];
-  const allowed = new Set<SocialRoomComfortNeed>(["quiet_pace", "easy_access", "seating"]);
-  return Array.from(new Set(value.filter((item): item is SocialRoomComfortNeed => allowed.has(item as SocialRoomComfortNeed)))).slice(0, 3);
+  const allowed = new Set<SocialRoomComfortNeed>(COMFORT_NEED_OPTIONS);
+  return Array.from(new Set(value.filter((item): item is SocialRoomComfortNeed => allowed.has(item as SocialRoomComfortNeed)))).slice(0, 4);
 }
 
 function normalizeExperienceCategory(value: unknown): SocialRoomExperienceCategory {
@@ -348,8 +348,8 @@ function buildFitReasons(input: {
 }
 
 function normalizeReplyTone(value: unknown): SocialRoomReplyTone {
-  if (value === "help") return "help";
-  return value === "curious" ? "curious" : "support";
+  if (value === "curious" || value === "help" || value === "different") return value;
+  return "support";
 }
 
 function normalizeReplyBody(value: string) {
@@ -420,6 +420,7 @@ function comfortCheckCopy(language: SocialLanguage) {
         quiet_pace: "Ruhiges Tempo",
         easy_access: "Einfacher Zugang",
         seating: "Sitzplatz",
+        transport_help: "Hilfe beim Hinkommen",
       },
     };
   }
@@ -432,6 +433,7 @@ function comfortCheckCopy(language: SocialLanguage) {
         quiet_pace: "Quiet pace",
         easy_access: "Easy access",
         seating: "Place to sit",
+        transport_help: "Transport help",
       },
     };
   }
@@ -443,6 +445,7 @@ function comfortCheckCopy(language: SocialLanguage) {
       quiet_pace: "Ritmo tranquilo",
       easy_access: "Acceso facil",
       seating: "Sentarse",
+      transport_help: "Ayuda para llegar",
     },
   };
 }

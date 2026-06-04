@@ -74,6 +74,31 @@ export type ReadingClubSavedShelfItem = {
   createdAt: string;
 };
 
+const READING_CLUB_JOURNAL_LIMIT = 10;
+
+export type ReadingClubJournalEntry = {
+  id: string;
+  title: string;
+  body: string;
+  dayKey: string;
+  createdAt: string;
+  circleId: string | null;
+};
+
+const READING_CLUB_LETTER_LIMIT = 8;
+
+export type ReadingClubLetterStatus = "draft" | "sent";
+
+export type ReadingClubLetter = {
+  id: string;
+  recipientName: string;
+  subject: string;
+  body: string;
+  status: ReadingClubLetterStatus;
+  createdAt: string;
+  sentAt: string | null;
+};
+
 export type ReadingClubDeskState = {
   version: 1;
   visitCount: number;
@@ -91,6 +116,8 @@ export type ReadingClubDeskState = {
   tablesJoined: number;
   shelfVotes: number;
   savedShelfItems: ReadingClubSavedShelfItem[];
+  journalEntries: ReadingClubJournalEntry[];
+  letters: ReadingClubLetter[];
   plannedProgramSessionIds: string[];
   usedConversationCardIds: string[];
   joinedReaderCircleIds: string[];
@@ -121,6 +148,8 @@ const DEFAULT_DESK_STATE: ReadingClubDeskState = {
   tablesJoined: 0,
   shelfVotes: 0,
   savedShelfItems: [],
+  journalEntries: [],
+  letters: [],
   plannedProgramSessionIds: [],
   usedConversationCardIds: [],
   joinedReaderCircleIds: [],
@@ -244,6 +273,103 @@ function normalizeSavedShelfItems(value: unknown): ReadingClubSavedShelfItem[] {
   return items.slice(0, 8);
 }
 
+function normalizeJournalCreatedAt(value: unknown) {
+  if (typeof value !== "string") return DEFAULT_DESK_STATE.updatedAt;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? DEFAULT_DESK_STATE.updatedAt : value;
+}
+
+function normalizeJournalDayKey(value: unknown, createdAt: string) {
+  if (typeof value === "string" && dateFromDayKey(value)) return value;
+  const createdAtDate = new Date(createdAt);
+  if (!Number.isNaN(createdAtDate.getTime())) return readingClubDayKey(createdAtDate);
+  return readingClubDayKey(new Date(0));
+}
+
+function normalizeJournalEntries(value: unknown): ReadingClubJournalEntry[] {
+  if (!Array.isArray(value)) return [];
+
+  const seen = new Set<string>();
+  const entries: ReadingClubJournalEntry[] = [];
+
+  for (const rawEntry of value) {
+    if (!rawEntry || typeof rawEntry !== "object") continue;
+    const entry = rawEntry as Partial<ReadingClubJournalEntry>;
+    const id = typeof entry.id === "string" && entry.id.trim() ? entry.id.trim().slice(0, 80) : "";
+    const title = typeof entry.title === "string" ? entry.title.replace(/\s+/g, " ").trim().slice(0, 96) : "";
+    const body = typeof entry.body === "string" ? entry.body.replace(/\s+/g, " ").trim().slice(0, 360) : "";
+    if (!id || !title || !body || seen.has(id)) continue;
+
+    const createdAt = normalizeJournalCreatedAt(entry.createdAt);
+    const circleId = typeof entry.circleId === "string" && entry.circleId.trim() ? entry.circleId.trim().slice(0, 80) : null;
+    seen.add(id);
+    entries.push({
+      id,
+      title,
+      body,
+      dayKey: normalizeJournalDayKey(entry.dayKey, createdAt),
+      createdAt,
+      circleId,
+    });
+  }
+
+  return entries.slice(0, READING_CLUB_JOURNAL_LIMIT);
+}
+
+function validLetterStatus(value: unknown): value is ReadingClubLetterStatus {
+  return value === "draft" || value === "sent";
+}
+
+function normalizeLetterDate(value: unknown) {
+  if (typeof value !== "string") return DEFAULT_DESK_STATE.updatedAt;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? DEFAULT_DESK_STATE.updatedAt : value;
+}
+
+function normalizeNullableLetterDate(value: unknown) {
+  if (value == null) return null;
+  if (typeof value !== "string") return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : value;
+}
+
+function normalizeLetters(value: unknown): ReadingClubLetter[] {
+  if (!Array.isArray(value)) return [];
+
+  const seen = new Set<string>();
+  const letters: ReadingClubLetter[] = [];
+
+  for (const rawLetter of value) {
+    if (!rawLetter || typeof rawLetter !== "object") continue;
+    const letter = rawLetter as Partial<ReadingClubLetter>;
+    const id = typeof letter.id === "string" && letter.id.trim() ? letter.id.trim().slice(0, 80) : "";
+    const body = typeof letter.body === "string" ? letter.body.replace(/\s+/g, " ").trim().slice(0, 420) : "";
+    if (!id || !body || seen.has(id)) continue;
+
+    const recipientName = typeof letter.recipientName === "string"
+      ? letter.recipientName.replace(/\s+/g, " ").trim().slice(0, 72)
+      : "";
+    const subject = typeof letter.subject === "string"
+      ? letter.subject.replace(/\s+/g, " ").trim().slice(0, 96)
+      : "";
+    const status = validLetterStatus(letter.status) ? letter.status : "draft";
+    const sentAt = status === "sent" ? normalizeNullableLetterDate(letter.sentAt) : null;
+
+    seen.add(id);
+    letters.push({
+      id,
+      recipientName,
+      subject,
+      body,
+      status,
+      createdAt: normalizeLetterDate(letter.createdAt),
+      sentAt,
+    });
+  }
+
+  return letters.slice(0, READING_CLUB_LETTER_LIMIT);
+}
+
 export function normalizeReadingClubDeskState(value: unknown): ReadingClubDeskState {
   if (!value || typeof value !== "object") return { ...DEFAULT_DESK_STATE };
 
@@ -265,6 +391,8 @@ export function normalizeReadingClubDeskState(value: unknown): ReadingClubDeskSt
     tablesJoined: safeCount(raw.tablesJoined),
     shelfVotes: safeCount(raw.shelfVotes),
     savedShelfItems: normalizeSavedShelfItems(raw.savedShelfItems),
+    journalEntries: normalizeJournalEntries(raw.journalEntries),
+    letters: normalizeLetters(raw.letters),
     plannedProgramSessionIds: compactProgramSessionIds(raw.plannedProgramSessionIds),
     usedConversationCardIds: compactConversationCardIds(raw.usedConversationCardIds),
     joinedReaderCircleIds: compactReaderCircleIds(raw.joinedReaderCircleIds),
@@ -417,6 +545,123 @@ export function removeReadingClubShelfItem(
   return {
     ...current,
     savedShelfItems: current.savedShelfItems.filter((item) => item.id !== itemId),
+    updatedAt: now.toISOString(),
+  };
+}
+
+function journalEntryIdFor(title: string, now: Date) {
+  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32) || "page";
+  return `journal-${now.getTime()}-${slug}`;
+}
+
+export function addReadingClubJournalEntry(
+  previous: unknown,
+  entry: { title?: string; body: string; circleId?: string | null },
+  now = new Date(),
+): ReadingClubDeskState {
+  const current = normalizeReadingClubDeskState(previous);
+  const body = entry.body.replace(/\s+/g, " ").trim().slice(0, 360);
+  if (!body) return current;
+
+  const fallbackTitle = body.length > 64 ? `${body.slice(0, 61)}...` : body;
+  const title = (entry.title ?? fallbackTitle).replace(/\s+/g, " ").trim().slice(0, 96) || fallbackTitle;
+  const createdAt = now.toISOString();
+  const nextEntry: ReadingClubJournalEntry = {
+    id: journalEntryIdFor(title, now),
+    title,
+    body,
+    dayKey: readingClubDayKey(now),
+    createdAt,
+    circleId: entry.circleId?.trim().slice(0, 80) || null,
+  };
+  const duplicatesRemoved = current.journalEntries.filter((existing) => (
+    existing.dayKey !== nextEntry.dayKey || existing.title.toLowerCase() !== nextEntry.title.toLowerCase()
+  ));
+
+  return {
+    ...current,
+    journalEntries: [nextEntry, ...duplicatesRemoved].slice(0, READING_CLUB_JOURNAL_LIMIT),
+    updatedAt: createdAt,
+  };
+}
+
+export function removeReadingClubJournalEntry(
+  previous: unknown,
+  entryId: string,
+  now = new Date(),
+): ReadingClubDeskState {
+  const current = normalizeReadingClubDeskState(previous);
+  return {
+    ...current,
+    journalEntries: current.journalEntries.filter((entry) => entry.id !== entryId),
+    updatedAt: now.toISOString(),
+  };
+}
+
+function letterIdFor(subject: string, now: Date) {
+  const slug = subject.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32) || "letter";
+  return `letter-${now.getTime()}-${slug}`;
+}
+
+export function saveReadingClubLetterDraft(
+  previous: unknown,
+  letter: { recipientName?: string; subject?: string; body: string },
+  now = new Date(),
+): ReadingClubDeskState {
+  const current = normalizeReadingClubDeskState(previous);
+  const body = letter.body.replace(/\s+/g, " ").trim().slice(0, 420);
+  if (!body) return current;
+
+  const fallbackSubject = body.length > 64 ? `${body.slice(0, 61)}...` : body;
+  const subject = (letter.subject ?? fallbackSubject).replace(/\s+/g, " ").trim().slice(0, 96) || fallbackSubject;
+  const recipientName = (letter.recipientName ?? "").replace(/\s+/g, " ").trim().slice(0, 72);
+  const createdAt = now.toISOString();
+  const nextLetter: ReadingClubLetter = {
+    id: letterIdFor(subject, now),
+    recipientName,
+    subject,
+    body,
+    status: "draft",
+    createdAt,
+    sentAt: null,
+  };
+  const duplicatesRemoved = current.letters.filter((existing) => (
+    existing.recipientName.toLowerCase() !== nextLetter.recipientName.toLowerCase() ||
+    existing.subject.toLowerCase() !== nextLetter.subject.toLowerCase()
+  ));
+
+  return {
+    ...current,
+    letters: [nextLetter, ...duplicatesRemoved].slice(0, READING_CLUB_LETTER_LIMIT),
+    updatedAt: createdAt,
+  };
+}
+
+export function markReadingClubLetterSent(
+  previous: unknown,
+  letterId: string,
+  now = new Date(),
+): ReadingClubDeskState {
+  const current = normalizeReadingClubDeskState(previous);
+  const sentAt = now.toISOString();
+  return {
+    ...current,
+    letters: current.letters.map((letter) => (
+      letter.id === letterId ? { ...letter, status: "sent", sentAt } : letter
+    )),
+    updatedAt: sentAt,
+  };
+}
+
+export function removeReadingClubLetter(
+  previous: unknown,
+  letterId: string,
+  now = new Date(),
+): ReadingClubDeskState {
+  const current = normalizeReadingClubDeskState(previous);
+  return {
+    ...current,
+    letters: current.letters.filter((letter) => letter.id !== letterId),
     updatedAt: now.toISOString(),
   };
 }

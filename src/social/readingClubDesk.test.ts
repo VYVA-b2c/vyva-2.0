@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  addReadingClubJournalEntry,
   addReadingClubShelfItem,
   buildReadingClubBridgePrompt,
   getReadingClubMilestones,
@@ -8,13 +9,17 @@ import {
   incrementReadingClubProgress,
   joinReadingClubCircle,
   leaveReadingClubCircle,
+  markReadingClubLetterSent,
   markReadingClubConversationCardUsed,
   markReadingClubPassport,
   normalizeReadingClubDeskState,
   readingClubDayKey,
   recordReadingClubVisit,
+  removeReadingClubJournalEntry,
+  removeReadingClubLetter,
   removeReadingClubProgramSession,
   removeReadingClubShelfItem,
+  saveReadingClubLetterDraft,
   saveReadingClubProgramSession,
   updateReadingClubDeskState,
 } from "./readingClubDesk";
@@ -31,6 +36,31 @@ describe("reading club desk progress", () => {
       plannedProgramSessionIds: ["salon", "salon", "", 42, "exchange"],
       usedConversationCardIds: ["memory", "memory", "", 11, "greeting"],
       joinedReaderCircleIds: ["poetry-corner", "poetry-corner", "", 11, "memory-keepers"],
+      journalEntries: [
+        {
+          id: "page",
+          title: "  Kitchen   table page  ",
+          body: "  A story   stayed  ",
+          dayKey: "2026-06-04",
+          createdAt: "bad-date",
+          circleId: " memory-keepers ",
+        },
+        { id: "page", title: "Duplicate", body: "Duplicate", dayKey: "2026-06-04", createdAt: "bad-date", circleId: null },
+        { id: "empty-body", title: "No body", body: "", dayKey: "bad", createdAt: "bad-date", circleId: null },
+      ],
+      letters: [
+        {
+          id: "letter",
+          recipientName: "  Maria   ",
+          subject: "  Blue   bowl  ",
+          body: "  I remembered   the kitchen  ",
+          status: "unknown",
+          createdAt: "bad-date",
+          sentAt: "also-bad",
+        },
+        { id: "letter", recipientName: "Duplicate", subject: "Duplicate", body: "Duplicate", status: "sent", createdAt: "bad-date", sentAt: "bad" },
+        { id: "empty-letter", recipientName: "No body", subject: "No body", body: "", status: "sent", createdAt: "bad-date", sentAt: "bad" },
+      ],
       savedShelfItems: [
         { id: "keep", kind: "unknown", title: "  A saved scene  ", body: "  Body   text  ", createdAt: "bad-date" },
         { id: "keep", kind: "reflection", title: "Duplicate", body: "Duplicate", createdAt: "bad-date" },
@@ -59,6 +89,27 @@ describe("reading club desk progress", () => {
         title: "A saved scene",
         body: "Body text",
         createdAt: "bad-date",
+      },
+    ]);
+    expect(state.journalEntries).toEqual([
+      {
+        id: "page",
+        title: "Kitchen table page",
+        body: "A story stayed",
+        dayKey: "2026-06-04",
+        createdAt: "1970-01-01T00:00:00.000Z",
+        circleId: "memory-keepers",
+      },
+    ]);
+    expect(state.letters).toEqual([
+      {
+        id: "letter",
+        recipientName: "Maria",
+        subject: "Blue bowl",
+        body: "I remembered the kitchen",
+        status: "draft",
+        createdAt: "1970-01-01T00:00:00.000Z",
+        sentAt: null,
       },
     ]);
   });
@@ -190,6 +241,88 @@ describe("reading club desk progress", () => {
     const removed = removeReadingClubShelfItem(state, state.savedShelfItems[0].id, new Date(2026, 5, 4, 14));
     expect(removed.savedShelfItems).toHaveLength(7);
     expect(removed.savedShelfItems.some((item) => item.title === "Prompt 9")).toBe(false);
+  });
+
+  it("saves, de-duplicates, caps, and removes private journal entries", () => {
+    let state = recordReadingClubVisit(null, new Date(2026, 5, 4, 10));
+    state = addReadingClubJournalEntry(state, {
+      title: "Kitchen table page",
+      body: "A story reminded me of a blue bowl.",
+      circleId: "memory-keepers",
+    }, new Date(2026, 5, 4, 11));
+    state = addReadingClubJournalEntry(state, {
+      title: "Kitchen table page",
+      body: "Updated memory",
+      circleId: "memory-keepers",
+    }, new Date(2026, 5, 4, 12));
+
+    expect(state.journalEntries).toHaveLength(1);
+    expect(state.journalEntries[0]).toMatchObject({
+      title: "Kitchen table page",
+      body: "Updated memory",
+      dayKey: "2026-06-04",
+      circleId: "memory-keepers",
+    });
+
+    for (let index = 0; index < 13; index += 1) {
+      state = addReadingClubJournalEntry(state, {
+        title: `Page ${index}`,
+        body: `Body ${index}`,
+      }, new Date(2026, 5, 4, 13, index));
+    }
+
+    expect(state.journalEntries).toHaveLength(10);
+    expect(state.journalEntries[0].title).toBe("Page 12");
+    expect(state.journalEntries.some((entry) => entry.title === "Page 0")).toBe(false);
+
+    const removed = removeReadingClubJournalEntry(state, state.journalEntries[0].id, new Date(2026, 5, 4, 14));
+    expect(removed.journalEntries).toHaveLength(9);
+    expect(removed.journalEntries.some((entry) => entry.title === "Page 12")).toBe(false);
+  });
+
+  it("saves, de-duplicates, caps, sends, and removes club letters", () => {
+    let state = recordReadingClubVisit(null, new Date(2026, 5, 4, 10));
+    state = saveReadingClubLetterDraft(state, {
+      recipientName: "Maria",
+      subject: "A blue bowl",
+      body: "Your story made me remember my kitchen table.",
+    }, new Date(2026, 5, 4, 11));
+    state = saveReadingClubLetterDraft(state, {
+      recipientName: "Maria",
+      subject: "A blue bowl",
+      body: "Updated letter",
+    }, new Date(2026, 5, 4, 12));
+
+    expect(state.letters).toHaveLength(1);
+    expect(state.letters[0]).toMatchObject({
+      recipientName: "Maria",
+      subject: "A blue bowl",
+      body: "Updated letter",
+      status: "draft",
+      sentAt: null,
+    });
+
+    state = markReadingClubLetterSent(state, state.letters[0].id, new Date(2026, 5, 4, 13));
+    expect(state.letters[0]).toMatchObject({
+      status: "sent",
+      sentAt: new Date(2026, 5, 4, 13).toISOString(),
+    });
+
+    for (let index = 0; index < 11; index += 1) {
+      state = saveReadingClubLetterDraft(state, {
+        recipientName: `Reader ${index}`,
+        subject: `Letter ${index}`,
+        body: `Body ${index}`,
+      }, new Date(2026, 5, 4, 14, index));
+    }
+
+    expect(state.letters).toHaveLength(8);
+    expect(state.letters[0].subject).toBe("Letter 10");
+    expect(state.letters.some((letter) => letter.subject === "Letter 0")).toBe(false);
+
+    const removed = removeReadingClubLetter(state, state.letters[0].id, new Date(2026, 5, 4, 15));
+    expect(removed.letters).toHaveLength(7);
+    expect(removed.letters.some((letter) => letter.subject === "Letter 10")).toBe(false);
   });
 
   it("saves, de-duplicates, caps, and removes planned program sessions", () => {
