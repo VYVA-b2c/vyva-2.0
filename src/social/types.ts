@@ -120,7 +120,7 @@ export type SocialRoomGroupSize = "one_to_one" | "small_group" | "open_room";
 export type SocialRoomSafetyFlag = "money" | "housing" | "service" | "private_contact" | "transport";
 export type SocialRoomSafetyReportTargetType = "room" | "plan" | "message" | "question" | "poll" | "reply";
 
-export type SocialRoomReplyTone = "support" | "curious";
+export type SocialRoomReplyTone = "support" | "curious" | "help";
 
 export type SocialRoomComfortCheckOption = {
   id: SocialRoomComfortNeed;

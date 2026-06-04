@@ -147,7 +147,7 @@ const planReplySchema = z.object({
   lang: z.string().optional(),
   visitId: z.string().optional(),
   body: z.string().trim().min(1).max(180),
-  tone: z.enum(["support", "curious"]).optional().default("support"),
+  tone: z.enum(["support", "curious", "help"]).optional().default("support"),
 });
 
 const pollVoteSchema = z.object({
