@@ -2168,7 +2168,7 @@ const RoomScreen = () => {
     setReadingClubStatus(readingClubCopy.circleLeftStatusLabel);
   }, [readingClubCopy.circleLeftStatusLabel, updateReadingDesk]);
 
-  const useReadingConversationCard = useCallback((card: ReturnType<typeof getReadingClubCopy>["conversationCards"][number]) => {
+  const markReadingConversationCardUsed = useCallback((card: ReturnType<typeof getReadingClubCopy>["conversationCards"][number]) => {
     setReadingReflectionDraft(card.prompt);
     updateReadingDesk((current) => markReadingClubConversationCardUsed(current, card.id));
     setReadingClubStatus(readingClubCopy.conversationReadyStatusLabel);
@@ -4107,7 +4107,7 @@ const RoomScreen = () => {
                               </div>
                               <button
                                 type="button"
-                                onClick={() => useReadingConversationCard(card)}
+                                onClick={() => markReadingConversationCardUsed(card)}
                                 aria-pressed={used}
                                 className={`inline-flex min-h-[40px] items-center gap-2 rounded-full px-3 font-body text-[14px] font-bold ${
                                   used ? "bg-[#6B3CC7] text-white" : "border border-[#D9C7F8] bg-white text-[#6B3CC7]"
