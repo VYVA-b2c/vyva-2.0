@@ -136,6 +136,16 @@ describe("Together Room safe haven API", () => {
   it("creates reusable Music Room threads and blocks unsafe memories", async () => {
     const userId = "music-thread-safe-haven-user";
 
+    const emptyCircle = await request(socialApp)
+      .get("/api/social/rooms/music-room?lang=en")
+      .set("x-user-id", "music-circle-seed-user")
+      .expect(200);
+
+    expect(emptyCircle.body.musicCircle.seedSong.songText).toEqual(expect.any(String));
+    expect(emptyCircle.body.musicCircle.seedSong.nudge).toMatch(/Diego/i);
+    expect(emptyCircle.body.musicCircle.featuredItemId).toBeNull();
+    expect(emptyCircle.body.musicCircle.items).toEqual([]);
+
     const circleItem = await request(socialApp)
       .post("/api/social/rooms/music-room/music-circle/items")
       .set("x-user-id", userId)
@@ -151,6 +161,7 @@ describe("Together Room safe haven API", () => {
     expect(circleItem.body.item.songText).toBe("Stand By Me");
     expect(circleItem.body.item.reactionCount).toBe(0);
     expect(circleItem.body.musicCircle.items.map((item: { songText: string }) => item.songText)).toContain("Stand By Me");
+    expect(circleItem.body.musicCircle.seedSong.nudge).toMatch(/Diego/i);
 
     const reaction = await request(socialApp)
       .post(`/api/social/rooms/music-room/music-circle/items/${circleItem.body.item.id}/reactions`)

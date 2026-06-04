@@ -18,6 +18,7 @@ import type {
   SocialLanguage,
   SocialMusicCircle,
   SocialMusicCircleItem,
+  SocialMusicCircleSeedSong,
   SocialMusicThread,
   SocialMusicThreadEntry,
   SocialRoomMember,
@@ -585,6 +586,7 @@ function normalizeMusicCircle(circle: SocialMusicCircle | undefined) {
     dayKey: circle?.dayKey ?? new Date().toISOString().slice(0, 10),
     prompt: circle?.prompt ?? "",
     featuredItemId: circle?.featuredItemId ?? items[0]?.id ?? null,
+    seedSong: circle?.seedSong ?? null,
     items,
   };
 }
@@ -666,10 +668,15 @@ export default function MusicRoomScreen({
   const featuredItem = featuredItemId
     ? musicCircleItems.find((item) => item.id === featuredItemId) ?? null
     : musicCircleItems[0] ?? null;
+  const seedSong: SocialMusicCircleSeedSong | null = musicCircleItems.length === 0 ? initialCircle.seedSong : null;
+  const starterSongs = useMemo(() => {
+    const starters = selectedCause.starters.filter((starter) => starter !== seedSong?.songText);
+    return seedSong ? [seedSong.songText, ...starters].slice(0, 3) : starters;
+  }, [seedSong, selectedCause.starters]);
   const activeThread = activeThreadId
     ? musicThreads.find((thread) => thread.id === activeThreadId) ?? null
     : musicThreads[0] ?? null;
-  const currentSongText = featuredItem?.songText ?? activeThread?.songText ?? "";
+  const currentSongText = featuredItem?.songText ?? seedSong?.songText ?? activeThread?.songText ?? "";
   const visibleMembers = useMemo(() => {
     const baseMembers = members.map((member, index) => ({ member, index }));
     if (!currentSongText) return baseMembers;
@@ -931,11 +938,14 @@ export default function MusicRoomScreen({
                         </button>
                       </div>
                     );
-                  }) : selectedCause.starters.map((starter) => (
+                  }) : starterSongs.map((starter) => (
                     <button
                       key={starter}
                       type="button"
-                      onClick={() => setSongDraft(starter)}
+                      onClick={() => {
+                        if (seedSong?.songText === starter) setSelectedCauseId(seedSong.causeId);
+                        setSongDraft(starter);
+                      }}
                       className="flex min-h-[58px] items-center gap-3 rounded-full border border-[#E8DAF6] bg-[#FFFDFC] px-4 py-2 text-left font-body text-[17px] font-extrabold leading-snug text-[#3E2A50] shadow-[0_8px_18px_rgba(77,39,119,0.04)] transition-transform active:scale-[0.99]"
                     >
                       <Music2 size={22} strokeWidth={2.6} className="text-[#7E22CE]" />
@@ -955,9 +965,9 @@ export default function MusicRoomScreen({
                   >
                     <div className="flex h-[40%] w-[40%] flex-col items-center justify-center rounded-full bg-[#6D28D9] px-3 text-center shadow-[0_10px_26px_rgba(0,0,0,0.25)]">
                       <Music2 size={38} strokeWidth={2.7} />
-                      {featuredItem ? (
+                      {currentSongText ? (
                         <span className="mt-2 max-w-[136px] truncate font-body text-[17px] font-extrabold leading-tight">
-                          {featuredItem.songText}
+                          {currentSongText}
                         </span>
                       ) : (
                         <span className="sr-only">{copy.todaySong}</span>
@@ -965,7 +975,7 @@ export default function MusicRoomScreen({
                     </div>
                   </div>
                   <span className="absolute top-6 rounded-full bg-white px-4 py-2 font-body text-[16px] font-extrabold text-[#6D28D9] shadow-[0_10px_22px_rgba(77,39,119,0.1)]">
-                    {roomResponse.musicCircle?.prompt || copy.todaySong}
+                    {initialCircle.prompt || copy.todaySong}
                   </span>
                   {featuredItem && (
                     <button
@@ -980,6 +990,11 @@ export default function MusicRoomScreen({
                     </button>
                   )}
                 </div>
+                {!featuredItem && seedSong?.nudge && (
+                  <p className="mx-auto mt-3 max-w-[280px] text-center font-body text-[15px] font-extrabold leading-snug text-[#6D6170]">
+                    {seedSong.nudge}
+                  </p>
+                )}
               </div>
 
               <div className="order-3 lg:border-l lg:border-[#EEE5F7] lg:pl-5">

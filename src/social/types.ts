@@ -169,6 +169,12 @@ export type SocialRoomReplyTone = "support" | "curious" | "help" | "different";
 
 export type SocialMusicCauseId = "anthem" | "memory" | "bridge";
 
+export type SocialMusicCircleSeedSong = {
+  songText: string;
+  causeId: SocialMusicCauseId;
+  nudge: string;
+};
+
 export type SocialMusicCircleItem = {
   id: string;
   roomId?: string | null;
@@ -189,6 +195,7 @@ export type SocialMusicCircle = {
   dayKey: string;
   prompt: string;
   featuredItemId?: string | null;
+  seedSong?: SocialMusicCircleSeedSong | null;
   items: SocialMusicCircleItem[];
 };
 

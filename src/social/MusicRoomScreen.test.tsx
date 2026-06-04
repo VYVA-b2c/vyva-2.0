@@ -107,6 +107,11 @@ function withMusicCircle(items: SocialMusicCircleItem[] = [circleItem()]): Socia
       dayKey: "2026-06-04",
       prompt: "Today's Song",
       featuredItemId: items[0]?.id ?? null,
+      seedSong: {
+        songText: "Stand By Me",
+        causeId: "bridge",
+        nudge: "Diego picked one. Add yours.",
+      },
       items,
     },
   };
@@ -190,6 +195,58 @@ describe("MusicRoomScreen", () => {
 
     expect(screen.getAllByText("Stand By Me").length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: /^Say hello to/ })[0]).toHaveAccessibleName("Say hello to Arthur");
+  });
+
+  it("uses Diego's daily seed when the circle is empty", async () => {
+    apiFetchMock.mockResolvedValueOnce(jsonResponse({
+      reply: "Arthur got your hello.",
+      thread: musicThread(),
+    }));
+
+    render(
+      <MusicRoomScreen
+        roomResponse={{
+          ...withMusicCircle([]),
+          musicCircle: {
+            dayKey: "2026-06-04",
+            prompt: "Old Radio",
+            featuredItemId: null,
+            seedSong: {
+              songText: "Stand By Me",
+              causeId: "bridge",
+              nudge: "Diego picked one. Add yours.",
+            },
+            items: [],
+          },
+        }}
+        language="en"
+        visitId="visit-1"
+        onBack={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Old Radio")).toBeInTheDocument();
+    expect(screen.getAllByText("Stand By Me").length).toBeGreaterThan(0);
+    expect(screen.getByText("Diego picked one. Add yours.")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /^Say hello to/ })[0]).toHaveAccessibleName("Say hello to Arthur");
+
+    fireEvent.click(screen.getByRole("button", { name: "Stand By Me" }));
+    expect(screen.getByLabelText("Song or memory...")).toHaveValue("Stand By Me");
+
+    fireEvent.click(screen.getByRole("button", { name: "Say hello to Arthur" }));
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/social/rooms/music-room/connect",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining('"songText":"Stand By Me"'),
+        }),
+      );
+    });
+    const connectCall = apiFetchMock.mock.calls.find(([url]) => url === "/api/social/rooms/music-room/connect");
+    const connectBody = JSON.parse(String(connectCall?.[1]?.body)) as { circleItemId?: string; songText: string };
+    expect(connectBody.circleItemId).toBeUndefined();
+    expect(connectBody.songText).toBe("Stand By Me");
   });
 
   it("toggles a heart reaction on a circle item", async () => {
