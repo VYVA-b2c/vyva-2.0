@@ -89,10 +89,18 @@ describe("social games room helpers", () => {
       expect(wordRounds.every((round) => !oldTilePromptPattern.test(round.prompt))).toBe(true);
 
       for (const round of wordRounds) {
+        const visualClue = round.visual?.kind === "wordTiles" ? round.visual.clue ?? "" : "";
+        expect(tileListPattern.test(visualClue)).toBe(false);
+        expect(oldTilePromptPattern.test(visualClue)).toBe(false);
+
         if (round.visual?.kind !== "wordTiles" || round.visual.answerLength <= 2) continue;
         const rackText = round.visual.tiles.join("").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
         const answerText = round.answer.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
         expect(rackText).not.toBe(answerText);
+      }
+
+      if (language === "fr" || language === "it" || language === "pt") {
+        expect(wordRounds.every((round) => round.visual?.kind === "wordTiles" && round.visual.clue !== round.hint)).toBe(true);
       }
     }
   });

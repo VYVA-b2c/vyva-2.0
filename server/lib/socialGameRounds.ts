@@ -1992,6 +1992,10 @@ function splitWordTiles(value: string, answer: string) {
   return commaTiles.length > 1 ? commaTiles : wordAnswerLetters(answer);
 }
 
+function sentenceCase(value: string) {
+  return value ? `${value[0].toUpperCase()}${value.slice(1)}` : value;
+}
+
 function wordTilesPrompt(themeTag: string, variant: WordPuzzleVariant, language: SocialLanguage) {
   const baseWord = localizedField(variant, "baseWord", language);
   const clue = localizedField(variant, "clue", language);
@@ -3262,10 +3266,16 @@ const extraWordPuzzleData: Record<ExtraGameLanguage, CompactExtraWordPuzzle[]> =
 
 function buildExtraWordPuzzleBank(language: ExtraGameLanguage): SocialGameRound[] {
   const copy = extraWordCopy[language];
+  const tileLeadPattern = {
+    fr: /^Avec les lettres(?:\s+[A-Z],?)+\s*,?\s*/,
+    it: /^Con le lettere(?:\s+[A-Z],?)+\s*,?\s*/,
+    pt: /^Com as letras(?:\s+[A-Z],?)+\s*,?\s*/,
+  }[language];
 
-  return extraWordPuzzleData[language].map(([themeId, suffix, _prompt, choices, answer, hint]) => {
+  return extraWordPuzzleData[language].map(([themeId, suffix, prompt, choices, answer, hint]) => {
     const answerLetters = wordAnswerLetters(answer);
     const choiceTiles = answerLetters.length <= 2 ? [...choices] : [];
+    const visualClue = sentenceCase(prompt.replace(tileLeadPattern, "").trim());
 
     return {
       id: `${themeId}-${suffix}`,
@@ -3283,7 +3293,7 @@ function buildExtraWordPuzzleBank(language: ExtraGameLanguage): SocialGameRound[
         kind: "wordTiles" as const,
         tiles: scrambleWordTiles(choiceTiles.length ? choiceTiles : answerLetters, answer, `${themeId}:${suffix}:${language}`),
         answerLength: choiceTiles.length ? 1 : answerLetters.length,
-        clue: hint,
+        clue: visualClue || copy.prompt,
       },
     };
   });

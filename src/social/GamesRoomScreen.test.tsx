@@ -419,7 +419,17 @@ describe("GamesRoomScreen", () => {
 
     expect(screen.getByTestId("games-word-tiles-panel")).toBeInTheDocument();
     expect(screen.getByTestId("word-answer-tray")).toBeInTheDocument();
+    expect(screen.getByTestId("word-tile-progress")).toHaveTextContent("0 of 5 placed");
     expect(screen.queryByTestId("word-help-choices")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("word-show-help"));
+    expect(screen.getByTestId("word-help-panel")).toHaveTextContent("Hint: It means calm between people.");
+    expect(screen.queryByTestId("word-help-choices")).not.toBeInTheDocument();
+    expect(screen.queryByText("PEACE")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("word-show-choices"));
+    expect(screen.getByTestId("word-help-choices")).toBeInTheDocument();
+    expect(screen.getByText("PEACE")).toBeInTheDocument();
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
