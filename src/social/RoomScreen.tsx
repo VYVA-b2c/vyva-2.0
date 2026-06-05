@@ -171,6 +171,8 @@ const MOVEMENT_EXERCISE_CARD_BASE: Array<Pick<MovementExerciseCard, "id" | "grou
   { id: "hand-breathing", group: "calm" },
   { id: "shoulder-release", group: "calm" },
 ];
+const MOVEMENT_EXERCISE_CARD_IDS = new Set<MovementExerciseCardId>(MOVEMENT_EXERCISE_CARD_BASE.map((card) => card.id));
+const MOVEMENT_LAST_USED_EXERCISE_KEY = "vyva_movement_last_exercise_id";
 
 const MOVEMENT_EXERCISE_CARD_COPY: Record<MovementExerciseLanguage, Record<MovementExerciseCardId, Pick<MovementExerciseCard, "title" | "benefit" | "focus">>> = {
   en: {
@@ -264,6 +266,38 @@ function getMovementExerciseCards(language: MovementExerciseLanguage): MovementE
     ...card,
     ...MOVEMENT_EXERCISE_CARD_COPY[language][card.id],
   }));
+}
+
+function isMovementExerciseCardId(value: string | null | undefined): value is MovementExerciseCardId {
+  return Boolean(value && MOVEMENT_EXERCISE_CARD_IDS.has(value as MovementExerciseCardId));
+}
+
+function loadLastMovementExerciseId(): MovementExerciseCardId | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const storedExerciseId = window.localStorage.getItem(MOVEMENT_LAST_USED_EXERCISE_KEY);
+    return isMovementExerciseCardId(storedExerciseId) ? storedExerciseId : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveLastMovementExerciseId(exerciseId: MovementExerciseCardId) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(MOVEMENT_LAST_USED_EXERCISE_KEY, exerciseId);
+  } catch {
+    // Ignore storage failures so exercise logging still completes.
+  }
+}
+
+function getRecommendedMovementExerciseId(date = new Date()): MovementExerciseCardId {
+  const hour = date.getHours();
+  if (hour < 12) return "chair-yoga";
+  if (hour < 17) return "tai-chi";
+  return "calm-breathing";
 }
 
 const MOVEMENT_EXERCISE_SESSIONS: Record<MovementExerciseCardId, {
@@ -1982,10 +2016,14 @@ function getMovementExerciseLibraryCopy(language: MovementExerciseLanguage) {
       eyebrow: "Movement room",
       title: "Choose a gentle activity",
       body: "Tap a photo to start.",
+      recommendedTitle: "Recommended today",
+      recommendedBody: "A simple place to start.",
+      recommendedAction: "Start",
       moreTitle: "More gentle exercises",
       detail: "Browse all 12 photo-led routines here.",
       cta: "Show all exercises",
       collapseCta: "Show fewer",
+      lastUsedBadge: "Last used",
       groupPrompt: "Pick a focus",
       groupCount: (count: number) => `${count} choices`,
       cards: getMovementExerciseCards(language),
@@ -2003,10 +2041,14 @@ function getMovementExerciseLibraryCopy(language: MovementExerciseLanguage) {
       eyebrow: "Bewegungsraum",
       title: "Sanfte Aktivitaet waehlen",
       body: "Tippe auf ein Foto zum Starten.",
+      recommendedTitle: "Heute empfohlen",
+      recommendedBody: "Ein einfacher Start.",
+      recommendedAction: "Starten",
       moreTitle: "Mehr sanfte Uebungen",
       detail: "Alle 12 Foto-Uebungen direkt hier ansehen.",
       cta: "Alle Uebungen zeigen",
       collapseCta: "Weniger zeigen",
+      lastUsedBadge: "Zuletzt",
       groupPrompt: "Fokus waehlen",
       groupCount: (count: number) => `${count} Optionen`,
       cards: getMovementExerciseCards(language),
@@ -2024,10 +2066,14 @@ function getMovementExerciseLibraryCopy(language: MovementExerciseLanguage) {
       eyebrow: "Salle de mouvement",
       title: "Choisir une activite douce",
       body: "Touchez une photo pour commencer.",
+      recommendedTitle: "Recommande aujourd'hui",
+      recommendedBody: "Un depart simple.",
+      recommendedAction: "Commencer",
       moreTitle: "Plus d'exercices doux",
       detail: "Parcourez ici les 12 routines guidees par photo.",
       cta: "Afficher tous les exercices",
       collapseCta: "Afficher moins",
+      lastUsedBadge: "Dernier",
       groupPrompt: "Choisissez un objectif",
       groupCount: (count: number) => `${count} choix`,
       cards: getMovementExerciseCards(language),
@@ -2045,10 +2091,14 @@ function getMovementExerciseLibraryCopy(language: MovementExerciseLanguage) {
       eyebrow: "Stanza movimento",
       title: "Scegli un'attivita dolce",
       body: "Tocca una foto per iniziare.",
+      recommendedTitle: "Consigliato oggi",
+      recommendedBody: "Un inizio semplice.",
+      recommendedAction: "Inizia",
       moreTitle: "Altri esercizi dolci",
       detail: "Sfoglia qui tutte le 12 routine con foto.",
       cta: "Mostra tutti gli esercizi",
       collapseCta: "Mostra meno",
+      lastUsedBadge: "Ultimo",
       groupPrompt: "Scegli un focus",
       groupCount: (count: number) => `${count} scelte`,
       cards: getMovementExerciseCards(language),
@@ -2066,10 +2116,14 @@ function getMovementExerciseLibraryCopy(language: MovementExerciseLanguage) {
       eyebrow: "Sala de movimento",
       title: "Escolha uma atividade suave",
       body: "Toque numa foto para comecar.",
+      recommendedTitle: "Recomendado hoje",
+      recommendedBody: "Um comeco simples.",
+      recommendedAction: "Comecar",
       moreTitle: "Mais exercicios suaves",
       detail: "Veja aqui as 12 rotinas guiadas por foto.",
       cta: "Mostrar todos os exercicios",
       collapseCta: "Mostrar menos",
+      lastUsedBadge: "Ultimo",
       groupPrompt: "Escolha um foco",
       groupCount: (count: number) => `${count} opcoes`,
       cards: getMovementExerciseCards(language),
@@ -2086,10 +2140,14 @@ function getMovementExerciseLibraryCopy(language: MovementExerciseLanguage) {
     eyebrow: "Sala de movimiento",
     title: "Elige una actividad suave",
     body: "Toca una foto para empezar.",
+    recommendedTitle: "Recomendado hoy",
+    recommendedBody: "Un comienzo sencillo.",
+    recommendedAction: "Empezar",
     moreTitle: "Mas ejercicios suaves",
     detail: "Mira las 12 rutinas con foto aqui mismo.",
     cta: "Mostrar todos",
     collapseCta: "Mostrar menos",
+    lastUsedBadge: "Ultimo",
     groupPrompt: "Elige un enfoque",
     groupCount: (count: number) => `${count} opciones`,
     cards: getMovementExerciseCards(language),
@@ -2963,6 +3021,7 @@ const RoomScreen = () => {
   const [readingClubDesk, setReadingClubDesk] = useState<ReadingClubDeskState>(() => loadReadingClubDeskState());
   const [activeMovementExerciseId, setActiveMovementExerciseId] = useState<MovementExerciseCardId | null>(null);
   const [completedMovementExerciseId, setCompletedMovementExerciseId] = useState<MovementExerciseCardId | null>(null);
+  const [lastMovementExerciseId, setLastMovementExerciseId] = useState<MovementExerciseCardId | null>(() => loadLastMovementExerciseId());
   const [movementExerciseLogStatus, setMovementExerciseLogStatus] = useState<MovementExerciseLogStatus>("idle");
   const [isMovementExerciseLibraryExpanded, setMovementExerciseLibraryExpanded] = useState(false);
   const [selectedMovementExerciseGroup, setSelectedMovementExerciseGroup] = useState<MovementExerciseGroupId>("mobility");
@@ -3016,10 +3075,16 @@ const RoomScreen = () => {
   const movementRoomActive = canonicalRoomSlug === "morning-movement";
   const movementExerciseCopy = useMemo(() => getMovementExerciseLibraryCopy(movementExerciseLanguage), [movementExerciseLanguage]);
   const movementSessionUiCopy = useMemo(() => getMovementSessionUiCopy(movementExerciseLanguage), [movementExerciseLanguage]);
+  const recommendedMovementExerciseId = useMemo(() => getRecommendedMovementExerciseId(), []);
   const movementFeaturedExerciseCards = useMemo(() => {
     const featuredIds = new Set(MOVEMENT_FEATURED_EXERCISE_IDS);
     return movementExerciseCopy.cards.filter((card) => featuredIds.has(card.id));
   }, [movementExerciseCopy.cards]);
+  const recommendedMovementExercise = useMemo(
+    () => movementExerciseCopy.cards.find((card) => card.id === recommendedMovementExerciseId) ?? null,
+    [movementExerciseCopy.cards, recommendedMovementExerciseId],
+  );
+  const recommendedMovementExerciseVisual = recommendedMovementExercise ? MOVEMENT_EXERCISE_VISUALS[recommendedMovementExercise.id] : null;
   const selectedMovementExerciseGroupCopy =
     movementExerciseCopy.groups.find((group) => group.id === selectedMovementExerciseGroup) ?? movementExerciseCopy.groups[0];
   const selectedMovementExerciseGroupCards = useMemo(() => {
@@ -3176,6 +3241,8 @@ const RoomScreen = () => {
       });
       if (!response.ok) throw new Error("Failed to log movement room exercise");
       setCompletedMovementExerciseId(activeMovementExerciseId);
+      setLastMovementExerciseId(activeMovementExerciseId);
+      saveLastMovementExerciseId(activeMovementExerciseId);
       setActiveMovementExerciseId(null);
       setMovementExerciseLogStatus("saved");
     } catch {
@@ -4625,6 +4692,51 @@ const RoomScreen = () => {
               {movementExerciseCopy.body}
             </p>
 
+            {recommendedMovementExercise && recommendedMovementExerciseVisual ? (
+              <button
+                type="button"
+                onClick={() => openMovementExerciseCard(recommendedMovementExercise.id)}
+                aria-label={`${movementExerciseCopy.recommendedTitle}: ${recommendedMovementExercise.title}. ${movementExerciseCopy.recommendedAction}.`}
+                className="mt-3 flex min-w-0 items-center gap-3 rounded-[22px] border bg-white/90 p-3 text-left shadow-[0_10px_22px_rgba(2,132,199,0.07)] transition-transform active:scale-[0.99] sm:ml-[72px]"
+                style={{ borderColor: recommendedMovementExerciseVisual.border }}
+                data-testid="button-movement-room-recommended-exercise"
+              >
+                <img
+                  src={recommendedMovementExerciseVisual.image}
+                  alt=""
+                  className="h-[68px] w-[68px] shrink-0 rounded-[16px] object-cover"
+                  loading="lazy"
+                />
+                <span className="min-w-0 flex-1">
+                  <span
+                    className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 font-body text-[11px] font-black uppercase leading-tight"
+                    style={{
+                      background: recommendedMovementExerciseVisual.softBg,
+                      color: recommendedMovementExerciseVisual.accent,
+                    }}
+                  >
+                    <Star size={13} strokeWidth={2.6} aria-hidden="true" />
+                    <span className="truncate">{movementExerciseCopy.recommendedTitle}</span>
+                  </span>
+                  <span className="mt-1 block font-body text-[18px] font-black leading-tight text-[#123047] [overflow-wrap:anywhere]">
+                    {recommendedMovementExercise.title}
+                  </span>
+                  <span className="mt-0.5 block font-body text-[14px] font-bold leading-snug text-[#66717B] [overflow-wrap:anywhere]">
+                    {recommendedMovementExercise.benefit}. {movementExerciseCopy.recommendedBody}
+                  </span>
+                </span>
+                <span
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white sm:w-auto sm:gap-2 sm:px-4"
+                  style={{ background: recommendedMovementExerciseVisual.accent }}
+                >
+                  <span className="hidden font-body text-[15px] font-black sm:inline">
+                    {movementExerciseCopy.recommendedAction}
+                  </span>
+                  <ArrowRight size={20} strokeWidth={2.6} aria-hidden="true" />
+                </span>
+              </button>
+            ) : null}
+
             {completedMovementExercise ? (
               <div
                 className="mt-3 flex items-center gap-2 rounded-[18px] border border-[#BBF7D0] bg-[#F0FDF4] px-3 py-3 font-body text-[16px] font-extrabold leading-snug text-[#047857] sm:ml-[72px]"
@@ -4641,6 +4753,7 @@ const RoomScreen = () => {
               {movementFeaturedExerciseCards.map((card) => {
                 const visual = MOVEMENT_EXERCISE_VISUALS[card.id];
                 const exerciseCompleted = completedMovementExerciseId === card.id;
+                const exerciseLastUsed = lastMovementExerciseId === card.id;
                 return (
                   <button
                     key={card.id}
@@ -4682,12 +4795,12 @@ const RoomScreen = () => {
                           <Clock size={14} strokeWidth={2.4} aria-hidden="true" />
                           10 min
                         </span>
-                        {exerciseCompleted ? (
+                        {exerciseCompleted || exerciseLastUsed ? (
                           <span
                             className="rounded-full px-2.5 py-1 font-body text-[11px] font-black"
                             style={{ background: visual.softBg, color: visual.accent }}
                           >
-                            {movementSessionUiCopy.loggedBadge}
+                            {exerciseCompleted ? movementSessionUiCopy.loggedBadge : movementExerciseCopy.lastUsedBadge}
                           </span>
                         ) : null}
                       </div>
@@ -4791,6 +4904,7 @@ const RoomScreen = () => {
                     {selectedMovementExerciseGroupCards.map((card) => {
                       const visual = MOVEMENT_EXERCISE_VISUALS[card.id];
                       const exerciseCompleted = completedMovementExerciseId === card.id;
+                      const exerciseLastUsed = lastMovementExerciseId === card.id;
                       return (
                         <button
                           key={card.id}
@@ -4832,12 +4946,12 @@ const RoomScreen = () => {
                                 <Clock size={14} strokeWidth={2.4} aria-hidden="true" />
                                 10 min
                               </span>
-                              {exerciseCompleted ? (
+                              {exerciseCompleted || exerciseLastUsed ? (
                                 <span
                                   className="rounded-full px-2.5 py-1 font-body text-[11px] font-black"
                                   style={{ background: visual.softBg, color: visual.accent }}
                                 >
-                                  {movementSessionUiCopy.loggedBadge}
+                                  {exerciseCompleted ? movementSessionUiCopy.loggedBadge : movementExerciseCopy.lastUsedBadge}
                                 </span>
                               ) : null}
                             </div>
