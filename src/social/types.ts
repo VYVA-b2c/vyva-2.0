@@ -59,6 +59,35 @@ export type SocialGameRoundVisual =
       missingCard?: { rank: string; suit: string };
     };
 
+export type SocialGameRoundInteraction =
+  | {
+      kind: "wordBuild";
+      instruction: string;
+      shuffleEnabled?: boolean;
+      revealLetterCount?: number;
+    }
+  | {
+      kind: "chessTap";
+      instruction: string;
+      answerSquares: string[];
+      selectableSquares?: string[];
+    }
+  | {
+      kind: "dominoPlay";
+      instruction: string;
+      answerTile?: [number, number];
+      candidateTiles?: Array<[number, number]>;
+      answerEnd?: number;
+      actions?: Array<{ id: string; label: string }>;
+      answerActionId?: string;
+    }
+  | {
+      kind: "bridgeAction";
+      instruction: string;
+      actions: Array<{ id: string; label: string }>;
+      answerActionId: string;
+    };
+
 export type SocialGameRound = {
   id: string;
   kind: SocialGameKind;
@@ -72,6 +101,9 @@ export type SocialGameRound = {
   estimatedDurationSeconds: number;
   successMessage: string;
   visual?: SocialGameRoundVisual;
+  interaction?: SocialGameRoundInteraction;
+  explanation?: string;
+  tableTalkPrompt?: string;
 };
 
 export type SocialGameReadyMember = {
