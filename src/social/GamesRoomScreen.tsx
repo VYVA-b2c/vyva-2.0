@@ -391,6 +391,33 @@ function getTactileTryAgainCopy(language: SocialGameLanguage) {
   return "Casi. Mira la pista y prueba otro gesto en la mesa.";
 }
 
+function getTactileMoveLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "A vous";
+  if (language === "it") return "Tocca a te";
+  if (language === "pt") return "Sua jogada";
+  if (language === "de") return "Dein Zug";
+  if (language === "en") return "Your move";
+  return "Tu jugada";
+}
+
+function getChessTapCue(language: SocialGameLanguage) {
+  if (language === "fr") return "Touchez une piece marquee sur l'echiquier.";
+  if (language === "it") return "Tocca un pezzo segnato sulla scacchiera.";
+  if (language === "pt") return "Toque numa peca marcada no tabuleiro.";
+  if (language === "de") return "Tippe auf eine markierte Figur auf dem Brett.";
+  if (language === "en") return "Tap a highlighted piece on the board.";
+  return "Toca una pieza marcada en el tablero.";
+}
+
+function getChessTactilePrompt(language: SocialGameLanguage, hasStarted: boolean) {
+  if (language === "fr") return hasStarted ? "Touchez la piece ou la case qui cree la tactique." : "Commencez le puzzle, puis repondez sur l'echiquier.";
+  if (language === "it") return hasStarted ? "Tocca il pezzo o la casella che crea la tattica." : "Avvia il puzzle, poi rispondi sulla scacchiera.";
+  if (language === "pt") return hasStarted ? "Toque na peca ou casa que cria a tatica." : "Comece o puzzle e responda no tabuleiro.";
+  if (language === "de") return hasStarted ? "Tippe auf die Figur oder das Feld, das die Taktik macht." : "Starte das Raetsel und antworte dann auf dem Brett.";
+  if (language === "en") return hasStarted ? "Tap the piece or square that creates the tactic." : "Start the puzzle, then answer on the board.";
+  return hasStarted ? "Toca la pieza o casilla que crea la tactica." : "Empieza el puzle y responde en el tablero.";
+}
+
 function getTableTalkLabel(language: SocialGameLanguage) {
   if (language === "fr") return "Autour de la table";
   if (language === "it") return "Al tavolo";
@@ -518,7 +545,8 @@ function ChessBoardVisual({
           const marked = highlightSet.has(square) || arrowTargets.has(square);
           const selected = selectedSquare === square;
           const wrong = wrongSquare === square;
-          const squareClassName = `relative flex aspect-square items-center justify-center text-[11px] font-black ${dark ? "bg-[#8CB5A7]" : "bg-[#F2E7D5]"} ${canTap ? "focus:outline-none focus-visible:ring-4 focus-visible:ring-[#FBBF24]" : ""}`;
+          const tappable = canTap && selectableSquares.has(square);
+          const squareClassName = `relative flex aspect-square items-center justify-center text-[11px] font-black ${dark ? "bg-[#8CB5A7]" : "bg-[#F2E7D5]"} ${tappable ? "cursor-pointer focus:outline-none focus-visible:ring-4 focus-visible:ring-[#FBBF24] hover:ring-4 hover:ring-[#FBBF24]/70" : canTap ? "cursor-default" : ""}`;
           const content = (
             <>
               {marked && <span className="absolute inset-1 rounded-[8px] border-2 border-[#F59E0B]" />}
@@ -533,12 +561,16 @@ function ChessBoardVisual({
                   <ChessPieceGlyph piece={piece.piece} cutout={piece.piece.startsWith("white") ? "#FFFDF7" : "#173941"} />
                 </span>
               )}
+              {tappable && !isComplete && (
+                <span
+                  aria-hidden="true"
+                  className="absolute bottom-1 right-1 z-20 h-3 w-3 rounded-full bg-[#087C82] ring-2 ring-white"
+                />
+              )}
             </>
           );
 
           if (canTap) {
-            const tappable = selectableSquares.has(square);
-
             return (
               <button
                 key={square}
@@ -730,8 +762,15 @@ function TactileInteractionPanel({
 
   if (interaction.kind === "chessTap") {
     return (
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-[22px] bg-[#F4FAF8] px-4 py-3" data-testid="games-tactile-chess">
-        <p className="font-body text-[16px] font-extrabold leading-snug text-[#31555D]">{interaction.instruction}</p>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-[#BFDAD7] bg-[#F4FAF8] px-4 py-3" data-testid="games-tactile-chess">
+        <div className="min-w-0">
+          <p className="font-body text-[15px] font-extrabold uppercase tracking-[0.08em] text-[#087C82]">
+            {getTactileMoveLabel(language)}
+          </p>
+          <p className="mt-1 font-body text-[17px] font-extrabold leading-snug text-[#31555D]">
+            {getChessTapCue(language)}
+          </p>
+        </div>
         {helpButton}
       </div>
     );
@@ -1110,6 +1149,9 @@ export default function GamesRoomScreen({
     && loadingRoundKind === selectedRound.kind
     && selectedKindRounds.length < selectedPuzzleTotal,
   );
+  const displayedPrompt = selectedRound?.interaction?.kind === "chessTap"
+    ? getChessTactilePrompt(language, hasStartedSelectedRound)
+    : selectedRound?.prompt;
   const canBrowseSelectedPuzzles = Boolean(puzzleBankLabels && selectedPuzzleTotal > 1);
   const isPuzzleNavigationDisabled = isLoadingSelectedBank || selectedKindRounds.length < 2;
 
@@ -1532,7 +1574,7 @@ export default function GamesRoomScreen({
                         onChessSquareSelect={chooseTactileAnswer}
                       />
                     </div>
-                    <p className="font-body text-[22px] font-bold leading-snug text-[#173941]">{selectedRound.prompt}</p>
+                    <p className="font-body text-[22px] font-bold leading-snug text-[#173941]">{displayedPrompt}</p>
 
                     {selectedWordVisual ? (
                       <WordTilesInteraction
@@ -1646,7 +1688,7 @@ export default function GamesRoomScreen({
                       <PuzzleVisualPanel visual={selectedRound.visual} />
                     </div>
                     <p className="mt-5 font-body text-[20px] font-semibold leading-snug text-[#466871]">
-                      {selectedRound.prompt}
+                      {displayedPrompt}
                     </p>
                   </>
                 )}
