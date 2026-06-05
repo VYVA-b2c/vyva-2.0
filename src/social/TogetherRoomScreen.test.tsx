@@ -165,6 +165,7 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByTestId("together-plan-comfort-quiet-lunch")).toHaveTextContent("Place to sit");
     expect(screen.getByTestId("together-plan-fit-quiet-lunch")).toHaveTextContent("Restaurant date");
     expect(screen.getByText("You can be first to choose.")).toBeInTheDocument();
+    expect(screen.queryByTestId("together-plan-loop-tea-film-chat")).not.toBeInTheDocument();
     expect(screen.getByText("What would feel good to share today?")).toBeInTheDocument();
     expect(screen.getByText("Your vote helps choose the next step.")).toBeInTheDocument();
     expect(screen.getByTestId("together-comfort-check")).toHaveTextContent("What would make this comfortable?");
@@ -179,6 +180,20 @@ describe("TogetherRoomScreen", () => {
     expect(screen.queryByTestId("together-starter-view")).not.toBeInTheDocument();
     expect(screen.queryByTestId("together-starter-ask")).not.toBeInTheDocument();
     expect(screen.getAllByText("Contact is shared only when both people agree.").length).toBeGreaterThan(0);
+  });
+
+  it("uses extended language labels inside the Together Room", () => {
+    render(<TogetherRoomScreen roomResponse={roomResponse} language="fr" visitId="visit-1" onBack={vi.fn()} />);
+
+    expect(screen.getByText("Salle protegee")).toBeInTheDocument();
+    expect(screen.getByText("Notre promesse de salle")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Partager un plan" })).toBeInTheDocument();
+    expect(screen.getByTestId("together-starter-plan")).toHaveTextContent("Partager un plan");
+
+    fireEvent.click(screen.getByTestId("together-starter-plan"));
+
+    expect(screen.getByText("Commencer avec une idee")).toBeInTheDocument();
+    expect(screen.getByTestId("together-plan-preset-quiet_lunch")).toHaveTextContent("Dejeuner calme a proximite");
   });
 
   it("saves the room promise acknowledgement", async () => {
@@ -378,6 +393,8 @@ describe("TogetherRoomScreen", () => {
     render(<TogetherRoomScreen roomResponse={responseWithMomentum} language="en" visitId="visit-1" onBack={vi.fn()} />);
 
     expect(screen.getByTestId("together-featured-response-summary")).toHaveTextContent("2 joining | 1 maybe");
+    expect(screen.getByTestId("together-plan-loop-tea-film-chat")).toHaveTextContent("Next step");
+    expect(screen.getByTestId("together-plan-loop-step-tea-film-chat-1")).toHaveTextContent("Choosing time");
     expect(screen.getByTestId("together-plan-location-experience-1")).toHaveTextContent("Nearby");
     expect(screen.getByTestId("together-plan-comfort-experience-1")).toHaveTextContent("Quiet pace");
     expect(screen.getByTestId("together-plan-comfort-experience-1")).toHaveTextContent("Easy access");
@@ -386,8 +403,66 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByTestId("together-plan-review-experience-1")).toHaveTextContent("VYVA reviews before the next step");
     expect(screen.getByTestId("together-plan-review-experience-1")).toHaveTextContent("money");
     expect(screen.getByTestId("together-shared-response-summary-experience-1")).toHaveTextContent("1 joining | 2 maybe");
+    expect(screen.getByTestId("together-plan-loop-experience-1")).toHaveTextContent("Plan status");
     expect(screen.getByTestId("together-gentle-replies-experience-1")).toHaveTextContent("Gentle replies");
     expect(screen.getByTestId("together-reply-reply-1")).toHaveTextContent("I feel the same");
+  });
+
+  it("opens a next-step loop after joining and stores the step as a gentle reply", async () => {
+    const joinedPulse = {
+      ...roomResponse.pulse!,
+      featuredPlan: {
+        ...roomResponse.pulse!.featuredPlan,
+        myResponse: "join" as const,
+        responseCounts: { join: 1, maybe: 0 },
+      },
+    };
+    apiFetchMock
+      .mockResolvedValueOnce(jsonResponse({ ok: true, pulse: joinedPulse }))
+      .mockResolvedValueOnce(jsonResponse({
+        ok: true,
+        pulse: {
+          ...joinedPulse,
+          featuredPlan: {
+            ...joinedPulse.featuredPlan,
+            replies: [
+              {
+                id: "reply-loop-1",
+                planKey: "tea-film-chat",
+                authorName: "Member",
+                body: "I would like to pick a simple time for this plan.",
+                tone: "help",
+                status: "active",
+                createdAt: "2026-06-04T10:06:00.000Z",
+              },
+            ],
+          },
+        },
+      }));
+
+    render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("together-join-plan"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("together-plan-loop-tea-film-chat")).toHaveTextContent("Next step");
+    });
+    expect(screen.getByTestId("together-plan-loop-step-tea-film-chat-1")).toHaveTextContent("Choosing time");
+
+    fireEvent.click(screen.getByTestId("together-plan-loop-time-tea-film-chat"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/social/rooms/together-room/plans/tea-film-chat/replies",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining('"tone":"help"'),
+        }),
+      );
+    });
+    const replyBody = JSON.parse(String(apiFetchMock.mock.calls[1][1]?.body));
+    expect(replyBody.body).toBe("I would like to pick a simple time for this plan.");
+    expect(screen.getByTestId("together-plan-loop-step-tea-film-chat-2")).toHaveTextContent("Confirmed");
   });
 
   it("supports join, maybe, vote, starter, and safety actions", async () => {

@@ -124,10 +124,65 @@ describe("social games room helpers", () => {
 
       for (const round of table.rounds) {
         expect(round.visual).toBeDefined();
+        expect(round.interaction).toBeDefined();
+        expect(round.choices.length).toBeGreaterThan(0);
+        expect(round.explanation).toContain(round.hint);
+        expect(round.tableTalkPrompt?.length).toBeGreaterThan(0);
         if (round.kind === "word") expect(round.visual?.kind).toBe("wordTiles");
         if (round.kind === "chess") expect(round.visual?.kind).toBe("chessBoard");
         if (round.kind === "dominoes") expect(round.visual?.kind).toBe("dominoes");
         if (round.kind === "bridge") expect(round.visual?.kind).toBe("bridgeCards");
+      }
+    }
+  });
+
+  it("adds valid tactile interaction targets to every generated round", () => {
+    for (const language of supportedGameLanguages) {
+      const table = buildGameTable(language, 6);
+
+      for (const round of table.rounds) {
+        expect(round.interaction).toBeDefined();
+        if (!round.interaction) continue;
+
+        if (round.kind === "word") {
+          expect(round.interaction.kind).toBe("wordBuild");
+          if (round.interaction.kind === "wordBuild") {
+            expect(round.interaction.shuffleEnabled).toBe(true);
+            expect(round.interaction.revealLetterCount).toBeGreaterThanOrEqual(1);
+          }
+        }
+
+        if (round.kind === "chess") {
+          expect(round.interaction.kind).toBe("chessTap");
+          expect(round.visual?.kind).toBe("chessBoard");
+          if (round.interaction.kind !== "chessTap" || round.visual?.kind !== "chessBoard") continue;
+          const validSquares = new Set([
+            ...round.visual.pieces.map((piece) => piece.square),
+            ...(round.visual.highlights ?? []),
+          ]);
+          expect(round.interaction.answerSquares.length).toBeGreaterThan(0);
+          expect(round.interaction.answerSquares.every((square) => validSquares.has(square))).toBe(true);
+        }
+
+        if (round.kind === "dominoes") {
+          expect(round.interaction.kind).toBe("dominoPlay");
+          if (round.interaction.kind !== "dominoPlay") continue;
+          if (round.interaction.answerTile) {
+            const answerKey = [...round.interaction.answerTile].sort((a, b) => a - b).join("-");
+            const candidateKeys = (round.interaction.candidateTiles ?? []).map((tile) => [...tile].sort((a, b) => a - b).join("-"));
+            expect(candidateKeys).toContain(answerKey);
+          } else {
+            expect(round.interaction.actions?.length).toBeGreaterThan(0);
+            expect(round.interaction.actions?.some((action) => action.id === round.interaction.answerActionId)).toBe(true);
+          }
+        }
+
+        if (round.kind === "bridge") {
+          expect(round.interaction.kind).toBe("bridgeAction");
+          if (round.interaction.kind !== "bridgeAction") continue;
+          expect(round.interaction.actions.length).toBeGreaterThan(0);
+          expect(round.interaction.actions.some((action) => action.id === round.interaction.answerActionId)).toBe(true);
+        }
       }
     }
   });
@@ -381,14 +436,24 @@ describe("social games room helpers", () => {
     expect(best?.shared).toEqual(["books", "poetry", "literature", "reading_companion"]);
   });
 
-  it("builds a destination-level reading club program in each launch language", () => {
-    for (const language of ["en", "es", "de"] as const) {
+  it("builds a destination-level reading club program in each supported app language", () => {
+    const expectedTitles: Record<SocialGameLanguage, RegExp> = {
+      es: /Club Literario/i,
+      en: /Literary Club/i,
+      fr: /club litteraire/i,
+      de: /Literaturclub/i,
+      it: /club letterario/i,
+      pt: /Clube Literario/i,
+    };
+
+    for (const language of supportedGameLanguages) {
       const club = buildReadingClubDestination(language, [
         { id: "member-maria", name: "Maria", sharedTopic: "memoir" },
         { id: "member-jose", name: "Jose", sharedTopic: "history" },
         { id: "member-carmen", name: "Carmen", sharedTopic: "stories" },
       ], 9);
 
+      expect(club.title).toMatch(expectedTitles[language]);
       expect(club.metrics).toHaveLength(3);
       expect(club.agenda).toHaveLength(3);
       expect(club.shelves.length).toBeGreaterThanOrEqual(2);

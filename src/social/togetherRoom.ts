@@ -9,7 +9,7 @@ import {
   Wrench,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import type { SocialLanguage } from "./types";
+import type { SocialGameLanguage } from "./types";
 
 export const TOGETHER_ROOM_SLUG = "together-room";
 
@@ -42,7 +42,55 @@ export function isTogetherRoom(slug?: string | null) {
   return slug === TOGETHER_ROOM_SLUG;
 }
 
-export function getTogetherRoomCopy(language: SocialLanguage): TogetherRoomCopy {
+export function getTogetherRoomCopy(language: SocialGameLanguage): TogetherRoomCopy {
+  if (language === "fr") {
+    return {
+      previewTitle: "La salle pour faire des choses ensemble",
+      previewSubtitle: "Choisissez ce que vous voulez faire. VYVA trouve une personne compatible.",
+      planLabel: "Que pouvez-vous faire ensemble ici?",
+      rulesLabel: "Regles simples",
+      proximityTitle: "A proximite seulement quand cela aide",
+      proximityBody: "Restaurant, promenades, logement et services locaux favorisent les personnes proches. Films, lettres et conseils peuvent rester en ligne.",
+      nearbyLabel: "Proximite utile",
+      onlineLabel: "En ligne convient",
+      sayHello: (name) => `Dire bonjour a ${name}`,
+      selectedPlanLabel: "Votre plan",
+      rules: ["Choisir un plan.", "Les deux personnes doivent accepter.", "VYVA partage le contact seulement apres accord."],
+    };
+  }
+
+  if (language === "it") {
+    return {
+      previewTitle: "La stanza per fare cose insieme",
+      previewSubtitle: "Scegli cosa vuoi fare. VYVA trova una persona compatibile.",
+      planLabel: "Cosa potete fare qui insieme?",
+      rulesLabel: "Regole semplici",
+      proximityTitle: "Vicino solo quando aiuta",
+      proximityBody: "Ristorante, passeggiate, casa e servizi locali favoriscono persone vicine. Film, lettere e consigli possono restare online.",
+      nearbyLabel: "Vicinanza utile",
+      onlineLabel: "Online va bene",
+      sayHello: (name) => `Saluta ${name}`,
+      selectedPlanLabel: "Il tuo piano",
+      rules: ["Scegli un piano.", "Entrambe le persone devono accettare.", "VYVA condivide il contatto solo dopo il consenso."],
+    };
+  }
+
+  if (language === "pt") {
+    return {
+      previewTitle: "A sala para fazer coisas juntos",
+      previewSubtitle: "Escolha o que quer fazer. A VYVA encontra alguem compativel.",
+      planLabel: "O que podem fazer aqui juntos?",
+      rulesLabel: "Regras simples",
+      proximityTitle: "Perto so quando ajuda",
+      proximityBody: "Restaurante, passeios, casa e servicos locais favorecem pessoas perto. Filmes, cartas e conselhos podem ficar online.",
+      nearbyLabel: "Proximidade ajuda",
+      onlineLabel: "Online serve",
+      sayHello: (name) => `Dizer ola a ${name}`,
+      selectedPlanLabel: "O seu plano",
+      rules: ["Escolha um plano.", "Ambas as pessoas devem concordar.", "A VYVA partilha contacto so depois do consentimento."],
+    };
+  }
+
   if (language === "de") {
     return {
       previewTitle: "Der Raum fuer gemeinsame Plaene",
@@ -90,8 +138,203 @@ export function getTogetherRoomCopy(language: SocialLanguage): TogetherRoomCopy 
   };
 }
 
-export function getTogetherPlans(language: SocialLanguage): TogetherPlan[] {
+export function getTogetherPlans(language: SocialGameLanguage): TogetherPlan[] {
   const copy = getTogetherRoomCopy(language);
+
+  if (language === "fr") {
+    return [
+      {
+        id: "home",
+        icon: Home,
+        label: "Partager un logement",
+        detail: "Regarder ensemble une option de logement sure.",
+        proximity: copy.nearbyLabel,
+        proximityMatters: true,
+        matchLine: "Carmen regarde une option de logement calme a proximite.",
+        memberIndex: 0,
+      },
+      {
+        id: "service",
+        icon: Wrench,
+        label: "Reserver un service",
+        detail: "Planifier menage, transport ou reparation avec quelqu'un.",
+        proximity: copy.nearbyLabel,
+        proximityMatters: true,
+        matchLine: "Luis veut comparer un service local aujourd'hui.",
+        memberIndex: 1,
+      },
+      {
+        id: "deal",
+        icon: Handshake,
+        label: "Negocier une offre",
+        detail: "Rassembler les questions, verifier le prix et decider calmement.",
+        proximity: copy.onlineLabel,
+        proximityMatters: false,
+        matchLine: "Ana aime les offres claires et les decisions calmes.",
+        memberIndex: 2,
+      },
+      {
+        id: "movie",
+        icon: Film,
+        label: "Rendez-vous film",
+        detail: "Choisir un film et en parler brievement apres.",
+        proximity: copy.onlineLabel,
+        proximityMatters: false,
+        matchLine: "Jose aime les comedies et les anciens classiques.",
+        memberIndex: 3,
+      },
+      {
+        id: "restaurant",
+        icon: Utensils,
+        label: "Rendez-vous restaurant",
+        detail: "Choisir un lieu proche et accessible.",
+        proximity: copy.nearbyLabel,
+        proximityMatters: true,
+        matchLine: "Elena cherche un dejeuner calme a proximite.",
+        memberIndex: 0,
+      },
+      {
+        id: "anything",
+        icon: Sparkles,
+        label: "Autre idee",
+        detail: "Dites a VYVA ce que vous avez en tete.",
+        proximity: copy.onlineLabel,
+        proximityMatters: false,
+        matchLine: "Maria est ouverte aux petits plans amicaux.",
+        memberIndex: 1,
+      },
+    ];
+  }
+
+  if (language === "it") {
+    return [
+      {
+        id: "home",
+        icon: Home,
+        label: "Condividere casa",
+        detail: "Guardare insieme un'opzione abitativa sicura.",
+        proximity: copy.nearbyLabel,
+        proximityMatters: true,
+        matchLine: "Carmen guarda una casa tranquilla vicina.",
+        memberIndex: 0,
+      },
+      {
+        id: "service",
+        icon: Wrench,
+        label: "Prenotare servizio",
+        detail: "Pianificare pulizie, trasporto o riparazioni con compagnia.",
+        proximity: copy.nearbyLabel,
+        proximityMatters: true,
+        matchLine: "Luis vuole confrontare un servizio locale oggi.",
+        memberIndex: 1,
+      },
+      {
+        id: "deal",
+        icon: Handshake,
+        label: "Negoziare offerta",
+        detail: "Raccogliere domande, controllare il prezzo e decidere con calma.",
+        proximity: copy.onlineLabel,
+        proximityMatters: false,
+        matchLine: "Ana ama offerte chiare e decisioni tranquille.",
+        memberIndex: 2,
+      },
+      {
+        id: "movie",
+        icon: Film,
+        label: "Appuntamento film",
+        detail: "Scegliere un film e parlarne brevemente dopo.",
+        proximity: copy.onlineLabel,
+        proximityMatters: false,
+        matchLine: "Jose ama commedie e vecchi classici.",
+        memberIndex: 3,
+      },
+      {
+        id: "restaurant",
+        icon: Utensils,
+        label: "Appuntamento ristorante",
+        detail: "Scegliere un posto vicino e accessibile.",
+        proximity: copy.nearbyLabel,
+        proximityMatters: true,
+        matchLine: "Elena cerca un pranzo tranquillo vicino.",
+        memberIndex: 0,
+      },
+      {
+        id: "anything",
+        icon: Sparkles,
+        label: "Altra idea",
+        detail: "Di a VYVA cosa hai in mente.",
+        proximity: copy.onlineLabel,
+        proximityMatters: false,
+        matchLine: "Maria e aperta a piccoli piani gentili.",
+        memberIndex: 1,
+      },
+    ];
+  }
+
+  if (language === "pt") {
+    return [
+      {
+        id: "home",
+        icon: Home,
+        label: "Partilhar casa",
+        detail: "Ver uma opcao de habitacao segura em conjunto.",
+        proximity: copy.nearbyLabel,
+        proximityMatters: true,
+        matchLine: "Carmen procura uma opcao calma de habitacao por perto.",
+        memberIndex: 0,
+      },
+      {
+        id: "service",
+        icon: Wrench,
+        label: "Reservar servico",
+        detail: "Planear limpeza, transporte ou reparacao com companhia.",
+        proximity: copy.nearbyLabel,
+        proximityMatters: true,
+        matchLine: "Luis quer comparar um servico local hoje.",
+        memberIndex: 1,
+      },
+      {
+        id: "deal",
+        icon: Handshake,
+        label: "Negociar oferta",
+        detail: "Juntar perguntas, verificar preco e decidir com calma.",
+        proximity: copy.onlineLabel,
+        proximityMatters: false,
+        matchLine: "Ana gosta de ofertas claras e decisoes calmas.",
+        memberIndex: 2,
+      },
+      {
+        id: "movie",
+        icon: Film,
+        label: "Encontro de filme",
+        detail: "Escolher um filme e conversar brevemente depois.",
+        proximity: copy.onlineLabel,
+        proximityMatters: false,
+        matchLine: "Jose gosta de comedias e classicos antigos.",
+        memberIndex: 3,
+      },
+      {
+        id: "restaurant",
+        icon: Utensils,
+        label: "Encontro restaurante",
+        detail: "Escolher um lugar perto e acessivel.",
+        proximity: copy.nearbyLabel,
+        proximityMatters: true,
+        matchLine: "Elena procura um almoco tranquilo por perto.",
+        memberIndex: 0,
+      },
+      {
+        id: "anything",
+        icon: Sparkles,
+        label: "Outra ideia",
+        detail: "Diga a VYVA o que tem em mente.",
+        proximity: copy.onlineLabel,
+        proximityMatters: false,
+        matchLine: "Maria esta aberta a pequenos planos amigaveis.",
+        memberIndex: 1,
+      },
+    ];
+  }
 
   if (language === "de") {
     return [

@@ -63,6 +63,36 @@ describe("Together Room safe haven API", () => {
 
     expect(alias.body.room.slug).toBe("reading-room");
     expect(alias.body.readingClub.title).toMatch(/Literaturclub/i);
+
+    const localizedCases = [
+      { lang: "fr", name: "Club litteraire", title: /club litteraire/i },
+      { lang: "it", name: "Club letterario", title: /club letterario/i },
+      { lang: "pt", name: "Clube literario", title: /Clube Literario/i },
+    ] as const;
+
+    for (const item of localizedCases) {
+      const localized = await request(socialApp)
+        .get(`/api/social/rooms/reading-room?lang=${item.lang}`)
+        .set("x-user-id", `reading-club-${item.lang}-user`)
+        .expect(200);
+
+      expect(localized.body.room.slug).toBe("reading-room");
+      expect(localized.body.room.name).toBe(item.name);
+      expect(localized.body.readingClub.title).toMatch(item.title);
+      expect(localized.body.readingClub.companionModes.map((mode: { id: string }) => mode.id)).toEqual([
+        "one-to-one",
+        "small-circle",
+        "pen-note",
+      ]);
+    }
+
+    const portugueseAlias = await request(socialApp)
+      .get("/api/social/rooms/book-club?lang=pt")
+      .set("x-user-id", "reading-club-pt-alias-user")
+      .expect(200);
+
+    expect(portugueseAlias.body.room.slug).toBe("reading-room");
+    expect(portugueseAlias.body.room.name).toBe("Clube literario");
   });
 
   it("rotates Games Room default puzzles from per-user exposure history", async () => {
@@ -419,6 +449,62 @@ describe("Together Room safe haven API", () => {
     expect(res.body.pulse.safety.consentLine).toMatch(/both people agree/i);
     expect(res.body.pulse.safety.agreementLines).toContain("Use kind words and no pressure.");
     expect(res.body.pulse.safety.myAcknowledgedAt).toBeNull();
+  });
+
+  it.each([
+    {
+      lang: "fr",
+      roomName: "Salle Ensemble",
+      featuredPlan: "The et discussion film",
+      pollQuestion: "Qu'auriez-vous envie de partager aujourd'hui?",
+      agreementTitle: "Notre promesse de salle",
+      comfortTitle: "Qu'est-ce qui rendrait cela confortable?",
+      memberStatus: "Cherche un plan calme",
+      promptChip: "Je veux un plan a proximite",
+    },
+    {
+      lang: "it",
+      roomName: "Stanza Insieme",
+      featuredPlan: "Te e conversazione film",
+      pollQuestion: "Cosa vi piacerebbe condividere oggi?",
+      agreementTitle: "La promessa della stanza",
+      comfortTitle: "Cosa renderebbe tutto comodo?",
+      memberStatus: "Cerca un piano tranquillo",
+      promptChip: "Voglio un piano vicino",
+    },
+    {
+      lang: "pt",
+      roomName: "Sala Juntos",
+      featuredPlan: "Cha e conversa sobre filme",
+      pollQuestion: "O que gostariam de partilhar hoje?",
+      agreementTitle: "A nossa promessa da sala",
+      comfortTitle: "O que tornaria isto confortavel?",
+      memberStatus: "Procura um plano tranquilo",
+      promptChip: "Quero um plano por perto",
+    },
+  ])("localizes Together Room API payloads for $lang", async ({
+    lang,
+    roomName,
+    featuredPlan,
+    pollQuestion,
+    agreementTitle,
+    comfortTitle,
+    memberStatus,
+    promptChip,
+  }) => {
+    const res = await request(socialApp)
+      .get(`/api/social/rooms/together-room?lang=${lang}`)
+      .set("x-user-id", `safe-haven-locale-${lang}`)
+      .expect(200);
+
+    expect(res.body.room.name).toBe(roomName);
+    expect(res.body.room.liveBadge).not.toBe("4 in the room");
+    expect(res.body.promptChips).toContain(promptChip);
+    expect(res.body.pulse.featuredPlan.title).toBe(featuredPlan);
+    expect(res.body.pulse.activePoll.question).toBe(pollQuestion);
+    expect(res.body.pulse.safety.agreementTitle).toBe(agreementTitle);
+    expect(res.body.pulse.comfortCheck.title).toBe(comfortTitle);
+    expect(res.body.pulse.memberPresence[0].statusLabel).toBe(memberStatus);
   });
 
   it("persists the Together Room promise acknowledgement through pulse refresh", async () => {

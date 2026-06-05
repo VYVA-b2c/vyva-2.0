@@ -571,7 +571,9 @@ type KnowledgeItem = {
   comments: FeedComment[];
 };
 
-const ROOM_TOPIC_HINTS: Record<string, Record<SocialLanguage, string>> = {
+type LocalizedRoomCopy<T> = Partial<Record<SocialLanguage, T>> & { en: T; es?: T };
+
+const ROOM_TOPIC_HINTS: Record<string, LocalizedRoomCopy<string>> = {
   "garden-chat": {
     es: "Hoy hablamos de plantas alegres para una ventana luminosa.",
     de: "Heute sprechen wir über Pflanzen für ein helles Fenster.",
@@ -591,6 +593,9 @@ const ROOM_TOPIC_HINTS: Record<string, Record<SocialLanguage, string>> = {
     es: "Hoy el club comparte libros, recuerdos y recomendaciones.",
     de: "Heute teilt der Club Buecher, Erinnerungen und Empfehlungen.",
     en: "Today the club is sharing books, memories and recommendations.",
+    fr: "Aujourd'hui, le club partage livres, souvenirs et recommandations.",
+    it: "Oggi il club condivide libri, ricordi e consigli.",
+    pt: "Hoje o clube partilha livros, memorias e recomendacoes.",
   },
   "together-room": {
     es: "Hoy puedes elegir un plan y encontrar compania.",
@@ -599,7 +604,7 @@ const ROOM_TOPIC_HINTS: Record<string, Record<SocialLanguage, string>> = {
   },
 };
 
-const ROOM_QUICK_QUESTIONS: Record<string, Record<SocialLanguage, string[]>> = {
+const ROOM_QUICK_QUESTIONS: Record<string, LocalizedRoomCopy<string[]>> = {
   "garden-chat": {
     es: ["¿Qué planta me recomiendas?", "Tengo poca luz", "¿Cada cuánto la riego?"],
     de: ["Welche Pflanze empfiehlst du?", "Ich habe wenig Licht", "Wie oft gieße ich sie?"],
@@ -619,6 +624,9 @@ const ROOM_QUICK_QUESTIONS: Record<string, Record<SocialLanguage, string[]>> = {
     es: ["Compartir un libro querido", "Buscar companero de lectura", "Preguntar que estan leyendo"],
     de: ["Ein liebes Buch teilen", "Lesegefaehrtin finden", "Fragen, was andere lesen"],
     en: ["Share a loved book", "Find a reading companion", "Ask what others are reading"],
+    fr: ["Partager un livre aime", "Trouver une compagnie de lecture", "Demander ce que les autres lisent"],
+    it: ["Condividere un libro caro", "Trovare compagnia di lettura", "Chiedere cosa leggono gli altri"],
+    pt: ["Partilhar um livro querido", "Encontrar companhia de leitura", "Perguntar o que os outros leem"],
   },
   "together-room": {
     es: ["Quiero un plan cerca", "Buscame una cita de pelicula", "Ayudame con un trato"],
@@ -627,7 +635,7 @@ const ROOM_QUICK_QUESTIONS: Record<string, Record<SocialLanguage, string[]>> = {
   },
 };
 
-const ROOM_KNOWLEDGE_FEED: Record<string, Record<SocialLanguage, Array<Omit<KnowledgeItem, "id">>>> = {
+const ROOM_KNOWLEDGE_FEED: Record<string, LocalizedRoomCopy<Array<Omit<KnowledgeItem, "id">>>> = {
   "garden-chat": {
     es: [
       {
@@ -759,6 +767,48 @@ const ROOM_KNOWLEDGE_FEED: Record<string, Record<SocialLanguage, Array<Omit<Know
         comments: [{ id: "c2", author: "Ana", text: "That question feels kind and easy." }],
       },
     ],
+    fr: [
+      {
+        asker: "Maria",
+        question: "Quel livre aimeriez-vous commenter avec une nouvelle personne ?",
+        answer: "Commencez par un livre qui vous a laisse une scene claire. Une scene ouvre la conversation sans devoir tout resumer.",
+        comments: [{ id: "c1", author: "Carmen", text: "Cela m'aide de nommer d'abord le lieu de la scene." }],
+      },
+      {
+        asker: "Jose",
+        question: "Comment saluer une autre personne du club ?",
+        answer: "Vous pouvez commencer par une question simple : quel personnage vous a tenu compagnie le plus longtemps ?",
+        comments: [{ id: "c2", author: "Ana", text: "Cette question semble douce et facile." }],
+      },
+    ],
+    it: [
+      {
+        asker: "Maria",
+        question: "Quale libro vorresti commentare con una persona nuova?",
+        answer: "Inizia da un libro che ti ha lasciato una scena chiara. Una scena apre la conversazione senza dover riassumere tutto.",
+        comments: [{ id: "c1", author: "Carmen", text: "Mi aiuta dire prima il luogo della scena." }],
+      },
+      {
+        asker: "Jose",
+        question: "Come saluto un'altra persona del club?",
+        answer: "Puoi iniziare con una domanda semplice: quale personaggio ti ha fatto compagnia piu a lungo?",
+        comments: [{ id: "c2", author: "Ana", text: "Questa domanda sembra gentile e facile." }],
+      },
+    ],
+    pt: [
+      {
+        asker: "Maria",
+        question: "Que livro gostaria de comentar com uma pessoa nova?",
+        answer: "Comece por um livro que deixou uma cena clara. Uma cena abre a conversa sem precisar de resumir tudo.",
+        comments: [{ id: "c1", author: "Carmen", text: "Ajuda-me dizer primeiro o lugar da cena." }],
+      },
+      {
+        asker: "Jose",
+        question: "Como cumprimento outra pessoa do clube?",
+        answer: "Pode comecar com uma pergunta simples: que personagem lhe fez companhia durante mais tempo?",
+        comments: [{ id: "c2", author: "Ana", text: "Essa pergunta parece amavel e facil." }],
+      },
+    ],
   },
 };
 
@@ -836,33 +886,45 @@ function getInterestLine(language: SocialLanguage, member?: SocialRoomMember | n
   if (member?.sharedTopic) return member.sharedTopic;
   if (language === "en") return "Enjoys gentle expert conversations";
   if (language === "de") return "Mag ruhige Gespräche mit Expertinnen";
+  if (language === "fr") return "Aime les conversations calmes avec des expertes";
+  if (language === "it") return "Ama conversazioni tranquille con esperte";
+  if (language === "pt") return "Gosta de conversas calmas com especialistas";
   return "Disfruta conversaciones tranquilas con expertas";
 }
 
 function getTopicHint(slug: string, language: SocialLanguage, fallbackTopic: string) {
-  return ROOM_TOPIC_HINTS[slug]?.[language] ?? fallbackTopic;
+  return ROOM_TOPIC_HINTS[slug]?.[language] ?? ROOM_TOPIC_HINTS[slug]?.en ?? fallbackTopic;
 }
 
 function getQuickQuestions(slug: string, language: SocialLanguage, promptChips: string[]) {
   if (promptChips.length > 0) return promptChips.slice(0, 3);
-  return ROOM_QUICK_QUESTIONS[slug]?.[language]?.slice(0, 3) ?? [];
+  return (ROOM_QUICK_QUESTIONS[slug]?.[language] ?? ROOM_QUICK_QUESTIONS[slug]?.en)?.slice(0, 3) ?? [];
 }
 
 function getAgentSpeakingLabel(language: SocialLanguage, name: string) {
   if (language === "en") return `${name} is speaking`;
   if (language === "de") return `${name} spricht`;
+  if (language === "fr") return `${name} parle`;
+  if (language === "it") return `${name} sta parlando`;
+  if (language === "pt") return `${name} esta a falar`;
   return `${name} está hablando`;
 }
 
 function getAgentThinkingLabel(language: SocialLanguage, name: string) {
   if (language === "en") return `${name} is thinking…`;
   if (language === "de") return `${name} denkt nach…`;
+  if (language === "fr") return `${name} reflechit...`;
+  if (language === "it") return `${name} sta pensando...`;
+  if (language === "pt") return `${name} esta a pensar...`;
   return `${name} está pensando…`;
 }
 
 function getRoomInteractionHint(language: SocialLanguage) {
   if (language === "en") return "The room agent starts automatically. You can speak, type, or tap a suggestion.";
   if (language === "de") return "Der Raum-Agent startet automatisch. Du kannst sprechen, schreiben oder eine Frage antippen.";
+  if (language === "fr") return "L'agent du salon demarre automatiquement. Vous pouvez parler, ecrire ou toucher une suggestion.";
+  if (language === "it") return "L'agente della stanza parte automaticamente. Puoi parlare, scrivere o toccare un suggerimento.";
+  if (language === "pt") return "O agente da sala comeca automaticamente. Pode falar, escrever ou tocar numa sugestao.";
   return "El agente de la sala empieza automáticamente. Puedes hablar, escribir o tocar una sugerencia.";
 }
 
@@ -871,6 +933,643 @@ function isReadingRoomSlug(slug?: string | null) {
 }
 
 function getReadingClubCopy(language: SocialLanguage) {
+  if (language === "fr") {
+    const base = getReadingClubCopy("en");
+    return {
+      ...base,
+      title: "Club litteraire du jour",
+      body: "Partagez un livre, une scene ou un souvenir, puis rencontrez une autre personne lectrice avec un salut doux et protege.",
+      chips: ["Livres", "Histoires", "Recommandations"],
+      findLabel: "Trouver une compagnie de lecture",
+      findingLabel: "Recherche d'une compagnie...",
+      resultLabel: "Compagnie de lecture",
+      safeLine: "Le contact reste protege jusqu'a ce que les deux personnes soient pretes.",
+      deskTitle: "Mon bureau du club",
+      deskBody: "Votre petite place dans le club garde l'intention du jour et ce que vous avez deja fait.",
+      visitsLabel: "Visites du club",
+      streakLabel: "Jours de suite",
+      preferredModeLabel: "Salutation preferee",
+      favoriteShelfLabel: "Etagere preferee",
+      preferredPaceLabel: "Rythme du club",
+      intentionLabel: "Aujourd'hui je veux",
+      lastReflectionLabel: "Derniere reflexion",
+      noLastReflectionLabel: "Aucune reflexion enregistree pour l'instant.",
+      intentions: [
+        { id: "share-memory" as ReadingClubIntentId, label: "Partager un souvenir", body: "Apporter une scene, un personnage ou un moment." },
+        { id: "recommend-book" as ReadingClubIntentId, label: "Recommander doucement", body: "Laisser un livre ou une histoire a quelqu'un d'autre." },
+        { id: "meet-reader" as ReadingClubIntentId, label: "Rencontrer une personne", body: "Commencer par un bonjour protege." },
+        { id: "quiet-reading" as ReadingClubIntentId, label: "Lire tranquillement", body: "Suivre le club sans pression." },
+      ],
+      profileTitle: "Profil de lecture",
+      profileBody: "Ajustez la rencontre selon l'etagere et le rythme qui vous conviennent aujourd'hui.",
+      shelfTitle: "Etagere preferee",
+      shelfOptions: [
+        { id: "memoir" as ReadingClubShelfId, label: "Memoires", body: "Recits de vie, souvenirs de famille et tournants." },
+        { id: "short-stories" as ReadingClubShelfId, label: "Nouvelles", body: "Petites scenes qui ouvrent une conversation facile." },
+        { id: "poetry" as ReadingClubShelfId, label: "Poesie", body: "Lignes, images et sentiments gardes en memoire." },
+        { id: "classics" as ReadingClubShelfId, label: "Classiques", body: "Anciens favoris et relectures." },
+      ],
+      paceTitle: "Rythme de conversation",
+      paceOptions: [
+        { id: "quiet" as ReadingClubPaceId, label: "Calme", body: "Un echange paisible a deux." },
+        { id: "chatty" as ReadingClubPaceId, label: "Bavard", body: "Plus d'allers-retours a la table." },
+        { id: "letters" as ReadingClubPaceId, label: "Lettres", body: "Commencer par une note ecrite." },
+      ],
+      matchedTopicsLabel: "Etageres communes",
+      protectedGreetingLabel: "Salutation protegee",
+      greetingPreviewLabel: "Isabel suggerera de commencer par",
+      greetingCta: "Envoyer la salutation protegee",
+      greetingSendingLabel: "Envoi de la salutation...",
+      greetingSentLabel: "Salutation envoyee en securite.",
+      greetingFailedLabel: "Impossible d'envoyer la salutation pour l'instant.",
+      milestonesTitle: "Etapes du club",
+      milestonesBody: "Votre histoire de club grandit quand vous partagez, saluez, votez et revenez.",
+      milestonesCompleteLabel: "Termine",
+      nextStepTitle: "Prochaine etape douce",
+      lifetimeStatsLabel: "Historique du club",
+      statsLabels: { reflectionsShared: "reflexions", greetingsSent: "saluts", tablesJoined: "tables", shelfVotes: "votes" },
+      startHereTitle: "Commencer ici",
+      startHereBody: "Choisissez une action simple du club. Le reste peut attendre.",
+      startShareLabel: "Partager une pensee",
+      startShareBody: "Ajouter un livre, une scene ou un souvenir.",
+      startMeetLabel: "Rencontrer une personne",
+      startMeetBody: "Trouver quelqu'un aux gouts proches.",
+      startRecommendLabel: "Recommander",
+      startRecommendBody: "Laisser une suggestion douce.",
+      deepToolsShowLabel: "Plus dans le club",
+      deepToolsHideLabel: "Masquer les outils",
+      deepToolsBody: "Ouvrez le programme, le salon des lecteurs, les etageres, les lettres et le journal quand vous voulez.",
+      savedShelfTitle: "Mon etagere sauvegardee",
+      savedShelfBody: "Gardez les reflexions, questions et recommandations auxquelles vous voudrez revenir.",
+      savedShelfEmptyLabel: "Votre etagere est prete pour une premiere note.",
+      savedShelfReflectionLabel: "Reflexion",
+      savedShelfRecommendationLabel: "Recommandation",
+      savedShelfPromptLabel: "Question",
+      savedShelfRemoveLabel: "Retirer de l'etagere",
+      savedShelfSavedLabel: "Enregistre sur votre etagere.",
+      recommendationShelfTitle: "Partager une recommandation",
+      recommendationShelfBody: "Ecrivez un livre, une histoire ou un type de lecture a offrir a une autre personne. Une courte note suffit.",
+      recommendationTitleLabel: "Que recommanderiez-vous ?",
+      recommendationTitlePlaceholder: "Une histoire de jardin douce pour les apres-midi calmes...",
+      recommendationNoteLabel: "Petite note",
+      recommendationNotePlaceholder: "Ajoutez une ligne si vous voulez...",
+      recommendationShelfLabel: "Etagere",
+      recommendationMoodLabel: "Humeur",
+      recommendationShareLabel: "Enregistrer la recommandation",
+      recommendationEmptyLabel: "Aucune recommandation pour l'instant.",
+      recommendationRemoveLabel: "Retirer la recommandation",
+      recommendationUseLabel: "Utiliser comme reflexion",
+      recommendationSavedStatusLabel: "Recommandation deposee sur l'etagere du club.",
+      recommendationRemovedStatusLabel: "Recommandation retiree.",
+      recommendationReadyStatusLabel: "Recommandation prete dans la zone de reflexion.",
+      recommendationMyShelfTitle: "Mes recommandations",
+      recommendationCreatedLabel: "Deposee",
+      recommendationMoodOptions: [
+        { id: "comfort" as ReadingClubRecommendationMoodId, label: "Reconfort", body: "Histoires douces pour tenir compagnie." },
+        { id: "memory" as ReadingClubRecommendationMoodId, label: "Souvenir", body: "Livres qui ouvrent des lieux rappeles." },
+        { id: "conversation" as ReadingClubRecommendationMoodId, label: "Conversation", body: "Choix faciles pour une table." },
+      ],
+      exchangeBoardTitle: "Tableau d'echange de lecture",
+      exchangeBoardBody: "Demandez au club un livre, une histoire, un souvenir ou une discussion douce. Les demandes restent courtes et originales.",
+      exchangeKindLabel: "Je cherche",
+      exchangeShelfLabel: "Etagere",
+      exchangeTopicLabel: "Sujet d'echange",
+      exchangeTopicPlaceholder: "Exemple : une histoire douce sur les jardins",
+      exchangeNoteLabel: "Petite note",
+      exchangeNotePlaceholder: "Ajoutez ce qui rendrait cela confortable...",
+      exchangePostLabel: "Demander au club",
+      exchangeEmptyLabel: "Aucune demande d'echange pour l'instant.",
+      exchangeRemoveLabel: "Retirer la demande",
+      exchangeUseLabel: "Utiliser a la table",
+      exchangeSavedStatusLabel: "Demande d'echange enregistree.",
+      exchangeRemovedStatusLabel: "Demande d'echange retiree.",
+      exchangeReadyStatusLabel: "Demande placee dans la zone de reflexion.",
+      exchangeMyRequestsTitle: "Mes demandes d'echange",
+      exchangeCreatedLabel: "Demandee",
+      exchangeKindOptions: [
+        { id: "recommendation" as ReadingClubExchangeKindId, label: "Une recommandation", body: "Demander un livre ou une histoire par humeur." },
+        { id: "memory" as ReadingClubExchangeKindId, label: "Un souvenir", body: "Inviter des recits de vie autour d'un theme." },
+        { id: "discussion" as ReadingClubExchangeKindId, label: "Une discussion", body: "Ouvrir une question douce pour la table." },
+      ],
+      hostTableTitle: "Ouvrir une petite table",
+      hostTableBody: "Ouvrez une table calme du club autour d'un theme. Quelques lecteurs peuvent la voir et rejoindre quand cela leur convient.",
+      hostTableTopicLabel: "Theme de la table",
+      hostTableTopicPlaceholder: "Exemple : histoires de cuisine",
+      hostTableNoteLabel: "Note chaleureuse",
+      hostTableNotePlaceholder: "Ajoutez un court accueil ou une note de confort...",
+      hostTableCircleLabel: "Coin de table",
+      hostTableTimeLabel: "Quand",
+      hostTableComfortLabel: "Confort",
+      hostTablePublishLabel: "Ouvrir la table",
+      hostTableEmptyLabel: "Aucune table ouverte pour l'instant.",
+      hostTableRemoveLabel: "Annuler la table",
+      hostTableSavedStatusLabel: "Votre table est ouverte dans le club.",
+      hostTableRemovedStatusLabel: "Table annulee.",
+      hostTableOpenClubLabel: "Club ouvert",
+      hostTableOpenClubBody: "Toute personne dans le salon de lecture peut la voir.",
+      hostTableMyTablesTitle: "Mes tables ouvertes",
+      hostTableCreatedLabel: "Ouverte",
+      hostTableTimeOptions: [
+        { id: "today" as ReadingClubTableTimeId, label: "Aujourd'hui", body: "Pour les lecteurs proches maintenant" },
+        { id: "tomorrow" as ReadingClubTableTimeId, label: "Demain", body: "Un retour en douceur" },
+        { id: "weekend" as ReadingClubTableTimeId, label: "Week-end", body: "Pour les visites lentes" },
+      ],
+      hostTableComfortOptions: [
+        { id: "listening" as ReadingClubTableComfortId, label: "Ecoute", body: "Lecteurs calmes bienvenus" },
+        { id: "small" as ReadingClubTableComfortId, label: "Petite", body: "Seulement quelques voix" },
+        { id: "sharing" as ReadingClubTableComfortId, label: "Partage", body: "Chacun peut apporter une note" },
+      ],
+      memberLoungeTitle: "Lecteurs dans le salon",
+      memberLoungeBody: "Quelques voix sont proches avec des livres, souvenirs et recommandations douces a echanger.",
+      memberLoungeSharedLabel: "Fil de lecture",
+      memberLoungeDefaultStatus: "Ouvert a un bonjour doux",
+      memberLoungeLetterLabel: "Ecrire une note",
+      memberLoungeTableLabel: "Inviter a une table",
+      memberLoungeLetterSubject: "Un bonjour doux du club",
+      memberLoungeLetterDraft: "Bonjour {name}, j'ai vu votre fil de lecture et j'aimerais echanger un petit souvenir de livre quand cela vous semblera confortable.",
+      memberLoungeLetterReadyStatus: "Une note protegee est prete dans la boite aux lettres.",
+      memberLoungeTableTopic: "Une petite table avec {name}",
+      memberLoungeTableNote: "{name} pourrait aimer cette table calme. Apportez un souvenir ou une recommandation avec vos mots.",
+      memberLoungeTableReadyStatus: "Une invitation de table est prete a ouvrir.",
+      programTitle: "Programme du club cette semaine",
+      programBody: "Gardez une place pour des rencontres douces auxquelles vous voudrez revenir. Rien n'est public avant votre choix.",
+      programMyWeekTitle: "Mon programme du club",
+      programEmptyLabel: "Aucune place gardee pour l'instant.",
+      programSaveLabel: "Garder la place",
+      programSavedLabel: "Place gardee",
+      programRemoveLabel: "Retirer la place",
+      programSavedStatusLabel: "Enregistre dans votre programme du club.",
+      programRemovedStatusLabel: "Retire du programme du club.",
+      programSessions: [
+        { id: "monday-memory", dayLabel: "Lundi", timeLabel: "Matin", title: "Pages de memoire", body: "Apportez une scene d'un livre ou de la vie.", hostLine: "Bon pour une premiere visite" },
+        { id: "wednesday-recommendations", dayLabel: "Mercredi", timeLabel: "Apres-midi", title: "Recommandations douces", body: "Echanger des livres par humeur, pas comme devoir.", hostLine: "Conversation facile" },
+        { id: "friday-poetry", dayLabel: "Vendredi", timeLabel: "Soir", title: "Petit salon de poesie", body: "Partagez un sentiment, une image ou une ligne avec vos mots.", hostLine: "Rythme calme" },
+      ],
+      readerCirclesTitle: "Cercles de lecture",
+      readerCirclesBody: "Choisissez un coin plus petit du club pour retrouver des voix familieres autour du meme type de lecture.",
+      myCirclesTitle: "Mes cercles",
+      circleEmptyLabel: "Aucun cercle rejoint pour l'instant.",
+      circleJoinLabel: "Rejoindre le cercle",
+      circleJoinedLabel: "Rejoint",
+      circleLeaveLabel: "Quitter le cercle",
+      circleJoinedStatusLabel: "Vous avez rejoint un cercle de lecture.",
+      circleLeftStatusLabel: "Retire de vos cercles.",
+      readerCircles: [
+        { id: "memory-keepers", badge: "Memoires", title: "Gardiens de memoire", body: "Partager des scenes de vie, de famille et de lieux souvenus.", memberLine: "4 lecteurs cette semaine" },
+        { id: "poetry-corner", badge: "Poesie", title: "Coin poesie", body: "Parler d'images, de sentiments et de lignes courtes avec vos mots.", memberLine: "3 lecteurs cette semaine" },
+        { id: "gentle-recommendations", badge: "Echange", title: "Recommandations douces", body: "Echanger des livres par humeur et confort, pas comme devoir.", memberLine: "5 lecteurs cette semaine" },
+      ],
+      conversationKitTitle: "Kit de conversation",
+      conversationKitBody: "Choisissez une carte pour entrer facilement a la table. Chaque debut est court, original et sur.",
+      conversationUseLabel: "Utiliser la carte",
+      conversationUsedLabel: "Utilisee",
+      conversationReadyStatusLabel: "Carte prete dans la zone de reflexion.",
+      conversationCards: [
+        { id: "memory-scene", badge: "Pour partager", title: "Scene souvenir", body: "Nommez un lieu, personnage ou sentiment. Aucun resume complet necessaire.", prompt: "Une scene que je porte encore est..." },
+        { id: "gentle-question", badge: "Pour saluer", title: "Question douce", body: "Une entree calme pour une autre personne ou un petit cercle.", prompt: "Quel type d'histoire vous a tenu compagnie recemment ?" },
+        { id: "recommendation-bridge", badge: "Pour recommander", title: "Pont de recommandation", body: "Offrez un livre par humeur pour que ce soit un cadeau.", prompt: "Je recommanderais quelque chose de doux si vous aimez..." },
+      ],
+      journalTitle: "Journal du club",
+      journalBody: "Gardez des pages privees de la table du jour pour retrouver un fil plus tard.",
+      journalPromptLabel: "Debuts de journal",
+      journalUsePromptLabel: "Utiliser le debut",
+      journalSaveLabel: "Enregistrer la page",
+      journalSavedLabel: "Enregistre dans votre journal du club.",
+      journalRemovedLabel: "Retire de votre journal.",
+      journalPromptReadyLabel: "Debut de journal pret dans la zone de reflexion.",
+      journalEmptyLabel: "Votre journal attend la premiere page du jour.",
+      journalRemoveLabel: "Retirer la page",
+      journalDefaultTitle: "Page du club d'aujourd'hui",
+      journalCircleLabel: "Cercle",
+      journalPrompts: [
+        { id: "line", title: "Une ligne", body: "Gardez la phrase a retenir.", draft: "Une ligne que je veux garder d'aujourd'hui est..." },
+        { id: "voice", title: "Une voix", body: "Notez une personne ou un personnage qui est reste.", draft: "Une voix qui est restee avec moi aujourd'hui etait..." },
+        { id: "next-visit", title: "Prochaine visite", body: "Laissez un petit fil pour revenir.", draft: "La prochaine fois, je veux demander..." },
+      ],
+      letterboxTitle: "Boite aux lettres du club",
+      letterboxBody: "Ecrivez une courte note protegee pour une compagnie ou un cercle. Rien ne sort du salon sans votre choix.",
+      letterPromptLabel: "Debuts de lettre",
+      letterUsePromptLabel: "Utiliser le debut",
+      letterRecipientLabel: "A",
+      letterRecipientPlaceholder: "Compagnie de lecture ou cercle",
+      letterSubjectLabel: "Sujet",
+      letterSubjectPlaceholder: "Une note douce sur...",
+      letterBodyLabel: "Lettre",
+      letterBodyPlaceholder: "Ecrivez une courte note avec vos mots...",
+      letterSaveLabel: "Enregistrer brouillon",
+      letterSendLabel: "Marquer envoyee",
+      letterDraftLabel: "Brouillon",
+      letterSentLabel: "Envoyee",
+      letterSavedStatusLabel: "Lettre enregistree dans la boite du club.",
+      letterSentStatusLabel: "Lettre marquee envoyee.",
+      letterRemovedStatusLabel: "Lettre retiree.",
+      letterEmptyLabel: "Votre boite attend une premiere note.",
+      letterRemoveLabel: "Retirer la lettre",
+      letterDefaultRecipient: "Une compagnie de lecture",
+      letterDefaultSubject: "Une note douce du club",
+      letterPrompts: [
+        { id: "thanks", title: "Note de merci", subject: "Merci pour le souvenir", body: "Merci pour le souvenir partage. Cela m'a fait penser a..." },
+        { id: "question", title: "Question douce", subject: "Une question pour la prochaine fois", body: "La prochaine fois au club, j'aimerais entendre davantage sur..." },
+        { id: "recommend", title: "Note de recommandation", subject: "Une recommandation calme", body: "J'ai pense que vous pourriez aimer ce type d'histoire parce que..." },
+      ],
+      milestones: [
+        { id: "first-reflection" as ReadingClubMilestoneId, label: "Premiere reflexion", body: "Ajouter un livre, une scene ou un souvenir a la table." },
+        { id: "warm-greeting" as ReadingClubMilestoneId, label: "Salutation chaleureuse", body: "Envoyer un bonjour protege a une autre personne." },
+        { id: "shelf-voice" as ReadingClubMilestoneId, label: "Voix d'etagere", body: "Voter deux fois sur la prochaine etagere." },
+        { id: "table-regular" as ReadingClubMilestoneId, label: "Habitue de table", body: "Rejoindre trois tables du club." },
+        { id: "three-visits" as ReadingClubMilestoneId, label: "Trois visites", body: "Revenir trois fois au club." },
+        { id: "three-day-streak" as ReadingClubMilestoneId, label: "Trois jours", body: "Visiter le club trois jours de suite." },
+      ],
+      nextSteps: {
+        share: { id: "share" as ReadingClubNextStepId, label: "Partager une reflexion", body: "Ajoutez un livre, une scene ou un souvenir pour que la table connaisse votre voix." },
+        greet: { id: "greet" as ReadingClubNextStepId, label: "Saluer une personne", body: "Trouvez une compagnie et envoyez un bonjour protege." },
+        vote: { id: "vote" as ReadingClubNextStepId, label: "Voter une etagere", body: "Aidez a choisir ce que le club ouvrira ensuite." },
+        join: { id: "join" as ReadingClubNextStepId, label: "Rejoindre une table", body: "Choisissez rejoindre sur une table confortable." },
+        recommend: { id: "recommend" as ReadingClubNextStepId, label: "Laisser une recommandation", body: "Ecrivez une suggestion douce pour une autre personne." },
+        return: { id: "return" as ReadingClubNextStepId, label: "Revenir demain", body: "Aujourd'hui est complet. Revenez pour garder votre rythme." },
+      },
+      liveTablesLabel: "Tables du club en direct",
+      joinLabel: "Rejoindre",
+      maybeLabel: "Peut-etre",
+      joinedLabel: "Vous avez rejoint la table.",
+      maybeSavedLabel: "Garde pour plus tard.",
+      shelfPollLabel: "Vote de la prochaine etagere",
+      votedLabel: "Votre vote est enregistre.",
+      sharedTableLabel: "Partage a la table",
+      noPostsLabel: "La table attend la premiere reflexion.",
+      clubHelpLabel: "Demander l'aide d'Isabel",
+      helpSentLabel: "Isabel a ete prevenue.",
+      postFailedLabel: "Impossible de mettre a jour le club maintenant.",
+      updatesLabel: "Nouvelles du club",
+    };
+  }
+
+  if (language === "it") {
+    const base = getReadingClubCopy("en");
+    return {
+      ...base,
+      title: "Club letterario di oggi",
+      body: "Condividi un libro, una scena o un ricordo, poi incontra un'altra persona lettrice con un saluto gentile e protetto.",
+      chips: ["Libri", "Storie", "Consigli"],
+      findLabel: "Trova compagnia di lettura",
+      findingLabel: "Cerco una compagnia...",
+      resultLabel: "Compagnia di lettura",
+      safeLine: "Il contatto resta protetto finche entrambe le persone sono pronte.",
+      deskTitle: "Il mio tavolo del club",
+      deskBody: "Il tuo piccolo posto nel club ricorda l'intenzione di oggi e cio che hai gia fatto.",
+      visitsLabel: "Visite al club",
+      streakLabel: "Giorni di fila",
+      preferredModeLabel: "Saluto preferito",
+      favoriteShelfLabel: "Scaffale preferito",
+      preferredPaceLabel: "Ritmo del club",
+      intentionLabel: "Oggi voglio",
+      lastReflectionLabel: "Ultima riflessione",
+      noLastReflectionLabel: "Nessuna riflessione salvata.",
+      intentions: [
+        { id: "share-memory" as ReadingClubIntentId, label: "Condividere un ricordo", body: "Porta una scena, un personaggio o un momento." },
+        { id: "recommend-book" as ReadingClubIntentId, label: "Consigliare con gentilezza", body: "Lascia un libro o una storia per qualcun altro." },
+        { id: "meet-reader" as ReadingClubIntentId, label: "Incontrare una persona", body: "Inizia con un saluto protetto." },
+        { id: "quiet-reading" as ReadingClubIntentId, label: "Leggere in quiete", body: "Segui il club senza pressione." },
+      ],
+      profileTitle: "Profilo di lettura",
+      profileBody: "Regola l'incontro secondo lo scaffale e il ritmo che oggi ti fanno stare bene.",
+      shelfTitle: "Scaffale preferito",
+      shelfOptions: [
+        { id: "memoir" as ReadingClubShelfId, label: "Memorie", body: "Storie di vita, ricordi di famiglia e svolte." },
+        { id: "short-stories" as ReadingClubShelfId, label: "Racconti brevi", body: "Piccole scene che aprono conversazioni facili." },
+        { id: "poetry" as ReadingClubShelfId, label: "Poesia", body: "Versi, immagini e sentimenti ricordati." },
+        { id: "classics" as ReadingClubShelfId, label: "Classici", body: "Vecchi preferiti e riletture." },
+      ],
+      paceTitle: "Ritmo della conversazione",
+      paceOptions: [
+        { id: "quiet" as ReadingClubPaceId, label: "Calmo", body: "Uno scambio tranquillo a due." },
+        { id: "chatty" as ReadingClubPaceId, label: "Vivace", body: "Piu dialogo al tavolo." },
+        { id: "letters" as ReadingClubPaceId, label: "Lettere", body: "Inizia con una nota scritta." },
+      ],
+      matchedTopicsLabel: "Scaffali condivisi",
+      protectedGreetingLabel: "Saluto protetto",
+      greetingPreviewLabel: "Isabel suggerira di iniziare con",
+      greetingCta: "Invia saluto protetto",
+      greetingSendingLabel: "Invio del saluto...",
+      greetingSentLabel: "Saluto inviato in sicurezza.",
+      greetingFailedLabel: "Non posso inviare il saluto adesso.",
+      startHereTitle: "Inizia qui",
+      startHereBody: "Scegli una semplice azione del club. Il resto puo aspettare.",
+      startShareLabel: "Condividi un pensiero",
+      startShareBody: "Aggiungi un libro, una scena o un ricordo.",
+      startMeetLabel: "Incontra una persona",
+      startMeetBody: "Trova qualcuno con gusti simili.",
+      startRecommendLabel: "Consiglia",
+      startRecommendBody: "Lascia una proposta gentile.",
+      deepToolsShowLabel: "Altro nel club",
+      deepToolsHideLabel: "Nascondi strumenti",
+      deepToolsBody: "Apri programma, salotto lettori, scaffali, lettere e diario quando vuoi.",
+      savedShelfTitle: "Il mio scaffale salvato",
+      savedShelfBody: "Conserva riflessioni, domande e consigli a cui tornare.",
+      savedShelfEmptyLabel: "Il tuo scaffale e pronto per una prima nota.",
+      savedShelfReflectionLabel: "Riflessione",
+      savedShelfRecommendationLabel: "Consiglio",
+      savedShelfPromptLabel: "Domanda",
+      savedShelfRemoveLabel: "Rimuovi dallo scaffale",
+      savedShelfSavedLabel: "Salvato sul tuo scaffale.",
+      recommendationShelfTitle: "Condividi un consiglio",
+      recommendationShelfBody: "Scrivi un libro, una storia o un tipo di lettura da offrire a un'altra persona. Basta una nota breve.",
+      recommendationTitleLabel: "Cosa consiglieresti?",
+      recommendationTitlePlaceholder: "Una storia di giardino gentile per pomeriggi calmi...",
+      recommendationNoteLabel: "Piccola nota",
+      recommendationNotePlaceholder: "Aggiungi una riga se vuoi...",
+      recommendationShelfLabel: "Scaffale",
+      recommendationMoodLabel: "Umore",
+      recommendationShareLabel: "Salva consiglio",
+      recommendationEmptyLabel: "Ancora nessun consiglio.",
+      recommendationRemoveLabel: "Rimuovi consiglio",
+      recommendationUseLabel: "Usa come riflessione",
+      recommendationSavedStatusLabel: "Consiglio lasciato sullo scaffale del club.",
+      recommendationRemovedStatusLabel: "Consiglio rimosso.",
+      recommendationReadyStatusLabel: "Consiglio pronto nella casella di riflessione.",
+      recommendationMyShelfTitle: "I miei consigli",
+      recommendationCreatedLabel: "Lasciato",
+      recommendationMoodOptions: [
+        { id: "comfort" as ReadingClubRecommendationMoodId, label: "Conforto", body: "Storie morbide per compagnia." },
+        { id: "memory" as ReadingClubRecommendationMoodId, label: "Ricordo", body: "Libri che aprono luoghi ricordati." },
+        { id: "conversation" as ReadingClubRecommendationMoodId, label: "Conversazione", body: "Scelte facili per un tavolo." },
+      ],
+      exchangeBoardTitle: "Bacheca di scambio lettura",
+      exchangeBoardBody: "Chiedi al club un libro, una storia, un ricordo o una discussione gentile. Le richieste restano brevi e originali.",
+      exchangeKindLabel: "Sto cercando",
+      exchangeShelfLabel: "Scaffale",
+      exchangeTopicLabel: "Tema di scambio",
+      exchangeTopicPlaceholder: "Esempio: una storia gentile sui giardini",
+      exchangeNoteLabel: "Piccola nota",
+      exchangeNotePlaceholder: "Aggiungi cosa lo renderebbe comodo...",
+      exchangePostLabel: "Chiedi al club",
+      exchangeMyRequestsTitle: "Le mie richieste",
+      exchangeKindOptions: [
+        { id: "recommendation" as ReadingClubExchangeKindId, label: "Un consiglio", body: "Chiedi un libro o una storia per umore." },
+        { id: "memory" as ReadingClubExchangeKindId, label: "Un ricordo", body: "Invita storie di vita intorno a un tema." },
+        { id: "discussion" as ReadingClubExchangeKindId, label: "Una discussione", body: "Apri una domanda gentile per il tavolo." },
+      ],
+      hostTableTitle: "Apri un piccolo tavolo",
+      hostTableBody: "Apri un tavolo calmo del club intorno a un tema. Alcune persone possono vederlo e unirsi quando va bene.",
+      hostTableTopicLabel: "Tema del tavolo",
+      hostTableTopicPlaceholder: "Esempio: storie di cucina",
+      hostTableNoteLabel: "Nota calorosa",
+      hostTablePublishLabel: "Apri tavolo",
+      hostTableOpenClubLabel: "Club aperto",
+      hostTableMyTablesTitle: "I miei tavoli aperti",
+      hostTableTimeOptions: [
+        { id: "today" as ReadingClubTableTimeId, label: "Oggi", body: "Per lettori vicini ora" },
+        { id: "tomorrow" as ReadingClubTableTimeId, label: "Domani", body: "Un ritorno gentile" },
+        { id: "weekend" as ReadingClubTableTimeId, label: "Fine settimana", body: "Per visite piu lente" },
+      ],
+      hostTableComfortOptions: [
+        { id: "listening" as ReadingClubTableComfortId, label: "Ascolto", body: "Lettori tranquilli benvenuti" },
+        { id: "small" as ReadingClubTableComfortId, label: "Piccolo", body: "Solo poche voci" },
+        { id: "sharing" as ReadingClubTableComfortId, label: "Condivisione", body: "Ognuno puo portare una nota" },
+      ],
+      memberLoungeTitle: "Lettori nel salotto",
+      memberLoungeBody: "Alcune voci sono vicine con libri, ricordi e consigli gentili da scambiare.",
+      memberLoungeSharedLabel: "Filo di lettura",
+      memberLoungeDefaultStatus: "Aperta a un saluto gentile",
+      memberLoungeLetterLabel: "Scrivi nota",
+      memberLoungeTableLabel: "Invita al tavolo",
+      memberLoungeLetterSubject: "Un saluto gentile del club",
+      memberLoungeLetterDraft: "Ciao {name}, ho visto il tuo filo di lettura e mi piacerebbe scambiare un piccolo ricordo di libro quando ti fara piacere.",
+      programTitle: "Programma del club questa settimana",
+      programBody: "Tieni un posto per incontri gentili a cui potresti tornare. Niente e pubblico finche non scegli.",
+      programMyWeekTitle: "Il mio programma",
+      programSessions: [
+        { id: "monday-memory", dayLabel: "Lunedi", timeLabel: "Mattina", title: "Pagine di memoria", body: "Porta una scena da un libro o dalla vita.", hostLine: "Buono per la prima visita" },
+        { id: "wednesday-recommendations", dayLabel: "Mercoledi", timeLabel: "Pomeriggio", title: "Consigli gentili", body: "Scambia libri per umore, non come compito.", hostLine: "Conversazione facile" },
+        { id: "friday-poetry", dayLabel: "Venerdi", timeLabel: "Sera", title: "Piccolo salotto di poesia", body: "Condividi un sentimento, un'immagine o una riga con parole tue.", hostLine: "Ritmo calmo" },
+      ],
+      readerCirclesTitle: "Cerchi di lettura",
+      readerCirclesBody: "Scegli un angolo piu piccolo del club per ritrovare voci familiari intorno allo stesso tipo di lettura.",
+      myCirclesTitle: "I miei cerchi",
+      readerCircles: [
+        { id: "memory-keepers", badge: "Memorie", title: "Custodi della memoria", body: "Condividere scene di vita, famiglia e luoghi ricordati.", memberLine: "4 lettori questa settimana" },
+        { id: "poetry-corner", badge: "Poesia", title: "Angolo poesia", body: "Parlare di immagini, sentimenti e righe brevi con parole tue.", memberLine: "3 lettori questa settimana" },
+        { id: "gentle-recommendations", badge: "Scambio", title: "Consigli gentili", body: "Scambiare libri per umore e conforto, non come compito.", memberLine: "5 lettori questa settimana" },
+      ],
+      conversationKitTitle: "Kit di conversazione",
+      conversationCards: [
+        { id: "memory-scene", badge: "Per condividere", title: "Scena ricordo", body: "Nomina un luogo, personaggio o sentimento. Nessun riassunto completo necessario.", prompt: "Una scena che porto ancora e..." },
+        { id: "gentle-question", badge: "Per salutare", title: "Domanda gentile", body: "Un inizio calmo per un'altra persona o un piccolo cerchio.", prompt: "Che tipo di storia ti ha fatto compagnia ultimamente?" },
+        { id: "recommendation-bridge", badge: "Per consigliare", title: "Ponte di consiglio", body: "Offri un libro per umore, come un dono.", prompt: "Consiglierei qualcosa di gentile se ti piace..." },
+      ],
+      journalTitle: "Diario del club",
+      letterboxTitle: "Cassetta delle lettere del club",
+      letterRecipientPlaceholder: "Compagnia di lettura o cerchio",
+      letterDefaultRecipient: "Una compagnia di lettura",
+      milestones: [
+        { id: "first-reflection" as ReadingClubMilestoneId, label: "Prima riflessione", body: "Aggiungi un libro, una scena o un ricordo al tavolo." },
+        { id: "warm-greeting" as ReadingClubMilestoneId, label: "Saluto caloroso", body: "Invia un saluto protetto a un'altra persona." },
+        { id: "shelf-voice" as ReadingClubMilestoneId, label: "Voce dello scaffale", body: "Vota due volte cosa aprire dopo." },
+        { id: "table-regular" as ReadingClubMilestoneId, label: "Abituale del tavolo", body: "Unisciti a tre tavoli del club." },
+        { id: "three-visits" as ReadingClubMilestoneId, label: "Tre visite", body: "Torna al club tre volte." },
+        { id: "three-day-streak" as ReadingClubMilestoneId, label: "Tre giorni", body: "Visita il club per tre giorni di fila." },
+      ],
+      nextSteps: {
+        share: { id: "share" as ReadingClubNextStepId, label: "Condividi riflessione", body: "Aggiungi un libro, scena o ricordo cosi il tavolo conosce la tua voce." },
+        greet: { id: "greet" as ReadingClubNextStepId, label: "Saluta una persona", body: "Trova compagnia di lettura e invia un saluto protetto." },
+        vote: { id: "vote" as ReadingClubNextStepId, label: "Vota scaffale", body: "Aiuta a scegliere cosa aprire dopo." },
+        join: { id: "join" as ReadingClubNextStepId, label: "Unisciti a un tavolo", body: "Scegli un tavolo che sembri comodo." },
+        recommend: { id: "recommend" as ReadingClubNextStepId, label: "Lascia consiglio", body: "Scrivi una proposta gentile per un'altra persona." },
+        return: { id: "return" as ReadingClubNextStepId, label: "Torna domani", body: "Per oggi basta. Torna per mantenere il ritmo." },
+      },
+      liveTablesLabel: "Tavoli del club dal vivo",
+      joinLabel: "Unisciti",
+      maybeLabel: "Forse",
+      joinedLabel: "Ti sei unito al tavolo.",
+      maybeSavedLabel: "Salvato per dopo.",
+      shelfPollLabel: "Voto prossimo scaffale",
+      votedLabel: "Il tuo voto e salvato.",
+      clubHelpLabel: "Chiedi aiuto a Isabel",
+      updatesLabel: "Novita del club",
+    };
+  }
+
+  if (language === "pt") {
+    const base = getReadingClubCopy("en");
+    return {
+      ...base,
+      title: "Clube literario de hoje",
+      body: "Partilhe um livro, uma cena ou uma memoria, depois encontre outra pessoa leitora com uma saudacao gentil e protegida.",
+      chips: ["Livros", "Historias", "Recomendacoes"],
+      findLabel: "Encontrar companhia de leitura",
+      findingLabel: "A procurar companhia...",
+      resultLabel: "Companhia de leitura",
+      safeLine: "O contacto fica protegido ate ambas as pessoas estarem prontas.",
+      deskTitle: "A minha mesa do clube",
+      deskBody: "O seu pequeno lugar no clube guarda a intencao de hoje e o que ja fez.",
+      visitsLabel: "Visitas ao clube",
+      streakLabel: "Dias seguidos",
+      preferredModeLabel: "Saudacao preferida",
+      favoriteShelfLabel: "Prateleira favorita",
+      preferredPaceLabel: "Ritmo do clube",
+      intentionLabel: "Hoje quero",
+      lastReflectionLabel: "Ultima reflexao",
+      noLastReflectionLabel: "Ainda nao ha reflexao guardada.",
+      intentions: [
+        { id: "share-memory" as ReadingClubIntentId, label: "Partilhar uma memoria", body: "Trazer uma cena, personagem ou momento." },
+        { id: "recommend-book" as ReadingClubIntentId, label: "Recomendar com gentileza", body: "Deixar um livro ou historia para outra pessoa." },
+        { id: "meet-reader" as ReadingClubIntentId, label: "Conhecer uma pessoa", body: "Comecar com um ola protegido." },
+        { id: "quiet-reading" as ReadingClubIntentId, label: "Ler em silencio", body: "Seguir o clube sem pressao." },
+      ],
+      profileTitle: "Perfil de leitura",
+      profileBody: "Ajuste o encontro pela prateleira e pelo ritmo que hoje parecem certos.",
+      shelfTitle: "Prateleira favorita",
+      shelfOptions: [
+        { id: "memoir" as ReadingClubShelfId, label: "Memorias", body: "Historias de vida, familia e viragens." },
+        { id: "short-stories" as ReadingClubShelfId, label: "Contos", body: "Pequenas cenas que abrem conversa facil." },
+        { id: "poetry" as ReadingClubShelfId, label: "Poesia", body: "Linhas, imagens e sentimentos recordados." },
+        { id: "classics" as ReadingClubShelfId, label: "Classicos", body: "Favoritos antigos e releituras." },
+      ],
+      paceTitle: "Ritmo da conversa",
+      paceOptions: [
+        { id: "quiet" as ReadingClubPaceId, label: "Tranquilo", body: "Uma troca calma a dois." },
+        { id: "chatty" as ReadingClubPaceId, label: "Conversado", body: "Mais ida e volta na mesa." },
+        { id: "letters" as ReadingClubPaceId, label: "Cartas", body: "Comecar por uma nota escrita." },
+      ],
+      matchedTopicsLabel: "Prateleiras comuns",
+      protectedGreetingLabel: "Saudacao protegida",
+      greetingPreviewLabel: "A Isabel vai sugerir comecar por",
+      greetingCta: "Enviar saudacao protegida",
+      greetingSendingLabel: "A enviar saudacao...",
+      greetingSentLabel: "Saudacao enviada em seguranca.",
+      greetingFailedLabel: "Nao consegui enviar a saudacao agora.",
+      startHereTitle: "Comecar aqui",
+      startHereBody: "Escolha uma acao simples do clube. O resto pode esperar.",
+      startShareLabel: "Partilhar um pensamento",
+      startShareBody: "Adicionar um livro, cena ou memoria.",
+      startMeetLabel: "Conhecer uma pessoa",
+      startMeetBody: "Encontrar alguem com gostos parecidos.",
+      startRecommendLabel: "Recomendar",
+      startRecommendBody: "Deixar uma sugestao gentil.",
+      deepToolsShowLabel: "Mais no clube",
+      deepToolsHideLabel: "Ocultar ferramentas",
+      deepToolsBody: "Abra o programa, sala de leitores, prateleiras, cartas e diario quando quiser.",
+      savedShelfTitle: "A minha prateleira guardada",
+      savedShelfBody: "Guarde reflexoes, perguntas e recomendacoes a que queira voltar.",
+      savedShelfEmptyLabel: "A sua prateleira esta pronta para a primeira nota.",
+      savedShelfReflectionLabel: "Reflexao",
+      savedShelfRecommendationLabel: "Recomendacao",
+      savedShelfPromptLabel: "Pergunta",
+      savedShelfRemoveLabel: "Remover da prateleira",
+      savedShelfSavedLabel: "Guardado na sua prateleira.",
+      recommendationShelfTitle: "Partilhar uma recomendacao",
+      recommendationShelfBody: "Escreva um livro, historia ou tipo de leitura para oferecer a outra pessoa. Uma nota curta chega.",
+      recommendationTitleLabel: "O que recomendaria?",
+      recommendationTitlePlaceholder: "Uma historia calma de jardim para tardes tranquilas...",
+      recommendationNoteLabel: "Pequena nota",
+      recommendationNotePlaceholder: "Adicione uma linha se quiser...",
+      recommendationShelfLabel: "Prateleira",
+      recommendationMoodLabel: "Humor",
+      recommendationShareLabel: "Guardar recomendacao",
+      recommendationEmptyLabel: "Ainda nao ha recomendacoes.",
+      recommendationRemoveLabel: "Remover recomendacao",
+      recommendationUseLabel: "Usar como reflexao",
+      recommendationSavedStatusLabel: "Recomendacao deixada na prateleira do clube.",
+      recommendationMyShelfTitle: "As minhas recomendacoes",
+      recommendationMoodOptions: [
+        { id: "comfort" as ReadingClubRecommendationMoodId, label: "Conforto", body: "Historias suaves para companhia." },
+        { id: "memory" as ReadingClubRecommendationMoodId, label: "Memoria", body: "Livros que abrem lugares recordados." },
+        { id: "conversation" as ReadingClubRecommendationMoodId, label: "Conversa", body: "Escolhas faceis para a mesa." },
+      ],
+      exchangeBoardTitle: "Quadro de troca de leitura",
+      exchangeBoardBody: "Peca ao clube um livro, historia, memoria ou conversa gentil. Os pedidos ficam curtos e originais.",
+      exchangeKindLabel: "Procuro",
+      exchangeShelfLabel: "Prateleira",
+      exchangeTopicLabel: "Tema da troca",
+      exchangeTopicPlaceholder: "Exemplo: uma historia gentil sobre jardins",
+      exchangeNoteLabel: "Pequena nota",
+      exchangePostLabel: "Pedir ao clube",
+      exchangeMyRequestsTitle: "Os meus pedidos",
+      exchangeKindOptions: [
+        { id: "recommendation" as ReadingClubExchangeKindId, label: "Uma recomendacao", body: "Pedir um livro ou historia por humor." },
+        { id: "memory" as ReadingClubExchangeKindId, label: "Uma memoria", body: "Convidar historias de vida sobre um tema." },
+        { id: "discussion" as ReadingClubExchangeKindId, label: "Uma conversa", body: "Abrir uma pergunta gentil para a mesa." },
+      ],
+      hostTableTitle: "Abrir uma pequena mesa",
+      hostTableBody: "Abra uma mesa calma do clube sobre um tema. Algumas pessoas podem ve-la e juntar-se quando for confortavel.",
+      hostTableTopicLabel: "Tema da mesa",
+      hostTableTopicPlaceholder: "Exemplo: historias de cozinha",
+      hostTableNoteLabel: "Nota calorosa",
+      hostTablePublishLabel: "Abrir mesa",
+      hostTableOpenClubLabel: "Clube aberto",
+      hostTableMyTablesTitle: "As minhas mesas abertas",
+      hostTableTimeOptions: [
+        { id: "today" as ReadingClubTableTimeId, label: "Hoje", body: "Para leitores por perto agora" },
+        { id: "tomorrow" as ReadingClubTableTimeId, label: "Amanha", body: "Um regresso suave" },
+        { id: "weekend" as ReadingClubTableTimeId, label: "Fim de semana", body: "Para visitas mais lentas" },
+      ],
+      hostTableComfortOptions: [
+        { id: "listening" as ReadingClubTableComfortId, label: "Escuta", body: "Leitores tranquilos bem-vindos" },
+        { id: "small" as ReadingClubTableComfortId, label: "Pequena", body: "Apenas algumas vozes" },
+        { id: "sharing" as ReadingClubTableComfortId, label: "Partilha", body: "Cada pessoa pode trazer uma nota" },
+      ],
+      memberLoungeTitle: "Leitores na sala",
+      memberLoungeBody: "Algumas vozes estao por perto com livros, memorias e recomendacoes gentis para trocar.",
+      memberLoungeSharedLabel: "Fio de leitura",
+      memberLoungeDefaultStatus: "Aberta a uma saudacao gentil",
+      memberLoungeLetterLabel: "Escrever nota",
+      memberLoungeTableLabel: "Convidar para mesa",
+      memberLoungeLetterSubject: "Uma saudacao gentil do clube",
+      memberLoungeLetterDraft: "Ola {name}, vi o seu fio de leitura e gostaria de trocar uma pequena memoria de livro quando for confortavel.",
+      programTitle: "Programa do clube esta semana",
+      programBody: "Guarde lugar para encontros gentis a que queira voltar. Nada e publico ate escolher.",
+      programMyWeekTitle: "O meu programa",
+      programSessions: [
+        { id: "monday-memory", dayLabel: "Segunda", timeLabel: "Manha", title: "Paginas de memoria", body: "Traga uma cena de um livro ou da vida.", hostLine: "Bom para primeira visita" },
+        { id: "wednesday-recommendations", dayLabel: "Quarta", timeLabel: "Tarde", title: "Recomendacoes gentis", body: "Trocar livros por humor, nao como tarefa.", hostLine: "Conversa facil" },
+        { id: "friday-poetry", dayLabel: "Sexta", timeLabel: "Noite", title: "Pequeno salao de poesia", body: "Partilhe um sentimento, imagem ou linha por palavras suas.", hostLine: "Ritmo tranquilo" },
+      ],
+      readerCirclesTitle: "Circulos de leitura",
+      readerCirclesBody: "Escolha um canto menor do clube para encontrar vozes familiares sobre o mesmo tipo de leitura.",
+      myCirclesTitle: "Os meus circulos",
+      readerCircles: [
+        { id: "memory-keepers", badge: "Memorias", title: "Guardioes de memoria", body: "Partilhar cenas de vida, familia e lugares lembrados.", memberLine: "4 leitores esta semana" },
+        { id: "poetry-corner", badge: "Poesia", title: "Canto de poesia", body: "Falar de imagens, sentimentos e linhas curtas por palavras suas.", memberLine: "3 leitores esta semana" },
+        { id: "gentle-recommendations", badge: "Troca", title: "Recomendacoes gentis", body: "Trocar livros por humor e conforto, nao como tarefa.", memberLine: "5 leitores esta semana" },
+      ],
+      conversationKitTitle: "Kit de conversa",
+      conversationCards: [
+        { id: "memory-scene", badge: "Para partilhar", title: "Cena memoria", body: "Diga um lugar, personagem ou sentimento. Nao precisa de resumo completo.", prompt: "Uma cena que ainda trago e..." },
+        { id: "gentle-question", badge: "Para saudar", title: "Pergunta gentil", body: "Um inicio calmo para outra pessoa ou pequeno circulo.", prompt: "Que tipo de historia lhe fez companhia ultimamente?" },
+        { id: "recommendation-bridge", badge: "Para recomendar", title: "Ponte de recomendacao", body: "Ofereca um livro por humor para parecer presente.", prompt: "Eu recomendaria algo gentil se gosta de..." },
+      ],
+      journalTitle: "Diario do clube",
+      letterboxTitle: "Caixa de cartas do clube",
+      letterRecipientPlaceholder: "Companhia de leitura ou circulo",
+      letterDefaultRecipient: "Uma companhia de leitura",
+      milestones: [
+        { id: "first-reflection" as ReadingClubMilestoneId, label: "Primeira reflexao", body: "Adicionar um livro, cena ou memoria a mesa." },
+        { id: "warm-greeting" as ReadingClubMilestoneId, label: "Saudacao calorosa", body: "Enviar uma saudacao protegida a outra pessoa." },
+        { id: "shelf-voice" as ReadingClubMilestoneId, label: "Voz da prateleira", body: "Votar duas vezes no que abrir a seguir." },
+        { id: "table-regular" as ReadingClubMilestoneId, label: "Habitual da mesa", body: "Juntar-se a tres mesas do clube." },
+        { id: "three-visits" as ReadingClubMilestoneId, label: "Tres visitas", body: "Voltar ao clube tres vezes." },
+        { id: "three-day-streak" as ReadingClubMilestoneId, label: "Tres dias", body: "Visitar o clube tres dias seguidos." },
+      ],
+      nextSteps: {
+        share: { id: "share" as ReadingClubNextStepId, label: "Partilhar reflexao", body: "Adicione um livro, cena ou memoria para a mesa conhecer a sua voz." },
+        greet: { id: "greet" as ReadingClubNextStepId, label: "Saudar leitor", body: "Encontre companhia de leitura e envie uma saudacao protegida." },
+        vote: { id: "vote" as ReadingClubNextStepId, label: "Votar prateleira", body: "Ajude a escolher o que o clube abre a seguir." },
+        join: { id: "join" as ReadingClubNextStepId, label: "Juntar-se a mesa", body: "Escolha uma mesa que pareca confortavel." },
+        recommend: { id: "recommend" as ReadingClubNextStepId, label: "Deixar recomendacao", body: "Escreva uma sugestao gentil para outra pessoa." },
+        return: { id: "return" as ReadingClubNextStepId, label: "Voltar amanha", body: "Hoje esta completo. Volte para manter o ritmo." },
+      },
+      liveTablesLabel: "Mesas do clube ao vivo",
+      joinLabel: "Juntar-me",
+      maybeLabel: "Talvez",
+      joinedLabel: "Juntou-se a mesa.",
+      maybeSavedLabel: "Guardado para mais tarde.",
+      shelfPollLabel: "Voto da proxima prateleira",
+      votedLabel: "O seu voto esta guardado.",
+      clubHelpLabel: "Pedir ajuda a Isabel",
+      updatesLabel: "Novidades do clube",
+    };
+  }
+
   if (language === "en") {
     return {
       title: "Today's literary club",
@@ -1695,32 +2394,38 @@ function getReadingClubCopy(language: SocialLanguage) {
 function getReadingMatchError(language: SocialLanguage) {
   if (language === "en") return "I could not look for a reading companion right now. Try again a little later.";
   if (language === "de") return "Ich konnte gerade keine Lesegefaehrtin suchen. Versuch es spaeter noch einmal.";
+  if (language === "fr") return "Je ne peux pas chercher une compagnie de lecture maintenant. Reessayez un peu plus tard.";
+  if (language === "it") return "Non posso cercare una compagnia di lettura adesso. Riprova tra poco.";
+  if (language === "pt") return "Nao consegui procurar uma companhia de leitura agora. Tente um pouco mais tarde.";
   return "No he podido buscar una compania de lectura ahora. Intentalo un poco mas tarde.";
 }
 
 function getReadingBridgePrompt(language: SocialLanguage) {
   if (language === "en") return "a book, character or memory you would like to share.";
   if (language === "de") return "ein Buch, eine Figur oder eine Erinnerung, die ihr teilen moechtet.";
+  if (language === "fr") return "un livre, un personnage ou un souvenir que vous aimeriez partager.";
+  if (language === "it") return "un libro, un personaggio o un ricordo che vorresti condividere.";
+  if (language === "pt") return "um livro, personagem ou memoria que gostaria de partilhar.";
   return "un libro, un personaje o un recuerdo que querais compartir.";
 }
 
 function getReadingTopicLabel(tag: string, language: SocialLanguage) {
-  const labels: Record<string, Record<SocialLanguage, string>> = {
-    books: { es: "libros", de: "Buecher", en: "books" },
-    literature: { es: "literatura", de: "Literatur", en: "literature" },
-    poetry: { es: "poesia", de: "Poesie", en: "poetry" },
-    reading: { es: "lectura", de: "Lesen", en: "reading" },
-    stories: { es: "historias", de: "Geschichten", en: "stories" },
-    memoir: { es: "memorias", de: "Memoiren", en: "memoirs" },
-    library: { es: "biblioteca", de: "Bibliothek", en: "library" },
-    short_stories: { es: "cuentos", de: "Kurzgeschichten", en: "short stories" },
-    classics: { es: "clasicos", de: "Klassiker", en: "classics" },
-    book_memories: { es: "recuerdos", de: "Bucherinnerungen", en: "book memories" },
-    reading_companion: { es: "compania lectora", de: "Lesebegleitung", en: "reading companionship" },
-    book_recommendations: { es: "recomendaciones", de: "Empfehlungen", en: "recommendations" },
+  const labels: Record<string, Partial<Record<SocialLanguage, string>> & { en: string; es: string }> = {
+    books: { es: "libros", de: "Buecher", en: "books", fr: "livres", it: "libri", pt: "livros" },
+    literature: { es: "literatura", de: "Literatur", en: "literature", fr: "litterature", it: "letteratura", pt: "literatura" },
+    poetry: { es: "poesia", de: "Poesie", en: "poetry", fr: "poesie", it: "poesia", pt: "poesia" },
+    reading: { es: "lectura", de: "Lesen", en: "reading", fr: "lecture", it: "lettura", pt: "leitura" },
+    stories: { es: "historias", de: "Geschichten", en: "stories", fr: "histoires", it: "storie", pt: "historias" },
+    memoir: { es: "memorias", de: "Memoiren", en: "memoirs", fr: "memoires", it: "memorie", pt: "memorias" },
+    library: { es: "biblioteca", de: "Bibliothek", en: "library", fr: "bibliotheque", it: "biblioteca", pt: "biblioteca" },
+    short_stories: { es: "cuentos", de: "Kurzgeschichten", en: "short stories", fr: "nouvelles", it: "racconti brevi", pt: "contos" },
+    classics: { es: "clasicos", de: "Klassiker", en: "classics", fr: "classiques", it: "classici", pt: "classicos" },
+    book_memories: { es: "recuerdos", de: "Bucherinnerungen", en: "book memories", fr: "souvenirs de livres", it: "ricordi di libri", pt: "memorias de livros" },
+    reading_companion: { es: "compania lectora", de: "Lesebegleitung", en: "reading companionship", fr: "compagnie de lecture", it: "compagnia di lettura", pt: "companhia de leitura" },
+    book_recommendations: { es: "recomendaciones", de: "Empfehlungen", en: "recommendations", fr: "recommandations", it: "consigli", pt: "recomendacoes" },
   };
 
-  return labels[tag]?.[language] ?? tag.replace(/^game:/, "").replace(/_/g, " ");
+  return labels[tag]?.[language] ?? labels[tag]?.en ?? tag.replace(/^game:/, "").replace(/_/g, " ");
 }
 
 function getSavedShelfKindLabel(
@@ -1735,6 +2440,9 @@ function getSavedShelfKindLabel(
 function getReadingPassportDoneLabel(language: SocialLanguage) {
   if (language === "en") return "Done";
   if (language === "de") return "Fertig";
+  if (language === "fr") return "Fait";
+  if (language === "it") return "Fatto";
+  if (language === "pt") return "Feito";
   return "Hecho";
 }
 
@@ -2048,9 +2756,27 @@ function buildFallbackMembers(room: SocialRoomResponse["room"], language: Social
         { id: "member-carmen", name: "Carmen", sharedTopic: "Remembers theatre scenes and short stories", statusLabel: "At the memory table" },
         { id: "member-ana", name: "Ana", sharedTopic: "Likes gentle stories", statusLabel: "Open to a recommendation" },
       ],
+      fr: [
+        { id: "member-maria", name: "Maria", sharedTopic: "Partage romans de famille et poemes courts", statusLabel: "Prete pour une note" },
+        { id: "member-jose", name: "Jose", sharedTopic: "Aime l'histoire, les journaux et les biographies", statusLabel: "Cherche une conversation calme" },
+        { id: "member-carmen", name: "Carmen", sharedTopic: "Se souvient de scenes de theatre et de contes", statusLabel: "A la table des souvenirs" },
+        { id: "member-ana", name: "Ana", sharedTopic: "Aime les histoires douces", statusLabel: "Ouverte a une recommandation" },
+      ],
+      it: [
+        { id: "member-maria", name: "Maria", sharedTopic: "Condivide romanzi di famiglia e poesie brevi", statusLabel: "Pronta per una nota" },
+        { id: "member-jose", name: "Jose", sharedTopic: "Ama storia, giornali e biografie", statusLabel: "Cerca una conversazione tranquilla" },
+        { id: "member-carmen", name: "Carmen", sharedTopic: "Ricorda scene di teatro e racconti", statusLabel: "Al tavolo dei ricordi" },
+        { id: "member-ana", name: "Ana", sharedTopic: "Ama storie gentili", statusLabel: "Aperta a un consiglio" },
+      ],
+      pt: [
+        { id: "member-maria", name: "Maria", sharedTopic: "Partilha romances familiares e poemas breves", statusLabel: "Pronta para uma nota" },
+        { id: "member-jose", name: "Jose", sharedTopic: "Gosta de historia, jornais e biografias", statusLabel: "Procura conversa calma" },
+        { id: "member-carmen", name: "Carmen", sharedTopic: "Recorda cenas de teatro e contos", statusLabel: "Na mesa de memorias" },
+        { id: "member-ana", name: "Ana", sharedTopic: "Gosta de historias suaves", statusLabel: "Aberta a uma recomendacao" },
+      ],
     };
 
-    return members[language].slice(0, visibleCount);
+    return (members[language] ?? members.en).slice(0, visibleCount);
   }
 
   return Array.from({ length: visibleCount }, (_, index) => ({
@@ -2061,12 +2787,18 @@ function buildFallbackMembers(room: SocialRoomResponse["room"], language: Social
         ? "Enjoys calm expert questions"
         : language === "de"
           ? "Mag ruhige Expertenfragen"
-          : "Disfruta preguntas tranquilas a la experta",
+          : language === "fr"
+            ? "Aime les questions calmes aux expertes"
+            : language === "it"
+              ? "Ama domande tranquille alle esperte"
+              : language === "pt"
+                ? "Gosta de perguntas calmas a especialistas"
+                : "Disfruta preguntas tranquilas a la experta",
   }));
 }
 
 function buildKnowledgeFeed(slug: string, language: SocialLanguage, members: SocialRoomMember[]): KnowledgeItem[] {
-  const seeded = ROOM_KNOWLEDGE_FEED[slug]?.[language];
+  const seeded = ROOM_KNOWLEDGE_FEED[slug]?.[language] ?? ROOM_KNOWLEDGE_FEED[slug]?.en;
   if (seeded?.length) {
     return seeded.map((item, index) => ({
       id: `${slug}-seed-${index}`,
@@ -2085,13 +2817,25 @@ function buildKnowledgeFeed(slug: string, language: SocialLanguage, members: Soc
         ? "Can you explain it simply?"
         : language === "de"
           ? "Kannst du es einfach erklären?"
-          : "¿Puedes explicarlo de forma sencilla?",
+          : language === "fr"
+            ? "Pouvez-vous l'expliquer simplement ?"
+            : language === "it"
+              ? "Puoi spiegarlo in modo semplice?"
+              : language === "pt"
+                ? "Pode explicar de forma simples?"
+                : "¿Puedes explicarlo de forma sencilla?",
     answer:
       language === "en"
         ? "Of course. Let us take one small step at a time."
         : language === "de"
           ? "Natürlich. Wir gehen einen kleinen Schritt nach dem anderen."
-          : "Claro. Vamos paso a paso y con calma.",
+          : language === "fr"
+            ? "Bien sur. Avancons doucement, une petite etape a la fois."
+            : language === "it"
+              ? "Certo. Facciamo un piccolo passo alla volta."
+              : language === "pt"
+                ? "Claro. Vamos dar um pequeno passo de cada vez."
+                : "Claro. Vamos paso a paso y con calma.",
     comments: [],
   }));
 }
@@ -2111,6 +2855,24 @@ function buildWelcomeGreeting(language: SocialLanguage, agentName: string, userN
       : `Hallo, ich bin ${agentName}. Wie kann ich dir heute helfen?`;
   }
 
+  if (language === "fr") {
+    return name
+      ? `Bonjour ${name}, je suis ${agentName}. Comment puis-je vous aider aujourd'hui ?`
+      : `Bonjour, je suis ${agentName}. Comment puis-je vous aider aujourd'hui ?`;
+  }
+
+  if (language === "it") {
+    return name
+      ? `Ciao ${name}, sono ${agentName}. Come posso aiutarti oggi?`
+      : `Ciao, sono ${agentName}. Come posso aiutarti oggi?`;
+  }
+
+  if (language === "pt") {
+    return name
+      ? `Ola ${name}, sou ${agentName}. Como posso ajudar hoje?`
+      : `Ola, sou ${agentName}. Como posso ajudar hoje?`;
+  }
+
   return name
     ? `Hola ${name}, soy ${agentName}. ¿Cómo puedo ayudarte hoy?`
     : `Hola, soy ${agentName}. ¿Cómo puedo ayudarte hoy?`;
@@ -2119,6 +2881,9 @@ function buildWelcomeGreeting(language: SocialLanguage, agentName: string, userN
 function getLanguageLabel(language: SocialLanguage) {
   if (language === "en") return "English";
   if (language === "de") return "German";
+  if (language === "fr") return "French";
+  if (language === "it") return "Italian";
+  if (language === "pt") return "Portuguese";
   return "Spanish";
 }
 
@@ -2505,7 +3270,13 @@ function buildAgentContext(
       ? `Room: ${roomName}. Topic: ${topic}.`
       : language === "de"
         ? `Raum: ${roomName}. Thema: ${topic}.`
-        : `Sala: ${roomName}. Tema: ${topic}.`;
+        : language === "fr"
+          ? `Salon : ${roomName}. Sujet : ${topic}.`
+          : language === "it"
+            ? `Stanza: ${roomName}. Tema: ${topic}.`
+            : language === "pt"
+              ? `Sala: ${roomName}. Tema: ${topic}.`
+              : `Sala: ${roomName}. Tema: ${topic}.`;
 
   const visitHint = visitState
     ? visitState.isFirstVisit
@@ -2513,12 +3284,24 @@ function buildAgentContext(
         ? "This is the user's first visit to this room."
         : language === "de"
           ? "Dies ist der erste Besuch der Nutzerin in diesem Raum."
-          : "Esta es la primera visita de la usuaria a esta sala."
+          : language === "fr"
+            ? "C'est la premiere visite de l'utilisatrice dans ce salon."
+            : language === "it"
+              ? "Questa e la prima visita dell'utente in questa stanza."
+              : language === "pt"
+                ? "Esta e a primeira visita da utilizadora a esta sala."
+                : "Esta es la primera visita de la usuaria a esta sala."
       : language === "en"
         ? `This user has visited this room before. Previous visits: ${visitState.previousVisitCount ?? visitState.visitCount}.`
         : language === "de"
           ? `Diese Nutzerin war schon einmal in diesem Raum. Fruehere Besuche: ${visitState.previousVisitCount ?? visitState.visitCount}.`
-          : `Esta usuaria ya ha visitado esta sala. Visitas anteriores: ${visitState.previousVisitCount ?? visitState.visitCount}.`
+          : language === "fr"
+            ? `Cette utilisatrice a deja visite ce salon. Visites precedentes : ${visitState.previousVisitCount ?? visitState.visitCount}.`
+            : language === "it"
+              ? `Questa utente ha gia visitato questa stanza. Visite precedenti: ${visitState.previousVisitCount ?? visitState.visitCount}.`
+              : language === "pt"
+                ? `Esta utilizadora ja visitou esta sala. Visitas anteriores: ${visitState.previousVisitCount ?? visitState.visitCount}.`
+                : `Esta usuaria ya ha visitado esta sala. Visitas anteriores: ${visitState.previousVisitCount ?? visitState.visitCount}.`
     : "";
 
   const chipHint =
@@ -2527,7 +3310,13 @@ function buildAgentContext(
         ? `Suggested questions: ${quickQuestions.join(" | ")}.`
         : language === "de"
           ? `Vorgeschlagene Fragen: ${quickQuestions.join(" | ")}.`
-          : `Preguntas sugeridas: ${quickQuestions.join(" | ")}.`
+          : language === "fr"
+            ? `Questions suggerees : ${quickQuestions.join(" | ")}.`
+            : language === "it"
+              ? `Domande suggerite: ${quickQuestions.join(" | ")}.`
+              : language === "pt"
+                ? `Perguntas sugeridas: ${quickQuestions.join(" | ")}.`
+                : `Preguntas sugeridas: ${quickQuestions.join(" | ")}.`
       : "";
 
   const reportHint = conversationContext?.lines?.length
@@ -2536,13 +3325,25 @@ function buildAgentContext(
           ? "Recent summarized context:"
           : language === "de"
             ? "Aktuelle Zusammenfassung:"
-            : "Contexto resumido reciente:",
+            : language === "fr"
+              ? "Contexte recent resume :"
+              : language === "it"
+                ? "Contesto recente riassunto:"
+                : language === "pt"
+                  ? "Contexto recente resumido:"
+                  : "Contexto resumido reciente:",
         ...conversationContext.lines.map((line) => `- ${line}`),
         language === "en"
           ? "Use this quietly. Do not recite private details unless the user asks."
           : language === "de"
             ? "Nutze dies leise im Hintergrund. Nenne private Details nur, wenn die Nutzerin fragt."
-            : "Usa esto como contexto silencioso. No recites detalles privados salvo que la usuaria pregunte.",
+            : language === "fr"
+              ? "Utilisez cela en arriere-plan. Ne repetez pas de details prives sauf si la personne demande."
+              : language === "it"
+                ? "Usalo come contesto silenzioso. Non ripetere dettagli privati salvo richiesta."
+                : language === "pt"
+                  ? "Use isto como contexto silencioso. Nao repita detalhes privados salvo se a pessoa pedir."
+                  : "Usa esto como contexto silencioso. No recites detalles privados salvo que la usuaria pregunte.",
       ].join(" ")
     : "";
 
@@ -2550,7 +3351,17 @@ function buildAgentContext(
 }
 
 function buildWelcomeBootstrap(language: SocialLanguage, agentName: string, userName?: string) {
-  const name = userName?.trim() || (language === "en" ? "friend" : language === "de" ? "Freundin" : "amiga");
+  const name = userName?.trim() || (
+    language === "en"
+      ? "friend"
+      : language === "de"
+        ? "Freundin"
+        : language === "fr"
+          ? "amie"
+          : language === "it"
+            ? "amica"
+            : "amiga"
+  );
 
   if (language === "en") {
     return `The user ${name} has just entered the room. Greet them as ${agentName} in one sentence and ask how you can help today.`;
@@ -2558,6 +3369,18 @@ function buildWelcomeBootstrap(language: SocialLanguage, agentName: string, user
 
   if (language === "de") {
     return `Die Nutzerin ${name} hat gerade den Raum betreten. Begrüße sie als ${agentName} in einem Satz und frage, wie du heute helfen kannst.`;
+  }
+
+  if (language === "fr") {
+    return `La personne ${name} vient d'entrer dans le salon. Accueille-la comme ${agentName} en une phrase et demande comment aider aujourd'hui.`;
+  }
+
+  if (language === "it") {
+    return `La persona ${name} e appena entrata nella stanza. Salutala come ${agentName} in una frase e chiedi come puoi aiutare oggi.`;
+  }
+
+  if (language === "pt") {
+    return `A pessoa ${name} acabou de entrar na sala. Cumprimente-a como ${agentName} numa frase e pergunte como pode ajudar hoje.`;
   }
 
   return `La usuaria ${name} acaba de entrar en la sala. Salúdala como ${agentName} en una sola frase y pregúntale cómo puedes ayudar hoy.`;
@@ -2578,6 +3401,80 @@ function looksLikeGreeting(text: string) {
 function buildFallbackRoomResponse(slug: string, language: SocialLanguage): SocialRoomResponse | null {
   const today = new Date().toISOString().slice(0, 10);
   const canonicalSlug = isReadingRoomSlug(slug) ? "reading-room" : slug;
+  const readingFallback = {
+    name: {
+      es: "Club literario",
+      en: "Literary Club",
+      fr: "Club litteraire",
+      de: "Literarischer Club",
+      it: "Club letterario",
+      pt: "Clube literario",
+    }[language],
+    agentCredential: {
+      es: "Anfitriona literaria",
+      en: "Literary host",
+      fr: "Hote litteraire",
+      de: "Literarische Gastgeberin",
+      it: "Ospite letteraria",
+      pt: "Anfitria literaria",
+    }[language],
+    ctaLabel: {
+      es: "Unirme al club",
+      en: "Join the club",
+      fr: "Rejoindre le club",
+      de: "Dem Club beitreten",
+      it: "Unirmi al club",
+      pt: "Juntar-me ao clube",
+    }[language],
+    topic: {
+      es: "Una frase, un recuerdo y una conversacion",
+      en: "One line, one memory and one conversation",
+      fr: "Une phrase, un souvenir et une conversation",
+      de: "Eine Zeile, eine Erinnerung und ein Gespraech",
+      it: "Una frase, un ricordo e una conversazione",
+      pt: "Uma frase, uma memoria e uma conversa",
+    }[language],
+    opener: {
+      es: "Hola, soy Isabel. Hoy compartimos libros, historias y pequenos recuerdos para conocernos mejor.",
+      en: "Hello, I'm Isabel. Today we share books, stories and small memories so we can know one another better.",
+      fr: "Bonjour, je suis Isabel. Aujourd'hui, nous partageons des livres, des histoires et de petits souvenirs pour mieux nous connaitre.",
+      de: "Hallo, ich bin Isabel. Heute teilen wir Buecher, Geschichten und kleine Erinnerungen, um einander besser kennenzulernen.",
+      it: "Ciao, sono Isabel. Oggi condividiamo libri, storie e piccoli ricordi per conoscerci meglio.",
+      pt: "Ola, sou a Isabel. Hoje partilhamos livros, historias e pequenas memorias para nos conhecermos melhor.",
+    }[language],
+    contentTitle: {
+      es: "La mesa del club",
+      en: "The club table",
+      fr: "La table du club",
+      de: "Der Clubtisch",
+      it: "Il tavolo del club",
+      pt: "A mesa do clube",
+    }[language],
+    contentBody: {
+      es: "Trae un libro querido, una frase recordada o una historia breve. La conversacion importa mas que terminar una lectura.",
+      en: "Bring a loved book, a remembered line or a short story. The conversation matters more than finishing a text.",
+      fr: "Apportez un livre aime, une phrase retenue ou une histoire courte. La conversation compte plus que finir une lecture.",
+      de: "Bring ein liebes Buch, eine erinnerte Zeile oder eine kurze Geschichte mit. Das Gespraech ist wichtiger als ein Textende.",
+      it: "Porta un libro caro, una frase ricordata o una storia breve. La conversazione conta piu che finire un testo.",
+      pt: "Traga um livro querido, uma frase lembrada ou uma historia breve. A conversa importa mais do que terminar uma leitura.",
+    }[language],
+    options: {
+      es: ["Compartir un libro que recuerdo", "Buscar alguien con gustos parecidos", "Empezar con una pregunta literaria"],
+      en: ["Share a book I remember", "Find someone with similar taste", "Start with a literary question"],
+      fr: ["Partager un livre dont je me souviens", "Trouver quelqu'un aux gouts proches", "Commencer par une question litteraire"],
+      de: ["Ein Buch teilen, an das ich mich erinnere", "Jemanden mit aehnlichem Geschmack finden", "Mit einer literarischen Frage beginnen"],
+      it: ["Condividere un libro che ricordo", "Trovare qualcuno con gusti simili", "Iniziare con una domanda letteraria"],
+      pt: ["Partilhar um livro que recordo", "Encontrar alguem com gostos parecidos", "Comecar com uma pergunta literaria"],
+    }[language],
+    liveBadge: {
+      es: "7 en la sala",
+      en: "7 in the room",
+      fr: "7 dans le salon",
+      de: "7 im Raum",
+      it: "7 nella stanza",
+      pt: "7 na sala",
+    }[language],
+  };
 
   const roomMap: Record<string, SocialRoom> = {
     "garden-chat": {
@@ -2764,57 +3661,27 @@ function buildFallbackRoomResponse(slug: string, language: SocialLanguage): Soci
     },
     "reading-room": {
       slug: "reading-room",
-      name: language === "en" ? "Literary Club" : language === "de" ? "Literarischer Club" : "Club literario",
+      name: readingFallback.name,
       category: "social",
       agentSlug: "isabel-fuentes",
       agentFullName: "Isabel Fuentes",
       agentColour: "#7C2D12",
-      agentCredential:
-        language === "en"
-          ? "Literary host"
-          : language === "de"
-            ? "Literarische Gastgeberin"
-            : "Anfitriona literaria",
-      ctaLabel: language === "en" ? "Join the club" : language === "de" ? "Dem Club beitreten" : "Unirme al club",
+      agentCredential: readingFallback.agentCredential,
+      ctaLabel: readingFallback.ctaLabel,
       topicTags: ["books", "literature", "poetry", "reading", "stories", "book_club", "conversation"],
       timeSlots: ["morning", "afternoon", "evening"],
       featured: true,
       participantCount: 7,
       sessionDate: today,
-      topic:
-        language === "en"
-          ? "One line, one memory and one conversation"
-          : language === "de"
-            ? "Eine Zeile, eine Erinnerung und ein Gespraech"
-            : "Una frase, un recuerdo y una conversacion",
-      opener:
-        language === "en"
-          ? "Hello, I'm Isabel. Today we share books, stories and small memories so we can know one another better."
-          : language === "de"
-            ? "Hallo, ich bin Isabel. Heute teilen wir Buecher, Geschichten und kleine Erinnerungen, um einander besser kennenzulernen."
-            : "Hola, soy Isabel. Hoy compartimos libros, historias y pequenos recuerdos para conocernos mejor.",
+      topic: readingFallback.topic,
+      opener: readingFallback.opener,
       quote: "",
       activityType: "discussion",
       contentTag: "",
-      contentTitle:
-        language === "en"
-          ? "The club table"
-          : language === "de"
-            ? "Der Clubtisch"
-            : "La mesa del club",
-      contentBody:
-        language === "en"
-          ? "Bring a loved book, a remembered line or a short story. The conversation matters more than finishing a text."
-          : language === "de"
-            ? "Bring ein liebes Buch, eine erinnerte Zeile oder eine kurze Geschichte mit. Das Gespraech ist wichtiger als ein Textende."
-            : "Trae un libro querido, una frase recordada o una historia breve. La conversacion importa mas que terminar una lectura.",
-      options:
-        language === "en"
-          ? ["Share a book I remember", "Find someone with similar taste", "Start with a literary question"]
-          : language === "de"
-            ? ["Ein Buch teilen, an das ich mich erinnere", "Jemanden mit aehnlichem Geschmack finden", "Mit einer literarischen Frage beginnen"]
-            : ["Compartir un libro que recuerdo", "Buscar alguien con gustos parecidos", "Empezar con una pregunta literaria"],
-      liveBadge: language === "en" ? "7 in the room" : language === "de" ? "7 im Raum" : "7 en la sala",
+      contentTitle: readingFallback.contentTitle,
+      contentBody: readingFallback.contentBody,
+      options: readingFallback.options,
+      liveBadge: readingFallback.liveBadge,
     },
     "morning-circle": {
       slug: "morning-circle",
@@ -3208,7 +4075,7 @@ const RoomScreen = () => {
   const language = getSocialLanguage(appLanguage);
   const movementExerciseLanguage = getMovementExerciseLanguage(appLanguage);
   const gameLanguage = getSocialGameLanguage(appLanguage);
-  const requestLanguage = slug === "games-room" ? gameLanguage : language;
+  const requestLanguage = slug === "games-room" || slug === "together-room" ? gameLanguage : language;
   const copy = getSocialCopy(language);
 
   const [visitId, setVisitId] = useState<string | null>(null);
@@ -3310,7 +4177,7 @@ const RoomScreen = () => {
   }, [language, room, roomResponse]);
 
   const togetherRoomActive = isTogetherRoom(room?.slug ?? slug);
-  const togetherCopy = togetherRoomActive ? getTogetherRoomCopy(language) : null;
+  const togetherCopy = togetherRoomActive ? getTogetherRoomCopy(gameLanguage) : null;
   const readingRoomActive = isReadingRoomSlug(room?.slug ?? slug);
   const movementRoomActive = canonicalRoomSlug === "morning-movement";
   const movementExerciseCopy = useMemo(() => getMovementExerciseLibraryCopy(movementExerciseLanguage), [movementExerciseLanguage]);
@@ -3453,7 +4320,7 @@ const RoomScreen = () => {
     readingClubCopy.letterDefaultRecipient;
   const canSaveReadingLetter = Boolean(readingLetterBodyDraft.trim());
   const readingPollClosed = activeReadingPulse?.activePoll.status !== "active";
-  const togetherPlans = useMemo(() => getTogetherPlans(language), [language]);
+  const togetherPlans = useMemo(() => getTogetherPlans(gameLanguage), [gameLanguage]);
   const selectedTogetherPlan = useMemo(
     () => togetherPlans.find((plan) => plan.id === selectedTogetherPlanId) ?? togetherPlans[0],
     [selectedTogetherPlanId, togetherPlans],
@@ -4735,7 +5602,7 @@ const RoomScreen = () => {
     return (
       <TogetherRoomScreen
         roomResponse={roomResponse}
-        language={language}
+        language={gameLanguage}
         composerLanguage={gameLanguage}
         visitId={visitId}
         onBack={handleBackToRooms}

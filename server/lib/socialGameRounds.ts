@@ -3,6 +3,7 @@ import type {
   SocialGameLanguage,
   SocialGameReadyMember,
   SocialGameRound,
+  SocialGameRoundInteraction,
   SocialGameRoundVisual,
   SocialGameTable,
   SocialLanguage,
@@ -11,6 +12,102 @@ import type {
 type ExtraGameLanguage = Exclude<SocialGameLanguage, SocialLanguage>;
 
 const socialGameLanguages: SocialGameLanguage[] = ["es", "en", "fr", "de", "it", "pt"];
+
+function tactileInstruction(kind: SocialGameKind | "word", language: SocialGameLanguage) {
+  const copy: Record<SocialGameKind, Record<SocialGameLanguage, string>> = {
+    chess: {
+      en: "Tap the piece or square Viktor should notice.",
+      es: "Toca la pieza o casilla que Viktor deberia notar.",
+      fr: "Touche la piece ou la case que Viktor doit remarquer.",
+      de: "Tippe auf die Figur oder das Feld, das Viktor beachten soll.",
+      it: "Tocca il pezzo o la casa che Viktor dovrebbe notare.",
+      pt: "Toque na peca ou casa que Viktor deve notar.",
+    },
+    word: {
+      en: "Tap tiles into your tray.",
+      es: "Toca letras para ponerlas en tu bandeja.",
+      fr: "Touche les lettres pour remplir ta reponse.",
+      de: "Tippe Steine in deine Ablage.",
+      it: "Tocca le lettere per riempire la risposta.",
+      pt: "Toque nas letras para montar sua resposta.",
+    },
+    dominoes: {
+      en: "Tap the tile you would play.",
+      es: "Toca la ficha que jugarias.",
+      fr: "Touche la tuile que tu jouerais.",
+      de: "Tippe auf den Stein, den du spielen wuerdest.",
+      it: "Tocca la tessera che giocheresti.",
+      pt: "Toque na peca que voce jogaria.",
+    },
+    bridge: {
+      en: "Tap the calm table action.",
+      es: "Toca la accion tranquila de la mesa.",
+      fr: "Touche l'action calme de la table.",
+      de: "Tippe auf die ruhige Tischaktion.",
+      it: "Tocca l'azione tranquilla al tavolo.",
+      pt: "Toque na acao tranquila da mesa.",
+    },
+  };
+
+  return copy[kind][language];
+}
+
+function roundExplanation(hint: string, language: SocialGameLanguage) {
+  if (language === "fr") return `Pourquoi cela marche: ${hint}`;
+  if (language === "it") return `Perche funziona: ${hint}`;
+  if (language === "pt") return `Por que funciona: ${hint}`;
+  if (language === "de") return `Warum es passt: ${hint}`;
+  if (language === "es") return `Por que funciona: ${hint}`;
+  return `Why this works: ${hint}`;
+}
+
+function tableTalkPrompt(kind: SocialGameKind, language: SocialGameLanguage) {
+  const prompts: Record<SocialGameKind, Record<SocialGameLanguage, string>> = {
+    chess: {
+      en: "Ask someone which chess piece they enjoy moving most.",
+      es: "Pregunta a alguien que pieza de ajedrez le gusta mover.",
+      fr: "Demande a quelqu'un quelle piece d'echecs il aime jouer.",
+      de: "Frag jemanden, welche Schachfigur er gern zieht.",
+      it: "Chiedi a qualcuno quale pezzo degli scacchi ama muovere.",
+      pt: "Pergunte a alguem qual peca de xadrez gosta de mover.",
+    },
+    word: {
+      en: "Share one word that feels warm at a game table.",
+      es: "Comparte una palabra que se sienta calida en la mesa.",
+      fr: "Partage un mot qui semble chaleureux a la table.",
+      de: "Teile ein Wort, das am Spieltisch warm klingt.",
+      it: "Condividi una parola che suona calda al tavolo.",
+      pt: "Compartilhe uma palavra que pareca acolhedora na mesa.",
+    },
+    dominoes: {
+      en: "Ask who learned dominoes at home or with friends.",
+      es: "Pregunta quien aprendio domino en casa o con amigos.",
+      fr: "Demande qui a appris les dominos a la maison ou avec des amis.",
+      de: "Frag, wer Domino zu Hause oder mit Freunden gelernt hat.",
+      it: "Chiedi chi ha imparato il domino in casa o con amici.",
+      pt: "Pergunte quem aprendeu domino em casa ou com amigos.",
+    },
+    bridge: {
+      en: "Ask a bridge player what makes a good partner.",
+      es: "Pregunta a alguien de bridge que hace bueno a un companero.",
+      fr: "Demande a un joueur de bridge ce qui fait un bon partenaire.",
+      de: "Frag einen Bridge-Spieler, was einen guten Partner ausmacht.",
+      it: "Chiedi a chi gioca a bridge cosa rende bravo un partner.",
+      pt: "Pergunte a quem joga bridge o que faz um bom parceiro.",
+    },
+  };
+
+  return prompts[kind][language];
+}
+
+function textActionId(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
+}
 
 const gameKindLabels: Record<SocialGameKind, Record<SocialGameLanguage, string>> = {
   chess: { es: "ajedrez", en: "chess", fr: "echecs", de: "Schach", it: "scacchi", pt: "xadrez" },
@@ -1740,22 +1837,57 @@ function buildChessVisual(tag: string, language: SocialGameLanguage, variantInde
   return { kind: "chessBoard", caption, ...defaultPositions[variant] };
 }
 
+function buildChessInteraction(visual: SocialGameRoundVisual, language: SocialGameLanguage): SocialGameRoundInteraction {
+  if (visual.kind !== "chessBoard") {
+    return { kind: "chessTap", instruction: tactileInstruction("chess", language), answerSquares: [] };
+  }
+
+  const highlightedSquares = visual.highlights ?? [];
+  const arrowStart = visual.arrows?.[0]?.from;
+  const highlightedFriendlyPiece = visual.pieces.find((piece) =>
+    highlightedSquares.includes(piece.square)
+    && piece.piece.startsWith("white")
+    && piece.piece !== "whiteKing",
+  );
+  const friendlyPiece = visual.pieces.find((piece) => piece.piece.startsWith("white") && piece.piece !== "whiteKing");
+  const targetSquare = arrowStart ?? highlightedFriendlyPiece?.square ?? friendlyPiece?.square ?? highlightedSquares[0] ?? visual.pieces[0]?.square ?? "";
+  const selectableSquares = Array.from(new Set([
+    ...visual.pieces.map((piece) => piece.square),
+    ...highlightedSquares,
+  ])).filter(Boolean);
+
+  return {
+    kind: "chessTap",
+    instruction: tactileInstruction("chess", language),
+    answerSquares: targetSquare ? [targetSquare] : [],
+    selectableSquares,
+  };
+}
+
 function buildChessPuzzleBank(language: SocialLanguage): SocialGameRound[] {
   return chessPuzzleThemes.flatMap((theme) =>
-    theme.variants.map((variant, index) => ({
-      id: variant.suffix ? `${theme.id}-${variant.suffix}` : theme.id,
-      kind: "chess" as const,
-      title: chessRoundTitles[language],
-      body: (variant.body ?? theme.body)[language],
-      prompt: variant.prompt[language],
-      choices: (variant.choices ?? theme.choices)[language],
-      answer: (variant.answer ?? theme.answer)[language],
-      hint: (variant.hint ?? theme.hint)[language],
-      tags: ["games", "chess", "game:chess", `chess:${theme.tag}`],
-      estimatedDurationSeconds: variant.estimatedDurationSeconds ?? 95,
-      successMessage: (variant.successMessage ?? theme.successMessage)[language],
-      visual: buildChessVisual(theme.tag, language, index),
-    })),
+    theme.variants.map((variant, index) => {
+      const hint = (variant.hint ?? theme.hint)[language];
+      const visual = buildChessVisual(theme.tag, language, index);
+
+      return {
+        id: variant.suffix ? `${theme.id}-${variant.suffix}` : theme.id,
+        kind: "chess" as const,
+        title: chessRoundTitles[language],
+        body: (variant.body ?? theme.body)[language],
+        prompt: variant.prompt[language],
+        choices: (variant.choices ?? theme.choices)[language],
+        answer: (variant.answer ?? theme.answer)[language],
+        hint,
+        tags: ["games", "chess", "game:chess", `chess:${theme.tag}`],
+        estimatedDurationSeconds: variant.estimatedDurationSeconds ?? 95,
+        successMessage: (variant.successMessage ?? theme.successMessage)[language],
+        visual,
+        interaction: buildChessInteraction(visual, language),
+        explanation: roundExplanation(hint, language),
+        tableTalkPrompt: tableTalkPrompt("chess", language),
+      };
+    }),
   );
 }
 
@@ -1899,20 +2031,27 @@ function buildExtraChessPuzzleBank(language: ExtraGameLanguage): SocialGameRound
   return chessPuzzleThemes.flatMap((theme) => {
     const concept = extraChessConcepts[theme.tag][language];
 
-    return theme.variants.map((variant, index) => ({
-      id: variant.suffix ? `${theme.id}-${variant.suffix}` : theme.id,
-      kind: "chess" as const,
-      title: copy.title,
-      body: copy.body,
-      prompt: `${copy.positionLabel(index)} ${concept.description} ${copy.question}`,
-      choices: [...concept.choices],
-      answer: concept.answer,
-      hint: concept.hint,
-      tags: ["games", "chess", "game:chess", `chess:${theme.tag}`],
-      estimatedDurationSeconds: variant.estimatedDurationSeconds ?? 95,
-      successMessage: copy.successMessage,
-      visual: buildChessVisual(theme.tag, language, index),
-    }));
+    return theme.variants.map((variant, index) => {
+      const visual = buildChessVisual(theme.tag, language, index);
+
+      return {
+        id: variant.suffix ? `${theme.id}-${variant.suffix}` : theme.id,
+        kind: "chess" as const,
+        title: copy.title,
+        body: copy.body,
+        prompt: `${copy.positionLabel(index)} ${concept.description} ${copy.question}`,
+        choices: [...concept.choices],
+        answer: concept.answer,
+        hint: concept.hint,
+        tags: ["games", "chess", "game:chess", `chess:${theme.tag}`],
+        estimatedDurationSeconds: variant.estimatedDurationSeconds ?? 95,
+        successMessage: copy.successMessage,
+        visual,
+        interaction: buildChessInteraction(visual, language),
+        explanation: roundExplanation(concept.hint, language),
+        tableTalkPrompt: tableTalkPrompt("chess", language),
+      };
+    });
   });
 }
 
@@ -2066,20 +2205,32 @@ function buildWordTilesVisual(themeTag: string, variant: WordPuzzleVariant, lang
 
 function buildWordPuzzleBank(language: SocialLanguage): SocialGameRound[] {
   return wordPuzzleThemes.flatMap((theme) =>
-    theme.variants.map((variant) => ({
-      id: `${theme.id}-${variant.suffix}`,
-      kind: "word" as const,
-      title: wordRoundTitles[language],
-      body: theme.body[language],
-      prompt: wordTilesPrompt(theme.tag, variant, language),
-      choices: variant.choices[language],
-      answer: variant.answer[language],
-      hint: variant.hint[language],
-      tags: ["games", "scrabble", "words", "game:word", `word:${theme.tag}`],
-      estimatedDurationSeconds: variant.estimatedDurationSeconds ?? 80,
-      successMessage: theme.successMessage[language],
-      visual: buildWordTilesVisual(theme.tag, variant, language),
-    })),
+    theme.variants.map((variant) => {
+      const hint = variant.hint[language];
+
+      return {
+        id: `${theme.id}-${variant.suffix}`,
+        kind: "word" as const,
+        title: wordRoundTitles[language],
+        body: theme.body[language],
+        prompt: wordTilesPrompt(theme.tag, variant, language),
+        choices: variant.choices[language],
+        answer: variant.answer[language],
+        hint,
+        tags: ["games", "scrabble", "words", "game:word", `word:${theme.tag}`],
+        estimatedDurationSeconds: variant.estimatedDurationSeconds ?? 80,
+        successMessage: theme.successMessage[language],
+        visual: buildWordTilesVisual(theme.tag, variant, language),
+        interaction: {
+          kind: "wordBuild" as const,
+          instruction: tactileInstruction("word", language),
+          shuffleEnabled: true,
+          revealLetterCount: 1,
+        },
+        explanation: roundExplanation(hint, language),
+        tableTalkPrompt: tableTalkPrompt("word", language),
+      };
+    }),
   );
 }
 
@@ -3295,6 +3446,14 @@ function buildExtraWordPuzzleBank(language: ExtraGameLanguage): SocialGameRound[
         answerLength: choiceTiles.length ? 1 : answerLetters.length,
         clue: visualClue || copy.prompt,
       },
+      interaction: {
+        kind: "wordBuild" as const,
+        instruction: tactileInstruction("word", language),
+        shuffleEnabled: true,
+        revealLetterCount: 1,
+      },
+      explanation: roundExplanation(hint, language),
+      tableTalkPrompt: tableTalkPrompt("word", language),
     };
   });
 }
@@ -3544,26 +3703,56 @@ function buildDominoesVisual(variant: DominoesPuzzleVariant, caption: string): S
   };
 }
 
+function buildDominoesInteraction(
+  variant: DominoesPuzzleVariant,
+  choices: string[],
+  answer: string,
+  language: SocialGameLanguage,
+): SocialGameRoundInteraction {
+  const answerTile = dominoVisualTile(variant.answerTile);
+  const candidateTiles = dominoVisualTiles(variant.tileChoices ?? variant.hand)
+    ?? (answerTile ? [answerTile] : undefined);
+  const actions = choices.map((choice) => ({ id: textActionId(choice), label: choice }));
+
+  return {
+    kind: "dominoPlay",
+    instruction: tactileInstruction("dominoes", language),
+    ...(answerTile ? { answerTile } : {}),
+    ...(candidateTiles?.length ? { candidateTiles } : {}),
+    ...(variant.playOn !== undefined || variant.target !== undefined ? { answerEnd: variant.playOn ?? variant.target } : {}),
+    ...(!answerTile && actions.length ? { actions, answerActionId: textActionId(answer) } : {}),
+  };
+}
+
 function buildDominoesPuzzleBank(language: SocialLanguage): SocialGameRound[] {
   return dominoesPuzzleThemes.flatMap((theme) =>
-    theme.variants.map((variant) => ({
-      id: `${theme.id}-${variant.suffix}`,
-      kind: "dominoes" as const,
-      title: dominoesRoundTitles[language],
-      body: theme.body[language],
-      prompt: theme.prompt(variant, language),
-      choices: variant.tileChoices
+    theme.variants.map((variant) => {
+      const choices = variant.tileChoices
         ? variant.tileChoices.map((tile) => dominoTileLabel(tile, language))
-        : variant.textChoices?.[language] ?? [],
-      answer: variant.answerTile
+        : variant.textChoices?.[language] ?? [];
+      const answer = variant.answerTile
         ? dominoTileLabel(variant.answerTile, language)
-        : variant.answerText?.[language] ?? "",
-      hint: theme.hint(variant, language),
-      tags: ["games", "dominoes", "game:dominoes", `dominoes:${theme.tag}`],
-      estimatedDurationSeconds: variant.estimatedDurationSeconds ?? 75,
-      successMessage: theme.successMessage[language],
-      visual: buildDominoesVisual(variant, theme.body[language]),
-    })),
+        : variant.answerText?.[language] ?? "";
+      const hint = theme.hint(variant, language);
+
+      return {
+        id: `${theme.id}-${variant.suffix}`,
+        kind: "dominoes" as const,
+        title: dominoesRoundTitles[language],
+        body: theme.body[language],
+        prompt: theme.prompt(variant, language),
+        choices,
+        answer,
+        hint,
+        tags: ["games", "dominoes", "game:dominoes", `dominoes:${theme.tag}`],
+        estimatedDurationSeconds: variant.estimatedDurationSeconds ?? 75,
+        successMessage: theme.successMessage[language],
+        visual: buildDominoesVisual(variant, theme.body[language]),
+        interaction: buildDominoesInteraction(variant, choices, answer, language),
+        explanation: roundExplanation(hint, language),
+        tableTalkPrompt: tableTalkPrompt("dominoes", language),
+      };
+    }),
   );
 }
 
@@ -3713,6 +3902,9 @@ function buildExtraDominoesPuzzleBank(language: ExtraGameLanguage): SocialGameRo
         estimatedDurationSeconds: variant.estimatedDurationSeconds ?? 75,
         successMessage: copy.successMessage,
         visual: buildDominoesVisual(variant, copy.body),
+        interaction: buildDominoesInteraction(variant, choices, answer, language),
+        explanation: roundExplanation(copy.hint, language),
+        tableTalkPrompt: tableTalkPrompt("dominoes", language),
       };
     }),
   );
@@ -4614,6 +4806,26 @@ function bridgeChoiceText(choice: BridgeChoice, language: SocialGameLanguage) {
   return `Lead ${suitText}`;
 }
 
+function bridgeChoiceId(choice: BridgeChoice) {
+  if (choice.type === "bid") return `bid:${choice.level}:${choice.suit}`;
+  if (choice.type === "pass") return "pass";
+  if (choice.type === "lead") return `lead:${choice.suit}:${choice.rank ?? "any"}`;
+  if (choice.type === "term") return `term:${choice.key}`;
+  return `number:${choice.value}`;
+}
+
+function buildBridgeInteraction(variant: BridgePuzzleVariant, language: SocialGameLanguage): SocialGameRoundInteraction {
+  return {
+    kind: "bridgeAction",
+    instruction: tactileInstruction("bridge", language),
+    actions: variant.choices.map((choice) => ({
+      id: bridgeChoiceId(choice),
+      label: bridgeChoiceText(choice, language),
+    })),
+    answerActionId: bridgeChoiceId(variant.answer),
+  };
+}
+
 function bridgePoints(points: number | undefined, language: SocialGameLanguage) {
   const value = points ?? 0;
   if (language === "de") return `${value} Punkte`;
@@ -5092,20 +5304,27 @@ const bridgePuzzleThemes: BridgePuzzleTheme[] = [
 
 function buildBridgePuzzleBank(language: SocialGameLanguage): SocialGameRound[] {
   return bridgePuzzleThemes.flatMap((theme) =>
-    theme.variants.map((variant) => ({
-      id: `${theme.id}-${variant.suffix}`,
-      kind: "bridge" as const,
-      title: bridgeRoundTitles[language],
-      body: theme.body[language],
-      prompt: theme.prompt(variant, language),
-      choices: variant.choices.map((choice) => bridgeChoiceText(choice, language)),
-      answer: bridgeChoiceText(variant.answer, language),
-      hint: theme.hint(variant, language),
-      tags: ["games", "bridge", "cards", "game:bridge", `bridge:${theme.tag}`],
-      estimatedDurationSeconds: variant.estimatedDurationSeconds ?? 85,
-      successMessage: theme.successMessage[language],
-      visual: buildBridgeVisual(variant, language, theme.body[language]),
-    })),
+    theme.variants.map((variant) => {
+      const hint = theme.hint(variant, language);
+
+      return {
+        id: `${theme.id}-${variant.suffix}`,
+        kind: "bridge" as const,
+        title: bridgeRoundTitles[language],
+        body: theme.body[language],
+        prompt: theme.prompt(variant, language),
+        choices: variant.choices.map((choice) => bridgeChoiceText(choice, language)),
+        answer: bridgeChoiceText(variant.answer, language),
+        hint,
+        tags: ["games", "bridge", "cards", "game:bridge", `bridge:${theme.tag}`],
+        estimatedDurationSeconds: variant.estimatedDurationSeconds ?? 85,
+        successMessage: theme.successMessage[language],
+        visual: buildBridgeVisual(variant, language, theme.body[language]),
+        interaction: buildBridgeInteraction(variant, language),
+        explanation: roundExplanation(hint, language),
+        tableTalkPrompt: tableTalkPrompt("bridge", language),
+      };
+    }),
   );
 }
 

@@ -23,6 +23,12 @@ function createWordRound(index: number): SocialGameRound {
       tags: ["games", "scrabble", "words", "game:word", "word:anagram"],
       estimatedDurationSeconds: 75,
       successMessage: "Lovely. Anagrams make word games feel quick and social.",
+      interaction: {
+        kind: "wordBuild",
+        instruction: "Tap tiles into your tray.",
+        shuffleEnabled: true,
+        revealLetterCount: 1,
+      },
       visual: {
         kind: "wordTiles",
         tiles: ["E", "I", "M", "L", "S"],
@@ -44,6 +50,12 @@ function createWordRound(index: number): SocialGameRound {
       tags: ["games", "scrabble", "words", "game:word", "word:anagram"],
       estimatedDurationSeconds: 80,
       successMessage: "Lovely. Anagrams make word games feel quick and social.",
+      interaction: {
+        kind: "wordBuild",
+        instruction: "Tap tiles into your tray.",
+        shuffleEnabled: true,
+        revealLetterCount: 1,
+      },
       visual: {
         kind: "wordTiles",
         tiles: ["E", "A", "P", "C", "E"],
@@ -64,6 +76,12 @@ function createWordRound(index: number): SocialGameRound {
     tags: ["games", "scrabble", "words", "game:word", "word:test"],
     estimatedDurationSeconds: 80,
     successMessage: "Nice word choice.",
+    interaction: {
+      kind: "wordBuild",
+      instruction: "Tap tiles into your tray.",
+      shuffleEnabled: true,
+      revealLetterCount: 1,
+    },
     visual: {
       kind: "wordTiles",
       tiles: [`D${index + 1}`, `WOR${index + 1}`],
@@ -88,6 +106,12 @@ function createDominoesRound(index: number): SocialGameRound {
       tags: ["games", "dominoes", "game:dominoes", "dominoes:opening-double"],
       estimatedDurationSeconds: 75,
       successMessage: "Nice table sense. A strong double gives everyone an easy start.",
+      interaction: {
+        kind: "dominoPlay",
+        instruction: "Tap the tile you would play.",
+        answerTile: [6, 6],
+        candidateTiles: [[6, 6], [5, 5], [3, 3]],
+      },
       visual: {
         kind: "dominoes",
         caption: "Choose the strongest opening tile.",
@@ -109,6 +133,12 @@ function createDominoesRound(index: number): SocialGameRound {
       tags: ["games", "dominoes", "game:dominoes", "dominoes:opening-double"],
       estimatedDurationSeconds: 75,
       successMessage: "Nice table sense. A strong double gives everyone an easy start.",
+      interaction: {
+        kind: "dominoPlay",
+        instruction: "Tap the tile you would play.",
+        answerTile: [5, 5],
+        candidateTiles: [[5, 5], [4, 4], [2, 2]],
+      },
       visual: {
         kind: "dominoes",
         caption: "Choose the strongest opening tile.",
@@ -129,6 +159,12 @@ function createDominoesRound(index: number): SocialGameRound {
     tags: ["games", "dominoes", "game:dominoes", "dominoes:test"],
     estimatedDurationSeconds: 75,
     successMessage: "Nice table sense.",
+    interaction: {
+      kind: "dominoPlay",
+      instruction: "Tap the tile you would play.",
+      answerTile: [1, 2],
+      candidateTiles: [[1, 2], [2, 3], [3, 4]],
+    },
     visual: {
       kind: "dominoes",
       caption: "Solve a short dominoes table clue.",
@@ -153,6 +189,16 @@ function createBridgeRound(index: number): SocialGameRound {
       tags: ["games", "bridge", "cards", "game:bridge", "bridge:opening-bid"],
       estimatedDurationSeconds: 85,
       successMessage: "Good start. A clear opening helps partner relax.",
+      interaction: {
+        kind: "bridgeAction",
+        instruction: "Tap the calm table action.",
+        actions: [
+          { id: "bid:1:hearts", label: "Bid 1 hearts" },
+          { id: "bid:1:noTrump", label: "Bid 1 no-trump" },
+          { id: "pass", label: "Pass" },
+        ],
+        answerActionId: "bid:1:hearts",
+      },
       visual: {
         kind: "bridgeCards",
         caption: "Choose a calm opening bid.",
@@ -175,6 +221,16 @@ function createBridgeRound(index: number): SocialGameRound {
       tags: ["games", "bridge", "cards", "game:bridge", "bridge:opening-bid"],
       estimatedDurationSeconds: 85,
       successMessage: "Good start. A clear opening helps partner relax.",
+      interaction: {
+        kind: "bridgeAction",
+        instruction: "Tap the calm table action.",
+        actions: [
+          { id: "bid:1:spades", label: "Bid 1 spades" },
+          { id: "bid:1:clubs", label: "Bid 1 clubs" },
+          { id: "pass", label: "Pass" },
+        ],
+        answerActionId: "bid:1:spades",
+      },
       visual: {
         kind: "bridgeCards",
         caption: "Choose a calm opening bid.",
@@ -196,6 +252,16 @@ function createBridgeRound(index: number): SocialGameRound {
     tags: ["games", "bridge", "cards", "game:bridge", "bridge:test"],
     estimatedDurationSeconds: 85,
     successMessage: "Nice bridge table choice.",
+    interaction: {
+      kind: "bridgeAction",
+      instruction: "Tap the calm table action.",
+      actions: [
+        { id: `bridge-${index + 1}`, label: `Bridge ${index + 1}` },
+        { id: `pass-${index + 1}`, label: `Pass ${index + 1}` },
+        { id: `lead-${index + 1}`, label: `Lead ${index + 1}` },
+      ],
+      answerActionId: `bridge-${index + 1}`,
+    },
     visual: {
       kind: "bridgeCards",
       caption: "Solve a gentle bridge table puzzle.",
@@ -279,6 +345,12 @@ const roomResponse: SocialRoomResponse = {
         tags: ["games", "chess", "game:chess", "chess:fork"],
         estimatedDurationSeconds: 90,
         successMessage: "Nice steady thinking. Forks are a classic way to start a chess chat.",
+        interaction: {
+          kind: "chessTap",
+          instruction: "Tap the piece or square Viktor should notice.",
+          answerSquares: ["d5"],
+          selectableSquares: ["d5", "f6", "b6", "g1"],
+        },
         visual: {
           kind: "chessBoard",
           caption: "One white piece points at two black targets.",
@@ -303,6 +375,12 @@ const roomResponse: SocialRoomResponse = {
         tags: ["games", "chess", "game:chess", "chess:mate"],
         estimatedDurationSeconds: 95,
         successMessage: "Good eye. Back-rank patterns are small puzzles that many chess players enjoy.",
+        interaction: {
+          kind: "chessTap",
+          instruction: "Tap the piece or square Viktor should notice.",
+          answerSquares: ["e8"],
+          selectableSquares: ["e8", "g8", "f7", "g7", "h7", "g1"],
+        },
         visual: {
           kind: "chessBoard",
           caption: "The black king is boxed in behind its own pawns.",
@@ -388,6 +466,9 @@ describe("GamesRoomScreen", () => {
 
     fireEvent.click(screen.getByTestId("games-start-round"));
     expect(screen.queryByTestId("games-start-round")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("games-help-choices")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("chess-square-e8"));
+    expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
@@ -397,6 +478,15 @@ describe("GamesRoomScreen", () => {
           body: expect.stringContaining('"roundId":"chess-clue-back-rank"'),
         }),
       );
+    });
+    await waitFor(() => {
+      expect(gameRoundRequestBodies()).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          roundId: "chess-clue-back-rank",
+          gameKind: "chess",
+          status: "completed",
+        }),
+      ]));
     });
   });
 
@@ -533,11 +623,14 @@ describe("GamesRoomScreen", () => {
     expect(screen.getByTestId("word-answer-tray")).toBeInTheDocument();
     expect(screen.getByTestId("word-tile-progress")).toHaveTextContent("0 of 5 placed");
     expect(screen.queryByTestId("word-help-choices")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("word-shuffle"));
 
     fireEvent.click(screen.getByTestId("word-show-help"));
     expect(screen.getByTestId("word-help-panel")).toHaveTextContent("Hint: It means calm between people.");
     expect(screen.queryByTestId("word-help-choices")).not.toBeInTheDocument();
     expect(screen.queryByText("PEACE")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("word-reveal-letter"));
+    expect(screen.getByTestId("word-tile-progress")).toHaveTextContent("1 of 5 placed");
 
     fireEvent.click(screen.getByTestId("word-show-choices"));
     expect(screen.getByTestId("word-help-choices")).toBeInTheDocument();
@@ -569,6 +662,10 @@ describe("GamesRoomScreen", () => {
     expect(screen.getByText("You are starting and have these doubles: Double five, Double four, Double two. Which tile is the strongest opener?")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-start-round"));
+    expect(screen.getByTestId("games-tactile-dominoes")).toBeInTheDocument();
+    expect(screen.queryByTestId("games-help-choices")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("domino-tile-5-5"));
+    expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
@@ -578,6 +675,15 @@ describe("GamesRoomScreen", () => {
           body: expect.stringMatching(/"roundId":"dominoes-open-double-five".*"gameKind":"dominoes".*"status":"started"/),
         }),
       );
+    });
+    await waitFor(() => {
+      expect(gameRoundRequestBodies()).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          roundId: "dominoes-open-double-five",
+          gameKind: "dominoes",
+          status: "completed",
+        }),
+      ]));
     });
   });
 
@@ -596,6 +702,10 @@ describe("GamesRoomScreen", () => {
     expect(screen.getByText("You have 12 points and 5 spades. Which calm choice fits best?")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-start-round"));
+    expect(screen.getByTestId("games-tactile-bridge")).toBeInTheDocument();
+    expect(screen.queryByTestId("games-help-choices")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("bridge-action-bid:1:spades"));
+    expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
@@ -605,6 +715,15 @@ describe("GamesRoomScreen", () => {
           body: expect.stringMatching(/"roundId":"bridge-opening-bid-five-spades".*"gameKind":"bridge".*"status":"started"/),
         }),
       );
+    });
+    await waitFor(() => {
+      expect(gameRoundRequestBodies()).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          roundId: "bridge-opening-bid-five-spades",
+          gameKind: "bridge",
+          status: "completed",
+        }),
+      ]));
     });
   });
 
@@ -624,15 +743,13 @@ describe("GamesRoomScreen", () => {
       );
     });
 
-    fireEvent.click(screen.getByText("Pass"));
-    expect(screen.getByTestId("games-complete-round")).toHaveTextContent("Check answer");
-    expect(screen.queryByText("Complete round")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("games-complete-round"));
-    expect(screen.getByText("Not quite. Try another answer.")).toBeInTheDocument();
+    expect(screen.queryByTestId("games-help-choices")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("bridge-action-pass"));
+    expect(screen.getByText("Close. Look at the hint and try another table move.")).toBeInTheDocument();
+    expect(screen.getByTestId("games-help-choices")).toBeInTheDocument();
     expect(screen.queryByText("Puzzle complete")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("Bid 1 hearts"));
-    fireEvent.click(screen.getByTestId("games-complete-round"));
+    fireEvent.click(screen.getByTestId("bridge-action-bid:1:hearts"));
     expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
     await waitFor(() => {
       expect(gameRoundRequestBodies()).toEqual(expect.arrayContaining([

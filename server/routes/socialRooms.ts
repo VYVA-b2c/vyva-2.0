@@ -22,6 +22,7 @@ import {
 import type {
   SocialGameKind,
   SocialGameLanguage,
+  SocialLanguage,
   SocialMusicCircle,
   SocialMusicCircleItem,
   SocialMusicCauseId,
@@ -78,7 +79,10 @@ import {
 } from "../lib/readingClubPulse.js";
 import { normalizeAppLanguage } from "../../shared/language.js";
 
-type SocialLanguage = "es" | "de" | "en";
+type LocalizedValue<T> = Partial<Record<SocialLanguage, T>> & {
+  en: T;
+  es?: T;
+};
 
 type InterestSnapshot = {
   interestTags: string[];
@@ -304,13 +308,15 @@ function resolvePublicUserId(req: Request): string {
 }
 
 function normalizeLanguage(raw?: string | null): SocialLanguage {
-  const language = normalizeAppLanguage(raw, "es");
-  if (language === "es" || language === "de") return language;
-  return "en";
+  return normalizeAppLanguage(raw, "es");
 }
 
 function normalizeGameLanguage(raw?: string | null): SocialGameLanguage {
   return normalizeAppLanguage(raw, "es");
+}
+
+function normalizeTogetherLanguage(raw?: string | null): SocialGameLanguage {
+  return normalizeGameLanguage(raw);
 }
 
 function appendReadingPreferenceTags(tags: string[], value: unknown, tagMap: Record<string, string[]>) {
@@ -351,23 +357,32 @@ function getReadingProfileNote(
     : "";
   if (!shelf && !pace) return "";
 
-  const shelfLabels: Record<string, Record<SocialLanguage, string>> = {
-    memoir: { es: "memorias", de: "Memoiren", en: "memoirs" },
-    "short-stories": { es: "cuentos", de: "Kurzgeschichten", en: "short stories" },
-    poetry: { es: "poesia", de: "Poesie", en: "poetry" },
-    classics: { es: "clasicos", de: "Klassiker", en: "classics" },
+  const shelfLabels: Record<string, LocalizedValue<string>> = {
+    memoir: { es: "memorias", de: "Memoiren", en: "memoirs", fr: "memoires", it: "memorie", pt: "memorias" },
+    "short-stories": { es: "cuentos", de: "Kurzgeschichten", en: "short stories", fr: "nouvelles", it: "racconti brevi", pt: "contos" },
+    poetry: { es: "poesia", de: "Poesie", en: "poetry", fr: "poesie", it: "poesia", pt: "poesia" },
+    classics: { es: "clasicos", de: "Klassiker", en: "classics", fr: "classiques", it: "classici", pt: "classicos" },
   };
-  const paceLabels: Record<string, Record<SocialLanguage, string>> = {
-    quiet: { es: "ritmo tranquilo", de: "ruhiges Tempo", en: "quiet pace" },
-    chatty: { es: "intercambio conversador", de: "lebendiger Austausch", en: "lively exchange" },
-    letters: { es: "notas escritas", de: "geschriebene Notizen", en: "written notes" },
+  const paceLabels: Record<string, LocalizedValue<string>> = {
+    quiet: { es: "ritmo tranquilo", de: "ruhiges Tempo", en: "quiet pace", fr: "rythme calme", it: "ritmo tranquillo", pt: "ritmo tranquilo" },
+    chatty: { es: "intercambio conversador", de: "lebendiger Austausch", en: "lively exchange", fr: "echange vivant", it: "scambio vivace", pt: "troca animada" },
+    letters: { es: "notas escritas", de: "geschriebene Notizen", en: "written notes", fr: "notes ecrites", it: "note scritte", pt: "notas escritas" },
   };
-  const shelfLabel = shelfLabels[shelf]?.[language];
-  const paceLabel = paceLabels[pace]?.[language];
+  const shelfLabel = shelfLabels[shelf]?.[language] ?? shelfLabels[shelf]?.en;
+  const paceLabel = paceLabels[pace]?.[language] ?? paceLabels[pace]?.en;
   if (!shelfLabel && !paceLabel) return "";
 
   if (language === "de") {
     return ` Ich habe deinen Clubtisch beruecksichtigt: ${[shelfLabel, paceLabel].filter(Boolean).join(", ")}.`;
+  }
+  if (language === "fr") {
+    return ` J'ai tenu compte de vos preferences du club : ${[shelfLabel, paceLabel].filter(Boolean).join(", ")}.`;
+  }
+  if (language === "it") {
+    return ` Ho usato le tue preferenze del club: ${[shelfLabel, paceLabel].filter(Boolean).join(", ")}.`;
+  }
+  if (language === "pt") {
+    return ` Usei as suas preferencias do clube: ${[shelfLabel, paceLabel].filter(Boolean).join(", ")}.`;
   }
   if (language === "en") {
     return ` I used your club desk preferences: ${[shelfLabel, paceLabel].filter(Boolean).join(", ")}.`;
@@ -886,7 +901,7 @@ async function ensureRoomRecords(slug: string) {
   );
 }
 
-function buildRoomPayload(slug: string, language: SocialLanguage) {
+function buildRoomPayload(slug: string, language: SocialGameLanguage) {
   const seed = getSocialRoomBySlug(slug);
   if (!seed) return null;
 
@@ -931,17 +946,21 @@ function scoreRoom(
   return score;
 }
 
-function toLiveBadge(language: SocialLanguage, participantCount: number) {
+function toLiveBadge(language: SocialGameLanguage, participantCount: number) {
   if (participantCount <= 0) {
-    return language === "de"
-      ? "Sala preparada"
-      : language === "en"
-        ? "Room ready"
-        : "Sala preparada";
+    if (language === "de") return "Raum bereit";
+    if (language === "en") return "Room ready";
+    if (language === "fr") return "Salon pret";
+    if (language === "it") return "Stanza pronta";
+    if (language === "pt") return "Sala pronta";
+    return "Sala preparada";
   }
 
   if (language === "de") return `${participantCount} im Raum`;
   if (language === "en") return `${participantCount} in the room`;
+  if (language === "fr") return `${participantCount} dans le salon`;
+  if (language === "it") return `${participantCount} nella stanza`;
+  if (language === "pt") return `${participantCount} na sala`;
   return `${participantCount} en la sala`;
 }
 
@@ -953,7 +972,7 @@ type DisplayRoomMember = {
 };
 
 function buildMusicRoomMembers(language: SocialLanguage): DisplayRoomMember[] {
-  const musicMembers: Record<SocialLanguage, DisplayRoomMember[]> = {
+  const musicMembers: LocalizedValue<DisplayRoomMember[]> = {
     es: [
       { id: "member-rosa", name: "Rosa", sharedTopic: "Boleros", statusLabel: "Cancion compartida" },
       { id: "member-malik", name: "Malik", sharedTopic: "Ritmos de mercado", statusLabel: "Ritmo compartido" },
@@ -974,7 +993,7 @@ function buildMusicRoomMembers(language: SocialLanguage): DisplayRoomMember[] {
     ],
   };
 
-  return musicMembers[language];
+  return musicMembers[language] ?? musicMembers.en;
 }
 
 function musicYouLabel(language: SocialLanguage) {
@@ -989,7 +1008,7 @@ function musicVoiceLabel(language: SocialLanguage) {
   return "Nota de voz";
 }
 
-const musicCircleDailyPrompts: Record<SocialLanguage, string[]> = {
+const musicCircleDailyPrompts: LocalizedValue<string[]> = {
   es: [
     "Cancion de hoy",
     "Radio vieja",
@@ -1019,7 +1038,7 @@ const musicCircleDailyPrompts: Record<SocialLanguage, string[]> = {
   ],
 };
 
-const musicCircleDailySeeds: Record<SocialLanguage, Array<{ songText: string; causeId: SocialMusicCauseId }>> = {
+const musicCircleDailySeeds: LocalizedValue<Array<{ songText: string; causeId: SocialMusicCauseId }>> = {
   es: [
     { songText: "Besame Mucho", causeId: "bridge" },
     { songText: "Guantanamera", causeId: "anthem" },
@@ -1060,18 +1079,24 @@ function pickDailyMusicValue<T>(items: T[], dayKey: string): T {
 }
 
 function musicCirclePrompt(language: SocialLanguage, dayKey = musicDayKey()) {
-  return pickDailyMusicValue(musicCircleDailyPrompts[language], dayKey);
+  return pickDailyMusicValue(musicCircleDailyPrompts[language] ?? musicCircleDailyPrompts.en, dayKey);
 }
 
 function musicCircleSeedSong(language: SocialLanguage, dayKey = musicDayKey()): SocialMusicCircleSeedSong {
-  const seed = pickDailyMusicValue(musicCircleDailySeeds[language], dayKey);
+  const seed = pickDailyMusicValue(musicCircleDailySeeds[language] ?? musicCircleDailySeeds.en, dayKey);
   return {
     ...seed,
     nudge: language === "de"
       ? "Diego legt vor. Fueg deins dazu."
       : language === "en"
         ? "Diego picked one. Add yours."
-        : "Diego puso una. Suma la tuya.",
+        : language === "fr"
+          ? "Diego en a choisi une. Ajoutez la votre."
+          : language === "it"
+            ? "Diego ne ha scelta una. Aggiungi la tua."
+            : language === "pt"
+              ? "Diego escolheu uma. Junte a sua."
+              : "Diego puso una. Suma la tuya.",
   };
 }
 
@@ -1824,11 +1849,12 @@ function buildAgentReply(
   }
 
   if (canonicalSlug === "reading-room") {
-    return language === "de"
-      ? "Das ist ein guter Club-Beitrag. Ich kann daraus eine Frage fuer die Runde machen oder eine passende Leseverbindung suchen."
-      : language === "en"
-        ? "That is a good club contribution. I can turn it into a room question or look for a reading companion."
-        : "Es una buena aportacion para el club. Puedo convertirla en pregunta para la sala o buscar una compania de lectura.";
+    if (language === "de") return "Das ist ein guter Club-Beitrag. Ich kann daraus eine Frage fuer die Runde machen oder eine passende Leseverbindung suchen.";
+    if (language === "fr") return "C'est une belle contribution au club. Je peux en faire une question pour la table ou chercher une compagnie de lecture.";
+    if (language === "it") return "E un buon contributo per il club. Posso trasformarlo in una domanda per il tavolo o cercare compagnia di lettura.";
+    if (language === "pt") return "E uma boa contribuicao para o clube. Posso transforma-la numa pergunta para a mesa ou procurar companhia de leitura.";
+    if (language === "en") return "That is a good club contribution. I can turn it into a room question or look for a reading companion.";
+    return "Es una buena aportacion para el club. Puedo convertirla en pregunta para la sala o buscar una compania de lectura.";
   }
 
   if (canonicalSlug === "memory-lane") {
@@ -1873,9 +1899,9 @@ function applyConversationContextCue(
   return `${reply} ${cue}`;
 }
 
-function buildPromptChips(slug: string, language: SocialLanguage) {
+function buildPromptChips(slug: string, language: SocialGameLanguage) {
   const canonicalSlug = resolveSocialRoomSlug(slug);
-  const chips: Record<string, Record<SocialLanguage, string[]>> = {
+  const chips: Record<string, LocalizedValue<string[]>> = {
     "garden-chat": {
       es: ["¿Qué planta me recomiendas?", "Tengo hojas amarillas", "¿Cada cuánto riego?"],
       de: ["Welche Pflanze empfiehlst du?", "Meine Blätter sind gelb", "Wie oft gieße ich?"],
@@ -1905,6 +1931,9 @@ function buildPromptChips(slug: string, language: SocialLanguage) {
       es: ["Compartir un libro querido", "Buscar companero de lectura", "Preguntar que estan leyendo"],
       de: ["Ein liebes Buch teilen", "Lesegefaehrtin finden", "Fragen, was andere lesen"],
       en: ["Share a loved book", "Find a reading companion", "Ask what others are reading"],
+      fr: ["Partager un livre aime", "Trouver une compagnie de lecture", "Demander ce que les autres lisent"],
+      it: ["Condividere un libro caro", "Trovare compagnia di lettura", "Chiedere cosa leggono gli altri"],
+      pt: ["Partilhar um livro querido", "Encontrar companhia de leitura", "Perguntar o que os outros leem"],
     },
     "together-room": {
       es: ["Quiero un plan cerca", "Buscame una cita de pelicula", "Ayudame con un trato"],
@@ -1912,22 +1941,34 @@ function buildPromptChips(slug: string, language: SocialLanguage) {
       en: ["I want a nearby plan", "Find a movie date", "Help me with a deal"],
     },
   };
+  const togetherChips: Partial<Record<SocialGameLanguage, string[]>> = {
+    fr: ["Je veux un plan a proximite", "Trouvez un rendez-vous film", "Aidez-moi avec une offre"],
+    it: ["Voglio un piano vicino", "Trova un appuntamento film", "Aiutami con un'offerta"],
+    pt: ["Quero um plano por perto", "Encontre um encontro de filme", "Ajude-me com uma oferta"],
+  };
 
   const fallback: Record<SocialLanguage, string[]> = {
     es: ["Explícamelo fácil", "Dame un ejemplo", "Quiero preguntar algo"],
     de: ["Erklär es einfach", "Gib mir ein Beispiel", "Ich möchte etwas fragen"],
     en: ["Explain it simply", "Give me an example", "I want to ask something"],
+    fr: ["Expliquez simplement", "Donnez un exemple", "Je veux poser une question"],
+    it: ["Spiegalo in modo semplice", "Fammi un esempio", "Voglio fare una domanda"],
+    pt: ["Explique de forma simples", "De um exemplo", "Quero fazer uma pergunta"],
   };
 
-  return chips[canonicalSlug]?.[language] ?? chips[slug]?.[language] ?? fallback[language];
+  if (canonicalSlug === "together-room" || slug === "together-room") {
+    return togetherChips[language] ?? chips["together-room"][language] ?? chips["together-room"].en;
+  }
+
+  return chips[canonicalSlug]?.[language] ?? chips[canonicalSlug]?.en ?? chips[slug]?.[language] ?? chips[slug]?.en ?? fallback[language];
 }
 
-function buildRoomMembers(slug: string, language: SocialLanguage, count: number) {
+function buildRoomMembers(slug: string, language: SocialGameLanguage, count: number) {
   const canonicalSlug = resolveSocialRoomSlug(slug);
   const offset = slug.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0) % memberCatalog.length;
   const visibleCount = Math.min(Math.max(count - 1, 2), 4);
   if (canonicalSlug === "together-room") {
-    const togetherMembers = {
+    const togetherMembers: Record<SocialGameLanguage, DisplayRoomMember[]> = {
       es: [
         { id: "member-carmen", name: "Carmen", sharedTopic: "Busca vivienda tranquila cerca", statusLabel: "Le interesa compartir casa" },
         { id: "member-luis", name: "Luis", sharedTopic: "Compara servicios locales", statusLabel: "Quiere reservar con otra persona" },
@@ -1946,10 +1987,30 @@ function buildRoomMembers(slug: string, language: SocialLanguage, count: number)
         { id: "member-ana", name: "Ana", sharedTopic: "Likes calm negotiation", statusLabel: "Reviewing an offer" },
         { id: "member-jose", name: "Jose", sharedTopic: "Enjoys classic movies", statusLabel: "Looking for a movie date" },
       ],
+      fr: [
+        { id: "member-carmen", name: "Carmen", sharedTopic: "Cherche un logement calme a proximite", statusLabel: "Interessee par le partage de logement" },
+        { id: "member-luis", name: "Luis", sharedTopic: "Compare des services locaux", statusLabel: "Veut reserver avec quelqu'un" },
+        { id: "member-ana", name: "Ana", sharedTopic: "Aime negocier calmement", statusLabel: "Examine une offre" },
+        { id: "member-jose", name: "Jose", sharedTopic: "Aime les films classiques", statusLabel: "Cherche un rendez-vous film" },
+      ],
+      it: [
+        { id: "member-carmen", name: "Carmen", sharedTopic: "Guarda una casa tranquilla vicina", statusLabel: "Interessata a condividere casa" },
+        { id: "member-luis", name: "Luis", sharedTopic: "Confronta servizi locali", statusLabel: "Vuole prenotare con qualcuno" },
+        { id: "member-ana", name: "Ana", sharedTopic: "Ama negoziare con calma", statusLabel: "Sta rivedendo un'offerta" },
+        { id: "member-jose", name: "Jose", sharedTopic: "Ama i film classici", statusLabel: "Cerca un appuntamento film" },
+      ],
+      pt: [
+        { id: "member-carmen", name: "Carmen", sharedTopic: "Procura habitacao calma por perto", statusLabel: "Interessada em partilhar casa" },
+        { id: "member-luis", name: "Luis", sharedTopic: "Compara servicos locais", statusLabel: "Quer reservar com companhia" },
+        { id: "member-ana", name: "Ana", sharedTopic: "Gosta de negociar com calma", statusLabel: "A rever uma oferta" },
+        { id: "member-jose", name: "Jose", sharedTopic: "Gosta de filmes classicos", statusLabel: "Procura encontro de filme" },
+      ],
     };
 
-    return togetherMembers[language];
+    return togetherMembers[language] ?? togetherMembers.en;
   }
+
+  const socialLanguage = normalizeLanguage(language);
 
   if (canonicalSlug === "reading-room") {
     const readingMembers = {
@@ -1971,18 +2032,36 @@ function buildRoomMembers(slug: string, language: SocialLanguage, count: number)
         { id: "member-carmen", name: "Carmen", sharedTopic: "Remembers theatre scenes and short stories", statusLabel: "Is exchanging recommendations" },
         { id: "member-ana", name: "Ana", sharedTopic: "Likes gentle stories and hopeful endings", statusLabel: "Wants to greet another reader" },
       ],
+      fr: [
+        { id: "member-maria", name: "Maria", sharedTopic: "Partage romans familiaux et poemes courts", statusLabel: "Cherche quelqu'un pour parler d'un livre" },
+        { id: "member-jose", name: "Jose", sharedTopic: "Aime l'histoire, les journaux et les biographies", statusLabel: "A apporte une question litteraire" },
+        { id: "member-carmen", name: "Carmen", sharedTopic: "Se souvient de scenes de theatre et de nouvelles", statusLabel: "Echange des recommandations" },
+        { id: "member-ana", name: "Ana", sharedTopic: "Aime les histoires calmes et les fins pleines d'espoir", statusLabel: "Veut saluer une autre lectrice" },
+      ],
+      it: [
+        { id: "member-maria", name: "Maria", sharedTopic: "Condivide romanzi familiari e poesie brevi", statusLabel: "Cerca qualcuno per parlare di un libro" },
+        { id: "member-jose", name: "Jose", sharedTopic: "Ama storia, giornali e biografie", statusLabel: "Ha portato una domanda letteraria" },
+        { id: "member-carmen", name: "Carmen", sharedTopic: "Ricorda scene di teatro e racconti brevi", statusLabel: "Sta scambiando consigli" },
+        { id: "member-ana", name: "Ana", sharedTopic: "Ama storie gentili e finali pieni di speranza", statusLabel: "Vuole salutare un'altra lettrice" },
+      ],
+      pt: [
+        { id: "member-maria", name: "Maria", sharedTopic: "Partilha romances familiares e poemas breves", statusLabel: "Procura alguem para falar de um livro" },
+        { id: "member-jose", name: "Jose", sharedTopic: "Gosta de historia, jornais e biografias", statusLabel: "Trouxe uma pergunta literaria" },
+        { id: "member-carmen", name: "Carmen", sharedTopic: "Recorda cenas de teatro e contos", statusLabel: "Esta a trocar recomendacoes" },
+        { id: "member-ana", name: "Ana", sharedTopic: "Gosta de historias calmas e finais esperancosos", statusLabel: "Quer saudar outra leitora" },
+      ],
     };
 
-    return readingMembers[language].slice(0, visibleCount);
+    return (readingMembers[language] ?? readingMembers.en).slice(0, visibleCount);
   }
 
   if (canonicalSlug === "music-room") {
-    return buildMusicRoomMembers(language).slice(0, visibleCount);
+    return buildMusicRoomMembers(socialLanguage).slice(0, visibleCount);
   }
 
   const members = Array.from({ length: visibleCount }, (_, index) => memberCatalog[(offset + index) % memberCatalog.length]);
 
-  const statuses: Record<string, Record<SocialLanguage, string[]>> = {
+  const statuses: Record<string, LocalizedValue<string[]>> = {
     "garden-chat": {
       es: ["Está viendo el ejemplo", "Pidió ayuda con el riego", "Quiere una planta para interior", "Va a probar en el balcón"],
       de: ["Schaut sich das Beispiel an", "Hat um Hilfe beim Gießen gebeten", "Sucht eine Pflanze für drinnen", "Probiert es auf dem Balkon aus"],
@@ -2014,26 +2093,35 @@ function buildRoomMembers(slug: string, language: SocialLanguage, count: number)
     es: ["Está participando ahora", "Pidió ayuda", "Está viendo el ejemplo", "Compartió una idea"],
     de: ["Ist gerade dabei", "Hat um Hilfe gebeten", "Schaut sich das Beispiel an", "Hat eine Idee geteilt"],
     en: ["Is taking part now", "Asked for help", "Is viewing the example", "Shared an idea"],
+    fr: ["Participe maintenant", "A demande de l'aide", "Regarde l'exemple", "A partage une idee"],
+    it: ["Sta partecipando", "Ha chiesto aiuto", "Sta guardando l'esempio", "Ha condiviso un'idea"],
+    pt: ["Esta a participar", "Pediu ajuda", "Esta a ver o exemplo", "Partilhou uma ideia"],
   };
 
-  const pool = statuses[canonicalSlug]?.[language] ?? statuses[slug]?.[language] ?? fallbackStatuses[language];
+  const pool = statuses[canonicalSlug]?.[language] ?? statuses[canonicalSlug]?.en ?? statuses[slug]?.[language] ?? statuses[slug]?.en ?? fallbackStatuses[language];
 
   return members.map((member, index) => ({
     id: member.id,
     name: member.name,
     sharedTopic:
-      language === "de"
+      socialLanguage === "de"
         ? `Mag ${member.topics[index % member.topics.length]}`
-        : language === "en"
+        : socialLanguage === "en"
           ? `Likes ${member.topics[index % member.topics.length]}`
-          : `Le gusta ${member.topics[index % member.topics.length]}`,
+          : language === "fr"
+            ? `Aime ${member.topics[index % member.topics.length]}`
+            : language === "it"
+              ? `Ama ${member.topics[index % member.topics.length]}`
+              : language === "pt"
+                ? `Gosta de ${member.topics[index % member.topics.length]}`
+                : `Le gusta ${member.topics[index % member.topics.length]}`,
     statusLabel: pool[index % pool.length],
   }));
 }
 
-function buildRoomChat(slug: string, language: SocialLanguage, members: Array<{ id: string; name: string }>) {
+function buildRoomChat(slug: string, language: SocialGameLanguage, members: Array<{ id: string; name: string }>) {
   const canonicalSlug = resolveSocialRoomSlug(slug);
-  const messages: Record<string, Record<SocialLanguage, string[]>> = {
+  const messages: Record<string, LocalizedValue<string[]>> = {
     "garden-chat": {
       es: ["Yo también tengo geranios en la ventana.", "A mí me ayuda tocar la tierra antes de regar."],
       de: ["Ich habe auch Geranien am Fenster.", "Mir hilft es, die Erde vor dem Gießen zu berühren."],
@@ -2058,6 +2146,9 @@ function buildRoomChat(slug: string, language: SocialLanguage, members: Array<{ 
       es: ["Yo traje una novela que me recuerda a mi hermana.", "A mi me gusta preguntar que personaje se queda contigo.", "Una recomendacion corta ayuda a empezar sin presion."],
       de: ["Ich habe einen Roman mitgebracht, der mich an meine Schwester erinnert.", "Ich frage gern, welche Figur bei dir bleibt.", "Eine kurze Empfehlung hilft, ohne Druck zu beginnen."],
       en: ["I brought a novel that reminds me of my sister.", "I like asking which character stays with you.", "A short recommendation helps start without pressure."],
+      fr: ["J'ai apporte un roman qui me rappelle ma soeur.", "J'aime demander quel personnage reste avec vous.", "Une courte recommandation aide a commencer sans pression."],
+      it: ["Ho portato un romanzo che mi ricorda mia sorella.", "Mi piace chiedere quale personaggio resta con te.", "Un consiglio breve aiuta a iniziare senza pressione."],
+      pt: ["Trouxe um romance que me lembra a minha irma.", "Gosto de perguntar que personagem fica consigo.", "Uma recomendacao curta ajuda a comecar sem pressao."],
     },
     "together-room": {
       es: ["Yo elegiria un cafe tranquilo antes de reservar.", "Para un trato, me ayuda escribir tres preguntas primero.", "Si es restaurante, prefiero que este cerca y sea accesible."],
@@ -2065,11 +2156,19 @@ function buildRoomChat(slug: string, language: SocialLanguage, members: Array<{ 
       en: ["I would choose a quiet cafe before booking.", "For a deal, it helps me write three questions first.", "For a restaurant, nearby and accessible matters to me."],
     },
   };
+  const togetherMessages: Partial<Record<SocialGameLanguage, string[]>> = {
+    fr: ["Je choisirais un cafe calme avant de reserver.", "Pour une offre, trois questions ecrites m'aident d'abord.", "Pour un restaurant, la proximite et l'accessibilite comptent pour moi."],
+    it: ["Sceglierei un caffe tranquillo prima di prenotare.", "Per un'offerta, mi aiuta scrivere prima tre domande.", "Per un ristorante, vicino e accessibile conta per me."],
+    pt: ["Eu escolheria um cafe tranquilo antes de reservar.", "Para uma oferta, ajuda-me escrever tres perguntas primeiro.", "Para um restaurante, perto e acessivel e importante para mim."],
+  };
 
   const fallback: Record<SocialLanguage, string[]> = {
     es: ["Me gusta cómo lo explica.", "Yo también quería preguntar eso."],
     de: ["Mir gefällt, wie es erklärt wird.", "Das wollte ich auch fragen."],
     en: ["I like how it's being explained.", "I wanted to ask that too."],
+    fr: ["J'aime la facon dont c'est explique.", "Je voulais aussi demander cela."],
+    it: ["Mi piace come viene spiegato.", "Volevo chiederlo anch'io."],
+    pt: ["Gosto da forma como e explicado.", "Tambem queria perguntar isso."],
   };
 
   const gamesRoomMessages: Record<SocialLanguage, string[]> = {
@@ -2088,16 +2187,44 @@ function buildRoomChat(slug: string, language: SocialLanguage, members: Array<{ 
       "Word games feel easier when the round is short.",
       "Viktor explained the memory challenge one step at a time, and it felt easier.",
     ],
+    fr: [
+      "J'ai commence par un indice d'echecs, et ralentir m'a aide.",
+      "Les jeux de mots sont plus faciles quand la manche est courte.",
+      "Viktor a explique le defi de memoire pas a pas, et c'etait plus simple.",
+    ],
+    it: [
+      "Ho iniziato con un indizio di scacchi, e andare piano mi ha aiutato.",
+      "I giochi di parole sono piu facili quando il giro e breve.",
+      "Viktor ha spiegato la sfida di memoria un passo alla volta, ed e stato piu semplice.",
+    ],
+    pt: [
+      "Comecei com uma pista de xadrez, e ir devagar ajudou.",
+      "Os jogos de palavras parecem mais faceis quando a ronda e curta.",
+      "O Viktor explicou o desafio de memoria passo a passo, e ficou mais facil.",
+    ],
   };
 
   const pool =
-    canonicalSlug === "games-room"
-      ? gamesRoomMessages[language]
-      : messages[canonicalSlug]?.[language] ?? messages[slug]?.[language] ?? fallback[language];
+    canonicalSlug === "together-room"
+      ? togetherMessages[language] ?? messages["together-room"][language] ?? messages["together-room"].en
+      : canonicalSlug === "games-room"
+        ? gamesRoomMessages[language] ?? gamesRoomMessages.en
+        : messages[canonicalSlug]?.[language] ?? messages[canonicalSlug]?.en ?? messages[slug]?.[language] ?? messages[slug]?.en ?? fallback[language];
+  const authorFallback = language === "en"
+    ? "Member"
+    : language === "de"
+      ? "Mitglied"
+      : language === "fr"
+        ? "Membre"
+        : language === "it"
+          ? "Membro"
+          : language === "pt"
+            ? "Membro"
+            : "Miembro";
   return pool.slice(0, Math.min(pool.length, members.length)).map((text, index) => ({
     id: `${slug}-chat-${index}`,
     authorId: members[index]?.id ?? `member-${index}`,
-    authorName: members[index]?.name ?? (language === "en" ? "Member" : language === "de" ? "Mitglied" : "Miembro"),
+    authorName: members[index]?.name ?? authorFallback,
     text,
     createdAt: new Date(Date.now() - (index + 1) * 60000).toISOString(),
     connectable: true,
@@ -2135,17 +2262,20 @@ router.get("/hub", async (req: Request, res: Response) => {
   const userId = resolvePublicUserId(req);
 
   const profile = await loadProfileSummary(userId);
-  const language = normalizeLanguage((req.query.lang as string | undefined) ?? profile.language);
+  const rawLanguage = (req.query.lang as string | undefined) ?? profile.language;
+  const language = normalizeLanguage(rawLanguage);
+  const displayLanguage = normalizeGameLanguage(rawLanguage);
   const interests = await loadUserInterestSnapshot(userId);
   const timeSlot = getTimeSlotFromDate();
 
   const activeRooms = socialRoomSeeds
     .map((seed) => {
-      const payload = buildRoomPayload(seed.slug, language);
+      const roomLanguage = seed.slug === "together-room" ? displayLanguage : language;
+      const payload = buildRoomPayload(seed.slug, roomLanguage);
       if (!payload) return null;
       return {
         ...payload,
-        liveBadge: toLiveBadge(language, payload.participantCount),
+        liveBadge: toLiveBadge(roomLanguage, payload.participantCount),
         heroScore: scoreRoom(seed.slug, interests, payload.participantCount, timeSlot),
       };
     })
@@ -2177,11 +2307,13 @@ router.get("/rooms/:slug", async (req: Request, res: Response) => {
   const rawLanguage = (req.query.lang as string | undefined) ?? profile.language;
   const language = normalizeLanguage(rawLanguage);
   const gameLanguage = normalizeGameLanguage(rawLanguage);
-  const room = buildRoomPayload(req.params.slug, language);
+  const canonicalSlug = resolveSocialRoomSlug(req.params.slug);
+  const roomLanguage = canonicalSlug === "together-room" ? gameLanguage : language;
+  const room = buildRoomPayload(req.params.slug, roomLanguage);
   if (!room) return res.status(404).json({ error: "Room not found" });
 
-  const members = buildRoomMembers(room.slug, language, room.participantCount);
-  const memberChat = buildRoomChat(room.slug, language, members);
+  const members = buildRoomMembers(room.slug, roomLanguage, room.participantCount);
+  const memberChat = buildRoomChat(room.slug, roomLanguage, members);
   const visitState = await loadRoomVisitState(userId, room.slug);
   const conversationContext = await buildSafeConversationContext(userId, {
     roomSlug: room.slug,
@@ -2189,7 +2321,7 @@ router.get("/rooms/:slug", async (req: Request, res: Response) => {
   });
   const roomRecords = room.slug === "together-room" || room.slug === "reading-room" || room.slug === "music-room" ? await ensureRoomRecords(room.slug) : null;
   const pulse = room.slug === "together-room"
-    ? await buildTogetherRoomPulse(userId, language, roomRecords?.roomId ?? null, members)
+    ? await buildTogetherRoomPulse(userId, roomLanguage, roomRecords?.roomId ?? null)
     : room.slug === "reading-room"
       ? await buildReadingClubPulse(userId, language, roomRecords?.roomId ?? null, members)
       : undefined;
@@ -2209,7 +2341,7 @@ router.get("/rooms/:slug", async (req: Request, res: Response) => {
   return res.json({
     room: {
       ...room,
-      liveBadge: toLiveBadge(language, room.participantCount),
+      liveBadge: toLiveBadge(roomLanguage, room.participantCount),
     },
     transcript: [
       {
@@ -2219,7 +2351,7 @@ router.get("/rooms/:slug", async (req: Request, res: Response) => {
         createdAt: new Date().toISOString(),
       },
     ],
-    promptChips: room.options?.length ? room.options : buildPromptChips(room.slug, language),
+    promptChips: room.options?.length ? room.options : buildPromptChips(room.slug, roomLanguage),
     members,
     memberChat,
     visitState,
@@ -2262,15 +2394,18 @@ router.get("/rooms/:slug/game-rounds", async (req: Request, res: Response) => {
 router.get("/rooms/:slug/pulse", async (req: Request, res: Response) => {
   const userId = resolvePublicUserId(req);
   const profile = await loadProfileSummary(userId);
-  const language = normalizeLanguage((req.query.lang as string | undefined) ?? profile.language);
+  const rawLanguage = (req.query.lang as string | undefined) ?? profile.language;
+  const language = normalizeLanguage(rawLanguage);
+  const togetherLanguage = normalizeTogetherLanguage(rawLanguage);
   const slug = resolveSocialRoomSlug(req.params.slug);
   if (slug !== "together-room" && slug !== "reading-room") return res.status(400).json({ error: "This room does not support pulse actions" });
 
   const records = await ensureRoomRecords(slug);
-  const room = buildRoomPayload(slug, language);
-  const members = room ? buildRoomMembers(slug, language, room.participantCount) : undefined;
+  const roomLanguage = slug === "together-room" ? togetherLanguage : language;
+  const room = buildRoomPayload(slug, roomLanguage);
+  const members = room ? buildRoomMembers(slug, roomLanguage, room.participantCount) : undefined;
   const pulse = slug === "together-room"
-    ? await buildTogetherRoomPulse(userId, language, records?.roomId ?? null, members)
+    ? await buildTogetherRoomPulse(userId, togetherLanguage, records?.roomId ?? null)
     : await buildReadingClubPulse(userId, language, records?.roomId ?? null, members);
   return res.json({ pulse });
 });
@@ -2288,16 +2423,21 @@ router.post("/rooms/:slug/plans/:planId/respond", async (req: Request, res: Resp
   if (slug !== "together-room" && slug !== "reading-room") return res.status(400).json({ error: "This room does not support plan responses" });
 
   const records = await ensureRoomRecords(slug);
-  const payload = {
-    userId,
-    roomId: records?.roomId ?? null,
-    planKey: req.params.planId,
-    response: parsed.data.response,
-    language: normalizeLanguage(parsed.data.lang),
-  };
   const result = slug === "together-room"
-    ? await respondToTogetherPlan(payload)
-    : await respondToReadingClubPlan(payload);
+    ? await respondToTogetherPlan({
+        userId,
+        roomId: records?.roomId ?? null,
+        planKey: req.params.planId,
+        response: parsed.data.response,
+        language: normalizeTogetherLanguage(parsed.data.lang),
+      })
+    : await respondToReadingClubPlan({
+        userId,
+        roomId: records?.roomId ?? null,
+        planKey: req.params.planId,
+        response: parsed.data.response,
+        language: normalizeLanguage(parsed.data.lang),
+      });
 
   if ("error" in result) {
     return res.status(400).json({
@@ -2328,7 +2468,7 @@ router.post("/rooms/:slug/plans/:planId/replies", async (req: Request, res: Resp
     planKey: req.params.planId,
     body: parsed.data.body,
     tone: parsed.data.tone,
-    language: normalizeLanguage(parsed.data.lang),
+    language: normalizeTogetherLanguage(parsed.data.lang),
   });
 
   if ("error" in result) {
@@ -2443,16 +2583,21 @@ router.post("/rooms/:slug/polls/:pollId/vote", async (req: Request, res: Respons
   if (slug !== "together-room" && slug !== "reading-room") return res.status(400).json({ error: "This room does not support room votes" });
 
   const records = await ensureRoomRecords(slug);
-  const payload = {
-    userId,
-    roomId: records?.roomId ?? null,
-    pollKey: req.params.pollId,
-    optionId: parsed.data.optionId,
-    language: normalizeLanguage(parsed.data.lang),
-  };
   const result = slug === "together-room"
-    ? await voteTogetherPoll(payload)
-    : await voteReadingClubPoll(payload);
+    ? await voteTogetherPoll({
+        userId,
+        roomId: records?.roomId ?? null,
+        pollKey: req.params.pollId,
+        optionId: parsed.data.optionId,
+        language: normalizeTogetherLanguage(parsed.data.lang),
+      })
+    : await voteReadingClubPoll({
+        userId,
+        roomId: records?.roomId ?? null,
+        pollKey: req.params.pollId,
+        optionId: parsed.data.optionId,
+        language: normalizeLanguage(parsed.data.lang),
+      });
 
   if ("error" in result) return res.status(400).json({ error: result.error });
   return res.json({ ok: true, ...result });
@@ -2471,24 +2616,37 @@ router.post("/rooms/:slug/proposals", async (req: Request, res: Response) => {
   if (slug !== "together-room" && slug !== "reading-room") return res.status(400).json({ error: "This room does not support proposals" });
 
   const records = await ensureRoomRecords(slug);
-  const payload = {
-    userId,
-    roomSlug: slug,
-    roomId: records?.roomId ?? null,
-    title: parsed.data.title,
-    details: parsed.data.details,
-    locationLabel: parsed.data.locationLabel,
-    comfortNeeds: parsed.data.comfortNeeds,
-    kind: parsed.data.kind,
-    experienceCategory: parsed.data.experienceCategory,
-    preferredTime: parsed.data.preferredTime,
-    costRange: parsed.data.costRange,
-    groupSize: parsed.data.groupSize,
-    language: normalizeLanguage(parsed.data.lang),
-  };
   const result = slug === "together-room"
-    ? await createTogetherProposal(payload)
-    : await createReadingClubPost(payload);
+    ? await createTogetherProposal({
+        userId,
+        roomSlug: slug,
+        roomId: records?.roomId ?? null,
+        title: parsed.data.title,
+        details: parsed.data.details,
+        locationLabel: parsed.data.locationLabel,
+        comfortNeeds: parsed.data.comfortNeeds,
+        kind: parsed.data.kind,
+        experienceCategory: parsed.data.experienceCategory,
+        preferredTime: parsed.data.preferredTime,
+        costRange: parsed.data.costRange,
+        groupSize: parsed.data.groupSize,
+        language: normalizeTogetherLanguage(parsed.data.lang),
+      })
+    : await createReadingClubPost({
+        userId,
+        roomSlug: slug,
+        roomId: records?.roomId ?? null,
+        title: parsed.data.title,
+        details: parsed.data.details,
+        locationLabel: parsed.data.locationLabel,
+        comfortNeeds: parsed.data.comfortNeeds,
+        kind: parsed.data.kind,
+        experienceCategory: parsed.data.experienceCategory,
+        preferredTime: parsed.data.preferredTime,
+        costRange: parsed.data.costRange,
+        groupSize: parsed.data.groupSize,
+        language: normalizeLanguage(parsed.data.lang),
+      });
 
   return res.json({ ok: true, ...result });
 });
@@ -2549,7 +2707,10 @@ router.post("/rooms/:slug/safety-reports", async (req: Request, res: Response) =
   }
 
   const result = slug === "together-room"
-    ? await createTogetherSafetyReport(payload)
+    ? await createTogetherSafetyReport({
+        ...payload,
+        language: normalizeTogetherLanguage(parsed.data.lang),
+      })
     : await createReadingClubSafetyReport(payload);
 
   return res.json({ ok: true, ...result });
@@ -2572,7 +2733,7 @@ router.post("/rooms/:slug/safety-acknowledgement", async (req: Request, res: Res
     userId,
     roomSlug: slug,
     roomId: records?.roomId ?? null,
-    language: normalizeLanguage(parsed.data.lang),
+    language: normalizeTogetherLanguage(parsed.data.lang),
   });
 
   return res.json({ ok: true, ...result });
@@ -2596,7 +2757,7 @@ router.post("/rooms/:slug/comfort-check", async (req: Request, res: Response) =>
     roomSlug: slug,
     roomId: records?.roomId ?? null,
     comfortNeeds: parsed.data.comfortNeeds,
-    language: normalizeLanguage(parsed.data.lang),
+    language: normalizeTogetherLanguage(parsed.data.lang),
   });
 
   return res.json({ ok: true, ...result });
@@ -2620,7 +2781,7 @@ router.post("/rooms/:slug/notifications/:notificationId/read", async (req: Reque
     roomSlug: slug,
     roomId: records?.roomId ?? null,
     notificationId: req.params.notificationId,
-    language: normalizeLanguage(parsed.data.lang),
+    language: normalizeTogetherLanguage(parsed.data.lang),
   });
 
   return res.json({ ok: true, ...result });
@@ -2643,7 +2804,7 @@ router.post("/rooms/:slug/notifications/read-all", async (req: Request, res: Res
     userId,
     roomSlug: slug,
     roomId: records?.roomId ?? null,
-    language: normalizeLanguage(parsed.data.lang),
+    language: normalizeTogetherLanguage(parsed.data.lang),
   });
 
   return res.json({ ok: true, ...result });
@@ -2659,7 +2820,8 @@ router.post("/rooms/:slug/enter", async (req: Request, res: Response) => {
   }
 
   const slug = resolveSocialRoomSlug(req.params.slug);
-  const room = buildRoomPayload(slug, normalizeLanguage(parsed.data.lang));
+  const roomLanguage = slug === "together-room" ? normalizeTogetherLanguage(parsed.data.lang) : normalizeLanguage(parsed.data.lang);
+  const room = buildRoomPayload(slug, roomLanguage);
   if (!room) return res.status(404).json({ error: "Room not found" });
 
   const visitId = randomUUID();
@@ -2691,7 +2853,7 @@ router.post("/rooms/:slug/enter", async (req: Request, res: Response) => {
   return res.json({
     visitId,
     participantCount: getRoomParticipantCount(slug),
-    liveBadge: toLiveBadge(normalizeLanguage(parsed.data.lang), getRoomParticipantCount(slug)),
+    liveBadge: toLiveBadge(roomLanguage, getRoomParticipantCount(slug)),
     isFirstVisit: visitState.isFirstVisit,
     previousVisitCount: visitState.previousVisitCount,
     visitCount: visitState.visitCount,
@@ -2889,6 +3051,12 @@ router.post("/rooms/:slug/match", async (req: Request, res: Response) => {
       ? "Heute ist noch niemand passend verfügbar. Schau später noch einmal vorbei."
       : language === "en"
         ? "Nobody suitable is available just yet today. Please come back a little later."
+        : language === "fr"
+          ? "Aucune personne compatible n'est disponible pour l'instant. Revenez un peu plus tard."
+          : language === "it"
+            ? "Non c'e ancora una persona adatta disponibile oggi. Torna tra poco."
+            : language === "pt"
+              ? "Ainda nao ha uma pessoa adequada disponivel hoje. Volte um pouco mais tarde."
         : "Todavía no hay nadie adecuado disponible hoy. Vuelve un poco más tarde.";
     return res.json({ noMatch: true, agentMessage });
   }
@@ -2932,17 +3100,35 @@ router.post("/rooms/:slug/match", async (req: Request, res: Response) => {
             ? `Ich habe jemanden gefunden, der auch ${sharedTopic} mag. Isabel kann daraus einen kleinen Tisch mit ruhigem Thema machen.${readingProfileNote}`
             : language === "en"
               ? `I found someone who also enjoys ${sharedTopic}. Isabel can shape this into a small table around a calm theme.${readingProfileNote}`
+              : language === "fr"
+                ? `J'ai trouve quelqu'un qui aime aussi ${sharedTopic}. Isabel peut en faire une petite table autour d'un theme calme.${readingProfileNote}`
+                : language === "it"
+                  ? `Ho trovato qualcuno a cui piace anche ${sharedTopic}. Isabel puo trasformarlo in un piccolo tavolo con un tema calmo.${readingProfileNote}`
+                  : language === "pt"
+                    ? `Encontrei alguem que tambem gosta de ${sharedTopic}. A Isabel pode transformar isto numa pequena mesa com um tema calmo.${readingProfileNote}`
               : `He encontrado a alguien que tambien disfruta ${sharedTopic}. Isabel puede convertirlo en una mesa pequena con un tema tranquilo.${readingProfileNote}`
           : readingMode === "pen-note"
             ? language === "de"
               ? `Ich habe jemanden gefunden, der auch ${sharedTopic} mag. Ihr koennt mit einer kurzen geschuetzten Notiz beginnen.${readingProfileNote}`
               : language === "en"
                 ? `I found someone who also enjoys ${sharedTopic}. You can begin with a short protected note.${readingProfileNote}`
+                : language === "fr"
+                  ? `J'ai trouve quelqu'un qui aime aussi ${sharedTopic}. Vous pouvez commencer par une courte note protegee.${readingProfileNote}`
+                  : language === "it"
+                    ? `Ho trovato qualcuno a cui piace anche ${sharedTopic}. Potete iniziare con una breve nota protetta.${readingProfileNote}`
+                    : language === "pt"
+                      ? `Encontrei alguem que tambem gosta de ${sharedTopic}. Podem comecar com uma nota curta e protegida.${readingProfileNote}`
                 : `He encontrado a alguien que tambien disfruta ${sharedTopic}. Podeis empezar con una nota breve y protegida.${readingProfileNote}`
             : language === "de"
               ? `Ich habe jemanden gefunden, der auch ${sharedTopic} mag. Ihr koennt mit einer Lieblingsstelle oder Empfehlung beginnen.${readingProfileNote}`
               : language === "en"
                 ? `I found someone who also enjoys ${sharedTopic}. You could begin with a favourite passage or recommendation.${readingProfileNote}`
+                : language === "fr"
+                  ? `J'ai trouve quelqu'un qui aime aussi ${sharedTopic}. Vous pouvez commencer par une scene preferee ou une recommandation.${readingProfileNote}`
+                  : language === "it"
+                    ? `Ho trovato qualcuno a cui piace anche ${sharedTopic}. Potete iniziare con una scena preferita o un consiglio.${readingProfileNote}`
+                    : language === "pt"
+                      ? `Encontrei alguem que tambem gosta de ${sharedTopic}. Podem comecar por uma cena preferida ou uma recomendacao.${readingProfileNote}`
                 : `He encontrado a alguien que tambien disfruta ${sharedTopic}. Podeis empezar con una escena favorita o una recomendacion.${readingProfileNote}`
       : language === "de"
         ? `Ich habe jemanden mit aehnlichen Interessen gefunden. Ihr koennt mit ${sharedTopic} beginnen.`
@@ -2981,20 +3167,42 @@ router.post("/rooms/:slug/connect", async (req: Request, res: Response) => {
     const memberName =
       member?.name ||
       await loadProfileDisplayName(memberId) ||
-      (language === "de" ? "deine Lesegefaehrtin" : language === "en" ? "your reading companion" : "tu compania de lectura");
+      (language === "de"
+        ? "deine Lesegefaehrtin"
+        : language === "fr"
+          ? "votre compagnie de lecture"
+          : language === "it"
+            ? "la tua compagnia di lettura"
+            : language === "pt"
+              ? "a sua companhia de leitura"
+              : language === "en"
+                ? "your reading companion"
+                : "tu compania de lectura");
     const starter =
       bridgePrompt ||
       (language === "de"
         ? "ein Buch, eine Figur oder eine Erinnerung, die ihr teilen moechtet."
         : language === "en"
           ? "a book, character or memory you would like to share."
-          : "un libro, un personaje o un recuerdo que querais compartir.");
+          : language === "fr"
+            ? "un livre, un personnage ou un souvenir que vous aimeriez partager."
+            : language === "it"
+              ? "un libro, un personaggio o un ricordo che vorresti condividere."
+              : language === "pt"
+                ? "um livro, personagem ou memoria que gostaria de partilhar."
+                : "un libro, un personaje o un recuerdo que querais compartir.");
     const reply =
       language === "de"
         ? `${memberName} weiss, dass du offen fuer einen literarischen Gruss bist. Ihr koennt beginnen mit: ${starter}`
         : language === "en"
           ? `${memberName} now knows you're open to a literary greeting. You can begin with: ${starter}`
-          : `${memberName} ya sabe que te apetece un saludo literario. Podeis empezar con: ${starter}`;
+          : language === "fr"
+            ? `${memberName} sait maintenant que vous etes ouvert a une salutation litteraire. Vous pouvez commencer par : ${starter}`
+            : language === "it"
+              ? `${memberName} ora sa che sei aperto a un saluto letterario. Potete iniziare con: ${starter}`
+              : language === "pt"
+                ? `${memberName} ja sabe que esta aberto a uma saudacao literaria. Podem comecar com: ${starter}`
+                : `${memberName} ya sabe que te apetece un saludo literario. Podeis empezar con: ${starter}`;
 
     return res.json({ ok: true, reply });
   }
