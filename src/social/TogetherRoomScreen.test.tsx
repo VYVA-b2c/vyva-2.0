@@ -181,6 +181,20 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getAllByText("Contact is shared only when both people agree.").length).toBeGreaterThan(0);
   });
 
+  it("uses extended language labels inside the Together Room", () => {
+    render(<TogetherRoomScreen roomResponse={roomResponse} language="fr" visitId="visit-1" onBack={vi.fn()} />);
+
+    expect(screen.getByText("Salle protegee")).toBeInTheDocument();
+    expect(screen.getByText("Notre promesse de salle")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Partager un plan" })).toBeInTheDocument();
+    expect(screen.getByTestId("together-starter-plan")).toHaveTextContent("Partager un plan");
+
+    fireEvent.click(screen.getByTestId("together-starter-plan"));
+
+    expect(screen.getByText("Commencer avec une idee")).toBeInTheDocument();
+    expect(screen.getByTestId("together-plan-preset-quiet_lunch")).toHaveTextContent("Dejeuner calme a proximite");
+  });
+
   it("saves the room promise acknowledgement", async () => {
     apiFetchMock.mockResolvedValueOnce(jsonResponse({
       ok: true,

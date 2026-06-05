@@ -2912,7 +2912,7 @@ const RoomScreen = () => {
   const language = getSocialLanguage(appLanguage);
   const movementExerciseLanguage = getMovementExerciseLanguage(appLanguage);
   const gameLanguage = getSocialGameLanguage(appLanguage);
-  const requestLanguage = slug === "games-room" ? gameLanguage : language;
+  const requestLanguage = slug === "games-room" || slug === "together-room" ? gameLanguage : language;
   const copy = getSocialCopy(language);
 
   const [visitId, setVisitId] = useState<string | null>(null);
@@ -3011,7 +3011,7 @@ const RoomScreen = () => {
   }, [language, room, roomResponse]);
 
   const togetherRoomActive = isTogetherRoom(room?.slug ?? slug);
-  const togetherCopy = togetherRoomActive ? getTogetherRoomCopy(language) : null;
+  const togetherCopy = togetherRoomActive ? getTogetherRoomCopy(gameLanguage) : null;
   const readingRoomActive = isReadingRoomSlug(room?.slug ?? slug);
   const movementRoomActive = canonicalRoomSlug === "morning-movement";
   const movementExerciseCopy = useMemo(() => getMovementExerciseLibraryCopy(movementExerciseLanguage), [movementExerciseLanguage]);
@@ -3139,7 +3139,7 @@ const RoomScreen = () => {
     readingClubCopy.letterDefaultRecipient;
   const canSaveReadingLetter = Boolean(readingLetterBodyDraft.trim());
   const readingPollClosed = activeReadingPulse?.activePoll.status !== "active";
-  const togetherPlans = useMemo(() => getTogetherPlans(language), [language]);
+  const togetherPlans = useMemo(() => getTogetherPlans(gameLanguage), [gameLanguage]);
   const selectedTogetherPlan = useMemo(
     () => togetherPlans.find((plan) => plan.id === selectedTogetherPlanId) ?? togetherPlans[0],
     [selectedTogetherPlanId, togetherPlans],
@@ -4401,7 +4401,7 @@ const RoomScreen = () => {
     return (
       <TogetherRoomScreen
         roomResponse={roomResponse}
-        language={language}
+        language={gameLanguage}
         composerLanguage={gameLanguage}
         visitId={visitId}
         onBack={handleBackToRooms}

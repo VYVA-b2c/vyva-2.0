@@ -13,7 +13,7 @@ import {
   socialRoomVotes,
 } from "../../shared/schema.js";
 import type {
-  SocialLanguage,
+  SocialGameLanguage,
   SocialRoomComfortCheck,
   SocialRoomCostRange,
   SocialRoomComfortNeed,
@@ -33,7 +33,8 @@ import type {
   SocialRoomSafetyReportTargetType,
 } from "../../src/social/types.js";
 
-type LocalizedText = Record<SocialLanguage, string>;
+type TogetherRoomLanguage = SocialGameLanguage;
+type LocalizedText = Record<TogetherRoomLanguage, string>;
 
 type SeedPlan = {
   key: string;
@@ -107,16 +108,33 @@ const DAILY_POLL_KEY = "daily-room-choice";
 const SAFE_DB_TIMEOUT_MS = 1400;
 const COMFORT_NEED_OPTIONS: SocialRoomComfortNeed[] = ["listen_first", "quiet_pace", "easy_access", "seating", "transport_help", "arrival_buddy", "clear_cost"];
 
-const t = (es: string, en: string, de: string): LocalizedText => ({ es, en, de });
+const t = (es: string, en: string, de: string, fr: string, it: string, pt: string): LocalizedText => ({
+  es,
+  en,
+  de,
+  fr,
+  it,
+  pt,
+});
 
 const seedPlans: SeedPlan[] = [
   {
     key: "tea-film-chat",
-    title: t("Te y charla de pelicula", "Tea and film chat", "Tee und Filmgespraech"),
+    title: t(
+      "Te y charla de pelicula",
+      "Tea and film chat",
+      "Tee und Filmgespraech",
+      "The et discussion film",
+      "Te e conversazione film",
+      "Cha e conversa sobre filme",
+    ),
     body: t(
       "Elegid una pelicula tranquila y comentadla sin prisa.",
       "Choose a gentle film and talk about it without rushing.",
       "Waehlt einen ruhigen Film und sprecht ohne Eile darueber.",
+      "Choisissez un film doux et parlez-en sans vous presser.",
+      "Scegliete un film leggero e parlatene senza fretta.",
+      "Escolham um filme leve e falem sobre ele sem pressa.",
     ),
     locationLabel: "online",
     comfortNeeds: ["quiet_pace"],
@@ -127,11 +145,21 @@ const seedPlans: SeedPlan[] = [
   },
   {
     key: "quiet-lunch",
-    title: t("Comida tranquila cerca", "Quiet lunch nearby", "Ruhiges Mittagessen in der Naehe"),
+    title: t(
+      "Comida tranquila cerca",
+      "Quiet lunch nearby",
+      "Ruhiges Mittagessen in der Naehe",
+      "Dejeuner calme a proximite",
+      "Pranzo tranquillo vicino",
+      "Almoco tranquilo por perto",
+    ),
     body: t(
       "VYVA ayuda a elegir un lugar cercano, accesible y calmado.",
       "VYVA helps choose somewhere nearby, accessible and calm.",
       "VYVA hilft, einen nahen, barrierearmen und ruhigen Ort zu waehlen.",
+      "VYVA aide a choisir un lieu proche, accessible et calme.",
+      "VYVA aiuta a scegliere un posto vicino, accessibile e tranquillo.",
+      "A VYVA ajuda a escolher um lugar perto, acessivel e calmo.",
     ),
     locationLabel: "nearby",
     comfortNeeds: ["easy_access", "seating", "transport_help", "arrival_buddy", "clear_cost"],
@@ -142,11 +170,21 @@ const seedPlans: SeedPlan[] = [
   },
   {
     key: "gentle-walk",
-    title: t("Paseo suave", "Gentle walk", "Sanfter Spaziergang"),
+    title: t(
+      "Paseo suave",
+      "Gentle walk",
+      "Sanfter Spaziergang",
+      "Promenade douce",
+      "Passeggiata tranquilla",
+      "Passeio tranquilo",
+    ),
     body: t(
       "Un paseo corto con ritmo comodo y opcion de parar.",
       "A short walk at a comfortable pace, with room to pause.",
       "Ein kurzer Spaziergang in bequemem Tempo mit Pausen.",
+      "Une courte promenade a un rythme confortable, avec des pauses possibles.",
+      "Una breve passeggiata a ritmo comodo, con spazio per fermarsi.",
+      "Um passeio curto a um ritmo confortavel, com espaco para parar.",
     ),
     locationLabel: "nearby",
     comfortNeeds: ["quiet_pace"],
@@ -161,12 +199,15 @@ const pollQuestion = t(
   "Que os apeteceria compartir hoy?",
   "What would feel good to share today?",
   "Was wuerde sich heute gut anfuehlen?",
+  "Qu'auriez-vous envie de partager aujourd'hui?",
+  "Cosa vi piacerebbe condividere oggi?",
+  "O que gostariam de partilhar hoje?",
 );
 
 const pollOptions: SeedPollOption[] = [
-  { id: "film", label: t("Pelicula", "Film chat", "Filmgespraech") },
-  { id: "lunch", label: t("Comida", "Quiet lunch", "Ruhiges Essen") },
-  { id: "views", label: t("Compartir opiniones", "Share views", "Ansichten teilen") },
+  { id: "film", label: t("Pelicula", "Film chat", "Filmgespraech", "Discussion film", "Conversazione film", "Conversa sobre filme") },
+  { id: "lunch", label: t("Comida", "Quiet lunch", "Ruhiges Essen", "Dejeuner calme", "Pranzo tranquillo", "Almoco tranquilo") },
+  { id: "views", label: t("Compartir opiniones", "Share views", "Ansichten teilen", "Partager des avis", "Condividere opinioni", "Partilhar opinioes") },
 ];
 
 const planResponses = new Map<string, SocialRoomPlanResponseValue>();
@@ -293,24 +334,87 @@ export function shouldBlockReply(safetyFlags: SocialRoomSafetyFlag[]) {
   return safetyFlags.length > 0;
 }
 
-export function blockedReplyDetails(safetyFlags: SocialRoomSafetyFlag[], language: SocialLanguage) {
+export function blockedReplyDetails(safetyFlags: SocialRoomSafetyFlag[], language: TogetherRoomLanguage) {
   const flags = safetyFlags.join(", ");
+  if (language === "fr") return `Une reponse a ete arretee avant d'etre partagee, car elle peut contenir un contact protege, des informations de paiement, d'autres details proteges ou un ton peu aimable. Signaux: ${flags}.`;
+  if (language === "it") return `Una risposta e stata fermata prima della condivisione perche potrebbe includere contatto protetto, pagamenti, altri dettagli protetti o un tono poco gentile. Segnali: ${flags}.`;
+  if (language === "pt") return `Uma resposta foi interrompida antes de ser partilhada porque pode incluir contacto protegido, pagamentos, outros detalhes protegidos ou um tom pouco gentil. Sinais: ${flags}.`;
   if (language === "de") return `Eine Antwort wurde vor dem Teilen gestoppt, weil sie geschuetzten Kontakt, Zahlungen, andere geschuetzte Details oder einen unfreundlichen Ton enthalten koennte. Hinweise: ${flags}.`;
   if (language === "en") return `A reply was stopped before sharing because it may include protected contact, payment details, other protected details or an unkind tone. Signals: ${flags}.`;
   return `Se detuvo una respuesta antes de compartirla porque podria incluir contacto protegido, pagos, otros datos protegidos o un tono poco amable. Senales: ${flags}.`;
 }
 
-function proposalReviewDetails(kind: SocialRoomPlanKind, safetyFlags: SocialRoomSafetyFlag[], language: SocialLanguage) {
+function proposalReviewDetails(kind: SocialRoomPlanKind, safetyFlags: SocialRoomSafetyFlag[], language: TogetherRoomLanguage) {
   const flags = safetyFlags.join(", ");
+  const itemFr = kind === "question" ? "question" : kind === "message" ? "message" : "activite";
+  const itemIt = kind === "question" ? "domanda" : kind === "message" ? "messaggio" : "attivita";
+  const itemPt = kind === "question" ? "pergunta" : kind === "message" ? "mensagem" : "atividade";
   const itemDe = kind === "question" ? "Frage" : kind === "message" ? "Nachricht" : "Aktivitaet";
   const itemEn = kind === "question" ? "question" : kind === "message" ? "message" : "activity";
   const itemEs = kind === "question" ? "pregunta" : kind === "message" ? "mensaje" : "actividad";
+  if (language === "fr") return `Une ${itemFr} partagee a ete retenue pour verification par VYVA avant d'apparaitre dans la salle. Signaux: ${flags}.`;
+  if (language === "it") return `Una ${itemIt} condivisa e stata trattenuta per la revisione di VYVA prima di apparire nella stanza. Segnali: ${flags}.`;
+  if (language === "pt") return `Uma ${itemPt} partilhada ficou retida para revisao da VYVA antes de aparecer na sala. Sinais: ${flags}.`;
   if (language === "de") return `Eine geteilte ${itemDe} wurde vor der Anzeige zur VYVA-Pruefung zurueckgehalten. Hinweise: ${flags}.`;
   if (language === "en") return `A shared ${itemEn} was held for VYVA review before it appeared in the room. Signals: ${flags}.`;
   return `Se retuvo un ${itemEs} compartido para revision de VYVA antes de mostrarlo en la sala. Senales: ${flags}.`;
 }
 
-function fitReasonLabels(language: SocialLanguage) {
+function fitReasonLabels(language: TogetherRoomLanguage) {
+  if (language === "fr") {
+    return {
+      nearby: "A proximite",
+      online: "En ligne",
+      morning: "Matin",
+      afternoon: "Apres-midi",
+      evening: "Soir",
+      flexible: "Horaire flexible",
+      free: "Gratuit",
+      low: "Faible cout",
+      shared: "Cout partage",
+      discuss: "Clarifier le cout avant",
+      one_to_one: "1:1",
+      small_group: "Petit groupe",
+      open_room: "Salle ouverte",
+    };
+  }
+
+  if (language === "it") {
+    return {
+      nearby: "Vicino",
+      online: "Online",
+      morning: "Mattina",
+      afternoon: "Pomeriggio",
+      evening: "Sera",
+      flexible: "Orario flessibile",
+      free: "Gratis",
+      low: "Costo basso",
+      shared: "Costo condiviso",
+      discuss: "Chiarire il costo prima",
+      one_to_one: "1:1",
+      small_group: "Piccolo gruppo",
+      open_room: "Stanza aperta",
+    };
+  }
+
+  if (language === "pt") {
+    return {
+      nearby: "Perto",
+      online: "Online",
+      morning: "Manha",
+      afternoon: "Tarde",
+      evening: "Noite",
+      flexible: "Hora flexivel",
+      free: "Gratis",
+      low: "Custo baixo",
+      shared: "Custo partilhado",
+      discuss: "Clarificar custo antes",
+      one_to_one: "1:1",
+      small_group: "Pequeno grupo",
+      open_room: "Sala aberta",
+    };
+  }
+
   if (language === "de") {
     return {
       nearby: "In der Naehe",
@@ -369,7 +473,7 @@ function buildFitReasons(input: {
   preferredTime?: SocialRoomPreferredTime;
   costRange?: SocialRoomCostRange;
   groupSize?: SocialRoomGroupSize;
-}, language: SocialLanguage) {
+}, language: TogetherRoomLanguage) {
   const labels = fitReasonLabels(language);
   const preferredTime = input.preferredTime ?? "flexible";
   const costRange = input.costRange ?? "discuss";
@@ -397,11 +501,14 @@ function publicRoomId(roomSlug: string) {
   return roomSlug || TOGETHER_ROOM_SLUG;
 }
 
-function localize<T extends { [key in SocialLanguage]: string }>(value: T, language: SocialLanguage) {
+function localize<T extends { [key in TogetherRoomLanguage]: string }>(value: T, language: TogetherRoomLanguage) {
   return value[language] || value.en || value.es;
 }
 
-function replyAuthorName(language: SocialLanguage) {
+function replyAuthorName(language: TogetherRoomLanguage) {
+  if (language === "fr") return "Membre";
+  if (language === "it") return "Membro";
+  if (language === "pt") return "Membro";
   if (language === "de") return "Mitglied";
   if (language === "en") return "Member";
   return "Miembro";
@@ -446,7 +553,55 @@ function emptyPlanCounts() {
   return { join: 0, maybe: 0 };
 }
 
-function comfortCheckCopy(language: SocialLanguage) {
+function comfortCheckCopy(language: TogetherRoomLanguage) {
+  if (language === "fr") {
+    return {
+      title: "Qu'est-ce qui rendrait cela confortable?",
+      body: "Touchez ce qui aide. La salle peut adapter les plans autour de cela.",
+      labels: {
+        listen_first: "Ecouter d'abord",
+        quiet_pace: "Rythme calme",
+        easy_access: "Acces facile",
+        seating: "Place assise",
+        transport_help: "Aide transport",
+        arrival_buddy: "Arriver ensemble",
+        clear_cost: "Connaitre le cout avant",
+      },
+    };
+  }
+
+  if (language === "it") {
+    return {
+      title: "Cosa renderebbe tutto comodo?",
+      body: "Tocca cio che aiuta. La stanza puo adattare i piani intorno a questo.",
+      labels: {
+        listen_first: "Ascoltare prima",
+        quiet_pace: "Ritmo tranquillo",
+        easy_access: "Accesso facile",
+        seating: "Posto per sedersi",
+        transport_help: "Aiuto trasporto",
+        arrival_buddy: "Arrivare insieme",
+        clear_cost: "Sapere il costo prima",
+      },
+    };
+  }
+
+  if (language === "pt") {
+    return {
+      title: "O que tornaria isto confortavel?",
+      body: "Toque no que ajuda. A sala pode adaptar os planos a isso.",
+      labels: {
+        listen_first: "Ouvir primeiro",
+        quiet_pace: "Ritmo tranquilo",
+        easy_access: "Acesso facil",
+        seating: "Lugar para sentar",
+        transport_help: "Ajuda transporte",
+        arrival_buddy: "Chegar juntos",
+        clear_cost: "Saber custo antes",
+      },
+    };
+  }
+
   if (language === "de") {
     return {
       title: "Was macht es angenehm?",
@@ -497,7 +652,7 @@ function comfortCheckCopy(language: SocialLanguage) {
 function buildComfortCheck(
   userId: string,
   roomSlug: string,
-  language: SocialLanguage,
+  language: TogetherRoomLanguage,
   persistedNeeds: Map<string, SocialRoomComfortNeed[]> = new Map(),
 ): SocialRoomComfortCheck {
   const copy = comfortCheckCopy(language);
@@ -552,7 +707,73 @@ function topComfortLabels(comfortCheck: SocialRoomComfortCheck) {
     .map((option) => option.label);
 }
 
-function decisionGuideCopy(language: SocialLanguage) {
+function decisionGuideCopy(language: TogetherRoomLanguage) {
+  if (language === "fr") {
+    return {
+      title: "Prochaine etape sure",
+      waitingBody: "Choisissez un vote ou touchez ce qui aide. VYVA transformera les signaux de la salle en une prochaine etape douce.",
+      viewBody: "La salle penche vers le partage d'avis. Restez aimables et sans coordonnees privees.",
+      planBody: (choice: string, needs: string[]) => {
+        const comfort = needs.length ? ` avec ${needs.join(", ")}` : "";
+        return `La salle penche vers ${choice}. VYVA peut former un plan simple${comfort}.`;
+      },
+      waitingSteps: ["Choisir une option de salle", "Marquer les besoins de confort", "Garder le contact dans VYVA"],
+      viewSteps: ["Partager un avis court", "Ecouter d'abord si quelqu'un a besoin de temps", "Demander a VYVA de verifier ce qui gene"],
+      planSteps: (needs: string[]) => [
+        "Confirmer un plan simple",
+        needs.length ? `Garder ${needs.join(", ")} en tete` : "Demander ce qui le rendrait confortable",
+        "Partager le contact seulement apres accord des deux personnes",
+      ],
+      voteAction: "Commencer par un vote",
+      planAction: "En faire un plan",
+      viewAction: "Partager un avis",
+    };
+  }
+
+  if (language === "it") {
+    return {
+      title: "Prossimo passo sicuro",
+      waitingBody: "Scegli un voto o tocca cio che aiuta. VYVA trasformera i segnali della stanza in un prossimo passo tranquillo.",
+      viewBody: "La stanza tende a condividere opinioni. Mantieni un tono gentile e senza contatti privati.",
+      planBody: (choice: string, needs: string[]) => {
+        const comfort = needs.length ? ` con ${needs.join(", ")}` : "";
+        return `La stanza tende verso ${choice}. VYVA puo creare un piano semplice${comfort}.`;
+      },
+      waitingSteps: ["Scegliere un'opzione della stanza", "Toccare i bisogni di comfort", "Tenere il contatto dentro VYVA"],
+      viewSteps: ["Condividere una breve opinione", "Ascoltare prima se qualcuno ha bisogno di tempo", "Chiedere a VYVA di rivedere cio che mette a disagio"],
+      planSteps: (needs: string[]) => [
+        "Confermare un piano semplice",
+        needs.length ? `Tenere presente ${needs.join(", ")}` : "Chiedere cosa lo renderebbe comodo",
+        "Condividere il contatto solo dopo l'accordo di entrambi",
+      ],
+      voteAction: "Inizia con un voto",
+      planAction: "Fanne un piano",
+      viewAction: "Condividi un'opinione",
+    };
+  }
+
+  if (language === "pt") {
+    return {
+      title: "Proximo passo seguro",
+      waitingBody: "Escolha um voto ou toque no que ajuda. A VYVA transformara os sinais da sala num proximo passo tranquilo.",
+      viewBody: "A sala esta inclinada a partilhar opinioes. Mantenham um tom gentil e sem contactos privados.",
+      planBody: (choice: string, needs: string[]) => {
+        const comfort = needs.length ? ` com ${needs.join(", ")}` : "";
+        return `A sala esta inclinada para ${choice}. A VYVA pode criar um plano simples${comfort}.`;
+      },
+      waitingSteps: ["Escolher uma opcao da sala", "Marcar necessidades de conforto", "Manter contacto dentro da VYVA"],
+      viewSteps: ["Partilhar uma opiniao curta", "Ouvir primeiro se alguem precisar de tempo", "Pedir a VYVA para rever algo desconfortavel"],
+      planSteps: (needs: string[]) => [
+        "Confirmar um plano simples",
+        needs.length ? `Ter ${needs.join(", ")} em conta` : "Perguntar o que o tornaria confortavel",
+        "Partilhar contacto so depois de ambas as pessoas concordarem",
+      ],
+      voteAction: "Comecar com um voto",
+      planAction: "Transformar em plano",
+      viewAction: "Partilhar opiniao",
+    };
+  }
+
   if (language === "de") {
     return {
       title: "Naechster sicherer Schritt",
@@ -618,7 +839,7 @@ function decisionGuideCopy(language: SocialLanguage) {
   };
 }
 
-function buildDecisionGuide(language: SocialLanguage, poll: SocialRoomPoll, comfortCheck: SocialRoomComfortCheck) {
+function buildDecisionGuide(language: TogetherRoomLanguage, poll: SocialRoomPoll, comfortCheck: SocialRoomComfortCheck) {
   const copy = decisionGuideCopy(language);
   const leader = leadingPollOption(poll);
   const needs = topComfortLabels(comfortCheck);
@@ -664,7 +885,7 @@ function seededPlanCounts(planKey: string) {
   return counts;
 }
 
-function memoryRepliesForPlan(planKey: string, roomSlug: string, language: SocialLanguage): SocialRoomReply[] {
+function memoryRepliesForPlan(planKey: string, roomSlug: string, language: TogetherRoomLanguage): SocialRoomReply[] {
   return memoryReplies
     .filter((reply) => reply.planKey === planKey && reply.roomSlug === publicRoomId(roomSlug) && reply.status === "active")
     .slice(0, 3)
@@ -679,7 +900,7 @@ function memoryRepliesForPlan(planKey: string, roomSlug: string, language: Socia
     }));
 }
 
-function proposalToPlan(proposal: MemoryProposal, userId: string, language: SocialLanguage): SocialRoomPlan {
+function proposalToPlan(proposal: MemoryProposal, userId: string, language: TogetherRoomLanguage): SocialRoomPlan {
   return {
     id: proposal.planKey,
     key: proposal.planKey,
@@ -706,7 +927,7 @@ function proposalToPlan(proposal: MemoryProposal, userId: string, language: Soci
   };
 }
 
-function memoryPostedExperiences(roomSlug: string, userId: string, language: SocialLanguage) {
+function memoryPostedExperiences(roomSlug: string, userId: string, language: TogetherRoomLanguage) {
   return proposals
     .filter((proposal) => proposal.roomSlug === publicRoomId(roomSlug) && proposal.status === "active")
     .map((proposal) => proposalToPlan(proposal, userId, language));
@@ -777,8 +998,35 @@ async function createAutomaticSafetyReport(input: {
 function planResponseNotificationCopy(
   response: SocialRoomPlanResponseValue,
   planTitle: string,
-  language: SocialLanguage,
+  language: TogetherRoomLanguage,
 ) {
+  if (language === "fr") {
+    return {
+      title: response === "join" ? "Quelqu'un rejoint votre idee" : "Quelqu'un garde votre idee",
+      body: response === "join"
+        ? `"${planTitle}" a une nouvelle compagnie.`
+        : `"${planTitle}" a ete garde pour plus tard.`,
+    };
+  }
+
+  if (language === "it") {
+    return {
+      title: response === "join" ? "Qualcuno partecipa alla tua idea" : "Qualcuno ha salvato la tua idea",
+      body: response === "join"
+        ? `"${planTitle}" ha nuova compagnia.`
+        : `"${planTitle}" e stata salvata per dopo.`,
+    };
+  }
+
+  if (language === "pt") {
+    return {
+      title: response === "join" ? "Alguem entrou na sua ideia" : "Alguem guardou a sua ideia",
+      body: response === "join"
+        ? `"${planTitle}" tem nova companhia.`
+        : `"${planTitle}" foi guardado para mais tarde.`,
+    };
+  }
+
   if (language === "de") {
     return {
       title: response === "join" ? "Jemand macht bei deiner Idee mit" : "Jemand merkt sich deine Idee",
@@ -805,7 +1053,28 @@ function planResponseNotificationCopy(
   };
 }
 
-function replyNotificationCopy(planTitle: string, replyBody: string, language: SocialLanguage) {
+function replyNotificationCopy(planTitle: string, replyBody: string, language: TogetherRoomLanguage) {
+  if (language === "fr") {
+    return {
+      title: "Quelqu'un a repondu avec douceur",
+      body: `"${planTitle}": ${replyBody}`,
+    };
+  }
+
+  if (language === "it") {
+    return {
+      title: "Qualcuno ha risposto con gentilezza",
+      body: `"${planTitle}": ${replyBody}`,
+    };
+  }
+
+  if (language === "pt") {
+    return {
+      title: "Alguem respondeu com cuidado",
+      body: `"${planTitle}": ${replyBody}`,
+    };
+  }
+
   if (language === "de") {
     return {
       title: "Jemand hat behutsam geantwortet",
@@ -826,7 +1095,31 @@ function replyNotificationCopy(planTitle: string, replyBody: string, language: S
   };
 }
 
-function defaultTogetherMemberPresence(language: SocialLanguage): SocialRoomMember[] {
+function defaultTogetherMemberPresence(language: TogetherRoomLanguage): SocialRoomMember[] {
+  if (language === "fr") {
+    return [
+      { id: "member-carmen", name: "Carmen", statusLabel: "Cherche un plan calme" },
+      { id: "member-luis", name: "Luis", statusLabel: "Heureux de dire bonjour" },
+      { id: "member-ana", name: "Ana", statusLabel: "Regarde l'invitation du jour" },
+    ];
+  }
+
+  if (language === "it") {
+    return [
+      { id: "member-carmen", name: "Carmen", statusLabel: "Cerca un piano tranquillo" },
+      { id: "member-luis", name: "Luis", statusLabel: "Felice di salutare" },
+      { id: "member-ana", name: "Ana", statusLabel: "Sta guardando l'invito di oggi" },
+    ];
+  }
+
+  if (language === "pt") {
+    return [
+      { id: "member-carmen", name: "Carmen", statusLabel: "Procura um plano tranquilo" },
+      { id: "member-luis", name: "Luis", statusLabel: "Feliz por dizer ola" },
+      { id: "member-ana", name: "Ana", statusLabel: "A rever o convite de hoje" },
+    ];
+  }
+
   if (language === "de") {
     return [
       { id: "member-carmen", name: "Carmen", statusLabel: "Sucht einen ruhigen Plan" },
@@ -850,7 +1143,7 @@ function defaultTogetherMemberPresence(language: SocialLanguage): SocialRoomMemb
   ];
 }
 
-function seededPoll(language: SocialLanguage, userId: string): SocialRoomPoll {
+function seededPoll(language: TogetherRoomLanguage, userId: string): SocialRoomPoll {
   const votesByOption = new Map(pollOptions.map((option) => [option.id, 0]));
   for (const optionId of pollVotes.values()) {
     votesByOption.set(optionId, (votesByOption.get(optionId) ?? 0) + 1);
@@ -875,7 +1168,7 @@ function seededPoll(language: SocialLanguage, userId: string): SocialRoomPoll {
 
 function fallbackPulse(
   userId: string,
-  language: SocialLanguage,
+  language: TogetherRoomLanguage,
   memberPresence: SocialRoomMember[] = defaultTogetherMemberPresence(language),
 ): SocialRoomPulse {
   const plans = seedPlans.map<SocialRoomPlan>((plan, index) => ({
@@ -921,7 +1214,34 @@ function fallbackPulse(
   };
 }
 
-function getDiscussionPrompt(language: SocialLanguage) {
+function getDiscussionPrompt(language: TogetherRoomLanguage) {
+  if (language === "fr") {
+    return {
+      id: "gentle-start",
+      title: "Que souhaitez-vous dire?",
+      body: "Vous pouvez commencer petit. VYVA peut aider si vous n'etes pas sur.",
+      starterButtons: ["Dire bonjour", "Proposer un plan", "Demander a VYVA"],
+    };
+  }
+
+  if (language === "it") {
+    return {
+      id: "gentle-start",
+      title: "Cosa vorresti dire?",
+      body: "Puoi iniziare in piccolo. VYVA puo aiutare se non sei sicuro.",
+      starterButtons: ["Saluta", "Suggerisci un piano", "Chiedi a VYVA"],
+    };
+  }
+
+  if (language === "pt") {
+    return {
+      id: "gentle-start",
+      title: "O que gostaria de dizer?",
+      body: "Pode comecar aos poucos. A VYVA pode ajudar se nao tiver a certeza.",
+      starterButtons: ["Dizer ola", "Sugerir plano", "Perguntar a VYVA"],
+    };
+  }
+
   if (language === "de") {
     return {
       id: "gentle-start",
@@ -948,7 +1268,61 @@ function getDiscussionPrompt(language: SocialLanguage) {
   };
 }
 
-function getSafetyCopy(language: SocialLanguage, acknowledgedAt: string | null = null) {
+function getSafetyCopy(language: TogetherRoomLanguage, acknowledgedAt: string | null = null) {
+  if (language === "fr") {
+    return {
+      title: "Petit cercle protege",
+      body: "VYVA garde un ton aimable et peut aider si quelque chose semble inconfortable.",
+      consentLine: "Le contact est partage seulement quand les deux personnes acceptent.",
+      helpLabel: "Aide ou securite",
+      agreementTitle: "Notre promesse de salle",
+      agreementLines: [
+        "Des mots aimables, sans pression.",
+        "Partager des avis sans juger.",
+        "Demander a VYVA avant le contact ou si quelque chose semble incorrect.",
+      ],
+      acknowledgementLabel: "Je comprends",
+      acknowledgedLabel: "Promesse de salle enregistree",
+      myAcknowledgedAt: acknowledgedAt,
+    };
+  }
+
+  if (language === "it") {
+    return {
+      title: "Piccolo cerchio protetto",
+      body: "VYVA mantiene un tono gentile e puo aiutare se qualcosa sembra scomodo.",
+      consentLine: "Il contatto viene condiviso solo quando entrambe le persone accettano.",
+      helpLabel: "Aiuto o sicurezza",
+      agreementTitle: "La promessa della stanza",
+      agreementLines: [
+        "Parole gentili e nessuna pressione.",
+        "Condividere opinioni senza giudicare.",
+        "Chiedi a VYVA prima del contatto o se qualcosa sembra sbagliato.",
+      ],
+      acknowledgementLabel: "Capisco",
+      acknowledgedLabel: "Promessa della stanza salvata",
+      myAcknowledgedAt: acknowledgedAt,
+    };
+  }
+
+  if (language === "pt") {
+    return {
+      title: "Pequeno circulo protegido",
+      body: "A VYVA mantem o tom gentil e pode ajudar se algo parecer desconfortavel.",
+      consentLine: "O contacto so e partilhado quando ambas as pessoas concordam.",
+      helpLabel: "Ajuda ou seguranca",
+      agreementTitle: "A nossa promessa da sala",
+      agreementLines: [
+        "Usar palavras gentis e sem pressao.",
+        "Partilhar opinioes sem julgar.",
+        "Perguntar a VYVA antes do contacto ou se algo parecer errado.",
+      ],
+      acknowledgementLabel: "Compreendo",
+      acknowledgedLabel: "Promessa da sala guardada",
+      myAcknowledgedAt: acknowledgedAt,
+    };
+  }
+
   if (language === "de") {
     return {
       title: "Geschuetzter kleiner Kreis",
@@ -1100,28 +1474,35 @@ async function ensureSeedRows(roomId: string) {
     });
 }
 
-function rowPlanTitle(plan: typeof socialRoomPlans.$inferSelect, language: SocialLanguage) {
+function rowPlanTitle(plan: typeof socialRoomPlans.$inferSelect, language: TogetherRoomLanguage) {
+  const seed = seedPlans.find((item) => item.key === plan.plan_key);
+  if (seed) return localize(seed.title, language);
   if (language === "de") return plan.title_de;
   if (language === "en") return plan.title_en;
   return plan.title_es;
 }
 
-function rowPlanBody(plan: typeof socialRoomPlans.$inferSelect, language: SocialLanguage) {
+function rowPlanBody(plan: typeof socialRoomPlans.$inferSelect, language: TogetherRoomLanguage) {
+  const seed = seedPlans.find((item) => item.key === plan.plan_key);
+  if (seed) return localize(seed.body, language);
   if (language === "de") return plan.body_de;
   if (language === "en") return plan.body_en;
   return plan.body_es;
 }
 
-function rowPollQuestion(poll: typeof socialRoomPolls.$inferSelect, language: SocialLanguage) {
+function rowPollQuestion(poll: typeof socialRoomPolls.$inferSelect, language: TogetherRoomLanguage) {
+  if (poll.poll_key === DAILY_POLL_KEY) return localize(pollQuestion, language);
   if (language === "de") return poll.question_de;
   if (language === "en") return poll.question_en;
   return poll.question_es;
 }
 
 function rowPollOptionLabel(
-  option: { label_es: string; label_de: string; label_en: string },
-  language: SocialLanguage,
+  option: { id: string; label_es: string; label_de: string; label_en: string },
+  language: TogetherRoomLanguage,
 ) {
+  const seedOption = pollOptions.find((item) => item.id === option.id);
+  if (seedOption) return localize(seedOption.label, language);
   if (language === "de") return option.label_de;
   if (language === "en") return option.label_en;
   return option.label_es;
@@ -1129,7 +1510,7 @@ function rowPollOptionLabel(
 
 export async function buildTogetherRoomPulse(
   userId: string,
-  language: SocialLanguage,
+  language: TogetherRoomLanguage,
   roomId?: string | null,
   memberPresence: SocialRoomMember[] = defaultTogetherMemberPresence(language),
 ): Promise<SocialRoomPulse> {
@@ -1315,7 +1696,7 @@ export async function respondToTogetherPlan(input: {
   roomId?: string | null;
   planKey: string;
   response: SocialRoomPlanResponseValue;
-  language: SocialLanguage;
+  language: TogetherRoomLanguage;
 }) {
   const previousMemoryResponse = planResponses.get(responseKey(input.userId, input.planKey));
   const memoryPlan = proposals.find((proposal) => proposal.planKey === input.planKey);
@@ -1425,7 +1806,7 @@ export async function markTogetherNotificationRead(input: {
   roomSlug: string;
   roomId?: string | null;
   notificationId: string;
-  language: SocialLanguage;
+  language: TogetherRoomLanguage;
 }) {
   const readAt = new Date();
   const memoryNotification = memoryNotifications.find((notification) => (
@@ -1465,7 +1846,7 @@ export async function markTogetherNotificationsRead(input: {
   userId: string;
   roomSlug: string;
   roomId?: string | null;
-  language: SocialLanguage;
+  language: TogetherRoomLanguage;
 }) {
   const readAt = new Date();
   const readIds = new Set<string>();
@@ -1524,7 +1905,7 @@ export async function replyToTogetherPlan(input: {
   planKey: string;
   body: string;
   tone?: SocialRoomReplyTone;
-  language: SocialLanguage;
+  language: TogetherRoomLanguage;
 }) {
   const body = normalizeReplyBody(input.body);
   if (!body) return { error: "Reply is empty" as const };
@@ -1654,7 +2035,7 @@ export async function voteTogetherPoll(input: {
   roomId?: string | null;
   pollKey: string;
   optionId: string;
-  language: SocialLanguage;
+  language: TogetherRoomLanguage;
 }) {
   const validOption = pollOptions.some((option) => option.id === input.optionId);
   if (!validOption) {
@@ -1737,7 +2118,7 @@ export async function createTogetherProposal(input: {
   preferredTime?: SocialRoomPreferredTime;
   costRange?: SocialRoomCostRange;
   groupSize?: SocialRoomGroupSize;
-  language: SocialLanguage;
+  language: TogetherRoomLanguage;
 }) {
   const locationLabel = input.locationLabel === "nearby" ? "nearby" : "online";
   const kind = normalizePlanKind(input.kind);
@@ -1864,7 +2245,7 @@ export async function createTogetherSafetyReport(input: {
   details: string;
   targetType?: SocialRoomSafetyReportTargetType;
   targetId?: string | null;
-  language: SocialLanguage;
+  language: TogetherRoomLanguage;
 }) {
   const targetType = input.targetType ?? "room";
   const report: MemoryReport = {
@@ -1908,7 +2289,7 @@ export async function acknowledgeTogetherAgreement(input: {
   userId: string;
   roomSlug: string;
   roomId?: string | null;
-  language: SocialLanguage;
+  language: TogetherRoomLanguage;
 }) {
   const acknowledgedAt = new Date();
   agreementAcknowledgements.set(agreementKey(input.userId, input.roomSlug), acknowledgedAt.toISOString());
@@ -1950,7 +2331,7 @@ export async function saveTogetherComfortCheck(input: {
   roomSlug: string;
   roomId?: string | null;
   comfortNeeds: SocialRoomComfortNeed[];
-  language: SocialLanguage;
+  language: TogetherRoomLanguage;
 }) {
   const comfortNeeds = normalizeComfortNeeds(input.comfortNeeds);
   const savedAt = new Date();

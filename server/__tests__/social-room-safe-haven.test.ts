@@ -421,6 +421,62 @@ describe("Together Room safe haven API", () => {
     expect(res.body.pulse.safety.myAcknowledgedAt).toBeNull();
   });
 
+  it.each([
+    {
+      lang: "fr",
+      roomName: "Salle Ensemble",
+      featuredPlan: "The et discussion film",
+      pollQuestion: "Qu'auriez-vous envie de partager aujourd'hui?",
+      agreementTitle: "Notre promesse de salle",
+      comfortTitle: "Qu'est-ce qui rendrait cela confortable?",
+      memberStatus: "Cherche un plan calme",
+      promptChip: "Je veux un plan a proximite",
+    },
+    {
+      lang: "it",
+      roomName: "Stanza Insieme",
+      featuredPlan: "Te e conversazione film",
+      pollQuestion: "Cosa vi piacerebbe condividere oggi?",
+      agreementTitle: "La promessa della stanza",
+      comfortTitle: "Cosa renderebbe tutto comodo?",
+      memberStatus: "Cerca un piano tranquillo",
+      promptChip: "Voglio un piano vicino",
+    },
+    {
+      lang: "pt",
+      roomName: "Sala Juntos",
+      featuredPlan: "Cha e conversa sobre filme",
+      pollQuestion: "O que gostariam de partilhar hoje?",
+      agreementTitle: "A nossa promessa da sala",
+      comfortTitle: "O que tornaria isto confortavel?",
+      memberStatus: "Procura um plano tranquilo",
+      promptChip: "Quero um plano por perto",
+    },
+  ])("localizes Together Room API payloads for $lang", async ({
+    lang,
+    roomName,
+    featuredPlan,
+    pollQuestion,
+    agreementTitle,
+    comfortTitle,
+    memberStatus,
+    promptChip,
+  }) => {
+    const res = await request(socialApp)
+      .get(`/api/social/rooms/together-room?lang=${lang}`)
+      .set("x-user-id", `safe-haven-locale-${lang}`)
+      .expect(200);
+
+    expect(res.body.room.name).toBe(roomName);
+    expect(res.body.room.liveBadge).not.toBe("4 in the room");
+    expect(res.body.promptChips).toContain(promptChip);
+    expect(res.body.pulse.featuredPlan.title).toBe(featuredPlan);
+    expect(res.body.pulse.activePoll.question).toBe(pollQuestion);
+    expect(res.body.pulse.safety.agreementTitle).toBe(agreementTitle);
+    expect(res.body.pulse.comfortCheck.title).toBe(comfortTitle);
+    expect(res.body.pulse.memberPresence[0].statusLabel).toBe(memberStatus);
+  });
+
   it("persists the Together Room promise acknowledgement through pulse refresh", async () => {
     const userId = "safe-haven-promise-user";
 

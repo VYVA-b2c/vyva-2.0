@@ -1,6 +1,7 @@
-import type { SocialActivityType, SocialLanguage, SocialRoom, SocialRoomCategory } from "../../src/social/types";
+import type { SocialActivityType, SocialGameLanguage, SocialLanguage, SocialRoom, SocialRoomCategory } from "../../src/social/types";
 
-type LocalizedText = Record<SocialLanguage, string>;
+type ExtraGameLanguage = Exclude<SocialGameLanguage, SocialLanguage>;
+type LocalizedText = Record<SocialLanguage, string> & Partial<Record<ExtraGameLanguage, string>>;
 
 type DailyTopicSeed = {
   topic: LocalizedText;
@@ -30,7 +31,12 @@ export type SocialRoomSeed = {
   dailyTopics: DailyTopicSeed[];
 };
 
-const t = (es: string, en: string, de: string): LocalizedText => ({ es, en, de });
+const t = (es: string, en: string, de: string, extra?: Partial<Record<ExtraGameLanguage, string>>): LocalizedText => ({
+  es,
+  en,
+  de,
+  ...extra,
+});
 
 const blank = t("", "", "");
 
@@ -520,13 +526,25 @@ export const socialRoomSeeds: SocialRoomSeed[] = [
   }),
   room({
     slug: "together-room",
-    names: t("Sala Juntos", "Together Room", "Gemeinsam-Raum"),
+    names: t("Sala Juntos", "Together Room", "Gemeinsam-Raum", {
+      fr: "Salle Ensemble",
+      it: "Stanza Insieme",
+      pt: "Sala Juntos",
+    }),
     category: "connection",
     agentSlug: "vyva-host",
     agentFullName: "VYVA Host",
     agentColour: "#6D28D9",
-    agentCredential: t("Anfitriona de planes compartidos", "Shared plans host", "Gastgeberin fuer gemeinsame Plaene"),
-    ctaLabel: t("Buscar compania", "Find company", "Begleitung finden"),
+    agentCredential: t("Anfitriona de planes compartidos", "Shared plans host", "Gastgeberin fuer gemeinsame Plaene", {
+      fr: "Hote de plans partages",
+      it: "Guida per piani condivisi",
+      pt: "Anfitria de planos partilhados",
+    }),
+    ctaLabel: t("Buscar compania", "Find company", "Begleitung finden", {
+      fr: "Trouver de la compagnie",
+      it: "Trova compagnia",
+      pt: "Encontrar companhia",
+    }),
     topicTags: [
       "friendship",
       "connection",
@@ -549,22 +567,53 @@ export const socialRoomSeeds: SocialRoomSeed[] = [
           "Elige un plan y encuentra a alguien para hacerlo contigo.",
           "Pick a plan and find someone to do it with you.",
           "Waehle einen Plan und finde jemanden, der ihn mit dir macht.",
+          {
+            fr: "Choisissez un plan et trouvez quelqu'un pour le faire avec vous.",
+            it: "Scegli un piano e trova qualcuno con cui farlo.",
+            pt: "Escolha um plano e encontre alguem para o fazer consigo.",
+          },
         ),
         opener: t(
           "Hola, soy VYVA. Dime que quieres hacer: casa, servicio, trato, pelicula, restaurante o cualquier plan.",
           "Hello, I'm VYVA. Tell me what you want to do: home, service, deal, movie, restaurant or any plan.",
           "Hallo, ich bin VYVA. Sag mir, was du vorhast: Zuhause, Service, Deal, Film, Restaurant oder ein anderer Plan.",
+          {
+            fr: "Bonjour, je suis VYVA. Dites-moi ce que vous voulez faire: logement, service, offre, film, restaurant ou tout autre plan.",
+            it: "Ciao, sono VYVA. Dimmi cosa vuoi fare: casa, servizio, offerta, film, ristorante o qualsiasi piano.",
+            pt: "Ola, sou a VYVA. Diga-me o que quer fazer: casa, servico, oferta, filme, restaurante ou qualquer plano.",
+          },
         ),
-        contentTitle: t("Planes con otra persona", "Plans with another person", "Plaene mit einer anderen Person"),
+        contentTitle: t("Planes con otra persona", "Plans with another person", "Plaene mit einer anderen Person", {
+          fr: "Plans avec une autre personne",
+          it: "Piani con un'altra persona",
+          pt: "Planos com outra pessoa",
+        ),
         contentBody: t(
           "VYVA te ayuda a elegir un plan, encontrar una buena pareja y decidir si hace falta cercania.",
           "VYVA helps you choose a plan, find a good match and decide whether nearby matters.",
           "VYVA hilft dir, einen Plan zu waehlen, eine passende Person zu finden und zu entscheiden, ob Naehe wichtig ist.",
+          {
+            fr: "VYVA vous aide a choisir un plan, trouver une bonne personne et decider si la proximite compte.",
+            it: "VYVA ti aiuta a scegliere un piano, trovare una buona persona e decidere se la vicinanza conta.",
+            pt: "A VYVA ajuda a escolher um plano, encontrar uma boa companhia e decidir se a proximidade importa.",
+          },
         ),
         options: [
-          t("Quiero un plan cerca", "I want a nearby plan", "Ich moechte einen Plan in der Naehe"),
-          t("Buscame alguien para una pelicula", "Find someone for a movie", "Finde jemanden fuer einen Film"),
-          t("Ayudame a negociar un trato", "Help me negotiate a deal", "Hilf mir, einen Deal zu verhandeln"),
+          t("Quiero un plan cerca", "I want a nearby plan", "Ich moechte einen Plan in der Naehe", {
+            fr: "Je veux un plan a proximite",
+            it: "Voglio un piano vicino",
+            pt: "Quero um plano por perto",
+          }),
+          t("Buscame alguien para una pelicula", "Find someone for a movie", "Finde jemanden fuer einen Film", {
+            fr: "Trouvez quelqu'un pour un film",
+            it: "Trovami qualcuno per un film",
+            pt: "Encontre alguem para um filme",
+          }),
+          t("Ayudame a negociar un trato", "Help me negotiate a deal", "Hilf mir, einen Deal zu verhandeln", {
+            fr: "Aidez-moi a negocier une offre",
+            it: "Aiutami a negoziare un'offerta",
+            pt: "Ajude-me a negociar uma oferta",
+          }),
         ],
         activityType: "discussion",
       },
@@ -597,11 +646,11 @@ export function getTimeSlotFromDate(date = new Date()): "morning" | "afternoon" 
   return "evening";
 }
 
-function pick<T>(value: Record<SocialLanguage, T>, language: SocialLanguage): T {
-  return value[language] ?? value.es;
+function pick<T>(value: Record<SocialLanguage, T> & Partial<Record<ExtraGameLanguage, T>>, language: SocialGameLanguage): T {
+  return value[language] ?? value.en ?? value.es;
 }
 
-export function localizeRoom(seed: SocialRoomSeed, language: SocialLanguage): Omit<SocialRoom, "sessionDate" | "topic" | "opener" | "quote" | "activityType" | "contentTag" | "contentTitle" | "contentBody" | "options" | "liveBadge"> {
+export function localizeRoom(seed: SocialRoomSeed, language: SocialGameLanguage): Omit<SocialRoom, "sessionDate" | "topic" | "opener" | "quote" | "activityType" | "contentTag" | "contentTitle" | "contentBody" | "options" | "liveBadge"> {
   return {
     slug: seed.slug,
     name: pick(seed.names, language),
@@ -620,7 +669,7 @@ export function localizeRoom(seed: SocialRoomSeed, language: SocialLanguage): Om
 
 export function buildDailyRoomSession(
   seed: SocialRoomSeed,
-  language: SocialLanguage = "es",
+  language: SocialGameLanguage = "es",
   date = new Date(),
 ) {
   const daySeed = Math.floor(date.getTime() / 86_400_000);

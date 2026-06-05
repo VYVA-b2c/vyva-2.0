@@ -79,6 +79,7 @@ import {
 import { normalizeAppLanguage } from "../../shared/language.js";
 
 type SocialLanguage = "es" | "de" | "en";
+type TogetherRoomLanguage = SocialGameLanguage;
 
 type InterestSnapshot = {
   interestTags: string[];
@@ -311,6 +312,10 @@ function normalizeLanguage(raw?: string | null): SocialLanguage {
 
 function normalizeGameLanguage(raw?: string | null): SocialGameLanguage {
   return normalizeAppLanguage(raw, "es");
+}
+
+function normalizeTogetherLanguage(raw?: string | null): TogetherRoomLanguage {
+  return normalizeGameLanguage(raw);
 }
 
 function appendReadingPreferenceTags(tags: string[], value: unknown, tagMap: Record<string, string[]>) {
@@ -886,7 +891,7 @@ async function ensureRoomRecords(slug: string) {
   );
 }
 
-function buildRoomPayload(slug: string, language: SocialLanguage) {
+function buildRoomPayload(slug: string, language: SocialGameLanguage) {
   const seed = getSocialRoomBySlug(slug);
   if (!seed) return null;
 
@@ -931,8 +936,11 @@ function scoreRoom(
   return score;
 }
 
-function toLiveBadge(language: SocialLanguage, participantCount: number) {
+function toLiveBadge(language: SocialGameLanguage, participantCount: number) {
   if (participantCount <= 0) {
+    if (language === "fr") return "Salle prete";
+    if (language === "it") return "Stanza pronta";
+    if (language === "pt") return "Sala pronta";
     return language === "de"
       ? "Sala preparada"
       : language === "en"
@@ -940,6 +948,9 @@ function toLiveBadge(language: SocialLanguage, participantCount: number) {
         : "Sala preparada";
   }
 
+  if (language === "fr") return `${participantCount} dans la salle`;
+  if (language === "it") return `${participantCount} nella stanza`;
+  if (language === "pt") return `${participantCount} na sala`;
   if (language === "de") return `${participantCount} im Raum`;
   if (language === "en") return `${participantCount} in the room`;
   return `${participantCount} en la sala`;
@@ -1873,7 +1884,7 @@ function applyConversationContextCue(
   return `${reply} ${cue}`;
 }
 
-function buildPromptChips(slug: string, language: SocialLanguage) {
+function buildPromptChips(slug: string, language: SocialGameLanguage) {
   const canonicalSlug = resolveSocialRoomSlug(slug);
   const chips: Record<string, Record<SocialLanguage, string[]>> = {
     "garden-chat": {
@@ -1912,6 +1923,11 @@ function buildPromptChips(slug: string, language: SocialLanguage) {
       en: ["I want a nearby plan", "Find a movie date", "Help me with a deal"],
     },
   };
+  const togetherChips: Partial<Record<SocialGameLanguage, string[]>> = {
+    fr: ["Je veux un plan a proximite", "Trouvez un rendez-vous film", "Aidez-moi avec une offre"],
+    it: ["Voglio un piano vicino", "Trova un appuntamento film", "Aiutami con un'offerta"],
+    pt: ["Quero um plano por perto", "Encontre um encontro de filme", "Ajude-me com uma oferta"],
+  };
 
   const fallback: Record<SocialLanguage, string[]> = {
     es: ["Explícamelo fácil", "Dame un ejemplo", "Quiero preguntar algo"],
@@ -1919,15 +1935,20 @@ function buildPromptChips(slug: string, language: SocialLanguage) {
     en: ["Explain it simply", "Give me an example", "I want to ask something"],
   };
 
-  return chips[canonicalSlug]?.[language] ?? chips[slug]?.[language] ?? fallback[language];
+  if (canonicalSlug === "together-room" || slug === "together-room") {
+    return togetherChips[language] ?? chips["together-room"][normalizeLanguage(language)];
+  }
+
+  const socialLanguage = normalizeLanguage(language);
+  return chips[canonicalSlug]?.[socialLanguage] ?? chips[slug]?.[socialLanguage] ?? fallback[socialLanguage];
 }
 
-function buildRoomMembers(slug: string, language: SocialLanguage, count: number) {
+function buildRoomMembers(slug: string, language: SocialGameLanguage, count: number) {
   const canonicalSlug = resolveSocialRoomSlug(slug);
   const offset = slug.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0) % memberCatalog.length;
   const visibleCount = Math.min(Math.max(count - 1, 2), 4);
   if (canonicalSlug === "together-room") {
-    const togetherMembers = {
+    const togetherMembers: Record<SocialGameLanguage, DisplayRoomMember[]> = {
       es: [
         { id: "member-carmen", name: "Carmen", sharedTopic: "Busca vivienda tranquila cerca", statusLabel: "Le interesa compartir casa" },
         { id: "member-luis", name: "Luis", sharedTopic: "Compara servicios locales", statusLabel: "Quiere reservar con otra persona" },
@@ -1946,10 +1967,30 @@ function buildRoomMembers(slug: string, language: SocialLanguage, count: number)
         { id: "member-ana", name: "Ana", sharedTopic: "Likes calm negotiation", statusLabel: "Reviewing an offer" },
         { id: "member-jose", name: "Jose", sharedTopic: "Enjoys classic movies", statusLabel: "Looking for a movie date" },
       ],
+      fr: [
+        { id: "member-carmen", name: "Carmen", sharedTopic: "Cherche un logement calme a proximite", statusLabel: "Interessee par le partage de logement" },
+        { id: "member-luis", name: "Luis", sharedTopic: "Compare des services locaux", statusLabel: "Veut reserver avec quelqu'un" },
+        { id: "member-ana", name: "Ana", sharedTopic: "Aime negocier calmement", statusLabel: "Examine une offre" },
+        { id: "member-jose", name: "Jose", sharedTopic: "Aime les films classiques", statusLabel: "Cherche un rendez-vous film" },
+      ],
+      it: [
+        { id: "member-carmen", name: "Carmen", sharedTopic: "Guarda una casa tranquilla vicina", statusLabel: "Interessata a condividere casa" },
+        { id: "member-luis", name: "Luis", sharedTopic: "Confronta servizi locali", statusLabel: "Vuole prenotare con qualcuno" },
+        { id: "member-ana", name: "Ana", sharedTopic: "Ama negoziare con calma", statusLabel: "Sta rivedendo un'offerta" },
+        { id: "member-jose", name: "Jose", sharedTopic: "Ama i film classici", statusLabel: "Cerca un appuntamento film" },
+      ],
+      pt: [
+        { id: "member-carmen", name: "Carmen", sharedTopic: "Procura habitacao calma por perto", statusLabel: "Interessada em partilhar casa" },
+        { id: "member-luis", name: "Luis", sharedTopic: "Compara servicos locais", statusLabel: "Quer reservar com companhia" },
+        { id: "member-ana", name: "Ana", sharedTopic: "Gosta de negociar com calma", statusLabel: "A rever uma oferta" },
+        { id: "member-jose", name: "Jose", sharedTopic: "Gosta de filmes classicos", statusLabel: "Procura encontro de filme" },
+      ],
     };
 
     return togetherMembers[language];
   }
+
+  const socialLanguage = normalizeLanguage(language);
 
   if (canonicalSlug === "reading-room") {
     const readingMembers = {
@@ -1973,11 +2014,11 @@ function buildRoomMembers(slug: string, language: SocialLanguage, count: number)
       ],
     };
 
-    return readingMembers[language].slice(0, visibleCount);
+    return readingMembers[socialLanguage].slice(0, visibleCount);
   }
 
   if (canonicalSlug === "music-room") {
-    return buildMusicRoomMembers(language).slice(0, visibleCount);
+    return buildMusicRoomMembers(socialLanguage).slice(0, visibleCount);
   }
 
   const members = Array.from({ length: visibleCount }, (_, index) => memberCatalog[(offset + index) % memberCatalog.length]);
@@ -2016,22 +2057,22 @@ function buildRoomMembers(slug: string, language: SocialLanguage, count: number)
     en: ["Is taking part now", "Asked for help", "Is viewing the example", "Shared an idea"],
   };
 
-  const pool = statuses[canonicalSlug]?.[language] ?? statuses[slug]?.[language] ?? fallbackStatuses[language];
+  const pool = statuses[canonicalSlug]?.[socialLanguage] ?? statuses[slug]?.[socialLanguage] ?? fallbackStatuses[socialLanguage];
 
   return members.map((member, index) => ({
     id: member.id,
     name: member.name,
     sharedTopic:
-      language === "de"
+      socialLanguage === "de"
         ? `Mag ${member.topics[index % member.topics.length]}`
-        : language === "en"
+        : socialLanguage === "en"
           ? `Likes ${member.topics[index % member.topics.length]}`
           : `Le gusta ${member.topics[index % member.topics.length]}`,
     statusLabel: pool[index % pool.length],
   }));
 }
 
-function buildRoomChat(slug: string, language: SocialLanguage, members: Array<{ id: string; name: string }>) {
+function buildRoomChat(slug: string, language: SocialGameLanguage, members: Array<{ id: string; name: string }>) {
   const canonicalSlug = resolveSocialRoomSlug(slug);
   const messages: Record<string, Record<SocialLanguage, string[]>> = {
     "garden-chat": {
@@ -2065,6 +2106,11 @@ function buildRoomChat(slug: string, language: SocialLanguage, members: Array<{ 
       en: ["I would choose a quiet cafe before booking.", "For a deal, it helps me write three questions first.", "For a restaurant, nearby and accessible matters to me."],
     },
   };
+  const togetherMessages: Partial<Record<SocialGameLanguage, string[]>> = {
+    fr: ["Je choisirais un cafe calme avant de reserver.", "Pour une offre, trois questions ecrites m'aident d'abord.", "Pour un restaurant, la proximite et l'accessibilite comptent pour moi."],
+    it: ["Sceglierei un caffe tranquillo prima di prenotare.", "Per un'offerta, mi aiuta scrivere prima tre domande.", "Per un ristorante, vicino e accessibile conta per me."],
+    pt: ["Eu escolheria um cafe tranquilo antes de reservar.", "Para uma oferta, ajuda-me escrever tres perguntas primeiro.", "Para um restaurante, perto e acessivel e importante para mim."],
+  };
 
   const fallback: Record<SocialLanguage, string[]> = {
     es: ["Me gusta cómo lo explica.", "Yo también quería preguntar eso."],
@@ -2090,14 +2136,17 @@ function buildRoomChat(slug: string, language: SocialLanguage, members: Array<{ 
     ],
   };
 
+  const socialLanguage = normalizeLanguage(language);
   const pool =
-    canonicalSlug === "games-room"
-      ? gamesRoomMessages[language]
-      : messages[canonicalSlug]?.[language] ?? messages[slug]?.[language] ?? fallback[language];
+    canonicalSlug === "together-room"
+      ? togetherMessages[language] ?? messages["together-room"][socialLanguage]
+      : canonicalSlug === "games-room"
+        ? gamesRoomMessages[socialLanguage]
+        : messages[canonicalSlug]?.[socialLanguage] ?? messages[slug]?.[socialLanguage] ?? fallback[socialLanguage];
   return pool.slice(0, Math.min(pool.length, members.length)).map((text, index) => ({
     id: `${slug}-chat-${index}`,
     authorId: members[index]?.id ?? `member-${index}`,
-    authorName: members[index]?.name ?? (language === "en" ? "Member" : language === "de" ? "Mitglied" : "Miembro"),
+    authorName: members[index]?.name ?? (language === "fr" ? "Membre" : language === "it" || language === "pt" ? "Membro" : socialLanguage === "en" ? "Member" : socialLanguage === "de" ? "Mitglied" : "Miembro"),
     text,
     createdAt: new Date(Date.now() - (index + 1) * 60000).toISOString(),
     connectable: true,
@@ -2135,17 +2184,20 @@ router.get("/hub", async (req: Request, res: Response) => {
   const userId = resolvePublicUserId(req);
 
   const profile = await loadProfileSummary(userId);
-  const language = normalizeLanguage((req.query.lang as string | undefined) ?? profile.language);
+  const rawLanguage = (req.query.lang as string | undefined) ?? profile.language;
+  const language = normalizeLanguage(rawLanguage);
+  const displayLanguage = normalizeGameLanguage(rawLanguage);
   const interests = await loadUserInterestSnapshot(userId);
   const timeSlot = getTimeSlotFromDate();
 
   const activeRooms = socialRoomSeeds
     .map((seed) => {
-      const payload = buildRoomPayload(seed.slug, language);
+      const roomLanguage = seed.slug === "together-room" ? displayLanguage : language;
+      const payload = buildRoomPayload(seed.slug, roomLanguage);
       if (!payload) return null;
       return {
         ...payload,
-        liveBadge: toLiveBadge(language, payload.participantCount),
+        liveBadge: toLiveBadge(roomLanguage, payload.participantCount),
         heroScore: scoreRoom(seed.slug, interests, payload.participantCount, timeSlot),
       };
     })
@@ -2177,11 +2229,13 @@ router.get("/rooms/:slug", async (req: Request, res: Response) => {
   const rawLanguage = (req.query.lang as string | undefined) ?? profile.language;
   const language = normalizeLanguage(rawLanguage);
   const gameLanguage = normalizeGameLanguage(rawLanguage);
-  const room = buildRoomPayload(req.params.slug, language);
+  const canonicalSlug = resolveSocialRoomSlug(req.params.slug);
+  const roomLanguage = canonicalSlug === "together-room" ? gameLanguage : language;
+  const room = buildRoomPayload(req.params.slug, roomLanguage);
   if (!room) return res.status(404).json({ error: "Room not found" });
 
-  const members = buildRoomMembers(room.slug, language, room.participantCount);
-  const memberChat = buildRoomChat(room.slug, language, members);
+  const members = buildRoomMembers(room.slug, roomLanguage, room.participantCount);
+  const memberChat = buildRoomChat(room.slug, roomLanguage, members);
   const visitState = await loadRoomVisitState(userId, room.slug);
   const conversationContext = await buildSafeConversationContext(userId, {
     roomSlug: room.slug,
@@ -2189,7 +2243,7 @@ router.get("/rooms/:slug", async (req: Request, res: Response) => {
   });
   const roomRecords = room.slug === "together-room" || room.slug === "reading-room" || room.slug === "music-room" ? await ensureRoomRecords(room.slug) : null;
   const pulse = room.slug === "together-room"
-    ? await buildTogetherRoomPulse(userId, language, roomRecords?.roomId ?? null, members)
+    ? await buildTogetherRoomPulse(userId, roomLanguage, roomRecords?.roomId ?? null, members)
     : room.slug === "reading-room"
       ? await buildReadingClubPulse(userId, language, roomRecords?.roomId ?? null, members)
       : undefined;
@@ -2209,7 +2263,7 @@ router.get("/rooms/:slug", async (req: Request, res: Response) => {
   return res.json({
     room: {
       ...room,
-      liveBadge: toLiveBadge(language, room.participantCount),
+      liveBadge: toLiveBadge(roomLanguage, room.participantCount),
     },
     transcript: [
       {
@@ -2219,7 +2273,7 @@ router.get("/rooms/:slug", async (req: Request, res: Response) => {
         createdAt: new Date().toISOString(),
       },
     ],
-    promptChips: room.options?.length ? room.options : buildPromptChips(room.slug, language),
+    promptChips: room.options?.length ? room.options : buildPromptChips(room.slug, roomLanguage),
     members,
     memberChat,
     visitState,
@@ -2262,15 +2316,18 @@ router.get("/rooms/:slug/game-rounds", async (req: Request, res: Response) => {
 router.get("/rooms/:slug/pulse", async (req: Request, res: Response) => {
   const userId = resolvePublicUserId(req);
   const profile = await loadProfileSummary(userId);
-  const language = normalizeLanguage((req.query.lang as string | undefined) ?? profile.language);
+  const rawLanguage = (req.query.lang as string | undefined) ?? profile.language;
+  const language = normalizeLanguage(rawLanguage);
+  const togetherLanguage = normalizeTogetherLanguage(rawLanguage);
   const slug = resolveSocialRoomSlug(req.params.slug);
   if (slug !== "together-room" && slug !== "reading-room") return res.status(400).json({ error: "This room does not support pulse actions" });
 
   const records = await ensureRoomRecords(slug);
-  const room = buildRoomPayload(slug, language);
-  const members = room ? buildRoomMembers(slug, language, room.participantCount) : undefined;
+  const roomLanguage = slug === "together-room" ? togetherLanguage : language;
+  const room = buildRoomPayload(slug, roomLanguage);
+  const members = room ? buildRoomMembers(slug, roomLanguage, room.participantCount) : undefined;
   const pulse = slug === "together-room"
-    ? await buildTogetherRoomPulse(userId, language, records?.roomId ?? null, members)
+    ? await buildTogetherRoomPulse(userId, togetherLanguage, records?.roomId ?? null, members)
     : await buildReadingClubPulse(userId, language, records?.roomId ?? null, members);
   return res.json({ pulse });
 });
@@ -2288,16 +2345,21 @@ router.post("/rooms/:slug/plans/:planId/respond", async (req: Request, res: Resp
   if (slug !== "together-room" && slug !== "reading-room") return res.status(400).json({ error: "This room does not support plan responses" });
 
   const records = await ensureRoomRecords(slug);
-  const payload = {
-    userId,
-    roomId: records?.roomId ?? null,
-    planKey: req.params.planId,
-    response: parsed.data.response,
-    language: normalizeLanguage(parsed.data.lang),
-  };
   const result = slug === "together-room"
-    ? await respondToTogetherPlan(payload)
-    : await respondToReadingClubPlan(payload);
+    ? await respondToTogetherPlan({
+        userId,
+        roomId: records?.roomId ?? null,
+        planKey: req.params.planId,
+        response: parsed.data.response,
+        language: normalizeTogetherLanguage(parsed.data.lang),
+      })
+    : await respondToReadingClubPlan({
+        userId,
+        roomId: records?.roomId ?? null,
+        planKey: req.params.planId,
+        response: parsed.data.response,
+        language: normalizeLanguage(parsed.data.lang),
+      });
 
   if ("error" in result) {
     return res.status(400).json({
@@ -2328,7 +2390,7 @@ router.post("/rooms/:slug/plans/:planId/replies", async (req: Request, res: Resp
     planKey: req.params.planId,
     body: parsed.data.body,
     tone: parsed.data.tone,
-    language: normalizeLanguage(parsed.data.lang),
+    language: normalizeTogetherLanguage(parsed.data.lang),
   });
 
   if ("error" in result) {
@@ -2443,16 +2505,21 @@ router.post("/rooms/:slug/polls/:pollId/vote", async (req: Request, res: Respons
   if (slug !== "together-room" && slug !== "reading-room") return res.status(400).json({ error: "This room does not support room votes" });
 
   const records = await ensureRoomRecords(slug);
-  const payload = {
-    userId,
-    roomId: records?.roomId ?? null,
-    pollKey: req.params.pollId,
-    optionId: parsed.data.optionId,
-    language: normalizeLanguage(parsed.data.lang),
-  };
   const result = slug === "together-room"
-    ? await voteTogetherPoll(payload)
-    : await voteReadingClubPoll(payload);
+    ? await voteTogetherPoll({
+        userId,
+        roomId: records?.roomId ?? null,
+        pollKey: req.params.pollId,
+        optionId: parsed.data.optionId,
+        language: normalizeTogetherLanguage(parsed.data.lang),
+      })
+    : await voteReadingClubPoll({
+        userId,
+        roomId: records?.roomId ?? null,
+        pollKey: req.params.pollId,
+        optionId: parsed.data.optionId,
+        language: normalizeLanguage(parsed.data.lang),
+      });
 
   if ("error" in result) return res.status(400).json({ error: result.error });
   return res.json({ ok: true, ...result });
@@ -2471,24 +2538,37 @@ router.post("/rooms/:slug/proposals", async (req: Request, res: Response) => {
   if (slug !== "together-room" && slug !== "reading-room") return res.status(400).json({ error: "This room does not support proposals" });
 
   const records = await ensureRoomRecords(slug);
-  const payload = {
-    userId,
-    roomSlug: slug,
-    roomId: records?.roomId ?? null,
-    title: parsed.data.title,
-    details: parsed.data.details,
-    locationLabel: parsed.data.locationLabel,
-    comfortNeeds: parsed.data.comfortNeeds,
-    kind: parsed.data.kind,
-    experienceCategory: parsed.data.experienceCategory,
-    preferredTime: parsed.data.preferredTime,
-    costRange: parsed.data.costRange,
-    groupSize: parsed.data.groupSize,
-    language: normalizeLanguage(parsed.data.lang),
-  };
   const result = slug === "together-room"
-    ? await createTogetherProposal(payload)
-    : await createReadingClubPost(payload);
+    ? await createTogetherProposal({
+        userId,
+        roomSlug: slug,
+        roomId: records?.roomId ?? null,
+        title: parsed.data.title,
+        details: parsed.data.details,
+        locationLabel: parsed.data.locationLabel,
+        comfortNeeds: parsed.data.comfortNeeds,
+        kind: parsed.data.kind,
+        experienceCategory: parsed.data.experienceCategory,
+        preferredTime: parsed.data.preferredTime,
+        costRange: parsed.data.costRange,
+        groupSize: parsed.data.groupSize,
+        language: normalizeTogetherLanguage(parsed.data.lang),
+      })
+    : await createReadingClubPost({
+        userId,
+        roomSlug: slug,
+        roomId: records?.roomId ?? null,
+        title: parsed.data.title,
+        details: parsed.data.details,
+        locationLabel: parsed.data.locationLabel,
+        comfortNeeds: parsed.data.comfortNeeds,
+        kind: parsed.data.kind,
+        experienceCategory: parsed.data.experienceCategory,
+        preferredTime: parsed.data.preferredTime,
+        costRange: parsed.data.costRange,
+        groupSize: parsed.data.groupSize,
+        language: normalizeLanguage(parsed.data.lang),
+      });
 
   return res.json({ ok: true, ...result });
 });
@@ -2549,7 +2629,10 @@ router.post("/rooms/:slug/safety-reports", async (req: Request, res: Response) =
   }
 
   const result = slug === "together-room"
-    ? await createTogetherSafetyReport(payload)
+    ? await createTogetherSafetyReport({
+        ...payload,
+        language: normalizeTogetherLanguage(parsed.data.lang),
+      })
     : await createReadingClubSafetyReport(payload);
 
   return res.json({ ok: true, ...result });
@@ -2572,7 +2655,7 @@ router.post("/rooms/:slug/safety-acknowledgement", async (req: Request, res: Res
     userId,
     roomSlug: slug,
     roomId: records?.roomId ?? null,
-    language: normalizeLanguage(parsed.data.lang),
+    language: normalizeTogetherLanguage(parsed.data.lang),
   });
 
   return res.json({ ok: true, ...result });
@@ -2596,7 +2679,7 @@ router.post("/rooms/:slug/comfort-check", async (req: Request, res: Response) =>
     roomSlug: slug,
     roomId: records?.roomId ?? null,
     comfortNeeds: parsed.data.comfortNeeds,
-    language: normalizeLanguage(parsed.data.lang),
+    language: normalizeTogetherLanguage(parsed.data.lang),
   });
 
   return res.json({ ok: true, ...result });
@@ -2620,7 +2703,7 @@ router.post("/rooms/:slug/notifications/:notificationId/read", async (req: Reque
     roomSlug: slug,
     roomId: records?.roomId ?? null,
     notificationId: req.params.notificationId,
-    language: normalizeLanguage(parsed.data.lang),
+    language: normalizeTogetherLanguage(parsed.data.lang),
   });
 
   return res.json({ ok: true, ...result });
@@ -2643,7 +2726,7 @@ router.post("/rooms/:slug/notifications/read-all", async (req: Request, res: Res
     userId,
     roomSlug: slug,
     roomId: records?.roomId ?? null,
-    language: normalizeLanguage(parsed.data.lang),
+    language: normalizeTogetherLanguage(parsed.data.lang),
   });
 
   return res.json({ ok: true, ...result });
@@ -2659,7 +2742,8 @@ router.post("/rooms/:slug/enter", async (req: Request, res: Response) => {
   }
 
   const slug = resolveSocialRoomSlug(req.params.slug);
-  const room = buildRoomPayload(slug, normalizeLanguage(parsed.data.lang));
+  const roomLanguage = slug === "together-room" ? normalizeTogetherLanguage(parsed.data.lang) : normalizeLanguage(parsed.data.lang);
+  const room = buildRoomPayload(slug, roomLanguage);
   if (!room) return res.status(404).json({ error: "Room not found" });
 
   const visitId = randomUUID();
@@ -2691,7 +2775,7 @@ router.post("/rooms/:slug/enter", async (req: Request, res: Response) => {
   return res.json({
     visitId,
     participantCount: getRoomParticipantCount(slug),
-    liveBadge: toLiveBadge(normalizeLanguage(parsed.data.lang), getRoomParticipantCount(slug)),
+    liveBadge: toLiveBadge(roomLanguage, getRoomParticipantCount(slug)),
     isFirstVisit: visitState.isFirstVisit,
     previousVisitCount: visitState.previousVisitCount,
     visitCount: visitState.visitCount,
