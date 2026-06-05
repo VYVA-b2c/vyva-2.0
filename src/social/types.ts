@@ -96,6 +96,9 @@ export type SocialGameTable = {
   roundCompleteLabel: string;
   rounds: SocialGameRound[];
   defaultRoundId: string;
+  defaultRoundIdsByKind?: Partial<Record<SocialGameKind, string>>;
+  defaultRoundIndexesByKind?: Partial<Record<SocialGameKind, number>>;
+  roundCountsByKind?: Partial<Record<SocialGameKind, number>>;
   readyMembers: SocialGameReadyMember[];
 };
 
