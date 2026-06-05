@@ -73,7 +73,7 @@ function fallbackGameTable(roomResponse: SocialRoomResponse) {
     chooseRoundLabel: "Choose a round",
     connectionTitle: "Find a playing partner",
     connectionBody: "VYVA only looks for people who opted in. Contact details stay private.",
-    startRoundLabel: "Start puzzle",
+    startRoundLabel: "Start this puzzle",
     completeRoundLabel: "Check answer",
     findPartnerLabel: "Find a playing partner",
     sayHelloLabel: "Say hello",
@@ -1512,32 +1512,32 @@ export default function GamesRoomScreen({
                   </div>
                 </div>
                 {puzzleBankLabels && selectedPuzzleTotal > 1 && (
-                  <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-[#D8E6E2] bg-[#F4FAF8] px-4 py-3">
+                  <div className="mt-5 flex items-center justify-between gap-3 rounded-[22px] border border-[#D8E6E2] bg-[#F4FAF8] px-4 py-3">
                     <p className="font-body text-[18px] font-extrabold text-[#087C82]">
                       {puzzleBankLabels.progress}
                     </p>
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex shrink-0 items-center gap-2">
                       <button
                         type="button"
                         onClick={() => selectPuzzleAtOffset(-1)}
                         disabled={isLoadingSelectedBank || selectedKindRounds.length < 2}
                         aria-label={puzzleBankLabels.previous}
+                        title={puzzleBankLabels.previous}
                         data-testid="games-previous-puzzle"
-                        className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-3 font-body text-[15px] font-extrabold text-[#075C64] shadow-[0_8px_18px_rgba(11,60,66,0.06)] disabled:opacity-55"
+                        className="flex h-[46px] w-[46px] items-center justify-center rounded-full border border-[#BFDAD7] bg-white text-[#075C64] shadow-[0_8px_18px_rgba(11,60,66,0.05)] transition-colors hover:bg-[#E8F7F6] disabled:opacity-45"
                       >
-                        <ChevronLeft size={19} />
-                        <span className="hidden sm:inline">{puzzleBankLabels.previous}</span>
+                        <ChevronLeft size={22} strokeWidth={3} />
                       </button>
                       <button
                         type="button"
                         onClick={() => selectPuzzleAtOffset(1)}
                         disabled={isLoadingSelectedBank || selectedKindRounds.length < 2}
                         aria-label={puzzleBankLabels.next}
+                        title={puzzleBankLabels.next}
                         data-testid="games-next-puzzle"
-                        className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] bg-[#087C82] px-4 font-body text-[16px] font-extrabold text-white shadow-[0_10px_22px_rgba(8,124,130,0.16)] disabled:bg-[#D8E6E2] disabled:text-[#61777D] disabled:shadow-none"
+                        className="flex h-[46px] w-[46px] items-center justify-center rounded-full border border-[#BFDAD7] bg-white text-[#075C64] shadow-[0_8px_18px_rgba(11,60,66,0.05)] transition-colors hover:bg-[#E8F7F6] disabled:opacity-45"
                       >
-                        <span>{puzzleBankLabels.next}</span>
-                        <ChevronRight size={19} />
+                        <ChevronRight size={22} strokeWidth={3} />
                       </button>
                     </div>
                   </div>
