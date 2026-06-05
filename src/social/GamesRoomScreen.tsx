@@ -13,6 +13,7 @@ import {
   Send,
   Spade,
   Sparkles,
+  Shuffle,
   Undo2,
   Users,
   type LucideIcon,
@@ -26,6 +27,7 @@ import type {
   SocialGameKind,
   SocialGameLanguage,
   SocialGameRound,
+  SocialGameRoundInteraction,
   SocialGameRoundVisual,
   SocialMatchResponse,
   SocialRoomChatItem,
@@ -318,6 +320,24 @@ function getWordClearLabel(language: SocialGameLanguage) {
   return "Borrar";
 }
 
+function getWordShuffleLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Melanger";
+  if (language === "it") return "Mescola";
+  if (language === "pt") return "Embaralhar";
+  if (language === "de") return "Mischen";
+  if (language === "en") return "Shuffle";
+  return "Mezclar";
+}
+
+function getWordRevealLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Une lettre";
+  if (language === "it") return "Una lettera";
+  if (language === "pt") return "Uma letra";
+  if (language === "de") return "Ein Buchstabe";
+  if (language === "en") return "One letter";
+  return "Una letra";
+}
+
 function getWordTrayLabel(language: SocialGameLanguage) {
   if (language === "fr") return "Ta reponse";
   if (language === "it") return "La tua risposta";
@@ -361,6 +381,32 @@ function getChoiceTryAgainCopy(language: SocialGameLanguage) {
   if (language === "de") return "Noch nicht ganz. Probiere eine andere Antwort.";
   if (language === "en") return "Not quite. Try another answer.";
   return "Todavia no. Prueba otra respuesta.";
+}
+
+function getTactileTryAgainCopy(language: SocialGameLanguage) {
+  if (language === "fr") return "Presque. Regarde l'indice et essaie un autre geste.";
+  if (language === "it") return "Quasi. Guarda l'aiuto e prova un altro gesto.";
+  if (language === "pt") return "Quase. Veja a dica e tente outro toque.";
+  if (language === "de") return "Fast. Schau auf den Hinweis und probiere eine andere Wahl.";
+  if (language === "en") return "Close. Look at the hint and try another table move.";
+  return "Casi. Mira la pista y prueba otro gesto en la mesa.";
+}
+
+function getTableTalkLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Autour de la table";
+  if (language === "it") return "Al tavolo";
+  if (language === "pt") return "Na mesa";
+  if (language === "de") return "Am Tisch";
+  if (language === "en") return "Table talk";
+  return "En la mesa";
+}
+
+function dominoTileKey(tile: [number, number]) {
+  return [...tile].sort((a, b) => a - b).join("-");
+}
+
+function isDominoTileAnswer(value: string, tile: [number, number] | undefined) {
+  return Boolean(tile) && value === dominoTileKey(tile);
 }
 
 function DominoTile({ tile, muted = false }: { tile: [number, number]; muted?: boolean }) {
@@ -436,10 +482,29 @@ function ChessPieceGlyph({ piece, cutout }: { piece: ChessPieceName; cutout: str
   );
 }
 
-function ChessBoardVisual({ visual }: { visual: Extract<SocialGameRoundVisual, { kind: "chessBoard" }> }) {
+function ChessBoardVisual({
+  visual,
+  interaction,
+  selectedSquare,
+  wrongSquare,
+  isComplete = false,
+  onSquareSelect,
+}: {
+  visual: Extract<SocialGameRoundVisual, { kind: "chessBoard" }>;
+  interaction?: Extract<SocialGameRoundInteraction, { kind: "chessTap" }>;
+  selectedSquare?: string | null;
+  wrongSquare?: string | null;
+  isComplete?: boolean;
+  onSquareSelect?: (square: string) => void;
+}) {
   const piecesBySquare = new Map(visual.pieces.map((piece) => [piece.square, piece]));
   const highlightSet = new Set(visual.highlights ?? []);
   const arrowTargets = new Set((visual.arrows ?? []).flatMap((arrow) => [arrow.from, arrow.to]));
+  const selectableSquares = new Set(interaction?.selectableSquares ?? [
+    ...visual.pieces.map((piece) => piece.square),
+    ...(visual.highlights ?? []),
+  ]);
+  const canTap = Boolean(interaction && onSquareSelect);
 
   return (
     <div className="rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-4" data-testid="games-visual-chess">
@@ -452,13 +517,14 @@ function ChessBoardVisual({ visual }: { visual: Extract<SocialGameRoundVisual, {
           const piece = piecesBySquare.get(square);
           const dark = (file + rank) % 2 === 0;
           const marked = highlightSet.has(square) || arrowTargets.has(square);
-
-          return (
-            <div
-              key={square}
-              className={`relative flex items-center justify-center text-[11px] font-black ${dark ? "bg-[#8CB5A7]" : "bg-[#F2E7D5]"}`}
-            >
+          const selected = selectedSquare === square;
+          const wrong = wrongSquare === square;
+          const squareClassName = `relative flex aspect-square items-center justify-center text-[11px] font-black ${dark ? "bg-[#8CB5A7]" : "bg-[#F2E7D5]"} ${canTap ? "focus:outline-none focus-visible:ring-4 focus-visible:ring-[#FBBF24]" : ""}`;
+          const content = (
+            <>
               {marked && <span className="absolute inset-1 rounded-[8px] border-2 border-[#F59E0B]" />}
+              {selected && <span className="absolute inset-1 rounded-[8px] border-4 border-[#087C82]" />}
+              {wrong && <span className="absolute inset-1 rounded-[8px] border-4 border-[#D97706]" />}
               {piece && (
                 <span
                   aria-label={chessPieceDescriptions[piece.piece]}
@@ -468,6 +534,33 @@ function ChessBoardVisual({ visual }: { visual: Extract<SocialGameRoundVisual, {
                   <ChessPieceGlyph piece={piece.piece} cutout={piece.piece.startsWith("white") ? "#FFFDF7" : "#173941"} />
                 </span>
               )}
+            </>
+          );
+
+          if (canTap) {
+            const tappable = selectableSquares.has(square);
+
+            return (
+              <button
+                key={square}
+                type="button"
+                onClick={() => onSquareSelect?.(square)}
+                disabled={isComplete || !tappable}
+                aria-label={piece ? `${chessPieceDescriptions[piece.piece]} on ${square}` : `Chess square ${square}`}
+                data-testid={`chess-square-${square}`}
+                className={`${squareClassName} disabled:cursor-default`}
+              >
+                {content}
+              </button>
+            );
+          }
+
+          return (
+            <div
+              key={square}
+              className={squareClassName}
+            >
+              {content}
             </div>
           );
         })}
@@ -543,11 +636,184 @@ function BridgeCardsVisual({ visual }: { visual: Extract<SocialGameRoundVisual, 
   );
 }
 
-function PuzzleVisualPanel({ visual }: { visual?: SocialGameRoundVisual }) {
+function PuzzleVisualPanel({
+  visual,
+  interaction,
+  selectedTactileValue,
+  wrongTactileValue,
+  isComplete,
+  onChessSquareSelect,
+}: {
+  visual?: SocialGameRoundVisual;
+  interaction?: SocialGameRoundInteraction;
+  selectedTactileValue?: string | null;
+  wrongTactileValue?: string | null;
+  isComplete?: boolean;
+  onChessSquareSelect?: (square: string) => void;
+}) {
   if (!visual || visual.kind === "wordTiles") return null;
-  if (visual.kind === "chessBoard") return <ChessBoardVisual visual={visual} />;
+  if (visual.kind === "chessBoard") {
+    return (
+      <ChessBoardVisual
+        visual={visual}
+        interaction={interaction?.kind === "chessTap" ? interaction : undefined}
+        selectedSquare={selectedTactileValue}
+        wrongSquare={wrongTactileValue}
+        isComplete={isComplete}
+        onSquareSelect={onChessSquareSelect}
+      />
+    );
+  }
   if (visual.kind === "dominoes") return <DominoesVisual visual={visual} />;
   return <BridgeCardsVisual visual={visual} />;
+}
+
+function RoundCompletePanel({
+  round,
+  language,
+  roundCompleteLabel,
+}: {
+  round: SocialGameRound;
+  language: SocialGameLanguage;
+  roundCompleteLabel: string;
+}) {
+  return (
+    <div className="rounded-[22px] border border-[#BDE8D4] bg-[#EFFBF4] px-4 py-4" data-testid="games-round-complete">
+      <p className="flex items-center gap-2 font-body text-[19px] font-extrabold text-[#087443]">
+        <Check size={21} strokeWidth={3} />
+        {roundCompleteLabel}
+      </p>
+      <p className="mt-2 font-body text-[18px] font-semibold leading-snug text-[#31594A]">
+        {round.successMessage}
+      </p>
+      {round.explanation && (
+        <p className="mt-3 rounded-[16px] bg-white/70 px-4 py-3 font-body text-[16px] font-bold leading-snug text-[#31594A]">
+          {round.explanation}
+        </p>
+      )}
+      {round.tableTalkPrompt && (
+        <p className="mt-3 rounded-[16px] bg-[#F7F1E7] px-4 py-3 font-body text-[16px] font-extrabold leading-snug text-[#7A4D08]">
+          {getTableTalkLabel(language)}: {round.tableTalkPrompt}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function TactileInteractionPanel({
+  interaction,
+  language,
+  selectedTactileValue,
+  isComplete,
+  onTactileAnswer,
+  onShowHelp,
+}: {
+  interaction?: SocialGameRoundInteraction;
+  language: SocialGameLanguage;
+  selectedTactileValue: string | null;
+  isComplete: boolean;
+  onTactileAnswer: (value: string) => void;
+  onShowHelp: () => void;
+}) {
+  if (!interaction || interaction.kind === "wordBuild") return null;
+
+  const helpButton = (
+    <button
+      type="button"
+      onClick={onShowHelp}
+      disabled={isComplete}
+      data-testid="games-show-help"
+      className="min-h-[48px] rounded-[16px] border border-[#BFDAD7] bg-white px-4 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-45"
+    >
+      {getWordHelpLabel(language)}
+    </button>
+  );
+
+  if (interaction.kind === "chessTap") {
+    return (
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-[22px] bg-[#F4FAF8] px-4 py-3" data-testid="games-tactile-chess">
+        <p className="font-body text-[16px] font-extrabold leading-snug text-[#31555D]">{interaction.instruction}</p>
+        {helpButton}
+      </div>
+    );
+  }
+
+  if (interaction.kind === "dominoPlay") {
+    const tiles = interaction.candidateTiles ?? (interaction.answerTile ? [interaction.answerTile] : []);
+
+    return (
+      <div className="mt-4 rounded-[22px] bg-[#F4FAF8] px-4 py-4" data-testid="games-tactile-dominoes">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="font-body text-[16px] font-extrabold leading-snug text-[#31555D]">{interaction.instruction}</p>
+          {helpButton}
+        </div>
+        {tiles.length > 0 ? (
+          <div className="mt-3 flex flex-wrap gap-3">
+            {tiles.map((tile, index) => {
+              const value = dominoTileKey(tile);
+              const active = selectedTactileValue === value;
+              return (
+                <button
+                  key={`${tile[0]}-${tile[1]}-${index}`}
+                  type="button"
+                  onClick={() => onTactileAnswer(value)}
+                  disabled={isComplete}
+                  aria-pressed={active}
+                  aria-label={`Play domino ${tile[0]}-${tile[1]}`}
+                  data-testid={`domino-tile-${tile[0]}-${tile[1]}`}
+                  className={`rounded-[18px] border-2 bg-white p-2 shadow-[0_10px_20px_rgba(24,60,66,0.10)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#FBBF24] disabled:opacity-50 ${active ? "border-[#087C82]" : "border-transparent"}`}
+                >
+                  <DominoTile tile={tile} />
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            {(interaction.actions ?? []).map((action) => (
+              <button
+                key={action.id}
+                type="button"
+                onClick={() => onTactileAnswer(action.id)}
+                disabled={isComplete}
+                data-testid={`domino-action-${action.id}`}
+                className="min-h-[56px] rounded-[18px] border border-[#D8E6E2] bg-white px-4 font-body text-[18px] font-bold text-[#173941] shadow-[0_8px_18px_rgba(11,60,66,0.06)] disabled:opacity-50"
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 rounded-[22px] bg-[#F4FAF8] px-4 py-4" data-testid="games-tactile-bridge">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="font-body text-[16px] font-extrabold leading-snug text-[#31555D]">{interaction.instruction}</p>
+        {helpButton}
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        {interaction.actions.map((action) => {
+          const active = selectedTactileValue === action.id;
+          return (
+            <button
+              key={action.id}
+              type="button"
+              onClick={() => onTactileAnswer(action.id)}
+              disabled={isComplete}
+              aria-pressed={active}
+              data-testid={`bridge-action-${action.id}`}
+              className={`min-h-[58px] rounded-[18px] border px-4 font-body text-[18px] font-bold shadow-[0_8px_18px_rgba(11,60,66,0.06)] disabled:opacity-50 ${active ? "border-[#087C82] bg-[#E8F7F6] text-[#075C64]" : "border-[#D8E6E2] bg-white text-[#173941]"}`}
+            >
+              {action.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 type WordTilesInteractionProps = {
@@ -555,6 +821,7 @@ type WordTilesInteractionProps = {
   visual: Extract<SocialGameRoundVisual, { kind: "wordTiles" }>;
   language: SocialGameLanguage;
   selectedTileIndices: number[];
+  tileOrder: number[];
   showHelp: boolean;
   showChoices: boolean;
   feedback: string | null;
@@ -563,8 +830,10 @@ type WordTilesInteractionProps = {
   onChooseTile: (index: number) => void;
   onUndo: () => void;
   onClear: () => void;
+  onShuffle: () => void;
   onShowHelp: () => void;
   onShowChoices: () => void;
+  onRevealLetter: () => void;
   onCheckAnswer: () => void;
   onChooseHelpChoice: (choice: string) => void;
 };
@@ -574,6 +843,7 @@ function WordTilesInteraction({
   visual,
   language,
   selectedTileIndices,
+  tileOrder,
   showHelp,
   showChoices,
   feedback,
@@ -582,14 +852,19 @@ function WordTilesInteraction({
   onChooseTile,
   onUndo,
   onClear,
+  onShuffle,
   onShowHelp,
   onShowChoices,
+  onRevealLetter,
   onCheckAnswer,
   onChooseHelpChoice,
 }: WordTilesInteractionProps) {
   const selectedSet = new Set(selectedTileIndices);
   const selectedTiles = selectedTileIndices.map((index) => visual.tiles[index]).filter(Boolean);
   const traySlots = Array.from({ length: Math.max(1, visual.answerLength) }, (_, index) => selectedTiles[index] ?? "");
+  const orderedTileIndices = tileOrder.length === visual.tiles.length
+    ? tileOrder
+    : visual.tiles.map((_tile, index) => index);
   const progressLabel = getWordProgressLabel(language, selectedTileIndices.length, visual.answerLength);
 
   return (
@@ -612,7 +887,7 @@ function WordTilesInteraction({
             {traySlots.map((tile, index) => (
               <div
                 key={`${tile || "slot"}-${index}`}
-                className="flex min-h-[64px] min-w-[64px] items-center justify-center rounded-[18px] border-2 border-dashed border-[#A8D4CF] bg-[#FBFEFC] px-3 font-body text-[24px] font-black text-[#075C64]"
+                className={`flex min-h-[64px] min-w-[64px] items-center justify-center rounded-[18px] border-2 px-3 font-body text-[24px] font-black text-[#075C64] ${tile ? "border-[#087C82] bg-[#E8F7F6] shadow-[0_8px_18px_rgba(8,124,130,0.10)]" : "border-dashed border-[#A8D4CF] bg-[#FBFEFC]"}`}
               >
                 {tile}
               </div>
@@ -623,7 +898,8 @@ function WordTilesInteraction({
         <div className="mt-4">
           <p className="font-body text-[15px] font-extrabold uppercase text-[#597178]">{getWordRackLabel(language)}</p>
           <div className="mt-2 flex flex-wrap gap-2" aria-label={getWordRackLabel(language)}>
-            {visual.tiles.map((tile, index) => {
+            {orderedTileIndices.map((index) => {
+              const tile = visual.tiles[index];
               const used = selectedSet.has(index);
               return (
                 <button
@@ -642,7 +918,7 @@ function WordTilesInteraction({
           </div>
         </div>
 
-        <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_1fr_1fr_1.35fr]">
+        <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_1fr_1fr_1fr_1.35fr]">
           <button
             type="button"
             onClick={onUndo}
@@ -660,6 +936,16 @@ function WordTilesInteraction({
           >
             <Eraser size={18} />
             {getWordClearLabel(language)}
+          </button>
+          <button
+            type="button"
+            onClick={onShuffle}
+            disabled={isComplete || visual.tiles.length < 2}
+            data-testid="word-shuffle"
+            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-3 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40"
+          >
+            <Shuffle size={18} />
+            {getWordShuffleLabel(language)}
           </button>
           <button
             type="button"
@@ -692,18 +978,29 @@ function WordTilesInteraction({
       {showHelp && !isComplete && (
         <div className="rounded-[20px] bg-[#F4FAF8] px-4 py-3" data-testid="word-help-panel">
           <p className="font-body text-[16px] font-extrabold leading-snug text-[#527079]">
-            {getHintLabel(language)}: {round.hint}
+          {getHintLabel(language)}: {round.hint}
           </p>
-          {!showChoices && (
+          <div className="mt-3 flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={onShowChoices}
-              data-testid="word-show-choices"
-              className="mt-3 min-h-[46px] rounded-[16px] border border-[#BFDAD7] bg-white px-4 font-body text-[15px] font-extrabold text-[#075C64]"
+              onClick={onRevealLetter}
+              disabled={selectedTileIndices.length >= visual.answerLength}
+              data-testid="word-reveal-letter"
+              className="min-h-[46px] rounded-[16px] border border-[#BFDAD7] bg-white px-4 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-45"
             >
-              {getWordShowChoicesLabel(language)}
+              {getWordRevealLabel(language)}
             </button>
-          )}
+            {!showChoices && (
+              <button
+                type="button"
+                onClick={onShowChoices}
+                data-testid="word-show-choices"
+                className="min-h-[46px] rounded-[16px] border border-[#BFDAD7] bg-white px-4 font-body text-[15px] font-extrabold text-[#075C64]"
+              >
+                {getWordShowChoicesLabel(language)}
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -728,15 +1025,7 @@ function WordTilesInteraction({
       )}
 
       {isComplete && (
-        <div className="rounded-[22px] border border-[#BDE8D4] bg-[#EFFBF4] px-4 py-4">
-          <p className="flex items-center gap-2 font-body text-[19px] font-extrabold text-[#087443]">
-            <Check size={21} strokeWidth={3} />
-            {roundCompleteLabel}
-          </p>
-          <p className="mt-2 font-body text-[18px] font-semibold leading-snug text-[#31594A]">
-            {round.successMessage}
-          </p>
-        </div>
+        <RoundCompletePanel round={round} language={language} roundCompleteLabel={roundCompleteLabel} />
       )}
     </div>
   );
@@ -763,10 +1052,16 @@ export default function GamesRoomScreen({
   const [isMatching, setIsMatching] = useState(false);
   const [matchResponse, setMatchResponse] = useState<SocialMatchResponse | null>(null);
   const [selectedWordTileIndices, setSelectedWordTileIndices] = useState<number[]>([]);
+  const [wordTileOrder, setWordTileOrder] = useState<number[]>([]);
   const [showWordHelp, setShowWordHelp] = useState(false);
   const [showWordChoices, setShowWordChoices] = useState(false);
   const [wordFeedback, setWordFeedback] = useState<string | null>(null);
   const [choiceFeedback, setChoiceFeedback] = useState<string | null>(null);
+  const [selectedTactileValue, setSelectedTactileValue] = useState<string | null>(null);
+  const [wrongTactileValue, setWrongTactileValue] = useState<string | null>(null);
+  const [showTactileHelp, setShowTactileHelp] = useState(false);
+  const [showTactileChoices, setShowTactileChoices] = useState(false);
+  const [tactileFeedback, setTactileFeedback] = useState<string | null>(null);
   const [persistedCompletedRoundKeys, setPersistedCompletedRoundKeys] = useState<string[]>([]);
   const [persistedSkippedRoundKeys, setPersistedSkippedRoundKeys] = useState<string[]>([]);
   const [loadingRoundKind, setLoadingRoundKind] = useState<SocialGameKind | null>(null);
@@ -857,6 +1152,15 @@ export default function GamesRoomScreen({
     selectedRound?.kind,
   ]);
 
+  useEffect(() => {
+    if (!selectedWordVisual) {
+      setWordTileOrder([]);
+      return;
+    }
+
+    setWordTileOrder(selectedWordVisual.tiles.map((_tile, index) => index));
+  }, [selectedRound?.id, selectedWordVisual]);
+
   const persistRoundStatus = async (round: SocialGameRound, status: "started" | "completed" | "skipped") => {
     await apiFetch(`/api/social/rooms/${room.slug}/game-round`, {
       method: "POST",
@@ -892,6 +1196,11 @@ export default function GamesRoomScreen({
     setShowWordChoices(false);
     setWordFeedback(null);
     setChoiceFeedback(null);
+    setSelectedTactileValue(null);
+    setWrongTactileValue(null);
+    setShowTactileHelp(false);
+    setShowTactileChoices(false);
+    setTactileFeedback(null);
   };
 
   const selectPuzzleAtOffset = (offset: number) => {
@@ -910,6 +1219,14 @@ export default function GamesRoomScreen({
     void persistRoundStatus(round, "completed").catch(() => undefined);
   };
 
+  const markRoundComplete = (round: SocialGameRound) => {
+    setCompletedRoundId(round.id);
+    setChoiceFeedback(null);
+    setTactileFeedback(null);
+    setWrongTactileValue(null);
+    persistCompletedRound(round);
+  };
+
   const startRound = async () => {
     if (!selectedRound) return;
 
@@ -922,6 +1239,11 @@ export default function GamesRoomScreen({
     setShowWordChoices(false);
     setWordFeedback(null);
     setChoiceFeedback(null);
+    setSelectedTactileValue(null);
+    setWrongTactileValue(null);
+    setShowTactileHelp(false);
+    setShowTactileChoices(false);
+    setTactileFeedback(null);
     setIsPersistingRound(true);
 
     try {
@@ -933,17 +1255,47 @@ export default function GamesRoomScreen({
     }
   };
 
-  const completeRound = () => {
-    if (!selectedRound || !selectedChoice) return;
+  const completeChoiceAnswer = (choice: string) => {
+    if (!selectedRound) return;
 
-    if (normalizeChoiceAnswer(selectedChoice) === normalizeChoiceAnswer(selectedRound.answer)) {
-      setCompletedRoundId(selectedRound.id);
-      setChoiceFeedback(null);
-      persistCompletedRound(selectedRound);
+    setSelectedChoice(choice);
+
+    if (normalizeChoiceAnswer(choice) === normalizeChoiceAnswer(selectedRound.answer)) {
+      markRoundComplete(selectedRound);
       return;
     }
 
+    setTactileFeedback(null);
     setChoiceFeedback(getChoiceTryAgainCopy(language));
+    setShowTactileHelp(true);
+    setShowTactileChoices(true);
+  };
+
+  const isCorrectTactileAnswer = (interaction: SocialGameRoundInteraction, value: string) => {
+    if (interaction.kind === "chessTap") return interaction.answerSquares.includes(value);
+    if (interaction.kind === "dominoPlay") {
+      if (interaction.answerTile) return isDominoTileAnswer(value, interaction.answerTile);
+      return Boolean(interaction.answerActionId) && interaction.answerActionId === value;
+    }
+    if (interaction.kind === "bridgeAction") return interaction.answerActionId === value;
+    return false;
+  };
+
+  const chooseTactileAnswer = (value: string) => {
+    if (!selectedRound?.interaction || selectedRound.interaction.kind === "wordBuild" || hasCompletedSelectedRound) return;
+
+    setSelectedTactileValue(value);
+    setChoiceFeedback(null);
+
+    if (isCorrectTactileAnswer(selectedRound.interaction, value)) {
+      markRoundComplete(selectedRound);
+      return;
+    }
+
+    setWrongTactileValue(value);
+    setTactileFeedback(getTactileTryAgainCopy(language));
+    setShowTactileHelp(true);
+    setShowTactileChoices(true);
   };
 
   const chooseWordTile = (index: number) => {
@@ -965,14 +1317,53 @@ export default function GamesRoomScreen({
     setWordFeedback(null);
   };
 
+  const shuffleWordTiles = () => {
+    if (!selectedWordVisual || hasCompletedSelectedRound) return;
+
+    setWordTileOrder((current) => {
+      const order = current.length === selectedWordVisual.tiles.length
+        ? [...current]
+        : selectedWordVisual.tiles.map((_tile, index) => index);
+      const availablePositions = order
+        .map((tileIndex, position) => selectedWordTileIndices.includes(tileIndex) ? -1 : position)
+        .filter((position) => position >= 0);
+      if (availablePositions.length < 2) return order;
+
+      const availableTiles = availablePositions.map((position) => order[position]);
+      const rotatedTiles = [...availableTiles.slice(1), availableTiles[0]];
+      availablePositions.forEach((position, index) => {
+        order[position] = rotatedTiles[index];
+      });
+      return order;
+    });
+  };
+
+  const revealWordLetter = () => {
+    if (!selectedRound || !selectedWordVisual || hasCompletedSelectedRound) return;
+    setShowWordHelp(true);
+
+    const answer = normalizeWordAnswer(selectedRound.answer);
+    const current = selectedWordTileIndices.map((index) => selectedWordVisual.tiles[index]).join("");
+    const currentAnswer = normalizeWordAnswer(current);
+    const nextIndex = selectedWordVisual.tiles.findIndex((tile, index) => {
+      if (selectedWordTileIndices.includes(index)) return false;
+      const candidate = normalizeWordAnswer(`${current}${tile}`);
+      return answer.startsWith(candidate) && candidate.length > currentAnswer.length;
+    });
+
+    if (nextIndex >= 0) {
+      setSelectedWordTileIndices((currentIndices) => [...currentIndices, nextIndex]);
+      setWordFeedback(null);
+    }
+  };
+
   const completeWordChoice = (choice: string) => {
     if (!selectedRound) return;
 
     if (normalizeWordAnswer(choice) === normalizeWordAnswer(selectedRound.answer)) {
       setSelectedChoice(selectedRound.answer);
-      setCompletedRoundId(selectedRound.id);
       setWordFeedback(null);
-      persistCompletedRound(selectedRound);
+      markRoundComplete(selectedRound);
     } else {
       setShowWordHelp(true);
       setShowWordChoices(true);
@@ -1155,7 +1546,14 @@ export default function GamesRoomScreen({
                 {hasStartedSelectedRound ? (
                   <div className="mt-5">
                     <div className="mb-4">
-                      <PuzzleVisualPanel visual={selectedRound.visual} />
+                      <PuzzleVisualPanel
+                        visual={selectedRound.visual}
+                        interaction={selectedRound.interaction}
+                        selectedTactileValue={selectedTactileValue}
+                        wrongTactileValue={wrongTactileValue}
+                        isComplete={hasCompletedSelectedRound}
+                        onChessSquareSelect={chooseTactileAnswer}
+                      />
                     </div>
                     <p className="font-body text-[22px] font-bold leading-snug text-[#173941]">{selectedRound.prompt}</p>
 
@@ -1165,6 +1563,7 @@ export default function GamesRoomScreen({
                         visual={selectedWordVisual}
                         language={language}
                         selectedTileIndices={selectedWordTileIndices}
+                        tileOrder={wordTileOrder}
                         showHelp={showWordHelp}
                         showChoices={showWordChoices}
                         feedback={wordFeedback}
@@ -1173,21 +1572,56 @@ export default function GamesRoomScreen({
                         onChooseTile={chooseWordTile}
                         onUndo={undoWordTile}
                         onClear={clearWordTiles}
+                        onShuffle={shuffleWordTiles}
                         onShowHelp={() => setShowWordHelp(true)}
                         onShowChoices={() => {
                           setShowWordHelp(true);
                           setShowWordChoices(true);
                         }}
+                        onRevealLetter={revealWordLetter}
                         onCheckAnswer={checkWordAnswer}
                         onChooseHelpChoice={completeWordChoice}
                       />
                     ) : (
                       <>
-                        <p className="mt-3 rounded-[18px] bg-[#F4FAF8] px-4 py-3 font-body text-[17px] font-semibold leading-snug text-[#527079]">
-                          {getHintLabel(language)}: {selectedRound.hint}
-                        </p>
+                        <TactileInteractionPanel
+                          interaction={selectedRound.interaction}
+                          language={language}
+                          selectedTactileValue={selectedTactileValue}
+                          isComplete={hasCompletedSelectedRound}
+                          onTactileAnswer={chooseTactileAnswer}
+                          onShowHelp={() => setShowTactileHelp(true)}
+                        />
 
-                        <div className="mt-4" aria-label={getRoundActionLabel(language)}>
+                        {tactileFeedback && !hasCompletedSelectedRound && (
+                          <p className="mt-3 rounded-[18px] bg-[#FFF7E8] px-4 py-3 font-body text-[17px] font-bold leading-snug text-[#8A5200]" role="status">
+                            {tactileFeedback}
+                          </p>
+                        )}
+
+                        {(showTactileHelp || !selectedRound.interaction) && !hasCompletedSelectedRound && (
+                          <div className="mt-3 rounded-[18px] bg-[#F4FAF8] px-4 py-3">
+                            <p className="font-body text-[17px] font-semibold leading-snug text-[#527079]">
+                              {getHintLabel(language)}: {selectedRound.hint}
+                            </p>
+                            {!showTactileChoices && selectedRound.interaction && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowTactileHelp(true);
+                                  setShowTactileChoices(true);
+                                }}
+                                data-testid="games-show-choices"
+                                className="mt-3 min-h-[46px] rounded-[16px] border border-[#BFDAD7] bg-white px-4 font-body text-[15px] font-extrabold text-[#075C64]"
+                              >
+                                {getWordShowChoicesLabel(language)}
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                        {(showTactileChoices || !selectedRound.interaction) && !hasCompletedSelectedRound && (
+                        <div className="mt-4" aria-label={getRoundActionLabel(language)} data-testid="games-help-choices">
                           <div className="grid gap-2 sm:grid-cols-3">
                             {selectedRound.choices.map((choice) => {
                               const active = choice === selectedChoice;
@@ -1195,10 +1629,7 @@ export default function GamesRoomScreen({
                                 <button
                                   key={choice}
                                   type="button"
-                                  onClick={() => {
-                                    setSelectedChoice(choice);
-                                    setChoiceFeedback(null);
-                                  }}
+                                  onClick={() => completeChoiceAnswer(choice)}
                                   aria-pressed={active}
                                   className="min-h-[56px] rounded-[18px] border px-4 font-body text-[18px] font-bold"
                                   style={{
@@ -1213,33 +1644,21 @@ export default function GamesRoomScreen({
                             })}
                           </div>
                         </div>
+                        )}
                         {choiceFeedback && (
                           <p className="mt-3 rounded-[18px] bg-[#FFF7E8] px-4 py-3 font-body text-[17px] font-bold leading-snug text-[#8A5200]" role="status">
                             {choiceFeedback}
                           </p>
                         )}
 
-                        {hasCompletedSelectedRound ? (
-                          <div className="mt-5 rounded-[22px] border border-[#BDE8D4] bg-[#EFFBF4] px-4 py-4">
-                            <p className="flex items-center gap-2 font-body text-[19px] font-extrabold text-[#087443]">
-                              <Check size={21} strokeWidth={3} />
-                              {gameTable.roundCompleteLabel}
-                            </p>
-                            <p className="mt-2 font-body text-[18px] font-semibold leading-snug text-[#31594A]">
-                              {selectedRound.successMessage}
-                            </p>
+                        {hasCompletedSelectedRound && (
+                          <div className="mt-5">
+                            <RoundCompletePanel
+                              round={selectedRound}
+                              language={language}
+                              roundCompleteLabel={gameTable.roundCompleteLabel}
+                            />
                           </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={completeRound}
-                            disabled={!selectedChoice}
-                            data-testid="games-complete-round"
-                            className="mt-5 flex min-h-[62px] w-full items-center justify-center gap-3 rounded-[20px] bg-[#087C82] px-5 font-body text-[21px] font-extrabold text-white shadow-[0_14px_30px_rgba(8,124,130,0.18)] disabled:bg-[#D8E6E2] disabled:text-[#61777D] disabled:shadow-none"
-                          >
-                            <Check size={24} strokeWidth={3} />
-                            {gameTable.completeRoundLabel}
-                          </button>
                         )}
                       </>
                     )}
