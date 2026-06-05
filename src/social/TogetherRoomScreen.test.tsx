@@ -344,7 +344,7 @@ describe("TogetherRoomScreen", () => {
             title: "Tea at a quiet cafe",
             body: "Friday afternoon, nearby if possible.",
             locationLabel: "nearby",
-            comfortNeeds: ["quiet_pace", "easy_access", "transport_help"],
+            comfortNeeds: ["easy_access", "seating", "quiet_pace", "transport_help"],
             experienceCategory: "restaurant_date",
             preferredTime: "afternoon",
             costRange: "shared",
@@ -492,7 +492,7 @@ describe("TogetherRoomScreen", () => {
             title: "Tea at a quiet cafe",
             body: "Friday afternoon, nearby if possible.",
             locationLabel: "nearby",
-            comfortNeeds: ["quiet_pace", "easy_access", "transport_help"],
+            comfortNeeds: ["easy_access", "seating", "quiet_pace", "transport_help"],
             experienceCategory: "restaurant_date",
             preferredTime: "afternoon",
             costRange: "shared",
@@ -517,17 +517,24 @@ describe("TogetherRoomScreen", () => {
     expect(screen.queryByPlaceholderText("Write one small idea...")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("together-starter-plan"));
+    expect(screen.getByText("Start with one idea")).toBeInTheDocument();
+    expect(screen.getByText("You can change anything before posting.")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("together-plan-preset-quiet_lunch"));
+    expect(screen.getByPlaceholderText("Write one small idea...")).toHaveValue(
+      "I would like to suggest a quiet lunch nearby, somewhere accessible with time to talk.",
+    );
     expect(screen.getByText("What kind of experience?")).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("together-proposal-category-restaurant_date"));
+    expect(screen.getByTestId("together-proposal-category-restaurant_date")).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("What would fit best?")).toBeInTheDocument();
     expect(screen.getByTestId("together-proposal-location-nearby")).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("together-proposal-location-online")).toHaveAttribute("aria-pressed", "false");
-    fireEvent.click(screen.getByTestId("together-proposal-time-afternoon"));
-    fireEvent.click(screen.getByTestId("together-proposal-cost-shared"));
-    fireEvent.click(screen.getByTestId("together-proposal-group-small_group"));
+    expect(screen.getByTestId("together-proposal-time-afternoon")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("together-proposal-cost-shared")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("together-proposal-group-small_group")).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("What would help?")).toBeInTheDocument();
     expect(screen.getByTestId("together-comfort-quiet_pace")).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(screen.getByTestId("together-comfort-easy_access"));
+    expect(screen.getByTestId("together-comfort-easy_access")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("together-comfort-seating")).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByTestId("together-comfort-transport_help"));
     fireEvent.change(screen.getByPlaceholderText("Write one small idea..."), {
       target: { value: "Tea at a quiet cafe" },
@@ -547,20 +554,95 @@ describe("TogetherRoomScreen", () => {
     expect(body).toContain('"kind":"plan"');
     expect(body).toContain('"locationLabel":"nearby"');
     expect(JSON.parse(body)).toMatchObject({
-      comfortNeeds: ["quiet_pace", "easy_access", "transport_help"],
+      comfortNeeds: ["easy_access", "seating", "quiet_pace", "transport_help"],
       experienceCategory: "restaurant_date",
       preferredTime: "afternoon",
       costRange: "shared",
       groupSize: "small_group",
     });
-    expect(screen.getByText("Sent")).toBeInTheDocument();
+    expect(screen.getByText("Shared. Others can join or say maybe.")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Write one small idea...")).not.toBeInTheDocument();
     expect(screen.getByTestId("together-shared-today")).toBeInTheDocument();
     expect(screen.getByText("Tea at a quiet cafe")).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByTestId("together-plan-comfort-experience-1")).toHaveTextContent("Easy access");
+      expect(screen.getByTestId("together-plan-comfort-experience-1")).toHaveTextContent("Place to sit");
       expect(screen.getByTestId("together-plan-comfort-experience-1")).toHaveTextContent("Transport help");
     });
     expect(screen.getByTestId("together-plan-fit-experience-1")).toHaveTextContent("Restaurant date");
+  });
+
+  it("warns gently before posting sensitive service or deal ideas", () => {
+    render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("together-starter-plan"));
+    fireEvent.click(screen.getByTestId("together-plan-preset-service_deal"));
+
+    expect(screen.getByPlaceholderText("Write one small idea...")).toHaveValue(
+      "I would like to compare a service or deal with someone before deciding.",
+    );
+    expect(screen.getByTestId("together-proposal-category-deal_help")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("together-proposal-review-note")).toHaveTextContent("VYVA will review this first");
+    expect(screen.getByTestId("together-proposal-review-note")).toHaveTextContent("money");
+  });
+
+  it.each([
+    {
+      composerLanguage: "fr",
+      shareAction: "Partager un plan",
+      presetTitle: "Comparer un service ou une offre",
+      placeholder: "Ecrivez une petite idee...",
+      draft: "J'aimerais comparer un service ou une offre avec quelqu'un avant de decider.",
+      reviewTitle: "VYVA verifiera d'abord",
+      reviewReason: "argent",
+    },
+    {
+      composerLanguage: "it",
+      shareAction: "Condividi un piano",
+      presetTitle: "Confrontare servizio o offerta",
+      placeholder: "Scrivi una piccola idea...",
+      draft: "Vorrei confrontare un servizio o un'offerta con qualcuno prima di decidere.",
+      reviewTitle: "VYVA lo controllera prima",
+      reviewReason: "denaro",
+    },
+    {
+      composerLanguage: "pt",
+      shareAction: "Partilhar um plano",
+      presetTitle: "Comparar servico ou oferta",
+      placeholder: "Escreva uma pequena ideia...",
+      draft: "Gostaria de comparar um servico ou uma oferta com alguem antes de decidir.",
+      reviewTitle: "VYVA vai rever primeiro",
+      reviewReason: "dinheiro",
+    },
+  ] as const)("localizes the guided plan composer for $composerLanguage", ({
+    composerLanguage,
+    shareAction,
+    presetTitle,
+    placeholder,
+    draft,
+    reviewTitle,
+    reviewReason,
+  }) => {
+    render(
+      <TogetherRoomScreen
+        roomResponse={roomResponse}
+        language="en"
+        composerLanguage={composerLanguage}
+        visitId="visit-1"
+        onBack={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("together-starter-plan")).toHaveTextContent(shareAction);
+
+    fireEvent.click(screen.getByTestId("together-starter-plan"));
+    expect(screen.getByText(presetTitle)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("together-plan-preset-service_deal"));
+
+    expect(screen.getByPlaceholderText(placeholder)).toHaveValue(draft);
+    expect(screen.getByTestId("together-proposal-review-note")).toHaveTextContent(reviewTitle);
+    expect(screen.getByTestId("together-proposal-review-note")).toHaveTextContent(reviewReason);
   });
 
   it("keeps the starter card focused on sharing a plan", () => {
