@@ -46,6 +46,7 @@ type TogetherRoomScreenProps = {
 type StarterAction = "hello" | "view" | "plan" | "ask";
 type ProposalLocationLabel = "nearby" | "online";
 type PlanCollaborationAction = "choose" | "pace" | "notify";
+type PlanLoopAction = "time" | "place" | "invite" | "again";
 type PlanPresetId = "quiet_lunch" | "film_chat" | "service_deal";
 
 type PlanComposerCopy = {
@@ -99,6 +100,13 @@ const planCollaborationTones: Record<PlanCollaborationAction, SocialRoomReplyTon
   choose: "help",
   pace: "curious",
   notify: "support",
+};
+const planLoopActions: PlanLoopAction[] = ["time", "place", "invite", "again"];
+const planLoopTones: Record<PlanLoopAction, SocialRoomReplyTone> = {
+  time: "help",
+  place: "help",
+  invite: "support",
+  again: "support",
 };
 const planPresetDefaults: Record<PlanPresetId, {
   locationLabel: ProposalLocationLabel;
@@ -169,6 +177,18 @@ const copyByLanguage: Record<"es" | "de" | "en", {
   planSupportBody: string;
   planSupportActions: Record<PlanCollaborationAction, string>;
   planSupportReplies: Record<PlanCollaborationAction, string>;
+  planLoopTitle: string;
+  planLoopBody: string;
+  planLoopStatusLabel: string;
+  planLoopSteps: {
+    shared: string;
+    choosing: string;
+    confirmed: string;
+    happened: string;
+    repeat: string;
+  };
+  planLoopActions: Record<PlanLoopAction, string>;
+  planLoopReplies: Record<PlanLoopAction, string>;
   replySent: string;
   replyFailed: string;
   replyActions: Record<SocialRoomReplyTone, string>;
@@ -258,6 +278,28 @@ const copyByLanguage: Record<"es" | "de" | "en", {
       choose: "Puedo ayudar a elegir una opcion sencilla para el grupo.",
       pace: "Un ritmo tranquilo, con pausas, me ayudaria.",
       notify: "Por favor avisadme cuando haya un siguiente paso.",
+    },
+    planLoopTitle: "Siguiente paso",
+    planLoopBody: "Cuando alguien se apunta, VYVA ayuda a convertir la idea en algo que pueda ocurrir.",
+    planLoopStatusLabel: "Estado del plan",
+    planLoopSteps: {
+      shared: "Compartido",
+      choosing: "Eligiendo hora",
+      confirmed: "Confirmado",
+      happened: "Ocurrio",
+      repeat: "Repetir",
+    },
+    planLoopActions: {
+      time: "Elegir hora",
+      place: "Confirmar lugar",
+      invite: "Invitar a una persona",
+      again: "Hacerlo otra vez",
+    },
+    planLoopReplies: {
+      time: "Me gustaria elegir una hora sencilla para este plan.",
+      place: "Me gustaria confirmar el lugar o si sera en linea.",
+      invite: "Podemos invitar a una persona mas si ayuda.",
+      again: "Me gustaria hacer esto otra vez.",
     },
     replySent: "Respuesta compartida",
     replyFailed: "No se pudo responder. Intentalo de nuevo.",
@@ -425,6 +467,28 @@ const copyByLanguage: Record<"es" | "de" | "en", {
       pace: "Ein ruhiges Tempo mit Pausen wuerde mir helfen.",
       notify: "Bitte haltet mich auf dem Laufenden, wenn es einen naechsten Schritt gibt.",
     },
+    planLoopTitle: "Naechster Schritt",
+    planLoopBody: "Wenn jemand mitmacht, hilft VYVA, aus der Idee einen echten Plan zu machen.",
+    planLoopStatusLabel: "Planstatus",
+    planLoopSteps: {
+      shared: "Geteilt",
+      choosing: "Zeit waehlen",
+      confirmed: "Bestaetigt",
+      happened: "Passiert",
+      repeat: "Wiederholen",
+    },
+    planLoopActions: {
+      time: "Zeit waehlen",
+      place: "Ort bestaetigen",
+      invite: "Eine Person einladen",
+      again: "Noch einmal machen",
+    },
+    planLoopReplies: {
+      time: "Ich moechte eine einfache Zeit fuer diesen Plan waehlen.",
+      place: "Ich moechte den Ort bestaetigen oder ob es online stattfindet.",
+      invite: "Wir koennen eine weitere Person einladen, wenn das hilft.",
+      again: "Ich moechte das gern noch einmal machen.",
+    },
     replySent: "Antwort geteilt",
     replyFailed: "Antwort konnte nicht geteilt werden. Bitte versuche es erneut.",
     replyActions: {
@@ -590,6 +654,28 @@ const copyByLanguage: Record<"es" | "de" | "en", {
       choose: "I can help choose one simple option for the group.",
       pace: "A quiet pace with room to pause would help me.",
       notify: "Please keep me posted when there is a next step.",
+    },
+    planLoopTitle: "Next step",
+    planLoopBody: "When someone joins, VYVA helps turn the idea into something that can happen.",
+    planLoopStatusLabel: "Plan status",
+    planLoopSteps: {
+      shared: "Shared",
+      choosing: "Choosing time",
+      confirmed: "Confirmed",
+      happened: "Happened",
+      repeat: "Do again",
+    },
+    planLoopActions: {
+      time: "Pick time",
+      place: "Confirm place",
+      invite: "Invite one more",
+      again: "Do this again",
+    },
+    planLoopReplies: {
+      time: "I would like to pick a simple time for this plan.",
+      place: "I would like to confirm the place or whether this stays online.",
+      invite: "We can invite one more person if that helps.",
+      again: "I would like to do this again.",
     },
     replySent: "Reply shared",
     replyFailed: "Could not share the reply. Please try again.",
@@ -1019,6 +1105,28 @@ const roomCopyByLanguage: Record<SocialGameLanguage, TogetherRoomCopy> = {
       pace: "Un rythme calme avec des pauses m'aiderait.",
       notify: "Merci de me tenir au courant quand il y aura une prochaine etape.",
     },
+    planLoopTitle: "Prochaine etape",
+    planLoopBody: "Quand quelqu'un participe, VYVA aide a transformer l'idee en quelque chose qui peut arriver.",
+    planLoopStatusLabel: "Etat du plan",
+    planLoopSteps: {
+      shared: "Partage",
+      choosing: "Choix de l'heure",
+      confirmed: "Confirme",
+      happened: "Fait",
+      repeat: "Refaire",
+    },
+    planLoopActions: {
+      time: "Choisir l'heure",
+      place: "Confirmer le lieu",
+      invite: "Inviter une personne",
+      again: "Refaire cela",
+    },
+    planLoopReplies: {
+      time: "J'aimerais choisir une heure simple pour ce plan.",
+      place: "J'aimerais confirmer le lieu ou si cela reste en ligne.",
+      invite: "Nous pouvons inviter une personne de plus si cela aide.",
+      again: "J'aimerais refaire cela.",
+    },
     replySent: "Reponse partagee",
     replyFailed: "Impossible de partager la reponse. Reessayez.",
     replyActions: {
@@ -1111,6 +1219,28 @@ const roomCopyByLanguage: Record<SocialGameLanguage, TogetherRoomCopy> = {
       pace: "Mi aiuterebbe un ritmo tranquillo con pause.",
       notify: "Tenetemi aggiornato quando c'e un prossimo passo.",
     },
+    planLoopTitle: "Prossimo passo",
+    planLoopBody: "Quando qualcuno partecipa, VYVA aiuta a trasformare l'idea in qualcosa che puo succedere.",
+    planLoopStatusLabel: "Stato del piano",
+    planLoopSteps: {
+      shared: "Condiviso",
+      choosing: "Scelta dell'ora",
+      confirmed: "Confermato",
+      happened: "Fatto",
+      repeat: "Ripetere",
+    },
+    planLoopActions: {
+      time: "Scegli ora",
+      place: "Conferma luogo",
+      invite: "Invita una persona",
+      again: "Fallo di nuovo",
+    },
+    planLoopReplies: {
+      time: "Vorrei scegliere un orario semplice per questo piano.",
+      place: "Vorrei confermare il luogo o se resta online.",
+      invite: "Possiamo invitare un'altra persona se aiuta.",
+      again: "Vorrei farlo di nuovo.",
+    },
     replySent: "Risposta condivisa",
     replyFailed: "Non e stato possibile condividere la risposta. Riprova.",
     replyActions: {
@@ -1202,6 +1332,28 @@ const roomCopyByLanguage: Record<SocialGameLanguage, TogetherRoomCopy> = {
       choose: "Posso ajudar a escolher uma opcao simples para o grupo.",
       pace: "Um ritmo tranquilo, com pausas, ajudaria.",
       notify: "Avisem-me quando houver um proximo passo.",
+    },
+    planLoopTitle: "Proximo passo",
+    planLoopBody: "Quando alguem participa, a VYVA ajuda a transformar a ideia em algo que pode acontecer.",
+    planLoopStatusLabel: "Estado do plano",
+    planLoopSteps: {
+      shared: "Partilhado",
+      choosing: "A escolher hora",
+      confirmed: "Confirmado",
+      happened: "Aconteceu",
+      repeat: "Repetir",
+    },
+    planLoopActions: {
+      time: "Escolher hora",
+      place: "Confirmar lugar",
+      invite: "Convidar mais uma pessoa",
+      again: "Fazer outra vez",
+    },
+    planLoopReplies: {
+      time: "Gostaria de escolher uma hora simples para este plano.",
+      place: "Gostaria de confirmar o lugar ou se fica online.",
+      invite: "Podemos convidar mais uma pessoa se ajudar.",
+      again: "Gostaria de fazer isto outra vez.",
     },
     replySent: "Resposta partilhada",
     replyFailed: "Nao foi possivel partilhar a resposta. Tente novamente.",
@@ -1667,6 +1819,98 @@ function PlanReviewNotice({
   );
 }
 
+function planHasCommitment(plan: SocialRoomPlan) {
+  return Boolean(plan.myResponse) || plan.responseCounts.join > 0 || plan.responseCounts.maybe > 0;
+}
+
+function planLoopStepIndex(plan: SocialRoomPlan, copy: TogetherRoomCopy) {
+  const replies = plan.replies ?? [];
+  if (replies.some((reply) => reply.body === copy.planLoopReplies.again)) return 4;
+  if (replies.some((reply) => reply.body === copy.planLoopReplies.invite)) return 3;
+  if (replies.some((reply) => (
+    reply.body === copy.planLoopReplies.time ||
+    reply.body === copy.planLoopReplies.place
+  ))) {
+    return 2;
+  }
+  return planHasCommitment(plan) ? 1 : 0;
+}
+
+function PlanLoopCard({
+  plan,
+  copy,
+  isBusy,
+  onAction,
+}: {
+  plan: SocialRoomPlan;
+  copy: TogetherRoomCopy;
+  isBusy: boolean;
+  onAction: (plan: SocialRoomPlan, action: PlanLoopAction) => void;
+}) {
+  if (!planHasCommitment(plan)) return null;
+
+  const steps = [
+    copy.planLoopSteps.shared,
+    copy.planLoopSteps.choosing,
+    copy.planLoopSteps.confirmed,
+    copy.planLoopSteps.happened,
+    copy.planLoopSteps.repeat,
+  ];
+  const activeIndex = planLoopStepIndex(plan, copy);
+
+  return (
+    <div
+      className="mt-4 rounded-[22px] border border-[#CFECE3] bg-[#F7FAF7] px-4 py-4"
+      data-testid={`together-plan-loop-${plan.key}`}
+    >
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] bg-[#EAF8F4] text-[#0F766E]">
+          <Sparkles size={21} aria-hidden="true" />
+        </div>
+        <div className="min-w-0">
+          <p className="font-body text-[18px] font-bold leading-tight text-[#244D47]">{copy.planLoopTitle}</p>
+          <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#55706B]">{copy.planLoopBody}</p>
+        </div>
+      </div>
+
+      <p className="mt-3 font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#55706B]">
+        {copy.planLoopStatusLabel}
+      </p>
+      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
+        {steps.map((step, index) => {
+          const isDone = index <= activeIndex;
+          return (
+            <span
+              key={step}
+              className={`min-h-[42px] rounded-[15px] px-2 py-2 text-center font-body text-[13px] font-bold leading-tight ${
+                isDone ? "bg-[#0F766E] text-white" : "bg-white text-[#55706B]"
+              }`}
+              data-testid={`together-plan-loop-step-${plan.key}-${index}`}
+            >
+              {step}
+            </span>
+          );
+        })}
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        {planLoopActions.map((action) => (
+          <button
+            key={action}
+            type="button"
+            onClick={() => onAction(plan, action)}
+            disabled={isBusy}
+            data-testid={`together-plan-loop-${action}-${plan.key}`}
+            className="min-h-[48px] rounded-[16px] border border-[#CFECE3] bg-white px-3 font-body text-[15px] font-bold text-[#0F766E] disabled:opacity-55"
+          >
+            {copy.planLoopActions[action]}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ChoiceButtonGroup<T extends string>({
   label,
   options,
@@ -2052,6 +2296,28 @@ export default function TogetherRoomScreen({
     }
   };
 
+  const sendPlanLoopReply = async (plan: SocialRoomPlan, action: PlanLoopAction) => {
+    if (replyingPlanKey) return;
+
+    setReplyingPlanKey(plan.key);
+    try {
+      const result = await postJson(`/api/social/rooms/${room.slug}/plans/${plan.key}/replies`, {
+        body: copy.planLoopReplies[action],
+        tone: planLoopTones[action],
+      });
+      if (result?.pulse) {
+        setPulse(result.pulse);
+        setStatusMessage(copy.replySent);
+      } else {
+        setStatusMessage(copy.replyFailed);
+      }
+    } catch {
+      setStatusMessage(copy.replyFailed);
+    } finally {
+      setReplyingPlanKey(null);
+    }
+  };
+
   const markUpdateSeen = async (notificationId: string) => {
     if (markingUpdateId) return;
 
@@ -2229,6 +2495,13 @@ export default function TogetherRoomScreen({
               </span>
             </button>
           </div>
+
+          <PlanLoopCard
+            plan={featuredPlan}
+            copy={copy}
+            isBusy={replyingPlanKey === featuredPlan.key}
+            onAction={(plan, action) => void sendPlanLoopReply(plan, action)}
+          />
 
           <p className="mt-4 rounded-[18px] bg-[#EAF8F4] px-4 py-3 font-body text-[17px] font-bold leading-[1.3] text-[#315C55]">
             {pulse.safety.consentLine}
@@ -2660,6 +2933,12 @@ export default function TogetherRoomScreen({
                         {copy.reviewItem}
                       </button>
                     </div>
+                    <PlanLoopCard
+                      plan={plan}
+                      copy={copy}
+                      isBusy={replyingPlanKey === plan.key}
+                      onAction={(loopPlan, action) => void sendPlanLoopReply(loopPlan, action)}
+                    />
                   </article>
                 ))}
               </div>
