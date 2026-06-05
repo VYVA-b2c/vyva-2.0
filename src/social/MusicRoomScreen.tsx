@@ -627,7 +627,7 @@ export default function MusicRoomScreen({
   onBack,
 }: MusicRoomScreenProps) {
   const { room, members } = roomResponse;
-  const copy = copyByLanguage[language];
+  const copy = copyByLanguage[language] ?? copyByLanguage.en;
   const initialThreads = useMemo(() => normalizeMusicThreads(roomResponse.musicThreads), [roomResponse.musicThreads]);
   const initialCircle = useMemo(() => normalizeMusicCircle(roomResponse.musicCircle), [roomResponse.musicCircle]);
   const [selectedCauseId, setSelectedCauseId] = useState<MusicCauseId>("bridge");

@@ -20,7 +20,6 @@ import AgentAvatar from "./AgentAvatar";
 import SocialStyles from "./SocialStyles";
 import type {
   SocialGameLanguage,
-  SocialLanguage,
   SocialRoomCostRange,
   SocialRoomComfortNeed,
   SocialRoomExperienceCategory,
@@ -135,7 +134,7 @@ const planPresetDefaults: Record<PlanPresetId, {
   },
 };
 
-const copyByLanguage: Record<SocialLanguage, {
+const copyByLanguage: Record<"es" | "de" | "en", {
   back: string;
   safeStatus: string;
   present: (count: number) => string;
@@ -1254,7 +1253,7 @@ const roomCopyByLanguage: Record<SocialGameLanguage, TogetherRoomCopy> = {
 };
 
 function fallbackPulse(language: SocialGameLanguage): SocialRoomPulse {
-  const copy = roomCopyByLanguage[language];
+  const copy = roomCopyByLanguage[language] ?? roomCopyByLanguage.en;
   const titles = {
     es: "Te y charla de pelicula",
     de: "Tee und Filmgespraech",
@@ -1367,13 +1366,18 @@ function fallbackPulse(language: SocialGameLanguage): SocialRoomPulse {
       myAcknowledgedAt: null,
     },
   };
+  const title = titles[language] ?? titles.en;
+  const body = bodies[language] ?? bodies.en;
+  const pollQuestion = question[language] ?? question.en;
+  const pollOptions = options[language] ?? options.en;
+  const safetyCopy = safety[language] ?? safety.en;
 
   const featuredPlan: SocialRoomPlan = {
     id: "tea-film-chat",
     key: "tea-film-chat",
     kind: "plan",
-    title: titles[language],
-    body: bodies[language],
+    title,
+    body,
     locationLabel: "online",
     comfortNeeds: ["quiet_pace"],
     experienceCategory: "movie_date",
@@ -1402,9 +1406,9 @@ function fallbackPulse(language: SocialGameLanguage): SocialRoomPulse {
     activePoll: {
       id: "daily-room-choice",
       key: "daily-room-choice",
-      question: question[language],
+      question: pollQuestion,
       status: "active",
-      options: options[language].map((label, index) => ({ id: ["film", "lunch", "hello"][index], label, votes: 0 })),
+      options: pollOptions.map((label, index) => ({ id: ["film", "lunch", "hello"][index], label, votes: 0 })),
       totalVotes: 0,
       myVote: null,
     },
@@ -1425,7 +1429,7 @@ function fallbackPulse(language: SocialGameLanguage): SocialRoomPulse {
       body: copy.sharePlanBody,
       starterButtons: [copy.sharePlanAction],
     },
-    safety: safety[language],
+    safety: safetyCopy,
     notifications: [],
   };
 }
@@ -1715,8 +1719,8 @@ export default function TogetherRoomScreen({
   visitId,
   onBack,
 }: TogetherRoomScreenProps) {
-  const copy = roomCopyByLanguage[language];
-  const planCopy = planComposerCopyByLanguage[composerLanguage];
+  const copy = roomCopyByLanguage[language] ?? roomCopyByLanguage.en;
+  const planCopy = planComposerCopyByLanguage[composerLanguage] ?? planComposerCopyByLanguage.en;
   const { room } = roomResponse;
   const [pulse, setPulse] = useState<SocialRoomPulse>(roomResponse.pulse ?? fallbackPulse(language));
   const [proposalDraft, setProposalDraft] = useState("");

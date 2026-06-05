@@ -310,6 +310,7 @@ describe("RoomScreen movement room", () => {
 
 describe("RoomScreen reading room member lounge", () => {
   beforeEach(() => {
+    languageMock.language = "en";
     localStorage.clear();
     apiFetchMock.mockReset();
     queryMock.mockReset();

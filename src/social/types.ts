@@ -1,6 +1,6 @@
-export type SocialLanguage = "es" | "de" | "en";
+export type SocialLanguage = "es" | "en" | "fr" | "de" | "it" | "pt";
 
-export type SocialGameLanguage = "es" | "en" | "fr" | "de" | "it" | "pt";
+export type SocialGameLanguage = SocialLanguage;
 
 export type SocialRoomCategory = "activity" | "social" | "useful" | "connection";
 
