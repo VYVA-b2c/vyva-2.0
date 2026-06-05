@@ -455,7 +455,7 @@ describe("GamesRoomScreen", () => {
     const puzzleControls = screen.getByTestId("games-puzzle-controls");
     expect(within(puzzleControls).getByTestId("games-start-round")).toHaveTextContent("Start this puzzle");
     expect(within(puzzleControls).getByTestId("games-next-puzzle")).toBeInTheDocument();
-    expect(screen.getByText("White's knight can check the king and attack the queen. What tactic is this?")).toBeInTheDocument();
+    expect(screen.getByText("Start the puzzle, then answer on the board.")).toBeInTheDocument();
     const chessBoard = screen.getByTestId("games-visual-chess");
     expect(chessBoard).toBeInTheDocument();
     expect(within(chessBoard).getByRole("img", { name: "White knight" })).toBeInTheDocument();
@@ -466,11 +466,14 @@ describe("GamesRoomScreen", () => {
     fireEvent.click(screen.getByTestId("games-next-puzzle"));
 
     expect(screen.getByText("Puzzle 2 of 2")).toBeInTheDocument();
-    expect(screen.getByText("Black's king is stuck behind its own pawns and White has a rook on the open file. What idea should White look for?")).toBeInTheDocument();
+    expect(screen.getByText("Start the puzzle, then answer on the board.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-start-round"));
     expect(screen.queryByTestId("games-start-round")).not.toBeInTheDocument();
     expect(screen.queryByTestId("games-help-choices")).not.toBeInTheDocument();
+    expect(screen.getByText("Tap the piece or square that creates the tactic.")).toBeInTheDocument();
+    expect(screen.getByTestId("games-tactile-chess")).toHaveTextContent("Your move");
+    expect(screen.getByTestId("games-tactile-chess")).toHaveTextContent("Tap a highlighted piece on the board.");
     fireEvent.click(screen.getByTestId("chess-square-e8"));
     expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
 
@@ -516,7 +519,7 @@ describe("GamesRoomScreen", () => {
 
     fireEvent.click(screen.getByTestId("games-round-chess"));
     expect(screen.getByText("Puzzle 2 of 2")).toBeInTheDocument();
-    expect(screen.getByText("Black's king is stuck behind its own pawns and White has a rook on the open file. What idea should White look for?")).toBeInTheDocument();
+    expect(screen.getByText("Start the puzzle, then answer on the board.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-round-word"));
     expect(screen.getByText("Puzzle 2 of 80")).toBeInTheDocument();
