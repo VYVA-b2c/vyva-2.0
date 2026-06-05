@@ -155,6 +155,8 @@ type MovementExerciseGroupCopy = {
 };
 type MovementExerciseLogStatus = "idle" | "saving" | "saved" | "error";
 type MovementExerciseLanguage = "es" | "en" | "fr" | "de" | "it" | "pt";
+type MovementComfortLevelId = "seated" | "supported" | "active";
+type MovementSwapIntent = "easier" | "calm" | "legs";
 
 const MOVEMENT_FEATURED_EXERCISE_IDS: MovementExerciseCardId[] = ["chair-yoga", "tai-chi", "seated-strength", "calm-breathing"];
 const MOVEMENT_EXERCISE_CARD_BASE: Array<Pick<MovementExerciseCard, "id" | "group">> = [
@@ -173,6 +175,9 @@ const MOVEMENT_EXERCISE_CARD_BASE: Array<Pick<MovementExerciseCard, "id" | "grou
 ];
 const MOVEMENT_EXERCISE_CARD_IDS = new Set<MovementExerciseCardId>(MOVEMENT_EXERCISE_CARD_BASE.map((card) => card.id));
 const MOVEMENT_LAST_USED_EXERCISE_KEY = "vyva_movement_last_exercise_id";
+const MOVEMENT_WEEK_LOG_DATES_KEY = "vyva_movement_week_log_dates";
+const MOVEMENT_COMFORT_LEVEL_KEY = "vyva_movement_comfort_level";
+const MOVEMENT_COMFORT_LEVEL_IDS: MovementComfortLevelId[] = ["seated", "supported", "active"];
 
 const MOVEMENT_EXERCISE_CARD_COPY: Record<MovementExerciseLanguage, Record<MovementExerciseCardId, Pick<MovementExerciseCard, "title" | "benefit" | "focus">>> = {
   en: {
@@ -272,6 +277,10 @@ function isMovementExerciseCardId(value: string | null | undefined): value is Mo
   return Boolean(value && MOVEMENT_EXERCISE_CARD_IDS.has(value as MovementExerciseCardId));
 }
 
+function isMovementComfortLevelId(value: string | null | undefined): value is MovementComfortLevelId {
+  return Boolean(value && MOVEMENT_COMFORT_LEVEL_IDS.includes(value as MovementComfortLevelId));
+}
+
 function loadLastMovementExerciseId(): MovementExerciseCardId | null {
   if (typeof window === "undefined") return null;
 
@@ -293,11 +302,120 @@ function saveLastMovementExerciseId(exerciseId: MovementExerciseCardId) {
   }
 }
 
-function getRecommendedMovementExerciseId(date = new Date()): MovementExerciseCardId {
+function loadMovementComfortLevel(): MovementComfortLevelId {
+  if (typeof window === "undefined") return "supported";
+
+  try {
+    const storedComfortLevel = window.localStorage.getItem(MOVEMENT_COMFORT_LEVEL_KEY);
+    return isMovementComfortLevelId(storedComfortLevel) ? storedComfortLevel : "supported";
+  } catch {
+    return "supported";
+  }
+}
+
+function saveMovementComfortLevel(comfortLevel: MovementComfortLevelId) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(MOVEMENT_COMFORT_LEVEL_KEY, comfortLevel);
+  } catch {
+    // Ignore storage failures so choosing a comfort level still works.
+  }
+}
+
+function getMovementDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function isMovementDateKey(value: unknown): value is string {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function normalizeMovementWeekLogDates(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(value.filter(isMovementDateKey))).slice(-21);
+}
+
+function loadMovementWeekLogDates(): string[] {
+  if (typeof window === "undefined") return [];
+
+  try {
+    return normalizeMovementWeekLogDates(JSON.parse(window.localStorage.getItem(MOVEMENT_WEEK_LOG_DATES_KEY) ?? "[]"));
+  } catch {
+    return [];
+  }
+}
+
+function saveMovementWeekLogDates(dateKeys: string[]) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(MOVEMENT_WEEK_LOG_DATES_KEY, JSON.stringify(normalizeMovementWeekLogDates(dateKeys)));
+  } catch {
+    // Local week progress should never block exercise logging.
+  }
+}
+
+function addMovementWeekLogDate(dateKeys: string[], dateKey = getMovementDateKey()) {
+  return normalizeMovementWeekLogDates([...dateKeys, dateKey]);
+}
+
+function getMovementWeekDays(language: MovementExerciseLanguage, today = new Date()) {
+  const formatter = new Intl.DateTimeFormat(language, { weekday: "narrow" });
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (6 - index));
+    return {
+      dateKey: getMovementDateKey(date),
+      isToday: index === 6,
+      label: formatter.format(date).slice(0, 2),
+    };
+  });
+}
+
+function getRecommendedMovementExerciseId(date = new Date(), comfortLevel: MovementComfortLevelId = "supported"): MovementExerciseCardId {
   const hour = date.getHours();
-  if (hour < 12) return "chair-yoga";
+  if (comfortLevel === "seated") {
+    if (hour < 12) return "chair-yoga";
+    if (hour < 17) return "seated-strength";
+    return "calm-breathing";
+  }
+  if (comfortLevel === "active") {
+    if (hour < 12) return "sit-to-stand";
+    if (hour < 17) return "side-steps";
+    return "calm-breathing";
+  }
+  if (hour < 12) return "ankle-mobility";
   if (hour < 17) return "tai-chi";
   return "calm-breathing";
+}
+
+function getMovementSwapExerciseId(
+  intent: MovementSwapIntent,
+  comfortLevel: MovementComfortLevelId,
+  currentExerciseId?: MovementExerciseCardId | null,
+): MovementExerciseCardId {
+  const options: Record<MovementSwapIntent, Record<MovementComfortLevelId, MovementExerciseCardId[]>> = {
+    easier: {
+      seated: ["chair-yoga", "ankle-mobility", "calm-breathing"],
+      supported: ["chair-yoga", "chest-opener", "calm-breathing"],
+      active: ["tai-chi", "side-steps", "chair-yoga"],
+    },
+    calm: {
+      seated: ["calm-breathing", "hand-breathing", "shoulder-release"],
+      supported: ["calm-breathing", "shoulder-release", "hand-breathing"],
+      active: ["calm-breathing", "tai-chi", "shoulder-release"],
+    },
+    legs: {
+      seated: ["seated-strength", "ankle-mobility", "heel-raises"],
+      supported: ["sit-to-stand", "heel-raises", "side-steps"],
+      active: ["side-steps", "sit-to-stand", "heel-raises"],
+    },
+  };
+  const candidates = options[intent][comfortLevel];
+  return candidates.find((exerciseId) => exerciseId !== currentExerciseId) ?? candidates[0];
 }
 
 const MOVEMENT_EXERCISE_SESSIONS: Record<MovementExerciseCardId, {
@@ -2019,6 +2137,26 @@ function getMovementExerciseLibraryCopy(language: MovementExerciseLanguage) {
       recommendedTitle: "Recommended today",
       recommendedBody: "A simple place to start.",
       recommendedAction: "Start",
+      weekTitle: "My gentle week",
+      weekBody: "Small movement days count.",
+      weekProgress: (count: number) => count === 1 ? "1 day moved" : `${count} days moved`,
+      todayPill: "Today",
+      doneDayLabel: "Done",
+      openDayLabel: "Open",
+      lastUsedLine: (title: string) => `Last time: ${title}`,
+      noLastUsed: "No favorite yet",
+      repeatCta: "Do this again",
+      todayPickCta: "Do today's pick",
+      comfortTitle: "Comfort level",
+      comfortLevels: [
+        { id: "seated" as MovementComfortLevelId, label: "Seated only" },
+        { id: "supported" as MovementComfortLevelId, label: "Chair support" },
+        { id: "active" as MovementComfortLevelId, label: "A little active" },
+      ],
+      swapPrompt: "Need a different feel?",
+      swapEasier: "Something easier",
+      swapCalm: "Something calmer",
+      swapLegs: "For legs",
       moreTitle: "More gentle exercises",
       detail: "Browse all 12 photo-led routines here.",
       cta: "Show all exercises",
@@ -2044,6 +2182,26 @@ function getMovementExerciseLibraryCopy(language: MovementExerciseLanguage) {
       recommendedTitle: "Heute empfohlen",
       recommendedBody: "Ein einfacher Start.",
       recommendedAction: "Starten",
+      weekTitle: "Meine sanfte Woche",
+      weekBody: "Kleine Bewegungstage zaehlen.",
+      weekProgress: (count: number) => count === 1 ? "1 Tag bewegt" : `${count} Tage bewegt`,
+      todayPill: "Heute",
+      doneDayLabel: "Fertig",
+      openDayLabel: "Offen",
+      lastUsedLine: (title: string) => `Zuletzt: ${title}`,
+      noLastUsed: "Noch kein Favorit",
+      repeatCta: "Noch einmal",
+      todayPickCta: "Heutigen Tipp starten",
+      comfortTitle: "Komfort",
+      comfortLevels: [
+        { id: "seated" as MovementComfortLevelId, label: "Nur sitzend" },
+        { id: "supported" as MovementComfortLevelId, label: "Stuhlstuetze" },
+        { id: "active" as MovementComfortLevelId, label: "Etwas aktiver" },
+      ],
+      swapPrompt: "Anderes Gefuehl?",
+      swapEasier: "Etwas leichter",
+      swapCalm: "Etwas ruhiger",
+      swapLegs: "Fuer Beine",
       moreTitle: "Mehr sanfte Uebungen",
       detail: "Alle 12 Foto-Uebungen direkt hier ansehen.",
       cta: "Alle Uebungen zeigen",
@@ -2069,6 +2227,26 @@ function getMovementExerciseLibraryCopy(language: MovementExerciseLanguage) {
       recommendedTitle: "Recommande aujourd'hui",
       recommendedBody: "Un depart simple.",
       recommendedAction: "Commencer",
+      weekTitle: "Ma semaine douce",
+      weekBody: "Les petits jours de mouvement comptent.",
+      weekProgress: (count: number) => count === 1 ? "1 jour bouge" : `${count} jours bouges`,
+      todayPill: "Aujourd'hui",
+      doneDayLabel: "Fait",
+      openDayLabel: "Ouvert",
+      lastUsedLine: (title: string) => `Derniere fois : ${title}`,
+      noLastUsed: "Pas encore de favori",
+      repeatCta: "Refaire celui-ci",
+      todayPickCta: "Faire le choix du jour",
+      comfortTitle: "Niveau de confort",
+      comfortLevels: [
+        { id: "seated" as MovementComfortLevelId, label: "Assis seulement" },
+        { id: "supported" as MovementComfortLevelId, label: "Avec chaise" },
+        { id: "active" as MovementComfortLevelId, label: "Un peu actif" },
+      ],
+      swapPrompt: "Envie d'autre chose ?",
+      swapEasier: "Plus facile",
+      swapCalm: "Plus calme",
+      swapLegs: "Pour les jambes",
       moreTitle: "Plus d'exercices doux",
       detail: "Parcourez ici les 12 routines guidees par photo.",
       cta: "Afficher tous les exercices",
@@ -2094,6 +2272,26 @@ function getMovementExerciseLibraryCopy(language: MovementExerciseLanguage) {
       recommendedTitle: "Consigliato oggi",
       recommendedBody: "Un inizio semplice.",
       recommendedAction: "Inizia",
+      weekTitle: "La mia settimana dolce",
+      weekBody: "I piccoli giorni di movimento contano.",
+      weekProgress: (count: number) => count === 1 ? "1 giorno mosso" : `${count} giorni mossi`,
+      todayPill: "Oggi",
+      doneDayLabel: "Fatto",
+      openDayLabel: "Aperto",
+      lastUsedLine: (title: string) => `Ultima volta: ${title}`,
+      noLastUsed: "Nessun preferito ancora",
+      repeatCta: "Rifallo",
+      todayPickCta: "Fai la scelta di oggi",
+      comfortTitle: "Livello di comfort",
+      comfortLevels: [
+        { id: "seated" as MovementComfortLevelId, label: "Solo seduti" },
+        { id: "supported" as MovementComfortLevelId, label: "Con sedia" },
+        { id: "active" as MovementComfortLevelId, label: "Un po' attivo" },
+      ],
+      swapPrompt: "Vuoi cambiare?",
+      swapEasier: "Piu facile",
+      swapCalm: "Piu calmo",
+      swapLegs: "Per le gambe",
       moreTitle: "Altri esercizi dolci",
       detail: "Sfoglia qui tutte le 12 routine con foto.",
       cta: "Mostra tutti gli esercizi",
@@ -2119,6 +2317,26 @@ function getMovementExerciseLibraryCopy(language: MovementExerciseLanguage) {
       recommendedTitle: "Recomendado hoje",
       recommendedBody: "Um comeco simples.",
       recommendedAction: "Comecar",
+      weekTitle: "A minha semana suave",
+      weekBody: "Pequenos dias de movimento contam.",
+      weekProgress: (count: number) => count === 1 ? "1 dia mexido" : `${count} dias mexidos`,
+      todayPill: "Hoje",
+      doneDayLabel: "Feito",
+      openDayLabel: "Aberto",
+      lastUsedLine: (title: string) => `Ultima vez: ${title}`,
+      noLastUsed: "Ainda sem favorito",
+      repeatCta: "Fazer outra vez",
+      todayPickCta: "Fazer a escolha de hoje",
+      comfortTitle: "Nivel de conforto",
+      comfortLevels: [
+        { id: "seated" as MovementComfortLevelId, label: "So sentado" },
+        { id: "supported" as MovementComfortLevelId, label: "Com cadeira" },
+        { id: "active" as MovementComfortLevelId, label: "Um pouco ativo" },
+      ],
+      swapPrompt: "Quer outra sensacao?",
+      swapEasier: "Algo mais facil",
+      swapCalm: "Algo mais calmo",
+      swapLegs: "Para pernas",
       moreTitle: "Mais exercicios suaves",
       detail: "Veja aqui as 12 rotinas guiadas por foto.",
       cta: "Mostrar todos os exercicios",
@@ -2143,6 +2361,26 @@ function getMovementExerciseLibraryCopy(language: MovementExerciseLanguage) {
     recommendedTitle: "Recomendado hoy",
     recommendedBody: "Un comienzo sencillo.",
     recommendedAction: "Empezar",
+    weekTitle: "Mi semana suave",
+    weekBody: "Los dias de movimiento pequeno cuentan.",
+    weekProgress: (count: number) => count === 1 ? "1 dia con movimiento" : `${count} dias con movimiento`,
+    todayPill: "Hoy",
+    doneDayLabel: "Hecho",
+    openDayLabel: "Abierto",
+    lastUsedLine: (title: string) => `Ultima vez: ${title}`,
+    noLastUsed: "Aun sin favorito",
+    repeatCta: "Hacerlo otra vez",
+    todayPickCta: "Hacer la eleccion de hoy",
+    comfortTitle: "Nivel de comodidad",
+    comfortLevels: [
+      { id: "seated" as MovementComfortLevelId, label: "Solo sentado" },
+      { id: "supported" as MovementComfortLevelId, label: "Con silla" },
+      { id: "active" as MovementComfortLevelId, label: "Un poco activo" },
+    ],
+    swapPrompt: "Quieres otra sensacion?",
+    swapEasier: "Algo mas facil",
+    swapCalm: "Algo mas calmado",
+    swapLegs: "Para piernas",
     moreTitle: "Mas ejercicios suaves",
     detail: "Mira las 12 rutinas con foto aqui mismo.",
     cta: "Mostrar todos",
@@ -3022,6 +3260,8 @@ const RoomScreen = () => {
   const [activeMovementExerciseId, setActiveMovementExerciseId] = useState<MovementExerciseCardId | null>(null);
   const [completedMovementExerciseId, setCompletedMovementExerciseId] = useState<MovementExerciseCardId | null>(null);
   const [lastMovementExerciseId, setLastMovementExerciseId] = useState<MovementExerciseCardId | null>(() => loadLastMovementExerciseId());
+  const [movementComfortLevel, setMovementComfortLevel] = useState<MovementComfortLevelId>(() => loadMovementComfortLevel());
+  const [movementWeekLogDates, setMovementWeekLogDates] = useState<string[]>(() => loadMovementWeekLogDates());
   const [movementExerciseLogStatus, setMovementExerciseLogStatus] = useState<MovementExerciseLogStatus>("idle");
   const [isMovementExerciseLibraryExpanded, setMovementExerciseLibraryExpanded] = useState(false);
   const [selectedMovementExerciseGroup, setSelectedMovementExerciseGroup] = useState<MovementExerciseGroupId>("mobility");
@@ -3075,7 +3315,12 @@ const RoomScreen = () => {
   const movementRoomActive = canonicalRoomSlug === "morning-movement";
   const movementExerciseCopy = useMemo(() => getMovementExerciseLibraryCopy(movementExerciseLanguage), [movementExerciseLanguage]);
   const movementSessionUiCopy = useMemo(() => getMovementSessionUiCopy(movementExerciseLanguage), [movementExerciseLanguage]);
-  const recommendedMovementExerciseId = useMemo(() => getRecommendedMovementExerciseId(), []);
+  const movementWeekDays = useMemo(() => getMovementWeekDays(movementExerciseLanguage), [movementExerciseLanguage]);
+  const movementWeekCompletedCount = useMemo(
+    () => movementWeekDays.filter((day) => movementWeekLogDates.includes(day.dateKey)).length,
+    [movementWeekDays, movementWeekLogDates],
+  );
+  const recommendedMovementExerciseId = useMemo(() => getRecommendedMovementExerciseId(new Date(), movementComfortLevel), [movementComfortLevel]);
   const movementFeaturedExerciseCards = useMemo(() => {
     const featuredIds = new Set(MOVEMENT_FEATURED_EXERCISE_IDS);
     return movementExerciseCopy.cards.filter((card) => featuredIds.has(card.id));
@@ -3085,6 +3330,10 @@ const RoomScreen = () => {
     [movementExerciseCopy.cards, recommendedMovementExerciseId],
   );
   const recommendedMovementExerciseVisual = recommendedMovementExercise ? MOVEMENT_EXERCISE_VISUALS[recommendedMovementExercise.id] : null;
+  const lastMovementExercise = lastMovementExerciseId
+    ? movementExerciseCopy.cards.find((card) => card.id === lastMovementExerciseId) ?? null
+    : null;
+  const repeatMovementExerciseId = lastMovementExerciseId ?? recommendedMovementExerciseId;
   const selectedMovementExerciseGroupCopy =
     movementExerciseCopy.groups.find((group) => group.id === selectedMovementExerciseGroup) ?? movementExerciseCopy.groups[0];
   const selectedMovementExerciseGroupCards = useMemo(() => {
@@ -3222,6 +3471,19 @@ const RoomScreen = () => {
     setMovementExerciseLogStatus("idle");
   }, []);
 
+  const selectMovementComfortLevel = useCallback((comfortLevel: MovementComfortLevelId) => {
+    setMovementComfortLevel(comfortLevel);
+    saveMovementComfortLevel(comfortLevel);
+  }, []);
+
+  const openMovementRepeatExercise = useCallback(() => {
+    openMovementExerciseCard(repeatMovementExerciseId);
+  }, [openMovementExerciseCard, repeatMovementExerciseId]);
+
+  const openMovementSwapExercise = useCallback((intent: MovementSwapIntent) => {
+    openMovementExerciseCard(getMovementSwapExerciseId(intent, movementComfortLevel, repeatMovementExerciseId));
+  }, [movementComfortLevel, openMovementExerciseCard, repeatMovementExerciseId]);
+
   const closeMovementExerciseSession = useCallback(() => {
     if (movementExerciseLogStatus === "saving") return;
     setActiveMovementExerciseId(null);
@@ -3243,6 +3505,11 @@ const RoomScreen = () => {
       setCompletedMovementExerciseId(activeMovementExerciseId);
       setLastMovementExerciseId(activeMovementExerciseId);
       saveLastMovementExerciseId(activeMovementExerciseId);
+      setMovementWeekLogDates((current) => {
+        const next = addMovementWeekLogDate(current);
+        saveMovementWeekLogDates(next);
+        return next;
+      });
       setActiveMovementExerciseId(null);
       setMovementExerciseLogStatus("saved");
     } catch {
@@ -4736,6 +5003,115 @@ const RoomScreen = () => {
                 </span>
               </button>
             ) : null}
+
+            <div
+              className="mt-3 rounded-[22px] border border-[#CFEAF2] bg-white/88 p-3 shadow-[0_10px_22px_rgba(2,132,199,0.06)] sm:ml-[72px]"
+              data-testid="movement-room-gentle-week"
+            >
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-2 font-body text-[17px] font-black leading-tight text-[#123047]">
+                    <CalendarDays size={19} strokeWidth={2.4} className="text-[#0369A1]" aria-hidden="true" />
+                    <span>{movementExerciseCopy.weekTitle}</span>
+                  </p>
+                  <p className="mt-1 font-body text-[13px] font-bold leading-snug text-[#66717B] [overflow-wrap:anywhere]">
+                    {movementExerciseCopy.weekBody}
+                  </p>
+                </div>
+                <span className="inline-flex w-fit shrink-0 rounded-full bg-[#F0F9FF] px-3 py-1.5 font-body text-[13px] font-black text-[#0369A1]">
+                  {movementExerciseCopy.weekProgress(movementWeekCompletedCount)}
+                </span>
+              </div>
+
+              <div className="mt-3 grid grid-cols-7 gap-1.5" data-testid="movement-room-week-days">
+                {movementWeekDays.map((day) => {
+                  const dayComplete = movementWeekLogDates.includes(day.dateKey);
+                  return (
+                    <span
+                      key={day.dateKey}
+                      className="flex min-h-[38px] min-w-0 flex-col items-center justify-center rounded-[12px] border px-1 text-center"
+                      style={{
+                        background: dayComplete ? "#ECFDF5" : day.isToday ? "#F0F9FF" : "#FFFFFF",
+                        borderColor: dayComplete ? "#A7F3D0" : day.isToday ? "#7DD3FC" : "#E3F3F7",
+                        color: dayComplete ? "#047857" : day.isToday ? "#0369A1" : "#66717B",
+                      }}
+                      aria-label={`${day.label} ${dayComplete ? movementExerciseCopy.doneDayLabel : movementExerciseCopy.openDayLabel}`}
+                    >
+                      <span className="font-body text-[12px] font-black uppercase leading-none">{day.label}</span>
+                      <span className="mt-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-current">
+                        {dayComplete ? <Check size={11} strokeWidth={3} aria-hidden="true" /> : null}
+                      </span>
+                    </span>
+                  );
+                })}
+              </div>
+
+              <div className="mt-3 grid grid-cols-[1fr_auto] items-center gap-2">
+                <p className="min-w-0 rounded-[16px] bg-[#F8FBFC] px-3 py-2 font-body text-[14px] font-extrabold leading-snug text-[#51606C] [overflow-wrap:anywhere]">
+                  {lastMovementExercise ? movementExerciseCopy.lastUsedLine(lastMovementExercise.title) : movementExerciseCopy.noLastUsed}
+                </p>
+                <button
+                  type="button"
+                  onClick={openMovementRepeatExercise}
+                  className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[16px] bg-[#0369A1] px-3 font-body text-[14px] font-black text-white shadow-[0_10px_18px_rgba(3,105,161,0.14)] sm:px-4 sm:text-[15px]"
+                  data-testid="button-movement-room-repeat-exercise"
+                >
+                  <Clock size={17} strokeWidth={2.4} aria-hidden="true" />
+                  <span>{lastMovementExercise ? movementExerciseCopy.repeatCta : movementExerciseCopy.todayPickCta}</span>
+                </button>
+              </div>
+
+              <div className="mt-2.5">
+                <p className="font-body text-[13px] font-black uppercase tracking-[0.08em] text-[#66717B]">
+                  {movementExerciseCopy.comfortTitle}
+                </p>
+                <div className="mt-2 grid grid-cols-3 gap-2" data-testid="movement-room-comfort-levels">
+                  {movementExerciseCopy.comfortLevels.map((level) => {
+                    const selected = movementComfortLevel === level.id;
+                    return (
+                      <button
+                        key={level.id}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => selectMovementComfortLevel(level.id)}
+                        className="min-h-[40px] min-w-0 rounded-[15px] border px-2 font-body text-[12px] font-black leading-tight transition-colors sm:text-[13px]"
+                        style={{
+                          background: selected ? "#0369A1" : "#FFFFFF",
+                          borderColor: selected ? "#0369A1" : "#CFEAF2",
+                          color: selected ? "#FFFFFF" : "#0369A1",
+                        }}
+                        data-testid={`button-movement-room-comfort-${level.id}`}
+                      >
+                        {level.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="mt-2.5 flex flex-col items-start gap-2 sm:flex-row sm:items-center">
+                <p className="shrink-0 font-body text-[13px] font-black uppercase tracking-[0.08em] text-[#66717B]">
+                  {movementExerciseCopy.swapPrompt}
+                </p>
+                <div className="flex w-full min-w-0 flex-wrap gap-2 sm:w-auto sm:flex-nowrap sm:overflow-x-auto sm:pb-1" data-testid="movement-room-swap-actions">
+                  {[
+                    { intent: "easier" as MovementSwapIntent, label: movementExerciseCopy.swapEasier },
+                    { intent: "calm" as MovementSwapIntent, label: movementExerciseCopy.swapCalm },
+                    { intent: "legs" as MovementSwapIntent, label: movementExerciseCopy.swapLegs },
+                  ].map((action) => (
+                    <button
+                      key={action.intent}
+                      type="button"
+                      onClick={() => openMovementSwapExercise(action.intent)}
+                      className="inline-flex min-h-[38px] shrink-0 items-center justify-center rounded-full border border-[#CFEAF2] bg-white px-3 font-body text-[13px] font-black text-[#0369A1]"
+                      data-testid={`button-movement-room-swap-${action.intent}`}
+                    >
+                      {action.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
 
             {completedMovementExercise ? (
               <div
