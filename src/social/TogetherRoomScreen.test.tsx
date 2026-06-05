@@ -169,9 +169,8 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByText("Your vote helps choose the next step.")).toBeInTheDocument();
     expect(screen.getByTestId("together-comfort-check")).toHaveTextContent("What would make this comfortable?");
     expect(screen.getByTestId("together-comfort-check-easy_access")).toHaveTextContent("1 chose this");
-    expect(screen.getByTestId("together-room-direction")).toHaveTextContent("Gentle room direction");
-    expect(screen.getByTestId("together-room-direction")).toHaveTextContent("The room is still choosing.");
-    expect(screen.getByTestId("together-room-direction")).toHaveTextContent("Shape it around Easy access.");
+    expect(screen.queryByTestId("together-room-direction")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("together-use-room-direction")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Share a plan" })).toBeInTheDocument();
     expect(screen.getByText("Suggest one simple idea so others can join or say maybe.")).toBeInTheDocument();
     expect(screen.getAllByTestId(/together-starter-/)).toHaveLength(1);
@@ -251,7 +250,7 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByTestId("together-comfort-check-quiet_pace")).toHaveTextContent("1 chose this");
   });
 
-  it("turns poll results into a gentle next step", () => {
+  it("shows poll results without a second plan shortcut", () => {
     const responseWithVotes: SocialRoomResponse = {
       ...roomResponse,
       pulse: {
@@ -273,17 +272,8 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByTestId("together-poll-next-step")).toHaveTextContent(
       "You can join the plan above or suggest a gentler version.",
     );
-    expect(screen.getByTestId("together-room-direction")).toHaveTextContent("The room is leaning toward Film chat.");
-    expect(screen.getByTestId("together-room-direction")).toHaveTextContent("Shape it around Easy access.");
-    expect(screen.getByTestId("together-use-room-direction")).toHaveTextContent("Make this a plan");
-
-    fireEvent.click(screen.getByTestId("together-use-room-direction"));
-
-    expect(screen.getByPlaceholderText("Write one small idea...")).toHaveValue(
-      "A gentle version of Film chat with Easy access.",
-    );
-    expect(screen.getByTestId("together-proposal-category-movie_date")).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByTestId("together-proposal-group-small_group")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByTestId("together-room-direction")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("together-use-room-direction")).not.toBeInTheDocument();
   });
 
   it("shows calm room updates and lets a member mark them seen", async () => {
