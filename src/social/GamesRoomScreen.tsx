@@ -10,7 +10,6 @@ import {
   Gamepad2,
   HeartHandshake,
   HelpCircle,
-  Send,
   Spade,
   Sparkles,
   Shuffle,
@@ -1111,6 +1110,8 @@ export default function GamesRoomScreen({
     && loadingRoundKind === selectedRound.kind
     && selectedKindRounds.length < selectedPuzzleTotal,
   );
+  const canBrowseSelectedPuzzles = Boolean(puzzleBankLabels && selectedPuzzleTotal > 1);
+  const isPuzzleNavigationDisabled = isLoadingSelectedBank || selectedKindRounds.length < 2;
 
   useEffect(() => {
     const kind = selectedRound?.kind;
@@ -1512,34 +1513,10 @@ export default function GamesRoomScreen({
                   </div>
                 </div>
                 {puzzleBankLabels && selectedPuzzleTotal > 1 && (
-                  <div className="mt-5 flex items-center justify-between gap-3 rounded-[22px] border border-[#D8E6E2] bg-[#F4FAF8] px-4 py-3">
+                  <div className="mt-5 rounded-[22px] border border-[#D8E6E2] bg-[#F4FAF8] px-4 py-3">
                     <p className="font-body text-[18px] font-extrabold text-[#087C82]">
                       {puzzleBankLabels.progress}
                     </p>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => selectPuzzleAtOffset(-1)}
-                        disabled={isLoadingSelectedBank || selectedKindRounds.length < 2}
-                        aria-label={puzzleBankLabels.previous}
-                        title={puzzleBankLabels.previous}
-                        data-testid="games-previous-puzzle"
-                        className="flex h-[46px] w-[46px] items-center justify-center rounded-full border border-[#BFDAD7] bg-white text-[#075C64] shadow-[0_8px_18px_rgba(11,60,66,0.05)] transition-colors hover:bg-[#E8F7F6] disabled:opacity-45"
-                      >
-                        <ChevronLeft size={22} strokeWidth={3} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => selectPuzzleAtOffset(1)}
-                        disabled={isLoadingSelectedBank || selectedKindRounds.length < 2}
-                        aria-label={puzzleBankLabels.next}
-                        title={puzzleBankLabels.next}
-                        data-testid="games-next-puzzle"
-                        className="flex h-[46px] w-[46px] items-center justify-center rounded-full border border-[#BFDAD7] bg-white text-[#075C64] shadow-[0_8px_18px_rgba(11,60,66,0.05)] transition-colors hover:bg-[#E8F7F6] disabled:opacity-45"
-                      >
-                        <ChevronRight size={22} strokeWidth={3} />
-                      </button>
-                    </div>
                   </div>
                 )}
 
@@ -1671,23 +1648,85 @@ export default function GamesRoomScreen({
                     <p className="mt-5 font-body text-[20px] font-semibold leading-snug text-[#466871]">
                       {selectedRound.prompt}
                     </p>
+                  </>
+                )}
+
+                {!hasStartedSelectedRound ? (
+                  <div
+                    className={[
+                      "mt-5 grid items-center gap-3",
+                      canBrowseSelectedPuzzles ? "grid-cols-[50px_minmax(0,1fr)_50px] sm:grid-cols-[54px_minmax(0,1fr)_54px]" : "grid-cols-1",
+                    ].join(" ")}
+                    data-testid="games-puzzle-controls"
+                  >
+                    {canBrowseSelectedPuzzles && puzzleBankLabels && (
+                      <button
+                        type="button"
+                        onClick={() => selectPuzzleAtOffset(-1)}
+                        disabled={isPuzzleNavigationDisabled}
+                        aria-label={puzzleBankLabels.previous}
+                        title={puzzleBankLabels.previous}
+                        data-testid="games-previous-puzzle"
+                        className="flex h-[50px] w-[50px] items-center justify-center rounded-full border border-[#BFDAD7] bg-white text-[#075C64] shadow-[0_8px_18px_rgba(11,60,66,0.05)] transition-colors hover:bg-[#E8F7F6] disabled:opacity-45 sm:h-[54px] sm:w-[54px]"
+                      >
+                        <ChevronLeft size={23} strokeWidth={3} />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => void startRound()}
                       disabled={!selectedRound || isPersistingRound}
                       data-testid="games-start-round"
-                      className="mt-5 flex min-h-[64px] w-full items-center justify-center gap-3 rounded-[22px] bg-[#007B7E] px-5 font-body text-[21px] font-extrabold text-white shadow-[0_16px_34px_rgba(0,123,126,0.18)] disabled:opacity-55"
+                      className="flex min-h-[64px] w-full items-center justify-center gap-2 rounded-[22px] bg-[#007B7E] px-3 font-body text-[18px] font-extrabold text-white shadow-[0_16px_34px_rgba(0,123,126,0.18)] disabled:opacity-55 sm:gap-3 sm:px-5 sm:text-[21px]"
                     >
-                      <Users size={25} />
-                      {gameTable.startRoundLabel}
+                      <Users className="shrink-0" size={23} />
+                      <span className="whitespace-nowrap">{gameTable.startRoundLabel}</span>
                     </button>
-                  </>
-                )}
+                    {canBrowseSelectedPuzzles && puzzleBankLabels && (
+                      <button
+                        type="button"
+                        onClick={() => selectPuzzleAtOffset(1)}
+                        disabled={isPuzzleNavigationDisabled}
+                        aria-label={puzzleBankLabels.next}
+                        title={puzzleBankLabels.next}
+                        data-testid="games-next-puzzle"
+                        className="flex h-[50px] w-[50px] items-center justify-center rounded-full border border-[#BFDAD7] bg-white text-[#075C64] shadow-[0_8px_18px_rgba(11,60,66,0.05)] transition-colors hover:bg-[#E8F7F6] disabled:opacity-45 sm:h-[54px] sm:w-[54px]"
+                      >
+                        <ChevronRight size={23} strokeWidth={3} />
+                      </button>
+                    )}
+                  </div>
+                ) : canBrowseSelectedPuzzles && puzzleBankLabels ? (
+                  <div className="mt-5 grid grid-cols-2 gap-3" data-testid="games-puzzle-controls">
+                    <button
+                      type="button"
+                      onClick={() => selectPuzzleAtOffset(-1)}
+                      disabled={isPuzzleNavigationDisabled}
+                      aria-label={puzzleBankLabels.previous}
+                      data-testid="games-previous-puzzle"
+                      className="flex min-h-[58px] items-center justify-center gap-2 rounded-[20px] border border-[#BFDAD7] bg-white px-3 font-body text-[16px] font-extrabold text-[#075C64] shadow-[0_8px_18px_rgba(11,60,66,0.05)] disabled:opacity-45"
+                    >
+                      <ChevronLeft size={21} strokeWidth={3} />
+                      <span>{puzzleBankLabels.previous}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectPuzzleAtOffset(1)}
+                      disabled={isPuzzleNavigationDisabled}
+                      aria-label={puzzleBankLabels.next}
+                      data-testid="games-next-puzzle"
+                      className="flex min-h-[58px] items-center justify-center gap-2 rounded-[20px] bg-[#007B7E] px-3 font-body text-[16px] font-extrabold text-white shadow-[0_12px_28px_rgba(0,123,126,0.16)] disabled:bg-[#D8E6E2] disabled:text-[#61777D] disabled:shadow-none"
+                    >
+                      <span>{puzzleBankLabels.next}</span>
+                      <ChevronRight size={21} strokeWidth={3} />
+                    </button>
+                  </div>
+                ) : null}
               </section>
             )}
           </section>
 
-          <aside className="space-y-5">
+          <aside className="hidden space-y-5 lg:block">
             <section className="rounded-[28px] border border-[#D8E6E2] bg-white px-5 py-5 shadow-[0_16px_34px_rgba(11,60,66,0.08)]">
               <h2 className="font-body text-[27px] font-extrabold leading-tight text-[#07313A]">{gameTable.connectionTitle}</h2>
               <p className="mt-2 font-body text-[17px] font-semibold leading-snug text-[#5B747B]">{gameTable.connectionBody}</p>
@@ -1768,17 +1807,6 @@ export default function GamesRoomScreen({
           </aside>
         </main>
 
-        <div className="sticky bottom-3 z-10 mt-5 rounded-[26px] border border-[#D8E6E2] bg-white/95 p-3 shadow-[0_18px_44px_rgba(7,49,58,0.16)] backdrop-blur lg:hidden">
-          <button
-            type="button"
-            onClick={() => void findPartner()}
-            disabled={isMatching || !selectedRound}
-            className="flex min-h-[64px] w-full items-center justify-center gap-3 rounded-[22px] border border-[#087C82] bg-white px-5 font-body text-[21px] font-extrabold text-[#087C82] disabled:opacity-55"
-          >
-            <Send size={24} />
-            {gameTable.findPartnerLabel}
-          </button>
-        </div>
       </div>
     </div>
   );

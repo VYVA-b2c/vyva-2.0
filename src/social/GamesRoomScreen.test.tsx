@@ -452,7 +452,9 @@ describe("GamesRoomScreen", () => {
     expect(screen.queryByText("Memory match")).not.toBeInTheDocument();
     expect(screen.getByText("Puzzle 1 of 2")).toBeInTheDocument();
     expect(screen.queryByText("Next puzzle")).not.toBeInTheDocument();
-    expect(screen.getByTestId("games-start-round")).toHaveTextContent("Start this puzzle");
+    const puzzleControls = screen.getByTestId("games-puzzle-controls");
+    expect(within(puzzleControls).getByTestId("games-start-round")).toHaveTextContent("Start this puzzle");
+    expect(within(puzzleControls).getByTestId("games-next-puzzle")).toBeInTheDocument();
     expect(screen.getByText("White's knight can check the king and attack the queen. What tactic is this?")).toBeInTheDocument();
     const chessBoard = screen.getByTestId("games-visual-chess");
     expect(chessBoard).toBeInTheDocument();
