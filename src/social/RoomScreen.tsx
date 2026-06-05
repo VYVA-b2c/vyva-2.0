@@ -4402,6 +4402,7 @@ const RoomScreen = () => {
       <TogetherRoomScreen
         roomResponse={roomResponse}
         language={language}
+        composerLanguage={gameLanguage}
         visitId={visitId}
         onBack={handleBackToRooms}
       />

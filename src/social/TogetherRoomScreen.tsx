@@ -19,6 +19,7 @@ import { apiFetch } from "@/lib/queryClient";
 import AgentAvatar from "./AgentAvatar";
 import SocialStyles from "./SocialStyles";
 import type {
+  SocialGameLanguage,
   SocialLanguage,
   SocialRoomCostRange,
   SocialRoomComfortNeed,
@@ -38,6 +39,7 @@ import type {
 type TogetherRoomScreenProps = {
   roomResponse: SocialRoomResponse;
   language: SocialLanguage;
+  composerLanguage?: SocialGameLanguage;
   visitId?: string | null;
   onBack: () => void;
 };
@@ -45,6 +47,38 @@ type TogetherRoomScreenProps = {
 type StarterAction = "hello" | "view" | "plan" | "ask";
 type ProposalLocationLabel = "nearby" | "online";
 type PlanCollaborationAction = "choose" | "pace" | "notify";
+type PlanPresetId = "quiet_lunch" | "film_chat" | "service_deal";
+
+type PlanComposerCopy = {
+  sharePlanTitle: string;
+  sharePlanBody: string;
+  sharePlanAction: string;
+  proposalPlaceholder: string;
+  proposalCategoryPrompt: string;
+  proposalPlacePrompt: string;
+  proposalTimePrompt: string;
+  proposalCostPrompt: string;
+  proposalGroupPrompt: string;
+  planNearby: string;
+  planOnline: string;
+  comfortPrompt: string;
+  planPresetPrompt: string;
+  planComposerHelper: string;
+  planPresetCopy: Record<PlanPresetId, { title: string; body: string; draft: string }>;
+  comfortNeedLabels: Record<SocialRoomComfortNeed, string>;
+  categoryLabels: Record<SocialRoomExperienceCategory, string>;
+  timeLabels: Record<SocialRoomPreferredTime, string>;
+  costLabels: Record<SocialRoomCostRange, string>;
+  groupLabels: Record<SocialRoomGroupSize, string>;
+  reviewReasons: Record<SocialRoomSafetyFlag, string>;
+  postFailed: string;
+  send: string;
+  sending: string;
+  proposalSent: string;
+  proposalReviewTitle: string;
+  proposalReviewBody: string;
+  starterDetails: Pick<Record<StarterAction, string>, "plan">;
+};
 
 const memberColours = ["#0F766E", "#7C3AED", "#D97706"];
 const defaultPlanKind: SocialRoomPlanKind = "plan";
@@ -66,6 +100,39 @@ const planCollaborationTones: Record<PlanCollaborationAction, SocialRoomReplyTon
   choose: "help",
   pace: "curious",
   notify: "support",
+};
+const planPresetDefaults: Record<PlanPresetId, {
+  locationLabel: ProposalLocationLabel;
+  comfortNeeds: SocialRoomComfortNeed[];
+  experienceCategory: SocialRoomExperienceCategory;
+  preferredTime: SocialRoomPreferredTime;
+  costRange: SocialRoomCostRange;
+  groupSize: SocialRoomGroupSize;
+}> = {
+  quiet_lunch: {
+    locationLabel: "nearby",
+    comfortNeeds: ["easy_access", "seating", "quiet_pace"],
+    experienceCategory: "restaurant_date",
+    preferredTime: "afternoon",
+    costRange: "shared",
+    groupSize: "small_group",
+  },
+  film_chat: {
+    locationLabel: "online",
+    comfortNeeds: ["quiet_pace"],
+    experienceCategory: "movie_date",
+    preferredTime: "evening",
+    costRange: "free",
+    groupSize: "small_group",
+  },
+  service_deal: {
+    locationLabel: "online",
+    comfortNeeds: ["quiet_pace", "easy_access"],
+    experienceCategory: "deal_help",
+    preferredTime: "flexible",
+    costRange: "discuss",
+    groupSize: "small_group",
+  },
 };
 
 const copyByLanguage: Record<SocialLanguage, {
@@ -120,6 +187,9 @@ const copyByLanguage: Record<SocialLanguage, {
   planNearby: string;
   planOnline: string;
   comfortPrompt: string;
+  planPresetPrompt: string;
+  planComposerHelper: string;
+  planPresetCopy: Record<PlanPresetId, { title: string; body: string; draft: string }>;
   comfortNeedLabels: Record<SocialRoomComfortNeed, string>;
   categoryLabels: Record<SocialRoomExperienceCategory, string>;
   timeLabels: Record<SocialRoomPreferredTime, string>;
@@ -131,7 +201,9 @@ const copyByLanguage: Record<SocialLanguage, {
   postFailed: string;
   send: string;
   sending: string;
-  sent: string;
+  proposalSent: string;
+  proposalReviewTitle: string;
+  proposalReviewBody: string;
   helpSent: string;
   helpFailed: string;
   viewStarter: string;
@@ -223,6 +295,25 @@ const copyByLanguage: Record<SocialLanguage, {
     planNearby: "Cerca",
     planOnline: "En linea",
     comfortPrompt: "Que ayuda?",
+    planPresetPrompt: "Empieza con una idea",
+    planComposerHelper: "Puedes cambiar cualquier detalle antes de compartirlo.",
+    planPresetCopy: {
+      quiet_lunch: {
+        title: "Comida tranquila cerca",
+        body: "Cerca, accesible y sin prisa.",
+        draft: "Me gustaria proponer una comida tranquila cerca, en un sitio accesible y con tiempo para hablar.",
+      },
+      film_chat: {
+        title: "Charla de pelicula en linea",
+        body: "Una pelicula suave y una conversacion corta.",
+        draft: "Me gustaria elegir una pelicula tranquila y comentarla en linea sin prisa.",
+      },
+      service_deal: {
+        title: "Comparar servicio o trato",
+        body: "Revisarlo juntos antes de decidir.",
+        draft: "Me gustaria comparar un servicio o trato con otra persona antes de decidir.",
+      },
+    },
     comfortNeedLabels: {
       quiet_pace: "Ritmo tranquilo",
       easy_access: "Acceso facil",
@@ -267,7 +358,9 @@ const copyByLanguage: Record<SocialLanguage, {
     postFailed: "No se pudo publicar. Intentalo de nuevo.",
     send: "Enviar",
     sending: "Enviando...",
-    sent: "Enviado",
+    proposalSent: "Compartido. Otros pueden apuntarse o decir quizas.",
+    proposalReviewTitle: "VYVA lo revisara primero",
+    proposalReviewBody: "Si hay dinero, vivienda, servicios, transporte o contacto privado, VYVA lo mira antes del siguiente paso.",
     helpSent: "VYVA revisara esto con cuidado.",
     helpFailed: "No se pudo avisar a VYVA. Intentalo de nuevo.",
     viewStarter: "Compartir opinion",
@@ -368,6 +461,25 @@ const copyByLanguage: Record<SocialLanguage, {
     planNearby: "In der Naehe",
     planOnline: "Online",
     comfortPrompt: "Was hilft?",
+    planPresetPrompt: "Mit einer Idee starten",
+    planComposerHelper: "Du kannst alles aendern, bevor du teilst.",
+    planPresetCopy: {
+      quiet_lunch: {
+        title: "Ruhiges Essen in der Naehe",
+        body: "Nah, einfach zugaenglich und ohne Eile.",
+        draft: "Ich moechte ein ruhiges Essen in der Naehe vorschlagen, an einem gut zugaenglichen Ort mit Zeit zum Reden.",
+      },
+      film_chat: {
+        title: "Filmgespraech online",
+        body: "Ein ruhiger Film und ein kurzes Gespraech.",
+        draft: "Ich moechte einen ruhigen Film auswaehlen und online ohne Eile darueber sprechen.",
+      },
+      service_deal: {
+        title: "Service oder Deal vergleichen",
+        body: "Gemeinsam anschauen, bevor jemand entscheidet.",
+        draft: "Ich moechte einen Service oder Deal mit jemandem vergleichen, bevor ich entscheide.",
+      },
+    },
     comfortNeedLabels: {
       quiet_pace: "Ruhiges Tempo",
       easy_access: "Einfacher Zugang",
@@ -412,7 +524,9 @@ const copyByLanguage: Record<SocialLanguage, {
     postFailed: "Konnte nicht gepostet werden. Bitte versuche es erneut.",
     send: "Senden",
     sending: "Senden...",
-    sent: "Gesendet",
+    proposalSent: "Geteilt. Andere koennen mitmachen oder vielleicht sagen.",
+    proposalReviewTitle: "VYVA prueft das zuerst",
+    proposalReviewBody: "Wenn es um Geld, Wohnen, Services, Transport oder privaten Kontakt geht, schaut VYVA vor dem naechsten Schritt darauf.",
     helpSent: "VYVA prueft das behutsam.",
     helpFailed: "VYVA konnte nicht benachrichtigt werden. Bitte versuche es erneut.",
     viewStarter: "Ansicht teilen",
@@ -513,6 +627,25 @@ const copyByLanguage: Record<SocialLanguage, {
     planNearby: "Nearby",
     planOnline: "Online",
     comfortPrompt: "What would help?",
+    planPresetPrompt: "Start with one idea",
+    planComposerHelper: "You can change anything before posting.",
+    planPresetCopy: {
+      quiet_lunch: {
+        title: "Quiet lunch nearby",
+        body: "Nearby, accessible and unhurried.",
+        draft: "I would like to suggest a quiet lunch nearby, somewhere accessible with time to talk.",
+      },
+      film_chat: {
+        title: "Film chat online",
+        body: "A gentle film and a short conversation.",
+        draft: "I would like to choose a gentle film and talk about it online without rushing.",
+      },
+      service_deal: {
+        title: "Compare a service or deal",
+        body: "Look at it together before deciding.",
+        draft: "I would like to compare a service or deal with someone before deciding.",
+      },
+    },
     comfortNeedLabels: {
       quiet_pace: "Quiet pace",
       easy_access: "Easy access",
@@ -557,7 +690,9 @@ const copyByLanguage: Record<SocialLanguage, {
     postFailed: "Could not post it. Please try again.",
     send: "Send",
     sending: "Sending...",
-    sent: "Sent",
+    proposalSent: "Shared. Others can join or say maybe.",
+    proposalReviewTitle: "VYVA will review this first",
+    proposalReviewBody: "If it involves money, housing, services, transport or private contact, VYVA checks it before the next step.",
     helpSent: "VYVA will review this gently.",
     helpFailed: "Could not alert VYVA. Please try again.",
     viewStarter: "Share a view",
@@ -578,6 +713,258 @@ const copyByLanguage: Record<SocialLanguage, {
       view: "I would like to share a small view with the room.",
       plan: "I would like to share a gentle plan.",
       ask: "VYVA, help me choose an easy way to join in.",
+    },
+  },
+};
+
+const planComposerCopyByLanguage: Record<SocialGameLanguage, PlanComposerCopy> = {
+  es: copyByLanguage.es,
+  de: copyByLanguage.de,
+  en: copyByLanguage.en,
+  fr: {
+    ...copyByLanguage.en,
+    sharePlanTitle: "Partager un plan",
+    sharePlanBody: "Proposez une idee simple pour que d'autres puissent participer ou dire peut-etre.",
+    sharePlanAction: "Partager un plan",
+    proposalPlaceholder: "Ecrivez une petite idee...",
+    proposalCategoryPrompt: "Quel type d'experience?",
+    proposalPlacePrompt: "Qu'est-ce qui convient le mieux?",
+    proposalTimePrompt: "Quand cela convient-il?",
+    proposalCostPrompt: "Cout",
+    proposalGroupPrompt: "Comment participer?",
+    planNearby: "A proximite",
+    planOnline: "En ligne",
+    comfortPrompt: "Qu'est-ce qui aiderait?",
+    planPresetPrompt: "Commencer avec une idee",
+    planComposerHelper: "Vous pouvez tout changer avant de publier.",
+    planPresetCopy: {
+      quiet_lunch: {
+        title: "Dejeuner calme a proximite",
+        body: "Proche, accessible et sans pression.",
+        draft: "J'aimerais proposer un dejeuner calme a proximite, dans un lieu accessible avec du temps pour parler.",
+      },
+      film_chat: {
+        title: "Discussion film en ligne",
+        body: "Un film doux et une courte conversation.",
+        draft: "J'aimerais choisir un film doux et en parler en ligne sans se presser.",
+      },
+      service_deal: {
+        title: "Comparer un service ou une offre",
+        body: "Le regarder ensemble avant de decider.",
+        draft: "J'aimerais comparer un service ou une offre avec quelqu'un avant de decider.",
+      },
+    },
+    comfortNeedLabels: {
+      quiet_pace: "Rythme calme",
+      easy_access: "Acces facile",
+      seating: "Place assise",
+      transport_help: "Aide transport",
+    },
+    categoryLabels: {
+      movie_date: "Rendez-vous film",
+      restaurant_date: "Restaurant",
+      home_share: "Maison ou location",
+      service_booking: "Reserver un service",
+      deal_help: "Negocier une offre",
+      outing: "Sortie",
+      other: "Autre idee",
+    },
+    timeLabels: {
+      morning: "Matin",
+      afternoon: "Apres-midi",
+      evening: "Soir",
+      flexible: "Flexible",
+    },
+    costLabels: {
+      free: "Gratuit",
+      low: "Faible",
+      shared: "Partage",
+      discuss: "Clarifier avant",
+    },
+    groupLabels: {
+      one_to_one: "1:1",
+      small_group: "Petit groupe",
+      open_room: "Salle ouverte",
+    },
+    reviewReasons: {
+      money: "argent",
+      housing: "logement",
+      service: "service",
+      private_contact: "contact",
+      transport: "transport",
+    },
+    postFailed: "Impossible de publier. Reessayez.",
+    send: "Envoyer",
+    sending: "Envoi...",
+    proposalSent: "Partage. Les autres peuvent participer ou dire peut-etre.",
+    proposalReviewTitle: "VYVA verifiera d'abord",
+    proposalReviewBody: "Si cela touche a l'argent, au logement, aux services, au transport ou au contact prive, VYVA le verifie avant l'etape suivante.",
+    starterDetails: {
+      plan: "J'aimerais partager un plan simple et calme.",
+    },
+  },
+  it: {
+    ...copyByLanguage.en,
+    sharePlanTitle: "Condividi un piano",
+    sharePlanBody: "Suggerisci un'idea semplice cosi altri possono partecipare o dire forse.",
+    sharePlanAction: "Condividi un piano",
+    proposalPlaceholder: "Scrivi una piccola idea...",
+    proposalCategoryPrompt: "Che tipo di esperienza?",
+    proposalPlacePrompt: "Cosa andrebbe meglio?",
+    proposalTimePrompt: "Quando va bene?",
+    proposalCostPrompt: "Costo",
+    proposalGroupPrompt: "Come partecipare?",
+    planNearby: "Vicino",
+    planOnline: "Online",
+    comfortPrompt: "Cosa aiuterebbe?",
+    planPresetPrompt: "Inizia con un'idea",
+    planComposerHelper: "Puoi cambiare tutto prima di pubblicare.",
+    planPresetCopy: {
+      quiet_lunch: {
+        title: "Pranzo tranquillo vicino",
+        body: "Vicino, accessibile e senza fretta.",
+        draft: "Vorrei proporre un pranzo tranquillo vicino, in un posto accessibile con tempo per parlare.",
+      },
+      film_chat: {
+        title: "Conversazione film online",
+        body: "Un film leggero e una breve conversazione.",
+        draft: "Vorrei scegliere un film leggero e parlarne online senza fretta.",
+      },
+      service_deal: {
+        title: "Confrontare servizio o offerta",
+        body: "Guardarlo insieme prima di decidere.",
+        draft: "Vorrei confrontare un servizio o un'offerta con qualcuno prima di decidere.",
+      },
+    },
+    comfortNeedLabels: {
+      quiet_pace: "Ritmo tranquillo",
+      easy_access: "Accesso facile",
+      seating: "Posto per sedersi",
+      transport_help: "Aiuto trasporto",
+    },
+    categoryLabels: {
+      movie_date: "Appuntamento film",
+      restaurant_date: "Ristorante",
+      home_share: "Casa o affitto",
+      service_booking: "Prenotare servizio",
+      deal_help: "Negoziare offerta",
+      outing: "Uscita",
+      other: "Altra idea",
+    },
+    timeLabels: {
+      morning: "Mattina",
+      afternoon: "Pomeriggio",
+      evening: "Sera",
+      flexible: "Flessibile",
+    },
+    costLabels: {
+      free: "Gratis",
+      low: "Basso",
+      shared: "Condiviso",
+      discuss: "Chiarire prima",
+    },
+    groupLabels: {
+      one_to_one: "1:1",
+      small_group: "Piccolo gruppo",
+      open_room: "Sala aperta",
+    },
+    reviewReasons: {
+      money: "denaro",
+      housing: "casa",
+      service: "servizio",
+      private_contact: "contatto",
+      transport: "trasporto",
+    },
+    postFailed: "Non e stato possibile pubblicare. Riprova.",
+    send: "Invia",
+    sending: "Invio...",
+    proposalSent: "Condiviso. Gli altri possono partecipare o dire forse.",
+    proposalReviewTitle: "VYVA lo controllera prima",
+    proposalReviewBody: "Se riguarda denaro, casa, servizi, trasporto o contatto privato, VYVA controlla prima del passo successivo.",
+    starterDetails: {
+      plan: "Vorrei condividere un piano semplice e tranquillo.",
+    },
+  },
+  pt: {
+    ...copyByLanguage.en,
+    sharePlanTitle: "Partilhar um plano",
+    sharePlanBody: "Sugira uma ideia simples para outros poderem participar ou dizer talvez.",
+    sharePlanAction: "Partilhar um plano",
+    proposalPlaceholder: "Escreva uma pequena ideia...",
+    proposalCategoryPrompt: "Que tipo de experiencia?",
+    proposalPlacePrompt: "O que seria melhor?",
+    proposalTimePrompt: "Quando funciona melhor?",
+    proposalCostPrompt: "Custo",
+    proposalGroupPrompt: "Como participar?",
+    planNearby: "Perto",
+    planOnline: "Online",
+    comfortPrompt: "O que ajudaria?",
+    planPresetPrompt: "Comecar com uma ideia",
+    planComposerHelper: "Pode mudar qualquer coisa antes de publicar.",
+    planPresetCopy: {
+      quiet_lunch: {
+        title: "Almoco tranquilo por perto",
+        body: "Perto, acessivel e sem pressa.",
+        draft: "Gostaria de sugerir um almoco tranquilo por perto, num lugar acessivel com tempo para conversar.",
+      },
+      film_chat: {
+        title: "Conversa sobre filme online",
+        body: "Um filme leve e uma conversa curta.",
+        draft: "Gostaria de escolher um filme leve e falar sobre ele online sem pressa.",
+      },
+      service_deal: {
+        title: "Comparar servico ou oferta",
+        body: "Ver em conjunto antes de decidir.",
+        draft: "Gostaria de comparar um servico ou uma oferta com alguem antes de decidir.",
+      },
+    },
+    comfortNeedLabels: {
+      quiet_pace: "Ritmo tranquilo",
+      easy_access: "Acesso facil",
+      seating: "Lugar para sentar",
+      transport_help: "Ajuda transporte",
+    },
+    categoryLabels: {
+      movie_date: "Encontro de filme",
+      restaurant_date: "Restaurante",
+      home_share: "Casa ou aluguer",
+      service_booking: "Reservar servico",
+      deal_help: "Negociar oferta",
+      outing: "Saida",
+      other: "Outra ideia",
+    },
+    timeLabels: {
+      morning: "Manha",
+      afternoon: "Tarde",
+      evening: "Noite",
+      flexible: "Flexivel",
+    },
+    costLabels: {
+      free: "Gratis",
+      low: "Baixo",
+      shared: "Partilhado",
+      discuss: "Clarificar antes",
+    },
+    groupLabels: {
+      one_to_one: "1:1",
+      small_group: "Pequeno grupo",
+      open_room: "Sala aberta",
+    },
+    reviewReasons: {
+      money: "dinheiro",
+      housing: "habitacao",
+      service: "servico",
+      private_contact: "contacto",
+      transport: "transporte",
+    },
+    postFailed: "Nao foi possivel publicar. Tente novamente.",
+    send: "Enviar",
+    sending: "A enviar...",
+    proposalSent: "Partilhado. Outros podem participar ou dizer talvez.",
+    proposalReviewTitle: "VYVA vai rever primeiro",
+    proposalReviewBody: "Se envolver dinheiro, habitacao, servicos, transporte ou contacto privado, VYVA verifica antes do passo seguinte.",
+    starterDetails: {
+      plan: "Gostaria de partilhar um plano simples e calmo.",
     },
   },
 };
@@ -761,6 +1148,32 @@ function updatePollVote(pulse: SocialRoomPulse, optionId: string): SocialRoomPul
 
 function normalizeComfortSelection(needs: SocialRoomComfortNeed[]) {
   return Array.from(new Set(needs.filter((need) => comfortNeedOptions.includes(need)))).slice(0, 4);
+}
+
+function getComposerReviewFlags(category: SocialRoomExperienceCategory, draft: string): SocialRoomSafetyFlag[] {
+  const flags = new Set<SocialRoomSafetyFlag>();
+  const text = draft.toLowerCase();
+
+  if (category === "home_share") flags.add("housing");
+  if (category === "service_booking") flags.add("service");
+  if (category === "deal_help") flags.add("money");
+  if (/\b(bank|cash|card|contract|deal|deposit|discount|invoice|loan|money|pay|payment|price|refund|rent|transfer)\b/.test(text)) {
+    flags.add("money");
+  }
+  if (/\b(address|email|number|outside the app|phone|private contact|text me|whatsapp)\b/.test(text) || /https?:\/\/|www\.|[^\s@]+@[^\s@]+\.[^\s@]+/.test(text)) {
+    flags.add("private_contact");
+  }
+  if (/\b(apartment|home share|house|lease|roommate|tenant)\b/.test(text)) {
+    flags.add("housing");
+  }
+  if (/\b(book a service|caregiver|cleaner|handyman|repair|service|worker)\b/.test(text)) {
+    flags.add("service");
+  }
+  if (/\b(car|driver|lift|ride|taxi|transport)\b/.test(text)) {
+    flags.add("transport");
+  }
+
+  return Array.from(flags).slice(0, 5);
 }
 
 function updateComfortCheck(pulse: SocialRoomPulse, comfortNeeds: SocialRoomComfortNeed[]): SocialRoomPulse {
@@ -968,10 +1381,12 @@ function ChoiceButtonGroup<T extends string>({
 export default function TogetherRoomScreen({
   roomResponse,
   language,
+  composerLanguage = language,
   visitId,
   onBack,
 }: TogetherRoomScreenProps) {
   const copy = copyByLanguage[language];
+  const planCopy = planComposerCopyByLanguage[composerLanguage];
   const { room } = roomResponse;
   const [pulse, setPulse] = useState<SocialRoomPulse>(roomResponse.pulse ?? fallbackPulse(language));
   const [proposalDraft, setProposalDraft] = useState("");
@@ -1012,6 +1427,10 @@ export default function TogetherRoomScreen({
   const agreementButtonLabel = agreementAcknowledged
     ? pulse.safety.acknowledgedLabel ?? copy.acknowledgedLabel
     : pulse.safety.acknowledgementLabel ?? copy.acknowledgementLabel;
+  const proposalReviewFlags = useMemo(
+    () => getComposerReviewFlags(proposalCategory, proposalDraft),
+    [proposalCategory, proposalDraft],
+  );
 
   const postJson = async (url: string, body: Record<string, unknown>) => {
     const response = await apiFetch(url, {
@@ -1145,26 +1564,28 @@ export default function TogetherRoomScreen({
         groupSize: kind === "plan" ? groupSize : "one_to_one",
       });
       if (!result?.pulse) {
-        setStatusMessage(copy.postFailed);
+        setStatusMessage(planCopy.postFailed);
         return;
       }
       setPulse(result.pulse);
       setProposalDraft("");
       setShowProposalComposer(false);
+      setProposalLocationLabel("nearby");
+      setSelectedComfortNeeds(["quiet_pace"]);
       setProposalCategory("outing");
       setProposalPreferredTime("flexible");
       setProposalCostRange("discuss");
       setProposalGroupSize("one_to_one");
-      setStatusMessage(copy.sent);
+      setStatusMessage(planCopy.proposalSent);
     } catch {
-      setStatusMessage(copy.postFailed);
+      setStatusMessage(planCopy.postFailed);
     } finally {
       setIsSending(false);
     }
   };
 
   const openPlanComposer = () => {
-    const details = copy.starterDetails.plan;
+    const details = planCopy.starterDetails.plan;
     setProposalDraft(details);
     setProposalKind("plan");
     setProposalLocationLabel("nearby");
@@ -1174,6 +1595,18 @@ export default function TogetherRoomScreen({
     setProposalCostRange("discuss");
     setProposalGroupSize("one_to_one");
     setShowProposalComposer(true);
+  };
+
+  const applyPlanPreset = (presetId: PlanPresetId) => {
+    const preset = planPresetDefaults[presetId];
+    setProposalKind("plan");
+    setProposalDraft(planCopy.planPresetCopy[presetId].draft);
+    setProposalLocationLabel(preset.locationLabel);
+    setSelectedComfortNeeds(preset.comfortNeeds);
+    setProposalCategory(preset.experienceCategory);
+    setProposalPreferredTime(preset.preferredTime);
+    setProposalCostRange(preset.costRange);
+    setProposalGroupSize(preset.groupSize);
   };
 
   const toggleComfortNeed = (need: SocialRoomComfortNeed) => {
@@ -1604,8 +2037,8 @@ export default function TogetherRoomScreen({
         </section>
 
         <section className="rounded-[28px] border border-[#E7DDF4] bg-white px-5 py-5 shadow-[0_16px_32px_rgba(109,40,217,0.06)]">
-          <h2 className="font-display text-[28px] leading-[1.08] text-[#2F2135]">{copy.sharePlanTitle}</h2>
-          <p className="mt-2 font-body text-[18px] leading-[1.35] text-[#62556B]">{copy.sharePlanBody}</p>
+          <h2 className="font-display text-[28px] leading-[1.08] text-[#2F2135]">{planCopy.sharePlanTitle}</h2>
+          <p className="mt-2 font-body text-[18px] leading-[1.35] text-[#62556B]">{planCopy.sharePlanBody}</p>
 
           <button
             type="button"
@@ -1614,7 +2047,7 @@ export default function TogetherRoomScreen({
             className="mt-4 flex min-h-[62px] w-full items-center gap-3 rounded-[20px] border border-[#E8DEF8] bg-[#FBF8FF] px-4 text-left font-body text-[19px] font-bold text-[#4B2E6E]"
           >
             <Sparkles size={22} aria-hidden="true" />
-            {copy.sharePlanAction}
+            {planCopy.sharePlanAction}
           </button>
 
           {showProposalComposer && (
@@ -1635,23 +2068,75 @@ export default function TogetherRoomScreen({
                 );
               }}
             >
+              <p className="font-body text-[16px] font-bold text-[#4B2E6E]">{planCopy.planPresetPrompt}</p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                {(Object.keys(planPresetDefaults) as PlanPresetId[]).map((presetId) => {
+                  const presetCopy = planCopy.planPresetCopy[presetId];
+                  return (
+                    <button
+                      key={presetId}
+                      type="button"
+                      onClick={() => applyPlanPreset(presetId)}
+                      data-testid={`together-plan-preset-${presetId}`}
+                      className="min-h-[82px] rounded-[18px] border border-[#E7DDF4] bg-white px-3 py-3 text-left font-body text-[#4B2E6E] shadow-[0_8px_14px_rgba(75,46,110,0.05)]"
+                    >
+                      <span className="block text-[16px] font-bold leading-tight">{presetCopy.title}</span>
+                      <span className="mt-1 block text-[13px] font-bold leading-[1.25] text-[#7B6687]">{presetCopy.body}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-3 rounded-[16px] bg-[#FBF8FF] px-3 py-2 font-body text-[15px] font-bold leading-[1.35] text-[#655172]">
+                {planCopy.planComposerHelper}
+              </p>
+              <div className="mt-3 flex items-end gap-2">
+                <textarea
+                  value={proposalDraft}
+                  onChange={(event) => setProposalDraft(event.target.value)}
+                  placeholder={planCopy.proposalPlaceholder}
+                  rows={3}
+                  className="min-h-[92px] min-w-0 flex-1 resize-none rounded-[17px] border border-[#E7DDF4] bg-white px-4 py-3 font-body text-[18px] leading-snug text-[#2F2135] outline-none placeholder:text-[#8A7A96]"
+                />
+                <button
+                  type="submit"
+                  disabled={isSending || !proposalDraft.trim()}
+                  className="flex h-[64px] w-[64px] shrink-0 items-center justify-center rounded-[17px] bg-[#6D28D9] text-white disabled:opacity-45"
+                  aria-label={isSending ? planCopy.sending : planCopy.send}
+                >
+                  <Send size={23} aria-hidden="true" />
+                </button>
+              </div>
+              {proposalReviewFlags.length > 0 && (
+                <div
+                  className="mt-3 rounded-[18px] border border-[#F3D79B] bg-[#FFF8E8] px-4 py-3"
+                  data-testid="together-proposal-review-note"
+                >
+                  <p className="font-body text-[16px] font-bold text-[#6B4F13]">{planCopy.proposalReviewTitle}</p>
+                  <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#7A5A18]">
+                    {planCopy.proposalReviewBody}
+                  </p>
+                  <p className="mt-2 font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#8A641A]">
+                    {proposalReviewFlags.map((flag) => planCopy.reviewReasons[flag]).join(" | ")}
+                  </p>
+                </div>
+              )}
               {proposalKind === "plan" && (
                 <ChoiceButtonGroup
-                  label={copy.proposalCategoryPrompt}
+                  label={planCopy.proposalCategoryPrompt}
                   options={experienceCategoryOptions}
                   selectedValue={proposalCategory}
                   onChange={setProposalCategory}
-                  getLabel={(value) => copy.categoryLabels[value]}
+                  getLabel={(value) => planCopy.categoryLabels[value]}
                   testIdPrefix="together-proposal-category"
                 />
               )}
               {proposalKind === "plan" && (
                 <div className="mb-3">
-                  <p className="font-body text-[16px] font-bold text-[#4B2E6E]">{copy.proposalPlacePrompt}</p>
-                  <div className="mt-2 grid grid-cols-2 gap-2" role="group" aria-label={copy.proposalPlacePrompt}>
+                  <p className="font-body text-[16px] font-bold text-[#4B2E6E]">{planCopy.proposalPlacePrompt}</p>
+                  <div className="mt-2 grid grid-cols-2 gap-2" role="group" aria-label={planCopy.proposalPlacePrompt}>
                     {([
-                      ["nearby", copy.planNearby],
-                      ["online", copy.planOnline],
+                      ["nearby", planCopy.planNearby],
+                      ["online", planCopy.planOnline],
                     ] as const).map(([value, label]) => {
                       const selected = proposalLocationLabel === value;
                       return (
@@ -1677,20 +2162,20 @@ export default function TogetherRoomScreen({
               {proposalKind === "plan" && (
                 <div className="grid gap-0 sm:grid-cols-2 sm:gap-3">
                   <ChoiceButtonGroup
-                    label={copy.proposalTimePrompt}
+                    label={planCopy.proposalTimePrompt}
                     options={preferredTimeOptions}
                     selectedValue={proposalPreferredTime}
                     onChange={setProposalPreferredTime}
-                    getLabel={(value) => copy.timeLabels[value]}
+                    getLabel={(value) => planCopy.timeLabels[value]}
                     testIdPrefix="together-proposal-time"
                     compact
                   />
                   <ChoiceButtonGroup
-                    label={copy.proposalCostPrompt}
+                    label={planCopy.proposalCostPrompt}
                     options={costRangeOptions}
                     selectedValue={proposalCostRange}
                     onChange={setProposalCostRange}
-                    getLabel={(value) => copy.costLabels[value]}
+                    getLabel={(value) => planCopy.costLabels[value]}
                     testIdPrefix="together-proposal-cost"
                     compact
                   />
@@ -1698,19 +2183,19 @@ export default function TogetherRoomScreen({
               )}
               {proposalKind === "plan" && (
                 <ChoiceButtonGroup
-                  label={copy.proposalGroupPrompt}
+                  label={planCopy.proposalGroupPrompt}
                   options={groupSizeOptions}
                   selectedValue={proposalGroupSize}
                   onChange={setProposalGroupSize}
-                  getLabel={(value) => copy.groupLabels[value]}
+                  getLabel={(value) => planCopy.groupLabels[value]}
                   testIdPrefix="together-proposal-group"
                   compact
                 />
               )}
               {proposalKind === "plan" && (
                 <div className="mb-3">
-                  <p className="font-body text-[16px] font-bold text-[#4B2E6E]">{copy.comfortPrompt}</p>
-                  <div className="mt-2 grid gap-2 sm:grid-cols-3" role="group" aria-label={copy.comfortPrompt}>
+                  <p className="font-body text-[16px] font-bold text-[#4B2E6E]">{planCopy.comfortPrompt}</p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-3" role="group" aria-label={planCopy.comfortPrompt}>
                     {comfortNeedOptions.map((need) => {
                       const selected = selectedComfortNeeds.includes(need);
                       return (
@@ -1728,7 +2213,7 @@ export default function TogetherRoomScreen({
                         >
                           <span className="inline-flex items-center justify-center gap-2">
                             {selected && <Check size={17} aria-hidden="true" />}
-                            {copy.comfortNeedLabels[need]}
+                            {planCopy.comfortNeedLabels[need]}
                           </span>
                         </button>
                       );
@@ -1736,23 +2221,6 @@ export default function TogetherRoomScreen({
                   </div>
                 </div>
               )}
-              <div className="flex items-end gap-2">
-                <textarea
-                  value={proposalDraft}
-                  onChange={(event) => setProposalDraft(event.target.value)}
-                  placeholder={copy.proposalPlaceholder}
-                  rows={2}
-                  className="min-h-[64px] min-w-0 flex-1 resize-none rounded-[17px] bg-white px-4 py-3 font-body text-[18px] leading-snug text-[#2F2135] outline-none placeholder:text-[#8A7A96]"
-                />
-                <button
-                  type="submit"
-                  disabled={isSending || !proposalDraft.trim()}
-                  className="flex h-[64px] w-[64px] shrink-0 items-center justify-center rounded-[17px] bg-[#6D28D9] text-white disabled:opacity-45"
-                  aria-label={isSending ? copy.sending : copy.send}
-                >
-                  <Send size={23} aria-hidden="true" />
-                </button>
-              </div>
             </form>
           )}
 
