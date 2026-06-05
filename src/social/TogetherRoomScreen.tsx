@@ -85,11 +85,6 @@ const copyByLanguage: Record<SocialLanguage, {
   comfortCheckTitle: string;
   comfortCheckBody: string;
   comfortCheckCount: (count: number) => string;
-  roomDirectionTitle: string;
-  roomDirectionWaiting: string;
-  roomDirectionBody: (choice: string | null, needs: string[]) => string;
-  roomDirectionAction: string;
-  roomDirectionDraft: (choice: string | null, needs: string[]) => string;
   responseNone: string;
   responseJoinCount: (count: number) => string;
   responseMaybeCount: (count: number) => string;
@@ -167,17 +162,6 @@ const copyByLanguage: Record<SocialLanguage, {
     comfortCheckTitle: "Que lo haria comodo?",
     comfortCheckBody: "Toca lo que ayuda. La sala puede adaptar los planes.",
     comfortCheckCount: (count) => `${count} ${count === 1 ? "lo eligio" : "lo eligieron"}`,
-    roomDirectionTitle: "Paso suave de la sala",
-    roomDirectionWaiting: "Cuando haya mas votos, VYVA podra sugerir un siguiente paso sencillo.",
-    roomDirectionBody: (choice, needs) => {
-      const base = choice ? `La sala se inclina por ${choice}.` : "La sala aun esta eligiendo.";
-      return needs.length ? `${base} Preparadlo con ${needs.join(", ")}.` : base;
-    },
-    roomDirectionAction: "Crear plan tranquilo",
-    roomDirectionDraft: (choice, needs) => {
-      const base = `Una version tranquila de ${choice ?? "la eleccion de hoy"}`;
-      return needs.length ? `${base} con ${needs.join(", ")}.` : `${base}.`;
-    },
     responseNone: "Puedes empezar eligiendo una opcion.",
     responseJoinCount: (count) => `${count} ${count === 1 ? "se apunta" : "se apuntan"}`,
     responseMaybeCount: (count) => `${count} quizas`,
@@ -323,17 +307,6 @@ const copyByLanguage: Record<SocialLanguage, {
     comfortCheckTitle: "Was macht es angenehm?",
     comfortCheckBody: "Tippe an, was dir hilft. Die Gruppe kann Plaene daran ausrichten.",
     comfortCheckCount: (count) => `${count} ${count === 1 ? "ausgewaehlt" : "ausgewaehlt"}`,
-    roomDirectionTitle: "Sanfter naechster Schritt",
-    roomDirectionWaiting: "Wenn mehr Stimmen da sind, kann VYVA einen einfachen naechsten Schritt vorschlagen.",
-    roomDirectionBody: (choice, needs) => {
-      const base = choice ? `Der Raum tendiert zu ${choice}.` : "Der Raum waehlt noch.";
-      return needs.length ? `${base} Plant es mit ${needs.join(", ")}.` : base;
-    },
-    roomDirectionAction: "Als Plan vorschlagen",
-    roomDirectionDraft: (choice, needs) => {
-      const base = `Eine ruhige Version von ${choice ?? "der heutigen Raumwahl"}`;
-      return needs.length ? `${base} mit ${needs.join(", ")}.` : `${base}.`;
-    },
     responseNone: "Du kannst den Anfang machen.",
     responseJoinCount: (count) => `${count} ${count === 1 ? "macht mit" : "machen mit"}`,
     responseMaybeCount: (count) => `${count} vielleicht`,
@@ -479,17 +452,6 @@ const copyByLanguage: Record<SocialLanguage, {
     comfortCheckTitle: "What would make this comfortable?",
     comfortCheckBody: "Tap what helps. The room can shape plans around it.",
     comfortCheckCount: (count) => `${count} chose this`,
-    roomDirectionTitle: "Gentle room direction",
-    roomDirectionWaiting: "As more people vote, VYVA can suggest one simple next step.",
-    roomDirectionBody: (choice, needs) => {
-      const base = choice ? `The room is leaning toward ${choice}.` : "The room is still choosing.";
-      return needs.length ? `${base} Shape it around ${needs.join(", ")}.` : base;
-    },
-    roomDirectionAction: "Make this a plan",
-    roomDirectionDraft: (choice, needs) => {
-      const base = `A gentle version of ${choice ?? "today's room choice"}`;
-      return needs.length ? `${base} with ${needs.join(", ")}.` : `${base}.`;
-    },
     responseNone: "You can be first to choose.",
     responseJoinCount: (count) => `${count} joining`,
     responseMaybeCount: (count) => `${count} maybe`,
@@ -837,28 +799,6 @@ function getLeadingPollOption(pulse: SocialRoomPulse) {
   ), pulse.activePoll.options[0]);
 }
 
-function getTopComfortLabels(pulse: SocialRoomPulse) {
-  return [...pulse.comfortCheck.options]
-    .filter((option) => option.count > 0)
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 2)
-    .map((option) => option.label);
-}
-
-function getTopComfortNeeds(pulse: SocialRoomPulse) {
-  return [...pulse.comfortCheck.options]
-    .filter((option) => option.count > 0)
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 2)
-    .map((option) => option.id);
-}
-
-function categoryForRoomDirection(optionId?: string | null): SocialRoomExperienceCategory {
-  if (optionId === "film") return "movie_date";
-  if (optionId === "lunch") return "restaurant_date";
-  return "outing";
-}
-
 function formatResponseSummary(plan: SocialRoomPlan, copy: (typeof copyByLanguage)[SocialLanguage]) {
   const joinCount = plan.responseCounts.join;
   const maybeCount = plan.responseCounts.maybe;
@@ -1066,7 +1006,6 @@ export default function TogetherRoomScreen({
   const hasMaybe = featuredPlan.myResponse === "maybe";
   const pollClosed = pulse.activePoll.status !== "active";
   const leadingPollOption = getLeadingPollOption(pulse);
-  const topComfortLabels = getTopComfortLabels(pulse);
   const agreementTitle = pulse.safety.agreementTitle ?? copy.agreementTitle;
   const agreementLines = pulse.safety.agreementLines?.length ? pulse.safety.agreementLines : copy.agreementLines;
   const agreementAcknowledged = Boolean(pulse.safety.myAcknowledgedAt);
@@ -1234,21 +1173,6 @@ export default function TogetherRoomScreen({
     setProposalPreferredTime("flexible");
     setProposalCostRange("discuss");
     setProposalGroupSize("one_to_one");
-    setShowProposalComposer(true);
-  };
-
-  const startRoomDirectionPlan = () => {
-    const comfortNeeds = normalizeComfortSelection(
-      pulse.comfortCheck.myComfortNeeds.length ? pulse.comfortCheck.myComfortNeeds : getTopComfortNeeds(pulse),
-    );
-    setProposalKind("plan");
-    setProposalLocationLabel(leadingPollOption?.id === "lunch" ? "nearby" : "online");
-    setSelectedComfortNeeds(comfortNeeds);
-    setProposalCategory(categoryForRoomDirection(leadingPollOption?.id));
-    setProposalPreferredTime("flexible");
-    setProposalCostRange("discuss");
-    setProposalGroupSize("small_group");
-    setProposalDraft(copy.roomDirectionDraft(leadingPollOption?.label ?? null, topComfortLabels));
     setShowProposalComposer(true);
   };
 
@@ -1677,25 +1601,6 @@ export default function TogetherRoomScreen({
             })}
           </div>
 
-          <div className="mt-4 rounded-[18px] bg-[#F4FBF8] px-4 py-3" data-testid="together-room-direction">
-            <p className="font-body text-[16px] font-bold text-[#0F766E]">{copy.roomDirectionTitle}</p>
-            <p className="mt-1 font-body text-[17px] font-bold leading-[1.35] text-[#315C55]">
-              {leadingPollOption || topComfortLabels.length
-                ? copy.roomDirectionBody(leadingPollOption?.label ?? null, topComfortLabels)
-                : copy.roomDirectionWaiting}
-            </p>
-            {(leadingPollOption || topComfortLabels.length > 0) && (
-              <button
-                type="button"
-                onClick={startRoomDirectionPlan}
-                data-testid="together-use-room-direction"
-                className="mt-3 inline-flex min-h-[54px] w-full items-center justify-center gap-2 rounded-[17px] bg-[#0F766E] px-4 font-body text-[17px] font-bold text-white shadow-[0_12px_22px_rgba(15,118,110,0.14)] sm:w-auto"
-              >
-                <Sparkles size={19} aria-hidden="true" />
-                {copy.roomDirectionAction}
-              </button>
-            )}
-          </div>
         </section>
 
         <section className="rounded-[28px] border border-[#E7DDF4] bg-white px-5 py-5 shadow-[0_16px_32px_rgba(109,40,217,0.06)]">
