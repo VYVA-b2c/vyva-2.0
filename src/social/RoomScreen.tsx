@@ -55,21 +55,31 @@ import {
   markReadingClubConversationCardUsed,
   markReadingClubPassport,
   recordReadingClubVisit,
+  removeReadingClubExchangeRequest,
+  removeReadingClubHostedTable,
   removeReadingClubJournalEntry,
   removeReadingClubLetter,
   removeReadingClubProgramSession,
+  removeReadingClubRecommendationCard,
   removeReadingClubShelfItem,
+  saveReadingClubExchangeRequest,
+  saveReadingClubHostedTable,
   saveReadingClubLetterDraft,
   saveReadingClubProgramSession,
+  saveReadingClubRecommendationCard,
   saveReadingClubDeskState,
   updateReadingClubDeskState,
   type ReadingClubDeskState,
+  type ReadingClubExchangeKindId,
   type ReadingClubIntentId,
   type ReadingClubMilestoneId,
   type ReadingClubNextStepId,
   type ReadingClubPaceId,
   type ReadingClubProgressMetricId,
+  type ReadingClubRecommendationMoodId,
   type ReadingClubShelfId,
+  type ReadingClubTableComfortId,
+  type ReadingClubTableTimeId,
 } from "./readingClubDesk";
 import type {
   SocialLanguage,
@@ -393,6 +403,7 @@ const MOVEMENT_EXERCISE_SESSIONS: Record<MovementExerciseCardId, {
     },
   },
 };
+type ReadingClubFocusedPath = "share" | "meet" | "recommend";
 
 type FeedComment = {
   id: string;
@@ -766,6 +777,17 @@ function getReadingClubCopy(language: SocialLanguage) {
         tablesJoined: "tables",
         shelfVotes: "votes",
       },
+      startHereTitle: "Start here",
+      startHereBody: "Choose one simple club action. Everything else can wait.",
+      startShareLabel: "Share a thought",
+      startShareBody: "Add one book, scene or memory.",
+      startMeetLabel: "Meet a reader",
+      startMeetBody: "Find someone with similar taste.",
+      startRecommendLabel: "Recommend",
+      startRecommendBody: "Leave one gentle suggestion.",
+      deepToolsShowLabel: "More in the club",
+      deepToolsHideLabel: "Hide club tools",
+      deepToolsBody: "Open the program, reader lounge, shelves, letters and journal when you want them.",
       savedShelfTitle: "My saved shelf",
       savedShelfBody: "Keep reflections, prompts and recommendations you may want to return to.",
       savedShelfEmptyLabel: "Your saved shelf is ready for a first note.",
@@ -774,6 +796,90 @@ function getReadingClubCopy(language: SocialLanguage) {
       savedShelfPromptLabel: "Prompt",
       savedShelfRemoveLabel: "Remove from shelf",
       savedShelfSavedLabel: "Saved to your shelf.",
+      recommendationShelfTitle: "Share a recommendation",
+      recommendationShelfBody: "Write one book, story or kind of read you might offer another reader. A short note is enough.",
+      recommendationTitleLabel: "What would you recommend?",
+      recommendationTitlePlaceholder: "A gentle garden story for calm afternoons...",
+      recommendationNoteLabel: "Small note",
+      recommendationNotePlaceholder: "Add one line if you want...",
+      recommendationShelfLabel: "Shelf",
+      recommendationMoodLabel: "Mood",
+      recommendationShareLabel: "Save recommendation",
+      recommendationEmptyLabel: "No recommendations yet.",
+      recommendationRemoveLabel: "Remove recommendation",
+      recommendationUseLabel: "Use as reflection",
+      recommendationSavedStatusLabel: "Recommendation left on the club shelf.",
+      recommendationRemovedStatusLabel: "Recommendation removed.",
+      recommendationReadyStatusLabel: "Recommendation ready in the reflection box.",
+      recommendationMyShelfTitle: "My recommendations",
+      recommendationCreatedLabel: "Left",
+      recommendationMoodOptions: [
+        { id: "comfort" as ReadingClubRecommendationMoodId, label: "Comfort", body: "Soft stories for company." },
+        { id: "memory" as ReadingClubRecommendationMoodId, label: "Memory", body: "Books that open remembered places." },
+        { id: "conversation" as ReadingClubRecommendationMoodId, label: "Conversation", body: "Easy picks for a table." },
+      ],
+      exchangeBoardTitle: "Reading exchange board",
+      exchangeBoardBody: "Ask the club for a book, story, memory or gentle discussion. Requests stay short and original.",
+      exchangeKindLabel: "I am looking for",
+      exchangeShelfLabel: "Shelf",
+      exchangeTopicLabel: "Exchange topic",
+      exchangeTopicPlaceholder: "Example: a kind story about gardens",
+      exchangeNoteLabel: "Small note",
+      exchangeNotePlaceholder: "Add what would make this feel comfortable...",
+      exchangePostLabel: "Ask the club",
+      exchangeEmptyLabel: "No exchange requests yet.",
+      exchangeRemoveLabel: "Remove request",
+      exchangeUseLabel: "Use at table",
+      exchangeSavedStatusLabel: "Exchange request saved.",
+      exchangeRemovedStatusLabel: "Exchange request removed.",
+      exchangeReadyStatusLabel: "Exchange request moved into the reflection box.",
+      exchangeMyRequestsTitle: "My exchange requests",
+      exchangeCreatedLabel: "Asked",
+      exchangeKindOptions: [
+        { id: "recommendation" as ReadingClubExchangeKindId, label: "A recommendation", body: "Ask for a book or story by mood." },
+        { id: "memory" as ReadingClubExchangeKindId, label: "A memory", body: "Invite life stories around a theme." },
+        { id: "discussion" as ReadingClubExchangeKindId, label: "A discussion", body: "Open a gentle question for the table." },
+      ],
+      hostTableTitle: "Host a small table",
+      hostTableBody: "Open a quiet club table around a theme. A few readers can notice it and join when it feels comfortable.",
+      hostTableTopicLabel: "Table theme",
+      hostTableTopicPlaceholder: "Example: stories about kitchens",
+      hostTableNoteLabel: "Warm note",
+      hostTableNotePlaceholder: "Add a short welcome or comfort note...",
+      hostTableCircleLabel: "Table corner",
+      hostTableTimeLabel: "When",
+      hostTableComfortLabel: "Comfort",
+      hostTablePublishLabel: "Open table",
+      hostTableEmptyLabel: "No hosted tables yet.",
+      hostTableRemoveLabel: "Cancel table",
+      hostTableSavedStatusLabel: "Your table is open in the club.",
+      hostTableRemovedStatusLabel: "Hosted table cancelled.",
+      hostTableOpenClubLabel: "Open club",
+      hostTableOpenClubBody: "Anyone in the reading room can notice it.",
+      hostTableMyTablesTitle: "My hosted tables",
+      hostTableCreatedLabel: "Opened",
+      hostTableTimeOptions: [
+        { id: "today" as ReadingClubTableTimeId, label: "Today", body: "For readers nearby now" },
+        { id: "tomorrow" as ReadingClubTableTimeId, label: "Tomorrow", body: "A gentle return plan" },
+        { id: "weekend" as ReadingClubTableTimeId, label: "Weekend", body: "For slower visits" },
+      ],
+      hostTableComfortOptions: [
+        { id: "listening" as ReadingClubTableComfortId, label: "Listening", body: "Quiet readers welcome" },
+        { id: "small" as ReadingClubTableComfortId, label: "Small", body: "Only a few voices" },
+        { id: "sharing" as ReadingClubTableComfortId, label: "Sharing", body: "Everyone may bring one note" },
+      ],
+      memberLoungeTitle: "Readers in the lounge",
+      memberLoungeBody: "A few voices are nearby with books, memories and gentle recommendations to exchange.",
+      memberLoungeSharedLabel: "Reading thread",
+      memberLoungeDefaultStatus: "Open to a gentle hello",
+      memberLoungeLetterLabel: "Write note",
+      memberLoungeTableLabel: "Invite to table",
+      memberLoungeLetterSubject: "A gentle club hello",
+      memberLoungeLetterDraft: "Hello {name}, I noticed your reading thread and would enjoy exchanging one small book memory when it feels comfortable.",
+      memberLoungeLetterReadyStatus: "A protected note is ready in the letterbox.",
+      memberLoungeTableTopic: "A small table with {name}",
+      memberLoungeTableNote: "{name} might enjoy this quiet table. Bring one memory or recommendation in your own words.",
+      memberLoungeTableReadyStatus: "A table invitation is ready to open.",
       programTitle: "This week's club program",
       programBody: "Save a seat for gentle sessions you may want to return to. Nothing is public until you choose to join.",
       programMyWeekTitle: "My club program",
@@ -868,7 +974,7 @@ function getReadingClubCopy(language: SocialLanguage) {
         greet: { id: "greet" as ReadingClubNextStepId, label: "Greet a reader", body: "Find a reading companion and send a protected hello." },
         vote: { id: "vote" as ReadingClubNextStepId, label: "Vote on a shelf", body: "Help choose what the club should open next." },
         join: { id: "join" as ReadingClubNextStepId, label: "Join a live table", body: "Pick join on one club table that feels comfortable." },
-        recommend: { id: "recommend" as ReadingClubNextStepId, label: "Leave a recommendation", body: "Choose a shelf prompt or write a gentle suggestion." },
+        recommend: { id: "recommend" as ReadingClubNextStepId, label: "Leave a recommendation", body: "Write one gentle suggestion for another reader." },
         return: { id: "return" as ReadingClubNextStepId, label: "Return tomorrow", body: "Today is full. Come back to keep your club streak alive." },
       },
       liveTablesLabel: "Live club tables",
@@ -945,6 +1051,17 @@ function getReadingClubCopy(language: SocialLanguage) {
         tablesJoined: "Tische",
         shelfVotes: "Stimmen",
       },
+      startHereTitle: "Hier anfangen",
+      startHereBody: "Waehle eine einfache Clubaktion. Alles andere kann warten.",
+      startShareLabel: "Gedanken teilen",
+      startShareBody: "Fuege ein Buch, eine Szene oder Erinnerung hinzu.",
+      startMeetLabel: "Leserin treffen",
+      startMeetBody: "Finde jemanden mit aehnlichem Geschmack.",
+      startRecommendLabel: "Empfehlen",
+      startRecommendBody: "Hinterlasse einen ruhigen Vorschlag.",
+      deepToolsShowLabel: "Mehr im Club",
+      deepToolsHideLabel: "Clubwerkzeuge ausblenden",
+      deepToolsBody: "Oeffne Programm, Lounge, Regale, Briefe und Journal, wenn du sie brauchst.",
       savedShelfTitle: "Mein gespeichertes Regal",
       savedShelfBody: "Bewahre Beitraege, Impulse und Empfehlungen auf, zu denen du zurueckkehren moechtest.",
       savedShelfEmptyLabel: "Dein gespeichertes Regal wartet auf die erste Notiz.",
@@ -953,6 +1070,90 @@ function getReadingClubCopy(language: SocialLanguage) {
       savedShelfPromptLabel: "Impuls",
       savedShelfRemoveLabel: "Aus Regal entfernen",
       savedShelfSavedLabel: "In deinem Regal gespeichert.",
+      recommendationShelfTitle: "Empfehlung teilen",
+      recommendationShelfBody: "Schreibe ein Buch, eine Geschichte oder eine Leseidee fuer eine andere Leserin. Eine kurze Notiz reicht.",
+      recommendationTitleLabel: "Was wuerdest du empfehlen?",
+      recommendationTitlePlaceholder: "Eine ruhige Gartengeschichte fuer stille Nachmittage...",
+      recommendationNoteLabel: "Kleine Notiz",
+      recommendationNotePlaceholder: "Fuege eine Zeile hinzu, wenn du moechtest...",
+      recommendationShelfLabel: "Regal",
+      recommendationMoodLabel: "Stimmung",
+      recommendationShareLabel: "Empfehlung speichern",
+      recommendationEmptyLabel: "Noch keine Empfehlungen.",
+      recommendationRemoveLabel: "Empfehlung entfernen",
+      recommendationUseLabel: "Als Beitrag nutzen",
+      recommendationSavedStatusLabel: "Empfehlung steht im Clubregal.",
+      recommendationRemovedStatusLabel: "Empfehlung entfernt.",
+      recommendationReadyStatusLabel: "Empfehlung steht im Reflexionsfeld bereit.",
+      recommendationMyShelfTitle: "Meine Empfehlungen",
+      recommendationCreatedLabel: "Hinterlassen",
+      recommendationMoodOptions: [
+        { id: "comfort" as ReadingClubRecommendationMoodId, label: "Trost", body: "Sanfte Geschichten fuer Gesellschaft." },
+        { id: "memory" as ReadingClubRecommendationMoodId, label: "Erinnerung", body: "Buecher, die Orte oeffnen." },
+        { id: "conversation" as ReadingClubRecommendationMoodId, label: "Gespraech", body: "Leichte Wahl fuer den Tisch." },
+      ],
+      exchangeBoardTitle: "Lese-Tauschtafel",
+      exchangeBoardBody: "Bitte den Club um ein Buch, eine Geschichte, eine Erinnerung oder ein ruhiges Gespraech. Anfragen bleiben kurz und in eigenen Worten.",
+      exchangeKindLabel: "Ich suche",
+      exchangeShelfLabel: "Regal",
+      exchangeTopicLabel: "Tauschthema",
+      exchangeTopicPlaceholder: "Beispiel: eine freundliche Gartengeschichte",
+      exchangeNoteLabel: "Kleine Notiz",
+      exchangeNotePlaceholder: "Fuege hinzu, was sich angenehm anfuehlen wuerde...",
+      exchangePostLabel: "Club fragen",
+      exchangeEmptyLabel: "Noch keine Tauschanfragen.",
+      exchangeRemoveLabel: "Anfrage entfernen",
+      exchangeUseLabel: "Am Tisch nutzen",
+      exchangeSavedStatusLabel: "Tauschanfrage gespeichert.",
+      exchangeRemovedStatusLabel: "Tauschanfrage entfernt.",
+      exchangeReadyStatusLabel: "Tauschanfrage steht im Reflexionsfeld.",
+      exchangeMyRequestsTitle: "Meine Tauschanfragen",
+      exchangeCreatedLabel: "Gefragt",
+      exchangeKindOptions: [
+        { id: "recommendation" as ReadingClubExchangeKindId, label: "Empfehlung", body: "Bitte um ein Buch oder eine Geschichte nach Stimmung." },
+        { id: "memory" as ReadingClubExchangeKindId, label: "Erinnerung", body: "Lade Lebensgeschichten rund um ein Thema ein." },
+        { id: "discussion" as ReadingClubExchangeKindId, label: "Gespraech", body: "Oeffne eine ruhige Frage fuer den Tisch." },
+      ],
+      hostTableTitle: "Kleinen Tisch anbieten",
+      hostTableBody: "Oeffne einen ruhigen Clubtisch rund um ein Thema. Einige Leserinnen koennen ihn bemerken und dazukommen, wenn es passt.",
+      hostTableTopicLabel: "Tischthema",
+      hostTableTopicPlaceholder: "Beispiel: Geschichten ueber Kuechen",
+      hostTableNoteLabel: "Warme Notiz",
+      hostTableNotePlaceholder: "Fuege eine kurze Willkommens- oder Trostnotiz hinzu...",
+      hostTableCircleLabel: "Tischecke",
+      hostTableTimeLabel: "Wann",
+      hostTableComfortLabel: "Komfort",
+      hostTablePublishLabel: "Tisch oeffnen",
+      hostTableEmptyLabel: "Noch keine angebotenen Tische.",
+      hostTableRemoveLabel: "Tisch absagen",
+      hostTableSavedStatusLabel: "Dein Tisch ist im Club offen.",
+      hostTableRemovedStatusLabel: "Angebotener Tisch abgesagt.",
+      hostTableOpenClubLabel: "Offener Club",
+      hostTableOpenClubBody: "Alle im Leseraum koennen ihn bemerken.",
+      hostTableMyTablesTitle: "Meine angebotenen Tische",
+      hostTableCreatedLabel: "Geoeffnet",
+      hostTableTimeOptions: [
+        { id: "today" as ReadingClubTableTimeId, label: "Heute", body: "Fuer Leserinnen, die jetzt nahe sind" },
+        { id: "tomorrow" as ReadingClubTableTimeId, label: "Morgen", body: "Ein ruhiger Rueckkehrplan" },
+        { id: "weekend" as ReadingClubTableTimeId, label: "Wochenende", body: "Fuer langsamere Besuche" },
+      ],
+      hostTableComfortOptions: [
+        { id: "listening" as ReadingClubTableComfortId, label: "Zuhoeren", body: "Stille Leserinnen willkommen" },
+        { id: "small" as ReadingClubTableComfortId, label: "Klein", body: "Nur wenige Stimmen" },
+        { id: "sharing" as ReadingClubTableComfortId, label: "Teilen", body: "Alle duerfen eine Notiz mitbringen" },
+      ],
+      memberLoungeTitle: "Leserinnen in der Lounge",
+      memberLoungeBody: "Einige Stimmen sind mit Buechern, Erinnerungen und sanften Empfehlungen in der Naehe.",
+      memberLoungeSharedLabel: "Lesefaden",
+      memberLoungeDefaultStatus: "Offen fuer einen ruhigen Gruss",
+      memberLoungeLetterLabel: "Notiz schreiben",
+      memberLoungeTableLabel: "Zum Tisch einladen",
+      memberLoungeLetterSubject: "Ein ruhiger Clubgruss",
+      memberLoungeLetterDraft: "Hallo {name}, ich habe deinen Lesefaden gesehen und wuerde gern eine kleine Bucherinnerung austauschen, wenn es sich angenehm anfuehlt.",
+      memberLoungeLetterReadyStatus: "Eine geschuetzte Notiz ist im Briefkasten bereit.",
+      memberLoungeTableTopic: "Ein kleiner Tisch mit {name}",
+      memberLoungeTableNote: "{name} koennte diesen ruhigen Tisch moegen. Bringe eine Erinnerung oder Empfehlung in eigenen Worten mit.",
+      memberLoungeTableReadyStatus: "Eine Tischeinladung ist bereit zum Oeffnen.",
       programTitle: "Clubprogramm der Woche",
       programBody: "Merke dir ruhige Treffen, zu denen du zurueckkehren moechtest. Oeffentlich wird nichts, bis du dich dazusetzt.",
       programMyWeekTitle: "Meine Clubwoche",
@@ -1047,7 +1248,7 @@ function getReadingClubCopy(language: SocialLanguage) {
         greet: { id: "greet" as ReadingClubNextStepId, label: "Leserin gruessen", body: "Finde eine Leseverbindung und sende einen geschuetzten Gruss." },
         vote: { id: "vote" as ReadingClubNextStepId, label: "Regal waehlen", body: "Hilf mit, was der Club als Naechstes oeffnet." },
         join: { id: "join" as ReadingClubNextStepId, label: "Live-Tisch besuchen", body: "Waehle Dazukommen bei einem Tisch, der angenehm wirkt." },
-        recommend: { id: "recommend" as ReadingClubNextStepId, label: "Empfehlung geben", body: "Waehle einen Regalimpuls oder schreibe einen freundlichen Vorschlag." },
+        recommend: { id: "recommend" as ReadingClubNextStepId, label: "Empfehlung geben", body: "Schreibe einen ruhigen Vorschlag fuer eine andere Leserin." },
         return: { id: "return" as ReadingClubNextStepId, label: "Morgen wiederkommen", body: "Heute ist rund. Komm wieder, damit deine Serie weitergeht." },
       },
       liveTablesLabel: "Live-Clubtische",
@@ -1123,6 +1324,17 @@ function getReadingClubCopy(language: SocialLanguage) {
       tablesJoined: "mesas",
       shelfVotes: "votos",
     },
+    startHereTitle: "Empieza aqui",
+    startHereBody: "Elige una accion sencilla del club. Lo demas puede esperar.",
+    startShareLabel: "Compartir idea",
+    startShareBody: "Anade un libro, escena o recuerdo.",
+    startMeetLabel: "Conocer lector",
+    startMeetBody: "Encuentra alguien con gustos parecidos.",
+    startRecommendLabel: "Recomendar",
+    startRecommendBody: "Deja una sugerencia amable.",
+    deepToolsShowLabel: "Mas en el club",
+    deepToolsHideLabel: "Ocultar herramientas",
+    deepToolsBody: "Abre el programa, la sala, los estantes, cartas y diario cuando los necesites.",
     savedShelfTitle: "Mi estante guardado",
     savedShelfBody: "Guarda reflexiones, preguntas y recomendaciones para volver a ellas.",
     savedShelfEmptyLabel: "Tu estante guardado espera la primera nota.",
@@ -1131,6 +1343,90 @@ function getReadingClubCopy(language: SocialLanguage) {
     savedShelfPromptLabel: "Pregunta",
     savedShelfRemoveLabel: "Quitar del estante",
     savedShelfSavedLabel: "Guardado en tu estante.",
+    recommendationShelfTitle: "Compartir recomendacion",
+    recommendationShelfBody: "Escribe un libro, historia o tipo de lectura para otra persona. Una nota breve basta.",
+    recommendationTitleLabel: "Que recomendarias?",
+    recommendationTitlePlaceholder: "Una historia tranquila de jardin para la tarde...",
+    recommendationNoteLabel: "Nota breve",
+    recommendationNotePlaceholder: "Anade una linea si quieres...",
+    recommendationShelfLabel: "Estante",
+    recommendationMoodLabel: "Animo",
+    recommendationShareLabel: "Guardar recomendacion",
+    recommendationEmptyLabel: "Aun no hay recomendaciones.",
+    recommendationRemoveLabel: "Quitar recomendacion",
+    recommendationUseLabel: "Usar como reflexion",
+    recommendationSavedStatusLabel: "Recomendacion dejada en el estante del club.",
+    recommendationRemovedStatusLabel: "Recomendacion quitada.",
+    recommendationReadyStatusLabel: "Recomendacion lista en el cuadro de reflexion.",
+    recommendationMyShelfTitle: "Mis recomendaciones",
+    recommendationCreatedLabel: "Dejada",
+    recommendationMoodOptions: [
+      { id: "comfort" as ReadingClubRecommendationMoodId, label: "Compania", body: "Historias suaves para acompanar." },
+      { id: "memory" as ReadingClubRecommendationMoodId, label: "Recuerdo", body: "Libros que abren lugares recordados." },
+      { id: "conversation" as ReadingClubRecommendationMoodId, label: "Conversacion", body: "Elecciones faciles para la mesa." },
+    ],
+    exchangeBoardTitle: "Tablon de intercambio",
+    exchangeBoardBody: "Pide al club un libro, historia, recuerdo o conversacion tranquila. Las peticiones quedan breves y con tus palabras.",
+    exchangeKindLabel: "Busco",
+    exchangeShelfLabel: "Estante",
+    exchangeTopicLabel: "Tema de intercambio",
+    exchangeTopicPlaceholder: "Ejemplo: una historia amable sobre jardines",
+    exchangeNoteLabel: "Nota breve",
+    exchangeNotePlaceholder: "Anade que lo haria comodo...",
+    exchangePostLabel: "Preguntar al club",
+    exchangeEmptyLabel: "Aun no hay peticiones de intercambio.",
+    exchangeRemoveLabel: "Quitar peticion",
+    exchangeUseLabel: "Usar en la mesa",
+    exchangeSavedStatusLabel: "Peticion de intercambio guardada.",
+    exchangeRemovedStatusLabel: "Peticion de intercambio quitada.",
+    exchangeReadyStatusLabel: "Peticion lista en el cuadro de reflexion.",
+    exchangeMyRequestsTitle: "Mis peticiones de intercambio",
+    exchangeCreatedLabel: "Pedida",
+    exchangeKindOptions: [
+      { id: "recommendation" as ReadingClubExchangeKindId, label: "Recomendacion", body: "Pide un libro o historia por animo." },
+      { id: "memory" as ReadingClubExchangeKindId, label: "Recuerdo", body: "Invita historias de vida sobre un tema." },
+      { id: "discussion" as ReadingClubExchangeKindId, label: "Conversacion", body: "Abre una pregunta tranquila para la mesa." },
+    ],
+    hostTableTitle: "Abrir una mesa pequena",
+    hostTableBody: "Abre una mesa tranquila del club sobre un tema. Algunas personas lectoras pueden verla y unirse cuando se sienta comodo.",
+    hostTableTopicLabel: "Tema de la mesa",
+    hostTableTopicPlaceholder: "Ejemplo: historias de cocina",
+    hostTableNoteLabel: "Nota calida",
+    hostTableNotePlaceholder: "Anade una bienvenida breve o una nota de comodidad...",
+    hostTableCircleLabel: "Rincon de mesa",
+    hostTableTimeLabel: "Cuando",
+    hostTableComfortLabel: "Comodidad",
+    hostTablePublishLabel: "Abrir mesa",
+    hostTableEmptyLabel: "Aun no hay mesas abiertas.",
+    hostTableRemoveLabel: "Cancelar mesa",
+    hostTableSavedStatusLabel: "Tu mesa esta abierta en el club.",
+    hostTableRemovedStatusLabel: "Mesa abierta cancelada.",
+    hostTableOpenClubLabel: "Club abierto",
+    hostTableOpenClubBody: "Cualquier persona del salon puede verla.",
+    hostTableMyTablesTitle: "Mis mesas abiertas",
+    hostTableCreatedLabel: "Abierta",
+    hostTableTimeOptions: [
+      { id: "today" as ReadingClubTableTimeId, label: "Hoy", body: "Para lectores cerca ahora" },
+      { id: "tomorrow" as ReadingClubTableTimeId, label: "Manana", body: "Un plan suave para volver" },
+      { id: "weekend" as ReadingClubTableTimeId, label: "Fin de semana", body: "Para visitas mas lentas" },
+    ],
+    hostTableComfortOptions: [
+      { id: "listening" as ReadingClubTableComfortId, label: "Escucha", body: "Lectores tranquilos bienvenidos" },
+      { id: "small" as ReadingClubTableComfortId, label: "Pequena", body: "Solo unas pocas voces" },
+      { id: "sharing" as ReadingClubTableComfortId, label: "Compartir", body: "Cada persona puede traer una nota" },
+    ],
+    memberLoungeTitle: "Lectores en la sala",
+    memberLoungeBody: "Algunas voces estan cerca con libros, recuerdos y recomendaciones tranquilas para intercambiar.",
+    memberLoungeSharedLabel: "Hilo de lectura",
+    memberLoungeDefaultStatus: "Abierta a un saludo tranquilo",
+    memberLoungeLetterLabel: "Escribir nota",
+    memberLoungeTableLabel: "Invitar a mesa",
+    memberLoungeLetterSubject: "Un saludo tranquilo del club",
+    memberLoungeLetterDraft: "Hola {name}, vi tu hilo de lectura y me gustaria intercambiar un pequeno recuerdo de libro cuando se sienta comodo.",
+    memberLoungeLetterReadyStatus: "Una nota protegida esta lista en el buzon.",
+    memberLoungeTableTopic: "Una mesa pequena con {name}",
+    memberLoungeTableNote: "A {name} podria gustarle esta mesa tranquila. Trae un recuerdo o recomendacion con tus propias palabras.",
+    memberLoungeTableReadyStatus: "Una invitacion de mesa esta lista para abrir.",
     programTitle: "Programa del club esta semana",
     programBody: "Guarda un lugar para encuentros tranquilos a los que quieras volver. Nada es publico hasta que decidas unirte.",
     programMyWeekTitle: "Mi semana del club",
@@ -1225,7 +1521,7 @@ function getReadingClubCopy(language: SocialLanguage) {
       greet: { id: "greet" as ReadingClubNextStepId, label: "Saludar lector", body: "Busca compania de lectura y envia un saludo protegido." },
       vote: { id: "vote" as ReadingClubNextStepId, label: "Votar estante", body: "Ayuda a elegir que abre el club despues." },
       join: { id: "join" as ReadingClubNextStepId, label: "Unirme a una mesa", body: "Toca unirme en una mesa que te parezca comoda." },
-      recommend: { id: "recommend" as ReadingClubNextStepId, label: "Dejar recomendacion", body: "Elige una pregunta de estante o escribe una sugerencia amable." },
+      recommend: { id: "recommend" as ReadingClubNextStepId, label: "Dejar recomendacion", body: "Escribe una sugerencia amable para otra persona." },
       return: { id: "return" as ReadingClubNextStepId, label: "Volver manana", body: "Hoy esta completo. Vuelve para mantener tu racha del club." },
     },
     liveTablesLabel: "Mesas del club en vivo",
@@ -1583,22 +1879,22 @@ function buildFallbackMembers(room: SocialRoomResponse["room"], language: Social
   if (isReadingRoomSlug(room.slug)) {
     const members = {
       es: [
-        { id: "member-maria", name: "Maria", sharedTopic: "Comparte novelas familiares y poesia breve" },
-        { id: "member-jose", name: "Jose", sharedTopic: "Le gustan historia, periodicos y biografias" },
-        { id: "member-carmen", name: "Carmen", sharedTopic: "Recuerda escenas de teatro y cuentos" },
-        { id: "member-ana", name: "Ana", sharedTopic: "Disfruta historias tranquilas" },
+        { id: "member-maria", name: "Maria", sharedTopic: "Comparte novelas familiares y poesia breve", statusLabel: "Lista para una nota" },
+        { id: "member-jose", name: "Jose", sharedTopic: "Le gustan historia, periodicos y biografias", statusLabel: "Busca conversacion tranquila" },
+        { id: "member-carmen", name: "Carmen", sharedTopic: "Recuerda escenas de teatro y cuentos", statusLabel: "En la mesa de memorias" },
+        { id: "member-ana", name: "Ana", sharedTopic: "Disfruta historias tranquilas", statusLabel: "Abierta a recomendacion" },
       ],
       de: [
-        { id: "member-maria", name: "Maria", sharedTopic: "Teilt Familienromane und kurze Gedichte" },
-        { id: "member-jose", name: "Jose", sharedTopic: "Mag Geschichte, Zeitungen und Biografien" },
-        { id: "member-carmen", name: "Carmen", sharedTopic: "Erinnert Theaterszenen und Erzaehlungen" },
-        { id: "member-ana", name: "Ana", sharedTopic: "Mag ruhige Geschichten" },
+        { id: "member-maria", name: "Maria", sharedTopic: "Teilt Familienromane und kurze Gedichte", statusLabel: "Bereit fuer eine Notiz" },
+        { id: "member-jose", name: "Jose", sharedTopic: "Mag Geschichte, Zeitungen und Biografien", statusLabel: "Sucht ruhiges Gespraech" },
+        { id: "member-carmen", name: "Carmen", sharedTopic: "Erinnert Theaterszenen und Erzaehlungen", statusLabel: "Am Erinnerungstisch" },
+        { id: "member-ana", name: "Ana", sharedTopic: "Mag ruhige Geschichten", statusLabel: "Offen fuer Empfehlung" },
       ],
       en: [
-        { id: "member-maria", name: "Maria", sharedTopic: "Shares family novels and short poems" },
-        { id: "member-jose", name: "Jose", sharedTopic: "Enjoys history, newspapers and biographies" },
-        { id: "member-carmen", name: "Carmen", sharedTopic: "Remembers theatre scenes and short stories" },
-        { id: "member-ana", name: "Ana", sharedTopic: "Likes gentle stories" },
+        { id: "member-maria", name: "Maria", sharedTopic: "Shares family novels and short poems", statusLabel: "Ready for a note" },
+        { id: "member-jose", name: "Jose", sharedTopic: "Enjoys history, newspapers and biographies", statusLabel: "Looking for calm conversation" },
+        { id: "member-carmen", name: "Carmen", sharedTopic: "Remembers theatre scenes and short stories", statusLabel: "At the memory table" },
+        { id: "member-ana", name: "Ana", sharedTopic: "Likes gentle stories", statusLabel: "Open to a recommendation" },
       ],
     };
 
@@ -2648,10 +2944,22 @@ const RoomScreen = () => {
   const [readingLetterRecipientDraft, setReadingLetterRecipientDraft] = useState("");
   const [readingLetterSubjectDraft, setReadingLetterSubjectDraft] = useState("");
   const [readingLetterBodyDraft, setReadingLetterBodyDraft] = useState("");
+  const [selectedReadingExchangeKindId, setSelectedReadingExchangeKindId] = useState<ReadingClubExchangeKindId>("recommendation");
+  const [selectedReadingExchangeShelfId, setSelectedReadingExchangeShelfId] = useState<ReadingClubShelfId>("memoir");
+  const [readingExchangeTopicDraft, setReadingExchangeTopicDraft] = useState("");
+  const [readingExchangeNoteDraft, setReadingExchangeNoteDraft] = useState("");
+  const [readingRecommendationDraft, setReadingRecommendationDraft] = useState("");
+  const [readingTableTopicDraft, setReadingTableTopicDraft] = useState("");
+  const [readingTableNoteDraft, setReadingTableNoteDraft] = useState("");
+  const [selectedReadingTableCircleId, setSelectedReadingTableCircleId] = useState("open-club");
+  const [selectedReadingTableTimeId, setSelectedReadingTableTimeId] = useState<ReadingClubTableTimeId>("today");
+  const [selectedReadingTableComfortId, setSelectedReadingTableComfortId] = useState<ReadingClubTableComfortId>("listening");
   const [readingPassportCompletions, setReadingPassportCompletions] = useState<Record<string, boolean>>({});
   const [readingPulse, setReadingPulse] = useState<SocialRoomPulse | null>(null);
   const [readingClubStatus, setReadingClubStatus] = useState("");
   const [isReadingPulseSending, setIsReadingPulseSending] = useState(false);
+  const [readingClubShowDeepTools, setReadingClubShowDeepTools] = useState(false);
+  const [readingClubFocusedPath, setReadingClubFocusedPath] = useState<ReadingClubFocusedPath | null>(null);
   const [readingClubDesk, setReadingClubDesk] = useState<ReadingClubDeskState>(() => loadReadingClubDeskState());
   const [activeMovementExerciseId, setActiveMovementExerciseId] = useState<MovementExerciseCardId | null>(null);
   const [completedMovementExerciseId, setCompletedMovementExerciseId] = useState<MovementExerciseCardId | null>(null);
@@ -2791,6 +3099,18 @@ const RoomScreen = () => {
     const circleIds = new Set(readingClubDesk.joinedReaderCircleIds);
     return readingClubCopy.readerCircles.filter((circle) => circleIds.has(circle.id));
   }, [readingClubCopy.readerCircles, readingClubDesk.joinedReaderCircleIds]);
+  const readingHostCircleOptions = useMemo(() => [
+    {
+      id: "open-club",
+      title: readingClubCopy.hostTableOpenClubLabel,
+      body: readingClubCopy.hostTableOpenClubBody,
+    },
+    ...readingClubCopy.readerCircles.map((circle) => ({
+      id: circle.id,
+      title: circle.title,
+      body: circle.body,
+    })),
+  ], [readingClubCopy.hostTableOpenClubBody, readingClubCopy.hostTableOpenClubLabel, readingClubCopy.readerCircles]);
   const latestReadingJournalEntries = useMemo(
     () => readingClubDesk.journalEntries.slice(0, 3),
     [readingClubDesk.journalEntries],
@@ -2800,6 +3120,18 @@ const RoomScreen = () => {
   const latestReadingLetters = useMemo(
     () => readingClubDesk.letters.slice(0, 3),
     [readingClubDesk.letters],
+  );
+  const latestReadingExchangeRequests = useMemo(
+    () => readingClubDesk.exchangeRequests.slice(0, 3),
+    [readingClubDesk.exchangeRequests],
+  );
+  const latestReadingRecommendationCards = useMemo(
+    () => readingClubDesk.recommendationCards.slice(0, 3),
+    [readingClubDesk.recommendationCards],
+  );
+  const latestHostedReadingTables = useMemo(
+    () => readingClubDesk.hostedTables.slice(0, 3),
+    [readingClubDesk.hostedTables],
   );
   const readingLetterRecipientSuggestion =
     readingMatchResponse?.matchedUser?.name ??
@@ -2900,6 +3232,42 @@ const RoomScreen = () => {
     updateReadingDesk((current) => removeReadingClubShelfItem(current, itemId));
   }, [updateReadingDesk]);
 
+  const saveReadingRecommendationCard = useCallback(() => {
+    const recommendation = readingRecommendationDraft.trim();
+    if (!recommendation) return;
+
+    updateReadingDesk((current) => markReadingClubPassport(
+      incrementReadingClubProgress(
+        saveReadingClubRecommendationCard(current, {
+          shelfId: current.favoriteShelfId,
+          moodId: "comfort",
+          title: recommendation,
+          note: "",
+        }),
+        "recommendationsMade",
+      ),
+      "recommend",
+      true,
+    ));
+    setReadingPassportCompletions((current) => ({ ...current, recommend: true }));
+    setReadingRecommendationDraft("");
+    setReadingClubStatus(readingClubCopy.recommendationSavedStatusLabel);
+  }, [
+    readingClubCopy.recommendationSavedStatusLabel,
+    readingRecommendationDraft,
+    updateReadingDesk,
+  ]);
+
+  const removeReadingRecommendationCard = useCallback((cardId: string) => {
+    updateReadingDesk((current) => removeReadingClubRecommendationCard(current, cardId));
+    setReadingClubStatus(readingClubCopy.recommendationRemovedStatusLabel);
+  }, [readingClubCopy.recommendationRemovedStatusLabel, updateReadingDesk]);
+
+  const useReadingRecommendationCard = useCallback((card: ReadingClubDeskState["recommendationCards"][number]) => {
+    setReadingReflectionDraft(card.note ? `${card.title} - ${card.note}` : card.title);
+    setReadingClubStatus(readingClubCopy.recommendationReadyStatusLabel);
+  }, [readingClubCopy.recommendationReadyStatusLabel]);
+
   const saveReadingProgramSeat = useCallback((sessionId: string) => {
     updateReadingDesk((current) => saveReadingClubProgramSession(current, sessionId));
     setReadingClubStatus(readingClubCopy.programSavedStatusLabel);
@@ -2968,6 +3336,37 @@ const RoomScreen = () => {
     }));
   }, [readingLetterRecipientDraft, readingLetterRecipientSuggestion, updateReadingDesk]);
 
+  const prepareReadingLoungeLetter = useCallback((member: SocialRoomMember) => {
+    setReadingLetterRecipientDraft(member.name);
+    setReadingLetterSubjectDraft(readingClubCopy.memberLoungeLetterSubject);
+    setReadingLetterBodyDraft(readingClubCopy.memberLoungeLetterDraft.replace("{name}", member.name));
+    setSelectedReadingModeId("pen-note");
+    updateReadingDesk((current) => updateReadingClubDeskState(current, {
+      selectedModeId: "pen-note",
+      preferredPaceId: "letters",
+    }));
+    setReadingClubStatus(readingClubCopy.memberLoungeLetterReadyStatus);
+  }, [
+    readingClubCopy.memberLoungeLetterDraft,
+    readingClubCopy.memberLoungeLetterReadyStatus,
+    readingClubCopy.memberLoungeLetterSubject,
+    updateReadingDesk,
+  ]);
+
+  const prepareReadingLoungeTable = useCallback((member: SocialRoomMember) => {
+    setReadingTableTopicDraft(readingClubCopy.memberLoungeTableTopic.replace("{name}", member.name));
+    setReadingTableNoteDraft(readingClubCopy.memberLoungeTableNote.replace("{name}", member.name));
+    setSelectedReadingTableCircleId(selectedReadingCircleForJournal?.id ?? "open-club");
+    setSelectedReadingTableTimeId("today");
+    setSelectedReadingTableComfortId("listening");
+    setReadingClubStatus(readingClubCopy.memberLoungeTableReadyStatus);
+  }, [
+    readingClubCopy.memberLoungeTableNote,
+    readingClubCopy.memberLoungeTableReadyStatus,
+    readingClubCopy.memberLoungeTableTopic,
+    selectedReadingCircleForJournal?.id,
+  ]);
+
   const saveReadingLetterDraft = useCallback(() => {
     const body = readingLetterBodyDraft.trim();
     if (!body) return;
@@ -3003,6 +3402,83 @@ const RoomScreen = () => {
     setReadingClubStatus(readingClubCopy.letterRemovedStatusLabel);
   }, [readingClubCopy.letterRemovedStatusLabel, updateReadingDesk]);
 
+  const saveReadingExchangeRequest = useCallback(() => {
+    const topic = readingExchangeTopicDraft.trim();
+    if (!topic) return;
+
+    updateReadingDesk((current) => markReadingClubPassport(
+      incrementReadingClubProgress(
+        saveReadingClubExchangeRequest(current, {
+          kindId: selectedReadingExchangeKindId,
+          shelfId: selectedReadingExchangeShelfId,
+          topic,
+          note: readingExchangeNoteDraft,
+        }),
+        "reflectionsShared",
+      ),
+      "share",
+      true,
+    ));
+    setReadingPassportCompletions((current) => ({ ...current, share: true }));
+    setReadingExchangeTopicDraft("");
+    setReadingExchangeNoteDraft("");
+    setReadingClubStatus(readingClubCopy.exchangeSavedStatusLabel);
+  }, [
+    readingClubCopy.exchangeSavedStatusLabel,
+    readingExchangeNoteDraft,
+    readingExchangeTopicDraft,
+    selectedReadingExchangeKindId,
+    selectedReadingExchangeShelfId,
+    updateReadingDesk,
+  ]);
+
+  const removeReadingExchangeRequest = useCallback((requestId: string) => {
+    updateReadingDesk((current) => removeReadingClubExchangeRequest(current, requestId));
+    setReadingClubStatus(readingClubCopy.exchangeRemovedStatusLabel);
+  }, [readingClubCopy.exchangeRemovedStatusLabel, updateReadingDesk]);
+
+  const useReadingExchangeRequest = useCallback((request: ReadingClubDeskState["exchangeRequests"][number]) => {
+    setReadingReflectionDraft(request.note ? `${request.topic} - ${request.note}` : request.topic);
+    setReadingClubStatus(readingClubCopy.exchangeReadyStatusLabel);
+  }, [readingClubCopy.exchangeReadyStatusLabel]);
+
+  const publishReadingHostedTable = useCallback(() => {
+    const topic = readingTableTopicDraft.trim();
+    if (!topic) return;
+
+    updateReadingDesk((current) => markReadingClubPassport(
+      incrementReadingClubProgress(
+        saveReadingClubHostedTable(current, {
+          topic,
+          circleId: selectedReadingTableCircleId,
+          timeSlotId: selectedReadingTableTimeId,
+          comfortId: selectedReadingTableComfortId,
+          note: readingTableNoteDraft,
+        }),
+        "tablesJoined",
+      ),
+      "join",
+      true,
+    ));
+    setReadingPassportCompletions((current) => ({ ...current, join: true }));
+    setReadingTableTopicDraft("");
+    setReadingTableNoteDraft("");
+    setReadingClubStatus(readingClubCopy.hostTableSavedStatusLabel);
+  }, [
+    readingClubCopy.hostTableSavedStatusLabel,
+    readingTableNoteDraft,
+    readingTableTopicDraft,
+    selectedReadingTableCircleId,
+    selectedReadingTableComfortId,
+    selectedReadingTableTimeId,
+    updateReadingDesk,
+  ]);
+
+  const removeReadingHostedTable = useCallback((tableId: string) => {
+    updateReadingDesk((current) => removeReadingClubHostedTable(current, tableId));
+    setReadingClubStatus(readingClubCopy.hostTableRemovedStatusLabel);
+  }, [readingClubCopy.hostTableRemovedStatusLabel, updateReadingDesk]);
+
   const toggleReadingPassportItem = useCallback((itemId: string) => {
     const completed = !readingPassportCompletions[itemId];
     completeReadingPassportItem(itemId, completed);
@@ -3036,6 +3512,39 @@ const RoomScreen = () => {
       completeReadingPassportItem("recommend", true);
     }
   }, [completeReadingPassportItem, selectReadingMode, updateReadingDesk]);
+
+  const scrollToReadingTool = useCallback((testId: string) => {
+    window.requestAnimationFrame(() => {
+      const target = document.querySelector(`[data-testid="${testId}"]`);
+      if (target instanceof HTMLElement) {
+        target.scrollIntoView?.({ behavior: "smooth", block: "start" });
+      }
+    });
+  }, []);
+
+  const revealReadingTool = useCallback((testId: string, path: ReadingClubFocusedPath) => {
+    setReadingClubFocusedPath(path);
+    setReadingClubShowDeepTools(false);
+    window.setTimeout(() => scrollToReadingTool(testId), 0);
+  }, [scrollToReadingTool]);
+
+  const startReadingSharePath = useCallback(() => {
+    selectReadingIntent("share-memory");
+    if (!readingReflectionDraft.trim()) {
+      setReadingReflectionDraft(readingClub.reflectionPrompts[0] ?? "");
+    }
+    revealReadingTool("reading-reflection-card", "share");
+  }, [readingClub.reflectionPrompts, readingReflectionDraft, revealReadingTool, selectReadingIntent]);
+
+  const startReadingMeetPath = useCallback(() => {
+    selectReadingIntent("meet-reader");
+    revealReadingTool("reading-companion-card", "meet");
+  }, [revealReadingTool, selectReadingIntent]);
+
+  const startReadingRecommendPath = useCallback(() => {
+    selectReadingIntent("recommend-book");
+    revealReadingTool("reading-recommendation-shelf", "recommend");
+  }, [revealReadingTool, selectReadingIntent]);
 
   useEffect(() => {
     if (readingRoomActive && roomResponse?.pulse) {
@@ -3250,7 +3759,18 @@ const RoomScreen = () => {
     setReadingLetterRecipientDraft("");
     setReadingLetterSubjectDraft("");
     setReadingLetterBodyDraft("");
+    setSelectedReadingExchangeKindId("recommendation");
+    setSelectedReadingExchangeShelfId("memoir");
+    setReadingExchangeTopicDraft("");
+    setReadingExchangeNoteDraft("");
+    setReadingRecommendationDraft("");
+    setReadingTableTopicDraft("");
+    setReadingTableNoteDraft("");
+    setSelectedReadingTableCircleId("open-club");
+    setSelectedReadingTableTimeId("today");
+    setSelectedReadingTableComfortId("listening");
     setReadingPassportCompletions({});
+    setReadingClubShowDeepTools(false);
     setSelectedTogetherPlanId("restaurant");
   }, [slug]);
 
@@ -3261,6 +3781,7 @@ const RoomScreen = () => {
     saveReadingClubDeskState(nextDesk);
     setReadingClubDesk(nextDesk);
     setSelectedReadingModeId(nextDesk.selectedModeId);
+    setSelectedReadingExchangeShelfId(nextDesk.favoriteShelfId);
     setReadingPassportCompletions(Object.fromEntries(nextDesk.completedPassportIds.map((itemId) => [itemId, true])));
   }, [readingRoomActive, slug]);
 
@@ -4446,80 +4967,431 @@ const RoomScreen = () => {
                 </div>
               </div>
 
-              <div className="mt-5 grid gap-2 sm:grid-cols-3">
-                {readingClub.metrics.map((metric) => (
-                  <div key={metric.id} className="min-h-[92px] rounded-[22px] border border-[#E8DDCF] bg-white/88 px-4 py-3">
-                    <p className="font-body text-[15px] font-bold uppercase tracking-[0.08em] text-[#7C2D12]">{metric.label}</p>
-                    <div className="mt-1 flex items-end gap-2">
-                      <p className="font-display text-[34px] leading-none text-[#3F2447]">{metric.value}</p>
-                      <p className="pb-1 font-body text-[15px] leading-[1.2] text-[#6E627D]">{metric.detail}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-5 grid gap-3 rounded-[26px] border border-[#E8DDCF] bg-white/88 px-4 py-4 lg:grid-cols-[0.92fr_1.08fr]" data-testid="reading-club-desk">
-                <div className="min-w-0">
-                  <p className="font-display text-[27px] leading-[1.06] text-[#3F2447]">{readingClubCopy.deskTitle}</p>
-                  <p className="mt-2 font-body text-[16px] leading-[1.32] text-[#6E627D]">{readingClubCopy.deskBody}</p>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <div className="rounded-[18px] bg-[#F0FDF8] px-3 py-3">
-                      <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#0F766E]">{readingClubCopy.visitsLabel}</p>
-                      <p className="mt-1 font-display text-[28px] leading-none text-[#244D47]">{readingClubDesk.visitCount}</p>
-                    </div>
-                    <div className="rounded-[18px] bg-[#FCF9FF] px-3 py-3">
-                      <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#6B3CC7]">{readingClubCopy.streakLabel}</p>
-                      <p className="mt-1 font-display text-[28px] leading-none text-[#45325B]">{readingClubDesk.streakDays}</p>
-                    </div>
-                  </div>
-                  <div className="mt-3 rounded-[18px] bg-[#FFFCF7] px-3 py-3">
-                    <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#7C2D12]">{readingClubCopy.preferredModeLabel}</p>
-                    <p className="mt-1 font-body text-[17px] font-bold leading-[1.22] text-[#3F2447]">{selectedReadingMode?.title ?? selectedReadingIntent?.label}</p>
-                  </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <div className="rounded-[18px] bg-[#F7FFFB] px-3 py-3">
-                      <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#0F766E]">{readingClubCopy.favoriteShelfLabel}</p>
-                      <p className="mt-1 font-body text-[16px] font-bold leading-[1.22] text-[#244D47]">{selectedReadingShelf?.label}</p>
-                    </div>
-                    <div className="rounded-[18px] bg-[#FFF7ED] px-3 py-3">
-                      <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#7C2D12]">{readingClubCopy.preferredPaceLabel}</p>
-                      <p className="mt-1 font-body text-[16px] font-bold leading-[1.22] text-[#3F2447]">{selectedReadingPace?.label}</p>
-                    </div>
-                  </div>
-                  <div className="mt-3 rounded-[18px] bg-[#F8F3FF] px-3 py-3">
-                    <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#6B3CC7]">{readingClubCopy.lastReflectionLabel}</p>
-                    <p className="mt-1 font-body text-[15px] leading-[1.3] text-[#5B4A68]">
-                      {readingClubDesk.lastReflection || readingClubCopy.noLastReflectionLabel}
-                    </p>
+              <div className="mt-5 rounded-[26px] border border-[#E8DDCF] bg-white/90 px-4 py-4" data-testid="reading-club-start-here">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-display text-[27px] leading-[1.06] text-[#3F2447]">{readingClubCopy.startHereTitle}</p>
+                    <p className="mt-1 font-body text-[16px] leading-[1.32] text-[#6E627D]">{readingClubCopy.startHereBody}</p>
                   </div>
                 </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  <button
+                    type="button"
+                    onClick={startReadingSharePath}
+                    className="min-h-[92px] rounded-[20px] border border-[#D9C7F8] bg-[#FCF9FF] px-3 py-3 text-left"
+                    data-testid="button-reading-start-share"
+                  >
+                    <span className="flex items-center gap-2 font-body text-[17px] font-bold leading-[1.18] text-[#45325B]">
+                      <PenLine size={18} strokeWidth={2.4} aria-hidden="true" />
+                      {readingClubCopy.startShareLabel}
+                    </span>
+                    <span className="mt-1 block font-body text-[14px] leading-[1.28] text-[#6E627D]">{readingClubCopy.startShareBody}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={startReadingMeetPath}
+                    className="min-h-[92px] rounded-[20px] border border-[#BDE8D7] bg-[#F7FFFB] px-3 py-3 text-left"
+                    data-testid="button-reading-start-meet"
+                  >
+                    <span className="flex items-center gap-2 font-body text-[17px] font-bold leading-[1.18] text-[#244D47]">
+                      <Users size={18} strokeWidth={2.4} aria-hidden="true" />
+                      {readingClubCopy.startMeetLabel}
+                    </span>
+                    <span className="mt-1 block font-body text-[14px] leading-[1.28] text-[#41655F]">{readingClubCopy.startMeetBody}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={startReadingRecommendPath}
+                    className="min-h-[92px] rounded-[20px] border border-[#E8DDCF] bg-[#FFFCF7] px-3 py-3 text-left"
+                    data-testid="button-reading-start-recommend"
+                  >
+                    <span className="flex items-center gap-2 font-body text-[17px] font-bold leading-[1.18] text-[#7C2D12]">
+                      <BookMarked size={18} strokeWidth={2.4} aria-hidden="true" />
+                      {readingClubCopy.startRecommendLabel}
+                    </span>
+                    <span className="mt-1 block font-body text-[14px] leading-[1.28] text-[#6E627D]">{readingClubCopy.startRecommendBody}</span>
+                  </button>
+                </div>
+              </div>
 
-                <div>
-                  <p className="font-body text-[14px] font-bold uppercase tracking-[0.08em] text-[#7C2D12]">{readingClubCopy.intentionLabel}</p>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {readingClubCopy.intentions.map((intent) => {
-                      const active = intent.id === readingClubDesk.selectedIntentId;
-                      return (
-                        <button
-                          key={intent.id}
-                          type="button"
-                          onClick={() => selectReadingIntent(intent.id)}
-                          aria-pressed={active}
-                          className={`min-h-[94px] rounded-[20px] border px-3 py-3 text-left ${
-                            active ? "border-[#7C2D12] bg-[#FBF7F0]" : "border-[#E8DDCF] bg-white"
-                          }`}
-                        >
-                          <span className="block font-body text-[17px] font-bold leading-[1.18] text-[#3F2447]">{intent.label}</span>
-                          <span className="mt-1 block font-body text-[14px] leading-[1.28] text-[#6E627D]">{intent.body}</span>
-                        </button>
-                      );
-                    })}
+              {readingClubShowDeepTools && (
+                <>
+                  <div className="mt-5 grid gap-2 sm:grid-cols-3">
+                    {readingClub.metrics.map((metric) => (
+                      <div key={metric.id} className="min-h-[92px] rounded-[22px] border border-[#E8DDCF] bg-white/88 px-4 py-3">
+                        <p className="font-body text-[15px] font-bold uppercase tracking-[0.08em] text-[#7C2D12]">{metric.label}</p>
+                        <div className="mt-1 flex items-end gap-2">
+                          <p className="font-display text-[34px] leading-none text-[#3F2447]">{metric.value}</p>
+                          <p className="pb-1 font-body text-[15px] leading-[1.2] text-[#6E627D]">{metric.detail}</p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
+
+                  <div className="mt-5 grid gap-3 rounded-[26px] border border-[#E8DDCF] bg-white/88 px-4 py-4 lg:grid-cols-[0.92fr_1.08fr]" data-testid="reading-club-desk">
+                    <div className="min-w-0">
+                      <p className="font-display text-[27px] leading-[1.06] text-[#3F2447]">{readingClubCopy.deskTitle}</p>
+                      <p className="mt-2 font-body text-[16px] leading-[1.32] text-[#6E627D]">{readingClubCopy.deskBody}</p>
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <div className="rounded-[18px] bg-[#F0FDF8] px-3 py-3">
+                          <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#0F766E]">{readingClubCopy.visitsLabel}</p>
+                          <p className="mt-1 font-display text-[28px] leading-none text-[#244D47]">{readingClubDesk.visitCount}</p>
+                        </div>
+                        <div className="rounded-[18px] bg-[#FCF9FF] px-3 py-3">
+                          <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#6B3CC7]">{readingClubCopy.streakLabel}</p>
+                          <p className="mt-1 font-display text-[28px] leading-none text-[#45325B]">{readingClubDesk.streakDays}</p>
+                        </div>
+                      </div>
+                      <div className="mt-3 rounded-[18px] bg-[#FFFCF7] px-3 py-3">
+                        <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#7C2D12]">{readingClubCopy.preferredModeLabel}</p>
+                        <p className="mt-1 font-body text-[17px] font-bold leading-[1.22] text-[#3F2447]">{selectedReadingMode?.title ?? selectedReadingIntent?.label}</p>
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <div className="rounded-[18px] bg-[#F7FFFB] px-3 py-3">
+                          <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#0F766E]">{readingClubCopy.favoriteShelfLabel}</p>
+                          <p className="mt-1 font-body text-[16px] font-bold leading-[1.22] text-[#244D47]">{selectedReadingShelf?.label}</p>
+                        </div>
+                        <div className="rounded-[18px] bg-[#FFF7ED] px-3 py-3">
+                          <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#7C2D12]">{readingClubCopy.preferredPaceLabel}</p>
+                          <p className="mt-1 font-body text-[16px] font-bold leading-[1.22] text-[#3F2447]">{selectedReadingPace?.label}</p>
+                        </div>
+                      </div>
+                      <div className="mt-3 rounded-[18px] bg-[#F8F3FF] px-3 py-3">
+                        <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#6B3CC7]">{readingClubCopy.lastReflectionLabel}</p>
+                        <p className="mt-1 font-body text-[15px] leading-[1.3] text-[#5B4A68]">
+                          {readingClubDesk.lastReflection || readingClubCopy.noLastReflectionLabel}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="font-body text-[14px] font-bold uppercase tracking-[0.08em] text-[#7C2D12]">{readingClubCopy.intentionLabel}</p>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        {readingClubCopy.intentions.map((intent) => {
+                          const active = intent.id === readingClubDesk.selectedIntentId;
+                          return (
+                            <button
+                              key={intent.id}
+                              type="button"
+                              onClick={() => selectReadingIntent(intent.id)}
+                              aria-pressed={active}
+                              className={`min-h-[94px] rounded-[20px] border px-3 py-3 text-left ${
+                                active ? "border-[#7C2D12] bg-[#FBF7F0]" : "border-[#E8DDCF] bg-white"
+                              }`}
+                            >
+                              <span className="block font-body text-[17px] font-bold leading-[1.18] text-[#3F2447]">{intent.label}</span>
+                              <span className="mt-1 block font-body text-[14px] leading-[1.28] text-[#6E627D]">{intent.body}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div className="mt-5 rounded-[24px] border border-[#E8DDCF] bg-white/86 px-4 py-4" data-testid="reading-club-deep-tools-toggle">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="max-w-[620px] font-body text-[16px] leading-[1.32] text-[#6E627D]">{readingClubCopy.deepToolsBody}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReadingClubFocusedPath(null);
+                      setReadingClubShowDeepTools((current) => !current);
+                    }}
+                    aria-expanded={readingClubShowDeepTools}
+                    className="inline-flex min-h-[46px] items-center gap-2 rounded-full border border-[#E8DDCF] bg-[#FFFCF7] px-4 font-body text-[16px] font-bold text-[#7C2D12]"
+                    data-testid="button-reading-toggle-deep-tools"
+                  >
+                    <Library size={18} strokeWidth={2.4} aria-hidden="true" />
+                    {readingClubShowDeepTools ? readingClubCopy.deepToolsHideLabel : readingClubCopy.deepToolsShowLabel}
+                  </button>
                 </div>
               </div>
             </div>
 
-            <div className="grid gap-4 border-t border-[#F0E4D4] px-5 py-5 lg:grid-cols-[1.05fr_0.95fr]">
+            {readingClubFocusedPath && (
+              <div className="border-t border-[#F0E4D4] px-5 py-5" data-testid="reading-club-focused-path">
+                {readingClubStatus && (
+                  <p
+                    className="mb-4 rounded-full bg-[#ECFDF5] px-3 py-1.5 font-body text-[14px] font-bold text-[#0F766E]"
+                    data-testid="reading-club-status"
+                    role="status"
+                  >
+                    {readingClubStatus}
+                  </p>
+                )}
+
+                {readingClubFocusedPath === "share" && (
+                  <div className="rounded-[24px] border border-[#E8DDCF] bg-[#FFFDFC] px-4 py-4" data-testid="reading-reflection-card">
+                    <div className="flex items-center gap-2">
+                      <PenLine size={22} strokeWidth={2.4} className="text-[#6B3CC7]" aria-hidden="true" />
+                      <p className="font-display text-[27px] leading-[1.06] text-[#45325B]">{readingClub.reflectionTitle}</p>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {readingClub.reflectionPrompts.map((prompt) => (
+                        <button
+                          key={prompt}
+                          type="button"
+                          onClick={() => setReadingReflectionDraft(prompt)}
+                          className="min-h-[38px] rounded-full border border-[#D9C7F8] bg-[#FCF9FF] px-3 font-body text-[14px] font-bold text-[#6B3CC7]"
+                        >
+                          {prompt}
+                        </button>
+                      ))}
+                    </div>
+                    <form
+                      className="mt-4"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void submitReadingReflection();
+                      }}
+                    >
+                      <textarea
+                        value={readingReflectionDraft}
+                        onChange={(event) => setReadingReflectionDraft(event.target.value)}
+                        placeholder={readingClub.reflectionPlaceholder}
+                        aria-label={readingClub.reflectionPlaceholder}
+                        rows={5}
+                        className="min-h-[138px] w-full resize-none rounded-[22px] border border-[#E5D9F0] bg-[#FFFCF7] px-4 py-3 font-body text-[19px] leading-[1.35] text-[#5B4A68] outline-none placeholder:text-[#9A8EA8] focus:border-[#D8C8FB]"
+                      />
+                      <button
+                        type="submit"
+                        disabled={isChatSending || !readingReflectionDraft.trim()}
+                        className="mt-3 inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[20px] bg-[#6B3CC7] px-5 font-body text-[19px] font-semibold text-white disabled:opacity-50"
+                      >
+                        <PenLine size={21} strokeWidth={2.4} aria-hidden="true" />
+                        {readingClub.reflectionSubmitLabel}
+                      </button>
+                    </form>
+                  </div>
+                )}
+
+                {readingClubFocusedPath === "recommend" && (
+                  <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+                    <div className="rounded-[24px] border border-[#E5D9F0] bg-[#FCF9FF] px-4 py-4" data-testid="reading-recommendation-shelf">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-[18px] bg-[#7C2D12] text-white">
+                          <BookMarked size={23} strokeWidth={2.4} aria-hidden="true" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-display text-[28px] leading-[1.08] text-[#45325B]">{readingClubCopy.recommendationShelfTitle}</p>
+                          <p className="mt-1 font-body text-[16px] leading-[1.32] text-[#6E627D]">{readingClubCopy.recommendationShelfBody}</p>
+                        </div>
+                      </div>
+                      <textarea
+                        id="reading-recommendation-title-focused"
+                        value={readingRecommendationDraft}
+                        onChange={(event) => setReadingRecommendationDraft(event.target.value)}
+                        placeholder={readingClubCopy.recommendationTitlePlaceholder}
+                        aria-label={readingClubCopy.recommendationTitleLabel}
+                        rows={5}
+                        className="mt-4 min-h-[150px] w-full resize-none rounded-[18px] border border-[#E8DDCF] bg-white px-3 py-3 font-body text-[18px] leading-[1.35] text-[#45325B] outline-none placeholder:text-[#A78B7B] focus:border-[#7C2D12]"
+                        data-testid="input-reading-recommendation-title"
+                      />
+                      <button
+                        type="button"
+                        onClick={saveReadingRecommendationCard}
+                        disabled={!readingRecommendationDraft.trim()}
+                        className="mt-3 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-[18px] bg-[#7C2D12] px-4 font-body text-[17px] font-bold text-white disabled:opacity-50"
+                        data-testid="button-reading-save-recommendation"
+                      >
+                        <BookMarked size={18} strokeWidth={2.4} aria-hidden="true" />
+                        {readingClubCopy.recommendationShareLabel}
+                      </button>
+                      <div className="mt-4 rounded-[22px] border border-[#D7F2E8] bg-[#F7FFFB] px-4 py-4" data-testid="reading-recommendation-cards">
+                        <p className="font-body text-[20px] font-bold leading-[1.15] text-[#244D47]">{readingClubCopy.recommendationMyShelfTitle}</p>
+                        {latestReadingRecommendationCards.length > 0 ? (
+                          <div className="mt-3 grid gap-3">
+                            {latestReadingRecommendationCards.map((card) => (
+                              <div key={card.id} className="rounded-[18px] border border-[#BDE8D7] bg-white px-3 py-3">
+                                <p className="font-body text-[17px] font-bold leading-[1.22] text-[#244D47]">{card.title}</p>
+                                <button
+                                  type="button"
+                                  onClick={() => useReadingRecommendationCard(card)}
+                                  className="mt-3 inline-flex min-h-[38px] items-center gap-2 rounded-full border border-[#BDE8D7] bg-[#F7FFFB] px-3 font-body text-[14px] font-bold text-[#0F766E]"
+                                  data-testid="button-reading-use-recommendation"
+                                >
+                                  <PenLine size={15} strokeWidth={2.4} aria-hidden="true" />
+                                  {readingClubCopy.recommendationUseLabel}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-3 rounded-[18px] border border-dashed border-[#BDE8D7] bg-white px-3 py-3 font-body text-[15px] font-bold leading-[1.28] text-[#0F766E]">
+                            {readingClubCopy.recommendationEmptyLabel}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-[24px] border border-[#E8DDCF] bg-[#FFFDFC] px-4 py-4" data-testid="reading-reflection-card">
+                      <div className="flex items-center gap-2">
+                        <PenLine size={22} strokeWidth={2.4} className="text-[#6B3CC7]" aria-hidden="true" />
+                        <p className="font-display text-[27px] leading-[1.06] text-[#45325B]">{readingClub.reflectionTitle}</p>
+                      </div>
+                      <textarea
+                        value={readingReflectionDraft}
+                        onChange={(event) => setReadingReflectionDraft(event.target.value)}
+                        placeholder={readingClub.reflectionPlaceholder}
+                        aria-label={readingClub.reflectionPlaceholder}
+                        rows={5}
+                        className="mt-4 min-h-[138px] w-full resize-none rounded-[22px] border border-[#E5D9F0] bg-[#FFFCF7] px-4 py-3 font-body text-[19px] leading-[1.35] text-[#5B4A68] outline-none placeholder:text-[#9A8EA8] focus:border-[#D8C8FB]"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {readingClubFocusedPath === "meet" && (
+                  <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+                    <div className="rounded-[24px] border border-[#E8DDCF] bg-[#FFFCF7] px-4 py-4" data-testid="reading-member-lounge">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-[18px] bg-[#7C2D12] text-white">
+                          <MessageCircle size={23} strokeWidth={2.4} aria-hidden="true" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-display text-[28px] leading-[1.08] text-[#45325B]">{readingClubCopy.memberLoungeTitle}</p>
+                          <p className="mt-1 font-body text-[16px] leading-[1.32] text-[#6E627D]">{readingClubCopy.memberLoungeBody}</p>
+                        </div>
+                      </div>
+                      <div className="mt-4 grid gap-3">
+                        {roomMembers.slice(0, 4).map((member, index) => (
+                          <div key={member.id} className="rounded-[20px] border border-[#E8DDCF] bg-white px-4 py-4">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="flex min-w-0 gap-3">
+                                <div
+                                  className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full text-[17px] font-bold text-white"
+                                  style={{ background: getParticipantColour(index) }}
+                                >
+                                  {member.name.slice(0, 1).toUpperCase()}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="font-body text-[19px] font-bold leading-[1.12] text-[#45325B]">{member.name}</p>
+                                    <span className="rounded-full bg-[#ECFDF5] px-2.5 py-1 font-body text-[13px] font-bold text-[#0F766E]">
+                                      {member.statusLabel ?? readingClubCopy.memberLoungeDefaultStatus}
+                                    </span>
+                                  </div>
+                                  <p className="mt-1 font-body text-[16px] leading-[1.3] text-[#6E627D]">{getInterestLine(language, member)}</p>
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => prepareReadingLoungeLetter(member)}
+                                  className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-[#BDE8D7] bg-[#F7FFFB] px-3 font-body text-[14px] font-bold text-[#0F766E]"
+                                  data-testid={`button-reading-lounge-letter-${member.id}`}
+                                >
+                                  <PenLine size={16} strokeWidth={2.4} aria-hidden="true" />
+                                  {readingClubCopy.memberLoungeLetterLabel}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => prepareReadingLoungeTable(member)}
+                                  className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-[#E8DDCF] bg-[#FBF7F0] px-3 font-body text-[14px] font-bold text-[#7C2D12]"
+                                  data-testid={`button-reading-lounge-table-${member.id}`}
+                                >
+                                  <CalendarPlus size={16} strokeWidth={2.4} aria-hidden="true" />
+                                  {readingClubCopy.memberLoungeTableLabel}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="rounded-[24px] border border-[#E8DDCF] bg-[#FFFCF7] px-4 py-4" data-testid="reading-companion-card">
+                        <div className="flex items-center gap-2">
+                          <Search size={22} strokeWidth={2.4} className="text-[#7C2D12]" aria-hidden="true" />
+                          <p className="font-display text-[27px] leading-[1.06] text-[#45325B]">{readingClub.companionTitle}</p>
+                        </div>
+                        <p className="mt-2 font-body text-[17px] leading-[1.34] text-[#6E627D]">{readingClub.companionBody}</p>
+                        <button
+                          type="button"
+                          onClick={() => void findReadingCompanion()}
+                          disabled={isReadingMatching}
+                          className="mt-4 inline-flex min-h-[54px] w-full items-center justify-center gap-3 rounded-[20px] bg-[#7C2D12] px-5 font-body text-[19px] font-semibold text-white disabled:opacity-60"
+                          data-testid="button-reading-find-companion"
+                        >
+                          <Search size={22} strokeWidth={2.4} aria-hidden="true" />
+                          {isReadingMatching ? readingClubCopy.findingLabel : selectedReadingMode?.ctaLabel ?? readingClubCopy.findLabel}
+                        </button>
+                        {readingMatchResponse && (
+                          <div className="mt-4 rounded-[22px] border border-[#E8DDCF] bg-white px-4 py-4" data-testid="reading-match-result">
+                            {!readingMatchResponse.noMatch && readingMatchResponse.matchedUser && (
+                              <p className="font-body text-[18px] font-bold text-[#45325B]">
+                                {readingClubCopy.resultLabel}: {readingMatchResponse.matchedUser.name}
+                              </p>
+                            )}
+                            <p className="mt-2 font-body text-[18px] leading-[1.35] text-[#5B4A68]">{readingMatchResponse.agentMessage}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="rounded-[24px] border border-[#D7F2E8] bg-[#F7FFFB] px-4 py-4" data-testid="reading-club-letterbox">
+                        <p className="font-body text-[19px] font-bold leading-[1.18] text-[#244D47]">{readingClubCopy.letterboxTitle}</p>
+                        <div className="mt-4 grid gap-3">
+                          <input
+                            value={readingLetterRecipientDraft}
+                            onChange={(event) => setReadingLetterRecipientDraft(event.target.value)}
+                            placeholder={readingClubCopy.letterRecipientPlaceholder}
+                            className="min-h-[46px] w-full rounded-[16px] border border-[#BDE8D7] bg-white px-3 font-body text-[16px] font-semibold text-[#244D47] outline-none placeholder:text-[#7A9B96] focus:border-[#0F766E]"
+                            data-testid="input-reading-letter-recipient"
+                          />
+                          <input
+                            value={readingLetterSubjectDraft}
+                            onChange={(event) => setReadingLetterSubjectDraft(event.target.value)}
+                            placeholder={readingClubCopy.letterSubjectPlaceholder}
+                            className="min-h-[46px] w-full rounded-[16px] border border-[#BDE8D7] bg-white px-3 font-body text-[16px] font-semibold text-[#244D47] outline-none placeholder:text-[#7A9B96] focus:border-[#0F766E]"
+                            data-testid="input-reading-letter-subject"
+                          />
+                          <textarea
+                            value={readingLetterBodyDraft}
+                            onChange={(event) => setReadingLetterBodyDraft(event.target.value)}
+                            placeholder={readingClubCopy.letterBodyPlaceholder}
+                            rows={4}
+                            className="min-h-[112px] w-full resize-none rounded-[16px] border border-[#BDE8D7] bg-white px-3 py-3 font-body text-[16px] leading-[1.34] text-[#244D47] outline-none placeholder:text-[#7A9B96] focus:border-[#0F766E]"
+                            data-testid="textarea-reading-letter-body"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="rounded-[24px] border border-[#E8DDCF] bg-[#FFFDFC] px-4 py-4" data-testid="reading-host-table-board">
+                        <p className="font-body text-[19px] font-bold leading-[1.18] text-[#45325B]">{readingClubCopy.hostTableTitle}</p>
+                        <input
+                          id="reading-host-table-topic-focused"
+                          value={readingTableTopicDraft}
+                          onChange={(event) => setReadingTableTopicDraft(event.target.value)}
+                          placeholder={readingClubCopy.hostTableTopicPlaceholder}
+                          className="mt-3 min-h-[48px] w-full rounded-[18px] border border-[#E8DDCF] bg-white px-3 font-body text-[16px] text-[#45325B] outline-none placeholder:text-[#9A839F] focus:border-[#7C2D12]"
+                          data-testid="input-reading-host-table-topic"
+                        />
+                        <textarea
+                          id="reading-host-table-note-focused"
+                          value={readingTableNoteDraft}
+                          onChange={(event) => setReadingTableNoteDraft(event.target.value)}
+                          placeholder={readingClubCopy.hostTableNotePlaceholder}
+                          rows={3}
+                          className="mt-3 min-h-[92px] w-full resize-none rounded-[18px] border border-[#E8DDCF] bg-white px-3 py-3 font-body text-[15px] leading-[1.34] text-[#45325B] outline-none placeholder:text-[#9A839F] focus:border-[#7C2D12]"
+                          data-testid="textarea-reading-host-table-note"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {readingClubShowDeepTools && (
+              <>
+            <div
+              className="grid gap-4 border-t border-[#F0E4D4] px-5 py-5 lg:grid-cols-[1.05fr_0.95fr]"
+              data-testid="reading-club-deep-tools"
+              aria-hidden={false}
+            >
               <div>
                 <div className="flex items-center gap-2">
                   <CalendarDays size={22} strokeWidth={2.4} className="text-[#0F766E]" aria-hidden="true" />
@@ -4819,8 +5691,444 @@ const RoomScreen = () => {
                   </div>
                 )}
               </div>
-            </div>
 
+              <div className="mt-4 rounded-[24px] border border-[#E5D9F0] bg-[#FCF9FF] px-4 py-4" data-testid="reading-recommendation-shelf">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-[18px] bg-[#7C2D12] text-white">
+                      <BookMarked size={23} strokeWidth={2.4} aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-display text-[28px] leading-[1.08] text-[#45325B]">{readingClubCopy.recommendationShelfTitle}</p>
+                      <p className="mt-1 font-body text-[16px] leading-[1.32] text-[#6E627D]">{readingClubCopy.recommendationShelfBody}</p>
+                    </div>
+                  </div>
+                  {readingClubStatus && (
+                    <p className="rounded-full bg-[#ECFDF5] px-3 py-1.5 font-body text-[14px] font-bold text-[#0F766E]">
+                      {readingClubStatus}
+                    </p>
+                  )}
+                </div>
+
+                <div className="mt-4 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+                  <div className="rounded-[24px] border border-[#D9C7F8] bg-white px-4 py-4">
+                    <label className="block font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#7C2D12]" htmlFor="reading-recommendation-title">
+                      {readingClubCopy.recommendationTitleLabel}
+                    </label>
+                    <textarea
+                      id="reading-recommendation-title"
+                      value={readingRecommendationDraft}
+                      onChange={(event) => setReadingRecommendationDraft(event.target.value)}
+                      placeholder={readingClubCopy.recommendationTitlePlaceholder}
+                      rows={6}
+                      className="mt-2 min-h-[170px] w-full resize-none rounded-[18px] border border-[#E8DDCF] bg-[#FFFCF7] px-3 py-3 font-body text-[18px] leading-[1.35] text-[#45325B] outline-none placeholder:text-[#A78B7B] focus:border-[#7C2D12]"
+                      data-testid="input-reading-recommendation-title"
+                    />
+                    <button
+                      type="button"
+                      onClick={saveReadingRecommendationCard}
+                      disabled={!readingRecommendationDraft.trim()}
+                      className="mt-4 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-[18px] bg-[#7C2D12] px-4 font-body text-[17px] font-bold text-white disabled:opacity-50"
+                      data-testid="button-reading-save-recommendation"
+                    >
+                      <BookMarked size={18} strokeWidth={2.4} aria-hidden="true" />
+                      {readingClubCopy.recommendationShareLabel}
+                    </button>
+                  </div>
+
+                  <div className="rounded-[24px] border border-[#D7F2E8] bg-[#F7FFFB] px-4 py-4" data-testid="reading-recommendation-cards">
+                    <div className="flex items-center gap-2">
+                      <BookmarkCheck size={21} strokeWidth={2.4} className="text-[#0F766E]" aria-hidden="true" />
+                      <p className="font-body text-[20px] font-bold leading-[1.15] text-[#244D47]">{readingClubCopy.recommendationMyShelfTitle}</p>
+                    </div>
+                    {latestReadingRecommendationCards.length > 0 ? (
+                      <div className="mt-3 grid gap-3">
+                        {latestReadingRecommendationCards.map((card) => (
+                            <div key={card.id} className="rounded-[18px] border border-[#BDE8D7] bg-white px-3 py-3">
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <p className="font-body text-[17px] font-bold leading-[1.22] text-[#244D47]">{card.title}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => removeReadingRecommendationCard(card.id)}
+                                  aria-label={readingClubCopy.recommendationRemoveLabel}
+                                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#BDE8D7] bg-[#F7FFFB] text-[#0F766E]"
+                                  data-testid="button-reading-remove-recommendation"
+                                >
+                                  <Trash2 size={16} strokeWidth={2.4} aria-hidden="true" />
+                                </button>
+                              </div>
+                              {card.note && <p className="mt-2 font-body text-[15px] leading-[1.32] text-[#41655F]">{card.note}</p>}
+                              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                                <p className="font-body text-[13px] font-bold text-[#0F766E]">
+                                  {readingClubCopy.recommendationCreatedLabel} {formatReadingLetterDate(card.createdAt, language)}
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => useReadingRecommendationCard(card)}
+                                  className="inline-flex min-h-[38px] items-center gap-2 rounded-full border border-[#BDE8D7] bg-[#F7FFFB] px-3 font-body text-[14px] font-bold text-[#0F766E]"
+                                  data-testid="button-reading-use-recommendation"
+                                >
+                                  <PenLine size={15} strokeWidth={2.4} aria-hidden="true" />
+                                  {readingClubCopy.recommendationUseLabel}
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    ) : (
+                      <p className="mt-4 rounded-[18px] border border-dashed border-[#BDE8D7] bg-white px-3 py-3 font-body text-[15px] font-bold leading-[1.28] text-[#0F766E]">
+                        {readingClubCopy.recommendationEmptyLabel}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-[24px] border border-[#E8DDCF] bg-[#FFFCF7] px-4 py-4" data-testid="reading-exchange-board">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-[18px] bg-[#6B3CC7] text-white">
+                      <Search size={23} strokeWidth={2.4} aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-display text-[28px] leading-[1.08] text-[#45325B]">{readingClubCopy.exchangeBoardTitle}</p>
+                      <p className="mt-1 font-body text-[16px] leading-[1.32] text-[#6E627D]">{readingClubCopy.exchangeBoardBody}</p>
+                    </div>
+                  </div>
+                  {readingClubStatus && (
+                    <p className="rounded-full bg-[#ECFDF5] px-3 py-1.5 font-body text-[14px] font-bold text-[#0F766E]">
+                      {readingClubStatus}
+                    </p>
+                  )}
+                </div>
+
+                <div className="mt-4 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+                  <div className="rounded-[24px] border border-[#E5D9F0] bg-white px-4 py-4">
+                    <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#6B3CC7]">{readingClubCopy.exchangeKindLabel}</p>
+                    <div className="mt-2 grid gap-2">
+                      {readingClubCopy.exchangeKindOptions.map((option) => {
+                        const active = selectedReadingExchangeKindId === option.id;
+                        return (
+                          <button
+                            key={option.id}
+                            type="button"
+                            onClick={() => setSelectedReadingExchangeKindId(option.id)}
+                            aria-pressed={active}
+                            className={`min-h-[84px] rounded-[18px] border px-3 py-3 text-left ${
+                              active ? "border-[#6B3CC7] bg-[#FCF9FF]" : "border-[#E5D9F0] bg-white"
+                            }`}
+                          >
+                            <span className="block font-body text-[15px] font-bold leading-[1.2] text-[#45325B]">{option.label}</span>
+                            <span className="mt-1 block font-body text-[12px] leading-[1.28] text-[#6E627D]">{option.body}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <p className="mt-4 font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#0F766E]">{readingClubCopy.exchangeShelfLabel}</p>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      {readingClubCopy.shelfOptions.map((shelf) => {
+                        const active = selectedReadingExchangeShelfId === shelf.id;
+                        return (
+                          <button
+                            key={shelf.id}
+                            type="button"
+                            onClick={() => setSelectedReadingExchangeShelfId(shelf.id)}
+                            aria-pressed={active}
+                            className={`min-h-[70px] rounded-[18px] border px-3 py-3 text-left ${
+                              active ? "border-[#0F766E] bg-[#F0FDF8]" : "border-[#D7F2E8] bg-[#F7FFFB]"
+                            }`}
+                          >
+                            <span className="block font-body text-[15px] font-bold leading-[1.2] text-[#244D47]">{shelf.label}</span>
+                            <span className="mt-1 block font-body text-[12px] leading-[1.28] text-[#41655F]">{shelf.body}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <label className="mt-4 block font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#7C2D12]" htmlFor="reading-exchange-topic">
+                      {readingClubCopy.exchangeTopicLabel}
+                    </label>
+                    <input
+                      id="reading-exchange-topic"
+                      value={readingExchangeTopicDraft}
+                      onChange={(event) => setReadingExchangeTopicDraft(event.target.value)}
+                      placeholder={readingClubCopy.exchangeTopicPlaceholder}
+                      className="mt-2 min-h-[48px] w-full rounded-[18px] border border-[#E8DDCF] bg-[#FFFDFC] px-3 font-body text-[16px] text-[#45325B] outline-none placeholder:text-[#9A839F] focus:border-[#7C2D12]"
+                      data-testid="input-reading-exchange-topic"
+                    />
+
+                    <label className="mt-4 block font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#7C2D12]" htmlFor="reading-exchange-note">
+                      {readingClubCopy.exchangeNoteLabel}
+                    </label>
+                    <textarea
+                      id="reading-exchange-note"
+                      value={readingExchangeNoteDraft}
+                      onChange={(event) => setReadingExchangeNoteDraft(event.target.value)}
+                      placeholder={readingClubCopy.exchangeNotePlaceholder}
+                      rows={3}
+                      className="mt-2 min-h-[92px] w-full resize-none rounded-[18px] border border-[#E8DDCF] bg-[#FFFDFC] px-3 py-3 font-body text-[15px] leading-[1.34] text-[#45325B] outline-none placeholder:text-[#9A839F] focus:border-[#7C2D12]"
+                      data-testid="textarea-reading-exchange-note"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={saveReadingExchangeRequest}
+                      disabled={!readingExchangeTopicDraft.trim()}
+                      className="mt-3 inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[18px] bg-[#6B3CC7] px-4 font-body text-[16px] font-bold text-white disabled:opacity-50"
+                      data-testid="button-reading-save-exchange"
+                    >
+                      <BookMarked size={18} strokeWidth={2.4} aria-hidden="true" />
+                      {readingClubCopy.exchangePostLabel}
+                    </button>
+                  </div>
+
+                  <div className="rounded-[24px] border border-[#D7F2E8] bg-[#F7FFFB] px-4 py-4" data-testid="reading-exchange-requests">
+                    <div className="flex items-center gap-2">
+                      <MessageCircle size={21} strokeWidth={2.4} className="text-[#0F766E]" aria-hidden="true" />
+                      <p className="font-body text-[20px] font-bold leading-[1.15] text-[#244D47]">{readingClubCopy.exchangeMyRequestsTitle}</p>
+                    </div>
+                    {latestReadingExchangeRequests.length > 0 ? (
+                      <div className="mt-3 grid gap-3">
+                        {latestReadingExchangeRequests.map((request) => {
+                          const kind = readingClubCopy.exchangeKindOptions.find((option) => option.id === request.kindId);
+                          const shelf = readingClubCopy.shelfOptions.find((option) => option.id === request.shelfId);
+                          return (
+                            <div key={request.id} className="rounded-[20px] border border-[#BDE8D7] bg-white px-4 py-4">
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="rounded-full bg-[#ECFDF5] px-3 py-1 font-body text-[12px] font-bold uppercase tracking-[0.08em] text-[#0F766E]">
+                                      {kind?.label ?? request.kindId}
+                                    </span>
+                                    <span className="rounded-full bg-[#FCF9FF] px-3 py-1 font-body text-[12px] font-bold uppercase tracking-[0.08em] text-[#6B3CC7]">
+                                      {shelf?.label ?? request.shelfId}
+                                    </span>
+                                  </div>
+                                  <p className="mt-2 font-body text-[19px] font-bold leading-[1.18] text-[#244D47]">{request.topic}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => removeReadingExchangeRequest(request.id)}
+                                  className="inline-flex min-h-[34px] items-center gap-1.5 rounded-full border border-[#BDE8D7] bg-[#F7FFFB] px-3 font-body text-[12px] font-bold text-[#0F766E]"
+                                  data-testid="button-reading-remove-exchange"
+                                >
+                                  <Trash2 size={13} strokeWidth={2.4} aria-hidden="true" />
+                                  {readingClubCopy.exchangeRemoveLabel}
+                                </button>
+                              </div>
+                              <p className="mt-2 font-body text-[14px] font-bold uppercase tracking-[0.08em] text-[#7C2D12]">
+                                {readingClubCopy.exchangeCreatedLabel} {formatReadingLetterDate(request.createdAt, language)}
+                              </p>
+                              {request.note && <p className="mt-2 font-body text-[15px] leading-[1.32] text-[#41655F]">{request.note}</p>}
+                              <button
+                                type="button"
+                                onClick={() => useReadingExchangeRequest(request)}
+                                className="mt-3 inline-flex min-h-[40px] items-center gap-2 rounded-full border border-[#D9C7F8] bg-[#FCF9FF] px-4 font-body text-[14px] font-bold text-[#6B3CC7]"
+                                data-testid="button-reading-use-exchange"
+                              >
+                                <PenLine size={15} strokeWidth={2.4} aria-hidden="true" />
+                                {readingClubCopy.exchangeUseLabel}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="mt-3 rounded-[20px] border border-dashed border-[#BDE8D7] bg-white px-4 py-5 font-body text-[16px] font-bold text-[#0F766E]">
+                        {readingClubCopy.exchangeEmptyLabel}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-[24px] border border-[#E8DDCF] bg-[#FFFDFC] px-4 py-4" data-testid="reading-host-table-board">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-[18px] bg-[#7C2D12] text-white">
+                      <CalendarPlus size={23} strokeWidth={2.4} aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-display text-[28px] leading-[1.08] text-[#45325B]">{readingClubCopy.hostTableTitle}</p>
+                      <p className="mt-1 font-body text-[16px] leading-[1.32] text-[#6E627D]">{readingClubCopy.hostTableBody}</p>
+                    </div>
+                  </div>
+                  {readingClubStatus && (
+                    <p className="rounded-full bg-[#ECFDF5] px-3 py-1.5 font-body text-[14px] font-bold text-[#0F766E]">
+                      {readingClubStatus}
+                    </p>
+                  )}
+                </div>
+
+                <div className="mt-4 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+                  <div className="rounded-[24px] border border-[#E8DDCF] bg-[#FFFCF7] px-4 py-4">
+                    <label className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#7C2D12]" htmlFor="reading-host-table-topic">
+                      {readingClubCopy.hostTableTopicLabel}
+                    </label>
+                    <input
+                      id="reading-host-table-topic"
+                      value={readingTableTopicDraft}
+                      onChange={(event) => setReadingTableTopicDraft(event.target.value)}
+                      placeholder={readingClubCopy.hostTableTopicPlaceholder}
+                      className="mt-2 min-h-[48px] w-full rounded-[18px] border border-[#E8DDCF] bg-white px-3 font-body text-[16px] text-[#45325B] outline-none placeholder:text-[#9A839F] focus:border-[#7C2D12]"
+                      data-testid="input-reading-host-table-topic"
+                    />
+
+                    <div className="mt-4">
+                      <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#0F766E]">{readingClubCopy.hostTableCircleLabel}</p>
+                      <div className="mt-2 grid gap-2">
+                        {readingHostCircleOptions.map((circle) => {
+                          const active = selectedReadingTableCircleId === circle.id;
+                          return (
+                            <button
+                              key={circle.id}
+                              type="button"
+                              onClick={() => setSelectedReadingTableCircleId(circle.id)}
+                              aria-pressed={active}
+                              className={`rounded-[18px] border px-3 py-3 text-left ${
+                                active ? "border-[#0F766E] bg-[#ECFDF5]" : "border-[#E8DDCF] bg-white"
+                              }`}
+                            >
+                              <span className="block font-body text-[16px] font-bold leading-[1.2] text-[#244D47]">{circle.title}</span>
+                              <span className="mt-1 block font-body text-[13px] leading-[1.28] text-[#5F6C68]">{circle.body}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#7C2D12]">{readingClubCopy.hostTableTimeLabel}</p>
+                        <div className="mt-2 grid gap-2">
+                          {readingClubCopy.hostTableTimeOptions.map((option) => {
+                            const active = selectedReadingTableTimeId === option.id;
+                            return (
+                              <button
+                                key={option.id}
+                                type="button"
+                                onClick={() => setSelectedReadingTableTimeId(option.id)}
+                                aria-pressed={active}
+                                className={`min-h-[58px] rounded-[16px] border px-3 py-2 text-left ${
+                                  active ? "border-[#7C2D12] bg-white text-[#7C2D12]" : "border-[#E8DDCF] bg-[#FFFDFC] text-[#6E627D]"
+                                }`}
+                              >
+                                <span className="block font-body text-[15px] font-bold">{option.label}</span>
+                                <span className="mt-1 block font-body text-[12px] leading-[1.25]">{option.body}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#6B3CC7]">{readingClubCopy.hostTableComfortLabel}</p>
+                        <div className="mt-2 grid gap-2">
+                          {readingClubCopy.hostTableComfortOptions.map((option) => {
+                            const active = selectedReadingTableComfortId === option.id;
+                            return (
+                              <button
+                                key={option.id}
+                                type="button"
+                                onClick={() => setSelectedReadingTableComfortId(option.id)}
+                                aria-pressed={active}
+                                className={`min-h-[58px] rounded-[16px] border px-3 py-2 text-left ${
+                                  active ? "border-[#6B3CC7] bg-[#FCF9FF] text-[#45325B]" : "border-[#E5D9F0] bg-white text-[#6E627D]"
+                                }`}
+                              >
+                                <span className="block font-body text-[15px] font-bold">{option.label}</span>
+                                <span className="mt-1 block font-body text-[12px] leading-[1.25]">{option.body}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    <label className="mt-4 block font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#7C2D12]" htmlFor="reading-host-table-note">
+                      {readingClubCopy.hostTableNoteLabel}
+                    </label>
+                    <textarea
+                      id="reading-host-table-note"
+                      value={readingTableNoteDraft}
+                      onChange={(event) => setReadingTableNoteDraft(event.target.value)}
+                      placeholder={readingClubCopy.hostTableNotePlaceholder}
+                      rows={3}
+                      className="mt-2 min-h-[92px] w-full resize-none rounded-[18px] border border-[#E8DDCF] bg-white px-3 py-3 font-body text-[15px] leading-[1.34] text-[#45325B] outline-none placeholder:text-[#9A839F] focus:border-[#7C2D12]"
+                      data-testid="textarea-reading-host-table-note"
+                    />
+                    <button
+                      type="button"
+                      onClick={publishReadingHostedTable}
+                      disabled={!readingTableTopicDraft.trim()}
+                      className="mt-3 inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[18px] bg-[#7C2D12] px-4 font-body text-[16px] font-bold text-white disabled:opacity-50"
+                      data-testid="button-reading-publish-host-table"
+                    >
+                      <CalendarPlus size={18} strokeWidth={2.4} aria-hidden="true" />
+                      {readingClubCopy.hostTablePublishLabel}
+                    </button>
+                  </div>
+
+                  <div className="rounded-[24px] border border-[#D7F2E8] bg-[#F7FFFB] px-4 py-4" data-testid="reading-hosted-tables">
+                    <div className="flex items-center gap-2">
+                      <Clock size={21} strokeWidth={2.4} className="text-[#0F766E]" aria-hidden="true" />
+                      <p className="font-body text-[20px] font-bold leading-[1.15] text-[#244D47]">{readingClubCopy.hostTableMyTablesTitle}</p>
+                    </div>
+                    {latestHostedReadingTables.length > 0 ? (
+                      <div className="mt-3 grid gap-3">
+                        {latestHostedReadingTables.map((table) => {
+                          const circle = readingHostCircleOptions.find((item) => item.id === table.circleId);
+                          const time = readingClubCopy.hostTableTimeOptions.find((item) => item.id === table.timeSlotId);
+                          const comfort = readingClubCopy.hostTableComfortOptions.find((item) => item.id === table.comfortId);
+                          return (
+                            <div key={table.id} className="rounded-[20px] border border-[#BDE8D7] bg-white px-4 py-4">
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="rounded-full bg-[#ECFDF5] px-3 py-1 font-body text-[12px] font-bold uppercase tracking-[0.08em] text-[#0F766E]">
+                                      {time?.label ?? table.timeSlotId}
+                                    </span>
+                                    <span className="rounded-full bg-[#FCF9FF] px-3 py-1 font-body text-[12px] font-bold uppercase tracking-[0.08em] text-[#6B3CC7]">
+                                      {comfort?.label ?? table.comfortId}
+                                    </span>
+                                  </div>
+                                  <p className="mt-2 font-body text-[19px] font-bold leading-[1.18] text-[#244D47]">{table.topic}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => removeReadingHostedTable(table.id)}
+                                  className="inline-flex min-h-[34px] items-center gap-1.5 rounded-full border border-[#BDE8D7] bg-[#F7FFFB] px-3 font-body text-[12px] font-bold text-[#0F766E]"
+                                  data-testid="button-reading-remove-host-table"
+                                >
+                                  <Trash2 size={13} strokeWidth={2.4} aria-hidden="true" />
+                                  {readingClubCopy.hostTableRemoveLabel}
+                                </button>
+                              </div>
+                              <p className="mt-2 font-body text-[14px] font-bold uppercase tracking-[0.08em] text-[#7C2D12]">
+                                {circle?.title ?? table.circleId} - {readingClubCopy.hostTableCreatedLabel} {formatReadingLetterDate(table.createdAt, language)}
+                              </p>
+                              {table.note && <p className="mt-2 font-body text-[15px] leading-[1.32] text-[#41655F]">{table.note}</p>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="mt-3 rounded-[20px] border border-dashed border-[#BDE8D7] bg-white px-4 py-5 font-body text-[16px] font-bold text-[#0F766E]">
+                        {readingClubCopy.hostTableEmptyLabel}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+              </>
+            )}
+
+            {readingClubShowDeepTools && (
+              <>
             {activeReadingPulse && (
               <div className="border-t border-[#F0E4D4] px-5 py-5" data-testid="reading-club-shared-table">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -4975,6 +6283,67 @@ const RoomScreen = () => {
                   </div>
                 </div>
 
+                <div className="rounded-[24px] border border-[#E8DDCF] bg-[#FFFCF7] px-4 py-4" data-testid="reading-member-lounge">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-[18px] bg-[#7C2D12] text-white">
+                      <MessageCircle size={23} strokeWidth={2.4} aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-display text-[28px] leading-[1.08] text-[#45325B]">{readingClubCopy.memberLoungeTitle}</p>
+                      <p className="mt-1 font-body text-[16px] leading-[1.32] text-[#6E627D]">{readingClubCopy.memberLoungeBody}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-3">
+                    {roomMembers.slice(0, 4).map((member, index) => (
+                      <div key={member.id} className="rounded-[20px] border border-[#E8DDCF] bg-white px-4 py-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="flex min-w-0 gap-3">
+                            <div
+                              className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full text-[17px] font-bold text-white"
+                              style={{ background: getParticipantColour(index) }}
+                            >
+                              {member.name.slice(0, 1).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-body text-[19px] font-bold leading-[1.12] text-[#45325B]">{member.name}</p>
+                                <span className="rounded-full bg-[#ECFDF5] px-2.5 py-1 font-body text-[13px] font-bold text-[#0F766E]">
+                                  {member.statusLabel ?? readingClubCopy.memberLoungeDefaultStatus}
+                                </span>
+                              </div>
+                              <p className="mt-2 font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#7C2D12]">
+                                {readingClubCopy.memberLoungeSharedLabel}
+                              </p>
+                              <p className="mt-1 font-body text-[16px] leading-[1.3] text-[#6E627D]">{getInterestLine(language, member)}</p>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => prepareReadingLoungeLetter(member)}
+                              className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-[#BDE8D7] bg-[#F7FFFB] px-3 font-body text-[14px] font-bold text-[#0F766E]"
+                              data-testid={`button-reading-lounge-letter-${member.id}`}
+                            >
+                              <PenLine size={16} strokeWidth={2.4} aria-hidden="true" />
+                              {readingClubCopy.memberLoungeLetterLabel}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => prepareReadingLoungeTable(member)}
+                              className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-[#E8DDCF] bg-[#FBF7F0] px-3 font-body text-[14px] font-bold text-[#7C2D12]"
+                              data-testid={`button-reading-lounge-table-${member.id}`}
+                            >
+                              <CalendarPlus size={16} strokeWidth={2.4} aria-hidden="true" />
+                              {readingClubCopy.memberLoungeTableLabel}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <div>
                   <div className="flex items-center gap-2">
                     <Users size={22} strokeWidth={2.4} className="text-[#0F766E]" aria-hidden="true" />
@@ -5122,7 +6491,7 @@ const RoomScreen = () => {
 
             <div className="border-t border-[#F0E4D4] px-5 py-5">
               <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
-                <div className="rounded-[24px] border border-[#E8DDCF] bg-[#FFFCF7] px-4 py-4">
+                <div className="rounded-[24px] border border-[#E8DDCF] bg-[#FFFCF7] px-4 py-4" data-testid="reading-companion-card">
                   <div className="flex items-center gap-2">
                     <Search size={22} strokeWidth={2.4} className="text-[#7C2D12]" aria-hidden="true" />
                     <p className="font-display text-[27px] leading-[1.06] text-[#45325B]">{readingClub.companionTitle}</p>
@@ -5395,7 +6764,7 @@ const RoomScreen = () => {
                   </div>
                 </div>
 
-                <div className="rounded-[24px] border border-[#E8DDCF] bg-[#FFFDFC] px-4 py-4">
+                <div className="rounded-[24px] border border-[#E8DDCF] bg-[#FFFDFC] px-4 py-4" data-testid="reading-reflection-card">
                   <div className="flex items-center gap-2">
                     <PenLine size={22} strokeWidth={2.4} className="text-[#6B3CC7]" aria-hidden="true" />
                     <p className="font-display text-[27px] leading-[1.06] text-[#45325B]">{readingClub.reflectionTitle}</p>
@@ -5578,6 +6947,8 @@ const RoomScreen = () => {
                 </div>
               </div>
             </div>
+              </>
+            )}
           </section>
         )}
 

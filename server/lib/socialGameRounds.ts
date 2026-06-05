@@ -5159,12 +5159,155 @@ const rounds: Record<SocialGameLanguage, SocialGameRound[]> = {
 
 export const socialGameKinds: SocialGameKind[] = ["chess", "word", "dominoes", "bridge"];
 
+export type SocialGameRoundAttemptSummary = {
+  gameKind: SocialGameKind;
+  roundId: string;
+  startedCount: number;
+  completedCount: number;
+  skippedCount?: number;
+  lastSeenAt: Date | string | null;
+};
+
+type BuildGameTableOptions = {
+  compact?: boolean;
+  cooldownDays?: number;
+  now?: Date;
+};
+
+const DEFAULT_ROUND_COOLDOWN_DAYS = 14;
+
 export function isSocialGameKind(value: unknown): value is SocialGameKind {
   return typeof value === "string" && socialGameKinds.includes(value as SocialGameKind);
 }
 
 export function buildGamePreferenceTag(kind: SocialGameKind) {
   return `game:${kind}`;
+}
+
+function attemptKey(gameKind: SocialGameKind, roundId: string) {
+  return `${gameKind}:${roundId}`;
+}
+
+function toSeenTime(value: Date | string | null | undefined) {
+  if (!value) return 0;
+  const time = value instanceof Date ? value.getTime() : new Date(value).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function buildAttemptLookup(attempts: SocialGameRoundAttemptSummary[]) {
+  return new Map(attempts.map((attempt) => [attemptKey(attempt.gameKind, attempt.roundId), attempt]));
+}
+
+function getCooldownThreshold(options: BuildGameTableOptions = {}) {
+  const cooldownDays = options.cooldownDays ?? DEFAULT_ROUND_COOLDOWN_DAYS;
+  const nowTime = options.now?.getTime() ?? Date.now();
+  return nowTime - cooldownDays * 24 * 60 * 60 * 1000;
+}
+
+function sortRepeatCandidates(
+  roundsToSort: SocialGameRound[],
+  kindRounds: SocialGameRound[],
+  kind: SocialGameKind,
+  attemptsByRound: Map<string, SocialGameRoundAttemptSummary>,
+) {
+  return [...roundsToSort].sort((a, b) => {
+    const aAttempt = attemptsByRound.get(attemptKey(kind, a.id));
+    const bAttempt = attemptsByRound.get(attemptKey(kind, b.id));
+    const startedDelta = (aAttempt?.startedCount ?? 0) - (bAttempt?.startedCount ?? 0);
+    if (startedDelta !== 0) return startedDelta;
+
+    const seenDelta = toSeenTime(aAttempt?.lastSeenAt) - toSeenTime(bAttempt?.lastSeenAt);
+    if (seenDelta !== 0) return seenDelta;
+
+    return kindRounds.indexOf(a) - kindRounds.indexOf(b);
+  });
+}
+
+function pickDefaultRoundForKind(
+  localizedRounds: SocialGameRound[],
+  kind: SocialGameKind,
+  attemptsByRound: Map<string, SocialGameRoundAttemptSummary>,
+  options: BuildGameTableOptions = {},
+) {
+  const kindRounds = localizedRounds.filter((round) => round.kind === kind);
+  if (!kindRounds.length) return undefined;
+
+  const unseenRound = kindRounds.find((round) => !attemptsByRound.has(attemptKey(kind, round.id)));
+  if (unseenRound) return unseenRound.id;
+
+  const cooldownThreshold = getCooldownThreshold(options);
+  const outsideCooldown = kindRounds.filter((round) => {
+    const attempt = attemptsByRound.get(attemptKey(kind, round.id));
+    return toSeenTime(attempt?.lastSeenAt) <= cooldownThreshold;
+  });
+
+  return sortRepeatCandidates(
+    outsideCooldown.length ? outsideCooldown : kindRounds,
+    kindRounds,
+    kind,
+    attemptsByRound,
+  )[0]?.id;
+}
+
+function pickRecommendedGameKind(
+  localizedRounds: SocialGameRound[],
+  attemptsByRound: Map<string, SocialGameRoundAttemptSummary>,
+) {
+  const availableKinds = socialGameKinds.filter((kind) => localizedRounds.some((round) => round.kind === kind));
+  if (!availableKinds.length) return undefined;
+
+  return [...availableKinds].sort((a, b) => {
+    const aRounds = localizedRounds.filter((round) => round.kind === a);
+    const bRounds = localizedRounds.filter((round) => round.kind === b);
+    const aAttempts = aRounds
+      .map((round) => attemptsByRound.get(attemptKey(a, round.id)))
+      .filter((attempt): attempt is SocialGameRoundAttemptSummary => Boolean(attempt));
+    const bAttempts = bRounds
+      .map((round) => attemptsByRound.get(attemptKey(b, round.id)))
+      .filter((attempt): attempt is SocialGameRoundAttemptSummary => Boolean(attempt));
+
+    if (aAttempts.length === 0 && bAttempts.length > 0) return -1;
+    if (aAttempts.length > 0 && bAttempts.length === 0) return 1;
+
+    const aLatest = Math.max(0, ...aAttempts.map((attempt) => toSeenTime(attempt.lastSeenAt)));
+    const bLatest = Math.max(0, ...bAttempts.map((attempt) => toSeenTime(attempt.lastSeenAt)));
+    if (aLatest !== bLatest) return aLatest - bLatest;
+
+    return availableKinds.indexOf(a) - availableKinds.indexOf(b);
+  })[0];
+}
+
+export function buildGameDefaultRoundIds(
+  localizedRounds: SocialGameRound[],
+  attempts: SocialGameRoundAttemptSummary[] = [],
+  options: BuildGameTableOptions = {},
+) {
+  const attemptsByRound = buildAttemptLookup(attempts);
+  return Object.fromEntries(
+    socialGameKinds
+      .map((kind) => [kind, pickDefaultRoundForKind(localizedRounds, kind, attemptsByRound, options)] as const)
+      .filter((entry): entry is [SocialGameKind, string] => Boolean(entry[1])),
+  ) as Partial<Record<SocialGameKind, string>>;
+}
+
+function buildRoundCountsByKind(localizedRounds: SocialGameRound[]) {
+  return Object.fromEntries(
+    socialGameKinds.map((kind) => [kind, localizedRounds.filter((round) => round.kind === kind).length]),
+  ) as Partial<Record<SocialGameKind, number>>;
+}
+
+function buildDefaultRoundIndexesByKind(
+  localizedRounds: SocialGameRound[],
+  defaultRoundIdsByKind: Partial<Record<SocialGameKind, string>>,
+) {
+  return Object.fromEntries(
+    socialGameKinds.map((kind) => {
+      const kindRounds = localizedRounds.filter((round) => round.kind === kind);
+      const defaultRoundId = defaultRoundIdsByKind[kind];
+      const index = kindRounds.findIndex((round) => round.id === defaultRoundId);
+      return [kind, Math.max(0, index)];
+    }),
+  ) as Partial<Record<SocialGameKind, number>>;
 }
 
 export function labelForGameKind(kind: SocialGameKind, language: SocialLanguage) {
@@ -5252,11 +5395,31 @@ const gameTableCopy: Record<SocialGameLanguage, Omit<SocialGameTable, "readyLabe
   },
 };
 
-export function buildGameTable(language: SocialGameLanguage, participantCount: number): SocialGameTable {
+export function buildGameTable(
+  language: SocialGameLanguage,
+  participantCount: number,
+  attempts: SocialGameRoundAttemptSummary[] = [],
+  options: BuildGameTableOptions = {},
+): SocialGameTable {
   const localizedRounds = rounds[language] ?? rounds.en;
   const localizedReadyMembers = readyMembers[language] ?? readyMembers.en;
   const readyCount = Math.max(3, Math.min(participantCount, 9));
   const copy = gameTableCopy[language] ?? gameTableCopy.en;
+  const attemptsByRound = buildAttemptLookup(attempts);
+  const defaultRoundIdsByKind = buildGameDefaultRoundIds(localizedRounds, attempts, options);
+  const defaultRoundIndexesByKind = buildDefaultRoundIndexesByKind(localizedRounds, defaultRoundIdsByKind);
+  const roundCountsByKind = buildRoundCountsByKind(localizedRounds);
+  const recommendedKind = pickRecommendedGameKind(localizedRounds, attemptsByRound);
+  const recommendedRoundId = recommendedKind ? defaultRoundIdsByKind[recommendedKind] : undefined;
+  const tableRounds = options.compact
+    ? socialGameKinds.flatMap((kind) => {
+        const defaultRoundId = defaultRoundIdsByKind[kind];
+        const defaultRound = defaultRoundId
+          ? localizedRounds.find((round) => round.id === defaultRoundId && round.kind === kind)
+          : undefined;
+        return defaultRound ?? localizedRounds.find((round) => round.kind === kind) ?? [];
+      })
+    : localizedRounds;
 
   return {
     hostLine: copy.hostLine,
@@ -5270,8 +5433,11 @@ export function buildGameTable(language: SocialGameLanguage, participantCount: n
     findPartnerLabel: copy.findPartnerLabel,
     sayHelloLabel: copy.sayHelloLabel,
     roundCompleteLabel: copy.roundCompleteLabel,
-    rounds: localizedRounds,
-    defaultRoundId: localizedRounds[0]?.id ?? "chess-clue-fork",
+    rounds: tableRounds,
+    defaultRoundId: recommendedRoundId ?? localizedRounds[0]?.id ?? "chess-clue-fork",
+    defaultRoundIdsByKind,
+    defaultRoundIndexesByKind,
+    roundCountsByKind,
     readyMembers: localizedReadyMembers,
   };
 }

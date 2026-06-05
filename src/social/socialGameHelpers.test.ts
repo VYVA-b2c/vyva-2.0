@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildGamePreferenceTag, buildGameTable } from "../../server/lib/socialGameRounds";
+import { buildGameDefaultRoundIds, buildGamePreferenceTag, buildGameTable } from "../../server/lib/socialGameRounds";
 import { buildReadingClubDestination } from "../../server/lib/readingClubDestination";
 import { formatSharedTopic, pickBestSocialMatch, supportsSocialMatching } from "../../server/lib/socialMatching";
 import type { SocialGameLanguage } from "./types";
@@ -35,6 +35,75 @@ describe("social games room helpers", () => {
       expect(table.rounds.filter((round) => round.kind === "chess").length).toBeGreaterThanOrEqual(60);
       expect(table.defaultRoundId).toBe("chess-clue-fork");
     }
+  });
+
+  it("personalizes default game rounds from stable exposure history", () => {
+    const table = buildGameTable("en", 6);
+    const firstChessRound = table.rounds.find((round) => round.kind === "chess");
+    expect(firstChessRound).toBeDefined();
+
+    const afterChessStart = buildGameTable("en", 6, [
+      {
+        gameKind: "chess",
+        roundId: firstChessRound!.id,
+        startedCount: 1,
+        completedCount: 0,
+        lastSeenAt: "2026-06-01T10:00:00.000Z",
+      },
+    ]);
+
+    const recommendedRound = afterChessStart.rounds.find((round) => round.id === afterChessStart.defaultRoundId);
+    expect(recommendedRound?.kind).toBe("word");
+    expect(afterChessStart.defaultRoundIdsByKind?.chess).not.toBe(firstChessRound!.id);
+  });
+
+  it("can build a compact game table while preserving bank counts", () => {
+    const table = buildGameTable("en", 6, [], { compact: true });
+
+    expect(table.rounds).toHaveLength(4);
+    expect(table.rounds.map((round) => round.kind)).toEqual(["chess", "word", "dominoes", "bridge"]);
+    expect(table.roundCountsByKind).toMatchObject({
+      chess: 80,
+      word: 80,
+      dominoes: 80,
+      bridge: 80,
+    });
+    expect(table.defaultRoundIndexesByKind?.chess).toBe(0);
+  });
+
+  it("prefers rounds outside the repeat cooldown after a bank has all been seen", () => {
+    const wordRounds = buildGameTable("en", 6).rounds.filter((round) => round.kind === "word").slice(0, 3);
+    const attempts = wordRounds.map((round, index) => ({
+      gameKind: round.kind,
+      roundId: round.id,
+      startedCount: 1,
+      completedCount: 0,
+      skippedCount: 0,
+      lastSeenAt: index === 2 ? "2026-05-01T10:00:00.000Z" : "2026-06-01T10:00:00.000Z",
+    }));
+
+    expect(buildGameDefaultRoundIds(wordRounds, attempts, { now: new Date("2026-06-05T12:00:00.000Z") }).word).toBe(wordRounds[2].id);
+  });
+
+  it("keeps repeat prevention working when a puzzle bank grows beyond 80", () => {
+    const wordRounds = buildGameTable("en", 6).rounds.filter((round) => round.kind === "word");
+    const expandedWordRounds = [
+      ...wordRounds,
+      {
+        ...wordRounds[0],
+        id: "word-tiles-new-neighbor",
+      },
+    ];
+    const attempts = wordRounds.map((round, index) => ({
+      gameKind: round.kind,
+      roundId: round.id,
+      startedCount: index === 9 ? 1 : 2,
+      completedCount: 0,
+      lastSeenAt: `2026-06-${String((index % 28) + 1).padStart(2, "0")}T10:00:00.000Z`,
+    }));
+
+    expect(buildGameDefaultRoundIds(expandedWordRounds, attempts).word).toBe("word-tiles-new-neighbor");
+    expect(buildGameDefaultRoundIds(wordRounds, attempts).word).toBe(wordRounds[9].id);
   });
 
   it("keeps the word tile puzzle bank available in each supported app language", () => {

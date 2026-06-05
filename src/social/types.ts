@@ -96,6 +96,9 @@ export type SocialGameTable = {
   roundCompleteLabel: string;
   rounds: SocialGameRound[];
   defaultRoundId: string;
+  defaultRoundIdsByKind?: Partial<Record<SocialGameKind, string>>;
+  defaultRoundIndexesByKind?: Partial<Record<SocialGameKind, number>>;
+  roundCountsByKind?: Partial<Record<SocialGameKind, number>>;
   readyMembers: SocialGameReadyMember[];
 };
 
@@ -150,7 +153,7 @@ export type SocialRoomChatItem = {
 
 export type SocialRoomPlanResponseValue = "join" | "maybe";
 export type SocialRoomPlanKind = "plan" | "message" | "question";
-export type SocialRoomComfortNeed = "quiet_pace" | "easy_access" | "seating" | "transport_help";
+export type SocialRoomComfortNeed = "listen_first" | "quiet_pace" | "easy_access" | "seating" | "transport_help" | "arrival_buddy" | "clear_cost";
 export type SocialRoomExperienceCategory =
   | "movie_date"
   | "restaurant_date"
@@ -162,7 +165,7 @@ export type SocialRoomExperienceCategory =
 export type SocialRoomPreferredTime = "morning" | "afternoon" | "evening" | "flexible";
 export type SocialRoomCostRange = "free" | "low" | "shared" | "discuss";
 export type SocialRoomGroupSize = "one_to_one" | "small_group" | "open_room";
-export type SocialRoomSafetyFlag = "money" | "housing" | "service" | "private_contact" | "transport";
+export type SocialRoomSafetyFlag = "money" | "housing" | "service" | "private_contact" | "transport" | "unkind_tone";
 export type SocialRoomSafetyReportTargetType = "room" | "plan" | "message" | "question" | "poll" | "reply" | "music_thread_entry" | "music_circle_item";
 
 export type SocialRoomReplyTone = "support" | "curious" | "help" | "different";
@@ -333,6 +336,15 @@ export type SocialRoomNotification = {
   readAt?: string | null;
 };
 
+export type SocialRoomDecisionGuide = {
+  id: string;
+  title: string;
+  body: string;
+  steps: string[];
+  primaryActionLabel?: string;
+  actionKind?: "vote" | "plan" | "view";
+};
+
 export type SocialRoomPulse = {
   featuredPlan: SocialRoomPlan;
   secondaryPlans: SocialRoomPlan[];
@@ -340,6 +352,7 @@ export type SocialRoomPulse = {
   memberPresence: SocialRoomMember[];
   activePoll: SocialRoomPoll;
   comfortCheck: SocialRoomComfortCheck;
+  decisionGuide?: SocialRoomDecisionGuide;
   discussionPrompt: SocialRoomDiscussionPrompt;
   safety: SocialRoomSafetyState;
   notifications: SocialRoomNotification[];
