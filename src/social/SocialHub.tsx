@@ -16,6 +16,7 @@ import {
   getRoomBadge,
   getRoomPickerName,
   getSocialCopy,
+  getSocialGameLanguage,
   getSocialLanguage,
 } from "./roomUtils";
 import {
@@ -25,7 +26,7 @@ import {
   getTogetherRoomCopy,
   isTogetherRoom,
 } from "./togetherRoom";
-import type { SocialHubResponse, SocialLanguage, SocialRoom, SocialRoomCategory } from "./types";
+import type { SocialGameLanguage, SocialHubResponse, SocialLanguage, SocialRoom, SocialRoomCategory } from "./types";
 
 const ROOM_WINDOW_SIZE = 4;
 const ROOM_ROTATION_MS = 9000;
@@ -39,15 +40,17 @@ function getMoreRoomsLabel(language: SocialLanguage) {
 type RoomPickerTileProps = {
   room: SocialRoom;
   language: SocialLanguage;
+  togetherLanguage: SocialGameLanguage;
   onSelect: (room: SocialRoom) => void;
 };
 
-function RoomPickerTile({ room, language, onSelect }: RoomPickerTileProps) {
+function RoomPickerTile({ room, language, togetherLanguage, onSelect }: RoomPickerTileProps) {
   const topic = room.contentTitle || room.topic;
-  const pickerName = getRoomPickerName(room.slug, language, room.name);
-  const participantLabel = room.participantCount.toLocaleString(language);
-  const togetherCopy = isTogetherRoom(room.slug) ? getTogetherRoomCopy(language) : null;
-  const togetherPlans = togetherCopy ? getTogetherPlans(language).slice(1, 4) : [];
+  const pickerName = isTogetherRoom(room.slug) ? room.name : getRoomPickerName(room.slug, language, room.name);
+  const participantLocale = isTogetherRoom(room.slug) ? togetherLanguage : language;
+  const participantLabel = room.participantCount.toLocaleString(participantLocale);
+  const togetherCopy = isTogetherRoom(room.slug) ? getTogetherRoomCopy(togetherLanguage) : null;
+  const togetherPlans = togetherCopy ? getTogetherPlans(togetherLanguage).slice(1, 4) : [];
 
   return (
     <article
@@ -132,15 +135,16 @@ function RoomPickerTile({ room, language, onSelect }: RoomPickerTileProps) {
 type RoomDetailSheetProps = {
   room: SocialRoom;
   language: SocialLanguage;
+  togetherLanguage: SocialGameLanguage;
   onClose: () => void;
   onEnter: (slug: string) => void;
 };
 
-function RoomDetailSheet({ room, language, onClose, onEnter }: RoomDetailSheetProps) {
+function RoomDetailSheet({ room, language, togetherLanguage, onClose, onEnter }: RoomDetailSheetProps) {
   const copy = getSocialCopy(language);
   const description = room.contentBody || room.opener || room.topic;
-  const togetherCopy = isTogetherRoom(room.slug) ? getTogetherRoomCopy(language) : null;
-  const togetherPlans = togetherCopy ? getTogetherPlans(language) : [];
+  const togetherCopy = isTogetherRoom(room.slug) ? getTogetherRoomCopy(togetherLanguage) : null;
+  const togetherPlans = togetherCopy ? getTogetherPlans(togetherLanguage) : [];
 
   return (
     <BottomSheet
@@ -171,7 +175,7 @@ function RoomDetailSheet({ room, language, onClose, onEnter }: RoomDetailSheetPr
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <span className="rounded-full bg-[#F2EBFF] px-4 py-2 font-body text-[17px] font-semibold text-[#6D28D9]">
-            {getRoomBadge(room.slug, language)}
+            {togetherCopy ? room.name : getRoomBadge(room.slug, language)}
           </span>
           <span className="rounded-full bg-white px-4 py-2 font-body text-[17px] font-semibold text-[#6E5A8A]">
             {formatLiveText(room, language)}
@@ -279,6 +283,7 @@ const SocialHub = () => {
   const { t } = useTranslation();
   const { language: appLanguage } = useLanguage();
   const language = getSocialLanguage(appLanguage);
+  const togetherLanguage = getSocialGameLanguage(appLanguage);
   const copy = getSocialCopy(language);
   const autoStartVoice = useRouteVoiceAutoStart();
   const [category, setCategory] = useState<"all" | SocialRoomCategory>("all");
@@ -286,7 +291,7 @@ const SocialHub = () => {
   const [roomWindowIndex, setRoomWindowIndex] = useState(0);
 
   const { data, isLoading, isError } = useQuery<SocialHubResponse>({
-    queryKey: [`/api/social/hub?lang=${language}`],
+    queryKey: [`/api/social/hub?lang=${togetherLanguage}`],
     staleTime: 30 * 1000,
     refetchInterval: 30 * 1000,
   });
@@ -435,6 +440,7 @@ const SocialHub = () => {
               key={room.slug}
               room={room}
               language={language}
+              togetherLanguage={togetherLanguage}
               onSelect={(nextRoom) => setSelectedRoomSlug(nextRoom.slug)}
             />
           ))}
@@ -445,6 +451,7 @@ const SocialHub = () => {
         <RoomDetailSheet
           room={selectedRoom}
           language={language}
+          togetherLanguage={togetherLanguage}
           onClose={() => setSelectedRoomSlug(null)}
           onEnter={(slug) => navigate(`/social-rooms/${slug}`)}
         />

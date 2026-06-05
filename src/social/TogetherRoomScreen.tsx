@@ -38,7 +38,7 @@ import type {
 
 type TogetherRoomScreenProps = {
   roomResponse: SocialRoomResponse;
-  language: SocialLanguage;
+  language: SocialGameLanguage;
   composerLanguage?: SocialGameLanguage;
   visitId?: string | null;
   onBack: () => void;
@@ -365,7 +365,7 @@ const copyByLanguage: Record<SocialLanguage, {
     helpFailed: "No se pudo avisar a VYVA. Intentalo de nuevo.",
     viewStarter: "Compartir opinion",
     sharePlanTitle: "Compartir un plan",
-    sharePlanBody: "Propón una idea sencilla para que otras personas puedan apuntarse o decir quizá.",
+    sharePlanBody: "Propon una idea sencilla para que otras personas puedan apuntarse o decir quiza.",
     sharePlanAction: "Compartir un plan",
     agreementTitle: "Nuestra promesa de sala",
     agreementLines: [
@@ -717,6 +717,8 @@ const copyByLanguage: Record<SocialLanguage, {
   },
 };
 
+type TogetherRoomCopy = (typeof copyByLanguage)["en"];
+
 const planComposerCopyByLanguage: Record<SocialGameLanguage, PlanComposerCopy> = {
   es: copyByLanguage.es,
   de: copyByLanguage.de,
@@ -969,26 +971,321 @@ const planComposerCopyByLanguage: Record<SocialGameLanguage, PlanComposerCopy> =
   },
 };
 
-function fallbackPulse(language: SocialLanguage): SocialRoomPulse {
+const roomCopyByLanguage: Record<SocialGameLanguage, TogetherRoomCopy> = {
+  es: copyByLanguage.es,
+  de: copyByLanguage.de,
+  en: copyByLanguage.en,
+  fr: {
+    ...copyByLanguage.en,
+    ...planComposerCopyByLanguage.fr,
+    back: "Retour",
+    safeStatus: "Salle protegee",
+    present: (count) => `${count} presents`,
+    join: "Participer",
+    maybe: "Peut-etre plus tard",
+    joined: "Vous participez",
+    maybeSaved: "Garde pour plus tard",
+    roomChoice: "Choix de la salle",
+    pollClosed: "Le vote est ferme",
+    youVoted: "Votre vote est enregistre",
+    pollNudgeNoVotes: "Votre vote aide a choisir la prochaine etape.",
+    pollNudgeLeading: (label) => `La salle penche vers : ${label}.`,
+    pollNudgeAction: "Vous pouvez rejoindre le plan ci-dessus ou proposer une version plus douce.",
+    comfortCheckTitle: "Qu'est-ce qui rendrait cela confortable?",
+    comfortCheckBody: "Touchez ce qui aide. La salle peut adapter les plans.",
+    comfortCheckCount: (count) => `${count} ${count === 1 ? "l'a choisi" : "l'ont choisi"}`,
+    responseNone: "Vous pouvez etre le premier a choisir.",
+    responseJoinCount: (count) => `${count} ${count === 1 ? "participe" : "participent"}`,
+    responseMaybeCount: (count) => `${count} peut-etre`,
+    morePlans: "Vous pourriez aussi",
+    roomUpdates: "Nouvelles de la salle",
+    markUpdateSeen: "Vu",
+    updateSeen: "Nouvelle marquee comme vue",
+    updateSeenFailed: "Impossible de marquer comme vu. Reessayez.",
+    sharedToday: "Partage aujourd'hui",
+    sharedResponseSaved: "Votre reponse est enregistree",
+    reviewItem: "Demander a VYVA de verifier",
+    reviewItemSent: "VYVA verifiera cela avec douceur.",
+    reviewReply: "Verifier la reponse",
+    gentleReplies: "Reponses douces",
+    planSupportTitle: "Rendre cela facile",
+    planSupportBody: "Choisissez une petite aide pour rendre le plan plus confortable pour tous.",
+    planSupportActions: {
+      choose: "Aider a choisir",
+      pace: "Rythme calme",
+      notify: "Me tenir au courant",
+    },
+    planSupportReplies: {
+      choose: "Je peux aider a choisir une option simple pour le groupe.",
+      pace: "Un rythme calme avec des pauses m'aiderait.",
+      notify: "Merci de me tenir au courant quand il y aura une prochaine etape.",
+    },
+    replySent: "Reponse partagee",
+    replyFailed: "Impossible de partager la reponse. Reessayez.",
+    replyActions: {
+      support: "Je ressens pareil",
+      curious: "Dites-m'en plus",
+      help: "Je peux aider",
+      different: "Autre avis",
+    },
+    replyBodies: {
+      support: "Je ressens pareil. Merci de l'avoir partage.",
+      curious: "J'aimerais en savoir un peu plus, si vous voulez partager.",
+      help: "Je peux aider avec une petite etape dans la salle.",
+      different: "Je le vois un peu autrement, et j'apprecie que vous le partagiez.",
+    },
+    supportIdea: "Participer",
+    maybeIdea: "Peut-etre",
+    sharedKindLabels: {
+      plan: "Plan",
+      message: "Bonjour",
+      question: "Question",
+    },
+    sharedActions: {
+      plan: { primary: "Participer", secondary: "Peut-etre" },
+      message: { primary: "Moi aussi", secondary: "Merci" },
+      question: { primary: "Aidez-moi aussi", secondary: "Suivre" },
+    },
+    fitLabel: "Bon accord",
+    reviewBadge: "VYVA verifie avant la prochaine etape",
+    helpSent: "VYVA verifiera cela avec douceur.",
+    helpFailed: "Impossible d'alerter VYVA. Reessayez.",
+    viewStarter: "Partager un avis",
+    agreementTitle: "Notre promesse de salle",
+    agreementLines: [
+      "Des mots aimables, sans pression.",
+      "Partager les avis sans juger.",
+      "Demander a VYVA si quelque chose semble inconfortable.",
+    ],
+    acknowledgementLabel: "Je comprends",
+    acknowledgedLabel: "Promesse de salle enregistree",
+    acknowledgementFailed: "Impossible d'enregistrer. Reessayez.",
+    starterDetails: {
+      hello: "J'aimerais dire bonjour au groupe.",
+      view: "J'aimerais partager un petit avis avec la salle.",
+      plan: "J'aimerais partager un plan simple et calme.",
+      ask: "VYVA, aidez-moi a choisir une facon simple de participer.",
+    },
+  },
+  it: {
+    ...copyByLanguage.en,
+    ...planComposerCopyByLanguage.it,
+    back: "Indietro",
+    safeStatus: "Stanza protetta",
+    present: (count) => `${count} presenti`,
+    join: "Partecipo",
+    maybe: "Forse piu tardi",
+    joined: "Partecipi",
+    maybeSaved: "Salvato per dopo",
+    roomChoice: "Scelta della stanza",
+    pollClosed: "La votazione e chiusa",
+    youVoted: "Il tuo voto e salvato",
+    pollNudgeNoVotes: "Il tuo voto aiuta a scegliere il prossimo passo.",
+    pollNudgeLeading: (label) => `La stanza tende verso: ${label}.`,
+    pollNudgeAction: "Puoi partecipare al piano sopra o proporre una versione piu tranquilla.",
+    comfortCheckTitle: "Cosa renderebbe tutto comodo?",
+    comfortCheckBody: "Tocca cio che aiuta. La stanza puo adattare i piani.",
+    comfortCheckCount: (count) => `${count} ${count === 1 ? "lo ha scelto" : "lo hanno scelto"}`,
+    responseNone: "Puoi essere il primo a scegliere.",
+    responseJoinCount: (count) => `${count} ${count === 1 ? "partecipa" : "partecipano"}`,
+    responseMaybeCount: (count) => `${count} forse`,
+    morePlans: "Potreste anche",
+    roomUpdates: "Aggiornamenti stanza",
+    markUpdateSeen: "Visto",
+    updateSeen: "Aggiornamento segnato come visto",
+    updateSeenFailed: "Impossibile segnare come visto. Riprova.",
+    sharedToday: "Condiviso oggi",
+    sharedResponseSaved: "La tua risposta e salvata",
+    reviewItem: "Chiedi a VYVA di controllare",
+    reviewItemSent: "VYVA controllera con delicatezza.",
+    reviewReply: "Controlla risposta",
+    gentleReplies: "Risposte gentili",
+    planSupportTitle: "Renderlo facile",
+    planSupportBody: "Scegli un piccolo aiuto cosi il piano e piu comodo per tutti.",
+    planSupportActions: {
+      choose: "Aiutare a scegliere",
+      pace: "Ritmo tranquillo",
+      notify: "Tienimi aggiornato",
+    },
+    planSupportReplies: {
+      choose: "Posso aiutare a scegliere una semplice opzione per il gruppo.",
+      pace: "Mi aiuterebbe un ritmo tranquillo con pause.",
+      notify: "Tenetemi aggiornato quando c'e un prossimo passo.",
+    },
+    replySent: "Risposta condivisa",
+    replyFailed: "Non e stato possibile condividere la risposta. Riprova.",
+    replyActions: {
+      support: "Anche io",
+      curious: "Dimmi di piu",
+      help: "Posso aiutare",
+      different: "Altro punto di vista",
+    },
+    replyBodies: {
+      support: "Anche io mi sento cosi. Grazie per averlo condiviso.",
+      curious: "Vorrei saperne un po' di piu, se vuoi condividere.",
+      help: "Posso aiutare con un piccolo passo nella stanza.",
+      different: "Lo vedo un po' diversamente, e apprezzo che tu lo abbia condiviso.",
+    },
+    supportIdea: "Partecipo",
+    maybeIdea: "Forse",
+    sharedKindLabels: {
+      plan: "Piano",
+      message: "Saluto",
+      question: "Domanda",
+    },
+    sharedActions: {
+      plan: { primary: "Partecipo", secondary: "Forse" },
+      message: { primary: "Anche io", secondary: "Grazie" },
+      question: { primary: "Aiuta anche me", secondary: "Segui" },
+    },
+    fitLabel: "Adatto",
+    reviewBadge: "VYVA controlla prima del prossimo passo",
+    helpSent: "VYVA controllera con delicatezza.",
+    helpFailed: "Non e stato possibile avvisare VYVA. Riprova.",
+    viewStarter: "Condividi un parere",
+    agreementTitle: "La promessa della stanza",
+    agreementLines: [
+      "Parole gentili e nessuna pressione.",
+      "Condividere opinioni senza giudicare.",
+      "Chiedi a VYVA se qualcosa non va.",
+    ],
+    acknowledgementLabel: "Capisco",
+    acknowledgedLabel: "Promessa della stanza salvata",
+    acknowledgementFailed: "Non e stato possibile salvare. Riprova.",
+    starterDetails: {
+      hello: "Vorrei salutare il gruppo.",
+      view: "Vorrei condividere un piccolo parere con la stanza.",
+      plan: "Vorrei condividere un piano semplice e tranquillo.",
+      ask: "VYVA, aiutami a scegliere un modo semplice per partecipare.",
+    },
+  },
+  pt: {
+    ...copyByLanguage.en,
+    ...planComposerCopyByLanguage.pt,
+    back: "Voltar",
+    safeStatus: "Sala protegida",
+    present: (count) => `${count} presentes`,
+    join: "Participar",
+    maybe: "Talvez mais tarde",
+    joined: "Esta a participar",
+    maybeSaved: "Guardado para depois",
+    roomChoice: "Escolha da sala",
+    pollClosed: "A votacao esta fechada",
+    youVoted: "O seu voto foi guardado",
+    pollNudgeNoVotes: "O seu voto ajuda a escolher o proximo passo.",
+    pollNudgeLeading: (label) => `A sala inclina-se para: ${label}.`,
+    pollNudgeAction: "Pode participar no plano acima ou sugerir uma versao mais tranquila.",
+    comfortCheckTitle: "O que tornaria isto confortavel?",
+    comfortCheckBody: "Toque no que ajuda. A sala pode adaptar os planos.",
+    comfortCheckCount: (count) => `${count} ${count === 1 ? "escolheu isto" : "escolheram isto"}`,
+    responseNone: "Pode ser a primeira pessoa a escolher.",
+    responseJoinCount: (count) => `${count} ${count === 1 ? "participa" : "participam"}`,
+    responseMaybeCount: (count) => `${count} talvez`,
+    morePlans: "Tambem podem",
+    roomUpdates: "Novidades da sala",
+    markUpdateSeen: "Visto",
+    updateSeen: "Novidade marcada como vista",
+    updateSeenFailed: "Nao foi possivel marcar como vista. Tente novamente.",
+    sharedToday: "Partilhado hoje",
+    sharedResponseSaved: "A sua resposta foi guardada",
+    reviewItem: "Pedir revisao a VYVA",
+    reviewItemSent: "VYVA vai rever isto com cuidado.",
+    reviewReply: "Rever resposta",
+    gentleReplies: "Respostas gentis",
+    planSupportTitle: "Tornar isto facil",
+    planSupportBody: "Escolha uma pequena ajuda para o plano ser mais confortavel para todos.",
+    planSupportActions: {
+      choose: "Ajudar a escolher",
+      pace: "Ritmo tranquilo",
+      notify: "Avisem-me",
+    },
+    planSupportReplies: {
+      choose: "Posso ajudar a escolher uma opcao simples para o grupo.",
+      pace: "Um ritmo tranquilo, com pausas, ajudaria.",
+      notify: "Avisem-me quando houver um proximo passo.",
+    },
+    replySent: "Resposta partilhada",
+    replyFailed: "Nao foi possivel partilhar a resposta. Tente novamente.",
+    replyActions: {
+      support: "Sinto o mesmo",
+      curious: "Conte-me mais",
+      help: "Posso ajudar",
+      different: "Outra visao",
+    },
+    replyBodies: {
+      support: "Sinto o mesmo. Obrigado por partilhar.",
+      curious: "Gostaria de ouvir um pouco mais, se quiser partilhar.",
+      help: "Posso ajudar com um pequeno passo dentro da sala.",
+      different: "Vejo isto de forma um pouco diferente, e agradeco a partilha.",
+    },
+    supportIdea: "Participar",
+    maybeIdea: "Talvez",
+    sharedKindLabels: {
+      plan: "Plano",
+      message: "Ola",
+      question: "Pergunta",
+    },
+    sharedActions: {
+      plan: { primary: "Participar", secondary: "Talvez" },
+      message: { primary: "Eu tambem", secondary: "Obrigado" },
+      question: { primary: "Ajude-me tambem", secondary: "Seguir" },
+    },
+    fitLabel: "Boa combinacao",
+    reviewBadge: "VYVA reve antes do proximo passo",
+    helpSent: "VYVA vai rever isto com cuidado.",
+    helpFailed: "Nao foi possivel avisar a VYVA. Tente novamente.",
+    viewStarter: "Partilhar opiniao",
+    agreementTitle: "A nossa promessa da sala",
+    agreementLines: [
+      "Palavras gentis e sem pressao.",
+      "Partilhar opinioes sem julgar.",
+      "Pedir ajuda a VYVA se algo parecer errado.",
+    ],
+    acknowledgementLabel: "Compreendo",
+    acknowledgedLabel: "Promessa da sala guardada",
+    acknowledgementFailed: "Nao foi possivel guardar. Tente novamente.",
+    starterDetails: {
+      hello: "Gostaria de dizer ola ao grupo.",
+      view: "Gostaria de partilhar uma pequena opiniao com a sala.",
+      plan: "Gostaria de partilhar um plano simples e calmo.",
+      ask: "VYVA, ajude-me a escolher uma forma simples de participar.",
+    },
+  },
+};
+
+function fallbackPulse(language: SocialGameLanguage): SocialRoomPulse {
+  const copy = roomCopyByLanguage[language];
   const titles = {
     es: "Te y charla de pelicula",
     de: "Tee und Filmgespraech",
     en: "Tea and film chat",
+    fr: "The et discussion film",
+    it: "Te e conversazione film",
+    pt: "Cha e conversa sobre filme",
   };
   const bodies = {
     es: "Elegid una pelicula tranquila y comentadla sin prisa.",
     de: "Waehlt einen ruhigen Film und sprecht ohne Eile darueber.",
     en: "Choose a gentle film and talk about it without rushing.",
+    fr: "Choisissez un film doux et parlez-en sans vous presser.",
+    it: "Scegliete un film leggero e parlatene senza fretta.",
+    pt: "Escolham um filme leve e conversem sem pressa.",
   };
   const question = {
     es: "Que os apeteceria compartir hoy?",
     de: "Was wuerde sich heute gut anfuehlen?",
     en: "What would feel good to share today?",
+    fr: "Qu'auriez-vous envie de partager aujourd'hui?",
+    it: "Cosa vi piacerebbe condividere oggi?",
+    pt: "O que gostariam de partilhar hoje?",
   };
   const options = {
     es: ["Pelicula", "Comida", "Solo saludar"],
     de: ["Film", "Essen", "Nur Hallo"],
     en: ["Film chat", "Quiet lunch", "Just say hello"],
+    fr: ["Discussion film", "Dejeuner calme", "Dire bonjour"],
+    it: ["Conversazione film", "Pranzo tranquillo", "Solo salutare"],
+    pt: ["Conversa sobre filme", "Almoco tranquilo", "So dizer ola"],
   };
   const safety = {
     es: {
@@ -1036,6 +1333,39 @@ function fallbackPulse(language: SocialLanguage): SocialRoomPulse {
       acknowledgedLabel: "Room promise saved",
       myAcknowledgedAt: null,
     },
+    fr: {
+      title: "Petit cercle protege",
+      body: "VYVA garde un ton bienveillant et peut aider si quelque chose semble inconfortable.",
+      consentLine: "Le contact n'est partage que si les deux personnes acceptent.",
+      helpLabel: "Aide ou securite",
+      agreementTitle: roomCopyByLanguage.fr.agreementTitle,
+      agreementLines: roomCopyByLanguage.fr.agreementLines,
+      acknowledgementLabel: roomCopyByLanguage.fr.acknowledgementLabel,
+      acknowledgedLabel: roomCopyByLanguage.fr.acknowledgedLabel,
+      myAcknowledgedAt: null,
+    },
+    it: {
+      title: "Piccolo cerchio protetto",
+      body: "VYVA mantiene un tono gentile e puo aiutare se qualcosa mette a disagio.",
+      consentLine: "Il contatto viene condiviso solo se entrambe le persone accettano.",
+      helpLabel: "Aiuto o sicurezza",
+      agreementTitle: roomCopyByLanguage.it.agreementTitle,
+      agreementLines: roomCopyByLanguage.it.agreementLines,
+      acknowledgementLabel: roomCopyByLanguage.it.acknowledgementLabel,
+      acknowledgedLabel: roomCopyByLanguage.it.acknowledgedLabel,
+      myAcknowledgedAt: null,
+    },
+    pt: {
+      title: "Pequeno circulo seguro",
+      body: "VYVA mantem o tom gentil e pode ajudar se algo parecer desconfortavel.",
+      consentLine: "O contacto so e partilhado quando ambas as pessoas aceitam.",
+      helpLabel: "Ajuda ou seguranca",
+      agreementTitle: roomCopyByLanguage.pt.agreementTitle,
+      agreementLines: roomCopyByLanguage.pt.agreementLines,
+      acknowledgementLabel: roomCopyByLanguage.pt.acknowledgementLabel,
+      acknowledgedLabel: roomCopyByLanguage.pt.acknowledgedLabel,
+      myAcknowledgedAt: null,
+    },
   };
 
   const featuredPlan: SocialRoomPlan = {
@@ -1053,10 +1383,10 @@ function fallbackPulse(language: SocialLanguage): SocialRoomPulse {
     safetyFlags: [],
     needsReview: false,
     fitReasons: [
-      copyByLanguage[language].planOnline,
-      copyByLanguage[language].timeLabels.evening,
-      copyByLanguage[language].costLabels.free,
-      copyByLanguage[language].groupLabels.small_group,
+      copy.planOnline,
+      copy.timeLabels.evening,
+      copy.costLabels.free,
+      copy.groupLabels.small_group,
     ],
     startsAt: null,
     status: "active",
@@ -1079,11 +1409,11 @@ function fallbackPulse(language: SocialLanguage): SocialRoomPulse {
       myVote: null,
     },
     comfortCheck: {
-      title: copyByLanguage[language].comfortCheckTitle,
-      body: copyByLanguage[language].comfortCheckBody,
+      title: copy.comfortCheckTitle,
+      body: copy.comfortCheckBody,
       options: comfortNeedOptions.map((need) => ({
         id: need,
-        label: copyByLanguage[language].comfortNeedLabels[need],
+        label: copy.comfortNeedLabels[need],
         count: 0,
       })),
       myComfortNeeds: [],
@@ -1091,9 +1421,9 @@ function fallbackPulse(language: SocialLanguage): SocialRoomPulse {
     },
     discussionPrompt: {
       id: "gentle-start",
-      title: copyByLanguage[language].sharePlanTitle,
-      body: copyByLanguage[language].sharePlanBody,
-      starterButtons: [copyByLanguage[language].sharePlanAction],
+      title: copy.sharePlanTitle,
+      body: copy.sharePlanBody,
+      starterButtons: [copy.sharePlanAction],
     },
     safety: safety[language],
     notifications: [],
@@ -1212,7 +1542,7 @@ function getLeadingPollOption(pulse: SocialRoomPulse) {
   ), pulse.activePoll.options[0]);
 }
 
-function formatResponseSummary(plan: SocialRoomPlan, copy: (typeof copyByLanguage)[SocialLanguage]) {
+function formatResponseSummary(plan: SocialRoomPlan, copy: TogetherRoomCopy) {
   const joinCount = plan.responseCounts.join;
   const maybeCount = plan.responseCounts.maybe;
   const parts = [
@@ -1227,7 +1557,7 @@ function PlanLocationPill({
   copy,
 }: {
   plan: SocialRoomPlan;
-  copy: (typeof copyByLanguage)[SocialLanguage];
+  copy: TogetherRoomCopy;
 }) {
   const isNearby = plan.locationLabel === "nearby";
   const Icon = isNearby ? MapPin : Monitor;
@@ -1250,7 +1580,7 @@ function PlanComfortPills({
   copy,
 }: {
   plan: SocialRoomPlan;
-  copy: (typeof copyByLanguage)[SocialLanguage];
+  copy: TogetherRoomCopy;
 }) {
   const comfortNeeds = plan.comfortNeeds ?? [];
   if (comfortNeeds.length === 0) return null;
@@ -1274,7 +1604,7 @@ function PlanExperiencePills({
   copy,
 }: {
   plan: SocialRoomPlan;
-  copy: (typeof copyByLanguage)[SocialLanguage];
+  copy: TogetherRoomCopy;
 }) {
   const pills = [
     plan.experienceCategory ? copy.categoryLabels[plan.experienceCategory] : "",
@@ -1308,7 +1638,7 @@ function PlanReviewNotice({
   copy,
 }: {
   plan: SocialRoomPlan;
-  copy: (typeof copyByLanguage)[SocialLanguage];
+  copy: TogetherRoomCopy;
 }) {
   const flags = plan.safetyFlags ?? [];
   if (!plan.needsReview && flags.length === 0) return null;
@@ -1385,7 +1715,7 @@ export default function TogetherRoomScreen({
   visitId,
   onBack,
 }: TogetherRoomScreenProps) {
-  const copy = copyByLanguage[language];
+  const copy = roomCopyByLanguage[language];
   const planCopy = planComposerCopyByLanguage[composerLanguage];
   const { room } = roomResponse;
   const [pulse, setPulse] = useState<SocialRoomPulse>(roomResponse.pulse ?? fallbackPulse(language));
