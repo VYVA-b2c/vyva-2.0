@@ -55,6 +55,11 @@ type CopyShape = {
   connectPromptBody: (name: string, roomName: string) => string;
 };
 
+type LocalizedSocialCopy<T> = Partial<Record<SocialLanguage, T>> & {
+  en: T;
+  es?: T;
+};
+
 const COPY: Record<SocialLanguage, CopyShape> = {
   es: {
     dayLabel: "HOY",
@@ -236,16 +241,196 @@ const COPY: Record<SocialLanguage, CopyShape> = {
     connectPromptTitle: (name) => `Would you like to greet ${name}?`,
     connectPromptBody: (name, roomName) => `You are both in ${roomName}.`,
   },
+  fr: {
+    dayLabel: "AUJOURD'HUI",
+    greetingMorning: "Bonjour",
+    greetingAfternoon: "Bon apres-midi",
+    greetingEvening: "Bonsoir",
+    subline: (count) => `Vos experts vous attendent - ${count} salons actifs`,
+    filters: {
+      all: "Tous",
+      activity: "Activites",
+      social: "Conversation",
+      useful: "Utile",
+      connection: "Lien",
+    },
+    featuredNow: "Mis en avant",
+    alsoForYou: "Aussi pour vous",
+    allRooms: "Tous les salons",
+    chooseRoom: "Choisir un salon",
+    chooseRoomSubtitle: "Touchez un salon pour voir les details avant d'entrer.",
+    viewRoom: "Voir les details",
+    enterSelectedRoom: "Entrer dans le salon",
+    listenWelcome: "Ecouter l'accueil",
+    closeDetails: "Fermer",
+    listenTo: (name) => `Ecouter ${name}`,
+    enterRoom: (ctaLabel) => ctaLabel,
+    tapAvatarHint: (name) => `Touchez l'avatar pour ecouter ${name}`,
+    roomReady: "Salon pret - soyez la premiere personne a entrer",
+    welcomeLabel: (name) => `${name} vous accueille`,
+    topicLabel: "SUJET DU JOUR",
+    writePlaceholder: "Ecrivez ici...",
+    send: "Envoyer",
+    voiceInput: "Parler",
+    noRooms: "Aucun salon n'est disponible pour le moment.",
+    back: "Retour",
+    matchTitle: "Lien suggere",
+    findMatch: "Chercher un lien chaleureux",
+    shareThought: "Partagez une idee ou un souvenir.",
+    quickQuestions: "Questions faciles",
+    roomPeople: "Personnes dans le salon",
+    sharedConversation: "Ce qui se dit ici",
+    connectWith: (name) => `Se connecter avec ${name}`,
+    voiceHint: "Touchez le micro pour parler avec votre experte.",
+    viewMembers: "Voir les membres",
+    askAgent: (name) => `Demander a ${name}`,
+    roomFeed: "Conversation du salon",
+    activityPanel: "Activite du jour",
+    activityFeed: "Activite dans le salon",
+    viewChat: "Voir la conversation",
+    hideChat: "Masquer la conversation",
+    switchToChat: "Passer au chat",
+    roomChat: "Chat du salon",
+    emptyRoomChat: "Il n'y a pas encore de messages dans ce salon.",
+    solveChallenge: "Resoudre le defi",
+    startActivity: "Commencer l'activite",
+    viewExample: "Voir l'exemple",
+    askAction: "Demander",
+    sendGreeting: "Envoyer un salut",
+    notNow: "Pas maintenant",
+    connectPromptTitle: (name) => `Voulez-vous saluer ${name} ?`,
+    connectPromptBody: (name, roomName) => `Vous etes tous les deux dans ${roomName}.`,
+  },
+  it: {
+    dayLabel: "OGGI",
+    greetingMorning: "Buongiorno",
+    greetingAfternoon: "Buon pomeriggio",
+    greetingEvening: "Buonasera",
+    subline: (count) => `I tuoi esperti ti aspettano - ${count} stanze attive`,
+    filters: {
+      all: "Tutte",
+      activity: "Attivita",
+      social: "Conversazione",
+      useful: "Utile",
+      connection: "Connessione",
+    },
+    featuredNow: "In evidenza",
+    alsoForYou: "Anche per te",
+    allRooms: "Tutte le stanze",
+    chooseRoom: "Scegli una stanza",
+    chooseRoomSubtitle: "Tocca una stanza per vedere i dettagli prima di entrare.",
+    viewRoom: "Vedi dettagli",
+    enterSelectedRoom: "Entra nella stanza",
+    listenWelcome: "Ascolta il benvenuto",
+    closeDetails: "Chiudi",
+    listenTo: (name) => `Ascolta ${name}`,
+    enterRoom: (ctaLabel) => ctaLabel,
+    tapAvatarHint: (name) => `Tocca l'avatar per ascoltare ${name}`,
+    roomReady: "Stanza pronta - sii la prima persona a entrare",
+    welcomeLabel: (name) => `${name} ti da il benvenuto`,
+    topicLabel: "TEMA DI OGGI",
+    writePlaceholder: "Scrivi qui...",
+    send: "Invia",
+    voiceInput: "Parla",
+    noRooms: "Al momento non ci sono stanze disponibili.",
+    back: "Indietro",
+    matchTitle: "Connessione suggerita",
+    findMatch: "Cerca una connessione gentile",
+    shareThought: "Condividi un'idea o un ricordo.",
+    quickQuestions: "Domande facili",
+    roomPeople: "Persone nella stanza",
+    sharedConversation: "Cosa si dice qui",
+    connectWith: (name) => `Connettiti con ${name}`,
+    voiceHint: "Tocca il microfono per parlare con la tua esperta.",
+    viewMembers: "Vedi membri",
+    askAgent: (name) => `Chiedi a ${name}`,
+    roomFeed: "Conversazione della stanza",
+    activityPanel: "Attivita di oggi",
+    activityFeed: "Attivita nella stanza",
+    viewChat: "Vedi conversazione",
+    hideChat: "Nascondi conversazione",
+    switchToChat: "Passa alla chat",
+    roomChat: "Chat della stanza",
+    emptyRoomChat: "Non ci sono ancora messaggi in questa stanza.",
+    solveChallenge: "Risolvi sfida",
+    startActivity: "Inizia attivita",
+    viewExample: "Vedi esempio",
+    askAction: "Chiedi",
+    sendGreeting: "Invia saluto",
+    notNow: "Non ora",
+    connectPromptTitle: (name) => `Vuoi salutare ${name}?`,
+    connectPromptBody: (name, roomName) => `Siete entrambi in ${roomName}.`,
+  },
+  pt: {
+    dayLabel: "HOJE",
+    greetingMorning: "Bom dia",
+    greetingAfternoon: "Boa tarde",
+    greetingEvening: "Boa noite",
+    subline: (count) => `Os seus especialistas esperam por si - ${count} salas ativas`,
+    filters: {
+      all: "Todas",
+      activity: "Atividades",
+      social: "Conversa",
+      useful: "Util",
+      connection: "Ligacao",
+    },
+    featuredNow: "Em destaque",
+    alsoForYou: "Tambem para si",
+    allRooms: "Todas as salas",
+    chooseRoom: "Escolher uma sala",
+    chooseRoomSubtitle: "Toque numa sala para ver os detalhes antes de entrar.",
+    viewRoom: "Ver detalhes",
+    enterSelectedRoom: "Entrar na sala",
+    listenWelcome: "Ouvir boas-vindas",
+    closeDetails: "Fechar",
+    listenTo: (name) => `Ouvir ${name}`,
+    enterRoom: (ctaLabel) => ctaLabel,
+    tapAvatarHint: (name) => `Toque no avatar para ouvir ${name}`,
+    roomReady: "Sala pronta - seja a primeira pessoa a entrar",
+    welcomeLabel: (name) => `${name} da-lhe as boas-vindas`,
+    topicLabel: "TEMA DE HOJE",
+    writePlaceholder: "Escreva aqui...",
+    send: "Enviar",
+    voiceInput: "Falar",
+    noRooms: "Nao ha salas disponiveis neste momento.",
+    back: "Voltar",
+    matchTitle: "Ligacao sugerida",
+    findMatch: "Procurar uma ligacao gentil",
+    shareThought: "Partilhe uma ideia ou uma memoria.",
+    quickQuestions: "Perguntas faceis",
+    roomPeople: "Pessoas na sala",
+    sharedConversation: "O que se diz aqui",
+    connectWith: (name) => `Ligar-se a ${name}`,
+    voiceHint: "Toque no microfone para falar com a sua especialista.",
+    viewMembers: "Ver membros",
+    askAgent: (name) => `Perguntar a ${name}`,
+    roomFeed: "Conversa da sala",
+    activityPanel: "Atividade de hoje",
+    activityFeed: "Atividade na sala",
+    viewChat: "Ver conversa",
+    hideChat: "Ocultar conversa",
+    switchToChat: "Mudar para chat",
+    roomChat: "Chat da sala",
+    emptyRoomChat: "Ainda nao ha mensagens nesta sala.",
+    solveChallenge: "Resolver desafio",
+    startActivity: "Iniciar atividade",
+    viewExample: "Ver exemplo",
+    askAction: "Perguntar",
+    sendGreeting: "Enviar saudacao",
+    notNow: "Agora nao",
+    connectPromptTitle: (name) => `Quer saudar ${name}?`,
+    connectPromptBody: (name, roomName) => `Estao ambos em ${roomName}.`,
+  },
 };
 
-const ROOM_BADGES: Record<string, Record<SocialLanguage, string>> = {
+const ROOM_BADGES: Record<string, LocalizedSocialCopy<string>> = {
   "garden-corner": { es: "Jardín", de: "Garten", en: "Garden" },
   "games-room": { es: "Juegos", de: "Spiele", en: "Games" },
   "kitchen-table": { es: "Cocina", de: "Küche", en: "Kitchen" },
   "morning-movement": { es: "Movimiento", de: "Bewegung", en: "Movement" },
   "evening-wind-down": { es: "Calma", de: "Ruhe", en: "Calm" },
   "music-room": { es: "Música", de: "Musik", en: "Music" },
-  "reading-room": { es: "Club", de: "Club", en: "Club" },
+  "reading-room": { es: "Club", de: "Club", en: "Club", fr: "Club", it: "Club", pt: "Clube" },
   "memory-lane": { es: "Recuerdos", de: "Erinnerungen", en: "Memories" },
   "morning-circle": { es: "Diario", de: "Täglich", en: "Daily" },
   "news-world-affairs": { es: "Noticias", de: "Nachrichten", en: "News" },
@@ -253,20 +438,20 @@ const ROOM_BADGES: Record<string, Record<SocialLanguage, string>> = {
   "garden-chat": { es: "Jardín", de: "Garten", en: "Garden" },
   "chess-corner": { es: "Juegos", de: "Spiele", en: "Games" },
   "music-salon": { es: "Música", de: "Musik", en: "Music" },
-  "book-club": { es: "Club", de: "Club", en: "Club" },
+  "book-club": { es: "Club", de: "Club", en: "Club", fr: "Club", it: "Club", pt: "Clube" },
   "walking-club": { es: "Paseo", de: "Spaziergang", en: "Walk" },
   "news-cafe": { es: "Noticias", de: "Nachrichten", en: "News" },
   "together-room": { es: "Juntos", de: "Zusammen", en: "Together" },
 };
 
-const ROOM_PICKER_NAMES: Record<string, Record<SocialLanguage, string>> = {
+const ROOM_PICKER_NAMES: Record<string, LocalizedSocialCopy<string>> = {
   "garden-corner": { es: "Jardín", de: "Garten", en: "Garden" },
   "games-room": { es: "Juegos", de: "Spiele", en: "Games" },
   "kitchen-table": { es: "Cocina", de: "Küche", en: "Kitchen" },
   "morning-movement": { es: "Movimiento", de: "Bewegung", en: "Movement" },
   "evening-wind-down": { es: "Calma", de: "Ruhe", en: "Calm" },
   "music-room": { es: "Música", de: "Musik", en: "Music" },
-  "reading-room": { es: "Club literario", de: "Literarischer Club", en: "Literary Club" },
+  "reading-room": { es: "Club literario", de: "Literarischer Club", en: "Literary Club", fr: "Club litteraire", it: "Club letterario", pt: "Clube literario" },
   "memory-lane": { es: "Recuerdos", de: "Erinnerung", en: "Memories" },
   "morning-circle": { es: "Encuentro", de: "Treffpunkt", en: "Circle" },
   "news-world-affairs": { es: "Noticias", de: "Nachrichten", en: "News" },
@@ -276,7 +461,7 @@ const ROOM_PICKER_NAMES: Record<string, Record<SocialLanguage, string>> = {
   "garden-chat": { es: "Jardín", de: "Garten", en: "Garden" },
   "chess-corner": { es: "Juegos", de: "Spiele", en: "Games" },
   "music-salon": { es: "Música", de: "Musik", en: "Music" },
-  "book-club": { es: "Club literario", de: "Literarischer Club", en: "Literary Club" },
+  "book-club": { es: "Club literario", de: "Literarischer Club", en: "Literary Club", fr: "Club litteraire", it: "Club letterario", pt: "Clube literario" },
   "walking-club": { es: "Paseo", de: "Spaziergang", en: "Walk" },
   "news-cafe": { es: "Noticias", de: "Nachrichten", en: "News" },
   "together-room": { es: "Juntos", de: "Zusammen", en: "Together" },
@@ -285,7 +470,7 @@ const ROOM_PICKER_NAMES: Record<string, Record<SocialLanguage, string>> = {
 export function getSocialLanguage(language?: string | null): SocialLanguage {
   if (!language) return "es";
   const base = language.split("-")[0]?.toLowerCase();
-  if (base === "es" || base === "de") return base;
+  if (base === "es" || base === "en" || base === "fr" || base === "de" || base === "it" || base === "pt") return base;
   return "en";
 }
 
@@ -310,11 +495,11 @@ export function getGreeting(language: SocialLanguage, firstName?: string) {
 }
 
 export function getRoomBadge(slug: string, language: SocialLanguage) {
-  return ROOM_BADGES[slug]?.[language] ?? ROOM_BADGES[slug]?.es ?? "Sala";
+  return ROOM_BADGES[slug]?.[language] ?? ROOM_BADGES[slug]?.en ?? ROOM_BADGES[slug]?.es ?? "Sala";
 }
 
 export function getRoomPickerName(slug: string, language: SocialLanguage, fallbackName: string) {
-  return ROOM_PICKER_NAMES[slug]?.[language] ?? ROOM_PICKER_NAMES[slug]?.es ?? fallbackName;
+  return ROOM_PICKER_NAMES[slug]?.[language] ?? ROOM_PICKER_NAMES[slug]?.en ?? ROOM_PICKER_NAMES[slug]?.es ?? fallbackName;
 }
 
 export function getAgentFirstName(fullName: string) {
@@ -339,6 +524,9 @@ export function formatLiveText(room: SocialRoom, language: SocialLanguage) {
 
 export function getSpeechLangTag(language: SocialLanguage) {
   if (language === "de") return "de-DE";
+  if (language === "fr") return "fr-FR";
+  if (language === "it") return "it-IT";
+  if (language === "pt") return "pt-PT";
   if (language === "en") return "en-US";
   return "es-ES";
 }

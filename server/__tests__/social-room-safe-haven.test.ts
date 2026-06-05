@@ -63,6 +63,36 @@ describe("Together Room safe haven API", () => {
 
     expect(alias.body.room.slug).toBe("reading-room");
     expect(alias.body.readingClub.title).toMatch(/Literaturclub/i);
+
+    const localizedCases = [
+      { lang: "fr", name: "Club litteraire", title: /club litteraire/i },
+      { lang: "it", name: "Club letterario", title: /club letterario/i },
+      { lang: "pt", name: "Clube literario", title: /Clube Literario/i },
+    ] as const;
+
+    for (const item of localizedCases) {
+      const localized = await request(socialApp)
+        .get(`/api/social/rooms/reading-room?lang=${item.lang}`)
+        .set("x-user-id", `reading-club-${item.lang}-user`)
+        .expect(200);
+
+      expect(localized.body.room.slug).toBe("reading-room");
+      expect(localized.body.room.name).toBe(item.name);
+      expect(localized.body.readingClub.title).toMatch(item.title);
+      expect(localized.body.readingClub.companionModes.map((mode: { id: string }) => mode.id)).toEqual([
+        "one-to-one",
+        "small-circle",
+        "pen-note",
+      ]);
+    }
+
+    const portugueseAlias = await request(socialApp)
+      .get("/api/social/rooms/book-club?lang=pt")
+      .set("x-user-id", "reading-club-pt-alias-user")
+      .expect(200);
+
+    expect(portugueseAlias.body.room.slug).toBe("reading-room");
+    expect(portugueseAlias.body.room.name).toBe("Clube literario");
   });
 
   it("supports Reading Room club tables, shelf voting, shared reflections and moderation", async () => {

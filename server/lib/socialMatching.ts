@@ -99,6 +99,9 @@ export function pickBestSocialMatch(
 export function formatSharedTopic(tag: string | undefined, language: SocialLanguage) {
   if (!tag) {
     if (language === "de") return "Lieblingsthemen";
+    if (language === "fr") return "themes favoris";
+    if (language === "it") return "temi preferiti";
+    if (language === "pt") return "temas favoritos";
     if (language === "en") return "favourite games";
     return "juegos favoritos";
   }
@@ -110,22 +113,22 @@ export function formatSharedTopic(tag: string | undefined, language: SocialLangu
     }
   }
 
-  const literaryLabels: Record<string, Record<SocialLanguage, string>> = {
-    books: { es: "libros", de: "Buecher", en: "books" },
-    literature: { es: "literatura", de: "Literatur", en: "literature" },
-    poetry: { es: "poesia", de: "Poesie", en: "poetry" },
-    reading: { es: "lectura", de: "Lesen", en: "reading" },
-    stories: { es: "historias", de: "Geschichten", en: "stories" },
-    memoir: { es: "memorias", de: "Memoiren", en: "memoirs" },
-    library: { es: "biblioteca", de: "Bibliothek", en: "library memories" },
-    short_stories: { es: "cuentos", de: "Kurzgeschichten", en: "short stories" },
-    classics: { es: "clasicos", de: "Klassiker", en: "classics" },
-    book_memories: { es: "recuerdos de libros", de: "Bucherinnerungen", en: "book memories" },
-    reading_companion: { es: "compania de lectura", de: "Lesebegleitung", en: "reading companionship" },
-    book_recommendations: { es: "recomendaciones", de: "Empfehlungen", en: "recommendations" },
+  const literaryLabels: Record<string, Partial<Record<SocialLanguage, string>> & { en: string; es: string }> = {
+    books: { es: "libros", de: "Buecher", en: "books", fr: "livres", it: "libri", pt: "livros" },
+    literature: { es: "literatura", de: "Literatur", en: "literature", fr: "litterature", it: "letteratura", pt: "literatura" },
+    poetry: { es: "poesia", de: "Poesie", en: "poetry", fr: "poesie", it: "poesia", pt: "poesia" },
+    reading: { es: "lectura", de: "Lesen", en: "reading", fr: "lecture", it: "lettura", pt: "leitura" },
+    stories: { es: "historias", de: "Geschichten", en: "stories", fr: "histoires", it: "storie", pt: "historias" },
+    memoir: { es: "memorias", de: "Memoiren", en: "memoirs", fr: "memoires", it: "memorie", pt: "memorias" },
+    library: { es: "biblioteca", de: "Bibliothek", en: "library memories", fr: "souvenirs de bibliotheque", it: "ricordi di biblioteca", pt: "memorias de biblioteca" },
+    short_stories: { es: "cuentos", de: "Kurzgeschichten", en: "short stories", fr: "nouvelles", it: "racconti brevi", pt: "contos" },
+    classics: { es: "clasicos", de: "Klassiker", en: "classics", fr: "classiques", it: "classici", pt: "classicos" },
+    book_memories: { es: "recuerdos de libros", de: "Bucherinnerungen", en: "book memories", fr: "souvenirs de livres", it: "ricordi di libri", pt: "memorias de livros" },
+    reading_companion: { es: "compania de lectura", de: "Lesebegleitung", en: "reading companionship", fr: "compagnie de lecture", it: "compagnia di lettura", pt: "companhia de leitura" },
+    book_recommendations: { es: "recomendaciones", de: "Empfehlungen", en: "recommendations", fr: "recommandations", it: "consigli", pt: "recomendacoes" },
   };
 
-  if (literaryLabels[tag]) return literaryLabels[tag][language];
+  if (literaryLabels[tag]) return literaryLabels[tag][language] ?? literaryLabels[tag].en;
 
   return tag.replace(/^game:/, "");
 }

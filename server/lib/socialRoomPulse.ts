@@ -33,7 +33,10 @@ import type {
   SocialRoomSafetyReportTargetType,
 } from "../../src/social/types.js";
 
-type LocalizedText = Record<SocialLanguage, string>;
+type LocalizedText = Partial<Record<SocialLanguage, string>> & {
+  en: string;
+  es?: string;
+};
 
 type SeedPlan = {
   key: string;
@@ -397,7 +400,7 @@ function publicRoomId(roomSlug: string) {
   return roomSlug || TOGETHER_ROOM_SLUG;
 }
 
-function localize<T extends { [key in SocialLanguage]: string }>(value: T, language: SocialLanguage) {
+function localize<T extends LocalizedText>(value: T, language: SocialLanguage) {
   return value[language] || value.en || value.es;
 }
 
@@ -883,7 +886,7 @@ function fallbackPulse(
     key: plan.key,
     kind: "plan",
     title: localize(plan.title, language),
-    body: plan.body[language],
+    body: localize(plan.body, language),
     locationLabel: plan.locationLabel,
     comfortNeeds: plan.comfortNeeds ?? [],
     experienceCategory: plan.experienceCategory ?? "other",

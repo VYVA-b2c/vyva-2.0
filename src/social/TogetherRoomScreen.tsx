@@ -583,6 +583,7 @@ const copyByLanguage: Record<SocialLanguage, {
 };
 
 function fallbackPulse(language: SocialLanguage): SocialRoomPulse {
+  const copy = copyByLanguage[language] ?? copyByLanguage.en;
   const titles = {
     es: "Te y charla de pelicula",
     de: "Tee und Filmgespraech",
@@ -650,13 +651,18 @@ function fallbackPulse(language: SocialLanguage): SocialRoomPulse {
       myAcknowledgedAt: null,
     },
   };
+  const title = titles[language] ?? titles.en;
+  const body = bodies[language] ?? bodies.en;
+  const pollQuestion = question[language] ?? question.en;
+  const pollOptions = options[language] ?? options.en;
+  const safetyCopy = safety[language] ?? safety.en;
 
   const featuredPlan: SocialRoomPlan = {
     id: "tea-film-chat",
     key: "tea-film-chat",
     kind: "plan",
-    title: titles[language],
-    body: bodies[language],
+    title,
+    body,
     locationLabel: "online",
     comfortNeeds: ["quiet_pace"],
     experienceCategory: "movie_date",
@@ -666,10 +672,10 @@ function fallbackPulse(language: SocialLanguage): SocialRoomPulse {
     safetyFlags: [],
     needsReview: false,
     fitReasons: [
-      copyByLanguage[language].planOnline,
-      copyByLanguage[language].timeLabels.evening,
-      copyByLanguage[language].costLabels.free,
-      copyByLanguage[language].groupLabels.small_group,
+      copy.planOnline,
+      copy.timeLabels.evening,
+      copy.costLabels.free,
+      copy.groupLabels.small_group,
     ],
     startsAt: null,
     status: "active",
@@ -685,18 +691,18 @@ function fallbackPulse(language: SocialLanguage): SocialRoomPulse {
     activePoll: {
       id: "daily-room-choice",
       key: "daily-room-choice",
-      question: question[language],
+      question: pollQuestion,
       status: "active",
-      options: options[language].map((label, index) => ({ id: ["film", "lunch", "hello"][index], label, votes: 0 })),
+      options: pollOptions.map((label, index) => ({ id: ["film", "lunch", "hello"][index], label, votes: 0 })),
       totalVotes: 0,
       myVote: null,
     },
     comfortCheck: {
-      title: copyByLanguage[language].comfortCheckTitle,
-      body: copyByLanguage[language].comfortCheckBody,
+      title: copy.comfortCheckTitle,
+      body: copy.comfortCheckBody,
       options: comfortNeedOptions.map((need) => ({
         id: need,
-        label: copyByLanguage[language].comfortNeedLabels[need],
+        label: copy.comfortNeedLabels[need],
         count: 0,
       })),
       myComfortNeeds: [],
@@ -704,11 +710,11 @@ function fallbackPulse(language: SocialLanguage): SocialRoomPulse {
     },
     discussionPrompt: {
       id: "gentle-start",
-      title: copyByLanguage[language].sharePlanTitle,
-      body: copyByLanguage[language].sharePlanBody,
-      starterButtons: [copyByLanguage[language].sharePlanAction],
+      title: copy.sharePlanTitle,
+      body: copy.sharePlanBody,
+      starterButtons: [copy.sharePlanAction],
     },
-    safety: safety[language],
+    safety: safetyCopy,
     notifications: [],
   };
 }
@@ -971,7 +977,7 @@ export default function TogetherRoomScreen({
   visitId,
   onBack,
 }: TogetherRoomScreenProps) {
-  const copy = copyByLanguage[language];
+  const copy = copyByLanguage[language] ?? copyByLanguage.en;
   const { room } = roomResponse;
   const [pulse, setPulse] = useState<SocialRoomPulse>(roomResponse.pulse ?? fallbackPulse(language));
   const [proposalDraft, setProposalDraft] = useState("");
