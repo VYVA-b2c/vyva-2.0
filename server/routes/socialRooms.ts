@@ -59,6 +59,7 @@ import {
   createTogetherSafetyReport,
   detectSafetyFlags,
   markTogetherNotificationRead,
+  markTogetherNotificationsRead,
   replyToTogetherPlan,
   respondToTogetherPlan,
   saveTogetherComfortCheck,
@@ -82,6 +83,7 @@ type InterestSnapshot = {
   activityLevel: "low" | "moderate" | "active";
   roomVisitCounts: Record<string, number>;
   lastRooms: string[];
+  discoverable?: boolean;
 };
 
 type RoomVisitState = {
@@ -201,7 +203,7 @@ const proposalSchema = z.object({
   title: z.string().trim().min(1).max(96),
   details: z.string().trim().max(320).optional().default(""),
   locationLabel: z.enum(["nearby", "online"]).optional().default("online"),
-  comfortNeeds: z.array(z.enum(["quiet_pace", "easy_access", "seating", "transport_help"])).max(4).optional().default([]),
+  comfortNeeds: z.array(z.enum(["listen_first", "quiet_pace", "easy_access", "seating", "transport_help", "arrival_buddy", "clear_cost"])).max(7).optional().default([]),
   kind: z.enum(["plan", "message", "question"]).optional().default("plan"),
   experienceCategory: z.enum([
     "movie_date",
@@ -276,7 +278,7 @@ const notificationReadSchema = z.object({
 const comfortCheckSchema = z.object({
   lang: z.string().optional(),
   visitId: z.string().optional(),
-  comfortNeeds: z.array(z.enum(["quiet_pace", "easy_access", "seating", "transport_help"])).max(4).optional().default([]),
+  comfortNeeds: z.array(z.enum(["listen_first", "quiet_pace", "easy_access", "seating", "transport_help", "arrival_buddy", "clear_cost"])).max(7).optional().default([]),
 });
 
 function resolveUserId(req: Request): string | null {
@@ -1936,7 +1938,7 @@ function buildRoomChat(slug: string, language: SocialLanguage, members: Array<{ 
   }));
 }
 
-async function updateVisitInterests(userId: string, roomSlug: string): Promise<RoomVisitState> {
+async function updateVisitInterests(userId: string, roomSlug: string, discoverable = true): Promise<RoomVisitState> {
   const canonicalSlug = resolveSocialRoomSlug(roomSlug);
   const seed = getSocialRoomBySlug(canonicalSlug);
   if (!seed) return { isFirstVisit: true, previousVisitCount: 0, visitCount: 0 };
@@ -1957,6 +1959,7 @@ async function updateVisitInterests(userId: string, roomSlug: string): Promise<R
     preferredTimes: nextTimes,
     roomVisitCounts: nextCounts,
     lastRooms: nextLastRooms,
+    discoverable,
   });
 
   return visitState;
@@ -2102,7 +2105,12 @@ router.post("/rooms/:slug/plans/:planId/respond", async (req: Request, res: Resp
     ? await respondToTogetherPlan(payload)
     : await respondToReadingClubPlan(payload);
 
-  if ("error" in result) return res.status(400).json({ error: result.error });
+  if ("error" in result) {
+    return res.status(400).json({
+      error: result.error,
+      ...("safetyFlags" in result && result.safetyFlags ? { safetyFlags: result.safetyFlags } : {}),
+    });
+  }
   return res.json({ ok: true, ...result });
 });
 
@@ -2129,7 +2137,12 @@ router.post("/rooms/:slug/plans/:planId/replies", async (req: Request, res: Resp
     language: normalizeLanguage(parsed.data.lang),
   });
 
-  if ("error" in result) return res.status(400).json({ error: result.error });
+  if ("error" in result) {
+    return res.status(400).json({
+      error: result.error,
+      ...("safetyFlags" in result && result.safetyFlags ? { safetyFlags: result.safetyFlags } : {}),
+    });
+  }
   return res.json({ ok: true, ...result });
 });
 
@@ -2419,6 +2432,29 @@ router.post("/rooms/:slug/notifications/:notificationId/read", async (req: Reque
   return res.json({ ok: true, ...result });
 });
 
+router.post("/rooms/:slug/notifications/read-all", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  const parsed = notificationReadSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  const slug = resolveSocialRoomSlug(req.params.slug);
+  if (slug !== "together-room") return res.status(400).json({ error: "This room does not support room update read receipts" });
+
+  const records = await ensureRoomRecords(slug);
+  const result = await markTogetherNotificationsRead({
+    userId,
+    roomSlug: slug,
+    roomId: records?.roomId ?? null,
+    language: normalizeLanguage(parsed.data.lang),
+  });
+
+  return res.json({ ok: true, ...result });
+});
+
 router.post("/rooms/:slug/enter", async (req: Request, res: Response) => {
   const userId = resolveUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
@@ -2440,7 +2476,8 @@ router.post("/rooms/:slug/enter", async (req: Request, res: Response) => {
   });
   memoryRoomOccupancy.set(slug, (memoryRoomOccupancy.get(slug) ?? 0) + 1);
 
-  const visitState = await updateVisitInterests(userId, slug);
+  const fallbackDiscoverable = req.header("x-social-discoverable") !== "false";
+  const visitState = await updateVisitInterests(userId, slug, fallbackDiscoverable);
 
   const ensured = await ensureRoomRecords(slug);
   if (ensured) {
@@ -2619,10 +2656,12 @@ router.post("/rooms/:slug/match", async (req: Request, res: Response) => {
       if (IS_PROD) return [];
       return Array.from(memoryInterests.entries())
         .filter(([candidateId]) => candidateId !== userId)
+        .filter(([, snapshot]) => snapshot.discoverable !== false)
         .map(([candidateId, snapshot]) => ({
           userId: candidateId,
           interestTags: snapshot.interestTags,
           displayName: "Amiga",
+          discoverable: snapshot.discoverable !== false,
         }));
     },
   );
