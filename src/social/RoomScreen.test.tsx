@@ -134,6 +134,12 @@ function jsonResponse(body: unknown) {
   });
 }
 
+function localDateKey(date = new Date()) {
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
 function LocationProbe() {
   const location = useLocation();
   return (
@@ -185,6 +191,9 @@ describe("RoomScreen movement room", () => {
     expect(screen.getByTestId("movement-room-exercise-library")).toHaveTextContent("Choose a gentle activity");
     expect(screen.getByTestId("movement-room-exercise-library")).toHaveTextContent("Tap a photo");
     expect(screen.getByTestId("button-movement-room-recommended-exercise")).toHaveTextContent("Recommended today");
+    expect(screen.getByTestId("movement-room-gentle-week")).toHaveTextContent("My gentle week");
+    expect(screen.getByTestId("movement-room-gentle-week")).toHaveTextContent("0 days moved");
+    expect(screen.getByTestId("movement-room-gentle-week")).toHaveTextContent("Chair support");
     expect(screen.getByTestId("movement-room-exercise-library")).toHaveTextContent("Browse all 12 photo-led routines");
     expect(screen.getByTestId("movement-room-exercise-cards")).toHaveTextContent("Chair yoga");
     expect(screen.getByTestId("movement-room-exercise-cards")).toHaveTextContent("Tai chi");
@@ -206,6 +215,8 @@ describe("RoomScreen movement room", () => {
     expect(screen.getByTestId("movement-room-exercise-logged-status")).toHaveTextContent("Chair yoga logged for 10 min.");
     expect(screen.getByTestId("movement-room-exercise-card-chair-yoga")).toHaveTextContent("Logged");
     expect(localStorage.getItem("vyva_movement_last_exercise_id")).toBe("chair-yoga");
+    expect(screen.getByTestId("movement-room-gentle-week")).toHaveTextContent("1 day moved");
+    expect(JSON.parse(localStorage.getItem("vyva_movement_week_log_dates") ?? "[]")).toContain(localDateKey());
 
     const logCall = apiFetchMock.mock.calls.find(([url]) => url === "/api/activity/log");
     expect(logCall).toBeTruthy();
@@ -215,16 +226,30 @@ describe("RoomScreen movement room", () => {
     }));
   });
 
-  it("opens the recommended Movement room exercise and shows the last used badge", async () => {
+  it("repeats the last Movement room exercise from My gentle week", async () => {
     localStorage.setItem("vyva_movement_last_exercise_id", "tai-chi");
     renderRoom();
 
     expect(screen.getByTestId("movement-room-exercise-card-tai-chi")).toHaveTextContent("Last used");
+    expect(screen.getByTestId("movement-room-gentle-week")).toHaveTextContent("Last time: Tai chi");
+    expect(screen.getByTestId("button-movement-room-repeat-exercise")).toHaveTextContent("Do this again");
 
-    fireEvent.click(screen.getByTestId("button-movement-room-recommended-exercise"));
+    fireEvent.click(screen.getByTestId("button-movement-room-repeat-exercise"));
 
     await waitFor(() => expect(screen.getByRole("dialog")).toHaveTextContent("Session started"));
-    expect(screen.getByRole("dialog")).toHaveTextContent(/Chair yoga|Tai chi|Calm breathing/);
+    expect(screen.getByRole("dialog")).toHaveTextContent("Tai chi");
+  });
+
+  it("saves comfort level and opens a one-tap swap exercise", async () => {
+    renderRoom();
+
+    fireEvent.click(screen.getByTestId("button-movement-room-comfort-seated"));
+
+    expect(localStorage.getItem("vyva_movement_comfort_level")).toBe("seated");
+
+    fireEvent.click(screen.getByTestId("button-movement-room-swap-calm"));
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toHaveTextContent("Calm breathing"));
   });
 
   it("expands more exercise cards inside the Movement room", async () => {
@@ -262,6 +287,8 @@ describe("RoomScreen movement room", () => {
       language: "fr",
       title: "Choisir une activite douce",
       recommended: "Recommande aujourd'hui",
+      week: "Ma semaine douce",
+      comfort: "Niveau de confort",
       chair: "Yoga sur chaise",
       more: "Plus d'exercices doux",
       group: "Force",
@@ -275,6 +302,8 @@ describe("RoomScreen movement room", () => {
       language: "it",
       title: "Scegli un'attivita dolce",
       recommended: "Consigliato oggi",
+      week: "La mia settimana dolce",
+      comfort: "Livello di comfort",
       chair: "Yoga sulla sedia",
       more: "Altri esercizi dolci",
       group: "Forza",
@@ -288,6 +317,8 @@ describe("RoomScreen movement room", () => {
       language: "pt",
       title: "Escolha uma atividade suave",
       recommended: "Recomendado hoje",
+      week: "A minha semana suave",
+      comfort: "Nivel de conforto",
       chair: "Ioga na cadeira",
       more: "Mais exercicios suaves",
       group: "Forca",
@@ -297,14 +328,17 @@ describe("RoomScreen movement room", () => {
       safety: "Movimente-se suavemente.",
       logged: "Flexoes na parede registado por 10 min.",
     },
-  ])("does not fall back to English for Movement exercise copy in $language", async ({ language, title, recommended, chair, more, group, wall, lastUsed, step, safety, logged }) => {
+  ])("does not fall back to English for Movement exercise copy in $language", async ({ language, title, recommended, week, comfort, chair, more, group, wall, lastUsed, step, safety, logged }) => {
     languageMock.language = language;
     localStorage.setItem("vyva_movement_last_exercise_id", "wall-push-ups");
     renderRoom();
 
     expect(screen.getByTestId("movement-room-exercise-library")).toHaveTextContent(title);
     expect(screen.getByTestId("movement-room-exercise-library")).toHaveTextContent(recommended);
+    expect(screen.getByTestId("movement-room-gentle-week")).toHaveTextContent(week);
+    expect(screen.getByTestId("movement-room-gentle-week")).toHaveTextContent(comfort);
     expect(screen.getByTestId("movement-room-exercise-library")).not.toHaveTextContent("Recommended today");
+    expect(screen.getByTestId("movement-room-gentle-week")).not.toHaveTextContent("My gentle week");
     expect(screen.getByTestId("movement-room-exercise-cards")).toHaveTextContent(chair);
     expect(screen.getByTestId("movement-room-exercise-library")).not.toHaveTextContent("Choose a gentle activity");
     expect(screen.getByTestId("movement-room-exercise-cards")).not.toHaveTextContent("Chair yoga");
