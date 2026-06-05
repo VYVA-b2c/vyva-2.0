@@ -80,12 +80,36 @@ function trimToNull(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function normalizeProfilePhone(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const compact = trimmed.replace(/[^\d+]/g, "");
+  const normalized = compact.startsWith("00")
+    ? `+${compact.slice(2).replace(/\D/g, "")}`
+    : trimmed.startsWith("+")
+      ? `+${compact.slice(1).replace(/\D/g, "")}`
+      : compact.replace(/\D/g, "");
+  const digits = normalized.replace(/\D/g, "");
+  if (!digits) return null;
+  return normalized.startsWith("+") ? `+${digits}` : digits;
+}
+
+function phoneDigits(value: string | null | undefined): string | null {
+  const normalized = normalizeProfilePhone(value);
+  const digits = normalized?.replace(/\D/g, "") ?? "";
+  return digits || null;
+}
+
 function sameEmail(a: string | null | undefined, b: string | null | undefined): boolean {
   return Boolean(a && b && a.trim().toLowerCase() === b.trim().toLowerCase());
 }
 
 function samePhone(a: string | null | undefined, b: string | null | undefined): boolean {
-  return Boolean(a && b && a.replace(/\s+/g, "") === b.replace(/\s+/g, ""));
+  const left = phoneDigits(a);
+  const right = phoneDigits(b);
+  return Boolean(left && right && left === right);
 }
 
 function isMissingColumnError(err: unknown, column: string): boolean {
@@ -101,6 +125,31 @@ function isMissingColumnError(err: unknown, column: string): boolean {
 function withoutLanguagePreference<T extends Record<string, unknown>>(values: T): Omit<T, "language_preference"> {
   const { language_preference: _languagePreference, ...rest } = values;
   return rest;
+}
+
+function missingColumnName(err: unknown): string | null {
+  const error = err as { message?: unknown };
+  const message = typeof error.message === "string" ? error.message : String(err);
+  const quotedMatch = message.match(/column\s+(?:"profiles"\.)?"([^"]+)"\s+does not exist/i);
+  if (quotedMatch?.[1]) return quotedMatch[1];
+  const bareMatch = message.match(/column\s+profiles\.([a-z0-9_]+)\s+does not exist/i);
+  return bareMatch?.[1] ?? null;
+}
+
+function omitColumns<T extends Record<string, unknown>>(values: T, columns: Set<string>): T {
+  if (columns.size === 0) return values;
+  const next = { ...values };
+  for (const column of columns) {
+    delete next[column as keyof T];
+  }
+  return next as T;
+}
+
+function isUniqueViolation(err: unknown, hints: string[]): boolean {
+  const error = err as { code?: unknown; constraint?: unknown; detail?: unknown; message?: unknown };
+  if (error.code !== "23505") return false;
+  const text = `${error.constraint ?? ""} ${error.detail ?? ""} ${error.message ?? ""}`.toLowerCase();
+  return hints.some((hint) => text.includes(hint.toLowerCase()));
 }
 
 /**
@@ -1190,7 +1239,7 @@ router.post("/", async (req: Request, res: Response) => {
   const hasGpEmailInput = Object.prototype.hasOwnProperty.call(req.body, "gpEmail");
 
   try {
-    const [existingRows, accountRows] = await Promise.all([
+    const [existingRows, accountRows, accountProfileRows] = await Promise.all([
       db
         .select({
           data_sharing_consent: profiles.data_sharing_consent,
@@ -1212,19 +1261,29 @@ router.post("/", async (req: Request, res: Response) => {
               throw err;
             })
         : Promise.resolve([]),
+      accountUserId && accountUserId !== userId
+        ? db
+            .select({ email: profiles.email, phone_number: profiles.phone_number })
+            .from(profiles)
+            .where(eq(profiles.id, accountUserId))
+            .limit(1)
+        : Promise.resolve([]),
     ]);
     const existingProfile = existingRows[0];
     const account = accountRows[0];
-    const accountEmail = typeof req.user?.email === "string" ? req.user.email : account?.email;
+    const accountProfile = accountProfileRows[0];
+    const accountEmail = typeof req.user?.email === "string" ? req.user.email : account?.email ?? accountProfile?.email;
+    const accountPhone = normalizeProfilePhone(account?.phone_number ?? accountProfile?.phone_number ?? null);
     const dataSharingConsent = mergeIdentityGender(existingRows[0]?.data_sharing_consent, d.gender);
     const inputEmail = trimToNull(d.email);
-    const inputPhone = trimToNull(d.phone);
+    const inputPhone = normalizeProfilePhone(d.phone);
+    const inputWhatsapp = normalizeProfilePhone(d.whatsapp) ?? trimToNull(d.whatsapp);
     const isEditingActiveCareProfile = Boolean(accountUserId && accountUserId !== userId);
     const profileEmail = isEditingActiveCareProfile && sameEmail(inputEmail, accountEmail)
       ? existingProfile?.email ?? null
       : inputEmail;
-    const profilePhone = isEditingActiveCareProfile && samePhone(inputPhone, account?.phone_number)
-      ? existingProfile?.phone_number ?? null
+    const profilePhone = isEditingActiveCareProfile && samePhone(inputPhone, accountPhone)
+      ? normalizeProfilePhone(existingProfile?.phone_number) ?? null
       : inputPhone;
 
     if (profileEmail && !sameEmail(profileEmail, existingProfile?.email)) {
@@ -1244,12 +1303,16 @@ router.post("/", async (req: Request, res: Response) => {
       }
     }
 
-    if (profilePhone && profilePhone !== existingProfile?.phone_number) {
+    const profilePhoneDigits = phoneDigits(profilePhone);
+    if (profilePhone && profilePhoneDigits && !samePhone(profilePhone, existingProfile?.phone_number)) {
       const [phoneOwner] = await db
         .select({ id: profiles.id })
         .from(profiles)
         .where(and(
-          eq(profiles.phone_number, profilePhone),
+          or(
+            sql`regexp_replace(coalesce(${profiles.phone_number}, ''), '[^0-9]', '', 'g') = ${profilePhoneDigits}`,
+            sql`regexp_replace(coalesce(${profiles.whatsapp_number}, ''), '[^0-9]', '', 'g') = ${profilePhoneDigits}`,
+          ),
           ne(profiles.id, userId),
         ))
         .limit(1);
@@ -1268,7 +1331,7 @@ router.post("/", async (req: Request, res: Response) => {
       date_of_birth:    d.dateOfBirth || null,
       email:            profileEmail,
       phone_number:     profilePhone,
-      whatsapp_number:  d.whatsapp || null,
+      whatsapp_number:  inputWhatsapp,
       country_code:     d.country || null,
       timezone:         d.timezone || "Europe/Madrid",
       language,
@@ -1289,7 +1352,7 @@ router.post("/", async (req: Request, res: Response) => {
       date_of_birth:    d.dateOfBirth || null,
       email:            profileEmail,
       phone_number:     profilePhone,
-      whatsapp_number:  d.whatsapp || null,
+      whatsapp_number:  inputWhatsapp,
       country_code:     d.country || null,
       timezone:         d.timezone || "Europe/Madrid",
       language,
@@ -1306,27 +1369,37 @@ router.post("/", async (req: Request, res: Response) => {
       updated_at:       new Date(),
     };
 
-    try {
-      await db
-        .insert(profiles)
-        .values(insertValues)
-        .onConflictDoUpdate({
-          target: profiles.id,
-          set: updateValues,
-        });
-    } catch (err) {
-      if (!isMissingColumnError(err, "language_preference")) throw err;
-      await db
-        .insert(profiles)
-        .values(withoutLanguagePreference(insertValues))
-        .onConflictDoUpdate({
-          target: profiles.id,
-          set: withoutLanguagePreference(updateValues),
-        });
+    const skippedColumns = new Set<string>();
+    while (true) {
+      try {
+        await db
+          .insert(profiles)
+          .values(omitColumns(insertValues, skippedColumns))
+          .onConflictDoUpdate({
+            target: profiles.id,
+            set: omitColumns(updateValues, skippedColumns),
+          });
+        break;
+      } catch (err) {
+        const column = missingColumnName(err);
+        if (!column || skippedColumns.has(column) || !(column in insertValues || column in updateValues)) throw err;
+        skippedColumns.add(column);
+        console.warn(`[profile POST] profiles.${column} is missing; saving account details without that optional field.`);
+      }
     }
 
     return res.json({ ok: true });
   } catch (err) {
+    if (isUniqueViolation(err, ["phone_number", "profiles_phone_number"])) {
+      return res.status(409).json({
+        error: "That phone number is already used on another profile. Choose a different profile phone number.",
+      });
+    }
+    if (isUniqueViolation(err, ["email", "profiles_email"])) {
+      return res.status(409).json({
+        error: "That email is already used on another profile. Use the account email only for your sign-in account, or choose a different profile email.",
+      });
+    }
     console.error("[profile POST]", err);
     return res.status(500).json({ error: "Failed to save profile" });
   }

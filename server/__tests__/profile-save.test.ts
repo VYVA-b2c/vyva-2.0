@@ -76,7 +76,7 @@ describe("Profile save", () => {
         preferredName: "Legacy",
         dateOfBirth: "1940-03-09",
         email: "legacy-profile@example.com",
-        phone: "+34600000102",
+        phone: "+34 600 000 102",
         whatsapp: "",
         country: "ES",
         timezone: "Europe/Madrid",
@@ -160,6 +160,90 @@ describe("Profile save", () => {
       email: null,
       phone_number: "+34600000001",
       language_preference: "en",
+    });
+  });
+
+  it("does not copy the account profile phone onto a separate active care profile", async () => {
+    const seniorProfileId = await createProfile({
+      full_name: "Elena Senior",
+      phone_number: "+34600000001",
+    });
+    const accountId = await createAccount({
+      active_profile_id: seniorProfileId,
+    });
+    await createProfile({
+      id: accountId,
+      full_name: "Care Giver",
+      email: `caregiver-${randomUUID()}@example.com`,
+      phone_number: "+34664338991",
+    });
+    await db.insert(profileMemberships).values({
+      user_id: accountId,
+      profile_id: seniorProfileId,
+      role: "caregiver",
+      relationship: "daughter",
+      status: "active",
+      is_primary: true,
+      accepted_at: new Date(),
+    });
+
+    await request(app)
+      .post("/api/profile")
+      .set("x-user-id", accountId)
+      .send({
+        firstName: "Elena",
+        lastName: "Senior",
+        preferredName: "Elena",
+        dateOfBirth: "1942-04-10",
+        email: "",
+        phone: "+34 664 338 991",
+        whatsapp: "",
+        country: "ES",
+        timezone: "Europe/Madrid",
+        language: "en",
+      })
+      .expect(200);
+
+    const [profile] = await db
+      .select({
+        phone_number: profiles.phone_number,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, seniorProfileId))
+      .limit(1);
+
+    expect(profile?.phone_number).toBe("+34600000001");
+  });
+
+  it("rejects duplicate profile phone numbers even when formatted differently", async () => {
+    await createProfile({
+      full_name: "Existing Owner",
+      phone_number: "+34600000999",
+    });
+    const profileId = await createProfile({
+      full_name: "New Owner",
+      phone_number: "+34600000123",
+    });
+
+    const response = await request(app)
+      .post("/api/profile")
+      .set("x-user-id", profileId)
+      .send({
+        firstName: "New",
+        lastName: "Owner",
+        preferredName: "New",
+        dateOfBirth: "1942-04-10",
+        email: "",
+        phone: "+34 600 000 999",
+        whatsapp: "",
+        country: "ES",
+        timezone: "Europe/Madrid",
+        language: "en",
+      })
+      .expect(409);
+
+    expect(response.body).toMatchObject({
+      error: "That phone number is already used on another profile. Choose a different profile phone number.",
     });
   });
 });
