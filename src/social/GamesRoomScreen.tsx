@@ -241,12 +241,39 @@ function normalizeWordAnswer(value: string) {
 }
 
 function getWordHelpLabel(language: SocialGameLanguage) {
-  if (language === "fr") return "Afficher l'aide";
-  if (language === "it") return "Mostra aiuto";
-  if (language === "pt") return "Mostrar ajuda";
-  if (language === "de") return "Hilfe zeigen";
-  if (language === "en") return "Show help";
-  return "Mostrar ayuda";
+  if (language === "fr") return "Voir indice";
+  if (language === "it") return "Mostra indizio";
+  if (language === "pt") return "Mostrar dica";
+  if (language === "de") return "Hinweis zeigen";
+  if (language === "en") return "Show hint";
+  return "Mostrar pista";
+}
+
+function getWordShowChoicesLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Voir les choix";
+  if (language === "it") return "Mostra scelte";
+  if (language === "pt") return "Mostrar opcoes";
+  if (language === "de") return "Auswahl zeigen";
+  if (language === "en") return "Show choices";
+  return "Mostrar opciones";
+}
+
+function getWordChoicesLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Choix utiles";
+  if (language === "it") return "Scelte di aiuto";
+  if (language === "pt") return "Opcoes de ajuda";
+  if (language === "de") return "Hilfreiche Auswahl";
+  if (language === "en") return "Helpful choices";
+  return "Opciones de ayuda";
+}
+
+function getWordProgressLabel(language: SocialGameLanguage, placed: number, total: number) {
+  if (language === "fr") return `${placed} sur ${total}`;
+  if (language === "it") return `${placed} di ${total}`;
+  if (language === "pt") return `${placed} de ${total}`;
+  if (language === "de") return `${placed} von ${total}`;
+  if (language === "en") return `${placed} of ${total} placed`;
+  return `${placed} de ${total}`;
 }
 
 function getWordCheckLabel(language: SocialGameLanguage) {
@@ -514,6 +541,7 @@ type WordTilesInteractionProps = {
   language: SocialGameLanguage;
   selectedTileIndices: number[];
   showHelp: boolean;
+  showChoices: boolean;
   feedback: string | null;
   isComplete: boolean;
   roundCompleteLabel: string;
@@ -521,6 +549,7 @@ type WordTilesInteractionProps = {
   onUndo: () => void;
   onClear: () => void;
   onShowHelp: () => void;
+  onShowChoices: () => void;
   onCheckAnswer: () => void;
   onChooseHelpChoice: (choice: string) => void;
 };
@@ -531,6 +560,7 @@ function WordTilesInteraction({
   language,
   selectedTileIndices,
   showHelp,
+  showChoices,
   feedback,
   isComplete,
   roundCompleteLabel,
@@ -538,20 +568,41 @@ function WordTilesInteraction({
   onUndo,
   onClear,
   onShowHelp,
+  onShowChoices,
   onCheckAnswer,
   onChooseHelpChoice,
 }: WordTilesInteractionProps) {
   const selectedSet = new Set(selectedTileIndices);
   const selectedTiles = selectedTileIndices.map((index) => visual.tiles[index]).filter(Boolean);
   const traySlots = Array.from({ length: Math.max(1, visual.answerLength) }, (_, index) => selectedTiles[index] ?? "");
+  const progressLabel = getWordProgressLabel(language, selectedTileIndices.length, visual.answerLength);
 
   return (
     <div className="mt-5 space-y-4" data-testid="games-word-tiles-panel">
-      <div className="rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-4">
+      <div className="rounded-[26px] border border-[#D8E6E2] bg-gradient-to-b from-[#F4FAF8] to-white p-4">
         <div className="flex flex-wrap gap-2">
           {visual.baseWord && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#075C64]">Base: {visual.baseWord}</span>}
           {visual.pattern && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#075C64]">{visual.pattern}</span>}
           {visual.clue && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#597178]">{visual.clue}</span>}
+        </div>
+
+        <div className="mt-4 rounded-[24px] border border-[#CFE7E2] bg-white px-4 py-4 shadow-[0_10px_22px_rgba(11,60,66,0.06)]">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="font-body text-[16px] font-extrabold uppercase text-[#075C64]">{getWordTrayLabel(language)}</p>
+            <p className="rounded-full bg-[#E8F7F6] px-3 py-1 font-body text-[14px] font-extrabold text-[#087C82]" data-testid="word-tile-progress" role="status">
+              {progressLabel}
+            </p>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2" data-testid="word-answer-tray">
+            {traySlots.map((tile, index) => (
+              <div
+                key={`${tile || "slot"}-${index}`}
+                className="flex min-h-[64px] min-w-[64px] items-center justify-center rounded-[18px] border-2 border-dashed border-[#A8D4CF] bg-[#FBFEFC] px-3 font-body text-[24px] font-black text-[#075C64]"
+              >
+                {tile}
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="mt-4">
@@ -565,6 +616,7 @@ function WordTilesInteraction({
                   type="button"
                   onClick={() => onChooseTile(index)}
                   disabled={used || isComplete || selectedTileIndices.length >= visual.answerLength}
+                  aria-pressed={used}
                   data-testid={`word-tile-${index}`}
                   className="flex min-h-[58px] min-w-[58px] items-center justify-center rounded-[16px] border border-[#D9C8AD] bg-[#FFF7E6] px-3 font-body text-[22px] font-black text-[#173941] shadow-[0_10px_18px_rgba(24,60,66,0.10)] disabled:opacity-35"
                 >
@@ -575,21 +627,7 @@ function WordTilesInteraction({
           </div>
         </div>
 
-        <div className="mt-4">
-          <p className="font-body text-[15px] font-extrabold uppercase text-[#597178]">{getWordTrayLabel(language)}</p>
-          <div className="mt-2 flex flex-wrap gap-2" data-testid="word-answer-tray">
-            {traySlots.map((tile, index) => (
-              <div
-                key={`${tile || "slot"}-${index}`}
-                className="flex min-h-[58px] min-w-[58px] items-center justify-center rounded-[16px] border-2 border-dashed border-[#BFDAD7] bg-white px-3 font-body text-[22px] font-black text-[#075C64]"
-              >
-                {tile}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-2 sm:grid-cols-4">
+        <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_1fr_1fr_1.35fr]">
           <button
             type="button"
             onClick={onUndo}
@@ -637,9 +675,27 @@ function WordTilesInteraction({
       )}
 
       {showHelp && !isComplete && (
-        <div className="rounded-[20px] bg-[#F4FAF8] px-4 py-3" data-testid="word-help-choices">
+        <div className="rounded-[20px] bg-[#F4FAF8] px-4 py-3" data-testid="word-help-panel">
           <p className="font-body text-[16px] font-extrabold leading-snug text-[#527079]">
             {getHintLabel(language)}: {round.hint}
+          </p>
+          {!showChoices && (
+            <button
+              type="button"
+              onClick={onShowChoices}
+              data-testid="word-show-choices"
+              className="mt-3 min-h-[46px] rounded-[16px] border border-[#BFDAD7] bg-white px-4 font-body text-[15px] font-extrabold text-[#075C64]"
+            >
+              {getWordShowChoicesLabel(language)}
+            </button>
+          )}
+        </div>
+      )}
+
+      {showChoices && !isComplete && (
+        <div className="rounded-[20px] bg-[#F4FAF8] px-4 py-3" data-testid="word-help-choices">
+          <p className="font-body text-[16px] font-extrabold leading-snug text-[#527079]">
+            {getWordChoicesLabel(language)}
           </p>
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
             {round.choices.map((choice) => (
@@ -701,6 +757,7 @@ export default function GamesRoomScreen({
   const [matchResponse, setMatchResponse] = useState<SocialMatchResponse | null>(null);
   const [selectedWordTileIndices, setSelectedWordTileIndices] = useState<number[]>([]);
   const [showWordHelp, setShowWordHelp] = useState(false);
+  const [showWordChoices, setShowWordChoices] = useState(false);
   const [wordFeedback, setWordFeedback] = useState<string | null>(null);
   const [choiceFeedback, setChoiceFeedback] = useState<string | null>(null);
 
@@ -729,6 +786,7 @@ export default function GamesRoomScreen({
     setMatchResponse(null);
     setSelectedWordTileIndices([]);
     setShowWordHelp(false);
+    setShowWordChoices(false);
     setWordFeedback(null);
     setChoiceFeedback(null);
   };
@@ -750,6 +808,7 @@ export default function GamesRoomScreen({
     setMatchResponse(null);
     setSelectedWordTileIndices([]);
     setShowWordHelp(false);
+    setShowWordChoices(false);
     setWordFeedback(null);
     setChoiceFeedback(null);
     setIsPersistingRound(true);
@@ -809,6 +868,7 @@ export default function GamesRoomScreen({
       setWordFeedback(null);
     } else {
       setShowWordHelp(true);
+      setShowWordChoices(true);
       setWordFeedback(getWordTryAgainCopy(language));
     }
   };
@@ -997,6 +1057,7 @@ export default function GamesRoomScreen({
                         language={language}
                         selectedTileIndices={selectedWordTileIndices}
                         showHelp={showWordHelp}
+                        showChoices={showWordChoices}
                         feedback={wordFeedback}
                         isComplete={hasCompletedSelectedRound}
                         roundCompleteLabel={gameTable.roundCompleteLabel}
@@ -1004,6 +1065,10 @@ export default function GamesRoomScreen({
                         onUndo={undoWordTile}
                         onClear={clearWordTiles}
                         onShowHelp={() => setShowWordHelp(true)}
+                        onShowChoices={() => {
+                          setShowWordHelp(true);
+                          setShowWordChoices(true);
+                        }}
                         onCheckAnswer={checkWordAnswer}
                         onChooseHelpChoice={completeWordChoice}
                       />
