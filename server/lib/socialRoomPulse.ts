@@ -105,7 +105,7 @@ type MemoryNotification = SocialRoomNotification & {
 const TOGETHER_ROOM_SLUG = "together-room";
 const DAILY_POLL_KEY = "daily-room-choice";
 const SAFE_DB_TIMEOUT_MS = 1400;
-const COMFORT_NEED_OPTIONS: SocialRoomComfortNeed[] = ["quiet_pace", "easy_access", "seating", "transport_help"];
+const COMFORT_NEED_OPTIONS: SocialRoomComfortNeed[] = ["listen_first", "quiet_pace", "easy_access", "seating", "transport_help", "arrival_buddy", "clear_cost"];
 
 const t = (es: string, en: string, de: string): LocalizedText => ({ es, en, de });
 
@@ -134,7 +134,7 @@ const seedPlans: SeedPlan[] = [
       "VYVA hilft, einen nahen, barrierearmen und ruhigen Ort zu waehlen.",
     ),
     locationLabel: "nearby",
-    comfortNeeds: ["easy_access", "seating", "transport_help"],
+    comfortNeeds: ["easy_access", "seating", "transport_help", "arrival_buddy", "clear_cost"],
     experienceCategory: "restaurant_date",
     preferredTime: "afternoon",
     costRange: "shared",
@@ -166,7 +166,7 @@ const pollQuestion = t(
 const pollOptions: SeedPollOption[] = [
   { id: "film", label: t("Pelicula", "Film chat", "Filmgespraech") },
   { id: "lunch", label: t("Comida", "Quiet lunch", "Ruhiges Essen") },
-  { id: "hello", label: t("Solo saludar", "Just say hello", "Nur Hallo sagen") },
+  { id: "views", label: t("Compartir opiniones", "Share views", "Ansichten teilen") },
 ];
 
 const planResponses = new Map<string, SocialRoomPlanResponseValue>();
@@ -185,7 +185,7 @@ function normalizePlanKind(value: unknown): SocialRoomPlanKind {
 function normalizeComfortNeeds(value: unknown): SocialRoomComfortNeed[] {
   if (!Array.isArray(value)) return [];
   const allowed = new Set<SocialRoomComfortNeed>(COMFORT_NEED_OPTIONS);
-  return Array.from(new Set(value.filter((item): item is SocialRoomComfortNeed => allowed.has(item as SocialRoomComfortNeed)))).slice(0, 4);
+  return Array.from(new Set(value.filter((item): item is SocialRoomComfortNeed => allowed.has(item as SocialRoomComfortNeed)))).slice(0, 7);
 }
 
 function normalizeExperienceCategory(value: unknown): SocialRoomExperienceCategory {
@@ -218,8 +218,29 @@ function normalizeGroupSize(value: unknown): SocialRoomGroupSize {
 
 function normalizeSafetyFlags(value: unknown): SocialRoomSafetyFlag[] {
   if (!Array.isArray(value)) return [];
-  const allowed = new Set<SocialRoomSafetyFlag>(["money", "housing", "service", "private_contact", "transport"]);
+  const allowed = new Set<SocialRoomSafetyFlag>(["money", "housing", "service", "private_contact", "transport", "unkind_tone"]);
   return Array.from(new Set(value.filter((item): item is SocialRoomSafetyFlag => allowed.has(item as SocialRoomSafetyFlag)))).slice(0, 5);
+}
+
+function normalizeSafetyText(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function detectProtectedNumberDigits(value: string) {
+  const matches = value.match(/(?:\+?\d[\d\s().-]{5,}\d)/g) ?? [];
+  return matches.map((match) => {
+    const trimmed = match.trim();
+    const looksLikeDate = /^\d{4}-\d{1,2}-\d{1,2}$/.test(trimmed) || /^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/.test(trimmed);
+    return looksLikeDate ? "" : trimmed.replace(/\D/g, "");
+  }).filter((digits) => digits.length >= 7 && digits.length <= 19);
+}
+
+function hasUnkindTone(value: string) {
+  const text = normalizeSafetyText(value);
+  return /\b(stupid|idiot|dumb|worthless|shut up|go away|ridiculous|nonsense|liar|estupido|idiota|callate|tonto|basura|dumm|halt die klappe|laecherlich|lacherlich|luegner)\b/.test(text);
 }
 
 export function detectSafetyFlags(input: {
@@ -228,7 +249,9 @@ export function detectSafetyFlags(input: {
   details: string;
 }): SocialRoomSafetyFlag[] {
   const flags = new Set<SocialRoomSafetyFlag>();
-  const text = `${input.title} ${input.details}`.toLowerCase();
+  const rawText = `${input.title} ${input.details}`;
+  const text = normalizeSafetyText(rawText);
+  const protectedDigitGroups = detectProtectedNumberDigits(rawText);
 
   if (input.category === "home_share") flags.add("housing");
   if (input.category === "service_booking") flags.add("service");
@@ -240,6 +263,12 @@ export function detectSafetyFlags(input: {
   if (/\b(address|adresse|correo|direccion|e-?mail|email|fuera de la app|number|nummer|outside the app|phone|private contact|telefono|telefon|text me|whatsapp)\b/.test(text) || /https?:\/\/|www\.|[^\s@]+@[^\s@]+\.[^\s@]+/.test(text)) {
     flags.add("private_contact");
   }
+  if (protectedDigitGroups.some((digits) => digits.length >= 7 && digits.length <= 15)) {
+    flags.add("private_contact");
+  }
+  if (protectedDigitGroups.some((digits) => digits.length >= 13)) {
+    flags.add("money");
+  }
   if (/\b(apartment|home share|house|lease|rent|roommate|tenant)\b/.test(text)) {
     flags.add("housing");
   }
@@ -249,12 +278,15 @@ export function detectSafetyFlags(input: {
   if (/\b(car|driver|lift|ride|taxi|transport)\b/.test(text)) {
     flags.add("transport");
   }
+  if (hasUnkindTone(rawText)) {
+    flags.add("unkind_tone");
+  }
 
   return Array.from(flags).slice(0, 5);
 }
 
 function shouldReviewExperience(kind: SocialRoomPlanKind, safetyFlags: SocialRoomSafetyFlag[]) {
-  return kind === "plan" && safetyFlags.length > 0;
+  return (kind === "plan" || kind === "message" || kind === "question") && safetyFlags.length > 0;
 }
 
 export function shouldBlockReply(safetyFlags: SocialRoomSafetyFlag[]) {
@@ -263,16 +295,19 @@ export function shouldBlockReply(safetyFlags: SocialRoomSafetyFlag[]) {
 
 export function blockedReplyDetails(safetyFlags: SocialRoomSafetyFlag[], language: SocialLanguage) {
   const flags = safetyFlags.join(", ");
-  if (language === "de") return `Eine Antwort wurde vor dem Teilen gestoppt, weil sie geschuetzte Kontaktdaten, Zahlung, Wohnen, Service oder Transport betreffen koennte. Hinweise: ${flags}.`;
-  if (language === "en") return `A reply was stopped before sharing because it may involve protected contact, payment, housing, services or transport. Signals: ${flags}.`;
-  return `Se detuvo una respuesta antes de compartirla porque podria incluir contacto protegido, pagos, vivienda, servicios o transporte. Senales: ${flags}.`;
+  if (language === "de") return `Eine Antwort wurde vor dem Teilen gestoppt, weil sie geschuetzten Kontakt, Zahlungen, andere geschuetzte Details oder einen unfreundlichen Ton enthalten koennte. Hinweise: ${flags}.`;
+  if (language === "en") return `A reply was stopped before sharing because it may include protected contact, payment details, other protected details or an unkind tone. Signals: ${flags}.`;
+  return `Se detuvo una respuesta antes de compartirla porque podria incluir contacto protegido, pagos, otros datos protegidos o un tono poco amable. Senales: ${flags}.`;
 }
 
-function proposalReviewDetails(safetyFlags: SocialRoomSafetyFlag[], language: SocialLanguage) {
+function proposalReviewDetails(kind: SocialRoomPlanKind, safetyFlags: SocialRoomSafetyFlag[], language: SocialLanguage) {
   const flags = safetyFlags.join(", ");
-  if (language === "de") return `Eine geteilte Aktivitaet wurde vor der Anzeige zur VYVA-Pruefung zurueckgehalten. Hinweise: ${flags}.`;
-  if (language === "en") return `A shared activity was held for VYVA review before it appeared in the room. Signals: ${flags}.`;
-  return `Se retuvo una actividad compartida para revision de VYVA antes de mostrarla en la sala. Senales: ${flags}.`;
+  const itemDe = kind === "question" ? "Frage" : kind === "message" ? "Nachricht" : "Aktivitaet";
+  const itemEn = kind === "question" ? "question" : kind === "message" ? "message" : "activity";
+  const itemEs = kind === "question" ? "pregunta" : kind === "message" ? "mensaje" : "actividad";
+  if (language === "de") return `Eine geteilte ${itemDe} wurde vor der Anzeige zur VYVA-Pruefung zurueckgehalten. Hinweise: ${flags}.`;
+  if (language === "en") return `A shared ${itemEn} was held for VYVA review before it appeared in the room. Signals: ${flags}.`;
+  return `Se retuvo un ${itemEs} compartido para revision de VYVA antes de mostrarlo en la sala. Senales: ${flags}.`;
 }
 
 function fitReasonLabels(language: SocialLanguage) {
@@ -417,10 +452,13 @@ function comfortCheckCopy(language: SocialLanguage) {
       title: "Was macht es angenehm?",
       body: "Tippe an, was dir hilft. Die Gruppe kann Plaene daran ausrichten.",
       labels: {
+        listen_first: "Erst zuhoeren",
         quiet_pace: "Ruhiges Tempo",
         easy_access: "Einfacher Zugang",
         seating: "Sitzplatz",
         transport_help: "Hilfe beim Hinkommen",
+        arrival_buddy: "Gemeinsam ankommen",
+        clear_cost: "Kosten vorher wissen",
       },
     };
   }
@@ -430,10 +468,13 @@ function comfortCheckCopy(language: SocialLanguage) {
       title: "What would make this comfortable?",
       body: "Tap what helps. The room can shape plans around it.",
       labels: {
+        listen_first: "Listen first",
         quiet_pace: "Quiet pace",
         easy_access: "Easy access",
         seating: "Place to sit",
         transport_help: "Transport help",
+        arrival_buddy: "Meet together",
+        clear_cost: "Know cost first",
       },
     };
   }
@@ -442,10 +483,13 @@ function comfortCheckCopy(language: SocialLanguage) {
     title: "Que lo haria comodo?",
     body: "Toca lo que ayuda. La sala puede adaptar los planes.",
     labels: {
+      listen_first: "Escuchar primero",
       quiet_pace: "Ritmo tranquilo",
       easy_access: "Acceso facil",
       seating: "Sentarse",
       transport_help: "Ayuda para llegar",
+      arrival_buddy: "Quedar juntos",
+      clear_cost: "Saber coste antes",
     },
   };
 }
@@ -492,6 +536,122 @@ function buildComfortCheck(
     })),
     myComfortNeeds,
     totalResponses,
+  };
+}
+
+function leadingPollOption(poll: SocialRoomPoll) {
+  if (poll.totalVotes <= 0 || poll.options.length === 0) return null;
+  return poll.options.reduce((leader, option) => (option.votes > leader.votes ? option : leader), poll.options[0]);
+}
+
+function topComfortLabels(comfortCheck: SocialRoomComfortCheck) {
+  return [...comfortCheck.options]
+    .filter((option) => option.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 2)
+    .map((option) => option.label);
+}
+
+function decisionGuideCopy(language: SocialLanguage) {
+  if (language === "de") {
+    return {
+      title: "Naechster sicherer Schritt",
+      waitingBody: "Waehle eine Stimme oder tippe an, was hilft. VYVA macht daraus einen ruhigen naechsten Schritt.",
+      viewBody: "Der Raum tendiert dazu, Ansichten zu teilen. Bleibt freundlich und ohne private Kontaktdaten.",
+      planBody: (choice: string, needs: string[]) => {
+        const comfort = needs.length ? ` mit ${needs.join(", ")}` : "";
+        return `Der Raum tendiert zu ${choice}. VYVA kann daraus einen einfachen Plan${comfort} machen.`;
+      },
+      waitingSteps: ["Eine Option waehlen", "Komfort markieren", "Kontakt bleibt in VYVA"],
+      viewSteps: ["Eine kurze Ansicht teilen", "Erst zuhoeren, wenn jemand Zeit braucht", "VYVA prueft, wenn etwas unangenehm ist"],
+      planSteps: (needs: string[]) => [
+        "Einen einfachen Plan bestaetigen",
+        needs.length ? `${needs.join(", ")} einplanen` : "Fragen, was es angenehm macht",
+        "Kontakt nur mit beidseitigem Ja",
+      ],
+      voteAction: "Mit einer Stimme beginnen",
+      planAction: "Daraus einen Plan machen",
+      viewAction: "Ansicht teilen",
+    };
+  }
+
+  if (language === "en") {
+    return {
+      title: "Next safe step",
+      waitingBody: "Choose one vote or tap what helps. VYVA will turn the room's signals into a gentle next step.",
+      viewBody: "The room is leaning toward sharing views. Keep it kind and without private contact details.",
+      planBody: (choice: string, needs: string[]) => {
+        const comfort = needs.length ? ` with ${needs.join(", ")}` : "";
+        return `The room is leaning toward ${choice}. VYVA can shape one simple plan${comfort}.`;
+      },
+      waitingSteps: ["Choose one room option", "Tap comfort needs", "Keep contact inside VYVA"],
+      viewSteps: ["Share one short view", "Listen first if someone needs time", "Ask VYVA to review anything uncomfortable"],
+      planSteps: (needs: string[]) => [
+        "Confirm one simple plan",
+        needs.length ? `Keep ${needs.join(", ")} in mind` : "Ask what would make it comfortable",
+        "Share contact only after both agree",
+      ],
+      voteAction: "Start with a vote",
+      planAction: "Make this a plan",
+      viewAction: "Share a view",
+    };
+  }
+
+  return {
+    title: "Siguiente paso seguro",
+    waitingBody: "Elige un voto o toca lo que ayuda. VYVA convertira las senales de la sala en un paso tranquilo.",
+    viewBody: "La sala se inclina por compartir opiniones. Mantened un tono amable y sin datos privados.",
+    planBody: (choice: string, needs: string[]) => {
+      const comfort = needs.length ? ` con ${needs.join(", ")}` : "";
+      return `La sala se inclina por ${choice}. VYVA puede preparar un plan sencillo${comfort}.`;
+    },
+    waitingSteps: ["Elegir una opcion", "Marcar comodidad", "Mantener el contacto dentro de VYVA"],
+    viewSteps: ["Compartir una opinion breve", "Escuchar primero si alguien necesita tiempo", "Pedir revision a VYVA si algo incomoda"],
+    planSteps: (needs: string[]) => [
+      "Confirmar un plan sencillo",
+      needs.length ? `Cuidar ${needs.join(", ")}` : "Preguntar que lo haria comodo",
+      "Compartir contacto solo si ambas personas aceptan",
+    ],
+    voteAction: "Empezar con un voto",
+    planAction: "Crear este plan",
+    viewAction: "Compartir opinion",
+  };
+}
+
+function buildDecisionGuide(language: SocialLanguage, poll: SocialRoomPoll, comfortCheck: SocialRoomComfortCheck) {
+  const copy = decisionGuideCopy(language);
+  const leader = leadingPollOption(poll);
+  const needs = topComfortLabels(comfortCheck);
+
+  if (!leader && needs.length === 0) {
+    return {
+      id: "waiting-for-signals",
+      title: copy.title,
+      body: copy.waitingBody,
+      steps: copy.waitingSteps,
+      primaryActionLabel: copy.voteAction,
+      actionKind: "vote" as const,
+    };
+  }
+
+  if (leader?.id === "views") {
+    return {
+      id: "share-views-safely",
+      title: copy.title,
+      body: copy.viewBody,
+      steps: copy.viewSteps,
+      primaryActionLabel: copy.viewAction,
+      actionKind: "view" as const,
+    };
+  }
+
+  return {
+    id: "shape-one-plan",
+    title: copy.title,
+    body: leader ? copy.planBody(leader.label, needs) : copy.waitingBody,
+    steps: copy.planSteps(needs),
+    primaryActionLabel: copy.planAction,
+    actionKind: "plan" as const,
   };
 }
 
@@ -744,14 +904,17 @@ function fallbackPulse(
     myResponse: planResponses.get(responseKey(userId, plan.key)) ?? null,
     replies: memoryRepliesForPlan(plan.key, TOGETHER_ROOM_SLUG, language),
   }));
+  const activePoll = seededPoll(language, userId);
+  const comfortCheck = buildComfortCheck(userId, TOGETHER_ROOM_SLUG, language);
 
   return {
     featuredPlan: plans[0],
     secondaryPlans: plans.slice(1, 3),
     postedExperiences: memoryPostedExperiences(TOGETHER_ROOM_SLUG, userId, language),
     memberPresence: memberPulseSummary(memberPresence),
-    activePoll: seededPoll(language, userId),
-    comfortCheck: buildComfortCheck(userId, TOGETHER_ROOM_SLUG, language),
+    activePoll,
+    comfortCheck,
+    decisionGuide: buildDecisionGuide(language, activePoll, comfortCheck),
     discussionPrompt: getDiscussionPrompt(language),
     safety: getSafetyCopy(language, memoryAgreementAcknowledgedAt(userId, TOGETHER_ROOM_SLUG)),
     notifications: memoryNotificationsFor(userId, TOGETHER_ROOM_SLUG),
@@ -1117,6 +1280,7 @@ export async function buildTogetherRoomPulse(
             };
           })()
         : fallback.activePoll;
+      const comfortCheck = buildComfortCheck(userId, TOGETHER_ROOM_SLUG, language, memberComfortNeeds);
 
       return {
         featuredPlan: plans[0] ?? fallback.featuredPlan,
@@ -1124,7 +1288,8 @@ export async function buildTogetherRoomPulse(
         postedExperiences: [...memoryPosts, ...dbPostedExperiences].slice(0, 8),
         memberPresence: memberPulseSummary(memberPresence),
         activePoll,
-        comfortCheck: buildComfortCheck(userId, TOGETHER_ROOM_SLUG, language, memberComfortNeeds),
+        comfortCheck,
+        decisionGuide: buildDecisionGuide(language, activePoll, comfortCheck),
         discussionPrompt: getDiscussionPrompt(language),
         safety: getSafetyCopy(
           language,
@@ -1291,6 +1456,62 @@ export async function markTogetherNotificationRead(input: {
 
   return {
     notificationId: input.notificationId,
+    readAt: readAt.toISOString(),
+    pulse: await buildTogetherRoomPulse(input.userId, input.language, input.roomId),
+  };
+}
+
+export async function markTogetherNotificationsRead(input: {
+  userId: string;
+  roomSlug: string;
+  roomId?: string | null;
+  language: SocialLanguage;
+}) {
+  const readAt = new Date();
+  const readIds = new Set<string>();
+  const roomSlug = publicRoomId(input.roomSlug);
+
+  for (const notification of memoryNotifications) {
+    if (
+      notification.userId === input.userId &&
+      notification.roomSlug === roomSlug &&
+      !notification.readAt
+    ) {
+      notification.readAt = readAt.toISOString();
+      readIds.add(notification.id);
+    }
+  }
+
+  if (input.roomId) {
+    await safeDb(
+      "mark notifications read",
+      async () => {
+        const unreadNotifications = await db
+          .select({ id: socialRoomNotifications.id })
+          .from(socialRoomNotifications)
+          .where(and(
+            eq(socialRoomNotifications.user_id, input.userId),
+            eq(socialRoomNotifications.room_id, input.roomId!),
+            isNull(socialRoomNotifications.read_at),
+          ));
+
+        unreadNotifications.forEach((notification) => readIds.add(notification.id));
+
+        await db
+          .update(socialRoomNotifications)
+          .set({ read_at: readAt })
+          .where(and(
+            eq(socialRoomNotifications.user_id, input.userId),
+            eq(socialRoomNotifications.room_id, input.roomId!),
+            isNull(socialRoomNotifications.read_at),
+          ));
+      },
+      async () => undefined,
+    );
+  }
+
+  return {
+    notificationIds: Array.from(readIds),
     readAt: readAt.toISOString(),
     pulse: await buildTogetherRoomPulse(input.userId, input.language, input.roomId),
   };
@@ -1562,7 +1783,7 @@ export async function createTogetherProposal(input: {
       reason: "proposal_needs_review",
       targetType: kind === "question" ? "question" : kind === "message" ? "message" : "plan",
       targetId: proposal.planKey,
-      details: proposalReviewDetails(safetyFlags, input.language),
+      details: proposalReviewDetails(kind, safetyFlags, input.language),
     });
   }
 

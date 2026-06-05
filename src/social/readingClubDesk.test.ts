@@ -15,12 +15,18 @@ import {
   normalizeReadingClubDeskState,
   readingClubDayKey,
   recordReadingClubVisit,
+  removeReadingClubExchangeRequest,
+  removeReadingClubHostedTable,
   removeReadingClubJournalEntry,
   removeReadingClubLetter,
   removeReadingClubProgramSession,
+  removeReadingClubRecommendationCard,
   removeReadingClubShelfItem,
+  saveReadingClubExchangeRequest,
+  saveReadingClubHostedTable,
   saveReadingClubLetterDraft,
   saveReadingClubProgramSession,
+  saveReadingClubRecommendationCard,
   updateReadingClubDeskState,
 } from "./readingClubDesk";
 
@@ -61,10 +67,69 @@ describe("reading club desk progress", () => {
         { id: "letter", recipientName: "Duplicate", subject: "Duplicate", body: "Duplicate", status: "sent", createdAt: "bad-date", sentAt: "bad" },
         { id: "empty-letter", recipientName: "No body", subject: "No body", body: "", status: "sent", createdAt: "bad-date", sentAt: "bad" },
       ],
+      exchangeRequests: [
+        {
+          id: "exchange-1",
+          kindId: "unknown",
+          shelfId: "unknown",
+          topic: "  Stories   about gardens  ",
+          note: "  Something   short and kind.  ",
+          createdAt: "bad-date",
+        },
+        {
+          id: "exchange-1",
+          kindId: "recommendation",
+          shelfId: "poetry",
+          topic: "Duplicate",
+          note: "Duplicate",
+          createdAt: "bad-date",
+        },
+        { id: "empty-topic", kindId: "memory", shelfId: "memoir", topic: "", note: "", createdAt: "bad-date" },
+      ],
+      hostedTables: [
+        {
+          id: "table-1",
+          topic: "  Kitchen   table stories  ",
+          circleId: " memory-keepers ",
+          timeSlotId: "unknown",
+          comfortId: "unknown",
+          note: "  Bring one   gentle memory.  ",
+          createdAt: "bad-date",
+        },
+        {
+          id: "table-1",
+          topic: "Duplicate",
+          circleId: "poetry-corner",
+          timeSlotId: "tomorrow",
+          comfortId: "sharing",
+          note: "Duplicate",
+          createdAt: "bad-date",
+        },
+        { id: "empty-table", topic: "", circleId: "", timeSlotId: "today", comfortId: "small", note: "", createdAt: "bad-date" },
+      ],
       savedShelfItems: [
         { id: "keep", kind: "unknown", title: "  A saved scene  ", body: "  Body   text  ", createdAt: "bad-date" },
         { id: "keep", kind: "reflection", title: "Duplicate", body: "Duplicate", createdAt: "bad-date" },
         { id: "", kind: "reflection", title: "No id", body: "No id", createdAt: "bad-date" },
+      ],
+      recommendationCards: [
+        {
+          id: "rec-1",
+          shelfId: "unknown",
+          moodId: "unknown",
+          title: "  A quiet   garden book  ",
+          note: "  Good for   gentle afternoons.  ",
+          createdAt: "bad-date",
+        },
+        {
+          id: "rec-1",
+          shelfId: "poetry",
+          moodId: "memory",
+          title: "Duplicate",
+          note: "Duplicate",
+          createdAt: "bad-date",
+        },
+        { id: "empty-rec", shelfId: "memoir", moodId: "comfort", title: "", note: "", createdAt: "bad-date" },
       ],
     });
 
@@ -91,6 +156,16 @@ describe("reading club desk progress", () => {
         createdAt: "bad-date",
       },
     ]);
+    expect(state.recommendationCards).toEqual([
+      {
+        id: "rec-1",
+        shelfId: "memoir",
+        moodId: "comfort",
+        title: "A quiet garden book",
+        note: "Good for gentle afternoons.",
+        createdAt: "1970-01-01T00:00:00.000Z",
+      },
+    ]);
     expect(state.journalEntries).toEqual([
       {
         id: "page",
@@ -110,6 +185,27 @@ describe("reading club desk progress", () => {
         status: "draft",
         createdAt: "1970-01-01T00:00:00.000Z",
         sentAt: null,
+      },
+    ]);
+    expect(state.exchangeRequests).toEqual([
+      {
+        id: "exchange-1",
+        kindId: "discussion",
+        shelfId: "memoir",
+        topic: "Stories about gardens",
+        note: "Something short and kind.",
+        createdAt: "1970-01-01T00:00:00.000Z",
+      },
+    ]);
+    expect(state.hostedTables).toEqual([
+      {
+        id: "table-1",
+        topic: "Kitchen table stories",
+        circleId: "memory-keepers",
+        timeSlotId: "today",
+        comfortId: "listening",
+        note: "Bring one gentle memory.",
+        createdAt: "1970-01-01T00:00:00.000Z",
       },
     ]);
   });
@@ -243,6 +339,59 @@ describe("reading club desk progress", () => {
     expect(removed.savedShelfItems.some((item) => item.title === "Prompt 9")).toBe(false);
   });
 
+  it("saves, updates, caps, and removes recommendation cards", () => {
+    let state = updateReadingClubDeskState(null, {
+      favoriteShelfId: "short-stories",
+    }, new Date(2026, 5, 4, 10));
+
+    state = saveReadingClubRecommendationCard(state, {
+      moodId: "comfort",
+      title: "A gentle garden story",
+      note: "Good when someone wants a calm afternoon read.",
+    }, new Date(2026, 5, 4, 11));
+
+    expect(state.recommendationCards[0]).toMatchObject({
+      shelfId: "short-stories",
+      moodId: "comfort",
+      title: "A gentle garden story",
+      note: "Good when someone wants a calm afternoon read.",
+    });
+
+    const cardId = state.recommendationCards[0].id;
+    state = saveReadingClubRecommendationCard(state, {
+      id: cardId,
+      shelfId: "memoir",
+      moodId: "memory",
+      title: "Kitchen table memoir",
+      note: "A warm pick for family memories.",
+    }, new Date(2026, 5, 4, 12));
+
+    expect(state.recommendationCards).toHaveLength(1);
+    expect(state.recommendationCards[0]).toMatchObject({
+      id: cardId,
+      shelfId: "memoir",
+      moodId: "memory",
+      title: "Kitchen table memoir",
+      note: "A warm pick for family memories.",
+    });
+
+    for (let index = 0; index < 10; index += 1) {
+      state = saveReadingClubRecommendationCard(state, {
+        shelfId: "poetry",
+        moodId: "conversation",
+        title: `Recommendation ${index}`,
+      }, new Date(2026, 5, 4, 13, index));
+    }
+
+    expect(state.recommendationCards).toHaveLength(8);
+    expect(state.recommendationCards[0].title).toBe("Recommendation 9");
+    expect(state.recommendationCards.some((card) => card.title === "Recommendation 0")).toBe(false);
+
+    const removed = removeReadingClubRecommendationCard(state, state.recommendationCards[0].id, new Date(2026, 5, 4, 14));
+    expect(removed.recommendationCards).toHaveLength(7);
+    expect(removed.recommendationCards.some((card) => card.title === "Recommendation 9")).toBe(false);
+  });
+
   it("saves, de-duplicates, caps, and removes private journal entries", () => {
     let state = recordReadingClubVisit(null, new Date(2026, 5, 4, 10));
     state = addReadingClubJournalEntry(state, {
@@ -323,6 +472,115 @@ describe("reading club desk progress", () => {
     const removed = removeReadingClubLetter(state, state.letters[0].id, new Date(2026, 5, 4, 15));
     expect(removed.letters).toHaveLength(7);
     expect(removed.letters.some((letter) => letter.subject === "Letter 10")).toBe(false);
+  });
+
+  it("saves, updates, caps, and removes exchange requests", () => {
+    let state = updateReadingClubDeskState(null, {
+      favoriteShelfId: "poetry",
+    }, new Date(2026, 5, 4, 10));
+
+    state = saveReadingClubExchangeRequest(state, {
+      kindId: "recommendation",
+      topic: "Gentle garden stories",
+      note: "Something kind and short.",
+    }, new Date(2026, 5, 4, 11));
+
+    expect(state.exchangeRequests[0]).toMatchObject({
+      kindId: "recommendation",
+      shelfId: "poetry",
+      topic: "Gentle garden stories",
+      note: "Something kind and short.",
+    });
+
+    const requestId = state.exchangeRequests[0].id;
+    state = saveReadingClubExchangeRequest(state, {
+      id: requestId,
+      kindId: "memory",
+      shelfId: "memoir",
+      topic: "Garden memories",
+      note: "Ask about remembered plants.",
+    }, new Date(2026, 5, 4, 12));
+
+    expect(state.exchangeRequests).toHaveLength(1);
+    expect(state.exchangeRequests[0]).toMatchObject({
+      id: requestId,
+      kindId: "memory",
+      shelfId: "memoir",
+      topic: "Garden memories",
+      note: "Ask about remembered plants.",
+    });
+
+    for (let index = 0; index < 10; index += 1) {
+      state = saveReadingClubExchangeRequest(state, {
+        kindId: "discussion",
+        shelfId: "short-stories",
+        topic: `Exchange request ${index}`,
+      }, new Date(2026, 5, 4, 13, index));
+    }
+
+    expect(state.exchangeRequests).toHaveLength(8);
+    expect(state.exchangeRequests[0].topic).toBe("Exchange request 9");
+    expect(state.exchangeRequests.some((request) => request.topic === "Exchange request 0")).toBe(false);
+
+    const removed = removeReadingClubExchangeRequest(state, state.exchangeRequests[0].id, new Date(2026, 5, 4, 14));
+    expect(removed.exchangeRequests).toHaveLength(7);
+    expect(removed.exchangeRequests.some((request) => request.topic === "Exchange request 9")).toBe(false);
+  });
+
+  it("saves, updates, caps, and removes hosted reading tables", () => {
+    let state = recordReadingClubVisit(null, new Date(2026, 5, 4, 10));
+    state = saveReadingClubHostedTable(state, {
+      topic: "Kitchen table stories",
+      circleId: "memory-keepers",
+      timeSlotId: "today",
+      comfortId: "listening",
+      note: "Bring one gentle memory.",
+    }, new Date(2026, 5, 4, 11));
+
+    expect(state.hostedTables[0]).toMatchObject({
+      topic: "Kitchen table stories",
+      circleId: "memory-keepers",
+      timeSlotId: "today",
+      comfortId: "listening",
+      note: "Bring one gentle memory.",
+    });
+
+    const tableId = state.hostedTables[0].id;
+    state = saveReadingClubHostedTable(state, {
+      id: tableId,
+      topic: "Poetry at the window",
+      circleId: "poetry-corner",
+      timeSlotId: "tomorrow",
+      comfortId: "sharing",
+      note: "One image is enough.",
+    }, new Date(2026, 5, 4, 12));
+
+    expect(state.hostedTables).toHaveLength(1);
+    expect(state.hostedTables[0]).toMatchObject({
+      id: tableId,
+      topic: "Poetry at the window",
+      circleId: "poetry-corner",
+      timeSlotId: "tomorrow",
+      comfortId: "sharing",
+      note: "One image is enough.",
+    });
+
+    for (let index = 0; index < 8; index += 1) {
+      state = saveReadingClubHostedTable(state, {
+        topic: `Hosted table ${index}`,
+        circleId: "open-club",
+        timeSlotId: "weekend",
+        comfortId: "small",
+      }, new Date(2026, 5, 4, 13, index));
+    }
+
+    expect(state.hostedTables).toHaveLength(6);
+    expect(state.hostedTables[0].topic).toBe("Hosted table 7");
+    expect(state.hostedTables.some((table) => table.topic === "Hosted table 0")).toBe(false);
+
+    const removed = removeReadingClubHostedTable(state, state.hostedTables[0].id, new Date(2026, 5, 4, 14));
+    expect(removed.hostedTables).toHaveLength(5);
+    expect(removed.hostedTables.some((table) => table.topic === "Hosted table 7")).toBe(false);
   });
 
   it("saves, de-duplicates, caps, and removes planned program sessions", () => {
