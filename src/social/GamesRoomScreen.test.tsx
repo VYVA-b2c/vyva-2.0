@@ -317,7 +317,7 @@ const roomResponse: SocialRoomResponse = {
     chooseRoundLabel: "Choose a round",
     connectionTitle: "Find a playing partner",
     connectionBody: "Contact details stay private.",
-    startRoundLabel: "Start puzzle",
+    startRoundLabel: "Start this puzzle",
     completeRoundLabel: "Check answer",
     findPartnerLabel: "Find a playing partner",
     sayHelloLabel: "Say hello",
@@ -451,6 +451,10 @@ describe("GamesRoomScreen", () => {
     expect(screen.queryByText("Trivia")).not.toBeInTheDocument();
     expect(screen.queryByText("Memory match")).not.toBeInTheDocument();
     expect(screen.getByText("Puzzle 1 of 2")).toBeInTheDocument();
+    expect(screen.queryByText("Next puzzle")).not.toBeInTheDocument();
+    const puzzleControls = screen.getByTestId("games-puzzle-controls");
+    expect(within(puzzleControls).getByTestId("games-start-round")).toHaveTextContent("Start this puzzle");
+    expect(within(puzzleControls).getByTestId("games-next-puzzle")).toBeInTheDocument();
     expect(screen.getByText("White's knight can check the king and attack the queen. What tactic is this?")).toBeInTheDocument();
     const chessBoard = screen.getByTestId("games-visual-chess");
     expect(chessBoard).toBeInTheDocument();
