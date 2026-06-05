@@ -5871,115 +5871,6 @@ const RoomScreen = () => {
               </button>
             ) : null}
 
-            <div
-              className="mt-3 rounded-[22px] border border-[#CFEAF2] bg-white/88 p-3 shadow-[0_10px_22px_rgba(2,132,199,0.06)] sm:ml-[72px]"
-              data-testid="movement-room-gentle-week"
-            >
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
-                  <p className="flex items-center gap-2 font-body text-[17px] font-black leading-tight text-[#123047]">
-                    <CalendarDays size={19} strokeWidth={2.4} className="text-[#0369A1]" aria-hidden="true" />
-                    <span>{movementExerciseCopy.weekTitle}</span>
-                  </p>
-                  <p className="mt-1 font-body text-[13px] font-bold leading-snug text-[#66717B] [overflow-wrap:anywhere]">
-                    {movementExerciseCopy.weekBody}
-                  </p>
-                </div>
-                <span className="inline-flex w-fit shrink-0 rounded-full bg-[#F0F9FF] px-3 py-1.5 font-body text-[13px] font-black text-[#0369A1]">
-                  {movementExerciseCopy.weekProgress(movementWeekCompletedCount)}
-                </span>
-              </div>
-
-              <div className="mt-3 grid grid-cols-7 gap-1.5" data-testid="movement-room-week-days">
-                {movementWeekDays.map((day) => {
-                  const dayComplete = movementWeekLogDates.includes(day.dateKey);
-                  return (
-                    <span
-                      key={day.dateKey}
-                      className="flex min-h-[38px] min-w-0 flex-col items-center justify-center rounded-[12px] border px-1 text-center"
-                      style={{
-                        background: dayComplete ? "#ECFDF5" : day.isToday ? "#F0F9FF" : "#FFFFFF",
-                        borderColor: dayComplete ? "#A7F3D0" : day.isToday ? "#7DD3FC" : "#E3F3F7",
-                        color: dayComplete ? "#047857" : day.isToday ? "#0369A1" : "#66717B",
-                      }}
-                      aria-label={`${day.label} ${dayComplete ? movementExerciseCopy.doneDayLabel : movementExerciseCopy.openDayLabel}`}
-                    >
-                      <span className="font-body text-[12px] font-black uppercase leading-none">{day.label}</span>
-                      <span className="mt-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-current">
-                        {dayComplete ? <Check size={11} strokeWidth={3} aria-hidden="true" /> : null}
-                      </span>
-                    </span>
-                  );
-                })}
-              </div>
-
-              <div className="mt-3 grid grid-cols-[1fr_auto] items-center gap-2">
-                <p className="min-w-0 rounded-[16px] bg-[#F8FBFC] px-3 py-2 font-body text-[14px] font-extrabold leading-snug text-[#51606C] [overflow-wrap:anywhere]">
-                  {lastMovementExercise ? movementExerciseCopy.lastUsedLine(lastMovementExercise.title) : movementExerciseCopy.noLastUsed}
-                </p>
-                <button
-                  type="button"
-                  onClick={openMovementRepeatExercise}
-                  className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[16px] bg-[#0369A1] px-3 font-body text-[14px] font-black text-white shadow-[0_10px_18px_rgba(3,105,161,0.14)] sm:px-4 sm:text-[15px]"
-                  data-testid="button-movement-room-repeat-exercise"
-                >
-                  <Clock size={17} strokeWidth={2.4} aria-hidden="true" />
-                  <span>{lastMovementExercise ? movementExerciseCopy.repeatCta : movementExerciseCopy.todayPickCta}</span>
-                </button>
-              </div>
-
-              <div className="mt-2.5">
-                <p className="font-body text-[13px] font-black uppercase tracking-[0.08em] text-[#66717B]">
-                  {movementExerciseCopy.comfortTitle}
-                </p>
-                <div className="mt-2 grid grid-cols-3 gap-2" data-testid="movement-room-comfort-levels">
-                  {movementExerciseCopy.comfortLevels.map((level) => {
-                    const selected = movementComfortLevel === level.id;
-                    return (
-                      <button
-                        key={level.id}
-                        type="button"
-                        aria-pressed={selected}
-                        onClick={() => selectMovementComfortLevel(level.id)}
-                        className="min-h-[40px] min-w-0 rounded-[15px] border px-2 font-body text-[12px] font-black leading-tight transition-colors sm:text-[13px]"
-                        style={{
-                          background: selected ? "#0369A1" : "#FFFFFF",
-                          borderColor: selected ? "#0369A1" : "#CFEAF2",
-                          color: selected ? "#FFFFFF" : "#0369A1",
-                        }}
-                        data-testid={`button-movement-room-comfort-${level.id}`}
-                      >
-                        {level.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="mt-2.5 flex flex-col items-start gap-2 sm:flex-row sm:items-center">
-                <p className="shrink-0 font-body text-[13px] font-black uppercase tracking-[0.08em] text-[#66717B]">
-                  {movementExerciseCopy.swapPrompt}
-                </p>
-                <div className="flex w-full min-w-0 flex-wrap gap-2 sm:w-auto sm:flex-nowrap sm:overflow-x-auto sm:pb-1" data-testid="movement-room-swap-actions">
-                  {[
-                    { intent: "easier" as MovementSwapIntent, label: movementExerciseCopy.swapEasier },
-                    { intent: "calm" as MovementSwapIntent, label: movementExerciseCopy.swapCalm },
-                    { intent: "legs" as MovementSwapIntent, label: movementExerciseCopy.swapLegs },
-                  ].map((action) => (
-                    <button
-                      key={action.intent}
-                      type="button"
-                      onClick={() => openMovementSwapExercise(action.intent)}
-                      className="inline-flex min-h-[38px] shrink-0 items-center justify-center rounded-full border border-[#CFEAF2] bg-white px-3 font-body text-[13px] font-black text-[#0369A1]"
-                      data-testid={`button-movement-room-swap-${action.intent}`}
-                    >
-                      {action.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
             {completedMovementExercise ? (
               <div
                 className="mt-3 flex items-center gap-2 rounded-[18px] border border-[#BBF7D0] bg-[#F0FDF4] px-3 py-3 font-body text-[16px] font-extrabold leading-snug text-[#047857] sm:ml-[72px]"
@@ -6051,6 +5942,106 @@ const RoomScreen = () => {
                   </button>
                 );
               })}
+            </div>
+
+            <div
+              className="mt-3 rounded-[18px] border border-[#CFEAF2] bg-white/82 px-3 py-2.5 shadow-[0_8px_18px_rgba(2,132,199,0.05)] sm:ml-[72px]"
+              data-testid="movement-room-gentle-week"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="flex min-w-0 items-center gap-1.5 font-body text-[15px] font-black leading-tight text-[#123047]">
+                  <CalendarDays size={17} strokeWidth={2.4} className="text-[#0369A1]" aria-hidden="true" />
+                  <span>{movementExerciseCopy.weekTitle}</span>
+                </p>
+                <span className="inline-flex shrink-0 rounded-full bg-[#F0F9FF] px-2.5 py-1 font-body text-[12px] font-black text-[#0369A1]">
+                  {movementExerciseCopy.weekProgress(movementWeekCompletedCount)}
+                </span>
+                <div className="ml-auto flex min-w-0 flex-wrap justify-end gap-1" data-testid="movement-room-week-days">
+                  {movementWeekDays.map((day) => {
+                    const dayComplete = movementWeekLogDates.includes(day.dateKey);
+                    return (
+                      <span
+                        key={day.dateKey}
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border font-body text-[11px] font-black"
+                        style={{
+                          background: dayComplete ? "#ECFDF5" : day.isToday ? "#F0F9FF" : "#FFFFFF",
+                          borderColor: dayComplete ? "#A7F3D0" : day.isToday ? "#7DD3FC" : "#E3F3F7",
+                          color: dayComplete ? "#047857" : day.isToday ? "#0369A1" : "#66717B",
+                        }}
+                        aria-label={`${day.label} ${dayComplete ? movementExerciseCopy.doneDayLabel : movementExerciseCopy.openDayLabel}`}
+                      >
+                        {dayComplete ? <Check size={13} strokeWidth={3} aria-hidden="true" /> : day.label}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {lastMovementExercise ? (
+                  <button
+                    type="button"
+                    onClick={openMovementRepeatExercise}
+                    className="inline-flex min-h-[36px] min-w-0 items-center justify-center gap-1.5 rounded-full bg-[#0369A1] px-3 font-body text-[13px] font-black text-white shadow-[0_8px_16px_rgba(3,105,161,0.12)]"
+                    data-testid="button-movement-room-repeat-exercise"
+                  >
+                    <Clock size={15} strokeWidth={2.4} aria-hidden="true" />
+                    <span className="truncate">{movementExerciseCopy.lastUsedLine(lastMovementExercise.title)}</span>
+                  </button>
+                ) : (
+                  <span className="font-body text-[13px] font-bold leading-snug text-[#66717B]">
+                    {movementExerciseCopy.weekBody}
+                  </span>
+                )}
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5" data-testid="movement-room-comfort-levels">
+                  <span className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#66717B]">
+                    {movementExerciseCopy.comfortTitle}
+                  </span>
+                  {movementExerciseCopy.comfortLevels.map((level) => {
+                    const selected = movementComfortLevel === level.id;
+                    return (
+                      <button
+                        key={level.id}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => selectMovementComfortLevel(level.id)}
+                        className="min-h-[32px] rounded-full border px-2.5 font-body text-[12px] font-black leading-tight transition-colors"
+                        style={{
+                          background: selected ? "#0369A1" : "#FFFFFF",
+                          borderColor: selected ? "#0369A1" : "#CFEAF2",
+                          color: selected ? "#FFFFFF" : "#0369A1",
+                        }}
+                        data-testid={`button-movement-room-comfort-${level.id}`}
+                      >
+                        {level.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#66717B]">
+                  {movementExerciseCopy.swapPrompt}
+                </span>
+                <div className="flex min-w-0 flex-wrap gap-1.5" data-testid="movement-room-swap-actions">
+                  {[
+                    { intent: "easier" as MovementSwapIntent, label: movementExerciseCopy.swapEasier },
+                    { intent: "calm" as MovementSwapIntent, label: movementExerciseCopy.swapCalm },
+                    { intent: "legs" as MovementSwapIntent, label: movementExerciseCopy.swapLegs },
+                  ].map((action) => (
+                    <button
+                      key={action.intent}
+                      type="button"
+                      onClick={() => openMovementSwapExercise(action.intent)}
+                      className="inline-flex min-h-[32px] shrink-0 items-center justify-center rounded-full border border-[#CFEAF2] bg-white px-2.5 font-body text-[12px] font-black text-[#0369A1]"
+                      data-testid={`button-movement-room-swap-${action.intent}`}
+                    >
+                      {action.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <div className="mt-4 flex flex-col gap-3 sm:ml-[72px] sm:flex-row sm:items-center sm:justify-between">

@@ -200,6 +200,10 @@ describe("RoomScreen movement room", () => {
     expect(screen.getByTestId("movement-room-exercise-cards")).toHaveTextContent("Seated strength");
     expect(screen.getByTestId("movement-room-exercise-cards")).toHaveTextContent("Calm breathing");
     expect(screen.getAllByTestId(/^movement-room-exercise-card-/)).toHaveLength(4);
+    expect(
+      screen.getByTestId("movement-room-exercise-cards").compareDocumentPosition(screen.getByTestId("movement-room-gentle-week"))
+      & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
 
     fireEvent.click(screen.getByTestId("movement-room-exercise-card-chair-yoga"));
 
@@ -232,7 +236,7 @@ describe("RoomScreen movement room", () => {
 
     expect(screen.getByTestId("movement-room-exercise-card-tai-chi")).toHaveTextContent("Last used");
     expect(screen.getByTestId("movement-room-gentle-week")).toHaveTextContent("Last time: Tai chi");
-    expect(screen.getByTestId("button-movement-room-repeat-exercise")).toHaveTextContent("Do this again");
+    expect(screen.getByTestId("button-movement-room-repeat-exercise")).toHaveTextContent("Last time: Tai chi");
 
     fireEvent.click(screen.getByTestId("button-movement-room-repeat-exercise"));
 
