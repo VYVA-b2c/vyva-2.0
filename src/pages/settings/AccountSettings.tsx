@@ -277,11 +277,34 @@ function accountInvitePrefillFromSearch(search: string): AccountInvitePrefill | 
   return Object.values(prefill).some(Boolean) ? prefill : null;
 }
 
+function readableErrorMessages(value: unknown, depth = 0): string[] {
+  if (depth > 4 || value == null) return [];
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed ? [trimmed] : [];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => readableErrorMessages(entry, depth + 1));
+  }
+  if (typeof value !== "object") return [];
+
+  const record = value as Record<string, unknown>;
+  const preferredKeys = ["message", "error", "formErrors", "fieldErrors", "issues"];
+  const messages = preferredKeys.flatMap((key) => readableErrorMessages(record[key], depth + 1));
+  if (messages.length > 0) return messages;
+
+  return Object.values(record).flatMap((entry) => readableErrorMessages(entry, depth + 1));
+}
+
 async function accountSaveErrorMessage(response: Response) {
   try {
     const body = await response.clone().json() as { error?: unknown; message?: unknown };
-    if (typeof body.error === "string" && body.error.trim()) return body.error.trim();
-    if (typeof body.message === "string" && body.message.trim()) return body.message.trim();
+    const messages = [
+      ...readableErrorMessages(body.error),
+      ...readableErrorMessages(body.message),
+    ];
+    const uniqueMessages = Array.from(new Set(messages));
+    if (uniqueMessages.length > 0) return uniqueMessages.slice(0, 2).join(" ");
   } catch {
     try {
       const text = await response.text();

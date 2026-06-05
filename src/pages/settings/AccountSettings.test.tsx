@@ -153,4 +153,30 @@ describe("AccountSettings", () => {
       title: "Could not save account details",
     }));
   });
+
+  it("shows structured profile save errors instead of the generic fallback", async () => {
+    mocks.apiFetch.mockResolvedValue(jsonResponse({
+      error: {
+        formErrors: [],
+        fieldErrors: {
+          phone: ["That phone number is already used on another profile."],
+        },
+      },
+    }, 409));
+    queryClient.setQueryData(["/api/profile"], profileResponse());
+    const { container } = renderAccountSettings();
+
+    expect(await screen.findByDisplayValue("Assad")).toBeInTheDocument();
+    fireEvent.change(container.querySelector("#first_name")!, { target: { value: "Karim" } });
+    fireEvent.change(container.querySelector("#last_name")!, { target: { value: "Assad" } });
+    fireEvent.change(container.querySelector("#phone")!, { target: { value: "664338991" } });
+    fireEvent.click(screen.getByTestId("button-account-save"));
+
+    await waitFor(() => {
+      expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
+        title: "Could not save account details",
+        description: "That phone number is already used on another profile.",
+      }));
+    });
+  });
 });
