@@ -1,13 +1,14 @@
 import { randomUUID } from "crypto";
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { and, desc, eq, inArray, ne, or } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
 import {
   companionProfiles,
   profiles,
   socialConnections,
+  socialGameRoundAttempts,
   socialRoomMusicCircleItems,
   socialRoomMusicItemReactions,
   socialRoomMusicThreadEntries,
@@ -19,6 +20,7 @@ import {
   socialUserInterests,
 } from "../../shared/schema.js";
 import type {
+  SocialGameKind,
   SocialGameLanguage,
   SocialMusicCircle,
   SocialMusicCircleItem,
@@ -39,6 +41,7 @@ import {
 import {
   buildGamePreferenceTag,
   buildGameTable,
+  type SocialGameRoundAttemptSummary,
   isSocialGameKind,
 } from "../lib/socialGameRounds.js";
 import {
@@ -105,6 +108,13 @@ type MemoryMusicReaction = {
   createdAt: string;
 };
 
+type GameRoundAttemptStatus = "started" | "completed" | "skipped";
+
+type MemoryGameRoundAttempt = SocialGameRoundAttemptSummary & {
+  status: GameRoundAttemptStatus;
+  language: SocialGameLanguage;
+};
+
 type SocialMusicCircleWithSeed = SocialMusicCircle & {
   seedSong: SocialMusicCircleSeedSong;
 };
@@ -124,6 +134,7 @@ const ROOM_VISIT_STATE_TIMEOUT_MS = 1200;
 const visitSessionMemory = new Map<string, { userId: string; roomSlug: string; enteredAt: number }>();
 const memoryInterests = new Map<string, InterestSnapshot>();
 const memoryConnections = new Map<string, { matchedUserId: string; matchedViaRoom: string; matchedAt: string }>();
+const memoryGameRoundAttempts = new Map<string, Map<string, MemoryGameRoundAttempt>>();
 const memoryMusicThreads = new Map<string, MemoryMusicThread>();
 const memoryMusicCircleItems = new Map<string, MemoryMusicCircleItem>();
 const memoryMusicReactions = new Map<string, MemoryMusicReaction>();
@@ -173,6 +184,7 @@ const gameRoundSchema = z.object({
   visitId: z.string().optional(),
   roundId: z.string().trim().min(1).max(80).optional(),
   gameKind: z.enum(["chess", "word", "dominoes", "bridge"]),
+  status: z.enum(["started", "completed", "skipped"]).optional(),
   completed: z.boolean().optional(),
 });
 
@@ -584,6 +596,160 @@ async function persistGamePreference(userId: string, gameKind: "chess" | "word" 
     ...existing,
     interestTags: nextTags,
   });
+}
+
+function buildGameRoundAttemptKey(gameKind: SocialGameKind, roundId: string) {
+  return `${gameKind}:${roundId}`;
+}
+
+function loadMemoryGameRoundAttempts(userId: string): SocialGameRoundAttemptSummary[] {
+  return Array.from(memoryGameRoundAttempts.get(userId)?.values() ?? []).map((attempt) => ({
+    gameKind: attempt.gameKind,
+    roundId: attempt.roundId,
+    startedCount: attempt.startedCount,
+    completedCount: attempt.completedCount,
+    skippedCount: attempt.skippedCount,
+    lastSeenAt: attempt.lastSeenAt,
+  }));
+}
+
+function mergeGameRoundAttempts(
+  dbAttempts: SocialGameRoundAttemptSummary[],
+  memoryAttempts: SocialGameRoundAttemptSummary[],
+) {
+  const merged = new Map<string, SocialGameRoundAttemptSummary>();
+  for (const attempt of dbAttempts) merged.set(buildGameRoundAttemptKey(attempt.gameKind, attempt.roundId), attempt);
+  for (const attempt of memoryAttempts) merged.set(buildGameRoundAttemptKey(attempt.gameKind, attempt.roundId), attempt);
+  return Array.from(merged.values());
+}
+
+function recordMemoryGameRoundAttempt(input: {
+  userId: string;
+  gameKind: SocialGameKind;
+  roundId: string;
+  language: SocialGameLanguage;
+  status: GameRoundAttemptStatus;
+}) {
+  const attempts = memoryGameRoundAttempts.get(input.userId) ?? new Map<string, MemoryGameRoundAttempt>();
+  const key = buildGameRoundAttemptKey(input.gameKind, input.roundId);
+  const existing = attempts.get(key);
+  const now = new Date();
+  const startedCount = input.status === "started"
+    ? (existing?.startedCount ?? 0) + 1
+    : input.status === "completed"
+      ? Math.max(existing?.startedCount ?? 0, 1)
+      : existing?.startedCount ?? 0;
+
+  attempts.set(key, {
+    gameKind: input.gameKind,
+    roundId: input.roundId,
+    language: input.language,
+    status: input.status,
+    startedCount,
+    completedCount: input.status === "completed" && !existing?.completedCount
+      ? (existing?.completedCount ?? 0) + 1
+      : existing?.completedCount ?? 0,
+    skippedCount: input.status === "skipped" ? (existing?.skippedCount ?? 0) + 1 : existing?.skippedCount ?? 0,
+    lastSeenAt: now,
+  });
+  memoryGameRoundAttempts.set(input.userId, attempts);
+}
+
+async function loadGameRoundAttempts(userId: string): Promise<SocialGameRoundAttemptSummary[]> {
+  const memoryAttempts = loadMemoryGameRoundAttempts(userId);
+  return safeDb(
+    "load game round attempts",
+    async () => {
+      const rows = await db
+        .select({
+          gameKind: socialGameRoundAttempts.game_kind,
+          roundId: socialGameRoundAttempts.round_id,
+          startedCount: socialGameRoundAttempts.started_count,
+          completedCount: socialGameRoundAttempts.completed_count,
+          skippedCount: socialGameRoundAttempts.skipped_count,
+          lastSeenAt: socialGameRoundAttempts.last_seen_at,
+        })
+        .from(socialGameRoundAttempts)
+        .where(eq(socialGameRoundAttempts.user_id, userId));
+
+      const dbAttempts: SocialGameRoundAttemptSummary[] = [];
+      for (const row of rows) {
+        if (!isSocialGameKind(row.gameKind)) continue;
+        dbAttempts.push({
+          gameKind: row.gameKind,
+          roundId: row.roundId,
+          startedCount: row.startedCount,
+          completedCount: row.completedCount,
+          skippedCount: row.skippedCount,
+          lastSeenAt: row.lastSeenAt,
+        });
+      }
+
+      return mergeGameRoundAttempts(dbAttempts, memoryAttempts);
+    },
+    () => memoryAttempts,
+  );
+}
+
+async function persistGameRoundAttempt(input: {
+  userId: string;
+  gameKind: SocialGameKind;
+  roundId: string;
+  language: SocialGameLanguage;
+  status: GameRoundAttemptStatus;
+}) {
+  const now = new Date();
+  recordMemoryGameRoundAttempt(input);
+
+  await safeDb(
+    "persist game round attempt",
+    async () => {
+      await db
+        .insert(socialGameRoundAttempts)
+        .values({
+          user_id: input.userId,
+          game_kind: input.gameKind,
+          round_id: input.roundId,
+          language: input.language,
+          status: input.status,
+          started_count: input.status === "skipped" ? 0 : 1,
+          completed_count: input.status === "completed" ? 1 : 0,
+          skipped_count: input.status === "skipped" ? 1 : 0,
+          last_seen_at: now,
+          completed_at: input.status === "completed" ? now : null,
+        })
+        .onConflictDoUpdate({
+          target: [
+            socialGameRoundAttempts.user_id,
+            socialGameRoundAttempts.game_kind,
+            socialGameRoundAttempts.round_id,
+          ],
+          set: input.status === "completed"
+            ? {
+                language: input.language,
+                status: input.status,
+                started_count: sql`greatest(${socialGameRoundAttempts.started_count}, 1)`,
+                completed_count: sql`case when ${socialGameRoundAttempts.completed_at} is null then ${socialGameRoundAttempts.completed_count} + 1 else ${socialGameRoundAttempts.completed_count} end`,
+                last_seen_at: now,
+                completed_at: now,
+              }
+            : input.status === "skipped"
+              ? {
+                  language: input.language,
+                  status: input.status,
+                  skipped_count: sql`${socialGameRoundAttempts.skipped_count} + 1`,
+                  last_seen_at: now,
+                }
+            : {
+                language: input.language,
+                status: input.status,
+                started_count: sql`${socialGameRoundAttempts.started_count} + 1`,
+                last_seen_at: now,
+              },
+        });
+    },
+    async () => undefined,
+  );
 }
 
 function buildRoomVisitState(snapshot: InterestSnapshot, roomSlug: string, incrementBy = 0): RoomVisitState {
@@ -2033,6 +2199,9 @@ router.get("/rooms/:slug", async (req: Request, res: Response) => {
   const musicCircle = room.slug === "music-room"
     ? await loadMusicCircle(userId, room.slug, roomRecords?.roomId ?? null, language)
     : undefined;
+  const gameTable = room.slug === "games-room"
+    ? buildGameTable(gameLanguage, room.participantCount, await loadGameRoundAttempts(userId), { compact: true })
+    : undefined;
 
   return res.json({
     room: {
@@ -2052,13 +2221,38 @@ router.get("/rooms/:slug", async (req: Request, res: Response) => {
     memberChat,
     visitState,
     conversationContext,
-    ...(room.slug === "games-room"
-      ? { gameTable: buildGameTable(gameLanguage, room.participantCount) }
-      : {}),
+    ...(gameTable ? { gameTable } : {}),
     ...(pulse ? { pulse } : {}),
     ...(readingClub ? { readingClub } : {}),
     ...(musicCircle ? { musicCircle } : {}),
     ...(musicThreads ? { musicThreads } : {}),
+  });
+});
+
+router.get("/rooms/:slug/game-rounds", async (req: Request, res: Response) => {
+  const userId = resolvePublicUserId(req);
+  const slug = resolveSocialRoomSlug(req.params.slug);
+  if (slug !== "games-room") {
+    return res.status(400).json({ error: "This room does not support game rounds" });
+  }
+
+  const parsedKind = z.enum(["chess", "word", "dominoes", "bridge"]).safeParse(req.query.gameKind);
+  if (!parsedKind.success) {
+    return res.status(400).json({ error: "A valid gameKind is required" });
+  }
+
+  const profile = await loadProfileSummary(userId);
+  const rawLanguage = (req.query.lang as string | undefined) ?? profile.language;
+  const gameLanguage = normalizeGameLanguage(rawLanguage);
+  const table = buildGameTable(gameLanguage, getRoomParticipantCount(slug), await loadGameRoundAttempts(userId));
+  const rounds = table.rounds.filter((round) => round.kind === parsedKind.data);
+
+  return res.json({
+    gameKind: parsedKind.data,
+    rounds,
+    roundCount: rounds.length,
+    defaultRoundId: table.defaultRoundIdsByKind?.[parsedKind.data] ?? rounds[0]?.id ?? null,
+    defaultRoundIndex: table.defaultRoundIndexesByKind?.[parsedKind.data] ?? 0,
   });
 });
 
@@ -2505,13 +2699,35 @@ router.post("/rooms/:slug/game-round", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "This room does not support game rounds" });
   }
 
+  const status: GameRoundAttemptStatus = parsed.data.status ?? (parsed.data.completed ? "completed" : "started");
+  const gameLanguage = normalizeGameLanguage(parsed.data.lang);
+  const round = parsed.data.roundId
+    ? buildGameTable(gameLanguage, 0).rounds.find((candidate) => (
+        candidate.id === parsed.data.roundId && candidate.kind === parsed.data.gameKind
+      ))
+    : null;
+
+  if (parsed.data.roundId && !round) {
+    return res.status(400).json({ error: "Unknown game round" });
+  }
+
   await persistGamePreference(userId, parsed.data.gameKind);
+  if (round) {
+    await persistGameRoundAttempt({
+      userId,
+      gameKind: parsed.data.gameKind,
+      roundId: round.id,
+      language: gameLanguage,
+      status,
+    });
+  }
 
   return res.json({
     ok: true,
     roomSlug: slug,
     roundId: parsed.data.roundId ?? null,
     gameKind: parsed.data.gameKind,
+    status,
     interestTag: buildGamePreferenceTag(parsed.data.gameKind),
   });
 });

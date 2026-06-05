@@ -331,10 +331,28 @@ function jsonResponse(body: unknown) {
   });
 }
 
+function gameRoundRequestBodies() {
+  return apiFetchMock.mock.calls
+    .filter(([url]) => url === "/api/social/rooms/games-room/game-round")
+    .map(([, options]) => JSON.parse(String((options as RequestInit).body ?? "{}")));
+}
+
 describe("GamesRoomScreen", () => {
   beforeEach(() => {
     apiFetchMock.mockReset();
     apiFetchMock.mockImplementation((url: string) => {
+      if (url.includes("/game-rounds")) {
+        const parsedUrl = new URL(url, "http://localhost");
+        const gameKind = parsedUrl.searchParams.get("gameKind");
+        const rounds = roomResponse.gameTable?.rounds.filter((round) => round.kind === gameKind) ?? [];
+        return Promise.resolve(jsonResponse({
+          gameKind,
+          rounds,
+          roundCount: rounds.length,
+          defaultRoundId: rounds[0]?.id ?? null,
+          defaultRoundIndex: 0,
+        }));
+      }
       if (url.endsWith("/match")) {
         return Promise.resolve(jsonResponse({
           noMatch: false,
@@ -382,6 +400,100 @@ describe("GamesRoomScreen", () => {
     });
   });
 
+  it("honors personalized default rounds for initial load and game cards", () => {
+    const personalizedResponse: SocialRoomResponse = {
+      ...roomResponse,
+      gameTable: {
+        ...roomResponse.gameTable!,
+        defaultRoundId: "dominoes-open-double-five",
+        defaultRoundIdsByKind: {
+          chess: "chess-clue-back-rank",
+          word: "word-tiles-anagram-peace",
+          dominoes: "dominoes-open-double-five",
+          bridge: "bridge-opening-bid-five-spades",
+        },
+      },
+    };
+
+    render(<GamesRoomScreen roomResponse={personalizedResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    expect(screen.getByText("Puzzle 2 of 80")).toBeInTheDocument();
+    expect(screen.getByText("You are starting and have these doubles: Double five, Double four, Double two. Which tile is the strongest opener?")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("games-round-chess"));
+    expect(screen.getByText("Puzzle 2 of 2")).toBeInTheDocument();
+    expect(screen.getByText("Black's king is stuck behind its own pawns and White has a rook on the open file. What idea should White look for?")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("games-round-word"));
+    expect(screen.getByText("Puzzle 2 of 80")).toBeInTheDocument();
+    expect(screen.queryByText("PEACE")).not.toBeInTheDocument();
+  });
+
+  it("loads puzzle banks on demand from a compact Games Room payload", async () => {
+    const compactResponse: SocialRoomResponse = {
+      ...roomResponse,
+      gameTable: {
+        ...roomResponse.gameTable!,
+        rounds: [
+          roomResponse.gameTable!.rounds.find((round) => round.id === "chess-clue-fork")!,
+          roomResponse.gameTable!.rounds.find((round) => round.id === "word-tiles-anagram-smile")!,
+          roomResponse.gameTable!.rounds.find((round) => round.id === "dominoes-open-double-six")!,
+          roomResponse.gameTable!.rounds.find((round) => round.id === "bridge-opening-bid-five-hearts")!,
+        ],
+        roundCountsByKind: {
+          chess: 2,
+          word: 80,
+          dominoes: 80,
+          bridge: 80,
+        },
+        defaultRoundIdsByKind: {
+          chess: "chess-clue-fork",
+          word: "word-tiles-anagram-smile",
+          dominoes: "dominoes-open-double-six",
+          bridge: "bridge-opening-bid-five-hearts",
+        },
+        defaultRoundIndexesByKind: {
+          chess: 0,
+          word: 0,
+          dominoes: 0,
+          bridge: 0,
+        },
+      },
+    };
+
+    render(<GamesRoomScreen roomResponse={compactResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    expect(screen.getByText("Puzzle 1 of 2")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/social/rooms/games-room/game-rounds?lang=en&gameKind=chess");
+    });
+    await waitFor(() => expect(screen.getByTestId("games-next-puzzle")).toBeEnabled());
+
+    fireEvent.click(screen.getByTestId("games-next-puzzle"));
+
+    expect(screen.getByText("Puzzle 2 of 2")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(gameRoundRequestBodies()).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          roundId: "chess-clue-fork",
+          gameKind: "chess",
+          status: "skipped",
+        }),
+      ]));
+    });
+
+    fireEvent.click(screen.getByTestId("games-start-round"));
+    await waitFor(() => {
+      expect(gameRoundRequestBodies()).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          roundId: "chess-clue-back-rank",
+          gameKind: "chess",
+          status: "started",
+        }),
+      ]));
+    });
+  });
+
   it("keeps Games Room controls localized for expanded app languages", async () => {
     render(<GamesRoomScreen roomResponse={roomResponse} language="fr" visitId="visit-1" onBack={vi.fn()} />);
 
@@ -394,7 +506,7 @@ describe("GamesRoomScreen", () => {
         "/api/social/rooms/games-room/game-round",
         expect.objectContaining({
           method: "POST",
-          body: expect.stringContaining('"lang":"fr"'),
+          body: expect.stringMatching(/"lang":"fr".*"status":"started"/),
         }),
       );
     });
@@ -436,7 +548,7 @@ describe("GamesRoomScreen", () => {
         "/api/social/rooms/games-room/game-round",
         expect.objectContaining({
           method: "POST",
-          body: expect.stringMatching(/"roundId":"word-tiles-anagram-peace".*"gameKind":"word"/),
+          body: expect.stringMatching(/"roundId":"word-tiles-anagram-peace".*"gameKind":"word".*"status":"started"/),
         }),
       );
     });
@@ -463,7 +575,7 @@ describe("GamesRoomScreen", () => {
         "/api/social/rooms/games-room/game-round",
         expect.objectContaining({
           method: "POST",
-          body: expect.stringMatching(/"roundId":"dominoes-open-double-five".*"gameKind":"dominoes"/),
+          body: expect.stringMatching(/"roundId":"dominoes-open-double-five".*"gameKind":"dominoes".*"status":"started"/),
         }),
       );
     });
@@ -490,7 +602,7 @@ describe("GamesRoomScreen", () => {
         "/api/social/rooms/games-room/game-round",
         expect.objectContaining({
           method: "POST",
-          body: expect.stringMatching(/"roundId":"bridge-opening-bid-five-spades".*"gameKind":"bridge"/),
+          body: expect.stringMatching(/"roundId":"bridge-opening-bid-five-spades".*"gameKind":"bridge".*"status":"started"/),
         }),
       );
     });
@@ -507,7 +619,7 @@ describe("GamesRoomScreen", () => {
         "/api/social/rooms/games-room/game-round",
         expect.objectContaining({
           method: "POST",
-          body: expect.stringContaining('"gameKind":"bridge"'),
+          body: expect.stringMatching(/"gameKind":"bridge".*"status":"started"/),
         }),
       );
     });
@@ -522,6 +634,15 @@ describe("GamesRoomScreen", () => {
     fireEvent.click(screen.getByText("Bid 1 hearts"));
     fireEvent.click(screen.getByTestId("games-complete-round"));
     expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(gameRoundRequestBodies()).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          roundId: "bridge-opening-bid-five-hearts",
+          gameKind: "bridge",
+          status: "completed",
+        }),
+      ]));
+    });
     fireEvent.click(screen.getByTestId("games-find-partner"));
 
     await waitFor(() => {
@@ -546,7 +667,7 @@ describe("GamesRoomScreen", () => {
         "/api/social/rooms/games-room/game-round",
         expect.objectContaining({
           method: "POST",
-          body: expect.stringMatching(/"roundId":"word-tiles-anagram-smile".*"gameKind":"word"/),
+          body: expect.stringMatching(/"roundId":"word-tiles-anagram-smile".*"gameKind":"word".*"status":"started"/),
         }),
       );
     });
@@ -564,6 +685,15 @@ describe("GamesRoomScreen", () => {
 
     fireEvent.click(screen.getByText("SMILE"));
     expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(gameRoundRequestBodies()).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          roundId: "word-tiles-anagram-smile",
+          gameKind: "word",
+          status: "completed",
+        }),
+      ]));
+    });
   });
 
   it("runs a guided round and searches for a partner using the selected game kind", async () => {
@@ -580,7 +710,7 @@ describe("GamesRoomScreen", () => {
         "/api/social/rooms/games-room/game-round",
         expect.objectContaining({
           method: "POST",
-          body: expect.stringContaining('"gameKind":"word"'),
+          body: expect.stringMatching(/"gameKind":"word".*"status":"started"/),
         }),
       );
     });
@@ -592,6 +722,15 @@ describe("GamesRoomScreen", () => {
     fireEvent.click(screen.getByTestId("word-tile-0"));
     fireEvent.click(screen.getByTestId("word-check-answer"));
     expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(gameRoundRequestBodies()).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          roundId: "word-tiles-anagram-smile",
+          gameKind: "word",
+          status: "completed",
+        }),
+      ]));
+    });
 
     fireEvent.click(screen.getByTestId("games-find-partner"));
 

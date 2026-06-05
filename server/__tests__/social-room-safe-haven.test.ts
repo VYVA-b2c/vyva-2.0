@@ -65,6 +65,69 @@ describe("Together Room safe haven API", () => {
     expect(alias.body.readingClub.title).toMatch(/Literaturclub/i);
   });
 
+  it("rotates Games Room default puzzles from per-user exposure history", async () => {
+    const userId = `games-room-repeat-user-${Date.now()}`;
+
+    const first = await request(socialApp)
+      .get("/api/social/rooms/games-room?lang=en")
+      .set("x-user-id", userId)
+      .expect(200);
+
+    const firstRound = first.body.gameTable.rounds.find((round: { id: string }) => round.id === first.body.gameTable.defaultRoundId);
+    expect(firstRound.kind).toBe("chess");
+    expect(first.body.gameTable.rounds).toHaveLength(4);
+    expect(first.body.gameTable.roundCountsByKind.word).toBe(80);
+
+    const chessBank = await request(socialApp)
+      .get("/api/social/rooms/games-room/game-rounds?lang=en&gameKind=chess")
+      .set("x-user-id", userId)
+      .expect(200);
+
+    expect(chessBank.body.rounds).toHaveLength(first.body.gameTable.roundCountsByKind.chess);
+    expect(chessBank.body.rounds.every((round: { kind: string }) => round.kind === "chess")).toBe(true);
+
+    const started = await request(socialApp)
+      .post("/api/social/rooms/games-room/game-round")
+      .set("x-user-id", userId)
+      .send({
+        lang: "en",
+        roundId: firstRound.id,
+        gameKind: firstRound.kind,
+        status: "started",
+      })
+      .expect(200);
+
+    expect(started.body).toMatchObject({
+      ok: true,
+      roundId: firstRound.id,
+      gameKind: "chess",
+      status: "started",
+    });
+
+    const second = await request(socialApp)
+      .get("/api/social/rooms/games-room?lang=en")
+      .set("x-user-id", userId)
+      .expect(200);
+
+    const secondRound = second.body.gameTable.rounds.find((round: { id: string }) => round.id === second.body.gameTable.defaultRoundId);
+    expect(secondRound.kind).toBe("word");
+    expect(second.body.gameTable.defaultRoundIdsByKind.chess).not.toBe(firstRound.id);
+
+    const completed = await request(socialApp)
+      .post("/api/social/rooms/games-room/game-round")
+      .set("x-user-id", userId)
+      .send({
+        lang: "en",
+        roundId: secondRound.id,
+        gameKind: secondRound.kind,
+        status: "completed",
+      })
+      .expect(200);
+
+    expect(completed.body.status).toBe("completed");
+    expect(completed.body.matchedUser).toBeUndefined();
+  });
+
   it("supports Reading Room club tables, shelf voting, shared reflections and moderation", async () => {
     const userId = "reading-club-pulse-user";
 

@@ -17,7 +17,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/queryClient";
 import gameTableImage from "@/assets/games-room-tabletop.webp";
 import AgentAvatar from "./AgentAvatar";
@@ -45,6 +45,21 @@ const roundIcons: Record<SocialGameKind, LucideIcon> = {
   dominoes: Dice5,
   bridge: Spade,
 };
+
+const gameKindOrder: SocialGameKind[] = ["chess", "word", "dominoes", "bridge"];
+
+type GameRoundsByKind = Partial<Record<SocialGameKind, SocialGameRound[]>>;
+
+function groupRoundsByKind(rounds: SocialGameRound[]): GameRoundsByKind {
+  return rounds.reduce<GameRoundsByKind>((groups, round) => ({
+    ...groups,
+    [round.kind]: [...(groups[round.kind] ?? []), round],
+  }), {});
+}
+
+function flattenRoundsByKind(groups: GameRoundsByKind) {
+  return gameKindOrder.flatMap((kind) => groups[kind] ?? []);
+}
 
 function fallbackGameTable(roomResponse: SocialRoomResponse) {
   const readyCount = Math.max(3, Math.min(roomResponse.room.participantCount, 9));
@@ -735,19 +750,11 @@ export default function GamesRoomScreen({
 }: GamesRoomScreenProps) {
   const { room, memberChat } = roomResponse;
   const gameTable = roomResponse.gameTable ?? fallbackGameTable(roomResponse);
-  const roundCards = useMemo(() => {
-    const seen = new Set<SocialGameKind>();
-    return gameTable.rounds.filter((round) => {
-      if (seen.has(round.kind)) return false;
-      seen.add(round.kind);
-      return true;
-    });
-  }, [gameTable.rounds]);
-
   const initialRoundId = gameTable.rounds.some((round) => round.id === gameTable.defaultRoundId)
     ? gameTable.defaultRoundId
     : gameTable.rounds[0]?.id ?? "";
 
+  const [loadedRoundsByKind, setLoadedRoundsByKind] = useState<GameRoundsByKind>(() => groupRoundsByKind(gameTable.rounds));
   const [selectedRoundId, setSelectedRoundId] = useState(initialRoundId);
   const [startedRoundId, setStartedRoundId] = useState<string | null>(null);
   const [selectedChoice, setSelectedChoice] = useState("");
@@ -760,25 +767,121 @@ export default function GamesRoomScreen({
   const [showWordChoices, setShowWordChoices] = useState(false);
   const [wordFeedback, setWordFeedback] = useState<string | null>(null);
   const [choiceFeedback, setChoiceFeedback] = useState<string | null>(null);
+  const [persistedCompletedRoundKeys, setPersistedCompletedRoundKeys] = useState<string[]>([]);
+  const [persistedSkippedRoundKeys, setPersistedSkippedRoundKeys] = useState<string[]>([]);
+  const [loadingRoundKind, setLoadingRoundKind] = useState<SocialGameKind | null>(null);
+
+  const loadedRounds = useMemo(() => flattenRoundsByKind(loadedRoundsByKind), [loadedRoundsByKind]);
+  const roundCards = useMemo(() => (
+    gameKindOrder.flatMap((kind) => {
+      const kindRounds = loadedRoundsByKind[kind] ?? [];
+      const defaultRoundId = gameTable.defaultRoundIdsByKind?.[kind];
+      const defaultRound = defaultRoundId
+        ? kindRounds.find((candidate) => candidate.id === defaultRoundId)
+          ?? gameTable.rounds.find((candidate) => candidate.id === defaultRoundId && candidate.kind === kind)
+        : undefined;
+      return defaultRound ?? kindRounds[0] ?? gameTable.rounds.find((round) => round.kind === kind) ?? [];
+    })
+  ), [gameTable.defaultRoundIdsByKind, gameTable.rounds, loadedRoundsByKind]);
 
   const selectedRound = useMemo(
-    () => gameTable.rounds.find((round) => round.id === selectedRoundId) ?? gameTable.rounds[0],
-    [gameTable.rounds, selectedRoundId],
+    () => loadedRounds.find((round) => round.id === selectedRoundId)
+      ?? gameTable.rounds.find((round) => round.id === selectedRoundId)
+      ?? loadedRounds[0]
+      ?? gameTable.rounds[0],
+    [gameTable.rounds, loadedRounds, selectedRoundId],
   );
   const selectedKindRounds = useMemo(
-    () => (selectedRound ? gameTable.rounds.filter((round) => round.kind === selectedRound.kind) : []),
-    [gameTable.rounds, selectedRound],
+    () => (selectedRound ? loadedRoundsByKind[selectedRound.kind] ?? [selectedRound] : []),
+    [loadedRoundsByKind, selectedRound],
   );
   const selectedPuzzleIndex = selectedKindRounds.findIndex((round) => round.id === selectedRound?.id);
+  const selectedPuzzleTotal = selectedRound
+    ? gameTable.roundCountsByKind?.[selectedRound.kind] ?? selectedKindRounds.length
+    : 0;
+  const selectedPuzzleDisplayIndex = selectedKindRounds.length > 1
+    ? selectedPuzzleIndex
+    : selectedRound
+      ? gameTable.defaultRoundIndexesByKind?.[selectedRound.kind] ?? selectedPuzzleIndex
+      : selectedPuzzleIndex;
   const puzzleBankLabels = selectedRound
-    ? getPuzzleBankLabels(language, selectedPuzzleIndex, selectedKindRounds.length)
+    ? getPuzzleBankLabels(language, selectedPuzzleDisplayIndex, selectedPuzzleTotal)
     : null;
   const visibleChat = memberChat.slice(0, 3);
   const hasStartedSelectedRound = startedRoundId === selectedRound?.id;
   const hasCompletedSelectedRound = completedRoundId === selectedRound?.id;
   const selectedWordVisual = selectedRound?.visual?.kind === "wordTiles" ? selectedRound.visual : null;
+  const isLoadingSelectedBank = Boolean(
+    selectedRound
+    && loadingRoundKind === selectedRound.kind
+    && selectedKindRounds.length < selectedPuzzleTotal,
+  );
 
-  const selectRound = (round: SocialGameRound) => {
+  useEffect(() => {
+    const kind = selectedRound?.kind;
+    if (!kind) return;
+
+    const expectedCount = gameTable.roundCountsByKind?.[kind] ?? 0;
+    const loadedCount = loadedRoundsByKind[kind]?.length ?? 0;
+    if (!expectedCount || loadedCount >= expectedCount) return;
+
+    let isActive = true;
+    setLoadingRoundKind(kind);
+    const params = new URLSearchParams({ lang: language, gameKind: kind });
+
+    void apiFetch(`/api/social/rooms/${room.slug}/game-rounds?${params.toString()}`)
+      .then(async (response) => {
+        if (!response.ok) return null;
+        return await response.json() as { rounds?: SocialGameRound[] };
+      })
+      .then((payload) => {
+        if (!isActive || !payload?.rounds?.length) return;
+        setLoadedRoundsByKind((current) => ({
+          ...current,
+          [kind]: payload.rounds,
+        }));
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (isActive) setLoadingRoundKind(null);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [
+    gameTable.roundCountsByKind,
+    language,
+    loadedRoundsByKind,
+    room.slug,
+    selectedRound?.kind,
+  ]);
+
+  const persistRoundStatus = async (round: SocialGameRound, status: "started" | "completed" | "skipped") => {
+    await apiFetch(`/api/social/rooms/${room.slug}/game-round`, {
+      method: "POST",
+      body: JSON.stringify({
+        lang: language,
+        visitId: visitId ?? undefined,
+        roundId: round.id,
+        gameKind: round.kind,
+        status,
+      }),
+    });
+  };
+
+  const persistSkippedRound = (round: SocialGameRound) => {
+    const key = `${round.kind}:${round.id}`;
+    if (startedRoundId === round.id || completedRoundId === round.id || persistedSkippedRoundKeys.includes(key)) return;
+
+    setPersistedSkippedRoundKeys((current) => current.includes(key) ? current : [...current, key]);
+    void persistRoundStatus(round, "skipped").catch(() => undefined);
+  };
+
+  const selectRound = (round: SocialGameRound, options: { recordSkip?: boolean } = {}) => {
+    if (options.recordSkip && selectedRound && selectedRound.id !== round.id) {
+      persistSkippedRound(selectedRound);
+    }
     setSelectedRoundId(round.id);
     setStartedRoundId(null);
     setSelectedChoice("");
@@ -796,7 +899,15 @@ export default function GamesRoomScreen({
 
     const currentIndex = Math.max(0, selectedPuzzleIndex);
     const nextIndex = (currentIndex + offset + selectedKindRounds.length) % selectedKindRounds.length;
-    selectRound(selectedKindRounds[nextIndex]);
+    selectRound(selectedKindRounds[nextIndex], { recordSkip: true });
+  };
+
+  const persistCompletedRound = (round: SocialGameRound) => {
+    const key = `${round.kind}:${round.id}`;
+    if (persistedCompletedRoundKeys.includes(key)) return;
+
+    setPersistedCompletedRoundKeys((current) => current.includes(key) ? current : [...current, key]);
+    void persistRoundStatus(round, "completed").catch(() => undefined);
   };
 
   const startRound = async () => {
@@ -814,15 +925,9 @@ export default function GamesRoomScreen({
     setIsPersistingRound(true);
 
     try {
-      await apiFetch(`/api/social/rooms/${room.slug}/game-round`, {
-        method: "POST",
-        body: JSON.stringify({
-          lang: language,
-          visitId: visitId ?? undefined,
-          roundId: selectedRound.id,
-          gameKind: selectedRound.kind,
-        }),
-      });
+      await persistRoundStatus(selectedRound, "started");
+    } catch {
+      // The puzzle can still continue if exposure tracking is temporarily unavailable.
     } finally {
       setIsPersistingRound(false);
     }
@@ -834,6 +939,7 @@ export default function GamesRoomScreen({
     if (normalizeChoiceAnswer(selectedChoice) === normalizeChoiceAnswer(selectedRound.answer)) {
       setCompletedRoundId(selectedRound.id);
       setChoiceFeedback(null);
+      persistCompletedRound(selectedRound);
       return;
     }
 
@@ -866,6 +972,7 @@ export default function GamesRoomScreen({
       setSelectedChoice(selectedRound.answer);
       setCompletedRoundId(selectedRound.id);
       setWordFeedback(null);
+      persistCompletedRound(selectedRound);
     } else {
       setShowWordHelp(true);
       setShowWordChoices(true);
@@ -974,7 +1081,7 @@ export default function GamesRoomScreen({
                     <button
                       key={round.kind}
                       type="button"
-                      onClick={() => selectRound(round)}
+                      onClick={() => selectRound(round, { recordSkip: true })}
                       data-testid={`games-round-${round.kind}`}
                       className="relative min-h-[148px] rounded-[24px] border bg-white px-3 py-4 text-center shadow-[0_12px_28px_rgba(11,60,66,0.08)] transition-transform active:scale-[0.99]"
                       style={{
@@ -1013,7 +1120,7 @@ export default function GamesRoomScreen({
                     <p className="mt-1 font-body text-[18px] font-semibold leading-snug text-[#597178]">{selectedRound.body}</p>
                   </div>
                 </div>
-                {puzzleBankLabels && selectedKindRounds.length > 1 && (
+                {puzzleBankLabels && selectedPuzzleTotal > 1 && (
                   <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-[#D8E6E2] bg-[#F4FAF8] px-4 py-3">
                     <p className="font-body text-[18px] font-extrabold text-[#087C82]">
                       {puzzleBankLabels.progress}
@@ -1022,9 +1129,10 @@ export default function GamesRoomScreen({
                       <button
                         type="button"
                         onClick={() => selectPuzzleAtOffset(-1)}
+                        disabled={isLoadingSelectedBank || selectedKindRounds.length < 2}
                         aria-label={puzzleBankLabels.previous}
                         data-testid="games-previous-puzzle"
-                        className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-3 font-body text-[15px] font-extrabold text-[#075C64] shadow-[0_8px_18px_rgba(11,60,66,0.06)]"
+                        className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-3 font-body text-[15px] font-extrabold text-[#075C64] shadow-[0_8px_18px_rgba(11,60,66,0.06)] disabled:opacity-55"
                       >
                         <ChevronLeft size={19} />
                         <span className="hidden sm:inline">{puzzleBankLabels.previous}</span>
@@ -1032,9 +1140,10 @@ export default function GamesRoomScreen({
                       <button
                         type="button"
                         onClick={() => selectPuzzleAtOffset(1)}
+                        disabled={isLoadingSelectedBank || selectedKindRounds.length < 2}
                         aria-label={puzzleBankLabels.next}
                         data-testid="games-next-puzzle"
-                        className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] bg-[#087C82] px-4 font-body text-[16px] font-extrabold text-white shadow-[0_10px_22px_rgba(8,124,130,0.16)]"
+                        className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] bg-[#087C82] px-4 font-body text-[16px] font-extrabold text-white shadow-[0_10px_22px_rgba(8,124,130,0.16)] disabled:bg-[#D8E6E2] disabled:text-[#61777D] disabled:shadow-none"
                       >
                         <span>{puzzleBankLabels.next}</span>
                         <ChevronRight size={19} />
