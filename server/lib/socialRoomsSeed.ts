@@ -1,7 +1,10 @@
-import type { SocialActivityType, SocialGameLanguage, SocialLanguage, SocialRoom, SocialRoomCategory } from "../../src/social/types";
+import type { SocialActivityType, SocialLanguage, SocialRoom, SocialRoomCategory } from "../../src/social/types";
 
-type ExtraGameLanguage = Exclude<SocialGameLanguage, SocialLanguage>;
-type LocalizedText = Record<SocialLanguage, string> & Partial<Record<ExtraGameLanguage, string>>;
+type LocalizedText = Partial<Record<SocialLanguage, string>> & {
+  es: string;
+  en: string;
+  de: string;
+};
 
 type DailyTopicSeed = {
   topic: LocalizedText;
@@ -31,11 +34,21 @@ export type SocialRoomSeed = {
   dailyTopics: DailyTopicSeed[];
 };
 
-const t = (es: string, en: string, de: string, extra?: Partial<Record<ExtraGameLanguage, string>>): LocalizedText => ({
+const t = (
+  es: string,
+  en: string,
+  de: string,
+  frOrExtra?: string | Partial<Record<SocialLanguage, string>>,
+  it?: string,
+  pt?: string,
+): LocalizedText => ({
   es,
   en,
   de,
-  ...extra,
+  ...(typeof frOrExtra === "object" && frOrExtra ? frOrExtra : {}),
+  ...(typeof frOrExtra === "string" ? { fr: frOrExtra } : {}),
+  ...(it ? { it } : {}),
+  ...(pt ? { pt } : {}),
 });
 
 const blank = t("", "", "");
@@ -288,13 +301,13 @@ export const socialRoomSeeds: SocialRoomSeed[] = [
   }),
   room({
     slug: "reading-room",
-    names: t("Club literario", "Literary Club", "Literarischer Club"),
+    names: t("Club literario", "Literary Club", "Literarischer Club", "Club litteraire", "Club letterario", "Clube literario"),
     category: "social",
     agentSlug: "isabel-fuentes",
     agentFullName: "Isabel Fuentes",
     agentColour: "#7C2D12",
-    agentCredential: t("Anfitriona literaria", "Literary host", "Literarische Gastgeberin"),
-    ctaLabel: t("Unirme al club", "Join the club", "Dem Club beitreten"),
+    agentCredential: t("Anfitriona literaria", "Literary host", "Literarische Gastgeberin", "Hote litteraire", "Ospite letteraria", "Anfitria literaria"),
+    ctaLabel: t("Unirme al club", "Join the club", "Dem Club beitreten", "Rejoindre le club", "Unirmi al club", "Juntar-me ao clube"),
     topicTags: [
       "books",
       "literature",
@@ -321,22 +334,31 @@ export const socialRoomSeeds: SocialRoomSeed[] = [
           "Una frase, un recuerdo y una conversacion.",
           "One line, one memory and one conversation.",
           "Eine Zeile, eine Erinnerung und ein Gespraech.",
+          "Une phrase, un souvenir et une conversation.",
+          "Una frase, un ricordo e una conversazione.",
+          "Uma frase, uma memoria e uma conversa.",
         ),
         opener: t(
           "Hola, soy Isabel. Hoy compartimos libros, historias y pequenos recuerdos para conocernos mejor.",
           "Hello, I'm Isabel. Today we share books, stories and small memories so we can know one another better.",
           "Hallo, ich bin Isabel. Heute teilen wir Buecher, Geschichten und kleine Erinnerungen, um einander besser kennenzulernen.",
+          "Bonjour, je suis Isabel. Aujourd'hui, nous partageons des livres, des histoires et de petits souvenirs pour mieux nous connaitre.",
+          "Ciao, sono Isabel. Oggi condividiamo libri, storie e piccoli ricordi per conoscerci meglio.",
+          "Ola, sou a Isabel. Hoje partilhamos livros, historias e pequenas memorias para nos conhecermos melhor.",
         ),
-        contentTitle: t("Club literario vivo", "A living literary club", "Ein lebendiger Literaturclub"),
+        contentTitle: t("Club literario vivo", "A living literary club", "Ein lebendiger Literaturclub", "Un club litteraire vivant", "Un club letterario vivo", "Um clube literario vivo"),
         contentBody: t(
           "Entra a la mesa, mira el programa, deja una reflexion y encuentra compania lectora con un saludo protegido.",
           "Step up to the table, browse the program, leave a reflection and find reading company through a protected greeting.",
           "Komm an den Tisch, sieh dir das Programm an, hinterlasse einen Beitrag und finde Lesebegleitung mit geschuetztem Gruss.",
+          "Approchez de la table, parcourez le programme, laissez une reflexion et trouvez une compagnie de lecture avec un salut protege.",
+          "Avvicinati al tavolo, guarda il programma, lascia una riflessione e trova compagnia di lettura con un saluto protetto.",
+          "Chegue a mesa, veja o programa, deixe uma reflexao e encontre companhia de leitura com uma saudacao protegida.",
         ),
         options: [
-          t("Anadir una reflexion a la mesa", "Add a reflection to the table", "Einen Beitrag zum Tisch hinzufuegen"),
-          t("Buscar mi lugar en el club", "Find my place in the club", "Meinen Platz im Club finden"),
-          t("Entrar al programa de hoy", "Join today's program", "Am heutigen Programm teilnehmen"),
+          t("Anadir una reflexion a la mesa", "Add a reflection to the table", "Einen Beitrag zum Tisch hinzufuegen", "Ajouter une reflexion a la table", "Aggiungere una riflessione al tavolo", "Adicionar uma reflexao a mesa"),
+          t("Buscar mi lugar en el club", "Find my place in the club", "Meinen Platz im Club finden", "Trouver ma place dans le club", "Trovare il mio posto nel club", "Encontrar o meu lugar no clube"),
+          t("Entrar al programa de hoy", "Join today's program", "Am heutigen Programm teilnehmen", "Rejoindre le programme du jour", "Entrare nel programma di oggi", "Entrar no programa de hoje"),
         ],
         activityType: "discussion",
       },
@@ -345,22 +367,31 @@ export const socialRoomSeeds: SocialRoomSeed[] = [
           "Libros que abren una puerta.",
           "Books that open a door.",
           "Buecher, die eine Tuer oeffnen.",
+          "Des livres qui ouvrent une porte.",
+          "Libri che aprono una porta.",
+          "Livros que abrem uma porta.",
         ),
         opener: t(
           "Hola, soy Isabel. Elige un libro, una autora o una escena; buscaremos con quien conversar.",
           "Hello, I'm Isabel. Choose a book, an author or a scene; we will find someone to talk with.",
           "Hallo, ich bin Isabel. Waehle ein Buch, eine Autorin oder eine Szene; wir finden jemanden zum Reden.",
+          "Bonjour, je suis Isabel. Choisissez un livre, une autrice ou une scene; nous trouverons quelqu'un avec qui parler.",
+          "Ciao, sono Isabel. Scegli un libro, un'autrice o una scena; troveremo qualcuno con cui parlarne.",
+          "Ola, sou a Isabel. Escolha um livro, uma autora ou uma cena; vamos encontrar alguem para conversar.",
         ),
-        contentTitle: t("Intercambio literario", "Literary exchange", "Literarischer Austausch"),
+        contentTitle: t("Intercambio literario", "Literary exchange", "Literarischer Austausch", "Echange litteraire", "Scambio letterario", "Intercambio literario"),
         contentBody: t(
           "Cada persona puede contar que le gusto, que le sorprendio o que recuerdo desperto.",
           "Each person can share what they liked, what surprised them or which memory it opened.",
           "Jede Person kann teilen, was gefiel, was ueberraschte oder welche Erinnerung wach wurde.",
+          "Chaque personne peut dire ce qu'elle a aime, ce qui l'a surprise ou quel souvenir s'est ouvert.",
+          "Ognuno puo raccontare cosa gli e piaciuto, cosa lo ha sorpreso o quale ricordo ha risvegliato.",
+          "Cada pessoa pode contar do que gostou, o que a surpreendeu ou que memoria despertou.",
         ),
         options: [
-          t("Contar una escena favorita", "Tell a favourite scene", "Eine Lieblingsszene erzaehlen"),
-          t("Pedir una recomendacion amable", "Ask for a gentle recommendation", "Um eine freundliche Empfehlung bitten"),
-          t("Saludar a otro lector", "Greet another reader", "Eine andere Leserin gruessen"),
+          t("Contar una escena favorita", "Tell a favourite scene", "Eine Lieblingsszene erzaehlen", "Raconter une scene preferee", "Raccontare una scena preferita", "Contar uma cena preferida"),
+          t("Pedir una recomendacion amable", "Ask for a gentle recommendation", "Um eine freundliche Empfehlung bitten", "Demander une recommandation douce", "Chiedere un consiglio gentile", "Pedir uma recomendacao gentil"),
+          t("Saludar a otro lector", "Greet another reader", "Eine andere Leserin gruessen", "Saluer une autre personne lectrice", "Salutare un'altra persona lettrice", "Saudar outra pessoa leitora"),
         ],
         activityType: "discussion",
       },
@@ -589,7 +620,7 @@ export const socialRoomSeeds: SocialRoomSeed[] = [
           fr: "Plans avec une autre personne",
           it: "Piani con un'altra persona",
           pt: "Planos com outra pessoa",
-        ),
+        }),
         contentBody: t(
           "VYVA te ayuda a elegir un plan, encontrar una buena pareja y decidir si hace falta cercania.",
           "VYVA helps you choose a plan, find a good match and decide whether nearby matters.",
@@ -648,11 +679,11 @@ export function getTimeSlotFromDate(date = new Date()): "morning" | "afternoon" 
   return "evening";
 }
 
-function pick<T>(value: Record<SocialLanguage, T> & Partial<Record<ExtraGameLanguage, T>>, language: SocialGameLanguage): T {
-  return value[language] ?? value.en ?? value.es;
+function pick<T>(value: Partial<Record<SocialLanguage, T>> & { en: T; es?: T }, language: SocialLanguage): T {
+  return value[language] ?? value.en ?? value.es!;
 }
 
-export function localizeRoom(seed: SocialRoomSeed, language: SocialGameLanguage): Omit<SocialRoom, "sessionDate" | "topic" | "opener" | "quote" | "activityType" | "contentTag" | "contentTitle" | "contentBody" | "options" | "liveBadge"> {
+export function localizeRoom(seed: SocialRoomSeed, language: SocialLanguage): Omit<SocialRoom, "sessionDate" | "topic" | "opener" | "quote" | "activityType" | "contentTag" | "contentTitle" | "contentBody" | "options" | "liveBadge"> {
   return {
     slug: seed.slug,
     name: pick(seed.names, language),

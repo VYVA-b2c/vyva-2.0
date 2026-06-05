@@ -436,14 +436,24 @@ describe("social games room helpers", () => {
     expect(best?.shared).toEqual(["books", "poetry", "literature", "reading_companion"]);
   });
 
-  it("builds a destination-level reading club program in each launch language", () => {
-    for (const language of ["en", "es", "de"] as const) {
+  it("builds a destination-level reading club program in each supported app language", () => {
+    const expectedTitles: Record<SocialGameLanguage, RegExp> = {
+      es: /Club Literario/i,
+      en: /Literary Club/i,
+      fr: /club litteraire/i,
+      de: /Literaturclub/i,
+      it: /club letterario/i,
+      pt: /Clube Literario/i,
+    };
+
+    for (const language of supportedGameLanguages) {
       const club = buildReadingClubDestination(language, [
         { id: "member-maria", name: "Maria", sharedTopic: "memoir" },
         { id: "member-jose", name: "Jose", sharedTopic: "history" },
         { id: "member-carmen", name: "Carmen", sharedTopic: "stories" },
       ], 9);
 
+      expect(club.title).toMatch(expectedTitles[language]);
       expect(club.metrics).toHaveLength(3);
       expect(club.agenda).toHaveLength(3);
       expect(club.shelves.length).toBeGreaterThanOrEqual(2);

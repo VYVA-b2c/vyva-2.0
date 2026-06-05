@@ -22,7 +22,10 @@ import type {
   SocialRoomSafetyReportTargetType,
 } from "../../src/social/types.js";
 
-type LocalizedText = Record<SocialLanguage, string>;
+type LocalizedText = Partial<Record<SocialLanguage, string>> & {
+  es: string;
+  en: string;
+};
 
 type SeedPlan = {
   key: string;
@@ -67,7 +70,14 @@ const READING_ROOM_SLUG = "reading-room";
 const READING_POLL_KEY = "reading-club-next-shelf";
 const SAFE_DB_TIMEOUT_MS = 1400;
 
-const t = (es: string, en: string, de: string): LocalizedText => ({ es, en, de });
+const t = (es: string, en: string, de: string, fr?: string, it?: string, pt?: string): LocalizedText => ({
+  es,
+  en,
+  de,
+  ...(fr ? { fr } : {}),
+  ...(it ? { it } : {}),
+  ...(pt ? { pt } : {}),
+});
 
 const seedPlans: SeedPlan[] = [
   {
@@ -77,6 +87,9 @@ const seedPlans: SeedPlan[] = [
       "Comparte un libro, una escena o un recuerdo. Puedes entrar sin haber terminado nada.",
       "Share a book, a scene or a memory. You can join without having finished anything.",
       "Teile ein Buch, eine Szene oder Erinnerung. Du kannst auch ohne fertiges Buch dazukommen.",
+      "Partagez un livre, une scene ou un souvenir. Vous pouvez entrer sans avoir termine quoi que ce soit.",
+      "Condividi un libro, una scena o un ricordo. Puoi entrare anche senza aver finito nulla.",
+      "Partilhe um livro, uma cena ou uma memoria. Pode entrar sem ter terminado nada.",
     ),
     locationLabel: "online",
   },
@@ -87,6 +100,9 @@ const seedPlans: SeedPlan[] = [
       "Deja una sugerencia amable por estado de animo: comoda, divertida, reflexiva o familiar.",
       "Leave a gentle suggestion by mood: comforting, funny, thoughtful or familiar.",
       "Hinterlasse eine sanfte Empfehlung nach Stimmung: troestlich, lustig, nachdenklich oder vertraut.",
+      "Laissez une recommandation douce par humeur : reconfortante, drole, reflechie ou familiere.",
+      "Lascia un consiglio gentile per umore: confortante, divertente, riflessivo o familiare.",
+      "Deixe uma sugestao gentil por humor: reconfortante, divertida, reflexiva ou familiar.",
     ),
     locationLabel: "online",
   },
@@ -97,6 +113,9 @@ const seedPlans: SeedPlan[] = [
       "Isabel forma circulos pequenos alrededor de memorias, cuentos y personajes favoritos.",
       "Isabel forms small circles around memoirs, short stories and favourite characters.",
       "Isabel bildet kleine Kreise rund um Memoiren, Kurzgeschichten und Lieblingsfiguren.",
+      "Isabel forme de petits cercles autour de memoires, nouvelles et personnages preferes.",
+      "Isabel forma piccoli cerchi intorno a memorie, racconti brevi e personaggi preferiti.",
+      "A Isabel forma pequenos circulos sobre memorias, contos e personagens preferidas.",
     ),
     locationLabel: "online",
   },
@@ -106,13 +125,16 @@ const pollQuestion = t(
   "Que estante abrimos despues?",
   "Which shelf should we open next?",
   "Welches Regal oeffnen wir als Naechstes?",
+  "Quelle etagere ouvrons-nous ensuite ?",
+  "Quale scaffale apriamo dopo?",
+  "Que prateleira abrimos a seguir?",
 );
 
 const pollOptions: SeedPollOption[] = [
-  { id: "memoir", label: t("Memorias", "Memoirs", "Memoiren") },
-  { id: "short-story", label: t("Cuentos", "Short stories", "Kurzgeschichten") },
-  { id: "poetry", label: t("Poesia", "Poetry", "Poesie") },
-  { id: "classics", label: t("Clasicos", "Classics", "Klassiker") },
+  { id: "memoir", label: t("Memorias", "Memoirs", "Memoiren", "Memoires", "Memorie", "Memorias") },
+  { id: "short-story", label: t("Cuentos", "Short stories", "Kurzgeschichten", "Nouvelles", "Racconti brevi", "Contos") },
+  { id: "poetry", label: t("Poesia", "Poetry", "Poesie", "Poesie", "Poesia", "Poesia") },
+  { id: "classics", label: t("Clasicos", "Classics", "Klassiker", "Classiques", "Classici", "Classicos") },
 ];
 
 const planResponses = new Map<string, SocialRoomPlanResponseValue>();
@@ -199,6 +221,30 @@ function defaultMemberPresence(language: SocialLanguage): SocialRoomMember[] {
     ];
   }
 
+  if (language === "fr") {
+    return [
+      { id: "member-maria", name: "Maria", statusLabel: "Apporte un souvenir" },
+      { id: "member-jose", name: "Jose", statusLabel: "Cherche une biographie" },
+      { id: "member-carmen", name: "Carmen", statusLabel: "Echange des recommandations" },
+    ];
+  }
+
+  if (language === "it") {
+    return [
+      { id: "member-maria", name: "Maria", statusLabel: "Porta un ricordo" },
+      { id: "member-jose", name: "Jose", statusLabel: "Cerca una biografia" },
+      { id: "member-carmen", name: "Carmen", statusLabel: "Scambia consigli" },
+    ];
+  }
+
+  if (language === "pt") {
+    return [
+      { id: "member-maria", name: "Maria", statusLabel: "Traz uma memoria" },
+      { id: "member-jose", name: "Jose", statusLabel: "Procura uma biografia" },
+      { id: "member-carmen", name: "Carmen", statusLabel: "Troca recomendacoes" },
+    ];
+  }
+
   return [
     { id: "member-maria", name: "Maria", statusLabel: "Trae un recuerdo" },
     { id: "member-jose", name: "Jose", statusLabel: "Busca una biografia" },
@@ -248,6 +294,33 @@ function getDiscussionPrompt(language: SocialLanguage) {
     };
   }
 
+  if (language === "fr") {
+    return {
+      id: "reading-table-post",
+      title: "Qu'ajoutez-vous a la table du club ?",
+      body: "Une scene, un personnage, un souvenir ou une recommandation suffit.",
+      starterButtons: ["Partager une scene", "Recommander un livre", "Demander a Isabel"],
+    };
+  }
+
+  if (language === "it") {
+    return {
+      id: "reading-table-post",
+      title: "Cosa aggiungi al tavolo del club?",
+      body: "Basta una scena, un personaggio, un ricordo o un consiglio.",
+      starterButtons: ["Condividi una scena", "Consiglia un libro", "Chiedi a Isabel"],
+    };
+  }
+
+  if (language === "pt") {
+    return {
+      id: "reading-table-post",
+      title: "O que vai acrescentar a mesa do clube?",
+      body: "Uma cena, personagem, memoria ou recomendacao chega.",
+      starterButtons: ["Partilhar uma cena", "Recomendar um livro", "Perguntar a Isabel"],
+    };
+  }
+
   return {
     id: "reading-table-post",
     title: "Que dejas en la mesa del club?",
@@ -285,6 +358,48 @@ function getReadingComfortCheck(language: SocialLanguage): SocialRoomComfortChec
     };
   }
 
+  if (language === "fr") {
+    return {
+      title: "Qu'est-ce qui rend la lecture confortable ?",
+      body: "Choisissez ce qui vous aide a la table du club.",
+      options: [
+        { id: "quiet_pace", label: "Rythme calme", count: 0 },
+        { id: "easy_access", label: "Acces facile", count: 0 },
+        { id: "seating", label: "Place assise", count: 0 },
+      ],
+      myComfortNeeds: [],
+      totalResponses: 0,
+    };
+  }
+
+  if (language === "it") {
+    return {
+      title: "Cosa rende comoda la lettura?",
+      body: "Scegli cosa ti aiuta al tavolo del club.",
+      options: [
+        { id: "quiet_pace", label: "Ritmo tranquillo", count: 0 },
+        { id: "easy_access", label: "Accesso facile", count: 0 },
+        { id: "seating", label: "Posto per sedersi", count: 0 },
+      ],
+      myComfortNeeds: [],
+      totalResponses: 0,
+    };
+  }
+
+  if (language === "pt") {
+    return {
+      title: "O que torna a leitura confortavel?",
+      body: "Escolha o que ajuda na mesa do clube.",
+      options: [
+        { id: "quiet_pace", label: "Ritmo tranquilo", count: 0 },
+        { id: "easy_access", label: "Acesso facil", count: 0 },
+        { id: "seating", label: "Lugar para sentar", count: 0 },
+      ],
+      myComfortNeeds: [],
+      totalResponses: 0,
+    };
+  }
+
   return {
     title: "Que hace comoda la lectura?",
     body: "Elige lo que ayuda en la mesa del club.",
@@ -314,6 +429,33 @@ function getSafetyCopy(language: SocialLanguage) {
       body: "Isabel protects tone, pace and personal boundaries in the club.",
       consentLine: "A connection opens only when both people agree.",
       helpLabel: "Club help",
+    };
+  }
+
+  if (language === "fr") {
+    return {
+      title: "Attention du club litteraire",
+      body: "Isabel protege le ton, le rythme et les limites personnelles du club.",
+      consentLine: "Un lien ne s'ouvre que lorsque les deux personnes acceptent.",
+      helpLabel: "Aide du club",
+    };
+  }
+
+  if (language === "it") {
+    return {
+      title: "Cura del club letterario",
+      body: "Isabel protegge tono, ritmo e confini personali nel club.",
+      consentLine: "Un contatto si apre solo quando entrambe le persone accettano.",
+      helpLabel: "Aiuto del club",
+    };
+  }
+
+  if (language === "pt") {
+    return {
+      title: "Cuidado do clube literario",
+      body: "A Isabel protege o tom, o ritmo e os limites pessoais no clube.",
+      consentLine: "Uma ligacao abre apenas quando ambas as pessoas concordam.",
+      helpLabel: "Ajuda do clube",
     };
   }
 
@@ -443,27 +585,42 @@ async function ensureSeedRows(roomId: string) {
 }
 
 function rowPlanTitle(plan: typeof socialRoomPlans.$inferSelect, language: SocialLanguage) {
+  if (language !== "de" && language !== "en" && language !== "es") {
+    const seed = seedPlans.find((entry) => entry.key === plan.plan_key);
+    if (seed) return localize(seed.title, language);
+  }
   if (language === "de") return plan.title_de;
   if (language === "en") return plan.title_en;
   return plan.title_es;
 }
 
 function rowPlanBody(plan: typeof socialRoomPlans.$inferSelect, language: SocialLanguage) {
+  if (language !== "de" && language !== "en" && language !== "es") {
+    const seed = seedPlans.find((entry) => entry.key === plan.plan_key);
+    if (seed) return localize(seed.body, language);
+  }
   if (language === "de") return plan.body_de;
   if (language === "en") return plan.body_en;
   return plan.body_es;
 }
 
 function rowPollQuestion(poll: typeof socialRoomPolls.$inferSelect, language: SocialLanguage) {
+  if (language !== "de" && language !== "en" && language !== "es" && poll.poll_key === READING_POLL_KEY) {
+    return localize(pollQuestion, language);
+  }
   if (language === "de") return poll.question_de;
   if (language === "en") return poll.question_en;
   return poll.question_es;
 }
 
 function rowPollOptionLabel(
-  option: { label_es: string; label_de: string; label_en: string },
+  option: { id?: string; label_es: string; label_de: string; label_en: string },
   language: SocialLanguage,
 ) {
+  if (language !== "de" && language !== "en" && language !== "es" && option.id) {
+    const seed = pollOptions.find((entry) => entry.id === option.id);
+    if (seed) return localize(seed.label, language);
+  }
   if (language === "de") return option.label_de;
   if (language === "en") return option.label_en;
   return option.label_es;

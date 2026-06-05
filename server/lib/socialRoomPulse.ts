@@ -34,7 +34,10 @@ import type {
 } from "../../src/social/types.js";
 
 type TogetherRoomLanguage = SocialGameLanguage;
-type LocalizedText = Record<TogetherRoomLanguage, string>;
+type LocalizedText = Partial<Record<TogetherRoomLanguage, string>> & {
+  en: string;
+  es?: string;
+};
 
 type SeedPlan = {
   key: string;
@@ -501,7 +504,7 @@ function publicRoomId(roomSlug: string) {
   return roomSlug || TOGETHER_ROOM_SLUG;
 }
 
-function localize<T extends { [key in TogetherRoomLanguage]: string }>(value: T, language: TogetherRoomLanguage) {
+function localize<T extends LocalizedText>(value: T, language: TogetherRoomLanguage) {
   return value[language] || value.en || value.es;
 }
 
@@ -1176,7 +1179,7 @@ function fallbackPulse(
     key: plan.key,
     kind: "plan",
     title: localize(plan.title, language),
-    body: plan.body[language],
+    body: localize(plan.body, language),
     locationLabel: plan.locationLabel,
     comfortNeeds: plan.comfortNeeds ?? [],
     experienceCategory: plan.experienceCategory ?? "other",
