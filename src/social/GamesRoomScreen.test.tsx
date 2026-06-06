@@ -500,7 +500,6 @@ describe("GamesRoomScreen", () => {
     expect(screen.getByText("Puzzle 2 of 2")).toBeInTheDocument();
     expect(screen.getByText("Find the strongest king pressure.")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("games-start-round"));
     expect(screen.queryByTestId("games-start-round")).not.toBeInTheDocument();
     expect(screen.queryByTestId("games-help-choices")).not.toBeInTheDocument();
     expect(screen.getByText("Find the strongest king pressure.")).toBeInTheDocument();
@@ -630,7 +629,6 @@ describe("GamesRoomScreen", () => {
       ]));
     });
 
-    fireEvent.click(screen.getByTestId("games-start-round"));
     await waitFor(() => {
       expect(gameRoundRequestBodies()).toEqual(expect.arrayContaining([
         expect.objectContaining({
@@ -675,8 +673,7 @@ describe("GamesRoomScreen", () => {
     expect(screen.getByText("Arrange the tiles into a friendly word.")).toBeInTheDocument();
     expect(screen.queryByText("PEACE")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("games-start-round"));
-
+    expect(screen.queryByTestId("games-start-round")).not.toBeInTheDocument();
     expect(screen.getByTestId("games-word-tiles-panel")).toBeInTheDocument();
     expect(screen.getByTestId("word-answer-tray")).toBeInTheDocument();
     expect(screen.getByTestId("word-tile-progress")).toHaveTextContent("0 of 5 placed");
@@ -722,7 +719,7 @@ describe("GamesRoomScreen", () => {
     expect(screen.getByText("Puzzle 2 of 80")).toBeInTheDocument();
     expect(screen.getByText("The tile fits both sides. Pick the wiser side.")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("games-start-round"));
+    expect(screen.queryByTestId("games-start-round")).not.toBeInTheDocument();
     expect(screen.getByTestId("games-tactile-dominoes")).toBeInTheDocument();
     expect(screen.queryByTestId("games-help-choices")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("domino-tile-6-2"));
@@ -765,7 +762,7 @@ describe("GamesRoomScreen", () => {
     expect(screen.getByText("Puzzle 2 of 80")).toBeInTheDocument();
     expect(screen.getByText("You have 12 points and 5 spades. Which calm choice fits best?")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("games-start-round"));
+    expect(screen.queryByTestId("games-start-round")).not.toBeInTheDocument();
     expect(screen.getByTestId("games-tactile-bridge")).toBeInTheDocument();
     expect(screen.queryByTestId("games-help-choices")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("bridge-action-bid:1:spades"));

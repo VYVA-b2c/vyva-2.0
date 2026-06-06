@@ -1219,6 +1219,7 @@ export default function GamesRoomScreen({
 
   const [loadedRoundsByKind, setLoadedRoundsByKind] = useState<GameRoundsByKind>(() => groupRoundsByKind(gameTable.rounds));
   const [selectedRoundId, setSelectedRoundId] = useState(initialRoundId);
+  const [startedGameKinds, setStartedGameKinds] = useState<SocialGameKind[]>([]);
   const [startedRoundId, setStartedRoundId] = useState<string | null>(null);
   const [selectedChoice, setSelectedChoice] = useState("");
   const [completedRoundId, setCompletedRoundId] = useState<string | null>(null);
@@ -1236,6 +1237,7 @@ export default function GamesRoomScreen({
   const [showTactileHelp, setShowTactileHelp] = useState(false);
   const [showTactileChoices, setShowTactileChoices] = useState(false);
   const [tactileFeedback, setTactileFeedback] = useState<string | null>(null);
+  const [persistedStartedRoundKeys, setPersistedStartedRoundKeys] = useState<string[]>([]);
   const [persistedCompletedRoundKeys, setPersistedCompletedRoundKeys] = useState<string[]>([]);
   const [persistedSkippedRoundKeys, setPersistedSkippedRoundKeys] = useState<string[]>([]);
   const [loadingRoundKind, setLoadingRoundKind] = useState<SocialGameKind | null>(null);
@@ -1277,7 +1279,7 @@ export default function GamesRoomScreen({
     ? getPuzzleBankLabels(language, selectedPuzzleDisplayIndex, selectedPuzzleTotal)
     : null;
   const visibleChat = memberChat.slice(0, 3);
-  const hasStartedSelectedRound = startedRoundId === selectedRound?.id;
+  const hasStartedSelectedRound = Boolean(selectedRound && startedGameKinds.includes(selectedRound.kind));
   const hasCompletedSelectedRound = completedRoundId === selectedRound?.id;
   const selectedWordVisual = selectedRound?.visual?.kind === "wordTiles" ? selectedRound.visual : null;
   const isLoadingSelectedBank = Boolean(
@@ -1355,20 +1357,41 @@ export default function GamesRoomScreen({
     });
   };
 
+  const persistStartedRound = async (round: SocialGameRound) => {
+    const key = `${round.kind}:${round.id}`;
+    if (persistedStartedRoundKeys.includes(key)) return;
+
+    setPersistedStartedRoundKeys((current) => current.includes(key) ? current : [...current, key]);
+    await persistRoundStatus(round, "started");
+  };
+
   const persistSkippedRound = (round: SocialGameRound) => {
     const key = `${round.kind}:${round.id}`;
-    if (startedRoundId === round.id || completedRoundId === round.id || persistedSkippedRoundKeys.includes(key)) return;
+    if (
+      startedRoundId === round.id
+      || completedRoundId === round.id
+      || persistedStartedRoundKeys.includes(key)
+      || persistedSkippedRoundKeys.includes(key)
+    ) return;
 
     setPersistedSkippedRoundKeys((current) => current.includes(key) ? current : [...current, key]);
     void persistRoundStatus(round, "skipped").catch(() => undefined);
   };
 
-  const selectRound = (round: SocialGameRound, options: { recordSkip?: boolean } = {}) => {
+  const selectRound = (round: SocialGameRound, options: { recordSkip?: boolean; enterPlayMode?: boolean } = {}) => {
     if (options.recordSkip && selectedRound && selectedRound.id !== round.id) {
       persistSkippedRound(selectedRound);
     }
+
+    const shouldEnterPlayMode = options.enterPlayMode || startedGameKinds.includes(round.kind);
     setSelectedRoundId(round.id);
-    setStartedRoundId(null);
+    if (shouldEnterPlayMode) {
+      setStartedGameKinds((current) => current.includes(round.kind) ? current : [...current, round.kind]);
+      setStartedRoundId(round.id);
+      void persistStartedRound(round).catch(() => undefined);
+    } else {
+      setStartedRoundId(null);
+    }
     setSelectedChoice("");
     setCompletedRoundId(null);
     setMatchResponse(null);
@@ -1389,7 +1412,7 @@ export default function GamesRoomScreen({
 
     const currentIndex = Math.max(0, selectedPuzzleIndex);
     const nextIndex = (currentIndex + offset + selectedKindRounds.length) % selectedKindRounds.length;
-    selectRound(selectedKindRounds[nextIndex], { recordSkip: true });
+    selectRound(selectedKindRounds[nextIndex], { recordSkip: true, enterPlayMode: true });
   };
 
   const persistCompletedRound = (round: SocialGameRound) => {
@@ -1411,6 +1434,7 @@ export default function GamesRoomScreen({
   const startRound = async () => {
     if (!selectedRound) return;
 
+    setStartedGameKinds((current) => current.includes(selectedRound.kind) ? current : [...current, selectedRound.kind]);
     setStartedRoundId(selectedRound.id);
     setSelectedChoice("");
     setCompletedRoundId(null);
@@ -1428,7 +1452,7 @@ export default function GamesRoomScreen({
     setIsPersistingRound(true);
 
     try {
-      await persistRoundStatus(selectedRound, "started");
+      await persistStartedRound(selectedRound);
     } catch {
       // The puzzle can still continue if exposure tracking is temporarily unavailable.
     } finally {
