@@ -159,7 +159,7 @@ function LocationProbe() {
 }
 
 function renderRoom(initialEntry = "/social-rooms/morning-movement") {
-  render(
+  return render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/social-rooms/morning-movement/exercises/:exerciseId" element={<><MovementExerciseGuideScreen /><LocationProbe /></>} />
@@ -475,6 +475,15 @@ describe("RoomScreen reading room member lounge", () => {
   beforeEach(() => {
     languageMock.language = "en";
     localStorage.clear();
+    sessionStorage.clear();
+    voiceMock.startVoice.mockReset();
+    voiceMock.stopVoice.mockReset();
+    voiceMock.sendText.mockReset();
+    voiceMock.sendContextUpdate.mockReset();
+    voiceMock.status = "idle";
+    voiceMock.startVoice.mockResolvedValue(undefined);
+    voiceMock.sendText.mockReturnValue(true);
+    voiceMock.sendContextUpdate.mockReturnValue(true);
     apiFetchMock.mockReset();
     queryMock.mockReset();
     queryMock.mockReturnValue({
@@ -491,6 +500,41 @@ describe("RoomScreen reading room member lounge", () => {
       }
       return Promise.resolve(jsonResponse({ ok: true }));
     });
+  });
+
+  it("plays the Reading Room automatic intro once per browser session topic", async () => {
+    const firstRender = renderRoom("/social-rooms/reading-room");
+
+    await waitFor(() => expect(voiceMock.startVoice).toHaveBeenCalledTimes(1));
+    expect(voiceMock.startVoice).toHaveBeenCalledWith(
+      undefined,
+      undefined,
+      expect.objectContaining({
+        agentSlug: "isabel-mora",
+        roomSlug: "reading-room",
+        skipMicrophone: false,
+        dynamicVariables: expect.objectContaining({
+          reading_room_intro_allowed: true,
+          reading_room_intro_already_played: false,
+          reading_room_topic: "Books, scenes and memories shared gently.",
+          reading_room_opener: "Welcome to the literary club.",
+        }),
+      }),
+    );
+
+    const sessionKeys = Array.from({ length: sessionStorage.length }, (_, index) => sessionStorage.key(index) ?? "");
+    expect(sessionKeys).toEqual(expect.arrayContaining([
+      expect.stringContaining("vyva.social.readingRoomIntro.v1:reading-room:en:2026-06-04:"),
+    ]));
+
+    firstRender.unmount();
+    voiceMock.startVoice.mockClear();
+
+    renderRoom("/social-rooms/reading-room");
+
+    await waitFor(() => expect(screen.getByTestId("reading-club-panel")).toBeInTheDocument());
+    await new Promise((resolve) => window.setTimeout(resolve, 20));
+    expect(voiceMock.startVoice).not.toHaveBeenCalled();
   });
 
   it("turns lounge members into protected notes and table invitations", async () => {

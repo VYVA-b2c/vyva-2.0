@@ -495,6 +495,40 @@ function isReadingRoomSlug(slug?: string | null) {
   return slug === "reading-room" || slug === "book-club";
 }
 
+const READING_ROOM_INTRO_SESSION_PREFIX = "vyva.social.readingRoomIntro.v1";
+
+function hashSessionKeyPart(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) | 0;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+function getReadingRoomIntroSessionKey(room: SocialRoom, language: SocialLanguage) {
+  const sessionDate = room.sessionDate || "no-date";
+  const topicKey = hashSessionKeyPart(`${room.topic}|${room.opener}`);
+  return `${READING_ROOM_INTRO_SESSION_PREFIX}:${room.slug}:${language}:${sessionDate}:${topicKey}`;
+}
+
+function hasReadingRoomIntroPlayed(sessionKey: string | null) {
+  if (!sessionKey || typeof window === "undefined") return false;
+  try {
+    return window.sessionStorage.getItem(sessionKey) === "played";
+  } catch {
+    return false;
+  }
+}
+
+function markReadingRoomIntroPlayed(sessionKey: string | null) {
+  if (!sessionKey || typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(sessionKey, "played");
+  } catch {
+    // Session storage can be unavailable in strict browser privacy modes.
+  }
+}
+
 function getReadingClubCopy(language: SocialLanguage) {
   if (language === "fr") {
     const base = getReadingClubCopy("en");
@@ -2473,6 +2507,7 @@ function buildAgentContext(
   quickQuestions: string[],
   visitState?: SocialRoomVisitState | null,
   conversationContext?: SocialConversationContext | null,
+  readingIntroAlreadyPlayed = false,
 ) {
   const intro =
     language === "en"
@@ -2556,7 +2591,21 @@ function buildAgentContext(
       ].join(" ")
     : "";
 
-  return `${intro} ${visitHint} ${chipHint} ${reportHint}`.trim();
+  const readingIntroHint = readingIntroAlreadyPlayed
+    ? language === "en"
+      ? "Reading Room session rule: the automatic welcome and topic explanation have already been used in this browser session. Do not repeat them unless the user asks."
+      : language === "de"
+        ? "Reading-Room-Sitzungsregel: Die automatische Begruessung und Themenerklaerung wurden in dieser Browsersitzung bereits genutzt. Wiederhole sie nur, wenn die Nutzerin darum bittet."
+        : language === "fr"
+          ? "Regle de session du Reading Room : l'accueil automatique et l'explication du sujet ont deja ete utilises dans cette session du navigateur. Ne les repetez que si la personne le demande."
+          : language === "it"
+            ? "Regola di sessione del Reading Room: il benvenuto automatico e la spiegazione del tema sono gia stati usati in questa sessione del browser. Ripetili solo se l'utente lo chiede."
+            : language === "pt"
+              ? "Regra de sessao do Reading Room: a saudacao automatica e a explicacao do tema ja foram usadas nesta sessao do navegador. Repita apenas se a pessoa pedir."
+              : "Regla de sesion de Reading Room: el saludo automatico y la explicacion del tema ya se usaron en esta sesion del navegador. No los repitas salvo que la usuaria lo pida."
+    : "";
+
+  return `${intro} ${visitHint} ${chipHint} ${reportHint} ${readingIntroHint}`.trim();
 }
 
 function buildWelcomeBootstrap(language: SocialLanguage, agentName: string, userName?: string) {
@@ -3301,6 +3350,7 @@ const RoomScreen = () => {
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
   const [extraComments, setExtraComments] = useState<Record<string, FeedComment[]>>({});
   const [voiceAttempted, setVoiceAttempted] = useState(false);
+  const [readingRoomIntroPlayedThisSession, setReadingRoomIntroPlayedThisSession] = useState(false);
   const [roomMode, setRoomMode] = useState<RoomMode>("welcome");
   const [selectedTogetherPlanId, setSelectedTogetherPlanId] = useState("restaurant");
   const [chatDraft, setChatDraft] = useState("");
@@ -3387,6 +3437,10 @@ const RoomScreen = () => {
   const togetherRoomActive = isTogetherRoom(room?.slug ?? slug);
   const togetherCopy = togetherRoomActive ? getTogetherRoomCopy(gameLanguage) : null;
   const readingRoomActive = isReadingRoomSlug(room?.slug ?? slug);
+  const readingRoomIntroSessionKey = useMemo(
+    () => (room && readingRoomActive ? getReadingRoomIntroSessionKey(room, language) : null),
+    [language, readingRoomActive, room?.opener, room?.sessionDate, room?.slug, room?.topic],
+  );
   const movementRoomActive = canonicalRoomSlug === "morning-movement";
   const movementExerciseCopy = useMemo(() => getMovementExerciseLibraryCopy(movementExerciseLanguage), [movementExerciseLanguage]);
   const movementSessionUiCopy = useMemo(() => getMovementSessionUiCopy(movementExerciseLanguage), [movementExerciseLanguage]);
@@ -3579,6 +3633,15 @@ const RoomScreen = () => {
 
   const currentVisitState = roomEntryVisitState ?? roomResponse?.visitState ?? null;
   const currentConversationContext = roomEntryConversationContext ?? roomResponse?.conversationContext ?? null;
+
+  useEffect(() => {
+    setReadingRoomIntroPlayedThisSession(hasReadingRoomIntroPlayed(readingRoomIntroSessionKey));
+  }, [readingRoomIntroSessionKey]);
+
+  const consumeReadingRoomIntroForSession = useCallback(() => {
+    markReadingRoomIntroPlayed(readingRoomIntroSessionKey);
+    setReadingRoomIntroPlayedThisSession(true);
+  }, [readingRoomIntroSessionKey]);
 
   const updateReadingDesk = useCallback((updater: (current: ReadingClubDeskState) => ReadingClubDeskState) => {
     setReadingClubDesk((current) => {
@@ -4044,23 +4107,45 @@ const RoomScreen = () => {
   );
 
   const startRoomAgentSession = useCallback(
-    (skipMicrophone = true) => {
+    (skipMicrophone = true, { allowReadingIntro = false }: { allowReadingIntro?: boolean } = {}) => {
       if (!room?.slug || !room.agentSlug || room.slug === "games-room" || room.slug === "music-room") return;
+      const dynamicVariables: Record<string, string | number | boolean> = {};
+
+      if (currentVisitState || currentConversationContext) {
+        dynamicVariables.is_first_room_visit = currentVisitState?.isFirstVisit ?? false;
+        dynamicVariables.room_visit_count = currentVisitState?.visitCount ?? 0;
+        dynamicVariables.previous_room_visit_count =
+          currentVisitState?.previousVisitCount ?? currentVisitState?.visitCount ?? 0;
+        dynamicVariables.conversation_context_summary = currentConversationContext?.text ?? "";
+      }
+
+      if (readingRoomActive) {
+        dynamicVariables.reading_room_intro_allowed = allowReadingIntro;
+        dynamicVariables.reading_room_intro_already_played = !allowReadingIntro;
+        dynamicVariables.reading_room_intro_rule = allowReadingIntro
+          ? "This is the only automatic Reading Room welcome and topic explanation for this browser session. Keep it brief."
+          : "Do not repeat the Reading Room welcome or topic explanation unless the user explicitly asks.";
+        dynamicVariables.reading_room_topic = room.topic;
+        dynamicVariables.reading_room_opener = room.opener;
+      }
+
       void startVoice(undefined, undefined, {
         agentSlug: room.agentSlug,
         roomSlug: room.slug,
         skipMicrophone,
-        dynamicVariables: currentVisitState || currentConversationContext
-          ? {
-              is_first_room_visit: currentVisitState?.isFirstVisit ?? false,
-              room_visit_count: currentVisitState?.visitCount ?? 0,
-              previous_room_visit_count: currentVisitState?.previousVisitCount ?? currentVisitState?.visitCount ?? 0,
-              conversation_context_summary: currentConversationContext?.text ?? "",
-            }
-          : undefined,
+        dynamicVariables: Object.keys(dynamicVariables).length ? dynamicVariables : undefined,
       });
     },
-    [currentConversationContext, currentVisitState, room?.agentSlug, room?.slug, startVoice],
+    [
+      currentConversationContext,
+      currentVisitState,
+      readingRoomActive,
+      room?.agentSlug,
+      room?.opener,
+      room?.slug,
+      room?.topic,
+      startVoice,
+    ],
   );
 
   const armLiveReplyTimeout = useCallback(
@@ -4184,6 +4269,16 @@ const RoomScreen = () => {
 
     const autoStartKey = `${room.slug}:${room.agentSlug}`;
     if (autoStartedRoomRef.current === autoStartKey) return;
+    const readingIntroAlreadyPlayed =
+      readingRoomActive &&
+      (readingRoomIntroPlayedThisSession || hasReadingRoomIntroPlayed(readingRoomIntroSessionKey));
+    const allowReadingIntro = readingRoomActive && !readingIntroAlreadyPlayed;
+
+    if (readingRoomActive && !allowReadingIntro) {
+      autoStartedRoomRef.current = autoStartKey;
+      setAgentPresence("idle");
+      return;
+    }
 
     autoStartedRoomRef.current = autoStartKey;
     setVoiceAttempted(true);
@@ -4193,11 +4288,18 @@ const RoomScreen = () => {
     transcriptCursorRef.current = agentTranscript.length;
     setIsSending(false);
     setAgentPresence("thinking");
-    startRoomAgentSession(false);
+    if (readingRoomActive) {
+      consumeReadingRoomIntroForSession();
+    }
+    startRoomAgentSession(false, { allowReadingIntro });
   }, [
     agentIsConnecting,
     agentSessionStatus,
     agentTranscript.length,
+    consumeReadingRoomIntroForSession,
+    readingRoomActive,
+    readingRoomIntroPlayedThisSession,
+    readingRoomIntroSessionKey,
     room?.agentSlug,
     room?.slug,
     roomMode,
@@ -4216,7 +4318,15 @@ const RoomScreen = () => {
     if (liveGreetingKeyRef.current === contextKey) return;
 
     sendContextUpdate(
-      buildAgentContext(language, room.name, room.topic, quickQuestions, currentVisitState, currentConversationContext),
+      buildAgentContext(
+        language,
+        room.name,
+        room.topic,
+        quickQuestions,
+        currentVisitState,
+        currentConversationContext,
+        readingRoomActive && readingRoomIntroPlayedThisSession,
+      ),
     );
     liveGreetingKeyRef.current = contextKey;
   }, [
@@ -4227,6 +4337,8 @@ const RoomScreen = () => {
     language,
     profile?.firstName,
     quickQuestions,
+    readingRoomActive,
+    readingRoomIntroPlayedThisSession,
     room,
     sendContextUpdate,
   ]);
@@ -4430,7 +4542,10 @@ const RoomScreen = () => {
     setIsSending(false);
     setAgentPresence("thinking");
     stopVoice();
-    void window.setTimeout(() => startRoomAgentSession(false), 0);
+    if (readingRoomActive) {
+      consumeReadingRoomIntroForSession();
+    }
+    void window.setTimeout(() => startRoomAgentSession(false, { allowReadingIntro: false }), 0);
   };
 
   const handleSwitchToChat = () => {
