@@ -146,7 +146,11 @@ describe("TogetherRoomScreen", () => {
     render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
 
     expect(screen.getByRole("heading", { name: "Together Room" })).toBeInTheDocument();
-    expect(screen.getByText("Protected room")).toBeInTheDocument();
+    expect(screen.getAllByText("Protected room").length).toBeGreaterThan(0);
+    expect(screen.getByTestId("together-main-hero")).toBeInTheDocument();
+    expect(screen.getByTestId("together-room-visual-summary")).toHaveTextContent("3 present");
+    expect(screen.getByTestId("together-room-visual-summary")).toHaveTextContent("Share a plan");
+    expect(screen.getByTestId("together-member-orbit")).toHaveTextContent("Carmen");
     expect(screen.getByText("Carmen")).toBeInTheDocument();
     expect(screen.getByText("Luis")).toBeInTheDocument();
     expect(screen.getByText("Ana")).toBeInTheDocument();
@@ -158,8 +162,8 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByText("Tea and film chat")).toBeInTheDocument();
     expect(screen.getByTestId("together-plan-location-tea-film-chat")).toHaveTextContent("Online");
     expect(screen.getByTestId("together-plan-comfort-tea-film-chat")).toHaveTextContent("Quiet pace");
-    expect(screen.getByTestId("together-plan-fit-tea-film-chat")).toHaveTextContent("Movie date");
-    expect(screen.getByTestId("together-plan-fit-tea-film-chat")).toHaveTextContent("Evening");
+    expect(screen.getByTestId("together-plan-visual-stats-tea-film-chat")).toHaveTextContent("Movie date");
+    expect(screen.getByTestId("together-plan-visual-stats-tea-film-chat")).toHaveTextContent("Evening");
     expect(screen.getByTestId("together-plan-location-quiet-lunch")).toHaveTextContent("Nearby");
     expect(screen.getByTestId("together-plan-comfort-quiet-lunch")).toHaveTextContent("Easy access");
     expect(screen.getByTestId("together-plan-comfort-quiet-lunch")).toHaveTextContent("Place to sit");
@@ -172,6 +176,7 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByTestId("together-comfort-check-easy_access")).toHaveTextContent("1 chose this");
     expect(screen.queryByTestId("together-room-direction")).not.toBeInTheDocument();
     expect(screen.queryByTestId("together-use-room-direction")).not.toBeInTheDocument();
+    expect(screen.getByTestId("together-share-plan-entry")).toHaveTextContent("Share a plan");
     expect(screen.getByRole("heading", { name: "Share a plan" })).toBeInTheDocument();
     expect(screen.getByText("Suggest one simple idea so others can join or say maybe.")).toBeInTheDocument();
     expect(screen.getAllByTestId(/together-starter-/)).toHaveLength(1);
@@ -185,7 +190,7 @@ describe("TogetherRoomScreen", () => {
   it("uses extended language labels inside the Together Room", () => {
     render(<TogetherRoomScreen roomResponse={roomResponse} language="fr" visitId="visit-1" onBack={vi.fn()} />);
 
-    expect(screen.getByText("Salle protegee")).toBeInTheDocument();
+    expect(screen.getAllByText("Salle protegee").length).toBeGreaterThan(0);
     expect(screen.getByText("Notre promesse de salle")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Partager un plan" })).toBeInTheDocument();
     expect(screen.getByTestId("together-starter-plan")).toHaveTextContent("Partager un plan");

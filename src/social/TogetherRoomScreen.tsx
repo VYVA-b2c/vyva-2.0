@@ -3,6 +3,8 @@ import {
   Bell,
   Check,
   Clock,
+  Film,
+  Handshake,
   HeartHandshake,
   LifeBuoy,
   MapPin,
@@ -11,9 +13,11 @@ import {
   Send,
   ShieldCheck,
   Sparkles,
+  Utensils,
   Users,
   Vote,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { apiFetch } from "@/lib/queryClient";
 import AgentAvatar from "./AgentAvatar";
@@ -1819,6 +1823,178 @@ function PlanReviewNotice({
   );
 }
 
+function RoomVisualSummary({
+  memberCount,
+  copy,
+  planCopy,
+}: {
+  memberCount: number;
+  copy: TogetherRoomCopy;
+  planCopy: PlanComposerCopy;
+}) {
+  const items = [
+    {
+      id: "present",
+      icon: Users,
+      label: copy.present(Math.max(memberCount, 1)),
+      tone: "bg-[#EFF6FF] text-[#1E3A8A]",
+    },
+    {
+      id: "safe",
+      icon: ShieldCheck,
+      label: copy.safeStatus,
+      tone: "bg-[#EAF8F4] text-[#0F766E]",
+    },
+    {
+      id: "plan",
+      icon: Sparkles,
+      label: planCopy.sharePlanAction,
+      tone: "bg-[#F3ECFF] text-[#6D28D9]",
+    },
+  ];
+
+  return (
+    <div className="mt-4 grid grid-cols-3 gap-2" data-testid="together-room-visual-summary">
+      {items.map((item) => {
+        const Icon = item.icon;
+        return (
+          <div
+            key={item.id}
+            className={`flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-[18px] px-2 text-center ${item.tone}`}
+          >
+            <Icon size={22} strokeWidth={2.4} aria-hidden="true" />
+            <span className="max-w-full overflow-hidden text-ellipsis whitespace-nowrap font-body text-[13px] font-bold leading-tight">
+              {item.label}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function MemberOrbit({ members }: { members: SocialRoomMember[] }) {
+  return (
+    <div
+      className="mt-5 rounded-[26px] bg-[#F4F8FF] px-4 py-4"
+      data-testid="together-member-orbit"
+      aria-label={`${members.length} room members`}
+    >
+      <div className="flex items-center justify-center -space-x-3">
+        {members.map((member, index) => (
+          <div
+            key={member.id}
+            className="relative flex h-16 w-16 items-center justify-center rounded-full border-[5px] border-white font-body text-[20px] font-bold text-white shadow-[0_12px_20px_rgba(33,23,41,0.12)]"
+            style={{ background: memberColours[index % memberColours.length] }}
+            title={member.statusLabel ? `${member.name}: ${member.statusLabel}` : member.name}
+          >
+            {getInitial(member.name)}
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+        {members.map((member) => (
+          <p
+            key={member.id}
+            className="truncate font-body text-[14px] font-bold leading-tight text-[#244D47]"
+            title={member.statusLabel ? `${member.name}: ${member.statusLabel}` : member.name}
+          >
+            {member.name}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PromiseIconGrid({
+  agreementLines,
+}: {
+  agreementLines: string[];
+}) {
+  return (
+    <ul className="mt-3 grid gap-2 sm:grid-cols-3">
+      {agreementLines.map((line) => (
+        <li
+          key={line}
+          className="flex min-h-[76px] flex-col items-center justify-center gap-2 rounded-[18px] bg-[#F7FAF7] px-3 py-3 text-center font-body text-[14px] font-bold leading-[1.25] text-[#41655F]"
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#EAF8F4] text-[#0F766E]">
+            <Check size={18} aria-hidden="true" />
+          </span>
+          <span>{line}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function PlanVisualStats({
+  plan,
+  copy,
+}: {
+  plan: SocialRoomPlan;
+  copy: TogetherRoomCopy;
+}) {
+  const stats = [
+    plan.experienceCategory
+      ? { id: "category", icon: Sparkles, label: copy.categoryLabels[plan.experienceCategory] }
+      : null,
+    plan.preferredTime
+      ? { id: "time", icon: Clock, label: copy.timeLabels[plan.preferredTime] }
+      : null,
+    plan.costRange
+      ? { id: "cost", icon: Handshake, label: copy.costLabels[plan.costRange] }
+      : null,
+    plan.groupSize
+      ? { id: "group", icon: Users, label: copy.groupLabels[plan.groupSize] }
+      : null,
+  ].filter(Boolean) as Array<{ id: string; icon: LucideIcon; label: string }>;
+
+  if (stats.length === 0) return null;
+
+  return (
+    <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4" data-testid={`together-plan-visual-stats-${plan.key}`}>
+      {stats.map((stat) => {
+        const Icon = stat.icon;
+        return (
+          <span
+            key={stat.id}
+            className="flex min-h-[62px] flex-col items-center justify-center gap-1 rounded-[17px] bg-white px-2 text-center font-body text-[13px] font-bold leading-tight text-[#6B4F13] shadow-[0_8px_16px_rgba(151,110,37,0.08)]"
+          >
+            <Icon size={19} strokeWidth={2.4} aria-hidden="true" />
+            {stat.label}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function SharePlanVisuals() {
+  const items = [
+    { id: "lunch", icon: Utensils },
+    { id: "film", icon: Film },
+    { id: "deal", icon: Handshake },
+  ];
+
+  return (
+    <div className="flex shrink-0 items-center -space-x-2" aria-hidden="true">
+      {items.map((item) => {
+        const Icon = item.icon;
+        return (
+          <span
+            key={item.id}
+            className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-white bg-[#F3ECFF] text-[#6D28D9] shadow-[0_8px_16px_rgba(75,46,110,0.12)]"
+          >
+            <Icon size={20} strokeWidth={2.4} />
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 function planHasCommitment(plan: SocialRoomPlan) {
   return Boolean(plan.myResponse) || plan.responseCounts.join > 0 || plan.responseCounts.maybe > 0;
 }
@@ -2362,7 +2538,10 @@ export default function TogetherRoomScreen({
       </button>
 
       <main className="mx-auto mt-4 flex w-full max-w-[760px] flex-col gap-4">
-        <section className="rounded-[28px] border border-[#D8E7E2] bg-white px-5 py-5 shadow-[0_18px_38px_rgba(33,23,41,0.08)]">
+        <section
+          className="overflow-hidden rounded-[30px] border border-[#D8E7E2] bg-[radial-gradient(circle_at_top_left,#F3ECFF_0%,#FFFFFF_32%,#F7FAF7_100%)] px-5 py-5 shadow-[0_18px_38px_rgba(33,23,41,0.08)]"
+          data-testid="together-main-hero"
+        >
           <div className="flex items-start gap-4">
             <AgentAvatar
               agentSlug={room.agentSlug}
@@ -2377,50 +2556,19 @@ export default function TogetherRoomScreen({
                 {copy.safeStatus}
               </div>
               <h1 className="mt-3 font-display text-[34px] leading-[1.02] text-[#2F2135]">{room.name}</h1>
-              <p className="mt-2 font-body text-[18px] leading-[1.35] text-[#66556E]">{pulse.safety.body}</p>
+              <p className="sr-only">{pulse.safety.body}</p>
             </div>
           </div>
 
-          <div className="mt-5 rounded-[22px] bg-[#F4F8FF] px-4 py-3">
-            <div className="flex items-center gap-2 font-body text-[17px] font-bold text-[#315C55]">
-              <Users size={20} aria-hidden="true" />
-              {copy.present(Math.max(members.length, 1))}
-            </div>
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              {members.map((member, index) => (
-                <div
-                  key={member.id}
-                  className="min-w-0 rounded-[18px] bg-white/80 px-2 py-3 text-center shadow-[0_8px_14px_rgba(33,23,41,0.06)]"
-                  title={member.statusLabel ? `${member.name}: ${member.statusLabel}` : member.name}
-                >
-                  <div
-                    className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border-2 border-white font-body text-[17px] font-bold text-white shadow-[0_8px_14px_rgba(33,23,41,0.12)]"
-                    style={{ background: memberColours[index % memberColours.length] }}
-                    aria-hidden="true"
-                  >
-                    {getInitial(member.name)}
-                  </div>
-                  <p className="mt-2 truncate font-body text-[15px] font-bold leading-tight text-[#244D47]">
-                    {member.name}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
+          <RoomVisualSummary memberCount={members.length} copy={copy} planCopy={planCopy} />
+          <MemberOrbit members={members} />
 
           <div className="mt-5 border-t border-[#D8E7E2] pt-4" data-testid="together-room-promise">
             <div className="flex items-center gap-2">
               <ShieldCheck size={21} className="text-[#0F766E]" aria-hidden="true" />
               <h2 className="font-body text-[20px] font-bold text-[#244D47]">{agreementTitle}</h2>
             </div>
-            <ul className="mt-3 grid gap-2">
-              {agreementLines.map((line) => (
-                <li key={line} className="flex items-start gap-2 font-body text-[16px] font-bold leading-[1.32] text-[#41655F]">
-                  <Check size={18} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
-                  <span>{line}</span>
-                </li>
-              ))}
-            </ul>
+            <PromiseIconGrid agreementLines={agreementLines} />
             <button
               type="button"
               onClick={() => void acknowledgeAgreement()}
@@ -2441,12 +2589,12 @@ export default function TogetherRoomScreen({
 
         <section className="rounded-[30px] border border-[#E2D7C4] bg-[#FFFDF8] px-5 py-5 shadow-[0_18px_36px_rgba(151,110,37,0.08)]">
           <div className="flex items-start gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-[#F6C453] text-[#2F2135]">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[22px] bg-[#F6C453] text-[#2F2135] shadow-[0_12px_22px_rgba(151,110,37,0.18)]">
               <HeartHandshake size={24} aria-hidden="true" />
             </div>
             <div className="min-w-0">
               <h2 className="font-display text-[31px] leading-[1.05] text-[#2F2135]">{featuredPlan.title}</h2>
-              <p className="mt-2 font-body text-[19px] leading-[1.34] text-[#62556B]">{featuredPlan.body}</p>
+              <p className="mt-2 line-clamp-2 font-body text-[18px] leading-[1.3] text-[#62556B]">{featuredPlan.body}</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <PlanLocationPill plan={featuredPlan} copy={copy} />
                 <p
@@ -2458,7 +2606,7 @@ export default function TogetherRoomScreen({
                 </p>
               </div>
               <PlanComfortPills plan={featuredPlan} copy={copy} />
-              <PlanExperiencePills plan={featuredPlan} copy={copy} />
+              <PlanVisualStats plan={featuredPlan} copy={copy} />
               <PlanReviewNotice plan={featuredPlan} copy={copy} />
             </div>
           </div>
@@ -2512,7 +2660,7 @@ export default function TogetherRoomScreen({
               <MessageCircle size={18} className="text-[#0F766E]" aria-hidden="true" />
               <h3 className="font-body text-[18px] font-bold text-[#315C55]">{copy.planSupportTitle}</h3>
             </div>
-            <p className="mt-1 font-body text-[16px] font-bold leading-[1.35] text-[#55706B]">{copy.planSupportBody}</p>
+            <p className="sr-only">{copy.planSupportBody}</p>
             {(featuredPlan.replies?.length ?? 0) > 0 && (
               <div className="mt-3 grid gap-2" data-testid="together-featured-replies">
                 {featuredPlan.replies!.map((reply) => (
@@ -2597,7 +2745,7 @@ export default function TogetherRoomScreen({
             <p className="font-body text-[17px] font-bold leading-[1.3] text-[#1E3A8A]">
               {leadingPollOption ? copy.pollNudgeLeading(leadingPollOption.label) : copy.pollNudgeNoVotes}
             </p>
-            <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#3E526A]">
+            <p className="sr-only">
               {copy.pollNudgeAction}
             </p>
           </div>
@@ -2610,7 +2758,7 @@ export default function TogetherRoomScreen({
             </div>
             <div className="min-w-0">
               <h2 className="font-display text-[26px] leading-[1.08] text-[#2F2135]">{pulse.comfortCheck.title}</h2>
-              <p className="mt-2 font-body text-[18px] leading-[1.35] text-[#41655F]">{pulse.comfortCheck.body}</p>
+              <p className="sr-only">{pulse.comfortCheck.body}</p>
             </div>
           </div>
 
@@ -2643,18 +2791,26 @@ export default function TogetherRoomScreen({
 
         </section>
 
-        <section className="rounded-[28px] border border-[#E7DDF4] bg-white px-5 py-5 shadow-[0_16px_32px_rgba(109,40,217,0.06)]">
+        <section
+          className="overflow-hidden rounded-[28px] border border-[#E7DDF4] bg-[radial-gradient(circle_at_top_right,#F3ECFF_0%,#FFFFFF_42%,#F9FCFA_100%)] px-5 py-5 shadow-[0_16px_32px_rgba(109,40,217,0.06)]"
+          data-testid="together-share-plan-entry"
+        >
           <h2 className="font-display text-[28px] leading-[1.08] text-[#2F2135]">{planCopy.sharePlanTitle}</h2>
-          <p className="mt-2 font-body text-[18px] leading-[1.35] text-[#62556B]">{planCopy.sharePlanBody}</p>
+          <p className="sr-only">{planCopy.sharePlanBody}</p>
 
           <button
             type="button"
             onClick={openPlanComposer}
             data-testid="together-starter-plan"
-            className="mt-4 flex min-h-[62px] w-full items-center gap-3 rounded-[20px] border border-[#E8DEF8] bg-[#FBF8FF] px-4 text-left font-body text-[19px] font-bold text-[#4B2E6E]"
+            className="mt-4 flex min-h-[82px] w-full items-center justify-between gap-4 rounded-[22px] bg-[#6D28D9] px-4 text-left font-body text-[20px] font-bold text-white shadow-[0_16px_26px_rgba(109,40,217,0.22)]"
           >
-            <Sparkles size={22} aria-hidden="true" />
-            {planCopy.sharePlanAction}
+            <span className="inline-flex min-w-0 items-center gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/15">
+                <Sparkles size={22} aria-hidden="true" />
+              </span>
+              <span className="truncate">{planCopy.sharePlanAction}</span>
+            </span>
+            <SharePlanVisuals />
           </button>
 
           {showProposalComposer && (
