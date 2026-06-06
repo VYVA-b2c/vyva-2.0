@@ -205,11 +205,21 @@ describe("social games room helpers", () => {
 
         if (round.kind === "dominoes") {
           expect(round.interaction.kind).toBe("dominoPlay");
+          expect(round.visual?.kind).toBe("dominoes");
           if (round.interaction.kind !== "dominoPlay") continue;
+          if (round.visual?.kind === "dominoes") {
+            expect(round.visual.hand?.length ?? 0).toBeGreaterThanOrEqual(3);
+            expect(round.visual.openEnds).toBeDefined();
+            expect(round.visual.leftEnd).toBeDefined();
+            expect(round.visual.rightEnd).toBeDefined();
+          }
           if (round.interaction.answerTile) {
             const answerKey = [...round.interaction.answerTile].sort((a, b) => a - b).join("-");
             const candidateKeys = (round.interaction.candidateTiles ?? []).map((tile) => [...tile].sort((a, b) => a - b).join("-"));
             expect(candidateKeys).toContain(answerKey);
+            if (round.interaction.answerEndSide) {
+              expect(round.interaction.candidateEnds).toEqual(["left", "right"]);
+            }
           } else {
             expect(round.interaction.actions?.length).toBeGreaterThan(0);
             expect(round.interaction.actions?.some((action) => action.id === round.interaction.answerActionId)).toBe(true);
@@ -269,14 +279,26 @@ describe("social games room helpers", () => {
   });
 
   it("keeps the dominoes puzzle bank available in each supported app language", () => {
+    const answerGivingPromptPattern = /\b(target|keep|avoid)\b|count the pips|what is a double|strongest opener|which tile has the most/i;
+
     for (const language of supportedGameLanguages) {
       const table = buildGameTable(language, 6);
       const dominoesRounds = table.rounds.filter((round) => round.kind === "dominoes");
+      const twoStepRounds = dominoesRounds.filter((round) => round.interaction?.kind === "dominoPlay" && round.interaction.answerEndSide);
+      const tableDecisionRounds = dominoesRounds.filter((round) => {
+        if (round.visual?.kind !== "dominoes") return false;
+        return Boolean(round.visual.recentPass !== undefined || round.visual.remainingTiles !== undefined || round.interaction?.kind === "dominoPlay" && round.interaction.answerEndSide || (round.visual.hand?.length ?? 0) >= 4);
+      });
 
       expect(dominoesRounds).toHaveLength(80);
       expect(new Set(dominoesRounds.map((round) => round.id)).size).toBe(dominoesRounds.length);
+      expect(dominoesRounds.every((round) => round.id.startsWith("domino-table-"))).toBe(true);
       expect(dominoesRounds.every((round) => round.tags.includes("dominoes"))).toBe(true);
       expect(dominoesRounds.every((round) => round.tags.includes("game:dominoes"))).toBe(true);
+      expect(dominoesRounds.every((round) => !answerGivingPromptPattern.test(round.prompt))).toBe(true);
+      expect(dominoesRounds.every((round) => !round.tags.some((tag) => ["dominoes:pip-count", "dominoes:vocabulary", "dominoes:opening-double"].includes(tag)))).toBe(true);
+      expect(tableDecisionRounds.length).toBeGreaterThanOrEqual(72);
+      expect(twoStepRounds.length).toBeGreaterThanOrEqual(16);
     }
   });
 

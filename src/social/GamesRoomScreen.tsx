@@ -418,8 +418,87 @@ function dominoTileKey(tile: [number, number]) {
   return [...tile].sort((a, b) => a - b).join("-");
 }
 
+function dominoEndAnswerValue(tileKey: string, end: "left" | "right") {
+  return `${tileKey}:${end}`;
+}
+
+function parseDominoAnswerValue(value: string) {
+  const [tileKey, end] = value.split(":");
+  return {
+    tileKey,
+    end: end === "left" || end === "right" ? end : null,
+  };
+}
+
 function isDominoTileAnswer(value: string, tile: [number, number] | undefined) {
-  return Boolean(tile) && value === dominoTileKey(tile);
+  return Boolean(tile) && parseDominoAnswerValue(value).tileKey === dominoTileKey(tile);
+}
+
+function isSelectedDominoTile(value: string | null, tile: [number, number]) {
+  return Boolean(value) && parseDominoAnswerValue(value!).tileKey === dominoTileKey(tile);
+}
+
+function getDominoOpenEndsLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Bouts ouverts";
+  if (language === "it") return "Estremita aperte";
+  if (language === "pt") return "Pontas abertas";
+  if (language === "de") return "Offene Enden";
+  if (language === "en") return "Open ends";
+  return "Extremos abiertos";
+}
+
+function getDominoLeftLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Gauche";
+  if (language === "it") return "Sinistra";
+  if (language === "pt") return "Esquerda";
+  if (language === "de") return "Links";
+  if (language === "en") return "Left";
+  return "Izquierda";
+}
+
+function getDominoRightLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Droite";
+  if (language === "it") return "Destra";
+  if (language === "pt") return "Direita";
+  if (language === "de") return "Rechts";
+  if (language === "en") return "Right";
+  return "Derecha";
+}
+
+function getDominoRecentPassLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Passe recente";
+  if (language === "it") return "Passo recente";
+  if (language === "pt") return "Passada recente";
+  if (language === "de") return "Gerade gepasst";
+  if (language === "en") return "Recent pass";
+  return "Pase reciente";
+}
+
+function getDominoTilesLeftLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Tuiles restantes";
+  if (language === "it") return "Tessere rimaste";
+  if (language === "pt") return "Pecas restantes";
+  if (language === "de") return "Steine uebrig";
+  if (language === "en") return "Tiles left";
+  return "Fichas restantes";
+}
+
+function getDominoHandLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Ta main";
+  if (language === "it") return "La tua mano";
+  if (language === "pt") return "Sua mao";
+  if (language === "de") return "Deine Hand";
+  if (language === "en") return "Your hand";
+  return "Tu mano";
+}
+
+function getDominoChooseEndLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Choisissez le bout.";
+  if (language === "it") return "Scegli l'estremita.";
+  if (language === "pt") return "Escolha a ponta.";
+  if (language === "de") return "Waehle ein Ende.";
+  if (language === "en") return "Choose an end.";
+  return "Elige un extremo.";
 }
 
 function DominoTile({ tile, muted = false }: { tile: [number, number]; muted?: boolean }) {
@@ -589,32 +668,65 @@ function ChessBoardVisual({
   );
 }
 
-function DominoesVisual({ visual }: { visual: Extract<SocialGameRoundVisual, { kind: "dominoes" }> }) {
-  const tiles = visual.candidateTiles ?? visual.hand ?? (visual.focusTile ? [visual.focusTile] : []);
+function DominoesVisual({
+  visual,
+  language,
+}: {
+  visual: Extract<SocialGameRoundVisual, { kind: "dominoes" }>;
+  language: SocialGameLanguage;
+}) {
+  const handTiles = visual.hand ?? visual.candidateTiles ?? (visual.focusTile ? [visual.focusTile] : []);
+  const layoutTiles = visual.layoutTiles ?? [];
+  const leftEnd = visual.leftEnd ?? visual.openEnds?.[0];
+  const rightEnd = visual.rightEnd ?? visual.openEnds?.[1];
 
   return (
     <div className="rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-4" data-testid="games-visual-dominoes">
       <p className="font-body text-[16px] font-extrabold leading-snug text-[#31555D]">{visual.caption}</p>
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        {visual.openEnds && (
-          <div className="flex items-center gap-2 rounded-[18px] bg-white px-4 py-3 font-body text-[16px] font-extrabold text-[#075C64]">
-            <span>{visual.openEnds[0]}</span>
-            <span className="h-px w-8 bg-[#BFDAD7]" />
-            <span>{visual.openEnds[1]}</span>
-          </div>
-        )}
-        {visual.playedTile && <DominoTile tile={visual.playedTile} />}
-        {tiles.map((tile, index) => (
-          <DominoTile key={`${tile[0]}-${tile[1]}-${index}`} tile={tile} muted={Boolean(visual.playedTile)} />
-        ))}
+      <div className="mt-3 rounded-[20px] bg-white px-3 py-3">
+        <p className="font-body text-[13px] font-black uppercase text-[#087C82]">{getDominoOpenEndsLabel(language)}</p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {leftEnd !== undefined && (
+            <div className="rounded-[16px] border border-[#BFDAD7] bg-[#F4FAF8] px-3 py-2 font-body text-[15px] font-extrabold text-[#075C64]">
+              {getDominoLeftLabel(language)} {leftEnd}
+            </div>
+          )}
+          {layoutTiles.map((tile, index) => (
+            <DominoTile key={`${tile[0]}-${tile[1]}-${index}`} tile={tile} muted />
+          ))}
+          {rightEnd !== undefined && (
+            <div className="rounded-[16px] border border-[#BFDAD7] bg-[#F4FAF8] px-3 py-2 font-body text-[15px] font-extrabold text-[#075C64]">
+              {getDominoRightLabel(language)} {rightEnd}
+            </div>
+          )}
+        </div>
       </div>
-      {(visual.target !== undefined || visual.desired !== undefined || visual.avoid !== undefined) && (
+      {(visual.recentPass !== undefined || visual.remainingTiles !== undefined) && (
         <div className="mt-3 flex flex-wrap gap-2 font-body text-[14px] font-extrabold text-[#597178]">
-          {visual.target !== undefined && <span className="rounded-full bg-white px-3 py-1">Target {visual.target}</span>}
-          {visual.desired !== undefined && <span className="rounded-full bg-white px-3 py-1">Keep {visual.desired}</span>}
-          {visual.avoid !== undefined && <span className="rounded-full bg-white px-3 py-1">Avoid {visual.avoid}</span>}
+          {visual.recentPass !== undefined && (
+            <span className="rounded-full bg-white px-3 py-1">
+              {getDominoRecentPassLabel(language)}: {visual.recentPass}
+            </span>
+          )}
+          {visual.remainingTiles !== undefined && (
+            <span className="rounded-full bg-white px-3 py-1">
+              {getDominoTilesLeftLabel(language)}: {visual.remainingTiles}
+            </span>
+          )}
         </div>
       )}
+      <div className="mt-3">
+        <p className="font-body text-[13px] font-black uppercase text-[#087C82]">{visual.handLabel ?? getDominoHandLabel(language)}</p>
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          {visual.playedTile && <DominoTile tile={visual.playedTile} muted />}
+          {handTiles.map((tile, index) => (
+            <DominoTile key={`${tile[0]}-${tile[1]}-${index}`} tile={tile} />
+          ))}
+          {handTiles.length === 0 && visual.focusTile && (
+            <DominoTile tile={visual.focusTile} />
+          )}
+          </div>
+      </div>
     </div>
   );
 }
@@ -659,6 +771,7 @@ function BridgeCardsVisual({ visual }: { visual: Extract<SocialGameRoundVisual, 
 function PuzzleVisualPanel({
   visual,
   interaction,
+  language,
   selectedTactileValue,
   wrongTactileValue,
   isComplete,
@@ -667,6 +780,7 @@ function PuzzleVisualPanel({
 }: {
   visual?: SocialGameRoundVisual;
   interaction?: SocialGameRoundInteraction;
+  language: SocialGameLanguage;
   selectedTactileValue?: string | null;
   wrongTactileValue?: string | null;
   isComplete?: boolean;
@@ -687,7 +801,7 @@ function PuzzleVisualPanel({
       />
     );
   }
-  if (visual.kind === "dominoes") return <DominoesVisual visual={visual} />;
+  if (visual.kind === "dominoes") return <DominoesVisual visual={visual} language={language} />;
   return <BridgeCardsVisual visual={visual} />;
 }
 
@@ -774,6 +888,13 @@ function TactileInteractionPanel({
 
   if (interaction.kind === "dominoPlay") {
     const tiles = interaction.candidateTiles ?? (interaction.answerTile ? [interaction.answerTile] : []);
+    const selectedAnswerTileKey = interaction.answerTile ? dominoTileKey(interaction.answerTile) : "";
+    const selectedDominoTile = selectedTactileValue ? parseDominoAnswerValue(selectedTactileValue).tileKey : "";
+    const shouldChooseEnd = Boolean(
+      interaction.answerEndSide
+      && interaction.answerTile
+      && selectedDominoTile === selectedAnswerTileKey,
+    );
 
     return (
       <div className="mt-4 rounded-[22px] bg-[#F4FAF8] px-4 py-4" data-testid="games-tactile-dominoes">
@@ -785,7 +906,7 @@ function TactileInteractionPanel({
           <div className="mt-3 flex flex-wrap gap-3">
             {tiles.map((tile, index) => {
               const value = dominoTileKey(tile);
-              const active = selectedTactileValue === value;
+              const active = isSelectedDominoTile(selectedTactileValue, tile);
               return (
                 <button
                   key={`${tile[0]}-${tile[1]}-${index}`}
@@ -816,6 +937,25 @@ function TactileInteractionPanel({
                 {action.label}
               </button>
             ))}
+          </div>
+        )}
+        {shouldChooseEnd && interaction.answerTile && (
+          <div className="mt-3 rounded-[18px] bg-white px-3 py-3" data-testid="domino-end-choices">
+            <p className="font-body text-[15px] font-extrabold text-[#31555D]">{getDominoChooseEndLabel(language)}</p>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {(interaction.candidateEnds ?? ["left", "right"]).map((end) => (
+                <button
+                  key={end}
+                  type="button"
+                  onClick={() => onTactileAnswer(dominoEndAnswerValue(selectedAnswerTileKey, end))}
+                  disabled={isComplete}
+                  data-testid={`domino-end-${end}`}
+                  className="min-h-[52px] rounded-[16px] border border-[#BFDAD7] bg-[#F4FAF8] px-4 font-body text-[17px] font-extrabold text-[#075C64] disabled:opacity-50"
+                >
+                  {end === "left" ? getDominoLeftLabel(language) : getDominoRightLabel(language)}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -1315,6 +1455,10 @@ export default function GamesRoomScreen({
   const isCorrectTactileAnswer = (interaction: SocialGameRoundInteraction, value: string) => {
     if (interaction.kind === "chessTap") return interaction.answerSquares.includes(value);
     if (interaction.kind === "dominoPlay") {
+      if (interaction.answerTile && interaction.answerEndSide) {
+        const parsedValue = parseDominoAnswerValue(value);
+        return parsedValue.tileKey === dominoTileKey(interaction.answerTile) && parsedValue.end === interaction.answerEndSide;
+      }
       if (interaction.answerTile) return isDominoTileAnswer(value, interaction.answerTile);
       return Boolean(interaction.answerActionId) && interaction.answerActionId === value;
     }
@@ -1327,6 +1471,18 @@ export default function GamesRoomScreen({
 
     setSelectedTactileValue(value);
     setChoiceFeedback(null);
+
+    if (
+      selectedRound.interaction.kind === "dominoPlay"
+      && selectedRound.interaction.answerTile
+      && selectedRound.interaction.answerEndSide
+      && isDominoTileAnswer(value, selectedRound.interaction.answerTile)
+      && !parseDominoAnswerValue(value).end
+    ) {
+      setWrongTactileValue(null);
+      setTactileFeedback(null);
+      return;
+    }
 
     if (isCorrectTactileAnswer(selectedRound.interaction, value)) {
       markRoundComplete(selectedRound);
@@ -1568,6 +1724,7 @@ export default function GamesRoomScreen({
                       <PuzzleVisualPanel
                         visual={selectedRound.visual}
                         interaction={selectedRound.interaction}
+                        language={language}
                         selectedTactileValue={selectedTactileValue}
                         wrongTactileValue={wrongTactileValue}
                         isComplete={hasCompletedSelectedRound}
@@ -1688,7 +1845,7 @@ export default function GamesRoomScreen({
                 ) : (
                   <>
                     <div className="mt-5">
-                      <PuzzleVisualPanel visual={selectedRound.visual} />
+                      <PuzzleVisualPanel visual={selectedRound.visual} language={language} />
                     </div>
                     <p className="mt-5 font-body text-[20px] font-semibold leading-snug text-[#466871]">
                       {displayedPrompt}
