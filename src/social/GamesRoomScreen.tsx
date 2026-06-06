@@ -100,7 +100,7 @@ function fallbackGameTable(roomResponse: SocialRoomResponse) {
         kind: "chess" as const,
         title: "Chess clue",
         body: "Spot a friendly tactic.",
-        prompt: "White's knight can check the king and attack the queen. What tactic is this?",
+        prompt: "Find the white knight making two threats.",
         choices: ["Fork", "Castle", "Trade pawns"],
         answer: "Fork",
         hint: "One piece makes two threats at the same time.",
@@ -407,15 +407,6 @@ function getChessTapCue(language: SocialGameLanguage) {
   if (language === "de") return "Tippe auf eine markierte Figur auf dem Brett.";
   if (language === "en") return "Tap a highlighted piece on the board.";
   return "Toca una pieza marcada en el tablero.";
-}
-
-function getChessTactilePrompt(language: SocialGameLanguage, hasStarted: boolean) {
-  if (language === "fr") return hasStarted ? "Touchez la piece ou la case qui cree la tactique." : "Commencez le puzzle, puis repondez sur l'echiquier.";
-  if (language === "it") return hasStarted ? "Tocca il pezzo o la casella che crea la tattica." : "Avvia il puzzle, poi rispondi sulla scacchiera.";
-  if (language === "pt") return hasStarted ? "Toque na peca ou casa que cria a tatica." : "Comece o puzzle e responda no tabuleiro.";
-  if (language === "de") return hasStarted ? "Tippe auf die Figur oder das Feld, das die Taktik macht." : "Starte das Raetsel und antworte dann auf dem Brett.";
-  if (language === "en") return hasStarted ? "Tap the piece or square that creates the tactic." : "Start the puzzle, then answer on the board.";
-  return hasStarted ? "Toca la pieza o casilla que crea la tactica." : "Empieza el puzle y responde en el tablero.";
 }
 
 function getTableTalkLabel(language: SocialGameLanguage) {
@@ -768,7 +759,7 @@ function TactileInteractionPanel({
             {getTactileMoveLabel(language)}
           </p>
           <p className="mt-1 font-body text-[17px] font-extrabold leading-snug text-[#31555D]">
-            {getChessTapCue(language)}
+            {interaction.instruction || getChessTapCue(language)}
           </p>
         </div>
         {helpButton}
@@ -1149,9 +1140,7 @@ export default function GamesRoomScreen({
     && loadingRoundKind === selectedRound.kind
     && selectedKindRounds.length < selectedPuzzleTotal,
   );
-  const displayedPrompt = selectedRound?.interaction?.kind === "chessTap"
-    ? getChessTactilePrompt(language, hasStartedSelectedRound)
-    : selectedRound?.prompt;
+  const displayedPrompt = selectedRound?.prompt;
   const canBrowseSelectedPuzzles = Boolean(puzzleBankLabels && selectedPuzzleTotal > 1);
   const isPuzzleNavigationDisabled = isLoadingSelectedBank || selectedKindRounds.length < 2;
 

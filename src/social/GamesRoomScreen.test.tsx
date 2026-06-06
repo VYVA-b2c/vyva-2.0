@@ -338,7 +338,7 @@ const roomResponse: SocialRoomResponse = {
         kind: "chess",
         title: "Chess clue",
         body: "Spot a friendly tactic.",
-        prompt: "White's knight can check the king and attack the queen. What tactic is this?",
+        prompt: "Find the white knight making two threats.",
         choices: ["Fork", "Castle", "Trade pawns"],
         answer: "Fork",
         hint: "One piece makes two threats at the same time.",
@@ -347,7 +347,7 @@ const roomResponse: SocialRoomResponse = {
         successMessage: "Nice steady thinking. Forks are a classic way to start a chess chat.",
         interaction: {
           kind: "chessTap",
-          instruction: "Tap the piece or square Viktor should notice.",
+          instruction: "Tap the white knight making two threats.",
           answerSquares: ["d5"],
           selectableSquares: ["d5", "f6", "b6", "g1"],
         },
@@ -368,7 +368,7 @@ const roomResponse: SocialRoomResponse = {
         kind: "chess",
         title: "Chess clue",
         body: "Find the trapped king.",
-        prompt: "Black's king is stuck behind its own pawns and White has a rook on the open file. What idea should White look for?",
+        prompt: "Find the white rook trapping the king.",
         choices: ["Back-rank mate", "En passant", "Pawn promotion"],
         answer: "Back-rank mate",
         hint: "The king has no safe square because its own pawns block the escape.",
@@ -377,7 +377,7 @@ const roomResponse: SocialRoomResponse = {
         successMessage: "Good eye. Back-rank patterns are small puzzles that many chess players enjoy.",
         interaction: {
           kind: "chessTap",
-          instruction: "Tap the piece or square Viktor should notice.",
+          instruction: "Tap the white rook trapping the king.",
           answerSquares: ["e8"],
           selectableSquares: ["e8", "g8", "f7", "g7", "h7", "g1"],
         },
@@ -455,7 +455,7 @@ describe("GamesRoomScreen", () => {
     const puzzleControls = screen.getByTestId("games-puzzle-controls");
     expect(within(puzzleControls).getByTestId("games-start-round")).toHaveTextContent("Start this puzzle");
     expect(within(puzzleControls).getByTestId("games-next-puzzle")).toBeInTheDocument();
-    expect(screen.getByText("Start the puzzle, then answer on the board.")).toBeInTheDocument();
+    expect(screen.getByText("Find the white knight making two threats.")).toBeInTheDocument();
     const chessBoard = screen.getByTestId("games-visual-chess");
     expect(chessBoard).toBeInTheDocument();
     expect(within(chessBoard).getByRole("img", { name: "White knight" })).toBeInTheDocument();
@@ -466,14 +466,14 @@ describe("GamesRoomScreen", () => {
     fireEvent.click(screen.getByTestId("games-next-puzzle"));
 
     expect(screen.getByText("Puzzle 2 of 2")).toBeInTheDocument();
-    expect(screen.getByText("Start the puzzle, then answer on the board.")).toBeInTheDocument();
+    expect(screen.getByText("Find the white rook trapping the king.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-start-round"));
     expect(screen.queryByTestId("games-start-round")).not.toBeInTheDocument();
     expect(screen.queryByTestId("games-help-choices")).not.toBeInTheDocument();
-    expect(screen.getByText("Tap the piece or square that creates the tactic.")).toBeInTheDocument();
+    expect(screen.getByText("Find the white rook trapping the king.")).toBeInTheDocument();
     expect(screen.getByTestId("games-tactile-chess")).toHaveTextContent("Your move");
-    expect(screen.getByTestId("games-tactile-chess")).toHaveTextContent("Tap a highlighted piece on the board.");
+    expect(screen.getByTestId("games-tactile-chess")).toHaveTextContent("Tap the white rook trapping the king.");
     fireEvent.click(screen.getByTestId("chess-square-e8"));
     expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
 
@@ -519,7 +519,7 @@ describe("GamesRoomScreen", () => {
 
     fireEvent.click(screen.getByTestId("games-round-chess"));
     expect(screen.getByText("Puzzle 2 of 2")).toBeInTheDocument();
-    expect(screen.getByText("Start the puzzle, then answer on the board.")).toBeInTheDocument();
+    expect(screen.getByText("Find the white rook trapping the king.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-round-word"));
     expect(screen.getByText("Puzzle 2 of 80")).toBeInTheDocument();
