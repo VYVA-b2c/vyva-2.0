@@ -91,6 +91,7 @@ import NotificationsSettings from "./pages/settings/NotificationsSettings";
 import ScheduledSupportSettings from "./pages/settings/ScheduledSupportSettings";
 import CaregiverDashboardPage from "./pages/CaregiverDashboardPage";
 import SocialHub from "./social/SocialHub";
+import MovementExerciseGuideScreen from "./social/MovementExerciseGuideScreen";
 import RoomScreen from "./social/RoomScreen";
 
 const ProxyPendingPage = lazy(() => import("./pages/admin/ProxyPendingPage"));
@@ -410,6 +411,7 @@ const App = () => (
                   <Route path="/caregiver" element={<ServiceGateRoute service="caregiverDashboard"><CaregiverDashboardPage /></ServiceGateRoute>} />
                   <Route path="/caregiver-dashboard" element={<ServiceGateRoute service="caregiverDashboard"><CaregiverDashboardPage /></ServiceGateRoute>} />
                   <Route path="/social-rooms" element={<AppShell><SocialHub /></AppShell>} />
+                  <Route path="/social-rooms/morning-movement/exercises/:exerciseId" element={<AppShell><MovementExerciseGuideScreen /></AppShell>} />
                   <Route path="/social-rooms/:slug" element={<AppShell><RoomScreen /></AppShell>} />
                   <Route path="/meds" element={<AppShell><ServiceGateRoute service="medications"><MedsScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/meds/adherence-report" element={<AppShell><ServiceGateRoute service="adherenceReport"><AdherenceReportScreen /></ServiceGateRoute></AppShell>} />
