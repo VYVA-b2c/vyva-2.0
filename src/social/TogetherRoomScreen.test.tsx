@@ -230,8 +230,30 @@ describe("TogetherRoomScreen", () => {
         }),
       );
     });
-    expect(screen.getByTestId("together-acknowledge-agreement")).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getAllByText("Room promise saved").length).toBeGreaterThan(0);
+    await waitFor(() => {
+      expect(screen.queryByTestId("together-room-promise")).not.toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("together-acknowledge-agreement")).not.toBeInTheDocument();
+    expect(screen.queryByText("Room promise saved")).not.toBeInTheDocument();
+  });
+
+  it("hides the room promise when the current user already acknowledged it", () => {
+    const acknowledgedResponse: SocialRoomResponse = {
+      ...roomResponse,
+      pulse: {
+        ...roomResponse.pulse!,
+        safety: {
+          ...roomResponse.pulse!.safety,
+          myAcknowledgedAt: "2026-06-04T10:15:00.000Z",
+        },
+      },
+    };
+
+    render(<TogetherRoomScreen roomResponse={acknowledgedResponse} language="en" visitId="visit-2" onBack={vi.fn()} />);
+
+    expect(screen.queryByTestId("together-room-promise")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("together-acknowledge-agreement")).not.toBeInTheDocument();
+    expect(screen.queryByText("Our room promise")).not.toBeInTheDocument();
   });
 
   it("saves comfort check-in choices for activity planning", async () => {

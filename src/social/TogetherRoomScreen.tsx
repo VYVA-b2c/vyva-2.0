@@ -2174,9 +2174,7 @@ export default function TogetherRoomScreen({
   const agreementTitle = pulse.safety.agreementTitle ?? copy.agreementTitle;
   const agreementLines = pulse.safety.agreementLines?.length ? pulse.safety.agreementLines : copy.agreementLines;
   const agreementAcknowledged = Boolean(pulse.safety.myAcknowledgedAt);
-  const agreementButtonLabel = agreementAcknowledged
-    ? pulse.safety.acknowledgedLabel ?? copy.acknowledgedLabel
-    : pulse.safety.acknowledgementLabel ?? copy.acknowledgementLabel;
+  const agreementButtonLabel = pulse.safety.acknowledgementLabel ?? copy.acknowledgementLabel;
   const proposalReviewFlags = useMemo(
     () => getComposerReviewFlags(proposalCategory, proposalDraft),
     [proposalCategory, proposalDraft],
@@ -2559,28 +2557,25 @@ export default function TogetherRoomScreen({
           <RoomVisualSummary memberCount={members.length} copy={copy} planCopy={planCopy} />
           <MemberOrbit members={members} />
 
-          <div className="mt-5 border-t border-[#D8E7E2] pt-4" data-testid="together-room-promise">
-            <div className="flex items-center gap-2">
-              <ShieldCheck size={21} className="text-[#0F766E]" aria-hidden="true" />
-              <h2 className="font-body text-[20px] font-bold text-[#244D47]">{agreementTitle}</h2>
+          {!agreementAcknowledged && (
+            <div className="mt-5 border-t border-[#D8E7E2] pt-4" data-testid="together-room-promise">
+              <div className="flex items-center gap-2">
+                <ShieldCheck size={21} className="text-[#0F766E]" aria-hidden="true" />
+                <h2 className="font-body text-[20px] font-bold text-[#244D47]">{agreementTitle}</h2>
+              </div>
+              <PromiseIconGrid agreementLines={agreementLines} />
+              <button
+                type="button"
+                onClick={() => void acknowledgeAgreement()}
+                disabled={isAcknowledgingAgreement}
+                aria-pressed="false"
+                data-testid="together-acknowledge-agreement"
+                className="mt-4 inline-flex min-h-[54px] w-full items-center justify-center gap-2 rounded-[18px] bg-[#0F766E] px-4 font-body text-[18px] font-bold text-white shadow-[0_12px_22px_rgba(15,118,110,0.16)] disabled:cursor-default disabled:opacity-70 sm:w-auto"
+              >
+                {agreementButtonLabel}
+              </button>
             </div>
-            <PromiseIconGrid agreementLines={agreementLines} />
-            <button
-              type="button"
-              onClick={() => void acknowledgeAgreement()}
-              disabled={agreementAcknowledged || isAcknowledgingAgreement}
-              aria-pressed={agreementAcknowledged}
-              data-testid="together-acknowledge-agreement"
-              className={`mt-4 inline-flex min-h-[54px] w-full items-center justify-center gap-2 rounded-[18px] px-4 font-body text-[18px] font-bold sm:w-auto ${
-                agreementAcknowledged
-                  ? "bg-[#EAF8F4] text-[#0F766E]"
-                  : "bg-[#0F766E] text-white shadow-[0_12px_22px_rgba(15,118,110,0.16)]"
-              } disabled:cursor-default`}
-            >
-              {agreementAcknowledged && <Check size={21} aria-hidden="true" />}
-              {agreementButtonLabel}
-            </button>
-          </div>
+          )}
         </section>
 
         <section className="rounded-[30px] border border-[#E2D7C4] bg-[#FFFDF8] px-5 py-5 shadow-[0_18px_36px_rgba(151,110,37,0.08)]">
