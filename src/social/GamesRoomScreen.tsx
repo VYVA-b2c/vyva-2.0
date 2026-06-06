@@ -100,7 +100,7 @@ function fallbackGameTable(roomResponse: SocialRoomResponse) {
         kind: "chess" as const,
         title: "Chess clue",
         body: "Spot a friendly tactic.",
-        prompt: "Find the white knight making two threats.",
+        prompt: "Find the double threat.",
         choices: ["Fork", "Castle", "Trade pawns"],
         answer: "Fork",
         hint: "One piece makes two threats at the same time.",
@@ -391,31 +391,27 @@ function getTactileTryAgainCopy(language: SocialGameLanguage) {
   return "Casi. Mira la pista y prueba otro gesto en la mesa.";
 }
 
-function getTactileMoveLabel(language: SocialGameLanguage) {
-  if (language === "fr") return "A vous";
-  if (language === "it") return "Tocca a te";
-  if (language === "pt") return "Sua jogada";
-  if (language === "de") return "Dein Zug";
-  if (language === "en") return "Your move";
-  return "Tu jugada";
-}
-
 function getChessTapCue(language: SocialGameLanguage) {
-  if (language === "fr") return "Touchez une piece marquee sur l'echiquier.";
-  if (language === "it") return "Tocca un pezzo segnato sulla scacchiera.";
-  if (language === "pt") return "Toque numa peca marcada no tabuleiro.";
-  if (language === "de") return "Tippe auf eine markierte Figur auf dem Brett.";
-  if (language === "en") return "Tap a highlighted piece on the board.";
-  return "Toca una pieza marcada en el tablero.";
+  if (language === "fr") return "Touchez une piece ou une case.";
+  if (language === "it") return "Tocca un pezzo o una casa.";
+  if (language === "pt") return "Toque numa peca ou casa.";
+  if (language === "de") return "Tippe auf eine Figur oder ein Feld.";
+  if (language === "en") return "Tap a piece or square.";
+  return "Toca una pieza o casilla.";
 }
 
-function getTableTalkLabel(language: SocialGameLanguage) {
-  if (language === "fr") return "Autour de la table";
-  if (language === "it") return "Al tavolo";
-  if (language === "pt") return "Na mesa";
-  if (language === "de") return "Am Tisch";
-  if (language === "en") return "Table talk";
-  return "En la mesa";
+function getLearnWhyLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Voir pourquoi";
+  if (language === "it") return "Scopri perche";
+  if (language === "pt") return "Ver por que";
+  if (language === "de") return "Warum?";
+  if (language === "en") return "Learn why";
+  return "Ver por que";
+}
+
+function compactSuccessMessage(message: string) {
+  const match = message.match(/^(.+?[.!?])(?:\s|$)/);
+  return match?.[1] ?? message;
 }
 
 function dominoTileKey(tile: [number, number]) {
@@ -505,6 +501,7 @@ function ChessBoardVisual({
   selectedSquare,
   wrongSquare,
   isComplete = false,
+  revealGuidance = false,
   onSquareSelect,
 }: {
   visual: Extract<SocialGameRoundVisual, { kind: "chessBoard" }>;
@@ -512,6 +509,7 @@ function ChessBoardVisual({
   selectedSquare?: string | null;
   wrongSquare?: string | null;
   isComplete?: boolean;
+  revealGuidance?: boolean;
   onSquareSelect?: (square: string) => void;
 }) {
   const piecesBySquare = new Map(visual.pieces.map((piece) => [piece.square, piece]));
@@ -533,14 +531,14 @@ function ChessBoardVisual({
           const square = `${String.fromCharCode("a".charCodeAt(0) + file)}${rank}`;
           const piece = piecesBySquare.get(square);
           const dark = (file + rank) % 2 === 0;
-          const marked = highlightSet.has(square) || arrowTargets.has(square);
+          const marked = revealGuidance && (highlightSet.has(square) || arrowTargets.has(square));
           const selected = selectedSquare === square;
           const wrong = wrongSquare === square;
           const tappable = canTap && selectableSquares.has(square);
           const squareClassName = `relative flex aspect-square items-center justify-center text-[11px] font-black ${dark ? "bg-[#8CB5A7]" : "bg-[#F2E7D5]"} ${tappable ? "cursor-pointer focus:outline-none focus-visible:ring-4 focus-visible:ring-[#FBBF24] hover:ring-4 hover:ring-[#FBBF24]/70" : canTap ? "cursor-default" : ""}`;
           const content = (
             <>
-              {marked && <span className="absolute inset-1 rounded-[8px] border-2 border-[#F59E0B]" />}
+              {marked && <span className="absolute inset-1 rounded-[8px] border-2 border-[#F59E0B]" data-testid={`chess-guidance-${square}`} />}
               {selected && <span className="absolute inset-1 rounded-[8px] border-4 border-[#087C82]" />}
               {wrong && <span className="absolute inset-1 rounded-[8px] border-4 border-[#D97706]" />}
               {piece && (
@@ -664,6 +662,7 @@ function PuzzleVisualPanel({
   selectedTactileValue,
   wrongTactileValue,
   isComplete,
+  revealChessGuidance,
   onChessSquareSelect,
 }: {
   visual?: SocialGameRoundVisual;
@@ -671,6 +670,7 @@ function PuzzleVisualPanel({
   selectedTactileValue?: string | null;
   wrongTactileValue?: string | null;
   isComplete?: boolean;
+  revealChessGuidance?: boolean;
   onChessSquareSelect?: (square: string) => void;
 }) {
   if (!visual || visual.kind === "wordTiles") return null;
@@ -682,6 +682,7 @@ function PuzzleVisualPanel({
         selectedSquare={selectedTactileValue}
         wrongSquare={wrongTactileValue}
         isComplete={isComplete}
+        revealGuidance={revealChessGuidance}
         onSquareSelect={onChessSquareSelect}
       />
     );
@@ -699,24 +700,33 @@ function RoundCompletePanel({
   language: SocialGameLanguage;
   roundCompleteLabel: string;
 }) {
+  const [showLearning, setShowLearning] = useState(false);
+
   return (
-    <div className="rounded-[22px] border border-[#BDE8D4] bg-[#EFFBF4] px-4 py-4" data-testid="games-round-complete">
+    <div className="rounded-[20px] border border-[#BDE8D4] bg-[#EFFBF4] px-4 py-3" data-testid="games-round-complete">
       <p className="flex items-center gap-2 font-body text-[19px] font-extrabold text-[#087443]">
         <Check size={21} strokeWidth={3} />
         {roundCompleteLabel}
       </p>
-      <p className="mt-2 font-body text-[18px] font-semibold leading-snug text-[#31594A]">
-        {round.successMessage}
+      <p className="mt-1 font-body text-[17px] font-semibold leading-snug text-[#31594A]">
+        {compactSuccessMessage(round.successMessage)}
       </p>
       {round.explanation && (
-        <p className="mt-3 rounded-[16px] bg-white/70 px-4 py-3 font-body text-[16px] font-bold leading-snug text-[#31594A]">
-          {round.explanation}
-        </p>
-      )}
-      {round.tableTalkPrompt && (
-        <p className="mt-3 rounded-[16px] bg-[#F7F1E7] px-4 py-3 font-body text-[16px] font-extrabold leading-snug text-[#7A4D08]">
-          {getTableTalkLabel(language)}: {round.tableTalkPrompt}
-        </p>
+        <>
+          <button
+            type="button"
+            onClick={() => setShowLearning((current) => !current)}
+            data-testid="games-learn-why"
+            className="mt-3 min-h-[40px] rounded-[14px] border border-[#BFDAD7] bg-white px-4 font-body text-[14px] font-extrabold text-[#075C64]"
+          >
+            {getLearnWhyLabel(language)}
+          </button>
+          {showLearning && (
+            <p className="mt-3 rounded-[16px] bg-white/70 px-4 py-3 font-body text-[16px] font-bold leading-snug text-[#31594A]">
+              {round.explanation}
+            </p>
+          )}
+        </>
       )}
     </div>
   );
@@ -753,15 +763,10 @@ function TactileInteractionPanel({
 
   if (interaction.kind === "chessTap") {
     return (
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-[#BFDAD7] bg-[#F4FAF8] px-4 py-3" data-testid="games-tactile-chess">
-        <div className="min-w-0">
-          <p className="font-body text-[15px] font-extrabold uppercase tracking-[0.08em] text-[#087C82]">
-            {getTactileMoveLabel(language)}
-          </p>
-          <p className="mt-1 font-body text-[17px] font-extrabold leading-snug text-[#31555D]">
-            {interaction.instruction || getChessTapCue(language)}
-          </p>
-        </div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[16px] bg-[#F4FAF8] px-3 py-2" data-testid="games-chess-action-row">
+        <p className="font-body text-[16px] font-extrabold leading-snug text-[#31555D]">
+          {getChessTapCue(language)}
+        </p>
         {helpButton}
       </div>
     );
@@ -1141,6 +1146,10 @@ export default function GamesRoomScreen({
     && selectedKindRounds.length < selectedPuzzleTotal,
   );
   const displayedPrompt = selectedRound?.prompt;
+  const shouldRevealChessGuidance = Boolean(
+    selectedRound?.interaction?.kind === "chessTap"
+    && (showTactileHelp || wrongTactileValue || hasCompletedSelectedRound),
+  );
   const canBrowseSelectedPuzzles = Boolean(puzzleBankLabels && selectedPuzzleTotal > 1);
   const isPuzzleNavigationDisabled = isLoadingSelectedBank || selectedKindRounds.length < 2;
 
@@ -1326,8 +1335,10 @@ export default function GamesRoomScreen({
 
     setWrongTactileValue(value);
     setTactileFeedback(getTactileTryAgainCopy(language));
-    setShowTactileHelp(true);
-    setShowTactileChoices(true);
+    if (selectedRound.kind !== "chess") {
+      setShowTactileHelp(true);
+      setShowTactileChoices(true);
+    }
   };
 
   const chooseWordTile = (index: number) => {
@@ -1560,6 +1571,7 @@ export default function GamesRoomScreen({
                         selectedTactileValue={selectedTactileValue}
                         wrongTactileValue={wrongTactileValue}
                         isComplete={hasCompletedSelectedRound}
+                        revealChessGuidance={shouldRevealChessGuidance}
                         onChessSquareSelect={chooseTactileAnswer}
                       />
                     </div>
@@ -1592,14 +1604,16 @@ export default function GamesRoomScreen({
                       />
                     ) : (
                       <>
-                        <TactileInteractionPanel
-                          interaction={selectedRound.interaction}
-                          language={language}
-                          selectedTactileValue={selectedTactileValue}
-                          isComplete={hasCompletedSelectedRound}
-                          onTactileAnswer={chooseTactileAnswer}
-                          onShowHelp={() => setShowTactileHelp(true)}
-                        />
+                        {!hasCompletedSelectedRound && (
+                          <TactileInteractionPanel
+                            interaction={selectedRound.interaction}
+                            language={language}
+                            selectedTactileValue={selectedTactileValue}
+                            isComplete={hasCompletedSelectedRound}
+                            onTactileAnswer={chooseTactileAnswer}
+                            onShowHelp={() => setShowTactileHelp(true)}
+                          />
+                        )}
 
                         {tactileFeedback && !hasCompletedSelectedRound && (
                           <p className="mt-3 rounded-[18px] bg-[#FFF7E8] px-4 py-3 font-body text-[17px] font-bold leading-snug text-[#8A5200]" role="status">

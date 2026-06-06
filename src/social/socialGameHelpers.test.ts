@@ -37,24 +37,24 @@ describe("social games room helpers", () => {
     }
   });
 
-  it("generates action-style chess prompts and tactile instructions", () => {
+  it("generates non-giveaway chess prompts and tactile instructions", () => {
     const actionPromptStart: Record<SocialGameLanguage, RegExp> = {
       en: /^Find /,
       es: /^Encuentra /,
       fr: /^Trouvez /,
-      de: /^Finde /,
+      de: /^Finde[ ,]/,
       it: /^Trova /,
       pt: /^Encontre /,
     };
-    const actionInstructionStart: Record<SocialGameLanguage, RegExp> = {
-      en: /^Tap /,
-      es: /^Toca /,
-      fr: /^Touchez /,
-      de: /^Tippe /,
-      it: /^Tocca /,
-      pt: /^Toque /,
+    const genericInstruction: Record<SocialGameLanguage, string> = {
+      en: "Tap a piece or square.",
+      es: "Toca una pieza o casilla.",
+      fr: "Touchez une piece ou une case.",
+      de: "Tippe auf eine Figur oder ein Feld.",
+      it: "Tocca un pezzo o una casa.",
+      pt: "Toque numa peca ou casa.",
     };
-    const terminologyFirstPattern = /What tactic is this|What pattern should|What should White name|What idea should|name this|Quelle idee faut-il nommer|Quale idea bisogna nominare|Que ideia deve ser nomeada/i;
+    const giveawayPattern = /white (queen|rook|bishop|knight|pawn)|dama blanca|torre blanca|alfil blanco|caballo blanco|peon blanco|weisse dame|weissen turm|weissen laeufer|weissen springer|weissen bauern|dame blanche|tour blanche|fou blanc|cavalier blanc|pion blanc|donna bianca|torre bianca|alfiere bianco|cavallo bianco|pedone bianco|dama branca|torre branca|bispo branco|cavalo branco|peao branco|fork|horquilla|gabel|fourchette|forchetta|garfo|back-rank mate|mate de primera fila|grundreihenmatt|mat du couloir|matto di corridoio|mate de corredor|pin|clouage|inchiodatura|cravada|skewer|enfilade|infilata|espeto/i;
 
     for (const language of supportedGameLanguages) {
       const chessRounds = buildGameTable(language, 6).rounds.filter((round) => round.kind === "chess");
@@ -63,11 +63,11 @@ describe("social games room helpers", () => {
 
       for (const round of chessRounds) {
         expect(round.prompt).toMatch(actionPromptStart[language]);
-        expect(round.prompt).not.toMatch(terminologyFirstPattern);
+        expect(round.prompt).not.toMatch(giveawayPattern);
+        expect(round.prompt.toLocaleLowerCase()).not.toContain(round.answer.toLocaleLowerCase());
         expect(round.interaction?.kind).toBe("chessTap");
         if (round.interaction?.kind !== "chessTap") continue;
-        expect(round.interaction.instruction).toMatch(actionInstructionStart[language]);
-        expect(round.interaction.instruction).not.toMatch(terminologyFirstPattern);
+        expect(round.interaction.instruction).toBe(genericInstruction[language]);
       }
     }
   });
@@ -197,6 +197,10 @@ describe("social games room helpers", () => {
           ]);
           expect(round.interaction.answerSquares.length).toBeGreaterThan(0);
           expect(round.interaction.answerSquares.every((square) => validSquares.has(square))).toBe(true);
+          expect(round.interaction.selectableSquares?.length).toBeGreaterThanOrEqual(5);
+          expect(round.interaction.answerSquares.every((square) => round.interaction.kind === "chessTap" && round.interaction.selectableSquares?.includes(square))).toBe(true);
+          expect(round.visual.pieces.length).toBeGreaterThanOrEqual(6);
+          expect(round.visual.pieces.length).toBeLessThanOrEqual(10);
         }
 
         if (round.kind === "dominoes") {

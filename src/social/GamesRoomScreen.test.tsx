@@ -338,7 +338,7 @@ const roomResponse: SocialRoomResponse = {
         kind: "chess",
         title: "Chess clue",
         body: "Spot a friendly tactic.",
-        prompt: "Find the white knight making two threats.",
+        prompt: "Find the double threat.",
         choices: ["Fork", "Castle", "Trade pawns"],
         answer: "Fork",
         hint: "One piece makes two threats at the same time.",
@@ -347,20 +347,24 @@ const roomResponse: SocialRoomResponse = {
         successMessage: "Nice steady thinking. Forks are a classic way to start a chess chat.",
         interaction: {
           kind: "chessTap",
-          instruction: "Tap the white knight making two threats.",
+          instruction: "Tap a piece or square.",
           answerSquares: ["d5"],
-          selectableSquares: ["d5", "f6", "b6", "g1"],
+          selectableSquares: ["d5", "b6", "f6", "c2", "h6", "a7"],
         },
         visual: {
           kind: "chessBoard",
-          caption: "One white piece points at two black targets.",
+          caption: "White to move.",
           pieces: [
             { square: "d5", piece: "whiteKnight" },
             { square: "f6", piece: "blackKing" },
             { square: "b6", piece: "blackQueen" },
+            { square: "c2", piece: "whiteBishop" },
+            { square: "h6", piece: "blackKnight" },
+            { square: "a7", piece: "blackPawn" },
             { square: "g1", piece: "whiteKing" },
           ],
           highlights: ["d5", "f6", "b6"],
+          arrows: [{ from: "d5", to: "f6" }, { from: "d5", to: "b6" }],
         },
       },
       {
@@ -368,31 +372,37 @@ const roomResponse: SocialRoomResponse = {
         kind: "chess",
         title: "Chess clue",
         body: "Find the trapped king.",
-        prompt: "Find the white rook trapping the king.",
+        prompt: "Find the strongest king pressure.",
         choices: ["Back-rank mate", "En passant", "Pawn promotion"],
         answer: "Back-rank mate",
         hint: "The king has no safe square because its own pawns block the escape.",
         tags: ["games", "chess", "game:chess", "chess:mate"],
         estimatedDurationSeconds: 95,
         successMessage: "Good eye. Back-rank patterns are small puzzles that many chess players enjoy.",
+        explanation: "Why this works: The king has no safe square because its own pawns block the escape.",
+        tableTalkPrompt: "Ask someone which chess piece they enjoy moving most.",
         interaction: {
           kind: "chessTap",
-          instruction: "Tap the white rook trapping the king.",
+          instruction: "Tap a piece or square.",
           answerSquares: ["e8"],
-          selectableSquares: ["e8", "g8", "f7", "g7", "h7", "g1"],
+          selectableSquares: ["e8", "f7", "g7", "h7", "f2", "c6", "a6"],
         },
         visual: {
           kind: "chessBoard",
-          caption: "The black king is boxed in behind its own pawns.",
+          caption: "White to move.",
           pieces: [
             { square: "e8", piece: "whiteRook" },
             { square: "g8", piece: "blackKing" },
             { square: "f7", piece: "blackPawn" },
             { square: "g7", piece: "blackPawn" },
             { square: "h7", piece: "blackPawn" },
+            { square: "f2", piece: "whiteBishop" },
+            { square: "c6", piece: "blackKnight" },
+            { square: "a6", piece: "blackPawn" },
             { square: "g1", piece: "whiteKing" },
           ],
           highlights: ["e8", "g8", "f7", "g7", "h7"],
+          arrows: [{ from: "e8", to: "g8" }],
         },
       },
       ...wordRounds,
@@ -455,27 +465,47 @@ describe("GamesRoomScreen", () => {
     const puzzleControls = screen.getByTestId("games-puzzle-controls");
     expect(within(puzzleControls).getByTestId("games-start-round")).toHaveTextContent("Start this puzzle");
     expect(within(puzzleControls).getByTestId("games-next-puzzle")).toBeInTheDocument();
-    expect(screen.getByText("Find the white knight making two threats.")).toBeInTheDocument();
+    expect(screen.getByText("Find the double threat.")).toBeInTheDocument();
     const chessBoard = screen.getByTestId("games-visual-chess");
     expect(chessBoard).toBeInTheDocument();
     expect(within(chessBoard).getByRole("img", { name: "White knight" })).toBeInTheDocument();
     expect(within(chessBoard).getByRole("img", { name: "Black queen" })).toBeInTheDocument();
     expect(within(chessBoard).queryByText("WN")).not.toBeInTheDocument();
     expect(within(chessBoard).queryByText("BQ")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("chess-guidance-d5")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-next-puzzle"));
 
     expect(screen.getByText("Puzzle 2 of 2")).toBeInTheDocument();
-    expect(screen.getByText("Find the white rook trapping the king.")).toBeInTheDocument();
+    expect(screen.getByText("Find the strongest king pressure.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-start-round"));
     expect(screen.queryByTestId("games-start-round")).not.toBeInTheDocument();
     expect(screen.queryByTestId("games-help-choices")).not.toBeInTheDocument();
-    expect(screen.getByText("Find the white rook trapping the king.")).toBeInTheDocument();
-    expect(screen.getByTestId("games-tactile-chess")).toHaveTextContent("Your move");
-    expect(screen.getByTestId("games-tactile-chess")).toHaveTextContent("Tap the white rook trapping the king.");
+    expect(screen.getByText("Find the strongest king pressure.")).toBeInTheDocument();
+    expect(screen.queryByTestId("games-tactile-chess")).not.toBeInTheDocument();
+    expect(screen.queryByText("Your move")).not.toBeInTheDocument();
+    expect(screen.getByTestId("games-chess-action-row")).toHaveTextContent("Tap a piece or square.");
+    expect(screen.queryByTestId("chess-guidance-e8")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("games-show-help"));
+
+    expect(screen.getByText(/Hint:/)).toHaveTextContent("The king has no safe square");
+    expect(screen.getByTestId("chess-guidance-e8")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("chess-square-f7"));
+
+    expect(screen.getByRole("status")).toHaveTextContent("Close.");
+    expect(screen.queryByTestId("games-help-choices")).not.toBeInTheDocument();
+    expect(screen.getByTestId("chess-guidance-e8")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("chess-square-e8"));
     expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
+    expect(screen.queryByText("Back-rank patterns are small puzzles that many chess players enjoy.")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Why this works:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Table talk:/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("games-learn-why"));
+    expect(screen.getByText(/Why this works:/)).toBeInTheDocument();
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
@@ -519,7 +549,7 @@ describe("GamesRoomScreen", () => {
 
     fireEvent.click(screen.getByTestId("games-round-chess"));
     expect(screen.getByText("Puzzle 2 of 2")).toBeInTheDocument();
-    expect(screen.getByText("Find the white rook trapping the king.")).toBeInTheDocument();
+    expect(screen.getByText("Find the strongest king pressure.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-round-word"));
     expect(screen.getByText("Puzzle 2 of 80")).toBeInTheDocument();
