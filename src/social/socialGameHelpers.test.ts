@@ -17,7 +17,7 @@ describe("social games room helpers", () => {
 
     expect(table.tableLabel).toBe("Today's table");
     expect(uniqueKinds).toEqual(["chess", "word", "dominoes", "bridge"]);
-    expect(chessRounds.length).toBeGreaterThanOrEqual(60);
+    expect(chessRounds).toHaveLength(80);
     expect(new Set(chessRounds.map((round) => round.id)).size).toBe(chessRounds.length);
     expect(wordRounds).toHaveLength(80);
     expect(new Set(wordRounds.map((round) => round.id)).size).toBe(wordRounds.length);
@@ -32,8 +32,43 @@ describe("social games room helpers", () => {
   it("keeps the chess puzzle bank available in each supported app language", () => {
     for (const language of supportedGameLanguages) {
       const table = buildGameTable(language, 6);
-      expect(table.rounds.filter((round) => round.kind === "chess").length).toBeGreaterThanOrEqual(60);
+      expect(table.rounds.filter((round) => round.kind === "chess")).toHaveLength(80);
       expect(table.defaultRoundId).toBe("chess-clue-fork");
+    }
+  });
+
+  it("generates action-style chess prompts and tactile instructions", () => {
+    const actionPromptStart: Record<SocialGameLanguage, RegExp> = {
+      en: /^Find /,
+      es: /^Encuentra /,
+      fr: /^Trouvez /,
+      de: /^Finde /,
+      it: /^Trova /,
+      pt: /^Encontre /,
+    };
+    const actionInstructionStart: Record<SocialGameLanguage, RegExp> = {
+      en: /^Tap /,
+      es: /^Toca /,
+      fr: /^Touchez /,
+      de: /^Tippe /,
+      it: /^Tocca /,
+      pt: /^Toque /,
+    };
+    const terminologyFirstPattern = /What tactic is this|What pattern should|What should White name|What idea should|name this|Quelle idee faut-il nommer|Quale idea bisogna nominare|Que ideia deve ser nomeada/i;
+
+    for (const language of supportedGameLanguages) {
+      const chessRounds = buildGameTable(language, 6).rounds.filter((round) => round.kind === "chess");
+
+      expect(chessRounds).toHaveLength(80);
+
+      for (const round of chessRounds) {
+        expect(round.prompt).toMatch(actionPromptStart[language]);
+        expect(round.prompt).not.toMatch(terminologyFirstPattern);
+        expect(round.interaction?.kind).toBe("chessTap");
+        if (round.interaction?.kind !== "chessTap") continue;
+        expect(round.interaction.instruction).toMatch(actionInstructionStart[language]);
+        expect(round.interaction.instruction).not.toMatch(terminologyFirstPattern);
+      }
     }
   });
 

@@ -16,12 +16,12 @@ const socialGameLanguages: SocialGameLanguage[] = ["es", "en", "fr", "de", "it",
 function tactileInstruction(kind: SocialGameKind | "word", language: SocialGameLanguage) {
   const copy: Record<SocialGameKind, Record<SocialGameLanguage, string>> = {
     chess: {
-      en: "Tap the piece or square Viktor should notice.",
-      es: "Toca la pieza o casilla que Viktor deberia notar.",
-      fr: "Touche la piece ou la case que Viktor doit remarquer.",
-      de: "Tippe auf die Figur oder das Feld, das Viktor beachten soll.",
-      it: "Tocca il pezzo o la casa che Viktor dovrebbe notare.",
-      pt: "Toque na peca ou casa que Viktor deve notar.",
+      en: "Tap the highlighted chess clue.",
+      es: "Toca la pista marcada en el tablero.",
+      fr: "Touche l'indice marque sur l'echiquier.",
+      de: "Tippe auf den markierten Bretthinweis.",
+      it: "Tocca l'indizio segnato sulla scacchiera.",
+      pt: "Toque na pista marcada no tabuleiro.",
     },
     word: {
       en: "Tap tiles into your tray.",
@@ -1542,6 +1542,281 @@ const chessPuzzleThemes: CuratedGamePuzzleTheme[] = [
   },
 ];
 
+type ChessBoardVisual = Extract<SocialGameRoundVisual, { kind: "chessBoard" }>;
+type ChessPieceName = ChessBoardVisual["pieces"][number]["piece"];
+type ChessActionCopy = { prompt: string; instruction: string };
+
+const chessPieceFallback: Record<SocialGameLanguage, string> = {
+  en: "the highlighted piece",
+  es: "la pieza marcada",
+  fr: "la piece marquee",
+  de: "die markierte Figur",
+  it: "il pezzo segnato",
+  pt: "a peca marcada",
+};
+
+const chessPiecePhrases: Partial<Record<ChessPieceName, Record<SocialGameLanguage, string>>> = {
+  whiteKing: {
+    en: "the white king",
+    es: "el rey blanco",
+    fr: "le roi blanc",
+    de: "den weissen Koenig",
+    it: "il re bianco",
+    pt: "o rei branco",
+  },
+  whiteQueen: {
+    en: "the white queen",
+    es: "la dama blanca",
+    fr: "la dame blanche",
+    de: "die weisse Dame",
+    it: "la donna bianca",
+    pt: "a dama branca",
+  },
+  whiteRook: {
+    en: "the white rook",
+    es: "la torre blanca",
+    fr: "la tour blanche",
+    de: "den weissen Turm",
+    it: "la torre bianca",
+    pt: "a torre branca",
+  },
+  whiteBishop: {
+    en: "the white bishop",
+    es: "el alfil blanco",
+    fr: "le fou blanc",
+    de: "den weissen Laeufer",
+    it: "l'alfiere bianco",
+    pt: "o bispo branco",
+  },
+  whiteKnight: {
+    en: "the white knight",
+    es: "el caballo blanco",
+    fr: "le cavalier blanc",
+    de: "den weissen Springer",
+    it: "il cavallo bianco",
+    pt: "o cavalo branco",
+  },
+  whitePawn: {
+    en: "the white pawn",
+    es: "el peon blanco",
+    fr: "le pion blanc",
+    de: "den weissen Bauern",
+    it: "il pedone bianco",
+    pt: "o peao branco",
+  },
+  blackKing: {
+    en: "the black king",
+    es: "el rey negro",
+    fr: "le roi noir",
+    de: "den schwarzen Koenig",
+    it: "il re nero",
+    pt: "o rei preto",
+  },
+  blackQueen: {
+    en: "the black queen",
+    es: "la dama negra",
+    fr: "la dame noire",
+    de: "die schwarze Dame",
+    it: "la donna nera",
+    pt: "a dama preta",
+  },
+  blackRook: {
+    en: "the black rook",
+    es: "la torre negra",
+    fr: "la tour noire",
+    de: "den schwarzen Turm",
+    it: "la torre nera",
+    pt: "a torre preta",
+  },
+  blackBishop: {
+    en: "the black bishop",
+    es: "el alfil negro",
+    fr: "le fou noir",
+    de: "den schwarzen Laeufer",
+    it: "l'alfiere nero",
+    pt: "o bispo preto",
+  },
+  blackKnight: {
+    en: "the black knight",
+    es: "el caballo negro",
+    fr: "le cavalier noir",
+    de: "den schwarzen Springer",
+    it: "il cavallo nero",
+    pt: "o cavalo preto",
+  },
+  blackPawn: {
+    en: "the black pawn",
+    es: "el peon negro",
+    fr: "le pion noir",
+    de: "den schwarzen Bauern",
+    it: "il pedone nero",
+    pt: "o peao preto",
+  },
+};
+
+const chessActionTemplates: Record<string, Record<SocialGameLanguage, ChessActionCopy>> = {
+  doubleThreat: {
+    en: { prompt: "Find {piece} making two threats.", instruction: "Tap {piece} making two threats." },
+    es: { prompt: "Encuentra {piece} que crea dos amenazas.", instruction: "Toca {piece} que crea dos amenazas." },
+    fr: { prompt: "Trouvez {piece} qui cree deux menaces.", instruction: "Touchez {piece} qui cree deux menaces." },
+    de: { prompt: "Finde {piece} mit zwei Drohungen.", instruction: "Tippe auf {piece} mit zwei Drohungen." },
+    it: { prompt: "Trova {piece} che crea due minacce.", instruction: "Tocca {piece} che crea due minacce." },
+    pt: { prompt: "Encontre {piece} que cria duas ameacas.", instruction: "Toque em {piece} que cria duas ameacas." },
+  },
+  kingTrap: {
+    en: { prompt: "Find {piece} trapping the king.", instruction: "Tap {piece} trapping the king." },
+    es: { prompt: "Encuentra {piece} que atrapa al rey.", instruction: "Toca {piece} que atrapa al rey." },
+    fr: { prompt: "Trouvez {piece} qui enferme le roi.", instruction: "Touchez {piece} qui enferme le roi." },
+    de: { prompt: "Finde {piece}, die den Koenig einsperrt.", instruction: "Tippe auf {piece}, die den Koenig einsperrt." },
+    it: { prompt: "Trova {piece} che intrappola il re.", instruction: "Tocca {piece} che intrappola il re." },
+    pt: { prompt: "Encontre {piece} que prende o rei.", instruction: "Toque em {piece} que prende o rei." },
+  },
+  linePressure: {
+    en: { prompt: "Find {piece} creating pressure on the line.", instruction: "Tap {piece} creating pressure on the line." },
+    es: { prompt: "Encuentra {piece} que presiona en la linea.", instruction: "Toca {piece} que presiona en la linea." },
+    fr: { prompt: "Trouvez {piece} qui met la pression sur la ligne.", instruction: "Touchez {piece} qui met la pression sur la ligne." },
+    de: { prompt: "Finde {piece}, die Druck auf der Linie macht.", instruction: "Tippe auf {piece}, die Druck auf der Linie macht." },
+    it: { prompt: "Trova {piece} che crea pressione sulla linea.", instruction: "Tocca {piece} che crea pressione sulla linea." },
+    pt: { prompt: "Encontre {piece} que faz pressao na linha.", instruction: "Toque em {piece} que faz pressao na linha." },
+  },
+  valuableLine: {
+    en: { prompt: "Find {piece} aiming through the valuable target.", instruction: "Tap {piece} aiming through the valuable target." },
+    es: { prompt: "Encuentra {piece} que apunta a traves del objetivo valioso.", instruction: "Toca {piece} que apunta a traves del objetivo valioso." },
+    fr: { prompt: "Trouvez {piece} qui vise a travers la cible importante.", instruction: "Touchez {piece} qui vise a travers la cible importante." },
+    de: { prompt: "Finde {piece}, die durch das wertvolle Ziel zielt.", instruction: "Tippe auf {piece}, die durch das wertvolle Ziel zielt." },
+    it: { prompt: "Trova {piece} che mira attraverso il bersaglio prezioso.", instruction: "Tocca {piece} che mira attraverso il bersaglio prezioso." },
+    pt: { prompt: "Encontre {piece} que mira atraves do alvo valioso.", instruction: "Toque em {piece} que mira atraves do alvo valioso." },
+  },
+  openLine: {
+    en: { prompt: "Find {piece} using the opened line.", instruction: "Tap {piece} using the opened line." },
+    es: { prompt: "Encuentra {piece} que usa la linea abierta.", instruction: "Toca {piece} que usa la linea abierta." },
+    fr: { prompt: "Trouvez {piece} qui utilise la ligne ouverte.", instruction: "Touchez {piece} qui utilise la ligne ouverte." },
+    de: { prompt: "Finde {piece}, die die offene Linie nutzt.", instruction: "Tippe auf {piece}, die die offene Linie nutzt." },
+    it: { prompt: "Trova {piece} che usa la linea aperta.", instruction: "Tocca {piece} che usa la linea aperta." },
+    pt: { prompt: "Encontre {piece} que usa a linha aberta.", instruction: "Toque em {piece} que usa a linha aberta." },
+  },
+  defenderWork: {
+    en: { prompt: "Find {piece} putting the defender under pressure.", instruction: "Tap {piece} putting the defender under pressure." },
+    es: { prompt: "Encuentra {piece} que presiona al defensor.", instruction: "Toca {piece} que presiona al defensor." },
+    fr: { prompt: "Trouvez {piece} qui presse le defenseur.", instruction: "Touchez {piece} qui presse le defenseur." },
+    de: { prompt: "Finde {piece}, die den Verteidiger belastet.", instruction: "Tippe auf {piece}, die den Verteidiger belastet." },
+    it: { prompt: "Trova {piece} che mette pressione al difensore.", instruction: "Tocca {piece} che mette pressione al difensore." },
+    pt: { prompt: "Encontre {piece} que pressiona o defensor.", instruction: "Toque em {piece} que pressiona o defensor." },
+  },
+  pullAway: {
+    en: { prompt: "Find {piece} pulling a defender away.", instruction: "Tap {piece} pulling a defender away." },
+    es: { prompt: "Encuentra {piece} que aleja a un defensor.", instruction: "Toca {piece} que aleja a un defensor." },
+    fr: { prompt: "Trouvez {piece} qui eloigne un defenseur.", instruction: "Touchez {piece} qui eloigne un defenseur." },
+    de: { prompt: "Finde {piece}, die einen Verteidiger wegzieht.", instruction: "Tippe auf {piece}, die einen Verteidiger wegzieht." },
+    it: { prompt: "Trova {piece} che allontana un difensore.", instruction: "Tocca {piece} che allontana un difensore." },
+    pt: { prompt: "Encontre {piece} que afasta um defensor.", instruction: "Toque em {piece} que afasta um defensor." },
+  },
+  inviteDanger: {
+    en: { prompt: "Find {piece} drawing a piece to a risky square.", instruction: "Tap {piece} drawing a piece to a risky square." },
+    es: { prompt: "Encuentra {piece} que atrae una pieza a una casilla peligrosa.", instruction: "Toca {piece} que atrae una pieza a una casilla peligrosa." },
+    fr: { prompt: "Trouvez {piece} qui attire une piece sur une case risquee.", instruction: "Touchez {piece} qui attire une piece sur une case risquee." },
+    de: { prompt: "Finde {piece}, die eine Figur auf ein riskantes Feld lockt.", instruction: "Tippe auf {piece}, die eine Figur auf ein riskantes Feld lockt." },
+    it: { prompt: "Trova {piece} che attira un pezzo su una casa rischiosa.", instruction: "Tocca {piece} che attira un pezzo su una casa rischiosa." },
+    pt: { prompt: "Encontre {piece} que atrai uma peca para uma casa arriscada.", instruction: "Toque em {piece} que atrai uma peca para uma casa arriscada." },
+  },
+  clearPath: {
+    en: { prompt: "Find {piece} clearing a path.", instruction: "Tap {piece} clearing a path." },
+    es: { prompt: "Encuentra {piece} que despeja el camino.", instruction: "Toca {piece} que despeja el camino." },
+    fr: { prompt: "Trouvez {piece} qui libere le passage.", instruction: "Touchez {piece} qui libere le passage." },
+    de: { prompt: "Finde {piece}, die den Weg frei macht.", instruction: "Tippe auf {piece}, die den Weg frei macht." },
+    it: { prompt: "Trova {piece} che libera il passaggio.", instruction: "Tocca {piece} che libera il passaggio." },
+    pt: { prompt: "Encontre {piece} que abre o caminho.", instruction: "Toque em {piece} que abre o caminho." },
+  },
+  tableMove: {
+    en: { prompt: "Find {piece} changing the position.", instruction: "Tap {piece} changing the position." },
+    es: { prompt: "Encuentra {piece} que cambia la posicion.", instruction: "Toca {piece} que cambia la posicion." },
+    fr: { prompt: "Trouvez {piece} qui change la position.", instruction: "Touchez {piece} qui change la position." },
+    de: { prompt: "Finde {piece}, die die Stellung veraendert.", instruction: "Tippe auf {piece}, die die Stellung veraendert." },
+    it: { prompt: "Trova {piece} che cambia la posizione.", instruction: "Tocca {piece} che cambia la posizione." },
+    pt: { prompt: "Encontre {piece} que muda a posicao.", instruction: "Toque em {piece} que muda a posicao." },
+  },
+  strongSquare: {
+    en: { prompt: "Find {piece} sitting on the strong square.", instruction: "Tap {piece} sitting on the strong square." },
+    es: { prompt: "Encuentra {piece} en la casilla fuerte.", instruction: "Toca {piece} en la casilla fuerte." },
+    fr: { prompt: "Trouvez {piece} sur la case forte.", instruction: "Touchez {piece} sur la case forte." },
+    de: { prompt: "Finde {piece} auf dem starken Feld.", instruction: "Tippe auf {piece} auf dem starken Feld." },
+    it: { prompt: "Trova {piece} sulla casa forte.", instruction: "Tocca {piece} sulla casa forte." },
+    pt: { prompt: "Encontre {piece} na casa forte.", instruction: "Toque em {piece} na casa forte." },
+  },
+  escapeSquares: {
+    en: { prompt: "Find {piece} taking away safe squares.", instruction: "Tap {piece} taking away safe squares." },
+    es: { prompt: "Encuentra {piece} que quita casillas seguras.", instruction: "Toca {piece} que quita casillas seguras." },
+    fr: { prompt: "Trouvez {piece} qui retire des cases sures.", instruction: "Touchez {piece} qui retire des cases sures." },
+    de: { prompt: "Finde {piece}, die sichere Felder nimmt.", instruction: "Tippe auf {piece}, die sichere Felder nimmt." },
+    it: { prompt: "Trova {piece} che toglie case sicure.", instruction: "Tocca {piece} che toglie case sicure." },
+    pt: { prompt: "Encontre {piece} que tira casas seguras.", instruction: "Toque em {piece} que tira casas seguras." },
+  },
+};
+
+const chessActionTemplateByTag: Record<string, keyof typeof chessActionTemplates> = {
+  fork: "doubleThreat",
+  "double-attack": "doubleThreat",
+  "back-rank-mate": "kingTrap",
+  "mate-net": "escapeSquares",
+  pin: "linePressure",
+  skewer: "valuableLine",
+  "discovered-attack": "openLine",
+  deflection: "pullAway",
+  attraction: "inviteDanger",
+  "overloaded-defender": "defenderWork",
+  "remove-defender": "defenderWork",
+  clearance: "clearPath",
+  zwischenzug: "tableMove",
+  "trapped-piece": "escapeSquares",
+  promotion: "tableMove",
+  "open-file": "openLine",
+  outpost: "strongSquare",
+  "passed-pawn": "tableMove",
+  "stalemate-trap": "escapeSquares",
+  opposition: "tableMove",
+};
+
+function formatChessActionCopy(copy: ChessActionCopy, piece: string): ChessActionCopy {
+  const instruction = copy.instruction
+    .replace("{piece}", piece)
+    .replace("Toque em o ", "Toque no ")
+    .replace("Toque em a ", "Toque na ");
+
+  return {
+    prompt: copy.prompt.replace("{piece}", piece),
+    instruction,
+  };
+}
+
+function getChessTapTargetSquare(visual: SocialGameRoundVisual) {
+  if (visual.kind !== "chessBoard") return "";
+
+  const highlightedSquares = visual.highlights ?? [];
+  const arrowStart = visual.arrows?.[0]?.from;
+  const highlightedFriendlyPiece = visual.pieces.find((piece) =>
+    highlightedSquares.includes(piece.square)
+    && piece.piece.startsWith("white")
+    && piece.piece !== "whiteKing",
+  );
+  const friendlyPiece = visual.pieces.find((piece) => piece.piece.startsWith("white") && piece.piece !== "whiteKing");
+
+  return arrowStart ?? highlightedFriendlyPiece?.square ?? friendlyPiece?.square ?? highlightedSquares[0] ?? visual.pieces[0]?.square ?? "";
+}
+
+function chessPiecePhrase(piece: ChessPieceName | undefined, language: SocialGameLanguage) {
+  return piece ? chessPiecePhrases[piece]?.[language] ?? chessPieceFallback[language] : chessPieceFallback[language];
+}
+
+function chessActionCopy(tag: string, language: SocialGameLanguage, visual: SocialGameRoundVisual): ChessActionCopy {
+  const templateKey = chessActionTemplateByTag[tag] ?? "tableMove";
+  const targetSquare = getChessTapTargetSquare(visual);
+  const targetPiece = visual.kind === "chessBoard"
+    ? visual.pieces.find((piece) => piece.square === targetSquare)?.piece
+    : undefined;
+
+  return formatChessActionCopy(chessActionTemplates[templateKey][language], chessPiecePhrase(targetPiece, language));
+}
+
 function chessVisualCaption(tag: string, language: SocialGameLanguage) {
   const captions: Record<string, Record<SocialGameLanguage, string>> = {
     fork: {
@@ -1579,12 +1854,12 @@ function chessVisualCaption(tag: string, language: SocialGameLanguage) {
   };
 
   const fallback: Record<SocialGameLanguage, string> = {
-    en: "The highlights show the small tactic to name.",
-    es: "Las marcas muestran la pequena tactica a nombrar.",
-    fr: "Les marques montrent la petite tactique a nommer.",
+    en: "The highlights show the small board clue.",
+    es: "Las marcas muestran la pequena pista del tablero.",
+    fr: "Les marques montrent le petit indice sur l'echiquier.",
     de: "Die Markierungen zeigen die kleine Taktik.",
-    it: "I segni mostrano la piccola tattica da nominare.",
-    pt: "As marcas mostram a pequena tatica a nomear.",
+    it: "I segni mostrano il piccolo indizio sulla scacchiera.",
+    pt: "As marcas mostram a pequena pista no tabuleiro.",
   };
 
   return (captions[tag] ?? fallback)[language];
@@ -1837,20 +2112,17 @@ function buildChessVisual(tag: string, language: SocialGameLanguage, variantInde
   return { kind: "chessBoard", caption, ...defaultPositions[variant] };
 }
 
-function buildChessInteraction(visual: SocialGameRoundVisual, language: SocialGameLanguage): SocialGameRoundInteraction {
+function buildChessInteraction(
+  visual: SocialGameRoundVisual,
+  language: SocialGameLanguage,
+  instruction = tactileInstruction("chess", language),
+): SocialGameRoundInteraction {
   if (visual.kind !== "chessBoard") {
-    return { kind: "chessTap", instruction: tactileInstruction("chess", language), answerSquares: [] };
+    return { kind: "chessTap", instruction, answerSquares: [] };
   }
 
   const highlightedSquares = visual.highlights ?? [];
-  const arrowStart = visual.arrows?.[0]?.from;
-  const highlightedFriendlyPiece = visual.pieces.find((piece) =>
-    highlightedSquares.includes(piece.square)
-    && piece.piece.startsWith("white")
-    && piece.piece !== "whiteKing",
-  );
-  const friendlyPiece = visual.pieces.find((piece) => piece.piece.startsWith("white") && piece.piece !== "whiteKing");
-  const targetSquare = arrowStart ?? highlightedFriendlyPiece?.square ?? friendlyPiece?.square ?? highlightedSquares[0] ?? visual.pieces[0]?.square ?? "";
+  const targetSquare = getChessTapTargetSquare(visual);
   const selectableSquares = Array.from(new Set([
     ...visual.pieces.map((piece) => piece.square),
     ...highlightedSquares,
@@ -1858,7 +2130,7 @@ function buildChessInteraction(visual: SocialGameRoundVisual, language: SocialGa
 
   return {
     kind: "chessTap",
-    instruction: tactileInstruction("chess", language),
+    instruction,
     answerSquares: targetSquare ? [targetSquare] : [],
     selectableSquares,
   };
@@ -1869,13 +2141,14 @@ function buildChessPuzzleBank(language: SocialLanguage): SocialGameRound[] {
     theme.variants.map((variant, index) => {
       const hint = (variant.hint ?? theme.hint)[language];
       const visual = buildChessVisual(theme.tag, language, index);
+      const actionCopy = chessActionCopy(theme.tag, language, visual);
 
       return {
         id: variant.suffix ? `${theme.id}-${variant.suffix}` : theme.id,
         kind: "chess" as const,
         title: chessRoundTitles[language],
         body: (variant.body ?? theme.body)[language],
-        prompt: variant.prompt[language],
+        prompt: actionCopy.prompt,
         choices: (variant.choices ?? theme.choices)[language],
         answer: (variant.answer ?? theme.answer)[language],
         hint,
@@ -1883,7 +2156,7 @@ function buildChessPuzzleBank(language: SocialLanguage): SocialGameRound[] {
         estimatedDurationSeconds: variant.estimatedDurationSeconds ?? 95,
         successMessage: (variant.successMessage ?? theme.successMessage)[language],
         visual,
-        interaction: buildChessInteraction(visual, language),
+        interaction: buildChessInteraction(visual, language, actionCopy.instruction),
         explanation: roundExplanation(hint, language),
         tableTalkPrompt: tableTalkPrompt("chess", language),
       };
@@ -2033,13 +2306,14 @@ function buildExtraChessPuzzleBank(language: ExtraGameLanguage): SocialGameRound
 
     return theme.variants.map((variant, index) => {
       const visual = buildChessVisual(theme.tag, language, index);
+      const actionCopy = chessActionCopy(theme.tag, language, visual);
 
       return {
         id: variant.suffix ? `${theme.id}-${variant.suffix}` : theme.id,
         kind: "chess" as const,
         title: copy.title,
         body: copy.body,
-        prompt: `${copy.positionLabel(index)} ${concept.description} ${copy.question}`,
+        prompt: actionCopy.prompt,
         choices: [...concept.choices],
         answer: concept.answer,
         hint: concept.hint,
@@ -2047,7 +2321,7 @@ function buildExtraChessPuzzleBank(language: ExtraGameLanguage): SocialGameRound
         estimatedDurationSeconds: variant.estimatedDurationSeconds ?? 95,
         successMessage: copy.successMessage,
         visual,
-        interaction: buildChessInteraction(visual, language),
+        interaction: buildChessInteraction(visual, language, actionCopy.instruction),
         explanation: roundExplanation(concept.hint, language),
         tableTalkPrompt: tableTalkPrompt("chess", language),
       };
