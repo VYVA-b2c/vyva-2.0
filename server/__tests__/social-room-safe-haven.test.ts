@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { authMiddleware, requireAdminUser } from "../middleware/auth.js";
 import socialRoomsRouter from "../routes/socialRooms.js";
 import adminSocialRoomsRouter from "../routes/adminSocialRooms.js";
+import { buildDailyRoomSession, getSocialRoomBySlug } from "../lib/socialRoomsSeed.js";
 
 function buildSocialApp() {
   const app = express();
@@ -34,6 +35,29 @@ const adminApp = buildProtectedAdminApp();
 const bypassAdminApp = buildBypassAdminApp();
 
 describe("Together Room safe haven API", () => {
+  it("ships a full month of localized Reading Room club topics", () => {
+    const seed = getSocialRoomBySlug("reading-room");
+    expect(seed).toBeDefined();
+    expect(seed?.dailyTopics).toHaveLength(30);
+
+    const januaryTopics = new Set(
+      Array.from({ length: 30 }, (_, index) =>
+        buildDailyRoomSession(seed!, "en", new Date(Date.UTC(2026, 0, index + 1))).topic,
+      ),
+    );
+    expect(januaryTopics.size).toBe(30);
+
+    for (const language of ["es", "en", "de", "fr", "it", "pt"] as const) {
+      const session = buildDailyRoomSession(seed!, language, new Date(Date.UTC(2026, 0, 1)));
+      expect(session.topic).toBeTruthy();
+      expect(session.opener).toBeTruthy();
+      expect(session.contentTitle).toBeTruthy();
+      expect(session.contentBody).toBeTruthy();
+      expect(session.options).toHaveLength(3);
+      expect(session.options.every(Boolean)).toBe(true);
+    }
+  });
+
   it("returns a destination Reading Club payload and preserves the Book Club alias", async () => {
     const readingRoom = await request(socialApp)
       .get("/api/social/rooms/reading-room?lang=en")
