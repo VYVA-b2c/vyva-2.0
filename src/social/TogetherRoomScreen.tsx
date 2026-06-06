@@ -2021,12 +2021,12 @@ function PlanLoopCard({
 }) {
   if (!planHasCommitment(plan)) return null;
 
-  const steps = [
-    copy.planLoopSteps.shared,
-    copy.planLoopSteps.choosing,
-    copy.planLoopSteps.confirmed,
-    copy.planLoopSteps.happened,
-    copy.planLoopSteps.repeat,
+  const steps: Array<{ label: string; action: PlanLoopAction | null }> = [
+    { label: copy.planLoopSteps.shared, action: null },
+    { label: copy.planLoopSteps.choosing, action: "time" },
+    { label: copy.planLoopSteps.confirmed, action: "place" },
+    { label: copy.planLoopSteps.happened, action: "invite" },
+    { label: copy.planLoopSteps.repeat, action: "again" },
   ];
   const activeIndex = planLoopStepIndex(plan, copy);
 
@@ -2051,15 +2051,31 @@ function PlanLoopCard({
       <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
         {steps.map((step, index) => {
           const isDone = index <= activeIndex;
+          const stepClassName = `min-h-[42px] rounded-[15px] px-2 py-2 text-center font-body text-[13px] font-bold leading-tight ${
+            isDone ? "bg-[#0F766E] text-white" : "bg-white text-[#55706B]"
+          }`;
+          const action = step.action;
+          if (action) {
+            return (
+              <button
+                key={step.label}
+                type="button"
+                onClick={() => onAction(plan, action)}
+                disabled={isBusy}
+                className={`${stepClassName} disabled:opacity-55`}
+                data-testid={`together-plan-loop-step-${plan.key}-${index}`}
+              >
+                {step.label}
+              </button>
+            );
+          }
           return (
             <span
-              key={step}
-              className={`min-h-[42px] rounded-[15px] px-2 py-2 text-center font-body text-[13px] font-bold leading-tight ${
-                isDone ? "bg-[#0F766E] text-white" : "bg-white text-[#55706B]"
-              }`}
+              key={step.label}
+              className={stepClassName}
               data-testid={`together-plan-loop-step-${plan.key}-${index}`}
             >
-              {step}
+              {step.label}
             </span>
           );
         })}

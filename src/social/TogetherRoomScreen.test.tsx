@@ -492,6 +492,54 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByTestId("together-plan-loop-step-tea-film-chat-2")).toHaveTextContent("Confirmed");
   });
 
+  it("lets plan status steps send the same next-step actions", async () => {
+    const joinedPulse = {
+      ...roomResponse.pulse!,
+      featuredPlan: {
+        ...roomResponse.pulse!.featuredPlan,
+        myResponse: "join" as const,
+        responseCounts: { join: 1, maybe: 0 },
+      },
+    };
+    apiFetchMock.mockResolvedValueOnce(jsonResponse({
+      ok: true,
+      pulse: {
+        ...joinedPulse,
+        featuredPlan: {
+          ...joinedPulse.featuredPlan,
+          replies: [
+            {
+              id: "reply-loop-place",
+              planKey: "tea-film-chat",
+              authorName: "Member",
+              body: "I would like to confirm the place or whether this stays online.",
+              tone: "help",
+              status: "active",
+              createdAt: "2026-06-04T10:07:00.000Z",
+            },
+          ],
+        },
+      },
+    }));
+
+    render(<TogetherRoomScreen roomResponse={{ ...roomResponse, pulse: joinedPulse }} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("together-plan-loop-step-tea-film-chat-2"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/social/rooms/together-room/plans/tea-film-chat/replies",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining('"tone":"help"'),
+        }),
+      );
+    });
+    const replyBody = JSON.parse(String(apiFetchMock.mock.calls[0][1]?.body));
+    expect(replyBody.body).toBe("I would like to confirm the place or whether this stays online.");
+    expect(screen.getByTestId("together-plan-loop-step-tea-film-chat-2")).toHaveTextContent("Confirmed");
+  });
+
   it("supports join, maybe, vote, starter, and safety actions", async () => {
     render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
 
