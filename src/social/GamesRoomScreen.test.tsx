@@ -95,54 +95,70 @@ const wordRounds = Array.from({ length: 80 }, (_, index) => createWordRound(inde
 function createDominoesRound(index: number): SocialGameRound {
   if (index === 0) {
     return {
-      id: "dominoes-open-double-six",
+      id: "domino-table-next-move-six-four",
       kind: "dominoes",
       title: "Dominoes",
-      body: "Choose the strongest opening tile.",
-      prompt: "You are starting and have these doubles: Double six, Double five, Double three. Which tile is the strongest opener?",
-      choices: ["Double six", "Double five", "Double three"],
-      answer: "Double six",
-      hint: "The highest double gives the table a clear anchor.",
-      tags: ["games", "dominoes", "game:dominoes", "dominoes:opening-double"],
-      estimatedDurationSeconds: 75,
-      successMessage: "Nice table sense. A strong double gives everyone an easy start.",
+      body: "Plan the next turn.",
+      prompt: "Find the play that leaves another move ready.",
+      choices: ["Six-four", "Two-three", "Five-one", "Four-blank"],
+      answer: "Six-four",
+      hint: "After the tile lands, look for the new open number in your hand.",
+      tags: ["games", "dominoes", "game:dominoes", "dominoes:next-move"],
+      estimatedDurationSeconds: 85,
+      successMessage: "Good table sense. You left yourself a useful number.",
       interaction: {
         kind: "dominoPlay",
-        instruction: "Tap the tile you would play.",
-        answerTile: [6, 6],
-        candidateTiles: [[6, 6], [5, 5], [3, 3]],
+        instruction: "Tap a tile from your hand.",
+        answerTile: [6, 4],
+        candidateTiles: [[6, 4], [2, 3], [5, 1], [4, 0]],
       },
       visual: {
         kind: "dominoes",
-        caption: "Choose the strongest opening tile.",
-        candidateTiles: [[6, 6], [5, 5], [3, 3]],
+        caption: "Plan the next turn.",
+        openEnds: [6, 2],
+        leftEnd: 6,
+        rightEnd: 2,
+        handLabel: "Your hand",
+        hand: [[6, 4], [2, 3], [5, 1], [4, 0]],
+        layoutTiles: [[1, 6], [2, 4]],
+        recentPass: 5,
+        remainingTiles: 4,
       },
     };
   }
 
   if (index === 1) {
     return {
-      id: "dominoes-open-double-five",
+      id: "domino-table-choose-end-six-two",
       kind: "dominoes",
       title: "Dominoes",
-      body: "Choose the strongest opening tile.",
-      prompt: "You are starting and have these doubles: Double five, Double four, Double two. Which tile is the strongest opener?",
-      choices: ["Double five", "Double four", "Double two"],
-      answer: "Double five",
-      hint: "The highest double gives the table a clear anchor.",
-      tags: ["games", "dominoes", "game:dominoes", "dominoes:opening-double"],
-      estimatedDurationSeconds: 75,
-      successMessage: "Nice table sense. A strong double gives everyone an easy start.",
+      body: "Choose the better end.",
+      prompt: "The tile fits both sides. Pick the wiser side.",
+      choices: ["Six-two on the right end", "Six-two on the left end", "Six-four"],
+      answer: "Six-two on the right end",
+      hint: "Try the end that leaves a number you can use again.",
+      tags: ["games", "dominoes", "game:dominoes", "dominoes:choose-end"],
+      estimatedDurationSeconds: 85,
+      successMessage: "Nice. The same tile can tell two different stories.",
       interaction: {
         kind: "dominoPlay",
-        instruction: "Tap the tile you would play.",
-        answerTile: [5, 5],
-        candidateTiles: [[5, 5], [4, 4], [2, 2]],
+        instruction: "Tap a tile from your hand.",
+        answerTile: [6, 2],
+        candidateTiles: [[6, 2], [6, 4], [5, 1], [3, 0]],
+        answerEnd: 2,
+        answerEndSide: "right",
+        candidateEnds: ["left", "right"],
       },
       visual: {
         kind: "dominoes",
-        caption: "Choose the strongest opening tile.",
-        candidateTiles: [[5, 5], [4, 4], [2, 2]],
+        caption: "Choose the better end.",
+        openEnds: [6, 2],
+        leftEnd: 6,
+        rightEnd: 2,
+        handLabel: "Your hand",
+        hand: [[6, 2], [6, 4], [5, 1], [3, 0]],
+        layoutTiles: [[1, 6], [2, 4]],
+        endChoices: ["left", "right"],
       },
     };
   }
@@ -151,24 +167,29 @@ function createDominoesRound(index: number): SocialGameRound {
     id: `dominoes-test-${index + 1}`,
     kind: "dominoes",
     title: "Dominoes",
-    body: "Solve a short dominoes table clue.",
-    prompt: `Choose the useful dominoes test tile ${index + 1}.`,
+    body: "Read a short dominoes table.",
+    prompt: `Find the table move ${index + 1}.`,
     choices: [`Tile ${index + 1}`, `Pass ${index + 1}`, `Draw ${index + 1}`],
     answer: `Tile ${index + 1}`,
-    hint: "Pick the first useful tile.",
+    hint: "Use the open ends and your hand.",
     tags: ["games", "dominoes", "game:dominoes", "dominoes:test"],
-    estimatedDurationSeconds: 75,
+    estimatedDurationSeconds: 85,
     successMessage: "Nice table sense.",
     interaction: {
       kind: "dominoPlay",
-      instruction: "Tap the tile you would play.",
+      instruction: "Tap a tile from your hand.",
       answerTile: [1, 2],
       candidateTiles: [[1, 2], [2, 3], [3, 4]],
     },
     visual: {
       kind: "dominoes",
-      caption: "Solve a short dominoes table clue.",
-      candidateTiles: [[1, 2], [2, 3], [3, 4]],
+      caption: "Read a short dominoes table.",
+      openEnds: [1, 6],
+      leftEnd: 1,
+      rightEnd: 6,
+      handLabel: "Your hand",
+      hand: [[1, 2], [2, 3], [3, 4]],
+      layoutTiles: [[0, 1], [6, 2]],
     },
   };
 }
@@ -532,11 +553,11 @@ describe("GamesRoomScreen", () => {
       ...roomResponse,
       gameTable: {
         ...roomResponse.gameTable!,
-        defaultRoundId: "dominoes-open-double-five",
+        defaultRoundId: "domino-table-choose-end-six-two",
         defaultRoundIdsByKind: {
           chess: "chess-clue-back-rank",
           word: "word-tiles-anagram-peace",
-          dominoes: "dominoes-open-double-five",
+          dominoes: "domino-table-choose-end-six-two",
           bridge: "bridge-opening-bid-five-spades",
         },
       },
@@ -545,7 +566,7 @@ describe("GamesRoomScreen", () => {
     render(<GamesRoomScreen roomResponse={personalizedResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
 
     expect(screen.getByText("Puzzle 2 of 80")).toBeInTheDocument();
-    expect(screen.getByText("You are starting and have these doubles: Double five, Double four, Double two. Which tile is the strongest opener?")).toBeInTheDocument();
+    expect(screen.getByText("The tile fits both sides. Pick the wiser side.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-round-chess"));
     expect(screen.getByText("Puzzle 2 of 2")).toBeInTheDocument();
@@ -564,7 +585,7 @@ describe("GamesRoomScreen", () => {
         rounds: [
           roomResponse.gameTable!.rounds.find((round) => round.id === "chess-clue-fork")!,
           roomResponse.gameTable!.rounds.find((round) => round.id === "word-tiles-anagram-smile")!,
-          roomResponse.gameTable!.rounds.find((round) => round.id === "dominoes-open-double-six")!,
+          roomResponse.gameTable!.rounds.find((round) => round.id === "domino-table-next-move-six-four")!,
           roomResponse.gameTable!.rounds.find((round) => round.id === "bridge-opening-bid-five-hearts")!,
         ],
         roundCountsByKind: {
@@ -576,7 +597,7 @@ describe("GamesRoomScreen", () => {
         defaultRoundIdsByKind: {
           chess: "chess-clue-fork",
           word: "word-tiles-anagram-smile",
-          dominoes: "dominoes-open-double-six",
+          dominoes: "domino-table-next-move-six-four",
           bridge: "bridge-opening-bid-five-hearts",
         },
         defaultRoundIndexesByKind: {
@@ -690,18 +711,24 @@ describe("GamesRoomScreen", () => {
     fireEvent.click(screen.getByTestId("games-round-dominoes"));
 
     expect(screen.getByText("Puzzle 1 of 80")).toBeInTheDocument();
-    expect(screen.getByText("You are starting and have these doubles: Double six, Double five, Double three. Which tile is the strongest opener?")).toBeInTheDocument();
+    expect(screen.getByText("Find the play that leaves another move ready.")).toBeInTheDocument();
     expect(screen.getByTestId("games-visual-dominoes")).toBeInTheDocument();
+    expect(screen.getByText("Open ends")).toBeInTheDocument();
+    expect(screen.getByText("Recent pass: 5")).toBeInTheDocument();
+    expect(screen.queryByText(/Target|Keep|Avoid/)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-next-puzzle"));
 
     expect(screen.getByText("Puzzle 2 of 80")).toBeInTheDocument();
-    expect(screen.getByText("You are starting and have these doubles: Double five, Double four, Double two. Which tile is the strongest opener?")).toBeInTheDocument();
+    expect(screen.getByText("The tile fits both sides. Pick the wiser side.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-start-round"));
     expect(screen.getByTestId("games-tactile-dominoes")).toBeInTheDocument();
     expect(screen.queryByTestId("games-help-choices")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("domino-tile-5-5"));
+    fireEvent.click(screen.getByTestId("domino-tile-6-2"));
+    expect(screen.getByTestId("domino-end-choices")).toBeInTheDocument();
+    expect(screen.queryByText("Puzzle complete")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("domino-end-right"));
     expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
 
     await waitFor(() => {
@@ -709,14 +736,14 @@ describe("GamesRoomScreen", () => {
         "/api/social/rooms/games-room/game-round",
         expect.objectContaining({
           method: "POST",
-          body: expect.stringMatching(/"roundId":"dominoes-open-double-five".*"gameKind":"dominoes".*"status":"started"/),
+          body: expect.stringMatching(/"roundId":"domino-table-choose-end-six-two".*"gameKind":"dominoes".*"status":"started"/),
         }),
       );
     });
     await waitFor(() => {
       expect(gameRoundRequestBodies()).toEqual(expect.arrayContaining([
         expect.objectContaining({
-          roundId: "dominoes-open-double-five",
+          roundId: "domino-table-choose-end-six-two",
           gameKind: "dominoes",
           status: "completed",
         }),

@@ -38,8 +38,11 @@ export type SocialGameRoundVisual =
       kind: "dominoes";
       caption: string;
       openEnds?: [number, number];
+      leftEnd?: number;
+      rightEnd?: number;
       hand?: Array<[number, number]>;
       candidateTiles?: Array<[number, number]>;
+      layoutTiles?: Array<[number, number]>;
       playedTile?: [number, number];
       focusTile?: [number, number];
       target?: number;
@@ -47,6 +50,10 @@ export type SocialGameRoundVisual =
       avoid?: number;
       playOn?: number;
       otherEnd?: number;
+      recentPass?: number;
+      remainingTiles?: number;
+      handLabel?: string;
+      endChoices?: Array<"left" | "right">;
     }
   | {
       kind: "bridgeCards";
@@ -78,6 +85,8 @@ export type SocialGameRoundInteraction =
       answerTile?: [number, number];
       candidateTiles?: Array<[number, number]>;
       answerEnd?: number;
+      answerEndSide?: "left" | "right";
+      candidateEnds?: Array<"left" | "right">;
       actions?: Array<{ id: string; label: string }>;
       answerActionId?: string;
     }

@@ -8,6 +8,7 @@ import type {
   SocialGameTable,
   SocialLanguage,
 } from "../../src/social/types";
+import { buildDominoTablePuzzleBank } from "./dominoTableRounds";
 
 type ExtraGameLanguage = Exclude<SocialGameLanguage, SocialLanguage>;
 
@@ -4814,12 +4815,12 @@ const dominoesPuzzleThemes: DominoesPuzzleTheme[] = [
 ];
 
 const dominoesPuzzleBank: Record<SocialGameLanguage, SocialGameRound[]> = {
-  en: buildDominoesPuzzleBank("en"),
-  es: buildDominoesPuzzleBank("es"),
-  de: buildDominoesPuzzleBank("de"),
-  fr: buildExtraDominoesPuzzleBank("fr"),
-  it: buildExtraDominoesPuzzleBank("it"),
-  pt: buildExtraDominoesPuzzleBank("pt"),
+  en: buildDominoTablePuzzleBank("en"),
+  es: buildDominoTablePuzzleBank("es"),
+  de: buildDominoTablePuzzleBank("de"),
+  fr: buildDominoTablePuzzleBank("fr"),
+  it: buildDominoTablePuzzleBank("it"),
+  pt: buildDominoTablePuzzleBank("pt"),
 };
 
 type GameLocalizedText = Record<SocialGameLanguage, string>;
