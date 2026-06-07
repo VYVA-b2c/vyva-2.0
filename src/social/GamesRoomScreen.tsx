@@ -8,6 +8,7 @@ import {
   Dice5,
   Eraser,
   Gamepad2,
+  Hand,
   HeartHandshake,
   HelpCircle,
   Spade,
@@ -392,12 +393,12 @@ function getTactileTryAgainCopy(language: SocialGameLanguage) {
 }
 
 function getChessTapCue(language: SocialGameLanguage) {
-  if (language === "fr") return "Touchez une piece ou une case.";
-  if (language === "it") return "Tocca un pezzo o una casa.";
-  if (language === "pt") return "Toque numa peca ou casa.";
-  if (language === "de") return "Tippe auf eine Figur oder ein Feld.";
-  if (language === "en") return "Tap a piece or square.";
-  return "Toca una pieza o casilla.";
+  if (language === "fr") return "Touchez une piece ou case lumineuse.";
+  if (language === "it") return "Tocca un pezzo o una casa evidenziata.";
+  if (language === "pt") return "Toque numa peca ou casa brilhante.";
+  if (language === "de") return "Tippe auf eine leuchtende Figur oder ein Feld.";
+  if (language === "en") return "Tap a glowing piece or square.";
+  return "Toca una pieza o casilla iluminada.";
 }
 
 function getLearnWhyLabel(language: SocialGameLanguage) {
@@ -601,9 +602,9 @@ function ChessBoardVisual({
   const canTap = Boolean(interaction && onSquareSelect);
 
   return (
-    <div className="rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-4" data-testid="games-visual-chess">
-      <p className="font-body text-[16px] font-extrabold leading-snug text-[#31555D]">{visual.caption}</p>
-      <div className="mt-3 grid aspect-square max-w-[360px] grid-cols-8 overflow-hidden rounded-[18px] border border-[#BFDAD7]">
+    <div className="mx-auto max-w-[430px] rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-3 sm:p-4" data-testid="games-visual-chess">
+      <p className="font-body text-[15px] font-extrabold leading-snug text-[#31555D] sm:text-[16px]">{visual.caption}</p>
+      <div className="mx-auto mt-3 grid aspect-square w-full grid-cols-8 overflow-hidden rounded-[18px] border border-[#BFDAD7] shadow-[0_14px_30px_rgba(11,60,66,0.08)]">
         {Array.from({ length: 64 }, (_, index) => {
           const file = index % 8;
           const rank = 8 - Math.floor(index / 8);
@@ -620,10 +621,17 @@ function ChessBoardVisual({
               {marked && <span className="absolute inset-1 rounded-[8px] border-2 border-[#F59E0B]" data-testid={`chess-guidance-${square}`} />}
               {selected && <span className="absolute inset-1 rounded-[8px] border-4 border-[#087C82]" />}
               {wrong && <span className="absolute inset-1 rounded-[8px] border-4 border-[#D97706]" />}
+              {tappable && !piece && !isComplete && (
+                <span
+                  aria-hidden="true"
+                  className="absolute h-[48%] w-[48%] rounded-full border-2 border-[#FBBF24] bg-[#FEF3C7]/55 shadow-[0_0_0_3px_rgba(255,255,255,0.45)]"
+                  data-testid={`chess-tap-target-${square}`}
+                />
+              )}
               {piece && (
                 <span
                   aria-label={chessPieceDescriptions[piece.piece]}
-                  className={`relative z-10 flex h-[82%] w-[82%] items-center justify-center rounded-full border shadow-[0_7px_14px_rgba(23,57,65,0.18)] ${piece.piece.startsWith("white") ? "border-[#C9B99D] bg-[#FFFDF7] text-[#07313A]" : "border-[#173941] bg-[#173941] text-[#FFFDF7]"}`}
+                  className={`relative z-10 flex h-[82%] w-[82%] items-center justify-center rounded-full border shadow-[0_7px_14px_rgba(23,57,65,0.18)] ${piece.piece.startsWith("white") ? "border-[#C9B99D] bg-[#FFFDF7] text-[#07313A]" : "border-[#173941] bg-[#173941] text-[#FFFDF7]"} ${tappable && !isComplete ? "ring-2 ring-[#FBBF24] ring-offset-1 ring-offset-white" : ""}`}
                   role="img"
                 >
                   <ChessPieceGlyph piece={piece.piece} cutout={piece.piece.startsWith("white") ? "#FFFDF7" : "#173941"} />
@@ -632,7 +640,7 @@ function ChessBoardVisual({
               {tappable && !isComplete && (
                 <span
                   aria-hidden="true"
-                  className="absolute bottom-1 right-1 z-20 h-3 w-3 rounded-full bg-[#087C82] ring-2 ring-white"
+                  className="absolute bottom-1 right-1 z-20 h-3.5 w-3.5 rounded-full bg-[#087C82] ring-2 ring-white"
                 />
               )}
             </>
@@ -877,9 +885,10 @@ function TactileInteractionPanel({
 
   if (interaction.kind === "chessTap") {
     return (
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[16px] bg-[#F4FAF8] px-3 py-2" data-testid="games-chess-action-row">
-        <p className="font-body text-[16px] font-extrabold leading-snug text-[#31555D]">
-          {getChessTapCue(language)}
+      <div className="mt-3 flex items-center justify-between gap-2 rounded-[18px] bg-[#E8F7F6] px-3 py-2 shadow-[0_8px_18px_rgba(11,60,66,0.05)]" data-testid="games-chess-action-row">
+        <p className="flex min-w-0 items-center gap-2 font-body text-[15px] font-extrabold leading-snug text-[#075C64] sm:text-[16px]">
+          <Hand className="shrink-0" size={20} strokeWidth={2.7} />
+          <span>{getChessTapCue(language)}</span>
         </p>
         {helpButton}
       </div>
@@ -1413,7 +1422,7 @@ export default function GamesRoomScreen({
 
   const chooseGameRound = (round: SocialGameRound) => {
     setIsGameSelected(true);
-    selectRound(round);
+    selectRound(round, { enterPlayMode: true });
   };
 
   const handleBack = () => {
@@ -1641,7 +1650,7 @@ export default function GamesRoomScreen({
   };
 
   return (
-    <div className="min-h-screen bg-[#F7FAF8] px-4 pb-8 pt-4 text-[#07313A] sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#F7FAF8] px-4 pb-32 pt-4 text-[#07313A] sm:px-6 sm:pb-10 lg:px-8">
       <SocialStyles />
 
       <div className="mx-auto max-w-6xl">
@@ -1657,7 +1666,7 @@ export default function GamesRoomScreen({
           </button>
 
           <div className="min-w-0 text-center">
-            <h1 className="font-display text-[42px] leading-[0.98] text-[#07313A] sm:text-[56px] lg:text-[64px]">
+            <h1 className="whitespace-nowrap font-display text-[32px] leading-[0.98] text-[#07313A] sm:text-[56px] lg:text-[64px]">
               {room.name}
             </h1>
           </div>
@@ -1668,24 +1677,26 @@ export default function GamesRoomScreen({
           </div>
         </header>
 
-        <div className="mt-5 flex items-center justify-center gap-3">
-          <AgentAvatar
-            agentSlug={room.agentSlug}
-            fullName={room.agentFullName}
-            colour={room.agentColour}
-            size={64}
-            title={room.agentFullName}
-          />
-          <div className="min-w-0">
-            <p className="flex items-center gap-2 font-body text-[25px] font-extrabold leading-tight text-[#132C35]">
-              {room.agentFullName.split(" ")[0] || room.agentFullName} is hosting
-              <Sparkles size={22} className="text-[#7C3AED]" />
-            </p>
-            <p className="mt-1 font-body text-[17px] font-semibold leading-snug text-[#557078]">{gameTable.hostLine}</p>
+        {!isGameSelected && (
+          <div className="mt-5 flex items-center justify-center gap-3">
+            <AgentAvatar
+              agentSlug={room.agentSlug}
+              fullName={room.agentFullName}
+              colour={room.agentColour}
+              size={64}
+              title={room.agentFullName}
+            />
+            <div className="min-w-0">
+              <p className="flex items-center gap-2 font-body text-[25px] font-extrabold leading-tight text-[#132C35]">
+                {room.agentFullName.split(" ")[0] || room.agentFullName} is hosting
+                <Sparkles size={22} className="text-[#7C3AED]" />
+              </p>
+              <p className="mt-1 font-body text-[17px] font-semibold leading-snug text-[#557078]">{gameTable.hostLine}</p>
+            </div>
           </div>
-        </div>
+        )}
 
-        <main className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)] lg:items-start">
+        <main className={`mt-6 grid gap-5 lg:items-start ${isGameSelected ? "lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]" : ""}`}>
           <section className="space-y-5">
             {!isGameSelected && (
               <>
@@ -1718,7 +1729,7 @@ export default function GamesRoomScreen({
                           type="button"
                           onClick={() => chooseGameRound(round)}
                           data-testid={`games-round-${round.kind}`}
-                          className="relative min-h-[148px] rounded-[24px] border border-[#DDE5E3] bg-white px-3 py-4 text-center shadow-[0_12px_28px_rgba(11,60,66,0.08)] transition-transform active:scale-[0.99]"
+                          className="relative min-h-[126px] rounded-[24px] border border-[#DDE5E3] bg-white px-3 py-4 text-center shadow-[0_12px_28px_rgba(11,60,66,0.08)] transition-transform active:scale-[0.99] sm:min-h-[148px]"
                         >
                           <span className="mx-auto flex h-[58px] w-[58px] items-center justify-center rounded-[20px] bg-[#E8F7F6] text-[#087C82]">
                             <Icon size={31} strokeWidth={2.6} />
@@ -1736,22 +1747,22 @@ export default function GamesRoomScreen({
 
             {isGameSelected && selectedRound && (
               <section
-                className="rounded-[28px] border border-[#D8E6E2] bg-white px-5 py-5 shadow-[0_16px_34px_rgba(11,60,66,0.08)]"
+                className="rounded-[28px] border border-[#D8E6E2] bg-white px-4 py-4 shadow-[0_16px_34px_rgba(11,60,66,0.08)] sm:px-5 sm:py-5"
                 aria-live="polite"
                 data-testid="games-selected-puzzle"
               >
-                <div className="flex items-start gap-4">
-                  <div className="flex h-[58px] w-[58px] shrink-0 items-center justify-center rounded-[20px] bg-[#FFF4DA] text-[#A86200]">
-                    <Brain size={31} strokeWidth={2.5} />
+                <div className="flex items-start gap-3 sm:gap-4">
+                  <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[18px] bg-[#FFF4DA] text-[#A86200] sm:h-[58px] sm:w-[58px] sm:rounded-[20px]">
+                    <Brain size={28} strokeWidth={2.5} />
                   </div>
                   <div className="min-w-0">
-                    <h2 className="font-body text-[25px] font-extrabold leading-tight text-[#07313A]">{selectedRound.title}</h2>
-                    <p className="mt-1 font-body text-[18px] font-semibold leading-snug text-[#597178]">{selectedRound.body}</p>
+                    <h2 className="font-body text-[23px] font-extrabold leading-tight text-[#07313A] sm:text-[25px]">{selectedRound.title}</h2>
+                    <p className="mt-1 font-body text-[16px] font-semibold leading-snug text-[#597178] sm:text-[18px]">{selectedRound.body}</p>
                   </div>
                 </div>
                 {puzzleBankLabels && selectedPuzzleTotal > 1 && (
-                  <div className="mt-5 rounded-[22px] border border-[#D8E6E2] bg-[#F4FAF8] px-4 py-3">
-                    <p className="font-body text-[18px] font-extrabold text-[#087C82]">
+                  <div className="mt-4 rounded-[20px] border border-[#D8E6E2] bg-[#F4FAF8] px-4 py-2.5 sm:mt-5 sm:rounded-[22px] sm:py-3">
+                    <p className="font-body text-[17px] font-extrabold text-[#087C82] sm:text-[18px]">
                       {puzzleBankLabels.progress}
                     </p>
                   </div>
@@ -1759,19 +1770,7 @@ export default function GamesRoomScreen({
 
                 {hasStartedSelectedRound ? (
                   <div className="mt-5">
-                    <div className="mb-4">
-                      <PuzzleVisualPanel
-                        visual={selectedRound.visual}
-                        interaction={selectedRound.interaction}
-                        language={language}
-                        selectedTactileValue={selectedTactileValue}
-                        wrongTactileValue={wrongTactileValue}
-                        isComplete={hasCompletedSelectedRound}
-                        revealChessGuidance={shouldRevealChessGuidance}
-                        onChessSquareSelect={chooseTactileAnswer}
-                      />
-                    </div>
-                    <p className="font-body text-[22px] font-bold leading-snug text-[#173941]">{displayedPrompt}</p>
+                    <p className="font-body text-[21px] font-extrabold leading-snug text-[#173941] sm:text-[22px]">{displayedPrompt}</p>
 
                     {selectedWordVisual ? (
                       <WordTilesInteraction
@@ -1800,7 +1799,31 @@ export default function GamesRoomScreen({
                       />
                     ) : (
                       <>
-                        {!hasCompletedSelectedRound && (
+                        {!hasCompletedSelectedRound && selectedRound.interaction?.kind === "chessTap" && (
+                          <TactileInteractionPanel
+                            interaction={selectedRound.interaction}
+                            language={language}
+                            selectedTactileValue={selectedTactileValue}
+                            isComplete={hasCompletedSelectedRound}
+                            onTactileAnswer={chooseTactileAnswer}
+                            onShowHelp={() => setShowTactileHelp(true)}
+                          />
+                        )}
+
+                        <div className="mt-4">
+                          <PuzzleVisualPanel
+                            visual={selectedRound.visual}
+                            interaction={selectedRound.interaction}
+                            language={language}
+                            selectedTactileValue={selectedTactileValue}
+                            wrongTactileValue={wrongTactileValue}
+                            isComplete={hasCompletedSelectedRound}
+                            revealChessGuidance={shouldRevealChessGuidance}
+                            onChessSquareSelect={chooseTactileAnswer}
+                          />
+                        </div>
+
+                        {!hasCompletedSelectedRound && selectedRound.interaction?.kind !== "chessTap" && (
                           <TactileInteractionPanel
                             interaction={selectedRound.interaction}
                             language={language}
@@ -1967,6 +1990,7 @@ export default function GamesRoomScreen({
             )}
           </section>
 
+          {isGameSelected && (
           <aside className="hidden space-y-5 lg:block">
             <section className="rounded-[28px] border border-[#D8E6E2] bg-white px-5 py-5 shadow-[0_16px_34px_rgba(11,60,66,0.08)]">
               <h2 className="font-body text-[27px] font-extrabold leading-tight text-[#07313A]">{gameTable.connectionTitle}</h2>
@@ -2023,29 +2047,32 @@ export default function GamesRoomScreen({
               )}
             </section>
 
-            <section className="rounded-[28px] border border-[#D8E6E2] bg-white px-5 py-5 shadow-[0_16px_34px_rgba(11,60,66,0.08)]">
-              <h2 className="font-body text-[25px] font-extrabold leading-tight text-[#07313A]">{getChatTitle(language)}</h2>
-              <div className="mt-4 space-y-3">
-                {visibleChat.map((item: SocialRoomChatItem, index) => (
-                  <div key={item.id} className="flex gap-3 rounded-[20px] bg-[#F7FAF8] px-4 py-4">
-                    <div
-                      className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full font-body text-[17px] font-extrabold text-white"
-                      style={{ background: memberColours[index % memberColours.length] }}
-                    >
-                      {getMemberInitials(item.authorName)}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <p className="font-body text-[17px] font-extrabold text-[#173941]">{item.authorName}</p>
-                        <p className="font-body text-[14px] font-semibold text-[#7D9095]">{formatChatTime(item.createdAt, language)}</p>
+            {visibleChat.length > 0 && (
+              <section className="rounded-[28px] border border-[#D8E6E2] bg-white px-5 py-5 shadow-[0_16px_34px_rgba(11,60,66,0.08)]">
+                <h2 className="font-body text-[25px] font-extrabold leading-tight text-[#07313A]">{getChatTitle(language)}</h2>
+                <div className="mt-4 space-y-3">
+                  {visibleChat.map((item: SocialRoomChatItem, index) => (
+                    <div key={item.id} className="flex gap-3 rounded-[20px] bg-[#F7FAF8] px-4 py-4">
+                      <div
+                        className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full font-body text-[17px] font-extrabold text-white"
+                        style={{ background: memberColours[index % memberColours.length] }}
+                      >
+                        {getMemberInitials(item.authorName)}
                       </div>
-                      <p className="mt-1 font-body text-[17px] font-semibold leading-snug text-[#5A7279]">{item.text}</p>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <p className="font-body text-[17px] font-extrabold text-[#173941]">{item.authorName}</p>
+                          <p className="font-body text-[14px] font-semibold text-[#7D9095]">{formatChatTime(item.createdAt, language)}</p>
+                        </div>
+                        <p className="mt-1 font-body text-[17px] font-semibold leading-snug text-[#5A7279]">{item.text}</p>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </section>
+                  ))}
+                </div>
+              </section>
+            )}
           </aside>
+          )}
         </main>
 
       </div>

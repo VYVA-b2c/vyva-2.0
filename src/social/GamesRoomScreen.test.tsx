@@ -492,7 +492,8 @@ describe("GamesRoomScreen", () => {
     expect(screen.queryByTestId("games-round-picker")).not.toBeInTheDocument();
     expect(screen.getByTestId("games-selected-puzzle")).toBeInTheDocument();
     expect(screen.getByText("Puzzle 1 of 2")).toBeInTheDocument();
-    expect(screen.getByTestId("games-start-round")).toHaveTextContent("Start this puzzle");
+    expect(screen.queryByTestId("games-start-round")).not.toBeInTheDocument();
+    expect(screen.getByTestId("games-chess-action-row")).toHaveTextContent("Tap a glowing piece or square.");
 
     fireEvent.click(screen.getByTestId("games-room-back"));
 
@@ -512,9 +513,8 @@ describe("GamesRoomScreen", () => {
 
     expect(screen.getByText("Puzzle 1 of 2")).toBeInTheDocument();
     expect(screen.queryByTestId("games-round-picker")).not.toBeInTheDocument();
-    expect(screen.queryByText("Next puzzle")).not.toBeInTheDocument();
     const puzzleControls = screen.getByTestId("games-puzzle-controls");
-    expect(within(puzzleControls).getByTestId("games-start-round")).toHaveTextContent("Start this puzzle");
+    expect(within(puzzleControls).queryByTestId("games-start-round")).not.toBeInTheDocument();
     expect(within(puzzleControls).getByTestId("games-next-puzzle")).toBeInTheDocument();
     expect(screen.getByText("Find the double threat.")).toBeInTheDocument();
     const chessBoard = screen.getByTestId("games-visual-chess");
@@ -535,7 +535,7 @@ describe("GamesRoomScreen", () => {
     expect(screen.getByText("Find the strongest king pressure.")).toBeInTheDocument();
     expect(screen.queryByTestId("games-tactile-chess")).not.toBeInTheDocument();
     expect(screen.queryByText("Your move")).not.toBeInTheDocument();
-    expect(screen.getByTestId("games-chess-action-row")).toHaveTextContent("Tap a piece or square.");
+    expect(screen.getByTestId("games-chess-action-row")).toHaveTextContent("Tap a glowing piece or square.");
     expect(screen.queryByTestId("chess-guidance-e8")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-show-help"));
@@ -665,7 +665,7 @@ describe("GamesRoomScreen", () => {
         expect.objectContaining({
           roundId: "chess-clue-fork",
           gameKind: "chess",
-          status: "skipped",
+          status: "started",
         }),
       ]));
     });
@@ -687,8 +687,6 @@ describe("GamesRoomScreen", () => {
     fireEvent.click(screen.getByTestId("games-round-chess"));
 
     expect(screen.getByText("Puzzle 1 sur 2")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId("games-start-round"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
@@ -835,7 +833,6 @@ describe("GamesRoomScreen", () => {
     render(<GamesRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
 
     fireEvent.click(screen.getByTestId("games-round-bridge"));
-    fireEvent.click(screen.getByTestId("games-start-round"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
@@ -881,7 +878,6 @@ describe("GamesRoomScreen", () => {
     render(<GamesRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
 
     fireEvent.click(screen.getByTestId("games-round-word"));
-    fireEvent.click(screen.getByTestId("games-start-round"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
@@ -924,7 +920,6 @@ describe("GamesRoomScreen", () => {
     expect(screen.getByText("3 people ready")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-round-word"));
-    fireEvent.click(screen.getByTestId("games-start-round"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
