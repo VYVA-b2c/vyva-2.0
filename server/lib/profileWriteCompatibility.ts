@@ -1,4 +1,4 @@
-import { db } from "../db.js";
+import { db, pool } from "../db.js";
 import { profileMemberships, profiles } from "../../shared/schema.js";
 import { eq } from "drizzle-orm";
 import {
@@ -32,6 +32,24 @@ const PROFILE_CONSTRAINT_COLUMNS = [
   "updated_at",
 ];
 
+const CORE_PROFILE_WRITE_COLUMNS = new Set([
+  "id",
+  "full_name",
+  "date_of_birth",
+  "email",
+  "phone_number",
+  "language",
+  "language_preference",
+  "created_at",
+  "updated_at",
+]);
+
+type DatabaseProfileColumn = {
+  column_name: string;
+  is_nullable: string;
+  column_default: string | null;
+};
+
 function requiredProfileDefault(column: string): unknown {
   if (column === "full_name") return "Profile setup";
   if (column === "date_of_birth") return "";
@@ -47,6 +65,109 @@ function requiredProfileDefault(column: string): unknown {
   if (column === "data_sharing_consent") return {};
   if (column === "created_at" || column === "updated_at") return new Date();
   return undefined;
+}
+
+function quotedIdentifier(identifier: string): string {
+  return `"${identifier.replace(/"/g, '""')}"`;
+}
+
+function ownValue(values: Record<string, unknown>, column: string): unknown {
+  return Object.prototype.hasOwnProperty.call(values, column) ? values[column] : undefined;
+}
+
+async function loadDatabaseProfileColumns(): Promise<Map<string, DatabaseProfileColumn>> {
+  const result = await pool.query<DatabaseProfileColumn>(`
+    select column_name, is_nullable, column_default
+    from information_schema.columns
+    where table_schema = 'public' and table_name = 'profiles'
+    order by ordinal_position
+  `);
+  return new Map(result.rows.map((column) => [column.column_name, column]));
+}
+
+function rawProfileInsertValues(
+  values: ProfileInsertValues,
+  columns: Map<string, DatabaseProfileColumn>,
+): Record<string, unknown> {
+  const source = values as Record<string, unknown>;
+  const row: Record<string, unknown> = {};
+
+  for (const column of CORE_PROFILE_WRITE_COLUMNS) {
+    if (!columns.has(column)) continue;
+    const value = ownValue(source, column);
+    if (value !== undefined && value !== null) row[column] = value;
+  }
+
+  for (const [columnName, column] of columns) {
+    if (row[columnName] !== undefined) continue;
+    if (column.is_nullable === "YES" || column.column_default) continue;
+    const fallback = requiredProfileDefault(columnName);
+    if (fallback !== undefined) row[columnName] = fallback;
+  }
+
+  return row;
+}
+
+function rawProfileUpdateValues(
+  set: ProfileUpdateValues,
+  columns: Map<string, DatabaseProfileColumn>,
+): Record<string, unknown> {
+  const source = set as Record<string, unknown>;
+  const row: Record<string, unknown> = {};
+
+  for (const column of CORE_PROFILE_WRITE_COLUMNS) {
+    if (column === "id" || !columns.has(column)) continue;
+    const value = ownValue(source, column);
+    if (value !== undefined) row[column] = value;
+  }
+
+  return row;
+}
+
+async function writeProfileFromDatabaseColumns(
+  values: ProfileInsertValues,
+  set: ProfileUpdateValues,
+  logPrefix: string,
+): Promise<void> {
+  const id = values.id;
+  if (!id) throw new Error("Profile id is required for raw profile write fallback.");
+
+  const columns = await loadDatabaseProfileColumns();
+  if (!columns.has("id")) throw new Error("profiles.id column is unavailable.");
+
+  const existing = await pool.query(
+    "select 1 from public.profiles where id = $1 limit 1",
+    [id],
+  );
+
+  if (existing.rowCount && existing.rowCount > 0) {
+    const updateValues = rawProfileUpdateValues(set, columns);
+    const updateColumns = Object.keys(updateValues).filter((column) => column !== "id");
+    if (updateColumns.length === 0) return;
+
+    const assignments = updateColumns
+      .map((column, index) => `${quotedIdentifier(column)} = $${index + 1}`)
+      .join(", ");
+    await pool.query(
+      `update public.profiles set ${assignments} where id = $${updateColumns.length + 1}`,
+      [...updateColumns.map((column) => updateValues[column]), id],
+    );
+    console.warn(`${logPrefix} profile write recovered with database-column update fallback.`);
+    return;
+  }
+
+  const insertValues = rawProfileInsertValues(values, columns);
+  insertValues.id = id;
+  const insertColumns = Object.keys(insertValues).filter((column) => columns.has(column));
+  if (!insertColumns.includes("id")) insertColumns.unshift("id");
+  const placeholders = insertColumns.map((_, index) => `$${index + 1}`).join(", ");
+  const quotedColumns = insertColumns.map(quotedIdentifier).join(", ");
+
+  await pool.query(
+    `insert into public.profiles (${quotedColumns}) values (${placeholders})`,
+    insertColumns.map((column) => insertValues[column]),
+  );
+  console.warn(`${logPrefix} profile write recovered with database-column insert fallback.`);
 }
 
 function constrainedProfileColumnName(err: unknown): string | null {
@@ -145,7 +266,13 @@ export async function upsertProfileToleratingMissingColumns(
         continue;
       }
 
-      throw err;
+      try {
+        await writeProfileFromDatabaseColumns(retryValues, retrySet, logPrefix);
+        return;
+      } catch (fallbackErr) {
+        console.error(`${logPrefix} database-column profile write fallback failed:`, fallbackErr);
+        throw err;
+      }
     }
   }
 }
