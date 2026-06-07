@@ -180,6 +180,18 @@ describe("AccountSettings", () => {
     expect(screen.queryByDisplayValue("karim.assad@mokadigital.net")).not.toBeInTheDocument();
   });
 
+  it("filters legacy profile email values that match the sign-in email", async () => {
+    mocks.apiFetch.mockResolvedValue(jsonResponse({ ok: true }));
+    queryClient.setQueryData(["/api/profile"], profileResponse({
+      email: "karim.assad@mokadigital.net",
+      accountEmail: "karim.assad@mokadigital.net",
+    }));
+    renderAccountSettings();
+
+    expect(await screen.findByDisplayValue("Assad")).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("karim.assad@mokadigital.net")).not.toBeInTheDocument();
+  });
+
   it("shows structured profile save errors instead of the generic fallback", async () => {
     mocks.apiFetch.mockResolvedValue(jsonResponse({
       error: {

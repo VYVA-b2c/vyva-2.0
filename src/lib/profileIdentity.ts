@@ -43,6 +43,7 @@ export type ProfileIdentityResponse = {
   preferredName?: string | null;
   dateOfBirth?: string | null;
   email?: string | null;
+  accountEmail?: string | null;
   phone?: string | null;
   whatsapp?: string | null;
   country?: string | null;
@@ -138,6 +139,14 @@ export function createEmptyIdentityForm(fallbackLanguage: LanguageCode = detectB
   };
 }
 
+function profileEmailFromResponse(profile: ProfileIdentityResponse | null | undefined) {
+  const email = profile?.email?.trim() ?? "";
+  const accountEmail = profile?.accountEmail?.trim() ?? "";
+  return email && accountEmail && email.toLowerCase() === accountEmail.toLowerCase()
+    ? ""
+    : email;
+}
+
 export function identityFromProfileResponse(
   profile: ProfileIdentityResponse | null | undefined,
   fallbackLanguage: LanguageCode = detectBrowserLanguage(),
@@ -151,7 +160,7 @@ export function identityFromProfileResponse(
     dateOfBirth: profile?.dateOfBirth ?? "",
     phoneCountry: phoneParts.phoneCountry,
     phoneLocal: phoneParts.phoneLocal,
-    email: profile?.email ?? "",
+    email: profileEmailFromResponse(profile),
     language: normalizeLanguageCode(profile?.languagePreference ?? profile?.language, fallbackLanguage),
     avatarUrl: profile?.avatarUrl ?? null,
   };
