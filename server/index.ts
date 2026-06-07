@@ -377,6 +377,11 @@ async function configureFrontend() {
     app.use(express.static(distPath, {
       index: false,
       setHeaders(res, filePath) {
+        const fileName = path.basename(filePath).toLowerCase();
+        if (["service-worker.js", "manifest.webmanifest", "robots.txt", "sitemap.xml", "offline.html"].includes(fileName)) {
+          res.setHeader("Cache-Control", "no-cache");
+          return;
+        }
         if (filePath.endsWith(".html")) {
           res.setHeader("Cache-Control", "no-store");
           return;

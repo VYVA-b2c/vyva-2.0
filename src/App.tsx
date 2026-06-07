@@ -13,6 +13,7 @@ import { ProfileProvider } from "@/contexts/ProfileContext";
 import { VoiceActionProvider } from "@/contexts/VoiceActionContext";
 import { VyvaVoiceProvider } from "@/hooks/useVyvaVoice";
 import { recordAgentButtonClick, recordAgentPageChange } from "@/lib/agentAppContext";
+import PwaInstallPrompt from "@/components/PwaInstallPrompt";
 import LoginPage from "@/pages/LoginPage";
 import LandingPage from "@/pages/LandingPage";
 import InviteLandingPage from "@/pages/InviteLandingPage";
@@ -344,6 +345,20 @@ function AgentAppContextTracker() {
   return null;
 }
 
+function PublicPwaInstallPrompt() {
+  const { user, isLoading } = useAuth();
+  const location = useLocation();
+  const publicPath =
+    location.pathname === "/" ||
+    location.pathname === "/invite" ||
+    location.pathname === "/login" ||
+    location.pathname.startsWith("/access/") ||
+    location.pathname.startsWith("/care-team/invite/");
+
+  if (isLoading || user || !publicPath) return null;
+  return <PwaInstallPrompt />;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <LanguageControllerProvider>
@@ -436,6 +451,7 @@ const App = () => (
                 </Route>
                 <Route path="*" element={<NotFound />} />
                     </Routes>
+                    <PublicPwaInstallPrompt />
                   </VoiceActionProvider>
                 </VyvaVoiceProvider>
               </LanguageFrameBoundary>
