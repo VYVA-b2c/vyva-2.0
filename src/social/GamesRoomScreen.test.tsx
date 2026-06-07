@@ -474,14 +474,44 @@ describe("GamesRoomScreen", () => {
     });
   });
 
-  it("lets the chess clue card browse more than one chess puzzle", async () => {
-    render(<GamesRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+  it("starts on the game picker and uses Back to return there before leaving", () => {
+    const onBack = vi.fn();
+    render(<GamesRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={onBack} />);
 
     expect(screen.getByText("Dominoes")).toBeInTheDocument();
     expect(screen.getByText("Bridge table")).toBeInTheDocument();
     expect(screen.queryByText("Trivia")).not.toBeInTheDocument();
     expect(screen.queryByText("Memory match")).not.toBeInTheDocument();
+    expect(screen.getByTestId("games-round-picker")).toBeInTheDocument();
+    expect(screen.queryByTestId("games-selected-puzzle")).not.toBeInTheDocument();
+    expect(screen.queryByText("Puzzle 1 of 2")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("games-start-round")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("games-round-chess"));
+
+    expect(screen.queryByTestId("games-round-picker")).not.toBeInTheDocument();
+    expect(screen.getByTestId("games-selected-puzzle")).toBeInTheDocument();
     expect(screen.getByText("Puzzle 1 of 2")).toBeInTheDocument();
+    expect(screen.getByTestId("games-start-round")).toHaveTextContent("Start this puzzle");
+
+    fireEvent.click(screen.getByTestId("games-room-back"));
+
+    expect(screen.getByTestId("games-round-picker")).toBeInTheDocument();
+    expect(screen.queryByTestId("games-selected-puzzle")).not.toBeInTheDocument();
+    expect(onBack).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("games-room-back"));
+
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets the chess clue card browse more than one chess puzzle", async () => {
+    render(<GamesRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("games-round-chess"));
+
+    expect(screen.getByText("Puzzle 1 of 2")).toBeInTheDocument();
+    expect(screen.queryByTestId("games-round-picker")).not.toBeInTheDocument();
     expect(screen.queryByText("Next puzzle")).not.toBeInTheDocument();
     const puzzleControls = screen.getByTestId("games-puzzle-controls");
     expect(within(puzzleControls).getByTestId("games-start-round")).toHaveTextContent("Start this puzzle");
@@ -564,13 +594,19 @@ describe("GamesRoomScreen", () => {
 
     render(<GamesRoomScreen roomResponse={personalizedResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
 
+    expect(screen.getByTestId("games-round-picker")).toBeInTheDocument();
+    expect(screen.queryByTestId("games-selected-puzzle")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("games-round-dominoes"));
     expect(screen.getByText("Puzzle 2 of 80")).toBeInTheDocument();
     expect(screen.getByText("The tile fits both sides. Pick the wiser side.")).toBeInTheDocument();
 
+    fireEvent.click(screen.getByTestId("games-room-back"));
     fireEvent.click(screen.getByTestId("games-round-chess"));
     expect(screen.getByText("Puzzle 2 of 2")).toBeInTheDocument();
     expect(screen.getByText("Find the strongest king pressure.")).toBeInTheDocument();
 
+    fireEvent.click(screen.getByTestId("games-room-back"));
     fireEvent.click(screen.getByTestId("games-round-word"));
     expect(screen.getByText("Puzzle 2 of 80")).toBeInTheDocument();
     expect(screen.queryByText("PEACE")).not.toBeInTheDocument();
@@ -610,6 +646,11 @@ describe("GamesRoomScreen", () => {
 
     render(<GamesRoomScreen roomResponse={compactResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
 
+    expect(screen.getByTestId("games-round-picker")).toBeInTheDocument();
+    expect(screen.queryByText("Puzzle 1 of 2")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("games-round-chess"));
+
     expect(screen.getByText("Puzzle 1 of 2")).toBeInTheDocument();
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/social/rooms/games-room/game-rounds?lang=en&gameKind=chess");
@@ -642,6 +683,8 @@ describe("GamesRoomScreen", () => {
 
   it("keeps Games Room controls localized for expanded app languages", async () => {
     render(<GamesRoomScreen roomResponse={roomResponse} language="fr" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("games-round-chess"));
 
     expect(screen.getByText("Puzzle 1 sur 2")).toBeInTheDocument();
 

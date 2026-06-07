@@ -1219,6 +1219,7 @@ export default function GamesRoomScreen({
 
   const [loadedRoundsByKind, setLoadedRoundsByKind] = useState<GameRoundsByKind>(() => groupRoundsByKind(gameTable.rounds));
   const [selectedRoundId, setSelectedRoundId] = useState(initialRoundId);
+  const [isGameSelected, setIsGameSelected] = useState(false);
   const [startedGameKinds, setStartedGameKinds] = useState<SocialGameKind[]>([]);
   const [startedRoundId, setStartedRoundId] = useState<string | null>(null);
   const [selectedChoice, setSelectedChoice] = useState("");
@@ -1296,6 +1297,8 @@ export default function GamesRoomScreen({
   const isPuzzleNavigationDisabled = isLoadingSelectedBank || selectedKindRounds.length < 2;
 
   useEffect(() => {
+    if (!isGameSelected) return;
+
     const kind = selectedRound?.kind;
     if (!kind) return;
 
@@ -1332,6 +1335,7 @@ export default function GamesRoomScreen({
     language,
     loadedRoundsByKind,
     room.slug,
+    isGameSelected,
     selectedRound?.kind,
   ]);
 
@@ -1405,6 +1409,21 @@ export default function GamesRoomScreen({
     setShowTactileHelp(false);
     setShowTactileChoices(false);
     setTactileFeedback(null);
+  };
+
+  const chooseGameRound = (round: SocialGameRound) => {
+    setIsGameSelected(true);
+    selectRound(round);
+  };
+
+  const handleBack = () => {
+    if (isGameSelected) {
+      setIsGameSelected(false);
+      setMatchResponse(null);
+      return;
+    }
+
+    onBack();
   };
 
   const selectPuzzleAtOffset = (offset: number) => {
@@ -1602,7 +1621,7 @@ export default function GamesRoomScreen({
   };
 
   const findPartner = async () => {
-    if (!selectedRound || isMatching) return;
+    if (!isGameSelected || !selectedRound || isMatching) return;
 
     setIsMatching(true);
     try {
@@ -1629,8 +1648,9 @@ export default function GamesRoomScreen({
         <header className="grid grid-cols-[56px_1fr_auto] items-center gap-3">
           <button
             type="button"
-            onClick={onBack}
+            onClick={handleBack}
             aria-label="Back"
+            data-testid="games-room-back"
             className="flex h-14 w-14 items-center justify-center rounded-[18px] bg-white text-[#075C64] shadow-[0_14px_30px_rgba(9,52,59,0.12)]"
           >
             <ArrowLeft size={27} strokeWidth={2.8} />
@@ -1667,63 +1687,58 @@ export default function GamesRoomScreen({
 
         <main className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)] lg:items-start">
           <section className="space-y-5">
-            <div className="relative overflow-hidden rounded-[28px] bg-[#0A7372] shadow-[0_22px_52px_rgba(7,49,58,0.16)]">
-              <img
-                src={gameTableImage}
-                alt=""
-                className="aspect-[16/10] w-full object-cover"
-                draggable={false}
-              />
-              <div className="absolute left-4 top-4 rounded-[20px] bg-white/95 px-5 py-4 shadow-[0_16px_34px_rgba(7,49,58,0.12)] backdrop-blur-sm">
-                <p className="font-body text-[23px] font-extrabold leading-tight text-[#083640]">{gameTable.tableLabel}</p>
-                <p className="mt-2 flex items-center gap-2 font-body text-[18px] font-bold text-[#087C82]">
-                  <Users size={22} />
-                  {gameTable.readyLabel}
-                </p>
-              </div>
-            </div>
+            {!isGameSelected && (
+              <>
+                <div className="relative overflow-hidden rounded-[28px] bg-[#0A7372] shadow-[0_22px_52px_rgba(7,49,58,0.16)]">
+                  <img
+                    src={gameTableImage}
+                    alt=""
+                    className="aspect-[16/10] w-full object-cover"
+                    draggable={false}
+                  />
+                  <div className="absolute left-4 top-4 rounded-[20px] bg-white/95 px-5 py-4 shadow-[0_16px_34px_rgba(7,49,58,0.12)] backdrop-blur-sm">
+                    <p className="font-body text-[23px] font-extrabold leading-tight text-[#083640]">{gameTable.tableLabel}</p>
+                    <p className="mt-2 flex items-center gap-2 font-body text-[18px] font-bold text-[#087C82]">
+                      <Users size={22} />
+                      {gameTable.readyLabel}
+                    </p>
+                  </div>
+                </div>
 
-            <section aria-labelledby="game-round-heading">
-              <h2 id="game-round-heading" className="font-body text-[30px] font-extrabold leading-tight text-[#07313A]">
-                {gameTable.chooseRoundLabel}
-              </h2>
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {roundCards.map((round) => {
-                  const active = round.kind === selectedRound?.kind;
-                  const Icon = roundIcons[round.kind];
-                  return (
-                    <button
-                      key={round.kind}
-                      type="button"
-                      onClick={() => selectRound(round, { recordSkip: true })}
-                      data-testid={`games-round-${round.kind}`}
-                      className="relative min-h-[148px] rounded-[24px] border bg-white px-3 py-4 text-center shadow-[0_12px_28px_rgba(11,60,66,0.08)] transition-transform active:scale-[0.99]"
-                      style={{
-                        borderColor: active ? "#087C82" : "#DDE5E3",
-                        background: active ? "linear-gradient(180deg,#E9FAF8 0%,#FFFFFF 100%)" : "#FFFFFF",
-                      }}
-                    >
-                      {active && (
-                        <span className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-[#087C82] text-white">
-                          <Check size={22} strokeWidth={3} />
-                        </span>
-                      )}
-                      <span className="mx-auto flex h-[58px] w-[58px] items-center justify-center rounded-[20px] bg-[#E8F7F6] text-[#087C82]">
-                        <Icon size={31} strokeWidth={2.6} />
-                      </span>
-                      <span className="mt-4 block font-body text-[19px] font-extrabold leading-tight text-[#0C2F38]">
-                        {round.title}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
+                <section aria-labelledby="game-round-heading" data-testid="games-round-picker">
+                  <h2 id="game-round-heading" className="font-body text-[30px] font-extrabold leading-tight text-[#07313A]">
+                    {gameTable.chooseRoundLabel}
+                  </h2>
+                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {roundCards.map((round) => {
+                      const Icon = roundIcons[round.kind];
+                      return (
+                        <button
+                          key={round.kind}
+                          type="button"
+                          onClick={() => chooseGameRound(round)}
+                          data-testid={`games-round-${round.kind}`}
+                          className="relative min-h-[148px] rounded-[24px] border border-[#DDE5E3] bg-white px-3 py-4 text-center shadow-[0_12px_28px_rgba(11,60,66,0.08)] transition-transform active:scale-[0.99]"
+                        >
+                          <span className="mx-auto flex h-[58px] w-[58px] items-center justify-center rounded-[20px] bg-[#E8F7F6] text-[#087C82]">
+                            <Icon size={31} strokeWidth={2.6} />
+                          </span>
+                          <span className="mt-4 block font-body text-[19px] font-extrabold leading-tight text-[#0C2F38]">
+                            {round.title}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              </>
+            )}
 
-            {selectedRound && (
+            {isGameSelected && selectedRound && (
               <section
                 className="rounded-[28px] border border-[#D8E6E2] bg-white px-5 py-5 shadow-[0_16px_34px_rgba(11,60,66,0.08)]"
                 aria-live="polite"
+                data-testid="games-selected-puzzle"
               >
                 <div className="flex items-start gap-4">
                   <div className="flex h-[58px] w-[58px] shrink-0 items-center justify-center rounded-[20px] bg-[#FFF4DA] text-[#A86200]">
@@ -1988,7 +2003,7 @@ export default function GamesRoomScreen({
               <button
                 type="button"
                 onClick={() => void findPartner()}
-                disabled={isMatching || !selectedRound}
+                disabled={isMatching || !isGameSelected || !selectedRound}
                 data-testid="games-find-partner"
                 className="mt-5 flex min-h-[66px] w-full items-center justify-center gap-3 rounded-[22px] bg-[#007B7E] px-5 font-body text-[21px] font-extrabold text-white shadow-[0_16px_34px_rgba(0,123,126,0.2)] disabled:opacity-55"
               >
