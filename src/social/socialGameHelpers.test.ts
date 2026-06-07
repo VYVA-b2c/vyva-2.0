@@ -228,6 +228,12 @@ describe("social games room helpers", () => {
 
         if (round.kind === "bridge") {
           expect(round.interaction.kind).toBe("bridgeAction");
+          expect(round.visual?.kind).toBe("bridgeCards");
+          if (round.visual?.kind === "bridgeCards") {
+            expect(round.visual.cards?.length ?? 0).toBeGreaterThanOrEqual(4);
+            expect(round.visual.cards?.some((card) => card.role === "key")).toBe(true);
+            expect(round.visual.cards?.every((card) => !/[♠♥♦♣]/.test(`${card.rank} ${card.suit}`))).toBe(true);
+          }
           if (round.interaction.kind !== "bridgeAction") continue;
           expect(round.interaction.actions.length).toBeGreaterThan(0);
           expect(round.interaction.actions.some((action) => action.id === round.interaction.answerActionId)).toBe(true);

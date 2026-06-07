@@ -4825,7 +4825,9 @@ const dominoesPuzzleBank: Record<SocialGameLanguage, SocialGameRound[]> = {
 
 type GameLocalizedText = Record<SocialGameLanguage, string>;
 type BridgeSuit = "clubs" | "diamonds" | "hearts" | "spades" | "noTrump";
-type BridgeRank = "ace" | "king" | "queen" | "jack" | "ten" | "small";
+type BridgeCardSuit = Exclude<BridgeSuit, "noTrump">;
+type BridgeRank = "ace" | "king" | "queen" | "jack" | "ten" | "nine" | "eight" | "seven" | "six" | "small";
+type BridgeVisualCardRole = "key" | "support" | "side";
 type BridgeTermKey =
   | "pass"
   | "drawTrumps"
@@ -4908,6 +4910,10 @@ const bridgeRankLabels: Record<BridgeRank, GameLocalizedText> = {
   queen: { en: "queen", es: "dama", de: "Dame", fr: "dame", it: "donna", pt: "dama" },
   jack: { en: "jack", es: "sota", de: "Bube", fr: "valet", it: "fante", pt: "valete" },
   ten: { en: "ten", es: "diez", de: "Zehn", fr: "dix", it: "dieci", pt: "dez" },
+  nine: { en: "nine", es: "nueve", de: "Neun", fr: "neuf", it: "nove", pt: "nove" },
+  eight: { en: "eight", es: "ocho", de: "Acht", fr: "huit", it: "otto", pt: "oito" },
+  seven: { en: "seven", es: "siete", de: "Sieben", fr: "sept", it: "sette", pt: "sete" },
+  six: { en: "six", es: "seis", de: "Sechs", fr: "six", it: "sei", pt: "seis" },
   small: { en: "small card", es: "carta pequena", de: "kleine Karte", fr: "petite carte", it: "carta piccola", pt: "carta pequena" },
 };
 
@@ -5045,12 +5051,109 @@ const term = (key: BridgeTermKey): BridgeChoice => ({ type: "term", key });
 const lead = (suit: BridgeSuit, rank?: BridgeRank): BridgeChoice => ({ type: "lead", suit, rank });
 const numberChoice = (value: number): BridgeChoice => ({ type: "number", value });
 
+const bridgeRealSuits: BridgeCardSuit[] = ["spades", "hearts", "diamonds", "clubs"];
+const bridgeLowRanks: BridgeRank[] = ["nine", "eight", "seven", "six"];
+
+function toBridgeCardSuit(suit: BridgeSuit | undefined, fallback: BridgeCardSuit = "hearts"): BridgeCardSuit {
+  return suit && suit !== "noTrump" ? suit : fallback;
+}
+
+function bridgeChoiceSuit(choice: BridgeChoice | undefined): BridgeSuit | undefined {
+  if (!choice) return undefined;
+  if (choice.type === "bid" || choice.type === "lead") return choice.suit;
+  return undefined;
+}
+
+function bridgeVisualRank(rank: BridgeRank, lowIndex: number): BridgeRank {
+  if (rank !== "small") return rank;
+  return bridgeLowRanks[lowIndex % bridgeLowRanks.length];
+}
+
+function bridgeVisualCard(
+  rank: BridgeRank,
+  suit: BridgeCardSuit,
+  language: SocialGameLanguage,
+  role: BridgeVisualCardRole,
+  lowIndex = 0,
+) {
+  return {
+    rank: bridgeRankLabel(bridgeVisualRank(rank, lowIndex), language),
+    suit: bridgeSuitLabel(suit, language),
+    role,
+  };
+}
+
+function bridgeSeedHolding(variant: BridgePuzzleVariant): BridgeRank[] {
+  if (variant.holding?.length) return variant.holding;
+  if (variant.sequence?.length) return variant.sequence;
+  if ((variant.points ?? 0) >= 16) return ["ace", "queen", "jack"];
+  if ((variant.points ?? 0) >= 12) return ["ace", "king", "ten"];
+  if ((variant.points ?? 0) >= 8) return ["king", "jack", "ten"];
+  return ["queen", "ten"];
+}
+
+function bridgeHandLength(length: number | undefined, fallback: number) {
+  return Math.max(2, Math.min(length ?? fallback, 6));
+}
+
+function bridgeCardsForSuit(
+  suit: BridgeCardSuit,
+  ranks: BridgeRank[],
+  length: number,
+  language: SocialGameLanguage,
+  role: BridgeVisualCardRole,
+) {
+  const visibleLength = bridgeHandLength(length, Math.max(4, ranks.length));
+  const cards: Array<{ rank: string; suit: string; role: BridgeVisualCardRole }> = [];
+
+  for (let index = 0; index < visibleLength; index += 1) {
+    const rank = ranks[index] ?? "small";
+    cards.push(bridgeVisualCard(rank, suit, language, index < ranks.length ? role : "support", index));
+  }
+
+  return cards;
+}
+
+function bridgeBalancedHandCards(variant: BridgePuzzleVariant, language: SocialGameLanguage) {
+  const strength: BridgeRank[] = (variant.points ?? 0) >= 18
+    ? ["ace", "king", "queen", "jack", "ten"]
+    : ["ace", "king", "queen", "ten", "nine"];
+
+  return bridgeRealSuits.flatMap((suit, index) => [
+    bridgeVisualCard(strength[index] ?? "small", suit, language, index < 3 ? "key" : "side", index),
+    ...(index === 0 ? [bridgeVisualCard("eight", suit, language, "support", index)] : []),
+  ]).slice(0, 6);
+}
+
+function bridgeFallbackCards(language: SocialGameLanguage) {
+  return [
+    bridgeVisualCard("queen", "hearts", language, "key"),
+    bridgeVisualCard("jack", "hearts", language, "support"),
+    bridgeVisualCard("ten", "spades", language, "side"),
+    bridgeVisualCard("eight", "diamonds", language, "side"),
+  ];
+}
+
 function bridgeVisualCards(variant: BridgePuzzleVariant, language: SocialGameLanguage) {
-  const ranks = variant.holding ?? variant.sequence ?? [];
-  return ranks.map((rank) => ({
-    rank: bridgeRankLabel(rank, language),
-    suit: bridgeSuitLabel(variant.suit, language),
-  }));
+  if (variant.suit === "noTrump" || (variant.answer.type === "bid" && variant.answer.suit === "noTrump")) {
+    return bridgeBalancedHandCards(variant, language);
+  }
+
+  const primarySuit = toBridgeCardSuit(
+    variant.suit ?? variant.partnerSuit ?? variant.contractSuit ?? bridgeChoiceSuit(variant.answer),
+    "hearts",
+  );
+  const primaryLength = variant.length ?? variant.support ?? (variant.holding?.length ?? variant.sequence?.length ?? 4);
+  const primaryCards = bridgeCardsForSuit(primarySuit, bridgeSeedHolding(variant), primaryLength, language, "key");
+
+  const secondarySuit = variant.secondSuit && variant.secondSuit !== primarySuit
+    ? toBridgeCardSuit(variant.secondSuit, "spades")
+    : bridgeRealSuits.find((suit) => suit !== primarySuit) ?? "spades";
+  const secondaryLength = variant.secondLength ? Math.min(variant.secondLength, 3) : (primaryCards.length < 5 ? 2 : 1);
+  const sideCards = bridgeCardsForSuit(secondarySuit, ["ten", "small", "small"], secondaryLength, language, "side");
+
+  const visibleCards = [...primaryCards, ...sideCards].slice(0, 8);
+  return visibleCards.length ? visibleCards : bridgeFallbackCards(language);
 }
 
 function bridgeVisualSuitLengths(variant: BridgePuzzleVariant, language: SocialGameLanguage) {
@@ -5076,7 +5179,7 @@ function buildBridgeVisual(variant: BridgePuzzleVariant, language: SocialGameLan
     caption,
     ...(variant.points !== undefined ? { points: variant.points } : {}),
     ...(variant.contractLevel && variant.contractSuit ? { contract: bridgeBidLabel(variant.contractLevel, variant.contractSuit, language) } : {}),
-    ...(variant.partnerLevel && variant.partnerSuit ? { partnerBid: bridgeBidLabel(variant.partnerLevel, variant.partnerSuit, language) } : {}),
+    ...(variant.partnerSuit ? { partnerBid: bridgeBidLabel(variant.partnerLevel ?? 1, variant.partnerSuit, language) } : {}),
     ...(cards.length ? { cards } : {}),
     ...(suitLengths.length ? { suitLengths } : {}),
     ...(variant.missing && variant.suit ? { missingCard: { rank: bridgeRankLabel(variant.missing, language), suit: bridgeSuitLabel(variant.suit, language) } } : {}),
@@ -5495,7 +5598,7 @@ function buildBridgePuzzleBank(language: SocialGameLanguage): SocialGameRound[] 
         kind: "bridge" as const,
         title: bridgeRoundTitles[language],
         body: theme.body[language],
-        prompt: theme.prompt(variant, language),
+        prompt: bridgeQuestion(language),
         choices: variant.choices.map((choice) => bridgeChoiceText(choice, language)),
         answer: bridgeChoiceText(variant.answer, language),
         hint,

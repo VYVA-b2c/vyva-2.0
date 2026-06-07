@@ -18,7 +18,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/queryClient";
 import gameTableImage from "@/assets/games-room-tabletop.webp";
 import AgentAvatar from "./AgentAvatar";
@@ -766,39 +766,177 @@ function DominoesVisual({
   );
 }
 
-function BridgeCardsVisual({ visual }: { visual: Extract<SocialGameRoundVisual, { kind: "bridgeCards" }> }) {
+function getBridgeVisualLabels(language: SocialGameLanguage) {
+  return {
+    table: {
+      en: "Table",
+      es: "Mesa",
+      fr: "Table",
+      de: "Tisch",
+      it: "Tavolo",
+      pt: "Mesa",
+    }[language],
+    partner: {
+      en: "Partner",
+      es: "Companero",
+      fr: "Partenaire",
+      de: "Partner",
+      it: "Partner",
+      pt: "Parceiro",
+    }[language],
+    left: {
+      en: "Left",
+      es: "Izquierda",
+      fr: "Gauche",
+      de: "Links",
+      it: "Sinistra",
+      pt: "Esquerda",
+    }[language],
+    right: {
+      en: "Right",
+      es: "Derecha",
+      fr: "Droite",
+      de: "Rechts",
+      it: "Destra",
+      pt: "Direita",
+    }[language],
+    you: {
+      en: "You",
+      es: "Tu",
+      fr: "Vous",
+      de: "Du",
+      it: "Tu",
+      pt: "Voce",
+    }[language],
+    yourHand: {
+      en: "Your hand",
+      es: "Tu mano",
+      fr: "Votre main",
+      de: "Deine Hand",
+      it: "La tua mano",
+      pt: "Sua mao",
+    }[language],
+    points: {
+      en: "points",
+      es: "puntos",
+      fr: "points",
+      de: "Punkte",
+      it: "punti",
+      pt: "pontos",
+    }[language],
+    contract: {
+      en: "Contract",
+      es: "Contrato",
+      fr: "Contrat",
+      de: "Kontrakt",
+      it: "Contratto",
+      pt: "Contrato",
+    }[language],
+    missing: {
+      en: "Missing",
+      es: "Falta",
+      fr: "Manque",
+      de: "Fehlt",
+      it: "Manca",
+      pt: "Falta",
+    }[language],
+  };
+}
+
+function isWarmBridgeSuit(suit: string) {
+  const normalized = suit.toLocaleLowerCase();
+  return [
+    "heart",
+    "diamond",
+    "corazon",
+    "diamante",
+    "herz",
+    "karo",
+    "coeur",
+    "carreau",
+    "cuori",
+    "quadri",
+    "copa",
+    "ouro",
+  ].some((token) => normalized.includes(token));
+}
+
+function BridgePlayingCard({ card, index }: { card: NonNullable<Extract<SocialGameRoundVisual, { kind: "bridgeCards" }>["cards"]>[number]; index: number }) {
+  const warmSuit = isWarmBridgeSuit(card.suit);
+  const isKey = card.role === "key";
+
   return (
-    <div className="rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-4" data-testid="games-visual-bridge">
-      <p className="font-body text-[16px] font-extrabold leading-snug text-[#31555D]">{visual.caption}</p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {visual.points !== undefined && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#075C64]">{visual.points} points</span>}
-        {visual.partnerBid && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#075C64]">Partner: {visual.partnerBid}</span>}
-        {visual.contract && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#075C64]">Contract: {visual.contract}</span>}
+    <div
+      className={`flex h-[78px] w-[56px] shrink-0 rotate-[var(--card-tilt)] flex-col justify-between rounded-[12px] border bg-white px-2 py-2 shadow-[0_10px_18px_rgba(8,38,44,0.22)] ${
+        isKey ? "border-[#FBBF24]" : "border-[#D9C8AD]"
+      }`}
+      style={{ "--card-tilt": `${Math.max(-6, Math.min(6, index - 3))}deg` } as CSSProperties}
+      data-testid="games-bridge-card"
+    >
+      <span className={`font-body text-[15px] font-black leading-none ${warmSuit ? "text-[#9B3412]" : "text-[#173941]"}`}>{card.rank}</span>
+      <span className={`font-body text-[11px] font-extrabold leading-tight ${warmSuit ? "text-[#B45309]" : "text-[#31555D]"}`}>{card.suit}</span>
+    </div>
+  );
+}
+
+function BridgeCardsVisual({ visual, language }: { visual: Extract<SocialGameRoundVisual, { kind: "bridgeCards" }>; language: SocialGameLanguage }) {
+  const labels = getBridgeVisualLabels(language);
+  const cards = visual.cards ?? [];
+  const visibleCards = cards.slice(0, 8);
+
+  return (
+    <div className="rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-3" data-testid="games-visual-bridge">
+      <div className="rounded-[22px] bg-[#0A6F68] p-3 text-white shadow-inner" data-testid="games-bridge-table">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+          <div className="rounded-[14px] bg-white/10 px-3 py-2 text-center font-body text-[12px] font-black uppercase tracking-[0.08em] text-white/80">
+            {labels.left}
+          </div>
+          <div className="min-w-[92px] rounded-[16px] bg-white px-3 py-2 text-center shadow-[0_8px_18px_rgba(8,38,44,0.18)]" data-testid="games-bridge-partner">
+            <p className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#087C82]">{labels.partner}</p>
+            <p className="mt-1 font-body text-[12px] font-extrabold leading-tight text-[#173941]">{visual.partnerBid ?? labels.table}</p>
+          </div>
+          <div className="rounded-[14px] bg-white/10 px-3 py-2 text-center font-body text-[12px] font-black uppercase tracking-[0.08em] text-white/80">
+            {labels.right}
+          </div>
+        </div>
+
+        <div className="mx-auto mt-3 min-h-[76px] max-w-[220px] rounded-[20px] border border-white/20 bg-white/12 px-3 py-2 text-center">
+          <p className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-white/80">{visual.caption}</p>
+          <div className="mt-2 flex flex-wrap justify-center gap-1.5">
+            {visual.points !== undefined && (
+              <span className="rounded-full bg-white px-2.5 py-1 font-body text-[12px] font-extrabold text-[#075C64]">
+                {visual.points} {labels.points}
+              </span>
+            )}
+            {visual.contract && (
+              <span className="rounded-full bg-white px-2.5 py-1 font-body text-[12px] font-extrabold text-[#075C64]">
+                {labels.contract}: {visual.contract}
+              </span>
+            )}
+            {visual.missingCard && (
+              <span className="rounded-full bg-[#FFF7ED] px-2.5 py-1 font-body text-[12px] font-extrabold text-[#8A4B00]">
+                {labels.missing}: {visual.missingCard.rank}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-3 rounded-[20px] bg-[#EAF6F3] px-3 py-3 text-[#173941]" data-testid="games-bridge-hand">
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-body text-[13px] font-black uppercase tracking-[0.08em] text-[#087C82]">{labels.yourHand}</p>
+            {visual.suitLengths?.length ? (
+              <p className="font-body text-[12px] font-extrabold text-[#31555D]">
+                {visual.suitLengths.map((item) => `${item.length} ${item.suit}`).join(" / ")}
+              </p>
+            ) : null}
+          </div>
+          <div className="mt-2 flex min-h-[84px] items-center gap-1.5 overflow-x-auto pb-1">
+            {visibleCards.map((card, index) => (
+              <BridgePlayingCard key={`${card.rank}-${card.suit}-${index}`} card={card} index={index} />
+            ))}
+          </div>
+        </div>
       </div>
-      {visual.suitLengths && (
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          {visual.suitLengths.map((item) => (
-            <div key={`${item.suit}-${item.length}`} className="rounded-[16px] bg-white px-4 py-3 font-body text-[16px] font-extrabold text-[#173941]">
-              {item.length} {item.suit}
-            </div>
-          ))}
-        </div>
-      )}
-      {visual.cards && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {visual.cards.map((card, index) => (
-            <div key={`${card.rank}-${card.suit}-${index}`} className="flex h-[92px] w-[68px] flex-col justify-between rounded-[14px] border border-[#D9C8AD] bg-white px-2 py-2 shadow-[0_10px_20px_rgba(24,60,66,0.12)]">
-              <span className="font-body text-[15px] font-black text-[#173941]">{card.rank}</span>
-              <span className="font-body text-[13px] font-extrabold text-[#A86200]">{card.suit}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {visual.missingCard && (
-        <p className="mt-3 rounded-[16px] bg-white px-4 py-3 font-body text-[15px] font-extrabold text-[#597178]">
-          Missing: {visual.missingCard.rank} of {visual.missingCard.suit}
-        </p>
-      )}
     </div>
   );
 }
@@ -850,7 +988,7 @@ function PuzzleVisualPanel({
       />
     );
   }
-  return <BridgeCardsVisual visual={visual} />;
+  return <BridgeCardsVisual visual={visual} language={language} />;
 }
 
 function RoundCompletePanel({

@@ -224,6 +224,14 @@ function createBridgeRound(index: number): SocialGameRound {
         kind: "bridgeCards",
         caption: "Choose a calm opening bid.",
         points: 13,
+        cards: [
+          { rank: "ace", suit: "hearts", role: "key" },
+          { rank: "king", suit: "hearts", role: "key" },
+          { rank: "ten", suit: "hearts", role: "key" },
+          { rank: "nine", suit: "hearts", role: "support" },
+          { rank: "seven", suit: "hearts", role: "support" },
+          { rank: "ten", suit: "spades", role: "side" },
+        ],
         suitLengths: [{ suit: "hearts", length: 5 }],
       },
     };
@@ -256,6 +264,14 @@ function createBridgeRound(index: number): SocialGameRound {
         kind: "bridgeCards",
         caption: "Choose a calm opening bid.",
         points: 12,
+        cards: [
+          { rank: "ace", suit: "spades", role: "key" },
+          { rank: "king", suit: "spades", role: "key" },
+          { rank: "ten", suit: "spades", role: "key" },
+          { rank: "nine", suit: "spades", role: "support" },
+          { rank: "seven", suit: "spades", role: "support" },
+          { rank: "ten", suit: "hearts", role: "side" },
+        ],
         suitLengths: [{ suit: "spades", length: 5 }],
       },
     };
@@ -286,7 +302,12 @@ function createBridgeRound(index: number): SocialGameRound {
     visual: {
       kind: "bridgeCards",
       caption: "Solve a gentle bridge table puzzle.",
-      cards: [{ rank: "ace", suit: "spades" }],
+      cards: [
+        { rank: "ace", suit: "spades", role: "key" },
+        { rank: "king", suit: "spades", role: "key" },
+        { rank: "ten", suit: "hearts", role: "side" },
+        { rank: "eight", suit: "diamonds", role: "side" },
+      ],
     },
   };
 }
@@ -797,6 +818,9 @@ describe("GamesRoomScreen", () => {
     expect(screen.getByText("Puzzle 1 of 80")).toBeInTheDocument();
     expect(screen.getByText("You have 13 points and 5 hearts. Which calm choice fits best?")).toBeInTheDocument();
     expect(screen.getByTestId("games-visual-bridge")).toBeInTheDocument();
+    expect(screen.getByTestId("games-bridge-table")).toBeInTheDocument();
+    expect(screen.getByTestId("games-bridge-hand")).toBeInTheDocument();
+    expect(screen.getAllByTestId("games-bridge-card").length).toBeGreaterThanOrEqual(4);
 
     fireEvent.click(screen.getByTestId("games-next-puzzle"));
 
