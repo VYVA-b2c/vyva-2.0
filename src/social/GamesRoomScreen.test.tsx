@@ -12,17 +12,17 @@ vi.mock("@/lib/queryClient", () => ({
 function createWordRound(index: number): SocialGameRound {
   if (index === 0) {
     return {
-      id: "word-tiles-anagram-smile",
+      id: "word-table-anagram-smile",
       kind: "word",
       title: "Word tiles",
-      body: "Make a word from the tiles.",
-      prompt: "Arrange the tiles into a friendly word.",
+      body: "Solve a real word-table decision.",
+      prompt: "Find the strongest word hidden in the rack.",
       choices: ["SMILE", "LIMES", "MILES"],
       answer: "SMILE",
       hint: "Choose the word you could send as a greeting.",
-      tags: ["games", "scrabble", "words", "game:word", "word:anagram"],
+      tags: ["games", "scrabble", "words", "game:word", "word:strategy", "word:anagram"],
       estimatedDurationSeconds: 75,
-      successMessage: "Lovely. Anagrams make word games feel quick and social.",
+      successMessage: "Good word-table judgement.",
       interaction: {
         kind: "wordBuild",
         instruction: "Tap tiles into your tray.",
@@ -31,25 +31,26 @@ function createWordRound(index: number): SocialGameRound {
       },
       visual: {
         kind: "wordTiles",
-        tiles: ["E", "I", "M", "L", "S"],
+        tiles: ["E", "I", "M", "L", "S", "R", "T"],
         answerLength: 5,
+        clue: "The rack has extra letters; use only the word that fits.",
       },
     };
   }
 
   if (index === 1) {
     return {
-      id: "word-tiles-anagram-peace",
+      id: "word-table-anagram-peace",
       kind: "word",
       title: "Word tiles",
-      body: "Make a word from the tiles.",
-      prompt: "Arrange the tiles into a friendly word.",
+      body: "Solve a real word-table decision.",
+      prompt: "Find the strongest word hidden in the rack.",
       choices: ["PEACE", "PACES", "CAPES"],
       answer: "PEACE",
       hint: "It means calm between people.",
-      tags: ["games", "scrabble", "words", "game:word", "word:anagram"],
+      tags: ["games", "scrabble", "words", "game:word", "word:strategy", "word:anagram"],
       estimatedDurationSeconds: 80,
-      successMessage: "Lovely. Anagrams make word games feel quick and social.",
+      successMessage: "Good word-table judgement.",
       interaction: {
         kind: "wordBuild",
         instruction: "Tap tiles into your tray.",
@@ -58,22 +59,23 @@ function createWordRound(index: number): SocialGameRound {
       },
       visual: {
         kind: "wordTiles",
-        tiles: ["E", "A", "P", "C", "E"],
+        tiles: ["E", "A", "P", "C", "E", "R", "T"],
         answerLength: 5,
+        clue: "The rack has extra letters; use only the word that fits.",
       },
     };
   }
 
   return {
-    id: `word-tiles-test-${index + 1}`,
+    id: `word-table-test-${index + 1}`,
     kind: "word",
     title: "Word tiles",
-    body: "Solve a short word clue.",
-    prompt: `Choose the friendly test word ${index + 1}.`,
+    body: "Solve a real word-table decision.",
+    prompt: `Find the strongest test word ${index + 1}.`,
     choices: [`WORD${index + 1}`, `TILE${index + 1}`, `GAME${index + 1}`],
     answer: `WORD${index + 1}`,
-    hint: "Pick the first friendly word.",
-    tags: ["games", "scrabble", "words", "game:word", "word:test"],
+    hint: "Pick the strongest word.",
+    tags: ["games", "scrabble", "words", "game:word", "word:strategy", "word:test"],
     estimatedDurationSeconds: 80,
     successMessage: "Nice word choice.",
     interaction: {
@@ -606,7 +608,7 @@ describe("GamesRoomScreen", () => {
         defaultRoundId: "domino-table-choose-end-six-two",
         defaultRoundIdsByKind: {
           chess: "chess-clue-back-rank",
-          word: "word-tiles-anagram-peace",
+          word: "word-table-anagram-peace",
           dominoes: "domino-table-choose-end-six-two",
           bridge: "bridge-table-borderline-opening-balanced-seventeen",
         },
@@ -640,7 +642,7 @@ describe("GamesRoomScreen", () => {
         ...roomResponse.gameTable!,
         rounds: [
           roomResponse.gameTable!.rounds.find((round) => round.id === "chess-clue-fork")!,
-          roomResponse.gameTable!.rounds.find((round) => round.id === "word-tiles-anagram-smile")!,
+          roomResponse.gameTable!.rounds.find((round) => round.id === "word-table-anagram-smile")!,
           roomResponse.gameTable!.rounds.find((round) => round.id === "domino-table-next-move-six-four")!,
           roomResponse.gameTable!.rounds.find((round) => round.id === "bridge-table-borderline-opening-rule-twenty")!,
         ],
@@ -652,7 +654,7 @@ describe("GamesRoomScreen", () => {
         },
         defaultRoundIdsByKind: {
           chess: "chess-clue-fork",
-          word: "word-tiles-anagram-smile",
+          word: "word-table-anagram-smile",
           dominoes: "domino-table-next-move-six-four",
           bridge: "bridge-table-borderline-opening-rule-twenty",
         },
@@ -726,13 +728,13 @@ describe("GamesRoomScreen", () => {
     fireEvent.click(screen.getByTestId("games-round-word"));
 
     expect(screen.getByText("Puzzle 1 of 80")).toBeInTheDocument();
-    expect(screen.getByText("Arrange the tiles into a friendly word.")).toBeInTheDocument();
+    expect(screen.getByText("Find the strongest word hidden in the rack.")).toBeInTheDocument();
     expect(screen.queryByText("SMILE")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-next-puzzle"));
 
     expect(screen.getByText("Puzzle 2 of 80")).toBeInTheDocument();
-    expect(screen.getByText("Arrange the tiles into a friendly word.")).toBeInTheDocument();
+    expect(screen.getByText("Find the strongest word hidden in the rack.")).toBeInTheDocument();
     expect(screen.queryByText("PEACE")).not.toBeInTheDocument();
 
     expect(screen.queryByTestId("games-start-round")).not.toBeInTheDocument();
@@ -758,7 +760,7 @@ describe("GamesRoomScreen", () => {
         "/api/social/rooms/games-room/game-round",
         expect.objectContaining({
           method: "POST",
-          body: expect.stringMatching(/"roundId":"word-tiles-anagram-peace".*"gameKind":"word".*"status":"started"/),
+          body: expect.stringMatching(/"roundId":"word-table-anagram-peace".*"gameKind":"word".*"status":"started"/),
         }),
       );
     });
@@ -877,6 +879,9 @@ describe("GamesRoomScreen", () => {
 
     fireEvent.click(screen.getByTestId("bridge-action-bid:1:spades"));
     expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
+    expect(screen.getByTestId("games-connection-panel")).toHaveTextContent("Viktor will look for someone who also enjoys Bridge table.");
+    expect(screen.getByTestId("games-find-partner")).toHaveTextContent("Find someone for Bridge table");
+    expect(screen.queryByText("Say hello")).not.toBeInTheDocument();
     await waitFor(() => {
       expect(gameRoundRequestBodies()).toEqual(expect.arrayContaining([
         expect.objectContaining({
@@ -909,7 +914,7 @@ describe("GamesRoomScreen", () => {
         "/api/social/rooms/games-room/game-round",
         expect.objectContaining({
           method: "POST",
-          body: expect.stringMatching(/"roundId":"word-tiles-anagram-smile".*"gameKind":"word".*"status":"started"/),
+          body: expect.stringMatching(/"roundId":"word-table-anagram-smile".*"gameKind":"word".*"status":"started"/),
         }),
       );
     });
@@ -930,7 +935,7 @@ describe("GamesRoomScreen", () => {
     await waitFor(() => {
       expect(gameRoundRequestBodies()).toEqual(expect.arrayContaining([
         expect.objectContaining({
-          roundId: "word-tiles-anagram-smile",
+          roundId: "word-table-anagram-smile",
           gameKind: "word",
           status: "completed",
         }),
@@ -963,10 +968,12 @@ describe("GamesRoomScreen", () => {
     fireEvent.click(screen.getByTestId("word-tile-0"));
     fireEvent.click(screen.getByTestId("word-check-answer"));
     expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
+    expect(screen.getByTestId("games-connection-panel")).toHaveTextContent("Viktor will look for someone who also enjoys Word tiles.");
+    expect(screen.getByTestId("games-find-partner")).toHaveTextContent("Find someone for Word tiles");
     await waitFor(() => {
       expect(gameRoundRequestBodies()).toEqual(expect.arrayContaining([
         expect.objectContaining({
-          roundId: "word-tiles-anagram-smile",
+          roundId: "word-table-anagram-smile",
           gameKind: "word",
           status: "completed",
         }),

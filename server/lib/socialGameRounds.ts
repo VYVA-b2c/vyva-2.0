@@ -2268,6 +2268,23 @@ type WordPuzzleTheme = {
   variants: WordPuzzleVariant[];
 };
 
+const wordThemeIdAliases: Record<string, string> = {
+  "word-tiles-best-word": "word-table-rack-strategy",
+  "word-tiles-score": "word-table-score-style",
+  "word-tiles-vowel": "word-table-blank-vowel",
+  "word-tiles-gentle-clue": "word-table-crossword-clue",
+};
+
+const wordThemeTagAliases: Record<string, string> = {
+  "best-word": "rack-strategy",
+  score: "score-style",
+  food: "category-food",
+  home: "category-home",
+  greeting: "table-talk",
+  vowel: "blank-vowel",
+  "gentle-clue": "crossword-clue",
+};
+
 const wordRoundTitles: LocalizedText = {
   en: "Word tiles",
   es: "Letras",
@@ -2318,71 +2335,396 @@ function sentenceCase(value: string) {
   return value ? `${value[0].toUpperCase()}${value.slice(1)}` : value;
 }
 
-function wordTilesPrompt(themeTag: string, variant: WordPuzzleVariant, language: SocialLanguage) {
-  const baseWord = localizedField(variant, "baseWord", language);
-  const clue = localizedField(variant, "clue", language);
+function wordTableThemeId(themeId: string) {
+  return wordThemeIdAliases[themeId] ?? themeId.replace(/^word-tiles-/, "word-table-");
+}
 
-  const copy: Record<SocialLanguage, Record<string, string>> = {
+function wordTableThemeTag(themeTag: string) {
+  return wordThemeTagAliases[themeTag] ?? themeTag;
+}
+
+function wordTablePrompt(themeTag: string, language: SocialGameLanguage, baseWord = "", pattern = "") {
+  const base = baseWord || pattern;
+  const copy: Record<SocialGameLanguage, Record<string, string>> = {
     en: {
-      anagram: "Arrange the tiles into a friendly word.",
-      "best-word": "Build the clearest friendly word from the rack.",
-      "add-letter": baseWord ? `Use the rack to grow ${baseWord} into a new word.` : "Use the rack to grow a new word.",
-      "front-hook": baseWord ? `Add a beginning to ${baseWord}.` : "Add a beginning to make a new word.",
-      "back-hook": baseWord ? `Add an ending to ${baseWord}.` : "Add an ending to make a new word.",
-      blank: clue ? `Fill the blank pattern: ${clue}.` : "Fill the blank pattern.",
-      prefix: baseWord ? `Add a helpful beginning to ${baseWord}.` : "Add a helpful beginning.",
-      suffix: baseWord ? `Add a meaningful ending to ${baseWord}.` : "Add a meaningful ending.",
-      "two-letter": clue || "Find the tiny helper word.",
-      score: clue || "Find the high-value word.",
-      default: clue || "Look at the rack and clue to make the word.",
+      anagram: "Find the strongest word hidden in the rack.",
+      "rack-strategy": "Build the cleanest playable word from this rack.",
+      "add-letter": base ? `Use one tile to change ${base} into a new word.` : "Use one tile to change the base word.",
+      "front-hook": base ? `Add a front hook to ${base}.` : "Add a playable front hook.",
+      "back-hook": base ? `Add a back hook to ${base}.` : "Add a playable back hook.",
+      blank: base ? `Complete the pattern ${base}.` : "Complete the pattern with the blank.",
+      prefix: base ? `Choose the right beginning for ${base}.` : "Choose the right beginning.",
+      suffix: base ? `Choose the right ending for ${base}.` : "Choose the right ending.",
+      "two-letter": "Find the small board word that fits the clue.",
+      "score-style": "Use the strongest letter without losing the word.",
+      "category-food": "Solve the category constraint from the rack.",
+      "category-home": "Solve the category constraint from the rack.",
+      "table-talk": "Find the table-talk word hidden in the rack.",
+      "board-game": "Find the board-game word hidden in the rack.",
+      "word-ladder": "Change one letter to make a valid new word.",
+      compound: "Build the compound-style answer from the rack.",
+      "blank-vowel": base ? `Choose the vowel for ${base}.` : "Choose the missing vowel.",
+      plural: "Find the correct table plural.",
+      "crossword-clue": "Solve the clue from the rack.",
+      rhyme: "Find the word that matches the sound clue.",
+      default: "Use the rack and clue to find the best word.",
     },
     es: {
-      anagram: "Ordena las letras para formar una palabra amable.",
-      "best-word": "Forma la palabra amable mas clara.",
-      "add-letter": baseWord ? `Haz crecer ${baseWord} para formar otra palabra.` : "Forma una palabra nueva desde el estante.",
-      "front-hook": baseWord ? `Anade un comienzo a ${baseWord}.` : "Anade un comienzo para formar otra palabra.",
-      "back-hook": baseWord ? `Anade un final a ${baseWord}.` : "Anade un final para formar otra palabra.",
-      blank: clue ? `Completa el patron: ${clue}.` : "Completa el patron en blanco.",
-      prefix: baseWord ? `Anade un comienzo util a ${baseWord}.` : "Anade un comienzo util.",
-      suffix: baseWord ? `Anade un final con sentido a ${baseWord}.` : "Anade un final con sentido.",
-      "two-letter": clue || "Encuentra la palabra corta.",
-      score: clue || "Encuentra la palabra de mas valor.",
-      default: clue || "Mira el estante y la pista para formar la palabra.",
+      anagram: "Encuentra la palabra mas fuerte con las letras disponibles.",
+      "rack-strategy": "Forma la palabra jugable mas limpia con estas letras.",
+      "add-letter": base ? `Usa una letra para cambiar ${base} en otra palabra.` : "Usa una letra para cambiar la palabra base.",
+      "front-hook": base ? `Anade un gancho delante de ${base}.` : "Anade un gancho delante.",
+      "back-hook": base ? `Anade un gancho al final de ${base}.` : "Anade un gancho al final.",
+      blank: base ? `Completa el patron ${base}.` : "Completa el patron con la ficha en blanco.",
+      prefix: base ? `Elige el comienzo correcto para ${base}.` : "Elige el comienzo correcto.",
+      suffix: base ? `Elige el final correcto para ${base}.` : "Elige el final correcto.",
+      "two-letter": "Encuentra la palabra corta que encaja con la pista.",
+      "score-style": "Usa la letra mas fuerte sin perder la palabra.",
+      "category-food": "Resuelve la categoria usando estas letras.",
+      "category-home": "Resuelve la categoria usando estas letras.",
+      "table-talk": "Encuentra la palabra de mesa escondida entre las letras.",
+      "board-game": "Encuentra la palabra de juego escondida entre las letras.",
+      "word-ladder": "Cambia una letra para formar otra palabra valida.",
+      compound: "Forma la respuesta compuesta desde el estante.",
+      "blank-vowel": base ? `Elige la vocal para ${base}.` : "Elige la vocal que falta.",
+      plural: "Encuentra el plural correcto de mesa.",
+      "crossword-clue": "Resuelve la pista desde el estante.",
+      rhyme: "Encuentra la palabra que encaja con el sonido.",
+      default: "Combina pista y letras para encontrar la mejor palabra.",
     },
     de: {
-      anagram: "Ordne die Steine zu einem freundlichen Wort.",
-      "best-word": "Bilde das klarste freundliche Wort.",
-      "add-letter": baseWord ? `Lass ${baseWord} mit den Steinen wachsen.` : "Bilde mit den Steinen ein neues Wort.",
-      "front-hook": baseWord ? `Setze einen Anfang vor ${baseWord}.` : "Setze einen Anfang vor ein Wort.",
-      "back-hook": baseWord ? `Setze ein Ende an ${baseWord}.` : "Setze ein Ende an ein Wort.",
-      blank: clue ? `Fuellen das Muster: ${clue}.` : "Fuellen das leere Muster.",
-      prefix: baseWord ? `Fuege einen passenden Anfang zu ${baseWord} hinzu.` : "Fuege einen passenden Anfang hinzu.",
-      suffix: baseWord ? `Haenge ein sinnvolles Ende an ${baseWord}.` : "Haenge ein sinnvolles Ende an.",
-      "two-letter": clue || "Finde das kleine Hilfswort.",
-      score: clue || "Finde das wertvolle Wort.",
-      default: clue || "Nutze Steine und Hinweis fuer das Wort.",
+      anagram: "Finde das staerkste Wort im Steinefach.",
+      "rack-strategy": "Bilde das sauberste spielbare Wort aus dem Fach.",
+      "add-letter": base ? `Aendere ${base} mit einem Stein in ein neues Wort.` : "Aendere das Grundwort mit einem Stein.",
+      "front-hook": base ? `Setze einen Vorderhaken vor ${base}.` : "Setze einen spielbaren Vorderhaken.",
+      "back-hook": base ? `Setze einen Endhaken an ${base}.` : "Setze einen spielbaren Endhaken.",
+      blank: base ? `Vervollstaendige das Muster ${base}.` : "Vervollstaendige das Muster mit dem Blanko.",
+      prefix: base ? `Waehle den richtigen Anfang fuer ${base}.` : "Waehle den richtigen Anfang.",
+      suffix: base ? `Waehle das richtige Ende fuer ${base}.` : "Waehle das richtige Ende.",
+      "two-letter": "Finde das kleine Brettwort zur Spur.",
+      "score-style": "Nutze den staerksten Buchstaben ohne das Wort zu verlieren.",
+      "category-food": "Loese die Kategorie mit dem Steinefach.",
+      "category-home": "Loese die Kategorie mit dem Steinefach.",
+      "table-talk": "Finde das Tischwort im Steinefach.",
+      "board-game": "Finde das Spielwort im Steinefach.",
+      "word-ladder": "Aendere einen Buchstaben zu einem gueltigen neuen Wort.",
+      compound: "Bilde die zusammengesetzte Antwort aus dem Fach.",
+      "blank-vowel": base ? `Waehle den Vokal fuer ${base}.` : "Waehle den fehlenden Vokal.",
+      plural: "Finde die richtige Spieltisch-Mehrzahl.",
+      "crossword-clue": "Loese die Spur aus dem Steinefach.",
+      rhyme: "Finde das Wort mit passendem Klang.",
+      default: "Nutze Fach und Spur fuer das beste Wort.",
+    },
+    fr: {
+      anagram: "Trouve le mot le plus fort cache dans le chevalet.",
+      "rack-strategy": "Construis le mot jouable le plus net.",
+      "add-letter": base ? `Change ${base} avec une lettre.` : "Change le mot de base avec une lettre.",
+      "front-hook": base ? `Ajoute un crochet devant ${base}.` : "Ajoute un crochet devant.",
+      "back-hook": base ? `Ajoute un crochet a la fin de ${base}.` : "Ajoute un crochet a la fin.",
+      blank: base ? `Complete le motif ${base}.` : "Complete le motif avec le joker.",
+      prefix: base ? `Choisis le bon debut pour ${base}.` : "Choisis le bon debut.",
+      suffix: base ? `Choisis la bonne fin pour ${base}.` : "Choisis la bonne fin.",
+      "two-letter": "Trouve le petit mot qui tient sur le plateau.",
+      "score-style": "Utilise la lettre forte sans perdre le mot.",
+      "category-food": "Resous la categorie avec le chevalet.",
+      "category-home": "Resous la categorie avec le chevalet.",
+      "table-talk": "Trouve le mot de table cache dans le chevalet.",
+      "board-game": "Trouve le mot de jeu cache dans le chevalet.",
+      "word-ladder": "Change une lettre pour faire un mot valide.",
+      compound: "Construis la reponse composee depuis le chevalet.",
+      "blank-vowel": base ? `Choisis la voyelle pour ${base}.` : "Choisis la voyelle manquante.",
+      plural: "Trouve le pluriel correct.",
+      "crossword-clue": "Resous l'indice avec le chevalet.",
+      rhyme: "Trouve le mot qui suit le son.",
+      default: "Utilise le chevalet et l'indice pour trouver le meilleur mot.",
+    },
+    it: {
+      anagram: "Trova la parola piu forte nascosta tra le tessere.",
+      "rack-strategy": "Costruisci la parola giocabile piu pulita.",
+      "add-letter": base ? `Cambia ${base} con una tessera.` : "Cambia la parola base con una tessera.",
+      "front-hook": base ? `Aggiungi un aggancio davanti a ${base}.` : "Aggiungi un aggancio davanti.",
+      "back-hook": base ? `Aggiungi un aggancio alla fine di ${base}.` : "Aggiungi un aggancio alla fine.",
+      blank: base ? `Completa lo schema ${base}.` : "Completa lo schema con il jolly.",
+      prefix: base ? `Scegli l'inizio giusto per ${base}.` : "Scegli l'inizio giusto.",
+      suffix: base ? `Scegli la fine giusta per ${base}.` : "Scegli la fine giusta.",
+      "two-letter": "Trova la piccola parola da tavolo.",
+      "score-style": "Usa la lettera forte senza perdere la parola.",
+      "category-food": "Risolvi la categoria con le tessere.",
+      "category-home": "Risolvi la categoria con le tessere.",
+      "table-talk": "Trova la parola da tavolo nascosta tra le tessere.",
+      "board-game": "Trova la parola di gioco nascosta tra le tessere.",
+      "word-ladder": "Cambia una lettera per fare una parola valida.",
+      compound: "Costruisci la risposta composta con le tessere.",
+      "blank-vowel": base ? `Scegli la vocale per ${base}.` : "Scegli la vocale mancante.",
+      plural: "Trova il plurale corretto da tavolo.",
+      "crossword-clue": "Risolvi l'indizio con le tessere.",
+      rhyme: "Trova la parola con lo stesso suono.",
+      default: "Usa tessere e indizio per trovare la parola migliore.",
+    },
+    pt: {
+      anagram: "Encontre a palavra mais forte escondida no suporte.",
+      "rack-strategy": "Monte a palavra jogavel mais limpa.",
+      "add-letter": base ? `Mude ${base} com uma peca.` : "Mude a palavra base com uma peca.",
+      "front-hook": base ? `Adicione um gancho antes de ${base}.` : "Adicione um gancho na frente.",
+      "back-hook": base ? `Adicione um gancho no fim de ${base}.` : "Adicione um gancho no fim.",
+      blank: base ? `Complete o padrao ${base}.` : "Complete o padrao com o curinga.",
+      prefix: base ? `Escolha o comeco certo para ${base}.` : "Escolha o comeco certo.",
+      suffix: base ? `Escolha o fim certo para ${base}.` : "Escolha o fim certo.",
+      "two-letter": "Encontre a palavra curta que cabe no tabuleiro.",
+      "score-style": "Use a letra forte sem perder a palavra.",
+      "category-food": "Resolva a categoria com o suporte.",
+      "category-home": "Resolva a categoria com o suporte.",
+      "table-talk": "Encontre a palavra de mesa escondida no suporte.",
+      "board-game": "Encontre a palavra de jogo escondida no suporte.",
+      "word-ladder": "Troque uma letra para fazer uma palavra valida.",
+      compound: "Monte a resposta composta a partir do suporte.",
+      "blank-vowel": base ? `Escolha a vogal para ${base}.` : "Escolha a vogal que falta.",
+      plural: "Encontre o plural correto de mesa.",
+      "crossword-clue": "Resolva a pista com o suporte.",
+      rhyme: "Encontre a palavra com som parecido.",
+      default: "Use o suporte e a pista para achar a melhor palavra.",
     },
   };
 
   return copy[language][themeTag] ?? copy[language].default;
 }
 
+function wordTableBody(themeTag: string, language: SocialGameLanguage) {
+  const copy: Record<SocialGameLanguage, string> = {
+    en: "Solve a real word-table decision.",
+    es: "Resuelve una decision real de palabras.",
+    de: "Loese eine echte Worttisch-Entscheidung.",
+    fr: "Resous une vraie decision de mots.",
+    it: "Risolvi una vera scelta di parole.",
+    pt: "Resolva uma decisao real de palavras.",
+  };
+  const categoryCopy: Record<SocialGameLanguage, string> = {
+    en: "Use the clue, rack, and constraints.",
+    es: "Usa la pista, las letras y las restricciones.",
+    de: "Nutze Spur, Fach und Einschraenkung.",
+    fr: "Utilise l'indice, le chevalet et la contrainte.",
+    it: "Usa indizio, tessere e vincolo.",
+    pt: "Use pista, suporte e restricao.",
+  };
+
+  return themeTag.startsWith("category-") ? categoryCopy[language] : copy[language];
+}
+
+function wordTableSuccess(themeTag: string, language: SocialGameLanguage) {
+  const copy: Record<SocialGameLanguage, string> = {
+    en: "Good word-table judgement.",
+    es: "Buen juicio de palabras.",
+    de: "Gutes Worttisch-Urteil.",
+    fr: "Bon jugement de mots.",
+    it: "Buon giudizio di parole.",
+    pt: "Bom julgamento de palavras.",
+  };
+  const hookCopy: Record<SocialGameLanguage, string> = {
+    en: "Good hook. That is the sort of move word players notice.",
+    es: "Buen gancho. Es el tipo de jugada que nota quien juega con palabras.",
+    de: "Guter Haken. So eine Wortbewegung faellt Spielern auf.",
+    fr: "Bon crochet. C'est le genre de coup que les joueurs de lettres remarquent.",
+    it: "Buon aggancio. E il tipo di mossa che i giocatori notano.",
+    pt: "Bom gancho. Esse e o tipo de lance que jogadores de palavras notam.",
+  };
+
+  if (themeTag.includes("hook")) return hookCopy[language];
+  return copy[language];
+}
+
+function wordTableClue(themeTag: string, language: SocialGameLanguage, baseWord = "", pattern = "") {
+  const base = baseWord || (themeTag === "blank" || themeTag === "blank-vowel" ? pattern : "");
+  const copy: Record<SocialGameLanguage, Record<string, string>> = {
+    en: {
+      anagram: "The rack has extra letters; use only the word that fits.",
+      "rack-strategy": "Choose the clean word, not just any anagram.",
+      "add-letter": base ? `One extra tile changes ${base}.` : "One extra tile changes the base word.",
+      "front-hook": base ? `Look for a front hook before ${base}.` : "Look for a front hook.",
+      "back-hook": base ? `Look for a back hook after ${base}.` : "Look for a back hook.",
+      prefix: base ? `A beginning changes ${base}.` : "A beginning changes the word.",
+      suffix: base ? `An ending changes ${base}.` : "An ending changes the word.",
+      "two-letter": "Small board words can unlock a tight rack.",
+      "score-style": "There is a stronger letter in the rack.",
+      "category-food": "Use the category constraint and ignore decoys.",
+      "category-home": "Use the category constraint and ignore decoys.",
+      "table-talk": "Look for a table-talk word, not every letter.",
+      "board-game": "Look for the word a player would use at the table.",
+      "word-ladder": base ? `Change one letter in ${base}.` : "Change one letter to make a new word.",
+      compound: "Two ideas combine into one word.",
+      plural: base ? `Make more than one ${base}.` : "Make the table word plural.",
+      "crossword-clue": "Crossword-style clue; do not use every decoy.",
+      rhyme: "Listen for the ending sound, then build it.",
+      default: "Some rack tiles are decoys.",
+    },
+    es: {
+      anagram: "Hay letras extra; usa solo la palabra que encaja.",
+      "rack-strategy": "Elige la palabra limpia, no cualquier anagrama.",
+      "add-letter": base ? `Una letra extra cambia ${base}.` : "Una letra extra cambia la palabra base.",
+      "front-hook": base ? `Busca un gancho delante de ${base}.` : "Busca un gancho delante.",
+      "back-hook": base ? `Busca un gancho al final de ${base}.` : "Busca un gancho al final.",
+      prefix: base ? `Un comienzo cambia ${base}.` : "Un comienzo cambia la palabra.",
+      suffix: base ? `Un final cambia ${base}.` : "Un final cambia la palabra.",
+      "two-letter": "Las palabras cortas abren jugadas dificiles.",
+      "score-style": "Hay una letra mas fuerte entre las disponibles.",
+      "category-food": "Usa la categoria e ignora cebos.",
+      "category-home": "Usa la categoria e ignora cebos.",
+      "table-talk": "Busca una palabra de mesa, no todas las letras.",
+      "board-game": "Busca una palabra que se usa en la mesa de juego.",
+      "word-ladder": base ? `Cambia una letra en ${base}.` : "Cambia una letra para formar otra palabra.",
+      compound: "Dos ideas se unen en una palabra.",
+      plural: base ? `Haz plural ${base}.` : "Haz plural la palabra de mesa.",
+      "crossword-clue": "Pista de crucigrama; no uses todos los cebos.",
+      rhyme: "Escucha el sonido final y luego forma la palabra.",
+      default: "Algunas letras son cebos.",
+    },
+    de: {
+      anagram: "Das Fach hat Extrasteine; nutze nur das passende Wort.",
+      "rack-strategy": "Waehle das saubere Wort, nicht irgendein Anagramm.",
+      "add-letter": base ? `Ein Extrastein veraendert ${base}.` : "Ein Extrastein veraendert das Grundwort.",
+      "front-hook": base ? `Suche einen Vorderhaken vor ${base}.` : "Suche einen Vorderhaken.",
+      "back-hook": base ? `Suche einen Endhaken an ${base}.` : "Suche einen Endhaken.",
+      prefix: base ? `Ein Anfang veraendert ${base}.` : "Ein Anfang veraendert das Wort.",
+      suffix: base ? `Ein Ende veraendert ${base}.` : "Ein Ende veraendert das Wort.",
+      "two-letter": "Kurze Brettwoerter oeffnen enge Faecher.",
+      "score-style": "Ein staerkerer Buchstabe liegt im Fach.",
+      "category-food": "Nutze die Kategorie und ignoriere Ablenkungen.",
+      "category-home": "Nutze die Kategorie und ignoriere Ablenkungen.",
+      "table-talk": "Suche ein Tischwort, nicht alle Steine.",
+      "board-game": "Suche ein Wort, das Spieler am Tisch nutzen.",
+      "word-ladder": base ? `Aendere einen Buchstaben in ${base}.` : "Aendere einen Buchstaben fuer ein neues Wort.",
+      compound: "Zwei Ideen werden zu einem Wort.",
+      plural: base ? `Mach die Mehrzahl von ${base}.` : "Mach das Tischwort zur Mehrzahl.",
+      "crossword-clue": "Kreuzwort-Spur; nicht alle Ablenkungen nutzen.",
+      rhyme: "Hoere auf den Endklang und bilde das Wort.",
+      default: "Einige Steine im Fach sind Ablenkungen.",
+    },
+    fr: {
+      anagram: "Le chevalet contient des leurres; garde seulement le mot juste.",
+      "rack-strategy": "Choisis le mot net, pas n'importe quel anagramme.",
+      "add-letter": base ? `Une lettre de plus change ${base}.` : "Une lettre de plus change le mot de base.",
+      "front-hook": base ? `Cherche un crochet devant ${base}.` : "Cherche un crochet devant.",
+      "back-hook": base ? `Cherche un crochet a la fin de ${base}.` : "Cherche un crochet a la fin.",
+      prefix: base ? `Un debut change ${base}.` : "Un debut change le mot.",
+      suffix: base ? `Une fin change ${base}.` : "Une fin change le mot.",
+      "two-letter": "Les petits mots ouvrent les chevalets serres.",
+      "score-style": "Une lettre plus forte est sur le chevalet.",
+      "category-food": "Utilise la categorie et ignore les leurres.",
+      "category-home": "Utilise la categorie et ignore les leurres.",
+      "table-talk": "Cherche un mot de table, pas toutes les lettres.",
+      "board-game": "Cherche un mot qu'on utilise a la table de jeu.",
+      "word-ladder": base ? `Change une lettre dans ${base}.` : "Change une lettre pour faire un mot.",
+      compound: "Deux idees se combinent en un mot.",
+      plural: base ? `Mets ${base} au pluriel.` : "Mets le mot de table au pluriel.",
+      "crossword-clue": "Indice de grille; ignore les leurres.",
+      rhyme: "Ecoute le son final, puis construis le mot.",
+      default: "Quelques lettres sont des leurres.",
+    },
+    it: {
+      anagram: "Ci sono tessere extra; usa solo la parola giusta.",
+      "rack-strategy": "Scegli la parola pulita, non un anagramma qualsiasi.",
+      "add-letter": base ? `Una tessera in piu cambia ${base}.` : "Una tessera in piu cambia la parola base.",
+      "front-hook": base ? `Cerca un aggancio davanti a ${base}.` : "Cerca un aggancio davanti.",
+      "back-hook": base ? `Cerca un aggancio dopo ${base}.` : "Cerca un aggancio finale.",
+      prefix: base ? `Un inizio cambia ${base}.` : "Un inizio cambia la parola.",
+      suffix: base ? `Una fine cambia ${base}.` : "Una fine cambia la parola.",
+      "two-letter": "Le parole corte aprono mani difficili.",
+      "score-style": "Nel rack c'e una lettera piu forte.",
+      "category-food": "Usa la categoria e ignora gli scarti.",
+      "category-home": "Usa la categoria e ignora gli scarti.",
+      "table-talk": "Cerca una parola da tavolo, non tutte le lettere.",
+      "board-game": "Cerca una parola usata al tavolo da gioco.",
+      "word-ladder": base ? `Cambia una lettera in ${base}.` : "Cambia una lettera per fare una parola.",
+      compound: "Due idee diventano una parola.",
+      plural: base ? `Trasforma ${base} al plurale.` : "Trasforma la parola da tavolo al plurale.",
+      "crossword-clue": "Indizio da cruciverba; ignora gli scarti.",
+      rhyme: "Ascolta il suono finale, poi costruisci la parola.",
+      default: "Alcune tessere sono scarti.",
+    },
+    pt: {
+      anagram: "O suporte tem letras extra; use so a palavra que encaixa.",
+      "rack-strategy": "Escolha a palavra limpa, nao qualquer anagrama.",
+      "add-letter": base ? `Uma peca extra muda ${base}.` : "Uma peca extra muda a palavra base.",
+      "front-hook": base ? `Procure um gancho antes de ${base}.` : "Procure um gancho na frente.",
+      "back-hook": base ? `Procure um gancho no fim de ${base}.` : "Procure um gancho no fim.",
+      prefix: base ? `Um comeco muda ${base}.` : "Um comeco muda a palavra.",
+      suffix: base ? `Um fim muda ${base}.` : "Um fim muda a palavra.",
+      "two-letter": "Palavras curtas abrem suportes apertados.",
+      "score-style": "Ha uma letra mais forte no suporte.",
+      "category-food": "Use a categoria e ignore enganos.",
+      "category-home": "Use a categoria e ignore enganos.",
+      "table-talk": "Procure uma palavra de mesa, nao todas as letras.",
+      "board-game": "Procure uma palavra usada na mesa de jogo.",
+      "word-ladder": base ? `Troque uma letra em ${base}.` : "Troque uma letra para fazer uma palavra.",
+      compound: "Duas ideias viram uma palavra.",
+      plural: base ? `Coloque ${base} no plural.` : "Coloque a palavra de mesa no plural.",
+      "crossword-clue": "Pista de cruzadinha; ignore os enganos.",
+      rhyme: "Escute o som final e depois monte a palavra.",
+      default: "Algumas letras sao enganos.",
+    },
+  };
+
+  return copy[language][themeTag] ?? copy[language].default;
+}
+
+const wordDecoyTilePools: Record<SocialGameLanguage, string[]> = {
+  en: ["R", "T", "A", "N", "O", "S", "L", "D", "C", "P", "Y", "B"],
+  es: ["R", "T", "A", "N", "O", "S", "L", "D", "C", "P", "M", "V"],
+  de: ["R", "T", "A", "N", "O", "S", "L", "D", "C", "H", "E", "M"],
+  fr: ["R", "T", "A", "N", "O", "S", "L", "D", "C", "P", "M", "V"],
+  it: ["R", "T", "A", "N", "O", "S", "L", "D", "C", "P", "M", "V"],
+  pt: ["R", "T", "A", "N", "O", "S", "L", "D", "C", "P", "M", "V"],
+};
+
+function addWordDecoyTiles(tiles: string[], answer: string, themeTag: string, suffix: string, language: SocialGameLanguage) {
+  const answerLetters = wordAnswerLetters(answer);
+  if (answerLetters.length <= 2 || tiles.length > answerLetters.length) return tiles;
+
+  const extraCount = answerLetters.length >= 7 ? 3 : 2;
+  const pool = wordDecoyTilePools[language];
+  const rankedPool = pool
+    .map((tile, index) => ({
+      tile,
+      index,
+      score: `${themeTag}:${suffix}:${language}:${tile}`.split("").reduce((total, char, charIndex) => total + char.charCodeAt(0) * (charIndex + index + 5), 0),
+    }))
+    .sort((a, b) => a.score - b.score || a.index - b.index);
+
+  const nextTiles = [...tiles];
+  for (const candidate of rankedPool) {
+    if (nextTiles.length >= tiles.length + extraCount) break;
+    const candidateCount = nextTiles.filter((tile) => tile.toUpperCase() === candidate.tile).length;
+    const answerCount = answerLetters.filter((tile) => tile.toUpperCase() === candidate.tile).length;
+    if (candidateCount > answerCount) continue;
+    nextTiles.push(candidate.tile);
+  }
+
+  return nextTiles;
+}
+
+function wordTilesPrompt(themeTag: string, variant: WordPuzzleVariant, language: SocialLanguage) {
+  const baseWord = localizedField(variant, "baseWord", language);
+  const clue = localizedField(variant, "clue", language);
+  return wordTablePrompt(wordTableThemeTag(themeTag), language, baseWord, clue);
+}
+
 function buildWordTilesVisual(themeTag: string, variant: WordPuzzleVariant, language: SocialLanguage): SocialGameRoundVisual {
+  const strategyTag = wordTableThemeTag(themeTag);
   const answer = variant.answer[language];
   const clue = localizedField(variant, "clue", language);
   const baseWord = localizedField(variant, "baseWord", language);
   const answerLetters = wordAnswerLetters(answer);
   const choiceTiles = answerLetters.length <= 2 ? variant.choices[language] : [];
   const rawTiles = choiceTiles.length ? choiceTiles : splitWordTiles(localizedField(variant, "tiles", language), answer);
-  const tiles = scrambleWordTiles(rawTiles, answer, `${themeTag}:${variant.suffix}:${language}`);
+  const rackTiles = choiceTiles.length ? rawTiles : addWordDecoyTiles(rawTiles, answer, strategyTag, variant.suffix, language);
+  const tiles = scrambleWordTiles(rackTiles, answer, `${strategyTag}:${variant.suffix}:${language}`);
 
   return {
     kind: "wordTiles",
     tiles,
     answerLength: choiceTiles.length ? 1 : answerLetters.length,
     ...(baseWord ? { baseWord } : {}),
-    ...(themeTag === "blank" && clue ? { pattern: clue } : {}),
-    ...(clue && themeTag !== "blank" ? { clue } : {}),
+    ...((strategyTag === "blank" || strategyTag === "blank-vowel") && clue ? { pattern: clue } : {}),
+    ...((strategyTag !== "blank" && strategyTag !== "blank-vowel") ? { clue: wordTableClue(strategyTag, language, baseWord, clue) } : {}),
   };
 }
 
@@ -2392,17 +2734,17 @@ function buildWordPuzzleBank(language: SocialLanguage): SocialGameRound[] {
       const hint = variant.hint[language];
 
       return {
-        id: `${theme.id}-${variant.suffix}`,
+        id: `${wordTableThemeId(theme.id)}-${variant.suffix}`,
         kind: "word" as const,
         title: wordRoundTitles[language],
-        body: theme.body[language],
+        body: wordTableBody(wordTableThemeTag(theme.tag), language),
         prompt: wordTilesPrompt(theme.tag, variant, language),
         choices: variant.choices[language],
         answer: variant.answer[language],
         hint,
-        tags: ["games", "scrabble", "words", "game:word", `word:${theme.tag}`],
+        tags: ["games", "scrabble", "words", "game:word", "word:strategy", `word:${wordTableThemeTag(theme.tag)}`],
         estimatedDurationSeconds: variant.estimatedDurationSeconds ?? 80,
-        successMessage: theme.successMessage[language],
+        successMessage: wordTableSuccess(wordTableThemeTag(theme.tag), language),
         visual: buildWordTilesVisual(theme.tag, variant, language),
         interaction: {
           kind: "wordBuild" as const,
@@ -3607,27 +3949,30 @@ function buildExtraWordPuzzleBank(language: ExtraGameLanguage): SocialGameRound[
   }[language];
 
   return extraWordPuzzleData[language].map(([themeId, suffix, prompt, choices, answer, hint]) => {
+    const strategyTag = wordTableThemeTag(wordThemeTags[themeId] ?? "word");
     const answerLetters = wordAnswerLetters(answer);
     const choiceTiles = answerLetters.length <= 2 ? [...choices] : [];
+    const rawTiles = choiceTiles.length ? choiceTiles : answerLetters;
+    const rackTiles = choiceTiles.length ? rawTiles : addWordDecoyTiles(rawTiles, answer, strategyTag, suffix, language);
     const visualClue = sentenceCase(prompt.replace(tileLeadPattern, "").trim());
 
     return {
-      id: `${themeId}-${suffix}`,
+      id: `${wordTableThemeId(themeId)}-${suffix}`,
       kind: "word" as const,
       title: copy.title,
-      body: copy.body,
-      prompt: copy.prompt,
+      body: wordTableBody(strategyTag, language),
+      prompt: wordTablePrompt(strategyTag, language),
       choices: [...choices],
       answer,
       hint,
-      tags: ["games", "scrabble", "words", "game:word", `word:${wordThemeTags[themeId] ?? "word"}`],
+      tags: ["games", "scrabble", "words", "game:word", "word:strategy", `word:${strategyTag}`],
       estimatedDurationSeconds: 80,
-      successMessage: copy.successMessage,
+      successMessage: wordTableSuccess(strategyTag, language),
       visual: {
         kind: "wordTiles" as const,
-        tiles: scrambleWordTiles(choiceTiles.length ? choiceTiles : answerLetters, answer, `${themeId}:${suffix}:${language}`),
+        tiles: scrambleWordTiles(rackTiles, answer, `${strategyTag}:${suffix}:${language}`),
         answerLength: choiceTiles.length ? 1 : answerLetters.length,
-        clue: visualClue || copy.prompt,
+        clue: wordTableClue(strategyTag, language) || visualClue || copy.prompt,
       },
       interaction: {
         kind: "wordBuild" as const,

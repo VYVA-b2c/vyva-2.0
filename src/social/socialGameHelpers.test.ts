@@ -126,7 +126,7 @@ describe("social games room helpers", () => {
       ...wordRounds,
       {
         ...wordRounds[0],
-        id: "word-tiles-new-neighbor",
+        id: "word-table-new-neighbor",
       },
     ];
     const attempts = wordRounds.map((round, index) => ({
@@ -137,19 +137,45 @@ describe("social games room helpers", () => {
       lastSeenAt: `2026-06-${String((index % 28) + 1).padStart(2, "0")}T10:00:00.000Z`,
     }));
 
-    expect(buildGameDefaultRoundIds(expandedWordRounds, attempts).word).toBe("word-tiles-new-neighbor");
+    expect(buildGameDefaultRoundIds(expandedWordRounds, attempts).word).toBe("word-table-new-neighbor");
     expect(buildGameDefaultRoundIds(wordRounds, attempts).word).toBe(wordRounds[9].id);
   });
 
   it("keeps the word tile puzzle bank available in each supported app language", () => {
+    const retiredVisibleCopyPattern = /friendly word|gentle word|calm word|palabra amable|mot calme|parola calma|palavra calma|what word means|which word means|quel mot veut dire|quale parola significa|qual palavra significa|choose the friendly/i;
+    const retiredWordTags = new Set(["word:gentle-clue", "word:food", "word:home", "word:greeting", "word:best-word", "word:score"]);
+    const requiredStrategyTags = [
+      "word:anagram",
+      "word:rack-strategy",
+      "word:front-hook",
+      "word:back-hook",
+      "word:score-style",
+      "word:crossword-clue",
+    ];
+
     for (const language of supportedGameLanguages) {
       const table = buildGameTable(language, 6);
       const wordRounds = table.rounds.filter((round) => round.kind === "word");
+      const wordTags = new Set(wordRounds.flatMap((round) => round.tags));
+      const extraRackRounds = wordRounds.filter((round) => {
+        if (round.visual?.kind !== "wordTiles" || round.visual.answerLength <= 2) return false;
+        return round.visual.tiles.length > round.visual.answerLength;
+      });
 
       expect(wordRounds).toHaveLength(80);
       expect(new Set(wordRounds.map((round) => round.id)).size).toBe(wordRounds.length);
+      expect(wordRounds.every((round) => round.id.startsWith("word-table-"))).toBe(true);
       expect(wordRounds.every((round) => round.tags.includes("scrabble"))).toBe(true);
       expect(wordRounds.every((round) => round.tags.includes("words"))).toBe(true);
+      expect(wordRounds.every((round) => round.tags.includes("word:strategy"))).toBe(true);
+      expect(wordRounds.every((round) => !round.tags.some((tag) => retiredWordTags.has(tag)))).toBe(true);
+      expect(extraRackRounds.length).toBeGreaterThanOrEqual(60);
+      expect(Array.from(wordTags)).toEqual(expect.arrayContaining(requiredStrategyTags));
+
+      for (const round of wordRounds) {
+        const visualClue = round.visual?.kind === "wordTiles" ? round.visual.clue ?? "" : "";
+        expect(`${round.prompt} ${round.body} ${round.successMessage} ${visualClue}`).not.toMatch(retiredVisibleCopyPattern);
+      }
     }
   });
 
@@ -350,9 +376,9 @@ describe("social games room helpers", () => {
       expect(table.tableLabel).toBe(expectedLabels[language]);
     }
 
-    expect(buildGameTable("fr", 6).rounds.find((round) => round.id === "word-tiles-anagram-smile")?.answer).toBe("SOURIRE");
-    expect(buildGameTable("it", 6).rounds.find((round) => round.id === "word-tiles-anagram-smile")?.answer).toBe("SORRISO");
-    expect(buildGameTable("pt", 6).rounds.find((round) => round.id === "word-tiles-anagram-smile")?.answer).toBe("SORRISO");
+    expect(buildGameTable("fr", 6).rounds.find((round) => round.id === "word-table-anagram-smile")?.answer).toBe("SOURIRE");
+    expect(buildGameTable("it", 6).rounds.find((round) => round.id === "word-table-anagram-smile")?.answer).toBe("SORRISO");
+    expect(buildGameTable("pt", 6).rounds.find((round) => round.id === "word-table-anagram-smile")?.answer).toBe("SORRISO");
   });
 
   it("supports matching in games, reading, and aliases but not ordinary activity rooms", () => {
