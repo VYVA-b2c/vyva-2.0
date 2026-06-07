@@ -28,6 +28,7 @@ import type {
   SocialGameLanguage,
   SocialGameRound,
   SocialGameRoundInteraction,
+  SocialGameTable,
   SocialGameRoundVisual,
   SocialMatchResponse,
   SocialRoomChatItem,
@@ -148,6 +149,51 @@ function getMatchLoadingLabel(language: SocialGameLanguage) {
   if (language === "de") return "VYVA sucht...";
   if (language === "en") return "VYVA is looking...";
   return "VYVA esta buscando...";
+}
+
+function getConnectionKicker(language: SocialGameLanguage) {
+  if (language === "fr") return "Apres le puzzle";
+  if (language === "it") return "Dopo il puzzle";
+  if (language === "pt") return "Depois do puzzle";
+  if (language === "de") return "Nach dem Raetsel";
+  if (language === "en") return "After the puzzle";
+  return "Despues del puzle";
+}
+
+function getConnectionGameLine(language: SocialGameLanguage, gameTitle: string) {
+  if (language === "fr") return `Viktor cherche quelqu'un qui aime aussi ${gameTitle}.`;
+  if (language === "it") return `Viktor cerca qualcuno a cui piace anche ${gameTitle}.`;
+  if (language === "pt") return `Viktor procura alguem que tambem goste de ${gameTitle}.`;
+  if (language === "de") return `Viktor sucht jemanden, der auch ${gameTitle} mag.`;
+  if (language === "en") return `Viktor will look for someone who also enjoys ${gameTitle}.`;
+  return `Viktor busca a alguien que tambien disfrute ${gameTitle}.`;
+}
+
+function getConnectionCtaLabel(language: SocialGameLanguage, gameTitle: string) {
+  if (language === "fr") return `Trouver quelqu'un pour ${gameTitle}`;
+  if (language === "it") return `Trova qualcuno per ${gameTitle}`;
+  if (language === "pt") return `Encontrar alguem para ${gameTitle}`;
+  if (language === "de") return `Jemanden fuer ${gameTitle} finden`;
+  if (language === "en") return `Find someone for ${gameTitle}`;
+  return `Buscar alguien para ${gameTitle}`;
+}
+
+function getConnectionPrivacyNote(language: SocialGameLanguage) {
+  if (language === "fr") return "Les coordonnees ne sont pas partagees.";
+  if (language === "it") return "I contatti non vengono condivisi.";
+  if (language === "pt") return "Os contatos nao sao compartilhados.";
+  if (language === "de") return "Kontaktdaten werden nicht geteilt.";
+  if (language === "en") return "Contact details are not shared.";
+  return "Los datos de contacto no se comparten.";
+}
+
+function getReadyNowLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "A la table";
+  if (language === "it") return "Al tavolo";
+  if (language === "pt") return "Na mesa";
+  if (language === "de") return "Am Tisch";
+  if (language === "en") return "At the table";
+  return "En la mesa";
 }
 
 function getChatTitle(language: SocialGameLanguage) {
@@ -1379,6 +1425,89 @@ function WordTilesInteraction({
   );
 }
 
+function GameConnectionPanel({
+  gameTable,
+  selectedRound,
+  language,
+  isMatching,
+  matchResponse,
+  onFindPartner,
+}: {
+  gameTable: SocialGameTable;
+  selectedRound: SocialGameRound;
+  language: SocialGameLanguage;
+  isMatching: boolean;
+  matchResponse: SocialMatchResponse | null;
+  onFindPartner: () => void;
+}) {
+  const gameReadyMembers = gameTable.readyMembers.filter((member) => member.gameKind === selectedRound.kind);
+  const visibleReadyMembers = (gameReadyMembers.length > 0 ? gameReadyMembers : gameTable.readyMembers).slice(0, 3);
+
+  return (
+    <section className="rounded-[28px] border border-[#D8E6E2] bg-white px-5 py-5 shadow-[0_16px_34px_rgba(11,60,66,0.08)]" data-testid="games-connection-panel">
+      <p className="inline-flex rounded-full bg-[#E8F7F6] px-3 py-1.5 font-body text-[13px] font-black uppercase tracking-[0.08em] text-[#087C82]">
+        {getConnectionKicker(language)}
+      </p>
+      <h2 className="mt-3 font-body text-[25px] font-extrabold leading-tight text-[#07313A] sm:text-[27px]">{gameTable.connectionTitle}</h2>
+      <p className="mt-2 font-body text-[17px] font-bold leading-snug text-[#31555D]">{getConnectionGameLine(language, selectedRound.title)}</p>
+      <p className="mt-2 flex items-center gap-2 rounded-[18px] bg-[#F4FAF8] px-4 py-3 font-body text-[15px] font-extrabold leading-snug text-[#5B747B]">
+        <Check size={18} strokeWidth={3} className="shrink-0 text-[#087443]" />
+        {getConnectionPrivacyNote(language)}
+      </p>
+
+      {visibleReadyMembers.length > 0 && (
+        <div className="mt-5">
+          <p className="font-body text-[15px] font-black uppercase tracking-[0.08em] text-[#087C82]">{getReadyNowLabel(language)}</p>
+          <div className="mt-3 space-y-3">
+            {visibleReadyMembers.map((member, index) => (
+              <div
+                key={member.id}
+                className="flex items-center gap-3 rounded-[22px] border border-[#E2E9E7] bg-[#FCFFFD] px-4 py-4"
+              >
+                <div
+                  className="relative flex h-[56px] w-[56px] shrink-0 items-center justify-center rounded-full font-body text-[20px] font-extrabold text-white"
+                  style={{ background: memberColours[index % memberColours.length] }}
+                >
+                  {getMemberInitials(member.name)}
+                  <span className="absolute bottom-0 right-0 h-4 w-4 rounded-full border-2 border-white bg-[#2FB344]" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-body text-[21px] font-extrabold leading-tight text-[#173941]">{member.name}</p>
+                  <p className="mt-1 font-body text-[16px] font-semibold leading-snug text-[#61777D]">{member.statusLabel}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={onFindPartner}
+        disabled={isMatching}
+        data-testid="games-find-partner"
+        className="mt-5 flex min-h-[66px] w-full items-center justify-center gap-3 rounded-[22px] bg-[#007B7E] px-4 font-body text-[18px] font-extrabold leading-tight text-white shadow-[0_16px_34px_rgba(0,123,126,0.2)] disabled:opacity-55 sm:px-5 sm:text-[21px]"
+      >
+        <HeartHandshake size={25} className="shrink-0" />
+        {isMatching ? getMatchLoadingLabel(language) : getConnectionCtaLabel(language, selectedRound.title)}
+      </button>
+
+      <p className="mt-3 font-body text-[14px] font-bold leading-snug text-[#6D858B]">{gameTable.connectionBody}</p>
+
+      {matchResponse && (
+        <div className="mt-4 rounded-[22px] bg-[#F4FAF8] px-4 py-4" data-testid="games-match-result">
+          <p className="font-body text-[18px] font-bold leading-snug text-[#173941]">{matchResponse.agentMessage}</p>
+          {!matchResponse.noMatch && matchResponse.matchedUser && (
+            <p className="mt-2 font-body text-[17px] font-semibold text-[#087C82]">
+              {matchResponse.matchedUser.name}
+            </p>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function GamesRoomScreen({
   roomResponse,
   language,
@@ -2159,62 +2288,16 @@ export default function GamesRoomScreen({
             )}
           </section>
 
-          {showConnectionPanel && (
-          <aside className="hidden space-y-5 lg:block">
-            <section className="rounded-[28px] border border-[#D8E6E2] bg-white px-5 py-5 shadow-[0_16px_34px_rgba(11,60,66,0.08)]">
-              <h2 className="font-body text-[27px] font-extrabold leading-tight text-[#07313A]">{gameTable.connectionTitle}</h2>
-              <p className="mt-2 font-body text-[17px] font-semibold leading-snug text-[#5B747B]">{gameTable.connectionBody}</p>
-
-              <div className="mt-5 space-y-3">
-                {gameTable.readyMembers.map((member, index) => (
-                  <div
-                    key={member.id}
-                    className="flex items-center gap-4 rounded-[22px] border border-[#E2E9E7] bg-[#FCFFFD] px-4 py-4"
-                  >
-                    <div
-                      className="relative flex h-[62px] w-[62px] shrink-0 items-center justify-center rounded-full font-body text-[22px] font-extrabold text-white"
-                      style={{ background: memberColours[index % memberColours.length] }}
-                    >
-                      {getMemberInitials(member.name)}
-                      <span className="absolute bottom-0 right-0 h-4 w-4 rounded-full border-2 border-white bg-[#2FB344]" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-body text-[23px] font-extrabold leading-tight text-[#173941]">{member.name}</p>
-                      <p className="mt-1 font-body text-[17px] font-semibold leading-snug text-[#61777D]">{member.statusLabel}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => void findPartner()}
-                      className="min-h-[52px] rounded-[17px] border border-[#087C82] px-4 font-body text-[17px] font-extrabold text-[#087C82]"
-                    >
-                      {gameTable.sayHelloLabel}
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => void findPartner()}
-                disabled={isMatching || !isGameSelected || !selectedRound}
-                data-testid="games-find-partner"
-                className="mt-5 flex min-h-[66px] w-full items-center justify-center gap-3 rounded-[22px] bg-[#007B7E] px-5 font-body text-[21px] font-extrabold text-white shadow-[0_16px_34px_rgba(0,123,126,0.2)] disabled:opacity-55"
-              >
-                <HeartHandshake size={25} />
-                {isMatching ? getMatchLoadingLabel(language) : gameTable.findPartnerLabel}
-              </button>
-
-              {matchResponse && (
-                <div className="mt-4 rounded-[22px] bg-[#F4FAF8] px-4 py-4" data-testid="games-match-result">
-                  <p className="font-body text-[18px] font-bold leading-snug text-[#173941]">{matchResponse.agentMessage}</p>
-                  {!matchResponse.noMatch && matchResponse.matchedUser && (
-                    <p className="mt-2 font-body text-[17px] font-semibold text-[#087C82]">
-                      {matchResponse.matchedUser.name}
-                    </p>
-                  )}
-                </div>
-              )}
-            </section>
+          {showConnectionPanel && selectedRound && (
+          <aside className="space-y-5 lg:sticky lg:top-4">
+            <GameConnectionPanel
+              gameTable={gameTable}
+              selectedRound={selectedRound}
+              language={language}
+              isMatching={isMatching}
+              matchResponse={matchResponse}
+              onFindPartner={() => void findPartner()}
+            />
 
             {visibleChat.length > 0 && (
               <section className="rounded-[28px] border border-[#D8E6E2] bg-white px-5 py-5 shadow-[0_16px_34px_rgba(11,60,66,0.08)]">
