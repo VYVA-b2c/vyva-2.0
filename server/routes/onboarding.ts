@@ -238,11 +238,21 @@ onboardingRouter.post("/start-profile", async (req: Request, res: Response) => {
 
     await upsertProfileToleratingMissingColumns({
       id: profileId,
-      full_name: "",
+      full_name: "Profile setup",
+      date_of_birth: "",
       email: isSelf ? account.email : null,
       phone_number: isSelf ? account.phone_number : null,
       language: parsed.data.language,
       language_preference: parsed.data.language,
+      deployment: "standard",
+      subscription_status: "trial",
+      subscription_tier: "free",
+      account_status: "enabled",
+      role: "user",
+      country_code: "ES",
+      timezone: "Europe/Madrid",
+      onboarding_complete: false,
+      data_sharing_consent: {},
       created_at: now,
       updated_at: now,
     }, {
@@ -250,6 +260,14 @@ onboardingRouter.post("/start-profile", async (req: Request, res: Response) => {
       ...(isSelf && account.phone_number ? { phone_number: account.phone_number } : {}),
       language: parsed.data.language,
       language_preference: parsed.data.language,
+      deployment: "standard",
+      subscription_status: "trial",
+      subscription_tier: "free",
+      account_status: "enabled",
+      role: "user",
+      country_code: "ES",
+      timezone: "Europe/Madrid",
+      onboarding_complete: false,
       updated_at: now,
     }, "[onboarding/start-profile]");
 
