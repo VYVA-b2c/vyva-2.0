@@ -309,15 +309,29 @@ describe("social games room helpers", () => {
   });
 
   it("keeps the bridge puzzle bank available in each supported app language", () => {
+    const retiredBridgeTags = new Set(["bridge:vocabulary", "bridge:table-trust", "bridge:no-trump-basics", "bridge:simple-finesse"]);
+    const noviceCopyPattern = /calm|gentle|vocabulary|which bridge word|table manners|kind bridge|tranquil|calme|ruhig|amable|aimable/i;
+
     for (const language of supportedGameLanguages) {
       const table = buildGameTable(language, 6);
       const bridgeRounds = table.rounds.filter((round) => round.kind === "bridge");
+      const bridgeTags = new Set(bridgeRounds.flatMap((round) => round.tags));
 
       expect(bridgeRounds).toHaveLength(80);
       expect(new Set(bridgeRounds.map((round) => round.id)).size).toBe(bridgeRounds.length);
+      expect(bridgeRounds.every((round) => round.id.startsWith("bridge-table-"))).toBe(true);
       expect(bridgeRounds.every((round) => round.tags.includes("bridge"))).toBe(true);
       expect(bridgeRounds.every((round) => round.tags.includes("cards"))).toBe(true);
       expect(bridgeRounds.every((round) => round.tags.includes("game:bridge"))).toBe(true);
+      expect(bridgeRounds.every((round) => !round.tags.some((tag) => retiredBridgeTags.has(tag)))).toBe(true);
+      expect(bridgeRounds.every((round) => !noviceCopyPattern.test(`${round.prompt} ${round.body} ${round.successMessage}`))).toBe(true);
+      expect(Array.from(bridgeTags)).toEqual(expect.arrayContaining([
+        "bridge:stayman-transfer",
+        "bridge:competitive-auction",
+        "bridge:hold-up",
+        "bridge:endplay",
+        "bridge:squeeze-pressure",
+      ]));
     }
   });
 

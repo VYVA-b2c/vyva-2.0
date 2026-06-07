@@ -885,8 +885,8 @@ function BridgeCardsVisual({ visual, language }: { visual: Extract<SocialGameRou
   const visibleCards = cards.slice(0, 8);
 
   return (
-    <div className="rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-3" data-testid="games-visual-bridge">
-      <div className="rounded-[22px] bg-[#0A6F68] p-3 text-white shadow-inner" data-testid="games-bridge-table">
+    <div className="min-w-0 overflow-hidden rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-2 sm:p-3" data-testid="games-visual-bridge">
+      <div className="min-w-0 rounded-[22px] bg-[#0A6F68] p-3 text-white shadow-inner" data-testid="games-bridge-table">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
           <div className="rounded-[14px] bg-white/10 px-3 py-2 text-center font-body text-[12px] font-black uppercase tracking-[0.08em] text-white/80">
             {labels.left}
@@ -921,8 +921,8 @@ function BridgeCardsVisual({ visual, language }: { visual: Extract<SocialGameRou
           </div>
         </div>
 
-        <div className="mt-3 rounded-[20px] bg-[#EAF6F3] px-3 py-3 text-[#173941]" data-testid="games-bridge-hand">
-          <div className="flex items-center justify-between gap-2">
+        <div className="mt-3 min-w-0 rounded-[20px] bg-[#EAF6F3] px-3 py-3 text-[#173941]" data-testid="games-bridge-hand">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
             <p className="font-body text-[13px] font-black uppercase tracking-[0.08em] text-[#087C82]">{labels.yourHand}</p>
             {visual.suitLengths?.length ? (
               <p className="font-body text-[12px] font-extrabold text-[#31555D]">
@@ -930,7 +930,7 @@ function BridgeCardsVisual({ visual, language }: { visual: Extract<SocialGameRou
               </p>
             ) : null}
           </div>
-          <div className="mt-2 flex min-h-[84px] items-center gap-1.5 overflow-x-auto pb-1">
+          <div className="mt-2 flex min-h-[84px] min-w-0 max-w-full items-center gap-1.5 overflow-x-auto pb-1">
             {visibleCards.map((card, index) => (
               <BridgePlayingCard key={`${card.rank}-${card.suit}-${index}`} card={card} index={index} />
             ))}
@@ -1862,7 +1862,7 @@ export default function GamesRoomScreen({
         )}
 
         <main className={`mt-6 grid gap-5 lg:items-start ${showConnectionPanel ? "lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]" : ""}`}>
-          <section className={`space-y-5 ${isGameSelected && !showConnectionPanel ? "mx-auto w-full max-w-[720px]" : ""}`}>
+          <section className={`min-w-0 space-y-5 ${isGameSelected && !showConnectionPanel ? "mx-auto w-full max-w-[720px]" : ""}`}>
             {!isGameSelected && (
               <>
                 <div className="relative overflow-hidden rounded-[28px] bg-[#0A7372] shadow-[0_22px_52px_rgba(7,49,58,0.16)]">
@@ -1912,7 +1912,7 @@ export default function GamesRoomScreen({
 
             {isGameSelected && selectedRound && (
               <section
-                className="rounded-[28px] border border-[#D8E6E2] bg-white px-4 py-4 shadow-[0_16px_34px_rgba(11,60,66,0.08)] sm:px-5 sm:py-5"
+                className="min-w-0 rounded-[28px] border border-[#D8E6E2] bg-white px-4 py-4 shadow-[0_16px_34px_rgba(11,60,66,0.08)] sm:px-5 sm:py-5"
                 aria-live="polite"
                 data-testid="games-selected-puzzle"
               >
