@@ -10,10 +10,10 @@ registerServiceWorker();
 const launchOverlay = document.getElementById("vyva-launch");
 if (launchOverlay) {
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const visibleDurationMs = reduceMotion ? 0 : 950;
+  const visibleDurationMs = reduceMotion ? 0 : 720;
 
   window.setTimeout(() => {
     launchOverlay.classList.add("vyva-launch--leaving");
-    window.setTimeout(() => launchOverlay.remove(), reduceMotion ? 0 : 480);
+    window.setTimeout(() => launchOverlay.remove(), reduceMotion ? 0 : 380);
   }, visibleDurationMs);
 }
