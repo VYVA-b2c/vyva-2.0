@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isMissingOnConflictConstraintError,
   isMissingRelationError,
+  isRelationSchemaUnavailableError,
   missingColumnName,
 } from "../lib/dbCompatibility.js";
 import { isMissingAccountProfileLinkColumnError } from "../lib/profileAccess.js";
@@ -29,6 +30,7 @@ describe("profile access schema compatibility", () => {
   it("recognizes missing relation and conflict constraint messages", () => {
     expect(isMissingRelationError(new Error('relation "profile_memberships" does not exist'), "profile_memberships")).toBe(true);
     expect(isMissingRelationError(new Error('relation "profiles" does not exist'), "profile_memberships")).toBe(false);
+    expect(isRelationSchemaUnavailableError(new Error('column "has_phone_number" of relation "onboarding_state" does not exist'), "onboarding_state")).toBe(true);
     expect(isMissingOnConflictConstraintError(new Error("there is no unique or exclusion constraint matching the ON CONFLICT specification"))).toBe(true);
   });
 });

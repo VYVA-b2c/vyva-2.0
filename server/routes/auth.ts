@@ -14,6 +14,7 @@ import { getSupabaseConfig } from "../lib/supabaseAuth.js";
 import { clearAuthSessionCookie, issueAuthSessionCookie } from "../lib/sessionCookie.js";
 import { premiumTrialProfilePatch } from "../lib/premiumTrial.js";
 import { isProductionRuntime } from "../lib/requestEnvironment.js";
+import { isRelationSchemaUnavailableError } from "../lib/dbCompatibility.js";
 import {
   upsertProfileMembershipToleratingMissingColumns,
   upsertProfileToleratingMissingColumns,
@@ -336,10 +337,15 @@ async function createInitialSignupProfile(
     console.warn("[auth/register] users profile link columns are missing; continuing with profile_memberships fallback.");
   }
 
-  await db
-    .insert(onboardingState)
-    .values({ user_id: profileId })
-    .onConflictDoNothing();
+  try {
+    await db
+      .insert(onboardingState)
+      .values({ user_id: profileId })
+      .onConflictDoNothing();
+  } catch (err) {
+    if (!isRelationSchemaUnavailableError(err, "onboarding_state")) throw err;
+    console.warn("[auth/register] onboarding_state schema is unavailable; continuing without onboarding state seed.");
+  }
 }
 
 async function hashPassword(password: string): Promise<string> {
