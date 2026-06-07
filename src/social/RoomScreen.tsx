@@ -3642,7 +3642,7 @@ const RoomScreen = () => {
     setReadingClubStatus(readingClubCopy.recommendationRemovedStatusLabel);
   }, [readingClubCopy.recommendationRemovedStatusLabel, updateReadingDesk]);
 
-  const useReadingRecommendationCard = useCallback((card: ReadingClubDeskState["recommendationCards"][number]) => {
+  const applyReadingRecommendationCard = useCallback((card: ReadingClubDeskState["recommendationCards"][number]) => {
     setReadingReflectionDraft(card.note ? `${card.title} - ${card.note}` : card.title);
     setReadingClubStatus(readingClubCopy.recommendationReadyStatusLabel);
   }, [readingClubCopy.recommendationReadyStatusLabel]);
@@ -3816,7 +3816,7 @@ const RoomScreen = () => {
     setReadingClubStatus(readingClubCopy.exchangeRemovedStatusLabel);
   }, [readingClubCopy.exchangeRemovedStatusLabel, updateReadingDesk]);
 
-  const useReadingExchangeRequest = useCallback((request: ReadingClubDeskState["exchangeRequests"][number]) => {
+  const applyReadingExchangeRequest = useCallback((request: ReadingClubDeskState["exchangeRequests"][number]) => {
     setReadingReflectionDraft(request.note ? `${request.topic} - ${request.note}` : request.topic);
     setReadingClubStatus(readingClubCopy.exchangeReadyStatusLabel);
   }, [readingClubCopy.exchangeReadyStatusLabel]);
@@ -5635,7 +5635,7 @@ const RoomScreen = () => {
                                 <p className="font-body text-[17px] font-bold leading-[1.22] text-[#244D47]">{card.title}</p>
                                 <button
                                   type="button"
-                                  onClick={() => useReadingRecommendationCard(card)}
+                                  onClick={() => applyReadingRecommendationCard(card)}
                                   className="mt-3 inline-flex min-h-[38px] items-center gap-2 rounded-full border border-[#BDE8D7] bg-[#F7FFFB] px-3 font-body text-[14px] font-bold text-[#0F766E]"
                                   data-testid="button-reading-use-recommendation"
                                 >
@@ -6193,7 +6193,7 @@ const RoomScreen = () => {
                                 </p>
                                 <button
                                   type="button"
-                                  onClick={() => useReadingRecommendationCard(card)}
+                                  onClick={() => applyReadingRecommendationCard(card)}
                                   className="inline-flex min-h-[38px] items-center gap-2 rounded-full border border-[#BDE8D7] bg-[#F7FFFB] px-3 font-body text-[14px] font-bold text-[#0F766E]"
                                   data-testid="button-reading-use-recommendation"
                                 >
@@ -6352,7 +6352,7 @@ const RoomScreen = () => {
                               {request.note && <p className="mt-2 font-body text-[15px] leading-[1.32] text-[#41655F]">{request.note}</p>}
                               <button
                                 type="button"
-                                onClick={() => useReadingExchangeRequest(request)}
+                                onClick={() => applyReadingExchangeRequest(request)}
                                 className="mt-3 inline-flex min-h-[40px] items-center gap-2 rounded-full border border-[#D9C7F8] bg-[#FCF9FF] px-4 font-body text-[14px] font-bold text-[#6B3CC7]"
                                 data-testid="button-reading-use-exchange"
                               >
