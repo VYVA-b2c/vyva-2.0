@@ -38,6 +38,19 @@ export async function upsertProfileToleratingMissingColumns(
   }
 }
 
+export async function upsertOptionalProfileMetadata(
+  values: ProfileInsertValues,
+  set: ProfileUpdateValues,
+  logPrefix: string,
+): Promise<void> {
+  try {
+    await upsertProfileToleratingMissingColumns(values, set, logPrefix);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`${logPrefix} optional profile metadata skipped: ${message.slice(0, 240)}`);
+  }
+}
+
 export async function upsertProfileMembershipToleratingMissingColumns(
   values: ProfileMembershipInsertValues,
   set: ProfileMembershipUpdateValues,
