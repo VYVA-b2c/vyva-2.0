@@ -8,6 +8,15 @@ export function missingColumnName(err: unknown): string | null {
   return bareMatch?.[1] ?? null;
 }
 
+export function notNullColumnName(err: unknown): string | null {
+  const error = err as { code?: unknown; column?: unknown; message?: unknown };
+  if (error.code === "23502" && typeof error.column === "string") return error.column;
+
+  const message = typeof error.message === "string" ? error.message : String(err);
+  const match = message.match(/null\s+value\s+in\s+column\s+"([^"]+)"\s+of\s+relation\s+"[a-z0-9_]+"\s+violates\s+not-null\s+constraint/i);
+  return match?.[1] ?? null;
+}
+
 export function isMissingRelationError(err: unknown, relationName: string): boolean {
   const message = err instanceof Error ? err.message : String(err);
   return new RegExp(`relation\\s+"${relationName}"\\s+does\\s+not\\s+exist`, "i").test(message);
