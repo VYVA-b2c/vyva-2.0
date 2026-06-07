@@ -292,11 +292,20 @@ async function createInitialSignupProfile(
     phone_number: isSelf ? user.phone_number : null,
     language,
     language_preference: language,
+    deployment: "standard",
+    subscription_status: "trial",
+    subscription_tier: "trial",
+    account_status: "enabled",
+    role: "user",
   }, {
     ...(user.email ? { email: user.email } : {}),
     ...(user.phone_number ? { phone_number: user.phone_number } : {}),
     language,
     language_preference: language,
+    deployment: "standard",
+    subscription_status: "trial",
+    subscription_tier: "trial",
+    account_status: "enabled",
     updated_at: now,
   }, "[auth/register]");
 
