@@ -1,18 +1,29 @@
 import express from "express";
 import request from "supertest";
 import { afterEach, describe, expect, it } from "vitest";
-import type { Request } from "express";
+import type { Request, Response } from "express";
 import { authMiddleware } from "../middleware/auth.js";
-import { isLocalDevelopmentRequest } from "../lib/requestEnvironment.js";
+import { isLocalDevelopmentRequest, isProductionRuntime } from "../lib/requestEnvironment.js";
+import { issueAuthSessionCookie } from "../lib/sessionCookie.js";
 
 const originalNodeEnv = process.env.NODE_ENV;
+const originalReplitDeployment = process.env.REPLIT_DEPLOYMENT;
 
 function reqWithHeaders(headers: Request["headers"]): Request {
   return { headers } as Request;
 }
 
+function restoreEnv(name: "NODE_ENV" | "REPLIT_DEPLOYMENT", value: string | undefined) {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+  process.env[name] = value;
+}
+
 afterEach(() => {
-  process.env.NODE_ENV = originalNodeEnv;
+  restoreEnv("NODE_ENV", originalNodeEnv);
+  restoreEnv("REPLIT_DEPLOYMENT", originalReplitDeployment);
 });
 
 describe("request environment detection", () => {
@@ -38,6 +49,31 @@ describe("request environment detection", () => {
     process.env.NODE_ENV = "production";
 
     expect(isLocalDevelopmentRequest(reqWithHeaders({ host: "localhost:3001" }))).toBe(false);
+  });
+
+  it("treats Replit published deployments as production even when NODE_ENV is missing", () => {
+    delete process.env.NODE_ENV;
+    process.env.REPLIT_DEPLOYMENT = "1";
+
+    expect(isProductionRuntime()).toBe(true);
+    expect(isLocalDevelopmentRequest(reqWithHeaders({ host: "localhost:3001" }))).toBe(false);
+  });
+});
+
+describe("session cookie environment", () => {
+  it("marks auth cookies secure in Replit published deployments", async () => {
+    delete process.env.NODE_ENV;
+    process.env.REPLIT_DEPLOYMENT = "1";
+    const cookies: string[] = [];
+    const res = {
+      append: (name: string, value: string) => {
+        if (name === "Set-Cookie") cookies.push(value);
+      },
+    } as Response;
+
+    await issueAuthSessionCookie(res, "published-user");
+
+    expect(cookies[0]).toContain("Secure");
   });
 });
 

@@ -34,8 +34,12 @@ function isLocalHost(value: string): boolean {
   return LOCAL_HOSTS.has(name) || name.endsWith(".localhost");
 }
 
+export function isProductionRuntime(): boolean {
+  return process.env.NODE_ENV === "production" || process.env.REPLIT_DEPLOYMENT === "1";
+}
+
 export function isLocalDevelopmentRequest(req: Request): boolean {
-  if (process.env.NODE_ENV === "production") return false;
+  if (isProductionRuntime()) return false;
 
   const hosts = [
     ...hostValues(req.headers.host),
