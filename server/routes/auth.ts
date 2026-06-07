@@ -13,11 +13,12 @@ import { getActiveProfileContext, type ActiveProfileContext } from "../lib/profi
 import { getSupabaseConfig } from "../lib/supabaseAuth.js";
 import { clearAuthSessionCookie, issueAuthSessionCookie } from "../lib/sessionCookie.js";
 import { premiumTrialProfilePatch } from "../lib/premiumTrial.js";
+import { isProductionRuntime } from "../lib/requestEnvironment.js";
 
 const scryptAsync = promisify(scrypt);
 
-const isDev = process.env.NODE_ENV !== "production";
-const isProduction = process.env.NODE_ENV === "production";
+const isDev = !isProductionRuntime();
+const isProduction = isProductionRuntime();
 const SUPER_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL ?? "karim.assad@mokadigital.net").toLowerCase();
 const emailSchema = z.string().trim().email();
 const SUPPORTED_PROFILE_LANGUAGES = ["es", "en", "fr", "de", "it", "pt", "cy"] as const;
