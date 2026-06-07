@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { emergencyProfileContactFromState, SosSheet } from "./AppShell";
+import { emergencyProfileContactFromState, getAppShellLayout, SosSheet } from "./AppShell";
 
 vi.mock("react-i18next", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react-i18next")>();
@@ -63,5 +63,23 @@ describe("SOS service actions", () => {
       primaryPhone: "+34 612 345 678",
       secondaryPhone: "",
     });
+  });
+});
+
+describe("app shell route layout", () => {
+  it.each([
+    ["/", "wide"],
+    ["/settings/account", "wide"],
+    ["/health/symptom-check", "wide"],
+    ["/social-rooms/music-room", "wide"],
+    ["/companions", "wide"],
+    ["/concierge/shopping", "wide"],
+    ["/chat", "fullscreen"],
+    ["/memory-games/word_recall", "fullscreen"],
+    ["/attention-boosters/rhythm-tap", "fullscreen"],
+    ["/profiles/select", "compact"],
+    ["/onboarding/profile/health", "compact"],
+  ] as const)("classifies %s as %s", (pathname, layout) => {
+    expect(getAppShellLayout(pathname)).toBe(layout);
   });
 });
