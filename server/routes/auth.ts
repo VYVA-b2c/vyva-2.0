@@ -288,11 +288,21 @@ async function createInitialSignupProfile(
 
   await upsertProfileToleratingMissingColumns({
     id: profileId,
-    full_name: "",
+    full_name: "Profile setup",
+    date_of_birth: "",
     email: isSelf ? user.email : null,
     phone_number: isSelf ? user.phone_number : null,
     language,
     language_preference: language,
+    deployment: "standard",
+    subscription_status: "trial",
+    subscription_tier: "free",
+    account_status: "enabled",
+    role: "user",
+    country_code: "ES",
+    timezone: "Europe/Madrid",
+    onboarding_complete: false,
+    data_sharing_consent: {},
     created_at: now,
     updated_at: now,
   }, {
@@ -300,6 +310,14 @@ async function createInitialSignupProfile(
     ...(user.phone_number ? { phone_number: user.phone_number } : {}),
     language,
     language_preference: language,
+    deployment: "standard",
+    subscription_status: "trial",
+    subscription_tier: "free",
+    account_status: "enabled",
+    role: "user",
+    country_code: "ES",
+    timezone: "Europe/Madrid",
+    onboarding_complete: false,
     updated_at: now,
   }, "[auth/register]");
 
