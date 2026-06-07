@@ -18,6 +18,7 @@ import { notifyElderOfProxySetup } from "../services/notifications.js";
 import { dispatchCommunicationsByIds } from "../services/communicationDispatcher.js";
 import { getActiveProfileContext, isMissingAccountProfileLinkColumnError, requireActiveProfileId } from "../lib/profileAccess.js";
 import { premiumTrialEndsAt, premiumTrialProfilePatch } from "../lib/premiumTrial.js";
+import { isRelationSchemaUnavailableError } from "../lib/dbCompatibility.js";
 import {
   upsertProfileMembershipToleratingMissingColumns,
   upsertProfileToleratingMissingColumns,
@@ -123,26 +124,32 @@ const HAS_FIELD_FEATURE_MAP: Record<string, Record<string, boolean>> = {
 };
 
 async function ensureOnboardingState(userId: string) {
-  const rows = await db
-    .select()
-    .from(onboardingState)
-    .where(eq(onboardingState.user_id, userId))
-    .limit(1);
+  try {
+    const rows = await db
+      .select()
+      .from(onboardingState)
+      .where(eq(onboardingState.user_id, userId))
+      .limit(1);
 
-  if (rows[0]) return rows[0];
+    if (rows[0]) return rows[0];
 
-  await db
-    .insert(onboardingState)
-    .values({ user_id: userId })
-    .onConflictDoNothing();
+    await db
+      .insert(onboardingState)
+      .values({ user_id: userId })
+      .onConflictDoNothing();
 
-  const created = await db
-    .select()
-    .from(onboardingState)
-    .where(eq(onboardingState.user_id, userId))
-    .limit(1);
+    const created = await db
+      .select()
+      .from(onboardingState)
+      .where(eq(onboardingState.user_id, userId))
+      .limit(1);
 
-  return created[0] ?? null;
+    return created[0] ?? null;
+  } catch (err) {
+    if (!isRelationSchemaUnavailableError(err, "onboarding_state")) throw err;
+    console.warn("[onboarding] onboarding_state schema is unavailable; continuing without onboarding state row.");
+    return null;
+  }
 }
 
 async function markField(userId: string, field: string): Promise<void> {

@@ -13,6 +13,14 @@ export function isMissingRelationError(err: unknown, relationName: string): bool
   return new RegExp(`relation\\s+"${relationName}"\\s+does\\s+not\\s+exist`, "i").test(message);
 }
 
+export function isRelationSchemaUnavailableError(err: unknown, relationName: string): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return isMissingRelationError(err, relationName) || (
+    message.includes("does not exist") &&
+    message.includes(relationName)
+  );
+}
+
 export function isMissingOnConflictConstraintError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
   return /no unique or exclusion constraint matching the ON CONFLICT specification/i.test(message);
