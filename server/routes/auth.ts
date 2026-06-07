@@ -14,7 +14,10 @@ import { getSupabaseConfig } from "../lib/supabaseAuth.js";
 import { clearAuthSessionCookie, issueAuthSessionCookie } from "../lib/sessionCookie.js";
 import { premiumTrialProfilePatch } from "../lib/premiumTrial.js";
 import { isProductionRuntime } from "../lib/requestEnvironment.js";
-import { upsertProfileToleratingMissingColumns } from "../lib/profileWriteCompatibility.js";
+import {
+  upsertProfileMembershipToleratingMissingColumns,
+  upsertProfileToleratingMissingColumns,
+} from "../lib/profileWriteCompatibility.js";
 
 const scryptAsync = promisify(scrypt);
 
@@ -299,28 +302,26 @@ async function createInitialSignupProfile(
     updated_at: now,
   }, "[auth/register]");
 
-  await db
-    .insert(profileMemberships)
-    .values({
-      user_id: user.id,
-      profile_id: profileId,
-      role: isSelf ? "elder" : "caregiver",
-      relationship: isSelf ? "self" : "setup_initiator",
-      is_primary: true,
-      status: "active",
-      accepted_at: now,
-    })
-    .onConflictDoUpdate({
-      target: [profileMemberships.user_id, profileMemberships.profile_id],
-      set: {
-        role: isSelf ? "elder" : "caregiver",
-        relationship: isSelf ? "self" : "setup_initiator",
-        status: "active",
-        is_primary: true,
-        accepted_at: now,
-        updated_at: now,
-      },
-    });
+  const membershipSaved = await upsertProfileMembershipToleratingMissingColumns({
+    user_id: user.id,
+    profile_id: profileId,
+    role: isSelf ? "elder" : "caregiver",
+    relationship: isSelf ? "self" : "setup_initiator",
+    is_primary: true,
+    status: "active",
+    accepted_at: now,
+  }, {
+    role: isSelf ? "elder" : "caregiver",
+    relationship: isSelf ? "self" : "setup_initiator",
+    status: "active",
+    is_primary: true,
+    accepted_at: now,
+    updated_at: now,
+  }, "[auth/register]");
+
+  if (!membershipSaved && !isSelf) {
+    throw new Error("profile_memberships table is required for proxy profile setup");
+  }
 
   try {
     await db

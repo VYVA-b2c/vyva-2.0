@@ -18,7 +18,10 @@ import { notifyElderOfProxySetup } from "../services/notifications.js";
 import { dispatchCommunicationsByIds } from "../services/communicationDispatcher.js";
 import { getActiveProfileContext, isMissingAccountProfileLinkColumnError, requireActiveProfileId } from "../lib/profileAccess.js";
 import { premiumTrialEndsAt, premiumTrialProfilePatch } from "../lib/premiumTrial.js";
-import { upsertProfileToleratingMissingColumns } from "../lib/profileWriteCompatibility.js";
+import {
+  upsertProfileMembershipToleratingMissingColumns,
+  upsertProfileToleratingMissingColumns,
+} from "../lib/profileWriteCompatibility.js";
 
 export const onboardingRouter = Router();
 
@@ -240,28 +243,26 @@ onboardingRouter.post("/start-profile", async (req: Request, res: Response) => {
       updated_at: now,
     }, "[onboarding/start-profile]");
 
-    await db
-      .insert(profileMemberships)
-      .values({
-        user_id: accountUserId,
-        profile_id: profileId,
-        role: isSelf ? "elder" : "caregiver",
-        relationship: isSelf ? "self" : "setup_initiator",
-        is_primary: true,
-        status: "active",
-        accepted_at: now,
-      })
-      .onConflictDoUpdate({
-        target: [profileMemberships.user_id, profileMemberships.profile_id],
-        set: {
-          role: isSelf ? "elder" : "caregiver",
-          relationship: isSelf ? "self" : "setup_initiator",
-          status: "active",
-          is_primary: true,
-          accepted_at: now,
-          updated_at: now,
-        },
-      });
+    const membershipSaved = await upsertProfileMembershipToleratingMissingColumns({
+      user_id: accountUserId,
+      profile_id: profileId,
+      role: isSelf ? "elder" : "caregiver",
+      relationship: isSelf ? "self" : "setup_initiator",
+      is_primary: true,
+      status: "active",
+      accepted_at: now,
+    }, {
+      role: isSelf ? "elder" : "caregiver",
+      relationship: isSelf ? "self" : "setup_initiator",
+      status: "active",
+      is_primary: true,
+      accepted_at: now,
+      updated_at: now,
+    }, "[onboarding/start-profile]");
+
+    if (!membershipSaved && !isSelf) {
+      throw new Error("profile_memberships table is required for proxy profile setup");
+    }
 
     try {
       await db
