@@ -8,6 +8,7 @@ import {
   Dice5,
   Eraser,
   Gamepad2,
+  Hand,
   HeartHandshake,
   HelpCircle,
   Spade,
@@ -17,7 +18,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/queryClient";
 import gameTableImage from "@/assets/games-room-tabletop.webp";
 import AgentAvatar from "./AgentAvatar";
@@ -392,12 +393,12 @@ function getTactileTryAgainCopy(language: SocialGameLanguage) {
 }
 
 function getChessTapCue(language: SocialGameLanguage) {
-  if (language === "fr") return "Touchez une piece ou une case.";
-  if (language === "it") return "Tocca un pezzo o una casa.";
-  if (language === "pt") return "Toque numa peca ou casa.";
-  if (language === "de") return "Tippe auf eine Figur oder ein Feld.";
-  if (language === "en") return "Tap a piece or square.";
-  return "Toca una pieza o casilla.";
+  if (language === "fr") return "Touchez un repere.";
+  if (language === "it") return "Tocca un segno.";
+  if (language === "pt") return "Toque num marcador.";
+  if (language === "de") return "Tippe auf eine Markierung.";
+  if (language === "en") return "Tap a marker.";
+  return "Toca una marca.";
 }
 
 function getLearnWhyLabel(language: SocialGameLanguage) {
@@ -432,10 +433,6 @@ function parseDominoAnswerValue(value: string) {
 
 function isDominoTileAnswer(value: string, tile: [number, number] | undefined) {
   return Boolean(tile) && parseDominoAnswerValue(value).tileKey === dominoTileKey(tile);
-}
-
-function isSelectedDominoTile(value: string | null, tile: [number, number]) {
-  return Boolean(value) && parseDominoAnswerValue(value!).tileKey === dominoTileKey(tile);
 }
 
 function getDominoOpenEndsLabel(language: SocialGameLanguage) {
@@ -504,11 +501,11 @@ function getDominoChooseEndLabel(language: SocialGameLanguage) {
 function DominoTile({ tile, muted = false }: { tile: [number, number]; muted?: boolean }) {
   return (
     <div
-      className={`grid h-[72px] w-[116px] grid-cols-2 overflow-hidden rounded-[14px] border-2 bg-[#FFFDF7] shadow-[0_10px_20px_rgba(24,60,66,0.12)] ${muted ? "border-[#D8E6E2] opacity-75" : "border-[#087C82]"}`}
+      className={`grid h-[58px] w-[96px] grid-cols-2 overflow-hidden rounded-[12px] border-2 bg-[#FFFDF7] shadow-[0_10px_20px_rgba(24,60,66,0.12)] sm:h-[72px] sm:w-[116px] sm:rounded-[14px] ${muted ? "border-[#D8E6E2] opacity-75" : "border-[#087C82]"}`}
       aria-label={`Domino ${tile[0]}-${tile[1]}`}
     >
       {tile.map((value, index) => (
-        <span key={`${value}-${index}`} className="flex items-center justify-center border-l border-[#E9DED0] first:border-l-0 font-body text-[24px] font-extrabold text-[#173941]">
+        <span key={`${value}-${index}`} className="flex items-center justify-center border-l border-[#E9DED0] first:border-l-0 font-body text-[21px] font-extrabold text-[#173941] sm:text-[24px]">
           {value === 0 ? "-" : value}
         </span>
       ))}
@@ -601,9 +598,9 @@ function ChessBoardVisual({
   const canTap = Boolean(interaction && onSquareSelect);
 
   return (
-    <div className="rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-4" data-testid="games-visual-chess">
-      <p className="font-body text-[16px] font-extrabold leading-snug text-[#31555D]">{visual.caption}</p>
-      <div className="mt-3 grid aspect-square max-w-[360px] grid-cols-8 overflow-hidden rounded-[18px] border border-[#BFDAD7]">
+    <div className="mx-auto max-w-[430px] rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-3 sm:p-4" data-testid="games-visual-chess">
+      <p className="font-body text-[15px] font-extrabold leading-snug text-[#31555D] sm:text-[16px]">{visual.caption}</p>
+      <div className="mx-auto mt-3 grid aspect-square w-full grid-cols-8 overflow-hidden rounded-[18px] border border-[#BFDAD7] shadow-[0_14px_30px_rgba(11,60,66,0.08)]">
         {Array.from({ length: 64 }, (_, index) => {
           const file = index % 8;
           const rank = 8 - Math.floor(index / 8);
@@ -620,10 +617,17 @@ function ChessBoardVisual({
               {marked && <span className="absolute inset-1 rounded-[8px] border-2 border-[#F59E0B]" data-testid={`chess-guidance-${square}`} />}
               {selected && <span className="absolute inset-1 rounded-[8px] border-4 border-[#087C82]" />}
               {wrong && <span className="absolute inset-1 rounded-[8px] border-4 border-[#D97706]" />}
+              {tappable && !piece && !isComplete && (
+                <span
+                  aria-hidden="true"
+                  className="absolute h-[50%] w-[50%] rounded-full border-[3px] border-[#F59E0B] bg-[#FEF3C7]/65 shadow-[0_0_0_4px_rgba(255,255,255,0.58)]"
+                  data-testid={`chess-tap-target-${square}`}
+                />
+              )}
               {piece && (
                 <span
                   aria-label={chessPieceDescriptions[piece.piece]}
-                  className={`relative z-10 flex h-[82%] w-[82%] items-center justify-center rounded-full border shadow-[0_7px_14px_rgba(23,57,65,0.18)] ${piece.piece.startsWith("white") ? "border-[#C9B99D] bg-[#FFFDF7] text-[#07313A]" : "border-[#173941] bg-[#173941] text-[#FFFDF7]"}`}
+                  className={`relative z-10 flex h-[82%] w-[82%] items-center justify-center rounded-full border shadow-[0_7px_14px_rgba(23,57,65,0.18)] ${piece.piece.startsWith("white") ? "border-[#C9B99D] bg-[#FFFDF7] text-[#07313A]" : "border-[#173941] bg-[#173941] text-[#FFFDF7]"} ${tappable && !isComplete ? "ring-[3px] ring-[#F59E0B] ring-offset-1 ring-offset-white" : ""}`}
                   role="img"
                 >
                   <ChessPieceGlyph piece={piece.piece} cutout={piece.piece.startsWith("white") ? "#FFFDF7" : "#173941"} />
@@ -632,7 +636,7 @@ function ChessBoardVisual({
               {tappable && !isComplete && (
                 <span
                   aria-hidden="true"
-                  className="absolute bottom-1 right-1 z-20 h-3 w-3 rounded-full bg-[#087C82] ring-2 ring-white"
+                  className="absolute bottom-1 right-1 z-20 h-4 w-4 rounded-full bg-[#087C82] ring-[3px] ring-white"
                 />
               )}
             </>
@@ -670,18 +674,29 @@ function ChessBoardVisual({
 
 function DominoesVisual({
   visual,
+  interaction,
   language,
+  selectedTactileValue,
+  isComplete = false,
+  onDominoTileSelect,
 }: {
   visual: Extract<SocialGameRoundVisual, { kind: "dominoes" }>;
+  interaction?: Extract<SocialGameRoundInteraction, { kind: "dominoPlay" }>;
   language: SocialGameLanguage;
+  selectedTactileValue?: string | null;
+  isComplete?: boolean;
+  onDominoTileSelect?: (value: string) => void;
 }) {
   const handTiles = visual.hand ?? visual.candidateTiles ?? (visual.focusTile ? [visual.focusTile] : []);
   const layoutTiles = visual.layoutTiles ?? [];
   const leftEnd = visual.leftEnd ?? visual.openEnds?.[0];
   const rightEnd = visual.rightEnd ?? visual.openEnds?.[1];
+  const candidateTileKeys = new Set((interaction?.candidateTiles ?? []).map(dominoTileKey));
+  const canTapHand = Boolean(onDominoTileSelect && interaction && candidateTileKeys.size > 0);
+  const selectedDominoTile = selectedTactileValue ? parseDominoAnswerValue(selectedTactileValue).tileKey : "";
 
   return (
-    <div className="rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-4" data-testid="games-visual-dominoes">
+    <div className="rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-3 sm:p-4" data-testid="games-visual-dominoes">
       <p className="font-body text-[16px] font-extrabold leading-snug text-[#31555D]">{visual.caption}</p>
       <div className="mt-3 rounded-[20px] bg-white px-3 py-3">
         <p className="font-body text-[13px] font-black uppercase text-[#087C82]">{getDominoOpenEndsLabel(language)}</p>
@@ -717,11 +732,31 @@ function DominoesVisual({
       )}
       <div className="mt-3">
         <p className="font-body text-[13px] font-black uppercase text-[#087C82]">{visual.handLabel ?? getDominoHandLabel(language)}</p>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
           {visual.playedTile && <DominoTile tile={visual.playedTile} muted />}
-          {handTiles.map((tile, index) => (
-            <DominoTile key={`${tile[0]}-${tile[1]}-${index}`} tile={tile} />
-          ))}
+          {handTiles.map((tile, index) => {
+            const key = dominoTileKey(tile);
+            const isCandidate = candidateTileKeys.has(key);
+            const active = selectedDominoTile === key;
+            const tileNode = <DominoTile tile={tile} />;
+            if (!canTapHand || !isCandidate) {
+              return <div key={`${tile[0]}-${tile[1]}-${index}`} className="justify-self-start">{tileNode}</div>;
+            }
+            return (
+              <button
+                key={`${tile[0]}-${tile[1]}-${index}`}
+                type="button"
+                onClick={() => onDominoTileSelect?.(key)}
+                disabled={isComplete}
+                aria-pressed={active}
+                aria-label={`Play domino ${tile[0]}-${tile[1]}`}
+                data-testid={`domino-tile-${tile[0]}-${tile[1]}`}
+                className={`justify-self-start rounded-[16px] border-2 bg-white p-0.5 shadow-[0_10px_20px_rgba(24,60,66,0.10)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#FBBF24] disabled:opacity-50 ${active ? "border-[#087C82]" : "border-[#087C82]"}`}
+              >
+                {tileNode}
+              </button>
+            );
+          })}
           {handTiles.length === 0 && visual.focusTile && (
             <DominoTile tile={visual.focusTile} />
           )}
@@ -731,39 +766,177 @@ function DominoesVisual({
   );
 }
 
-function BridgeCardsVisual({ visual }: { visual: Extract<SocialGameRoundVisual, { kind: "bridgeCards" }> }) {
+function getBridgeVisualLabels(language: SocialGameLanguage) {
+  return {
+    table: {
+      en: "Table",
+      es: "Mesa",
+      fr: "Table",
+      de: "Tisch",
+      it: "Tavolo",
+      pt: "Mesa",
+    }[language],
+    partner: {
+      en: "Partner",
+      es: "Companero",
+      fr: "Partenaire",
+      de: "Partner",
+      it: "Partner",
+      pt: "Parceiro",
+    }[language],
+    left: {
+      en: "Left",
+      es: "Izquierda",
+      fr: "Gauche",
+      de: "Links",
+      it: "Sinistra",
+      pt: "Esquerda",
+    }[language],
+    right: {
+      en: "Right",
+      es: "Derecha",
+      fr: "Droite",
+      de: "Rechts",
+      it: "Destra",
+      pt: "Direita",
+    }[language],
+    you: {
+      en: "You",
+      es: "Tu",
+      fr: "Vous",
+      de: "Du",
+      it: "Tu",
+      pt: "Voce",
+    }[language],
+    yourHand: {
+      en: "Your hand",
+      es: "Tu mano",
+      fr: "Votre main",
+      de: "Deine Hand",
+      it: "La tua mano",
+      pt: "Sua mao",
+    }[language],
+    points: {
+      en: "points",
+      es: "puntos",
+      fr: "points",
+      de: "Punkte",
+      it: "punti",
+      pt: "pontos",
+    }[language],
+    contract: {
+      en: "Contract",
+      es: "Contrato",
+      fr: "Contrat",
+      de: "Kontrakt",
+      it: "Contratto",
+      pt: "Contrato",
+    }[language],
+    missing: {
+      en: "Missing",
+      es: "Falta",
+      fr: "Manque",
+      de: "Fehlt",
+      it: "Manca",
+      pt: "Falta",
+    }[language],
+  };
+}
+
+function isWarmBridgeSuit(suit: string) {
+  const normalized = suit.toLocaleLowerCase();
+  return [
+    "heart",
+    "diamond",
+    "corazon",
+    "diamante",
+    "herz",
+    "karo",
+    "coeur",
+    "carreau",
+    "cuori",
+    "quadri",
+    "copa",
+    "ouro",
+  ].some((token) => normalized.includes(token));
+}
+
+function BridgePlayingCard({ card, index }: { card: NonNullable<Extract<SocialGameRoundVisual, { kind: "bridgeCards" }>["cards"]>[number]; index: number }) {
+  const warmSuit = isWarmBridgeSuit(card.suit);
+  const isKey = card.role === "key";
+
   return (
-    <div className="rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-4" data-testid="games-visual-bridge">
-      <p className="font-body text-[16px] font-extrabold leading-snug text-[#31555D]">{visual.caption}</p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {visual.points !== undefined && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#075C64]">{visual.points} points</span>}
-        {visual.partnerBid && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#075C64]">Partner: {visual.partnerBid}</span>}
-        {visual.contract && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#075C64]">Contract: {visual.contract}</span>}
+    <div
+      className={`flex h-[78px] w-[56px] shrink-0 rotate-[var(--card-tilt)] flex-col justify-between rounded-[12px] border bg-white px-2 py-2 shadow-[0_10px_18px_rgba(8,38,44,0.22)] ${
+        isKey ? "border-[#FBBF24]" : "border-[#D9C8AD]"
+      }`}
+      style={{ "--card-tilt": `${Math.max(-6, Math.min(6, index - 3))}deg` } as CSSProperties}
+      data-testid="games-bridge-card"
+    >
+      <span className={`font-body text-[15px] font-black leading-none ${warmSuit ? "text-[#9B3412]" : "text-[#173941]"}`}>{card.rank}</span>
+      <span className={`font-body text-[11px] font-extrabold leading-tight ${warmSuit ? "text-[#B45309]" : "text-[#31555D]"}`}>{card.suit}</span>
+    </div>
+  );
+}
+
+function BridgeCardsVisual({ visual, language }: { visual: Extract<SocialGameRoundVisual, { kind: "bridgeCards" }>; language: SocialGameLanguage }) {
+  const labels = getBridgeVisualLabels(language);
+  const cards = visual.cards ?? [];
+  const visibleCards = cards.slice(0, 8);
+
+  return (
+    <div className="min-w-0 overflow-hidden rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-2 sm:p-3" data-testid="games-visual-bridge">
+      <div className="min-w-0 rounded-[22px] bg-[#0A6F68] p-3 text-white shadow-inner" data-testid="games-bridge-table">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+          <div className="rounded-[14px] bg-white/10 px-3 py-2 text-center font-body text-[12px] font-black uppercase tracking-[0.08em] text-white/80">
+            {labels.left}
+          </div>
+          <div className="min-w-[92px] rounded-[16px] bg-white px-3 py-2 text-center shadow-[0_8px_18px_rgba(8,38,44,0.18)]" data-testid="games-bridge-partner">
+            <p className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#087C82]">{labels.partner}</p>
+            <p className="mt-1 font-body text-[12px] font-extrabold leading-tight text-[#173941]">{visual.partnerBid ?? labels.table}</p>
+          </div>
+          <div className="rounded-[14px] bg-white/10 px-3 py-2 text-center font-body text-[12px] font-black uppercase tracking-[0.08em] text-white/80">
+            {labels.right}
+          </div>
+        </div>
+
+        <div className="mx-auto mt-3 min-h-[76px] max-w-[220px] rounded-[20px] border border-white/20 bg-white/12 px-3 py-2 text-center">
+          <p className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-white/80">{visual.caption}</p>
+          <div className="mt-2 flex flex-wrap justify-center gap-1.5">
+            {visual.points !== undefined && (
+              <span className="rounded-full bg-white px-2.5 py-1 font-body text-[12px] font-extrabold text-[#075C64]">
+                {visual.points} {labels.points}
+              </span>
+            )}
+            {visual.contract && (
+              <span className="rounded-full bg-white px-2.5 py-1 font-body text-[12px] font-extrabold text-[#075C64]">
+                {labels.contract}: {visual.contract}
+              </span>
+            )}
+            {visual.missingCard && (
+              <span className="rounded-full bg-[#FFF7ED] px-2.5 py-1 font-body text-[12px] font-extrabold text-[#8A4B00]">
+                {labels.missing}: {visual.missingCard.rank}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-3 min-w-0 rounded-[20px] bg-[#EAF6F3] px-3 py-3 text-[#173941]" data-testid="games-bridge-hand">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+            <p className="font-body text-[13px] font-black uppercase tracking-[0.08em] text-[#087C82]">{labels.yourHand}</p>
+            {visual.suitLengths?.length ? (
+              <p className="font-body text-[12px] font-extrabold text-[#31555D]">
+                {visual.suitLengths.map((item) => `${item.length} ${item.suit}`).join(" / ")}
+              </p>
+            ) : null}
+          </div>
+          <div className="mt-2 flex min-h-[84px] min-w-0 max-w-full items-center gap-1.5 overflow-x-auto pb-1">
+            {visibleCards.map((card, index) => (
+              <BridgePlayingCard key={`${card.rank}-${card.suit}-${index}`} card={card} index={index} />
+            ))}
+          </div>
+        </div>
       </div>
-      {visual.suitLengths && (
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          {visual.suitLengths.map((item) => (
-            <div key={`${item.suit}-${item.length}`} className="rounded-[16px] bg-white px-4 py-3 font-body text-[16px] font-extrabold text-[#173941]">
-              {item.length} {item.suit}
-            </div>
-          ))}
-        </div>
-      )}
-      {visual.cards && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {visual.cards.map((card, index) => (
-            <div key={`${card.rank}-${card.suit}-${index}`} className="flex h-[92px] w-[68px] flex-col justify-between rounded-[14px] border border-[#D9C8AD] bg-white px-2 py-2 shadow-[0_10px_20px_rgba(24,60,66,0.12)]">
-              <span className="font-body text-[15px] font-black text-[#173941]">{card.rank}</span>
-              <span className="font-body text-[13px] font-extrabold text-[#A86200]">{card.suit}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {visual.missingCard && (
-        <p className="mt-3 rounded-[16px] bg-white px-4 py-3 font-body text-[15px] font-extrabold text-[#597178]">
-          Missing: {visual.missingCard.rank} of {visual.missingCard.suit}
-        </p>
-      )}
     </div>
   );
 }
@@ -777,6 +950,7 @@ function PuzzleVisualPanel({
   isComplete,
   revealChessGuidance,
   onChessSquareSelect,
+  onDominoTileSelect,
 }: {
   visual?: SocialGameRoundVisual;
   interaction?: SocialGameRoundInteraction;
@@ -786,6 +960,7 @@ function PuzzleVisualPanel({
   isComplete?: boolean;
   revealChessGuidance?: boolean;
   onChessSquareSelect?: (square: string) => void;
+  onDominoTileSelect?: (value: string) => void;
 }) {
   if (!visual || visual.kind === "wordTiles") return null;
   if (visual.kind === "chessBoard") {
@@ -801,8 +976,19 @@ function PuzzleVisualPanel({
       />
     );
   }
-  if (visual.kind === "dominoes") return <DominoesVisual visual={visual} language={language} />;
-  return <BridgeCardsVisual visual={visual} />;
+  if (visual.kind === "dominoes") {
+    return (
+      <DominoesVisual
+        visual={visual}
+        interaction={interaction?.kind === "dominoPlay" ? interaction : undefined}
+        language={language}
+        selectedTactileValue={selectedTactileValue}
+        isComplete={isComplete}
+        onDominoTileSelect={onDominoTileSelect}
+      />
+    );
+  }
+  return <BridgeCardsVisual visual={visual} language={language} />;
 }
 
 function RoundCompletePanel({
@@ -877,9 +1063,10 @@ function TactileInteractionPanel({
 
   if (interaction.kind === "chessTap") {
     return (
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[16px] bg-[#F4FAF8] px-3 py-2" data-testid="games-chess-action-row">
-        <p className="font-body text-[16px] font-extrabold leading-snug text-[#31555D]">
-          {getChessTapCue(language)}
+      <div className="mt-3 flex items-center justify-between gap-2 rounded-[18px] bg-[#E8F7F6] px-3 py-2 shadow-[0_8px_18px_rgba(11,60,66,0.05)]" data-testid="games-chess-action-row">
+        <p className="flex min-w-0 items-center gap-2 font-body text-[15px] font-extrabold leading-snug text-[#075C64] sm:text-[16px]">
+          <Hand className="shrink-0" size={20} strokeWidth={2.7} />
+          <span>{getChessTapCue(language)}</span>
         </p>
         {helpButton}
       </div>
@@ -897,33 +1084,12 @@ function TactileInteractionPanel({
     );
 
     return (
-      <div className="mt-4 rounded-[22px] bg-[#F4FAF8] px-4 py-4" data-testid="games-tactile-dominoes">
+      <div className="mt-3 rounded-[18px] bg-[#E8F7F6] px-3 py-2 shadow-[0_8px_18px_rgba(11,60,66,0.05)]" data-testid="games-tactile-dominoes">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="font-body text-[16px] font-extrabold leading-snug text-[#31555D]">{interaction.instruction}</p>
+          <p className="font-body text-[15px] font-extrabold leading-snug text-[#075C64] sm:text-[16px]">{interaction.instruction}</p>
           {helpButton}
         </div>
-        {tiles.length > 0 ? (
-          <div className="mt-3 flex flex-wrap gap-3">
-            {tiles.map((tile, index) => {
-              const value = dominoTileKey(tile);
-              const active = isSelectedDominoTile(selectedTactileValue, tile);
-              return (
-                <button
-                  key={`${tile[0]}-${tile[1]}-${index}`}
-                  type="button"
-                  onClick={() => onTactileAnswer(value)}
-                  disabled={isComplete}
-                  aria-pressed={active}
-                  aria-label={`Play domino ${tile[0]}-${tile[1]}`}
-                  data-testid={`domino-tile-${tile[0]}-${tile[1]}`}
-                  className={`rounded-[18px] border-2 bg-white p-2 shadow-[0_10px_20px_rgba(24,60,66,0.10)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#FBBF24] disabled:opacity-50 ${active ? "border-[#087C82]" : "border-transparent"}`}
-                >
-                  <DominoTile tile={tile} />
-                </button>
-              );
-            })}
-          </div>
-        ) : (
+        {tiles.length === 0 && (
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
             {(interaction.actions ?? []).map((action) => (
               <button
@@ -1042,26 +1208,26 @@ function WordTilesInteraction({
   const progressLabel = getWordProgressLabel(language, selectedTileIndices.length, visual.answerLength);
 
   return (
-    <div className="mt-5 space-y-4" data-testid="games-word-tiles-panel">
-      <div className="rounded-[26px] border border-[#D8E6E2] bg-gradient-to-b from-[#F4FAF8] to-white p-4">
+    <div className="mt-4 space-y-3" data-testid="games-word-tiles-panel">
+      <div className="rounded-[24px] border border-[#D8E6E2] bg-gradient-to-b from-[#F4FAF8] to-white p-3 sm:p-4">
         <div className="flex flex-wrap gap-2">
           {visual.baseWord && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#075C64]">Base: {visual.baseWord}</span>}
           {visual.pattern && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#075C64]">{visual.pattern}</span>}
           {visual.clue && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#597178]">{visual.clue}</span>}
         </div>
 
-        <div className="mt-4 rounded-[24px] border border-[#CFE7E2] bg-white px-4 py-4 shadow-[0_10px_22px_rgba(11,60,66,0.06)]">
+        <div className="mt-3 rounded-[22px] border border-[#CFE7E2] bg-white px-3 py-3 shadow-[0_10px_22px_rgba(11,60,66,0.06)] sm:px-4 sm:py-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="font-body text-[16px] font-extrabold uppercase text-[#075C64]">{getWordTrayLabel(language)}</p>
             <p className="rounded-full bg-[#E8F7F6] px-3 py-1 font-body text-[14px] font-extrabold text-[#087C82]" data-testid="word-tile-progress" role="status">
               {progressLabel}
             </p>
           </div>
-          <div className="mt-3 flex flex-wrap gap-2" data-testid="word-answer-tray">
+          <div className="mt-3 flex flex-wrap gap-1.5 sm:gap-2" data-testid="word-answer-tray">
             {traySlots.map((tile, index) => (
               <div
                 key={`${tile || "slot"}-${index}`}
-                className={`flex min-h-[64px] min-w-[64px] items-center justify-center rounded-[18px] border-2 px-3 font-body text-[24px] font-black text-[#075C64] ${tile ? "border-[#087C82] bg-[#E8F7F6] shadow-[0_8px_18px_rgba(8,124,130,0.10)]" : "border-dashed border-[#A8D4CF] bg-[#FBFEFC]"}`}
+                className={`flex min-h-[52px] min-w-[52px] items-center justify-center rounded-[16px] border-2 px-2 font-body text-[22px] font-black text-[#075C64] sm:min-h-[64px] sm:min-w-[64px] sm:rounded-[18px] sm:px-3 sm:text-[24px] ${tile ? "border-[#087C82] bg-[#E8F7F6] shadow-[0_8px_18px_rgba(8,124,130,0.10)]" : "border-dashed border-[#A8D4CF] bg-[#FBFEFC]"}`}
               >
                 {tile}
               </div>
@@ -1069,7 +1235,7 @@ function WordTilesInteraction({
           </div>
         </div>
 
-        <div className="mt-4">
+        <div className="mt-3">
           <p className="font-body text-[15px] font-extrabold uppercase text-[#597178]">{getWordRackLabel(language)}</p>
           <div className="mt-2 flex flex-wrap gap-2" aria-label={getWordRackLabel(language)}>
             {orderedTileIndices.map((index) => {
@@ -1083,7 +1249,7 @@ function WordTilesInteraction({
                   disabled={used || isComplete || selectedTileIndices.length >= visual.answerLength}
                   aria-pressed={used}
                   data-testid={`word-tile-${index}`}
-                  className="flex min-h-[58px] min-w-[58px] items-center justify-center rounded-[16px] border border-[#D9C8AD] bg-[#FFF7E6] px-3 font-body text-[22px] font-black text-[#173941] shadow-[0_10px_18px_rgba(24,60,66,0.10)] disabled:opacity-35"
+                  className="flex min-h-[52px] min-w-[52px] items-center justify-center rounded-[15px] border border-[#D9C8AD] bg-[#FFF7E6] px-2 font-body text-[21px] font-black text-[#173941] shadow-[0_10px_18px_rgba(24,60,66,0.10)] disabled:opacity-35 sm:min-h-[58px] sm:min-w-[58px] sm:rounded-[16px] sm:px-3 sm:text-[22px]"
                 >
                   {tile}
                 </button>
@@ -1092,44 +1258,52 @@ function WordTilesInteraction({
           </div>
         </div>
 
-        <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_1fr_1fr_1fr_1.35fr]">
+        <div className="mt-3 grid grid-cols-[repeat(4,48px)_minmax(0,1fr)] gap-2 sm:grid-cols-[1fr_1fr_1fr_1fr_1.35fr]">
           <button
             type="button"
             onClick={onUndo}
             disabled={!selectedTileIndices.length || isComplete}
-            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-3 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40"
+            aria-label={getWordUndoLabel(language)}
+            title={getWordUndoLabel(language)}
+            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-0 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40 sm:px-3"
           >
             <Undo2 size={18} />
-            {getWordUndoLabel(language)}
+            <span className="sr-only sm:not-sr-only">{getWordUndoLabel(language)}</span>
           </button>
           <button
             type="button"
             onClick={onClear}
             disabled={!selectedTileIndices.length || isComplete}
-            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-3 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40"
+            aria-label={getWordClearLabel(language)}
+            title={getWordClearLabel(language)}
+            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-0 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40 sm:px-3"
           >
             <Eraser size={18} />
-            {getWordClearLabel(language)}
+            <span className="sr-only sm:not-sr-only">{getWordClearLabel(language)}</span>
           </button>
           <button
             type="button"
             onClick={onShuffle}
             disabled={isComplete || visual.tiles.length < 2}
+            aria-label={getWordShuffleLabel(language)}
+            title={getWordShuffleLabel(language)}
             data-testid="word-shuffle"
-            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-3 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40"
+            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-0 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40 sm:px-3"
           >
             <Shuffle size={18} />
-            {getWordShuffleLabel(language)}
+            <span className="sr-only sm:not-sr-only">{getWordShuffleLabel(language)}</span>
           </button>
           <button
             type="button"
             onClick={onShowHelp}
             disabled={isComplete}
+            aria-label={getWordHelpLabel(language)}
+            title={getWordHelpLabel(language)}
             data-testid="word-show-help"
-            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-3 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40"
+            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-0 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40 sm:px-3"
           >
             <HelpCircle size={18} />
-            {getWordHelpLabel(language)}
+            <span className="sr-only sm:not-sr-only">{getWordHelpLabel(language)}</span>
           </button>
           <button
             type="button"
@@ -1219,6 +1393,7 @@ export default function GamesRoomScreen({
 
   const [loadedRoundsByKind, setLoadedRoundsByKind] = useState<GameRoundsByKind>(() => groupRoundsByKind(gameTable.rounds));
   const [selectedRoundId, setSelectedRoundId] = useState(initialRoundId);
+  const [isGameSelected, setIsGameSelected] = useState(false);
   const [startedGameKinds, setStartedGameKinds] = useState<SocialGameKind[]>([]);
   const [startedRoundId, setStartedRoundId] = useState<string | null>(null);
   const [selectedChoice, setSelectedChoice] = useState("");
@@ -1292,10 +1467,13 @@ export default function GamesRoomScreen({
     selectedRound?.interaction?.kind === "chessTap"
     && (showTactileHelp || wrongTactileValue || hasCompletedSelectedRound),
   );
+  const showConnectionPanel = Boolean(isGameSelected && hasCompletedSelectedRound);
   const canBrowseSelectedPuzzles = Boolean(puzzleBankLabels && selectedPuzzleTotal > 1);
   const isPuzzleNavigationDisabled = isLoadingSelectedBank || selectedKindRounds.length < 2;
 
   useEffect(() => {
+    if (!isGameSelected) return;
+
     const kind = selectedRound?.kind;
     if (!kind) return;
 
@@ -1332,6 +1510,7 @@ export default function GamesRoomScreen({
     language,
     loadedRoundsByKind,
     room.slug,
+    isGameSelected,
     selectedRound?.kind,
   ]);
 
@@ -1405,6 +1584,21 @@ export default function GamesRoomScreen({
     setShowTactileHelp(false);
     setShowTactileChoices(false);
     setTactileFeedback(null);
+  };
+
+  const chooseGameRound = (round: SocialGameRound) => {
+    setIsGameSelected(true);
+    selectRound(round, { enterPlayMode: true });
+  };
+
+  const handleBack = () => {
+    if (isGameSelected) {
+      setIsGameSelected(false);
+      setMatchResponse(null);
+      return;
+    }
+
+    onBack();
   };
 
   const selectPuzzleAtOffset = (offset: number) => {
@@ -1602,7 +1796,7 @@ export default function GamesRoomScreen({
   };
 
   const findPartner = async () => {
-    if (!selectedRound || isMatching) return;
+    if (!isGameSelected || !selectedRound || isMatching) return;
 
     setIsMatching(true);
     try {
@@ -1622,22 +1816,23 @@ export default function GamesRoomScreen({
   };
 
   return (
-    <div className="min-h-screen bg-[#F7FAF8] px-4 pb-8 pt-4 text-[#07313A] sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#F7FAF8] px-4 pb-32 pt-4 text-[#07313A] sm:px-6 sm:pb-10 lg:px-8">
       <SocialStyles />
 
       <div className="mx-auto max-w-6xl">
         <header className="grid grid-cols-[56px_1fr_auto] items-center gap-3">
           <button
             type="button"
-            onClick={onBack}
+            onClick={handleBack}
             aria-label="Back"
+            data-testid="games-room-back"
             className="flex h-14 w-14 items-center justify-center rounded-[18px] bg-white text-[#075C64] shadow-[0_14px_30px_rgba(9,52,59,0.12)]"
           >
             <ArrowLeft size={27} strokeWidth={2.8} />
           </button>
 
           <div className="min-w-0 text-center">
-            <h1 className="font-display text-[42px] leading-[0.98] text-[#07313A] sm:text-[56px] lg:text-[64px]">
+            <h1 className={`whitespace-nowrap font-display leading-[0.98] text-[#07313A] ${isGameSelected ? "text-[30px] sm:text-[44px] lg:text-[52px]" : "text-[32px] sm:text-[56px] lg:text-[64px]"}`}>
               {room.name}
             </h1>
           </div>
@@ -1648,115 +1843,96 @@ export default function GamesRoomScreen({
           </div>
         </header>
 
-        <div className="mt-5 flex items-center justify-center gap-3">
-          <AgentAvatar
-            agentSlug={room.agentSlug}
-            fullName={room.agentFullName}
-            colour={room.agentColour}
-            size={64}
-            title={room.agentFullName}
-          />
-          <div className="min-w-0">
-            <p className="flex items-center gap-2 font-body text-[25px] font-extrabold leading-tight text-[#132C35]">
-              {room.agentFullName.split(" ")[0] || room.agentFullName} is hosting
-              <Sparkles size={22} className="text-[#7C3AED]" />
-            </p>
-            <p className="mt-1 font-body text-[17px] font-semibold leading-snug text-[#557078]">{gameTable.hostLine}</p>
-          </div>
-        </div>
-
-        <main className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)] lg:items-start">
-          <section className="space-y-5">
-            <div className="relative overflow-hidden rounded-[28px] bg-[#0A7372] shadow-[0_22px_52px_rgba(7,49,58,0.16)]">
-              <img
-                src={gameTableImage}
-                alt=""
-                className="aspect-[16/10] w-full object-cover"
-                draggable={false}
-              />
-              <div className="absolute left-4 top-4 rounded-[20px] bg-white/95 px-5 py-4 shadow-[0_16px_34px_rgba(7,49,58,0.12)] backdrop-blur-sm">
-                <p className="font-body text-[23px] font-extrabold leading-tight text-[#083640]">{gameTable.tableLabel}</p>
-                <p className="mt-2 flex items-center gap-2 font-body text-[18px] font-bold text-[#087C82]">
-                  <Users size={22} />
-                  {gameTable.readyLabel}
-                </p>
-              </div>
+        {!isGameSelected && (
+          <div className="mt-5 flex items-center justify-center gap-3">
+            <AgentAvatar
+              agentSlug={room.agentSlug}
+              fullName={room.agentFullName}
+              colour={room.agentColour}
+              size={64}
+              title={room.agentFullName}
+            />
+            <div className="min-w-0">
+              <p className="flex items-center gap-2 font-body text-[21px] font-extrabold leading-tight text-[#132C35] sm:text-[25px]">
+                {gameTable.hostLine}
+                <Sparkles size={22} className="text-[#7C3AED]" />
+              </p>
             </div>
+          </div>
+        )}
 
-            <section aria-labelledby="game-round-heading">
-              <h2 id="game-round-heading" className="font-body text-[30px] font-extrabold leading-tight text-[#07313A]">
-                {gameTable.chooseRoundLabel}
-              </h2>
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {roundCards.map((round) => {
-                  const active = round.kind === selectedRound?.kind;
-                  const Icon = roundIcons[round.kind];
-                  return (
-                    <button
-                      key={round.kind}
-                      type="button"
-                      onClick={() => selectRound(round, { recordSkip: true })}
-                      data-testid={`games-round-${round.kind}`}
-                      className="relative min-h-[148px] rounded-[24px] border bg-white px-3 py-4 text-center shadow-[0_12px_28px_rgba(11,60,66,0.08)] transition-transform active:scale-[0.99]"
-                      style={{
-                        borderColor: active ? "#087C82" : "#DDE5E3",
-                        background: active ? "linear-gradient(180deg,#E9FAF8 0%,#FFFFFF 100%)" : "#FFFFFF",
-                      }}
-                    >
-                      {active && (
-                        <span className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-[#087C82] text-white">
-                          <Check size={22} strokeWidth={3} />
-                        </span>
-                      )}
-                      <span className="mx-auto flex h-[58px] w-[58px] items-center justify-center rounded-[20px] bg-[#E8F7F6] text-[#087C82]">
-                        <Icon size={31} strokeWidth={2.6} />
-                      </span>
-                      <span className="mt-4 block font-body text-[19px] font-extrabold leading-tight text-[#0C2F38]">
-                        {round.title}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-
-            {selectedRound && (
-              <section
-                className="rounded-[28px] border border-[#D8E6E2] bg-white px-5 py-5 shadow-[0_16px_34px_rgba(11,60,66,0.08)]"
-                aria-live="polite"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="flex h-[58px] w-[58px] shrink-0 items-center justify-center rounded-[20px] bg-[#FFF4DA] text-[#A86200]">
-                    <Brain size={31} strokeWidth={2.5} />
-                  </div>
-                  <div className="min-w-0">
-                    <h2 className="font-body text-[25px] font-extrabold leading-tight text-[#07313A]">{selectedRound.title}</h2>
-                    <p className="mt-1 font-body text-[18px] font-semibold leading-snug text-[#597178]">{selectedRound.body}</p>
-                  </div>
-                </div>
-                {puzzleBankLabels && selectedPuzzleTotal > 1 && (
-                  <div className="mt-5 rounded-[22px] border border-[#D8E6E2] bg-[#F4FAF8] px-4 py-3">
-                    <p className="font-body text-[18px] font-extrabold text-[#087C82]">
-                      {puzzleBankLabels.progress}
+        <main className={`mt-6 grid gap-5 lg:items-start ${showConnectionPanel ? "lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]" : ""}`}>
+          <section className={`min-w-0 space-y-5 ${isGameSelected && !showConnectionPanel ? "mx-auto w-full max-w-[720px]" : ""}`}>
+            {!isGameSelected && (
+              <>
+                <div className="relative overflow-hidden rounded-[28px] bg-[#0A7372] shadow-[0_22px_52px_rgba(7,49,58,0.16)]">
+                  <img
+                    src={gameTableImage}
+                    alt=""
+                    className="aspect-[16/10] w-full object-cover"
+                    draggable={false}
+                  />
+                  <div className="absolute left-4 top-4 rounded-[20px] bg-white/95 px-5 py-4 shadow-[0_16px_34px_rgba(7,49,58,0.12)] backdrop-blur-sm">
+                    <p className="font-body text-[23px] font-extrabold leading-tight text-[#083640]">{gameTable.tableLabel}</p>
+                    <p className="mt-2 flex items-center gap-2 font-body text-[18px] font-bold text-[#087C82]">
+                      <Users size={22} />
+                      {gameTable.readyLabel}
                     </p>
                   </div>
-                )}
+                </div>
+
+                <section aria-labelledby="game-round-heading" data-testid="games-round-picker">
+                  <h2 id="game-round-heading" className="font-body text-[30px] font-extrabold leading-tight text-[#07313A]">
+                    {gameTable.chooseRoundLabel}
+                  </h2>
+                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {roundCards.map((round) => {
+                      const Icon = roundIcons[round.kind];
+                      return (
+                        <button
+                          key={round.kind}
+                          type="button"
+                          onClick={() => chooseGameRound(round)}
+                          data-testid={`games-round-${round.kind}`}
+                          className="relative min-h-[126px] rounded-[24px] border border-[#DDE5E3] bg-white px-3 py-4 text-center shadow-[0_12px_28px_rgba(11,60,66,0.08)] transition-transform active:scale-[0.99] sm:min-h-[148px]"
+                        >
+                          <span className="mx-auto flex h-[58px] w-[58px] items-center justify-center rounded-[20px] bg-[#E8F7F6] text-[#087C82]">
+                            <Icon size={31} strokeWidth={2.6} />
+                          </span>
+                          <span className="mt-4 block font-body text-[19px] font-extrabold leading-tight text-[#0C2F38]">
+                            {round.title}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              </>
+            )}
+
+            {isGameSelected && selectedRound && (
+              <section
+                className="min-w-0 rounded-[28px] border border-[#D8E6E2] bg-white px-4 py-4 shadow-[0_16px_34px_rgba(11,60,66,0.08)] sm:px-5 sm:py-5"
+                aria-live="polite"
+                data-testid="games-selected-puzzle"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[16px] bg-[#FFF4DA] text-[#A86200] sm:h-[52px] sm:w-[52px] sm:rounded-[18px]">
+                      <Brain size={26} strokeWidth={2.5} />
+                    </div>
+                    <h2 className="min-w-0 font-body text-[22px] font-extrabold leading-tight text-[#07313A] sm:text-[25px]">{selectedRound.title}</h2>
+                  </div>
+                  {puzzleBankLabels && selectedPuzzleTotal > 1 && (
+                    <p className="shrink-0 rounded-full border border-[#BFDAD7] bg-[#F4FAF8] px-3 py-2 font-body text-[15px] font-extrabold leading-none text-[#087C82] sm:px-4 sm:text-[17px]">
+                      {puzzleBankLabels.progress}
+                    </p>
+                  )}
+                </div>
 
                 {hasStartedSelectedRound ? (
-                  <div className="mt-5">
-                    <div className="mb-4">
-                      <PuzzleVisualPanel
-                        visual={selectedRound.visual}
-                        interaction={selectedRound.interaction}
-                        language={language}
-                        selectedTactileValue={selectedTactileValue}
-                        wrongTactileValue={wrongTactileValue}
-                        isComplete={hasCompletedSelectedRound}
-                        revealChessGuidance={shouldRevealChessGuidance}
-                        onChessSquareSelect={chooseTactileAnswer}
-                      />
-                    </div>
-                    <p className="font-body text-[22px] font-bold leading-snug text-[#173941]">{displayedPrompt}</p>
+                  <div className="mt-4">
+                    <p className="font-body text-[20px] font-extrabold leading-snug text-[#173941] sm:text-[22px]">{displayedPrompt}</p>
 
                     {selectedWordVisual ? (
                       <WordTilesInteraction
@@ -1786,6 +1962,37 @@ export default function GamesRoomScreen({
                     ) : (
                       <>
                         {!hasCompletedSelectedRound && (
+                          selectedRound.interaction?.kind === "chessTap"
+                          || selectedRound.interaction?.kind === "dominoPlay"
+                        ) && (
+                          <TactileInteractionPanel
+                            interaction={selectedRound.interaction}
+                            language={language}
+                            selectedTactileValue={selectedTactileValue}
+                            isComplete={hasCompletedSelectedRound}
+                            onTactileAnswer={chooseTactileAnswer}
+                            onShowHelp={() => setShowTactileHelp(true)}
+                          />
+                        )}
+
+                        <div className="mt-4">
+                          <PuzzleVisualPanel
+                            visual={selectedRound.visual}
+                            interaction={selectedRound.interaction}
+                            language={language}
+                            selectedTactileValue={selectedTactileValue}
+                            wrongTactileValue={wrongTactileValue}
+                            isComplete={hasCompletedSelectedRound}
+                            revealChessGuidance={shouldRevealChessGuidance}
+                            onChessSquareSelect={chooseTactileAnswer}
+                            onDominoTileSelect={chooseTactileAnswer}
+                          />
+                        </div>
+
+                        {!hasCompletedSelectedRound
+                          && selectedRound.interaction?.kind !== "chessTap"
+                          && selectedRound.interaction?.kind !== "dominoPlay"
+                          && (
                           <TactileInteractionPanel
                             interaction={selectedRound.interaction}
                             language={language}
@@ -1952,6 +2159,7 @@ export default function GamesRoomScreen({
             )}
           </section>
 
+          {showConnectionPanel && (
           <aside className="hidden space-y-5 lg:block">
             <section className="rounded-[28px] border border-[#D8E6E2] bg-white px-5 py-5 shadow-[0_16px_34px_rgba(11,60,66,0.08)]">
               <h2 className="font-body text-[27px] font-extrabold leading-tight text-[#07313A]">{gameTable.connectionTitle}</h2>
@@ -1988,7 +2196,7 @@ export default function GamesRoomScreen({
               <button
                 type="button"
                 onClick={() => void findPartner()}
-                disabled={isMatching || !selectedRound}
+                disabled={isMatching || !isGameSelected || !selectedRound}
                 data-testid="games-find-partner"
                 className="mt-5 flex min-h-[66px] w-full items-center justify-center gap-3 rounded-[22px] bg-[#007B7E] px-5 font-body text-[21px] font-extrabold text-white shadow-[0_16px_34px_rgba(0,123,126,0.2)] disabled:opacity-55"
               >
@@ -2008,29 +2216,32 @@ export default function GamesRoomScreen({
               )}
             </section>
 
-            <section className="rounded-[28px] border border-[#D8E6E2] bg-white px-5 py-5 shadow-[0_16px_34px_rgba(11,60,66,0.08)]">
-              <h2 className="font-body text-[25px] font-extrabold leading-tight text-[#07313A]">{getChatTitle(language)}</h2>
-              <div className="mt-4 space-y-3">
-                {visibleChat.map((item: SocialRoomChatItem, index) => (
-                  <div key={item.id} className="flex gap-3 rounded-[20px] bg-[#F7FAF8] px-4 py-4">
-                    <div
-                      className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full font-body text-[17px] font-extrabold text-white"
-                      style={{ background: memberColours[index % memberColours.length] }}
-                    >
-                      {getMemberInitials(item.authorName)}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <p className="font-body text-[17px] font-extrabold text-[#173941]">{item.authorName}</p>
-                        <p className="font-body text-[14px] font-semibold text-[#7D9095]">{formatChatTime(item.createdAt, language)}</p>
+            {visibleChat.length > 0 && (
+              <section className="rounded-[28px] border border-[#D8E6E2] bg-white px-5 py-5 shadow-[0_16px_34px_rgba(11,60,66,0.08)]">
+                <h2 className="font-body text-[25px] font-extrabold leading-tight text-[#07313A]">{getChatTitle(language)}</h2>
+                <div className="mt-4 space-y-3">
+                  {visibleChat.map((item: SocialRoomChatItem, index) => (
+                    <div key={item.id} className="flex gap-3 rounded-[20px] bg-[#F7FAF8] px-4 py-4">
+                      <div
+                        className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full font-body text-[17px] font-extrabold text-white"
+                        style={{ background: memberColours[index % memberColours.length] }}
+                      >
+                        {getMemberInitials(item.authorName)}
                       </div>
-                      <p className="mt-1 font-body text-[17px] font-semibold leading-snug text-[#5A7279]">{item.text}</p>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <p className="font-body text-[17px] font-extrabold text-[#173941]">{item.authorName}</p>
+                          <p className="font-body text-[14px] font-semibold text-[#7D9095]">{formatChatTime(item.createdAt, language)}</p>
+                        </div>
+                        <p className="mt-1 font-body text-[17px] font-semibold leading-snug text-[#5A7279]">{item.text}</p>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </section>
+                  ))}
+                </div>
+              </section>
+            )}
           </aside>
+          )}
         </main>
 
       </div>

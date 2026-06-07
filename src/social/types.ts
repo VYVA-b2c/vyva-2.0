@@ -61,7 +61,7 @@ export type SocialGameRoundVisual =
       points?: number;
       contract?: string;
       partnerBid?: string;
-      cards?: Array<{ rank: string; suit: string }>;
+      cards?: Array<{ rank: string; suit: string; role?: "key" | "support" | "side" }>;
       suitLengths?: Array<{ suit: string; length: number }>;
       missingCard?: { rank: string; suit: string };
     };
