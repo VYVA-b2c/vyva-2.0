@@ -1078,7 +1078,7 @@ router.get("/", async (req: Request, res: Response) => {
   const accountUserId = req.user?.id ?? null;
 
   try {
-    const [rows, accountRows] = await Promise.all([
+    const [rows, accountRows, accountProfileRows] = await Promise.all([
       selectProfileSettingsRows(userId),
       accountUserId
         ? db
@@ -1092,6 +1092,13 @@ router.get("/", async (req: Request, res: Response) => {
               throw err;
             })
         : Promise.resolve([]),
+      accountUserId && accountUserId !== userId
+        ? db
+            .select({ email: profiles.email, phone_number: profiles.phone_number })
+            .from(profiles)
+            .where(eq(profiles.id, accountUserId))
+            .limit(1)
+        : Promise.resolve([]),
     ]);
 
     if (!rows[0]) {
@@ -1099,9 +1106,10 @@ router.get("/", async (req: Request, res: Response) => {
     }
 
     const p = rows[0];
-    const accountEmail = typeof req.user?.email === "string"
-      ? req.user.email
-      : accountRows[0]?.email ?? null;
+    const accountEmail = trimToNull(req.user?.email)
+      ?? trimToNull(accountRows[0]?.email)
+      ?? trimToNull(accountProfileRows[0]?.email);
+    const isEditingActiveCareProfile = Boolean(accountUserId && accountUserId !== p.id);
     const nameParts = (p.full_name ?? "").trim().split(/\s+/);
     const firstName = nameParts[0] ?? "";
     const lastName  = nameParts.slice(1).join(" ");
@@ -1113,7 +1121,7 @@ router.get("/", async (req: Request, res: Response) => {
       preferredName:    p.preferred_name ?? "",
       dateOfBirth:      p.date_of_birth ?? "",
       gender:           readProfileGender(p.data_sharing_consent),
-      email:            p.email ?? accountEmail ?? "",
+      email:            p.email ?? (isEditingActiveCareProfile ? "" : accountEmail ?? ""),
       accountEmail:     accountEmail ?? "",
       accountUserId,
       profileId:        p.id,
@@ -1272,17 +1280,19 @@ router.post("/", async (req: Request, res: Response) => {
     const existingProfile = existingRows[0];
     const account = accountRows[0];
     const accountProfile = accountProfileRows[0];
-    const accountEmail = typeof req.user?.email === "string" ? req.user.email : account?.email ?? accountProfile?.email;
+    const accountEmail = trimToNull(req.user?.email)
+      ?? trimToNull(account?.email)
+      ?? trimToNull(accountProfile?.email);
     const accountPhone = normalizeProfilePhone(account?.phone_number ?? accountProfile?.phone_number ?? null);
     const dataSharingConsent = mergeIdentityGender(existingRows[0]?.data_sharing_consent, d.gender);
     const inputEmail = trimToNull(d.email);
     const inputPhone = normalizeProfilePhone(d.phone);
     const inputWhatsapp = normalizeProfilePhone(d.whatsapp) ?? trimToNull(d.whatsapp);
     const isEditingActiveCareProfile = Boolean(accountUserId && accountUserId !== userId);
-    const profileEmail = isEditingActiveCareProfile && sameEmail(inputEmail, accountEmail)
+    let profileEmail = isEditingActiveCareProfile && sameEmail(inputEmail, accountEmail)
       ? existingProfile?.email ?? null
       : inputEmail;
-    const profilePhone = isEditingActiveCareProfile && samePhone(inputPhone, accountPhone)
+    let profilePhone = isEditingActiveCareProfile && samePhone(inputPhone, accountPhone)
       ? normalizeProfilePhone(existingProfile?.phone_number) ?? null
       : inputPhone;
 
@@ -1297,9 +1307,13 @@ router.post("/", async (req: Request, res: Response) => {
         .limit(1);
 
       if (emailOwner) {
-        return res.status(409).json({
-          error: "That email is already used on another profile. Use the account email only for your sign-in account, or choose a different profile email.",
-        });
+        if (isEditingActiveCareProfile && emailOwner.id === accountUserId) {
+          profileEmail = existingProfile?.email ?? null;
+        } else {
+          return res.status(409).json({
+            error: "That email is already used on another profile. Use the account email only for your sign-in account, or choose a different profile email.",
+          });
+        }
       }
     }
 
@@ -1318,9 +1332,13 @@ router.post("/", async (req: Request, res: Response) => {
         .limit(1);
 
       if (phoneOwner) {
-        return res.status(409).json({
-          error: "That phone number is already used on another profile. Choose a different profile phone number.",
-        });
+        if (isEditingActiveCareProfile && phoneOwner.id === accountUserId) {
+          profilePhone = normalizeProfilePhone(existingProfile?.phone_number) ?? null;
+        } else {
+          return res.status(409).json({
+            error: "That phone number is already used on another profile. Choose a different profile phone number.",
+          });
+        }
       }
     }
 
