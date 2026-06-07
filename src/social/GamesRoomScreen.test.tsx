@@ -493,7 +493,7 @@ describe("GamesRoomScreen", () => {
     expect(screen.getByTestId("games-selected-puzzle")).toBeInTheDocument();
     expect(screen.getByText("Puzzle 1 of 2")).toBeInTheDocument();
     expect(screen.queryByTestId("games-start-round")).not.toBeInTheDocument();
-    expect(screen.getByTestId("games-chess-action-row")).toHaveTextContent("Tap a glowing piece or square.");
+    expect(screen.getByTestId("games-chess-action-row")).toHaveTextContent("Tap a marker.");
 
     fireEvent.click(screen.getByTestId("games-room-back"));
 
@@ -535,7 +535,7 @@ describe("GamesRoomScreen", () => {
     expect(screen.getByText("Find the strongest king pressure.")).toBeInTheDocument();
     expect(screen.queryByTestId("games-tactile-chess")).not.toBeInTheDocument();
     expect(screen.queryByText("Your move")).not.toBeInTheDocument();
-    expect(screen.getByTestId("games-chess-action-row")).toHaveTextContent("Tap a glowing piece or square.");
+    expect(screen.getByTestId("games-chess-action-row")).toHaveTextContent("Tap a marker.");
     expect(screen.queryByTestId("chess-guidance-e8")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-show-help"));

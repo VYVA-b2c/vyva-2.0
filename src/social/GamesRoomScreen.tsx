@@ -393,12 +393,12 @@ function getTactileTryAgainCopy(language: SocialGameLanguage) {
 }
 
 function getChessTapCue(language: SocialGameLanguage) {
-  if (language === "fr") return "Touchez une piece ou case lumineuse.";
-  if (language === "it") return "Tocca un pezzo o una casa evidenziata.";
-  if (language === "pt") return "Toque numa peca ou casa brilhante.";
-  if (language === "de") return "Tippe auf eine leuchtende Figur oder ein Feld.";
-  if (language === "en") return "Tap a glowing piece or square.";
-  return "Toca una pieza o casilla iluminada.";
+  if (language === "fr") return "Touchez un repere.";
+  if (language === "it") return "Tocca un segno.";
+  if (language === "pt") return "Toque num marcador.";
+  if (language === "de") return "Tippe auf eine Markierung.";
+  if (language === "en") return "Tap a marker.";
+  return "Toca una marca.";
 }
 
 function getLearnWhyLabel(language: SocialGameLanguage) {
@@ -624,14 +624,14 @@ function ChessBoardVisual({
               {tappable && !piece && !isComplete && (
                 <span
                   aria-hidden="true"
-                  className="absolute h-[48%] w-[48%] rounded-full border-2 border-[#FBBF24] bg-[#FEF3C7]/55 shadow-[0_0_0_3px_rgba(255,255,255,0.45)]"
+                  className="absolute h-[50%] w-[50%] rounded-full border-[3px] border-[#F59E0B] bg-[#FEF3C7]/65 shadow-[0_0_0_4px_rgba(255,255,255,0.58)]"
                   data-testid={`chess-tap-target-${square}`}
                 />
               )}
               {piece && (
                 <span
                   aria-label={chessPieceDescriptions[piece.piece]}
-                  className={`relative z-10 flex h-[82%] w-[82%] items-center justify-center rounded-full border shadow-[0_7px_14px_rgba(23,57,65,0.18)] ${piece.piece.startsWith("white") ? "border-[#C9B99D] bg-[#FFFDF7] text-[#07313A]" : "border-[#173941] bg-[#173941] text-[#FFFDF7]"} ${tappable && !isComplete ? "ring-2 ring-[#FBBF24] ring-offset-1 ring-offset-white" : ""}`}
+                  className={`relative z-10 flex h-[82%] w-[82%] items-center justify-center rounded-full border shadow-[0_7px_14px_rgba(23,57,65,0.18)] ${piece.piece.startsWith("white") ? "border-[#C9B99D] bg-[#FFFDF7] text-[#07313A]" : "border-[#173941] bg-[#173941] text-[#FFFDF7]"} ${tappable && !isComplete ? "ring-[3px] ring-[#F59E0B] ring-offset-1 ring-offset-white" : ""}`}
                   role="img"
                 >
                   <ChessPieceGlyph piece={piece.piece} cutout={piece.piece.startsWith("white") ? "#FFFDF7" : "#173941"} />
@@ -640,7 +640,7 @@ function ChessBoardVisual({
               {tappable && !isComplete && (
                 <span
                   aria-hidden="true"
-                  className="absolute bottom-1 right-1 z-20 h-3.5 w-3.5 rounded-full bg-[#087C82] ring-2 ring-white"
+                  className="absolute bottom-1 right-1 z-20 h-4 w-4 rounded-full bg-[#087C82] ring-[3px] ring-white"
                 />
               )}
             </>
@@ -1302,6 +1302,7 @@ export default function GamesRoomScreen({
     selectedRound?.interaction?.kind === "chessTap"
     && (showTactileHelp || wrongTactileValue || hasCompletedSelectedRound),
   );
+  const showConnectionPanel = Boolean(isGameSelected && hasCompletedSelectedRound);
   const canBrowseSelectedPuzzles = Boolean(puzzleBankLabels && selectedPuzzleTotal > 1);
   const isPuzzleNavigationDisabled = isLoadingSelectedBank || selectedKindRounds.length < 2;
 
@@ -1666,7 +1667,7 @@ export default function GamesRoomScreen({
           </button>
 
           <div className="min-w-0 text-center">
-            <h1 className="whitespace-nowrap font-display text-[32px] leading-[0.98] text-[#07313A] sm:text-[56px] lg:text-[64px]">
+            <h1 className={`whitespace-nowrap font-display leading-[0.98] text-[#07313A] ${isGameSelected ? "text-[30px] sm:text-[44px] lg:text-[52px]" : "text-[32px] sm:text-[56px] lg:text-[64px]"}`}>
               {room.name}
             </h1>
           </div>
@@ -1687,17 +1688,16 @@ export default function GamesRoomScreen({
               title={room.agentFullName}
             />
             <div className="min-w-0">
-              <p className="flex items-center gap-2 font-body text-[25px] font-extrabold leading-tight text-[#132C35]">
-                {room.agentFullName.split(" ")[0] || room.agentFullName} is hosting
+              <p className="flex items-center gap-2 font-body text-[21px] font-extrabold leading-tight text-[#132C35] sm:text-[25px]">
+                {gameTable.hostLine}
                 <Sparkles size={22} className="text-[#7C3AED]" />
               </p>
-              <p className="mt-1 font-body text-[17px] font-semibold leading-snug text-[#557078]">{gameTable.hostLine}</p>
             </div>
           </div>
         )}
 
-        <main className={`mt-6 grid gap-5 lg:items-start ${isGameSelected ? "lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]" : ""}`}>
-          <section className="space-y-5">
+        <main className={`mt-6 grid gap-5 lg:items-start ${showConnectionPanel ? "lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]" : ""}`}>
+          <section className={`space-y-5 ${isGameSelected && !showConnectionPanel ? "mx-auto w-full max-w-[720px]" : ""}`}>
             {!isGameSelected && (
               <>
                 <div className="relative overflow-hidden rounded-[28px] bg-[#0A7372] shadow-[0_22px_52px_rgba(7,49,58,0.16)]">
@@ -1751,26 +1751,23 @@ export default function GamesRoomScreen({
                 aria-live="polite"
                 data-testid="games-selected-puzzle"
               >
-                <div className="flex items-start gap-3 sm:gap-4">
-                  <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[18px] bg-[#FFF4DA] text-[#A86200] sm:h-[58px] sm:w-[58px] sm:rounded-[20px]">
-                    <Brain size={28} strokeWidth={2.5} />
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[16px] bg-[#FFF4DA] text-[#A86200] sm:h-[52px] sm:w-[52px] sm:rounded-[18px]">
+                      <Brain size={26} strokeWidth={2.5} />
+                    </div>
+                    <h2 className="min-w-0 font-body text-[22px] font-extrabold leading-tight text-[#07313A] sm:text-[25px]">{selectedRound.title}</h2>
                   </div>
-                  <div className="min-w-0">
-                    <h2 className="font-body text-[23px] font-extrabold leading-tight text-[#07313A] sm:text-[25px]">{selectedRound.title}</h2>
-                    <p className="mt-1 font-body text-[16px] font-semibold leading-snug text-[#597178] sm:text-[18px]">{selectedRound.body}</p>
-                  </div>
-                </div>
-                {puzzleBankLabels && selectedPuzzleTotal > 1 && (
-                  <div className="mt-4 rounded-[20px] border border-[#D8E6E2] bg-[#F4FAF8] px-4 py-2.5 sm:mt-5 sm:rounded-[22px] sm:py-3">
-                    <p className="font-body text-[17px] font-extrabold text-[#087C82] sm:text-[18px]">
+                  {puzzleBankLabels && selectedPuzzleTotal > 1 && (
+                    <p className="shrink-0 rounded-full border border-[#BFDAD7] bg-[#F4FAF8] px-3 py-2 font-body text-[15px] font-extrabold leading-none text-[#087C82] sm:px-4 sm:text-[17px]">
                       {puzzleBankLabels.progress}
                     </p>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 {hasStartedSelectedRound ? (
-                  <div className="mt-5">
-                    <p className="font-body text-[21px] font-extrabold leading-snug text-[#173941] sm:text-[22px]">{displayedPrompt}</p>
+                  <div className="mt-4">
+                    <p className="font-body text-[20px] font-extrabold leading-snug text-[#173941] sm:text-[22px]">{displayedPrompt}</p>
 
                     {selectedWordVisual ? (
                       <WordTilesInteraction
@@ -1990,7 +1987,7 @@ export default function GamesRoomScreen({
             )}
           </section>
 
-          {isGameSelected && (
+          {showConnectionPanel && (
           <aside className="hidden space-y-5 lg:block">
             <section className="rounded-[28px] border border-[#D8E6E2] bg-white px-5 py-5 shadow-[0_16px_34px_rgba(11,60,66,0.08)]">
               <h2 className="font-body text-[27px] font-extrabold leading-tight text-[#07313A]">{gameTable.connectionTitle}</h2>
