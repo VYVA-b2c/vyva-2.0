@@ -17,6 +17,7 @@ describe("profile access schema compatibility", () => {
 
   it("extracts missing column names from common Postgres messages", () => {
     expect(missingColumnName(new Error('column "profiles"."trial_ends_at" does not exist'))).toBe("trial_ends_at");
+    expect(missingColumnName(new Error('column "trial_ends_at" of relation "profiles" does not exist'))).toBe("trial_ends_at");
     expect(missingColumnName(new Error("column profiles.subscription_tier does not exist"))).toBe("subscription_tier");
     expect(missingColumnName(new Error("duplicate key value violates unique constraint"))).toBeNull();
   });

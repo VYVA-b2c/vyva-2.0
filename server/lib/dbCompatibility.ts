@@ -1,5 +1,7 @@
 export function missingColumnName(err: unknown): string | null {
   const message = err instanceof Error ? err.message : String(err);
+  const relationMatch = message.match(/column\s+"([^"]+)"\s+of\s+relation\s+"[a-z0-9_]+"\s+does\s+not\s+exist/i);
+  if (relationMatch?.[1]) return relationMatch[1];
   const quotedMatch = message.match(/column\s+(?:"[a-z0-9_]+"\.)?"([^"]+)"\s+does not exist/i);
   if (quotedMatch?.[1]) return quotedMatch[1];
   const bareMatch = message.match(/column\s+[a-z0-9_]+\.([a-z0-9_]+)\s+does not exist/i);
