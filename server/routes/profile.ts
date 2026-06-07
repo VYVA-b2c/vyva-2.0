@@ -54,9 +54,9 @@ import { syncProfileEntitlement } from "../lib/entitlementSync.js";
 import { entitlementForTier } from "../lib/plans.js";
 import { mergeIdentityGender, readProfileGender } from "../lib/userPersonalization.js";
 import { getActiveProfileContext, getProfileChoices } from "../lib/profileAccess.js";
+import { isLocalDevelopmentRequest } from "../lib/requestEnvironment.js";
 
 const DEMO_USER_ID = "demo-user";
-const IS_PROD = process.env.NODE_ENV === "production";
 const SUPPORTED_PROFILE_LANGUAGES = ["es", "en", "fr", "de", "it", "pt"] as const;
 type ProfileLanguage = (typeof SUPPORTED_PROFILE_LANGUAGES)[number];
 
@@ -180,10 +180,10 @@ async function resolveUserId(req: Request): Promise<string | null> {
   if (req.user?.id) {
     const context = await getActiveProfileContext(req.user.id);
     if (context.profileId) return context.profileId;
-    if (!IS_PROD) return req.user.id;
+    if (isLocalDevelopmentRequest(req)) return req.user.id;
     return null;
   }
-  if (!IS_PROD) return DEMO_USER_ID;
+  if (isLocalDevelopmentRequest(req)) return DEMO_USER_ID;
   return null;
 }
 
