@@ -114,7 +114,7 @@ export default function VoiceActionSimulator() {
   };
 
   return (
-    <div className="fixed bottom-[116px] right-4 z-[65] font-body">
+    <div className="fixed bottom-[116px] right-4 z-[65] hidden font-body sm:block">
       {!open ? (
         <button
           type="button"

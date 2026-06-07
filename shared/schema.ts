@@ -1015,29 +1015,6 @@ export const insertSocialConnectionSchema = createInsertSchema(socialConnections
 export type InsertSocialConnection = z.infer<typeof insertSocialConnectionSchema>;
 export type SocialConnection = typeof socialConnections.$inferSelect;
 
-export const socialGameRoundAttempts = pgTable("social_game_round_attempts", {
-  id:              uuid("id").primaryKey().defaultRandom(),
-  user_id:         text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
-  game_kind:       text("game_kind").notNull(),
-  round_id:        text("round_id").notNull(),
-  language:        text("language").notNull().default("en"),
-  status:          text("status").notNull().default("started"),
-  started_count:   integer("started_count").notNull().default(1),
-  completed_count: integer("completed_count").notNull().default(0),
-  skipped_count:   integer("skipped_count").notNull().default(0),
-  last_seen_at:    timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
-  completed_at:    timestamp("completed_at", { withTimezone: true }),
-  created_at:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [
-  unique("social_game_round_attempts_user_kind_round_unique").on(t.user_id, t.game_kind, t.round_id),
-  index("social_game_round_attempts_user_kind_seen_idx").on(t.user_id, t.game_kind, t.last_seen_at),
-  index("social_game_round_attempts_user_seen_idx").on(t.user_id, t.last_seen_at),
-]);
-
-export const insertSocialGameRoundAttemptSchema = createInsertSchema(socialGameRoundAttempts).omit({ id: true, last_seen_at: true, completed_at: true, created_at: true });
-export type InsertSocialGameRoundAttempt = z.infer<typeof insertSocialGameRoundAttemptSchema>;
-export type SocialGameRoundAttempt = typeof socialGameRoundAttempts.$inferSelect;
-
 export const socialRoomMusicThreads = pgTable("social_room_music_threads", {
   id:                  uuid("id").primaryKey().defaultRandom(),
   room_id:             uuid("room_id").notNull().references(() => socialRooms.id, { onDelete: "cascade" }),
@@ -1253,6 +1230,7 @@ export const socialRoomMemberRoles = pgTable("social_room_member_roles", {
   status:                      text("status").notNull().default("active"),
   comfort_needs:               text("comfort_needs").array().notNull().default([]),
   agreement_acknowledged_at:   timestamp("agreement_acknowledged_at", { withTimezone: true }),
+  quiet_paused_at:             timestamp("quiet_paused_at", { withTimezone: true }),
   created_at:                  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at:                  timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
@@ -2169,7 +2147,6 @@ export const schema = {
   socialRoomVisits,
   socialUserInterests,
   socialConnections,
-  socialGameRoundAttempts,
   socialRoomMusicThreads,
   socialRoomMusicThreadEntries,
   socialRoomMusicCircleItems,

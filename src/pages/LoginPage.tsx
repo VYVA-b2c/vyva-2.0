@@ -1600,27 +1600,9 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   }, [isCallbackModalOpen]);
 
   useEffect(() => {
-    let cancelled = false;
     const browserCountry = inferCountryFromBrowser();
     setCallCountry(browserCountry);
     setCallbackCountryCode(COUNTRY_TO_DIAL[browserCountry] ?? "+34");
-
-    fetch("https://freeipapi.com/api/json/", { signal: AbortSignal.timeout(4000) })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { countryCode?: string } | null) => {
-        if (cancelled) return;
-        const countryCode = data?.countryCode?.toUpperCase();
-        if (!countryCode || !COUNTRY_BY_CODE[countryCode]) return;
-        setCallCountry(countryCode);
-        setCallbackCountryCode(COUNTRY_TO_DIAL[countryCode] ?? "+34");
-      })
-      .catch(() => {
-        // Browser locale/timezone fallback is already applied.
-      });
-
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   if (isLoading || user) return null;

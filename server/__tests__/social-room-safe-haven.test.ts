@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { authMiddleware, requireAdminUser } from "../middleware/auth.js";
 import socialRoomsRouter from "../routes/socialRooms.js";
 import adminSocialRoomsRouter from "../routes/adminSocialRooms.js";
-import { buildDailyRoomSession, getSocialRoomBySlug } from "../lib/socialRoomsSeed.js";
+import { summarizePollVoteState } from "../lib/socialRoomPulse.js";
 
 function buildSocialApp() {
   const app = express();
@@ -35,27 +35,68 @@ const adminApp = buildProtectedAdminApp();
 const bypassAdminApp = buildBypassAdminApp();
 
 describe("Together Room safe haven API", () => {
-  it("ships a full month of localized Reading Room club topics", () => {
-    const seed = getSocialRoomBySlug("reading-room");
-    expect(seed).toBeDefined();
-    expect(seed?.dailyTopics).toHaveLength(30);
-
-    const januaryTopics = new Set(
-      Array.from({ length: 30 }, (_, index) =>
-        buildDailyRoomSession(seed!, "en", new Date(Date.UTC(2026, 0, index + 1))).topic,
-      ),
+  it("keeps issue poll votes scoped to the exact room question", () => {
+    const firstQuestion = summarizePollVoteState(
+      "issue-cost",
+      "member-a",
+      ["yes", "more_info", "not_now"],
+      [
+        { poll_id: "issue-cost", user_id: "member-a", option_id: "yes" },
+        { poll_id: "issue-safety", user_id: "member-b", option_id: "yes" },
+        { poll_id: "daily-room-choice", user_id: "member-a", option_id: "views" },
+      ],
     );
-    expect(januaryTopics.size).toBe(30);
+    const secondQuestion = summarizePollVoteState(
+      "issue-safety",
+      "member-a",
+      ["yes", "more_info", "not_now"],
+      [
+        { poll_id: "issue-cost", user_id: "member-a", option_id: "yes" },
+        { poll_id: "issue-safety", user_id: "member-b", option_id: "yes" },
+        { poll_id: "daily-room-choice", user_id: "member-a", option_id: "views" },
+      ],
+    );
 
-    for (const language of ["es", "en", "de", "fr", "it", "pt"] as const) {
-      const session = buildDailyRoomSession(seed!, language, new Date(Date.UTC(2026, 0, 1)));
-      expect(session.topic).toBeTruthy();
-      expect(session.opener).toBeTruthy();
-      expect(session.contentTitle).toBeTruthy();
-      expect(session.contentBody).toBeTruthy();
-      expect(session.options).toHaveLength(3);
-      expect(session.options.every(Boolean)).toBe(true);
-    }
+    expect(firstQuestion).toMatchObject({
+      optionCounts: { yes: 1, more_info: 0, not_now: 0 },
+      totalVotes: 1,
+      myVote: "yes",
+    });
+    expect(secondQuestion).toMatchObject({
+      optionCounts: { yes: 1, more_info: 0, not_now: 0 },
+      totalVotes: 1,
+      myVote: null,
+    });
+  });
+
+  it("returns country-aware Music Room seeds and regional fallbacks", async () => {
+    const countryCodes = ["ES", "MX", "US", "GB", "DE", "FR", "IT", "PT", "BR"];
+    const responses = await Promise.all(countryCodes.map((country) => (
+      request(socialApp)
+        .get(`/api/social/rooms/music-room?lang=en&country=${country}`)
+        .set("x-user-id", `music-country-${country.toLowerCase()}-user`)
+        .expect(200)
+    )));
+
+    const seedTitles = responses.map((response) => response.body.musicCircle.seedSong.songText);
+    expect(new Set(seedTitles).size).toBe(countryCodes.length);
+    responses.forEach((response, index) => {
+      expect(response.body.musicCircle.culture.countryCode).toBe(countryCodes[index]);
+      expect(response.body.musicCircle.culture.fallback).toBe(false);
+      expect(response.body.musicCircle.starterSongs).toHaveLength(3);
+      expect(response.body.musicCircle.starterSongs[0].songText).toBe(response.body.musicCircle.seedSong.songText);
+      expect(response.body.musicCircle.seedSong.originCountryCode).toBe(countryCodes[index]);
+      expect(response.body.musicCircle.seedSong.matchTags.length).toBeGreaterThan(0);
+    });
+
+    const regionalFallback = await request(socialApp)
+      .get("/api/social/rooms/music-room?lang=fr&country=ZZ")
+      .set("x-user-id", "music-country-fallback-user")
+      .expect(200);
+
+    expect(regionalFallback.body.musicCircle.culture.countryCode).toBe("FR");
+    expect(regionalFallback.body.musicCircle.culture.fallback).toBe(true);
+    expect(regionalFallback.body.musicCircle.seedSong.originCountryCode).toBe("FR");
   });
 
   it("returns a destination Reading Club payload and preserves the Book Club alias", async () => {
@@ -87,99 +128,6 @@ describe("Together Room safe haven API", () => {
 
     expect(alias.body.room.slug).toBe("reading-room");
     expect(alias.body.readingClub.title).toMatch(/Literaturclub/i);
-
-    const localizedCases = [
-      { lang: "fr", name: "Club litteraire", title: /club litteraire/i },
-      { lang: "it", name: "Club letterario", title: /club letterario/i },
-      { lang: "pt", name: "Clube literario", title: /Clube Literario/i },
-    ] as const;
-
-    for (const item of localizedCases) {
-      const localized = await request(socialApp)
-        .get(`/api/social/rooms/reading-room?lang=${item.lang}`)
-        .set("x-user-id", `reading-club-${item.lang}-user`)
-        .expect(200);
-
-      expect(localized.body.room.slug).toBe("reading-room");
-      expect(localized.body.room.name).toBe(item.name);
-      expect(localized.body.readingClub.title).toMatch(item.title);
-      expect(localized.body.readingClub.companionModes.map((mode: { id: string }) => mode.id)).toEqual([
-        "one-to-one",
-        "small-circle",
-        "pen-note",
-      ]);
-    }
-
-    const portugueseAlias = await request(socialApp)
-      .get("/api/social/rooms/book-club?lang=pt")
-      .set("x-user-id", "reading-club-pt-alias-user")
-      .expect(200);
-
-    expect(portugueseAlias.body.room.slug).toBe("reading-room");
-    expect(portugueseAlias.body.room.name).toBe("Clube literario");
-  });
-
-  it("rotates Games Room default puzzles from per-user exposure history", async () => {
-    const userId = `games-room-repeat-user-${Date.now()}`;
-
-    const first = await request(socialApp)
-      .get("/api/social/rooms/games-room?lang=en")
-      .set("x-user-id", userId)
-      .expect(200);
-
-    const firstRound = first.body.gameTable.rounds.find((round: { id: string }) => round.id === first.body.gameTable.defaultRoundId);
-    expect(firstRound.kind).toBe("chess");
-    expect(first.body.gameTable.rounds).toHaveLength(4);
-    expect(first.body.gameTable.roundCountsByKind.word).toBe(80);
-
-    const chessBank = await request(socialApp)
-      .get("/api/social/rooms/games-room/game-rounds?lang=en&gameKind=chess")
-      .set("x-user-id", userId)
-      .expect(200);
-
-    expect(chessBank.body.rounds).toHaveLength(first.body.gameTable.roundCountsByKind.chess);
-    expect(chessBank.body.rounds.every((round: { kind: string }) => round.kind === "chess")).toBe(true);
-
-    const started = await request(socialApp)
-      .post("/api/social/rooms/games-room/game-round")
-      .set("x-user-id", userId)
-      .send({
-        lang: "en",
-        roundId: firstRound.id,
-        gameKind: firstRound.kind,
-        status: "started",
-      })
-      .expect(200);
-
-    expect(started.body).toMatchObject({
-      ok: true,
-      roundId: firstRound.id,
-      gameKind: "chess",
-      status: "started",
-    });
-
-    const second = await request(socialApp)
-      .get("/api/social/rooms/games-room?lang=en")
-      .set("x-user-id", userId)
-      .expect(200);
-
-    const secondRound = second.body.gameTable.rounds.find((round: { id: string }) => round.id === second.body.gameTable.defaultRoundId);
-    expect(secondRound.kind).toBe("word");
-    expect(second.body.gameTable.defaultRoundIdsByKind.chess).not.toBe(firstRound.id);
-
-    const completed = await request(socialApp)
-      .post("/api/social/rooms/games-room/game-round")
-      .set("x-user-id", userId)
-      .send({
-        lang: "en",
-        roundId: secondRound.id,
-        gameKind: secondRound.kind,
-        status: "completed",
-      })
-      .expect(200);
-
-    expect(completed.body.status).toBe("completed");
-    expect(completed.body.matchedUser).toBeUndefined();
   });
 
   it("supports Reading Room club tables, shelf voting, shared reflections and moderation", async () => {
@@ -473,62 +421,29 @@ describe("Together Room safe haven API", () => {
     expect(res.body.pulse.safety.consentLine).toMatch(/both people agree/i);
     expect(res.body.pulse.safety.agreementLines).toContain("Use kind words and no pressure.");
     expect(res.body.pulse.safety.myAcknowledgedAt).toBeNull();
+    expect(res.body.pulse.visibility.title).toBe("Who sees what");
+    expect(res.body.pulse.visibility.items.map((item: { id: string }) => item.id)).toEqual(["private", "totals", "shared"]);
+    expect(res.body.pulse.visibility.items[0].body).toMatch(/do not show your name/i);
   });
 
-  it.each([
-    {
-      lang: "fr",
-      roomName: "Salle Ensemble",
-      featuredPlan: "The et discussion film",
-      pollQuestion: "Qu'auriez-vous envie de partager aujourd'hui?",
-      agreementTitle: "Notre promesse de salle",
-      comfortTitle: "Qu'est-ce qui rendrait cela confortable?",
-      memberStatus: "Cherche un plan calme",
-      promptChip: "Je veux un plan a proximite",
-    },
-    {
-      lang: "it",
-      roomName: "Stanza Insieme",
-      featuredPlan: "Te e conversazione film",
-      pollQuestion: "Cosa vi piacerebbe condividere oggi?",
-      agreementTitle: "La promessa della stanza",
-      comfortTitle: "Cosa renderebbe tutto comodo?",
-      memberStatus: "Cerca un piano tranquillo",
-      promptChip: "Voglio un piano vicino",
-    },
-    {
-      lang: "pt",
-      roomName: "Sala Juntos",
-      featuredPlan: "Cha e conversa sobre filme",
-      pollQuestion: "O que gostariam de partilhar hoje?",
-      agreementTitle: "A nossa promessa da sala",
-      comfortTitle: "O que tornaria isto confortavel?",
-      memberStatus: "Procura um plano tranquilo",
-      promptChip: "Quero um plano por perto",
-    },
-  ])("localizes Together Room API payloads for $lang", async ({
-    lang,
-    roomName,
-    featuredPlan,
-    pollQuestion,
-    agreementTitle,
-    comfortTitle,
-    memberStatus,
-    promptChip,
-  }) => {
-    const res = await request(socialApp)
-      .get(`/api/social/rooms/together-room?lang=${lang}`)
-      .set("x-user-id", `safe-haven-locale-${lang}`)
+  it("keeps tied Together Room votes as still choosing in the pulse guide", async () => {
+    await request(socialApp)
+      .post("/api/social/rooms/together-room/polls/daily-room-choice/vote")
+      .set("x-user-id", "safe-haven-tie-film-user")
+      .send({ lang: "en", optionId: "film" })
       .expect(200);
 
-    expect(res.body.room.name).toBe(roomName);
-    expect(res.body.room.liveBadge).not.toBe("4 in the room");
-    expect(res.body.promptChips).toContain(promptChip);
-    expect(res.body.pulse.featuredPlan.title).toBe(featuredPlan);
-    expect(res.body.pulse.activePoll.question).toBe(pollQuestion);
-    expect(res.body.pulse.safety.agreementTitle).toBe(agreementTitle);
-    expect(res.body.pulse.comfortCheck.title).toBe(comfortTitle);
-    expect(res.body.pulse.memberPresence[0].statusLabel).toBe(memberStatus);
+    const lunchVote = await request(socialApp)
+      .post("/api/social/rooms/together-room/polls/daily-room-choice/vote")
+      .set("x-user-id", "safe-haven-tie-lunch-user")
+      .send({ lang: "en", optionId: "lunch" })
+      .expect(200);
+
+    expect(lunchVote.body.pulse.activePoll.totalVotes).toBeGreaterThanOrEqual(2);
+    expect(lunchVote.body.pulse.decisionGuide.id).toBe("waiting-for-clear-choice");
+    expect(lunchVote.body.pulse.decisionGuide.actionKind).toBe("vote");
+    expect(lunchVote.body.pulse.decisionGuide.body).toMatch(/still choosing between Film chat \| Quiet lunch/i);
+    expect(lunchVote.body.pulse.decisionGuide.steps).toContain("Tied: Film chat | Quiet lunch");
   });
 
   it("persists the Together Room promise acknowledgement through pulse refresh", async () => {
@@ -589,6 +504,42 @@ describe("Together Room safe haven API", () => {
 
     expect(refreshed.body.pulse.comfortCheck.myComfortNeeds).toEqual(["easy_access"]);
     expect(refreshed.body.pulse.comfortCheck.totalResponses).toBeGreaterThanOrEqual(1);
+  });
+
+  it("persists a private Together Room quiet pause through pulse refresh", async () => {
+    const userId = "safe-haven-quiet-pause-user";
+
+    const paused = await request(socialApp)
+      .post("/api/social/rooms/together-room/quiet-pause")
+      .set("x-user-id", userId)
+      .send({ lang: "en", paused: true })
+      .expect(200);
+
+    expect(paused.body.quietPausedAt).toEqual(expect.any(String));
+    expect(paused.body.pulse.safety.myQuietPausedAt).toEqual(expect.any(String));
+
+    const refreshed = await request(socialApp)
+      .get("/api/social/rooms/together-room/pulse?lang=en")
+      .set("x-user-id", userId)
+      .expect(200);
+
+    expect(refreshed.body.pulse.safety.myQuietPausedAt).toEqual(expect.any(String));
+
+    const observerPulse = await request(socialApp)
+      .get("/api/social/rooms/together-room/pulse?lang=en")
+      .set("x-user-id", "safe-haven-quiet-pause-observer")
+      .expect(200);
+
+    expect(observerPulse.body.pulse.safety.myQuietPausedAt ?? null).toBeNull();
+
+    const resumed = await request(socialApp)
+      .post("/api/social/rooms/together-room/quiet-pause")
+      .set("x-user-id", userId)
+      .send({ lang: "en", paused: false })
+      .expect(200);
+
+    expect(resumed.body.quietPausedAt).toBeNull();
+    expect(resumed.body.pulse.safety.myQuietPausedAt ?? null).toBeNull();
   });
 
   it("persists plan responses with duplicate replacement semantics", async () => {
@@ -683,6 +634,7 @@ describe("Together Room safe haven API", () => {
 
     expect(reply.body.reply.tone).toBe("help");
     expect(reply.body.pulse.featuredPlan.replies[0].body).toMatch(/simple option/i);
+    expect(reply.body.pulse.featuredPlan.myHelperActions).toContain("choose");
 
     const refreshed = await request(socialApp)
       .get("/api/social/rooms/together-room/pulse?lang=en")
@@ -692,6 +644,151 @@ describe("Together Room safe haven API", () => {
     expect(
       refreshed.body.pulse.featuredPlan.replies.some((item: { body?: string }) => /simple option/i.test(item.body ?? "")),
     ).toBe(true);
+    expect(refreshed.body.pulse.featuredPlan.myHelperActions).toContain("choose");
+
+    const observerPulse = await request(socialApp)
+      .get("/api/social/rooms/together-room/pulse?lang=en")
+      .set("x-user-id", "safe-haven-featured-plan-helper-observer")
+      .expect(200);
+
+    expect(observerPulse.body.pulse.featuredPlan.myHelperActions ?? []).not.toContain("choose");
+  });
+
+  it("creates one calm activity-ready notification when interest and helpers line up", async () => {
+    const userId = "safe-haven-activity-ready-member";
+    const planKey = "gentle-walk";
+
+    const interest = await request(socialApp)
+      .post(`/api/social/rooms/together-room/plans/${planKey}/respond`)
+      .set("x-user-id", userId)
+      .send({ lang: "en", response: "maybe" })
+      .expect(200);
+
+    expect(
+      interest.body.pulse.notifications.some((notification: { type?: string }) => (
+        notification.type === "activity_ready"
+      )),
+    ).toBe(false);
+
+    const helper = await request(socialApp)
+      .post(`/api/social/rooms/together-room/plans/${planKey}/replies`)
+      .set("x-user-id", userId)
+      .send({
+        lang: "en",
+        tone: "help",
+        body: "I can help choose one simple option for the group.",
+      })
+      .expect(200);
+
+    const readyNotifications = helper.body.pulse.notifications.filter((notification: { type?: string }) => (
+      notification.type === "activity_ready"
+    ));
+    expect(readyNotifications).toHaveLength(1);
+    expect(readyNotifications[0].title).toMatch(/activity is ready for VYVA/i);
+    expect(readyNotifications[0].body).toMatch(/Gentle walk/i);
+    expect(readyNotifications[0].body).toMatch(/before anyone commits/i);
+    expect(readyNotifications[0].metadata).toMatchObject({
+      planKey,
+      interestCount: 1,
+      helperCount: 1,
+    });
+
+    const secondHelper = await request(socialApp)
+      .post(`/api/social/rooms/together-room/plans/${planKey}/replies`)
+      .set("x-user-id", userId)
+      .send({
+        lang: "en",
+        tone: "support",
+        body: "Please keep me posted when there is a next step.",
+      })
+      .expect(200);
+
+    expect(
+      secondHelper.body.pulse.notifications.filter((notification: { type?: string }) => (
+        notification.type === "activity_ready"
+      )),
+    ).toHaveLength(1);
+  });
+
+  it("creates one calm vote-ready notification when a question gets support", async () => {
+    const ownerId = "safe-haven-vote-ready-owner";
+    const supporterId = "safe-haven-vote-ready-supporter";
+
+    const proposal = await request(socialApp)
+      .post("/api/social/rooms/together-room/proposals")
+      .set("x-user-id", ownerId)
+      .send({
+        lang: "en",
+        title: "Can we vote on cost first?",
+        details: "I want to understand the cost before anyone commits.",
+        kind: "question",
+      })
+      .expect(200);
+
+    const planKey = proposal.body.proposal.planKey;
+    const support = await request(socialApp)
+      .post(`/api/social/rooms/together-room/plans/${planKey}/respond`)
+      .set("x-user-id", supporterId)
+      .send({ lang: "en", response: "join" })
+      .expect(200);
+
+    const readyNotifications = support.body.pulse.notifications.filter((notification: { type?: string }) => (
+      notification.type === "vote_ready"
+    ));
+    expect(readyNotifications).toHaveLength(1);
+    expect(readyNotifications[0].title).toMatch(/question is ready for a vote/i);
+    expect(readyNotifications[0].body).toMatch(/Can we vote on cost first\?/i);
+    expect(readyNotifications[0].body).toMatch(/without names/i);
+    expect(readyNotifications[0].metadata).toMatchObject({
+      planKey,
+      supportCount: 1,
+    });
+    expect(support.body.pulse.issuePolls).toHaveLength(1);
+    expect(support.body.pulse.issuePolls[0]).toMatchObject({
+      key: `issue-${planKey}`,
+      sourcePlanKey: planKey,
+      question: "Vote: Can we vote on cost first?",
+      totalVotes: 0,
+    });
+    expect(support.body.pulse.issuePolls[0].options.map((option: { id: string }) => option.id)).toEqual([
+      "yes",
+      "more_info",
+      "not_now",
+    ]);
+
+    const firstIssueVote = await request(socialApp)
+      .post(`/api/social/rooms/together-room/polls/issue-${planKey}/vote`)
+      .set("x-user-id", supporterId)
+      .send({ lang: "en", optionId: "yes" })
+      .expect(200);
+
+    expect(firstIssueVote.body.vote.pollId).toBe(`issue-${planKey}`);
+    expect(firstIssueVote.body.vote.totalVotes).toBe(1);
+    expect(firstIssueVote.body.pulse.issuePolls[0].myVote).toBe("yes");
+
+    const replacedIssueVote = await request(socialApp)
+      .post(`/api/social/rooms/together-room/polls/issue-${planKey}/vote`)
+      .set("x-user-id", supporterId)
+      .send({ lang: "en", optionId: "more_info" })
+      .expect(200);
+
+    const replacementPoll = replacedIssueVote.body.pulse.issuePolls[0];
+    expect(replacementPoll.totalVotes).toBe(1);
+    expect(replacementPoll.myVote).toBe("more_info");
+    expect(replacementPoll.options.find((option: { id: string }) => option.id === "yes").votes).toBe(0);
+    expect(replacementPoll.options.find((option: { id: string }) => option.id === "more_info").votes).toBe(1);
+
+    const follow = await request(socialApp)
+      .post(`/api/social/rooms/together-room/plans/${planKey}/respond`)
+      .set("x-user-id", supporterId)
+      .send({ lang: "en", response: "maybe" })
+      .expect(200);
+
+    expect(
+      follow.body.pulse.notifications.filter((notification: { type?: string }) => (
+        notification.type === "vote_ready"
+      )),
+    ).toHaveLength(1);
   });
 
   it("supports gentle replies on shared Together Room ideas with reporting and moderation", async () => {
@@ -830,6 +927,7 @@ describe("Together Room safe haven API", () => {
 
     const unreadIds = ownerPulse.body.pulse.notifications.map((notification: { id: string }) => notification.id);
     expect(unreadIds.length).toBeGreaterThanOrEqual(2);
+    expect(ownerPulse.body.pulse.unreadNotificationCount).toBeGreaterThanOrEqual(2);
 
     const readAll = await request(socialApp)
       .post("/api/social/rooms/together-room/notifications/read-all")
@@ -840,6 +938,7 @@ describe("Together Room safe haven API", () => {
     expect(readAll.body.readAt).toEqual(expect.any(String));
     expect(readAll.body.notificationIds).toEqual(expect.arrayContaining(unreadIds));
     expect(readAll.body.pulse.notifications).toHaveLength(0);
+    expect(readAll.body.pulse.unreadNotificationCount).toBe(0);
   });
 
   it("blocks unsafe reply text before it can share protected contact or payment details", async () => {
@@ -960,6 +1059,13 @@ describe("Together Room safe haven API", () => {
     expect(activityProposal.body.proposal.needsReview).toBe(false);
     expect(activityProposal.body.pulse.postedExperiences[0].comfortNeeds).toEqual(["listen_first", "quiet_pace", "easy_access", "transport_help", "arrival_buddy", "clear_cost"]);
     expect(activityProposal.body.pulse.postedExperiences[0].fitReasons).toContain("Afternoon");
+    expect(
+      activityProposal.body.pulse.notifications.some((notification: { type?: string; title?: string; body?: string }) => (
+        notification.type === "proposal_created" &&
+        /Tea at a quiet cafe/i.test(notification.title ?? "") &&
+        /Friday afternoon/i.test(notification.body ?? "")
+      )),
+    ).toBe(true);
 
     const dealProposal = await request(socialApp)
       .post("/api/social/rooms/together-room/proposals")
@@ -1008,6 +1114,19 @@ describe("Together Room safe haven API", () => {
         item.key === contactMessage.body.proposal.planKey
       )),
     ).toBe(false);
+    const contactNotifications = contactMessage.body.pulse.notifications as Array<{ type?: string; title?: string; body?: string }>;
+    expect(
+      contactNotifications.some((notification) => (
+        notification.type === "proposal_review_pending" &&
+        /VYVA will review this before it appears/i.test(notification.title ?? "") &&
+        /room will not see/i.test(notification.body ?? "")
+      )),
+    ).toBe(true);
+    expect(
+      contactNotifications.some((notification) => (
+        /555-0100|payment details|Can we talk outside/i.test(`${notification.title ?? ""} ${notification.body ?? ""}`)
+      )),
+    ).toBe(false);
 
     const rawNumberMessage = await request(socialApp)
       .post("/api/social/rooms/together-room/proposals")
@@ -1031,6 +1150,15 @@ describe("Together Room safe haven API", () => {
         item.key === rawNumberMessage.body.proposal.planKey
       )),
     ).toBe(false);
+    const rawNumberNotifications = rawNumberMessage.body.pulse.notifications as Array<{ type?: string; title?: string; body?: string }>;
+    expect(
+      rawNumberNotifications.some((notification) => notification.type === "proposal_review_pending"),
+    ).toBe(true);
+    expect(
+      rawNumberNotifications.some((notification) => (
+        /555-0100|4111 1111/i.test(`${notification.title ?? ""} ${notification.body ?? ""}`)
+      )),
+    ).toBe(false);
 
     const unkindMessage = await request(socialApp)
       .post("/api/social/rooms/together-room/proposals")
@@ -1051,6 +1179,12 @@ describe("Together Room safe haven API", () => {
     expect(
       unkindMessage.body.pulse.postedExperiences.some((item: { key?: string }) => (
         item.key === unkindMessage.body.proposal.planKey
+      )),
+    ).toBe(false);
+    const unkindNotifications = unkindMessage.body.pulse.notifications as Array<{ type?: string; title?: string; body?: string }>;
+    expect(
+      unkindNotifications.some((notification) => (
+        /stupid|idiot/i.test(`${notification.title ?? ""} ${notification.body ?? ""}`)
       )),
     ).toBe(false);
 
@@ -1109,6 +1243,18 @@ describe("Together Room safe haven API", () => {
     expect(report.body.reportId).toEqual(expect.any(String));
     expect(report.body.report.targetType).toBe("question");
     expect(report.body.report.targetId).toBe("experience-question-1");
+    expect(
+      report.body.pulse.notifications.some((notification: { type?: string; title?: string; body?: string }) => (
+        notification.type === "safety_report_sent" &&
+        /VYVA will review your request/i.test(notification.title ?? "") &&
+        /room will not see/i.test(notification.body ?? "")
+      )),
+    ).toBe(true);
+    expect(
+      report.body.pulse.notifications.some((notification: { body?: string }) => (
+        /I want VYVA to check this shared question/i.test(notification.body ?? "")
+      )),
+    ).toBe(false);
 
     const moderation = await request(bypassAdminApp)
       .get("/api/admin/social/rooms/together-room/moderation")
