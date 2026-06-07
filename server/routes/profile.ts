@@ -55,6 +55,7 @@ import { entitlementForTier } from "../lib/plans.js";
 import { mergeIdentityGender, readProfileGender } from "../lib/userPersonalization.js";
 import { getActiveProfileContext, getProfileChoices, isMissingAccountProfileLinkColumnError } from "../lib/profileAccess.js";
 import { isLocalDevelopmentRequest } from "../lib/requestEnvironment.js";
+import { missingColumnName as sharedMissingColumnName, omitColumns as sharedOmitColumns } from "../lib/dbCompatibility.js";
 
 const DEMO_USER_ID = "demo-user";
 const SUPPORTED_PROFILE_LANGUAGES = ["es", "en", "fr", "de", "it", "pt"] as const;
@@ -151,21 +152,11 @@ function withoutLanguagePreference<T extends Record<string, unknown>>(values: T)
 }
 
 function missingColumnName(err: unknown): string | null {
-  const error = err as { message?: unknown };
-  const message = typeof error.message === "string" ? error.message : String(err);
-  const quotedMatch = message.match(/column\s+(?:"profiles"\.)?"([^"]+)"\s+does not exist/i);
-  if (quotedMatch?.[1]) return quotedMatch[1];
-  const bareMatch = message.match(/column\s+profiles\.([a-z0-9_]+)\s+does not exist/i);
-  return bareMatch?.[1] ?? null;
+  return sharedMissingColumnName(err);
 }
 
 function omitColumns<T extends Record<string, unknown>>(values: T, columns: Set<string>): T {
-  if (columns.size === 0) return values;
-  const next = { ...values };
-  for (const column of columns) {
-    delete next[column as keyof T];
-  }
-  return next as T;
+  return sharedOmitColumns(values, columns);
 }
 
 function isUniqueViolation(err: unknown, hints: string[]): boolean {
