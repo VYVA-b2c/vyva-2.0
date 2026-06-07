@@ -106,6 +106,24 @@ function sameEmail(a: string | null | undefined, b: string | null | undefined): 
   return Boolean(a && b && a.trim().toLowerCase() === b.trim().toLowerCase());
 }
 
+function knownEmails(...values: unknown[]): string[] {
+  const seen = new Set<string>();
+  const emails: string[] = [];
+  for (const value of values) {
+    const email = trimToNull(value);
+    if (!email) continue;
+    const key = email.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    emails.push(email);
+  }
+  return emails;
+}
+
+function includesEmail(emails: string[], value: string | null | undefined): boolean {
+  return emails.some((email) => sameEmail(email, value));
+}
+
 function samePhone(a: string | null | undefined, b: string | null | undefined): boolean {
   const left = phoneDigits(a);
   const right = phoneDigits(b);
@@ -1106,10 +1124,8 @@ router.get("/", async (req: Request, res: Response) => {
     }
 
     const p = rows[0];
-    const accountEmail = trimToNull(req.user?.email)
-      ?? trimToNull(accountRows[0]?.email)
-      ?? trimToNull(accountProfileRows[0]?.email);
-    const isEditingActiveCareProfile = Boolean(accountUserId && accountUserId !== p.id);
+    const accountEmails = knownEmails(req.user?.email, accountRows[0]?.email, accountProfileRows[0]?.email);
+    const accountEmail = accountEmails[0] ?? null;
     const nameParts = (p.full_name ?? "").trim().split(/\s+/);
     const firstName = nameParts[0] ?? "";
     const lastName  = nameParts.slice(1).join(" ");
@@ -1121,7 +1137,7 @@ router.get("/", async (req: Request, res: Response) => {
       preferredName:    p.preferred_name ?? "",
       dateOfBirth:      p.date_of_birth ?? "",
       gender:           readProfileGender(p.data_sharing_consent),
-      email:            p.email ?? (isEditingActiveCareProfile ? "" : accountEmail ?? ""),
+      email:            p.email ?? "",
       accountEmail:     accountEmail ?? "",
       accountUserId,
       profileId:        p.id,
@@ -1280,16 +1296,14 @@ router.post("/", async (req: Request, res: Response) => {
     const existingProfile = existingRows[0];
     const account = accountRows[0];
     const accountProfile = accountProfileRows[0];
-    const accountEmail = trimToNull(req.user?.email)
-      ?? trimToNull(account?.email)
-      ?? trimToNull(accountProfile?.email);
+    const accountEmails = knownEmails(req.user?.email, account?.email, accountProfile?.email);
     const accountPhone = normalizeProfilePhone(account?.phone_number ?? accountProfile?.phone_number ?? null);
     const dataSharingConsent = mergeIdentityGender(existingRows[0]?.data_sharing_consent, d.gender);
     const inputEmail = trimToNull(d.email);
     const inputPhone = normalizeProfilePhone(d.phone);
     const inputWhatsapp = normalizeProfilePhone(d.whatsapp) ?? trimToNull(d.whatsapp);
     const isEditingActiveCareProfile = Boolean(accountUserId && accountUserId !== userId);
-    let profileEmail = isEditingActiveCareProfile && sameEmail(inputEmail, accountEmail)
+    let profileEmail = includesEmail(accountEmails, inputEmail)
       ? existingProfile?.email ?? null
       : inputEmail;
     let profilePhone = isEditingActiveCareProfile && samePhone(inputPhone, accountPhone)
