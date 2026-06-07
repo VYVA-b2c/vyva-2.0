@@ -1,5 +1,6 @@
 import { db } from "../db.js";
 import { profileMemberships, profiles } from "../../shared/schema.js";
+import { eq } from "drizzle-orm";
 import {
   isMissingOnConflictConstraintError,
   isMissingRelationError,
@@ -12,28 +13,73 @@ type ProfileUpdateValues = Partial<ProfileInsertValues>;
 type ProfileMembershipInsertValues = typeof profileMemberships.$inferInsert;
 type ProfileMembershipUpdateValues = Partial<ProfileMembershipInsertValues>;
 
+async function upsertProfileWithoutConflict(
+  values: ProfileInsertValues,
+  set: ProfileUpdateValues,
+  omittedColumns: Set<string>,
+): Promise<void> {
+  const updateValues = omitColumns(set, omittedColumns);
+
+  if (Object.keys(updateValues).length > 0) {
+    const updated = await db
+      .update(profiles)
+      .set(updateValues)
+      .where(eq(profiles.id, values.id))
+      .returning({ id: profiles.id });
+
+    if (updated.length > 0) return;
+  } else {
+    const existing = await db
+      .select({ id: profiles.id })
+      .from(profiles)
+      .where(eq(profiles.id, values.id))
+      .limit(1);
+
+    if (existing[0]) return;
+  }
+
+  await db
+    .insert(profiles)
+    .values(omitColumns(values, omittedColumns));
+}
+
 export async function upsertProfileToleratingMissingColumns(
   values: ProfileInsertValues,
   set: ProfileUpdateValues,
   logPrefix: string,
 ): Promise<void> {
   const omittedColumns = new Set<string>();
+  let useConflictUpdate = true;
 
   for (;;) {
     try {
-      await db
-        .insert(profiles)
-        .values(omitColumns(values, omittedColumns))
-        .onConflictDoUpdate({
-          target: profiles.id,
-          set: omitColumns(set, omittedColumns),
-        });
+      if (useConflictUpdate) {
+        await db
+          .insert(profiles)
+          .values(omitColumns(values, omittedColumns))
+          .onConflictDoUpdate({
+            target: profiles.id,
+            set: omitColumns(set, omittedColumns),
+          });
+      } else {
+        await upsertProfileWithoutConflict(values, set, omittedColumns);
+      }
       return;
     } catch (err) {
       const column = missingColumnName(err);
-      if (!column || omittedColumns.has(column)) throw err;
-      omittedColumns.add(column);
-      console.warn(`${logPrefix} profiles.${column} is missing; retrying profile write without it.`);
+      if (column && !omittedColumns.has(column)) {
+        omittedColumns.add(column);
+        console.warn(`${logPrefix} profiles.${column} is missing; retrying profile write without it.`);
+        continue;
+      }
+
+      if (useConflictUpdate && isMissingOnConflictConstraintError(err)) {
+        useConflictUpdate = false;
+        console.warn(`${logPrefix} profiles conflict constraint is missing; retrying profile write without conflict update.`);
+        continue;
+      }
+
+      throw err;
     }
   }
 }
