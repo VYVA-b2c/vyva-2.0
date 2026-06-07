@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { and, desc, eq, count, inArray, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, count, inArray, or } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
 import {
@@ -55,7 +55,13 @@ import { entitlementForTier } from "../lib/plans.js";
 import { mergeIdentityGender, readProfileGender } from "../lib/userPersonalization.js";
 import { getActiveProfileContext, getProfileChoices, isMissingAccountProfileLinkColumnError } from "../lib/profileAccess.js";
 import { isLocalDevelopmentRequest } from "../lib/requestEnvironment.js";
-import { missingColumnName as sharedMissingColumnName, omitColumns as sharedOmitColumns } from "../lib/dbCompatibility.js";
+import {
+  selectProfileIdByEmailFromDatabaseColumns,
+  selectProfileIdByPhoneDigitsFromDatabaseColumns,
+  selectProfileRowsByDatabaseColumns,
+  type ProfileReadColumn,
+} from "../lib/profileReadCompatibility.js";
+import { upsertProfileToleratingMissingColumns } from "../lib/profileWriteCompatibility.js";
 
 const DEMO_USER_ID = "demo-user";
 const SUPPORTED_PROFILE_LANGUAGES = ["es", "en", "fr", "de", "it", "pt"] as const;
@@ -149,14 +155,6 @@ function isMissingColumnError(err: unknown, column: string): boolean {
 function withoutLanguagePreference<T extends Record<string, unknown>>(values: T): Omit<T, "language_preference"> {
   const { language_preference: _languagePreference, ...rest } = values;
   return rest;
-}
-
-function missingColumnName(err: unknown): string | null {
-  return sharedMissingColumnName(err);
-}
-
-function omitColumns<T extends Record<string, unknown>>(values: T, columns: Set<string>): T {
-  return sharedOmitColumns(values, columns);
 }
 
 function isUniqueViolation(err: unknown, hints: string[]): boolean {
@@ -1071,24 +1069,10 @@ const profileSettingsSelection = {
   avatar_url: profiles.avatar_url,
 };
 
-const legacyProfileSettingsSelection = withoutLanguagePreference(profileSettingsSelection);
+const profileSettingsColumns = Object.keys(profileSettingsSelection) as ProfileReadColumn[];
 
 async function selectProfileSettingsRows(userId: string) {
-  try {
-    return await db
-      .select(profileSettingsSelection)
-      .from(profiles)
-      .where(eq(profiles.id, userId))
-      .limit(1);
-  } catch (err) {
-    if (!isMissingColumnError(err, "language_preference")) throw err;
-    const rows = await db
-      .select(legacyProfileSettingsSelection)
-      .from(profiles)
-      .where(eq(profiles.id, userId))
-      .limit(1);
-    return rows.map((row) => ({ ...row, language_preference: null }));
-  }
+  return selectProfileRowsByDatabaseColumns(userId, profileSettingsColumns);
 }
 
 router.get("/", async (req: Request, res: Response) => {
@@ -1112,11 +1096,7 @@ router.get("/", async (req: Request, res: Response) => {
             })
         : Promise.resolve([]),
       accountUserId && accountUserId !== userId
-        ? db
-            .select({ email: profiles.email, phone_number: profiles.phone_number })
-            .from(profiles)
-            .where(eq(profiles.id, accountUserId))
-            .limit(1)
+        ? selectProfileRowsByDatabaseColumns(accountUserId, ["email", "phone_number"])
         : Promise.resolve([]),
     ]);
 
@@ -1265,15 +1245,7 @@ router.post("/", async (req: Request, res: Response) => {
 
   try {
     const [existingRows, accountRows, accountProfileRows] = await Promise.all([
-      db
-        .select({
-          data_sharing_consent: profiles.data_sharing_consent,
-          email: profiles.email,
-          phone_number: profiles.phone_number,
-        })
-        .from(profiles)
-        .where(eq(profiles.id, userId))
-        .limit(1),
+      selectProfileRowsByDatabaseColumns(userId, ["data_sharing_consent", "email", "phone_number"]),
       accountUserId
         ? db
             .select({ email: users.email, phone_number: users.phone_number })
@@ -1287,11 +1259,7 @@ router.post("/", async (req: Request, res: Response) => {
             })
         : Promise.resolve([]),
       accountUserId && accountUserId !== userId
-        ? db
-            .select({ email: profiles.email, phone_number: profiles.phone_number })
-            .from(profiles)
-            .where(eq(profiles.id, accountUserId))
-            .limit(1)
+        ? selectProfileRowsByDatabaseColumns(accountUserId, ["email", "phone_number"])
         : Promise.resolve([]),
     ]);
     const existingProfile = existingRows[0];
@@ -1310,14 +1278,7 @@ router.post("/", async (req: Request, res: Response) => {
       : inputPhone;
 
     if (profileEmail && !sameEmail(profileEmail, existingProfile?.email)) {
-      const [emailOwner] = await db
-        .select({ id: profiles.id })
-        .from(profiles)
-        .where(and(
-          sql`lower(${profiles.email}) = ${profileEmail.toLowerCase()}`,
-          ne(profiles.id, userId),
-        ))
-        .limit(1);
+      const emailOwner = await selectProfileIdByEmailFromDatabaseColumns(profileEmail, userId);
 
       if (emailOwner) {
         if (isEditingActiveCareProfile && emailOwner.id === accountUserId) {
@@ -1332,17 +1293,7 @@ router.post("/", async (req: Request, res: Response) => {
 
     const profilePhoneDigits = phoneDigits(profilePhone);
     if (profilePhone && profilePhoneDigits && !samePhone(profilePhone, existingProfile?.phone_number)) {
-      const [phoneOwner] = await db
-        .select({ id: profiles.id })
-        .from(profiles)
-        .where(and(
-          or(
-            sql`regexp_replace(coalesce(${profiles.phone_number}, ''), '[^0-9]', '', 'g') = ${profilePhoneDigits}`,
-            sql`regexp_replace(coalesce(${profiles.whatsapp_number}, ''), '[^0-9]', '', 'g') = ${profilePhoneDigits}`,
-          ),
-          ne(profiles.id, userId),
-        ))
-        .limit(1);
+      const phoneOwner = await selectProfileIdByPhoneDigitsFromDatabaseColumns(profilePhoneDigits, userId);
 
       if (phoneOwner) {
         if (isEditingActiveCareProfile && phoneOwner.id === accountUserId) {
@@ -1355,6 +1306,7 @@ router.post("/", async (req: Request, res: Response) => {
       }
     }
 
+    const now = new Date();
     const insertValues = {
       id:               userId,
       full_name,
@@ -1376,6 +1328,14 @@ router.post("/", async (req: Request, res: Response) => {
       gp_phone:         d.gpPhone || null,
       gp_email:         d.gpEmail || null,
       data_sharing_consent: dataSharingConsent,
+      deployment:       "standard",
+      subscription_status: "trial",
+      subscription_tier: "free",
+      account_status:   "enabled",
+      role:             "user",
+      onboarding_complete: false,
+      created_at:       now,
+      updated_at:       now,
     };
     const updateValues = {
       full_name,
@@ -1397,27 +1357,10 @@ router.post("/", async (req: Request, res: Response) => {
       ...(hasGpPhoneInput ? { gp_phone: d.gpPhone || null } : {}),
       ...(hasGpEmailInput ? { gp_email: d.gpEmail || null } : {}),
       data_sharing_consent: dataSharingConsent,
-      updated_at:       new Date(),
+      updated_at:       now,
     };
 
-    const skippedColumns = new Set<string>();
-    while (true) {
-      try {
-        await db
-          .insert(profiles)
-          .values(omitColumns(insertValues, skippedColumns))
-          .onConflictDoUpdate({
-            target: profiles.id,
-            set: omitColumns(updateValues, skippedColumns),
-          });
-        break;
-      } catch (err) {
-        const column = missingColumnName(err);
-        if (!column || skippedColumns.has(column) || !(column in insertValues || column in updateValues)) throw err;
-        skippedColumns.add(column);
-        console.warn(`[profile POST] profiles.${column} is missing; saving account details without that optional field.`);
-      }
-    }
+    await upsertProfileToleratingMissingColumns(insertValues, updateValues, "[profile POST]");
 
     return res.json({ ok: true });
   } catch (err) {

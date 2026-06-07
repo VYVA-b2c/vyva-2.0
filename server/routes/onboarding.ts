@@ -19,6 +19,7 @@ import { dispatchCommunicationsByIds } from "../services/communicationDispatcher
 import { getActiveProfileContext, isMissingAccountProfileLinkColumnError, requireActiveProfileId } from "../lib/profileAccess.js";
 import { premiumTrialEndsAt, premiumTrialProfilePatch } from "../lib/premiumTrial.js";
 import { isRelationSchemaUnavailableError } from "../lib/dbCompatibility.js";
+import { selectProfileByDatabaseColumns } from "../lib/profileReadCompatibility.js";
 import {
   upsertOptionalProfileMetadata,
   upsertProfileMembershipToleratingMissingColumns,
@@ -361,19 +362,30 @@ onboardingRouter.get("/state", async (req: Request, res: Response) => {
       });
     }
 
-    const [profileRows, stateRow, medicationRows] = await Promise.all([
-      db.select().from(profiles).where(eq(profiles.id, context.profileId)).limit(1),
+    const [profile, stateRow, medicationRows] = await Promise.all([
+      selectProfileByDatabaseColumns(context.profileId),
       ensureOnboardingState(context.profileId),
-      db.select()
+      db.select({
+        medication_name: userMedications.medication_name,
+        dosage: userMedications.dosage,
+        frequency: userMedications.frequency,
+        scheduled_times: userMedications.scheduled_times,
+      })
         .from(userMedications)
         .where(and(
           eq(userMedications.user_id, context.profileId),
           eq(userMedications.active, true),
           eq(userMedications.added_by, "onboarding"),
-        )),
+        ))
+        .catch((err) => {
+          const message = err instanceof Error ? err.message : String(err);
+          if (isRelationSchemaUnavailableError(err, "user_medications") || message.includes("does not exist")) {
+            console.warn("[onboarding] onboarding medication rows are unavailable; continuing with an empty medication list.");
+            return [];
+          }
+          throw err;
+        }),
     ]);
-
-    const profile = profileRows[0];
     const consent = (profile?.data_sharing_consent ?? {}) as Record<string, unknown>;
     const conditionSection = (consent.conditions ?? {}) as {
       health_conditions?: string[];
