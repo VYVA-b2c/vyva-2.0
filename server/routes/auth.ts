@@ -16,6 +16,7 @@ import { premiumTrialProfilePatch } from "../lib/premiumTrial.js";
 import { isProductionRuntime } from "../lib/requestEnvironment.js";
 import { isRelationSchemaUnavailableError } from "../lib/dbCompatibility.js";
 import {
+  upsertOptionalProfileMetadata,
   upsertProfileMembershipToleratingMissingColumns,
   upsertProfileToleratingMissingColumns,
 } from "../lib/profileWriteCompatibility.js";
@@ -291,15 +292,23 @@ async function createInitialSignupProfile(
     phone_number: isSelf ? user.phone_number : null,
     language,
     language_preference: language,
-    onboarding_channel: isSelf ? "web_form" : "proxy_web",
-    current_stage: "stage_1_identity",
-    ...trialPatch,
   }, {
     ...(user.email ? { email: user.email } : {}),
     ...(user.phone_number ? { phone_number: user.phone_number } : {}),
     language,
     language_preference: language,
+    updated_at: now,
+  }, "[auth/register]");
+
+  await upsertOptionalProfileMetadata({
+    id: profileId,
     onboarding_channel: isSelf ? "web_form" : "proxy_web",
+    current_stage: "stage_1_identity",
+    ...trialPatch,
+  }, {
+    onboarding_channel: isSelf ? "web_form" : "proxy_web",
+    current_stage: "stage_1_identity",
+    ...trialPatch,
     updated_at: now,
   }, "[auth/register]");
 

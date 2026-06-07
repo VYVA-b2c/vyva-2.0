@@ -20,6 +20,7 @@ import { getActiveProfileContext, isMissingAccountProfileLinkColumnError, requir
 import { premiumTrialEndsAt, premiumTrialProfilePatch } from "../lib/premiumTrial.js";
 import { isRelationSchemaUnavailableError } from "../lib/dbCompatibility.js";
 import {
+  upsertOptionalProfileMetadata,
   upsertProfileMembershipToleratingMissingColumns,
   upsertProfileToleratingMissingColumns,
 } from "../lib/profileWriteCompatibility.js";
@@ -240,13 +241,24 @@ onboardingRouter.post("/start-profile", async (req: Request, res: Response) => {
       email: isSelf ? account.email : null,
       phone_number: isSelf ? account.phone_number : null,
       language: parsed.data.language,
+    }, {
+      language: parsed.data.language,
+      updated_at: now,
+    }, "[onboarding/start-profile]");
+
+    await upsertOptionalProfileMetadata({
+      id: profileId,
       subscription_status: "trial",
       subscription_tier: "premium",
       trial_ends_at: trialEndsAt,
       onboarding_channel: isSelf ? "web_form" : "proxy_web",
       current_stage: "stage_1_identity",
     }, {
-      language: parsed.data.language,
+      subscription_status: "trial",
+      subscription_tier: "premium",
+      trial_ends_at: trialEndsAt,
+      onboarding_channel: isSelf ? "web_form" : "proxy_web",
+      current_stage: "stage_1_identity",
       updated_at: now,
     }, "[onboarding/start-profile]");
 
