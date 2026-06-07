@@ -9,7 +9,7 @@ import { accessLinks, communicationsLog, lifecycleEvents, onboardingState, profi
 import { signMagicLoginToken, verifyMagicLoginToken } from "../lib/jwt.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { sendMagicLoginEmail, sendPasswordResetEmail } from "../lib/email.js";
-import { getActiveProfileContext, type ActiveProfileContext } from "../lib/profileAccess.js";
+import { getActiveProfileContext, isMissingAccountProfileLinkColumnError, type ActiveProfileContext } from "../lib/profileAccess.js";
 import { getSupabaseConfig } from "../lib/supabaseAuth.js";
 import { clearAuthSessionCookie, issueAuthSessionCookie } from "../lib/sessionCookie.js";
 import { premiumTrialProfilePatch } from "../lib/premiumTrial.js";
@@ -327,13 +327,18 @@ async function createInitialSignupProfile(
       },
     });
 
-  await db
-    .update(users)
-    .set({
-      active_profile_id: profileId,
-      onboarding_intent: setupFor,
-    })
-    .where(eq(users.id, user.id));
+  try {
+    await db
+      .update(users)
+      .set({
+        active_profile_id: profileId,
+        onboarding_intent: setupFor,
+      })
+      .where(eq(users.id, user.id));
+  } catch (err) {
+    if (!isMissingAccountProfileLinkColumnError(err)) throw err;
+    console.warn("[auth/register] users profile link columns are missing; continuing with profile_memberships fallback.");
+  }
 
   await db
     .insert(onboardingState)

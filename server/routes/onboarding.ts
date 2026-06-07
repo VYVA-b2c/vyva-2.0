@@ -16,7 +16,7 @@ import {
 import { z } from "zod";
 import { notifyElderOfProxySetup } from "../services/notifications.js";
 import { dispatchCommunicationsByIds } from "../services/communicationDispatcher.js";
-import { getActiveProfileContext, requireActiveProfileId } from "../lib/profileAccess.js";
+import { getActiveProfileContext, isMissingAccountProfileLinkColumnError, requireActiveProfileId } from "../lib/profileAccess.js";
 import { premiumTrialEndsAt, premiumTrialProfilePatch } from "../lib/premiumTrial.js";
 
 export const onboardingRouter = Router();
@@ -268,13 +268,18 @@ onboardingRouter.post("/start-profile", async (req: Request, res: Response) => {
         },
       });
 
-    await db
-      .update(users)
-      .set({
-        active_profile_id: profileId,
-        onboarding_intent: parsed.data.setup_for,
-      })
-      .where(eq(users.id, accountUserId));
+    try {
+      await db
+        .update(users)
+        .set({
+          active_profile_id: profileId,
+          onboarding_intent: parsed.data.setup_for,
+        })
+        .where(eq(users.id, accountUserId));
+    } catch (err) {
+      if (!isMissingAccountProfileLinkColumnError(err)) throw err;
+      console.warn("[onboarding] users profile link columns are missing; continuing with profile_memberships fallback.");
+    }
 
     await ensureOnboardingState(profileId);
 

@@ -53,7 +53,7 @@ import { signMedicalProfileToolToken } from "../lib/jwt.js";
 import { syncProfileEntitlement } from "../lib/entitlementSync.js";
 import { entitlementForTier } from "../lib/plans.js";
 import { mergeIdentityGender, readProfileGender } from "../lib/userPersonalization.js";
-import { getActiveProfileContext, getProfileChoices } from "../lib/profileAccess.js";
+import { getActiveProfileContext, getProfileChoices, isMissingAccountProfileLinkColumnError } from "../lib/profileAccess.js";
 import { isLocalDevelopmentRequest } from "../lib/requestEnvironment.js";
 
 const DEMO_USER_ID = "demo-user";
@@ -463,10 +463,15 @@ router.post("/active-profile", async (req: Request, res: Response) => {
       eq(profileMemberships.status, "active"),
     ));
 
-  await db
-    .update(users)
-    .set({ active_profile_id: selected.profileId })
-    .where(eq(users.id, accountUserId));
+  try {
+    await db
+      .update(users)
+      .set({ active_profile_id: selected.profileId })
+      .where(eq(users.id, accountUserId));
+  } catch (err) {
+    if (!isMissingAccountProfileLinkColumnError(err)) throw err;
+    console.warn("[profile] users.active_profile_id is missing; selected profile is stored via profile_memberships only.");
+  }
 
   return res.json({
     ok: true,

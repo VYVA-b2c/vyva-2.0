@@ -35,6 +35,14 @@ type DirectProfile = {
   current_stage: string | null;
 };
 
+export function isMissingAccountProfileLinkColumnError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return message.includes("does not exist") && (
+    message.includes("active_profile_id") ||
+    message.includes("onboarding_intent")
+  );
+}
+
 function hasLegacyProfileContent(profile: DirectProfile | undefined): profile is DirectProfile {
   if (!profile) return false;
   return Boolean(
