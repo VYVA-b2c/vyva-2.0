@@ -243,14 +243,14 @@ onboardingRouter.post("/start-profile", async (req: Request, res: Response) => {
       language: parsed.data.language,
       deployment: "standard",
       subscription_status: "trial",
-      subscription_tier: "trial",
+      subscription_tier: "free",
       account_status: "enabled",
       role: "user",
     }, {
       language: parsed.data.language,
       deployment: "standard",
       subscription_status: "trial",
-      subscription_tier: "trial",
+      subscription_tier: "free",
       account_status: "enabled",
       updated_at: now,
     }, "[onboarding/start-profile]");

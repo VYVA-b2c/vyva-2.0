@@ -294,7 +294,7 @@ async function createInitialSignupProfile(
     language_preference: language,
     deployment: "standard",
     subscription_status: "trial",
-    subscription_tier: "trial",
+    subscription_tier: "free",
     account_status: "enabled",
     role: "user",
   }, {
@@ -304,7 +304,7 @@ async function createInitialSignupProfile(
     language_preference: language,
     deployment: "standard",
     subscription_status: "trial",
-    subscription_tier: "trial",
+    subscription_tier: "free",
     account_status: "enabled",
     updated_at: now,
   }, "[auth/register]");
