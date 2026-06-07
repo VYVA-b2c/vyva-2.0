@@ -124,6 +124,11 @@ function includesEmail(emails: string[], value: string | null | undefined): bool
   return emails.some((email) => sameEmail(email, value));
 }
 
+function profileEmailForAccount(accountEmails: string[], value: string | null | undefined): string | null {
+  const email = trimToNull(value);
+  return includesEmail(accountEmails, email) ? null : email;
+}
+
 function samePhone(a: string | null | undefined, b: string | null | undefined): boolean {
   const left = phoneDigits(a);
   const right = phoneDigits(b);
@@ -1137,7 +1142,7 @@ router.get("/", async (req: Request, res: Response) => {
       preferredName:    p.preferred_name ?? "",
       dateOfBirth:      p.date_of_birth ?? "",
       gender:           readProfileGender(p.data_sharing_consent),
-      email:            p.email ?? "",
+      email:            profileEmailForAccount(accountEmails, p.email) ?? "",
       accountEmail:     accountEmail ?? "",
       accountUserId,
       profileId:        p.id,
@@ -1303,9 +1308,7 @@ router.post("/", async (req: Request, res: Response) => {
     const inputPhone = normalizeProfilePhone(d.phone);
     const inputWhatsapp = normalizeProfilePhone(d.whatsapp) ?? trimToNull(d.whatsapp);
     const isEditingActiveCareProfile = Boolean(accountUserId && accountUserId !== userId);
-    let profileEmail = includesEmail(accountEmails, inputEmail)
-      ? existingProfile?.email ?? null
-      : inputEmail;
+    let profileEmail = profileEmailForAccount(accountEmails, inputEmail);
     let profilePhone = isEditingActiveCareProfile && samePhone(inputPhone, accountPhone)
       ? normalizeProfilePhone(existingProfile?.phone_number) ?? null
       : inputPhone;

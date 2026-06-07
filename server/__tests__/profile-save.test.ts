@@ -246,6 +246,41 @@ describe("Profile save", () => {
     });
   });
 
+  it("does not prefill a legacy profile email that matches the account email", async () => {
+    const accountEmail = `profile-account-${randomUUID()}@example.com`;
+    const accountId = await createAccount({
+      email: accountEmail,
+    });
+    await createProfile({
+      id: accountId,
+      full_name: "Care Giver",
+      email: accountEmail,
+      phone_number: "+34600000002",
+    });
+    await db.update(users).set({ active_profile_id: accountId }).where(eq(users.id, accountId));
+    await db.insert(profileMemberships).values({
+      user_id: accountId,
+      profile_id: accountId,
+      role: "elder",
+      relationship: "self",
+      status: "active",
+      is_primary: true,
+      accepted_at: new Date(),
+    });
+
+    const response = await request(app)
+      .get("/api/profile")
+      .set("x-user-id", accountId)
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      email: "",
+      accountEmail,
+      accountUserId: accountId,
+      profileId: accountId,
+    });
+  });
+
   it("does not reject the account email on the direct account profile", async () => {
     const accountEmail = `profile-account-${randomUUID()}@example.com`;
     const accountId = await createAccount({
@@ -260,6 +295,60 @@ describe("Profile save", () => {
       full_name: "Existing Owner",
       email: accountEmail,
       phone_number: "+34600000003",
+    });
+    await db.update(users).set({ active_profile_id: accountId }).where(eq(users.id, accountId));
+    await db.insert(profileMemberships).values({
+      user_id: accountId,
+      profile_id: accountId,
+      role: "elder",
+      relationship: "self",
+      status: "active",
+      is_primary: true,
+      accepted_at: new Date(),
+    });
+
+    await request(app)
+      .post("/api/profile")
+      .set("x-user-id", accountId)
+      .send({
+        firstName: "Care",
+        lastName: "Giver",
+        preferredName: "Care",
+        dateOfBirth: "1975-04-10",
+        email: accountEmail,
+        phone: "+34600000002",
+        whatsapp: "",
+        country: "ES",
+        timezone: "Europe/Madrid",
+        language: "en",
+      })
+      .expect(200);
+
+    const [profile] = await db
+      .select({
+        email: profiles.email,
+        phone_number: profiles.phone_number,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, accountId))
+      .limit(1);
+
+    expect(profile).toMatchObject({
+      email: null,
+      phone_number: "+34600000002",
+    });
+  });
+
+  it("clears a legacy profile email that matches the account email when saving", async () => {
+    const accountEmail = `profile-account-${randomUUID()}@example.com`;
+    const accountId = await createAccount({
+      email: accountEmail,
+    });
+    await createProfile({
+      id: accountId,
+      full_name: "Care Giver",
+      email: accountEmail,
+      phone_number: "+34600000002",
     });
     await db.update(users).set({ active_profile_id: accountId }).where(eq(users.id, accountId));
     await db.insert(profileMemberships).values({
