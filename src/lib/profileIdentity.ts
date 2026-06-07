@@ -14,6 +14,17 @@ export const PHONE_COUNTRY_OPTIONS = [
 
 export type PhoneCountryCode = (typeof PHONE_COUNTRY_OPTIONS)[number]["value"];
 
+const PHONE_LOCAL_PLACEHOLDERS: Record<PhoneCountryCode, string> = {
+  ES: "612 345 678",
+  UK: "7700 900 123",
+  US: "201 555 0123",
+  DE: "151 12345678",
+  FR: "6 12 34 56 78",
+  IT: "345 123 4567",
+  PT: "912 345 678",
+  AE: "50 123 4567",
+};
+
 export type IdentityBasicsForm = {
   firstName: string;
   lastName: string;
@@ -81,6 +92,11 @@ export function formatPhoneLocal(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 15);
   const groups = digits.match(/.{1,3}/g);
   return groups ? groups.join(" ") : "";
+}
+
+export function phoneLocalPlaceholderForCountry(countryCode: string | null | undefined) {
+  const country = PHONE_COUNTRY_OPTIONS.find((option) => option.value === countryCode)?.value ?? "ES";
+  return PHONE_LOCAL_PLACEHOLDERS[country];
 }
 
 export function splitPhoneNumber(phone: string | null | undefined, countryCode: string | null | undefined) {

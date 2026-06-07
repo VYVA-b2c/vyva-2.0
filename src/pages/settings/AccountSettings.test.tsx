@@ -49,7 +49,7 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-function profileResponse() {
+function profileResponse(overrides = {}) {
   return {
     firstName: "Karim",
     lastName: "Assad",
@@ -64,6 +64,7 @@ function profileResponse() {
     languagePreference: "en",
     timezone: "Europe/Madrid",
     avatarUrl: null,
+    ...overrides,
   };
 }
 
@@ -152,6 +153,19 @@ describe("AccountSettings", () => {
     expect(mocks.toast).not.toHaveBeenCalledWith(expect.objectContaining({
       title: "Could not save account details",
     }));
+  });
+
+  it("uses a local phone placeholder for the selected country", async () => {
+    mocks.apiFetch.mockResolvedValue(jsonResponse({ ok: true }));
+    queryClient.setQueryData(["/api/profile"], profileResponse({
+      phone: "",
+      country: "UK",
+    }));
+    const { container } = renderAccountSettings();
+
+    expect(await screen.findByDisplayValue("Assad")).toBeInTheDocument();
+    expect(container.querySelector("#phone")).toHaveAttribute("placeholder", "7700 900 123");
+    expect(container.querySelector("#phone")).not.toHaveAttribute("placeholder", "+44 7700 900 123");
   });
 
   it("shows structured profile save errors instead of the generic fallback", async () => {
