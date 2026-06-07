@@ -16,6 +16,16 @@ function buildApp() {
   return app;
 }
 
+function buildAppWithRequestUserEmail(userEmail: string) {
+  const app = express();
+  app.use(express.json());
+  app.use("/api/profile", authMiddleware, (req, _res, next) => {
+    if (req.user) req.user = { ...req.user, email: userEmail };
+    next();
+  }, profileRouter);
+  return app;
+}
+
 const app = buildApp();
 const createdProfileIds = new Set<string>();
 const createdAccountIds = new Set<string>();
@@ -160,6 +170,104 @@ describe("Profile save", () => {
       email: null,
       phone_number: "+34600000001",
       language_preference: "en",
+    });
+  });
+
+  it("does not prefill a linked care profile with the account email", async () => {
+    const accountEmail = `profile-account-${randomUUID()}@example.com`;
+    const seniorProfileId = await createProfile({
+      full_name: "Elena Senior",
+      phone_number: "+34600000001",
+    });
+    const accountId = await createAccount({
+      email: accountEmail,
+      active_profile_id: seniorProfileId,
+    });
+    await createProfile({
+      id: accountId,
+      full_name: "Care Giver",
+      email: accountEmail,
+      phone_number: "+34600000002",
+    });
+    await db.insert(profileMemberships).values({
+      user_id: accountId,
+      profile_id: seniorProfileId,
+      role: "caregiver",
+      relationship: "daughter",
+      status: "active",
+      is_primary: true,
+      accepted_at: new Date(),
+    });
+
+    const response = await request(app)
+      .get("/api/profile")
+      .set("x-user-id", accountId)
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      email: "",
+      accountEmail,
+      accountUserId: accountId,
+      profileId: seniorProfileId,
+    });
+  });
+
+  it("does not reject the account profile email when the auth email is blank", async () => {
+    const appWithBlankAuthEmail = buildAppWithRequestUserEmail("");
+    const accountEmail = `profile-account-${randomUUID()}@example.com`;
+    const seniorProfileId = await createProfile({
+      full_name: "Elena Senior",
+      phone_number: "+34600000001",
+    });
+    const accountId = await createAccount({
+      email: null,
+      active_profile_id: seniorProfileId,
+    });
+    await createProfile({
+      id: accountId,
+      full_name: "Care Giver",
+      email: accountEmail,
+      phone_number: "+34600000002",
+    });
+    await db.insert(profileMemberships).values({
+      user_id: accountId,
+      profile_id: seniorProfileId,
+      role: "caregiver",
+      relationship: "daughter",
+      status: "active",
+      is_primary: true,
+      accepted_at: new Date(),
+    });
+
+    await request(appWithBlankAuthEmail)
+      .post("/api/profile")
+      .set("x-user-id", accountId)
+      .send({
+        firstName: "Elena",
+        lastName: "Senior",
+        preferredName: "Elena",
+        dateOfBirth: "1942-04-10",
+        email: accountEmail,
+        phone: "+34600000001",
+        whatsapp: "",
+        country: "ES",
+        timezone: "Europe/Madrid",
+        language: "en",
+      })
+      .expect(200);
+
+    const [profile] = await db
+      .select({
+        email: profiles.email,
+        phone_number: profiles.phone_number,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, seniorProfileId))
+      .limit(1);
+
+    expect(profile).toMatchObject({
+      email: null,
+      phone_number: "+34600000001",
     });
   });
 
