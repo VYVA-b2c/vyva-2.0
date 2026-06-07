@@ -14,6 +14,7 @@ import { getSupabaseConfig } from "../lib/supabaseAuth.js";
 import { clearAuthSessionCookie, issueAuthSessionCookie } from "../lib/sessionCookie.js";
 import { premiumTrialProfilePatch } from "../lib/premiumTrial.js";
 import { isProductionRuntime } from "../lib/requestEnvironment.js";
+import { upsertProfileToleratingMissingColumns } from "../lib/profileWriteCompatibility.js";
 
 const scryptAsync = promisify(scrypt);
 
@@ -280,29 +281,23 @@ async function createInitialSignupProfile(
   const trialPatch = premiumTrialProfilePatch();
   const now = new Date();
 
-  await db
-    .insert(profiles)
-    .values({
-      id: profileId,
-      email: isSelf ? user.email : null,
-      phone_number: isSelf ? user.phone_number : null,
-      language,
-      language_preference: language,
-      onboarding_channel: isSelf ? "web_form" : "proxy_web",
-      current_stage: "stage_1_identity",
-      ...trialPatch,
-    })
-    .onConflictDoUpdate({
-      target: profiles.id,
-      set: {
-        ...(user.email ? { email: user.email } : {}),
-        ...(user.phone_number ? { phone_number: user.phone_number } : {}),
-        language,
-        language_preference: language,
-        onboarding_channel: isSelf ? "web_form" : "proxy_web",
-        updated_at: now,
-      },
-    });
+  await upsertProfileToleratingMissingColumns({
+    id: profileId,
+    email: isSelf ? user.email : null,
+    phone_number: isSelf ? user.phone_number : null,
+    language,
+    language_preference: language,
+    onboarding_channel: isSelf ? "web_form" : "proxy_web",
+    current_stage: "stage_1_identity",
+    ...trialPatch,
+  }, {
+    ...(user.email ? { email: user.email } : {}),
+    ...(user.phone_number ? { phone_number: user.phone_number } : {}),
+    language,
+    language_preference: language,
+    onboarding_channel: isSelf ? "web_form" : "proxy_web",
+    updated_at: now,
+  }, "[auth/register]");
 
   await db
     .insert(profileMemberships)

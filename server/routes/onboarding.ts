@@ -18,6 +18,7 @@ import { notifyElderOfProxySetup } from "../services/notifications.js";
 import { dispatchCommunicationsByIds } from "../services/communicationDispatcher.js";
 import { getActiveProfileContext, isMissingAccountProfileLinkColumnError, requireActiveProfileId } from "../lib/profileAccess.js";
 import { premiumTrialEndsAt, premiumTrialProfilePatch } from "../lib/premiumTrial.js";
+import { upsertProfileToleratingMissingColumns } from "../lib/profileWriteCompatibility.js";
 
 export const onboardingRouter = Router();
 
@@ -224,26 +225,20 @@ onboardingRouter.post("/start-profile", async (req: Request, res: Response) => {
     const now = new Date();
     const trialEndsAt = premiumTrialEndsAt(now);
 
-    await db
-      .insert(profiles)
-      .values({
-        id: profileId,
-        email: isSelf ? account.email : null,
-        phone_number: isSelf ? account.phone_number : null,
-        language: parsed.data.language,
-        subscription_status: "trial",
-        subscription_tier: "premium",
-        trial_ends_at: trialEndsAt,
-        onboarding_channel: isSelf ? "web_form" : "proxy_web",
-        current_stage: "stage_1_identity",
-      })
-      .onConflictDoUpdate({
-        target: profiles.id,
-        set: {
-          language: parsed.data.language,
-          updated_at: now,
-        },
-      });
+    await upsertProfileToleratingMissingColumns({
+      id: profileId,
+      email: isSelf ? account.email : null,
+      phone_number: isSelf ? account.phone_number : null,
+      language: parsed.data.language,
+      subscription_status: "trial",
+      subscription_tier: "premium",
+      trial_ends_at: trialEndsAt,
+      onboarding_channel: isSelf ? "web_form" : "proxy_web",
+      current_stage: "stage_1_identity",
+    }, {
+      language: parsed.data.language,
+      updated_at: now,
+    }, "[onboarding/start-profile]");
 
     await db
       .insert(profileMemberships)
