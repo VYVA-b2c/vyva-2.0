@@ -3,32 +3,34 @@ import {
   Bell,
   Check,
   Clock,
-  Film,
-  Handshake,
   HeartHandshake,
   LifeBuoy,
   MapPin,
   MessageCircle,
   Monitor,
+  Pause,
+  RefreshCw,
   Send,
   ShieldCheck,
   Sparkles,
-  Utensils,
   Users,
   Vote,
+  X,
+  ZoomIn,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { apiFetch } from "@/lib/queryClient";
 import AgentAvatar from "./AgentAvatar";
 import SocialStyles from "./SocialStyles";
 import type {
-  SocialGameLanguage,
+  SocialLanguage,
   SocialRoomCostRange,
   SocialRoomComfortNeed,
+  SocialRoomDecisionGuide,
   SocialRoomExperienceCategory,
   SocialRoomGroupSize,
   SocialRoomPlan,
+  SocialRoomPlanHelperAction,
   SocialRoomPlanKind,
   SocialRoomPlanResponseValue,
   SocialRoomPreferredTime,
@@ -41,52 +43,54 @@ import type {
 
 type TogetherRoomScreenProps = {
   roomResponse: SocialRoomResponse;
-  language: SocialGameLanguage;
-  composerLanguage?: SocialGameLanguage;
+  language: SocialLanguage;
   visitId?: string | null;
   onBack: () => void;
 };
 
-type StarterAction = "hello" | "view" | "plan" | "ask";
+type StarterAction = "hello" | "plan" | "ask";
 type ProposalLocationLabel = "nearby" | "online";
-type PlanCollaborationAction = "choose" | "pace" | "notify";
-type PlanLoopAction = "time" | "place" | "invite" | "again";
-type PlanPresetId = "quiet_lunch" | "film_chat" | "service_deal";
-
-type PlanComposerCopy = {
-  sharePlanTitle: string;
-  sharePlanBody: string;
-  sharePlanAction: string;
-  proposalPlaceholder: string;
-  proposalCategoryPrompt: string;
-  proposalPlacePrompt: string;
-  proposalTimePrompt: string;
-  proposalCostPrompt: string;
-  proposalGroupPrompt: string;
-  planNearby: string;
-  planOnline: string;
-  comfortPrompt: string;
-  planPresetPrompt: string;
-  planComposerHelper: string;
-  planPresetCopy: Record<PlanPresetId, { title: string; body: string; draft: string }>;
-  comfortNeedLabels: Record<SocialRoomComfortNeed, string>;
-  categoryLabels: Record<SocialRoomExperienceCategory, string>;
-  timeLabels: Record<SocialRoomPreferredTime, string>;
-  costLabels: Record<SocialRoomCostRange, string>;
-  groupLabels: Record<SocialRoomGroupSize, string>;
-  reviewReasons: Record<SocialRoomSafetyFlag, string>;
-  postFailed: string;
-  send: string;
-  sending: string;
-  proposalSent: string;
-  proposalReviewTitle: string;
-  proposalReviewBody: string;
-  starterDetails: Pick<Record<StarterAction, string>, "plan">;
+type PlanCollaborationAction = SocialRoomPlanHelperAction;
+type ViewPromptAction = "agree" | "different" | "compare" | "more_info";
+type ViewNextReplyCueKind = "opening" | "agreement" | "curious" | "different" | "mixed";
+type RoomVoteSignalKind = "opening" | "close" | "clear";
+type AskPromptAction = "summary" | "easier" | "vote" | "safe";
+type IssuePromptAction = "place" | "time" | "cost" | "safety";
+type SafetyHelpChoice = "uncomfortable" | "pressure_contact" | "money_service" | "something_else";
+type SafetyHelpPanelAnchor = "intro" | "footer";
+type MySafeChoiceId = "plan" | "vote" | "comfort" | "help";
+type NextGentleStepId = "promise" | "updates" | "comfort" | "vote" | "plan" | "recap" | "hello";
+type RoomOutcomeContext = "waiting" | "tie" | "views" | "plan" | "comfort";
+type RoomOutcomeStepId = "private" | "shape" | "safety";
+type PlanReadinessItemId = "interest" | "helper" | "comfort" | "vyva";
+type ComposerPreviewItemId = "shared" | "private" | "next";
+type RoomUsefulStepId = "activity" | "vote" | "views";
+type ParticipationPathId = "vote" | "view" | "activity";
+type RoomNoteId = "known" | "open" | "next";
+type RoomNoteOpenItemId = "vote" | "comfort" | "views" | "activity";
+type RoomTrustItemId = "privacy" | "kindness" | "contact";
+type ViewSafetyItemId = "kind" | "private" | "review";
+type NextGentleStepCopy = {
+  title: string;
+  body: string;
+  action: string;
+};
+type SocialRoomPostResponse = {
+  pulse?: SocialRoomPulse;
+  proposal?: {
+    needsReview?: boolean;
+    status?: string;
+  };
+};
+type SocialRoomPulseRefreshResponse = {
+  pulse?: SocialRoomPulse;
 };
 
 const memberColours = ["#0F766E", "#7C3AED", "#D97706"];
 const defaultPlanKind: SocialRoomPlanKind = "plan";
-const comfortNeedOptions: SocialRoomComfortNeed[] = ["quiet_pace", "easy_access", "seating", "transport_help"];
+const proposalTitleMaxLength = 96;
+const proposalDetailsMaxLength = 320;
+const comfortNeedOptions: SocialRoomComfortNeed[] = ["listen_first", "quiet_pace", "easy_access", "seating", "transport_help", "arrival_buddy", "clear_cost"];
 const experienceCategoryOptions: SocialRoomExperienceCategory[] = [
   "movie_date",
   "restaurant_date",
@@ -99,100 +103,430 @@ const experienceCategoryOptions: SocialRoomExperienceCategory[] = [
 const preferredTimeOptions: SocialRoomPreferredTime[] = ["morning", "afternoon", "evening", "flexible"];
 const costRangeOptions: SocialRoomCostRange[] = ["free", "low", "shared", "discuss"];
 const groupSizeOptions: SocialRoomGroupSize[] = ["one_to_one", "small_group", "open_room"];
-const planCollaborationActions: PlanCollaborationAction[] = ["choose", "pace", "notify"];
+const arrivalComfortShortcuts: SocialRoomComfortNeed[] = ["listen_first", "quiet_pace", "arrival_buddy"];
+const planComfortCheckNeeds: SocialRoomComfortNeed[] = ["easy_access", "seating", "transport_help", "arrival_buddy", "clear_cost"];
+const planCollaborationActions: PlanCollaborationAction[] = ["choose", "pace", "buddy", "notify"];
+const viewPromptActions: ViewPromptAction[] = ["agree", "different", "compare", "more_info"];
+const askPromptActions: AskPromptAction[] = ["summary", "easier", "vote", "safe"];
+const issuePromptActions: IssuePromptAction[] = ["place", "time", "cost", "safety"];
+const safetyHelpChoices: SafetyHelpChoice[] = ["uncomfortable", "pressure_contact", "money_service", "something_else"];
+const viewBalanceTones: SocialRoomReplyTone[] = ["support", "curious", "different", "help"];
+const viewCircleReplyTones: SocialRoomReplyTone[] = ["support", "curious", "different"];
 const planCollaborationTones: Record<PlanCollaborationAction, SocialRoomReplyTone> = {
   choose: "help",
   pace: "curious",
+  buddy: "help",
   notify: "support",
 };
-const planLoopActions: PlanLoopAction[] = ["time", "place", "invite", "again"];
-const planLoopTones: Record<PlanLoopAction, SocialRoomReplyTone> = {
-  time: "help",
-  place: "help",
-  invite: "support",
-  again: "support",
+const nextGentleStepIcons: Record<NextGentleStepId, typeof MessageCircle> = {
+  promise: ShieldCheck,
+  updates: Bell,
+  comfort: HeartHandshake,
+  vote: Vote,
+  plan: HeartHandshake,
+  recap: Sparkles,
+  hello: MessageCircle,
 };
-const planPresetDefaults: Record<PlanPresetId, {
-  locationLabel: ProposalLocationLabel;
-  comfortNeeds: SocialRoomComfortNeed[];
-  experienceCategory: SocialRoomExperienceCategory;
-  preferredTime: SocialRoomPreferredTime;
-  costRange: SocialRoomCostRange;
-  groupSize: SocialRoomGroupSize;
-}> = {
-  quiet_lunch: {
-    locationLabel: "nearby",
-    comfortNeeds: ["easy_access", "seating", "quiet_pace"],
-    experienceCategory: "restaurant_date",
-    preferredTime: "afternoon",
-    costRange: "shared",
-    groupSize: "small_group",
-  },
-  film_chat: {
-    locationLabel: "online",
-    comfortNeeds: ["quiet_pace"],
-    experienceCategory: "movie_date",
-    preferredTime: "evening",
-    costRange: "free",
-    groupSize: "small_group",
-  },
-  service_deal: {
-    locationLabel: "online",
-    comfortNeeds: ["quiet_pace", "easy_access"],
-    experienceCategory: "deal_help",
-    preferredTime: "flexible",
-    costRange: "discuss",
-    groupSize: "small_group",
-  },
+const roomOutcomeStepIcons: Record<RoomOutcomeStepId, typeof MessageCircle> = {
+  private: Vote,
+  shape: Sparkles,
+  safety: ShieldCheck,
+};
+const planReadinessIcons: Record<PlanReadinessItemId, typeof MessageCircle> = {
+  interest: Users,
+  helper: HeartHandshake,
+  comfort: ShieldCheck,
+  vyva: Sparkles,
+};
+const composerPreviewIcons: Record<ComposerPreviewItemId, typeof MessageCircle> = {
+  shared: MessageCircle,
+  private: ShieldCheck,
+  next: Sparkles,
+};
+const roomUsefulStepIcons: Record<RoomUsefulStepId, typeof MessageCircle> = {
+  activity: HeartHandshake,
+  vote: Vote,
+  views: MessageCircle,
+};
+const participationPathIcons: Record<ParticipationPathId, typeof MessageCircle> = {
+  vote: Vote,
+  view: MessageCircle,
+  activity: HeartHandshake,
+};
+const roomNoteIcons: Record<RoomNoteId, typeof MessageCircle> = {
+  known: Check,
+  open: Clock,
+  next: Sparkles,
+};
+const roomTrustIcons: Record<RoomTrustItemId, typeof MessageCircle> = {
+  privacy: Vote,
+  kindness: HeartHandshake,
+  contact: ShieldCheck,
+};
+const viewSafetyIcons: Record<ViewSafetyItemId, typeof MessageCircle> = {
+  kind: HeartHandshake,
+  private: ShieldCheck,
+  review: LifeBuoy,
 };
 
-const copyByLanguage: Record<"es" | "de" | "en", {
+function TogetherReadableStyles() {
+  return (
+    <style>{`
+      .together-readable .text-\\[12px\\] { font-size: 14px !important; }
+      .together-readable .text-\\[13px\\] { font-size: 15px !important; }
+      .together-readable .text-\\[14px\\] { font-size: 16px !important; }
+      .together-readable .text-\\[15px\\] { font-size: 17px !important; }
+      .together-readable .text-\\[16px\\] { font-size: 18px !important; }
+      .together-readable .text-\\[17px\\] { font-size: 19px !important; }
+      .together-readable .text-\\[18px\\] { font-size: 20px !important; }
+      .together-readable .text-\\[19px\\] { font-size: 21px !important; }
+      .together-readable .text-\\[20px\\] { font-size: 22px !important; }
+      .together-readable .text-\\[21px\\] { font-size: 23px !important; }
+      .together-readable .text-\\[26px\\] { font-size: 28px !important; }
+      .together-readable .text-\\[28px\\] { font-size: 30px !important; }
+      .together-readable .text-\\[31px\\] { font-size: 33px !important; }
+      .together-readable .text-\\[34px\\] { font-size: 37px !important; }
+      .together-readable .font-body,
+      .together-readable .font-display {
+        letter-spacing: 0 !important;
+      }
+      .together-readable p,
+      .together-readable span,
+      .together-readable button,
+      .together-readable textarea,
+      .together-readable input {
+        line-height: 1.42 !important;
+        overflow-wrap: anywhere;
+      }
+      .together-readable textarea,
+      .together-readable input {
+        font-size: 18px !important;
+      }
+    `}</style>
+  );
+}
+const mySafeChoiceIcons: Record<MySafeChoiceId, typeof MessageCircle> = {
+  plan: HeartHandshake,
+  vote: Vote,
+  comfort: ShieldCheck,
+  help: LifeBuoy,
+};
+const visibilityIcons: Record<string, typeof MessageCircle> = {
+  private: ShieldCheck,
+  totals: Users,
+  shared: MessageCircle,
+};
+
+function limitProposalDraft(value: string) {
+  return value.slice(0, proposalDetailsMaxLength);
+}
+
+function proposalTitleFromDraft(title: string, details: string) {
+  const titleSource = title.trim() || details.trim();
+  return titleSource.slice(0, proposalTitleMaxLength).trimEnd();
+}
+
+function hasProtectedNumberSequence(value: string) {
+  const matches = value.match(/(?:\+?\d[\d\s().-]{5,}\d)/g) ?? [];
+  return matches.some((match) => {
+    const trimmed = match.trim();
+    const digits = trimmed.replace(/\D/g, "");
+    const looksLikeDate = /^\d{4}-\d{1,2}-\d{1,2}$/.test(trimmed) || /^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/.test(trimmed);
+    return digits.length >= 7 && digits.length <= 19 && !looksLikeDate;
+  });
+}
+
+function normalizeSafetyText(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function hasProtectedProposalDetails(value: string) {
+  const text = normalizeSafetyText(value);
+  return (
+    /\b(address|adresse|correo|direccion|e-?mail|email|outside the app|phone|private contact|telefono|telefon|text me|whatsapp)\b/.test(text)
+    || /https?:\/\/|www\.|[^\s@]+@[^\s@]+\.[^\s@]+/.test(text)
+    || /\b(bank|banco|card number|credit card|crypto|deposit|gift card|iban|konto|payment details|tarjeta|transfer|transferencia)\b/.test(text)
+    || hasProtectedNumberSequence(value)
+  );
+}
+
+function hasUnkindProposalTone(value: string) {
+  const text = normalizeSafetyText(value);
+  return /\b(stupid|idiot|dumb|worthless|shut up|go away|ridiculous|nonsense|liar|estupido|idiota|callate|tonto|basura|dumm|halt die klappe|laecherlich|lacherlich|luegner)\b/.test(text);
+}
+
+const copyByLanguage: Record<SocialLanguage, {
   back: string;
   safeStatus: string;
+  statusLabel: string;
+  refreshRoom: string;
+  refreshingRoom: string;
+  roomRefreshed: string;
+  roomRefreshedWithUpdates: (count: number) => string;
+  roomRefreshedWithVotes: (count: number) => string;
+  roomRefreshedWithReplies: (count: number) => string;
+  roomRefreshedWithPlanInterest: (count: number) => string;
+  roomRefreshedWithComfort: (count: number) => string;
+  roomRefreshFailed: string;
+  readingComfortLabel: string;
+  readingComfortOnLabel: string;
+  readingComfortNote: string;
   present: (count: number) => string;
   join: string;
   maybe: string;
   joined: string;
   maybeSaved: string;
+  planChoiceNoteTitle: string;
+  planChoiceNoteBody: string;
+  planNextStepTitle: string;
+  planNextStepWaiting: string;
+  planNextStepReady: string;
+  planNextStepJoined: string;
+  planNextStepMaybe: string;
+  planNextStepChecks: string[];
+  planComfortCueTitle: string;
+  planComfortCueKnown: (labels: string[]) => string;
+  planComfortCueAsk: (labels: string[]) => string;
+  planComfortCueReady: string;
+  planComfortCueMore: (count: number) => string;
+  planComfortCuePrivacy: string;
+  planDetailCheckTitle: string;
+  planDetailCheckBody: string;
+  planDetailCheckItems: string[];
+  planDetailCheckAction: string;
+  planDetailCheckDraft: (planTitle: string) => string;
   roomChoice: string;
   pollClosed: string;
   youVoted: string;
   pollNudgeNoVotes: string;
   pollNudgeLeading: (label: string) => string;
+  pollNudgeTie: (labels: string[]) => string;
   pollNudgeAction: string;
+  pollVotes: (count: number) => string;
+  pollYourChoice: string;
+  pollPrivacyTitle: string;
+  pollPrivacyBody: string;
+  pollImpactTitle: string;
+  pollImpactWaiting: string;
+  pollImpactLeading: (label: string, needs: string[]) => string;
+  pollImpactTie: (labels: string[]) => string;
+  pollImpactViews: string;
+  pollImpactNoVote: string;
+  pollImpactYourVote: (label: string) => string;
+  pollImpactSafety: string;
+  pollSignalTitle: string;
+  pollSignalBodies: Record<RoomVoteSignalKind, string>;
+  pollSignalClearBody: (label: string) => string;
+  pollSignalPrivacy: string;
   comfortCheckTitle: string;
   comfortCheckBody: string;
   comfortCheckCount: (count: number) => string;
+  comfortSaved: string;
+  comfortPrivacyTitle: string;
+  comfortPrivacyBody: string;
+  arrivalComfortTitle: string;
+  arrivalComfortBody: string;
+  arrivalComfortSaved: (label: string) => string;
+  arrivalComfortRemoved: (label: string) => string;
+  listenFirstAction: string;
+  listenFirstSaved: string;
+  listenFirstRemoved: string;
+  roomDirectionTitle: string;
+  roomDirectionWaiting: string;
+  roomDirectionBody: (choice: string | null, needs: string[]) => string;
+  roomDirectionTie: (labels: string[], needs: string[]) => string;
+  roomDirectionAction: string;
+  roomDirectionDraft: (choice: string | null, needs: string[]) => string;
+  roomDirectionViewAction: string;
+  roomDirectionViewDraft: string;
+  roomRecapAction: string;
+  roomRecapDraft: (choice: string | null, needs: string[]) => string;
+  roomSummaryTitle: string;
+  roomSummaryLabels: Record<"vote" | "comfort" | "interest" | "views" | "next", string>;
+  roomSummaryVoteWaiting: string;
+  roomSummaryVoteTie: (labels: string[]) => string;
+  roomSummaryComfortWaiting: string;
+  roomSummaryNextWaiting: string;
+  roomSummaryNextReady: (choice: string | null, needs: string[]) => string;
+  roomSummaryNextView: string;
+  roomSummaryNextTie: string;
+  roomCommonGroundTitle: string;
+  roomCommonGroundBody: string;
+  roomCommonGroundVote: string;
+  roomCommonGroundComfortReady: (needs: string[]) => string;
+  roomCommonGroundComfortWaiting: string;
+  roomCommonGroundInterestReady: (count: number) => string;
+  roomCommonGroundInterestWaiting: string;
+  roomCommonGroundViewsReady: (count: number) => string;
+  roomCommonGroundViewsWaiting: string;
+  roomOutcomeTitle: string;
+  roomOutcomeBody: (choice: string | null, needs: string[], context: RoomOutcomeContext) => string;
+  roomOutcomeSteps: Record<RoomOutcomeStepId, string>;
+  roomAtGlanceTitle: string;
+  roomAtGlanceUpdatesClear: string;
+  roomAtGlanceUpdates: (count: number) => string;
+  roomAtGlanceVotes: (count: number) => string;
+  roomAtGlancePlanInterest: (count: number) => string;
+  roomAtGlanceComfort: (count: number) => string;
+  mySafeChoicesTitle: string;
+  mySafeChoicesBody: string;
+  mySafeChoicesPrivate: string;
+  mySafeChoiceLabels: Record<MySafeChoiceId, string>;
+  mySafeChoicePlanNone: string;
+  mySafeChoicePlanJoin: string;
+  mySafeChoicePlanMaybe: string;
+  mySafeChoiceVoteNone: string;
+  mySafeChoiceIssueVote: (question: string, choice: string) => string;
+  mySafeChoiceComfortNone: string;
+  mySafeChoiceHelpNone: string;
+  mySafeChoiceHelp: (planTitle: string, helpers: string[]) => string;
+  mySafePauseAction: string;
+  mySafePauseActiveAction: string;
+  mySafePauseStatus: string;
+  mySafePauseNote: string;
+  roomTrustTitle: string;
+  roomTrustBody: string;
+  roomTrustItems: Record<RoomTrustItemId, string>;
+  roomTrustAction: string;
+  roomTrustDraft: string;
+  participationPathTitle: string;
+  participationPathBody: string;
+  participationPathLabels: Record<ParticipationPathId, string>;
+  participationPathBodies: Record<ParticipationPathId, string>;
+  participationPathActions: Record<ParticipationPathId, string>;
+  participationPathPrivacy: string;
+  nextGentleStepLabel: string;
+  nextGentleSteps: Record<NextGentleStepId, NextGentleStepCopy>;
+  nextGentleStepExplainAction: string;
+  nextGentleStepExplainDraft: (stepTitle: string) => string;
+  roomReadinessTitle: string;
+  roomReadinessBody: string;
+  roomReadinessLabels: Record<"vote" | "comfort" | "consent", string>;
+  roomReadinessVoteReady: string;
+  roomReadinessVoteWaiting: string;
+  roomReadinessComfortReady: string;
+  roomReadinessComfortWaiting: string;
+  roomReadinessConsentReady: string;
+  roomUsefulTitle: string;
+  roomUsefulBody: string;
+  roomUsefulLabels: Record<RoomUsefulStepId, string>;
+  roomUsefulReady: Record<RoomUsefulStepId, string>;
+  roomUsefulWaiting: Record<RoomUsefulStepId, string>;
+  roomUsefulActions: Record<RoomUsefulStepId, string>;
+  roomUsefulPrivacy: string;
+  roomNotesTitle: string;
+  roomNotesBody: string;
+  roomNotesLabels: Record<RoomNoteId, string>;
+  roomNotesVoteKnown: (label: string) => string;
+  roomNotesVoteTie: (labels: string[]) => string;
+  roomNotesVoteWaiting: string;
+  roomNotesComfortKnown: (labels: string[]) => string;
+  roomNotesComfortWaiting: string;
+  roomNotesViewsKnown: (count: number) => string;
+  roomNotesViewsWaiting: string;
+  roomNotesOpenItems: Record<RoomNoteOpenItemId, string>;
+  roomNotesOpenReady: string;
+  roomNotesNextActivity: (planTitle: string) => string;
+  roomNotesNextVote: (questionTitle: string) => string;
+  roomNotesNextViews: (count: number) => string;
+  roomNotesNextStarter: string;
+  roomNotesPrivacy: string;
   responseNone: string;
   responseJoinCount: (count: number) => string;
   responseMaybeCount: (count: number) => string;
   morePlans: string;
   roomUpdates: string;
+  roomUpdatesShowing: (visible: number, total: number) => string;
+  roomUpdatesRecapTitle: string;
+  roomUpdatesRecapBody: (count: number) => string;
+  roomUpdatesRecapAction: string;
+  roomUpdatesRecapDraft: (count: number) => string;
   markUpdateSeen: string;
+  markAllUpdatesSeen: string;
   updateSeen: string;
   updateSeenFailed: string;
+  allUpdatesSeen: string;
+  allUpdatesSeenFailed: string;
   sharedToday: string;
+  viewCircleTitle: string;
+  viewCircleBody: string;
+  viewCircleEmpty: string;
+  viewCircleVote: (label: string, count: number) => string;
+  viewCircleCount: (count: number) => string;
+  viewCircleLatest: string;
+  viewCircleAdd: string;
+  viewRecapTitle: string;
+  viewRecapBody: (count: number) => string;
+  viewRecapAction: string;
+  viewRecapDraft: (count: number) => string;
+  viewVoteBridgeTitle: string;
+  viewVoteBridgeBody: (count: number) => string;
+  viewVoteBridgeAction: string;
+  viewVoteBridgeDraft: (count: number) => string;
+  viewBalanceTitle: string;
+  viewBalanceBody: string;
+  viewBalanceEmpty: string;
+  viewBalanceLabels: Record<SocialRoomReplyTone, string>;
+  viewCommonGroundTitle: string;
+  viewCommonGroundOpening: string;
+  viewCommonGroundAgreement: string;
+  viewCommonGroundCurious: string;
+  viewCommonGroundDifferent: string;
+  viewCommonGroundMixed: string;
+  viewCommonGroundPrivacy: string;
+  viewSafetyTitle: string;
+  viewSafetyBody: string;
+  viewSafetyItems: Record<ViewSafetyItemId, string>;
+  viewSafetyAction: string;
+  viewSafetyDraft: string;
+  viewNextReplyTitle: string;
+  viewNextReplyBodies: Record<ViewNextReplyCueKind, string>;
+  viewNextReplyActions: Record<ViewNextReplyCueKind, string>;
+  viewNextReplyDrafts: Record<ViewNextReplyCueKind, string>;
   sharedResponseSaved: string;
   reviewItem: string;
   reviewItemSent: string;
   reviewReply: string;
   gentleReplies: string;
+  replyGuideTitle: string;
+  replyGuideBody: string;
   planSupportTitle: string;
   planSupportBody: string;
+  planSupportSummaryTitle: string;
+  planSupportSummaryBody: string;
+  planSupportSummaryEmpty: string;
+  planHelperCueTitle: string;
+  planHelperCueBody: (actionLabel: string) => string;
+  planHelperCueCoveredTitle: string;
+  planHelperCueCoveredBody: (labels: string[]) => string;
+  planHelperCueAction: (actionLabel: string) => string;
+  planHelperCuePrivate: string;
+  planReadinessTitle: string;
+  planReadinessBody: (readyCount: number, totalCount: number) => string;
+  planReadinessInterestReady: (count: number) => string;
+  planReadinessInterestWaiting: string;
+  planReadinessHelperReady: (count: number) => string;
+  planReadinessHelperWaiting: string;
+  planReadinessComfortReady: string;
+  planReadinessComfortWaiting: string;
+  planReadinessVyvaReady: string;
+  activityReadyTitle: string;
+  activityReadyBody: (planTitle: string) => string;
+  activityReadySignalsTitle: string;
+  activityReadyPrivate: string;
+  activityReadyPrepTitle: string;
+  activityReadyPrepItems: string[];
+  activityReadyAction: string;
+  activityReadyDraft: (planTitle: string, signals: string[]) => string;
+  voteReadyTitle: string;
+  voteReadyBody: (questionTitle: string) => string;
+  voteReadyPrivate: string;
+  voteReadyAction: string;
   planSupportActions: Record<PlanCollaborationAction, string>;
   planSupportReplies: Record<PlanCollaborationAction, string>;
-  planLoopTitle: string;
-  planLoopBody: string;
-  planLoopStatusLabel: string;
-  planLoopSteps: {
-    shared: string;
-    choosing: string;
-    confirmed: string;
-    happened: string;
-    repeat: string;
-  };
-  planLoopActions: Record<PlanLoopAction, string>;
-  planLoopReplies: Record<PlanLoopAction, string>;
   replySent: string;
   replyFailed: string;
   replyActions: Record<SocialRoomReplyTone, string>;
@@ -200,20 +534,48 @@ const copyByLanguage: Record<"es" | "de" | "en", {
   supportIdea: string;
   maybeIdea: string;
   sharedKindLabels: Record<SocialRoomPlanKind, string>;
+  sharedViewLabel: string;
   sharedActions: Record<SocialRoomPlanKind, { primary: string; secondary: string }>;
+  issueQueueTitle: string;
+  issueQueueBody: string;
+  issueQueueBadge: string;
+  issueQueueAction: string;
+  issueQueueDraft: (title: string) => string;
+  issueQueueUseAction: string;
+  issueQueueUseDraft: (title: string, signal: string | null) => string;
+  issueQueuePrivacy: string;
+  issueReadinessTitles: Record<"gathering" | "vote" | "summary", string>;
+  issueReadinessBodies: Record<"gathering" | "vote", string> & { summary: (signal: string | null) => string };
+  issuePollTitle: string;
+  issuePollBody: string;
+  issuePollPrivacy: string;
+  issuePollOutcomeTitle: string;
+  issuePollOutcomeBody: (label: string) => string;
+  issuePollOutcomeTie: (labels: string[]) => string;
+  issuePollOutcomeOtherViews: string;
+  issuePollOutcomeOpen: string;
   proposalPlaceholder: string;
+  proposalLengthHint: (remaining: number) => string;
+  proposalSafetyWarning: string;
+  proposalToneWarning: string;
+  proposalToneRewrite: string;
+  proposalToneRewriteDrafts: Record<SocialRoomPlanKind, string>;
   proposalCategoryPrompt: string;
   proposalPlacePrompt: string;
   proposalTimePrompt: string;
   proposalCostPrompt: string;
   proposalGroupPrompt: string;
+  composerPreviewTitle: string;
+  composerPreviewBodies: Record<SocialRoomPlanKind, string>;
+  composerPreviewItems: Record<SocialRoomPlanKind, Record<ComposerPreviewItemId, string>>;
+  safeShareTitle: string;
+  safeShareBody: string;
+  safeShareReviewLine: string;
   planNearby: string;
   planOnline: string;
   comfortPrompt: string;
-  planPresetPrompt: string;
-  planComposerHelper: string;
-  planPresetCopy: Record<PlanPresetId, { title: string; body: string; draft: string }>;
   comfortNeedLabels: Record<SocialRoomComfortNeed, string>;
+  moreComfortNotes: (count: number) => string;
   categoryLabels: Record<SocialRoomExperienceCategory, string>;
   timeLabels: Record<SocialRoomPreferredTime, string>;
   costLabels: Record<SocialRoomCostRange, string>;
@@ -223,16 +585,45 @@ const copyByLanguage: Record<"es" | "de" | "en", {
   reviewReasons: Record<SocialRoomSafetyFlag, string>;
   postFailed: string;
   send: string;
+  cancel: string;
   sending: string;
-  proposalSent: string;
-  proposalReviewTitle: string;
-  proposalReviewBody: string;
+  sent: string;
+  reviewPending: string;
   helpSent: string;
+  helpSending: string;
   helpFailed: string;
-  viewStarter: string;
+  safetyHelpTitle: string;
+  safetyHelpBody: string;
+  safetyHelpChoiceLabels: Record<SafetyHelpChoice, string>;
+  safetyHelpChoiceBodies: Record<SafetyHelpChoice, string>;
+  safetyHelpChoiceReasons: Record<SafetyHelpChoice, string>;
+  safetyHelpChoiceDetails: Record<SafetyHelpChoice, string>;
+  safetyHelpReceiptTitle: string;
+  safetyHelpReceiptBody: (choiceLabel: string) => string;
+  safetyHelpReceiptItems: string[];
+  viewSharingNote: string;
+  viewTonePreviewTitle: string;
+  viewTonePreviewReady: string;
+  viewTonePreviewNeedsEdit: string;
+  viewTonePreviewItems: Record<"kind" | "privacy" | "small", string>;
+  viewPromptTitle: string;
+  viewPromptBody: string;
+  viewPromptLabels: Record<ViewPromptAction, string>;
+  viewPromptDrafts: Record<ViewPromptAction, string>;
+  askPromptTitle: string;
+  askPromptBody: string;
+  askPromptLabels: Record<AskPromptAction, string>;
+  askPromptDrafts: Record<AskPromptAction, string>;
+  issuePromptTitle: string;
+  issuePromptBody: string;
+  issuePromptLabels: Record<IssuePromptAction, string>;
+  issuePromptDrafts: Record<IssuePromptAction, string>;
   sharePlanTitle: string;
   sharePlanBody: string;
   sharePlanAction: string;
+  discussionTitle: string;
+  discussionBody: string;
+  starterLabels: Record<StarterAction, string>;
   agreementTitle: string;
   agreementLines: string[];
   acknowledgementLabel: string;
@@ -243,67 +634,466 @@ const copyByLanguage: Record<"es" | "de" | "en", {
   es: {
     back: "Volver",
     safeStatus: "Sala protegida",
+    statusLabel: "Actualizacion de la sala",
+    refreshRoom: "Revisar sala",
+    refreshingRoom: "Revisando...",
+    roomRefreshed: "Sala actualizada",
+    roomRefreshedWithUpdates: (count) => `${count} ${count === 1 ? "novedad nueva" : "novedades nuevas"} en la sala`,
+    roomRefreshedWithVotes: (count) => `${count} ${count === 1 ? "voto nuevo" : "votos nuevos"} en la sala`,
+    roomRefreshedWithReplies: (count) => `${count} ${count === 1 ? "respuesta nueva" : "respuestas nuevas"} en la sala`,
+    roomRefreshedWithPlanInterest: (count) => `${count} ${count === 1 ? "respuesta nueva a un plan" : "respuestas nuevas a planes"}`,
+    roomRefreshedWithComfort: (count) => `${count} ${count === 1 ? "senal nueva de comodidad" : "senales nuevas de comodidad"}`,
+    roomRefreshFailed: "No se pudo actualizar la sala. Intentalo de nuevo.",
+    readingComfortLabel: "Texto grande",
+    readingComfortOnLabel: "Texto grande activo",
+    readingComfortNote: "El texto grande esta activo solo para ti en esta sala.",
     present: (count) => `${count} presentes`,
     join: "Me apunto",
     maybe: "Quizas luego",
     joined: "Te has apuntado",
     maybeSaved: "Guardado para luego",
+    planChoiceNoteTitle: "Sin presion",
+    planChoiceNoteBody: "Apuntarte solo muestra interes, no compromiso. Quizas lo guarda mientras VYVA ayuda a aclarar detalles.",
+    planNextStepTitle: "Que pasa despues",
+    planNextStepWaiting: "Cuando alguien muestre interes, VYVA ayudara a confirmar los detalles con calma.",
+    planNextStepReady: "VYVA puede ayudar a confirmar los detalles antes de que nadie comparta contacto.",
+    planNextStepJoined: "Has mostrado interes. VYVA ayudara a confirmar los detalles antes de compartir contacto.",
+    planNextStepMaybe: "Guardado para luego. Puedes volver cuando los detalles esten claros.",
+    planNextStepChecks: ["Hora", "Comodidad", "Contacto solo con permiso"],
+    planComfortCueTitle: "Comodidad antes de apuntarte",
+    planComfortCueKnown: (labels) => labels.length ? `Ya anotado: ${labels.join(", ")}.` : "Aun no hay notas de comodidad.",
+    planComfortCueAsk: (labels) => `Pide a VYVA confirmar: ${labels.join(", ")}.`,
+    planComfortCueReady: "Este plan ya nombra las comprobaciones principales de comodidad.",
+    planComfortCueMore: (count) => `${count} ${count === 1 ? "comprobacion mas" : "comprobaciones mas"}`,
+    planComfortCuePrivacy: "Apuntarte o elegir Quizas no comparte contacto privado.",
+    planDetailCheckTitle: "Antes de quedar",
+    planDetailCheckBody: "VYVA puede revisar los detalles practicos antes de que nadie se comprometa.",
+    planDetailCheckItems: ["Lugar y hora claros", "Comodidad y coste", "Contacto solo con permiso"],
+    planDetailCheckAction: "Revisar detalles",
+    planDetailCheckDraft: (planTitle) => `VYVA, revisa "${planTitle}" antes de que nadie se comprometa. Confirma lugar, hora, comodidad, coste y contacto solo con permiso, sin nombres.`,
     roomChoice: "Eleccion de la sala",
     pollClosed: "La votacion esta cerrada",
     youVoted: "Tu voto esta guardado",
     pollNudgeNoVotes: "Tu voto ayuda a elegir el proximo paso.",
     pollNudgeLeading: (label) => `La sala se inclina por: ${label}.`,
+    pollNudgeTie: (labels) => `La sala esta eligiendo entre: ${labels.join(" | ")}.`,
     pollNudgeAction: "Puedes apuntarte arriba o proponer una version mas tranquila.",
+    pollVotes: (count) => `${count} ${count === 1 ? "voto" : "votos"}`,
+    pollYourChoice: "Tu eleccion",
+    pollPrivacyTitle: "Voto privado y flexible",
+    pollPrivacyBody: "La sala solo ve los totales, no tu nombre. Puedes cambiar tu voto mientras este abierto.",
+    pollImpactTitle: "Que hace tu voto",
+    pollImpactWaiting: "Cada voto privado ayuda a la sala a elegir un siguiente paso tranquilo.",
+    pollImpactLeading: (label, needs) => (
+      needs.length
+        ? `La sala se inclina por ${label}. VYVA lo preparara con ${needs.join(", ")}.`
+        : `La sala se inclina por ${label}. VYVA lo convertira en un paso sencillo.`
+    ),
+    pollImpactTie: (labels) => `La sala esta dividida entre ${labels.join(" | ")}. VYVA puede resumir ambas opciones sin prisa.`,
+    pollImpactViews: "La sala elige compartir opiniones. VYVA ayuda a que las respuestas sigan siendo amables.",
+    pollImpactNoVote: "Aun no has votado. Puedes mirar primero.",
+    pollImpactYourVote: (label) => `Tu voto: ${label}. Puedes cambiarlo mientras siga abierto.`,
+    pollImpactSafety: "Solo se muestran totales. Los nombres no aparecen.",
+    pollSignalTitle: "Senal de la sala",
+    pollSignalBodies: {
+      opening: "Aun no hay direccion. Mirar primero tambien esta bien.",
+      close: "La votacion sigue cerca. Elige lo que te parezca bien, sin presion.",
+      clear: "Ya hay una direccion clara, pero la votacion sigue abierta y privada.",
+    },
+    pollSignalClearBody: (label) => `${label} va por delante, pero puedes elegir otra cosa con calma.`,
+    pollSignalPrivacy: "VYVA usa solo totales, no nombres.",
     comfortCheckTitle: "Que lo haria comodo?",
     comfortCheckBody: "Toca lo que ayuda. La sala puede adaptar los planes.",
     comfortCheckCount: (count) => `${count} ${count === 1 ? "lo eligio" : "lo eligieron"}`,
+    comfortSaved: "Comodidad guardada",
+    comfortPrivacyTitle: "Comodidad privada",
+    comfortPrivacyBody: "La sala ve los totales, no tu nombre. Puedes cambiar lo que ayuda cuando quieras.",
+    arrivalComfortTitle: "Empezar con calma",
+    arrivalComfortBody: "Elige lo que te ayuda hoy. La sala ve totales, no nombres.",
+    arrivalComfortSaved: (label) => `${label} guardado`,
+    arrivalComfortRemoved: (label) => `${label} quitado`,
+    listenFirstAction: "Escuchar primero",
+    listenFirstSaved: "Escucha guardada",
+    listenFirstRemoved: "Escucha quitada",
+    roomDirectionTitle: "Paso suave de la sala",
+    roomDirectionWaiting: "Cuando haya mas votos, VYVA podra sugerir un siguiente paso sencillo.",
+    roomDirectionBody: (choice, needs) => {
+      const base = choice ? `La sala se inclina por ${choice}.` : "La sala aun esta eligiendo.";
+      return needs.length ? `${base} Preparadlo con ${needs.join(", ")}.` : base;
+    },
+    roomDirectionTie: (labels, needs) => {
+      const base = `La sala aun esta eligiendo entre ${labels.join(" | ")}.`;
+      return needs.length ? `${base} Preparadlo con ${needs.join(", ")}.` : base;
+    },
+    roomDirectionAction: "Crear plan tranquilo",
+    roomDirectionDraft: (choice, needs) => {
+      const base = `Una version tranquila de ${choice ?? "la eleccion de hoy"}`;
+      return needs.length ? `${base} con ${needs.join(", ")}.` : `${base}.`;
+    },
+    roomDirectionViewAction: "Compartir opinion",
+    roomDirectionViewDraft: "Me gustaria escuchar opiniones tranquilas sobre lo que importa hoy.",
+    roomRecapAction: "Pedir resumen a VYVA",
+    roomRecapDraft: (choice, needs) => {
+      const base = choice ? `VYVA, resume la eleccion de la sala sobre ${choice}` : "VYVA, resume lo que esta pasando en la sala";
+      return needs.length ? `${base} y las necesidades de comodidad: ${needs.join(", ")}.` : `${base}.`;
+    },
+    roomSummaryTitle: "Resumen de la sala",
+    roomSummaryLabels: {
+      vote: "Voto",
+      comfort: "Comodidad",
+      interest: "Interes",
+      views: "Opiniones",
+      next: "Siguiente",
+    },
+    roomSummaryVoteWaiting: "Aun abierto",
+    roomSummaryVoteTie: (labels) => `Empate: ${labels.join(" | ")}`,
+    roomSummaryComfortWaiting: "Esperando respuestas",
+    roomSummaryNextWaiting: "Votar o compartir una idea pequena.",
+    roomSummaryNextReady: (choice, needs) => {
+      const parts = [choice, needs.length ? needs.join(" | ") : ""].filter(Boolean);
+      return parts.length ? `Crear un plan tranquilo con ${parts.join(" | ")}.` : "Crear un plan tranquilo.";
+    },
+    roomSummaryNextView: "Compartir una opinion amable, sin presion.",
+    roomSummaryNextTie: "Seguir votando o pedir a VYVA un resumen sencillo.",
+    roomCommonGroundTitle: "Punto comun",
+    roomCommonGroundBody: "Lo que la sala sabe ahora, sin exponer nombres.",
+    roomCommonGroundVote: "Los votos son privados; solo se ven los totales.",
+    roomCommonGroundComfortReady: (needs) => `Preparar con ${needs.join(" | ")}.`,
+    roomCommonGroundComfortWaiting: "Puedes decir que ayuda antes de apuntarte.",
+    roomCommonGroundInterestReady: (count) => `${count} ${count === 1 ? "persona muestra" : "personas muestran"} interes, sin compromiso.`,
+    roomCommonGroundInterestWaiting: "El interes puede empezar con Quizas luego.",
+    roomCommonGroundViewsReady: (count) => `${count} ${count === 1 ? "opinion compartida" : "opiniones compartidas"} con revision cerca.`,
+    roomCommonGroundViewsWaiting: "Las opiniones pueden ser cortas y amables.",
+    roomOutcomeTitle: "Lo que hara VYVA despues",
+    roomOutcomeBody: (choice, needs, context) => {
+      if (context === "tie") return `VYVA mantendra abiertas ${choice ?? "las opciones"} y hara un resumen sencillo antes de que nadie se sienta apurado.`;
+      if (context === "views") return "VYVA mantendra las opiniones amables y traera los puntos principales como resumen sencillo.";
+      if (context === "plan") {
+        const base = `VYVA preparara ${choice ?? "la opcion principal"}`;
+        return needs.length ? `${base} con ${needs.join(", ")} antes de que nadie se comprometa.` : `${base} antes de que nadie se comprometa.`;
+      }
+      if (context === "comfort") return `VYVA usara ${needs.join(", ")} para hacer mas facil el proximo plan.`;
+      return "Cuando haya mas elecciones, VYVA las convertira en un siguiente paso tranquilo.";
+    },
+    roomOutcomeSteps: {
+      private: "Usar totales privados, no nombres",
+      shape: "Convertir elecciones en un paso claro",
+      safety: "Mantener contacto y seguridad dentro de VYVA",
+    },
+    roomAtGlanceTitle: "Hoy en la sala",
+    roomAtGlanceUpdatesClear: "Sin novedades nuevas",
+    roomAtGlanceUpdates: (count) => `${count} ${count === 1 ? "novedad" : "novedades"}`,
+    roomAtGlanceVotes: (count) => `${count} ${count === 1 ? "voto" : "votos"}`,
+    roomAtGlancePlanInterest: (count) => `${count} ${count === 1 ? "persona interesada" : "personas interesadas"}`,
+    roomAtGlanceComfort: (count) => `${count} ${count === 1 ? "senal de comodidad" : "senales de comodidad"}`,
+    mySafeChoicesTitle: "Mis elecciones seguras",
+    mySafeChoicesBody: "Un resumen privado de lo que has elegido hasta ahora.",
+    mySafeChoicesPrivate: "La sala ve totales, no tu nombre.",
+    mySafeChoiceLabels: {
+      plan: "Actividad",
+      vote: "Voto",
+      comfort: "Comodidad",
+      help: "Ayuda",
+    },
+    mySafeChoicePlanNone: "Aun sin elegir actividad",
+    mySafeChoicePlanJoin: "Interes, no compromiso",
+    mySafeChoicePlanMaybe: "Guardado para luego",
+    mySafeChoiceVoteNone: "Aun sin voto",
+    mySafeChoiceIssueVote: (question, choice) => `${question}: ${choice}`,
+    mySafeChoiceComfortNone: "Aun sin elegir comodidad",
+    mySafeChoiceHelpNone: "Aun sin ofrecer ayuda",
+    mySafeChoiceHelp: (planTitle, helpers) => `${planTitle}: ${helpers.join(" | ")}`,
+    mySafePauseAction: "Pausar en silencio",
+    mySafePauseActiveAction: "Pausa activa",
+    mySafePauseStatus: "Pausa tranquila activada. Nada se publica.",
+    mySafePauseNote: "Puedes seguir leyendo sin avisar a la sala.",
+    roomTrustTitle: "Seguro para entrar",
+    roomTrustBody: "Tres recordatorios antes de participar. Puedes pedir a VYVA que lo revise en palabras sencillas.",
+    roomTrustItems: {
+      privacy: "Votos, comodidad y Quizas siguen sin nombre.",
+      kindness: "Las opiniones deben ser amables; VYVA puede revisar algo incomodo.",
+      contact: "El contacto privado queda dentro de VYVA hasta que ambas personas acepten.",
+    },
+    roomTrustAction: "Pedir revision tranquila",
+    roomTrustDraft: "VYVA, puedes revisar si esta sala se siente segura para entrar hoy? Resume privacidad, amabilidad y seguridad de contacto en palabras sencillas, sin nombres.",
+    participationPathTitle: "Elige como entrar",
+    participationPathBody: "Tres caminos sencillos para participar sin tener que leer toda la sala primero.",
+    participationPathLabels: {
+      vote: "Votar en privado",
+      view: "Compartir opinion",
+      activity: "Ayudar a la actividad",
+    },
+    participationPathBodies: {
+      vote: "Elige una opcion. La sala solo ve totales.",
+      view: "Escribe una frase amable; VYVA revisa cerca.",
+      activity: "Ve al plan y elige una pequena ayuda.",
+    },
+    participationPathActions: {
+      vote: "Ir al voto",
+      view: "Escribir opinion",
+      activity: "Ver actividad",
+    },
+    participationPathPrivacy: "Puedes mirar primero. Ningun camino comparte contacto privado.",
+    nextGentleStepLabel: "Siguiente toque amable",
+    nextGentleSteps: {
+      promise: {
+        title: "Primero, mantener la sala segura",
+        body: "Lee la promesa de sala. Ayuda a que opinar, votar y planear sea amable.",
+        action: "Entendido",
+      },
+      updates: {
+        title: "Hay algo nuevo",
+        body: "Mira las novedades antes de responder. Asi puedes participar con calma.",
+        action: "Ver novedades",
+      },
+      comfort: {
+        title: "Empieza como quieras",
+        body: "Puedes escuchar primero. La sala ve solo totales, no tu nombre.",
+        action: "Escuchar primero",
+      },
+      vote: {
+        title: "Ayuda a elegir",
+        body: "Un voto privado ayuda a decidir el siguiente paso de la sala.",
+        action: "Ver opciones",
+      },
+      plan: {
+        title: "Guarda tu interes",
+        body: "Puedes apuntarte o decir quizas. No es un compromiso.",
+        action: "Ver plan",
+      },
+      recap: {
+        title: "Pide un resumen",
+        body: "VYVA puede ordenar votos, comodidad y planes en una nota sencilla.",
+        action: "Pedir resumen",
+      },
+      hello: {
+        title: "Empieza pequeno",
+        body: "Un saludo amable basta para entrar sin presion.",
+        action: "Saludar",
+      },
+    },
+    nextGentleStepExplainAction: "Por que?",
+    nextGentleStepExplainDraft: (stepTitle) => (
+      `VYVA, no estoy seguro por donde empezar. Puedes explicar por que "${stepTitle}" es el siguiente toque seguro y darme una opcion sencilla, sin nombres ni presion?`
+    ),
+    roomReadinessTitle: "Antes de avanzar",
+    roomReadinessBody: "VYVA mira estas tres cosas para que el siguiente paso sea claro y seguro.",
+    roomReadinessLabels: {
+      vote: "Voto",
+      comfort: "Comodidad",
+      consent: "Permiso",
+    },
+    roomReadinessVoteReady: "La sala tiene una opcion principal.",
+    roomReadinessVoteWaiting: "Esperando algunos votos.",
+    roomReadinessComfortReady: "Las necesidades de comodidad estan visibles.",
+    roomReadinessComfortWaiting: "Esperando que alguien diga que ayuda.",
+    roomReadinessConsentReady: "El contacto queda dentro de VYVA hasta que ambas personas acepten.",
+    roomUsefulTitle: "Siguientes pasos utiles",
+    roomUsefulBody: "VYVA muestra lo que ya puede ayudar a hacer, sin nombres ni presion.",
+    roomUsefulLabels: {
+      activity: "Actividad",
+      vote: "Voto de tema",
+      views: "Opiniones",
+    },
+    roomUsefulReady: {
+      activity: "Listo para que VYVA prepare un siguiente paso seguro.",
+      vote: "Una pregunta tiene apoyo y puede convertirse en voto privado.",
+      views: "Hay opiniones para resumir con calma.",
+    },
+    roomUsefulWaiting: {
+      activity: "Falta interes, comodidad o una pequena ayuda.",
+      vote: "Aun espera que una pregunta reciba apoyo.",
+      views: "Aun no hay opiniones compartidas para resumir.",
+    },
+    roomUsefulActions: {
+      activity: "Preparar actividad",
+      vote: "Hacer voto",
+      views: "Resumir opiniones",
+    },
+    roomUsefulPrivacy: "VYVA usa senales y totales, no nombres.",
+    roomNotesTitle: "Notas de hoy",
+    roomNotesBody: "Un resumen sencillo de lo que la sala ya sabe, para que nadie tenga que recordarlo todo.",
+    roomNotesLabels: {
+      known: "Ya se sabe",
+      open: "Aun abierto",
+      next: "Siguiente ayuda",
+    },
+    roomNotesVoteKnown: (label) => `Voto: ${label}.`,
+    roomNotesVoteTie: (labels) => `Voto empatado: ${labels.join(" | ")}.`,
+    roomNotesVoteWaiting: "Voto: aun abierto.",
+    roomNotesComfortKnown: (labels) => `Comodidad: ${labels.join(" | ")}.`,
+    roomNotesComfortWaiting: "Comodidad: esperando una senal.",
+    roomNotesViewsKnown: (count) => `${count} ${count === 1 ? "opinion compartida" : "opiniones compartidas"}.`,
+    roomNotesViewsWaiting: "Opiniones: aun ninguna.",
+    roomNotesOpenItems: {
+      vote: "Faltan algunas elecciones privadas.",
+      comfort: "Falta decir que ayuda a estar comodo.",
+      views: "Aun falta una opinion tranquila.",
+      activity: "La actividad aun se esta formando.",
+    },
+    roomNotesOpenReady: "Nada urgente. La sala puede avanzar despacio.",
+    roomNotesNextActivity: (title) => `VYVA puede preparar "${title}" como un paso seguro.`,
+    roomNotesNextVote: (title) => `VYVA puede convertir "${title}" en un voto privado sencillo.`,
+    roomNotesNextViews: (count) => `VYVA puede resumir ${count === 1 ? "esta opinion" : "estas opiniones"} sin nombres.`,
+    roomNotesNextStarter: "Empezar con hola, una comodidad o un voto privado.",
+    roomNotesPrivacy: "Estas notas usan totales y senales, no nombres.",
     responseNone: "Puedes empezar eligiendo una opcion.",
     responseJoinCount: (count) => `${count} ${count === 1 ? "se apunta" : "se apuntan"}`,
     responseMaybeCount: (count) => `${count} quizas`,
     morePlans: "Tambien podeis hacer",
     roomUpdates: "Novedades de la sala",
+    roomUpdatesShowing: (visible, total) => `Mostrando ${visible} de ${total} novedades`,
+    roomUpdatesRecapTitle: "Resumen sencillo de novedades",
+    roomUpdatesRecapBody: (count) => `VYVA puede resumir ${count === 1 ? "esta novedad" : `estas ${count} novedades`} y decir el proximo paso seguro sin nombres.`,
+    roomUpdatesRecapAction: "Pedir resumen",
+    roomUpdatesRecapDraft: (count) => (
+      count === 1
+        ? "VYVA, resume esta novedad de la sala con palabras sencillas y dime el proximo paso seguro, sin nombres."
+        : `VYVA, resume estas ${count} novedades de la sala con palabras sencillas y dime el proximo paso seguro, sin nombres.`
+    ),
     markUpdateSeen: "Visto",
+    markAllUpdatesSeen: "Marcar todo visto",
     updateSeen: "Novedad guardada como vista",
     updateSeenFailed: "No se pudo guardar como visto. Intentalo de nuevo.",
+    allUpdatesSeen: "Novedades guardadas como vistas",
+    allUpdatesSeenFailed: "No se pudo guardar todo como visto. Intentalo de nuevo.",
     sharedToday: "Compartido hoy",
+    viewCircleTitle: "Circulo de opiniones",
+    viewCircleBody: "Mira lo que se ha dicho y comparte una frase amable cuando quieras.",
+    viewCircleEmpty: "Aun no hay opiniones compartidas. Una frase pequena basta.",
+    viewCircleVote: (label, count) => `${label}: ${count} ${count === 1 ? "voto" : "votos"}`,
+    viewCircleCount: (count) => `${count} ${count === 1 ? "opinion compartida" : "opiniones compartidas"}`,
+    viewCircleLatest: "Ultimo en la sala",
+    viewCircleAdd: "Anadir opinion",
+    viewRecapTitle: "VYVA puede resumir las opiniones",
+    viewRecapBody: (count) => (
+      count === 1
+        ? "Hay 1 opinion compartida. VYVA puede devolverla con palabras sencillas."
+        : `Hay ${count} opiniones compartidas. VYVA puede agrupar los puntos principales sin mostrar nombres.`
+    ),
+    viewRecapAction: "Resumir opiniones",
+    viewRecapDraft: (count) => (
+      count === 1
+        ? "VYVA, resume esta opinion compartida de forma amable y sencilla, sin mostrar nombres."
+        : `VYVA, resume estas ${count} opiniones compartidas de forma amable y sencilla, sin mostrar nombres.`
+    ),
+    viewVoteBridgeTitle: "Convertir opiniones en voto",
+    viewVoteBridgeBody: (count) => (
+      count === 1
+        ? "Si esta opinion necesita una decision, VYVA puede proponer un voto privado sencillo."
+        : `Si estas ${count} opiniones muestran opciones distintas, VYVA puede convertirlas en un voto privado sencillo.`
+    ),
+    viewVoteBridgeAction: "Preparar voto privado",
+    viewVoteBridgeDraft: (count) => (
+      count === 1
+        ? "VYVA, convierte esta opinion compartida en una votacion privada sencilla, con opciones seguras y sin nombres."
+        : `VYVA, convierte estas ${count} opiniones compartidas en una votacion privada sencilla, con opciones seguras y sin nombres.`
+    ),
+    viewBalanceTitle: "Balance de la conversacion",
+    viewBalanceBody: "Muestra como responde la sala para que opinar distinto siga siendo seguro.",
+    viewBalanceEmpty: "Aun no hay respuestas.",
+    viewBalanceLabels: {
+      support: "Coinciden",
+      curious: "Piden mas",
+      different: "Otra mirada",
+      help: "Ayuda ofrecida",
+    },
+    viewCommonGroundTitle: "Punto en comun",
+    viewCommonGroundOpening: "La conversacion esta empezando. Una respuesta amable puede ayudar a encontrar el punto comun.",
+    viewCommonGroundAgreement: "Ya aparece una senal compartida. VYVA puede mantenerla sencilla y sin prisa.",
+    viewCommonGroundCurious: "La sala pide mas contexto antes de decidir. Eso tambien ayuda a elegir con calma.",
+    viewCommonGroundDifferent: "Hay miradas distintas y se mantienen amables. VYVA puede resumirlas sin nombres.",
+    viewCommonGroundMixed: "Hay varias senales a la vez. Un resumen de VYVA puede convertirlas en un paso claro.",
+    viewCommonGroundPrivacy: "Las respuestas se resumen por tono, no por nombre.",
+    viewSafetyTitle: "Desacuerdo seguro",
+    viewSafetyBody: "Las opiniones distintas son bienvenidas si son breves, amables y sin datos privados.",
+    viewSafetyItems: {
+      kind: "Habla de la idea, no de la persona.",
+      private: "No incluyas telefono, direccion, dinero ni contacto.",
+      review: "Pide a VYVA que revise algo incomodo.",
+    },
+    viewSafetyAction: "Empezar con calma",
+    viewSafetyDraft: "Lo veo de otra manera. Podemos comparar con calma, sin nombres?",
+    viewNextReplyTitle: "Siguiente respuesta amable",
+    viewNextReplyBodies: {
+      opening: "Una pregunta pequena o un acuerdo puede ayudar a que todos se sientan escuchados.",
+      agreement: "Anade una razon sencilla a la senal compartida.",
+      curious: "Pide un detalle mas antes de que la sala elija.",
+      different: "Una pregunta amable mantiene segura otra mirada.",
+      mixed: "Cuando hay varias senales, pregunta que importa mas antes de decidir.",
+    },
+    viewNextReplyActions: {
+      opening: "Invitar respuesta",
+      agreement: "Anadir razon",
+      curious: "Pedir detalle",
+      different: "Preguntar con calma",
+      mixed: "Preguntar que importa",
+    },
+    viewNextReplyDrafts: {
+      opening: "Me gustaria escuchar que es lo mas importante para otras personas.",
+      agreement: "Estoy de acuerdo, y una razon es...",
+      curious: "Puedes contar un poco mas sobre lo que mas te importa?",
+      different: "Lo veo de otra manera. Podemos comparar con calma lo que mas importa?",
+      mixed: "Podemos parar un momento y decir que importa mas a cada persona antes de elegir?",
+    },
     sharedResponseSaved: "Tu respuesta esta guardada",
     reviewItem: "Pedir revision a VYVA",
     reviewItemSent: "VYVA revisara esto con cuidado.",
     reviewReply: "Revisar respuesta",
     gentleReplies: "Respuestas amables",
+    replyGuideTitle: "Respuestas seguras",
+    replyGuideBody: "Usa un boton amable. Si una respuesta incomoda, VYVA puede revisarla.",
     planSupportTitle: "Hacerlo facil",
     planSupportBody: "Elige una ayuda pequena para que el plan sea mas comodo para todos.",
+    planSupportSummaryTitle: "Ayudas para la actividad",
+    planSupportSummaryBody: "Estas son las pequenas formas en que la sala ayuda a que el plan ocurra.",
+    planSupportSummaryEmpty: "Aun no hay ayudas. Elige abajo una forma pequena de ayudar.",
+    planHelperCueTitle: "Mejor ayuda pequena",
+    planHelperCueBody: (actionLabel) => `La ayuda mas util ahora es ${actionLabel}. Da a VYVA una senal practica sin comprometer a nadie.`,
+    planHelperCueCoveredTitle: "Ayudas cubiertas",
+    planHelperCueCoveredBody: (labels) => `Ya esta cubierto: ${labels.join(", ")}. Otra ayuda es opcional.`,
+    planHelperCueAction: (actionLabel) => `Elegir ${actionLabel}`,
+    planHelperCuePrivate: "Esto solo publica una senal de ayuda, no contacto privado.",
+    planReadinessTitle: "Listo para avanzar",
+    planReadinessBody: (ready, total) => `${ready} de ${total} senales estan listas. VYVA espera lo que falte sin presion.`,
+    planReadinessInterestReady: (count) => `${count} ${count === 1 ? "persona muestra" : "personas muestran"} interes.`,
+    planReadinessInterestWaiting: "Esperando interes: Me apunto o Quizas luego.",
+    planReadinessHelperReady: (count) => `${count} ${count === 1 ? "ayuda pequena esta" : "ayudas pequenas estan"} ofrecida${count === 1 ? "" : "s"}.`,
+    planReadinessHelperWaiting: "Falta una ayuda pequena para hacerlo mas facil.",
+    planReadinessComfortReady: "La comodidad ya esta nombrada.",
+    planReadinessComfortWaiting: "Falta decir que haria esto comodo.",
+    planReadinessVyvaReady: "VYVA confirma detalles antes de cualquier contacto.",
+    activityReadyTitle: "VYVA puede prepararlo",
+    activityReadyBody: (planTitle) => `"${planTitle}" ya tiene interes, comodidad y una ayuda pequena. VYVA puede confirmar los detalles antes de que nadie se comprometa.`,
+    activityReadySignalsTitle: "Senales sin nombres",
+    activityReadyPrivate: "Privado y sin presion",
+    activityReadyPrepTitle: "Antes de que VYVA lo prepare",
+    activityReadyPrepItems: [
+      "Confirmar lugar, hora, coste y acceso.",
+      "Mantener el contacto dentro de VYVA hasta que ambas personas acepten.",
+      "Volver con un paso sencillo, no un compromiso.",
+    ],
+    activityReadyAction: "Pedir a VYVA el siguiente paso",
+    activityReadyDraft: (planTitle, signals) => (
+      signals.length
+        ? `VYVA, "${planTitle}" ya parece lista. Senales de la sala: ${signals.join("; ")}. Puedes preparar el siguiente paso sencillo y seguro?`
+        : `VYVA, "${planTitle}" ya parece lista. Puedes preparar el siguiente paso sencillo y seguro para la sala?`
+    ),
+    voteReadyTitle: "Esta pregunta esta lista",
+    voteReadyBody: (questionTitle) => `"${questionTitle}" recibe apoyo. VYVA puede convertirla en una votacion privada sencilla, sin nombres.`,
+    voteReadyPrivate: "Sin nombres visibles",
+    voteReadyAction: "Pedir a VYVA la votacion",
     planSupportActions: {
       choose: "Ayudar a elegir",
       pace: "Ritmo tranquilo",
+      buddy: "Quedar juntos",
       notify: "Avisadme",
     },
     planSupportReplies: {
       choose: "Puedo ayudar a elegir una opcion sencilla para el grupo.",
       pace: "Un ritmo tranquilo, con pausas, me ayudaria.",
+      buddy: "Me ayudaria quedar con alguien antes de entrar.",
       notify: "Por favor avisadme cuando haya un siguiente paso.",
-    },
-    planLoopTitle: "Siguiente paso",
-    planLoopBody: "Cuando alguien se apunta, VYVA ayuda a convertir la idea en algo que pueda ocurrir.",
-    planLoopStatusLabel: "Estado del plan",
-    planLoopSteps: {
-      shared: "Compartido",
-      choosing: "Eligiendo hora",
-      confirmed: "Confirmado",
-      happened: "Ocurrio",
-      repeat: "Repetir",
-    },
-    planLoopActions: {
-      time: "Elegir hora",
-      place: "Confirmar lugar",
-      invite: "Invitar a una persona",
-      again: "Hacerlo otra vez",
-    },
-    planLoopReplies: {
-      time: "Me gustaria elegir una hora sencilla para este plan.",
-      place: "Me gustaria confirmar el lugar o si sera en linea.",
-      invite: "Podemos invitar a una persona mas si ayuda.",
-      again: "Me gustaria hacer esto otra vez.",
     },
     replySent: "Respuesta compartida",
     replyFailed: "No se pudo responder. Intentalo de nuevo.",
@@ -326,45 +1116,100 @@ const copyByLanguage: Record<"es" | "de" | "en", {
       message: "Saludo",
       question: "Pregunta",
     },
+    sharedViewLabel: "Opinion",
     sharedActions: {
       plan: { primary: "Me apunto", secondary: "Quizas" },
       message: { primary: "Yo tambien", secondary: "Gracias" },
       question: { primary: "Ayudame tambien", secondary: "Seguir" },
     },
+    issueQueueTitle: "Preguntas para votar despues",
+    issueQueueBody: "Cuando alguien pide aclarar un tema, VYVA lo guarda aqui para que la sala pueda apoyarlo sin presion.",
+    issueQueueBadge: "Posible votacion",
+    issueQueueAction: "Convertir en voto",
+    issueQueueDraft: (title) => `VYVA, convierte "${title}" en una votacion sencilla para la sala, con opciones seguras y sin nombres.`,
+    issueQueueUseAction: "Resumir este voto",
+    issueQueueUseDraft: (title, signal) => (
+      signal
+        ? `VYVA, resume el voto privado sobre "${title}". La senal actual es: ${signal}. Ayuda a la sala a elegir un siguiente paso seguro, sin nombres.`
+        : `VYVA, resume el voto privado sobre "${title}" y ayuda a la sala a elegir un siguiente paso seguro, sin nombres.`
+    ),
+    issueQueuePrivacy: "Apoyar una pregunta solo muestra interes. La sala no ve tu nombre.",
+    issueReadinessTitles: {
+      gathering: "Recogiendo apoyo",
+      vote: "Lista para votar",
+      summary: "Lista para resumir",
+    },
+    issueReadinessBodies: {
+      gathering: "Toca Ayudame tambien o Seguir si esta pregunta te importa.",
+      vote: "Ya hay interes. VYVA puede convertirlo en un voto privado, sin nombres.",
+      summary: (signal) => (
+        signal
+          ? `La senal es: ${signal}. VYVA puede resumirla y proponer un siguiente paso seguro.`
+          : "VYVA puede resumir el voto privado y proponer un siguiente paso seguro."
+      ),
+    },
+    issuePollTitle: "Voto sencillo",
+    issuePollBody: "Elige una opcion. Puedes cambiarla mientras el voto este abierto.",
+    issuePollPrivacy: "Este voto tambien es privado. Solo se muestran totales.",
+    issuePollOutcomeTitle: "Senal de la sala",
+    issuePollOutcomeBody: (label) => `Por ahora la sala se inclina por: ${label}. VYVA puede usarlo sin mostrar nombres.`,
+    issuePollOutcomeTie: (labels) => `La sala esta dividida entre ${labels.join(" | ")}. VYVA puede resumirlo sin prisa.`,
+    issuePollOutcomeOtherViews: "Las otras opciones tambien cuentan. VYVA puede incluirlas sin nombres.",
+    issuePollOutcomeOpen: "Aun se puede elegir otra opcion mientras el voto este abierto.",
     proposalPlaceholder: "Escribe una idea pequena...",
+    proposalLengthHint: (remaining) => `${remaining} caracteres disponibles`,
+    proposalSafetyWarning: "Quita telefono, email, direccion o datos de pago antes de enviar.",
+    proposalToneWarning: "Usa palabras amables antes de enviar. VYVA puede ayudar a reescribirlo.",
+    proposalToneRewrite: "Suavizar palabras",
+    proposalToneRewriteDrafts: {
+      plan: "Podemos hacerlo tranquilo y facil para todos.",
+      message: "Lo veo de otra manera porque...",
+      question: "Podemos pensarlo juntos con calma?",
+    },
     proposalCategoryPrompt: "Que tipo de experiencia?",
     proposalPlacePrompt: "Donde os iria mejor?",
     proposalTimePrompt: "Cuando va mejor?",
     proposalCostPrompt: "Coste",
     proposalGroupPrompt: "Como participar?",
+    composerPreviewTitle: "Antes de enviar",
+    composerPreviewBodies: {
+      plan: "Esta idea se comparte como plan para que otros puedan apuntarse o decir Quizas.",
+      message: "Esta nota se comparte como una opinion corta, con respuestas amables cerca.",
+      question: "Esta pregunta se comparte para que VYVA pueda ayudar o convertirla en voto.",
+    },
+    composerPreviewItems: {
+      plan: {
+        shared: "La sala ve el plan, no tus elecciones privadas.",
+        private: "Votos, comodidad y Quizas siguen sin nombre.",
+        next: "VYVA revisa coste, contacto, transporte o servicio antes de avanzar.",
+      },
+      message: {
+        shared: "La sala ve la frase y puede responder con botones amables.",
+        private: "No incluyas telefono, email ni direccion.",
+        next: "Si algo suena duro, VYVA puede suavizarlo antes.",
+      },
+      question: {
+        shared: "La sala ve la pregunta, no quien necesita ayuda.",
+        private: "Tu voto y tus necesidades siguen privados.",
+        next: "VYVA puede convertirlo en un voto simple con totales.",
+      },
+    },
+    safeShareTitle: "Compartir con cuidado",
+    safeShareBody: "No pongas telefono, email, direccion exacta ni pagos en la nota.",
+    safeShareReviewLine: "Si hay coste, transporte, casa o servicio, VYVA lo revisa antes de avanzar.",
     planNearby: "Cerca",
     planOnline: "En linea",
     comfortPrompt: "Que ayuda?",
-    planPresetPrompt: "Empieza con una idea",
-    planComposerHelper: "Puedes cambiar cualquier detalle antes de compartirlo.",
-    planPresetCopy: {
-      quiet_lunch: {
-        title: "Comida tranquila cerca",
-        body: "Cerca, accesible y sin prisa.",
-        draft: "Me gustaria proponer una comida tranquila cerca, en un sitio accesible y con tiempo para hablar.",
-      },
-      film_chat: {
-        title: "Charla de pelicula en linea",
-        body: "Una pelicula suave y una conversacion corta.",
-        draft: "Me gustaria elegir una pelicula tranquila y comentarla en linea sin prisa.",
-      },
-      service_deal: {
-        title: "Comparar servicio o trato",
-        body: "Revisarlo juntos antes de decidir.",
-        draft: "Me gustaria comparar un servicio o trato con otra persona antes de decidir.",
-      },
-    },
     comfortNeedLabels: {
+      listen_first: "Escuchar primero",
       quiet_pace: "Ritmo tranquilo",
       easy_access: "Acceso facil",
       seating: "Sentarse",
       transport_help: "Ayuda para llegar",
+      arrival_buddy: "Quedar juntos",
+      clear_cost: "Saber coste antes",
     },
+    moreComfortNotes: (count) => `${count} ${count === 1 ? "apoyo mas" : "apoyos mas"}`,
     categoryLabels: {
       movie_date: "Cita de pelicula",
       restaurant_date: "Restaurante",
@@ -399,19 +1244,111 @@ const copyByLanguage: Record<"es" | "de" | "en", {
       service: "servicio",
       private_contact: "contacto",
       transport: "transporte",
+      unkind_tone: "tono",
     },
     postFailed: "No se pudo publicar. Intentalo de nuevo.",
     send: "Enviar",
+    cancel: "Cancelar",
     sending: "Enviando...",
-    proposalSent: "Compartido. Otros pueden apuntarse o decir quizas.",
-    proposalReviewTitle: "VYVA lo revisara primero",
-    proposalReviewBody: "Si hay dinero, vivienda, servicios, transporte o contacto privado, VYVA lo mira antes del siguiente paso.",
+    sent: "Enviado",
+    reviewPending: "VYVA lo revisara antes de que aparezca.",
     helpSent: "VYVA revisara esto con cuidado.",
+    helpSending: "Avisando a VYVA...",
     helpFailed: "No se pudo avisar a VYVA. Intentalo de nuevo.",
-    viewStarter: "Compartir opinion",
+    safetyHelpTitle: "Que necesita revisar VYVA?",
+    safetyHelpBody: "Elige lo mas parecido. La sala no ve esta ayuda.",
+    safetyHelpChoiceLabels: {
+      uncomfortable: "Me incomoda",
+      pressure_contact: "Presion o contacto",
+      money_service: "Dinero o servicio",
+      something_else: "Otra cosa",
+    },
+    safetyHelpChoiceBodies: {
+      uncomfortable: "Algo en la sala no se siente bien.",
+      pressure_contact: "Alguien pide contacto privado o insiste.",
+      money_service: "Hay coste, pago, oferta o servicio que revisar.",
+      something_else: "Quiero que VYVA mire la sala.",
+    },
+    safetyHelpChoiceReasons: {
+      uncomfortable: "feels_uncomfortable",
+      pressure_contact: "pressure_or_contact",
+      money_service: "money_or_service",
+      something_else: "other_safety_help",
+    },
+    safetyHelpChoiceDetails: {
+      uncomfortable: "La persona usuaria indica que algo en Together Room le incomoda.",
+      pressure_contact: "La persona usuaria quiere que VYVA revise posible presion o contacto privado.",
+      money_service: "La persona usuaria quiere que VYVA revise dinero, coste, oferta o servicio.",
+      something_else: "La persona usuaria quiere ayuda general de seguridad en Together Room.",
+    },
+    safetyHelpReceiptTitle: "Ayuda enviada",
+    safetyHelpReceiptBody: (choiceLabel) => `VYVA revisara: ${choiceLabel}. La sala no ve esta peticion.`,
+    safetyHelpReceiptItems: [
+      "VYVA revisa sin mostrar tu nombre.",
+      "Puedes pausar la sala y volver despues.",
+      "Si algo urgente ocurre ahora, usa la ayuda local de emergencia.",
+    ],
+    viewSharingNote: "Puedes compartir una opinion breve con palabras amables y sin datos personales.",
+    viewTonePreviewTitle: "Vista segura",
+    viewTonePreviewReady: "Lista para compartir con calma",
+    viewTonePreviewNeedsEdit: "Necesita un pequeno ajuste",
+    viewTonePreviewItems: {
+      kind: "Palabras amables",
+      privacy: "Sin contacto privado",
+      small: "Una idea pequena",
+    },
+    viewPromptTitle: "Ideas para opinar",
+    viewPromptBody: "Elige una frase si las palabras no salen facil.",
+    viewPromptLabels: {
+      agree: "Estoy de acuerdo",
+      different: "Otra mirada",
+      compare: "Comparar opciones",
+      more_info: "Mas informacion",
+    },
+    viewPromptDrafts: {
+      agree: "Estoy de acuerdo porque...",
+      different: "Lo veo de otra manera porque...",
+      compare: "VYVA, ayudanos a comparar las opciones con calma.",
+      more_info: "Necesito un poco mas de informacion antes de elegir.",
+    },
+    askPromptTitle: "Preguntas faciles para VYVA",
+    askPromptBody: "Elige una si no sabes como preguntar.",
+    askPromptLabels: {
+      summary: "Resumen",
+      easier: "Mas facil",
+      vote: "Proponer voto",
+      safe: "Es seguro?",
+    },
+    askPromptDrafts: {
+      summary: "VYVA, puedes resumir lo que la sala esta eligiendo?",
+      easier: "VYVA, ayudame a encontrar la forma mas facil de participar.",
+      vote: "VYVA, puedes convertir esta pregunta en un voto sencillo para la sala?",
+      safe: "VYVA, puedes revisar si esto parece seguro y sin presion?",
+    },
+    issuePromptTitle: "Convertir una duda en voto",
+    issuePromptBody: "Elige un tema comun si quieres que VYVA proponga una votacion sencilla para la sala.",
+    issuePromptLabels: {
+      place: "Lugar",
+      time: "Hora",
+      cost: "Coste",
+      safety: "Seguridad",
+    },
+    issuePromptDrafts: {
+      place: "VYVA, puedes proponer un voto sencillo sobre que lugar seria mas comodo para la sala?",
+      time: "VYVA, puedes proponer un voto sencillo sobre que hora iria mejor?",
+      cost: "VYVA, puedes proponer un voto sencillo para aclarar el coste antes de que nadie se comprometa?",
+      safety: "VYVA, puedes proponer un voto sencillo sobre que haria esto mas seguro y sin presion?",
+    },
     sharePlanTitle: "Compartir un plan",
-    sharePlanBody: "Propon una idea sencilla para que otras personas puedan apuntarse o decir quiza.",
+    sharePlanBody: "Propón una idea sencilla para que otras personas puedan apuntarse o decir quizá.",
     sharePlanAction: "Compartir un plan",
+    discussionTitle: "Que te gustaria decir?",
+    discussionBody: "Puedes empezar poco a poco. VYVA ayuda si no sabes como.",
+    starterLabels: {
+      hello: "Saludar",
+      plan: "Sugerir plan",
+      ask: "Preguntar a VYVA",
+    },
     agreementTitle: "Nuestra promesa de sala",
     agreementLines: [
       "Palabras amables y sin presion.",
@@ -422,76 +1359,474 @@ const copyByLanguage: Record<"es" | "de" | "en", {
     acknowledgedLabel: "Promesa de sala guardada",
     acknowledgementFailed: "No se pudo guardar. Intentalo de nuevo.",
     starterDetails: {
-      hello: "Me gustaria saludar al grupo.",
-      view: "Me gustaria compartir una opinion breve con la sala.",
+      hello: "Me gustaria saludar y escuchar lo que piensan otras personas.",
       plan: "Me gustaria compartir un plan tranquilo.",
-      ask: "VYVA, ayudame a elegir una forma sencilla de participar.",
+      ask: "VYVA, ayudame a participar de forma sencilla.",
     },
   },
   de: {
     back: "Zurueck",
     safeStatus: "Geschuetzter Raum",
+    statusLabel: "Raumhinweis",
+    refreshRoom: "Raum pruefen",
+    refreshingRoom: "Wird geprueft...",
+    roomRefreshed: "Raum aktualisiert",
+    roomRefreshedWithUpdates: (count) => `${count} ${count === 1 ? "neues Raum-Update ist" : "neue Raum-Updates sind"} bereit`,
+    roomRefreshedWithVotes: (count) => `${count} ${count === 1 ? "neue Stimme ist" : "neue Stimmen sind"} da`,
+    roomRefreshedWithReplies: (count) => `${count} ${count === 1 ? "neue Antwort ist" : "neue Antworten sind"} da`,
+    roomRefreshedWithPlanInterest: (count) => `${count} ${count === 1 ? "neue Planantwort ist" : "neue Planantworten sind"} da`,
+    roomRefreshedWithComfort: (count) => `${count} ${count === 1 ? "neues Komfortsignal ist" : "neue Komfortsignale sind"} da`,
+    roomRefreshFailed: "Raum konnte nicht aktualisiert werden. Bitte versuche es erneut.",
+    readingComfortLabel: "Grosser Text",
+    readingComfortOnLabel: "Grosser Text an",
+    readingComfortNote: "Grosser Text ist nur fuer dich in diesem Raum aktiv.",
     present: (count) => `${count} anwesend`,
     join: "Mitmachen",
     maybe: "Vielleicht spaeter",
     joined: "Du bist dabei",
     maybeSaved: "Fuer spaeter gemerkt",
+    planChoiceNoteTitle: "Ohne Druck",
+    planChoiceNoteBody: "Mitmachen zeigt Interesse, keine feste Zusage. Vielleicht merkt es, bis VYVA Details klaeren hilft.",
+    planNextStepTitle: "Was danach passiert",
+    planNextStepWaiting: "Wenn jemand Interesse zeigt, hilft VYVA, die Details ruhig zu klaeren.",
+    planNextStepReady: "VYVA kann helfen, Details zu klaeren, bevor Kontakt geteilt wird.",
+    planNextStepJoined: "Du hast Interesse gezeigt. VYVA hilft, Details zu klaeren, bevor Kontakt geteilt wird.",
+    planNextStepMaybe: "Fuer spaeter gemerkt. Du kannst zurueckkommen, wenn die Details klar sind.",
+    planNextStepChecks: ["Zeit", "Komfort", "Kontakt nur mit Zustimmung"],
+    planComfortCueTitle: "Komfort vor dem Mitmachen",
+    planComfortCueKnown: (labels) => labels.length ? `Schon notiert: ${labels.join(", ")}.` : "Noch keine Komfortnotizen.",
+    planComfortCueAsk: (labels) => `VYVA kann klaeren: ${labels.join(", ")}.`,
+    planComfortCueReady: "Dieser Plan nennt schon die wichtigsten Komfortpunkte.",
+    planComfortCueMore: (count) => `${count} ${count === 1 ? "weiterer Punkt" : "weitere Punkte"}`,
+    planComfortCuePrivacy: "Mitmachen oder Vielleicht teilt keinen privaten Kontakt.",
+    planDetailCheckTitle: "Vor dem Treffen",
+    planDetailCheckBody: "VYVA kann praktische Details pruefen, bevor sich jemand festlegt.",
+    planDetailCheckItems: ["Klarer Ort und Zeit", "Komfort und Kosten", "Kontakt nur mit Zustimmung"],
+    planDetailCheckAction: "Details pruefen",
+    planDetailCheckDraft: (planTitle) => `VYVA, pruefe "${planTitle}", bevor sich jemand festlegt. Bitte klaere Ort, Zeit, Komfort, Kosten und Kontakt nur mit Zustimmung, ohne Namen.`,
     roomChoice: "Raumwahl",
     pollClosed: "Die Abstimmung ist geschlossen",
     youVoted: "Deine Stimme ist gespeichert",
     pollNudgeNoVotes: "Deine Stimme hilft, den naechsten Schritt zu waehlen.",
     pollNudgeLeading: (label) => `Der Raum tendiert zu: ${label}.`,
+    pollNudgeTie: (labels) => `Der Raum waehlt noch zwischen: ${labels.join(" | ")}.`,
     pollNudgeAction: "Du kannst oben mitmachen oder eine ruhigere Version vorschlagen.",
+    pollVotes: (count) => `${count} ${count === 1 ? "Stimme" : "Stimmen"}`,
+    pollYourChoice: "Deine Wahl",
+    pollPrivacyTitle: "Private, flexible Stimme",
+    pollPrivacyBody: "Der Raum sieht nur Summen, nicht deinen Namen. Du kannst deine Stimme aendern, solange die Abstimmung offen ist.",
+    pollImpactTitle: "Was deine Stimme bewirkt",
+    pollImpactWaiting: "Jede private Stimme hilft dem Raum, einen ruhigen naechsten Schritt zu waehlen.",
+    pollImpactLeading: (label, needs) => (
+      needs.length
+        ? `Der Raum tendiert zu ${label}. VYVA bereitet es mit ${needs.join(", ")} vor.`
+        : `Der Raum tendiert zu ${label}. VYVA macht daraus einen einfachen Schritt.`
+    ),
+    pollImpactTie: (labels) => `Der Raum ist zwischen ${labels.join(" | ")} geteilt. VYVA kann beide Optionen ohne Eile zusammenfassen.`,
+    pollImpactViews: "Der Raum entscheidet sich fuer Ansichten. VYVA hilft, dass Antworten freundlich bleiben.",
+    pollImpactNoVote: "Du hast noch nicht abgestimmt. Du kannst erst schauen.",
+    pollImpactYourVote: (label) => `Deine Stimme: ${label}. Du kannst sie aendern, solange offen ist.`,
+    pollImpactSafety: "Sichtbar sind nur Summen. Namen erscheinen nicht.",
+    pollSignalTitle: "Raumsignal",
+    pollSignalBodies: {
+      opening: "Noch keine Richtung. Erst schauen ist auch in Ordnung.",
+      close: "Die Abstimmung ist noch knapp. Waehle ohne Druck, was fuer dich stimmt.",
+      clear: "Eine klare Richtung entsteht, aber die Abstimmung bleibt offen und privat.",
+    },
+    pollSignalClearBody: (label) => `${label} liegt vorn, aber du kannst ruhig anders waehlen.`,
+    pollSignalPrivacy: "VYVA nutzt nur Summen, keine Namen.",
     comfortCheckTitle: "Was macht es angenehm?",
     comfortCheckBody: "Tippe an, was dir hilft. Die Gruppe kann Plaene daran ausrichten.",
     comfortCheckCount: (count) => `${count} ${count === 1 ? "ausgewaehlt" : "ausgewaehlt"}`,
+    comfortSaved: "Komfort gespeichert",
+    comfortPrivacyTitle: "Private Komfortwahl",
+    comfortPrivacyBody: "Der Raum sieht Summen, nicht deinen Namen. Du kannst jederzeit aendern, was hilft.",
+    arrivalComfortTitle: "Ruhig starten",
+    arrivalComfortBody: "Waehle, was dir heute hilft. Der Raum sieht Summen, nicht Namen.",
+    arrivalComfortSaved: (label) => `${label} gespeichert`,
+    arrivalComfortRemoved: (label) => `${label} entfernt`,
+    listenFirstAction: "Erst zuhoeren",
+    listenFirstSaved: "Zuhoeren gespeichert",
+    listenFirstRemoved: "Zuhoeren entfernt",
+    roomDirectionTitle: "Sanfter naechster Schritt",
+    roomDirectionWaiting: "Wenn mehr Stimmen da sind, kann VYVA einen einfachen naechsten Schritt vorschlagen.",
+    roomDirectionBody: (choice, needs) => {
+      const base = choice ? `Der Raum tendiert zu ${choice}.` : "Der Raum waehlt noch.";
+      return needs.length ? `${base} Plant es mit ${needs.join(", ")}.` : base;
+    },
+    roomDirectionTie: (labels, needs) => {
+      const base = `Der Raum waehlt noch zwischen ${labels.join(" | ")}.`;
+      return needs.length ? `${base} Plant es mit ${needs.join(", ")}.` : base;
+    },
+    roomDirectionAction: "Als Plan vorschlagen",
+    roomDirectionDraft: (choice, needs) => {
+      const base = `Eine ruhige Version von ${choice ?? "der heutigen Raumwahl"}`;
+      return needs.length ? `${base} mit ${needs.join(", ")}.` : `${base}.`;
+    },
+    roomDirectionViewAction: "Ansicht teilen",
+    roomDirectionViewDraft: "Ich moechte ruhige Ansichten dazu hoeren, was heute wichtig ist.",
+    roomRecapAction: "VYVA um Zusammenfassung bitten",
+    roomRecapDraft: (choice, needs) => {
+      const base = choice ? `VYVA, fasse die Raumwahl zu ${choice} zusammen` : "VYVA, fasse zusammen, was gerade im Raum passiert";
+      return needs.length ? `${base} und die Komfortwuensche: ${needs.join(", ")}.` : `${base}.`;
+    },
+    roomSummaryTitle: "Zusammenfassung",
+    roomSummaryLabels: {
+      vote: "Stimme",
+      comfort: "Komfort",
+      interest: "Interesse",
+      views: "Ansichten",
+      next: "Naechstes",
+    },
+    roomSummaryVoteWaiting: "Noch offen",
+    roomSummaryVoteTie: (labels) => `Gleichstand: ${labels.join(" | ")}`,
+    roomSummaryComfortWaiting: "Wartet auf Antworten",
+    roomSummaryNextWaiting: "Abstimmen oder eine kleine Idee teilen.",
+    roomSummaryNextReady: (choice, needs) => {
+      const parts = [choice, needs.length ? needs.join(" | ") : ""].filter(Boolean);
+      return parts.length ? `Einen ruhigen Plan mit ${parts.join(" | ")} machen.` : "Einen ruhigen Plan machen.";
+    },
+    roomSummaryNextView: "Eine freundliche Ansicht teilen, ohne Druck.",
+    roomSummaryNextTie: "Weiter abstimmen oder VYVA um eine einfache Zusammenfassung bitten.",
+    roomCommonGroundTitle: "Gemeinsamer Nenner",
+    roomCommonGroundBody: "Was der Raum jetzt weiss, ohne Namen zu zeigen.",
+    roomCommonGroundVote: "Stimmen bleiben privat; sichtbar sind nur Summen.",
+    roomCommonGroundComfortReady: (needs) => `Mit ${needs.join(" | ")} vorbereiten.`,
+    roomCommonGroundComfortWaiting: "Du kannst sagen, was hilft, bevor du mitmachst.",
+    roomCommonGroundInterestReady: (count) => `${count} ${count === 1 ? "Person zeigt" : "Personen zeigen"} Interesse, ohne Verpflichtung.`,
+    roomCommonGroundInterestWaiting: "Interesse kann mit Vielleicht beginnen.",
+    roomCommonGroundViewsReady: (count) => `${count} ${count === 1 ? "geteilte Ansicht" : "geteilte Ansichten"} mit Pruefung in der Naehe.`,
+    roomCommonGroundViewsWaiting: "Ansichten duerfen kurz und freundlich sein.",
+    roomOutcomeTitle: "Was VYVA als Naechstes tut",
+    roomOutcomeBody: (choice, needs, context) => {
+      if (context === "tie") return `VYVA laesst ${choice ?? "die Optionen"} offen und fasst sie einfach zusammen, bevor sich jemand gedrueckt fuehlt.`;
+      if (context === "views") return "VYVA haelt den Meinungskreis freundlich und bringt die wichtigsten Punkte als einfache Zusammenfassung zurueck.";
+      if (context === "plan") {
+        const base = `VYVA bereitet ${choice ?? "die fuehrende Wahl"} vor`;
+        return needs.length ? `${base} mit ${needs.join(", ")}, bevor sich jemand festlegt.` : `${base}, bevor sich jemand festlegt.`;
+      }
+      if (context === "comfort") return `VYVA nutzt ${needs.join(", ")}, damit der naechste Plan leichter wird.`;
+      return "Wenn mehr Wahlen da sind, macht VYVA daraus einen ruhigen naechsten Schritt.";
+    },
+    roomOutcomeSteps: {
+      private: "Private Summen nutzen, keine Namen",
+      shape: "Wahlen in einen klaren Schritt verwandeln",
+      safety: "Kontakt und Sicherheit in VYVA halten",
+    },
+    roomAtGlanceTitle: "Heute im Raum",
+    roomAtGlanceUpdatesClear: "Keine neuen Updates",
+    roomAtGlanceUpdates: (count) => `${count} ${count === 1 ? "Update" : "Updates"}`,
+    roomAtGlanceVotes: (count) => `${count} ${count === 1 ? "Stimme" : "Stimmen"}`,
+    roomAtGlancePlanInterest: (count) => `${count} ${count === 1 ? "interessierte Person" : "interessierte Personen"}`,
+    roomAtGlanceComfort: (count) => `${count} ${count === 1 ? "Komfortsignal" : "Komfortsignale"}`,
+    mySafeChoicesTitle: "Meine sicheren Wahlen",
+    mySafeChoicesBody: "Ein privater Blick darauf, was du bisher gewaehlt hast.",
+    mySafeChoicesPrivate: "Der Raum sieht Summen, nicht deinen Namen.",
+    mySafeChoiceLabels: {
+      plan: "Aktivitaet",
+      vote: "Stimme",
+      comfort: "Komfort",
+      help: "Hilfe",
+    },
+    mySafeChoicePlanNone: "Noch keine Aktivitaet gewaehlt",
+    mySafeChoicePlanJoin: "Interesse, keine Verpflichtung",
+    mySafeChoicePlanMaybe: "Fuer spaeter gemerkt",
+    mySafeChoiceVoteNone: "Noch keine Stimme",
+    mySafeChoiceIssueVote: (question, choice) => `${question}: ${choice}`,
+    mySafeChoiceComfortNone: "Noch kein Komfortwunsch",
+    mySafeChoiceHelpNone: "Noch keine Hilfe angeboten",
+    mySafeChoiceHelp: (planTitle, helpers) => `${planTitle}: ${helpers.join(" | ")}`,
+    mySafePauseAction: "Ruhig pausieren",
+    mySafePauseActiveAction: "Pause aktiv",
+    mySafePauseStatus: "Ruhige Pause aktiv. Es wird nichts gepostet.",
+    mySafePauseNote: "Du kannst weiter mitlesen, ohne den Raum zu benachrichtigen.",
+    roomTrustTitle: "Sicher zum Mitmachen",
+    roomTrustBody: "Drei Erinnerungen, bevor du mitmachst. Du kannst VYVA bitten, sie einfach zu pruefen.",
+    roomTrustItems: {
+      privacy: "Stimmen, Komfort und Vielleicht bleiben ohne Namen.",
+      kindness: "Ansichten sollen freundlich bleiben; VYVA kann Unangenehmes pruefen.",
+      contact: "Privater Kontakt bleibt in VYVA, bis beide Personen zustimmen.",
+    },
+    roomTrustAction: "Ruhig pruefen lassen",
+    roomTrustDraft: "VYVA, kannst du pruefen, ob dieser Raum heute sicher zum Mitmachen wirkt? Fasse Datenschutz, Freundlichkeit und Kontaktsicherheit einfach zusammen, ohne Namen.",
+    participationPathTitle: "Waehle deinen Einstieg",
+    participationPathBody: "Drei einfache Wege, um mitzumachen, ohne erst alles lesen zu muessen.",
+    participationPathLabels: {
+      vote: "Privat abstimmen",
+      view: "Ansicht teilen",
+      activity: "Aktivitaet helfen",
+    },
+    participationPathBodies: {
+      vote: "Waehle eine Option. Der Raum sieht nur Summen.",
+      view: "Schreibe einen freundlichen Satz; VYVA prueft in der Naehe.",
+      activity: "Geh zum Plan und waehle eine kleine Hilfe.",
+    },
+    participationPathActions: {
+      vote: "Zur Abstimmung",
+      view: "Ansicht schreiben",
+      activity: "Aktivitaet ansehen",
+    },
+    participationPathPrivacy: "Du kannst erst schauen. Kein Weg teilt privaten Kontakt.",
+    nextGentleStepLabel: "Naechster sanfter Tipp",
+    nextGentleSteps: {
+      promise: {
+        title: "Zuerst den Raum sicher halten",
+        body: "Lies das Raumversprechen. So bleiben Ansichten, Stimmen und Plaene freundlich.",
+        action: "Ich verstehe",
+      },
+      updates: {
+        title: "Es gibt etwas Neues",
+        body: "Schau die Updates an, bevor du antwortest. So kannst du ruhig mitmachen.",
+        action: "Updates ansehen",
+      },
+      comfort: {
+        title: "Starte so, wie es passt",
+        body: "Du kannst erst zuhoeren. Der Raum sieht nur Summen, nicht deinen Namen.",
+        action: "Erst zuhoeren",
+      },
+      vote: {
+        title: "Hilf beim Auswaehlen",
+        body: "Eine private Stimme hilft dem Raum, den naechsten Schritt zu finden.",
+        action: "Optionen ansehen",
+      },
+      plan: {
+        title: "Merk dein Interesse",
+        body: "Du kannst mitmachen oder vielleicht sagen. Es ist keine feste Zusage.",
+        action: "Plan ansehen",
+      },
+      recap: {
+        title: "Bitte um Zusammenfassung",
+        body: "VYVA kann Stimmen, Komfort und Plaene in eine einfache Notiz ordnen.",
+        action: "Zusammenfassung",
+      },
+      hello: {
+        title: "Klein anfangen",
+        body: "Ein freundlicher Gruss reicht, um ohne Druck anzukommen.",
+        action: "Hallo sagen",
+      },
+    },
+    nextGentleStepExplainAction: "Warum?",
+    nextGentleStepExplainDraft: (stepTitle) => (
+      `VYVA, ich bin nicht sicher, wo ich anfangen soll. Kannst du erklaeren, warum "${stepTitle}" der sichere naechste Tipp ist, und mir eine einfache Option ohne Namen und ohne Druck geben?`
+    ),
+    roomReadinessTitle: "Bevor es weitergeht",
+    roomReadinessBody: "VYVA prueft diese drei Punkte, damit der naechste Schritt klar und sicher bleibt.",
+    roomReadinessLabels: {
+      vote: "Stimme",
+      comfort: "Komfort",
+      consent: "Zustimmung",
+    },
+    roomReadinessVoteReady: "Der Raum hat eine fuehrende Wahl.",
+    roomReadinessVoteWaiting: "Wartet auf ein paar Stimmen.",
+    roomReadinessComfortReady: "Komfortwuensche sind sichtbar.",
+    roomReadinessComfortWaiting: "Wartet darauf, was helfen wuerde.",
+    roomReadinessConsentReady: "Kontakt bleibt in VYVA, bis beide Personen zustimmen.",
+    roomUsefulTitle: "Nuetzliche naechste Schritte",
+    roomUsefulBody: "VYVA zeigt, wobei es jetzt helfen kann, ohne Namen oder Druck.",
+    roomUsefulLabels: {
+      activity: "Aktivitaet",
+      vote: "Themenabstimmung",
+      views: "Ansichten",
+    },
+    roomUsefulReady: {
+      activity: "Bereit, damit VYVA einen sicheren naechsten Schritt vorbereitet.",
+      vote: "Eine Frage hat Unterstuetzung und kann private Abstimmung werden.",
+      views: "Es gibt Ansichten fuer eine ruhige Zusammenfassung.",
+    },
+    roomUsefulWaiting: {
+      activity: "Noch fehlen Interesse, Komfort oder eine kleine Hilfe.",
+      vote: "Wartet noch, bis eine Frage Unterstuetzung bekommt.",
+      views: "Noch keine geteilten Ansichten zum Zusammenfassen.",
+    },
+    roomUsefulActions: {
+      activity: "Aktivitaet vorbereiten",
+      vote: "Abstimmung machen",
+      views: "Ansichten zusammenfassen",
+    },
+    roomUsefulPrivacy: "VYVA nutzt Signale und Summen, keine Namen.",
+    roomNotesTitle: "Heutige Raumnotizen",
+    roomNotesBody: "Eine einfache Notiz zu dem, was der Raum schon weiss, damit niemand alles behalten muss.",
+    roomNotesLabels: {
+      known: "Schon bekannt",
+      open: "Noch offen",
+      next: "Naechste Hilfe",
+    },
+    roomNotesVoteKnown: (label) => `Abstimmung: ${label}.`,
+    roomNotesVoteTie: (labels) => `Abstimmung gleichauf: ${labels.join(" | ")}.`,
+    roomNotesVoteWaiting: "Abstimmung: noch offen.",
+    roomNotesComfortKnown: (labels) => `Komfort: ${labels.join(" | ")}.`,
+    roomNotesComfortWaiting: "Komfort: wartet auf ein Signal.",
+    roomNotesViewsKnown: (count) => `${count} ${count === 1 ? "geteilte Ansicht" : "geteilte Ansichten"}.`,
+    roomNotesViewsWaiting: "Ansichten: noch keine.",
+    roomNotesOpenItems: {
+      vote: "Es fehlen noch ein paar private Stimmen.",
+      comfort: "Es fehlt noch, was Komfort gibt.",
+      views: "Eine ruhige Ansicht fehlt noch.",
+      activity: "Die Aktivitaet wird noch geformt.",
+    },
+    roomNotesOpenReady: "Nichts Dringendes. Der Raum kann langsam weitergehen.",
+    roomNotesNextActivity: (title) => `VYVA kann "${title}" als sicheren Schritt vorbereiten.`,
+    roomNotesNextVote: (title) => `VYVA kann "${title}" in eine einfache private Abstimmung umwandeln.`,
+    roomNotesNextViews: (count) => `VYVA kann ${count === 1 ? "diese Ansicht" : "diese Ansichten"} ohne Namen zusammenfassen.`,
+    roomNotesNextStarter: "Mit Hallo, einem Komfortwunsch oder einer privaten Stimme beginnen.",
+    roomNotesPrivacy: "Diese Notizen nutzen Summen und Signale, keine Namen.",
     responseNone: "Du kannst den Anfang machen.",
     responseJoinCount: (count) => `${count} ${count === 1 ? "macht mit" : "machen mit"}`,
     responseMaybeCount: (count) => `${count} vielleicht`,
     morePlans: "Auch moeglich",
     roomUpdates: "Neu im Raum",
+    roomUpdatesShowing: (visible, total) => `Zeigt ${visible} von ${total} Updates`,
+    roomUpdatesRecapTitle: "Einfaches Update",
+    roomUpdatesRecapBody: (count) => `VYVA kann ${count === 1 ? "dieses Update" : `diese ${count} Updates`} zusammenfassen und den sicheren naechsten Schritt ohne Namen nennen.`,
+    roomUpdatesRecapAction: "Zusammenfassen",
+    roomUpdatesRecapDraft: (count) => (
+      count === 1
+        ? "VYVA, fasse dieses Raum-Update in einfachen Worten zusammen und nenne mir den sicheren naechsten Schritt, ohne Namen."
+        : `VYVA, fasse diese ${count} Raum-Updates in einfachen Worten zusammen und nenne mir den sicheren naechsten Schritt, ohne Namen.`
+    ),
     markUpdateSeen: "Gesehen",
+    markAllUpdatesSeen: "Alles gesehen",
     updateSeen: "Als gesehen gespeichert",
     updateSeenFailed: "Konnte nicht als gesehen gespeichert werden. Bitte versuche es erneut.",
+    allUpdatesSeen: "Alle Updates als gesehen gespeichert",
+    allUpdatesSeenFailed: "Konnte nicht alles als gesehen speichern. Bitte versuche es erneut.",
     sharedToday: "Heute geteilt",
+    viewCircleTitle: "Meinungskreis",
+    viewCircleBody: "Lies, was gesagt wurde, und teile einen freundlichen Satz, wenn du bereit bist.",
+    viewCircleEmpty: "Noch keine geteilten Ansichten. Ein kleiner Satz reicht.",
+    viewCircleVote: (label, count) => `${label}: ${count} ${count === 1 ? "Stimme" : "Stimmen"}`,
+    viewCircleCount: (count) => `${count} ${count === 1 ? "geteilte Ansicht" : "geteilte Ansichten"}`,
+    viewCircleLatest: "Neu im Raum",
+    viewCircleAdd: "Ansicht teilen",
+    viewRecapTitle: "VYVA kann die Ansichten zusammenfassen",
+    viewRecapBody: (count) => (
+      count === 1
+        ? "Es gibt 1 geteilte Ansicht. VYVA kann sie in einfachen Worten zurueckgeben."
+        : `Es gibt ${count} geteilte Ansichten. VYVA kann die Hauptpunkte ohne Namen buendeln.`
+    ),
+    viewRecapAction: "Ansichten zusammenfassen",
+    viewRecapDraft: (count) => (
+      count === 1
+        ? "VYVA, fasse diese geteilte Ansicht freundlich und einfach zusammen, ohne Namen zu zeigen."
+        : `VYVA, fasse diese ${count} geteilten Ansichten freundlich und einfach zusammen, ohne Namen zu zeigen.`
+    ),
+    viewVoteBridgeTitle: "Ansichten zur Abstimmung machen",
+    viewVoteBridgeBody: (count) => (
+      count === 1
+        ? "Wenn diese Ansicht eine Entscheidung braucht, kann VYVA eine einfache private Abstimmung vorschlagen."
+        : `Wenn diese ${count} Ansichten verschiedene Optionen zeigen, kann VYVA daraus eine einfache private Abstimmung machen.`
+    ),
+    viewVoteBridgeAction: "Private Abstimmung vorbereiten",
+    viewVoteBridgeDraft: (count) => (
+      count === 1
+        ? "VYVA, mache aus dieser geteilten Ansicht eine einfache private Abstimmung mit sicheren Optionen und ohne Namen."
+        : `VYVA, mache aus diesen ${count} geteilten Ansichten eine einfache private Abstimmung mit sicheren Optionen und ohne Namen.`
+    ),
+    viewBalanceTitle: "Gespraechsbalance",
+    viewBalanceBody: "Zeigt, wie der Raum antwortet, damit eine andere Sicht sicher bleibt.",
+    viewBalanceEmpty: "Noch keine Antworten.",
+    viewBalanceLabels: {
+      support: "Gleiches Gefuehl",
+      curious: "Mehr hoeren",
+      different: "Andere Sicht",
+      help: "Hilfe angeboten",
+    },
+    viewCommonGroundTitle: "Gemeinsamer Nenner",
+    viewCommonGroundOpening: "Das Gespraech beginnt. Eine freundliche Antwort kann helfen, Gemeinsames zu finden.",
+    viewCommonGroundAgreement: "Ein gemeinsames Signal ist da. VYVA kann es einfach und ruhig halten.",
+    viewCommonGroundCurious: "Der Raum bittet um mehr Kontext, bevor entschieden wird. Das hilft beim ruhigen Waehlen.",
+    viewCommonGroundDifferent: "Verschiedene Sichtweisen sind da und bleiben freundlich. VYVA kann sie ohne Namen zusammenfassen.",
+    viewCommonGroundMixed: "Mehrere Signale sind gleichzeitig da. Eine VYVA-Zusammenfassung kann daraus einen klaren Schritt machen.",
+    viewCommonGroundPrivacy: "Antworten werden nach Ton zusammengefasst, nicht nach Namen.",
+    viewSafetyTitle: "Sicher anders sehen",
+    viewSafetyBody: "Andere Ansichten sind willkommen, wenn sie kurz, freundlich und ohne private Details bleiben.",
+    viewSafetyItems: {
+      kind: "Sprich ueber die Idee, nicht ueber die Person.",
+      private: "Lass Telefon, Adresse, Geld und Kontakt weg.",
+      review: "Bitte VYVA, Unangenehmes zu pruefen.",
+    },
+    viewSafetyAction: "Sanft beginnen",
+    viewSafetyDraft: "Ich sehe es anders. Koennen wir ruhig vergleichen, ohne Namen?",
+    viewNextReplyTitle: "Naechste freundliche Antwort",
+    viewNextReplyBodies: {
+      opening: "Eine kleine Frage oder Zustimmung kann helfen, dass sich alle gehoert fuehlen.",
+      agreement: "Baue mit einem einfachen Grund auf das gemeinsame Signal auf.",
+      curious: "Bitte um ein Detail mehr, bevor der Raum waehlt.",
+      different: "Eine freundliche Frage haelt eine andere Sicht sicher.",
+      mixed: "Wenn Signale gemischt sind, frage zuerst, was am wichtigsten ist.",
+    },
+    viewNextReplyActions: {
+      opening: "Antwort einladen",
+      agreement: "Grund hinzufuegen",
+      curious: "Detail fragen",
+      different: "Freundlich fragen",
+      mixed: "Was ist wichtig?",
+    },
+    viewNextReplyDrafts: {
+      opening: "Ich wuerde gern hoeren, was anderen am wichtigsten ist.",
+      agreement: "Ich stimme zu, und ein Grund ist...",
+      curious: "Kannst du etwas mehr sagen, was dir am wichtigsten ist?",
+      different: "Ich sehe es anders. Koennen wir ruhig vergleichen, was am wichtigsten ist?",
+      mixed: "Koennen wir kurz innehalten und sagen, was jeder Person am wichtigsten ist?",
+    },
     sharedResponseSaved: "Deine Antwort ist gespeichert",
     reviewItem: "VYVA pruefen lassen",
     reviewItemSent: "VYVA prueft diesen Beitrag behutsam.",
     reviewReply: "Antwort pruefen",
     gentleReplies: "Freundliche Antworten",
+    replyGuideTitle: "Sicher antworten",
+    replyGuideBody: "Nutze eine freundliche Taste. Wenn sich eine Antwort falsch anfuehlt, kann VYVA sie pruefen.",
     planSupportTitle: "Einfach machen",
     planSupportBody: "Waehle eine kleine Hilfe, damit der Plan fuer alle angenehmer wird.",
+    planSupportSummaryTitle: "Hilfe fuer die Aktivitaet",
+    planSupportSummaryBody: "So hilft der Raum in kleinen Schritten, damit der Plan klappt.",
+    planSupportSummaryEmpty: "Noch keine Hilfe. Waehle unten eine kleine Hilfe aus.",
+    planHelperCueTitle: "Beste kleine Hilfe",
+    planHelperCueBody: (actionLabel) => `Jetzt hilft am meisten: ${actionLabel}. Das gibt VYVA ein praktisches Signal, ohne jemanden festzulegen.`,
+    planHelperCueCoveredTitle: "Hilfen abgedeckt",
+    planHelperCueCoveredBody: (labels) => `Schon abgedeckt: ${labels.join(", ")}. Eine weitere Hilfe ist freiwillig.`,
+    planHelperCueAction: (actionLabel) => `${actionLabel} waehlen`,
+    planHelperCuePrivate: "Das postet nur ein Hilfesignal, keinen privaten Kontakt.",
+    planReadinessTitle: "Bereit fuer den naechsten Schritt",
+    planReadinessBody: (ready, total) => `${ready} von ${total} Signalen sind bereit. VYVA wartet ruhig auf das, was noch fehlt.`,
+    planReadinessInterestReady: (count) => `${count} ${count === 1 ? "Person zeigt" : "Personen zeigen"} Interesse.`,
+    planReadinessInterestWaiting: "Wartet auf Interesse: Mitmachen oder Vielleicht.",
+    planReadinessHelperReady: (count) => `${count} kleine ${count === 1 ? "Hilfe ist" : "Hilfen sind"} angeboten.`,
+    planReadinessHelperWaiting: "Eine kleine Hilfe wuerde es leichter machen.",
+    planReadinessComfortReady: "Komfort ist schon benannt.",
+    planReadinessComfortWaiting: "Es fehlt noch, was angenehm waere.",
+    planReadinessVyvaReady: "VYVA bestaetigt Details vor jedem Kontakt.",
+    activityReadyTitle: "VYVA kann es vorbereiten",
+    activityReadyBody: (planTitle) => `"${planTitle}" hat Interesse, Komfort und eine kleine Hilfe. VYVA kann die Details bestaetigen, bevor sich jemand festlegt.`,
+    activityReadySignalsTitle: "Signale ohne Namen",
+    activityReadyPrivate: "Privat und ohne Druck",
+    activityReadyPrepTitle: "Bevor VYVA vorbereitet",
+    activityReadyPrepItems: [
+      "Ort, Zeit, Kosten und Zugang bestaetigen.",
+      "Kontakt bleibt in VYVA, bis beide zustimmen.",
+      "Einen einfachen naechsten Schritt bringen, keine Verpflichtung.",
+    ],
+    activityReadyAction: "VYVA nach dem naechsten Schritt fragen",
+    activityReadyDraft: (planTitle, signals) => (
+      signals.length
+        ? `VYVA, "${planTitle}" wirkt bereit. Signale im Raum: ${signals.join("; ")}. Kannst du den naechsten einfachen und sicheren Schritt vorbereiten?`
+        : `VYVA, "${planTitle}" wirkt bereit. Kannst du den naechsten einfachen und sicheren Schritt fuer den Raum vorbereiten?`
+    ),
+    voteReadyTitle: "Diese Frage ist bereit",
+    voteReadyBody: (questionTitle) => `"${questionTitle}" bekommt Unterstuetzung. VYVA kann daraus eine einfache private Abstimmung ohne Namen machen.`,
+    voteReadyPrivate: "Namen bleiben verborgen",
+    voteReadyAction: "VYVA um die Abstimmung bitten",
     planSupportActions: {
       choose: "Auswaehlen helfen",
       pace: "Ruhiges Tempo",
+      buddy: "Gemeinsam ankommen",
       notify: "Mich informieren",
     },
     planSupportReplies: {
       choose: "Ich kann helfen, eine einfache Option fuer die Gruppe auszuwaehlen.",
       pace: "Ein ruhiges Tempo mit Pausen wuerde mir helfen.",
+      buddy: "Es wuerde mir helfen, vorher mit jemandem zusammen anzukommen.",
       notify: "Bitte haltet mich auf dem Laufenden, wenn es einen naechsten Schritt gibt.",
-    },
-    planLoopTitle: "Naechster Schritt",
-    planLoopBody: "Wenn jemand mitmacht, hilft VYVA, aus der Idee einen echten Plan zu machen.",
-    planLoopStatusLabel: "Planstatus",
-    planLoopSteps: {
-      shared: "Geteilt",
-      choosing: "Zeit waehlen",
-      confirmed: "Bestaetigt",
-      happened: "Passiert",
-      repeat: "Wiederholen",
-    },
-    planLoopActions: {
-      time: "Zeit waehlen",
-      place: "Ort bestaetigen",
-      invite: "Eine Person einladen",
-      again: "Noch einmal machen",
-    },
-    planLoopReplies: {
-      time: "Ich moechte eine einfache Zeit fuer diesen Plan waehlen.",
-      place: "Ich moechte den Ort bestaetigen oder ob es online stattfindet.",
-      invite: "Wir koennen eine weitere Person einladen, wenn das hilft.",
-      again: "Ich moechte das gern noch einmal machen.",
     },
     replySent: "Antwort geteilt",
     replyFailed: "Antwort konnte nicht geteilt werden. Bitte versuche es erneut.",
@@ -514,45 +1849,100 @@ const copyByLanguage: Record<"es" | "de" | "en", {
       message: "Gruss",
       question: "Frage",
     },
+    sharedViewLabel: "Ansicht",
     sharedActions: {
       plan: { primary: "Mitmachen", secondary: "Vielleicht" },
       message: { primary: "Ich auch", secondary: "Danke" },
       question: { primary: "Mir auch helfen", secondary: "Folgen" },
     },
+    issueQueueTitle: "Fragen fuer eine spaetere Abstimmung",
+    issueQueueBody: "Wenn jemand Klaerung braucht, haelt VYVA es hier fest, damit der Raum es ohne Druck unterstuetzen kann.",
+    issueQueueBadge: "Moegliche Abstimmung",
+    issueQueueAction: "Zur Abstimmung machen",
+    issueQueueDraft: (title) => `VYVA, mache aus "${title}" eine einfache Raumabstimmung mit sicheren Optionen und ohne Namen.`,
+    issueQueueUseAction: "Diese Abstimmung zusammenfassen",
+    issueQueueUseDraft: (title, signal) => (
+      signal
+        ? `VYVA, fasse die private Abstimmung zu "${title}" zusammen. Das aktuelle Signal ist: ${signal}. Hilf dem Raum, einen sicheren naechsten Schritt zu waehlen, ohne Namen.`
+        : `VYVA, fasse die private Abstimmung zu "${title}" zusammen und hilf dem Raum, einen sicheren naechsten Schritt zu waehlen, ohne Namen.`
+    ),
+    issueQueuePrivacy: "Eine Frage zu unterstuetzen zeigt nur Interesse. Der Raum sieht deinen Namen nicht.",
+    issueReadinessTitles: {
+      gathering: "Unterstuetzung sammeln",
+      vote: "Bereit zur Abstimmung",
+      summary: "Bereit zum Zusammenfassen",
+    },
+    issueReadinessBodies: {
+      gathering: "Tippe Mir auch helfen oder Folgen, wenn diese Frage dir wichtig ist.",
+      vote: "Es gibt Interesse. VYVA kann daraus eine private Abstimmung ohne Namen machen.",
+      summary: (signal) => (
+        signal
+          ? `Das Signal ist: ${signal}. VYVA kann es zusammenfassen und einen sicheren naechsten Schritt vorschlagen.`
+          : "VYVA kann die private Abstimmung zusammenfassen und einen sicheren naechsten Schritt vorschlagen."
+      ),
+    },
+    issuePollTitle: "Einfache Abstimmung",
+    issuePollBody: "Waehle eine Option. Du kannst sie aendern, solange die Abstimmung offen ist.",
+    issuePollPrivacy: "Auch diese Stimme ist privat. Sichtbar sind nur Summen.",
+    issuePollOutcomeTitle: "Signal im Raum",
+    issuePollOutcomeBody: (label) => `Im Moment tendiert der Raum zu: ${label}. VYVA kann das nutzen, ohne Namen zu zeigen.`,
+    issuePollOutcomeTie: (labels) => `Der Raum ist zwischen ${labels.join(" | ")} geteilt. VYVA kann das ohne Eile zusammenfassen.`,
+    issuePollOutcomeOtherViews: "Andere Optionen zaehlen auch. VYVA kann sie ohne Namen einbeziehen.",
+    issuePollOutcomeOpen: "Solange die Abstimmung offen ist, kann man noch anders waehlen.",
     proposalPlaceholder: "Schreibe eine kleine Idee...",
+    proposalLengthHint: (remaining) => `${remaining} Zeichen frei`,
+    proposalSafetyWarning: "Bitte Telefon, E-Mail, Adresse oder Zahlungsdaten vor dem Senden entfernen.",
+    proposalToneWarning: "Bitte vor dem Senden freundlicher formulieren. VYVA kann beim Umformulieren helfen.",
+    proposalToneRewrite: "Freundlicher formulieren",
+    proposalToneRewriteDrafts: {
+      plan: "Koennen wir es ruhig und einfach fuer alle machen?",
+      message: "Ich sehe es etwas anders, weil...",
+      question: "Koennen wir gemeinsam ruhig darueber nachdenken?",
+    },
     proposalCategoryPrompt: "Welche Erfahrung?",
     proposalPlacePrompt: "Was passt besser?",
     proposalTimePrompt: "Wann passt es?",
     proposalCostPrompt: "Kosten",
     proposalGroupPrompt: "Wie mitmachen?",
+    composerPreviewTitle: "Vor dem Senden",
+    composerPreviewBodies: {
+      plan: "Diese Idee erscheint als Plan, damit andere Mitmachen oder Vielleicht waehlen koennen.",
+      message: "Diese Notiz erscheint als kurze Sicht, mit freundlichen Antworten in der Naehe.",
+      question: "Diese Frage hilft VYVA, zu klaeren oder daraus eine Abstimmung zu machen.",
+    },
+    composerPreviewItems: {
+      plan: {
+        shared: "Der Raum sieht den Plan, nicht deine privaten Entscheidungen.",
+        private: "Stimmen, Komfort und Vielleicht bleiben ohne Namen.",
+        next: "VYVA prueft Kosten, Kontakt, Transport oder Service vor dem naechsten Schritt.",
+      },
+      message: {
+        shared: "Der Raum sieht den Satz und kann mit freundlichen Knoepfen antworten.",
+        private: "Bitte keine Telefonnummer, E-Mail oder genaue Adresse.",
+        next: "Wenn Worte scharf wirken, kann VYVA sie zuerst weicher machen.",
+      },
+      question: {
+        shared: "Der Raum sieht die Frage, nicht wer Hilfe braucht.",
+        private: "Deine Stimmen und Komfortwuensche bleiben privat.",
+        next: "VYVA kann daraus eine einfache Abstimmung mit Summen machen.",
+      },
+    },
+    safeShareTitle: "Behutsam teilen",
+    safeShareBody: "Bitte keine Telefonnummer, E-Mail, genaue Adresse oder Zahlung in die Notiz schreiben.",
+    safeShareReviewLine: "Bei Kosten, Transport, Wohnen oder Diensten prueft VYVA vor dem naechsten Schritt.",
     planNearby: "In der Naehe",
     planOnline: "Online",
     comfortPrompt: "Was hilft?",
-    planPresetPrompt: "Mit einer Idee starten",
-    planComposerHelper: "Du kannst alles aendern, bevor du teilst.",
-    planPresetCopy: {
-      quiet_lunch: {
-        title: "Ruhiges Essen in der Naehe",
-        body: "Nah, einfach zugaenglich und ohne Eile.",
-        draft: "Ich moechte ein ruhiges Essen in der Naehe vorschlagen, an einem gut zugaenglichen Ort mit Zeit zum Reden.",
-      },
-      film_chat: {
-        title: "Filmgespraech online",
-        body: "Ein ruhiger Film und ein kurzes Gespraech.",
-        draft: "Ich moechte einen ruhigen Film auswaehlen und online ohne Eile darueber sprechen.",
-      },
-      service_deal: {
-        title: "Service oder Deal vergleichen",
-        body: "Gemeinsam anschauen, bevor jemand entscheidet.",
-        draft: "Ich moechte einen Service oder Deal mit jemandem vergleichen, bevor ich entscheide.",
-      },
-    },
     comfortNeedLabels: {
+      listen_first: "Erst zuhoeren",
       quiet_pace: "Ruhiges Tempo",
       easy_access: "Einfacher Zugang",
       seating: "Sitzplatz",
       transport_help: "Hilfe beim Hinkommen",
+      arrival_buddy: "Gemeinsam ankommen",
+      clear_cost: "Kosten vorher wissen",
     },
+    moreComfortNotes: (count) => `${count} ${count === 1 ? "weitere Hilfe" : "weitere Hilfen"}`,
     categoryLabels: {
       movie_date: "Film-Date",
       restaurant_date: "Restaurant",
@@ -587,19 +1977,111 @@ const copyByLanguage: Record<"es" | "de" | "en", {
       service: "Service",
       private_contact: "Kontakt",
       transport: "Transport",
+      unkind_tone: "Ton",
     },
     postFailed: "Konnte nicht gepostet werden. Bitte versuche es erneut.",
     send: "Senden",
+    cancel: "Abbrechen",
     sending: "Senden...",
-    proposalSent: "Geteilt. Andere koennen mitmachen oder vielleicht sagen.",
-    proposalReviewTitle: "VYVA prueft das zuerst",
-    proposalReviewBody: "Wenn es um Geld, Wohnen, Services, Transport oder privaten Kontakt geht, schaut VYVA vor dem naechsten Schritt darauf.",
+    sent: "Gesendet",
+    reviewPending: "VYVA prueft es, bevor es erscheint.",
     helpSent: "VYVA prueft das behutsam.",
+    helpSending: "VYVA wird benachrichtigt...",
     helpFailed: "VYVA konnte nicht benachrichtigt werden. Bitte versuche es erneut.",
-    viewStarter: "Ansicht teilen",
+    safetyHelpTitle: "Was soll VYVA pruefen?",
+    safetyHelpBody: "Waehle, was am besten passt. Der Raum sieht diese Hilfe nicht.",
+    safetyHelpChoiceLabels: {
+      uncomfortable: "Unangenehm",
+      pressure_contact: "Druck oder Kontakt",
+      money_service: "Geld oder Service",
+      something_else: "Etwas anderes",
+    },
+    safetyHelpChoiceBodies: {
+      uncomfortable: "Etwas im Raum fuehlt sich nicht richtig an.",
+      pressure_contact: "Jemand fragt nach privatem Kontakt oder draengt.",
+      money_service: "Kosten, Zahlung, Angebot oder Service sollen geprueft werden.",
+      something_else: "Ich moechte, dass VYVA den Raum anschaut.",
+    },
+    safetyHelpChoiceReasons: {
+      uncomfortable: "feels_uncomfortable",
+      pressure_contact: "pressure_or_contact",
+      money_service: "money_or_service",
+      something_else: "other_safety_help",
+    },
+    safetyHelpChoiceDetails: {
+      uncomfortable: "Die Person meldet, dass sich etwas im Together Room unangenehm anfuehlt.",
+      pressure_contact: "Die Person bittet VYVA, moeglichen Druck oder privaten Kontakt zu pruefen.",
+      money_service: "Die Person bittet VYVA, Geld, Kosten, Angebot oder Service zu pruefen.",
+      something_else: "Die Person bittet um allgemeine Sicherheitshilfe im Together Room.",
+    },
+    safetyHelpReceiptTitle: "Hilfe gesendet",
+    safetyHelpReceiptBody: (choiceLabel) => `VYVA prueft: ${choiceLabel}. Der Raum sieht diese Bitte nicht.`,
+    safetyHelpReceiptItems: [
+      "VYVA prueft, ohne deinen Namen zu zeigen.",
+      "Du kannst den Raum pausieren und spaeter zurueckkommen.",
+      "Wenn jetzt etwas dringend ist, nutze lokale Notfallhilfe.",
+    ],
+    viewSharingNote: "Du kannst eine kurze Ansicht freundlich teilen, ohne persoenliche Kontaktdaten.",
+    viewTonePreviewTitle: "Sichere Vorschau",
+    viewTonePreviewReady: "Bereit zum ruhigen Teilen",
+    viewTonePreviewNeedsEdit: "Braucht eine kleine Anpassung",
+    viewTonePreviewItems: {
+      kind: "Freundliche Worte",
+      privacy: "Kein privater Kontakt",
+      small: "Ein kleiner Gedanke",
+    },
+    viewPromptTitle: "Freundlich anfangen",
+    viewPromptBody: "Waehle einen Satz, wenn Worte gerade schwer sind.",
+    viewPromptLabels: {
+      agree: "Ich stimme zu",
+      different: "Andere Sicht",
+      compare: "Optionen vergleichen",
+      more_info: "Mehr Infos",
+    },
+    viewPromptDrafts: {
+      agree: "Ich stimme zu, weil...",
+      different: "Ich sehe es anders, weil...",
+      compare: "VYVA, hilf uns, die Optionen ruhig zu vergleichen.",
+      more_info: "Ich brauche noch etwas mehr Information, bevor ich waehle.",
+    },
+    askPromptTitle: "Einfache Fragen an VYVA",
+    askPromptBody: "Waehle eine Frage, wenn Worte gerade schwer sind.",
+    askPromptLabels: {
+      summary: "Zusammenfassen",
+      easier: "Einfacher machen",
+      vote: "Abstimmung vorschlagen",
+      safe: "Sicher?",
+    },
+    askPromptDrafts: {
+      summary: "VYVA, kannst du zusammenfassen, was der Raum gerade waehlt?",
+      easier: "VYVA, hilf mir, den einfachsten Weg zum Mitmachen zu finden.",
+      vote: "VYVA, kannst du daraus eine einfache Raumabstimmung machen?",
+      safe: "VYVA, kannst du pruefen, ob sich das sicher und ohne Druck anfuehlt?",
+    },
+    issuePromptTitle: "Eine Sorge als Abstimmung",
+    issuePromptBody: "Waehle ein haeufiges Thema, wenn VYVA daraus eine einfache Raumabstimmung machen soll.",
+    issuePromptLabels: {
+      place: "Ort",
+      time: "Zeit",
+      cost: "Kosten",
+      safety: "Sicherheit",
+    },
+    issuePromptDrafts: {
+      place: "VYVA, kannst du eine einfache Abstimmung vorschlagen, welcher Ort fuer den Raum am angenehmsten waere?",
+      time: "VYVA, kannst du eine einfache Abstimmung vorschlagen, welche Zeit am besten passt?",
+      cost: "VYVA, kannst du eine einfache Abstimmung vorschlagen, damit Kosten vor einer Zusage klar sind?",
+      safety: "VYVA, kannst du eine einfache Abstimmung vorschlagen, was dies sicherer und ohne Druck machen wuerde?",
+    },
     sharePlanTitle: "Plan teilen",
     sharePlanBody: "Schlage eine einfache Idee vor, damit andere mitmachen oder vielleicht sagen koennen.",
     sharePlanAction: "Plan teilen",
+    discussionTitle: "Was moechtest du sagen?",
+    discussionBody: "Du kannst klein anfangen. VYVA hilft, wenn du nicht weisst, wie.",
+    starterLabels: {
+      hello: "Hallo sagen",
+      plan: "Plan vorschlagen",
+      ask: "VYVA fragen",
+    },
     agreementTitle: "Unser Raumversprechen",
     agreementLines: [
       "Freundliche Worte, kein Druck.",
@@ -610,8 +2092,7 @@ const copyByLanguage: Record<"es" | "de" | "en", {
     acknowledgedLabel: "Raumversprechen gespeichert",
     acknowledgementFailed: "Konnte nicht gespeichert werden. Bitte versuche es erneut.",
     starterDetails: {
-      hello: "Ich moechte die Runde gruessen.",
-      view: "Ich moechte eine kleine Ansicht mit dem Raum teilen.",
+      hello: "Ich moechte die Runde gruessen und hoeren, was andere denken.",
       plan: "Ich moechte einen ruhigen Plan teilen.",
       ask: "VYVA, hilf mir, einfach mitzumachen.",
     },
@@ -619,67 +2100,466 @@ const copyByLanguage: Record<"es" | "de" | "en", {
   en: {
     back: "Back",
     safeStatus: "Protected room",
+    statusLabel: "Room update",
+    refreshRoom: "Check room",
+    refreshingRoom: "Checking...",
+    roomRefreshed: "Room is up to date",
+    roomRefreshedWithUpdates: (count) => `${count} new room ${count === 1 ? "update is" : "updates are"} ready`,
+    roomRefreshedWithVotes: (count) => `${count} new ${count === 1 ? "vote is" : "votes are"} in the room`,
+    roomRefreshedWithReplies: (count) => `${count} new gentle ${count === 1 ? "reply is" : "replies are"} in the room`,
+    roomRefreshedWithPlanInterest: (count) => `${count} new plan ${count === 1 ? "response is" : "responses are"} in the room`,
+    roomRefreshedWithComfort: (count) => `${count} new comfort ${count === 1 ? "signal is" : "signals are"} in the room`,
+    roomRefreshFailed: "Could not refresh the room. Please try again.",
+    readingComfortLabel: "Large text",
+    readingComfortOnLabel: "Large text on",
+    readingComfortNote: "Large text is on for you in this room only.",
     present: (count) => `${count} present`,
     join: "Join",
     maybe: "Maybe later",
     joined: "You joined",
     maybeSaved: "Saved for later",
+    planChoiceNoteTitle: "No pressure",
+    planChoiceNoteBody: "Join only shows interest, not a commitment. Maybe keeps it saved while VYVA helps confirm details.",
+    planNextStepTitle: "What happens next",
+    planNextStepWaiting: "When someone shows interest, VYVA helps confirm the details calmly.",
+    planNextStepReady: "VYVA can help confirm details before anyone shares contact.",
+    planNextStepJoined: "You showed interest. VYVA helps confirm details before contact is shared.",
+    planNextStepMaybe: "Saved for later. You can come back when the details feel clear.",
+    planNextStepChecks: ["Time", "Comfort", "Contact only by consent"],
+    planComfortCueTitle: "Comfort before joining",
+    planComfortCueKnown: (labels) => labels.length ? `Already noted: ${labels.join(", ")}.` : "No comfort notes yet.",
+    planComfortCueAsk: (labels) => `Ask VYVA to confirm: ${labels.join(", ")}.`,
+    planComfortCueReady: "This plan already names the main comfort checks.",
+    planComfortCueMore: (count) => `${count} ${count === 1 ? "more check" : "more checks"}`,
+    planComfortCuePrivacy: "Join or Maybe still does not share private contact.",
+    planDetailCheckTitle: "Before anyone meets",
+    planDetailCheckBody: "VYVA can check the practical details before anyone feels committed.",
+    planDetailCheckItems: ["Clear place and time", "Comfort and cost", "Contact only by consent"],
+    planDetailCheckAction: "Check details",
+    planDetailCheckDraft: (planTitle) => `VYVA, please check "${planTitle}" before anyone commits. Confirm place, time, comfort, cost, and contact only by consent, without names.`,
     roomChoice: "Room choice",
     pollClosed: "Voting is closed",
     youVoted: "Your vote is saved",
     pollNudgeNoVotes: "Your vote helps choose the next step.",
     pollNudgeLeading: (label) => `The room is leaning toward: ${label}.`,
+    pollNudgeTie: (labels) => `The room is still choosing between: ${labels.join(" | ")}.`,
     pollNudgeAction: "You can join the plan above or suggest a gentler version.",
+    pollVotes: (count) => `${count} ${count === 1 ? "vote" : "votes"}`,
+    pollYourChoice: "Your choice",
+    pollPrivacyTitle: "Private, changeable vote",
+    pollPrivacyBody: "The room only sees totals, not your name. You can change your vote while voting is open.",
+    pollImpactTitle: "What your vote does",
+    pollImpactWaiting: "Each private vote helps the room choose one calm next step.",
+    pollImpactLeading: (label, needs) => (
+      needs.length
+        ? `The room is leaning toward ${label}. VYVA will shape it around ${needs.join(", ")}.`
+        : `The room is leaning toward ${label}. VYVA will turn it into one simple step.`
+    ),
+    pollImpactTie: (labels) => `The room is split between ${labels.join(" | ")}. VYVA can summarize both without rushing anyone.`,
+    pollImpactViews: "The room is choosing to share views. VYVA helps replies stay kind.",
+    pollImpactNoVote: "You have not voted yet. You can look first.",
+    pollImpactYourVote: (label) => `Your vote: ${label}. You can change it while voting stays open.`,
+    pollImpactSafety: "Only totals are shown. Names do not appear.",
+    pollSignalTitle: "Room signal",
+    pollSignalBodies: {
+      opening: "No direction yet. Looking first is welcome too.",
+      close: "The vote is still close. Choose what feels right without pressure.",
+      clear: "A clear direction is forming, but the vote stays open and private.",
+    },
+    pollSignalClearBody: (label) => `${label} is ahead, but you can still choose calmly.`,
+    pollSignalPrivacy: "VYVA uses totals only, not names.",
     comfortCheckTitle: "What would make this comfortable?",
     comfortCheckBody: "Tap what helps. The room can shape plans around it.",
     comfortCheckCount: (count) => `${count} chose this`,
+    comfortSaved: "Comfort choice saved",
+    comfortPrivacyTitle: "Private comfort check",
+    comfortPrivacyBody: "The room sees totals, not your name. You can change what helps anytime.",
+    arrivalComfortTitle: "Start gently",
+    arrivalComfortBody: "Choose what helps today. The room sees totals, not names.",
+    arrivalComfortSaved: (label) => `${label} saved`,
+    arrivalComfortRemoved: (label) => `${label} removed`,
+    listenFirstAction: "I'll listen first",
+    listenFirstSaved: "Listening first saved",
+    listenFirstRemoved: "Listening first removed",
+    roomDirectionTitle: "Gentle room direction",
+    roomDirectionWaiting: "As more people vote, VYVA can suggest one simple next step.",
+    roomDirectionBody: (choice, needs) => {
+      const base = choice ? `The room is leaning toward ${choice}.` : "The room is still choosing.";
+      return needs.length ? `${base} Shape it around ${needs.join(", ")}.` : base;
+    },
+    roomDirectionTie: (labels, needs) => {
+      const base = `The room is still choosing between ${labels.join(" | ")}.`;
+      return needs.length ? `${base} Shape it around ${needs.join(", ")}.` : base;
+    },
+    roomDirectionAction: "Make this a plan",
+    roomDirectionDraft: (choice, needs) => {
+      const base = `A gentle version of ${choice ?? "today's room choice"}`;
+      return needs.length ? `${base} with ${needs.join(", ")}.` : `${base}.`;
+    },
+    roomDirectionViewAction: "Share a view",
+    roomDirectionViewDraft: "I would like to hear gentle views about what matters to us today.",
+    roomRecapAction: "Ask VYVA for a recap",
+    roomRecapDraft: (choice, needs) => {
+      const base = choice ? `VYVA, please summarize the room choice about ${choice}` : "VYVA, please summarize what is happening in the room";
+      return needs.length ? `${base} and the comfort needs: ${needs.join(", ")}.` : `${base}.`;
+    },
+    roomSummaryTitle: "Room summary",
+    roomSummaryLabels: {
+      vote: "Vote",
+      comfort: "Comfort",
+      interest: "Interest",
+      views: "Views",
+      next: "Next",
+    },
+    roomSummaryVoteWaiting: "Still open",
+    roomSummaryVoteTie: (labels) => `Tied: ${labels.join(" | ")}`,
+    roomSummaryComfortWaiting: "Waiting for answers",
+    roomSummaryNextWaiting: "Vote or share one small idea.",
+    roomSummaryNextReady: (choice, needs) => {
+      const parts = [choice, needs.length ? needs.join(" | ") : ""].filter(Boolean);
+      return parts.length ? `Make one calm plan around ${parts.join(" | ")}.` : "Make one calm plan.";
+    },
+    roomSummaryNextView: "Share one kind view, with no pressure.",
+    roomSummaryNextTie: "Keep voting or ask VYVA for a simple recap.",
+    roomCommonGroundTitle: "Common ground",
+    roomCommonGroundBody: "What the room knows now, without exposing names.",
+    roomCommonGroundVote: "Votes stay private; only totals are shown.",
+    roomCommonGroundComfortReady: (needs) => `Prepare around ${needs.join(" | ")}.`,
+    roomCommonGroundComfortWaiting: "You can say what helps before joining.",
+    roomCommonGroundInterestReady: (count) => `${count} ${count === 1 ? "person shows" : "people show"} interest, still no commitment.`,
+    roomCommonGroundInterestWaiting: "Interest can start with Maybe later.",
+    roomCommonGroundViewsReady: (count) => `${count} shared ${count === 1 ? "view" : "views"}, with review nearby.`,
+    roomCommonGroundViewsWaiting: "Views can stay short and kind.",
+    roomOutcomeTitle: "What VYVA will do next",
+    roomOutcomeBody: (choice, needs, context) => {
+      if (context === "tie") return `VYVA will keep ${choice ?? "the options"} open and summarize them before anyone feels rushed.`;
+      if (context === "views") return "VYVA will keep the view circle kind and bring the main points back as a simple recap.";
+      if (context === "plan") {
+        const base = `VYVA will shape ${choice ?? "the leading choice"}`;
+        return needs.length ? `${base} around ${needs.join(", ")} before anyone commits.` : `${base} before anyone commits.`;
+      }
+      if (context === "comfort") return `VYVA will use ${needs.join(", ")} to make the next plan easier.`;
+      return "When more choices arrive, VYVA will turn them into one calm next step.";
+    },
+    roomOutcomeSteps: {
+      private: "Use private totals, not names",
+      shape: "Turn choices into one clear next step",
+      safety: "Keep contact and safety inside VYVA",
+    },
+    roomAtGlanceTitle: "Today in the room",
+    roomAtGlanceUpdatesClear: "No new updates",
+    roomAtGlanceUpdates: (count) => `${count} ${count === 1 ? "update" : "updates"}`,
+    roomAtGlanceVotes: (count) => `${count} ${count === 1 ? "vote" : "votes"}`,
+    roomAtGlancePlanInterest: (count) => `${count} ${count === 1 ? "person interested" : "people interested"}`,
+    roomAtGlanceComfort: (count) => `${count} comfort ${count === 1 ? "signal" : "signals"}`,
+    mySafeChoicesTitle: "My safe choices",
+    mySafeChoicesBody: "A private snapshot of what you have chosen so far.",
+    mySafeChoicesPrivate: "The room sees totals, not your name.",
+    mySafeChoiceLabels: {
+      plan: "Activity",
+      vote: "Vote",
+      comfort: "Comfort",
+      help: "Help",
+    },
+    mySafeChoicePlanNone: "No activity choice yet",
+    mySafeChoicePlanJoin: "Interested, not committed",
+    mySafeChoicePlanMaybe: "Saved for later",
+    mySafeChoiceVoteNone: "No vote yet",
+    mySafeChoiceIssueVote: (question, choice) => `${question}: ${choice}`,
+    mySafeChoiceComfortNone: "No comfort choice yet",
+    mySafeChoiceHelpNone: "No helper choice yet",
+    mySafeChoiceHelp: (planTitle, helpers) => `${planTitle}: ${helpers.join(" | ")}`,
+    mySafePauseAction: "Pause quietly",
+    mySafePauseActiveAction: "Quiet pause on",
+    mySafePauseStatus: "Quiet pause is on. Nothing is posted.",
+    mySafePauseNote: "You can keep reading without telling the room.",
+    roomTrustTitle: "Safe to join",
+    roomTrustBody: "Three reminders before you take part. You can ask VYVA to check them in simple words.",
+    roomTrustItems: {
+      privacy: "Votes, comfort choices and Maybe stay unnamed.",
+      kindness: "Views should stay kind; VYVA can review anything uncomfortable.",
+      contact: "Private contact stays inside VYVA until both people agree.",
+    },
+    roomTrustAction: "Ask VYVA to check",
+    roomTrustDraft: "VYVA, can you check whether this room feels safe to join today? Please summarize privacy, kindness, and contact safety in simple words, without names.",
+    participationPathTitle: "Choose your way in",
+    participationPathBody: "Three simple ways to join without reading the whole room first.",
+    participationPathLabels: {
+      vote: "Vote privately",
+      view: "Share a view",
+      activity: "Help the activity",
+    },
+    participationPathBodies: {
+      vote: "Choose one option. The room only sees totals.",
+      view: "Write one kind sentence; VYVA review stays nearby.",
+      activity: "Go to the plan and choose one small helper action.",
+    },
+    participationPathActions: {
+      vote: "Go to vote",
+      view: "Write a view",
+      activity: "See activity",
+    },
+    participationPathPrivacy: "Looking first is welcome. No path shares private contact.",
+    nextGentleStepLabel: "Best next tap",
+    nextGentleSteps: {
+      promise: {
+        title: "First, keep the room safe",
+        body: "Read the room promise. It helps views, votes, and plans stay kind.",
+        action: "I understand",
+      },
+      updates: {
+        title: "Something new is waiting",
+        body: "Check the updates before replying, so you can join in calmly.",
+        action: "See updates",
+      },
+      comfort: {
+        title: "Start in the way that fits",
+        body: "You can listen first. The room sees totals, not your name.",
+        action: "Listen first",
+      },
+      vote: {
+        title: "Help the room choose",
+        body: "A private vote helps the room decide what to do next.",
+        action: "Review choices",
+      },
+      plan: {
+        title: "Save your interest",
+        body: "You can join or say maybe. It is not a commitment.",
+        action: "See the plan",
+      },
+      recap: {
+        title: "Ask for a simple recap",
+        body: "VYVA can turn votes, comfort needs, and plans into one simple note.",
+        action: "Ask for recap",
+      },
+      hello: {
+        title: "Start small",
+        body: "One kind hello is enough to enter without pressure.",
+        action: "Say hello",
+      },
+    },
+    nextGentleStepExplainAction: "Why this tap?",
+    nextGentleStepExplainDraft: (stepTitle) => (
+      `VYVA, I am not sure where to start. Please explain why "${stepTitle}" is the safest next tap and give me one simple option, without names or pressure.`
+    ),
+    roomReadinessTitle: "Before we move ahead",
+    roomReadinessBody: "VYVA checks these three things so the next step feels clear and safe.",
+    roomReadinessLabels: {
+      vote: "Vote",
+      comfort: "Comfort",
+      consent: "Consent",
+    },
+    roomReadinessVoteReady: "The room has a leading choice.",
+    roomReadinessVoteWaiting: "Waiting for a few votes.",
+    roomReadinessComfortReady: "Comfort needs are visible.",
+    roomReadinessComfortWaiting: "Waiting for what would help.",
+    roomReadinessConsentReady: "Contact stays inside VYVA until both people agree.",
+    roomUsefulTitle: "Useful next steps",
+    roomUsefulBody: "VYVA shows what it can help with now, without names or pressure.",
+    roomUsefulLabels: {
+      activity: "Activity",
+      vote: "Issue vote",
+      views: "Views",
+    },
+    roomUsefulReady: {
+      activity: "Ready for VYVA to prepare one safe next step.",
+      vote: "A question has support and can become a private vote.",
+      views: "There are views to recap gently.",
+    },
+    roomUsefulWaiting: {
+      activity: "Still needs interest, comfort, or one small helper.",
+      vote: "Waiting for a question to get support.",
+      views: "No shared views to recap yet.",
+    },
+    roomUsefulActions: {
+      activity: "Prepare activity",
+      vote: "Make vote",
+      views: "Recap views",
+    },
+    roomUsefulPrivacy: "VYVA uses signals and totals, not names.",
+    roomNotesTitle: "Today's room notes",
+    roomNotesBody: "A simple record of what the room knows now, so no one has to keep it all in mind.",
+    roomNotesLabels: {
+      known: "Known now",
+      open: "Still open",
+      next: "Next help",
+    },
+    roomNotesVoteKnown: (label) => `Vote: ${label}.`,
+    roomNotesVoteTie: (labels) => `Vote is tied: ${labels.join(" | ")}.`,
+    roomNotesVoteWaiting: "Vote: still open.",
+    roomNotesComfortKnown: (labels) => `Comfort: ${labels.join(" | ")}.`,
+    roomNotesComfortWaiting: "Comfort: waiting for one signal.",
+    roomNotesViewsKnown: (count) => `${count} shared ${count === 1 ? "view" : "views"}.`,
+    roomNotesViewsWaiting: "Views: none yet.",
+    roomNotesOpenItems: {
+      vote: "A few private choices are still needed.",
+      comfort: "One comfort signal is still needed.",
+      views: "One calm view is still welcome.",
+      activity: "The activity is still being shaped.",
+    },
+    roomNotesOpenReady: "Nothing urgent. The room can move gently.",
+    roomNotesNextActivity: (title) => `VYVA can prepare "${title}" as one safe step.`,
+    roomNotesNextVote: (title) => `VYVA can turn "${title}" into one simple private vote.`,
+    roomNotesNextViews: (count) => `VYVA can recap ${count === 1 ? "this view" : "these views"} without names.`,
+    roomNotesNextStarter: "Start with hello, a comfort choice, or one private vote.",
+    roomNotesPrivacy: "These notes use totals and signals, not names.",
     responseNone: "You can be first to choose.",
     responseJoinCount: (count) => `${count} joining`,
     responseMaybeCount: (count) => `${count} maybe`,
     morePlans: "You could also",
     roomUpdates: "Room updates",
+    roomUpdatesShowing: (visible, total) => `Showing latest ${visible} of ${total} updates`,
+    roomUpdatesRecapTitle: "Simple update recap",
+    roomUpdatesRecapBody: (count) => `VYVA can summarize ${count === 1 ? "this update" : `these ${count} updates`} and name the safest next step without names.`,
+    roomUpdatesRecapAction: "Ask for recap",
+    roomUpdatesRecapDraft: (count) => (
+      count === 1
+        ? "VYVA, please summarize this room update in simple words and tell me the safest next step, without names."
+        : `VYVA, please summarize these ${count} room updates in simple words and tell me the safest next step, without names.`
+    ),
     markUpdateSeen: "Seen",
+    markAllUpdatesSeen: "Mark all seen",
     updateSeen: "Update marked as seen",
     updateSeenFailed: "Could not mark it as seen. Please try again.",
+    allUpdatesSeen: "All updates marked as seen",
+    allUpdatesSeenFailed: "Could not mark all as seen. Please try again.",
     sharedToday: "Shared today",
+    viewCircleTitle: "View circle",
+    viewCircleBody: "Read what has been shared, then add one kind sentence when you are ready.",
+    viewCircleEmpty: "No shared views yet. One small sentence is enough.",
+    viewCircleVote: (label, count) => `${label}: ${count} ${count === 1 ? "vote" : "votes"}`,
+    viewCircleCount: (count) => `${count} shared ${count === 1 ? "view" : "views"}`,
+    viewCircleLatest: "Latest in the room",
+    viewCircleAdd: "Add a gentle view",
+    viewRecapTitle: "VYVA can recap the views",
+    viewRecapBody: (count) => (
+      count === 1
+        ? "There is 1 shared view. VYVA can bring it back in simple words."
+        : `There are ${count} shared views. VYVA can group the main points without showing names.`
+    ),
+    viewRecapAction: "Recap the views",
+    viewRecapDraft: (count) => (
+      count === 1
+        ? "VYVA, please recap this shared view in simple, kind words without showing names."
+        : `VYVA, please recap these ${count} shared views in simple, kind words without showing names.`
+    ),
+    viewVoteBridgeTitle: "Turn views into a vote",
+    viewVoteBridgeBody: (count) => (
+      count === 1
+        ? "If this view needs a decision, VYVA can suggest one simple private vote."
+        : `If these ${count} views show different choices, VYVA can turn them into one simple private vote.`
+    ),
+    viewVoteBridgeAction: "Prepare private vote",
+    viewVoteBridgeDraft: (count) => (
+      count === 1
+        ? "VYVA, please turn this shared view into one simple private vote with safe choices and no names."
+        : `VYVA, please turn these ${count} shared views into one simple private vote with safe choices and no names.`
+    ),
+    viewBalanceTitle: "Conversation balance",
+    viewBalanceBody: "Shows how the room is responding, so a different view can still feel safe.",
+    viewBalanceEmpty: "No replies yet.",
+    viewBalanceLabels: {
+      support: "Same feeling",
+      curious: "More context",
+      different: "Another view",
+      help: "Help offered",
+    },
+    viewCommonGroundTitle: "Common ground",
+    viewCommonGroundOpening: "The conversation is starting. One kind reply can help the room find what is shared.",
+    viewCommonGroundAgreement: "A shared signal is forming. VYVA can keep it simple and unrushed.",
+    viewCommonGroundCurious: "The room is asking for more context before choosing. That can help everyone decide calmly.",
+    viewCommonGroundDifferent: "Different views are present and staying kind. VYVA can recap them without names.",
+    viewCommonGroundMixed: "Several signals are present at once. A VYVA recap can turn them into a clear next step.",
+    viewCommonGroundPrivacy: "Replies are summarized by tone, not by name.",
+    viewSafetyTitle: "Safe disagreement",
+    viewSafetyBody: "Different views are welcome when they stay short, kind, and without private details.",
+    viewSafetyItems: {
+      kind: "Name the idea, not the person.",
+      private: "Leave phone, address, money and contact details out.",
+      review: "Ask VYVA to review anything that feels uncomfortable.",
+    },
+    viewSafetyAction: "Start gently",
+    viewSafetyDraft: "I see it another way. Can we compare calmly, without names?",
+    viewNextReplyTitle: "Next kind reply",
+    viewNextReplyBodies: {
+      opening: "A small question or agreement can help people feel heard.",
+      agreement: "Build on the shared signal with one simple reason.",
+      curious: "Ask for one more detail before the room chooses.",
+      different: "A gentle question keeps another view safe to share.",
+      mixed: "When signals are mixed, ask what matters most before deciding.",
+    },
+    viewNextReplyActions: {
+      opening: "Invite a kind reply",
+      agreement: "Add one reason",
+      curious: "Ask for detail",
+      different: "Ask gently",
+      mixed: "Ask what matters most",
+    },
+    viewNextReplyDrafts: {
+      opening: "I would like to hear what feels most important to others.",
+      agreement: "I agree, and one reason is...",
+      curious: "Could you say a little more about what matters most to you?",
+      different: "I see this differently. Could we compare what matters most, calmly?",
+      mixed: "Could we pause and say what matters most to each person before choosing?",
+    },
     sharedResponseSaved: "Your response is saved",
     reviewItem: "Ask VYVA to review",
     reviewItemSent: "VYVA will review this item gently.",
     reviewReply: "Review reply",
     gentleReplies: "Gentle replies",
+    replyGuideTitle: "Kind reply space",
+    replyGuideBody: "Use one gentle button. If a reply feels wrong, VYVA can review it.",
     planSupportTitle: "Make this easy",
     planSupportBody: "Choose one small kind of help so the plan feels easier for everyone.",
+    planSupportSummaryTitle: "Activity helpers",
+    planSupportSummaryBody: "These are the small ways people are helping the plan happen.",
+    planSupportSummaryEmpty: "No helpers yet. Choose one small way to help below.",
+    planHelperCueTitle: "Best small help",
+    planHelperCueBody: (actionLabel) => `The most useful help now is ${actionLabel}. It gives VYVA a practical signal without committing anyone.`,
+    planHelperCueCoveredTitle: "Helper choices are covered",
+    planHelperCueCoveredBody: (labels) => `Already covered: ${labels.join(", ")}. Another helper is optional.`,
+    planHelperCueAction: (actionLabel) => `Choose ${actionLabel}`,
+    planHelperCuePrivate: "This posts only a helper signal, not private contact.",
+    planReadinessTitle: "Ready for the next step",
+    planReadinessBody: (ready, total) => `${ready} of ${total} signals are ready. VYVA waits for what is missing without pressure.`,
+    planReadinessInterestReady: (count) => `${count} ${count === 1 ? "person shows" : "people show"} interest.`,
+    planReadinessInterestWaiting: "Waiting for interest: Join or Maybe later.",
+    planReadinessHelperReady: (count) => `${count} small ${count === 1 ? "helper is" : "helpers are"} offered.`,
+    planReadinessHelperWaiting: "One small helper would make this easier.",
+    planReadinessComfortReady: "Comfort is already named.",
+    planReadinessComfortWaiting: "Still needs what would make this comfortable.",
+    planReadinessVyvaReady: "VYVA confirms details before any contact.",
+    activityReadyTitle: "VYVA can prepare this",
+    activityReadyBody: (planTitle) => `"${planTitle}" has interest, comfort notes, and a helper. VYVA can confirm details before anyone commits.`,
+    activityReadySignalsTitle: "Signals without names",
+    activityReadyPrivate: "Private and no-pressure",
+    activityReadyPrepTitle: "Before VYVA prepares it",
+    activityReadyPrepItems: [
+      "Confirm place, time, cost and access.",
+      "Keep contact inside VYVA until both people agree.",
+      "Bring back one simple next step, not a commitment.",
+    ],
+    activityReadyAction: "Ask VYVA for the next step",
+    activityReadyDraft: (planTitle, signals) => (
+      signals.length
+        ? `VYVA, "${planTitle}" looks ready. Room signals: ${signals.join("; ")}. Can you prepare the next simple and safe step?`
+        : `VYVA, "${planTitle}" looks ready. Can you prepare the next simple and safe step for the room?`
+    ),
+    voteReadyTitle: "This question is ready",
+    voteReadyBody: (questionTitle) => `"${questionTitle}" has support. VYVA can turn it into one simple private room vote with no names.`,
+    voteReadyPrivate: "Names stay hidden",
+    voteReadyAction: "Ask VYVA to make the vote",
     planSupportActions: {
       choose: "Help choose",
       pace: "Quiet pace",
+      buddy: "Meet together",
       notify: "Keep me posted",
     },
     planSupportReplies: {
       choose: "I can help choose one simple option for the group.",
       pace: "A quiet pace with room to pause would help me.",
+      buddy: "It would help to meet with someone before joining.",
       notify: "Please keep me posted when there is a next step.",
-    },
-    planLoopTitle: "Next step",
-    planLoopBody: "When someone joins, VYVA helps turn the idea into something that can happen.",
-    planLoopStatusLabel: "Plan status",
-    planLoopSteps: {
-      shared: "Shared",
-      choosing: "Choosing time",
-      confirmed: "Confirmed",
-      happened: "Happened",
-      repeat: "Do again",
-    },
-    planLoopActions: {
-      time: "Pick time",
-      place: "Confirm place",
-      invite: "Invite one more",
-      again: "Do this again",
-    },
-    planLoopReplies: {
-      time: "I would like to pick a simple time for this plan.",
-      place: "I would like to confirm the place or whether this stays online.",
-      invite: "We can invite one more person if that helps.",
-      again: "I would like to do this again.",
     },
     replySent: "Reply shared",
     replyFailed: "Could not share the reply. Please try again.",
@@ -702,45 +2582,100 @@ const copyByLanguage: Record<"es" | "de" | "en", {
       message: "Hello",
       question: "Question",
     },
+    sharedViewLabel: "View",
     sharedActions: {
       plan: { primary: "Join this", secondary: "Maybe" },
       message: { primary: "Me too", secondary: "Thank you" },
       question: { primary: "Help me too", secondary: "Follow" },
     },
+    issueQueueTitle: "Questions for a future vote",
+    issueQueueBody: "When someone asks to clarify an issue, VYVA keeps it here so the room can support it without pressure.",
+    issueQueueBadge: "Possible vote",
+    issueQueueAction: "Make it a vote",
+    issueQueueDraft: (title) => `VYVA, please turn "${title}" into one simple room vote with safe choices and no names.`,
+    issueQueueUseAction: "Summarize this vote",
+    issueQueueUseDraft: (title, signal) => (
+      signal
+        ? `VYVA, please summarize the private vote about "${title}". The current signal is: ${signal}. Help the room choose a safe next step, without names.`
+        : `VYVA, please summarize the private vote about "${title}" and help the room choose a safe next step, without names.`
+    ),
+    issueQueuePrivacy: "Supporting a question only shows interest. The room does not see your name.",
+    issueReadinessTitles: {
+      gathering: "Gathering support",
+      vote: "Ready for a vote",
+      summary: "Ready to summarize",
+    },
+    issueReadinessBodies: {
+      gathering: "Tap Help me too or Follow if this question matters to you.",
+      vote: "There is interest now. VYVA can turn this into a private vote with no names.",
+      summary: (signal) => (
+        signal
+          ? `The signal is: ${signal}. VYVA can summarize it and suggest one safe next step.`
+          : "VYVA can summarize this private vote and suggest one safe next step."
+      ),
+    },
+    issuePollTitle: "Simple vote",
+    issuePollBody: "Choose one option. You can change it while voting is open.",
+    issuePollPrivacy: "This vote is private too. Only totals are shown.",
+    issuePollOutcomeTitle: "Room signal",
+    issuePollOutcomeBody: (label) => `Right now the room is leaning toward: ${label}. VYVA can use this without showing names.`,
+    issuePollOutcomeTie: (labels) => `The room is split between ${labels.join(" | ")}. VYVA can summarize this without rushing anyone.`,
+    issuePollOutcomeOtherViews: "Other choices still count. VYVA can include them without names.",
+    issuePollOutcomeOpen: "People can still choose another option while voting stays open.",
     proposalPlaceholder: "Write one small idea...",
+    proposalLengthHint: (remaining) => `${remaining} characters left`,
+    proposalSafetyWarning: "Please remove phone, email, address or payment details before sending.",
+    proposalToneWarning: "Please use kind words before sending. VYVA can help rewrite it.",
+    proposalToneRewrite: "Soften wording",
+    proposalToneRewriteDrafts: {
+      plan: "Could we make this gentle and easy for everyone?",
+      message: "I see it another way because...",
+      question: "Could we think this through kindly together?",
+    },
     proposalCategoryPrompt: "What kind of experience?",
     proposalPlacePrompt: "What would fit best?",
     proposalTimePrompt: "When works best?",
     proposalCostPrompt: "Cost",
     proposalGroupPrompt: "How to join?",
+    composerPreviewTitle: "Before you send",
+    composerPreviewBodies: {
+      plan: "This idea will be shared as a plan so others can join or choose Maybe.",
+      message: "This note will be shared as a short view, with gentle replies nearby.",
+      question: "This question will be shared so VYVA can help or turn it into a vote.",
+    },
+    composerPreviewItems: {
+      plan: {
+        shared: "The room sees the plan, not your private choices.",
+        private: "Votes, comfort choices and Maybe stay unnamed.",
+        next: "VYVA reviews cost, contact, transport or service details before moving ahead.",
+      },
+      message: {
+        shared: "The room sees the sentence and can reply with gentle buttons.",
+        private: "Keep phone, email and exact address out.",
+        next: "If wording feels sharp, VYVA can soften it first.",
+      },
+      question: {
+        shared: "The room sees the question, not who needs help.",
+        private: "Your votes and comfort needs stay private.",
+        next: "VYVA can turn this into one simple vote with totals.",
+      },
+    },
+    safeShareTitle: "Share safely",
+    safeShareBody: "Keep phone, email, exact address and payment details out of this note.",
+    safeShareReviewLine: "If cost, transport, housing or service details matter, VYVA reviews before the next step.",
     planNearby: "Nearby",
     planOnline: "Online",
     comfortPrompt: "What would help?",
-    planPresetPrompt: "Start with one idea",
-    planComposerHelper: "You can change anything before posting.",
-    planPresetCopy: {
-      quiet_lunch: {
-        title: "Quiet lunch nearby",
-        body: "Nearby, accessible and unhurried.",
-        draft: "I would like to suggest a quiet lunch nearby, somewhere accessible with time to talk.",
-      },
-      film_chat: {
-        title: "Film chat online",
-        body: "A gentle film and a short conversation.",
-        draft: "I would like to choose a gentle film and talk about it online without rushing.",
-      },
-      service_deal: {
-        title: "Compare a service or deal",
-        body: "Look at it together before deciding.",
-        draft: "I would like to compare a service or deal with someone before deciding.",
-      },
-    },
     comfortNeedLabels: {
+      listen_first: "Listen first",
       quiet_pace: "Quiet pace",
       easy_access: "Easy access",
       seating: "Place to sit",
       transport_help: "Transport help",
+      arrival_buddy: "Meet together",
+      clear_cost: "Know cost first",
     },
+    moreComfortNotes: (count) => `${count} more comfort ${count === 1 ? "note" : "notes"}`,
     categoryLabels: {
       movie_date: "Movie date",
       restaurant_date: "Restaurant date",
@@ -775,19 +2710,111 @@ const copyByLanguage: Record<"es" | "de" | "en", {
       service: "service",
       private_contact: "contact",
       transport: "transport",
+      unkind_tone: "tone",
     },
     postFailed: "Could not post it. Please try again.",
     send: "Send",
+    cancel: "Cancel",
     sending: "Sending...",
-    proposalSent: "Shared. Others can join or say maybe.",
-    proposalReviewTitle: "VYVA will review this first",
-    proposalReviewBody: "If it involves money, housing, services, transport or private contact, VYVA checks it before the next step.",
+    sent: "Sent",
+    reviewPending: "VYVA will review this before it appears.",
     helpSent: "VYVA will review this gently.",
+    helpSending: "Contacting VYVA...",
     helpFailed: "Could not alert VYVA. Please try again.",
-    viewStarter: "Share a view",
+    safetyHelpTitle: "What should VYVA check?",
+    safetyHelpBody: "Choose the closest concern. The room will not see this help request.",
+    safetyHelpChoiceLabels: {
+      uncomfortable: "I feel uneasy",
+      pressure_contact: "Pressure or contact",
+      money_service: "Money or service",
+      something_else: "Something else",
+    },
+    safetyHelpChoiceBodies: {
+      uncomfortable: "Something in the room does not feel right.",
+      pressure_contact: "Someone is asking for private contact or pushing.",
+      money_service: "There is a cost, payment, offer or service to review.",
+      something_else: "I want VYVA to look at the room.",
+    },
+    safetyHelpChoiceReasons: {
+      uncomfortable: "feels_uncomfortable",
+      pressure_contact: "pressure_or_contact",
+      money_service: "money_or_service",
+      something_else: "other_safety_help",
+    },
+    safetyHelpChoiceDetails: {
+      uncomfortable: "The user says something in the Together Room feels uncomfortable.",
+      pressure_contact: "The user wants VYVA to review possible pressure or private contact.",
+      money_service: "The user wants VYVA to review money, cost, an offer or a service.",
+      something_else: "The user wants general safety help in the Together Room.",
+    },
+    safetyHelpReceiptTitle: "Help request sent",
+    safetyHelpReceiptBody: (choiceLabel) => `VYVA will review: ${choiceLabel}. The room will not see this request.`,
+    safetyHelpReceiptItems: [
+      "VYVA reviews it without showing your name.",
+      "You can pause the room and come back later.",
+      "If something urgent is happening now, use local emergency help.",
+    ],
+    viewSharingNote: "You can share a short view with kind words and no personal contact details.",
+    viewTonePreviewTitle: "Safe view preview",
+    viewTonePreviewReady: "Ready to share gently",
+    viewTonePreviewNeedsEdit: "Needs a small edit",
+    viewTonePreviewItems: {
+      kind: "Kind words",
+      privacy: "No private contact",
+      small: "One small view",
+    },
+    viewPromptTitle: "Kind view starters",
+    viewPromptBody: "Choose one phrase if words feel hard today.",
+    viewPromptLabels: {
+      agree: "I agree",
+      different: "Another view",
+      compare: "Compare options",
+      more_info: "Need more info",
+    },
+    viewPromptDrafts: {
+      agree: "I agree because...",
+      different: "I see it another way because...",
+      compare: "VYVA, can you help us compare the options calmly?",
+      more_info: "I need a little more information before choosing.",
+    },
+    askPromptTitle: "Easy questions for VYVA",
+    askPromptBody: "Choose one if you are not sure how to ask.",
+    askPromptLabels: {
+      summary: "Summarize",
+      easier: "Make it easier",
+      vote: "Suggest a vote",
+      safe: "Safety check",
+    },
+    askPromptDrafts: {
+      summary: "VYVA, can you summarize what the room is choosing?",
+      easier: "VYVA, help me find the easiest way to join in.",
+      vote: "VYVA, can you turn this into a simple room vote?",
+      safe: "VYVA, can you check if this feels safe and no-pressure?",
+    },
+    issuePromptTitle: "Turn a concern into a vote",
+    issuePromptBody: "Choose a common issue if you want VYVA to suggest a simple room vote.",
+    issuePromptLabels: {
+      place: "Place",
+      time: "Time",
+      cost: "Cost",
+      safety: "Safety",
+    },
+    issuePromptDrafts: {
+      place: "VYVA, can you suggest a simple vote about which place would feel most comfortable for the room?",
+      time: "VYVA, can you suggest a simple vote about which time would work best?",
+      cost: "VYVA, can you suggest a simple vote to clarify cost before anyone commits?",
+      safety: "VYVA, can you suggest a simple vote about what would make this safer and no-pressure?",
+    },
     sharePlanTitle: "Share a plan",
     sharePlanBody: "Suggest one simple idea so others can join or say maybe.",
     sharePlanAction: "Share a plan",
+    discussionTitle: "What would you like to say?",
+    discussionBody: "You can start small. VYVA can help if you are not sure how.",
+    starterLabels: {
+      hello: "Say hello",
+      plan: "Suggest a plan",
+      ask: "Ask VYVA",
+    },
     agreementTitle: "Our room promise",
     agreementLines: [
       "Use kind words and no pressure.",
@@ -798,649 +2825,33 @@ const copyByLanguage: Record<"es" | "de" | "en", {
     acknowledgedLabel: "Room promise saved",
     acknowledgementFailed: "Could not save it. Please try again.",
     starterDetails: {
-      hello: "I would like to say hello to the group.",
-      view: "I would like to share a small view with the room.",
+      hello: "I would like to say hello and hear what others think.",
       plan: "I would like to share a gentle plan.",
       ask: "VYVA, help me choose an easy way to join in.",
     },
   },
 };
 
-type TogetherRoomCopy = (typeof copyByLanguage)["en"];
-
-const planComposerCopyByLanguage: Record<SocialGameLanguage, PlanComposerCopy> = {
-  es: copyByLanguage.es,
-  de: copyByLanguage.de,
-  en: copyByLanguage.en,
-  fr: {
-    ...copyByLanguage.en,
-    sharePlanTitle: "Partager un plan",
-    sharePlanBody: "Proposez une idee simple pour que d'autres puissent participer ou dire peut-etre.",
-    sharePlanAction: "Partager un plan",
-    proposalPlaceholder: "Ecrivez une petite idee...",
-    proposalCategoryPrompt: "Quel type d'experience?",
-    proposalPlacePrompt: "Qu'est-ce qui convient le mieux?",
-    proposalTimePrompt: "Quand cela convient-il?",
-    proposalCostPrompt: "Cout",
-    proposalGroupPrompt: "Comment participer?",
-    planNearby: "A proximite",
-    planOnline: "En ligne",
-    comfortPrompt: "Qu'est-ce qui aiderait?",
-    planPresetPrompt: "Commencer avec une idee",
-    planComposerHelper: "Vous pouvez tout changer avant de publier.",
-    planPresetCopy: {
-      quiet_lunch: {
-        title: "Dejeuner calme a proximite",
-        body: "Proche, accessible et sans pression.",
-        draft: "J'aimerais proposer un dejeuner calme a proximite, dans un lieu accessible avec du temps pour parler.",
-      },
-      film_chat: {
-        title: "Discussion film en ligne",
-        body: "Un film doux et une courte conversation.",
-        draft: "J'aimerais choisir un film doux et en parler en ligne sans se presser.",
-      },
-      service_deal: {
-        title: "Comparer un service ou une offre",
-        body: "Le regarder ensemble avant de decider.",
-        draft: "J'aimerais comparer un service ou une offre avec quelqu'un avant de decider.",
-      },
-    },
-    comfortNeedLabels: {
-      quiet_pace: "Rythme calme",
-      easy_access: "Acces facile",
-      seating: "Place assise",
-      transport_help: "Aide transport",
-    },
-    categoryLabels: {
-      movie_date: "Rendez-vous film",
-      restaurant_date: "Restaurant",
-      home_share: "Maison ou location",
-      service_booking: "Reserver un service",
-      deal_help: "Negocier une offre",
-      outing: "Sortie",
-      other: "Autre idee",
-    },
-    timeLabels: {
-      morning: "Matin",
-      afternoon: "Apres-midi",
-      evening: "Soir",
-      flexible: "Flexible",
-    },
-    costLabels: {
-      free: "Gratuit",
-      low: "Faible",
-      shared: "Partage",
-      discuss: "Clarifier avant",
-    },
-    groupLabels: {
-      one_to_one: "1:1",
-      small_group: "Petit groupe",
-      open_room: "Salle ouverte",
-    },
-    reviewReasons: {
-      money: "argent",
-      housing: "logement",
-      service: "service",
-      private_contact: "contact",
-      transport: "transport",
-    },
-    postFailed: "Impossible de publier. Reessayez.",
-    send: "Envoyer",
-    sending: "Envoi...",
-    proposalSent: "Partage. Les autres peuvent participer ou dire peut-etre.",
-    proposalReviewTitle: "VYVA verifiera d'abord",
-    proposalReviewBody: "Si cela touche a l'argent, au logement, aux services, au transport ou au contact prive, VYVA le verifie avant l'etape suivante.",
-    starterDetails: {
-      plan: "J'aimerais partager un plan simple et calme.",
-    },
-  },
-  it: {
-    ...copyByLanguage.en,
-    sharePlanTitle: "Condividi un piano",
-    sharePlanBody: "Suggerisci un'idea semplice cosi altri possono partecipare o dire forse.",
-    sharePlanAction: "Condividi un piano",
-    proposalPlaceholder: "Scrivi una piccola idea...",
-    proposalCategoryPrompt: "Che tipo di esperienza?",
-    proposalPlacePrompt: "Cosa andrebbe meglio?",
-    proposalTimePrompt: "Quando va bene?",
-    proposalCostPrompt: "Costo",
-    proposalGroupPrompt: "Come partecipare?",
-    planNearby: "Vicino",
-    planOnline: "Online",
-    comfortPrompt: "Cosa aiuterebbe?",
-    planPresetPrompt: "Inizia con un'idea",
-    planComposerHelper: "Puoi cambiare tutto prima di pubblicare.",
-    planPresetCopy: {
-      quiet_lunch: {
-        title: "Pranzo tranquillo vicino",
-        body: "Vicino, accessibile e senza fretta.",
-        draft: "Vorrei proporre un pranzo tranquillo vicino, in un posto accessibile con tempo per parlare.",
-      },
-      film_chat: {
-        title: "Conversazione film online",
-        body: "Un film leggero e una breve conversazione.",
-        draft: "Vorrei scegliere un film leggero e parlarne online senza fretta.",
-      },
-      service_deal: {
-        title: "Confrontare servizio o offerta",
-        body: "Guardarlo insieme prima di decidere.",
-        draft: "Vorrei confrontare un servizio o un'offerta con qualcuno prima di decidere.",
-      },
-    },
-    comfortNeedLabels: {
-      quiet_pace: "Ritmo tranquillo",
-      easy_access: "Accesso facile",
-      seating: "Posto per sedersi",
-      transport_help: "Aiuto trasporto",
-    },
-    categoryLabels: {
-      movie_date: "Appuntamento film",
-      restaurant_date: "Ristorante",
-      home_share: "Casa o affitto",
-      service_booking: "Prenotare servizio",
-      deal_help: "Negoziare offerta",
-      outing: "Uscita",
-      other: "Altra idea",
-    },
-    timeLabels: {
-      morning: "Mattina",
-      afternoon: "Pomeriggio",
-      evening: "Sera",
-      flexible: "Flessibile",
-    },
-    costLabels: {
-      free: "Gratis",
-      low: "Basso",
-      shared: "Condiviso",
-      discuss: "Chiarire prima",
-    },
-    groupLabels: {
-      one_to_one: "1:1",
-      small_group: "Piccolo gruppo",
-      open_room: "Sala aperta",
-    },
-    reviewReasons: {
-      money: "denaro",
-      housing: "casa",
-      service: "servizio",
-      private_contact: "contatto",
-      transport: "trasporto",
-    },
-    postFailed: "Non e stato possibile pubblicare. Riprova.",
-    send: "Invia",
-    sending: "Invio...",
-    proposalSent: "Condiviso. Gli altri possono partecipare o dire forse.",
-    proposalReviewTitle: "VYVA lo controllera prima",
-    proposalReviewBody: "Se riguarda denaro, casa, servizi, trasporto o contatto privato, VYVA controlla prima del passo successivo.",
-    starterDetails: {
-      plan: "Vorrei condividere un piano semplice e tranquillo.",
-    },
-  },
-  pt: {
-    ...copyByLanguage.en,
-    sharePlanTitle: "Partilhar um plano",
-    sharePlanBody: "Sugira uma ideia simples para outros poderem participar ou dizer talvez.",
-    sharePlanAction: "Partilhar um plano",
-    proposalPlaceholder: "Escreva uma pequena ideia...",
-    proposalCategoryPrompt: "Que tipo de experiencia?",
-    proposalPlacePrompt: "O que seria melhor?",
-    proposalTimePrompt: "Quando funciona melhor?",
-    proposalCostPrompt: "Custo",
-    proposalGroupPrompt: "Como participar?",
-    planNearby: "Perto",
-    planOnline: "Online",
-    comfortPrompt: "O que ajudaria?",
-    planPresetPrompt: "Comecar com uma ideia",
-    planComposerHelper: "Pode mudar qualquer coisa antes de publicar.",
-    planPresetCopy: {
-      quiet_lunch: {
-        title: "Almoco tranquilo por perto",
-        body: "Perto, acessivel e sem pressa.",
-        draft: "Gostaria de sugerir um almoco tranquilo por perto, num lugar acessivel com tempo para conversar.",
-      },
-      film_chat: {
-        title: "Conversa sobre filme online",
-        body: "Um filme leve e uma conversa curta.",
-        draft: "Gostaria de escolher um filme leve e falar sobre ele online sem pressa.",
-      },
-      service_deal: {
-        title: "Comparar servico ou oferta",
-        body: "Ver em conjunto antes de decidir.",
-        draft: "Gostaria de comparar um servico ou uma oferta com alguem antes de decidir.",
-      },
-    },
-    comfortNeedLabels: {
-      quiet_pace: "Ritmo tranquilo",
-      easy_access: "Acesso facil",
-      seating: "Lugar para sentar",
-      transport_help: "Ajuda transporte",
-    },
-    categoryLabels: {
-      movie_date: "Encontro de filme",
-      restaurant_date: "Restaurante",
-      home_share: "Casa ou aluguer",
-      service_booking: "Reservar servico",
-      deal_help: "Negociar oferta",
-      outing: "Saida",
-      other: "Outra ideia",
-    },
-    timeLabels: {
-      morning: "Manha",
-      afternoon: "Tarde",
-      evening: "Noite",
-      flexible: "Flexivel",
-    },
-    costLabels: {
-      free: "Gratis",
-      low: "Baixo",
-      shared: "Partilhado",
-      discuss: "Clarificar antes",
-    },
-    groupLabels: {
-      one_to_one: "1:1",
-      small_group: "Pequeno grupo",
-      open_room: "Sala aberta",
-    },
-    reviewReasons: {
-      money: "dinheiro",
-      housing: "habitacao",
-      service: "servico",
-      private_contact: "contacto",
-      transport: "transporte",
-    },
-    postFailed: "Nao foi possivel publicar. Tente novamente.",
-    send: "Enviar",
-    sending: "A enviar...",
-    proposalSent: "Partilhado. Outros podem participar ou dizer talvez.",
-    proposalReviewTitle: "VYVA vai rever primeiro",
-    proposalReviewBody: "Se envolver dinheiro, habitacao, servicos, transporte ou contacto privado, VYVA verifica antes do passo seguinte.",
-    starterDetails: {
-      plan: "Gostaria de partilhar um plano simples e calmo.",
-    },
-  },
-};
-
-const roomCopyByLanguage: Record<SocialGameLanguage, TogetherRoomCopy> = {
-  es: copyByLanguage.es,
-  de: copyByLanguage.de,
-  en: copyByLanguage.en,
-  fr: {
-    ...copyByLanguage.en,
-    ...planComposerCopyByLanguage.fr,
-    back: "Retour",
-    safeStatus: "Salle protegee",
-    present: (count) => `${count} presents`,
-    join: "Participer",
-    maybe: "Peut-etre plus tard",
-    joined: "Vous participez",
-    maybeSaved: "Garde pour plus tard",
-    roomChoice: "Choix de la salle",
-    pollClosed: "Le vote est ferme",
-    youVoted: "Votre vote est enregistre",
-    pollNudgeNoVotes: "Votre vote aide a choisir la prochaine etape.",
-    pollNudgeLeading: (label) => `La salle penche vers : ${label}.`,
-    pollNudgeAction: "Vous pouvez rejoindre le plan ci-dessus ou proposer une version plus douce.",
-    comfortCheckTitle: "Qu'est-ce qui rendrait cela confortable?",
-    comfortCheckBody: "Touchez ce qui aide. La salle peut adapter les plans.",
-    comfortCheckCount: (count) => `${count} ${count === 1 ? "l'a choisi" : "l'ont choisi"}`,
-    responseNone: "Vous pouvez etre le premier a choisir.",
-    responseJoinCount: (count) => `${count} ${count === 1 ? "participe" : "participent"}`,
-    responseMaybeCount: (count) => `${count} peut-etre`,
-    morePlans: "Vous pourriez aussi",
-    roomUpdates: "Nouvelles de la salle",
-    markUpdateSeen: "Vu",
-    updateSeen: "Nouvelle marquee comme vue",
-    updateSeenFailed: "Impossible de marquer comme vu. Reessayez.",
-    sharedToday: "Partage aujourd'hui",
-    sharedResponseSaved: "Votre reponse est enregistree",
-    reviewItem: "Demander a VYVA de verifier",
-    reviewItemSent: "VYVA verifiera cela avec douceur.",
-    reviewReply: "Verifier la reponse",
-    gentleReplies: "Reponses douces",
-    planSupportTitle: "Rendre cela facile",
-    planSupportBody: "Choisissez une petite aide pour rendre le plan plus confortable pour tous.",
-    planSupportActions: {
-      choose: "Aider a choisir",
-      pace: "Rythme calme",
-      notify: "Me tenir au courant",
-    },
-    planSupportReplies: {
-      choose: "Je peux aider a choisir une option simple pour le groupe.",
-      pace: "Un rythme calme avec des pauses m'aiderait.",
-      notify: "Merci de me tenir au courant quand il y aura une prochaine etape.",
-    },
-    planLoopTitle: "Prochaine etape",
-    planLoopBody: "Quand quelqu'un participe, VYVA aide a transformer l'idee en quelque chose qui peut arriver.",
-    planLoopStatusLabel: "Etat du plan",
-    planLoopSteps: {
-      shared: "Partage",
-      choosing: "Choix de l'heure",
-      confirmed: "Confirme",
-      happened: "Fait",
-      repeat: "Refaire",
-    },
-    planLoopActions: {
-      time: "Choisir l'heure",
-      place: "Confirmer le lieu",
-      invite: "Inviter une personne",
-      again: "Refaire cela",
-    },
-    planLoopReplies: {
-      time: "J'aimerais choisir une heure simple pour ce plan.",
-      place: "J'aimerais confirmer le lieu ou si cela reste en ligne.",
-      invite: "Nous pouvons inviter une personne de plus si cela aide.",
-      again: "J'aimerais refaire cela.",
-    },
-    replySent: "Reponse partagee",
-    replyFailed: "Impossible de partager la reponse. Reessayez.",
-    replyActions: {
-      support: "Je ressens pareil",
-      curious: "Dites-m'en plus",
-      help: "Je peux aider",
-      different: "Autre avis",
-    },
-    replyBodies: {
-      support: "Je ressens pareil. Merci de l'avoir partage.",
-      curious: "J'aimerais en savoir un peu plus, si vous voulez partager.",
-      help: "Je peux aider avec une petite etape dans la salle.",
-      different: "Je le vois un peu autrement, et j'apprecie que vous le partagiez.",
-    },
-    supportIdea: "Participer",
-    maybeIdea: "Peut-etre",
-    sharedKindLabels: {
-      plan: "Plan",
-      message: "Bonjour",
-      question: "Question",
-    },
-    sharedActions: {
-      plan: { primary: "Participer", secondary: "Peut-etre" },
-      message: { primary: "Moi aussi", secondary: "Merci" },
-      question: { primary: "Aidez-moi aussi", secondary: "Suivre" },
-    },
-    fitLabel: "Bon accord",
-    reviewBadge: "VYVA verifie avant la prochaine etape",
-    helpSent: "VYVA verifiera cela avec douceur.",
-    helpFailed: "Impossible d'alerter VYVA. Reessayez.",
-    viewStarter: "Partager un avis",
-    agreementTitle: "Notre promesse de salle",
-    agreementLines: [
-      "Des mots aimables, sans pression.",
-      "Partager les avis sans juger.",
-      "Demander a VYVA si quelque chose semble inconfortable.",
-    ],
-    acknowledgementLabel: "Je comprends",
-    acknowledgedLabel: "Promesse de salle enregistree",
-    acknowledgementFailed: "Impossible d'enregistrer. Reessayez.",
-    starterDetails: {
-      hello: "J'aimerais dire bonjour au groupe.",
-      view: "J'aimerais partager un petit avis avec la salle.",
-      plan: "J'aimerais partager un plan simple et calme.",
-      ask: "VYVA, aidez-moi a choisir une facon simple de participer.",
-    },
-  },
-  it: {
-    ...copyByLanguage.en,
-    ...planComposerCopyByLanguage.it,
-    back: "Indietro",
-    safeStatus: "Stanza protetta",
-    present: (count) => `${count} presenti`,
-    join: "Partecipo",
-    maybe: "Forse piu tardi",
-    joined: "Partecipi",
-    maybeSaved: "Salvato per dopo",
-    roomChoice: "Scelta della stanza",
-    pollClosed: "La votazione e chiusa",
-    youVoted: "Il tuo voto e salvato",
-    pollNudgeNoVotes: "Il tuo voto aiuta a scegliere il prossimo passo.",
-    pollNudgeLeading: (label) => `La stanza tende verso: ${label}.`,
-    pollNudgeAction: "Puoi partecipare al piano sopra o proporre una versione piu tranquilla.",
-    comfortCheckTitle: "Cosa renderebbe tutto comodo?",
-    comfortCheckBody: "Tocca cio che aiuta. La stanza puo adattare i piani.",
-    comfortCheckCount: (count) => `${count} ${count === 1 ? "lo ha scelto" : "lo hanno scelto"}`,
-    responseNone: "Puoi essere il primo a scegliere.",
-    responseJoinCount: (count) => `${count} ${count === 1 ? "partecipa" : "partecipano"}`,
-    responseMaybeCount: (count) => `${count} forse`,
-    morePlans: "Potreste anche",
-    roomUpdates: "Aggiornamenti stanza",
-    markUpdateSeen: "Visto",
-    updateSeen: "Aggiornamento segnato come visto",
-    updateSeenFailed: "Impossibile segnare come visto. Riprova.",
-    sharedToday: "Condiviso oggi",
-    sharedResponseSaved: "La tua risposta e salvata",
-    reviewItem: "Chiedi a VYVA di controllare",
-    reviewItemSent: "VYVA controllera con delicatezza.",
-    reviewReply: "Controlla risposta",
-    gentleReplies: "Risposte gentili",
-    planSupportTitle: "Renderlo facile",
-    planSupportBody: "Scegli un piccolo aiuto cosi il piano e piu comodo per tutti.",
-    planSupportActions: {
-      choose: "Aiutare a scegliere",
-      pace: "Ritmo tranquillo",
-      notify: "Tienimi aggiornato",
-    },
-    planSupportReplies: {
-      choose: "Posso aiutare a scegliere una semplice opzione per il gruppo.",
-      pace: "Mi aiuterebbe un ritmo tranquillo con pause.",
-      notify: "Tenetemi aggiornato quando c'e un prossimo passo.",
-    },
-    planLoopTitle: "Prossimo passo",
-    planLoopBody: "Quando qualcuno partecipa, VYVA aiuta a trasformare l'idea in qualcosa che puo succedere.",
-    planLoopStatusLabel: "Stato del piano",
-    planLoopSteps: {
-      shared: "Condiviso",
-      choosing: "Scelta dell'ora",
-      confirmed: "Confermato",
-      happened: "Fatto",
-      repeat: "Ripetere",
-    },
-    planLoopActions: {
-      time: "Scegli ora",
-      place: "Conferma luogo",
-      invite: "Invita una persona",
-      again: "Fallo di nuovo",
-    },
-    planLoopReplies: {
-      time: "Vorrei scegliere un orario semplice per questo piano.",
-      place: "Vorrei confermare il luogo o se resta online.",
-      invite: "Possiamo invitare un'altra persona se aiuta.",
-      again: "Vorrei farlo di nuovo.",
-    },
-    replySent: "Risposta condivisa",
-    replyFailed: "Non e stato possibile condividere la risposta. Riprova.",
-    replyActions: {
-      support: "Anche io",
-      curious: "Dimmi di piu",
-      help: "Posso aiutare",
-      different: "Altro punto di vista",
-    },
-    replyBodies: {
-      support: "Anche io mi sento cosi. Grazie per averlo condiviso.",
-      curious: "Vorrei saperne un po' di piu, se vuoi condividere.",
-      help: "Posso aiutare con un piccolo passo nella stanza.",
-      different: "Lo vedo un po' diversamente, e apprezzo che tu lo abbia condiviso.",
-    },
-    supportIdea: "Partecipo",
-    maybeIdea: "Forse",
-    sharedKindLabels: {
-      plan: "Piano",
-      message: "Saluto",
-      question: "Domanda",
-    },
-    sharedActions: {
-      plan: { primary: "Partecipo", secondary: "Forse" },
-      message: { primary: "Anche io", secondary: "Grazie" },
-      question: { primary: "Aiuta anche me", secondary: "Segui" },
-    },
-    fitLabel: "Adatto",
-    reviewBadge: "VYVA controlla prima del prossimo passo",
-    helpSent: "VYVA controllera con delicatezza.",
-    helpFailed: "Non e stato possibile avvisare VYVA. Riprova.",
-    viewStarter: "Condividi un parere",
-    agreementTitle: "La promessa della stanza",
-    agreementLines: [
-      "Parole gentili e nessuna pressione.",
-      "Condividere opinioni senza giudicare.",
-      "Chiedi a VYVA se qualcosa non va.",
-    ],
-    acknowledgementLabel: "Capisco",
-    acknowledgedLabel: "Promessa della stanza salvata",
-    acknowledgementFailed: "Non e stato possibile salvare. Riprova.",
-    starterDetails: {
-      hello: "Vorrei salutare il gruppo.",
-      view: "Vorrei condividere un piccolo parere con la stanza.",
-      plan: "Vorrei condividere un piano semplice e tranquillo.",
-      ask: "VYVA, aiutami a scegliere un modo semplice per partecipare.",
-    },
-  },
-  pt: {
-    ...copyByLanguage.en,
-    ...planComposerCopyByLanguage.pt,
-    back: "Voltar",
-    safeStatus: "Sala protegida",
-    present: (count) => `${count} presentes`,
-    join: "Participar",
-    maybe: "Talvez mais tarde",
-    joined: "Esta a participar",
-    maybeSaved: "Guardado para depois",
-    roomChoice: "Escolha da sala",
-    pollClosed: "A votacao esta fechada",
-    youVoted: "O seu voto foi guardado",
-    pollNudgeNoVotes: "O seu voto ajuda a escolher o proximo passo.",
-    pollNudgeLeading: (label) => `A sala inclina-se para: ${label}.`,
-    pollNudgeAction: "Pode participar no plano acima ou sugerir uma versao mais tranquila.",
-    comfortCheckTitle: "O que tornaria isto confortavel?",
-    comfortCheckBody: "Toque no que ajuda. A sala pode adaptar os planos.",
-    comfortCheckCount: (count) => `${count} ${count === 1 ? "escolheu isto" : "escolheram isto"}`,
-    responseNone: "Pode ser a primeira pessoa a escolher.",
-    responseJoinCount: (count) => `${count} ${count === 1 ? "participa" : "participam"}`,
-    responseMaybeCount: (count) => `${count} talvez`,
-    morePlans: "Tambem podem",
-    roomUpdates: "Novidades da sala",
-    markUpdateSeen: "Visto",
-    updateSeen: "Novidade marcada como vista",
-    updateSeenFailed: "Nao foi possivel marcar como vista. Tente novamente.",
-    sharedToday: "Partilhado hoje",
-    sharedResponseSaved: "A sua resposta foi guardada",
-    reviewItem: "Pedir revisao a VYVA",
-    reviewItemSent: "VYVA vai rever isto com cuidado.",
-    reviewReply: "Rever resposta",
-    gentleReplies: "Respostas gentis",
-    planSupportTitle: "Tornar isto facil",
-    planSupportBody: "Escolha uma pequena ajuda para o plano ser mais confortavel para todos.",
-    planSupportActions: {
-      choose: "Ajudar a escolher",
-      pace: "Ritmo tranquilo",
-      notify: "Avisem-me",
-    },
-    planSupportReplies: {
-      choose: "Posso ajudar a escolher uma opcao simples para o grupo.",
-      pace: "Um ritmo tranquilo, com pausas, ajudaria.",
-      notify: "Avisem-me quando houver um proximo passo.",
-    },
-    planLoopTitle: "Proximo passo",
-    planLoopBody: "Quando alguem participa, a VYVA ajuda a transformar a ideia em algo que pode acontecer.",
-    planLoopStatusLabel: "Estado do plano",
-    planLoopSteps: {
-      shared: "Partilhado",
-      choosing: "A escolher hora",
-      confirmed: "Confirmado",
-      happened: "Aconteceu",
-      repeat: "Repetir",
-    },
-    planLoopActions: {
-      time: "Escolher hora",
-      place: "Confirmar lugar",
-      invite: "Convidar mais uma pessoa",
-      again: "Fazer outra vez",
-    },
-    planLoopReplies: {
-      time: "Gostaria de escolher uma hora simples para este plano.",
-      place: "Gostaria de confirmar o lugar ou se fica online.",
-      invite: "Podemos convidar mais uma pessoa se ajudar.",
-      again: "Gostaria de fazer isto outra vez.",
-    },
-    replySent: "Resposta partilhada",
-    replyFailed: "Nao foi possivel partilhar a resposta. Tente novamente.",
-    replyActions: {
-      support: "Sinto o mesmo",
-      curious: "Conte-me mais",
-      help: "Posso ajudar",
-      different: "Outra visao",
-    },
-    replyBodies: {
-      support: "Sinto o mesmo. Obrigado por partilhar.",
-      curious: "Gostaria de ouvir um pouco mais, se quiser partilhar.",
-      help: "Posso ajudar com um pequeno passo dentro da sala.",
-      different: "Vejo isto de forma um pouco diferente, e agradeco a partilha.",
-    },
-    supportIdea: "Participar",
-    maybeIdea: "Talvez",
-    sharedKindLabels: {
-      plan: "Plano",
-      message: "Ola",
-      question: "Pergunta",
-    },
-    sharedActions: {
-      plan: { primary: "Participar", secondary: "Talvez" },
-      message: { primary: "Eu tambem", secondary: "Obrigado" },
-      question: { primary: "Ajude-me tambem", secondary: "Seguir" },
-    },
-    fitLabel: "Boa combinacao",
-    reviewBadge: "VYVA reve antes do proximo passo",
-    helpSent: "VYVA vai rever isto com cuidado.",
-    helpFailed: "Nao foi possivel avisar a VYVA. Tente novamente.",
-    viewStarter: "Partilhar opiniao",
-    agreementTitle: "A nossa promessa da sala",
-    agreementLines: [
-      "Palavras gentis e sem pressao.",
-      "Partilhar opinioes sem julgar.",
-      "Pedir ajuda a VYVA se algo parecer errado.",
-    ],
-    acknowledgementLabel: "Compreendo",
-    acknowledgedLabel: "Promessa da sala guardada",
-    acknowledgementFailed: "Nao foi possivel guardar. Tente novamente.",
-    starterDetails: {
-      hello: "Gostaria de dizer ola ao grupo.",
-      view: "Gostaria de partilhar uma pequena opiniao com a sala.",
-      plan: "Gostaria de partilhar um plano simples e calmo.",
-      ask: "VYVA, ajude-me a escolher uma forma simples de participar.",
-    },
-  },
-};
-
-function fallbackPulse(language: SocialGameLanguage): SocialRoomPulse {
-  const copy = roomCopyByLanguage[language] ?? roomCopyByLanguage.en;
+function fallbackPulse(language: SocialLanguage): SocialRoomPulse {
   const titles = {
     es: "Te y charla de pelicula",
     de: "Tee und Filmgespraech",
     en: "Tea and film chat",
-    fr: "The et discussion film",
-    it: "Te e conversazione film",
-    pt: "Cha e conversa sobre filme",
   };
   const bodies = {
     es: "Elegid una pelicula tranquila y comentadla sin prisa.",
     de: "Waehlt einen ruhigen Film und sprecht ohne Eile darueber.",
     en: "Choose a gentle film and talk about it without rushing.",
-    fr: "Choisissez un film doux et parlez-en sans vous presser.",
-    it: "Scegliete un film leggero e parlatene senza fretta.",
-    pt: "Escolham um filme leve e conversem sem pressa.",
   };
   const question = {
     es: "Que os apeteceria compartir hoy?",
     de: "Was wuerde sich heute gut anfuehlen?",
     en: "What would feel good to share today?",
-    fr: "Qu'auriez-vous envie de partager aujourd'hui?",
-    it: "Cosa vi piacerebbe condividere oggi?",
-    pt: "O que gostariam de partilhar hoje?",
   };
   const options = {
-    es: ["Pelicula", "Comida", "Solo saludar"],
-    de: ["Film", "Essen", "Nur Hallo"],
-    en: ["Film chat", "Quiet lunch", "Just say hello"],
-    fr: ["Discussion film", "Dejeuner calme", "Dire bonjour"],
-    it: ["Conversazione film", "Pranzo tranquillo", "Solo salutare"],
-    pt: ["Conversa sobre filme", "Almoco tranquilo", "So dizer ola"],
+    es: ["Pelicula", "Comida", "Compartir opiniones"],
+    de: ["Film", "Essen", "Ansichten teilen"],
+    en: ["Film chat", "Quiet lunch", "Share views"],
   };
   const safety = {
     es: {
@@ -1457,6 +2868,7 @@ function fallbackPulse(language: SocialGameLanguage): SocialRoomPulse {
       acknowledgementLabel: "Lo entiendo",
       acknowledgedLabel: "Promesa de sala guardada",
       myAcknowledgedAt: null,
+      myQuietPausedAt: null,
     },
     de: {
       title: "Geschuetzter kleiner Kreis",
@@ -1472,6 +2884,7 @@ function fallbackPulse(language: SocialGameLanguage): SocialRoomPulse {
       acknowledgementLabel: "Ich verstehe",
       acknowledgedLabel: "Raumversprechen gespeichert",
       myAcknowledgedAt: null,
+      myQuietPausedAt: null,
     },
     en: {
       title: "Safe small circle",
@@ -1487,53 +2900,16 @@ function fallbackPulse(language: SocialGameLanguage): SocialRoomPulse {
       acknowledgementLabel: "I understand",
       acknowledgedLabel: "Room promise saved",
       myAcknowledgedAt: null,
-    },
-    fr: {
-      title: "Petit cercle protege",
-      body: "VYVA garde un ton bienveillant et peut aider si quelque chose semble inconfortable.",
-      consentLine: "Le contact n'est partage que si les deux personnes acceptent.",
-      helpLabel: "Aide ou securite",
-      agreementTitle: roomCopyByLanguage.fr.agreementTitle,
-      agreementLines: roomCopyByLanguage.fr.agreementLines,
-      acknowledgementLabel: roomCopyByLanguage.fr.acknowledgementLabel,
-      acknowledgedLabel: roomCopyByLanguage.fr.acknowledgedLabel,
-      myAcknowledgedAt: null,
-    },
-    it: {
-      title: "Piccolo cerchio protetto",
-      body: "VYVA mantiene un tono gentile e puo aiutare se qualcosa mette a disagio.",
-      consentLine: "Il contatto viene condiviso solo se entrambe le persone accettano.",
-      helpLabel: "Aiuto o sicurezza",
-      agreementTitle: roomCopyByLanguage.it.agreementTitle,
-      agreementLines: roomCopyByLanguage.it.agreementLines,
-      acknowledgementLabel: roomCopyByLanguage.it.acknowledgementLabel,
-      acknowledgedLabel: roomCopyByLanguage.it.acknowledgedLabel,
-      myAcknowledgedAt: null,
-    },
-    pt: {
-      title: "Pequeno circulo seguro",
-      body: "VYVA mantem o tom gentil e pode ajudar se algo parecer desconfortavel.",
-      consentLine: "O contacto so e partilhado quando ambas as pessoas aceitam.",
-      helpLabel: "Ajuda ou seguranca",
-      agreementTitle: roomCopyByLanguage.pt.agreementTitle,
-      agreementLines: roomCopyByLanguage.pt.agreementLines,
-      acknowledgementLabel: roomCopyByLanguage.pt.acknowledgementLabel,
-      acknowledgedLabel: roomCopyByLanguage.pt.acknowledgedLabel,
-      myAcknowledgedAt: null,
+      myQuietPausedAt: null,
     },
   };
-  const title = titles[language] ?? titles.en;
-  const body = bodies[language] ?? bodies.en;
-  const pollQuestion = question[language] ?? question.en;
-  const pollOptions = options[language] ?? options.en;
-  const safetyCopy = safety[language] ?? safety.en;
 
   const featuredPlan: SocialRoomPlan = {
     id: "tea-film-chat",
     key: "tea-film-chat",
     kind: "plan",
-    title,
-    body,
+    title: titles[language],
+    body: bodies[language],
     locationLabel: "online",
     comfortNeeds: ["quiet_pace"],
     experienceCategory: "movie_date",
@@ -1543,10 +2919,10 @@ function fallbackPulse(language: SocialGameLanguage): SocialRoomPulse {
     safetyFlags: [],
     needsReview: false,
     fitReasons: [
-      copy.planOnline,
-      copy.timeLabels.evening,
-      copy.costLabels.free,
-      copy.groupLabels.small_group,
+      copyByLanguage[language].planOnline,
+      copyByLanguage[language].timeLabels.evening,
+      copyByLanguage[language].costLabels.free,
+      copyByLanguage[language].groupLabels.small_group,
     ],
     startsAt: null,
     status: "active",
@@ -1562,18 +2938,19 @@ function fallbackPulse(language: SocialGameLanguage): SocialRoomPulse {
     activePoll: {
       id: "daily-room-choice",
       key: "daily-room-choice",
-      question: pollQuestion,
+      question: question[language],
       status: "active",
-      options: pollOptions.map((label, index) => ({ id: ["film", "lunch", "hello"][index], label, votes: 0 })),
+      options: options[language].map((label, index) => ({ id: ["film", "lunch", "views"][index], label, votes: 0 })),
       totalVotes: 0,
       myVote: null,
     },
+    issuePolls: [],
     comfortCheck: {
-      title: copy.comfortCheckTitle,
-      body: copy.comfortCheckBody,
+      title: copyByLanguage[language].comfortCheckTitle,
+      body: copyByLanguage[language].comfortCheckBody,
       options: comfortNeedOptions.map((need) => ({
         id: need,
-        label: copy.comfortNeedLabels[need],
+        label: copyByLanguage[language].comfortNeedLabels[need],
         count: 0,
       })),
       myComfortNeeds: [],
@@ -1581,17 +2958,121 @@ function fallbackPulse(language: SocialGameLanguage): SocialRoomPulse {
     },
     discussionPrompt: {
       id: "gentle-start",
-      title: copy.sharePlanTitle,
-      body: copy.sharePlanBody,
-      starterButtons: [copy.sharePlanAction],
+      title: copyByLanguage[language].discussionTitle,
+      body: copyByLanguage[language].discussionBody,
+      starterButtons: [
+        copyByLanguage[language].starterLabels.hello,
+        copyByLanguage[language].starterLabels.plan,
+        copyByLanguage[language].starterLabels.ask,
+      ],
     },
-    safety: safetyCopy,
+    safety: safety[language],
+    visibility: fallbackVisibility(language),
     notifications: [],
+    unreadNotificationCount: 0,
+  };
+}
+
+function fallbackVisibility(language: SocialLanguage): NonNullable<SocialRoomPulse["visibility"]> {
+  if (language === "de") {
+    return {
+      title: "Wer was sieht",
+      body: "Eine ruhige Erinnerung, bevor du tippst.",
+      items: [
+        {
+          id: "private",
+          title: "Privat fuer dich",
+          body: "Deine Stimme, Komfortwuensche und Vielleicht-Wahl zeigen deinen Namen nicht.",
+        },
+        {
+          id: "totals",
+          title: "Der Raum sieht Summen",
+          body: "Der Raum sieht Zaehler wie Stimmen, Interesse und Komfortwuensche.",
+        },
+        {
+          id: "shared",
+          title: "Im Raum geteilt",
+          body: "Plaene, Ansichten und Antworten erscheinen im Raum, mit VYVA-Pruefung in der Naehe.",
+        },
+      ],
+    };
+  }
+
+  if (language === "en") {
+    return {
+      title: "Who sees what",
+      body: "A calm reminder before you tap.",
+      items: [
+        {
+          id: "private",
+          title: "Private to you",
+          body: "Your vote, comfort choices and maybe choice do not show your name.",
+        },
+        {
+          id: "totals",
+          title: "Room sees totals",
+          body: "The room sees counts like votes, interest and comfort needs.",
+        },
+        {
+          id: "shared",
+          title: "Shared with the room",
+          body: "Plans, views and replies appear in the room, with VYVA review nearby.",
+        },
+      ],
+    };
+  }
+
+  return {
+    title: "Quien ve que",
+    body: "Un recordatorio tranquilo antes de tocar.",
+    items: [
+      {
+        id: "private",
+        title: "Privado para ti",
+        body: "Tu voto, tus apoyos de comodidad y 'quiza' no muestran tu nombre.",
+      },
+      {
+        id: "totals",
+        title: "La sala ve totales",
+        body: "La sala ve conteos como votos, interes y necesidades de comodidad.",
+      },
+      {
+        id: "shared",
+        title: "Compartido en la sala",
+        body: "Planes, opiniones y respuestas aparecen en la sala, con revision de VYVA cerca.",
+      },
+    ],
   };
 }
 
 function getInitial(name: string) {
   return name.trim().slice(0, 1).toUpperCase();
+}
+
+function normalizeSharedLabel(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function isHelloMessagePlan(plan: SocialRoomPlan, copy: (typeof copyByLanguage)[SocialLanguage]) {
+  if ((plan.kind ?? "plan") !== "message") return false;
+  const helloLabels = new Set(
+    [
+      copy.starterLabels.hello,
+      copy.nextGentleSteps.hello.action,
+      "Say hello",
+      "Saludar",
+      "Hallo sagen",
+    ].map(normalizeSharedLabel),
+  );
+
+  return helloLabels.has(normalizeSharedLabel(plan.title));
+}
+
+function sharedKindLabelForPlan(plan: SocialRoomPlan, copy: (typeof copyByLanguage)[SocialLanguage]) {
+  const kind = plan.kind ?? "plan";
+  if (kind !== "message") return copy.sharedKindLabels[kind];
+
+  return isHelloMessagePlan(plan, copy) ? copy.sharedKindLabels.message : copy.sharedViewLabel;
 }
 
 function updatePlanResponse(
@@ -1636,34 +3117,31 @@ function updatePollVote(pulse: SocialRoomPulse, optionId: string): SocialRoomPul
   };
 }
 
-function normalizeComfortSelection(needs: SocialRoomComfortNeed[]) {
-  return Array.from(new Set(needs.filter((need) => comfortNeedOptions.includes(need)))).slice(0, 4);
+function updateIssuePollVote(pulse: SocialRoomPulse, pollKey: string, optionId: string): SocialRoomPulse {
+  return {
+    ...pulse,
+    issuePolls: (pulse.issuePolls ?? []).map((poll) => {
+      if (poll.key !== pollKey) return poll;
+      const previousVote = poll.myVote;
+      const options = poll.options.map((option) => {
+        let votes = option.votes;
+        if (previousVote === option.id) votes = Math.max(0, votes - 1);
+        if (optionId === option.id) votes += 1;
+        return { ...option, votes };
+      });
+
+      return {
+        ...poll,
+        myVote: optionId,
+        options,
+        totalVotes: options.reduce((sum, option) => sum + option.votes, 0),
+      };
+    }),
+  };
 }
 
-function getComposerReviewFlags(category: SocialRoomExperienceCategory, draft: string): SocialRoomSafetyFlag[] {
-  const flags = new Set<SocialRoomSafetyFlag>();
-  const text = draft.toLowerCase();
-
-  if (category === "home_share") flags.add("housing");
-  if (category === "service_booking") flags.add("service");
-  if (category === "deal_help") flags.add("money");
-  if (/\b(bank|cash|card|contract|deal|deposit|discount|invoice|loan|money|pay|payment|price|refund|rent|transfer)\b/.test(text)) {
-    flags.add("money");
-  }
-  if (/\b(address|email|number|outside the app|phone|private contact|text me|whatsapp)\b/.test(text) || /https?:\/\/|www\.|[^\s@]+@[^\s@]+\.[^\s@]+/.test(text)) {
-    flags.add("private_contact");
-  }
-  if (/\b(apartment|home share|house|lease|roommate|tenant)\b/.test(text)) {
-    flags.add("housing");
-  }
-  if (/\b(book a service|caregiver|cleaner|handyman|repair|service|worker)\b/.test(text)) {
-    flags.add("service");
-  }
-  if (/\b(car|driver|lift|ride|taxi|transport)\b/.test(text)) {
-    flags.add("transport");
-  }
-
-  return Array.from(flags).slice(0, 5);
+function normalizeComfortSelection(needs: SocialRoomComfortNeed[]) {
+  return Array.from(new Set(needs.filter((need) => comfortNeedOptions.includes(need)))).slice(0, 7);
 }
 
 function updateComfortCheck(pulse: SocialRoomPulse, comfortNeeds: SocialRoomComfortNeed[]): SocialRoomPulse {
@@ -1695,14 +3173,67 @@ function updateComfortCheck(pulse: SocialRoomPulse, comfortNeeds: SocialRoomComf
   };
 }
 
-function getLeadingPollOption(pulse: SocialRoomPulse) {
-  if (pulse.activePoll.totalVotes <= 0 || pulse.activePoll.options.length === 0) return null;
-  return pulse.activePoll.options.reduce((leader, option) => (
-    option.votes > leader.votes ? option : leader
-  ), pulse.activePoll.options[0]);
+function getPollDirection(pulse: SocialRoomPulse) {
+  if (pulse.activePoll.totalVotes <= 0 || pulse.activePoll.options.length === 0) {
+    return { leadingOption: null, tiedOptions: [] };
+  }
+
+  const topVotes = Math.max(...pulse.activePoll.options.map((option) => option.votes));
+  if (topVotes <= 0) return { leadingOption: null, tiedOptions: [] };
+
+  const topOptions = pulse.activePoll.options.filter((option) => option.votes === topVotes);
+  return topOptions.length === 1
+    ? { leadingOption: topOptions[0], tiedOptions: [] }
+    : { leadingOption: null, tiedOptions: topOptions };
 }
 
-function formatResponseSummary(plan: SocialRoomPlan, copy: TogetherRoomCopy) {
+function getPollLeaders(poll: SocialRoomPulse["activePoll"]) {
+  if (poll.totalVotes <= 0 || poll.options.length === 0) return [];
+  const topVotes = Math.max(...poll.options.map((option) => option.votes));
+  if (topVotes <= 0) return [];
+  return poll.options.filter((option) => option.votes === topVotes);
+}
+
+function issuePollSignal(poll: SocialRoomPulse["activePoll"] | null | undefined) {
+  if (!poll) return null;
+  const leaders = getPollLeaders(poll);
+  if (!leaders.length) return null;
+  const labels = leaders.map((option) => option.label);
+  return labels.length === 1 ? labels[0] : labels.join(" | ");
+}
+
+function getIssueVoteCount(pulse: SocialRoomPulse) {
+  return (pulse.issuePolls ?? []).reduce((sum, poll) => sum + poll.totalVotes, 0);
+}
+
+function getRoomVoteCount(pulse: SocialRoomPulse) {
+  return pulse.activePoll.totalVotes + getIssueVoteCount(pulse);
+}
+
+function getTopComfortLabels(pulse: SocialRoomPulse) {
+  return [...pulse.comfortCheck.options]
+    .filter((option) => option.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 2)
+    .map((option) => option.label);
+}
+
+function getTopComfortNeeds(pulse: SocialRoomPulse) {
+  return [...pulse.comfortCheck.options]
+    .filter((option) => option.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 2)
+    .map((option) => option.id);
+}
+
+function categoryForRoomDirection(optionId?: string | null): SocialRoomExperienceCategory {
+  if (optionId === "film") return "movie_date";
+  if (optionId === "lunch") return "restaurant_date";
+  if (optionId === "views") return "other";
+  return "outing";
+}
+
+function formatResponseSummary(plan: SocialRoomPlan, copy: (typeof copyByLanguage)[SocialLanguage]) {
   const joinCount = plan.responseCounts.join;
   const maybeCount = plan.responseCounts.maybe;
   const parts = [
@@ -1712,12 +3243,164 @@ function formatResponseSummary(plan: SocialRoomPlan, copy: TogetherRoomCopy) {
   return parts.length ? parts.join(" | ") : copy.responseNone;
 }
 
+function planResponseTotal(plan: SocialRoomPlan) {
+  return plan.responseCounts.join + plan.responseCounts.maybe;
+}
+
+function issueQuestionTitleFromPoll(pulse: SocialRoomPulse, poll: SocialRoomPulse["activePoll"]) {
+  const sourcePlanKey = "sourcePlanKey" in poll ? poll.sourcePlanKey : null;
+  const sourceQuestion = sourcePlanKey
+    ? pulse.postedExperiences.find((plan) => plan.key === sourcePlanKey)?.title
+    : null;
+  const fallbackQuestion = poll.question.replace(/^(Vote|Votacion|Abstimmung):\s*/i, "").trim();
+  return sourceQuestion?.trim() || fallbackQuestion || poll.question;
+}
+
+function mySafeVoteChoice(pulse: SocialRoomPulse, copy: (typeof copyByLanguage)[SocialLanguage]) {
+  const choices: string[] = [];
+  const myVoteLabel = pulse.activePoll.options.find((option) => option.id === pulse.activePoll.myVote)?.label ?? null;
+  if (myVoteLabel) choices.push(myVoteLabel);
+
+  for (const issuePoll of pulse.issuePolls ?? []) {
+    const myIssueVoteLabel = issuePoll.options.find((option) => option.id === issuePoll.myVote)?.label ?? null;
+    if (!myIssueVoteLabel) continue;
+    choices.push(copy.mySafeChoiceIssueVote(issueQuestionTitleFromPoll(pulse, issuePoll), myIssueVoteLabel));
+  }
+
+  return choices.length ? choices.join(" | ") : copy.mySafeChoiceVoteNone;
+}
+
+function notificationMetadataString(
+  notification: SocialRoomPulse["notifications"][number] | null | undefined,
+  key: string,
+) {
+  const value = notification?.metadata?.[key];
+  return typeof value === "string" ? value : null;
+}
+
+function roomPlansForActivity(pulse: SocialRoomPulse) {
+  const plans = new Map<string, SocialRoomPlan>();
+  [pulse.featuredPlan, ...pulse.secondaryPlans, ...pulse.postedExperiences].forEach((plan) => {
+    plans.set(plan.key, plan);
+  });
+  return Array.from(plans.values());
+}
+
+function getPlanInterestCount(pulse: SocialRoomPulse) {
+  return roomPlansForActivity(pulse).reduce((total, plan) => (
+    total + planResponseTotal(plan)
+  ), 0);
+}
+
+function mySafeHelperChoice(pulse: SocialRoomPulse, copy: (typeof copyByLanguage)[SocialLanguage]) {
+  const choices = roomPlansForActivity(pulse)
+    .flatMap((plan) => {
+      const helpers = (plan.myHelperActions ?? [])
+        .filter((action) => planCollaborationActions.includes(action))
+        .map((action) => copy.planSupportActions[action]);
+      return helpers.length ? [copy.mySafeChoiceHelp(plan.title, helpers)] : [];
+    })
+    .slice(0, 2);
+
+  return choices.length ? choices.join(" | ") : copy.mySafeChoiceHelpNone;
+}
+
+function chooseNextGentleStep({
+  agreementAcknowledged,
+  unreadRoomUpdateCount,
+  pulse,
+  pollClosed,
+  hasRoomSignals,
+}: {
+  agreementAcknowledged: boolean;
+  unreadRoomUpdateCount: number;
+  pulse: SocialRoomPulse;
+  pollClosed: boolean;
+  hasRoomSignals: boolean;
+}): NextGentleStepId {
+  if (!agreementAcknowledged) return "promise";
+  if (unreadRoomUpdateCount > 0) return "updates";
+  if ((pulse.comfortCheck.myComfortNeeds ?? []).length === 0) return "comfort";
+  if (!pollClosed && !pulse.activePoll.myVote) return "vote";
+  if (!pulse.featuredPlan.myResponse) return "plan";
+  if (hasRoomSignals) return "recap";
+  return "hello";
+}
+
+function countNewUnreadNotifications(previous: SocialRoomPulse, next: SocialRoomPulse) {
+  const previousIds = new Set(previous.notifications.map((notification) => notification.id));
+  return next.notifications.filter((notification) => !notification.readAt && !previousIds.has(notification.id)).length;
+}
+
+function countUnreadRoomUpdates(pulse: SocialRoomPulse) {
+  return pulse.unreadNotificationCount ?? pulse.notifications.filter((notification) => !notification.readAt).length;
+}
+
+function countPositivePollChanges(previous: SocialRoomPulse, next: SocialRoomPulse) {
+  const previousVotes = new Map(previous.activePoll.options.map((option) => [option.id, option.votes]));
+  return next.activePoll.options.reduce((total, option) => (
+    total + Math.max(0, option.votes - (previousVotes.get(option.id) ?? 0))
+  ), 0);
+}
+
+function countPositivePlanResponseChanges(previous: SocialRoomPulse, next: SocialRoomPulse) {
+  const previousResponses = new Map(roomPlansForActivity(previous).map((plan) => [
+    plan.key,
+    plan.responseCounts.join + plan.responseCounts.maybe,
+  ]));
+  return roomPlansForActivity(next).reduce((total, plan) => (
+    total + Math.max(0, plan.responseCounts.join + plan.responseCounts.maybe - (previousResponses.get(plan.key) ?? 0))
+  ), 0);
+}
+
+function activePlanReplies(plan: SocialRoomPlan) {
+  return (plan.replies ?? []).filter((reply) => reply.status === "active");
+}
+
+function countPositiveReplyChanges(previous: SocialRoomPulse, next: SocialRoomPulse) {
+  const previousReplies = new Map(roomPlansForActivity(previous).map((plan) => [plan.key, activePlanReplies(plan).length]));
+  return roomPlansForActivity(next).reduce((total, plan) => (
+    total + Math.max(0, activePlanReplies(plan).length - (previousReplies.get(plan.key) ?? 0))
+  ), 0);
+}
+
+function describeRoomRefresh(
+  previous: SocialRoomPulse,
+  next: SocialRoomPulse,
+  copy: (typeof copyByLanguage)[SocialLanguage],
+) {
+  const newUpdates = countNewUnreadNotifications(previous, next);
+  if (newUpdates > 0) return copy.roomRefreshedWithUpdates(newUpdates);
+
+  const newReplies = countPositiveReplyChanges(previous, next);
+  if (newReplies > 0) return copy.roomRefreshedWithReplies(newReplies);
+
+  const newPlanResponses = countPositivePlanResponseChanges(previous, next);
+  if (newPlanResponses > 0) return copy.roomRefreshedWithPlanInterest(newPlanResponses);
+
+  const newVotes = countPositivePollChanges(previous, next);
+  if (newVotes > 0) return copy.roomRefreshedWithVotes(newVotes);
+
+  const newComfortSignals = Math.max(0, next.comfortCheck.totalResponses - previous.comfortCheck.totalResponses);
+  if (newComfortSignals > 0) return copy.roomRefreshedWithComfort(newComfortSignals);
+
+  return copy.roomRefreshed;
+}
+
+function planNextStepBody(plan: SocialRoomPlan, copy: (typeof copyByLanguage)[SocialLanguage]) {
+  if (plan.myResponse === "join") return copy.planNextStepJoined;
+  if (plan.myResponse === "maybe") return copy.planNextStepMaybe;
+  return plan.responseCounts.join + plan.responseCounts.maybe > 0
+    ? copy.planNextStepReady
+    : copy.planNextStepWaiting;
+}
+
 function PlanLocationPill({
   plan,
   copy,
 }: {
   plan: SocialRoomPlan;
-  copy: TogetherRoomCopy;
+  copy: (typeof copyByLanguage)[SocialLanguage];
 }) {
   const isNearby = plan.locationLabel === "nearby";
   const Icon = isNearby ? MapPin : Monitor;
@@ -1740,14 +3423,16 @@ function PlanComfortPills({
   copy,
 }: {
   plan: SocialRoomPlan;
-  copy: TogetherRoomCopy;
+  copy: (typeof copyByLanguage)[SocialLanguage];
 }) {
   const comfortNeeds = plan.comfortNeeds ?? [];
   if (comfortNeeds.length === 0) return null;
+  const visibleComfortNeeds = comfortNeeds.slice(0, 4);
+  const hiddenComfortCount = comfortNeeds.length - visibleComfortNeeds.length;
 
   return (
     <div className="mt-2 flex flex-wrap gap-2" data-testid={`together-plan-comfort-${plan.key}`}>
-      {comfortNeeds.map((need) => (
+      {visibleComfortNeeds.map((need) => (
         <span
           key={need}
           className="inline-flex items-center rounded-full bg-[#F7FAF7] px-3 py-1.5 font-body text-[14px] font-bold text-[#315C55]"
@@ -1755,6 +3440,11 @@ function PlanComfortPills({
           {copy.comfortNeedLabels[need]}
         </span>
       ))}
+      {hiddenComfortCount > 0 && (
+        <span className="inline-flex items-center rounded-full bg-[#EAF8F4] px-3 py-1.5 font-body text-[14px] font-bold text-[#0F766E]">
+          {copy.moreComfortNotes(hiddenComfortCount)}
+        </span>
+      )}
     </div>
   );
 }
@@ -1764,7 +3454,7 @@ function PlanExperiencePills({
   copy,
 }: {
   plan: SocialRoomPlan;
-  copy: TogetherRoomCopy;
+  copy: (typeof copyByLanguage)[SocialLanguage];
 }) {
   const pills = [
     plan.experienceCategory ? copy.categoryLabels[plan.experienceCategory] : "",
@@ -1793,12 +3483,110 @@ function PlanExperiencePills({
   );
 }
 
+function PlanComfortConfidenceCue({
+  plan,
+  copy,
+}: {
+  plan: SocialRoomPlan;
+  copy: (typeof copyByLanguage)[SocialLanguage];
+}) {
+  const planNeeds = new Set(plan.comfortNeeds ?? []);
+  const knownLabels = (plan.comfortNeeds ?? []).slice(0, 3).map((need) => copy.comfortNeedLabels[need]);
+  const missingNeeds = planComfortCheckNeeds.filter((need) => !planNeeds.has(need));
+  const visibleMissingLabels = missingNeeds.slice(0, 3).map((need) => copy.comfortNeedLabels[need]);
+  const hiddenMissingCount = missingNeeds.length - visibleMissingLabels.length;
+  const askLabels = hiddenMissingCount > 0
+    ? [...visibleMissingLabels, copy.planComfortCueMore(hiddenMissingCount)]
+    : visibleMissingLabels;
+
+  return (
+    <div
+      className="mt-3 rounded-[18px] border border-[#CFECE3] bg-white px-3 py-3"
+      data-testid={`together-plan-comfort-confidence-${plan.key}`}
+    >
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2">
+        <ShieldCheck size={18} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.planComfortCueTitle}</p>
+          <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]">
+            {copy.planComfortCueKnown(knownLabels)}
+          </p>
+          <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#55706B]">
+            {askLabels.length ? copy.planComfortCueAsk(askLabels) : copy.planComfortCueReady}
+          </p>
+          <p className="mt-2 rounded-[14px] bg-[#F4FBF8] px-3 py-2 font-body text-[14px] font-bold leading-[1.3] text-[#315C55]">
+            {copy.planComfortCuePrivacy}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PlanDetailCheckCue({
+  copy,
+  plan,
+  onAsk,
+  disabled = false,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  plan: SocialRoomPlan;
+  onAsk: () => void;
+  disabled?: boolean;
+}) {
+  const itemIcons = [MapPin, Clock, ShieldCheck];
+
+  return (
+    <div
+      className="mt-3 rounded-[18px] border border-[#DBEAFE] bg-[#FAFCFF] px-3 py-3"
+      data-testid={`together-plan-detail-check-${plan.key}`}
+    >
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-2">
+          <ShieldCheck size={18} className="mt-0.5 shrink-0 text-[#2563EB]" aria-hidden="true" />
+          <div className="min-w-0">
+            <p className="font-body text-[16px] font-bold text-[#1E3A8A]">{copy.planDetailCheckTitle}</p>
+            <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#3E526A]">
+              {copy.planDetailCheckBody}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onAsk}
+          disabled={disabled}
+          data-testid={`together-plan-detail-check-${plan.key}-action`}
+          className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[17px] bg-[#1E40AF] px-4 font-body text-[16px] font-bold text-white disabled:cursor-default disabled:opacity-60 sm:w-auto"
+        >
+          <MessageCircle size={18} aria-hidden="true" />
+          {copy.planDetailCheckAction}
+        </button>
+      </div>
+      <ul className="mt-3 grid gap-2 sm:grid-cols-3">
+        {copy.planDetailCheckItems.map((item, index) => {
+          const Icon = itemIcons[index] ?? ShieldCheck;
+          return (
+            <li
+              key={item}
+              className="grid min-h-[52px] grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-[15px] bg-white px-3 py-2 font-body text-[14px] font-bold leading-[1.3] text-[#315C55]"
+              data-testid={`together-plan-detail-check-${plan.key}-item-${index + 1}`}
+            >
+              <Icon size={17} className="shrink-0 text-[#2563EB]" aria-hidden="true" />
+              <span className="min-w-0 break-words">{item}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 function PlanReviewNotice({
   plan,
   copy,
 }: {
   plan: SocialRoomPlan;
-  copy: TogetherRoomCopy;
+  copy: (typeof copyByLanguage)[SocialLanguage];
 }) {
   const flags = plan.safetyFlags ?? [];
   if (!plan.needsReview && flags.length === 0) return null;
@@ -1823,282 +3611,2358 @@ function PlanReviewNotice({
   );
 }
 
-function RoomVisualSummary({
-  memberCount,
+function SafeShareCue({
   copy,
-  planCopy,
 }: {
-  memberCount: number;
-  copy: TogetherRoomCopy;
-  planCopy: PlanComposerCopy;
+  copy: (typeof copyByLanguage)[SocialLanguage];
 }) {
-  const items = [
-    {
-      id: "present",
-      icon: Users,
-      label: copy.present(Math.max(memberCount, 1)),
-      tone: "bg-[#EFF6FF] text-[#1E3A8A]",
-    },
-    {
-      id: "safe",
-      icon: ShieldCheck,
-      label: copy.safeStatus,
-      tone: "bg-[#EAF8F4] text-[#0F766E]",
-    },
-    {
-      id: "plan",
-      icon: Sparkles,
-      label: planCopy.sharePlanAction,
-      tone: "bg-[#F3ECFF] text-[#6D28D9]",
-    },
-  ];
-
   return (
-    <div className="mt-4 grid grid-cols-3 gap-2" data-testid="together-room-visual-summary">
-      {items.map((item) => {
-        const Icon = item.icon;
-        return (
-          <div
-            key={item.id}
-            className={`flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-[18px] px-2 text-center ${item.tone}`}
-          >
-            <Icon size={22} strokeWidth={2.4} aria-hidden="true" />
-            <span className="max-w-full overflow-hidden text-ellipsis whitespace-nowrap font-body text-[13px] font-bold leading-tight">
-              {item.label}
-            </span>
-          </div>
-        );
-      })}
+    <div className="mb-3 rounded-[18px] border border-[#CFECE3] bg-[#F4FBF8] px-3 py-3" data-testid="together-safe-share-cue">
+      <div className="flex items-start gap-2">
+        <ShieldCheck size={19} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.safeShareTitle}</p>
+          <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]">{copy.safeShareBody}</p>
+          <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#55706B]">{copy.safeShareReviewLine}</p>
+        </div>
+      </div>
     </div>
   );
 }
 
-function MemberOrbit({ members }: { members: SocialRoomMember[] }) {
+function ComposerSafetyPreview({
+  copy,
+  kind,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  kind: SocialRoomPlanKind;
+}) {
+  const items: ComposerPreviewItemId[] = ["shared", "private", "next"];
+
   return (
     <div
-      className="mt-5 rounded-[26px] bg-[#F4F8FF] px-4 py-4"
-      data-testid="together-member-orbit"
-      aria-label={`${members.length} room members`}
+      className="mb-3 rounded-[18px] border border-[#D7E8DB] bg-white px-3 py-3"
+      data-testid="together-composer-preview"
     >
-      <div className="flex items-center justify-center -space-x-3">
-        {members.map((member, index) => (
-          <div
-            key={member.id}
-            className="relative flex h-16 w-16 items-center justify-center rounded-full border-[5px] border-white font-body text-[20px] font-bold text-white shadow-[0_12px_20px_rgba(33,23,41,0.12)]"
-            style={{ background: memberColours[index % memberColours.length] }}
-            title={member.statusLabel ? `${member.name}: ${member.statusLabel}` : member.name}
-          >
-            {getInitial(member.name)}
-          </div>
-        ))}
-      </div>
-      <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-        {members.map((member) => (
-          <p
-            key={member.id}
-            className="truncate font-body text-[14px] font-bold leading-tight text-[#244D47]"
-            title={member.statusLabel ? `${member.name}: ${member.statusLabel}` : member.name}
-          >
-            {member.name}
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2">
+        <ShieldCheck size={19} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.composerPreviewTitle}</p>
+          <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]">
+            {copy.composerPreviewBodies[kind]}
           </p>
+        </div>
+      </div>
+      <ul className="mt-3 grid gap-2 sm:grid-cols-3">
+        {items.map((item) => {
+          const Icon = composerPreviewIcons[item];
+          return (
+            <li
+              key={item}
+              className="grid min-h-[54px] grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-[15px] bg-[#F7FAF7] px-3 py-2 font-body text-[14px] font-bold leading-[1.3] text-[#315C55]"
+              data-testid={`together-composer-preview-${kind}-${item}`}
+            >
+              <Icon size={17} className="shrink-0 text-[#0F766E]" aria-hidden="true" />
+              <span className="min-w-0 break-words">{copy.composerPreviewItems[kind][item]}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function ViewTonePreview({
+  copy,
+  hasProtectedDetails,
+  hasUnkindTone,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  hasProtectedDetails: boolean;
+  hasUnkindTone: boolean;
+}) {
+  const needsEdit = hasProtectedDetails || hasUnkindTone;
+  const items = [
+    { id: "kind", label: copy.viewTonePreviewItems.kind, ready: !hasUnkindTone },
+    { id: "privacy", label: copy.viewTonePreviewItems.privacy, ready: !hasProtectedDetails },
+    { id: "small", label: copy.viewTonePreviewItems.small, ready: true },
+  ];
+
+  return (
+    <div
+      className={`mb-3 rounded-[18px] border px-3 py-3 ${
+        needsEdit
+          ? "border-[#F2D59B] bg-[#FFF9E8]"
+          : "border-[#CFECE3] bg-[#F7FCFA]"
+      }`}
+      data-testid="together-view-tone-preview"
+    >
+      <div className="flex items-start gap-2">
+        <MessageCircle size={19} className={`mt-0.5 shrink-0 ${needsEdit ? "text-[#B45309]" : "text-[#0F766E]"}`} aria-hidden="true" />
+        <div className="min-w-0">
+          <p className={`font-body text-[16px] font-bold ${needsEdit ? "text-[#6B4F13]" : "text-[#244D47]"}`}>
+            {copy.viewTonePreviewTitle}
+          </p>
+          <p className={`mt-1 font-body text-[15px] font-bold leading-[1.35] ${needsEdit ? "text-[#7C4A03]" : "text-[#41655F]"}`}>
+            {needsEdit ? copy.viewTonePreviewNeedsEdit : copy.viewTonePreviewReady}
+          </p>
+        </div>
+      </div>
+      <ul className="mt-3 grid gap-2 sm:grid-cols-3">
+        {items.map((item) => {
+          const Icon = item.ready ? Check : X;
+          return (
+            <li
+              key={item.id}
+              className={`grid min-h-[44px] grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-[14px] px-3 py-2 font-body text-[14px] font-bold leading-[1.25] ${
+                item.ready
+                  ? "bg-white text-[#315C55]"
+                  : "bg-[#FFF3D8] text-[#7C4A03]"
+              }`}
+              data-testid={`together-view-tone-${item.id}`}
+            >
+              <Icon size={16} className={item.ready ? "text-[#0F766E]" : "text-[#B45309]"} aria-hidden="true" />
+              <span>{item.label}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function viewReplyBalance(sharedViews: SocialRoomPlan[]) {
+  const counts = Object.fromEntries(viewBalanceTones.map((tone) => [tone, 0])) as Record<SocialRoomReplyTone, number>;
+
+  sharedViews.forEach((view) => {
+    view.replies?.forEach((reply) => {
+      if (reply.status !== "active") return;
+      counts[reply.tone] += 1;
+    });
+  });
+
+  return {
+    counts,
+    total: viewBalanceTones.reduce((sum, tone) => sum + counts[tone], 0),
+  };
+}
+
+function ViewBalanceSummary({
+  copy,
+  sharedViews,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  sharedViews: SocialRoomPlan[];
+}) {
+  const balance = viewReplyBalance(sharedViews);
+
+  return (
+    <div
+      className="mt-3 rounded-[18px] border border-[#D7E8DB] bg-white px-3 py-3"
+      data-testid="together-view-balance"
+    >
+      <div className="flex items-start gap-2">
+        <ShieldCheck size={18} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.viewBalanceTitle}</p>
+          <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#55706B]">
+            {balance.total > 0 ? copy.viewBalanceBody : copy.viewBalanceEmpty}
+          </p>
+        </div>
+      </div>
+      <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {viewBalanceTones.map((tone) => (
+          <div
+            key={tone}
+            className="rounded-[15px] bg-[#F7FAF7] px-3 py-2 text-center font-body"
+            data-testid={`together-view-balance-${tone}`}
+            aria-label={`${copy.viewBalanceLabels[tone]}: ${balance.counts[tone]}`}
+          >
+            <dt className="text-[13px] font-bold leading-[1.2] text-[#55706B]">{copy.viewBalanceLabels[tone]}</dt>
+            <dd className="mt-1 text-[20px] font-black leading-none text-[#0F766E]">{balance.counts[tone]}</dd>
+          </div>
         ))}
+      </dl>
+    </div>
+  );
+}
+
+function viewReplyCueKind(balance: ReturnType<typeof viewReplyBalance>): ViewNextReplyCueKind {
+  if (balance.total === 0) return "opening";
+  const activeToneCount = viewBalanceTones.filter((tone) => balance.counts[tone] > 0).length;
+
+  if (activeToneCount >= 3) return "mixed";
+  if (balance.counts.different > 0) return "different";
+  if (balance.counts.curious > 0 && balance.counts.support === 0) return "curious";
+  return "agreement";
+}
+
+function viewCommonGroundBody(
+  balance: ReturnType<typeof viewReplyBalance>,
+  copy: (typeof copyByLanguage)[SocialLanguage],
+) {
+  const cueKind = viewReplyCueKind(balance);
+
+  if (cueKind === "opening") return copy.viewCommonGroundOpening;
+  if (cueKind === "mixed") return copy.viewCommonGroundMixed;
+  if (cueKind === "different") return copy.viewCommonGroundDifferent;
+  if (cueKind === "curious") return copy.viewCommonGroundCurious;
+  return copy.viewCommonGroundAgreement;
+}
+
+function ViewCommonGroundCue({
+  copy,
+  sharedViews,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  sharedViews: SocialRoomPlan[];
+}) {
+  const balance = viewReplyBalance(sharedViews);
+
+  return (
+    <div
+      className="mt-3 rounded-[18px] border border-[#CFECE3] bg-white px-3 py-3"
+      data-testid="together-view-common-ground"
+    >
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2">
+        <HeartHandshake size={18} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.viewCommonGroundTitle}</p>
+          <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#41655F]">
+            {viewCommonGroundBody(balance, copy)}
+          </p>
+          <p className="mt-2 font-body text-[13px] font-bold leading-[1.3] text-[#55706B]">
+            {copy.viewCommonGroundPrivacy}
+          </p>
+        </div>
       </div>
     </div>
   );
 }
 
-function PromiseIconGrid({
-  agreementLines,
-}: {
-  agreementLines: string[];
-}) {
-  return (
-    <ul className="mt-3 grid gap-2 sm:grid-cols-3">
-      {agreementLines.map((line) => (
-        <li
-          key={line}
-          className="flex min-h-[76px] flex-col items-center justify-center gap-2 rounded-[18px] bg-[#F7FAF7] px-3 py-3 text-center font-body text-[14px] font-bold leading-[1.25] text-[#41655F]"
-        >
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#EAF8F4] text-[#0F766E]">
-            <Check size={18} aria-hidden="true" />
-          </span>
-          <span>{line}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function PlanVisualStats({
-  plan,
+function ViewSafetyCue({
   copy,
+  onStart,
+  disabled = false,
 }: {
-  plan: SocialRoomPlan;
-  copy: TogetherRoomCopy;
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  onStart: () => void;
+  disabled?: boolean;
 }) {
-  const stats = [
-    plan.experienceCategory
-      ? { id: "category", icon: Sparkles, label: copy.categoryLabels[plan.experienceCategory] }
-      : null,
-    plan.preferredTime
-      ? { id: "time", icon: Clock, label: copy.timeLabels[plan.preferredTime] }
-      : null,
-    plan.costRange
-      ? { id: "cost", icon: Handshake, label: copy.costLabels[plan.costRange] }
-      : null,
-    plan.groupSize
-      ? { id: "group", icon: Users, label: copy.groupLabels[plan.groupSize] }
-      : null,
-  ].filter(Boolean) as Array<{ id: string; icon: LucideIcon; label: string }>;
-
-  if (stats.length === 0) return null;
-
-  return (
-    <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4" data-testid={`together-plan-visual-stats-${plan.key}`}>
-      {stats.map((stat) => {
-        const Icon = stat.icon;
-        return (
-          <span
-            key={stat.id}
-            className="flex min-h-[62px] flex-col items-center justify-center gap-1 rounded-[17px] bg-white px-2 text-center font-body text-[13px] font-bold leading-tight text-[#6B4F13] shadow-[0_8px_16px_rgba(151,110,37,0.08)]"
-          >
-            <Icon size={19} strokeWidth={2.4} aria-hidden="true" />
-            {stat.label}
-          </span>
-        );
-      })}
-    </div>
-  );
-}
-
-function SharePlanVisuals() {
-  const items = [
-    { id: "lunch", icon: Utensils },
-    { id: "film", icon: Film },
-    { id: "deal", icon: Handshake },
-  ];
-
-  return (
-    <div className="flex shrink-0 items-center -space-x-2" aria-hidden="true">
-      {items.map((item) => {
-        const Icon = item.icon;
-        return (
-          <span
-            key={item.id}
-            className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-white bg-[#F3ECFF] text-[#6D28D9] shadow-[0_8px_16px_rgba(75,46,110,0.12)]"
-          >
-            <Icon size={20} strokeWidth={2.4} />
-          </span>
-        );
-      })}
-    </div>
-  );
-}
-
-function planHasCommitment(plan: SocialRoomPlan) {
-  return Boolean(plan.myResponse) || plan.responseCounts.join > 0 || plan.responseCounts.maybe > 0;
-}
-
-function planLoopStepIndex(plan: SocialRoomPlan, copy: TogetherRoomCopy) {
-  const replies = plan.replies ?? [];
-  if (replies.some((reply) => reply.body === copy.planLoopReplies.again)) return 4;
-  if (replies.some((reply) => reply.body === copy.planLoopReplies.invite)) return 3;
-  if (replies.some((reply) => (
-    reply.body === copy.planLoopReplies.time ||
-    reply.body === copy.planLoopReplies.place
-  ))) {
-    return 2;
-  }
-  return planHasCommitment(plan) ? 1 : 0;
-}
-
-function PlanLoopCard({
-  plan,
-  copy,
-  isBusy,
-  onAction,
-}: {
-  plan: SocialRoomPlan;
-  copy: TogetherRoomCopy;
-  isBusy: boolean;
-  onAction: (plan: SocialRoomPlan, action: PlanLoopAction) => void;
-}) {
-  if (!planHasCommitment(plan)) return null;
-
-  const steps: Array<{ label: string; action: PlanLoopAction | null }> = [
-    { label: copy.planLoopSteps.shared, action: null },
-    { label: copy.planLoopSteps.choosing, action: "time" },
-    { label: copy.planLoopSteps.confirmed, action: "place" },
-    { label: copy.planLoopSteps.happened, action: "invite" },
-    { label: copy.planLoopSteps.repeat, action: "again" },
-  ];
-  const activeIndex = planLoopStepIndex(plan, copy);
+  const items: ViewSafetyItemId[] = ["kind", "private", "review"];
 
   return (
     <div
-      className="mt-4 rounded-[22px] border border-[#CFECE3] bg-[#F7FAF7] px-4 py-4"
-      data-testid={`together-plan-loop-${plan.key}`}
+      className="mt-3 rounded-[18px] border border-[#CFECE3] bg-[#F4FBF8] px-3 py-3"
+      data-testid="together-view-safety"
     >
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] bg-[#EAF8F4] text-[#0F766E]">
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-2">
+          <ShieldCheck size={18} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+          <div className="min-w-0">
+            <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.viewSafetyTitle}</p>
+            <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#41655F]">{copy.viewSafetyBody}</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onStart}
+          disabled={disabled}
+          data-testid="together-view-safety-action"
+          className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[17px] bg-[#0F766E] px-4 font-body text-[16px] font-bold text-white shadow-[0_10px_18px_rgba(15,118,110,0.14)] disabled:cursor-default disabled:opacity-60 sm:w-auto"
+        >
+          <MessageCircle size={18} aria-hidden="true" />
+          {copy.viewSafetyAction}
+        </button>
+      </div>
+      <ul className="mt-3 grid gap-2 sm:grid-cols-3">
+        {items.map((item) => {
+          const Icon = viewSafetyIcons[item];
+          return (
+            <li
+              key={item}
+              className="grid min-h-[52px] grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-[15px] bg-white px-3 py-2 font-body text-[14px] font-bold leading-[1.3] text-[#315C55]"
+              data-testid={`together-view-safety-${item}`}
+            >
+              <Icon size={17} className="shrink-0 text-[#0F766E]" aria-hidden="true" />
+              <span className="min-w-0 break-words">{copy.viewSafetyItems[item]}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function ViewNextReplyCue({
+  copy,
+  sharedViews,
+  onStartViewDraft,
+  disabled = false,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  sharedViews: SocialRoomPlan[];
+  onStartViewDraft: (draft: string) => void;
+  disabled?: boolean;
+}) {
+  const balance = viewReplyBalance(sharedViews);
+  const cueKind = viewReplyCueKind(balance);
+  const draft = copy.viewNextReplyDrafts[cueKind];
+
+  return (
+    <div
+      className="mt-3 rounded-[18px] border border-[#D7E8DB] bg-white px-3 py-3"
+      data-testid="together-view-next-reply"
+    >
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-2">
+          <MessageCircle size={18} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+          <div className="min-w-0">
+            <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.viewNextReplyTitle}</p>
+            <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#55706B]">
+              {copy.viewNextReplyBodies[cueKind]}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => onStartViewDraft(draft)}
+          disabled={disabled}
+          data-testid="together-view-next-reply-action"
+          aria-label={`${copy.viewNextReplyActions[cueKind]}: ${draft}`}
+          className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[17px] bg-[#0F766E] px-4 font-body text-[16px] font-bold text-white shadow-[0_10px_18px_rgba(15,118,110,0.14)] disabled:cursor-default disabled:opacity-60 sm:w-auto"
+        >
+          <Sparkles size={18} aria-hidden="true" />
+          {copy.viewNextReplyActions[cueKind]}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function planCollaborationActionForReply(reply: SocialRoomReply) {
+  const body = reply.body.trim();
+
+  for (const languageCopy of Object.values(copyByLanguage)) {
+    for (const action of planCollaborationActions) {
+      if (languageCopy.planSupportReplies[action] === body) {
+        return action;
+      }
+    }
+  }
+
+  return null;
+}
+
+function planSupportSummary(plan: SocialRoomPlan) {
+  const counts = Object.fromEntries(planCollaborationActions.map((action) => [action, 0])) as Record<PlanCollaborationAction, number>;
+
+  activePlanReplies(plan).forEach((reply) => {
+    const action = planCollaborationActionForReply(reply);
+    if (action) counts[action] += 1;
+  });
+
+  return {
+    counts,
+    total: planCollaborationActions.reduce((sum, action) => sum + counts[action], 0),
+  };
+}
+
+function PlanSupportSummary({
+  copy,
+  plan,
+  testId = "together-plan-helper-summary",
+  itemTestIdPrefix = "together-plan-helper",
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  plan: SocialRoomPlan;
+  testId?: string;
+  itemTestIdPrefix?: string;
+}) {
+  const summary = planSupportSummary(plan);
+
+  return (
+    <div
+      className="mt-3 rounded-[18px] border border-[#D7E8DB] bg-white px-3 py-3"
+      data-testid={testId}
+    >
+      <div className="flex items-start gap-2">
+        <HeartHandshake size={18} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.planSupportSummaryTitle}</p>
+          <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#55706B]">
+            {summary.total > 0 ? copy.planSupportSummaryBody : copy.planSupportSummaryEmpty}
+          </p>
+        </div>
+      </div>
+      <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {planCollaborationActions.map((action) => (
+          <div
+            key={action}
+            className="rounded-[15px] bg-[#F7FAF7] px-3 py-2 text-center font-body"
+            data-testid={`${itemTestIdPrefix}-${action}`}
+            aria-label={`${copy.planSupportActions[action]}: ${summary.counts[action]}`}
+          >
+            <dt className="text-[13px] font-bold leading-[1.2] text-[#55706B]">{copy.planSupportActions[action]}</dt>
+            <dd className="mt-1 text-[20px] font-black leading-none text-[#0F766E]">{summary.counts[action]}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
+function nextPlanHelperAction(plan: SocialRoomPlan) {
+  const summary = planSupportSummary(plan);
+  return planCollaborationActions.find((action) => summary.counts[action] === 0) ?? null;
+}
+
+function PlanHelperCue({
+  copy,
+  plan,
+  onChoose,
+  disabled = false,
+  testId = "together-plan-helper-cue",
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  plan: SocialRoomPlan;
+  onChoose: (action: PlanCollaborationAction) => void;
+  disabled?: boolean;
+  testId?: string;
+}) {
+  const summary = planSupportSummary(plan);
+  const nextAction = nextPlanHelperAction(plan);
+  const coveredLabels = planCollaborationActions
+    .filter((action) => summary.counts[action] > 0)
+    .map((action) => copy.planSupportActions[action]);
+  const nextActionLabel = nextAction ? copy.planSupportActions[nextAction] : null;
+
+  return (
+    <div
+      className="mt-3 rounded-[18px] border border-[#CFECE3] bg-[#F4FBF8] px-3 py-3"
+      data-testid={testId}
+    >
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-2">
+          <Sparkles size={18} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+          <div className="min-w-0">
+            <p className="font-body text-[16px] font-bold leading-[1.25] text-[#244D47]">
+              {nextActionLabel ? copy.planHelperCueTitle : copy.planHelperCueCoveredTitle}
+            </p>
+            <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#41655F]">
+              {nextActionLabel
+                ? copy.planHelperCueBody(nextActionLabel)
+                : copy.planHelperCueCoveredBody(coveredLabels)}
+            </p>
+            <p
+              className="mt-2 rounded-[13px] bg-white px-3 py-2 font-body text-[13px] font-bold leading-[1.3] text-[#315C55]"
+              data-testid={`${testId}-privacy`}
+            >
+              {copy.planHelperCuePrivate}
+            </p>
+          </div>
+        </div>
+        {nextAction && nextActionLabel && (
+          <button
+            type="button"
+            onClick={() => onChoose(nextAction)}
+            disabled={disabled}
+            data-testid={`${testId}-action`}
+            aria-label={`${copy.planHelperCueAction(nextActionLabel)}: ${copy.planSupportReplies[nextAction]}`}
+            className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[17px] bg-[#0F766E] px-4 font-body text-[16px] font-bold text-white shadow-[0_10px_18px_rgba(15,118,110,0.14)] disabled:cursor-default disabled:opacity-60 sm:w-auto"
+          >
+            <HeartHandshake size={18} aria-hidden="true" />
+            {copy.planHelperCueAction(nextActionLabel)}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function activityReadyDraftSignals(plan: SocialRoomPlan, copy: (typeof copyByLanguage)[SocialLanguage]) {
+  const signals: string[] = [];
+  const responseSummary = formatResponseSummary(plan, copy);
+  if (responseSummary !== copy.responseNone) {
+    signals.push(`${copy.roomSummaryLabels.interest}: ${responseSummary}`);
+  }
+
+  const comfortLabels = (plan.comfortNeeds ?? [])
+    .map((need) => copy.comfortNeedLabels[need])
+    .filter(Boolean);
+  if (comfortLabels.length) {
+    const visibleComfort = comfortLabels.slice(0, 3);
+    const hiddenComfortCount = Math.max(0, comfortLabels.length - visibleComfort.length);
+    signals.push(`${copy.roomSummaryLabels.comfort}: ${[
+      ...visibleComfort,
+      hiddenComfortCount > 0 ? copy.moreComfortNotes(hiddenComfortCount) : "",
+    ].filter(Boolean).join(", ")}`);
+  }
+
+  const helperSummary = planSupportSummary(plan);
+  const helperLabels = planCollaborationActions
+    .filter((action) => helperSummary.counts[action] > 0)
+    .map((action) => copy.planSupportActions[action]);
+  if (helperLabels.length) {
+    signals.push(`${copy.planSupportSummaryTitle}: ${helperLabels.join(", ")}`);
+  }
+
+  return signals;
+}
+
+function PlanReadinessBridge({
+  copy,
+  plan,
+  onAsk,
+  testId = "together-plan-readiness",
+  itemTestIdPrefix = "together-plan-readiness",
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  plan: SocialRoomPlan;
+  onAsk?: () => void;
+  testId?: string;
+  itemTestIdPrefix?: string;
+}) {
+  const helperSummary = planSupportSummary(plan);
+  const interestCount = plan.responseCounts.join + plan.responseCounts.maybe;
+  const hasComfort = (plan.comfortNeeds ?? []).length > 0;
+  const items: Array<{ id: PlanReadinessItemId; ready: boolean; text: string }> = [
+    {
+      id: "interest",
+      ready: interestCount > 0,
+      text: interestCount > 0 ? copy.planReadinessInterestReady(interestCount) : copy.planReadinessInterestWaiting,
+    },
+    {
+      id: "helper",
+      ready: helperSummary.total > 0,
+      text: helperSummary.total > 0 ? copy.planReadinessHelperReady(helperSummary.total) : copy.planReadinessHelperWaiting,
+    },
+    {
+      id: "comfort",
+      ready: hasComfort,
+      text: hasComfort ? copy.planReadinessComfortReady : copy.planReadinessComfortWaiting,
+    },
+    {
+      id: "vyva",
+      ready: true,
+      text: copy.planReadinessVyvaReady,
+    },
+  ];
+  const readyCount = items.filter((item) => item.ready).length;
+  const allReady = readyCount === items.length;
+
+  return (
+    <div
+      className="mt-3 rounded-[18px] border border-[#D7E8DB] bg-[#FFFDF8] px-3 py-3"
+      data-testid={testId}
+    >
+      <div className="flex items-start gap-2">
+        <Sparkles size={18} className="mt-0.5 shrink-0 text-[#B45309]" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.planReadinessTitle}</p>
+          <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#55706B]">
+            {copy.planReadinessBody(readyCount, items.length)}
+          </p>
+        </div>
+      </div>
+      <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+        {items.map((item) => {
+          const Icon = item.ready ? Check : planReadinessIcons[item.id];
+          return (
+            <li
+              key={item.id}
+              className={`grid min-h-[58px] grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-[15px] px-3 py-2 font-body text-[14px] font-bold leading-[1.3] ${
+                item.ready ? "bg-white text-[#315C55]" : "bg-[#FFF8E8] text-[#6B4F13]"
+              }`}
+              data-testid={`${itemTestIdPrefix}-${item.id}`}
+            >
+              <Icon
+                size={17}
+                className={`shrink-0 ${item.ready ? "text-[#0F766E]" : "text-[#B45309]"}`}
+                aria-hidden="true"
+              />
+              <span className="min-w-0 break-words">{item.text}</span>
+            </li>
+          );
+        })}
+      </ul>
+      {allReady && onAsk && (
+        <button
+          type="button"
+          onClick={onAsk}
+          data-testid={`${testId}-action`}
+          className="mt-3 inline-flex min-h-[50px] w-full items-center justify-center gap-2 rounded-[16px] bg-[#0F766E] px-4 font-body text-[15px] font-bold text-white shadow-[0_10px_18px_rgba(15,118,110,0.12)] sm:w-auto"
+        >
+          <MessageCircle size={17} aria-hidden="true" />
+          {copy.activityReadyAction}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function isPlanReadyForVyva(plan: SocialRoomPlan) {
+  const kind = plan.kind ?? defaultPlanKind;
+  const interestCount = plan.responseCounts.join + plan.responseCounts.maybe;
+  return (
+    kind === "plan"
+    && plan.status === "active"
+    && interestCount > 0
+    && (plan.comfortNeeds ?? []).length > 0
+    && planSupportSummary(plan).total > 0
+  );
+}
+
+function shouldShowSharedPlanReadiness(plan: SocialRoomPlan) {
+  const kind = plan.kind ?? defaultPlanKind;
+  const interestCount = plan.responseCounts.join + plan.responseCounts.maybe;
+  return (
+    kind === "plan"
+    && (
+      interestCount > 0
+      || (plan.comfortNeeds ?? []).length > 0
+      || planSupportSummary(plan).total > 0
+    )
+  );
+}
+
+function ActivityReadyBridge({
+  copy,
+  plan,
+  notification,
+  onAsk,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  plan: SocialRoomPlan;
+  notification?: SocialRoomPulse["notifications"][number] | null;
+  onAsk: () => void;
+}) {
+  const signals = activityReadyDraftSignals(plan, copy);
+
+  return (
+    <section
+      className="mt-3 rounded-[22px] border border-[#BDE2D8] bg-[#F4FBF8] px-4 py-4"
+      data-testid="together-activity-ready"
+      aria-label={copy.activityReadyTitle}
+    >
+      <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)]">
+        <div className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-white text-[#0F766E] shadow-[0_8px_16px_rgba(15,118,110,0.08)]">
           <Sparkles size={21} aria-hidden="true" />
         </div>
         <div className="min-w-0">
-          <p className="font-body text-[18px] font-bold leading-tight text-[#244D47]">{copy.planLoopTitle}</p>
-          <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#55706B]">{copy.planLoopBody}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="font-body text-[18px] font-bold leading-[1.2] text-[#244D47]">{copy.activityReadyTitle}</h2>
+            <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 font-body text-[12px] font-bold text-[#0F766E]">
+              <ShieldCheck size={13} aria-hidden="true" />
+              {copy.activityReadyPrivate}
+            </span>
+          </div>
+          <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]">
+            {notification?.body || copy.activityReadyBody(plan.title)}
+          </p>
+          {signals.length > 0 && (
+            <div
+              className="mt-3 rounded-[18px] border border-[#CFECE3] bg-white px-3 py-3"
+              data-testid="together-activity-ready-signals"
+            >
+              <p className="font-body text-[14px] font-bold text-[#244D47]">{copy.activityReadySignalsTitle}</p>
+              <ul className="mt-2 grid gap-2">
+                {signals.map((signal) => (
+                  <li
+                    key={signal}
+                    className="grid grid-cols-[auto_minmax(0,1fr)] gap-2 rounded-[14px] bg-[#F7FAF7] px-3 py-2 font-body text-[14px] font-bold leading-[1.3] text-[#315C55]"
+                  >
+                    <Check size={16} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+                    <span className="min-w-0 break-words">{signal}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <div
+            className="mt-3 rounded-[18px] border border-[#CFECE3] bg-white px-3 py-3"
+            data-testid="together-activity-ready-prep"
+          >
+            <p className="font-body text-[14px] font-bold text-[#244D47]">{copy.activityReadyPrepTitle}</p>
+            <ul className="mt-2 grid gap-2">
+              {copy.activityReadyPrepItems.map((item) => (
+                <li
+                  key={item}
+                  className="grid grid-cols-[auto_minmax(0,1fr)] gap-2 rounded-[14px] bg-[#F7FAF7] px-3 py-2 font-body text-[14px] font-bold leading-[1.3] text-[#315C55]"
+                >
+                  <ShieldCheck size={16} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+                  <span className="min-w-0 break-words">{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <button
+            type="button"
+            onClick={onAsk}
+            data-testid="together-activity-ready-action"
+            className="mt-3 inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[17px] bg-[#0F766E] px-4 font-body text-[16px] font-bold text-white shadow-[0_12px_22px_rgba(15,118,110,0.14)] sm:w-auto"
+          >
+            <MessageCircle size={18} aria-hidden="true" />
+            {copy.activityReadyAction}
+          </button>
         </div>
       </div>
+    </section>
+  );
+}
 
-      <p className="mt-3 font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#55706B]">
-        {copy.planLoopStatusLabel}
-      </p>
-      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
-        {steps.map((step, index) => {
-          const isDone = index <= activeIndex;
-          const stepClassName = `min-h-[42px] rounded-[15px] px-2 py-2 text-center font-body text-[13px] font-bold leading-tight ${
-            isDone ? "bg-[#0F766E] text-white" : "bg-white text-[#55706B]"
-          }`;
-          const action = step.action;
-          if (action) {
-            return (
-              <button
-                key={step.label}
-                type="button"
-                onClick={() => onAction(plan, action)}
-                disabled={isBusy}
-                className={`${stepClassName} disabled:opacity-55`}
-                data-testid={`together-plan-loop-step-${plan.key}-${index}`}
-              >
-                {step.label}
-              </button>
-            );
-          }
-          return (
-            <span
-              key={step.label}
-              className={stepClassName}
-              data-testid={`together-plan-loop-step-${plan.key}-${index}`}
-            >
-              {step.label}
+function VoteReadyBridge({
+  copy,
+  question,
+  notification,
+  disabled,
+  onAsk,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  question: SocialRoomPlan;
+  notification?: SocialRoomPulse["notifications"][number] | null;
+  disabled: boolean;
+  onAsk: () => void;
+}) {
+  return (
+    <section
+      className="mt-4 rounded-[22px] border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-4"
+      data-testid="together-vote-ready"
+      aria-label={copy.voteReadyTitle}
+    >
+      <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)]">
+        <div className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-white text-[#2563EB] shadow-[0_8px_16px_rgba(37,99,235,0.08)]">
+          <Vote size={21} aria-hidden="true" />
+        </div>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="font-body text-[18px] font-bold leading-[1.2] text-[#1E3A8A]">{copy.voteReadyTitle}</h2>
+            <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 font-body text-[12px] font-bold text-[#1E40AF]">
+              <ShieldCheck size={13} aria-hidden="true" />
+              {copy.voteReadyPrivate}
             </span>
+          </div>
+          <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#3E526A]">
+            {notification?.body || copy.voteReadyBody(question.title)}
+          </p>
+          <button
+            type="button"
+            onClick={onAsk}
+            disabled={disabled}
+            data-testid="together-vote-ready-action"
+            className="mt-3 inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[17px] bg-[#1E40AF] px-4 font-body text-[16px] font-bold text-white shadow-[0_12px_22px_rgba(30,64,175,0.14)] disabled:cursor-default disabled:opacity-60 sm:w-auto"
+          >
+            <MessageCircle size={18} aria-hidden="true" />
+            {copy.voteReadyAction}
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function IssuePollOutcomeCue({
+  copy,
+  poll,
+  questionKey,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  poll: SocialRoomPulse["activePoll"];
+  questionKey: string;
+}) {
+  const leaders = getPollLeaders(poll);
+  if (!leaders.length) return null;
+
+  const body = leaders.length > 1
+    ? copy.issuePollOutcomeTie(leaders.map((option) => option.label))
+    : copy.issuePollOutcomeBody(leaders[0].label);
+  const leaderIds = new Set(leaders.map((option) => option.id));
+  const hasDifferentVotes = leaders.length > 1
+    || poll.options.some((option) => option.votes > 0 && !leaderIds.has(option.id));
+  const reassurance = hasDifferentVotes
+    ? copy.issuePollOutcomeOtherViews
+    : poll.status === "active"
+    ? copy.issuePollOutcomeOpen
+    : null;
+
+  return (
+    <div
+      className="mt-2 rounded-[15px] bg-white px-3 py-2"
+      data-testid={`together-issue-poll-outcome-${questionKey}`}
+    >
+      <div className="flex items-start gap-2">
+        <Sparkles size={16} className="mt-0.5 shrink-0 text-[#2563EB]" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="font-body text-[14px] font-bold leading-[1.25] text-[#1E3A8A]">{copy.issuePollOutcomeTitle}</p>
+          <p className="mt-0.5 font-body text-[13px] font-bold leading-[1.3] text-[#3E526A]">{body}</p>
+          {reassurance && (
+            <p
+              className="mt-1 rounded-[12px] bg-[#EFF6FF] px-2.5 py-1.5 font-body text-[13px] font-bold leading-[1.3] text-[#1E3A8A]"
+              data-testid={`together-issue-poll-outcome-reassurance-${questionKey}`}
+            >
+              {reassurance}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function IssueReadinessCue({
+  copy,
+  question,
+  issuePoll,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  question: SocialRoomPlan;
+  issuePoll?: SocialRoomPulse["activePoll"] | null;
+}) {
+  const state = issuePoll && issuePoll.totalVotes > 0
+    ? "summary"
+    : planResponseTotal(question) > 0
+    ? "vote"
+    : "gathering";
+  const body = state === "summary"
+    ? copy.issueReadinessBodies.summary(issuePollSignal(issuePoll))
+    : copy.issueReadinessBodies[state];
+
+  return (
+    <div
+      className="mt-3 rounded-[16px] border border-[#BFDBFE] bg-[#EFF6FF] px-3 py-3"
+      data-testid={`together-issue-readiness-${question.key}`}
+    >
+      <div className="flex items-start gap-2">
+        <Sparkles size={17} className="mt-0.5 shrink-0 text-[#2563EB]" aria-hidden="true" />
+        <div className="min-w-0">
+          <p
+            className="font-body text-[15px] font-bold leading-[1.25] text-[#1E3A8A]"
+            data-testid={`together-issue-readiness-state-${question.key}`}
+          >
+            {copy.issueReadinessTitles[state]}
+          </p>
+          <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#3E526A]">{body}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VoteImpactPanel({
+  copy,
+  pulse,
+  leadingPollOption,
+  tiedPollLabels,
+  topComfortLabels,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  pulse: SocialRoomPulse;
+  leadingPollOption: SocialRoomPulse["activePoll"]["options"][number] | null;
+  tiedPollLabels: string[];
+  topComfortLabels: string[];
+}) {
+  const myVoteLabel = pulse.activePoll.options.find((option) => option.id === pulse.activePoll.myVote)?.label ?? null;
+  const body = tiedPollLabels.length > 1
+    ? copy.pollImpactTie(tiedPollLabels)
+    : leadingPollOption?.id === "views"
+    ? copy.pollImpactViews
+    : leadingPollOption
+    ? copy.pollImpactLeading(leadingPollOption.label, topComfortLabels)
+    : copy.pollImpactWaiting;
+
+  return (
+    <div
+      className="mt-3 rounded-[18px] border border-[#C7DDF8] bg-[#F8FBFF] px-4 py-3"
+      data-testid="together-vote-impact"
+    >
+      <div className="flex items-start gap-2">
+        <Sparkles size={18} className="mt-0.5 shrink-0 text-[#2563EB]" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="font-body text-[16px] font-bold text-[#1E3A8A]">{copy.pollImpactTitle}</p>
+          <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#3E526A]">{body}</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <p
+              className="grid min-h-[42px] grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-[14px] bg-white px-3 py-2 font-body text-[14px] font-bold leading-[1.25] text-[#1E3A8A]"
+              data-testid="together-vote-impact-choice"
+            >
+              <Vote size={16} className="shrink-0 text-[#2563EB]" aria-hidden="true" />
+              <span className="min-w-0 break-words">
+                {myVoteLabel ? copy.pollImpactYourVote(myVoteLabel) : copy.pollImpactNoVote}
+              </span>
+            </p>
+            <p
+              className="grid min-h-[42px] grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-[14px] bg-white px-3 py-2 font-body text-[14px] font-bold leading-[1.25] text-[#1E3A8A]"
+              data-testid="together-vote-impact-safety"
+            >
+              <ShieldCheck size={16} className="shrink-0 text-[#2563EB]" aria-hidden="true" />
+              <span className="min-w-0 break-words">{copy.pollImpactSafety}</span>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function roomVoteSignal(poll: SocialRoomPulse["activePoll"]): {
+  kind: RoomVoteSignalKind;
+  leader: SocialRoomPulse["activePoll"]["options"][number] | null;
+} {
+  if (poll.totalVotes <= 0) return { kind: "opening", leader: null };
+
+  const sortedOptions = [...poll.options].sort((first, second) => second.votes - first.votes);
+  const leader = sortedOptions[0] ?? null;
+  if (!leader || leader.votes <= 0) return { kind: "opening", leader: null };
+
+  const runnerUpVotes = sortedOptions[1]?.votes ?? 0;
+  const tiedLeaderCount = sortedOptions.filter((option) => option.votes === leader.votes).length;
+  if (tiedLeaderCount > 1 || poll.totalVotes < 3 || leader.votes - runnerUpVotes <= 1) {
+    return { kind: "close", leader };
+  }
+
+  return { kind: "clear", leader };
+}
+
+function RoomVoteSignalCue({
+  copy,
+  poll,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  poll: SocialRoomPulse["activePoll"];
+}) {
+  const signal = roomVoteSignal(poll);
+  const body = signal.kind === "clear" && signal.leader
+    ? `${copy.pollSignalBodies.clear} ${copy.pollSignalClearBody(signal.leader.label)}`
+    : copy.pollSignalBodies[signal.kind];
+
+  return (
+    <div
+      className="mt-3 rounded-[18px] border border-[#DBEAFE] bg-[#FAFCFF] px-4 py-3"
+      data-testid="together-vote-signal"
+    >
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2">
+        <Vote size={18} className="mt-0.5 shrink-0 text-[#2563EB]" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="font-body text-[16px] font-bold text-[#1E3A8A]">{copy.pollSignalTitle}</p>
+          <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#3E526A]">{body}</p>
+          <p
+            className="mt-2 rounded-[14px] bg-white px-3 py-2 font-body text-[14px] font-bold leading-[1.3] text-[#1E3A8A]"
+            data-testid="together-vote-signal-privacy"
+          >
+            {copy.pollSignalPrivacy}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RoomAtGlance({
+  copy,
+  roomUpdatesCount,
+  totalVotes,
+  planInterestCount,
+  comfortResponses,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  roomUpdatesCount: number;
+  totalVotes: number;
+  planInterestCount: number;
+  comfortResponses: number;
+}) {
+  const items = [
+    {
+      id: "updates",
+      icon: Bell,
+      text: roomUpdatesCount > 0 ? copy.roomAtGlanceUpdates(roomUpdatesCount) : copy.roomAtGlanceUpdatesClear,
+    },
+    {
+      id: "votes",
+      icon: Vote,
+      text: copy.roomAtGlanceVotes(totalVotes),
+    },
+    {
+      id: "interest",
+      icon: Users,
+      text: copy.roomAtGlancePlanInterest(planInterestCount),
+    },
+    {
+      id: "comfort",
+      icon: HeartHandshake,
+      text: copy.roomAtGlanceComfort(comfortResponses),
+    },
+  ];
+
+  return (
+    <section
+      className="mt-4 rounded-[22px] border border-[#E2EAD8] bg-[#FFFDF8] px-4 py-3"
+      data-testid="together-at-glance"
+      aria-label={copy.roomAtGlanceTitle}
+    >
+      <div className="flex items-center gap-2">
+        <Sparkles size={18} className="shrink-0 text-[#B45309]" aria-hidden="true" />
+        <p className="font-body text-[16px] font-bold text-[#6B4F13]">{copy.roomAtGlanceTitle}</p>
+      </div>
+      <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+        {items.map((item) => {
+          const Icon = item.icon;
+          return (
+            <li
+              key={item.id}
+              className="grid min-h-[52px] grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-[16px] bg-white/80 px-3 py-2 font-body text-[16px] font-bold leading-[1.25] text-[#315C55]"
+              data-testid={`together-at-glance-${item.id}`}
+            >
+              <Icon size={18} className="shrink-0 text-[#0F766E]" aria-hidden="true" />
+              <span className="min-w-0 break-words">{item.text}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+function RoomNotesPanel({
+  copy,
+  leadingPollOption,
+  tiedPollLabels,
+  topComfortLabels,
+  sharedViewCount,
+  activityReadyPlan,
+  voteReadyQuestion,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  leadingPollOption: SocialRoomPulse["activePoll"]["options"][number] | null;
+  tiedPollLabels: string[];
+  topComfortLabels: string[];
+  sharedViewCount: number;
+  activityReadyPlan: SocialRoomPlan | null;
+  voteReadyQuestion: SocialRoomPlan | null;
+}) {
+  const voteNote = tiedPollLabels.length > 1
+    ? copy.roomNotesVoteTie(tiedPollLabels)
+    : leadingPollOption
+      ? copy.roomNotesVoteKnown(leadingPollOption.label)
+      : copy.roomNotesVoteWaiting;
+  const comfortNote = topComfortLabels.length > 0
+    ? copy.roomNotesComfortKnown(topComfortLabels)
+    : copy.roomNotesComfortWaiting;
+  const viewsNote = sharedViewCount > 0
+    ? copy.roomNotesViewsKnown(sharedViewCount)
+    : copy.roomNotesViewsWaiting;
+  const openItems = [
+    !leadingPollOption ? copy.roomNotesOpenItems.vote : "",
+    topComfortLabels.length === 0 ? copy.roomNotesOpenItems.comfort : "",
+    sharedViewCount === 0 ? copy.roomNotesOpenItems.views : "",
+    !activityReadyPlan ? copy.roomNotesOpenItems.activity : "",
+  ].filter(Boolean);
+  const nextText = activityReadyPlan
+    ? copy.roomNotesNextActivity(activityReadyPlan.title)
+    : voteReadyQuestion
+      ? copy.roomNotesNextVote(voteReadyQuestion.title)
+      : sharedViewCount > 0
+        ? copy.roomNotesNextViews(sharedViewCount)
+        : copy.roomNotesNextStarter;
+  const sections: Array<{ id: RoomNoteId; details: string[] }> = [
+    {
+      id: "known",
+      details: [voteNote, comfortNote, viewsNote],
+    },
+    {
+      id: "open",
+      details: openItems.length ? openItems : [copy.roomNotesOpenReady],
+    },
+    {
+      id: "next",
+      details: [nextText],
+    },
+  ];
+
+  return (
+    <section
+      className="mt-3 rounded-[22px] border border-[#D7E8DB] bg-white px-4 py-3"
+      data-testid="together-room-notes"
+      aria-label={copy.roomNotesTitle}
+    >
+      <div className="flex items-start gap-2">
+        <MessageCircle size={18} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.roomNotesTitle}</p>
+          <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#55706B]">{copy.roomNotesBody}</p>
+        </div>
+      </div>
+      <div className="mt-3 grid gap-2">
+        {sections.map((section) => {
+          const Icon = roomNoteIcons[section.id];
+          return (
+            <div
+              key={section.id}
+              className="grid min-h-[58px] grid-cols-[auto_minmax(0,1fr)] gap-2 rounded-[16px] bg-[#F7FAF7] px-3 py-2"
+              data-testid={`together-room-notes-${section.id}`}
+            >
+              <Icon size={17} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="font-body text-[13px] font-bold leading-[1.2] text-[#41655F]">{copy.roomNotesLabels[section.id]}</p>
+                <p className="mt-1 break-words font-body text-[15px] font-bold leading-[1.3] text-[#244D47]">
+                  {section.details.join(" ")}
+                </p>
+              </div>
+            </div>
           );
         })}
       </div>
+      <p className="mt-3 rounded-[14px] bg-[#F4FBF8] px-3 py-2 font-body text-[14px] font-bold leading-[1.3] text-[#41655F]">
+        {copy.roomNotesPrivacy}
+      </p>
+    </section>
+  );
+}
 
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        {planLoopActions.map((action) => (
+function MySafeChoices({
+  copy,
+  pulse,
+  visibility,
+  isQuietPaused,
+  onQuietPauseToggle,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  pulse: SocialRoomPulse;
+  visibility: NonNullable<SocialRoomPulse["visibility"]>;
+  isQuietPaused: boolean;
+  onQuietPauseToggle: () => void;
+}) {
+  const voteChoice = mySafeVoteChoice(pulse, copy);
+  const helperChoice = mySafeHelperChoice(pulse, copy);
+  const comfortLabels = pulse.comfortCheck.myComfortNeeds.map((need) => copy.comfortNeedLabels[need]).filter(Boolean);
+  const planChoice = pulse.featuredPlan.myResponse === "join"
+    ? copy.mySafeChoicePlanJoin
+    : pulse.featuredPlan.myResponse === "maybe"
+    ? copy.mySafeChoicePlanMaybe
+    : copy.mySafeChoicePlanNone;
+  const items: Array<{ id: MySafeChoiceId; value: string }> = [
+    {
+      id: "plan",
+      value: planChoice,
+    },
+    {
+      id: "vote",
+      value: voteChoice,
+    },
+    {
+      id: "comfort",
+      value: comfortLabels.length ? comfortLabels.join(" | ") : copy.mySafeChoiceComfortNone,
+    },
+    {
+      id: "help",
+      value: helperChoice,
+    },
+  ];
+
+  return (
+    <section
+      className="mt-3 rounded-[22px] border border-[#D7E8DB] bg-white px-4 py-3"
+      data-testid="together-my-safe-choices"
+      aria-label={copy.mySafeChoicesTitle}
+    >
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <ShieldCheck size={18} className="shrink-0 text-[#0F766E]" aria-hidden="true" />
+            <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.mySafeChoicesTitle}</p>
+          </div>
+          <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#55706B]">{copy.mySafeChoicesBody}</p>
+        </div>
+        <p className="rounded-[14px] bg-[#F4FBF8] px-3 py-2 font-body text-[13px] font-bold leading-[1.25] text-[#0F766E]">
+          {copy.mySafeChoicesPrivate}
+        </p>
+      </div>
+      <dl className="mt-3 grid gap-2 sm:grid-cols-4">
+        {items.map((item) => {
+          const Icon = mySafeChoiceIcons[item.id];
+          return (
+            <div
+              key={item.id}
+              className="grid min-h-[58px] grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-[16px] bg-[#F7FAF7] px-3 py-2"
+              data-testid={`together-my-safe-choice-${item.id}`}
+            >
+              <Icon size={17} className="shrink-0 text-[#0F766E]" aria-hidden="true" />
+              <div className="min-w-0">
+                <dt className="font-body text-[13px] font-bold leading-[1.2] text-[#55706B]">{copy.mySafeChoiceLabels[item.id]}</dt>
+                <dd className="mt-0.5 break-words font-body text-[15px] font-bold leading-[1.25] text-[#315C55]">{item.value}</dd>
+              </div>
+            </div>
+          );
+        })}
+      </dl>
+      <div className="mt-3 border-t border-[#D7E8DB] pt-3" data-testid="together-visibility-promise">
+        <div className="flex items-start gap-2">
+          <ShieldCheck size={18} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+          <div className="min-w-0">
+            <p className="font-body text-[15px] font-bold leading-[1.25] text-[#244D47]">{visibility.title}</p>
+            <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#55706B]">{visibility.body}</p>
+          </div>
+        </div>
+        <ul className="mt-3 grid gap-2">
+          {visibility.items.slice(0, 3).map((item) => {
+            const Icon = visibilityIcons[item.id] ?? ShieldCheck;
+            return (
+              <li
+                key={item.id}
+                className="grid min-h-[54px] grid-cols-[auto_minmax(0,1fr)] gap-2 rounded-[15px] bg-[#F7FAF7] px-3 py-2"
+                data-testid={`together-visibility-${item.id}`}
+              >
+                <Icon size={17} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+                <div className="min-w-0">
+                  <p className="font-body text-[14px] font-bold leading-[1.2] text-[#244D47]">{item.title}</p>
+                  <p className="mt-1 break-words font-body text-[13px] font-bold leading-[1.3] text-[#55706B]">{item.body}</p>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        {isQuietPaused ? (
+          <p
+            className="rounded-[14px] bg-[#F4FBF8] px-3 py-2 font-body text-[14px] font-bold leading-[1.3] text-[#41655F]"
+            data-testid="together-quiet-pause-note"
+          >
+            {copy.mySafePauseNote}
+          </p>
+        ) : (
+          <span aria-hidden="true" />
+        )}
+        <button
+          type="button"
+          onClick={onQuietPauseToggle}
+          aria-pressed={isQuietPaused}
+          data-testid="together-quiet-pause"
+          className={`inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border px-4 font-body text-[15px] font-bold ${
+            isQuietPaused
+              ? "border-[#0F766E] bg-[#EAF8F4] text-[#0F766E]"
+              : "border-[#D7E8DB] bg-white text-[#315C55]"
+          }`}
+        >
+          <Pause size={17} aria-hidden="true" />
+          {isQuietPaused ? copy.mySafePauseActiveAction : copy.mySafePauseAction}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function ParticipationPathPanel({
+  copy,
+  disabled = false,
+  onVote,
+  onView,
+  onActivity,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  disabled?: boolean;
+  onVote: () => void;
+  onView: () => void;
+  onActivity: () => void;
+}) {
+  const paths: Array<{ id: ParticipationPathId; onAction: () => void }> = [
+    { id: "vote", onAction: onVote },
+    { id: "view", onAction: onView },
+    { id: "activity", onAction: onActivity },
+  ];
+
+  return (
+    <section
+      className="mt-3 rounded-[22px] border border-[#D7E8DB] bg-[#FFFDF8] px-4 py-3"
+      data-testid="together-participation-path"
+      aria-label={copy.participationPathTitle}
+    >
+      <div className="flex items-start gap-2">
+        <Sparkles size={18} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.participationPathTitle}</p>
+          <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#55706B]">{copy.participationPathBody}</p>
+        </div>
+      </div>
+      <div className="mt-3 grid gap-2">
+        {paths.map((path) => {
+          const Icon = participationPathIcons[path.id];
+          return (
+            <button
+              key={path.id}
+              type="button"
+              onClick={path.onAction}
+              disabled={disabled}
+              data-testid={`together-path-${path.id}`}
+              className="grid min-h-[74px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[17px] border border-[#CFECE3] bg-white px-3 py-3 text-left font-body font-bold text-[#0F766E] disabled:cursor-default disabled:opacity-60"
+            >
+              <Icon size={20} className="shrink-0" aria-hidden="true" />
+              <span className="min-w-0">
+                <span className="block text-[16px] leading-tight text-[#244D47]">{copy.participationPathLabels[path.id]}</span>
+                <span className="mt-1 block text-[14px] leading-[1.3] text-[#55706B]">{copy.participationPathBodies[path.id]}</span>
+              </span>
+              <span className="shrink-0 rounded-[14px] bg-[#F4FBF8] px-3 py-2 text-[13px] leading-tight text-[#0F766E]">
+                {copy.participationPathActions[path.id]}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <p className="mt-3 rounded-[14px] bg-white px-3 py-2 font-body text-[14px] font-bold leading-[1.3] text-[#41655F]">
+        {copy.participationPathPrivacy}
+      </p>
+    </section>
+  );
+}
+
+function RoomTrustCue({
+  copy,
+  disabled = false,
+  onAsk,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  disabled?: boolean;
+  onAsk: () => void;
+}) {
+  const items: RoomTrustItemId[] = ["privacy", "kindness", "contact"];
+
+  return (
+    <section
+      className="mt-3 rounded-[22px] border border-[#CFECE3] bg-[#F7FCFA] px-4 py-3"
+      data-testid="together-room-trust"
+      aria-label={copy.roomTrustTitle}
+    >
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+        <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-2">
+          <ShieldCheck size={19} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+          <div className="min-w-0">
+            <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.roomTrustTitle}</p>
+            <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#55706B]">{copy.roomTrustBody}</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onAsk}
+          disabled={disabled}
+          data-testid="together-room-trust-action"
+          className="inline-flex min-h-[50px] w-full items-center justify-center gap-2 rounded-[16px] bg-[#0F766E] px-4 font-body text-[15px] font-bold text-white shadow-[0_10px_18px_rgba(15,118,110,0.12)] disabled:cursor-default disabled:opacity-60 sm:w-auto"
+        >
+          <MessageCircle size={17} aria-hidden="true" />
+          {copy.roomTrustAction}
+        </button>
+      </div>
+      <ul className="mt-3 grid gap-2">
+        {items.map((item) => {
+          const Icon = roomTrustIcons[item];
+          return (
+            <li
+              key={item}
+              className="grid min-h-[52px] grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-[15px] bg-white px-3 py-2 font-body text-[14px] font-bold leading-[1.3] text-[#315C55]"
+              data-testid={`together-room-trust-${item}`}
+            >
+              <Icon size={17} className="shrink-0 text-[#0F766E]" aria-hidden="true" />
+              <span className="min-w-0 break-words">{copy.roomTrustItems[item]}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+function NextGentleStepCue({
+  copy,
+  stepId,
+  onAction,
+  onExplain,
+  disabled = false,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  stepId: NextGentleStepId;
+  onAction: () => void;
+  onExplain: () => void;
+  disabled?: boolean;
+}) {
+  const Icon = nextGentleStepIcons[stepId];
+  const step = copy.nextGentleSteps[stepId];
+
+  return (
+    <section
+      className="mt-3 rounded-[22px] border border-[#CFECE3] bg-white px-4 py-3"
+      data-testid="together-next-step-cue"
+      aria-label={copy.nextGentleStepLabel}
+    >
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-3">
+          <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] bg-[#EAF8F4] text-[#0F766E]">
+            <Icon size={22} aria-hidden="true" />
+          </div>
+          <div className="min-w-0">
+            <p className="font-body text-[14px] font-bold uppercase tracking-[0.08em] text-[#0F766E]">{copy.nextGentleStepLabel}</p>
+            <h2 className="mt-1 font-body text-[19px] font-bold leading-[1.2] text-[#244D47]">{step.title}</h2>
+            <p className="mt-1 font-body text-[16px] font-bold leading-[1.35] text-[#55706B]">{step.body}</p>
+          </div>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-[auto_auto]">
+          <button
+            type="button"
+            onClick={onAction}
+            disabled={disabled}
+            data-testid={`together-next-step-${stepId}`}
+            className="inline-flex min-h-[54px] w-full items-center justify-center gap-2 rounded-[17px] bg-[#0F766E] px-4 font-body text-[17px] font-bold text-white shadow-[0_12px_22px_rgba(15,118,110,0.14)] disabled:cursor-default disabled:opacity-60 sm:w-auto"
+          >
+            <Icon size={18} aria-hidden="true" />
+            {step.action}
+          </button>
+          <button
+            type="button"
+            onClick={onExplain}
+            disabled={disabled}
+            data-testid="together-next-step-explain"
+            className="inline-flex min-h-[54px] w-full items-center justify-center gap-2 rounded-[17px] border border-[#CFECE3] bg-white px-4 font-body text-[16px] font-bold text-[#0F766E] disabled:cursor-default disabled:opacity-60 sm:w-auto"
+          >
+            <MessageCircle size={18} aria-hidden="true" />
+            {copy.nextGentleStepExplainAction}
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ViewCircle({
+  copy,
+  viewVoteOption,
+  sharedViews,
+  onAddView,
+  onStartViewDraft,
+  onAskViewRecap,
+  onAskViewVote,
+  onReviewView,
+  onReplyToView,
+  isReviewingView,
+  isReviewedView,
+  isReplyingView,
+  disabled = false,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  viewVoteOption: SocialRoomPulse["activePoll"]["options"][number] | null;
+  sharedViews: SocialRoomPlan[];
+  onAddView: () => void;
+  onStartViewDraft: (draft: string) => void;
+  onAskViewRecap: () => void;
+  onAskViewVote: () => void;
+  onReviewView: (view: SocialRoomPlan) => void;
+  onReplyToView: (view: SocialRoomPlan, tone: SocialRoomReplyTone) => void;
+  isReviewingView: (view: SocialRoomPlan) => boolean;
+  isReviewedView: (view: SocialRoomPlan) => boolean;
+  isReplyingView: (view: SocialRoomPlan) => boolean;
+  disabled?: boolean;
+}) {
+  const visibleViews = sharedViews.slice(0, 2);
+
+  return (
+    <section
+      className="mt-4 rounded-[22px] border border-[#CFECE3] bg-[#F7FCFA] px-4 py-4"
+      data-testid="together-view-circle"
+      aria-label={copy.viewCircleTitle}
+    >
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <MessageCircle size={19} className="shrink-0 text-[#0F766E]" aria-hidden="true" />
+            <h3 className="font-body text-[19px] font-bold text-[#244D47]">{copy.viewCircleTitle}</h3>
+          </div>
+          <p className="mt-1 font-body text-[16px] font-bold leading-[1.35] text-[#55706B]">{copy.viewCircleBody}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onAddView}
+          disabled={disabled}
+          data-testid="together-view-circle-add"
+          className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[17px] bg-[#0F766E] px-4 font-body text-[16px] font-bold text-white shadow-[0_10px_18px_rgba(15,118,110,0.14)] disabled:cursor-default disabled:opacity-60 sm:w-auto"
+        >
+          <Sparkles size={18} aria-hidden="true" />
+          {copy.viewCircleAdd}
+        </button>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {viewVoteOption && (
+          <p
+            className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 font-body text-[15px] font-bold text-[#1E3A8A]"
+            data-testid="together-view-circle-votes"
+          >
+            <Vote size={16} aria-hidden="true" />
+            {copy.viewCircleVote(viewVoteOption.label, viewVoteOption.votes)}
+          </p>
+        )}
+        <p
+          className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 font-body text-[15px] font-bold text-[#315C55]"
+          data-testid="together-view-circle-count"
+        >
+          <Users size={16} aria-hidden="true" />
+          {copy.viewCircleCount(sharedViews.length)}
+        </p>
+      </div>
+      <ViewBalanceSummary copy={copy} sharedViews={sharedViews} />
+      <ViewCommonGroundCue copy={copy} sharedViews={sharedViews} />
+      <ViewSafetyCue
+        copy={copy}
+        onStart={() => onStartViewDraft(copy.viewSafetyDraft)}
+        disabled={disabled}
+      />
+      <ViewNextReplyCue
+        copy={copy}
+        sharedViews={sharedViews}
+        onStartViewDraft={onStartViewDraft}
+        disabled={disabled}
+      />
+      {sharedViews.length > 0 && (
+        <>
+          <div
+            className="mt-3 grid gap-3 rounded-[18px] border border-[#D7E8DB] bg-white px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+            data-testid="together-view-recap-bridge"
+          >
+            <div className="min-w-0">
+              <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.viewRecapTitle}</p>
+              <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#55706B]">
+                {copy.viewRecapBody(sharedViews.length)}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onAskViewRecap}
+              disabled={disabled}
+              data-testid="together-view-recap-action"
+              className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[17px] bg-[#244D47] px-4 font-body text-[16px] font-bold text-white disabled:cursor-default disabled:opacity-60 sm:w-auto"
+            >
+              <Sparkles size={18} aria-hidden="true" />
+              {copy.viewRecapAction}
+            </button>
+          </div>
+          <div
+            className="mt-3 grid gap-3 rounded-[18px] border border-[#BFDBFE] bg-[#EFF6FF] px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+            data-testid="together-view-vote-bridge"
+          >
+            <div className="min-w-0">
+              <p className="font-body text-[16px] font-bold text-[#1E3A8A]">{copy.viewVoteBridgeTitle}</p>
+              <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#3E526A]">
+                {copy.viewVoteBridgeBody(sharedViews.length)}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onAskViewVote}
+              disabled={disabled}
+              data-testid="together-view-vote-action"
+              className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[17px] bg-[#1E40AF] px-4 font-body text-[16px] font-bold text-white disabled:cursor-default disabled:opacity-60 sm:w-auto"
+            >
+              <Vote size={18} aria-hidden="true" />
+              {copy.viewVoteBridgeAction}
+            </button>
+          </div>
+        </>
+      )}
+      <div
+        className="mt-3 rounded-[18px] border border-[#D7E8DB] bg-white px-3 py-3"
+        data-testid="together-view-circle-starters"
+      >
+        <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.viewPromptTitle}</p>
+        <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#55706B]">{copy.viewPromptBody}</p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2" role="group" aria-label={copy.viewPromptTitle}>
+          {viewPromptActions.map((action) => {
+            const draft = copy.viewPromptDrafts[action];
+            return (
+              <button
+                key={action}
+                type="button"
+                onClick={() => onStartViewDraft(draft)}
+                disabled={disabled}
+                aria-label={`${copy.viewPromptLabels[action]}: ${draft}`}
+                data-testid={`together-view-circle-starter-${action}`}
+                className="min-h-[76px] rounded-[16px] border border-[#CFECE3] bg-[#F7FAF7] px-3 py-3 text-left font-body font-bold text-[#0F766E] disabled:cursor-default disabled:opacity-60"
+              >
+                <span className="block text-[15px] leading-tight">{copy.viewPromptLabels[action]}</span>
+                <span className="mt-1 block text-[13px] leading-[1.25] text-[#55706B]">{draft}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      {visibleViews.length > 0 ? (
+        <div className="mt-3 grid gap-2">
+          {visibleViews.map((view) => {
+            const isReporting = isReviewingView(view);
+            const isReported = isReviewedView(view);
+            const isReplying = isReplyingView(view);
+            return (
+              <article
+                key={view.key}
+                className="rounded-[17px] bg-white px-3 py-3 font-body text-[#41655F]"
+                data-testid={`together-view-circle-item-${view.key}`}
+              >
+                <p className="text-[13px] font-bold uppercase text-[#0F766E]">{copy.viewCircleLatest}</p>
+                <p className="mt-1 text-[17px] font-bold leading-[1.25] text-[#244D47]">{view.title}</p>
+                {view.body && (
+                  <p className="mt-1 text-[15px] font-bold leading-[1.35] text-[#55706B]">{view.body}</p>
+                )}
+                <div
+                  className="mt-3 rounded-[15px] border border-[#D7E8DB] bg-[#F7FAF7] px-3 py-3"
+                  data-testid={`together-view-circle-replies-${view.key}`}
+                >
+                  <p className="font-body text-[14px] font-bold text-[#244D47]">{copy.gentleReplies}</p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                    {viewCircleReplyTones.map((tone) => (
+                      <button
+                        key={tone}
+                        type="button"
+                        onClick={() => onReplyToView(view, tone)}
+                        disabled={disabled || isReplying}
+                        data-testid={`together-view-circle-reply-${tone}-${view.key}`}
+                        aria-label={`${copy.replyActions[tone]}: ${copy.replyBodies[tone]}`}
+                        className="min-h-[64px] rounded-[15px] border border-[#CFECE3] bg-white px-3 py-2 text-left font-body font-bold text-[#0F766E] disabled:cursor-default disabled:opacity-60"
+                      >
+                        <span className="block text-[14px] leading-tight">{copy.replyActions[tone]}</span>
+                        <span className="mt-1 block text-[12px] leading-[1.25] text-[#55706B]">{copy.replyBodies[tone]}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onReviewView(view)}
+                  disabled={isReporting || isReported}
+                  aria-label={`${copy.reviewItem}: ${view.title}`}
+                  data-testid={`together-view-circle-review-${view.key}`}
+                  className="mt-3 inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[15px] border border-[#CFECE3] bg-[#F7FAF7] px-3 font-body text-[15px] font-bold text-[#0F766E] disabled:cursor-default disabled:opacity-60 sm:w-auto"
+                >
+                  <ShieldCheck size={17} aria-hidden="true" />
+                  {isReporting ? copy.helpSending : isReported ? copy.reviewItemSent : copy.reviewItem}
+                </button>
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <p
+          className="mt-3 rounded-[17px] bg-white px-3 py-3 font-body text-[16px] font-bold leading-[1.35] text-[#55706B]"
+          data-testid="together-view-circle-empty"
+        >
+          {copy.viewCircleEmpty}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function IssueVoteQueue({
+  copy,
+  questions,
+  issuePolls,
+  disabled,
+  onRespond,
+  onIssueVote,
+  onShapeVote,
+  onReview,
+  isResponding,
+  isVotingPoll,
+  isReviewingItem,
+  isReviewedItem,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  questions: SocialRoomPlan[];
+  issuePolls: SocialRoomPulse["issuePolls"];
+  disabled: boolean;
+  onRespond: (question: SocialRoomPlan, response: SocialRoomPlanResponseValue) => void;
+  onIssueVote: (pollKey: string, optionId: string) => void;
+  onShapeVote: (question: SocialRoomPlan, issuePoll?: SocialRoomPulse["activePoll"] | null) => void;
+  onReview: (question: SocialRoomPlan) => void;
+  isResponding: (question: SocialRoomPlan) => boolean;
+  isVotingPoll: (pollKey: string) => boolean;
+  isReviewingItem: (question: SocialRoomPlan) => boolean;
+  isReviewedItem: (question: SocialRoomPlan) => boolean;
+}) {
+  const visibleQuestions = questions.slice(0, 2);
+  if (!visibleQuestions.length) return null;
+
+  return (
+    <div
+      className="mt-4 rounded-[20px] border border-[#DBEAFE] bg-[#FAFCFF] px-4 py-4"
+      data-testid="together-issue-vote-queue"
+    >
+      <div className="flex items-start gap-2">
+        <Vote size={19} className="mt-0.5 shrink-0 text-[#2563EB]" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="font-body text-[18px] font-bold text-[#1E3A8A]">{copy.issueQueueTitle}</p>
+          <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#3E526A]">{copy.issueQueueBody}</p>
+        </div>
+      </div>
+      <div className="mt-3 grid gap-3">
+        {visibleQuestions.map((question) => {
+          const responding = isResponding(question);
+          const reviewing = isReviewingItem(question);
+          const reviewed = isReviewedItem(question);
+          const issuePoll = (issuePolls ?? []).find((poll) => poll.sourcePlanKey === question.key);
+          const votingPoll = issuePoll ? isVotingPoll(issuePoll.key) : false;
+          const shapeVoteLabel = issuePoll ? copy.issueQueueUseAction : copy.issueQueueAction;
+          return (
+            <article
+              key={question.key}
+              className="rounded-[18px] border border-[#D8E7F6] bg-white px-3 py-3"
+              data-testid={`together-issue-vote-${question.key}`}
+            >
+              <p className="font-body text-[13px] font-bold uppercase text-[#2563EB]">{copy.issueQueueBadge}</p>
+              <p className="mt-1 font-body text-[18px] font-bold leading-[1.22] text-[#203A5C]">{question.title}</p>
+              {question.body && (
+                <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#53677D]">{question.body}</p>
+              )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <p
+                  className="inline-flex items-center gap-2 rounded-full bg-[#F4FBF8] px-3 py-1.5 font-body text-[14px] font-bold text-[#315C55]"
+                  data-testid={`together-issue-response-summary-${question.key}`}
+                >
+                  <Users size={15} aria-hidden="true" />
+                  {formatResponseSummary(question, copy)}
+                </p>
+                <p className="inline-flex w-full items-start gap-2 rounded-[14px] bg-[#EFF6FF] px-3 py-2 font-body text-[14px] font-bold leading-[1.3] text-[#1E3A8A] sm:w-auto sm:items-center sm:rounded-full sm:py-1.5">
+                  <ShieldCheck size={15} className="mt-0.5 shrink-0 sm:mt-0" aria-hidden="true" />
+                  {copy.issueQueuePrivacy}
+                </p>
+              </div>
+              {issuePoll && (
+                <div
+                  className="mt-3 rounded-[16px] border border-[#BFDBFE] bg-[#F8FBFF] px-3 py-3"
+                  data-testid={`together-issue-mini-poll-${question.key}`}
+                >
+                  <div className="flex items-start gap-2">
+                    <Vote size={17} className="mt-0.5 shrink-0 text-[#2563EB]" aria-hidden="true" />
+                    <div className="min-w-0">
+                      <p className="font-body text-[15px] font-bold leading-[1.25] text-[#1E3A8A]">{copy.issuePollTitle}</p>
+                      <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#3E526A]">{copy.issuePollBody}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid gap-2">
+                    {issuePoll.options.map((option) => {
+                      const selected = issuePoll.myVote === option.id;
+                      const percent = issuePoll.totalVotes > 0 ? Math.round((option.votes / issuePoll.totalVotes) * 100) : 0;
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={() => onIssueVote(issuePoll.key, option.id)}
+                          disabled={disabled || votingPoll || issuePoll.status !== "active"}
+                          aria-pressed={selected}
+                          data-testid={`together-issue-poll-${question.key}-${option.id}`}
+                          className={`grid min-h-[52px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[15px] border px-3 text-left font-body text-[15px] font-bold disabled:cursor-default disabled:opacity-60 ${
+                            selected
+                              ? "border-[#2563EB] bg-[#EFF6FF] text-[#1E3A8A]"
+                              : "border-[#D8E7F6] bg-white text-[#203A5C]"
+                          }`}
+                        >
+                          <span className="min-w-0 break-words leading-tight">{option.label}</span>
+                          <span className="shrink-0 text-right">
+                            <span className="block text-[15px] leading-none">{percent}%</span>
+                            <span className="mt-1 block text-[12px] leading-tight opacity-80">
+                              {selected ? copy.pollYourChoice : copy.pollVotes(option.votes)}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-2 font-body text-[13px] font-bold leading-[1.3] text-[#3E526A]">{copy.issuePollPrivacy}</p>
+                  <IssuePollOutcomeCue copy={copy} poll={issuePoll} questionKey={question.key} />
+                </div>
+              )}
+              <IssueReadinessCue copy={copy} question={question} issuePoll={issuePoll} />
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => onRespond(question, "join")}
+                  disabled={disabled || responding}
+                  aria-pressed={question.myResponse === "join"}
+                  data-testid={`together-issue-support-${question.key}`}
+                  className={`min-h-[52px] rounded-[16px] px-3 font-body text-[16px] font-bold disabled:cursor-default disabled:opacity-60 ${
+                    question.myResponse === "join"
+                      ? "bg-[#2563EB] text-white"
+                      : "bg-[#EFF6FF] text-[#1E40AF]"
+                  }`}
+                >
+                  {copy.sharedActions.question.primary}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onRespond(question, "maybe")}
+                  disabled={disabled || responding}
+                  aria-pressed={question.myResponse === "maybe"}
+                  data-testid={`together-issue-follow-${question.key}`}
+                  className={`min-h-[52px] rounded-[16px] border px-3 font-body text-[16px] font-bold disabled:cursor-default disabled:opacity-60 ${
+                    question.myResponse === "maybe"
+                      ? "border-[#2563EB] bg-white text-[#1E40AF]"
+                      : "border-[#BFDBFE] bg-white text-[#1E40AF]"
+                  }`}
+                >
+                  {copy.sharedActions.question.secondary}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onShapeVote(question, issuePoll)}
+                  disabled={disabled}
+                  data-testid={`together-issue-shape-vote-${question.key}`}
+                  className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[16px] bg-[#1E40AF] px-3 font-body text-[16px] font-bold text-white disabled:cursor-default disabled:opacity-60"
+                >
+                  <Vote size={18} aria-hidden="true" />
+                  {shapeVoteLabel}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onReview(question)}
+                  disabled={disabled || reviewing || reviewed}
+                  data-testid={`together-issue-review-${question.key}`}
+                  className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[16px] border border-[#D8E7E2] bg-[#F7FAF7] px-3 font-body text-[15px] font-bold text-[#315C55] disabled:cursor-default disabled:opacity-60"
+                >
+                  <ShieldCheck size={17} aria-hidden="true" />
+                  {reviewing ? copy.helpSending : reviewed ? copy.reviewItemSent : copy.reviewItem}
+                </button>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function IssueVoteShortcutPanel({
+  copy,
+  disabled,
+  onStart,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  disabled: boolean;
+  onStart: (action: IssuePromptAction) => void;
+}) {
+  return (
+    <div
+      className="mt-4 rounded-[18px] border border-[#DBEAFE] bg-[#FAFCFF] px-4 py-3"
+      data-testid="together-issue-shortcuts"
+    >
+      <div className="flex items-start gap-2">
+        <Vote size={18} className="mt-0.5 shrink-0 text-[#2563EB]" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="font-body text-[16px] font-bold text-[#1E3A8A]">{copy.issuePromptTitle}</p>
+          <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#3E526A]">{copy.issuePromptBody}</p>
+        </div>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        {issuePromptActions.map((action) => (
           <button
             key={action}
             type="button"
-            onClick={() => onAction(plan, action)}
-            disabled={isBusy}
-            data-testid={`together-plan-loop-${action}-${plan.key}`}
-            className="min-h-[48px] rounded-[16px] border border-[#CFECE3] bg-white px-3 font-body text-[15px] font-bold text-[#0F766E] disabled:opacity-55"
+            onClick={() => onStart(action)}
+            disabled={disabled}
+            data-testid={`together-issue-shortcut-${action}`}
+            aria-label={`${copy.issuePromptLabels[action]}: ${copy.issuePromptDrafts[action]}`}
+            className="min-h-[58px] rounded-[15px] border border-[#BFDBFE] bg-white px-3 py-2 text-left font-body font-bold text-[#1E40AF] disabled:cursor-default disabled:opacity-60"
           >
-            {copy.planLoopActions[action]}
+            <span className="block text-[15px] leading-tight">{copy.issuePromptLabels[action]}</span>
+            <span className="mt-1 block text-[13px] leading-[1.25] text-[#3E526A]">{copy.issuePromptDrafts[action]}</span>
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+function RoomDecisionSummary({
+  copy,
+  leadingPollOption,
+  tiedPollLabels,
+  topComfortLabels,
+  planInterestCount,
+  sharedViewCount,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  leadingPollOption: SocialRoomPulse["activePoll"]["options"][number] | null;
+  tiedPollLabels: string[];
+  topComfortLabels: string[];
+  planInterestCount: number;
+  sharedViewCount: number;
+}) {
+  const hasTie = tiedPollLabels.length > 1;
+  const hasDirection = Boolean(leadingPollOption || hasTie || topComfortLabels.length > 0);
+  const isViewDirection = leadingPollOption?.id === "views";
+  const rows = [
+    {
+      id: "vote",
+      label: copy.roomSummaryLabels.vote,
+      value: leadingPollOption?.label ?? (hasTie ? copy.roomSummaryVoteTie(tiedPollLabels) : copy.roomSummaryVoteWaiting),
+    },
+    {
+      id: "comfort",
+      label: copy.roomSummaryLabels.comfort,
+      value: topComfortLabels.length ? topComfortLabels.join(" | ") : copy.roomSummaryComfortWaiting,
+    },
+    {
+      id: "interest",
+      label: copy.roomSummaryLabels.interest,
+      value: copy.roomAtGlancePlanInterest(planInterestCount),
+    },
+    {
+      id: "views",
+      label: copy.roomSummaryLabels.views,
+      value: copy.viewCircleCount(sharedViewCount),
+    },
+    {
+      id: "next",
+      label: copy.roomSummaryLabels.next,
+      value: hasDirection
+        ? hasTie
+          ? copy.roomSummaryNextTie
+          : isViewDirection
+          ? copy.roomSummaryNextView
+          : copy.roomSummaryNextReady(leadingPollOption?.label ?? null, topComfortLabels)
+        : copy.roomSummaryNextWaiting,
+    },
+  ];
+
+  return (
+    <div className="mt-3 rounded-[16px] bg-white px-3 py-3" data-testid="together-room-summary">
+      <p className="font-body text-[15px] font-bold text-[#0F766E]">{copy.roomSummaryTitle}</p>
+      <dl className="mt-2 grid gap-2">
+        {rows.map((row) => (
+          <div key={row.id} className="grid gap-1 sm:grid-cols-[96px_minmax(0,1fr)]" data-testid={`together-room-summary-${row.id}`}>
+            <dt className="font-body text-[14px] font-bold leading-[1.2] text-[#55706B]">{row.label}</dt>
+            <dd className="font-body text-[16px] font-bold leading-[1.3] text-[#315C55]">{row.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
+function RoomCommonGroundCue({
+  copy,
+  topComfortLabels,
+  planInterestCount,
+  sharedViewCount,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  topComfortLabels: string[];
+  planInterestCount: number;
+  sharedViewCount: number;
+}) {
+  const items = [
+    {
+      id: "vote",
+      icon: Vote,
+      text: copy.roomCommonGroundVote,
+    },
+    {
+      id: "comfort",
+      icon: HeartHandshake,
+      text: topComfortLabels.length > 0
+        ? copy.roomCommonGroundComfortReady(topComfortLabels)
+        : copy.roomCommonGroundComfortWaiting,
+    },
+    {
+      id: "interest",
+      icon: Users,
+      text: planInterestCount > 0
+        ? copy.roomCommonGroundInterestReady(planInterestCount)
+        : copy.roomCommonGroundInterestWaiting,
+    },
+    {
+      id: "views",
+      icon: MessageCircle,
+      text: sharedViewCount > 0
+        ? copy.roomCommonGroundViewsReady(sharedViewCount)
+        : copy.roomCommonGroundViewsWaiting,
+    },
+  ];
+
+  return (
+    <div
+      className="mt-3 rounded-[18px] border border-[#D7E8DB] bg-white px-4 py-3"
+      data-testid="together-common-ground"
+    >
+      <div className="flex items-start gap-2">
+        <ShieldCheck size={19} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.roomCommonGroundTitle}</p>
+          <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]">{copy.roomCommonGroundBody}</p>
+        </div>
+      </div>
+      <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+        {items.map((item) => {
+          const Icon = item.icon;
+          return (
+            <li
+              key={item.id}
+              className="grid min-h-[52px] grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-[15px] bg-[#F4FBF8] px-3 py-2 font-body text-[15px] font-bold leading-[1.3] text-[#315C55]"
+              data-testid={`together-common-ground-${item.id}`}
+            >
+              <Icon size={17} className="shrink-0 text-[#0F766E]" aria-hidden="true" />
+              <span className="min-w-0 break-words">{item.text}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function RoomOutcomeBridge({
+  copy,
+  leadingPollOption,
+  tiedPollLabels,
+  topComfortLabels,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  leadingPollOption: SocialRoomPulse["activePoll"]["options"][number] | null;
+  tiedPollLabels: string[];
+  topComfortLabels: string[];
+}) {
+  const hasTie = tiedPollLabels.length > 1;
+  const context: RoomOutcomeContext = hasTie
+    ? "tie"
+    : leadingPollOption?.id === "views"
+    ? "views"
+    : leadingPollOption
+    ? "plan"
+    : topComfortLabels.length > 0
+    ? "comfort"
+    : "waiting";
+  const choice = hasTie ? tiedPollLabels.join(" | ") : leadingPollOption?.label ?? null;
+  const steps: RoomOutcomeStepId[] = ["private", "shape", "safety"];
+
+  return (
+    <div
+      className="mt-3 rounded-[18px] border border-[#D7E8DB] bg-[#FFFDF8] px-4 py-3"
+      data-testid="together-room-outcome-bridge"
+    >
+      <div className="grid gap-2 sm:grid-cols-[auto_minmax(0,1fr)]">
+        <div className="flex h-10 w-10 items-center justify-center rounded-[15px] bg-[#EAF8F4] text-[#0F766E]">
+          <Sparkles size={20} aria-hidden="true" />
+        </div>
+        <div className="min-w-0">
+          <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.roomOutcomeTitle}</p>
+          <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]">
+            {copy.roomOutcomeBody(choice, topComfortLabels, context)}
+          </p>
+        </div>
+      </div>
+      <ul className="mt-3 grid gap-2 sm:grid-cols-3">
+        {steps.map((step) => {
+          const Icon = roomOutcomeStepIcons[step];
+          return (
+            <li
+              key={step}
+              className="grid min-h-[58px] grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-[15px] bg-white px-3 py-2 font-body text-[14px] font-bold leading-[1.3] text-[#315C55]"
+              data-testid={`together-room-outcome-${step}`}
+            >
+              <Icon size={17} className="shrink-0 text-[#0F766E]" aria-hidden="true" />
+              <span className="min-w-0 break-words">{copy.roomOutcomeSteps[step]}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function RoomReadinessChecklist({
+  copy,
+  leadingPollOption,
+  topComfortLabels,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  leadingPollOption: SocialRoomPulse["activePoll"]["options"][number] | null;
+  topComfortLabels: string[];
+}) {
+  const items = [
+    {
+      id: "vote",
+      label: copy.roomReadinessLabels.vote,
+      ready: Boolean(leadingPollOption),
+      text: leadingPollOption ? copy.roomReadinessVoteReady : copy.roomReadinessVoteWaiting,
+    },
+    {
+      id: "comfort",
+      label: copy.roomReadinessLabels.comfort,
+      ready: topComfortLabels.length > 0,
+      text: topComfortLabels.length > 0 ? copy.roomReadinessComfortReady : copy.roomReadinessComfortWaiting,
+    },
+    {
+      id: "consent",
+      label: copy.roomReadinessLabels.consent,
+      ready: true,
+      text: copy.roomReadinessConsentReady,
+    },
+  ];
+
+  return (
+    <div className="mt-3 rounded-[18px] border border-[#CFECE3] bg-white px-4 py-3" data-testid="together-room-readiness">
+      <div className="flex items-start gap-2">
+        <ShieldCheck size={19} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.roomReadinessTitle}</p>
+          <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]">{copy.roomReadinessBody}</p>
+        </div>
+      </div>
+      <div className="mt-3 grid gap-2">
+        {items.map((item) => {
+          const Icon = item.ready ? Check : Clock;
+          return (
+            <div
+              key={item.id}
+              className={`grid grid-cols-[auto_minmax(0,1fr)] gap-2 rounded-[15px] px-3 py-2 ${
+                item.ready ? "bg-[#F4FBF8] text-[#315C55]" : "bg-[#FFF8E8] text-[#6B4F13]"
+              }`}
+              data-testid={`together-room-readiness-${item.id}`}
+            >
+              <Icon
+                size={17}
+                className={`mt-0.5 shrink-0 ${item.ready ? "text-[#0F766E]" : "text-[#B45309]"}`}
+                aria-hidden="true"
+              />
+              <div className="min-w-0">
+                <p className="font-body text-[14px] font-bold leading-[1.2]">{item.label}</p>
+                <p className="mt-0.5 font-body text-[15px] font-bold leading-[1.3]">{item.text}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function RoomUsefulNextSteps({
+  copy,
+  activityReadyPlan,
+  voteReadyQuestion,
+  sharedViewCount,
+  disabled,
+  onPrepareActivity,
+  onMakeVote,
+  onRecapViews,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  activityReadyPlan: SocialRoomPlan | null;
+  voteReadyQuestion: SocialRoomPlan | null;
+  sharedViewCount: number;
+  disabled: boolean;
+  onPrepareActivity: (plan: SocialRoomPlan) => void;
+  onMakeVote: (question: SocialRoomPlan) => void;
+  onRecapViews: () => void;
+}) {
+  const items: Array<{
+    id: RoomUsefulStepId;
+    ready: boolean;
+    text: string;
+    onAction?: () => void;
+  }> = [
+    {
+      id: "activity",
+      ready: Boolean(activityReadyPlan),
+      text: activityReadyPlan ? copy.roomUsefulReady.activity : copy.roomUsefulWaiting.activity,
+      onAction: activityReadyPlan ? () => onPrepareActivity(activityReadyPlan) : undefined,
+    },
+    {
+      id: "vote",
+      ready: Boolean(voteReadyQuestion),
+      text: voteReadyQuestion ? copy.roomUsefulReady.vote : copy.roomUsefulWaiting.vote,
+      onAction: voteReadyQuestion ? () => onMakeVote(voteReadyQuestion) : undefined,
+    },
+    {
+      id: "views",
+      ready: sharedViewCount > 0,
+      text: sharedViewCount > 0 ? copy.roomUsefulReady.views : copy.roomUsefulWaiting.views,
+      onAction: sharedViewCount > 0 ? onRecapViews : undefined,
+    },
+  ];
+
+  return (
+    <div
+      className="mt-3 rounded-[18px] border border-[#D7E8DB] bg-white px-4 py-3"
+      data-testid="together-useful-next-steps"
+    >
+      <div className="grid gap-2 sm:grid-cols-[auto_minmax(0,1fr)]">
+        <div className="flex h-10 w-10 items-center justify-center rounded-[15px] bg-[#F4FBF8] text-[#0F766E]">
+          <Sparkles size={19} aria-hidden="true" />
+        </div>
+        <div className="min-w-0">
+          <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.roomUsefulTitle}</p>
+          <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]">{copy.roomUsefulBody}</p>
+        </div>
+      </div>
+      <div className="mt-3 grid gap-2">
+        {items.map((item) => {
+          const Icon = item.ready ? Check : Clock;
+          const TopicIcon = roomUsefulStepIcons[item.id];
+          return (
+            <div
+              key={item.id}
+              className={`grid gap-3 rounded-[15px] px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center ${
+                item.ready ? "bg-[#F4FBF8] text-[#315C55]" : "bg-[#FFF8E8] text-[#6B4F13]"
+              }`}
+              data-testid={`together-useful-next-${item.id}`}
+            >
+              <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-2">
+                <TopicIcon size={17} className={`mt-0.5 shrink-0 ${item.ready ? "text-[#0F766E]" : "text-[#B45309]"}`} aria-hidden="true" />
+                <div className="min-w-0">
+                  <p className="font-body text-[14px] font-bold leading-[1.2]">{copy.roomUsefulLabels[item.id]}</p>
+                  <p className="mt-0.5 font-body text-[15px] font-bold leading-[1.3]">{item.text}</p>
+                </div>
+              </div>
+              {item.ready && item.onAction && (
+                <button
+                  type="button"
+                  onClick={item.onAction}
+                  disabled={disabled}
+                  data-testid={`together-useful-next-${item.id}-action`}
+                  className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-[15px] bg-[#0F766E] px-4 font-body text-[15px] font-bold text-white shadow-[0_10px_18px_rgba(15,118,110,0.12)] disabled:cursor-default disabled:opacity-60 sm:w-auto"
+                >
+                  <Icon size={17} aria-hidden="true" />
+                  {copy.roomUsefulActions[item.id]}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-3 rounded-[14px] bg-[#F7FAF7] px-3 py-2 font-body text-[14px] font-bold leading-[1.3] text-[#55706B]">
+        {copy.roomUsefulPrivacy}
+      </p>
+    </div>
+  );
+}
+
+function buildLocalDecisionGuide(
+  copy: (typeof copyByLanguage)[SocialLanguage],
+  leadingPollOption: SocialRoomPulse["activePoll"]["options"][number] | null,
+  tiedPollLabels: string[],
+  topComfortLabels: string[],
+): SocialRoomDecisionGuide {
+  const hasTie = tiedPollLabels.length > 1;
+
+  if (!leadingPollOption && !hasTie && topComfortLabels.length === 0) {
+    return {
+      id: "waiting-for-signals",
+      title: copy.roomReadinessTitle,
+      body: copy.roomDirectionWaiting,
+      steps: [
+        copy.roomReadinessVoteWaiting,
+        copy.roomReadinessComfortWaiting,
+        copy.roomReadinessConsentReady,
+      ],
+      primaryActionLabel: copy.roomDirectionAction,
+      actionKind: "vote",
+    };
+  }
+
+  if (hasTie) {
+    return {
+      id: "waiting-for-clear-choice",
+      title: copy.roomReadinessTitle,
+      body: copy.roomDirectionTie(tiedPollLabels, topComfortLabels),
+      steps: [
+        copy.roomSummaryVoteTie(tiedPollLabels),
+        topComfortLabels.length > 0 ? copy.roomReadinessComfortReady : copy.roomReadinessComfortWaiting,
+        copy.roomReadinessConsentReady,
+      ],
+      primaryActionLabel: copy.roomRecapAction,
+      actionKind: "vote",
+    };
+  }
+
+  if (leadingPollOption?.id === "views") {
+    return {
+      id: "share-views-safely",
+      title: copy.roomReadinessTitle,
+      body: copy.roomSummaryNextView,
+      steps: [
+        copy.roomSummaryNextView,
+        copy.roomReadinessConsentReady,
+        copy.reviewItem,
+      ],
+      primaryActionLabel: copy.roomDirectionViewAction,
+      actionKind: "view",
+    };
+  }
+
+  return {
+    id: "shape-one-plan",
+    title: copy.roomReadinessTitle,
+    body: copy.roomDirectionBody(leadingPollOption?.label ?? null, topComfortLabels),
+    steps: [
+      leadingPollOption ? copy.roomReadinessVoteReady : copy.roomReadinessVoteWaiting,
+      topComfortLabels.length > 0 ? copy.roomReadinessComfortReady : copy.roomReadinessComfortWaiting,
+      copy.roomReadinessConsentReady,
+    ],
+    primaryActionLabel: copy.roomDirectionAction,
+    actionKind: "plan",
+  };
+}
+
+function DecisionGuide({
+  guide,
+  onStart,
+  recapLabel,
+  onRecap,
+}: {
+  guide: SocialRoomDecisionGuide;
+  onStart: () => void;
+  recapLabel?: string;
+  onRecap?: () => void;
+}) {
+  const showAction = Boolean(guide.primaryActionLabel && (guide.actionKind === "plan" || guide.actionKind === "view"));
+
+  return (
+    <div className="mt-4 border-t border-[#CFECE3] pt-4" data-testid="together-decision-guide">
+      <div className="flex items-start gap-2">
+        <Sparkles size={19} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="font-body text-[16px] font-bold text-[#244D47]">{guide.title}</p>
+          <p className="mt-1 font-body text-[16px] font-bold leading-[1.35] text-[#315C55]">{guide.body}</p>
+        </div>
+      </div>
+      {guide.steps.length > 0 && (
+        <ul className="mt-3 grid gap-2" data-testid="together-decision-guide-steps">
+          {guide.steps.map((step) => (
+            <li key={step} className="grid grid-cols-[auto_minmax(0,1fr)] gap-2 font-body text-[15px] font-bold leading-[1.3] text-[#41655F]">
+              <Check size={16} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+              <span>{step}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {(showAction || recapLabel) && (
+        <div className="mt-3 grid gap-2 sm:grid-cols-[auto_auto] sm:justify-start">
+          {showAction && (
+            <button
+              type="button"
+              onClick={onStart}
+              data-testid="together-use-room-direction"
+              className="inline-flex min-h-[54px] w-full items-center justify-center gap-2 rounded-[17px] bg-[#0F766E] px-4 font-body text-[17px] font-bold text-white shadow-[0_12px_22px_rgba(15,118,110,0.14)] sm:w-auto"
+            >
+              <Sparkles size={19} aria-hidden="true" />
+              {guide.primaryActionLabel}
+            </button>
+          )}
+          {recapLabel && onRecap && (
+            <button
+              type="button"
+              onClick={onRecap}
+              data-testid="together-ask-recap"
+              className="inline-flex min-h-[54px] w-full items-center justify-center gap-2 rounded-[17px] border border-[#CFECE3] bg-white px-4 font-body text-[17px] font-bold text-[#0F766E] sm:w-auto"
+            >
+              <MessageCircle size={19} aria-hidden="true" />
+              {recapLabel}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -2148,25 +6012,136 @@ function ChoiceButtonGroup<T extends string>({
   );
 }
 
+function SafetyHelpPanel({
+  copy,
+  isSending,
+  onSend,
+  onCancel,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  isSending: boolean;
+  onSend: (choice: SafetyHelpChoice) => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      className="mt-3 rounded-[20px] border border-[#A9DCCE] bg-white px-3 py-3"
+      data-testid="together-safety-help-panel"
+    >
+      <p className="font-body text-[17px] font-bold text-[#244D47]">{copy.safetyHelpTitle}</p>
+      <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#55706B]">{copy.safetyHelpBody}</p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        {safetyHelpChoices.map((choice) => (
+          <button
+            key={choice}
+            type="button"
+            onClick={() => onSend(choice)}
+            disabled={isSending}
+            data-testid={`together-safety-choice-${choice}`}
+            aria-label={`${copy.safetyHelpChoiceLabels[choice]}: ${copy.safetyHelpChoiceBodies[choice]}`}
+            className="min-h-[76px] rounded-[17px] border border-[#CFECE3] bg-[#F7FAF7] px-3 py-3 text-left font-body font-bold text-[#0F766E] disabled:cursor-default disabled:opacity-60"
+          >
+            <span className="block text-[16px] leading-tight">{copy.safetyHelpChoiceLabels[choice]}</span>
+            <span className="mt-1 block text-[14px] leading-[1.3] text-[#55706B]">
+              {copy.safetyHelpChoiceBodies[choice]}
+            </span>
+          </button>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={onCancel}
+        disabled={isSending}
+        data-testid="together-safety-help-cancel"
+        className="mt-2 min-h-[44px] rounded-[15px] border border-[#D8E7E2] bg-white px-4 font-body text-[15px] font-bold text-[#315C55] disabled:cursor-default disabled:opacity-60"
+      >
+        {copy.cancel}
+      </button>
+    </div>
+  );
+}
+
+function SafetyHelpReceipt({
+  copy,
+  choice,
+}: {
+  copy: (typeof copyByLanguage)[SocialLanguage];
+  choice: SafetyHelpChoice;
+}) {
+  return (
+    <div
+      className="mt-3 rounded-[20px] border border-[#A9DCCE] bg-white px-3 py-3"
+      data-testid="together-safety-help-receipt"
+      role="status"
+    >
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2">
+        <ShieldCheck size={19} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="font-body text-[17px] font-bold text-[#244D47]">{copy.safetyHelpReceiptTitle}</p>
+          <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]">
+            {copy.safetyHelpReceiptBody(copy.safetyHelpChoiceLabels[choice])}
+          </p>
+        </div>
+      </div>
+      <ul className="mt-3 grid gap-2">
+        {copy.safetyHelpReceiptItems.map((item) => (
+          <li
+            key={item}
+            className="grid min-h-[42px] grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-[14px] bg-[#F4FBF8] px-3 py-2 font-body text-[14px] font-bold leading-[1.3] text-[#315C55]"
+          >
+            <Check size={16} className="shrink-0 text-[#0F766E]" aria-hidden="true" />
+            <span className="min-w-0 break-words">{item}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export default function TogetherRoomScreen({
   roomResponse,
   language,
-  composerLanguage = language,
   visitId,
   onBack,
 }: TogetherRoomScreenProps) {
-  const copy = roomCopyByLanguage[language] ?? roomCopyByLanguage.en;
-  const planCopy = planComposerCopyByLanguage[composerLanguage] ?? planComposerCopyByLanguage.en;
+  const copy = copyByLanguage[language];
   const { room } = roomResponse;
-  const [pulse, setPulse] = useState<SocialRoomPulse>(roomResponse.pulse ?? fallbackPulse(language));
+  const initialPulse = roomResponse.pulse ?? fallbackPulse(language);
+  const [pulse, setPulse] = useState<SocialRoomPulse>(initialPulse);
   const [proposalDraft, setProposalDraft] = useState("");
+  const proposalCharactersLeft = proposalDetailsMaxLength - proposalDraft.length;
+  const proposalHasProtectedDetails = hasProtectedProposalDetails(proposalDraft);
+  const proposalHasUnkindTone = hasUnkindProposalTone(proposalDraft);
+  const proposalDescriptionIds = [
+    proposalHasProtectedDetails ? "together-proposal-safety-warning" : "",
+    proposalHasUnkindTone ? "together-proposal-tone-warning" : "",
+    "together-proposal-length",
+  ].filter(Boolean).join(" ");
   const [showProposalComposer, setShowProposalComposer] = useState(false);
+  const [safetyHelpPanelAnchor, setSafetyHelpPanelAnchor] = useState<SafetyHelpPanelAnchor | null>(null);
+  const [lastSafetyHelpChoice, setLastSafetyHelpChoice] = useState<SafetyHelpChoice | null>(null);
+  const [lastSafetyHelpReceiptAnchor, setLastSafetyHelpReceiptAnchor] = useState<SafetyHelpPanelAnchor | null>(null);
   const [statusMessage, setStatusMessage] = useState("");
+  const [isQuietPaused, setIsQuietPaused] = useState(Boolean(initialPulse.safety.myQuietPausedAt));
+  const [isReadingComfortOn, setIsReadingComfortOn] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isSendingSafetyReport, setIsSendingSafetyReport] = useState(false);
+  const [isRefreshingPulse, setIsRefreshingPulse] = useState(false);
   const [isAcknowledgingAgreement, setIsAcknowledgingAgreement] = useState(false);
   const [isSavingComfortCheck, setIsSavingComfortCheck] = useState(false);
   const [markingUpdateId, setMarkingUpdateId] = useState<string | null>(null);
+  const [isMarkingAllUpdatesSeen, setIsMarkingAllUpdatesSeen] = useState(false);
   const [replyingPlanKey, setReplyingPlanKey] = useState<string | null>(null);
+  const [respondingPlanKeys, setRespondingPlanKeys] = useState<Set<string>>(() => new Set());
+  const [votingOptionId, setVotingOptionId] = useState<string | null>(null);
+  const [reportingItemIds, setReportingItemIds] = useState<Set<string>>(() => new Set());
+  const [reportedItemIds, setReportedItemIds] = useState<Set<string>>(() => new Set());
+  const planResponseLocks = useRef<Set<string>>(new Set());
+  const voteLock = useRef(false);
+  const itemReportLocks = useRef<Set<string>>(new Set());
+  const proposalSendLock = useRef(false);
+  const replySendLock = useRef(false);
+  const pulseRefreshLock = useRef(false);
   const [proposalLocationLabel, setProposalLocationLabel] = useState<ProposalLocationLabel>("online");
   const [selectedComfortNeeds, setSelectedComfortNeeds] = useState<SocialRoomComfortNeed[]>([]);
   const [proposalCategory, setProposalCategory] = useState<SocialRoomExperienceCategory>("outing");
@@ -2178,27 +6153,110 @@ export default function TogetherRoomScreen({
     const pulseMembers = pulse.memberPresence?.length ? pulse.memberPresence : roomResponse.members;
     return pulseMembers.slice(0, 3);
   }, [pulse.memberPresence, roomResponse.members]);
-  const postedExperiences = useMemo(
-    () => pulse.postedExperiences.filter((plan) => plan.status === "active").slice(0, 3),
+  const activePostedExperiences = useMemo(
+    () => pulse.postedExperiences.filter((plan) => plan.status === "active"),
     [pulse.postedExperiences],
   );
+  const postedExperiences = activePostedExperiences.slice(0, 3);
+  const issueQuestionPosts = activePostedExperiences.filter((plan) => (plan.kind ?? "plan") === "question");
+  const sharedViewPosts = activePostedExperiences.filter((plan) => (
+    (plan.kind ?? "plan") === "message" && !isHelloMessagePlan(plan, copy)
+  ));
   const roomUpdates = useMemo(
     () => pulse.notifications.filter((notification) => !notification.readAt).slice(0, 3),
     [pulse.notifications],
   );
+  const activityReadyNotification = useMemo(
+    () => (
+      pulse.notifications.find((notification) => notification.type === "activity_ready" && !notification.readAt)
+      ?? pulse.notifications.find((notification) => notification.type === "activity_ready")
+      ?? null
+    ),
+    [pulse.notifications],
+  );
+  const voteReadyNotification = useMemo(
+    () => (
+      pulse.notifications.find((notification) => notification.type === "vote_ready" && !notification.readAt)
+      ?? pulse.notifications.find((notification) => notification.type === "vote_ready")
+      ?? null
+    ),
+    [pulse.notifications],
+  );
   const featuredPlan = pulse.featuredPlan;
+  const activityReadyPlan = useMemo(() => {
+    const plans = roomPlansForActivity(pulse);
+    const notificationPlanKey = notificationMetadataString(activityReadyNotification, "planKey");
+    if (notificationPlanKey) {
+      return plans.find((plan) => plan.key === notificationPlanKey) ?? null;
+    }
+
+    const notificationBody = activityReadyNotification?.body ?? "";
+    if (notificationBody) {
+      return plans.find((plan) => (
+        plan.title && notificationBody.includes(`"${plan.title}"`)
+      )) ?? null;
+    }
+
+    return isPlanReadyForVyva(featuredPlan) ? featuredPlan : null;
+  }, [activityReadyNotification, featuredPlan, pulse]);
+  const voteReadyQuestion = useMemo(() => {
+    const supportedQuestions = issueQuestionPosts.filter((question) => (
+      question.status === "active" && planResponseTotal(question) > 0
+    ));
+    if (!supportedQuestions.length) return null;
+    const notificationPlanKey = notificationMetadataString(voteReadyNotification, "planKey");
+    if (notificationPlanKey) {
+      return supportedQuestions.find((question) => question.key === notificationPlanKey) ?? null;
+    }
+
+    const notificationBody = voteReadyNotification?.body ?? "";
+    if (!notificationBody) return supportedQuestions[0];
+    return supportedQuestions.find((question) => (
+      question.title && notificationBody.includes(`"${question.title}"`)
+    )) ?? supportedQuestions[0];
+  }, [issueQuestionPosts, voteReadyNotification]);
+  const unreadRoomUpdateCount = countUnreadRoomUpdates(pulse);
+  const roomUpdateRecapCount = Math.max(unreadRoomUpdateCount, roomUpdates.length);
+  const planInterestCount = getPlanInterestCount(pulse);
+  const roomVoteCount = getRoomVoteCount(pulse);
+  const showActivityReadyBridge = Boolean(activityReadyPlan);
+  const showVoteReadyBridge = Boolean(voteReadyNotification && voteReadyQuestion);
+  const featuredPlanReplies = activePlanReplies(featuredPlan);
   const hasJoined = featuredPlan.myResponse === "join";
   const hasMaybe = featuredPlan.myResponse === "maybe";
   const pollClosed = pulse.activePoll.status !== "active";
-  const leadingPollOption = getLeadingPollOption(pulse);
+  const pollDirection = getPollDirection(pulse);
+  const leadingPollOption = pollDirection.leadingOption;
+  const tiedPollOptions = pollDirection.tiedOptions;
+  const tiedPollLabels = tiedPollOptions.map((option) => option.label);
+  const viewVoteOption = pulse.activePoll.options.find((option) => option.id === "views") ?? null;
+  const tiedPollIncludesViews = tiedPollOptions.some((option) => option.id === "views");
+  const tiedPollChoiceLabel = tiedPollLabels.length > 1 ? tiedPollLabels.join(" | ") : null;
+  const roomChoiceLabel = leadingPollOption?.label ?? tiedPollChoiceLabel;
+  const showViewCircle = Boolean(
+    sharedViewPosts.length > 0
+    || pulse.activePoll.myVote === "views"
+    || leadingPollOption?.id === "views"
+    || tiedPollIncludesViews
+  );
+  const topComfortLabels = getTopComfortLabels(pulse);
+  const hasRoomSignals = Boolean(leadingPollOption || tiedPollOptions.length > 1 || topComfortLabels.length > 0);
+  const localDecisionGuide = useMemo(
+    () => buildLocalDecisionGuide(copy, leadingPollOption, tiedPollLabels, topComfortLabels),
+    [copy, leadingPollOption, tiedPollLabels, topComfortLabels],
+  );
+  const decisionGuide = useMemo(
+    () => ({
+      ...localDecisionGuide,
+      title: pulse.decisionGuide?.title ?? localDecisionGuide.title,
+    }),
+    [localDecisionGuide, pulse.decisionGuide?.title],
+  );
   const agreementTitle = pulse.safety.agreementTitle ?? copy.agreementTitle;
   const agreementLines = pulse.safety.agreementLines?.length ? pulse.safety.agreementLines : copy.agreementLines;
   const agreementAcknowledged = Boolean(pulse.safety.myAcknowledgedAt);
   const agreementButtonLabel = pulse.safety.acknowledgementLabel ?? copy.acknowledgementLabel;
-  const proposalReviewFlags = useMemo(
-    () => getComposerReviewFlags(proposalCategory, proposalDraft),
-    [proposalCategory, proposalDraft],
-  );
+  const visibilityPromise = pulse.visibility ?? fallbackVisibility(language);
 
   const postJson = async (url: string, body: Record<string, unknown>) => {
     const response = await apiFetch(url, {
@@ -2206,7 +6264,126 @@ export default function TogetherRoomScreen({
       body: JSON.stringify({ lang: language, visitId: visitId ?? undefined, ...body }),
     });
     if (!response.ok) return null;
-    return response.json() as Promise<{ pulse?: SocialRoomPulse }>;
+    return response.json() as Promise<SocialRoomPostResponse>;
+  };
+
+  const updateQuietPauseInPulse = (paused: boolean, quietPausedAt: string | null) => {
+    setPulse((current) => ({
+      ...current,
+      safety: {
+        ...current.safety,
+        myQuietPausedAt: paused ? quietPausedAt : null,
+      },
+    }));
+  };
+
+  const applyServerPulse = (nextPulse: SocialRoomPulse) => {
+    setPulse(nextPulse);
+    setIsQuietPaused(Boolean(nextPulse.safety.myQuietPausedAt));
+  };
+
+  const toggleQuietPause = async () => {
+    const next = !isQuietPaused;
+    const previous = isQuietPaused;
+    const quietPausedAt = next ? new Date().toISOString() : null;
+    setIsQuietPaused(next);
+    updateQuietPauseInPulse(next, quietPausedAt);
+    setStatusMessage(next ? copy.mySafePauseStatus : "");
+
+    try {
+      const result = await postJson(`/api/social/rooms/${room.slug}/quiet-pause`, { paused: next });
+      if (result?.pulse) {
+        applyServerPulse(result.pulse);
+      } else {
+        setIsQuietPaused(previous);
+        updateQuietPauseInPulse(previous, previous ? pulse.safety.myQuietPausedAt ?? new Date().toISOString() : null);
+        setStatusMessage(previous ? copy.mySafePauseStatus : "");
+      }
+    } catch {
+      setIsQuietPaused(previous);
+      updateQuietPauseInPulse(previous, previous ? pulse.safety.myQuietPausedAt ?? new Date().toISOString() : null);
+      setStatusMessage(previous ? copy.mySafePauseStatus : "");
+    }
+  };
+
+  const clearQuietPause = () => {
+    if (!isQuietPaused) return;
+
+    setIsQuietPaused(false);
+    updateQuietPauseInPulse(false, null);
+    void postJson(`/api/social/rooms/${room.slug}/quiet-pause`, { paused: false }).then((result) => {
+      if (result?.pulse) applyServerPulse(result.pulse);
+    }).catch(() => undefined);
+  };
+
+  const refreshRoomPulse = async () => {
+    if (pulseRefreshLock.current) return;
+
+    const previousPulse = pulse;
+    pulseRefreshLock.current = true;
+    setIsRefreshingPulse(true);
+    try {
+      const response = await apiFetch(`/api/social/rooms/${room.slug}/pulse?lang=${encodeURIComponent(language)}`);
+      if (!response.ok) {
+        setStatusMessage(copy.roomRefreshFailed);
+        return;
+      }
+      const result = await response.json() as SocialRoomPulseRefreshResponse;
+      if (result?.pulse) {
+        applyServerPulse(result.pulse);
+        setStatusMessage(describeRoomRefresh(previousPulse, result.pulse, copy));
+      } else {
+        setStatusMessage(copy.roomRefreshFailed);
+      }
+    } catch {
+      setStatusMessage(copy.roomRefreshFailed);
+    } finally {
+      pulseRefreshLock.current = false;
+      setIsRefreshingPulse(false);
+    }
+  };
+
+  const beginPlanResponse = (planKey: string) => {
+    if (planResponseLocks.current.has(planKey)) return false;
+
+    planResponseLocks.current.add(planKey);
+    setRespondingPlanKeys((current) => new Set(current).add(planKey));
+    return true;
+  };
+
+  const finishPlanResponse = (planKey: string) => {
+    planResponseLocks.current.delete(planKey);
+    setRespondingPlanKeys((current) => {
+      const next = new Set(current);
+      next.delete(planKey);
+      return next;
+    });
+  };
+
+  const beginPollVote = (optionId: string) => {
+    if (voteLock.current) return false;
+
+    voteLock.current = true;
+    setVotingOptionId(optionId);
+    return true;
+  };
+
+  const finishPollVote = () => {
+    voteLock.current = false;
+    setVotingOptionId(null);
+  };
+
+  const beginReplySend = (planKey: string) => {
+    if (replySendLock.current) return false;
+
+    replySendLock.current = true;
+    setReplyingPlanKey(planKey);
+    return true;
+  };
+
+  const finishReplySend = () => {
+    replySendLock.current = false;
+    setReplyingPlanKey(null);
   };
 
   const respondToPlan = async (
@@ -2214,51 +6391,101 @@ export default function TogetherRoomScreen({
     planKey = featuredPlan.key,
     successMessage?: string,
   ) => {
+    if (!beginPlanResponse(planKey)) return;
+
     const previous = pulse;
+    clearQuietPause();
     setPulse((current) => updatePlanResponse(current, planKey, response));
     setStatusMessage(successMessage ?? (response === "join" ? copy.joined : copy.maybeSaved));
 
-    const result = await postJson(`/api/social/rooms/${room.slug}/plans/${planKey}/respond`, { response });
-    if (result?.pulse) {
-      setPulse(result.pulse);
-    } else {
+    try {
+      const result = await postJson(`/api/social/rooms/${room.slug}/plans/${planKey}/respond`, { response });
+      if (result?.pulse) {
+        applyServerPulse(result.pulse);
+      } else {
+        setPulse(previous);
+        setStatusMessage(copy.postFailed);
+      }
+    } catch {
       setPulse(previous);
       setStatusMessage(copy.postFailed);
+    } finally {
+      finishPlanResponse(planKey);
     }
   };
 
   const vote = async (optionId: string) => {
-    if (pollClosed) return;
+    if (pollClosed || !beginPollVote(optionId)) return;
+
     const previous = pulse;
+    clearQuietPause();
     setPulse((current) => updatePollVote(current, optionId));
     setStatusMessage(copy.youVoted);
 
-    const result = await postJson(`/api/social/rooms/${room.slug}/polls/${pulse.activePoll.key}/vote`, { optionId });
-    if (result?.pulse) {
-      setPulse(result.pulse);
-    } else {
+    try {
+      const result = await postJson(`/api/social/rooms/${room.slug}/polls/${pulse.activePoll.key}/vote`, { optionId });
+      if (result?.pulse) {
+        applyServerPulse(result.pulse);
+      } else {
+        setPulse(previous);
+        setStatusMessage(copy.postFailed);
+      }
+    } catch {
       setPulse(previous);
       setStatusMessage(copy.postFailed);
+    } finally {
+      finishPollVote();
     }
   };
 
-  const saveComfortCheck = async (need: SocialRoomComfortNeed) => {
+  const voteIssuePoll = async (pollKey: string, optionId: string) => {
+    const issuePoll = (pulse.issuePolls ?? []).find((poll) => poll.key === pollKey);
+    if (!issuePoll || issuePoll.status !== "active" || !beginPollVote(`${pollKey}:${optionId}`)) return;
+
+    const previous = pulse;
+    clearQuietPause();
+    setPulse((current) => updateIssuePollVote(current, pollKey, optionId));
+    setStatusMessage(copy.youVoted);
+
+    try {
+      const result = await postJson(`/api/social/rooms/${room.slug}/polls/${pollKey}/vote`, { optionId });
+      if (result?.pulse) {
+        applyServerPulse(result.pulse);
+      } else {
+        setPulse(previous);
+        setStatusMessage(copy.postFailed);
+      }
+    } catch {
+      setPulse(previous);
+      setStatusMessage(copy.postFailed);
+    } finally {
+      finishPollVote();
+    }
+  };
+
+  const saveComfortCheck = async (
+    need: SocialRoomComfortNeed,
+    savedMessage = copy.comfortSaved,
+    removedMessage = copy.comfortSaved,
+  ) => {
     if (isSavingComfortCheck) return;
 
     const currentNeeds = pulse.comfortCheck.myComfortNeeds ?? [];
-    const nextNeeds = currentNeeds.includes(need)
+    const alreadySelected = currentNeeds.includes(need);
+    const nextNeeds = alreadySelected
       ? currentNeeds.filter((item) => item !== need)
       : normalizeComfortSelection([...currentNeeds, need]);
     const previous = pulse;
 
     setIsSavingComfortCheck(true);
+    clearQuietPause();
     setPulse((current) => updateComfortCheck(current, nextNeeds));
-    setStatusMessage("");
+    setStatusMessage(alreadySelected ? removedMessage : savedMessage);
 
     try {
       const result = await postJson(`/api/social/rooms/${room.slug}/comfort-check`, { comfortNeeds: nextNeeds });
       if (result?.pulse) {
-        setPulse(result.pulse);
+        applyServerPulse(result.pulse);
       } else {
         setPulse(previous);
         setStatusMessage(copy.postFailed);
@@ -2288,7 +6515,8 @@ export default function TogetherRoomScreen({
     try {
       const result = await postJson(`/api/social/rooms/${room.slug}/safety-acknowledgement`, {});
       if (result?.pulse) {
-        setPulse(result.pulse);
+        applyServerPulse(result.pulse);
+        setStatusMessage(result.pulse.safety.acknowledgedLabel ?? copy.acknowledgedLabel);
       } else {
         setPulse(previous);
         setStatusMessage(copy.acknowledgementFailed);
@@ -2303,6 +6531,28 @@ export default function TogetherRoomScreen({
 
   const [proposalKind, setProposalKind] = useState<SocialRoomPlanKind>(defaultPlanKind);
 
+  const resetProposalComposer = () => {
+    setProposalDraft("");
+    setShowProposalComposer(false);
+    setProposalKind(defaultPlanKind);
+    setProposalLocationLabel("online");
+    setSelectedComfortNeeds([]);
+    setProposalCategory("outing");
+    setProposalPreferredTime("flexible");
+    setProposalCostRange("discuss");
+    setProposalGroupSize("one_to_one");
+  };
+
+  const cancelProposalComposer = () => {
+    resetProposalComposer();
+    setStatusMessage("");
+  };
+
+  const softenProposalTone = () => {
+    setProposalDraft(copy.proposalToneRewriteDrafts[proposalKind]);
+    setStatusMessage("");
+  };
+
   const submitProposal = async (
     title: string,
     details: string,
@@ -2314,14 +6564,25 @@ export default function TogetherRoomScreen({
     costRange: SocialRoomCostRange = proposalCostRange,
     groupSize: SocialRoomGroupSize = proposalGroupSize,
   ) => {
-    const trimmedTitle = title.trim();
-    const trimmedDetails = details.trim();
+    const trimmedDetails = limitProposalDraft(details.trim());
+    const trimmedTitle = proposalTitleFromDraft(title, trimmedDetails);
     if (!trimmedTitle && !trimmedDetails) return;
+    if (hasProtectedProposalDetails(`${trimmedTitle} ${trimmedDetails}`)) {
+      setStatusMessage(copy.proposalSafetyWarning);
+      return;
+    }
+    if (hasUnkindProposalTone(`${trimmedTitle} ${trimmedDetails}`)) {
+      setStatusMessage(copy.proposalToneWarning);
+      return;
+    }
+    if (proposalSendLock.current) return;
 
+    proposalSendLock.current = true;
+    clearQuietPause();
     setIsSending(true);
     try {
       const result = await postJson(`/api/social/rooms/${room.slug}/proposals`, {
-        title: trimmedTitle || trimmedDetails.slice(0, 80),
+        title: trimmedTitle,
         details: trimmedDetails,
         locationLabel,
         comfortNeeds: kind === "plan" ? comfortNeeds : [],
@@ -2329,31 +6590,25 @@ export default function TogetherRoomScreen({
         experienceCategory: kind === "plan" ? experienceCategory : "other",
         preferredTime: kind === "plan" ? preferredTime : "flexible",
         costRange: kind === "plan" ? costRange : "discuss",
-        groupSize: kind === "plan" ? groupSize : "one_to_one",
+        groupSize,
       });
       if (!result?.pulse) {
-        setStatusMessage(planCopy.postFailed);
+        setStatusMessage(copy.postFailed);
         return;
       }
-      setPulse(result.pulse);
-      setProposalDraft("");
-      setShowProposalComposer(false);
-      setProposalLocationLabel("nearby");
-      setSelectedComfortNeeds(["quiet_pace"]);
-      setProposalCategory("outing");
-      setProposalPreferredTime("flexible");
-      setProposalCostRange("discuss");
-      setProposalGroupSize("one_to_one");
-      setStatusMessage(planCopy.proposalSent);
+      applyServerPulse(result.pulse);
+      resetProposalComposer();
+      setStatusMessage(result.proposal?.needsReview || result.proposal?.status === "pending_review" ? copy.reviewPending : copy.sent);
     } catch {
-      setStatusMessage(planCopy.postFailed);
+      setStatusMessage(copy.postFailed);
     } finally {
+      proposalSendLock.current = false;
       setIsSending(false);
     }
   };
 
   const openPlanComposer = () => {
-    const details = planCopy.starterDetails.plan;
+    const details = copy.starterDetails.plan;
     setProposalDraft(details);
     setProposalKind("plan");
     setProposalLocationLabel("nearby");
@@ -2365,16 +6620,157 @@ export default function TogetherRoomScreen({
     setShowProposalComposer(true);
   };
 
-  const applyPlanPreset = (presetId: PlanPresetId) => {
-    const preset = planPresetDefaults[presetId];
+  const openViewComposer = (draft = copy.roomDirectionViewDraft) => {
+    setProposalKind("message");
+    setProposalLocationLabel("online");
+    setSelectedComfortNeeds([]);
+    setProposalCategory("other");
+    setProposalPreferredTime("flexible");
+    setProposalCostRange("discuss");
+    setProposalGroupSize("open_room");
+    setProposalDraft(draft);
+    setShowProposalComposer(true);
+  };
+
+  const openQuestionComposer = (draft = copy.starterDetails.ask) => {
+    setProposalKind("question");
+    setProposalLocationLabel("online");
+    setSelectedComfortNeeds([]);
+    setProposalCategory("other");
+    setProposalPreferredTime("flexible");
+    setProposalCostRange("discuss");
+    setProposalGroupSize("open_room");
+    setProposalDraft(draft);
+    setShowProposalComposer(true);
+  };
+
+  const startRoomDirectionPlan = () => {
+    if (leadingPollOption?.id === "views") {
+      openViewComposer();
+      return;
+    }
+
+    const comfortNeeds = normalizeComfortSelection(
+      pulse.comfortCheck.myComfortNeeds.length ? pulse.comfortCheck.myComfortNeeds : getTopComfortNeeds(pulse),
+    );
     setProposalKind("plan");
-    setProposalDraft(planCopy.planPresetCopy[presetId].draft);
-    setProposalLocationLabel(preset.locationLabel);
-    setSelectedComfortNeeds(preset.comfortNeeds);
-    setProposalCategory(preset.experienceCategory);
-    setProposalPreferredTime(preset.preferredTime);
-    setProposalCostRange(preset.costRange);
-    setProposalGroupSize(preset.groupSize);
+    setProposalLocationLabel(leadingPollOption?.id === "lunch" ? "nearby" : "online");
+    setSelectedComfortNeeds(comfortNeeds);
+    setProposalCategory(categoryForRoomDirection(leadingPollOption?.id));
+    setProposalPreferredTime("flexible");
+    setProposalCostRange("discuss");
+    setProposalGroupSize("small_group");
+    setProposalDraft(copy.roomDirectionDraft(roomChoiceLabel, topComfortLabels));
+    setShowProposalComposer(true);
+  };
+
+  const startRoomRecapQuestion = () => {
+    openQuestionComposer(copy.roomRecapDraft(roomChoiceLabel, topComfortLabels));
+  };
+
+  const startViewRecapQuestion = () => {
+    openQuestionComposer(copy.viewRecapDraft(sharedViewPosts.length));
+  };
+
+  const startViewVoteQuestion = () => {
+    openQuestionComposer(copy.viewVoteBridgeDraft(sharedViewPosts.length));
+  };
+
+  const startRoomUpdatesRecapQuestion = () => {
+    openQuestionComposer(copy.roomUpdatesRecapDraft(roomUpdateRecapCount));
+  };
+
+  const startRoomTrustQuestion = () => {
+    openQuestionComposer(copy.roomTrustDraft);
+  };
+
+  const startIssueVoteQuestion = (question: SocialRoomPlan, issuePoll?: SocialRoomPulse["activePoll"] | null) => {
+    const title = (question.title || question.body || copy.issueQueueBadge).trim();
+    openQuestionComposer(issuePoll ? copy.issueQueueUseDraft(title, issuePollSignal(issuePoll)) : copy.issueQueueDraft(title));
+  };
+
+  const startIssuePromptQuestion = (action: IssuePromptAction) => {
+    openQuestionComposer(copy.issuePromptDrafts[action]);
+  };
+
+  const startActivityReadyQuestion = (plan: SocialRoomPlan) => {
+    openQuestionComposer(copy.activityReadyDraft(
+      plan.title,
+      activityReadyDraftSignals(plan, copy),
+    ));
+  };
+
+  const startPlanDetailCheckQuestion = (plan: SocialRoomPlan) => {
+    openQuestionComposer(copy.planDetailCheckDraft(plan.title));
+  };
+
+  const starterActions: Array<{ id: StarterAction; label: string; icon: typeof MessageCircle }> = [
+    { id: "hello", label: pulse.discussionPrompt.starterButtons[0] ?? copy.starterLabels.hello, icon: MessageCircle },
+    { id: "plan", label: pulse.discussionPrompt.starterButtons[1] ?? copy.starterLabels.plan, icon: Sparkles },
+    { id: "ask", label: pulse.discussionPrompt.starterButtons[2] ?? copy.starterLabels.ask, icon: HeartHandshake },
+  ];
+
+  const handleStarter = (action: StarterAction, label: string) => {
+    const details = copy.starterDetails[action];
+    setProposalDraft(details);
+    if (action === "hello") {
+      void submitProposal(label, details, "online", "message", [], "other", "flexible", "discuss", "open_room");
+      return;
+    }
+    if (action === "plan") {
+      openPlanComposer();
+      return;
+    }
+    openQuestionComposer(details);
+  };
+
+  const nextGentleStepId = chooseNextGentleStep({
+    agreementAcknowledged,
+    unreadRoomUpdateCount,
+    pulse,
+    pollClosed,
+    hasRoomSignals,
+  });
+  const isNextGentleStepDisabled =
+    (nextGentleStepId === "promise" && isAcknowledgingAgreement)
+    || (nextGentleStepId === "comfort" && isSavingComfortCheck)
+    || (nextGentleStepId === "hello" && isSending);
+
+  const scrollToRoomSection = (testId: string) => {
+    if (typeof document === "undefined") return;
+    document.querySelector(`[data-testid="${testId}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const handleNextGentleStep = () => {
+    if (nextGentleStepId === "promise") {
+      void acknowledgeAgreement();
+      return;
+    }
+    if (nextGentleStepId === "updates") {
+      scrollToRoomSection("together-room-updates");
+      return;
+    }
+    if (nextGentleStepId === "comfort") {
+      void saveComfortCheck("listen_first", copy.listenFirstSaved, copy.listenFirstRemoved);
+      return;
+    }
+    if (nextGentleStepId === "vote") {
+      scrollToRoomSection("together-room-choice");
+      return;
+    }
+    if (nextGentleStepId === "plan") {
+      scrollToRoomSection("together-featured-plan");
+      return;
+    }
+    if (nextGentleStepId === "recap") {
+      startRoomRecapQuestion();
+      return;
+    }
+    handleStarter("hello", copy.starterLabels.hello);
+  };
+
+  const explainNextGentleStep = () => {
+    openQuestionComposer(copy.nextGentleStepExplainDraft(copy.nextGentleSteps[nextGentleStepId].title));
   };
 
   const toggleComfortNeed = (need: SocialRoomComfortNeed) => {
@@ -2385,27 +6781,65 @@ export default function TogetherRoomScreen({
     ));
   };
 
-  const sendSafetyReport = async () => {
+  const sendSafetyReport = async (choice: SafetyHelpChoice) => {
+    if (isSendingSafetyReport) return;
+
+    setIsSendingSafetyReport(true);
     setStatusMessage(copy.helpSent);
+    const receiptAnchor = safetyHelpPanelAnchor ?? "intro";
     try {
       const result = await postJson(`/api/social/rooms/${room.slug}/safety-reports`, {
-        reason: "help_requested",
-        details: "The user asked VYVA for help from the Together Room.",
+        reason: copy.safetyHelpChoiceReasons[choice],
+        details: copy.safetyHelpChoiceDetails[choice],
       });
       if (result?.pulse) {
-        setPulse(result.pulse);
+        applyServerPulse(result.pulse);
+        setLastSafetyHelpChoice(choice);
+        setLastSafetyHelpReceiptAnchor(receiptAnchor);
+        setSafetyHelpPanelAnchor(null);
+      } else if (result?.ok) {
+        setLastSafetyHelpChoice(choice);
+        setLastSafetyHelpReceiptAnchor(receiptAnchor);
+        setSafetyHelpPanelAnchor(null);
       } else {
         setStatusMessage(copy.helpFailed);
       }
     } catch {
       setStatusMessage(copy.helpFailed);
+    } finally {
+      setIsSendingSafetyReport(false);
+    }
+  };
+
+  const beginItemReport = (reportKey: string) => {
+    if (itemReportLocks.current.has(reportKey) || reportedItemIds.has(reportKey)) return false;
+
+    itemReportLocks.current.add(reportKey);
+    setReportingItemIds((current) => new Set(current).add(reportKey));
+    return true;
+  };
+
+  const finishItemReport = (reportKey: string, sent: boolean) => {
+    setReportingItemIds((current) => {
+      const next = new Set(current);
+      next.delete(reportKey);
+      return next;
+    });
+    if (sent) {
+      setReportedItemIds((current) => new Set(current).add(reportKey));
+    } else {
+      itemReportLocks.current.delete(reportKey);
     }
   };
 
   const sendSharedItemReport = async (plan: SocialRoomPlan) => {
+    const reportKey = `plan:${plan.key}`;
+    if (!beginItemReport(reportKey)) return;
+
     const targetType = plan.kind ?? defaultPlanKind;
-    const details = `${copy.sharedKindLabels[targetType]}: ${plan.title}${plan.body ? ` - ${plan.body}` : ""}`.slice(0, 460);
+    const details = `${sharedKindLabelForPlan(plan, copy)}: ${plan.title}${plan.body ? ` - ${plan.body}` : ""}`.slice(0, 460);
     setStatusMessage(copy.reviewItemSent);
+    let sent = false;
     try {
       const result = await postJson(`/api/social/rooms/${room.slug}/safety-reports`, {
         reason: "shared_item_review",
@@ -2414,39 +6848,47 @@ export default function TogetherRoomScreen({
         details,
       });
       if (result?.pulse) {
-        setPulse(result.pulse);
+        applyServerPulse(result.pulse);
+        sent = true;
       } else {
         setStatusMessage(copy.helpFailed);
       }
     } catch {
       setStatusMessage(copy.helpFailed);
+    } finally {
+      finishItemReport(reportKey, sent);
     }
   };
 
   const sendGentleReply = async (plan: SocialRoomPlan, tone: SocialRoomReplyTone) => {
-    if (replyingPlanKey) return;
+    if (!beginReplySend(plan.key)) return;
 
-    setReplyingPlanKey(plan.key);
+    clearQuietPause();
     try {
       const result = await postJson(`/api/social/rooms/${room.slug}/plans/${plan.key}/replies`, {
         body: copy.replyBodies[tone],
         tone,
       });
       if (result?.pulse) {
-        setPulse(result.pulse);
+        applyServerPulse(result.pulse);
+        setStatusMessage(copy.replySent);
       } else {
         setStatusMessage(copy.replyFailed);
       }
     } catch {
       setStatusMessage(copy.replyFailed);
     } finally {
-      setReplyingPlanKey(null);
+      finishReplySend();
     }
   };
 
   const sendReplyReport = async (plan: SocialRoomPlan, reply: SocialRoomReply) => {
+    const reportKey = `reply:${reply.id}`;
+    if (!beginItemReport(reportKey)) return;
+
     const details = `${plan.title}: ${reply.body}`.slice(0, 460);
     setStatusMessage(copy.reviewItemSent);
+    let sent = false;
     try {
       const result = await postJson(`/api/social/rooms/${room.slug}/safety-reports`, {
         reason: "reply_review",
@@ -2455,26 +6897,29 @@ export default function TogetherRoomScreen({
         details,
       });
       if (result?.pulse) {
-        setPulse(result.pulse);
+        applyServerPulse(result.pulse);
+        sent = true;
       } else {
         setStatusMessage(copy.helpFailed);
       }
     } catch {
       setStatusMessage(copy.helpFailed);
+    } finally {
+      finishItemReport(reportKey, sent);
     }
   };
 
-  const sendPlanCollaboration = async (action: PlanCollaborationAction) => {
-    if (replyingPlanKey) return;
+  const sendPlanCollaboration = async (action: PlanCollaborationAction, plan: SocialRoomPlan = featuredPlan) => {
+    if (!beginReplySend(plan.key)) return;
 
-    setReplyingPlanKey(featuredPlan.key);
+    clearQuietPause();
     try {
-      const result = await postJson(`/api/social/rooms/${room.slug}/plans/${featuredPlan.key}/replies`, {
+      const result = await postJson(`/api/social/rooms/${room.slug}/plans/${plan.key}/replies`, {
         body: copy.planSupportReplies[action],
         tone: planCollaborationTones[action],
       });
       if (result?.pulse) {
-        setPulse(result.pulse);
+        applyServerPulse(result.pulse);
         setStatusMessage(copy.replySent);
       } else {
         setStatusMessage(copy.replyFailed);
@@ -2482,50 +6927,32 @@ export default function TogetherRoomScreen({
     } catch {
       setStatusMessage(copy.replyFailed);
     } finally {
-      setReplyingPlanKey(null);
-    }
-  };
-
-  const sendPlanLoopReply = async (plan: SocialRoomPlan, action: PlanLoopAction) => {
-    if (replyingPlanKey) return;
-
-    setReplyingPlanKey(plan.key);
-    try {
-      const result = await postJson(`/api/social/rooms/${room.slug}/plans/${plan.key}/replies`, {
-        body: copy.planLoopReplies[action],
-        tone: planLoopTones[action],
-      });
-      if (result?.pulse) {
-        setPulse(result.pulse);
-        setStatusMessage(copy.replySent);
-      } else {
-        setStatusMessage(copy.replyFailed);
-      }
-    } catch {
-      setStatusMessage(copy.replyFailed);
-    } finally {
-      setReplyingPlanKey(null);
+      finishReplySend();
     }
   };
 
   const markUpdateSeen = async (notificationId: string) => {
-    if (markingUpdateId) return;
+    if (markingUpdateId || isMarkingAllUpdatesSeen) return;
 
     const previous = pulse;
     const seenAt = new Date().toISOString();
+    const wasUnread = previous.notifications.some((notification) => (
+      notification.id === notificationId && !notification.readAt
+    ));
     setMarkingUpdateId(notificationId);
     setPulse((current) => ({
       ...current,
       notifications: current.notifications.map((notification) => (
         notification.id === notificationId ? { ...notification, readAt: seenAt } : notification
       )),
+      unreadNotificationCount: wasUnread ? Math.max(0, countUnreadRoomUpdates(current) - 1) : countUnreadRoomUpdates(current),
     }));
     setStatusMessage(copy.updateSeen);
 
     try {
       const result = await postJson(`/api/social/rooms/${room.slug}/notifications/${notificationId}/read`, {});
       if (result?.pulse) {
-        setPulse(result.pulse);
+        applyServerPulse(result.pulse);
       } else {
         setPulse(previous);
         setStatusMessage(copy.updateSeenFailed);
@@ -2538,9 +6965,46 @@ export default function TogetherRoomScreen({
     }
   };
 
+  const markAllUpdatesSeen = async () => {
+    if (markingUpdateId || isMarkingAllUpdatesSeen || roomUpdates.length === 0) return;
+
+    const previous = pulse;
+    const seenAt = new Date().toISOString();
+    const visibleUpdateIds = new Set(roomUpdates.map((notification) => notification.id));
+
+    setIsMarkingAllUpdatesSeen(true);
+    setPulse((current) => ({
+      ...current,
+      notifications: current.notifications.map((notification) => (
+        visibleUpdateIds.has(notification.id) ? { ...notification, readAt: seenAt } : notification
+      )),
+      unreadNotificationCount: 0,
+    }));
+    setStatusMessage(copy.allUpdatesSeen);
+
+    try {
+      const result = await postJson(`/api/social/rooms/${room.slug}/notifications/read-all`, {});
+      if (result?.pulse) {
+        applyServerPulse(result.pulse);
+      } else {
+        setPulse(previous);
+        setStatusMessage(copy.allUpdatesSeenFailed);
+      }
+    } catch {
+      setPulse(previous);
+      setStatusMessage(copy.allUpdatesSeenFailed);
+    } finally {
+      setIsMarkingAllUpdatesSeen(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-[#F7FAF7] px-5 pb-10 pt-5 text-[#211729]">
+    <div
+      className={`min-h-screen bg-[#F7FAF7] px-5 pb-10 pt-5 text-[#211729] ${isReadingComfortOn ? "together-readable" : ""}`}
+      data-testid="together-room-screen"
+    >
       <SocialStyles />
+      <TogetherReadableStyles />
 
       <button
         type="button"
@@ -2552,10 +7016,7 @@ export default function TogetherRoomScreen({
       </button>
 
       <main className="mx-auto mt-4 flex w-full max-w-[760px] flex-col gap-4">
-        <section
-          className="overflow-hidden rounded-[30px] border border-[#D8E7E2] bg-[radial-gradient(circle_at_top_left,#F3ECFF_0%,#FFFFFF_32%,#F7FAF7_100%)] px-5 py-5 shadow-[0_18px_38px_rgba(33,23,41,0.08)]"
-          data-testid="together-main-hero"
-        >
+        <section className="rounded-[28px] border border-[#D8E7E2] bg-white px-5 py-5 shadow-[0_18px_38px_rgba(33,23,41,0.08)]">
           <div className="flex items-start gap-4">
             <AgentAvatar
               agentSlug={room.agentSlug}
@@ -2565,17 +7026,209 @@ export default function TogetherRoomScreen({
               title={room.agentFullName}
             />
             <div className="min-w-0 flex-1">
-              <div className="inline-flex items-center gap-2 rounded-full bg-[#EAF8F4] px-3 py-1.5 font-body text-[14px] font-bold text-[#0F766E]">
-                <ShieldCheck size={16} aria-hidden="true" />
-                {copy.safeStatus}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex items-center gap-2 rounded-full bg-[#EAF8F4] px-3 py-1.5 font-body text-[14px] font-bold text-[#0F766E]">
+                  <ShieldCheck size={16} aria-hidden="true" />
+                  {copy.safeStatus}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSafetyHelpPanelAnchor((current) => current === "intro" ? null : "intro");
+                    setStatusMessage("");
+                    setLastSafetyHelpChoice(null);
+                    setLastSafetyHelpReceiptAnchor(null);
+                  }}
+                  disabled={isSendingSafetyReport}
+                  data-testid="together-safety-quick-help"
+                  aria-expanded={safetyHelpPanelAnchor === "intro"}
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-[#A9DCCE] bg-white px-4 font-body text-[15px] font-bold text-[#0F766E] disabled:cursor-default disabled:opacity-60"
+                >
+                  <LifeBuoy size={15} aria-hidden="true" />
+                  {isSendingSafetyReport ? copy.helpSending : pulse.safety.helpLabel}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void refreshRoomPulse()}
+                  disabled={isRefreshingPulse}
+                  data-testid="together-refresh-room"
+                  aria-busy={isRefreshingPulse}
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-[#DBE7F6] bg-[#FAFCFF] px-4 font-body text-[15px] font-bold text-[#2563EB] disabled:cursor-default disabled:opacity-70"
+                >
+                  <RefreshCw size={15} className={isRefreshingPulse ? "animate-spin" : ""} aria-hidden="true" />
+                  {isRefreshingPulse ? copy.refreshingRoom : copy.refreshRoom}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsReadingComfortOn((current) => !current)}
+                  data-testid="together-reading-comfort"
+                  aria-pressed={isReadingComfortOn}
+                  className={`inline-flex min-h-[44px] items-center gap-2 rounded-full border px-4 font-body text-[15px] font-bold disabled:cursor-default disabled:opacity-70 ${
+                    isReadingComfortOn
+                      ? "border-[#0F766E] bg-[#EAF8F4] text-[#0F766E]"
+                      : "border-[#D8E7E2] bg-white text-[#315C55]"
+                  }`}
+                >
+                  <ZoomIn size={15} aria-hidden="true" />
+                  {isReadingComfortOn ? copy.readingComfortOnLabel : copy.readingComfortLabel}
+                </button>
               </div>
               <h1 className="mt-3 font-display text-[34px] leading-[1.02] text-[#2F2135]">{room.name}</h1>
-              <p className="sr-only">{pulse.safety.body}</p>
+              <p className="mt-2 font-body text-[18px] leading-[1.35] text-[#66556E]">{pulse.safety.body}</p>
+              {isReadingComfortOn && (
+                <p
+                  className="mt-3 rounded-[16px] bg-[#F4FBF8] px-3 py-2 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]"
+                  data-testid="together-reading-comfort-note"
+                >
+                  {copy.readingComfortNote}
+                </p>
+              )}
             </div>
           </div>
 
-          <RoomVisualSummary memberCount={members.length} copy={copy} planCopy={planCopy} />
-          <MemberOrbit members={members} />
+          {safetyHelpPanelAnchor === "intro" && (
+            <SafetyHelpPanel
+              copy={copy}
+              isSending={isSendingSafetyReport}
+              onSend={(choice) => void sendSafetyReport(choice)}
+              onCancel={() => setSafetyHelpPanelAnchor(null)}
+            />
+          )}
+          {safetyHelpPanelAnchor === null && lastSafetyHelpChoice && lastSafetyHelpReceiptAnchor === "intro" && (
+            <SafetyHelpReceipt copy={copy} choice={lastSafetyHelpChoice} />
+          )}
+
+          <div className="mt-5 rounded-[22px] bg-[#F4F8FF] px-4 py-3">
+            <div className="flex items-center gap-2 font-body text-[17px] font-bold text-[#315C55]">
+              <Users size={20} aria-hidden="true" />
+              {copy.present(Math.max(members.length, 1))}
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {members.map((member, index) => (
+                <div
+                  key={member.id}
+                  className="min-w-0 rounded-[18px] bg-white/80 px-2 py-3 text-center shadow-[0_8px_14px_rgba(33,23,41,0.06)]"
+                  title={member.statusLabel ? `${member.name}: ${member.statusLabel}` : member.name}
+                >
+                  <div
+                    className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border-2 border-white font-body text-[17px] font-bold text-white shadow-[0_8px_14px_rgba(33,23,41,0.12)]"
+                    style={{ background: memberColours[index % memberColours.length] }}
+                    aria-hidden="true"
+                  >
+                    {getInitial(member.name)}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="mt-2 break-words font-body text-[15px] font-bold leading-tight text-[#244D47]">
+                      {member.name}
+                    </p>
+                    {member.statusLabel && (
+                      <p
+                        className="mt-1 min-h-[48px] break-words font-body text-[13px] font-bold leading-[1.18] text-[#5F6D8A] sm:min-h-[42px] sm:text-[14px] sm:leading-[1.24]"
+                        data-testid={`together-member-status-${member.id}`}
+                      >
+                        {member.statusLabel}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <RoomAtGlance
+            copy={copy}
+            roomUpdatesCount={unreadRoomUpdateCount}
+            totalVotes={roomVoteCount}
+            planInterestCount={planInterestCount}
+            comfortResponses={pulse.comfortCheck.totalResponses}
+          />
+
+          <RoomNotesPanel
+            copy={copy}
+            leadingPollOption={leadingPollOption}
+            tiedPollLabels={tiedPollLabels}
+            topComfortLabels={topComfortLabels}
+            sharedViewCount={sharedViewPosts.length}
+            activityReadyPlan={activityReadyPlan}
+            voteReadyQuestion={voteReadyQuestion}
+          />
+
+          <MySafeChoices
+            copy={copy}
+            pulse={pulse}
+            visibility={visibilityPromise}
+            isQuietPaused={isQuietPaused}
+            onQuietPauseToggle={toggleQuietPause}
+          />
+
+          <RoomTrustCue
+            copy={copy}
+            disabled={isSending}
+            onAsk={startRoomTrustQuestion}
+          />
+
+          <ParticipationPathPanel
+            copy={copy}
+            disabled={isSending}
+            onVote={() => scrollToRoomSection("together-room-choice")}
+            onView={() => openViewComposer()}
+            onActivity={() => scrollToRoomSection("together-featured-plan")}
+          />
+
+          {showActivityReadyBridge && activityReadyPlan && (
+            <ActivityReadyBridge
+              copy={copy}
+              plan={activityReadyPlan}
+              notification={activityReadyNotification}
+              onAsk={() => startActivityReadyQuestion(activityReadyPlan)}
+            />
+          )}
+
+          <NextGentleStepCue
+            copy={copy}
+            stepId={nextGentleStepId}
+            onAction={handleNextGentleStep}
+            onExplain={explainNextGentleStep}
+            disabled={isNextGentleStepDisabled}
+          />
+
+          <div
+            className="mt-3 rounded-[20px] border border-[#CFECE3] bg-[#F7FCFA] px-4 py-3"
+            data-testid="together-listen-first-cue"
+          >
+            <div className="grid gap-1 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+              <div className="min-w-0">
+                <p className="font-body text-[16px] font-bold leading-[1.25] text-[#244D47]">{copy.arrivalComfortTitle}</p>
+                <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]">{copy.arrivalComfortBody}</p>
+              </div>
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              {arrivalComfortShortcuts.map((need) => {
+                const selected = pulse.comfortCheck.myComfortNeeds.includes(need);
+                const label = need === "listen_first" ? copy.listenFirstAction : copy.comfortNeedLabels[need];
+                const savedLabel = need === "listen_first" ? copy.listenFirstSaved : copy.arrivalComfortSaved(label);
+                const removedLabel = need === "listen_first" ? copy.listenFirstRemoved : copy.arrivalComfortRemoved(label);
+                return (
+                  <button
+                    key={need}
+                    type="button"
+                    onClick={() => void saveComfortCheck(need, savedLabel, removedLabel)}
+                    disabled={isSavingComfortCheck}
+                    aria-pressed={selected}
+                    data-testid={need === "listen_first" ? "together-listen-first" : `together-arrival-comfort-${need}`}
+                    className={`inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[17px] px-4 font-body text-[16px] font-bold ${
+                      selected
+                        ? "border border-[#0F766E] bg-white text-[#0F766E]"
+                        : "bg-[#0F766E] text-white shadow-[0_10px_18px_rgba(15,118,110,0.14)]"
+                    } disabled:cursor-default disabled:opacity-90`}
+                  >
+                    {selected ? <Check size={18} aria-hidden="true" /> : <HeartHandshake size={18} aria-hidden="true" />}
+                    {selected ? savedLabel : label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           {!agreementAcknowledged && (
             <div className="mt-5 border-t border-[#D8E7E2] pt-4" data-testid="together-room-promise">
@@ -2583,12 +7236,18 @@ export default function TogetherRoomScreen({
                 <ShieldCheck size={21} className="text-[#0F766E]" aria-hidden="true" />
                 <h2 className="font-body text-[20px] font-bold text-[#244D47]">{agreementTitle}</h2>
               </div>
-              <PromiseIconGrid agreementLines={agreementLines} />
+              <ul className="mt-3 grid gap-2">
+                {agreementLines.map((line) => (
+                  <li key={line} className="flex items-start gap-2 font-body text-[16px] font-bold leading-[1.32] text-[#41655F]">
+                    <Check size={18} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+                    <span>{line}</span>
+                  </li>
+                ))}
+              </ul>
               <button
                 type="button"
                 onClick={() => void acknowledgeAgreement()}
                 disabled={isAcknowledgingAgreement}
-                aria-pressed="false"
                 data-testid="together-acknowledge-agreement"
                 className="mt-4 inline-flex min-h-[54px] w-full items-center justify-center gap-2 rounded-[18px] bg-[#0F766E] px-4 font-body text-[18px] font-bold text-white shadow-[0_12px_22px_rgba(15,118,110,0.16)] disabled:cursor-default disabled:opacity-70 sm:w-auto"
               >
@@ -2598,14 +7257,14 @@ export default function TogetherRoomScreen({
           )}
         </section>
 
-        <section className="rounded-[30px] border border-[#E2D7C4] bg-[#FFFDF8] px-5 py-5 shadow-[0_18px_36px_rgba(151,110,37,0.08)]">
+        <section className="rounded-[30px] border border-[#E2D7C4] bg-[#FFFDF8] px-5 py-5 shadow-[0_18px_36px_rgba(151,110,37,0.08)]" data-testid="together-featured-plan">
           <div className="flex items-start gap-3">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[22px] bg-[#F6C453] text-[#2F2135] shadow-[0_12px_22px_rgba(151,110,37,0.18)]">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-[#F6C453] text-[#2F2135]">
               <HeartHandshake size={24} aria-hidden="true" />
             </div>
             <div className="min-w-0">
               <h2 className="font-display text-[31px] leading-[1.05] text-[#2F2135]">{featuredPlan.title}</h2>
-              <p className="mt-2 line-clamp-2 font-body text-[18px] leading-[1.3] text-[#62556B]">{featuredPlan.body}</p>
+              <p className="mt-2 font-body text-[19px] leading-[1.34] text-[#62556B]">{featuredPlan.body}</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <PlanLocationPill plan={featuredPlan} copy={copy} />
                 <p
@@ -2617,7 +7276,14 @@ export default function TogetherRoomScreen({
                 </p>
               </div>
               <PlanComfortPills plan={featuredPlan} copy={copy} />
-              <PlanVisualStats plan={featuredPlan} copy={copy} />
+              <PlanExperiencePills plan={featuredPlan} copy={copy} />
+              <PlanComfortConfidenceCue plan={featuredPlan} copy={copy} />
+              <PlanDetailCheckCue
+                copy={copy}
+                plan={featuredPlan}
+                onAsk={() => startPlanDetailCheckQuestion(featuredPlan)}
+                disabled={isSending}
+              />
               <PlanReviewNotice plan={featuredPlan} copy={copy} />
             </div>
           </div>
@@ -2626,9 +7292,10 @@ export default function TogetherRoomScreen({
             <button
               type="button"
               onClick={() => void respondToPlan("join")}
+              disabled={respondingPlanKeys.has(featuredPlan.key)}
               aria-pressed={hasJoined}
               data-testid="together-join-plan"
-              className={`min-h-[68px] rounded-[22px] px-4 font-body text-[21px] font-bold shadow-[0_12px_22px_rgba(109,40,217,0.16)] ${
+              className={`min-h-[68px] rounded-[22px] px-4 font-body text-[21px] font-bold shadow-[0_12px_22px_rgba(109,40,217,0.16)] disabled:cursor-default disabled:opacity-65 ${
                 hasJoined ? "bg-[#0F766E] text-white" : "bg-[#6D28D9] text-white"
               }`}
             >
@@ -2640,9 +7307,10 @@ export default function TogetherRoomScreen({
             <button
               type="button"
               onClick={() => void respondToPlan("maybe")}
+              disabled={respondingPlanKeys.has(featuredPlan.key)}
               aria-pressed={hasMaybe}
               data-testid="together-maybe-plan"
-              className={`min-h-[68px] rounded-[22px] border px-4 font-body text-[20px] font-bold ${
+              className={`min-h-[68px] rounded-[22px] border px-4 font-body text-[20px] font-bold disabled:cursor-default disabled:opacity-65 ${
                 hasMaybe
                   ? "border-[#0F766E] bg-[#EAF8F4] text-[#0F766E]"
                   : "border-[#D8E7E2] bg-white text-[#315C55]"
@@ -2655,12 +7323,36 @@ export default function TogetherRoomScreen({
             </button>
           </div>
 
-          <PlanLoopCard
-            plan={featuredPlan}
-            copy={copy}
-            isBusy={replyingPlanKey === featuredPlan.key}
-            onAction={(plan, action) => void sendPlanLoopReply(plan, action)}
-          />
+          <div className="mt-3 rounded-[18px] bg-[#F4FBF8] px-4 py-3" data-testid="together-plan-choice-note">
+            <div className="flex items-start gap-2">
+              <HeartHandshake size={19} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.planChoiceNoteTitle}</p>
+                <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]">{copy.planChoiceNoteBody}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-[18px] border border-[#CFECE3] bg-white px-4 py-3" data-testid="together-plan-next-step">
+            <div className="flex items-start gap-2">
+              <ShieldCheck size={19} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.planNextStepTitle}</p>
+                <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]">{planNextStepBody(featuredPlan, copy)}</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  {copy.planNextStepChecks.map((item) => (
+                    <span
+                      key={item}
+                      className="inline-flex min-h-[38px] items-center gap-2 rounded-[14px] bg-[#F4FBF8] px-3 font-body text-[14px] font-bold text-[#315C55]"
+                    >
+                      <Check size={16} className="shrink-0 text-[#0F766E]" aria-hidden="true" />
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
 
           <p className="mt-4 rounded-[18px] bg-[#EAF8F4] px-4 py-3 font-body text-[17px] font-bold leading-[1.3] text-[#315C55]">
             {pulse.safety.consentLine}
@@ -2671,29 +7363,47 @@ export default function TogetherRoomScreen({
               <MessageCircle size={18} className="text-[#0F766E]" aria-hidden="true" />
               <h3 className="font-body text-[18px] font-bold text-[#315C55]">{copy.planSupportTitle}</h3>
             </div>
-            <p className="sr-only">{copy.planSupportBody}</p>
-            {(featuredPlan.replies?.length ?? 0) > 0 && (
+            <p className="mt-1 font-body text-[16px] font-bold leading-[1.35] text-[#55706B]">{copy.planSupportBody}</p>
+            <PlanSupportSummary copy={copy} plan={featuredPlan} />
+            <PlanHelperCue
+              copy={copy}
+              plan={featuredPlan}
+              onChoose={(action) => void sendPlanCollaboration(action)}
+              disabled={replyingPlanKey === featuredPlan.key}
+            />
+            <PlanReadinessBridge
+              copy={copy}
+              plan={featuredPlan}
+              onAsk={() => startActivityReadyQuestion(featuredPlan)}
+            />
+            {featuredPlanReplies.length > 0 && (
               <div className="mt-3 grid gap-2" data-testid="together-featured-replies">
-                {featuredPlan.replies!.map((reply) => (
-                  <article
-                    key={reply.id}
-                    className="rounded-[15px] bg-white px-3 py-2 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]"
-                    data-testid={`together-featured-reply-${reply.id}`}
-                  >
-                    <p>{reply.body}</p>
-                    <button
-                      type="button"
-                      onClick={() => void sendReplyReport(featuredPlan, reply)}
-                      data-testid={`together-review-reply-${reply.id}`}
-                      className="mt-2 min-h-[38px] rounded-[13px] border border-[#CFECE3] bg-[#F7FAF7] px-3 font-body text-[14px] font-bold text-[#0F766E]"
+                {featuredPlanReplies.map((reply) => {
+                  const reportKey = `reply:${reply.id}`;
+                  const isReporting = reportingItemIds.has(reportKey);
+                  const isReported = reportedItemIds.has(reportKey);
+                  return (
+                    <article
+                      key={reply.id}
+                      className="rounded-[15px] bg-white px-3 py-2 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]"
+                      data-testid={`together-featured-reply-${reply.id}`}
                     >
-                      {copy.reviewReply}
-                    </button>
-                  </article>
-                ))}
+                      <p>{reply.body}</p>
+                      <button
+                        type="button"
+                        onClick={() => void sendReplyReport(featuredPlan, reply)}
+                        disabled={isReporting || isReported}
+                        data-testid={`together-review-reply-${reply.id}`}
+                        className="mt-2 min-h-[38px] rounded-[13px] border border-[#CFECE3] bg-[#F7FAF7] px-3 font-body text-[14px] font-bold text-[#0F766E] disabled:cursor-default disabled:opacity-60"
+                      >
+                        {isReporting ? copy.helpSending : isReported ? copy.reviewItemSent : copy.reviewReply}
+                      </button>
+                    </article>
+                  );
+                })}
               </div>
             )}
-            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
               {planCollaborationActions.map((action) => (
                 <button
                   key={action}
@@ -2701,16 +7411,18 @@ export default function TogetherRoomScreen({
                   onClick={() => void sendPlanCollaboration(action)}
                   disabled={replyingPlanKey === featuredPlan.key}
                   data-testid={`together-plan-collaboration-${action}`}
-                  className="min-h-[52px] rounded-[17px] border border-[#CFECE3] bg-white px-3 font-body text-[16px] font-bold text-[#0F766E] disabled:opacity-55"
+                  aria-label={`${copy.planSupportActions[action]}: ${copy.planSupportReplies[action]}`}
+                  className="min-h-[82px] rounded-[17px] border border-[#CFECE3] bg-white px-3 py-3 text-left font-body font-bold text-[#0F766E] disabled:opacity-55"
                 >
-                  {copy.planSupportActions[action]}
+                  <span className="block text-[16px] leading-tight">{copy.planSupportActions[action]}</span>
+                  <span className="mt-1 block text-[14px] leading-[1.25] text-[#55706B]">{copy.planSupportReplies[action]}</span>
                 </button>
               ))}
             </div>
           </div>
         </section>
 
-        <section className="rounded-[28px] border border-[#DBE7F6] bg-white px-5 py-5 shadow-[0_16px_32px_rgba(30,64,175,0.06)]">
+        <section className="rounded-[28px] border border-[#DBE7F6] bg-white px-5 py-5 shadow-[0_16px_32px_rgba(30,64,175,0.06)]" data-testid="together-room-choice">
           <div className="flex items-center gap-2">
             <Vote size={22} className="text-[#2563EB]" aria-hidden="true" />
             <p className="font-body text-[17px] font-bold text-[#2563EB]">{copy.roomChoice}</p>
@@ -2731,7 +7443,7 @@ export default function TogetherRoomScreen({
                   key={option.id}
                   type="button"
                   onClick={() => void vote(option.id)}
-                  disabled={pollClosed}
+                  disabled={pollClosed || votingOptionId !== null}
                   aria-pressed={selected}
                   data-testid={`together-vote-${option.id}`}
                   className={`relative min-h-[58px] overflow-hidden rounded-[18px] border px-4 text-left font-body text-[18px] font-bold disabled:cursor-not-allowed disabled:opacity-70 ${
@@ -2743,23 +7455,93 @@ export default function TogetherRoomScreen({
                     style={{ width: `${percent}%` }}
                     aria-hidden="true"
                   />
-                  <span className="relative flex items-center justify-between gap-3">
-                    <span>{option.label}</span>
-                    <span className="shrink-0 text-[16px]">{percent}%</span>
+                  <span className="relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+                    <span className="min-w-0 leading-tight">{option.label}</span>
+                    <span className="shrink-0 text-right">
+                      <span className="block text-[17px] leading-none">{percent}%</span>
+                      <span className="mt-1 block text-[13px] leading-tight text-current opacity-80">
+                        {selected ? copy.pollYourChoice : copy.pollVotes(option.votes)}
+                      </span>
+                    </span>
                   </span>
                 </button>
               );
             })}
           </div>
 
+          <VoteImpactPanel
+            copy={copy}
+            pulse={pulse}
+            leadingPollOption={leadingPollOption}
+            tiedPollLabels={tiedPollLabels}
+            topComfortLabels={topComfortLabels}
+          />
+          <RoomVoteSignalCue copy={copy} poll={pulse.activePoll} />
+
+          <div className="mt-3 rounded-[18px] border border-[#DBEAFE] bg-[#FAFCFF] px-4 py-3" data-testid="together-vote-privacy-note">
+            <div className="flex items-start gap-2">
+              <ShieldCheck size={18} className="mt-0.5 shrink-0 text-[#2563EB]" aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="font-body text-[16px] font-bold text-[#1E3A8A]">{copy.pollPrivacyTitle}</p>
+                <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#3E526A]">{copy.pollPrivacyBody}</p>
+              </div>
+            </div>
+          </div>
+
           <div className="mt-4 rounded-[18px] bg-[#EEF6FF] px-4 py-3" data-testid="together-poll-next-step">
             <p className="font-body text-[17px] font-bold leading-[1.3] text-[#1E3A8A]">
-              {leadingPollOption ? copy.pollNudgeLeading(leadingPollOption.label) : copy.pollNudgeNoVotes}
+              {tiedPollLabels.length > 1
+                ? copy.pollNudgeTie(tiedPollLabels)
+                : leadingPollOption
+                  ? copy.pollNudgeLeading(leadingPollOption.label)
+                  : copy.pollNudgeNoVotes}
             </p>
-            <p className="sr-only">
+            <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#3E526A]">
               {copy.pollNudgeAction}
             </p>
+            <button
+              type="button"
+              onClick={() => openQuestionComposer(copy.askPromptDrafts.vote)}
+              disabled={isSending}
+              data-testid="together-suggest-vote"
+              aria-label={`${copy.askPromptLabels.vote}: ${copy.askPromptDrafts.vote}`}
+              className="mt-3 inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDBFE] bg-white px-4 font-body text-[16px] font-bold text-[#1E40AF] disabled:cursor-default disabled:opacity-60"
+            >
+              <Vote size={18} aria-hidden="true" />
+              {copy.askPromptLabels.vote}
+            </button>
           </div>
+
+          {showVoteReadyBridge && voteReadyQuestion && (
+            <VoteReadyBridge
+              copy={copy}
+              question={voteReadyQuestion}
+              notification={voteReadyNotification}
+              disabled={isSending}
+              onAsk={() => startIssueVoteQuestion(voteReadyQuestion)}
+            />
+          )}
+
+          <IssueVoteShortcutPanel
+            copy={copy}
+            disabled={isSending}
+            onStart={startIssuePromptQuestion}
+          />
+
+          <IssueVoteQueue
+            copy={copy}
+            questions={issueQuestionPosts}
+            issuePolls={pulse.issuePolls}
+            disabled={isSending}
+            onRespond={(question, response) => void respondToPlan(response, question.key, copy.sharedResponseSaved)}
+            onIssueVote={(pollKey, optionId) => void voteIssuePoll(pollKey, optionId)}
+            onShapeVote={startIssueVoteQuestion}
+            onReview={(question) => void sendSharedItemReport(question)}
+            isResponding={(question) => respondingPlanKeys.has(question.key)}
+            isVotingPoll={(pollKey) => votingOptionId?.startsWith(`${pollKey}:`) ?? false}
+            isReviewingItem={(question) => reportingItemIds.has(`plan:${question.key}`)}
+            isReviewedItem={(question) => reportedItemIds.has(`plan:${question.key}`)}
+          />
         </section>
 
         <section className="rounded-[28px] border border-[#CFECE3] bg-white px-5 py-5 shadow-[0_16px_32px_rgba(15,118,110,0.06)]" data-testid="together-comfort-check">
@@ -2769,7 +7551,7 @@ export default function TogetherRoomScreen({
             </div>
             <div className="min-w-0">
               <h2 className="font-display text-[26px] leading-[1.08] text-[#2F2135]">{pulse.comfortCheck.title}</h2>
-              <p className="sr-only">{pulse.comfortCheck.body}</p>
+              <p className="mt-2 font-body text-[18px] leading-[1.35] text-[#41655F]">{pulse.comfortCheck.body}</p>
             </div>
           </div>
 
@@ -2800,29 +7582,117 @@ export default function TogetherRoomScreen({
             })}
           </div>
 
+          <div className="mt-3 rounded-[18px] border border-[#CFECE3] bg-[#F9FCFA] px-4 py-3" data-testid="together-comfort-privacy-note">
+            <div className="flex items-start gap-2">
+              <ShieldCheck size={18} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.comfortPrivacyTitle}</p>
+                <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]">{copy.comfortPrivacyBody}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-[18px] bg-[#F4FBF8] px-4 py-3" data-testid="together-room-direction">
+            <p className="font-body text-[16px] font-bold text-[#0F766E]">{copy.roomDirectionTitle}</p>
+            <p className="mt-1 font-body text-[17px] font-bold leading-[1.35] text-[#315C55]">
+              {tiedPollLabels.length > 1
+                ? copy.roomDirectionTie(tiedPollLabels, topComfortLabels)
+                : leadingPollOption || topComfortLabels.length
+                  ? copy.roomDirectionBody(leadingPollOption?.label ?? null, topComfortLabels)
+                : copy.roomDirectionWaiting}
+            </p>
+            <RoomDecisionSummary
+              copy={copy}
+              leadingPollOption={leadingPollOption}
+              tiedPollLabels={tiedPollLabels}
+              topComfortLabels={topComfortLabels}
+              planInterestCount={planInterestCount}
+              sharedViewCount={sharedViewPosts.length}
+            />
+            <RoomCommonGroundCue
+              copy={copy}
+              topComfortLabels={topComfortLabels}
+              planInterestCount={planInterestCount}
+              sharedViewCount={sharedViewPosts.length}
+            />
+            <RoomOutcomeBridge
+              copy={copy}
+              leadingPollOption={leadingPollOption}
+              tiedPollLabels={tiedPollLabels}
+              topComfortLabels={topComfortLabels}
+            />
+            <DecisionGuide
+              guide={decisionGuide}
+              onStart={startRoomDirectionPlan}
+              recapLabel={hasRoomSignals ? copy.roomRecapAction : undefined}
+              onRecap={hasRoomSignals ? startRoomRecapQuestion : undefined}
+            />
+            <RoomReadinessChecklist
+              copy={copy}
+              leadingPollOption={leadingPollOption}
+              topComfortLabels={topComfortLabels}
+            />
+            <RoomUsefulNextSteps
+              copy={copy}
+              activityReadyPlan={activityReadyPlan}
+              voteReadyQuestion={voteReadyQuestion}
+              sharedViewCount={sharedViewPosts.length}
+              disabled={isSending}
+              onPrepareActivity={startActivityReadyQuestion}
+              onMakeVote={(question) => startIssueVoteQuestion(question)}
+              onRecapViews={startViewRecapQuestion}
+            />
+          </div>
         </section>
 
-        <section
-          className="overflow-hidden rounded-[28px] border border-[#E7DDF4] bg-[radial-gradient(circle_at_top_right,#F3ECFF_0%,#FFFFFF_42%,#F9FCFA_100%)] px-5 py-5 shadow-[0_16px_32px_rgba(109,40,217,0.06)]"
-          data-testid="together-share-plan-entry"
-        >
-          <h2 className="font-display text-[28px] leading-[1.08] text-[#2F2135]">{planCopy.sharePlanTitle}</h2>
-          <p className="sr-only">{planCopy.sharePlanBody}</p>
+        <section className="rounded-[28px] border border-[#E7DDF4] bg-white px-5 py-5 shadow-[0_16px_32px_rgba(109,40,217,0.06)]">
+          <h2 className="font-display text-[28px] leading-[1.08] text-[#2F2135]">{pulse.discussionPrompt.title}</h2>
+          {pulse.discussionPrompt.body && (
+            <p className="mt-2 font-body text-[18px] leading-[1.35] text-[#62556B]">{pulse.discussionPrompt.body}</p>
+          )}
 
-          <button
-            type="button"
-            onClick={openPlanComposer}
-            data-testid="together-starter-plan"
-            className="mt-4 flex min-h-[82px] w-full items-center justify-between gap-4 rounded-[22px] bg-[#6D28D9] px-4 text-left font-body text-[20px] font-bold text-white shadow-[0_16px_26px_rgba(109,40,217,0.22)]"
+          <div className="mt-4 grid gap-3">
+            {starterActions.map((action) => {
+              const Icon = action.icon;
+              return (
+                <button
+                  key={action.id}
+                  type="button"
+                  onClick={() => handleStarter(action.id, action.label)}
+                  disabled={isSending}
+                  data-testid={`together-starter-${action.id}`}
+                  className="flex min-h-[62px] items-center gap-3 rounded-[20px] border border-[#E8DEF8] bg-[#FBF8FF] px-4 text-left font-body text-[19px] font-bold text-[#4B2E6E] disabled:cursor-default disabled:opacity-60"
+                >
+                  <Icon size={22} aria-hidden="true" />
+                  {action.label}
+                </button>
+              );
+            })}
+          </div>
+          <p
+            className="mt-3 rounded-[18px] bg-[#F8F5FF] px-4 py-3 font-body text-[16px] font-bold leading-[1.35] text-[#655172]"
+            data-testid="together-view-sharing-note"
           >
-            <span className="inline-flex min-w-0 items-center gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/15">
-                <Sparkles size={22} aria-hidden="true" />
-              </span>
-              <span className="truncate">{planCopy.sharePlanAction}</span>
-            </span>
-            <SharePlanVisuals />
-          </button>
+            {copy.viewSharingNote}
+          </p>
+
+          {showViewCircle && (
+            <ViewCircle
+              copy={copy}
+              viewVoteOption={viewVoteOption}
+              sharedViews={sharedViewPosts}
+              onAddView={() => openViewComposer()}
+              onStartViewDraft={(draft) => openViewComposer(draft)}
+              onAskViewRecap={startViewRecapQuestion}
+              onAskViewVote={startViewVoteQuestion}
+              onReviewView={(view) => void sendSharedItemReport(view)}
+              onReplyToView={(view, tone) => void sendGentleReply(view, tone)}
+              isReviewingView={(view) => reportingItemIds.has(`plan:${view.key}`)}
+              isReviewedView={(view) => reportedItemIds.has(`plan:${view.key}`)}
+              isReplyingView={(view) => replyingPlanKey === view.key}
+              disabled={isSending}
+            />
+          )}
 
           {showProposalComposer && (
             <form
@@ -2838,79 +7708,27 @@ export default function TogetherRoomScreen({
                   proposalKind === "plan" ? proposalCategory : "other",
                   proposalKind === "plan" ? proposalPreferredTime : "flexible",
                   proposalKind === "plan" ? proposalCostRange : "discuss",
-                  proposalKind === "plan" ? proposalGroupSize : "one_to_one",
+                  proposalGroupSize,
                 );
               }}
             >
-              <p className="font-body text-[16px] font-bold text-[#4B2E6E]">{planCopy.planPresetPrompt}</p>
-              <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                {(Object.keys(planPresetDefaults) as PlanPresetId[]).map((presetId) => {
-                  const presetCopy = planCopy.planPresetCopy[presetId];
-                  return (
-                    <button
-                      key={presetId}
-                      type="button"
-                      onClick={() => applyPlanPreset(presetId)}
-                      data-testid={`together-plan-preset-${presetId}`}
-                      className="min-h-[82px] rounded-[18px] border border-[#E7DDF4] bg-white px-3 py-3 text-left font-body text-[#4B2E6E] shadow-[0_8px_14px_rgba(75,46,110,0.05)]"
-                    >
-                      <span className="block text-[16px] font-bold leading-tight">{presetCopy.title}</span>
-                      <span className="mt-1 block text-[13px] font-bold leading-[1.25] text-[#7B6687]">{presetCopy.body}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="mt-3 rounded-[16px] bg-[#FBF8FF] px-3 py-2 font-body text-[15px] font-bold leading-[1.35] text-[#655172]">
-                {planCopy.planComposerHelper}
-              </p>
-              <div className="mt-3 flex items-end gap-2">
-                <textarea
-                  value={proposalDraft}
-                  onChange={(event) => setProposalDraft(event.target.value)}
-                  placeholder={planCopy.proposalPlaceholder}
-                  rows={3}
-                  className="min-h-[92px] min-w-0 flex-1 resize-none rounded-[17px] border border-[#E7DDF4] bg-white px-4 py-3 font-body text-[18px] leading-snug text-[#2F2135] outline-none placeholder:text-[#8A7A96]"
-                />
-                <button
-                  type="submit"
-                  disabled={isSending || !proposalDraft.trim()}
-                  className="flex h-[64px] w-[64px] shrink-0 items-center justify-center rounded-[17px] bg-[#6D28D9] text-white disabled:opacity-45"
-                  aria-label={isSending ? planCopy.sending : planCopy.send}
-                >
-                  <Send size={23} aria-hidden="true" />
-                </button>
-              </div>
-              {proposalReviewFlags.length > 0 && (
-                <div
-                  className="mt-3 rounded-[18px] border border-[#F3D79B] bg-[#FFF8E8] px-4 py-3"
-                  data-testid="together-proposal-review-note"
-                >
-                  <p className="font-body text-[16px] font-bold text-[#6B4F13]">{planCopy.proposalReviewTitle}</p>
-                  <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#7A5A18]">
-                    {planCopy.proposalReviewBody}
-                  </p>
-                  <p className="mt-2 font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#8A641A]">
-                    {proposalReviewFlags.map((flag) => planCopy.reviewReasons[flag]).join(" | ")}
-                  </p>
-                </div>
-              )}
               {proposalKind === "plan" && (
                 <ChoiceButtonGroup
-                  label={planCopy.proposalCategoryPrompt}
+                  label={copy.proposalCategoryPrompt}
                   options={experienceCategoryOptions}
                   selectedValue={proposalCategory}
                   onChange={setProposalCategory}
-                  getLabel={(value) => planCopy.categoryLabels[value]}
+                  getLabel={(value) => copy.categoryLabels[value]}
                   testIdPrefix="together-proposal-category"
                 />
               )}
               {proposalKind === "plan" && (
                 <div className="mb-3">
-                  <p className="font-body text-[16px] font-bold text-[#4B2E6E]">{planCopy.proposalPlacePrompt}</p>
-                  <div className="mt-2 grid grid-cols-2 gap-2" role="group" aria-label={planCopy.proposalPlacePrompt}>
+                  <p className="font-body text-[16px] font-bold text-[#4B2E6E]">{copy.proposalPlacePrompt}</p>
+                  <div className="mt-2 grid grid-cols-2 gap-2" role="group" aria-label={copy.proposalPlacePrompt}>
                     {([
-                      ["nearby", planCopy.planNearby],
-                      ["online", planCopy.planOnline],
+                      ["nearby", copy.planNearby],
+                      ["online", copy.planOnline],
                     ] as const).map(([value, label]) => {
                       const selected = proposalLocationLabel === value;
                       return (
@@ -2936,20 +7754,20 @@ export default function TogetherRoomScreen({
               {proposalKind === "plan" && (
                 <div className="grid gap-0 sm:grid-cols-2 sm:gap-3">
                   <ChoiceButtonGroup
-                    label={planCopy.proposalTimePrompt}
+                    label={copy.proposalTimePrompt}
                     options={preferredTimeOptions}
                     selectedValue={proposalPreferredTime}
                     onChange={setProposalPreferredTime}
-                    getLabel={(value) => planCopy.timeLabels[value]}
+                    getLabel={(value) => copy.timeLabels[value]}
                     testIdPrefix="together-proposal-time"
                     compact
                   />
                   <ChoiceButtonGroup
-                    label={planCopy.proposalCostPrompt}
+                    label={copy.proposalCostPrompt}
                     options={costRangeOptions}
                     selectedValue={proposalCostRange}
                     onChange={setProposalCostRange}
-                    getLabel={(value) => planCopy.costLabels[value]}
+                    getLabel={(value) => copy.costLabels[value]}
                     testIdPrefix="together-proposal-cost"
                     compact
                   />
@@ -2957,19 +7775,19 @@ export default function TogetherRoomScreen({
               )}
               {proposalKind === "plan" && (
                 <ChoiceButtonGroup
-                  label={planCopy.proposalGroupPrompt}
+                  label={copy.proposalGroupPrompt}
                   options={groupSizeOptions}
                   selectedValue={proposalGroupSize}
                   onChange={setProposalGroupSize}
-                  getLabel={(value) => planCopy.groupLabels[value]}
+                  getLabel={(value) => copy.groupLabels[value]}
                   testIdPrefix="together-proposal-group"
                   compact
                 />
               )}
               {proposalKind === "plan" && (
                 <div className="mb-3">
-                  <p className="font-body text-[16px] font-bold text-[#4B2E6E]">{planCopy.comfortPrompt}</p>
-                  <div className="mt-2 grid gap-2 sm:grid-cols-3" role="group" aria-label={planCopy.comfortPrompt}>
+                  <p className="font-body text-[16px] font-bold text-[#4B2E6E]">{copy.comfortPrompt}</p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-3" role="group" aria-label={copy.comfortPrompt}>
                     {comfortNeedOptions.map((need) => {
                       const selected = selectedComfortNeeds.includes(need);
                       return (
@@ -2987,7 +7805,7 @@ export default function TogetherRoomScreen({
                         >
                           <span className="inline-flex items-center justify-center gap-2">
                             {selected && <Check size={17} aria-hidden="true" />}
-                            {planCopy.comfortNeedLabels[need]}
+                            {copy.comfortNeedLabels[need]}
                           </span>
                         </button>
                       );
@@ -2995,6 +7813,177 @@ export default function TogetherRoomScreen({
                   </div>
                 </div>
               )}
+              {proposalKind === "message" && (
+                <div
+                  className="mb-3 rounded-[18px] border border-[#D7E8DB] bg-[#F4FBF8] px-3 py-3"
+                  data-testid="together-view-starters"
+                >
+                  <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.viewPromptTitle}</p>
+                  <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#55706B]">{copy.viewPromptBody}</p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4" role="group" aria-label={copy.viewPromptTitle}>
+                    {viewPromptActions.map((action) => {
+                      const draft = copy.viewPromptDrafts[action];
+                      const selected = proposalDraft === draft;
+                      return (
+                        <button
+                          key={action}
+                          type="button"
+                          onClick={() => setProposalDraft(draft)}
+                          aria-pressed={selected}
+                          aria-label={`${copy.viewPromptLabels[action]}: ${draft}`}
+                          data-testid={`together-view-prompt-${action}`}
+                          className={`min-h-[78px] rounded-[16px] border px-3 py-2 text-left font-body ${
+                            selected
+                              ? "border-[#0F766E] bg-white text-[#244D47]"
+                              : "border-[#D7E8DB] bg-[#FBFFFD] text-[#41655F]"
+                          }`}
+                        >
+                          <span className="block text-[15px] font-bold leading-tight">{copy.viewPromptLabels[action]}</span>
+                          <span className="mt-1 block text-[13px] font-bold leading-[1.25] text-[#55706B]">{draft}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {proposalKind === "message" && (
+                <ViewTonePreview
+                  copy={copy}
+                  hasProtectedDetails={proposalHasProtectedDetails}
+                  hasUnkindTone={proposalHasUnkindTone}
+                />
+              )}
+              {proposalKind === "question" && (
+                <div
+                  className="mb-3 rounded-[18px] border border-[#D7E8DB] bg-[#F4FBF8] px-3 py-3"
+                  data-testid="together-ask-starters"
+                >
+                  <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.askPromptTitle}</p>
+                  <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#55706B]">{copy.askPromptBody}</p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4" role="group" aria-label={copy.askPromptTitle}>
+                    {askPromptActions.map((action) => {
+                      const draft = copy.askPromptDrafts[action];
+                      const selected = proposalDraft === draft;
+                      return (
+                        <button
+                          key={action}
+                          type="button"
+                          onClick={() => setProposalDraft(draft)}
+                          aria-pressed={selected}
+                          aria-label={`${copy.askPromptLabels[action]}: ${draft}`}
+                          data-testid={`together-ask-prompt-${action}`}
+                          className={`min-h-[78px] rounded-[16px] border px-3 py-2 text-left font-body ${
+                            selected
+                              ? "border-[#0F766E] bg-white text-[#244D47]"
+                              : "border-[#D7E8DB] bg-[#FBFFFD] text-[#41655F]"
+                          }`}
+                        >
+                          <span className="block text-[15px] font-bold leading-tight">{copy.askPromptLabels[action]}</span>
+                          <span className="mt-1 block text-[13px] font-bold leading-[1.25] text-[#55706B]">{draft}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-3 rounded-[16px] border border-[#D7E8DB] bg-white px-3 py-3" data-testid="together-issue-prompts">
+                    <p className="font-body text-[15px] font-bold text-[#244D47]">{copy.issuePromptTitle}</p>
+                    <p className="mt-1 font-body text-[13px] font-bold leading-[1.3] text-[#55706B]">{copy.issuePromptBody}</p>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4" role="group" aria-label={copy.issuePromptTitle}>
+                      {issuePromptActions.map((action) => {
+                        const draft = copy.issuePromptDrafts[action];
+                        const selected = proposalDraft === draft;
+                        return (
+                          <button
+                            key={action}
+                            type="button"
+                            onClick={() => setProposalDraft(draft)}
+                            aria-pressed={selected}
+                            aria-label={`${copy.issuePromptLabels[action]}: ${draft}`}
+                            data-testid={`together-issue-prompt-${action}`}
+                            className={`min-h-[64px] rounded-[15px] border px-3 py-2 text-left font-body ${
+                              selected
+                                ? "border-[#0F766E] bg-[#F4FBF8] text-[#244D47]"
+                                : "border-[#D7E8DB] bg-[#FBFFFD] text-[#41655F]"
+                            }`}
+                          >
+                            <span className="block text-[15px] font-bold leading-tight">{copy.issuePromptLabels[action]}</span>
+                            <span className="mt-1 block text-[13px] font-bold leading-[1.25] text-[#55706B]">{draft}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+              <ComposerSafetyPreview copy={copy} kind={proposalKind} />
+              <SafeShareCue copy={copy} />
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                <div className="min-w-0">
+                  <textarea
+                    value={proposalDraft}
+                    onChange={(event) => setProposalDraft(limitProposalDraft(event.target.value))}
+                    placeholder={copy.proposalPlaceholder}
+                    rows={proposalKind === "question" ? 6 : proposalKind === "message" ? 3 : 2}
+                    maxLength={proposalDetailsMaxLength}
+                    aria-describedby={proposalDescriptionIds}
+                    data-testid="together-proposal-draft"
+                    className={`w-full min-w-0 flex-1 resize-none rounded-[17px] bg-white px-4 py-3 font-body text-[18px] leading-snug text-[#2F2135] outline-none placeholder:text-[#8A7A96] ${
+                      proposalKind === "question" ? "min-h-[196px]" : proposalKind === "message" ? "min-h-[112px]" : "min-h-[64px]"
+                    }`}
+                  />
+                  {proposalHasProtectedDetails && (
+                    <p
+                      id="together-proposal-safety-warning"
+                      data-testid="together-proposal-safety-warning"
+                      className="mt-2 rounded-[14px] border border-[#F1C7C7] bg-[#FFF6F6] px-3 py-2 font-body text-[15px] font-bold leading-snug text-[#8A2F2F]"
+                    >
+                      {copy.proposalSafetyWarning}
+                    </p>
+                  )}
+                  {proposalHasUnkindTone && (
+                    <div
+                      id="together-proposal-tone-warning"
+                      data-testid="together-proposal-tone-warning"
+                      className="mt-2 rounded-[14px] border border-[#F2D59B] bg-[#FFF9E8] px-3 py-2 font-body text-[15px] font-bold leading-snug text-[#7C4A03]"
+                    >
+                      <p>{copy.proposalToneWarning}</p>
+                      <button
+                        type="button"
+                        onClick={softenProposalTone}
+                        className="mt-2 min-h-[44px] rounded-[14px] bg-[#7C4A03] px-4 py-2 text-[15px] font-bold text-white shadow-[0_8px_18px_rgba(124,74,3,0.18)]"
+                        data-testid="together-proposal-soften-tone"
+                      >
+                        {copy.proposalToneRewrite}
+                      </button>
+                    </div>
+                  )}
+                  <p
+                    id="together-proposal-length"
+                    data-testid="together-proposal-length"
+                    className="mt-1 font-body text-[14px] leading-snug text-[#756680]"
+                  >
+                    {copy.proposalLengthHint(proposalCharactersLeft)}
+                  </p>
+                </div>
+                <div className="grid grid-cols-[minmax(0,1fr)_64px] gap-2 sm:grid-cols-[112px_64px]">
+                  <button
+                    type="button"
+                    onClick={cancelProposalComposer}
+                    data-testid="together-cancel-proposal"
+                    className="inline-flex min-h-[64px] items-center justify-center gap-2 rounded-[17px] border border-[#E7DDF4] bg-white px-3 font-body text-[17px] font-bold text-[#655172]"
+                  >
+                    <X size={20} aria-hidden="true" />
+                    {copy.cancel}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSending || !proposalDraft.trim() || proposalHasProtectedDetails || proposalHasUnkindTone}
+                    className="flex h-[64px] w-[64px] shrink-0 items-center justify-center rounded-[17px] bg-[#6D28D9] text-white disabled:opacity-45"
+                    aria-label={isSending ? copy.sending : copy.send}
+                  >
+                    <Send size={23} aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
             </form>
           )}
 
@@ -3002,10 +7991,12 @@ export default function TogetherRoomScreen({
             <div className="mt-5 rounded-[24px] bg-[#F8F5FF] px-4 py-4" data-testid="together-shared-today">
               <h3 className="font-body text-[19px] font-bold text-[#4B2E6E]">{copy.sharedToday}</h3>
               <div className="mt-3 grid gap-3">
-                {postedExperiences.map((plan) => (
+                {postedExperiences.map((plan) => {
+                  const visibleReplies = activePlanReplies(plan);
+                  return (
                   <article key={plan.key} className="rounded-[20px] bg-white px-4 py-4 shadow-[0_10px_18px_rgba(75,46,110,0.08)]">
-                    <p className="font-body text-[13px] font-bold uppercase tracking-[0.08em] text-[#6D4B8F]">
-                      {copy.sharedKindLabels[plan.kind ?? "plan"]}
+                    <p className="font-body text-[14px] font-bold leading-[1.2] text-[#6D4B8F]">
+                      {sharedKindLabelForPlan(plan, copy)}
                     </p>
                     <p className="mt-1 font-body text-[19px] font-bold leading-tight text-[#2F2135]">{plan.title}</p>
                     {plan.body && (
@@ -3024,30 +8015,92 @@ export default function TogetherRoomScreen({
                       </p>
                     </div>
                     {(plan.kind ?? "plan") === "plan" && <PlanComfortPills plan={plan} copy={copy} />}
+                    {(plan.kind ?? "plan") === "plan" && (
+                      <div
+                        className="mt-3 rounded-[18px] border border-[#CFECE3] bg-[#F7FCFA] px-3 py-3"
+                        data-testid={`together-shared-plan-collaboration-${plan.key}`}
+                      >
+                        <div className="flex items-start gap-2">
+                          <HeartHandshake size={17} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+                          <div className="min-w-0">
+                            <p className="font-body text-[15px] font-bold text-[#315C55]">{copy.planSupportTitle}</p>
+                            <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#55706B]">{copy.planSupportBody}</p>
+                          </div>
+                        </div>
+                        <PlanSupportSummary
+                          copy={copy}
+                          plan={plan}
+                          testId={`together-shared-plan-helper-summary-${plan.key}`}
+                          itemTestIdPrefix={`together-shared-plan-helper-${plan.key}`}
+                        />
+                        <PlanHelperCue
+                          copy={copy}
+                          plan={plan}
+                          onChoose={(action) => void sendPlanCollaboration(action, plan)}
+                          disabled={replyingPlanKey === plan.key}
+                          testId={`together-shared-plan-helper-cue-${plan.key}`}
+                        />
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                          {planCollaborationActions.map((action) => (
+                            <button
+                              key={action}
+                              type="button"
+                              onClick={() => void sendPlanCollaboration(action, plan)}
+                              disabled={replyingPlanKey === plan.key}
+                              data-testid={`together-shared-plan-collaboration-${action}-${plan.key}`}
+                              aria-label={`${copy.planSupportActions[action]}: ${copy.planSupportReplies[action]}`}
+                              className="min-h-[82px] rounded-[16px] border border-[#CFECE3] bg-white px-3 py-3 text-left font-body font-bold text-[#0F766E] disabled:opacity-55"
+                            >
+                              <span className="block text-[15px] leading-tight">{copy.planSupportActions[action]}</span>
+                              <span className="mt-1 block text-[13px] leading-[1.25] text-[#55706B]">{copy.planSupportReplies[action]}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {shouldShowSharedPlanReadiness(plan) && (
+                      <PlanReadinessBridge
+                        copy={copy}
+                        plan={plan}
+                        onAsk={() => startActivityReadyQuestion(plan)}
+                        testId={`together-shared-plan-readiness-${plan.key}`}
+                        itemTestIdPrefix={`together-shared-plan-readiness-${plan.key}`}
+                      />
+                    )}
                     <div className="mt-3 rounded-[18px] bg-[#F7FAF7] px-3 py-3" data-testid={`together-gentle-replies-${plan.key}`}>
                       <div className="flex items-center gap-2">
                         <MessageCircle size={17} className="text-[#0F766E]" aria-hidden="true" />
                         <p className="font-body text-[15px] font-bold text-[#315C55]">{copy.gentleReplies}</p>
                       </div>
-                      {(plan.replies?.length ?? 0) > 0 && (
+                      <div className="mt-2 rounded-[15px] bg-white px-3 py-2" data-testid={`together-reply-guide-${plan.key}`}>
+                        <p className="font-body text-[14px] font-bold text-[#315C55]">{copy.replyGuideTitle}</p>
+                        <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#55706B]">{copy.replyGuideBody}</p>
+                      </div>
+                      {visibleReplies.length > 0 && (
                         <div className="mt-2 grid gap-2">
-                          {plan.replies!.map((reply) => (
-                            <article
-                              key={reply.id}
-                              className="rounded-[15px] bg-white px-3 py-2 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]"
-                              data-testid={`together-reply-${reply.id}`}
-                            >
-                              <p>{reply.body}</p>
-                              <button
-                                type="button"
-                                onClick={() => void sendReplyReport(plan, reply)}
-                                data-testid={`together-review-reply-${reply.id}`}
-                                className="mt-2 min-h-[38px] rounded-[13px] border border-[#CFECE3] bg-[#F7FAF7] px-3 font-body text-[14px] font-bold text-[#0F766E]"
+                          {visibleReplies.map((reply) => {
+                            const reportKey = `reply:${reply.id}`;
+                            const isReporting = reportingItemIds.has(reportKey);
+                            const isReported = reportedItemIds.has(reportKey);
+                            return (
+                              <article
+                                key={reply.id}
+                                className="rounded-[15px] bg-white px-3 py-2 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]"
+                                data-testid={`together-reply-${reply.id}`}
                               >
-                                {copy.reviewReply}
-                              </button>
-                            </article>
-                          ))}
+                                <p>{reply.body}</p>
+                                <button
+                                  type="button"
+                                  onClick={() => void sendReplyReport(plan, reply)}
+                                  disabled={isReporting || isReported}
+                                  data-testid={`together-review-reply-${reply.id}`}
+                                  className="mt-2 min-h-[38px] rounded-[13px] border border-[#CFECE3] bg-[#F7FAF7] px-3 font-body text-[14px] font-bold text-[#0F766E] disabled:cursor-default disabled:opacity-60"
+                                >
+                                  {isReporting ? copy.helpSending : isReported ? copy.reviewItemSent : copy.reviewReply}
+                                </button>
+                              </article>
+                            );
+                          })}
                         </div>
                       )}
                       <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -3058,9 +8111,11 @@ export default function TogetherRoomScreen({
                             onClick={() => void sendGentleReply(plan, tone)}
                             disabled={replyingPlanKey === plan.key}
                             data-testid={`together-reply-${tone}-${plan.key}`}
-                            className="min-h-[48px] rounded-[16px] border border-[#CFECE3] bg-white px-3 font-body text-[15px] font-bold text-[#0F766E] disabled:opacity-55"
+                            aria-label={`${copy.replyActions[tone]}: ${copy.replyBodies[tone]}`}
+                            className="min-h-[88px] rounded-[16px] border border-[#CFECE3] bg-white px-3 py-3 text-left font-body font-bold text-[#0F766E] disabled:opacity-55"
                           >
-                            {copy.replyActions[tone]}
+                            <span className="block text-[15px] leading-tight">{copy.replyActions[tone]}</span>
+                            <span className="mt-1 block text-[14px] leading-[1.25] text-[#55706B]">{copy.replyBodies[tone]}</span>
                           </button>
                         ))}
                       </div>
@@ -3069,8 +8124,9 @@ export default function TogetherRoomScreen({
                       <button
                         type="button"
                         onClick={() => void respondToPlan("join", plan.key, copy.sharedResponseSaved)}
+                        disabled={respondingPlanKeys.has(plan.key)}
                         aria-pressed={plan.myResponse === "join"}
-                        className={`min-h-[52px] rounded-[17px] px-3 font-body text-[16px] font-bold ${
+                        className={`min-h-[52px] rounded-[17px] px-3 font-body text-[16px] font-bold disabled:cursor-default disabled:opacity-65 ${
                           plan.myResponse === "join"
                             ? "bg-[#0F766E] text-white"
                             : "bg-[#EAF8F4] text-[#0F766E]"
@@ -3081,8 +8137,9 @@ export default function TogetherRoomScreen({
                       <button
                         type="button"
                         onClick={() => void respondToPlan("maybe", plan.key, copy.sharedResponseSaved)}
+                        disabled={respondingPlanKeys.has(plan.key)}
                         aria-pressed={plan.myResponse === "maybe"}
-                        className={`min-h-[52px] rounded-[17px] border px-3 font-body text-[16px] font-bold ${
+                        className={`min-h-[52px] rounded-[17px] border px-3 font-body text-[16px] font-bold disabled:cursor-default disabled:opacity-65 ${
                           plan.myResponse === "maybe"
                             ? "border-[#0F766E] bg-white text-[#0F766E]"
                             : "border-[#E7DDF4] bg-white text-[#4B2E6E]"
@@ -3094,20 +8151,21 @@ export default function TogetherRoomScreen({
                         type="button"
                         onClick={() => void sendSharedItemReport(plan)}
                         aria-label={`${copy.reviewItem}: ${plan.title}`}
-                        className="col-span-2 inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[17px] border border-[#D8E7E2] bg-[#F7FAF7] px-3 font-body text-[15px] font-bold text-[#315C55]"
+                        disabled={reportingItemIds.has(`plan:${plan.key}`) || reportedItemIds.has(`plan:${plan.key}`)}
+                        data-testid={`together-review-item-${plan.key}`}
+                        className="col-span-2 inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[17px] border border-[#D8E7E2] bg-[#F7FAF7] px-3 font-body text-[15px] font-bold text-[#315C55] disabled:cursor-default disabled:opacity-60"
                       >
                         <ShieldCheck size={17} aria-hidden="true" />
-                        {copy.reviewItem}
+                        {reportingItemIds.has(`plan:${plan.key}`)
+                          ? copy.helpSending
+                          : reportedItemIds.has(`plan:${plan.key}`)
+                            ? copy.reviewItemSent
+                            : copy.reviewItem}
                       </button>
                     </div>
-                    <PlanLoopCard
-                      plan={plan}
-                      copy={copy}
-                      isBusy={replyingPlanKey === plan.key}
-                      onAction={(loopPlan, action) => void sendPlanLoopReply(loopPlan, action)}
-                    />
                   </article>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -3115,9 +8173,57 @@ export default function TogetherRoomScreen({
 
         {roomUpdates.length > 0 && (
           <section className="rounded-[26px] border border-[#D7E8DB] bg-white px-5 py-5 shadow-[0_14px_28px_rgba(15,118,110,0.06)]" data-testid="together-room-updates">
-            <div className="flex items-center gap-2">
-              <Bell size={21} className="text-[#0F766E]" aria-hidden="true" />
-              <h2 className="font-body text-[20px] font-bold text-[#244D47]">{copy.roomUpdates}</h2>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2">
+                <Bell size={21} className="text-[#0F766E]" aria-hidden="true" />
+                <h2 className="font-body text-[20px] font-bold text-[#244D47]">{copy.roomUpdates}</h2>
+              </div>
+              {unreadRoomUpdateCount > 1 && (
+                <button
+                  type="button"
+                  onClick={() => void markAllUpdatesSeen()}
+                  disabled={isMarkingAllUpdatesSeen || markingUpdateId !== null}
+                  data-testid="together-updates-seen-all"
+                  className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-[16px] border border-[#CFECE3] bg-[#F7FAF7] px-4 font-body text-[16px] font-bold text-[#0F766E] disabled:opacity-55 sm:w-auto"
+                >
+                  <Check size={17} aria-hidden="true" />
+                  {copy.markAllUpdatesSeen}
+                </button>
+              )}
+            </div>
+            {unreadRoomUpdateCount > roomUpdates.length && (
+              <p
+                className="mt-2 font-body text-[15px] font-bold leading-[1.35] text-[#55706B]"
+                data-testid="together-room-updates-showing"
+              >
+                {copy.roomUpdatesShowing(roomUpdates.length, unreadRoomUpdateCount)}
+              </p>
+            )}
+            <div
+              className="mt-3 rounded-[18px] border border-[#CFECE3] bg-[#F4FBF8] px-4 py-3"
+              data-testid="together-room-updates-recap"
+            >
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-2">
+                  <Sparkles size={18} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+                  <div className="min-w-0">
+                    <p className="font-body text-[16px] font-bold leading-[1.25] text-[#244D47]">{copy.roomUpdatesRecapTitle}</p>
+                    <p className="mt-1 font-body text-[14px] font-bold leading-[1.35] text-[#41655F]">
+                      {copy.roomUpdatesRecapBody(roomUpdateRecapCount)}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={startRoomUpdatesRecapQuestion}
+                  disabled={isSending}
+                  data-testid="together-room-updates-recap-action"
+                  className="inline-flex min-h-[50px] w-full items-center justify-center gap-2 rounded-[16px] bg-[#0F766E] px-4 font-body text-[15px] font-bold text-white shadow-[0_10px_18px_rgba(15,118,110,0.12)] disabled:cursor-default disabled:opacity-60 sm:w-auto"
+                >
+                  <MessageCircle size={17} aria-hidden="true" />
+                  {copy.roomUpdatesRecapAction}
+                </button>
+              </div>
             </div>
             <div className="mt-3 grid gap-2">
               {roomUpdates.map((notification) => (
@@ -3129,7 +8235,7 @@ export default function TogetherRoomScreen({
                   <button
                     type="button"
                     onClick={() => void markUpdateSeen(notification.id)}
-                    disabled={markingUpdateId === notification.id}
+                    disabled={markingUpdateId === notification.id || isMarkingAllUpdatesSeen}
                     data-testid={`together-update-seen-${notification.id}`}
                     className="mt-3 inline-flex min-h-[48px] items-center gap-2 rounded-[16px] border border-[#CFECE3] bg-white px-4 font-body text-[16px] font-bold text-[#0F766E] disabled:opacity-55"
                   >
@@ -3150,12 +8256,30 @@ export default function TogetherRoomScreen({
               <p className="mt-1 font-body text-[17px] leading-[1.35] text-[#41655F]">{pulse.safety.consentLine}</p>
               <button
                 type="button"
-                onClick={() => void sendSafetyReport()}
+                onClick={() => {
+                  setSafetyHelpPanelAnchor((current) => current === "footer" ? null : "footer");
+                  setStatusMessage("");
+                  setLastSafetyHelpChoice(null);
+                  setLastSafetyHelpReceiptAnchor(null);
+                }}
+                disabled={isSendingSafetyReport}
                 data-testid="together-safety-help"
-                className="mt-3 min-h-[50px] rounded-[18px] border border-[#A9DCCE] bg-white px-4 font-body text-[17px] font-bold text-[#0F766E]"
+                className="mt-3 min-h-[50px] rounded-[18px] border border-[#A9DCCE] bg-white px-4 font-body text-[17px] font-bold text-[#0F766E] disabled:cursor-default disabled:opacity-60"
+                aria-expanded={safetyHelpPanelAnchor === "footer"}
               >
-                {pulse.safety.helpLabel}
+                {isSendingSafetyReport ? copy.helpSending : pulse.safety.helpLabel}
               </button>
+              {safetyHelpPanelAnchor === "footer" && (
+                <SafetyHelpPanel
+                  copy={copy}
+                  isSending={isSendingSafetyReport}
+                  onSend={(choice) => void sendSafetyReport(choice)}
+                  onCancel={() => setSafetyHelpPanelAnchor(null)}
+                />
+              )}
+              {safetyHelpPanelAnchor === null && lastSafetyHelpChoice && lastSafetyHelpReceiptAnchor === "footer" && (
+                <SafetyHelpReceipt copy={copy} choice={lastSafetyHelpChoice} />
+              )}
             </div>
           </div>
         </section>
@@ -3168,12 +8292,49 @@ export default function TogetherRoomScreen({
                 <div key={plan.key} className="rounded-[20px] bg-[#FFF8E8] px-4 py-3">
                   <p className="font-body text-[18px] font-bold text-[#2F2135]">{plan.title}</p>
                   <p className="mt-1 font-body text-[15px] leading-[1.32] text-[#695D67]">{plan.body}</p>
-                  <div className="mt-2">
+                  <div className="mt-2 flex flex-wrap gap-2">
                     <PlanLocationPill plan={plan} copy={copy} />
+                    <p
+                      className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 font-body text-[14px] font-bold text-[#315C55]"
+                      data-testid={`together-secondary-response-summary-${plan.key}`}
+                    >
+                      <Users size={15} aria-hidden="true" />
+                      {formatResponseSummary(plan, copy)}
+                    </p>
                   </div>
                   <PlanComfortPills plan={plan} copy={copy} />
                   <PlanExperiencePills plan={plan} copy={copy} />
                   <PlanReviewNotice plan={plan} copy={copy} />
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void respondToPlan("join", plan.key, copy.sharedResponseSaved)}
+                      disabled={respondingPlanKeys.has(plan.key)}
+                      aria-pressed={plan.myResponse === "join"}
+                      data-testid={`together-secondary-join-${plan.key}`}
+                      className={`min-h-[52px] rounded-[17px] px-3 font-body text-[16px] font-bold disabled:cursor-default disabled:opacity-65 ${
+                        plan.myResponse === "join"
+                          ? "bg-[#0F766E] text-white"
+                          : "bg-[#EAF8F4] text-[#0F766E]"
+                      }`}
+                    >
+                      {copy.sharedActions[plan.kind ?? "plan"].primary}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void respondToPlan("maybe", plan.key, copy.sharedResponseSaved)}
+                      disabled={respondingPlanKeys.has(plan.key)}
+                      aria-pressed={plan.myResponse === "maybe"}
+                      data-testid={`together-secondary-maybe-${plan.key}`}
+                      className={`min-h-[52px] rounded-[17px] border px-3 font-body text-[16px] font-bold disabled:cursor-default disabled:opacity-65 ${
+                        plan.myResponse === "maybe"
+                          ? "border-[#0F766E] bg-white text-[#0F766E]"
+                          : "border-[#E7DDF4] bg-white text-[#4B2E6E]"
+                      }`}
+                    >
+                      {copy.sharedActions[plan.kind ?? "plan"].secondary}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -3183,9 +8344,15 @@ export default function TogetherRoomScreen({
         {statusMessage && (
           <div
             role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            data-testid="together-status-message"
             className="fixed bottom-[calc(118px+env(safe-area-inset-bottom))] left-5 right-5 z-[90] mx-auto max-w-[520px] rounded-[22px] bg-[#211729] px-5 py-4 text-center font-body text-[18px] font-bold text-white shadow-[0_20px_38px_rgba(33,23,41,0.25)]"
           >
-            {statusMessage}
+            <span className="block text-[15px] font-bold leading-[1.2] text-[#E7DDF4]">
+              {copy.statusLabel}
+            </span>
+            <span className="mt-1 block leading-[1.25]">{statusMessage}</span>
           </div>
         )}
       </main>
