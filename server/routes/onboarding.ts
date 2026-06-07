@@ -241,8 +241,17 @@ onboardingRouter.post("/start-profile", async (req: Request, res: Response) => {
       email: isSelf ? account.email : null,
       phone_number: isSelf ? account.phone_number : null,
       language: parsed.data.language,
+      deployment: "standard",
+      subscription_status: "trial",
+      subscription_tier: "trial",
+      account_status: "enabled",
+      role: "user",
     }, {
       language: parsed.data.language,
+      deployment: "standard",
+      subscription_status: "trial",
+      subscription_tier: "trial",
+      account_status: "enabled",
       updated_at: now,
     }, "[onboarding/start-profile]");
 
