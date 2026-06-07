@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { missingColumnName } from "../lib/dbCompatibility.js";
+import {
+  isMissingOnConflictConstraintError,
+  isMissingRelationError,
+  missingColumnName,
+} from "../lib/dbCompatibility.js";
 import { isMissingAccountProfileLinkColumnError } from "../lib/profileAccess.js";
 
 describe("profile access schema compatibility", () => {
@@ -20,5 +24,11 @@ describe("profile access schema compatibility", () => {
     expect(missingColumnName(new Error('column "trial_ends_at" of relation "profiles" does not exist'))).toBe("trial_ends_at");
     expect(missingColumnName(new Error("column profiles.subscription_tier does not exist"))).toBe("subscription_tier");
     expect(missingColumnName(new Error("duplicate key value violates unique constraint"))).toBeNull();
+  });
+
+  it("recognizes missing relation and conflict constraint messages", () => {
+    expect(isMissingRelationError(new Error('relation "profile_memberships" does not exist'), "profile_memberships")).toBe(true);
+    expect(isMissingRelationError(new Error('relation "profiles" does not exist'), "profile_memberships")).toBe(false);
+    expect(isMissingOnConflictConstraintError(new Error("there is no unique or exclusion constraint matching the ON CONFLICT specification"))).toBe(true);
   });
 });

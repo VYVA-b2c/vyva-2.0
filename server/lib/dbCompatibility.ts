@@ -8,6 +8,16 @@ export function missingColumnName(err: unknown): string | null {
   return bareMatch?.[1] ?? null;
 }
 
+export function isMissingRelationError(err: unknown, relationName: string): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return new RegExp(`relation\\s+"${relationName}"\\s+does\\s+not\\s+exist`, "i").test(message);
+}
+
+export function isMissingOnConflictConstraintError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /no unique or exclusion constraint matching the ON CONFLICT specification/i.test(message);
+}
+
 export function omitColumns<T extends Record<string, unknown>>(values: T, columns: Set<string>): T {
   if (columns.size === 0) return values;
   const next = { ...values };

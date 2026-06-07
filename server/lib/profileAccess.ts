@@ -2,6 +2,7 @@ import type { Response } from "express";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "../db.js";
 import { profileMemberships, profiles, users } from "../../shared/schema.js";
+import { isMissingRelationError } from "./dbCompatibility.js";
 
 type ProfileMemberRole = (typeof profileMemberships.$inferSelect)["role"];
 
@@ -43,6 +44,14 @@ export function isMissingAccountProfileLinkColumnError(err: unknown): boolean {
   );
 }
 
+function isProfileMembershipSchemaError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return isMissingRelationError(err, "profile_memberships") || (
+    message.includes("does not exist") &&
+    message.includes("profile_memberships")
+  );
+}
+
 function hasLegacyProfileContent(profile: DirectProfile | undefined): profile is DirectProfile {
   if (!profile) return false;
   return Boolean(
@@ -56,21 +65,36 @@ function hasLegacyProfileContent(profile: DirectProfile | undefined): profile is
 }
 
 export async function getProfileChoices(accountUserId: string): Promise<ProfileChoice[]> {
-  const memberships = await db
-    .select({
-      profile_id: profileMemberships.profile_id,
-      role: profileMemberships.role,
-      relationship: profileMemberships.relationship,
-      display_name: profileMemberships.display_name,
-      is_primary: profileMemberships.is_primary,
-      created_at: profileMemberships.created_at,
-    })
-    .from(profileMemberships)
-    .where(and(
-      eq(profileMemberships.user_id, accountUserId),
-      eq(profileMemberships.status, "active"),
-    ))
-    .orderBy(desc(profileMemberships.is_primary), desc(profileMemberships.created_at));
+  let memberships: Array<{
+    profile_id: string;
+    role: ProfileMemberRole;
+    relationship: string | null;
+    display_name: string | null;
+    is_primary: boolean;
+    created_at: Date;
+  }> = [];
+
+  try {
+    memberships = await db
+      .select({
+        profile_id: profileMemberships.profile_id,
+        role: profileMemberships.role,
+        relationship: profileMemberships.relationship,
+        display_name: profileMemberships.display_name,
+        is_primary: profileMemberships.is_primary,
+        created_at: profileMemberships.created_at,
+      })
+      .from(profileMemberships)
+      .where(and(
+        eq(profileMemberships.user_id, accountUserId),
+        eq(profileMemberships.status, "active"),
+      ))
+      .orderBy(desc(profileMemberships.is_primary), desc(profileMemberships.created_at));
+  } catch (err) {
+    if (!isProfileMembershipSchemaError(err)) throw err;
+    console.warn("[profileAccess] profile_memberships schema is unavailable; using direct profile fallback.");
+    return [];
+  }
 
   const profileIds = Array.from(new Set(memberships.map((membership) => membership.profile_id)));
   if (profileIds.length === 0) return [];
@@ -137,13 +161,15 @@ export async function getActiveProfileContext(accountUserId: string): Promise<Ac
   const choiceCount = choices.length;
 
   if (account?.active_profile_id) {
-    const [[activeProfile], [activeMembership]] = await Promise.all([
-      db
-        .select({ id: profiles.id })
-        .from(profiles)
-        .where(eq(profiles.id, account.active_profile_id))
-        .limit(1),
-      db
+    const [activeProfile] = await db
+      .select({ id: profiles.id })
+      .from(profiles)
+      .where(eq(profiles.id, account.active_profile_id))
+      .limit(1);
+
+    let activeMembership: { role: ProfileMemberRole } | undefined;
+    try {
+      [activeMembership] = await db
         .select({ role: profileMemberships.role })
         .from(profileMemberships)
         .where(and(
@@ -151,8 +177,11 @@ export async function getActiveProfileContext(accountUserId: string): Promise<Ac
           eq(profileMemberships.profile_id, account.active_profile_id),
           eq(profileMemberships.status, "active"),
         ))
-        .limit(1),
-    ]);
+        .limit(1);
+    } catch (err) {
+      if (!isProfileMembershipSchemaError(err)) throw err;
+      console.warn("[profileAccess] active profile membership lookup unavailable; using active profile without membership role.");
+    }
 
     if (activeProfile) {
       return {
@@ -184,18 +213,25 @@ export async function getActiveProfileContext(accountUserId: string): Promise<Ac
     };
   }
 
-  if (hasLegacyProfileContent(directProfile)) {
-    await db
-      .insert(profileMemberships)
-      .values({
-        user_id: accountUserId,
-        profile_id: directProfile.id,
-        role: "elder",
-        relationship: "self",
-        is_primary: true,
-        accepted_at: new Date(),
-      })
-      .onConflictDoNothing();
+  if (directProfile) {
+    if (hasLegacyProfileContent(directProfile)) {
+      try {
+        await db
+          .insert(profileMemberships)
+          .values({
+            user_id: accountUserId,
+            profile_id: directProfile.id,
+            role: "elder",
+            relationship: "self",
+            is_primary: true,
+            accepted_at: new Date(),
+          })
+          .onConflictDoNothing();
+      } catch (err) {
+        if (!isProfileMembershipSchemaError(err)) throw err;
+        console.warn("[profileAccess] legacy direct profile membership backfill skipped because profile_memberships is unavailable.");
+      }
+    }
 
     if (account) {
       await db
