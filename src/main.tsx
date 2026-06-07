@@ -10,7 +10,7 @@ registerServiceWorker();
 const launchOverlay = document.getElementById("vyva-launch");
 if (launchOverlay) {
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const visibleDurationMs = reduceMotion ? 0 : 1120;
+  const visibleDurationMs = reduceMotion ? 0 : 2080;
 
   window.setTimeout(() => {
     launchOverlay.classList.add("vyva-launch--leaving");

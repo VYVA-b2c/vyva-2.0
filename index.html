@@ -106,7 +106,7 @@
         place-items: center;
         width: min(70vw, 292px);
         margin-top: 22px;
-        animation: vyva-launch-logo 820ms cubic-bezier(0.2, 0.8, 0.2, 1) 160ms both;
+        animation: vyva-launch-logo 640ms cubic-bezier(0.2, 0.8, 0.2, 1) 80ms both;
       }
 
       .vyva-launch__brand::before {
@@ -152,6 +152,8 @@
       .vyva-launch__heart-base {
         stroke: rgba(245, 181, 27, 0.24);
         stroke-width: 4;
+        opacity: 0;
+        animation: vyva-launch-heart-base 300ms ease 860ms both;
       }
 
       .vyva-launch__heart-draw {
@@ -159,7 +161,7 @@
         stroke-width: 5;
         stroke-dasharray: 760;
         stroke-dashoffset: 760;
-        animation: vyva-launch-heart 1.08s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        animation: vyva-launch-heart 960ms cubic-bezier(0.2, 0.8, 0.2, 1) 900ms forwards;
       }
 
       .vyva-launch__heart-spark {
@@ -168,7 +170,7 @@
         stroke-dasharray: 34 726;
         stroke-dashoffset: 760;
         opacity: 0;
-        animation: vyva-launch-spark 1.08s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        animation: vyva-launch-spark 960ms cubic-bezier(0.2, 0.8, 0.2, 1) 900ms forwards;
       }
 
       @keyframes vyva-launch-enter {
@@ -185,11 +187,20 @@
       @keyframes vyva-launch-logo {
         0% {
           opacity: 0;
-          transform: translateY(8px) scale(0.96);
+          transform: translateY(8px) scale(0.97);
         }
         100% {
           opacity: 1;
           transform: translateY(0) scale(1);
+        }
+      }
+
+      @keyframes vyva-launch-heart-base {
+        0% {
+          opacity: 0;
+        }
+        100% {
+          opacity: 1;
         }
       }
 
@@ -220,10 +231,15 @@
         #vyva-launch,
         .vyva-launch__stage,
         .vyva-launch__brand,
+        .vyva-launch__heart-base,
         .vyva-launch__heart-draw,
         .vyva-launch__heart-spark {
           animation: none;
           transition: none;
+        }
+
+        .vyva-launch__heart-base {
+          opacity: 1;
         }
 
         .vyva-launch__heart-draw,
