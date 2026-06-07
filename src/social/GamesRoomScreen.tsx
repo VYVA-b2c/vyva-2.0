@@ -435,10 +435,6 @@ function isDominoTileAnswer(value: string, tile: [number, number] | undefined) {
   return Boolean(tile) && parseDominoAnswerValue(value).tileKey === dominoTileKey(tile);
 }
 
-function isSelectedDominoTile(value: string | null, tile: [number, number]) {
-  return Boolean(value) && parseDominoAnswerValue(value!).tileKey === dominoTileKey(tile);
-}
-
 function getDominoOpenEndsLabel(language: SocialGameLanguage) {
   if (language === "fr") return "Bouts ouverts";
   if (language === "it") return "Estremita aperte";
@@ -505,11 +501,11 @@ function getDominoChooseEndLabel(language: SocialGameLanguage) {
 function DominoTile({ tile, muted = false }: { tile: [number, number]; muted?: boolean }) {
   return (
     <div
-      className={`grid h-[72px] w-[116px] grid-cols-2 overflow-hidden rounded-[14px] border-2 bg-[#FFFDF7] shadow-[0_10px_20px_rgba(24,60,66,0.12)] ${muted ? "border-[#D8E6E2] opacity-75" : "border-[#087C82]"}`}
+      className={`grid h-[58px] w-[96px] grid-cols-2 overflow-hidden rounded-[12px] border-2 bg-[#FFFDF7] shadow-[0_10px_20px_rgba(24,60,66,0.12)] sm:h-[72px] sm:w-[116px] sm:rounded-[14px] ${muted ? "border-[#D8E6E2] opacity-75" : "border-[#087C82]"}`}
       aria-label={`Domino ${tile[0]}-${tile[1]}`}
     >
       {tile.map((value, index) => (
-        <span key={`${value}-${index}`} className="flex items-center justify-center border-l border-[#E9DED0] first:border-l-0 font-body text-[24px] font-extrabold text-[#173941]">
+        <span key={`${value}-${index}`} className="flex items-center justify-center border-l border-[#E9DED0] first:border-l-0 font-body text-[21px] font-extrabold text-[#173941] sm:text-[24px]">
           {value === 0 ? "-" : value}
         </span>
       ))}
@@ -678,18 +674,29 @@ function ChessBoardVisual({
 
 function DominoesVisual({
   visual,
+  interaction,
   language,
+  selectedTactileValue,
+  isComplete = false,
+  onDominoTileSelect,
 }: {
   visual: Extract<SocialGameRoundVisual, { kind: "dominoes" }>;
+  interaction?: Extract<SocialGameRoundInteraction, { kind: "dominoPlay" }>;
   language: SocialGameLanguage;
+  selectedTactileValue?: string | null;
+  isComplete?: boolean;
+  onDominoTileSelect?: (value: string) => void;
 }) {
   const handTiles = visual.hand ?? visual.candidateTiles ?? (visual.focusTile ? [visual.focusTile] : []);
   const layoutTiles = visual.layoutTiles ?? [];
   const leftEnd = visual.leftEnd ?? visual.openEnds?.[0];
   const rightEnd = visual.rightEnd ?? visual.openEnds?.[1];
+  const candidateTileKeys = new Set((interaction?.candidateTiles ?? []).map(dominoTileKey));
+  const canTapHand = Boolean(onDominoTileSelect && interaction && candidateTileKeys.size > 0);
+  const selectedDominoTile = selectedTactileValue ? parseDominoAnswerValue(selectedTactileValue).tileKey : "";
 
   return (
-    <div className="rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-4" data-testid="games-visual-dominoes">
+    <div className="rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-3 sm:p-4" data-testid="games-visual-dominoes">
       <p className="font-body text-[16px] font-extrabold leading-snug text-[#31555D]">{visual.caption}</p>
       <div className="mt-3 rounded-[20px] bg-white px-3 py-3">
         <p className="font-body text-[13px] font-black uppercase text-[#087C82]">{getDominoOpenEndsLabel(language)}</p>
@@ -725,11 +732,31 @@ function DominoesVisual({
       )}
       <div className="mt-3">
         <p className="font-body text-[13px] font-black uppercase text-[#087C82]">{visual.handLabel ?? getDominoHandLabel(language)}</p>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
           {visual.playedTile && <DominoTile tile={visual.playedTile} muted />}
-          {handTiles.map((tile, index) => (
-            <DominoTile key={`${tile[0]}-${tile[1]}-${index}`} tile={tile} />
-          ))}
+          {handTiles.map((tile, index) => {
+            const key = dominoTileKey(tile);
+            const isCandidate = candidateTileKeys.has(key);
+            const active = selectedDominoTile === key;
+            const tileNode = <DominoTile tile={tile} />;
+            if (!canTapHand || !isCandidate) {
+              return <div key={`${tile[0]}-${tile[1]}-${index}`} className="justify-self-start">{tileNode}</div>;
+            }
+            return (
+              <button
+                key={`${tile[0]}-${tile[1]}-${index}`}
+                type="button"
+                onClick={() => onDominoTileSelect?.(key)}
+                disabled={isComplete}
+                aria-pressed={active}
+                aria-label={`Play domino ${tile[0]}-${tile[1]}`}
+                data-testid={`domino-tile-${tile[0]}-${tile[1]}`}
+                className={`justify-self-start rounded-[16px] border-2 bg-white p-0.5 shadow-[0_10px_20px_rgba(24,60,66,0.10)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#FBBF24] disabled:opacity-50 ${active ? "border-[#087C82]" : "border-[#087C82]"}`}
+              >
+                {tileNode}
+              </button>
+            );
+          })}
           {handTiles.length === 0 && visual.focusTile && (
             <DominoTile tile={visual.focusTile} />
           )}
@@ -785,6 +812,7 @@ function PuzzleVisualPanel({
   isComplete,
   revealChessGuidance,
   onChessSquareSelect,
+  onDominoTileSelect,
 }: {
   visual?: SocialGameRoundVisual;
   interaction?: SocialGameRoundInteraction;
@@ -794,6 +822,7 @@ function PuzzleVisualPanel({
   isComplete?: boolean;
   revealChessGuidance?: boolean;
   onChessSquareSelect?: (square: string) => void;
+  onDominoTileSelect?: (value: string) => void;
 }) {
   if (!visual || visual.kind === "wordTiles") return null;
   if (visual.kind === "chessBoard") {
@@ -809,7 +838,18 @@ function PuzzleVisualPanel({
       />
     );
   }
-  if (visual.kind === "dominoes") return <DominoesVisual visual={visual} language={language} />;
+  if (visual.kind === "dominoes") {
+    return (
+      <DominoesVisual
+        visual={visual}
+        interaction={interaction?.kind === "dominoPlay" ? interaction : undefined}
+        language={language}
+        selectedTactileValue={selectedTactileValue}
+        isComplete={isComplete}
+        onDominoTileSelect={onDominoTileSelect}
+      />
+    );
+  }
   return <BridgeCardsVisual visual={visual} />;
 }
 
@@ -906,33 +946,12 @@ function TactileInteractionPanel({
     );
 
     return (
-      <div className="mt-4 rounded-[22px] bg-[#F4FAF8] px-4 py-4" data-testid="games-tactile-dominoes">
+      <div className="mt-3 rounded-[18px] bg-[#E8F7F6] px-3 py-2 shadow-[0_8px_18px_rgba(11,60,66,0.05)]" data-testid="games-tactile-dominoes">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="font-body text-[16px] font-extrabold leading-snug text-[#31555D]">{interaction.instruction}</p>
+          <p className="font-body text-[15px] font-extrabold leading-snug text-[#075C64] sm:text-[16px]">{interaction.instruction}</p>
           {helpButton}
         </div>
-        {tiles.length > 0 ? (
-          <div className="mt-3 flex flex-wrap gap-3">
-            {tiles.map((tile, index) => {
-              const value = dominoTileKey(tile);
-              const active = isSelectedDominoTile(selectedTactileValue, tile);
-              return (
-                <button
-                  key={`${tile[0]}-${tile[1]}-${index}`}
-                  type="button"
-                  onClick={() => onTactileAnswer(value)}
-                  disabled={isComplete}
-                  aria-pressed={active}
-                  aria-label={`Play domino ${tile[0]}-${tile[1]}`}
-                  data-testid={`domino-tile-${tile[0]}-${tile[1]}`}
-                  className={`rounded-[18px] border-2 bg-white p-2 shadow-[0_10px_20px_rgba(24,60,66,0.10)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#FBBF24] disabled:opacity-50 ${active ? "border-[#087C82]" : "border-transparent"}`}
-                >
-                  <DominoTile tile={tile} />
-                </button>
-              );
-            })}
-          </div>
-        ) : (
+        {tiles.length === 0 && (
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
             {(interaction.actions ?? []).map((action) => (
               <button
@@ -1051,26 +1070,26 @@ function WordTilesInteraction({
   const progressLabel = getWordProgressLabel(language, selectedTileIndices.length, visual.answerLength);
 
   return (
-    <div className="mt-5 space-y-4" data-testid="games-word-tiles-panel">
-      <div className="rounded-[26px] border border-[#D8E6E2] bg-gradient-to-b from-[#F4FAF8] to-white p-4">
+    <div className="mt-4 space-y-3" data-testid="games-word-tiles-panel">
+      <div className="rounded-[24px] border border-[#D8E6E2] bg-gradient-to-b from-[#F4FAF8] to-white p-3 sm:p-4">
         <div className="flex flex-wrap gap-2">
           {visual.baseWord && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#075C64]">Base: {visual.baseWord}</span>}
           {visual.pattern && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#075C64]">{visual.pattern}</span>}
           {visual.clue && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#597178]">{visual.clue}</span>}
         </div>
 
-        <div className="mt-4 rounded-[24px] border border-[#CFE7E2] bg-white px-4 py-4 shadow-[0_10px_22px_rgba(11,60,66,0.06)]">
+        <div className="mt-3 rounded-[22px] border border-[#CFE7E2] bg-white px-3 py-3 shadow-[0_10px_22px_rgba(11,60,66,0.06)] sm:px-4 sm:py-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="font-body text-[16px] font-extrabold uppercase text-[#075C64]">{getWordTrayLabel(language)}</p>
             <p className="rounded-full bg-[#E8F7F6] px-3 py-1 font-body text-[14px] font-extrabold text-[#087C82]" data-testid="word-tile-progress" role="status">
               {progressLabel}
             </p>
           </div>
-          <div className="mt-3 flex flex-wrap gap-2" data-testid="word-answer-tray">
+          <div className="mt-3 flex flex-wrap gap-1.5 sm:gap-2" data-testid="word-answer-tray">
             {traySlots.map((tile, index) => (
               <div
                 key={`${tile || "slot"}-${index}`}
-                className={`flex min-h-[64px] min-w-[64px] items-center justify-center rounded-[18px] border-2 px-3 font-body text-[24px] font-black text-[#075C64] ${tile ? "border-[#087C82] bg-[#E8F7F6] shadow-[0_8px_18px_rgba(8,124,130,0.10)]" : "border-dashed border-[#A8D4CF] bg-[#FBFEFC]"}`}
+                className={`flex min-h-[52px] min-w-[52px] items-center justify-center rounded-[16px] border-2 px-2 font-body text-[22px] font-black text-[#075C64] sm:min-h-[64px] sm:min-w-[64px] sm:rounded-[18px] sm:px-3 sm:text-[24px] ${tile ? "border-[#087C82] bg-[#E8F7F6] shadow-[0_8px_18px_rgba(8,124,130,0.10)]" : "border-dashed border-[#A8D4CF] bg-[#FBFEFC]"}`}
               >
                 {tile}
               </div>
@@ -1078,7 +1097,7 @@ function WordTilesInteraction({
           </div>
         </div>
 
-        <div className="mt-4">
+        <div className="mt-3">
           <p className="font-body text-[15px] font-extrabold uppercase text-[#597178]">{getWordRackLabel(language)}</p>
           <div className="mt-2 flex flex-wrap gap-2" aria-label={getWordRackLabel(language)}>
             {orderedTileIndices.map((index) => {
@@ -1092,7 +1111,7 @@ function WordTilesInteraction({
                   disabled={used || isComplete || selectedTileIndices.length >= visual.answerLength}
                   aria-pressed={used}
                   data-testid={`word-tile-${index}`}
-                  className="flex min-h-[58px] min-w-[58px] items-center justify-center rounded-[16px] border border-[#D9C8AD] bg-[#FFF7E6] px-3 font-body text-[22px] font-black text-[#173941] shadow-[0_10px_18px_rgba(24,60,66,0.10)] disabled:opacity-35"
+                  className="flex min-h-[52px] min-w-[52px] items-center justify-center rounded-[15px] border border-[#D9C8AD] bg-[#FFF7E6] px-2 font-body text-[21px] font-black text-[#173941] shadow-[0_10px_18px_rgba(24,60,66,0.10)] disabled:opacity-35 sm:min-h-[58px] sm:min-w-[58px] sm:rounded-[16px] sm:px-3 sm:text-[22px]"
                 >
                   {tile}
                 </button>
@@ -1101,44 +1120,52 @@ function WordTilesInteraction({
           </div>
         </div>
 
-        <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_1fr_1fr_1fr_1.35fr]">
+        <div className="mt-3 grid grid-cols-[repeat(4,48px)_minmax(0,1fr)] gap-2 sm:grid-cols-[1fr_1fr_1fr_1fr_1.35fr]">
           <button
             type="button"
             onClick={onUndo}
             disabled={!selectedTileIndices.length || isComplete}
-            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-3 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40"
+            aria-label={getWordUndoLabel(language)}
+            title={getWordUndoLabel(language)}
+            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-0 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40 sm:px-3"
           >
             <Undo2 size={18} />
-            {getWordUndoLabel(language)}
+            <span className="sr-only sm:not-sr-only">{getWordUndoLabel(language)}</span>
           </button>
           <button
             type="button"
             onClick={onClear}
             disabled={!selectedTileIndices.length || isComplete}
-            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-3 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40"
+            aria-label={getWordClearLabel(language)}
+            title={getWordClearLabel(language)}
+            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-0 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40 sm:px-3"
           >
             <Eraser size={18} />
-            {getWordClearLabel(language)}
+            <span className="sr-only sm:not-sr-only">{getWordClearLabel(language)}</span>
           </button>
           <button
             type="button"
             onClick={onShuffle}
             disabled={isComplete || visual.tiles.length < 2}
+            aria-label={getWordShuffleLabel(language)}
+            title={getWordShuffleLabel(language)}
             data-testid="word-shuffle"
-            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-3 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40"
+            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-0 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40 sm:px-3"
           >
             <Shuffle size={18} />
-            {getWordShuffleLabel(language)}
+            <span className="sr-only sm:not-sr-only">{getWordShuffleLabel(language)}</span>
           </button>
           <button
             type="button"
             onClick={onShowHelp}
             disabled={isComplete}
+            aria-label={getWordHelpLabel(language)}
+            title={getWordHelpLabel(language)}
             data-testid="word-show-help"
-            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-3 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40"
+            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-0 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40 sm:px-3"
           >
             <HelpCircle size={18} />
-            {getWordHelpLabel(language)}
+            <span className="sr-only sm:not-sr-only">{getWordHelpLabel(language)}</span>
           </button>
           <button
             type="button"
@@ -1796,7 +1823,10 @@ export default function GamesRoomScreen({
                       />
                     ) : (
                       <>
-                        {!hasCompletedSelectedRound && selectedRound.interaction?.kind === "chessTap" && (
+                        {!hasCompletedSelectedRound && (
+                          selectedRound.interaction?.kind === "chessTap"
+                          || selectedRound.interaction?.kind === "dominoPlay"
+                        ) && (
                           <TactileInteractionPanel
                             interaction={selectedRound.interaction}
                             language={language}
@@ -1817,10 +1847,14 @@ export default function GamesRoomScreen({
                             isComplete={hasCompletedSelectedRound}
                             revealChessGuidance={shouldRevealChessGuidance}
                             onChessSquareSelect={chooseTactileAnswer}
+                            onDominoTileSelect={chooseTactileAnswer}
                           />
                         </div>
 
-                        {!hasCompletedSelectedRound && selectedRound.interaction?.kind !== "chessTap" && (
+                        {!hasCompletedSelectedRound
+                          && selectedRound.interaction?.kind !== "chessTap"
+                          && selectedRound.interaction?.kind !== "dominoPlay"
+                          && (
                           <TactileInteractionPanel
                             interaction={selectedRound.interaction}
                             language={language}
