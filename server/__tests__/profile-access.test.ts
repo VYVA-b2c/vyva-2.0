@@ -4,6 +4,7 @@ import {
   isMissingRelationError,
   isRelationSchemaUnavailableError,
   missingColumnName,
+  notNullColumnName,
 } from "../lib/dbCompatibility.js";
 import { isMissingAccountProfileLinkColumnError } from "../lib/profileAccess.js";
 
@@ -25,6 +26,18 @@ describe("profile access schema compatibility", () => {
     expect(missingColumnName(new Error('column "trial_ends_at" of relation "profiles" does not exist'))).toBe("trial_ends_at");
     expect(missingColumnName(new Error("column profiles.subscription_tier does not exist"))).toBe("subscription_tier");
     expect(missingColumnName(new Error("duplicate key value violates unique constraint"))).toBeNull();
+  });
+
+  it("extracts not-null column names from common Postgres messages", () => {
+    expect(notNullColumnName({
+      code: "23502",
+      column: "full_name",
+      message: 'null value in column "full_name" of relation "profiles" violates not-null constraint',
+    })).toBe("full_name");
+    expect(notNullColumnName(
+      new Error('null value in column "account_status" of relation "profiles" violates not-null constraint'),
+    )).toBe("account_status");
+    expect(notNullColumnName(new Error("duplicate key value violates unique constraint"))).toBeNull();
   });
 
   it("recognizes missing relation and conflict constraint messages", () => {
