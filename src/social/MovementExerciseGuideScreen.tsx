@@ -517,6 +517,7 @@ export default function MovementExerciseGuideScreen() {
           <div className="mt-4">
             <MovementStepAnimation
               motion={currentStepMotion}
+              image={visual.image}
               accent={visual.accent}
               softBg={visual.softBg}
               border={visual.border}
