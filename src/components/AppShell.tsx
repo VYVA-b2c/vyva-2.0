@@ -30,7 +30,7 @@ import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessi
 
 type AppShellLayout = "compact" | "wide" | "fullscreen";
 
-const FULLSCREEN_ROUTE_PREFIXES = ["/memory-games/"];
+const FULLSCREEN_ROUTE_PREFIXES = ["/memory-games/", "/social-rooms/morning-movement/exercises/"];
 const FULLSCREEN_ROUTES = [
   "/chat",
   "/spatial-navigator",

@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { apiFetch } from "@/lib/queryClient";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useLanguage } from "@/i18n";
@@ -38,6 +38,25 @@ import {
   getTogetherRoomCopy,
   isTogetherRoom,
 } from "./togetherRoom";
+import {
+  MOVEMENT_EXERCISE_VISUALS,
+  MOVEMENT_FEATURED_EXERCISE_IDS,
+  getMovementExerciseLanguage,
+  getMovementExerciseLibraryCopy,
+  getMovementSessionUiCopy,
+  getMovementSwapExerciseId,
+  getMovementWeekDays,
+  getRecommendedMovementExerciseId,
+  isMovementExerciseCardId,
+  loadLastMovementExerciseId,
+  loadMovementComfortLevel,
+  loadMovementWeekLogDates,
+  saveMovementComfortLevel,
+  type MovementComfortLevelId,
+  type MovementExerciseCardId,
+  type MovementExerciseGroupId,
+  type MovementSwapIntent,
+} from "./movementExercises";
 import {
   addReadingClubJournalEntry,
   addReadingClubShelfItem,
@@ -1675,39 +1694,6 @@ function getLanguageLabel(language: SocialLanguage) {
   return "Spanish";
 }
 
-function getMovementExerciseLibraryCopy(language: SocialLanguage) {
-  if (language === "en") {
-    return {
-      eyebrow: "Movement room",
-      title: "Gentle exercise cards",
-      body: "Pick from 12 photo-led routines for strength, balance, mobility, and calm.",
-      detail: "Each starts with plain steps and a safety note.",
-      cta: "Browse exercises",
-      previews: ["Chair yoga", "Tai chi", "Seated strength"],
-    };
-  }
-
-  if (language === "de") {
-    return {
-      eyebrow: "Bewegungsraum",
-      title: "Sanfte Uebungskarten",
-      body: "Waehle aus 12 Foto-Uebungen fuer Kraft, Gleichgewicht, Beweglichkeit und Ruhe.",
-      detail: "Jede beginnt mit klaren Schritten und Sicherheitshinweis.",
-      cta: "Uebungen ansehen",
-      previews: ["Stuhl-Yoga", "Tai Chi", "Kraft im Sitzen"],
-    };
-  }
-
-  return {
-    eyebrow: "Sala de movimiento",
-    title: "Tarjetas de ejercicio suave",
-    body: "Elige entre 12 rutinas con fotos para fuerza, equilibrio, movilidad y calma.",
-    detail: "Cada una empieza con pasos claros y una nota de seguridad.",
-    cta: "Ver ejercicios",
-    previews: ["Yoga en silla", "Tai chi", "Fuerza sentada"],
-  };
-}
-
 function buildAgentPrompt(
   language: SocialLanguage,
   roomName: string,
@@ -2434,12 +2420,14 @@ function buildFallbackRoomResponse(slug: string, language: SocialLanguage): Soci
 
 const RoomScreen = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { slug = "" } = useParams();
   const { profile, firstName } = useProfile();
   const { language: appLanguage } = useLanguage();
   const language = getSocialLanguage(appLanguage);
+  const movementExerciseLanguage = getMovementExerciseLanguage(appLanguage);
   const gameLanguage = getSocialGameLanguage(appLanguage);
-  const requestLanguage = slug === "games-room" ? gameLanguage : language;
+  const requestLanguage = slug === "games-room" || slug === "together-room" ? gameLanguage : language;
   const copy = getSocialCopy(language);
 
   const [visitId, setVisitId] = useState<string | null>(null);
@@ -2488,6 +2476,12 @@ const RoomScreen = () => {
   const [readingClubShowDeepTools, setReadingClubShowDeepTools] = useState(false);
   const [readingClubFocusedPath, setReadingClubFocusedPath] = useState<ReadingClubFocusedPath | null>(null);
   const [readingClubDesk, setReadingClubDesk] = useState<ReadingClubDeskState>(() => loadReadingClubDeskState());
+  const [completedMovementExerciseId, setCompletedMovementExerciseId] = useState<MovementExerciseCardId | null>(null);
+  const [lastMovementExerciseId, setLastMovementExerciseId] = useState<MovementExerciseCardId | null>(() => loadLastMovementExerciseId());
+  const [movementComfortLevel, setMovementComfortLevel] = useState<MovementComfortLevelId>(() => loadMovementComfortLevel());
+  const [movementWeekLogDates, setMovementWeekLogDates] = useState<string[]>(() => loadMovementWeekLogDates());
+  const [isMovementExerciseLibraryExpanded, setMovementExerciseLibraryExpanded] = useState(false);
+  const [selectedMovementExerciseGroup, setSelectedMovementExerciseGroup] = useState<MovementExerciseGroupId>("mobility");
   const {
     startVoice,
     stopVoice,
@@ -2533,10 +2527,39 @@ const RoomScreen = () => {
   }, [language, room, roomResponse]);
 
   const togetherRoomActive = isTogetherRoom(room?.slug ?? slug);
-  const togetherCopy = togetherRoomActive ? getTogetherRoomCopy(language) : null;
+  const togetherCopy = togetherRoomActive ? getTogetherRoomCopy(gameLanguage) : null;
   const readingRoomActive = isReadingRoomSlug(room?.slug ?? slug);
   const movementRoomActive = canonicalRoomSlug === "morning-movement";
-  const movementExerciseCopy = useMemo(() => getMovementExerciseLibraryCopy(language), [language]);
+  const movementExerciseCopy = useMemo(() => getMovementExerciseLibraryCopy(movementExerciseLanguage), [movementExerciseLanguage]);
+  const movementSessionUiCopy = useMemo(() => getMovementSessionUiCopy(movementExerciseLanguage), [movementExerciseLanguage]);
+  const movementWeekDays = useMemo(() => getMovementWeekDays(movementExerciseLanguage), [movementExerciseLanguage]);
+  const movementWeekCompletedCount = useMemo(
+    () => movementWeekDays.filter((day) => movementWeekLogDates.includes(day.dateKey)).length,
+    [movementWeekDays, movementWeekLogDates],
+  );
+  const recommendedMovementExerciseId = useMemo(() => getRecommendedMovementExerciseId(new Date(), movementComfortLevel), [movementComfortLevel]);
+  const movementFeaturedExerciseCards = useMemo(() => {
+    const featuredIds = new Set(MOVEMENT_FEATURED_EXERCISE_IDS);
+    return movementExerciseCopy.cards.filter((card) => featuredIds.has(card.id));
+  }, [movementExerciseCopy.cards]);
+  const recommendedMovementExercise = useMemo(
+    () => movementExerciseCopy.cards.find((card) => card.id === recommendedMovementExerciseId) ?? null,
+    [movementExerciseCopy.cards, recommendedMovementExerciseId],
+  );
+  const recommendedMovementExerciseVisual = recommendedMovementExercise ? MOVEMENT_EXERCISE_VISUALS[recommendedMovementExercise.id] : null;
+  const lastMovementExercise = lastMovementExerciseId
+    ? movementExerciseCopy.cards.find((card) => card.id === lastMovementExerciseId) ?? null
+    : null;
+  const repeatMovementExerciseId = lastMovementExerciseId ?? recommendedMovementExerciseId;
+  const selectedMovementExerciseGroupCopy =
+    movementExerciseCopy.groups.find((group) => group.id === selectedMovementExerciseGroup) ?? movementExerciseCopy.groups[0];
+  const selectedMovementExerciseGroupCards = useMemo(() => {
+    const featuredIds = new Set(MOVEMENT_FEATURED_EXERCISE_IDS);
+    return movementExerciseCopy.cards.filter((card) => card.group === selectedMovementExerciseGroup && !featuredIds.has(card.id));
+  }, [movementExerciseCopy.cards, selectedMovementExerciseGroup]);
+  const completedMovementExercise = completedMovementExerciseId
+    ? movementExerciseCopy.cards.find((card) => card.id === completedMovementExerciseId) ?? null
+    : null;
   const readingClubCopy = useMemo(() => getReadingClubCopy(language), [language]);
   const readingClub = useMemo(
     () => (
@@ -2652,13 +2675,34 @@ const RoomScreen = () => {
     : null;
 
   const openMovementExerciseLibrary = useCallback(() => {
-    navigate("/activity", {
-      state: {
-        scrollToGentleExercises: true,
-        routineSource: "movement_room",
-      },
-    });
+    setMovementExerciseLibraryExpanded((current) => !current);
+  }, []);
+
+  const openMovementExerciseCard = useCallback((exerciseId: MovementExerciseCardId) => {
+    navigate(`/social-rooms/morning-movement/exercises/${exerciseId}`);
   }, [navigate]);
+
+  const selectMovementComfortLevel = useCallback((comfortLevel: MovementComfortLevelId) => {
+    setMovementComfortLevel(comfortLevel);
+    saveMovementComfortLevel(comfortLevel);
+  }, []);
+
+  const openMovementRepeatExercise = useCallback(() => {
+    openMovementExerciseCard(repeatMovementExerciseId);
+  }, [openMovementExerciseCard, repeatMovementExerciseId]);
+
+  const openMovementSwapExercise = useCallback((intent: MovementSwapIntent) => {
+    openMovementExerciseCard(getMovementSwapExerciseId(intent, movementComfortLevel, repeatMovementExerciseId));
+  }, [movementComfortLevel, openMovementExerciseCard, repeatMovementExerciseId]);
+
+  useEffect(() => {
+    const loggedExerciseId = (location.state as { movementExerciseLoggedId?: unknown } | null)?.movementExerciseLoggedId;
+    if (typeof loggedExerciseId !== "string" || !isMovementExerciseCardId(loggedExerciseId)) return;
+
+    setCompletedMovementExerciseId(loggedExerciseId);
+    setLastMovementExerciseId(loggedExerciseId);
+    setMovementWeekLogDates(loadMovementWeekLogDates());
+  }, [location.state]);
 
   const agentName = useMemo(() => {
     if (!room) return "";
@@ -4095,37 +4139,381 @@ const RoomScreen = () => {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={openMovementExerciseLibrary}
-              className="mt-4 inline-flex min-h-[58px] w-[190px] max-w-full items-center justify-center gap-2 rounded-[20px] bg-[#0284C7] px-4 font-body text-[18px] font-bold text-white shadow-[0_14px_28px_rgba(2,132,199,0.18)] sm:ml-[72px] sm:w-auto sm:px-5 sm:text-[19px]"
-              data-testid="button-movement-room-browse-exercises"
-            >
-              <Sparkles size={21} strokeWidth={2.4} aria-hidden="true" />
-              <span>{movementExerciseCopy.cta}</span>
-              <ArrowRight className="hidden sm:block" size={20} strokeWidth={2.5} aria-hidden="true" />
-            </button>
-
             <p className="mt-4 max-w-[720px] break-words font-body text-[18px] leading-[1.35] text-[#51606C] sm:ml-[72px]">
               {movementExerciseCopy.body}
             </p>
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              {movementExerciseCopy.previews.map((preview) => (
-                <span
-                  key={preview}
-                  className="rounded-full border border-[#BFE3EC] bg-white px-3 py-1.5 font-body text-[15px] font-bold text-[#0369A1]"
-                >
-                  {preview}
+            {recommendedMovementExercise && recommendedMovementExerciseVisual ? (
+              <button
+                type="button"
+                onClick={() => openMovementExerciseCard(recommendedMovementExercise.id)}
+                aria-label={`${movementExerciseCopy.recommendedTitle}: ${recommendedMovementExercise.title}. ${movementExerciseCopy.recommendedAction}.`}
+                className="mt-3 flex min-w-0 items-center gap-3 rounded-[22px] border bg-white/90 p-3 text-left shadow-[0_10px_22px_rgba(2,132,199,0.07)] transition-transform active:scale-[0.99] sm:ml-[72px]"
+                style={{ borderColor: recommendedMovementExerciseVisual.border }}
+                data-testid="button-movement-room-recommended-exercise"
+              >
+                <img
+                  src={recommendedMovementExerciseVisual.image}
+                  alt=""
+                  className="h-[68px] w-[68px] shrink-0 rounded-[16px] object-cover"
+                  loading="lazy"
+                />
+                <span className="min-w-0 flex-1">
+                  <span
+                    className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 font-body text-[11px] font-black uppercase leading-tight"
+                    style={{
+                      background: recommendedMovementExerciseVisual.softBg,
+                      color: recommendedMovementExerciseVisual.accent,
+                    }}
+                  >
+                    <Star size={13} strokeWidth={2.6} aria-hidden="true" />
+                    <span className="truncate">{movementExerciseCopy.recommendedTitle}</span>
+                  </span>
+                  <span className="mt-1 block font-body text-[18px] font-black leading-tight text-[#123047] [overflow-wrap:anywhere]">
+                    {recommendedMovementExercise.title}
+                  </span>
+                  <span className="mt-0.5 block font-body text-[14px] font-bold leading-snug text-[#66717B] [overflow-wrap:anywhere]">
+                    {recommendedMovementExercise.benefit}. {movementExerciseCopy.recommendedBody}
+                  </span>
                 </span>
-              ))}
+                <span
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white sm:w-auto sm:gap-2 sm:px-4"
+                  style={{ background: recommendedMovementExerciseVisual.accent }}
+                >
+                  <span className="hidden font-body text-[15px] font-black sm:inline">
+                    {movementExerciseCopy.recommendedAction}
+                  </span>
+                  <ArrowRight size={20} strokeWidth={2.6} aria-hidden="true" />
+                </span>
+              </button>
+            ) : null}
+
+            {completedMovementExercise ? (
+              <div
+                className="mt-3 flex items-center gap-2 rounded-[18px] border border-[#BBF7D0] bg-[#F0FDF4] px-3 py-3 font-body text-[16px] font-extrabold leading-snug text-[#047857] sm:ml-[72px]"
+                data-testid="movement-room-exercise-logged-status"
+              >
+                <Check size={19} strokeWidth={2.6} aria-hidden="true" />
+                <span className="min-w-0 [overflow-wrap:anywhere]">
+                  {movementSessionUiCopy.logged(completedMovementExercise.title)}
+                </span>
+              </div>
+            ) : null}
+
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:ml-[72px] sm:grid-cols-4" data-testid="movement-room-exercise-cards">
+              {movementFeaturedExerciseCards.map((card) => {
+                const visual = MOVEMENT_EXERCISE_VISUALS[card.id];
+                const exerciseCompleted = completedMovementExerciseId === card.id;
+                const exerciseLastUsed = lastMovementExerciseId === card.id;
+                return (
+                  <button
+                    key={card.id}
+                    type="button"
+                    onClick={() => openMovementExerciseCard(card.id)}
+                    aria-label={`${card.title}. ${card.benefit}. 10 min.`}
+                    className="group min-w-0 overflow-hidden rounded-[22px] border bg-white text-left shadow-[0_12px_24px_rgba(2,132,199,0.08)] transition-transform active:scale-[0.98]"
+                    style={{
+                      borderColor: exerciseCompleted ? visual.accent : visual.border,
+                      boxShadow: exerciseCompleted
+                        ? `0 12px 24px ${visual.accent}20, 0 0 0 2px ${visual.accent} inset`
+                        : "0 12px 24px rgba(2,132,199,0.08)",
+                    }}
+                    data-testid={`movement-room-exercise-card-${card.id}`}
+                  >
+                    <div className="aspect-[16/11] overflow-hidden bg-[#EEF7F9]">
+                      <img
+                        src={visual.image}
+                        alt=""
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                        loading="lazy"
+                      />
+                    </div>
+                    <div className="px-3 pb-3 pt-2.5">
+                      <span
+                        className="mb-1 inline-flex max-w-full rounded-full px-2.5 py-1 font-body text-[11px] font-black leading-tight"
+                        style={{ background: visual.softBg, color: visual.accent }}
+                      >
+                        {card.focus}
+                      </span>
+                      <p className="font-body text-[17px] font-black leading-[1.12] text-[#123047] [overflow-wrap:anywhere]">
+                        {card.title}
+                      </p>
+                      <p className="mt-1 font-body text-[13px] font-bold leading-[1.18] text-[#66717B] [overflow-wrap:anywhere]">
+                        {card.benefit}
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                        <span className="inline-flex items-center gap-1.5 font-body text-[13px] font-black" style={{ color: visual.accent }}>
+                          <Clock size={15} strokeWidth={2.4} aria-hidden="true" />
+                          10 min
+                        </span>
+                        {exerciseCompleted || exerciseLastUsed ? (
+                          <span
+                            className="rounded-full px-2.5 py-1 font-body text-[11px] font-black"
+                            style={{ background: visual.softBg, color: visual.accent }}
+                          >
+                            {exerciseCompleted ? movementSessionUiCopy.loggedBadge : movementExerciseCopy.lastUsedBadge}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
 
-            <div className="mt-4 rounded-[18px] bg-white/72 px-3 py-3">
-              <p className="font-body text-[17px] font-semibold leading-[1.35] text-[#66717B]">
+            <div
+              className="mt-3 rounded-[18px] border border-[#CFEAF2] bg-white/82 px-3 py-2.5 shadow-[0_8px_18px_rgba(2,132,199,0.05)] sm:ml-[72px]"
+              data-testid="movement-room-gentle-week"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="flex min-w-0 items-center gap-1.5 font-body text-[15px] font-black leading-tight text-[#123047]">
+                  <CalendarDays size={17} strokeWidth={2.4} className="text-[#0369A1]" aria-hidden="true" />
+                  <span>{movementExerciseCopy.weekTitle}</span>
+                </p>
+                <span className="inline-flex shrink-0 rounded-full bg-[#F0F9FF] px-2.5 py-1 font-body text-[12px] font-black text-[#0369A1]">
+                  {movementExerciseCopy.weekProgress(movementWeekCompletedCount)}
+                </span>
+                <div className="ml-auto flex min-w-0 flex-wrap justify-end gap-1" data-testid="movement-room-week-days">
+                  {movementWeekDays.map((day) => {
+                    const dayComplete = movementWeekLogDates.includes(day.dateKey);
+                    return (
+                      <span
+                        key={day.dateKey}
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border font-body text-[11px] font-black"
+                        style={{
+                          background: dayComplete ? "#ECFDF5" : day.isToday ? "#F0F9FF" : "#FFFFFF",
+                          borderColor: dayComplete ? "#A7F3D0" : day.isToday ? "#7DD3FC" : "#E3F3F7",
+                          color: dayComplete ? "#047857" : day.isToday ? "#0369A1" : "#66717B",
+                        }}
+                        aria-label={`${day.label} ${dayComplete ? movementExerciseCopy.doneDayLabel : movementExerciseCopy.openDayLabel}`}
+                      >
+                        {dayComplete ? <Check size={13} strokeWidth={3} aria-hidden="true" /> : day.label}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {lastMovementExercise ? (
+                  <button
+                    type="button"
+                    onClick={openMovementRepeatExercise}
+                    className="inline-flex min-h-[36px] min-w-0 items-center justify-center gap-1.5 rounded-full bg-[#0369A1] px-3 font-body text-[13px] font-black text-white shadow-[0_8px_16px_rgba(3,105,161,0.12)]"
+                    data-testid="button-movement-room-repeat-exercise"
+                  >
+                    <Clock size={15} strokeWidth={2.4} aria-hidden="true" />
+                    <span className="truncate">{movementExerciseCopy.lastUsedLine(lastMovementExercise.title)}</span>
+                  </button>
+                ) : (
+                  <span className="font-body text-[13px] font-bold leading-snug text-[#66717B]">
+                    {movementExerciseCopy.weekBody}
+                  </span>
+                )}
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5" data-testid="movement-room-comfort-levels">
+                  <span className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#66717B]">
+                    {movementExerciseCopy.comfortTitle}
+                  </span>
+                  {movementExerciseCopy.comfortLevels.map((level) => {
+                    const selected = movementComfortLevel === level.id;
+                    return (
+                      <button
+                        key={level.id}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => selectMovementComfortLevel(level.id)}
+                        className="min-h-[32px] rounded-full border px-2.5 font-body text-[12px] font-black leading-tight transition-colors"
+                        style={{
+                          background: selected ? "#0369A1" : "#FFFFFF",
+                          borderColor: selected ? "#0369A1" : "#CFEAF2",
+                          color: selected ? "#FFFFFF" : "#0369A1",
+                        }}
+                        data-testid={`button-movement-room-comfort-${level.id}`}
+                      >
+                        {level.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#66717B]">
+                  {movementExerciseCopy.swapPrompt}
+                </span>
+                <div className="flex min-w-0 flex-wrap gap-1.5" data-testid="movement-room-swap-actions">
+                  {[
+                    { intent: "easier" as MovementSwapIntent, label: movementExerciseCopy.swapEasier },
+                    { intent: "calm" as MovementSwapIntent, label: movementExerciseCopy.swapCalm },
+                    { intent: "legs" as MovementSwapIntent, label: movementExerciseCopy.swapLegs },
+                  ].map((action) => (
+                    <button
+                      key={action.intent}
+                      type="button"
+                      onClick={() => openMovementSwapExercise(action.intent)}
+                      className="inline-flex min-h-[32px] shrink-0 items-center justify-center rounded-full border border-[#CFEAF2] bg-white px-2.5 font-body text-[12px] font-black text-[#0369A1]"
+                      data-testid={`button-movement-room-swap-${action.intent}`}
+                    >
+                      {action.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-col gap-3 sm:ml-[72px] sm:flex-row sm:items-center sm:justify-between">
+              <p className="rounded-[18px] bg-white/72 px-3 py-3 font-body text-[17px] font-semibold leading-[1.35] text-[#66717B]">
                 {movementExerciseCopy.detail}
               </p>
+              <button
+                type="button"
+                onClick={openMovementExerciseLibrary}
+                aria-expanded={isMovementExerciseLibraryExpanded}
+                className="inline-flex min-h-[54px] w-full items-center justify-center gap-2 rounded-[18px] border border-[#BFE3EC] bg-white px-4 font-body text-[17px] font-black text-[#0369A1] shadow-[0_10px_22px_rgba(2,132,199,0.08)] sm:w-auto"
+                data-testid="button-movement-room-browse-exercises"
+              >
+                <Sparkles size={20} strokeWidth={2.4} aria-hidden="true" />
+                <span>{isMovementExerciseLibraryExpanded ? movementExerciseCopy.collapseCta : movementExerciseCopy.cta}</span>
+                <ArrowRight
+                  size={19}
+                  strokeWidth={2.5}
+                  aria-hidden="true"
+                  className={isMovementExerciseLibraryExpanded ? "-rotate-90 transition-transform" : "transition-transform"}
+                />
+              </button>
             </div>
+
+            {isMovementExerciseLibraryExpanded ? (
+              <div
+                className="mt-4 rounded-[26px] border border-[#D7EEF5] bg-white/78 p-3 sm:ml-[72px] sm:p-4"
+                data-testid="movement-room-expanded-exercise-library"
+              >
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="font-body text-[17px] font-black leading-tight text-[#123047]">
+                      {movementExerciseCopy.moreTitle}
+                    </p>
+                    <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-[#66717B]">
+                      {movementExerciseCopy.groupPrompt}
+                    </p>
+                  </div>
+                  <span className="inline-flex w-fit rounded-full bg-[#F0F9FF] px-3 py-1.5 font-body text-[13px] font-black text-[#0369A1]">
+                    {movementExerciseCopy.groupCount(movementExerciseCopy.cards.length)}
+                  </span>
+                </div>
+
+                <div
+                  className="mt-3 flex gap-2 overflow-x-auto pb-1"
+                  role="tablist"
+                  aria-label={movementExerciseCopy.groupPrompt}
+                  data-testid="movement-room-exercise-filters"
+                >
+                  {movementExerciseCopy.groups.map((group) => {
+                    const selected = group.id === selectedMovementExerciseGroup;
+                    return (
+                      <button
+                        key={group.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={selected}
+                        onClick={() => setSelectedMovementExerciseGroup(group.id)}
+                        className="min-h-[46px] shrink-0 rounded-full border px-4 font-body text-[15px] font-black transition-colors"
+                        style={{
+                          background: selected ? "#0369A1" : "#FFFFFF",
+                          borderColor: selected ? "#0369A1" : "#CFEAF2",
+                          color: selected ? "#FFFFFF" : "#0369A1",
+                        }}
+                        data-testid={`movement-room-exercise-filter-${group.id}`}
+                      >
+                        {group.title}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div
+                  className="mt-3 rounded-[22px] border border-[#E3F3F7] bg-[#FBFEFF] p-3"
+                  data-testid={`movement-room-exercise-group-${selectedMovementExerciseGroup}`}
+                >
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="font-body text-[16px] font-black leading-tight text-[#123047]">
+                        {selectedMovementExerciseGroupCopy.title}
+                      </p>
+                      <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-[#66717B]">
+                        {selectedMovementExerciseGroupCopy.subtitle}
+                      </p>
+                    </div>
+                    <span className="inline-flex w-fit shrink-0 rounded-full bg-white px-3 py-1.5 font-body text-[13px] font-black text-[#66717B]">
+                      {movementExerciseCopy.groupCount(
+                        movementExerciseCopy.cards.filter((card) => card.group === selectedMovementExerciseGroup).length,
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3" data-testid="movement-room-extra-exercise-cards">
+                    {selectedMovementExerciseGroupCards.map((card) => {
+                      const visual = MOVEMENT_EXERCISE_VISUALS[card.id];
+                      const exerciseCompleted = completedMovementExerciseId === card.id;
+                      const exerciseLastUsed = lastMovementExerciseId === card.id;
+                      return (
+                        <button
+                          key={card.id}
+                          type="button"
+                          onClick={() => openMovementExerciseCard(card.id)}
+                          aria-label={`${card.title}. ${card.benefit}. 10 min.`}
+                          className="group min-w-0 overflow-hidden rounded-[20px] border bg-white text-left shadow-[0_10px_20px_rgba(2,132,199,0.07)] transition-transform active:scale-[0.98]"
+                          style={{
+                            borderColor: exerciseCompleted ? visual.accent : visual.border,
+                            boxShadow: exerciseCompleted
+                              ? `0 10px 20px ${visual.accent}20, 0 0 0 2px ${visual.accent} inset`
+                              : "0 10px 20px rgba(2,132,199,0.07)",
+                          }}
+                          data-testid={`movement-room-exercise-card-${card.id}`}
+                        >
+                          <div className="aspect-[16/10] overflow-hidden bg-[#EEF7F9]">
+                            <img
+                              src={visual.image}
+                              alt=""
+                              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                              loading="lazy"
+                            />
+                          </div>
+                          <div className="px-3 pb-3 pt-2.5">
+                            <span
+                              className="mb-1 inline-flex max-w-full rounded-full px-2.5 py-1 font-body text-[11px] font-black leading-tight"
+                              style={{ background: visual.softBg, color: visual.accent }}
+                            >
+                              {card.focus}
+                            </span>
+                            <p className="font-body text-[15px] font-black leading-[1.12] text-[#123047] [overflow-wrap:anywhere]">
+                              {card.title}
+                            </p>
+                            <p className="mt-1 font-body text-[12px] font-bold leading-[1.18] text-[#66717B] [overflow-wrap:anywhere]">
+                              {card.benefit}
+                            </p>
+                            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                              <span className="inline-flex items-center gap-1.5 font-body text-[12px] font-black" style={{ color: visual.accent }}>
+                                <Clock size={14} strokeWidth={2.4} aria-hidden="true" />
+                                10 min
+                              </span>
+                              {exerciseCompleted || exerciseLastUsed ? (
+                                <span
+                                  className="rounded-full px-2.5 py-1 font-body text-[11px] font-black"
+                                  style={{ background: visual.softBg, color: visual.accent }}
+                                >
+                                  {exerciseCompleted ? movementSessionUiCopy.loggedBadge : movementExerciseCopy.lastUsedBadge}
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </section>
         )}
 
@@ -6130,7 +6518,7 @@ const RoomScreen = () => {
           </section>
         )}
 
-        {roomMode === "welcome" ? (
+        {roomMode === "welcome" && !movementRoomActive ? (
             <section className="rounded-[34px] border border-[#E8DDCF] bg-[#FFFDFC] p-5 shadow-[0_16px_34px_rgba(91,33,182,0.05)]">
               <div className="rounded-[28px] bg-[#F8F3FF] px-5 py-5">
                 <div className="flex items-center gap-3">
