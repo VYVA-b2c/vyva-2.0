@@ -249,7 +249,8 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     completeActiveAction,
     dismissActiveAction,
   } = useVoiceActionContext();
-  const isFullScreen = FULL_SCREEN_ROUTES.includes(location.pathname) || location.pathname.startsWith("/memory-games/");
+  const isMovementExerciseGuide = location.pathname.startsWith("/social-rooms/morning-movement/exercises/");
+  const isFullScreen = FULL_SCREEN_ROUTES.includes(location.pathname) || location.pathname.startsWith("/memory-games/") || isMovementExerciseGuide;
   const isWideRoute = WIDE_ROUTES.some((route) => location.pathname.startsWith(route));
   const isResponsiveAppRoute = RESPONSIVE_APP_ROUTES.some((route) => location.pathname.startsWith(route));
   const shellMaxWidthClassName = isWideRoute || isResponsiveAppRoute ? "max-w-[920px]" : "max-w-[520px]";

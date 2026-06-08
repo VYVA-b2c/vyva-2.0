@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, Clock, Headphones, Loader2, Mic, MicOff, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Clock, Headphones, Loader2, Play, RotateCcw, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useLanguage } from "@/i18n";
@@ -12,6 +12,7 @@ import {
   getMovementExerciseCards,
   getMovementExerciseLanguage,
   getMovementSessionUiCopy,
+  getMovementStepImage,
   isMovementExerciseCardId,
   loadMovementWeekLogDates,
   saveLastMovementExerciseId,
@@ -43,6 +44,14 @@ type GuideCopy = {
   stopAudio: string;
   audioStarting: string;
   audioLive: string;
+  startSession: string;
+  pauseSession: string;
+  resumeSession: string;
+  replayCue: string;
+  sessionReady: string;
+  sessionPaused: string;
+  sessionComplete: string;
+  timeRemaining: (time: string) => string;
   previousStep: string;
   nextStep: string;
   nextHint: string;
@@ -70,12 +79,20 @@ function getMovementGuideCopy(language: MovementExerciseLanguage): GuideCopy {
       nextStepStatus: "Weiter",
       audioTitle: "Live-Audioguide",
       audioBody: "Vyva fuehrt dich langsam durch diesen Schritt.",
-      audioSync: "Bild und Audio bleiben beim gleichen Schritt.",
+      audioSync: "Das Audio folgt dem Schritt auf dem Bildschirm.",
       audioUnavailable: "Der visuelle Guide funktioniert auch ohne Audio.",
       startAudio: "Audioguide starten",
       stopAudio: "Audioguide stoppen",
       audioStarting: "Startet...",
       audioLive: "Audioguide ist live",
+      startSession: "Amara-Guide starten",
+      pauseSession: "Pause",
+      resumeSession: "Fortsetzen",
+      replayCue: "Schritt wiederholen",
+      sessionReady: "Bereit fuer die gefuehrte Sitzung",
+      sessionPaused: "Sitzung pausiert",
+      sessionComplete: "Sitzung bereit zum Speichern",
+      timeRemaining: (time) => `${time} uebrig`,
       previousStep: "Zurueck",
       nextStep: "Weiter",
       nextHint: "Tippe Weiter, wenn du bereit bist.",
@@ -103,12 +120,20 @@ function getMovementGuideCopy(language: MovementExerciseLanguage): GuideCopy {
       nextStepStatus: "Suivant",
       audioTitle: "Guide audio en direct",
       audioBody: "Vyva peut guider cet exercice lentement, une etape a la fois.",
-      audioSync: "L'image et l'audio restent sur la meme etape.",
+      audioSync: "L'audio suit l'etape affichee a l'ecran.",
       audioUnavailable: "Le guide visuel fonctionne aussi sans audio.",
       startAudio: "Demarrer le guide audio",
       stopAudio: "Arreter le guide audio",
       audioStarting: "Demarrage...",
       audioLive: "Le guide audio est actif",
+      startSession: "Demarrer le guide Amara",
+      pauseSession: "Pause",
+      resumeSession: "Reprendre",
+      replayCue: "Rejouer l'etape",
+      sessionReady: "Pret pour la seance guidee",
+      sessionPaused: "Seance en pause",
+      sessionComplete: "Seance prete a enregistrer",
+      timeRemaining: (time) => `${time} restantes`,
       previousStep: "Retour",
       nextStep: "Suivant",
       nextHint: "Touchez Suivant quand vous etes pret.",
@@ -136,12 +161,20 @@ function getMovementGuideCopy(language: MovementExerciseLanguage): GuideCopy {
       nextStepStatus: "Avanti",
       audioTitle: "Guida audio dal vivo",
       audioBody: "Vyva puo guidare l'esercizio lentamente, un passo alla volta.",
-      audioSync: "Immagine e audio restano sullo stesso passo.",
+      audioSync: "L'audio segue il passo mostrato sullo schermo.",
       audioUnavailable: "La guida visiva funziona anche senza audio.",
       startAudio: "Avvia guida audio",
       stopAudio: "Ferma guida audio",
       audioStarting: "Avvio...",
       audioLive: "La guida audio e attiva",
+      startSession: "Avvia guida Amara",
+      pauseSession: "Pausa",
+      resumeSession: "Riprendi",
+      replayCue: "Ripeti passo",
+      sessionReady: "Pronto per la sessione guidata",
+      sessionPaused: "Sessione in pausa",
+      sessionComplete: "Sessione pronta da registrare",
+      timeRemaining: (time) => `${time} rimasti`,
       previousStep: "Indietro",
       nextStep: "Avanti",
       nextHint: "Tocca Avanti quando sei pronto.",
@@ -169,12 +202,20 @@ function getMovementGuideCopy(language: MovementExerciseLanguage): GuideCopy {
       nextStepStatus: "Seguinte",
       audioTitle: "Guia audio ao vivo",
       audioBody: "Vyva pode orientar este exercicio devagar, um passo de cada vez.",
-      audioSync: "A imagem e o audio ficam no mesmo passo.",
+      audioSync: "O audio acompanha o passo mostrado no ecra.",
       audioUnavailable: "O guia visual tambem funciona sem audio.",
       startAudio: "Iniciar guia audio",
       stopAudio: "Parar guia audio",
       audioStarting: "A iniciar...",
       audioLive: "O guia audio esta ativo",
+      startSession: "Iniciar guia Amara",
+      pauseSession: "Pausa",
+      resumeSession: "Continuar",
+      replayCue: "Repetir passo",
+      sessionReady: "Pronto para a sessao guiada",
+      sessionPaused: "Sessao em pausa",
+      sessionComplete: "Sessao pronta para registar",
+      timeRemaining: (time) => `${time} restantes`,
       previousStep: "Voltar",
       nextStep: "Seguinte",
       nextHint: "Toque em Seguinte quando estiver pronto.",
@@ -202,12 +243,20 @@ function getMovementGuideCopy(language: MovementExerciseLanguage): GuideCopy {
       nextStepStatus: "Siguiente",
       audioTitle: "Guia de audio en vivo",
       audioBody: "Vyva puede guiar este ejercicio despacio, paso a paso.",
-      audioSync: "La imagen y el audio permanecen en el mismo paso.",
+      audioSync: "El audio sigue el paso que ves en pantalla.",
       audioUnavailable: "La guia visual tambien funciona sin audio.",
       startAudio: "Iniciar guia de audio",
       stopAudio: "Parar guia de audio",
       audioStarting: "Iniciando...",
       audioLive: "La guia de audio esta activa",
+      startSession: "Iniciar guia Amara",
+      pauseSession: "Pausa",
+      resumeSession: "Continuar",
+      replayCue: "Repetir paso",
+      sessionReady: "Listo para la sesion guiada",
+      sessionPaused: "Sesion en pausa",
+      sessionComplete: "Sesion lista para registrar",
+      timeRemaining: (time) => `${time} restantes`,
       previousStep: "Atras",
       nextStep: "Siguiente",
       nextHint: "Toca Siguiente cuando estes listo.",
@@ -234,12 +283,20 @@ function getMovementGuideCopy(language: MovementExerciseLanguage): GuideCopy {
     nextStepStatus: "Next",
     audioTitle: "Live audio guide",
     audioBody: "Vyva can guide this exercise slowly, one step at a time.",
-    audioSync: "The picture and audio stay on the same step.",
+    audioSync: "Audio follows the step you see on screen.",
     audioUnavailable: "The visual guide still works without audio.",
     startAudio: "Start audio guide",
     stopAudio: "Stop audio guide",
     audioStarting: "Starting...",
     audioLive: "Audio guide is live",
+    startSession: "Start Amara guide",
+    pauseSession: "Pause",
+    resumeSession: "Resume",
+    replayCue: "Replay step",
+    sessionReady: "Ready for the guided session",
+    sessionPaused: "Session paused",
+    sessionComplete: "Session ready to log",
+    timeRemaining: (time) => `${time} left`,
     previousStep: "Back",
     nextStep: "Next",
     nextHint: "Tap Next when you feel ready.",
@@ -252,11 +309,21 @@ function getMovementGuideCopy(language: MovementExerciseLanguage): GuideCopy {
   };
 }
 
-function buildVoicePrompt(title: string, step: string, motion: MovementStepMotion, stepIndex: number, totalSteps: number, safety: string, readyHint: string) {
+function buildVoicePrompt(
+  title: string,
+  step: string,
+  motion: MovementStepMotion,
+  sceneLabel: string,
+  stepIndex: number,
+  totalSteps: number,
+  safety: string,
+  readyHint: string,
+) {
   return [
     `Guide the user through ${title}.`,
     `Current step ${stepIndex + 1} of ${totalSteps}: ${step}`,
-    `The visual guide is showing this exact step now with animation cue: ${motion}.`,
+    `The screen shows this photo storyboard scene: ${sceneLabel}.`,
+    `Motion cue metadata: ${motion}.`,
     `Do not move to a different step until the app sends new context.`,
     `Speak warmly, slowly, and plainly.`,
     `Keep it short, then pause so the user can move.`,
@@ -304,38 +371,48 @@ export default function MovementExerciseGuideScreen() {
   const progressPercent = Math.max(0, Math.min(100, ((stepIndex + 1) / totalSteps) * 100));
   const isAudioLive = voiceStatus === "connected";
   const motionForStep = useCallback((nextStepIndex: number): MovementStepMotion => (
-    session?.visuals[nextStepIndex] ?? session?.visuals[0] ?? DEFAULT_MOVEMENT_STEP_MOTION
+    session?.visuals[nextStepIndex] ?? DEFAULT_MOVEMENT_STEP_MOTION
   ), [session]);
+  const sceneForStep = useCallback((nextStepIndex: number) => (
+    session?.sceneLabels[nextStepIndex] ?? steps[nextStepIndex] ?? ""
+  ), [session, steps]);
   const currentStepMotion = motionForStep(stepIndex);
+  const currentSceneLabel = sceneForStep(stepIndex);
+  const currentStepImage = exercise && visual ? getMovementStepImage(exercise.id, stepIndex, currentStepMotion) ?? visual.image : "";
 
-  const voiceVariables = useCallback((nextStepIndex: number) => ({
-    app_entrypoint: "movement_exercise_guide",
-    exercise_id: exercise?.id ?? "",
-    exercise_title: exercise?.title ?? "",
-    exercise_benefit: exercise?.benefit ?? "",
-    current_step: steps[nextStepIndex] ?? "",
-    current_step_number: nextStepIndex + 1,
-    step_count: steps.length,
-    exercise_steps: steps.join(" | "),
-    safety_line: sessionCopy.safety,
-    visual_step_label: guideCopy.stepLabel(nextStepIndex + 1, steps.length),
-    visual_step_text: steps[nextStepIndex] ?? "",
-    visual_motion: motionForStep(nextStepIndex),
-    next_visual_action: nextStepIndex >= steps.length - 1 ? guideCopy.finish : guideCopy.nextStep,
-    app_user_instruction: nextStepIndex >= steps.length - 1 ? guideCopy.finishHint : guideCopy.nextHint,
-  }), [exercise?.benefit, exercise?.id, exercise?.title, guideCopy, motionForStep, sessionCopy.safety, steps]);
+  const voiceVariables = useCallback((nextStepIndex: number) => {
+    const nextMotion = motionForStep(nextStepIndex);
+    return {
+      app_entrypoint: "movement_exercise_guide",
+      exercise_id: exercise?.id ?? "",
+      exercise_title: exercise?.title ?? "",
+      exercise_benefit: exercise?.benefit ?? "",
+      current_step: steps[nextStepIndex] ?? "",
+      current_step_number: nextStepIndex + 1,
+      step_count: steps.length,
+      exercise_steps: steps.join(" | "),
+      safety_line: sessionCopy.safety,
+      visual_step_label: guideCopy.stepLabel(nextStepIndex + 1, steps.length),
+      visual_step_text: steps[nextStepIndex] ?? "",
+      visual_motion: nextMotion,
+      visual_scene: sceneForStep(nextStepIndex),
+      next_visual_action: nextStepIndex >= steps.length - 1 ? guideCopy.finish : guideCopy.nextStep,
+      app_user_instruction: nextStepIndex >= steps.length - 1 ? guideCopy.finishHint : guideCopy.nextHint,
+    };
+  }, [exercise?.benefit, exercise?.id, exercise?.title, guideCopy, motionForStep, sceneForStep, sessionCopy.safety, steps]);
 
   const promptForStep = useCallback(
     (nextStepIndex: number) => buildVoicePrompt(
       exercise?.title ?? "this gentle exercise",
       steps[nextStepIndex] ?? "",
       motionForStep(nextStepIndex),
+      sceneForStep(nextStepIndex),
       nextStepIndex,
       steps.length,
       sessionCopy.safety,
       nextStepIndex >= steps.length - 1 ? guideCopy.finishHint : guideCopy.nextHint,
     ),
-    [exercise?.title, guideCopy.finishHint, guideCopy.nextHint, motionForStep, sessionCopy.safety, steps],
+    [exercise?.title, guideCopy.finishHint, guideCopy.nextHint, motionForStep, sceneForStep, sessionCopy.safety, steps],
   );
 
   const sendStepPrompt = useCallback((nextStepIndex: number) => {
@@ -358,22 +435,6 @@ export default function MovementExerciseGuideScreen() {
     setLogStatus("idle");
   }, [exerciseId]);
 
-  const startAudioGuide = useCallback(async () => {
-    if (!exercise || !session) return;
-    setAudioStarting(true);
-    try {
-      await startVoice(promptForStep(stepIndex), undefined, {
-        agentSlug: "amara-osei",
-        roomSlug: "morning-movement",
-        autoStartListening: false,
-        dynamicVariables: voiceVariables(stepIndex),
-      });
-      sendStepPrompt(stepIndex);
-    } finally {
-      setAudioStarting(false);
-    }
-  }, [exercise, promptForStep, sendStepPrompt, session, startVoice, stepIndex, voiceVariables]);
-
   const goBackToRoom = useCallback(() => {
     stopVoice();
     navigate(MOVEMENT_ROOM_PATH);
@@ -387,6 +448,30 @@ export default function MovementExerciseGuideScreen() {
       sendStepPrompt(boundedStepIndex);
     }
   }, [sendStepPrompt, steps.length, voiceStatus]);
+
+  const startAmaraGuide = useCallback(async () => {
+    if (!exercise || !session) return;
+    setAudioStarting(true);
+    try {
+      await startVoice(promptForStep(stepIndex), undefined, {
+        agentSlug: "amara-osei",
+        roomSlug: "morning-movement",
+        autoStartListening: false,
+        dynamicVariables: voiceVariables(stepIndex),
+      });
+      sendStepPrompt(stepIndex);
+    } catch {
+      // The visual guide keeps running if live audio is not available.
+    } finally {
+      setAudioStarting(false);
+    }
+  }, [exercise, promptForStep, sendStepPrompt, session, startVoice, stepIndex, voiceVariables]);
+
+  const replayStep = useCallback(() => {
+    if (voiceStatus === "connected") {
+      sendStepPrompt(stepIndex);
+    }
+  }, [sendStepPrompt, stepIndex, voiceStatus]);
 
   const finishAndLog = useCallback(async () => {
     if (!exercise || !session || logStatus === "saving") return;
@@ -434,7 +519,7 @@ export default function MovementExerciseGuideScreen() {
 
   return (
     <section
-      className="mx-auto w-full max-w-[980px] px-4 py-4 pb-56 sm:px-6"
+      className="mx-auto w-full max-w-[980px] px-4 py-4 pb-28 sm:px-6"
       data-testid="movement-exercise-guide"
     >
       <button
@@ -447,50 +532,79 @@ export default function MovementExerciseGuideScreen() {
         {guideCopy.backToRoom}
       </button>
 
-      <div className="grid grid-cols-[128px_minmax(0,1fr)] overflow-hidden rounded-[26px] border bg-white shadow-[0_16px_36px_rgba(18,48,71,0.1)] sm:block lg:grid lg:grid-cols-[0.9fr_1.1fr]" style={{ borderColor: visual.border }}>
-        <div className="relative min-h-[142px] bg-[#EEF7F9] sm:min-h-[230px] lg:min-h-full">
-          <img
-            src={visual.image}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover"
-            data-testid="movement-exercise-guide-image"
-          />
-          <div className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-2 font-body text-[13px] font-black leading-tight shadow-[0_8px_20px_rgba(18,48,71,0.14)]" style={{ color: visual.accent }}>
-            {guideCopy.progressLabel(stepIndex + 1, totalSteps)}
-          </div>
-        </div>
-        <div className="p-3 sm:p-5 lg:p-6">
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className="inline-flex rounded-full px-3 py-1.5 font-body text-[12px] font-black uppercase leading-tight"
-              style={{ background: visual.softBg, color: visual.accent }}
-            >
-              {guideCopy.guideLabel}
-            </span>
-            <span
-              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 font-body text-[13px] font-black leading-tight"
-              style={{ background: visual.softBg, color: visual.accent }}
-            >
-              <Clock size={15} strokeWidth={2.5} aria-hidden="true" />
-              {guideCopy.tenMinutes}
-            </span>
-          </div>
-          <h1 className="mt-2 font-display text-[29px] leading-[1.02] text-[#123047] sm:mt-3 sm:text-[48px]">
-            {exercise.title}
-          </h1>
-          <p className="mt-1 max-w-[680px] font-body text-[14px] font-bold leading-snug text-[#66717B] sm:mt-2 sm:text-[18px]">
-            {exercise.benefit}
-          </p>
-          <div className="mt-3 sm:mt-5" aria-label={guideCopy.stepLabel(stepIndex + 1, totalSteps)} role="progressbar" aria-valuemin={1} aria-valuemax={totalSteps} aria-valuenow={stepIndex + 1}>
-            <div className="h-2.5 overflow-hidden rounded-full bg-[#E8F3F7]">
-              <div
-                className="h-full rounded-full transition-[width] duration-300"
-                style={{ width: `${progressPercent}%`, background: visual.accent }}
-              />
+      <div className="rounded-[24px] border bg-white p-3 shadow-[0_12px_28px_rgba(18,48,71,0.08)] sm:p-4" style={{ borderColor: visual.border }}>
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+          <div className="grid min-w-0 grid-cols-[76px_minmax(0,1fr)] items-center gap-3">
+            <img
+              src={visual.image}
+              alt=""
+              className="h-[76px] w-[76px] rounded-[18px] object-cover"
+              data-testid="movement-exercise-guide-image"
+              draggable={false}
+            />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className="inline-flex rounded-full px-3 py-1.5 font-body text-[12px] font-black uppercase leading-tight"
+                  style={{ background: visual.softBg, color: visual.accent }}
+                >
+                  {guideCopy.guideLabel}
+                </span>
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 font-body text-[13px] font-black leading-tight"
+                  style={{ background: visual.softBg, color: visual.accent }}
+                >
+                  <Clock size={15} strokeWidth={2.5} aria-hidden="true" />
+                  {guideCopy.tenMinutes}
+                </span>
+                <span
+                  className="inline-flex rounded-full bg-white px-3 py-1.5 font-body text-[13px] font-black leading-tight shadow-[0_6px_16px_rgba(18,48,71,0.08)]"
+                  style={{ color: visual.accent }}
+                >
+                  {guideCopy.progressLabel(stepIndex + 1, totalSteps)}
+                </span>
+              </div>
+              <h1 className="mt-2 font-display text-[27px] leading-[1.04] text-[#123047] sm:text-[40px]">
+                {exercise.title}
+              </h1>
+              <p className="mt-1 font-body text-[14px] font-bold leading-snug text-[#66717B] sm:text-[16px]">
+                {exercise.benefit}
+              </p>
             </div>
           </div>
-          <div className="mt-3 hidden rounded-[18px] border px-3 py-2.5 font-body text-[13px] font-bold leading-snug sm:mt-4 sm:block sm:py-3 sm:text-[14px]" style={{ background: visual.softBg, borderColor: visual.border, color: visual.accent }}>
-            {isLastStep ? guideCopy.finishHint : guideCopy.nextHint}
+          <div className="grid gap-2 sm:min-w-[230px]">
+            <div aria-label={guideCopy.stepLabel(stepIndex + 1, totalSteps)} role="progressbar" aria-valuemin={1} aria-valuemax={totalSteps} aria-valuenow={stepIndex + 1}>
+              <div className="h-2.5 overflow-hidden rounded-full bg-[#E8F3F7]">
+                <div
+                  className="h-full rounded-full transition-[width] duration-300"
+                  style={{ width: `${progressPercent}%`, background: visual.accent }}
+                />
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={startAmaraGuide}
+              disabled={isAudioStarting || isConnecting || isAudioLive}
+              className="inline-flex min-h-[50px] w-full items-center justify-center gap-2 rounded-[18px] px-4 font-body text-[16px] font-black text-white shadow-[0_10px_20px_rgba(18,48,71,0.12)] disabled:opacity-75"
+              style={{ background: visual.accent }}
+              data-testid="button-movement-guide-start-audio"
+            >
+              {isAudioStarting || isConnecting ? (
+                <Loader2 size={20} className="animate-spin" aria-hidden="true" />
+              ) : (
+                <Play size={20} strokeWidth={2.6} aria-hidden="true" />
+              )}
+              {isAudioStarting || isConnecting ? guideCopy.audioStarting : isAudioLive ? guideCopy.audioLive : guideCopy.startSession}
+            </button>
+            <button
+              type="button"
+              onClick={replayStep}
+              className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[16px] border border-[#CFEAF2] bg-white px-4 font-body text-[15px] font-black text-[#0369A1]"
+              data-testid="button-movement-guide-replay-step"
+            >
+              <RotateCcw size={18} strokeWidth={2.5} aria-hidden="true" />
+              {guideCopy.replayCue}
+            </button>
           </div>
         </div>
       </div>
@@ -517,7 +631,8 @@ export default function MovementExerciseGuideScreen() {
           <div className="mt-4">
             <MovementStepAnimation
               motion={currentStepMotion}
-              image={visual.image}
+              image={currentStepImage}
+              imageAlt={`${exercise.title}: ${currentSceneLabel}`}
               accent={visual.accent}
               softBg={visual.softBg}
               border={visual.border}
@@ -525,14 +640,46 @@ export default function MovementExerciseGuideScreen() {
               instruction={currentStep}
             />
           </div>
-          <p
-            className="mt-3 min-h-[92px] rounded-[20px] px-4 py-4 font-body text-[23px] font-black leading-[1.18] text-[#123047] sm:px-5 sm:text-[29px]"
-            style={{ background: visual.softBg }}
-            data-testid="movement-exercise-guide-step"
-            aria-live="polite"
-          >
-            {currentStep}
-          </p>
+          <div className="mt-4 grid grid-cols-[0.9fr_1.1fr] gap-3">
+            <button
+              type="button"
+              onClick={() => goToStep(stepIndex - 1)}
+              disabled={stepIndex === 0}
+              className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-[18px] border border-[#CFEAF2] bg-white px-4 font-body text-[16px] font-black text-[#0369A1] disabled:opacity-45 sm:min-h-[58px] sm:text-[17px]"
+              data-testid="button-movement-guide-back-step"
+            >
+              <ArrowLeft size={20} strokeWidth={2.6} aria-hidden="true" />
+              {guideCopy.previousStep}
+            </button>
+            {isLastStep ? (
+              <button
+                type="button"
+                onClick={finishAndLog}
+                disabled={logStatus === "saving"}
+                className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-[18px] px-4 font-body text-[16px] font-black text-white shadow-[0_12px_24px_rgba(2,132,199,0.14)] disabled:opacity-70 sm:min-h-[58px] sm:text-[17px]"
+                style={{ background: visual.accent }}
+                data-testid="button-movement-guide-finish"
+              >
+                {logStatus === "saving" ? (
+                  <Loader2 size={22} className="animate-spin" aria-hidden="true" />
+                ) : (
+                  <Check size={22} strokeWidth={2.7} aria-hidden="true" />
+                )}
+                {logStatus === "saving" ? guideCopy.saving : guideCopy.finish}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => goToStep(stepIndex + 1)}
+                className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-[18px] px-4 font-body text-[16px] font-black text-white sm:min-h-[58px] sm:text-[17px]"
+                style={{ background: visual.accent }}
+                data-testid="button-movement-guide-next"
+              >
+                {guideCopy.nextStep}
+                <ArrowRight size={20} strokeWidth={2.6} aria-hidden="true" />
+              </button>
+            )}
+          </div>
           <div
             className="mt-4 flex items-start gap-2 rounded-[18px] border px-3 py-3 font-body text-[15px] font-bold leading-snug"
             style={{ background: "#FFF7ED", borderColor: "#FED7AA", color: "#7C2D12" }}
@@ -541,6 +688,14 @@ export default function MovementExerciseGuideScreen() {
             <ShieldCheck size={20} strokeWidth={2.5} className="mt-0.5 shrink-0" aria-hidden="true" />
             {sessionCopy.safety}
           </div>
+          {logStatus === "error" ? (
+            <p
+              className="mt-3 rounded-[16px] border border-[#FECDD3] bg-[#FFF1F2] px-3 py-2 font-body text-[14px] font-bold leading-snug text-[#BE185D]"
+              data-testid="movement-exercise-guide-log-error"
+            >
+              {guideCopy.error}
+            </p>
+          ) : null}
         </section>
 
         <aside className="grid gap-4">
@@ -564,7 +719,7 @@ export default function MovementExerciseGuideScreen() {
                     type="button"
                     onClick={() => goToStep(index)}
                     aria-current={isCurrent ? "step" : undefined}
-                    className="grid min-h-[68px] grid-cols-[38px_1fr] items-center gap-3 rounded-[18px] border px-3 py-2 text-left transition"
+                    className="grid min-h-[72px] grid-cols-[44px_minmax(0,1fr)] items-center gap-3 rounded-[18px] border px-3 py-2 text-left transition"
                     style={{
                       background: isCurrent ? visual.softBg : "#FFFFFF",
                       borderColor: isCurrent ? visual.border : "#D7EEF5",
@@ -572,9 +727,9 @@ export default function MovementExerciseGuideScreen() {
                     data-testid={`button-movement-guide-step-${index + 1}`}
                   >
                     <span
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-full font-body text-[14px] font-black"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-full font-body text-[15px] font-black shadow-[0_5px_12px_rgba(18,48,71,0.08)]"
                       style={{
-                        background: isCurrent || isComplete ? visual.accent : "#E8F3F7",
+                        background: isCurrent || isComplete ? visual.accent : "#EFF7FA",
                         color: isCurrent || isComplete ? "#FFFFFF" : "#66717B",
                       }}
                     >
@@ -608,33 +763,6 @@ export default function MovementExerciseGuideScreen() {
               {isAudioLive ? guideCopy.audioLive : guideCopy.audioSync}
             </p>
             <div className="mt-3 flex flex-col gap-2">
-              {isAudioLive ? (
-                <button
-                  type="button"
-                  onClick={stopVoice}
-                  className="inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[18px] border border-[#CFEAF2] bg-white px-4 font-body text-[17px] font-black text-[#0369A1]"
-                  data-testid="button-movement-guide-stop-audio"
-                >
-                  <MicOff size={21} strokeWidth={2.6} aria-hidden="true" />
-                  {guideCopy.stopAudio}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={startAudioGuide}
-                  disabled={isAudioStarting || isConnecting}
-                  className="inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[18px] px-4 font-body text-[17px] font-black text-white disabled:opacity-70"
-                  style={{ background: visual.accent }}
-                  data-testid="button-movement-guide-start-audio"
-                >
-                  {isAudioStarting || isConnecting ? (
-                    <Loader2 size={21} className="animate-spin" aria-hidden="true" />
-                  ) : (
-                    <Mic size={21} strokeWidth={2.6} aria-hidden="true" />
-                  )}
-                  {isAudioStarting || isConnecting ? guideCopy.audioStarting : guideCopy.startAudio}
-                </button>
-              )}
               {voiceError ? (
                 <p className="rounded-[14px] bg-[#FFF1F2] px-3 py-2 font-body text-[13px] font-bold text-[#BE185D]">
                   {voiceError} {guideCopy.audioUnavailable}
@@ -649,56 +777,6 @@ export default function MovementExerciseGuideScreen() {
         </aside>
       </div>
 
-      <div className="fixed inset-x-0 bottom-[86px] z-[70] border-y border-[#D7EEF5] bg-white/95 px-4 py-3 shadow-[0_-12px_28px_rgba(18,48,71,0.12)] backdrop-blur">
-        <div className="mx-auto grid w-full max-w-[980px] grid-cols-[0.9fr_1.1fr] gap-3">
-          <button
-            type="button"
-            onClick={() => goToStep(stepIndex - 1)}
-            disabled={stepIndex === 0}
-            className="inline-flex min-h-[58px] items-center justify-center gap-2 rounded-[18px] border border-[#CFEAF2] bg-white px-4 font-body text-[17px] font-black text-[#0369A1] disabled:opacity-45"
-            data-testid="button-movement-guide-back-step"
-          >
-            <ArrowLeft size={20} strokeWidth={2.6} aria-hidden="true" />
-            {guideCopy.previousStep}
-          </button>
-          {isLastStep ? (
-            <button
-              type="button"
-              onClick={finishAndLog}
-              disabled={logStatus === "saving"}
-              className="inline-flex min-h-[58px] items-center justify-center gap-2 rounded-[18px] px-4 font-body text-[17px] font-black text-white shadow-[0_12px_24px_rgba(2,132,199,0.14)] disabled:opacity-70"
-              style={{ background: visual.accent }}
-              data-testid="button-movement-guide-finish"
-            >
-              {logStatus === "saving" ? (
-                <Loader2 size={22} className="animate-spin" aria-hidden="true" />
-              ) : (
-                <Check size={22} strokeWidth={2.7} aria-hidden="true" />
-              )}
-              {logStatus === "saving" ? guideCopy.saving : guideCopy.finish}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => goToStep(stepIndex + 1)}
-              className="inline-flex min-h-[58px] items-center justify-center gap-2 rounded-[18px] px-4 font-body text-[17px] font-black text-white"
-              style={{ background: visual.accent }}
-              data-testid="button-movement-guide-next"
-            >
-              {guideCopy.nextStep}
-              <ArrowRight size={20} strokeWidth={2.6} aria-hidden="true" />
-            </button>
-          )}
-        </div>
-        {logStatus === "error" ? (
-          <p
-            className="mx-auto mt-2 max-w-[980px] rounded-[16px] border border-[#FECDD3] bg-[#FFF1F2] px-3 py-2 font-body text-[14px] font-bold leading-snug text-[#BE185D]"
-            data-testid="movement-exercise-guide-log-error"
-          >
-            {guideCopy.error}
-          </p>
-        ) : null}
-      </div>
     </section>
   );
 }

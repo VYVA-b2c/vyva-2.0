@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { CheckCircle2, FlaskConical, Play, RadioTower, XCircle } from "lucide-react";
+import { useLocation } from "react-router-dom";
 import {
   actionForVoiceToolCall,
   actionForVoiceUtterance,
@@ -29,6 +30,7 @@ export function canShowVoiceActionSimulator({
 }
 
 export default function VoiceActionSimulator() {
+  const location = useLocation();
   const entries = useMemo(() => voiceActionRegistryEntries(), []);
   const [open, setOpen] = useState(false);
   const [actionType, setActionType] = useState(entries[0]?.actionType ?? "");
@@ -44,7 +46,9 @@ export default function VoiceActionSimulator() {
     hostname: typeof window === "undefined" ? undefined : window.location.hostname,
   });
 
-  if (!simulatorEnabled || entries.length === 0) return null;
+  const hideOnMovementGuide = location.pathname.startsWith("/social-rooms/morning-movement/exercises/");
+
+  if (!simulatorEnabled || entries.length === 0 || hideOnMovementGuide) return null;
 
   const selected = entries.find((entry) => entry.actionType === actionType) ?? entries[0];
   const activeLabel = activeAction ? `${activeAction.title} - ${activeAction.domain}` : "No active action";

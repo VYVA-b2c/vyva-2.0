@@ -11,6 +11,17 @@ import sideStepsImage from "@/assets/senior-activities/side-steps.jpg";
 import handBreathingImage from "@/assets/senior-activities/hand-breathing.jpg";
 import shoulderReleaseImage from "@/assets/senior-activities/shoulder-release.jpg";
 
+const MOVEMENT_STEP_IMAGE_MODULES = import.meta.glob("../assets/senior-activities/steps/**/*.jpg", {
+  eager: true,
+  query: "?url",
+  import: "default",
+}) as Record<string, string>;
+
+export function getMovementStepImage(exerciseId: MovementExerciseCardId, stepIndex: number, motion: MovementStepMotion) {
+  const stepNumber = `${stepIndex + 1}`.padStart(2, "0");
+  return MOVEMENT_STEP_IMAGE_MODULES[`../assets/senior-activities/steps/${exerciseId}/${stepNumber}-${motion}.jpg`];
+}
+
 export const MOVEMENT_EXERCISE_VISUALS: Record<MovementExerciseCardId, { image: string; accent: string; softBg: string; border: string }> = {
   "chair-yoga":      { image: chairYogaImage,      accent: "#6B21A8", softBg: "#F5F3FF", border: "#D8B4FE" },
   "tai-chi":         { image: taiChiImage,         accent: "#33691E", softBg: "#EEF8DF", border: "#CFE8B8" },
@@ -367,11 +378,13 @@ export function getMovementSwapExerciseId(
 export const MOVEMENT_EXERCISE_SESSIONS: Record<MovementExerciseCardId, {
   logType: string;
   visuals: MovementStepMotion[];
+  sceneLabels: string[];
   steps: Record<MovementExerciseLanguage, string[]>;
 }> = {
   "chair-yoga": {
     logType: "ChairYoga",
     visuals: ["seated-tall", "shoulder-roll", "overhead-reach", "side-change"],
+    sceneLabels: ["Seated tall with feet flat", "Shoulders gently rolling back", "One arm reaching overhead", "Opposite arm reaching overhead"],
     steps: {
       en: ["Sit tall with both feet flat.", "Roll your shoulders back twice.", "Reach one arm overhead and breathe.", "Change sides slowly."],
       de: ["Sitz aufrecht, beide Fuesse flach.", "Rolle die Schultern zweimal zurueck.", "Heb einen Arm langsam nach oben und atme.", "Wechsle die Seite langsam."],
@@ -384,6 +397,7 @@ export const MOVEMENT_EXERCISE_SESSIONS: Record<MovementExerciseCardId, {
   "tai-chi": {
     logType: "TaiChi",
     visuals: ["standing-support", "soft-knees", "weight-shift", "hand-flow"],
+    sceneLabels: ["Standing tall with chair nearby", "Knees softly bent", "Weight shifting gently", "Hands floating forward"],
     steps: {
       en: ["Stand tall with a chair nearby if helpful.", "Soften your knees.", "Shift weight gently from one foot to the other.", "Float your hands forward and back slowly."],
       de: ["Steh aufrecht, mit einem Stuhl in der Naehe.", "Beuge die Knie nur leicht.", "Verlagere das Gewicht sanft von einem Fuss zum anderen.", "Fuehre die Haende langsam vor und zurueck."],
@@ -396,6 +410,7 @@ export const MOVEMENT_EXERCISE_SESSIONS: Record<MovementExerciseCardId, {
   "seated-strength": {
     logType: "SeatedStrength",
     visuals: ["chair-front", "chair-hold", "knee-lift", "leg-lower"],
+    sceneLabels: ["Sitting near the chair front", "Hands lightly holding chair sides", "One knee lifting while seated", "Leg lowering with control"],
     steps: {
       en: ["Sit near the front of the chair.", "Hold the chair sides lightly.", "Lift one knee or straighten one leg.", "Lower slowly and change sides."],
       de: ["Sitz nah an der Stuhlkante.", "Halte den Stuhl leicht an den Seiten.", "Heb ein Knie oder strecke ein Bein.", "Senke langsam und wechsle die Seite."],
@@ -408,6 +423,7 @@ export const MOVEMENT_EXERCISE_SESSIONS: Record<MovementExerciseCardId, {
   "calm-breathing": {
     logType: "CalmBreathing",
     visuals: ["calm-seat", "hands-belly", "inhale", "exhale"],
+    sceneLabels: ["Comfortable seated posture", "Hands resting on chest and belly", "Slow inhale with relaxed shoulders", "Slow exhale with relaxed jaw"],
     steps: {
       en: ["Sit comfortably with shoulders relaxed.", "Place one hand on chest and one on belly.", "Breathe in slowly through your nose.", "Breathe out gently and relax your jaw."],
       de: ["Sitz bequem mit entspannten Schultern.", "Lege eine Hand auf die Brust und eine auf den Bauch.", "Atme langsam durch die Nase ein.", "Atme sanft aus und entspanne den Kiefer."],
@@ -420,6 +436,7 @@ export const MOVEMENT_EXERCISE_SESSIONS: Record<MovementExerciseCardId, {
   "sit-to-stand": {
     logType: "SitToStand",
     visuals: ["sit-ready", "feet-under", "stand-up", "sit-down"],
+    sceneLabels: ["Sitting near the front of a stable chair", "Feet under knees before standing", "Rising slowly from the chair", "Sitting back down with control"],
     steps: {
       en: ["Sit near the front of a stable chair.", "Place your feet under your knees.", "Lean forward and stand slowly.", "Sit back down with control."],
       de: ["Sitz nah an der Vorderkante eines stabilen Stuhls.", "Stell die Fuesse unter die Knie.", "Lehne dich leicht nach vorn und steh langsam auf.", "Setz dich kontrolliert wieder hin."],
@@ -432,6 +449,7 @@ export const MOVEMENT_EXERCISE_SESSIONS: Record<MovementExerciseCardId, {
   "heel-raises": {
     logType: "HeelRaises",
     visuals: ["chair-behind", "chair-hold", "toe-rise", "heel-lower"],
+    sceneLabels: ["Standing behind a stable chair", "Hands lightly holding the chair", "Heels lifted onto toes", "Heels lowering back to the floor"],
     steps: {
       en: ["Stand behind a stable chair.", "Hold the chair lightly.", "Rise onto your toes slowly.", "Lower your heels and repeat."],
       de: ["Steh hinter einem stabilen Stuhl.", "Halte den Stuhl leicht fest.", "Heb die Fersen langsam an.", "Senke die Fersen und wiederhole."],
@@ -444,6 +462,7 @@ export const MOVEMENT_EXERCISE_SESSIONS: Record<MovementExerciseCardId, {
   "wall-push-ups": {
     logType: "WallPushUps",
     visuals: ["wall-ready", "hands-wall", "wall-lean", "wall-press"],
+    sceneLabels: ["Standing an arm's length from a wall", "Hands placed on the wall", "Elbows bending toward the wall", "Pressing back to tall posture"],
     steps: {
       en: ["Stand an arm's length from a wall.", "Place your hands at chest height.", "Bend your elbows slowly toward the wall.", "Press back to tall posture."],
       de: ["Steh eine Armlaenge von der Wand entfernt.", "Lege die Haende auf Brusthoehe an die Wand.", "Beuge die Ellbogen langsam zur Wand.", "Druecke dich sanft wieder aufrecht."],
@@ -456,6 +475,7 @@ export const MOVEMENT_EXERCISE_SESSIONS: Record<MovementExerciseCardId, {
   "ankle-mobility": {
     logType: "AnkleMobility",
     visuals: ["ankle-seat", "foot-lift", "toe-flex", "foot-change"],
+    sceneLabels: ["Seated tall with foot ready", "One foot lifted slightly", "Toes flexing gently", "Switching to the other foot"],
     steps: {
       en: ["Sit tall and hold the chair if helpful.", "Lift one foot slightly.", "Flex your toes up, then point gently.", "Change feet when ready."],
       de: ["Sitz aufrecht und halte den Stuhl, wenn es hilft.", "Heb einen Fuss leicht an.", "Zieh die Zehen hoch und strecke sie sanft.", "Wechsle den Fuss, wenn du bereit bist."],
@@ -468,6 +488,7 @@ export const MOVEMENT_EXERCISE_SESSIONS: Record<MovementExerciseCardId, {
   "chest-opener": {
     logType: "ChestOpener",
     visuals: ["seated-tall", "arms-open", "breathe-open", "hands-return"],
+    sceneLabels: ["Seated tall with feet flat", "Both arms opening to the sides", "Chest open while breathing in", "Hands returning slowly"],
     steps: {
       en: ["Sit tall with feet flat.", "Open both arms gently to the sides.", "Breathe in and keep shoulders relaxed.", "Bring your hands back slowly."],
       de: ["Sitz aufrecht mit flachen Fuessen.", "Oeffne beide Arme sanft zur Seite.", "Atme ein und lass die Schultern locker.", "Fuehre die Haende langsam zurueck."],
@@ -480,6 +501,7 @@ export const MOVEMENT_EXERCISE_SESSIONS: Record<MovementExerciseCardId, {
   "side-steps": {
     logType: "SideSteps",
     visuals: ["side-support", "side-step", "feet-together", "step-return"],
+    sceneLabels: ["Standing beside a chair for support", "Small step to one side", "Feet brought together", "Stepping back to start"],
     steps: {
       en: ["Stand beside a stable counter or chair.", "Step slowly to one side.", "Bring the other foot to meet it.", "Step back the other way when ready."],
       de: ["Steh neben einer stabilen Arbeitsflaeche oder einem Stuhl.", "Mach langsam einen Schritt zur Seite.", "Fuehre den anderen Fuss dazu.", "Geh langsam zurueck, wenn du bereit bist."],
@@ -492,6 +514,7 @@ export const MOVEMENT_EXERCISE_SESSIONS: Record<MovementExerciseCardId, {
   "hand-breathing": {
     logType: "HandBreathing",
     visuals: ["hand-open", "finger-up", "finger-down", "next-finger"],
+    sceneLabels: ["Open hand in front of the body", "Tracing up one finger", "Tracing down one finger", "Moving to the next finger"],
     steps: {
       en: ["Open one hand in front of you.", "Trace up a finger as you breathe in.", "Trace down as you breathe out.", "Move to the next finger slowly."],
       de: ["Oeffne eine Hand vor dir.", "Fahre beim Einatmen einen Finger hinauf.", "Fahre beim Ausatmen hinunter.", "Geh langsam zum naechsten Finger."],
@@ -504,6 +527,7 @@ export const MOVEMENT_EXERCISE_SESSIONS: Record<MovementExerciseCardId, {
   "shoulder-release": {
     logType: "ShoulderRelease",
     visuals: ["shoulders-rest", "shoulders-lift", "shoulders-back", "shoulders-drop"],
+    sceneLabels: ["Shoulders relaxed with arms resting", "Shoulders lifted gently", "Shoulders rolling back softly", "Shoulders dropped while breathing out"],
     steps: {
       en: ["Sit tall and let your arms rest.", "Lift your shoulders a little.", "Roll them back softly.", "Let them drop and breathe out."],
       de: ["Sitz aufrecht und lass die Arme ruhen.", "Heb die Schultern ein wenig.", "Rolle sie sanft nach hinten.", "Lass sie sinken und atme aus."],
