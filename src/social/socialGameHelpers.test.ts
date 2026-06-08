@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import { buildGameDefaultRoundIds, buildGamePreferenceTag, buildGameTable } from "../../server/lib/socialGameRounds";
 import { buildReadingClubDestination } from "../../server/lib/readingClubDestination";
 import { formatSharedTopic, pickBestSocialMatch, supportsSocialMatching } from "../../server/lib/socialMatching";
-import type { SocialGameLanguage } from "./types";
+import type { SocialGameDifficulty, SocialGameKind, SocialGameLanguage } from "./types";
 
 const supportedGameLanguages: SocialGameLanguage[] = ["es", "en", "fr", "de", "it", "pt"];
+const supportedGameKinds: SocialGameKind[] = ["chess", "word", "dominoes", "bridge"];
+const supportedGameDifficulties: SocialGameDifficulty[] = ["easy", "medium", "hard", "expert"];
 
 describe("social games room helpers", () => {
   it("builds curated classic game rounds for the games room", () => {
@@ -17,7 +19,7 @@ describe("social games room helpers", () => {
 
     expect(table.tableLabel).toBe("Today's table");
     expect(uniqueKinds).toEqual(["chess", "word", "dominoes", "bridge"]);
-    expect(chessRounds.length).toBeGreaterThanOrEqual(60);
+    expect(chessRounds).toHaveLength(80);
     expect(new Set(chessRounds.map((round) => round.id)).size).toBe(chessRounds.length);
     expect(wordRounds).toHaveLength(80);
     expect(new Set(wordRounds.map((round) => round.id)).size).toBe(wordRounds.length);
@@ -26,14 +28,73 @@ describe("social games room helpers", () => {
     expect(bridgeRounds).toHaveLength(80);
     expect(new Set(bridgeRounds.map((round) => round.id)).size).toBe(bridgeRounds.length);
     expect(table.rounds.every((round) => round.tags.includes(buildGamePreferenceTag(round.kind)))).toBe(true);
+    expect(table.rounds.every((round) => round.difficulty && round.tags.includes(`difficulty:${round.difficulty}`))).toBe(true);
     expect(table.readyMembers.length).toBeGreaterThan(0);
+  });
+
+  it("calibrates game difficulty across every supported language and game", () => {
+    for (const language of supportedGameLanguages) {
+      const table = buildGameTable(language, 6);
+      const defaultRound = table.rounds.find((round) => round.id === table.defaultRoundId);
+
+      expect(defaultRound?.difficulty).toBe("medium");
+
+      for (const kind of supportedGameKinds) {
+        const kindRounds = table.rounds.filter((round) => round.kind === kind);
+        const defaultRoundId = table.defaultRoundIdsByKind?.[kind];
+        const kindDefaultRound = kindRounds.find((round) => round.id === defaultRoundId);
+
+        expect(kindRounds).toHaveLength(80);
+        expect(kindDefaultRound?.difficulty).toBe("medium");
+
+        for (const difficulty of supportedGameDifficulties) {
+          expect(kindRounds.filter((round) => round.difficulty === difficulty)).toHaveLength(20);
+          expect(kindRounds.every((round) => round.tags.includes(`difficulty:${round.difficulty}`))).toBe(true);
+        }
+      }
+    }
   });
 
   it("keeps the chess puzzle bank available in each supported app language", () => {
     for (const language of supportedGameLanguages) {
       const table = buildGameTable(language, 6);
-      expect(table.rounds.filter((round) => round.kind === "chess").length).toBeGreaterThanOrEqual(60);
-      expect(table.defaultRoundId).toBe("chess-clue-fork");
+      expect(table.rounds.filter((round) => round.kind === "chess")).toHaveLength(80);
+      expect(table.rounds.find((round) => round.id === table.defaultRoundId)?.difficulty).toBe("medium");
+    }
+  });
+
+  it("generates non-giveaway chess prompts and tactile instructions", () => {
+    const actionPromptStart: Record<SocialGameLanguage, RegExp> = {
+      en: /^Find /,
+      es: /^Encuentra /,
+      fr: /^Trouvez /,
+      de: /^Finde[ ,]/,
+      it: /^Trova /,
+      pt: /^Encontre /,
+    };
+    const genericInstruction: Record<SocialGameLanguage, string> = {
+      en: "Tap a piece or square.",
+      es: "Toca una pieza o casilla.",
+      fr: "Touchez une piece ou une case.",
+      de: "Tippe auf eine Figur oder ein Feld.",
+      it: "Tocca un pezzo o una casa.",
+      pt: "Toque numa peca ou casa.",
+    };
+    const giveawayPattern = /white (queen|rook|bishop|knight|pawn)|dama blanca|torre blanca|alfil blanco|caballo blanco|peon blanco|weisse dame|weissen turm|weissen laeufer|weissen springer|weissen bauern|dame blanche|tour blanche|fou blanc|cavalier blanc|pion blanc|donna bianca|torre bianca|alfiere bianco|cavallo bianco|pedone bianco|dama branca|torre branca|bispo branco|cavalo branco|peao branco|fork|horquilla|gabel|fourchette|forchetta|garfo|back-rank mate|mate de primera fila|grundreihenmatt|mat du couloir|matto di corridoio|mate de corredor|pin|clouage|inchiodatura|cravada|skewer|enfilade|infilata|espeto/i;
+
+    for (const language of supportedGameLanguages) {
+      const chessRounds = buildGameTable(language, 6).rounds.filter((round) => round.kind === "chess");
+
+      expect(chessRounds).toHaveLength(80);
+
+      for (const round of chessRounds) {
+        expect(round.prompt).toMatch(actionPromptStart[language]);
+        expect(round.prompt).not.toMatch(giveawayPattern);
+        expect(round.prompt.toLocaleLowerCase()).not.toContain(round.answer.toLocaleLowerCase());
+        expect(round.interaction?.kind).toBe("chessTap");
+        if (round.interaction?.kind !== "chessTap") continue;
+        expect(round.interaction.instruction).toBe(genericInstruction[language]);
+      }
     }
   });
 
@@ -68,7 +129,7 @@ describe("social games room helpers", () => {
       dominoes: 80,
       bridge: 80,
     });
-    expect(table.defaultRoundIndexesByKind?.chess).toBe(0);
+    expect(table.defaultRoundIndexesByKind?.chess).toBe(1);
   });
 
   it("prefers rounds outside the repeat cooldown after a bank has all been seen", () => {
@@ -91,7 +152,7 @@ describe("social games room helpers", () => {
       ...wordRounds,
       {
         ...wordRounds[0],
-        id: "word-tiles-new-neighbor",
+        id: "word-table-new-neighbor",
       },
     ];
     const attempts = wordRounds.map((round, index) => ({
@@ -102,19 +163,45 @@ describe("social games room helpers", () => {
       lastSeenAt: `2026-06-${String((index % 28) + 1).padStart(2, "0")}T10:00:00.000Z`,
     }));
 
-    expect(buildGameDefaultRoundIds(expandedWordRounds, attempts).word).toBe("word-tiles-new-neighbor");
+    expect(buildGameDefaultRoundIds(expandedWordRounds, attempts).word).toBe("word-table-new-neighbor");
     expect(buildGameDefaultRoundIds(wordRounds, attempts).word).toBe(wordRounds[9].id);
   });
 
   it("keeps the word tile puzzle bank available in each supported app language", () => {
+    const retiredVisibleCopyPattern = /friendly word|gentle word|calm word|palabra amable|mot calme|parola calma|palavra calma|what word means|which word means|quel mot veut dire|quale parola significa|qual palavra significa|choose the friendly/i;
+    const retiredWordTags = new Set(["word:gentle-clue", "word:food", "word:home", "word:greeting", "word:best-word", "word:score"]);
+    const requiredStrategyTags = [
+      "word:anagram",
+      "word:rack-strategy",
+      "word:front-hook",
+      "word:back-hook",
+      "word:score-style",
+      "word:crossword-clue",
+    ];
+
     for (const language of supportedGameLanguages) {
       const table = buildGameTable(language, 6);
       const wordRounds = table.rounds.filter((round) => round.kind === "word");
+      const wordTags = new Set(wordRounds.flatMap((round) => round.tags));
+      const extraRackRounds = wordRounds.filter((round) => {
+        if (round.visual?.kind !== "wordTiles" || round.visual.answerLength <= 2) return false;
+        return round.visual.tiles.length > round.visual.answerLength;
+      });
 
       expect(wordRounds).toHaveLength(80);
       expect(new Set(wordRounds.map((round) => round.id)).size).toBe(wordRounds.length);
+      expect(wordRounds.every((round) => round.id.startsWith("word-table-"))).toBe(true);
       expect(wordRounds.every((round) => round.tags.includes("scrabble"))).toBe(true);
       expect(wordRounds.every((round) => round.tags.includes("words"))).toBe(true);
+      expect(wordRounds.every((round) => round.tags.includes("word:strategy"))).toBe(true);
+      expect(wordRounds.every((round) => !round.tags.some((tag) => retiredWordTags.has(tag)))).toBe(true);
+      expect(extraRackRounds.length).toBeGreaterThanOrEqual(60);
+      expect(Array.from(wordTags)).toEqual(expect.arrayContaining(requiredStrategyTags));
+
+      for (const round of wordRounds) {
+        const visualClue = round.visual?.kind === "wordTiles" ? round.visual.clue ?? "" : "";
+        expect(`${round.prompt} ${round.body} ${round.successMessage} ${visualClue}`).not.toMatch(retiredVisibleCopyPattern);
+      }
     }
   });
 
@@ -162,15 +249,29 @@ describe("social games room helpers", () => {
           ]);
           expect(round.interaction.answerSquares.length).toBeGreaterThan(0);
           expect(round.interaction.answerSquares.every((square) => validSquares.has(square))).toBe(true);
+          expect(round.interaction.selectableSquares?.length).toBeGreaterThanOrEqual(5);
+          expect(round.interaction.answerSquares.every((square) => round.interaction.kind === "chessTap" && round.interaction.selectableSquares?.includes(square))).toBe(true);
+          expect(round.visual.pieces.length).toBeGreaterThanOrEqual(6);
+          expect(round.visual.pieces.length).toBeLessThanOrEqual(10);
         }
 
         if (round.kind === "dominoes") {
           expect(round.interaction.kind).toBe("dominoPlay");
+          expect(round.visual?.kind).toBe("dominoes");
           if (round.interaction.kind !== "dominoPlay") continue;
+          if (round.visual?.kind === "dominoes") {
+            expect(round.visual.hand?.length ?? 0).toBeGreaterThanOrEqual(3);
+            expect(round.visual.openEnds).toBeDefined();
+            expect(round.visual.leftEnd).toBeDefined();
+            expect(round.visual.rightEnd).toBeDefined();
+          }
           if (round.interaction.answerTile) {
             const answerKey = [...round.interaction.answerTile].sort((a, b) => a - b).join("-");
             const candidateKeys = (round.interaction.candidateTiles ?? []).map((tile) => [...tile].sort((a, b) => a - b).join("-"));
             expect(candidateKeys).toContain(answerKey);
+            if (round.interaction.answerEndSide) {
+              expect(round.interaction.candidateEnds).toEqual(["left", "right"]);
+            }
           } else {
             expect(round.interaction.actions?.length).toBeGreaterThan(0);
             expect(round.interaction.actions?.some((action) => action.id === round.interaction.answerActionId)).toBe(true);
@@ -179,6 +280,12 @@ describe("social games room helpers", () => {
 
         if (round.kind === "bridge") {
           expect(round.interaction.kind).toBe("bridgeAction");
+          expect(round.visual?.kind).toBe("bridgeCards");
+          if (round.visual?.kind === "bridgeCards") {
+            expect(round.visual.cards?.length ?? 0).toBeGreaterThanOrEqual(4);
+            expect(round.visual.cards?.some((card) => card.role === "key")).toBe(true);
+            expect(round.visual.cards?.every((card) => !/[♠♥♦♣]/.test(`${card.rank} ${card.suit}`))).toBe(true);
+          }
           if (round.interaction.kind !== "bridgeAction") continue;
           expect(round.interaction.actions.length).toBeGreaterThan(0);
           expect(round.interaction.actions.some((action) => action.id === round.interaction.answerActionId)).toBe(true);
@@ -230,27 +337,53 @@ describe("social games room helpers", () => {
   });
 
   it("keeps the dominoes puzzle bank available in each supported app language", () => {
+    const answerGivingPromptPattern = /\b(target|keep|avoid)\b|count the pips|what is a double|strongest opener|which tile has the most/i;
+
     for (const language of supportedGameLanguages) {
       const table = buildGameTable(language, 6);
       const dominoesRounds = table.rounds.filter((round) => round.kind === "dominoes");
+      const twoStepRounds = dominoesRounds.filter((round) => round.interaction?.kind === "dominoPlay" && round.interaction.answerEndSide);
+      const tableDecisionRounds = dominoesRounds.filter((round) => {
+        if (round.visual?.kind !== "dominoes") return false;
+        return Boolean(round.visual.recentPass !== undefined || round.visual.remainingTiles !== undefined || round.interaction?.kind === "dominoPlay" && round.interaction.answerEndSide || (round.visual.hand?.length ?? 0) >= 4);
+      });
 
       expect(dominoesRounds).toHaveLength(80);
       expect(new Set(dominoesRounds.map((round) => round.id)).size).toBe(dominoesRounds.length);
+      expect(dominoesRounds.every((round) => round.id.startsWith("domino-table-"))).toBe(true);
       expect(dominoesRounds.every((round) => round.tags.includes("dominoes"))).toBe(true);
       expect(dominoesRounds.every((round) => round.tags.includes("game:dominoes"))).toBe(true);
+      expect(dominoesRounds.every((round) => !answerGivingPromptPattern.test(round.prompt))).toBe(true);
+      expect(dominoesRounds.every((round) => !round.tags.some((tag) => ["dominoes:pip-count", "dominoes:vocabulary", "dominoes:opening-double"].includes(tag)))).toBe(true);
+      expect(tableDecisionRounds.length).toBeGreaterThanOrEqual(72);
+      expect(twoStepRounds.length).toBeGreaterThanOrEqual(16);
     }
   });
 
   it("keeps the bridge puzzle bank available in each supported app language", () => {
+    const retiredBridgeTags = new Set(["bridge:vocabulary", "bridge:table-trust", "bridge:no-trump-basics", "bridge:simple-finesse"]);
+    const noviceCopyPattern = /calm|gentle|vocabulary|which bridge word|table manners|kind bridge|tranquil|calme|ruhig|amable|aimable/i;
+
     for (const language of supportedGameLanguages) {
       const table = buildGameTable(language, 6);
       const bridgeRounds = table.rounds.filter((round) => round.kind === "bridge");
+      const bridgeTags = new Set(bridgeRounds.flatMap((round) => round.tags));
 
       expect(bridgeRounds).toHaveLength(80);
       expect(new Set(bridgeRounds.map((round) => round.id)).size).toBe(bridgeRounds.length);
+      expect(bridgeRounds.every((round) => round.id.startsWith("bridge-table-"))).toBe(true);
       expect(bridgeRounds.every((round) => round.tags.includes("bridge"))).toBe(true);
       expect(bridgeRounds.every((round) => round.tags.includes("cards"))).toBe(true);
       expect(bridgeRounds.every((round) => round.tags.includes("game:bridge"))).toBe(true);
+      expect(bridgeRounds.every((round) => !round.tags.some((tag) => retiredBridgeTags.has(tag)))).toBe(true);
+      expect(bridgeRounds.every((round) => !noviceCopyPattern.test(`${round.prompt} ${round.body} ${round.successMessage}`))).toBe(true);
+      expect(Array.from(bridgeTags)).toEqual(expect.arrayContaining([
+        "bridge:stayman-transfer",
+        "bridge:competitive-auction",
+        "bridge:hold-up",
+        "bridge:endplay",
+        "bridge:squeeze-pressure",
+      ]));
     }
   });
 
@@ -269,9 +402,9 @@ describe("social games room helpers", () => {
       expect(table.tableLabel).toBe(expectedLabels[language]);
     }
 
-    expect(buildGameTable("fr", 6).rounds.find((round) => round.id === "word-tiles-anagram-smile")?.answer).toBe("SOURIRE");
-    expect(buildGameTable("it", 6).rounds.find((round) => round.id === "word-tiles-anagram-smile")?.answer).toBe("SORRISO");
-    expect(buildGameTable("pt", 6).rounds.find((round) => round.id === "word-tiles-anagram-smile")?.answer).toBe("SORRISO");
+    expect(buildGameTable("fr", 6).rounds.find((round) => round.id === "word-table-anagram-smile")?.answer).toBe("SOURIRE");
+    expect(buildGameTable("it", 6).rounds.find((round) => round.id === "word-table-anagram-smile")?.answer).toBe("SORRISO");
+    expect(buildGameTable("pt", 6).rounds.find((round) => round.id === "word-table-anagram-smile")?.answer).toBe("SORRISO");
   });
 
   it("supports matching in games, reading, and aliases but not ordinary activity rooms", () => {

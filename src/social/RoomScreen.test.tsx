@@ -137,6 +137,41 @@ const readingRoomResponse: SocialRoomResponse = {
   memberChat: [],
 };
 
+const togetherRoomResponse: SocialRoomResponse = {
+  room: {
+    slug: "together-room",
+    name: "Together Room",
+    category: "connection",
+    agentSlug: "vyva-host",
+    agentFullName: "VYVA Host",
+    agentColour: "#6D28D9",
+    agentCredential: "Shared plans host",
+    ctaLabel: "Enter",
+    topicTags: ["friendship", "connection"],
+    timeSlots: ["afternoon"],
+    featured: true,
+    participantCount: 3,
+    sessionDate: "2026-06-04",
+    topic: "A small safe circle.",
+    opener: "Welcome.",
+    quote: "",
+    activityType: "discussion",
+    contentTag: "",
+    contentTitle: "",
+    contentBody: "",
+    options: [],
+    liveBadge: "3 present",
+  },
+  transcript: [],
+  promptChips: [],
+  members: [
+    { id: "member-carmen", name: "Carmen", statusLabel: "Looking for a quiet plan" },
+    { id: "member-luis", name: "Luis", statusLabel: "Comparing services" },
+    { id: "member-ana", name: "Ana", statusLabel: "Reviewing an offer" },
+  ],
+  memberChat: [],
+};
+
 function jsonResponse(body: unknown) {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -176,6 +211,47 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+describe("RoomScreen Together Room", () => {
+  beforeEach(() => {
+    languageMock.language = "en";
+    localStorage.clear();
+    voiceMock.startVoice.mockReset();
+    voiceMock.stopVoice.mockReset();
+    voiceMock.sendText.mockReset();
+    voiceMock.sendContextUpdate.mockReset();
+    voiceMock.status = "idle";
+    apiFetchMock.mockReset();
+    queryMock.mockReset();
+    queryMock.mockReturnValue({
+      data: togetherRoomResponse,
+      isLoading: false,
+      isError: false,
+    });
+    apiFetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/enter")) {
+        return Promise.resolve(jsonResponse({
+          visitId: "visit-together-1",
+          visitState: { isFirstVisit: false, visitCount: 2, previousVisitCount: 1 },
+        }));
+      }
+      return Promise.resolve(jsonResponse({ ok: true }));
+    });
+  });
+
+  it("keeps the simple Together Room quiet instead of auto-starting voice", async () => {
+    renderRoom("/social-rooms/together-room");
+
+    expect(screen.getByRole("heading", { name: "Together Room" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/social/rooms/together-room/enter",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+    expect(voiceMock.startVoice).not.toHaveBeenCalled();
+  });
+});
+
 describe("RoomScreen movement room", () => {
   beforeEach(() => {
     languageMock.language = "en";
@@ -206,7 +282,7 @@ describe("RoomScreen movement room", () => {
     });
   });
 
-  it("opens a Movement exercise guide page and logs from the guide", async () => {
+  it("surfaces the gentle exercise library from the Movement room", async () => {
     renderRoom();
 
     expect(screen.queryByText("Amara welcomes you")).not.toBeInTheDocument();

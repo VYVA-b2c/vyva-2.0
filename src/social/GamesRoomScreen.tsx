@@ -8,9 +8,9 @@ import {
   Dice5,
   Eraser,
   Gamepad2,
+  Hand,
   HeartHandshake,
   HelpCircle,
-  Send,
   Spade,
   Sparkles,
   Shuffle,
@@ -18,16 +18,18 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/queryClient";
 import gameTableImage from "@/assets/games-room-tabletop.webp";
 import AgentAvatar from "./AgentAvatar";
 import SocialStyles from "./SocialStyles";
 import type {
+  SocialGameDifficulty,
   SocialGameKind,
   SocialGameLanguage,
   SocialGameRound,
   SocialGameRoundInteraction,
+  SocialGameTable,
   SocialGameRoundVisual,
   SocialMatchResponse,
   SocialRoomChatItem,
@@ -49,8 +51,69 @@ const roundIcons: Record<SocialGameKind, LucideIcon> = {
 };
 
 const gameKindOrder: SocialGameKind[] = ["chess", "word", "dominoes", "bridge"];
+const gameDifficultyOrder: SocialGameDifficulty[] = ["easy", "medium", "hard", "expert"];
+const DEFAULT_GAME_DIFFICULTY: SocialGameDifficulty = "medium";
 
 type GameRoundsByKind = Partial<Record<SocialGameKind, SocialGameRound[]>>;
+
+function roundPlayKey(round: SocialGameRound) {
+  return `${round.kind}:${round.id}`;
+}
+
+function normalizedDifficulty(round?: SocialGameRound | null): SocialGameDifficulty {
+  return round?.difficulty ?? DEFAULT_GAME_DIFFICULTY;
+}
+
+function difficultyPreference(targetDifficulty: SocialGameDifficulty = DEFAULT_GAME_DIFFICULTY) {
+  if (targetDifficulty === "easy") return ["easy", "medium", "hard", "expert"] satisfies SocialGameDifficulty[];
+  if (targetDifficulty === "hard") return ["hard", "expert", "medium", "easy"] satisfies SocialGameDifficulty[];
+  if (targetDifficulty === "expert") return ["expert", "hard", "medium", "easy"] satisfies SocialGameDifficulty[];
+  return ["medium", "hard", "expert", "easy"] satisfies SocialGameDifficulty[];
+}
+
+function difficultyRank(round: SocialGameRound, targetDifficulty: SocialGameDifficulty = DEFAULT_GAME_DIFFICULTY) {
+  const index = difficultyPreference(targetDifficulty).indexOf(normalizedDifficulty(round));
+  return index >= 0 ? index : difficultyPreference(targetDifficulty).length;
+}
+
+function nextDifficultyTarget(round: SocialGameRound, wasAssisted: boolean): SocialGameDifficulty {
+  const currentRank = Math.max(0, gameDifficultyOrder.indexOf(normalizedDifficulty(round)));
+  if (wasAssisted) {
+    if (currentRank <= 1) return gameDifficultyOrder[currentRank] ?? DEFAULT_GAME_DIFFICULTY;
+    return gameDifficultyOrder[currentRank - 1] ?? DEFAULT_GAME_DIFFICULTY;
+  }
+
+  return gameDifficultyOrder[Math.min(gameDifficultyOrder.length - 1, currentRank + 1)] ?? DEFAULT_GAME_DIFFICULTY;
+}
+
+function circularDistance(fromIndex: number, toIndex: number, total: number) {
+  if (total <= 0) return 0;
+  return (toIndex - fromIndex + total) % total;
+}
+
+function pickPacedNextRound(
+  kindRounds: SocialGameRound[],
+  currentRound: SocialGameRound,
+  targetDifficulty: SocialGameDifficulty,
+  seenRoundKeys: Set<string>,
+) {
+  const currentIndex = Math.max(0, kindRounds.findIndex((round) => round.id === currentRound.id));
+  const candidates = kindRounds.filter((round) => round.id !== currentRound.id);
+  if (!candidates.length) return currentRound;
+
+  return [...candidates].sort((a, b) => {
+    const aSeen = seenRoundKeys.has(roundPlayKey(a)) ? 1 : 0;
+    const bSeen = seenRoundKeys.has(roundPlayKey(b)) ? 1 : 0;
+    if (aSeen !== bSeen) return aSeen - bSeen;
+
+    const difficultyDelta = difficultyRank(a, targetDifficulty) - difficultyRank(b, targetDifficulty);
+    if (difficultyDelta !== 0) return difficultyDelta;
+
+    const aIndex = kindRounds.findIndex((round) => round.id === a.id);
+    const bIndex = kindRounds.findIndex((round) => round.id === b.id);
+    return circularDistance(currentIndex, aIndex, kindRounds.length) - circularDistance(currentIndex, bIndex, kindRounds.length);
+  })[0] ?? currentRound;
+}
 
 function groupRoundsByKind(rounds: SocialGameRound[]): GameRoundsByKind {
   return rounds.reduce<GameRoundsByKind>((groups, round) => ({
@@ -73,7 +136,7 @@ function fallbackGameTable(roomResponse: SocialRoomResponse) {
     chooseRoundLabel: "Choose a round",
     connectionTitle: "Find a playing partner",
     connectionBody: "VYVA only looks for people who opted in. Contact details stay private.",
-    startRoundLabel: "Start puzzle",
+    startRoundLabel: "Start this puzzle",
     completeRoundLabel: "Check answer",
     findPartnerLabel: "Find a playing partner",
     sayHelloLabel: "Say hello",
@@ -101,7 +164,7 @@ function fallbackGameTable(roomResponse: SocialRoomResponse) {
         kind: "chess" as const,
         title: "Chess clue",
         body: "Spot a friendly tactic.",
-        prompt: "White's knight can check the king and attack the queen. What tactic is this?",
+        prompt: "Find the double threat.",
         choices: ["Fork", "Castle", "Trade pawns"],
         answer: "Fork",
         hint: "One piece makes two threats at the same time.",
@@ -148,6 +211,51 @@ function getMatchLoadingLabel(language: SocialGameLanguage) {
   if (language === "de") return "VYVA sucht...";
   if (language === "en") return "VYVA is looking...";
   return "VYVA esta buscando...";
+}
+
+function getConnectionKicker(language: SocialGameLanguage) {
+  if (language === "fr") return "Apres le puzzle";
+  if (language === "it") return "Dopo il puzzle";
+  if (language === "pt") return "Depois do puzzle";
+  if (language === "de") return "Nach dem Raetsel";
+  if (language === "en") return "After the puzzle";
+  return "Despues del puzle";
+}
+
+function getConnectionGameLine(language: SocialGameLanguage, gameTitle: string) {
+  if (language === "fr") return `Viktor cherche quelqu'un qui aime aussi ${gameTitle}.`;
+  if (language === "it") return `Viktor cerca qualcuno a cui piace anche ${gameTitle}.`;
+  if (language === "pt") return `Viktor procura alguem que tambem goste de ${gameTitle}.`;
+  if (language === "de") return `Viktor sucht jemanden, der auch ${gameTitle} mag.`;
+  if (language === "en") return `Viktor will look for someone who also enjoys ${gameTitle}.`;
+  return `Viktor busca a alguien que tambien disfrute ${gameTitle}.`;
+}
+
+function getConnectionCtaLabel(language: SocialGameLanguage, gameTitle: string) {
+  if (language === "fr") return `Trouver quelqu'un pour ${gameTitle}`;
+  if (language === "it") return `Trova qualcuno per ${gameTitle}`;
+  if (language === "pt") return `Encontrar alguem para ${gameTitle}`;
+  if (language === "de") return `Jemanden fuer ${gameTitle} finden`;
+  if (language === "en") return `Find someone for ${gameTitle}`;
+  return `Buscar alguien para ${gameTitle}`;
+}
+
+function getConnectionPrivacyNote(language: SocialGameLanguage) {
+  if (language === "fr") return "Les coordonnees ne sont pas partagees.";
+  if (language === "it") return "I contatti non vengono condivisi.";
+  if (language === "pt") return "Os contatos nao sao compartilhados.";
+  if (language === "de") return "Kontaktdaten werden nicht geteilt.";
+  if (language === "en") return "Contact details are not shared.";
+  return "Los datos de contacto no se comparten.";
+}
+
+function getReadyNowLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "A la table";
+  if (language === "it") return "Al tavolo";
+  if (language === "pt") return "Na mesa";
+  if (language === "de") return "Am Tisch";
+  if (language === "en") return "At the table";
+  return "En la mesa";
 }
 
 function getChatTitle(language: SocialGameLanguage) {
@@ -392,31 +500,120 @@ function getTactileTryAgainCopy(language: SocialGameLanguage) {
   return "Casi. Mira la pista y prueba otro gesto en la mesa.";
 }
 
-function getTableTalkLabel(language: SocialGameLanguage) {
-  if (language === "fr") return "Autour de la table";
-  if (language === "it") return "Al tavolo";
-  if (language === "pt") return "Na mesa";
-  if (language === "de") return "Am Tisch";
-  if (language === "en") return "Table talk";
-  return "En la mesa";
+function getChessTapCue(language: SocialGameLanguage) {
+  if (language === "fr") return "Touchez un repere.";
+  if (language === "it") return "Tocca un segno.";
+  if (language === "pt") return "Toque num marcador.";
+  if (language === "de") return "Tippe auf eine Markierung.";
+  if (language === "en") return "Tap a marker.";
+  return "Toca una marca.";
+}
+
+function getLearnWhyLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Voir pourquoi";
+  if (language === "it") return "Scopri perche";
+  if (language === "pt") return "Ver por que";
+  if (language === "de") return "Warum?";
+  if (language === "en") return "Learn why";
+  return "Ver por que";
+}
+
+function compactSuccessMessage(message: string) {
+  const match = message.match(/^(.+?[.!?])(?:\s|$)/);
+  return match?.[1] ?? message;
 }
 
 function dominoTileKey(tile: [number, number]) {
   return [...tile].sort((a, b) => a - b).join("-");
 }
 
+function dominoEndAnswerValue(tileKey: string, end: "left" | "right") {
+  return `${tileKey}:${end}`;
+}
+
+function parseDominoAnswerValue(value: string) {
+  const [tileKey, end] = value.split(":");
+  return {
+    tileKey,
+    end: end === "left" || end === "right" ? end : null,
+  };
+}
+
 function isDominoTileAnswer(value: string, tile: [number, number] | undefined) {
-  return Boolean(tile) && value === dominoTileKey(tile);
+  return Boolean(tile) && parseDominoAnswerValue(value).tileKey === dominoTileKey(tile);
+}
+
+function getDominoOpenEndsLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Bouts ouverts";
+  if (language === "it") return "Estremita aperte";
+  if (language === "pt") return "Pontas abertas";
+  if (language === "de") return "Offene Enden";
+  if (language === "en") return "Open ends";
+  return "Extremos abiertos";
+}
+
+function getDominoLeftLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Gauche";
+  if (language === "it") return "Sinistra";
+  if (language === "pt") return "Esquerda";
+  if (language === "de") return "Links";
+  if (language === "en") return "Left";
+  return "Izquierda";
+}
+
+function getDominoRightLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Droite";
+  if (language === "it") return "Destra";
+  if (language === "pt") return "Direita";
+  if (language === "de") return "Rechts";
+  if (language === "en") return "Right";
+  return "Derecha";
+}
+
+function getDominoRecentPassLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Passe recente";
+  if (language === "it") return "Passo recente";
+  if (language === "pt") return "Passada recente";
+  if (language === "de") return "Gerade gepasst";
+  if (language === "en") return "Recent pass";
+  return "Pase reciente";
+}
+
+function getDominoTilesLeftLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Tuiles restantes";
+  if (language === "it") return "Tessere rimaste";
+  if (language === "pt") return "Pecas restantes";
+  if (language === "de") return "Steine uebrig";
+  if (language === "en") return "Tiles left";
+  return "Fichas restantes";
+}
+
+function getDominoHandLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Ta main";
+  if (language === "it") return "La tua mano";
+  if (language === "pt") return "Sua mao";
+  if (language === "de") return "Deine Hand";
+  if (language === "en") return "Your hand";
+  return "Tu mano";
+}
+
+function getDominoChooseEndLabel(language: SocialGameLanguage) {
+  if (language === "fr") return "Choisissez le bout.";
+  if (language === "it") return "Scegli l'estremita.";
+  if (language === "pt") return "Escolha a ponta.";
+  if (language === "de") return "Waehle ein Ende.";
+  if (language === "en") return "Choose an end.";
+  return "Elige un extremo.";
 }
 
 function DominoTile({ tile, muted = false }: { tile: [number, number]; muted?: boolean }) {
   return (
     <div
-      className={`grid h-[72px] w-[116px] grid-cols-2 overflow-hidden rounded-[14px] border-2 bg-[#FFFDF7] shadow-[0_10px_20px_rgba(24,60,66,0.12)] ${muted ? "border-[#D8E6E2] opacity-75" : "border-[#087C82]"}`}
+      className={`grid h-[58px] w-[96px] grid-cols-2 overflow-hidden rounded-[12px] border-2 bg-[#FFFDF7] shadow-[0_10px_20px_rgba(24,60,66,0.12)] sm:h-[72px] sm:w-[116px] sm:rounded-[14px] ${muted ? "border-[#D8E6E2] opacity-75" : "border-[#087C82]"}`}
       aria-label={`Domino ${tile[0]}-${tile[1]}`}
     >
       {tile.map((value, index) => (
-        <span key={`${value}-${index}`} className="flex items-center justify-center border-l border-[#E9DED0] first:border-l-0 font-body text-[24px] font-extrabold text-[#173941]">
+        <span key={`${value}-${index}`} className="flex items-center justify-center border-l border-[#E9DED0] first:border-l-0 font-body text-[21px] font-extrabold text-[#173941] sm:text-[24px]">
           {value === 0 ? "-" : value}
         </span>
       ))}
@@ -488,6 +685,7 @@ function ChessBoardVisual({
   selectedSquare,
   wrongSquare,
   isComplete = false,
+  revealGuidance = false,
   onSquareSelect,
 }: {
   visual: Extract<SocialGameRoundVisual, { kind: "chessBoard" }>;
@@ -495,6 +693,7 @@ function ChessBoardVisual({
   selectedSquare?: string | null;
   wrongSquare?: string | null;
   isComplete?: boolean;
+  revealGuidance?: boolean;
   onSquareSelect?: (square: string) => void;
 }) {
   const piecesBySquare = new Map(visual.pieces.map((piece) => [piece.square, piece]));
@@ -507,39 +706,51 @@ function ChessBoardVisual({
   const canTap = Boolean(interaction && onSquareSelect);
 
   return (
-    <div className="rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-4" data-testid="games-visual-chess">
-      <p className="font-body text-[16px] font-extrabold leading-snug text-[#31555D]">{visual.caption}</p>
-      <div className="mt-3 grid aspect-square max-w-[360px] grid-cols-8 overflow-hidden rounded-[18px] border border-[#BFDAD7]">
+    <div className="mx-auto max-w-[430px] rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-3 sm:p-4" data-testid="games-visual-chess">
+      <p className="font-body text-[15px] font-extrabold leading-snug text-[#31555D] sm:text-[16px]">{visual.caption}</p>
+      <div className="mx-auto mt-3 grid aspect-square w-full grid-cols-8 overflow-hidden rounded-[18px] border border-[#BFDAD7] shadow-[0_14px_30px_rgba(11,60,66,0.08)]">
         {Array.from({ length: 64 }, (_, index) => {
           const file = index % 8;
           const rank = 8 - Math.floor(index / 8);
           const square = `${String.fromCharCode("a".charCodeAt(0) + file)}${rank}`;
           const piece = piecesBySquare.get(square);
           const dark = (file + rank) % 2 === 0;
-          const marked = highlightSet.has(square) || arrowTargets.has(square);
+          const marked = revealGuidance && (highlightSet.has(square) || arrowTargets.has(square));
           const selected = selectedSquare === square;
           const wrong = wrongSquare === square;
-          const squareClassName = `relative flex aspect-square items-center justify-center text-[11px] font-black ${dark ? "bg-[#8CB5A7]" : "bg-[#F2E7D5]"} ${canTap ? "focus:outline-none focus-visible:ring-4 focus-visible:ring-[#FBBF24]" : ""}`;
+          const tappable = canTap && selectableSquares.has(square);
+          const squareClassName = `relative flex aspect-square items-center justify-center text-[11px] font-black ${dark ? "bg-[#8CB5A7]" : "bg-[#F2E7D5]"} ${tappable ? "cursor-pointer focus:outline-none focus-visible:ring-4 focus-visible:ring-[#FBBF24] hover:ring-4 hover:ring-[#FBBF24]/70" : canTap ? "cursor-default" : ""}`;
           const content = (
             <>
-              {marked && <span className="absolute inset-1 rounded-[8px] border-2 border-[#F59E0B]" />}
+              {marked && <span className="absolute inset-1 rounded-[8px] border-2 border-[#F59E0B]" data-testid={`chess-guidance-${square}`} />}
               {selected && <span className="absolute inset-1 rounded-[8px] border-4 border-[#087C82]" />}
               {wrong && <span className="absolute inset-1 rounded-[8px] border-4 border-[#D97706]" />}
+              {tappable && !piece && !isComplete && (
+                <span
+                  aria-hidden="true"
+                  className="absolute h-[50%] w-[50%] rounded-full border-[3px] border-[#F59E0B] bg-[#FEF3C7]/65 shadow-[0_0_0_4px_rgba(255,255,255,0.58)]"
+                  data-testid={`chess-tap-target-${square}`}
+                />
+              )}
               {piece && (
                 <span
                   aria-label={chessPieceDescriptions[piece.piece]}
-                  className={`relative z-10 flex h-[82%] w-[82%] items-center justify-center rounded-full border shadow-[0_7px_14px_rgba(23,57,65,0.18)] ${piece.piece.startsWith("white") ? "border-[#C9B99D] bg-[#FFFDF7] text-[#07313A]" : "border-[#173941] bg-[#173941] text-[#FFFDF7]"}`}
+                  className={`relative z-10 flex h-[82%] w-[82%] items-center justify-center rounded-full border shadow-[0_7px_14px_rgba(23,57,65,0.18)] ${piece.piece.startsWith("white") ? "border-[#C9B99D] bg-[#FFFDF7] text-[#07313A]" : "border-[#173941] bg-[#173941] text-[#FFFDF7]"} ${tappable && !isComplete ? "ring-[3px] ring-[#F59E0B] ring-offset-1 ring-offset-white" : ""}`}
                   role="img"
                 >
                   <ChessPieceGlyph piece={piece.piece} cutout={piece.piece.startsWith("white") ? "#FFFDF7" : "#173941"} />
                 </span>
               )}
+              {tappable && !isComplete && (
+                <span
+                  aria-hidden="true"
+                  className="absolute bottom-1 right-1 z-20 h-4 w-4 rounded-full bg-[#087C82] ring-[3px] ring-white"
+                />
+              )}
             </>
           );
 
           if (canTap) {
-            const tappable = selectableSquares.has(square);
-
             return (
               <button
                 key={square}
@@ -569,69 +780,271 @@ function ChessBoardVisual({
   );
 }
 
-function DominoesVisual({ visual }: { visual: Extract<SocialGameRoundVisual, { kind: "dominoes" }> }) {
-  const tiles = visual.candidateTiles ?? visual.hand ?? (visual.focusTile ? [visual.focusTile] : []);
+function DominoesVisual({
+  visual,
+  interaction,
+  language,
+  selectedTactileValue,
+  isComplete = false,
+  onDominoTileSelect,
+}: {
+  visual: Extract<SocialGameRoundVisual, { kind: "dominoes" }>;
+  interaction?: Extract<SocialGameRoundInteraction, { kind: "dominoPlay" }>;
+  language: SocialGameLanguage;
+  selectedTactileValue?: string | null;
+  isComplete?: boolean;
+  onDominoTileSelect?: (value: string) => void;
+}) {
+  const handTiles = visual.hand ?? visual.candidateTiles ?? (visual.focusTile ? [visual.focusTile] : []);
+  const layoutTiles = visual.layoutTiles ?? [];
+  const leftEnd = visual.leftEnd ?? visual.openEnds?.[0];
+  const rightEnd = visual.rightEnd ?? visual.openEnds?.[1];
+  const candidateTileKeys = new Set((interaction?.candidateTiles ?? []).map(dominoTileKey));
+  const canTapHand = Boolean(onDominoTileSelect && interaction && candidateTileKeys.size > 0);
+  const selectedDominoTile = selectedTactileValue ? parseDominoAnswerValue(selectedTactileValue).tileKey : "";
 
   return (
-    <div className="rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-4" data-testid="games-visual-dominoes">
+    <div className="rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-3 sm:p-4" data-testid="games-visual-dominoes">
       <p className="font-body text-[16px] font-extrabold leading-snug text-[#31555D]">{visual.caption}</p>
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        {visual.openEnds && (
-          <div className="flex items-center gap-2 rounded-[18px] bg-white px-4 py-3 font-body text-[16px] font-extrabold text-[#075C64]">
-            <span>{visual.openEnds[0]}</span>
-            <span className="h-px w-8 bg-[#BFDAD7]" />
-            <span>{visual.openEnds[1]}</span>
-          </div>
-        )}
-        {visual.playedTile && <DominoTile tile={visual.playedTile} />}
-        {tiles.map((tile, index) => (
-          <DominoTile key={`${tile[0]}-${tile[1]}-${index}`} tile={tile} muted={Boolean(visual.playedTile)} />
-        ))}
+      <div className="mt-3 rounded-[20px] bg-white px-3 py-3">
+        <p className="font-body text-[13px] font-black uppercase text-[#087C82]">{getDominoOpenEndsLabel(language)}</p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {leftEnd !== undefined && (
+            <div className="rounded-[16px] border border-[#BFDAD7] bg-[#F4FAF8] px-3 py-2 font-body text-[15px] font-extrabold text-[#075C64]">
+              {getDominoLeftLabel(language)} {leftEnd}
+            </div>
+          )}
+          {layoutTiles.map((tile, index) => (
+            <DominoTile key={`${tile[0]}-${tile[1]}-${index}`} tile={tile} muted />
+          ))}
+          {rightEnd !== undefined && (
+            <div className="rounded-[16px] border border-[#BFDAD7] bg-[#F4FAF8] px-3 py-2 font-body text-[15px] font-extrabold text-[#075C64]">
+              {getDominoRightLabel(language)} {rightEnd}
+            </div>
+          )}
+        </div>
       </div>
-      {(visual.target !== undefined || visual.desired !== undefined || visual.avoid !== undefined) && (
+      {(visual.recentPass !== undefined || visual.remainingTiles !== undefined) && (
         <div className="mt-3 flex flex-wrap gap-2 font-body text-[14px] font-extrabold text-[#597178]">
-          {visual.target !== undefined && <span className="rounded-full bg-white px-3 py-1">Target {visual.target}</span>}
-          {visual.desired !== undefined && <span className="rounded-full bg-white px-3 py-1">Keep {visual.desired}</span>}
-          {visual.avoid !== undefined && <span className="rounded-full bg-white px-3 py-1">Avoid {visual.avoid}</span>}
+          {visual.recentPass !== undefined && (
+            <span className="rounded-full bg-white px-3 py-1">
+              {getDominoRecentPassLabel(language)}: {visual.recentPass}
+            </span>
+          )}
+          {visual.remainingTiles !== undefined && (
+            <span className="rounded-full bg-white px-3 py-1">
+              {getDominoTilesLeftLabel(language)}: {visual.remainingTiles}
+            </span>
+          )}
         </div>
       )}
+      <div className="mt-3">
+        <p className="font-body text-[13px] font-black uppercase text-[#087C82]">{visual.handLabel ?? getDominoHandLabel(language)}</p>
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+          {visual.playedTile && <DominoTile tile={visual.playedTile} muted />}
+          {handTiles.map((tile, index) => {
+            const key = dominoTileKey(tile);
+            const isCandidate = candidateTileKeys.has(key);
+            const active = selectedDominoTile === key;
+            const tileNode = <DominoTile tile={tile} />;
+            if (!canTapHand || !isCandidate) {
+              return <div key={`${tile[0]}-${tile[1]}-${index}`} className="justify-self-start">{tileNode}</div>;
+            }
+            return (
+              <button
+                key={`${tile[0]}-${tile[1]}-${index}`}
+                type="button"
+                onClick={() => onDominoTileSelect?.(key)}
+                disabled={isComplete}
+                aria-pressed={active}
+                aria-label={`Play domino ${tile[0]}-${tile[1]}`}
+                data-testid={`domino-tile-${tile[0]}-${tile[1]}`}
+                className={`justify-self-start rounded-[16px] border-2 bg-white p-0.5 shadow-[0_10px_20px_rgba(24,60,66,0.10)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#FBBF24] disabled:opacity-50 ${active ? "border-[#087C82]" : "border-[#087C82]"}`}
+              >
+                {tileNode}
+              </button>
+            );
+          })}
+          {handTiles.length === 0 && visual.focusTile && (
+            <DominoTile tile={visual.focusTile} />
+          )}
+          </div>
+      </div>
     </div>
   );
 }
 
-function BridgeCardsVisual({ visual }: { visual: Extract<SocialGameRoundVisual, { kind: "bridgeCards" }> }) {
+function getBridgeVisualLabels(language: SocialGameLanguage) {
+  return {
+    table: {
+      en: "Table",
+      es: "Mesa",
+      fr: "Table",
+      de: "Tisch",
+      it: "Tavolo",
+      pt: "Mesa",
+    }[language],
+    partner: {
+      en: "Partner",
+      es: "Companero",
+      fr: "Partenaire",
+      de: "Partner",
+      it: "Partner",
+      pt: "Parceiro",
+    }[language],
+    left: {
+      en: "Left",
+      es: "Izquierda",
+      fr: "Gauche",
+      de: "Links",
+      it: "Sinistra",
+      pt: "Esquerda",
+    }[language],
+    right: {
+      en: "Right",
+      es: "Derecha",
+      fr: "Droite",
+      de: "Rechts",
+      it: "Destra",
+      pt: "Direita",
+    }[language],
+    you: {
+      en: "You",
+      es: "Tu",
+      fr: "Vous",
+      de: "Du",
+      it: "Tu",
+      pt: "Voce",
+    }[language],
+    yourHand: {
+      en: "Your hand",
+      es: "Tu mano",
+      fr: "Votre main",
+      de: "Deine Hand",
+      it: "La tua mano",
+      pt: "Sua mao",
+    }[language],
+    points: {
+      en: "points",
+      es: "puntos",
+      fr: "points",
+      de: "Punkte",
+      it: "punti",
+      pt: "pontos",
+    }[language],
+    contract: {
+      en: "Contract",
+      es: "Contrato",
+      fr: "Contrat",
+      de: "Kontrakt",
+      it: "Contratto",
+      pt: "Contrato",
+    }[language],
+    missing: {
+      en: "Missing",
+      es: "Falta",
+      fr: "Manque",
+      de: "Fehlt",
+      it: "Manca",
+      pt: "Falta",
+    }[language],
+  };
+}
+
+function isWarmBridgeSuit(suit: string) {
+  const normalized = suit.toLocaleLowerCase();
+  return [
+    "heart",
+    "diamond",
+    "corazon",
+    "diamante",
+    "herz",
+    "karo",
+    "coeur",
+    "carreau",
+    "cuori",
+    "quadri",
+    "copa",
+    "ouro",
+  ].some((token) => normalized.includes(token));
+}
+
+function BridgePlayingCard({ card, index }: { card: NonNullable<Extract<SocialGameRoundVisual, { kind: "bridgeCards" }>["cards"]>[number]; index: number }) {
+  const warmSuit = isWarmBridgeSuit(card.suit);
+  const isKey = card.role === "key";
+
   return (
-    <div className="rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-4" data-testid="games-visual-bridge">
-      <p className="font-body text-[16px] font-extrabold leading-snug text-[#31555D]">{visual.caption}</p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {visual.points !== undefined && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#075C64]">{visual.points} points</span>}
-        {visual.partnerBid && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#075C64]">Partner: {visual.partnerBid}</span>}
-        {visual.contract && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#075C64]">Contract: {visual.contract}</span>}
+    <div
+      className={`flex h-[78px] w-[56px] shrink-0 rotate-[var(--card-tilt)] flex-col justify-between rounded-[12px] border bg-white px-2 py-2 shadow-[0_10px_18px_rgba(8,38,44,0.22)] ${
+        isKey ? "border-[#FBBF24]" : "border-[#D9C8AD]"
+      }`}
+      style={{ "--card-tilt": `${Math.max(-6, Math.min(6, index - 3))}deg` } as CSSProperties}
+      data-testid="games-bridge-card"
+    >
+      <span className={`font-body text-[15px] font-black leading-none ${warmSuit ? "text-[#9B3412]" : "text-[#173941]"}`}>{card.rank}</span>
+      <span className={`font-body text-[11px] font-extrabold leading-tight ${warmSuit ? "text-[#B45309]" : "text-[#31555D]"}`}>{card.suit}</span>
+    </div>
+  );
+}
+
+function BridgeCardsVisual({ visual, language }: { visual: Extract<SocialGameRoundVisual, { kind: "bridgeCards" }>; language: SocialGameLanguage }) {
+  const labels = getBridgeVisualLabels(language);
+  const cards = visual.cards ?? [];
+  const visibleCards = cards.slice(0, 8);
+
+  return (
+    <div className="min-w-0 overflow-hidden rounded-[24px] border border-[#D8E6E2] bg-[#F7FAF8] p-2 sm:p-3" data-testid="games-visual-bridge">
+      <div className="min-w-0 rounded-[22px] bg-[#0A6F68] p-3 text-white shadow-inner" data-testid="games-bridge-table">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+          <div className="rounded-[14px] bg-white/10 px-3 py-2 text-center font-body text-[12px] font-black uppercase tracking-[0.08em] text-white/80">
+            {labels.left}
+          </div>
+          <div className="min-w-[92px] rounded-[16px] bg-white px-3 py-2 text-center shadow-[0_8px_18px_rgba(8,38,44,0.18)]" data-testid="games-bridge-partner">
+            <p className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#087C82]">{labels.partner}</p>
+            <p className="mt-1 font-body text-[12px] font-extrabold leading-tight text-[#173941]">{visual.partnerBid ?? labels.table}</p>
+          </div>
+          <div className="rounded-[14px] bg-white/10 px-3 py-2 text-center font-body text-[12px] font-black uppercase tracking-[0.08em] text-white/80">
+            {labels.right}
+          </div>
+        </div>
+
+        <div className="mx-auto mt-3 min-h-[76px] max-w-[220px] rounded-[20px] border border-white/20 bg-white/12 px-3 py-2 text-center">
+          <p className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-white/80">{visual.caption}</p>
+          <div className="mt-2 flex flex-wrap justify-center gap-1.5">
+            {visual.points !== undefined && (
+              <span className="rounded-full bg-white px-2.5 py-1 font-body text-[12px] font-extrabold text-[#075C64]">
+                {visual.points} {labels.points}
+              </span>
+            )}
+            {visual.contract && (
+              <span className="rounded-full bg-white px-2.5 py-1 font-body text-[12px] font-extrabold text-[#075C64]">
+                {labels.contract}: {visual.contract}
+              </span>
+            )}
+            {visual.missingCard && (
+              <span className="rounded-full bg-[#FFF7ED] px-2.5 py-1 font-body text-[12px] font-extrabold text-[#8A4B00]">
+                {labels.missing}: {visual.missingCard.rank}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-3 min-w-0 rounded-[20px] bg-[#EAF6F3] px-3 py-3 text-[#173941]" data-testid="games-bridge-hand">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+            <p className="font-body text-[13px] font-black uppercase tracking-[0.08em] text-[#087C82]">{labels.yourHand}</p>
+            {visual.suitLengths?.length ? (
+              <p className="font-body text-[12px] font-extrabold text-[#31555D]">
+                {visual.suitLengths.map((item) => `${item.length} ${item.suit}`).join(" / ")}
+              </p>
+            ) : null}
+          </div>
+          <div className="mt-2 flex min-h-[84px] min-w-0 max-w-full items-center gap-1.5 overflow-x-auto pb-1">
+            {visibleCards.map((card, index) => (
+              <BridgePlayingCard key={`${card.rank}-${card.suit}-${index}`} card={card} index={index} />
+            ))}
+          </div>
+        </div>
       </div>
-      {visual.suitLengths && (
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          {visual.suitLengths.map((item) => (
-            <div key={`${item.suit}-${item.length}`} className="rounded-[16px] bg-white px-4 py-3 font-body text-[16px] font-extrabold text-[#173941]">
-              {item.length} {item.suit}
-            </div>
-          ))}
-        </div>
-      )}
-      {visual.cards && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {visual.cards.map((card, index) => (
-            <div key={`${card.rank}-${card.suit}-${index}`} className="flex h-[92px] w-[68px] flex-col justify-between rounded-[14px] border border-[#D9C8AD] bg-white px-2 py-2 shadow-[0_10px_20px_rgba(24,60,66,0.12)]">
-              <span className="font-body text-[15px] font-black text-[#173941]">{card.rank}</span>
-              <span className="font-body text-[13px] font-extrabold text-[#A86200]">{card.suit}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {visual.missingCard && (
-        <p className="mt-3 rounded-[16px] bg-white px-4 py-3 font-body text-[15px] font-extrabold text-[#597178]">
-          Missing: {visual.missingCard.rank} of {visual.missingCard.suit}
-        </p>
-      )}
     </div>
   );
 }
@@ -639,17 +1052,23 @@ function BridgeCardsVisual({ visual }: { visual: Extract<SocialGameRoundVisual, 
 function PuzzleVisualPanel({
   visual,
   interaction,
+  language,
   selectedTactileValue,
   wrongTactileValue,
   isComplete,
+  revealChessGuidance,
   onChessSquareSelect,
+  onDominoTileSelect,
 }: {
   visual?: SocialGameRoundVisual;
   interaction?: SocialGameRoundInteraction;
+  language: SocialGameLanguage;
   selectedTactileValue?: string | null;
   wrongTactileValue?: string | null;
   isComplete?: boolean;
+  revealChessGuidance?: boolean;
   onChessSquareSelect?: (square: string) => void;
+  onDominoTileSelect?: (value: string) => void;
 }) {
   if (!visual || visual.kind === "wordTiles") return null;
   if (visual.kind === "chessBoard") {
@@ -660,12 +1079,24 @@ function PuzzleVisualPanel({
         selectedSquare={selectedTactileValue}
         wrongSquare={wrongTactileValue}
         isComplete={isComplete}
+        revealGuidance={revealChessGuidance}
         onSquareSelect={onChessSquareSelect}
       />
     );
   }
-  if (visual.kind === "dominoes") return <DominoesVisual visual={visual} />;
-  return <BridgeCardsVisual visual={visual} />;
+  if (visual.kind === "dominoes") {
+    return (
+      <DominoesVisual
+        visual={visual}
+        interaction={interaction?.kind === "dominoPlay" ? interaction : undefined}
+        language={language}
+        selectedTactileValue={selectedTactileValue}
+        isComplete={isComplete}
+        onDominoTileSelect={onDominoTileSelect}
+      />
+    );
+  }
+  return <BridgeCardsVisual visual={visual} language={language} />;
 }
 
 function RoundCompletePanel({
@@ -677,24 +1108,33 @@ function RoundCompletePanel({
   language: SocialGameLanguage;
   roundCompleteLabel: string;
 }) {
+  const [showLearning, setShowLearning] = useState(false);
+
   return (
-    <div className="rounded-[22px] border border-[#BDE8D4] bg-[#EFFBF4] px-4 py-4" data-testid="games-round-complete">
+    <div className="rounded-[20px] border border-[#BDE8D4] bg-[#EFFBF4] px-4 py-3" data-testid="games-round-complete">
       <p className="flex items-center gap-2 font-body text-[19px] font-extrabold text-[#087443]">
         <Check size={21} strokeWidth={3} />
         {roundCompleteLabel}
       </p>
-      <p className="mt-2 font-body text-[18px] font-semibold leading-snug text-[#31594A]">
-        {round.successMessage}
+      <p className="mt-1 font-body text-[17px] font-semibold leading-snug text-[#31594A]">
+        {compactSuccessMessage(round.successMessage)}
       </p>
       {round.explanation && (
-        <p className="mt-3 rounded-[16px] bg-white/70 px-4 py-3 font-body text-[16px] font-bold leading-snug text-[#31594A]">
-          {round.explanation}
-        </p>
-      )}
-      {round.tableTalkPrompt && (
-        <p className="mt-3 rounded-[16px] bg-[#F7F1E7] px-4 py-3 font-body text-[16px] font-extrabold leading-snug text-[#7A4D08]">
-          {getTableTalkLabel(language)}: {round.tableTalkPrompt}
-        </p>
+        <>
+          <button
+            type="button"
+            onClick={() => setShowLearning((current) => !current)}
+            data-testid="games-learn-why"
+            className="mt-3 min-h-[40px] rounded-[14px] border border-[#BFDAD7] bg-white px-4 font-body text-[14px] font-extrabold text-[#075C64]"
+          >
+            {getLearnWhyLabel(language)}
+          </button>
+          {showLearning && (
+            <p className="mt-3 rounded-[16px] bg-white/70 px-4 py-3 font-body text-[16px] font-bold leading-snug text-[#31594A]">
+              {round.explanation}
+            </p>
+          )}
+        </>
       )}
     </div>
   );
@@ -731,8 +1171,11 @@ function TactileInteractionPanel({
 
   if (interaction.kind === "chessTap") {
     return (
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-[22px] bg-[#F4FAF8] px-4 py-3" data-testid="games-tactile-chess">
-        <p className="font-body text-[16px] font-extrabold leading-snug text-[#31555D]">{interaction.instruction}</p>
+      <div className="mt-3 flex items-center justify-between gap-2 rounded-[18px] bg-[#E8F7F6] px-3 py-2 shadow-[0_8px_18px_rgba(11,60,66,0.05)]" data-testid="games-chess-action-row">
+        <p className="flex min-w-0 items-center gap-2 font-body text-[15px] font-extrabold leading-snug text-[#075C64] sm:text-[16px]">
+          <Hand className="shrink-0" size={20} strokeWidth={2.7} />
+          <span>{getChessTapCue(language)}</span>
+        </p>
         {helpButton}
       </div>
     );
@@ -740,35 +1183,21 @@ function TactileInteractionPanel({
 
   if (interaction.kind === "dominoPlay") {
     const tiles = interaction.candidateTiles ?? (interaction.answerTile ? [interaction.answerTile] : []);
+    const selectedAnswerTileKey = interaction.answerTile ? dominoTileKey(interaction.answerTile) : "";
+    const selectedDominoTile = selectedTactileValue ? parseDominoAnswerValue(selectedTactileValue).tileKey : "";
+    const shouldChooseEnd = Boolean(
+      interaction.answerEndSide
+      && interaction.answerTile
+      && selectedDominoTile === selectedAnswerTileKey,
+    );
 
     return (
-      <div className="mt-4 rounded-[22px] bg-[#F4FAF8] px-4 py-4" data-testid="games-tactile-dominoes">
+      <div className="mt-3 rounded-[18px] bg-[#E8F7F6] px-3 py-2 shadow-[0_8px_18px_rgba(11,60,66,0.05)]" data-testid="games-tactile-dominoes">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="font-body text-[16px] font-extrabold leading-snug text-[#31555D]">{interaction.instruction}</p>
+          <p className="font-body text-[15px] font-extrabold leading-snug text-[#075C64] sm:text-[16px]">{interaction.instruction}</p>
           {helpButton}
         </div>
-        {tiles.length > 0 ? (
-          <div className="mt-3 flex flex-wrap gap-3">
-            {tiles.map((tile, index) => {
-              const value = dominoTileKey(tile);
-              const active = selectedTactileValue === value;
-              return (
-                <button
-                  key={`${tile[0]}-${tile[1]}-${index}`}
-                  type="button"
-                  onClick={() => onTactileAnswer(value)}
-                  disabled={isComplete}
-                  aria-pressed={active}
-                  aria-label={`Play domino ${tile[0]}-${tile[1]}`}
-                  data-testid={`domino-tile-${tile[0]}-${tile[1]}`}
-                  className={`rounded-[18px] border-2 bg-white p-2 shadow-[0_10px_20px_rgba(24,60,66,0.10)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#FBBF24] disabled:opacity-50 ${active ? "border-[#087C82]" : "border-transparent"}`}
-                >
-                  <DominoTile tile={tile} />
-                </button>
-              );
-            })}
-          </div>
-        ) : (
+        {tiles.length === 0 && (
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
             {(interaction.actions ?? []).map((action) => (
               <button
@@ -782,6 +1211,25 @@ function TactileInteractionPanel({
                 {action.label}
               </button>
             ))}
+          </div>
+        )}
+        {shouldChooseEnd && interaction.answerTile && (
+          <div className="mt-3 rounded-[18px] bg-white px-3 py-3" data-testid="domino-end-choices">
+            <p className="font-body text-[15px] font-extrabold text-[#31555D]">{getDominoChooseEndLabel(language)}</p>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {(interaction.candidateEnds ?? ["left", "right"]).map((end) => (
+                <button
+                  key={end}
+                  type="button"
+                  onClick={() => onTactileAnswer(dominoEndAnswerValue(selectedAnswerTileKey, end))}
+                  disabled={isComplete}
+                  data-testid={`domino-end-${end}`}
+                  className="min-h-[52px] rounded-[16px] border border-[#BFDAD7] bg-[#F4FAF8] px-4 font-body text-[17px] font-extrabold text-[#075C64] disabled:opacity-50"
+                >
+                  {end === "left" ? getDominoLeftLabel(language) : getDominoRightLabel(language)}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -868,26 +1316,26 @@ function WordTilesInteraction({
   const progressLabel = getWordProgressLabel(language, selectedTileIndices.length, visual.answerLength);
 
   return (
-    <div className="mt-5 space-y-4" data-testid="games-word-tiles-panel">
-      <div className="rounded-[26px] border border-[#D8E6E2] bg-gradient-to-b from-[#F4FAF8] to-white p-4">
+    <div className="mt-4 space-y-3" data-testid="games-word-tiles-panel">
+      <div className="rounded-[24px] border border-[#D8E6E2] bg-gradient-to-b from-[#F4FAF8] to-white p-3 sm:p-4">
         <div className="flex flex-wrap gap-2">
           {visual.baseWord && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#075C64]">Base: {visual.baseWord}</span>}
           {visual.pattern && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#075C64]">{visual.pattern}</span>}
           {visual.clue && <span className="rounded-full bg-white px-4 py-2 font-body text-[15px] font-extrabold text-[#597178]">{visual.clue}</span>}
         </div>
 
-        <div className="mt-4 rounded-[24px] border border-[#CFE7E2] bg-white px-4 py-4 shadow-[0_10px_22px_rgba(11,60,66,0.06)]">
+        <div className="mt-3 rounded-[22px] border border-[#CFE7E2] bg-white px-3 py-3 shadow-[0_10px_22px_rgba(11,60,66,0.06)] sm:px-4 sm:py-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="font-body text-[16px] font-extrabold uppercase text-[#075C64]">{getWordTrayLabel(language)}</p>
             <p className="rounded-full bg-[#E8F7F6] px-3 py-1 font-body text-[14px] font-extrabold text-[#087C82]" data-testid="word-tile-progress" role="status">
               {progressLabel}
             </p>
           </div>
-          <div className="mt-3 flex flex-wrap gap-2" data-testid="word-answer-tray">
+          <div className="mt-3 flex flex-wrap gap-1.5 sm:gap-2" data-testid="word-answer-tray">
             {traySlots.map((tile, index) => (
               <div
                 key={`${tile || "slot"}-${index}`}
-                className={`flex min-h-[64px] min-w-[64px] items-center justify-center rounded-[18px] border-2 px-3 font-body text-[24px] font-black text-[#075C64] ${tile ? "border-[#087C82] bg-[#E8F7F6] shadow-[0_8px_18px_rgba(8,124,130,0.10)]" : "border-dashed border-[#A8D4CF] bg-[#FBFEFC]"}`}
+                className={`flex min-h-[52px] min-w-[52px] items-center justify-center rounded-[16px] border-2 px-2 font-body text-[22px] font-black text-[#075C64] sm:min-h-[64px] sm:min-w-[64px] sm:rounded-[18px] sm:px-3 sm:text-[24px] ${tile ? "border-[#087C82] bg-[#E8F7F6] shadow-[0_8px_18px_rgba(8,124,130,0.10)]" : "border-dashed border-[#A8D4CF] bg-[#FBFEFC]"}`}
               >
                 {tile}
               </div>
@@ -895,7 +1343,7 @@ function WordTilesInteraction({
           </div>
         </div>
 
-        <div className="mt-4">
+        <div className="mt-3">
           <p className="font-body text-[15px] font-extrabold uppercase text-[#597178]">{getWordRackLabel(language)}</p>
           <div className="mt-2 flex flex-wrap gap-2" aria-label={getWordRackLabel(language)}>
             {orderedTileIndices.map((index) => {
@@ -909,7 +1357,7 @@ function WordTilesInteraction({
                   disabled={used || isComplete || selectedTileIndices.length >= visual.answerLength}
                   aria-pressed={used}
                   data-testid={`word-tile-${index}`}
-                  className="flex min-h-[58px] min-w-[58px] items-center justify-center rounded-[16px] border border-[#D9C8AD] bg-[#FFF7E6] px-3 font-body text-[22px] font-black text-[#173941] shadow-[0_10px_18px_rgba(24,60,66,0.10)] disabled:opacity-35"
+                  className="flex min-h-[52px] min-w-[52px] items-center justify-center rounded-[15px] border border-[#D9C8AD] bg-[#FFF7E6] px-2 font-body text-[21px] font-black text-[#173941] shadow-[0_10px_18px_rgba(24,60,66,0.10)] disabled:opacity-35 sm:min-h-[58px] sm:min-w-[58px] sm:rounded-[16px] sm:px-3 sm:text-[22px]"
                 >
                   {tile}
                 </button>
@@ -918,44 +1366,52 @@ function WordTilesInteraction({
           </div>
         </div>
 
-        <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_1fr_1fr_1fr_1.35fr]">
+        <div className="mt-3 grid grid-cols-[repeat(4,48px)_minmax(0,1fr)] gap-2 sm:grid-cols-[1fr_1fr_1fr_1fr_1.35fr]">
           <button
             type="button"
             onClick={onUndo}
             disabled={!selectedTileIndices.length || isComplete}
-            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-3 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40"
+            aria-label={getWordUndoLabel(language)}
+            title={getWordUndoLabel(language)}
+            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-0 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40 sm:px-3"
           >
             <Undo2 size={18} />
-            {getWordUndoLabel(language)}
+            <span className="sr-only sm:not-sr-only">{getWordUndoLabel(language)}</span>
           </button>
           <button
             type="button"
             onClick={onClear}
             disabled={!selectedTileIndices.length || isComplete}
-            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-3 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40"
+            aria-label={getWordClearLabel(language)}
+            title={getWordClearLabel(language)}
+            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-0 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40 sm:px-3"
           >
             <Eraser size={18} />
-            {getWordClearLabel(language)}
+            <span className="sr-only sm:not-sr-only">{getWordClearLabel(language)}</span>
           </button>
           <button
             type="button"
             onClick={onShuffle}
             disabled={isComplete || visual.tiles.length < 2}
+            aria-label={getWordShuffleLabel(language)}
+            title={getWordShuffleLabel(language)}
             data-testid="word-shuffle"
-            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-3 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40"
+            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-0 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40 sm:px-3"
           >
             <Shuffle size={18} />
-            {getWordShuffleLabel(language)}
+            <span className="sr-only sm:not-sr-only">{getWordShuffleLabel(language)}</span>
           </button>
           <button
             type="button"
             onClick={onShowHelp}
             disabled={isComplete}
+            aria-label={getWordHelpLabel(language)}
+            title={getWordHelpLabel(language)}
             data-testid="word-show-help"
-            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-3 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40"
+            className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-0 font-body text-[15px] font-extrabold text-[#075C64] disabled:opacity-40 sm:px-3"
           >
             <HelpCircle size={18} />
-            {getWordHelpLabel(language)}
+            <span className="sr-only sm:not-sr-only">{getWordHelpLabel(language)}</span>
           </button>
           <button
             type="button"
@@ -1031,6 +1487,89 @@ function WordTilesInteraction({
   );
 }
 
+function GameConnectionPanel({
+  gameTable,
+  selectedRound,
+  language,
+  isMatching,
+  matchResponse,
+  onFindPartner,
+}: {
+  gameTable: SocialGameTable;
+  selectedRound: SocialGameRound;
+  language: SocialGameLanguage;
+  isMatching: boolean;
+  matchResponse: SocialMatchResponse | null;
+  onFindPartner: () => void;
+}) {
+  const gameReadyMembers = gameTable.readyMembers.filter((member) => member.gameKind === selectedRound.kind);
+  const visibleReadyMembers = (gameReadyMembers.length > 0 ? gameReadyMembers : gameTable.readyMembers).slice(0, 3);
+
+  return (
+    <section className="rounded-[28px] border border-[#D8E6E2] bg-white px-5 py-5 shadow-[0_16px_34px_rgba(11,60,66,0.08)]" data-testid="games-connection-panel">
+      <p className="inline-flex rounded-full bg-[#E8F7F6] px-3 py-1.5 font-body text-[13px] font-black uppercase tracking-[0.08em] text-[#087C82]">
+        {getConnectionKicker(language)}
+      </p>
+      <h2 className="mt-3 font-body text-[25px] font-extrabold leading-tight text-[#07313A] sm:text-[27px]">{gameTable.connectionTitle}</h2>
+      <p className="mt-2 font-body text-[17px] font-bold leading-snug text-[#31555D]">{getConnectionGameLine(language, selectedRound.title)}</p>
+      <p className="mt-2 flex items-center gap-2 rounded-[18px] bg-[#F4FAF8] px-4 py-3 font-body text-[15px] font-extrabold leading-snug text-[#5B747B]">
+        <Check size={18} strokeWidth={3} className="shrink-0 text-[#087443]" />
+        {getConnectionPrivacyNote(language)}
+      </p>
+
+      {visibleReadyMembers.length > 0 && (
+        <div className="mt-5">
+          <p className="font-body text-[15px] font-black uppercase tracking-[0.08em] text-[#087C82]">{getReadyNowLabel(language)}</p>
+          <div className="mt-3 space-y-3">
+            {visibleReadyMembers.map((member, index) => (
+              <div
+                key={member.id}
+                className="flex items-center gap-3 rounded-[22px] border border-[#E2E9E7] bg-[#FCFFFD] px-4 py-4"
+              >
+                <div
+                  className="relative flex h-[56px] w-[56px] shrink-0 items-center justify-center rounded-full font-body text-[20px] font-extrabold text-white"
+                  style={{ background: memberColours[index % memberColours.length] }}
+                >
+                  {getMemberInitials(member.name)}
+                  <span className="absolute bottom-0 right-0 h-4 w-4 rounded-full border-2 border-white bg-[#2FB344]" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-body text-[21px] font-extrabold leading-tight text-[#173941]">{member.name}</p>
+                  <p className="mt-1 font-body text-[16px] font-semibold leading-snug text-[#61777D]">{member.statusLabel}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={onFindPartner}
+        disabled={isMatching}
+        data-testid="games-find-partner"
+        className="mt-5 flex min-h-[66px] w-full items-center justify-center gap-3 rounded-[22px] bg-[#007B7E] px-4 font-body text-[18px] font-extrabold leading-tight text-white shadow-[0_16px_34px_rgba(0,123,126,0.2)] disabled:opacity-55 sm:px-5 sm:text-[21px]"
+      >
+        <HeartHandshake size={25} className="shrink-0" />
+        {isMatching ? getMatchLoadingLabel(language) : getConnectionCtaLabel(language, selectedRound.title)}
+      </button>
+
+      <p className="mt-3 font-body text-[14px] font-bold leading-snug text-[#6D858B]">{gameTable.connectionBody}</p>
+
+      {matchResponse && (
+        <div className="mt-4 rounded-[22px] bg-[#F4FAF8] px-4 py-4" data-testid="games-match-result">
+          <p className="font-body text-[18px] font-bold leading-snug text-[#173941]">{matchResponse.agentMessage}</p>
+          {!matchResponse.noMatch && matchResponse.matchedUser && (
+            <p className="mt-2 font-body text-[17px] font-semibold text-[#087C82]">
+              {matchResponse.matchedUser.name}
+            </p>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function GamesRoomScreen({
   roomResponse,
   language,
@@ -1045,6 +1584,8 @@ export default function GamesRoomScreen({
 
   const [loadedRoundsByKind, setLoadedRoundsByKind] = useState<GameRoundsByKind>(() => groupRoundsByKind(gameTable.rounds));
   const [selectedRoundId, setSelectedRoundId] = useState(initialRoundId);
+  const [isGameSelected, setIsGameSelected] = useState(false);
+  const [startedGameKinds, setStartedGameKinds] = useState<SocialGameKind[]>([]);
   const [startedRoundId, setStartedRoundId] = useState<string | null>(null);
   const [selectedChoice, setSelectedChoice] = useState("");
   const [completedRoundId, setCompletedRoundId] = useState<string | null>(null);
@@ -1062,6 +1603,9 @@ export default function GamesRoomScreen({
   const [showTactileHelp, setShowTactileHelp] = useState(false);
   const [showTactileChoices, setShowTactileChoices] = useState(false);
   const [tactileFeedback, setTactileFeedback] = useState<string | null>(null);
+  const [difficultyTargetsByKind, setDifficultyTargetsByKind] = useState<Partial<Record<SocialGameKind, SocialGameDifficulty>>>({});
+  const [assistedRoundKeys, setAssistedRoundKeys] = useState<string[]>([]);
+  const [persistedStartedRoundKeys, setPersistedStartedRoundKeys] = useState<string[]>([]);
   const [persistedCompletedRoundKeys, setPersistedCompletedRoundKeys] = useState<string[]>([]);
   const [persistedSkippedRoundKeys, setPersistedSkippedRoundKeys] = useState<string[]>([]);
   const [loadingRoundKind, setLoadingRoundKind] = useState<SocialGameKind | null>(null);
@@ -1103,7 +1647,7 @@ export default function GamesRoomScreen({
     ? getPuzzleBankLabels(language, selectedPuzzleDisplayIndex, selectedPuzzleTotal)
     : null;
   const visibleChat = memberChat.slice(0, 3);
-  const hasStartedSelectedRound = startedRoundId === selectedRound?.id;
+  const hasStartedSelectedRound = Boolean(selectedRound && startedGameKinds.includes(selectedRound.kind));
   const hasCompletedSelectedRound = completedRoundId === selectedRound?.id;
   const selectedWordVisual = selectedRound?.visual?.kind === "wordTiles" ? selectedRound.visual : null;
   const isLoadingSelectedBank = Boolean(
@@ -1111,8 +1655,18 @@ export default function GamesRoomScreen({
     && loadingRoundKind === selectedRound.kind
     && selectedKindRounds.length < selectedPuzzleTotal,
   );
+  const displayedPrompt = selectedRound?.prompt;
+  const shouldRevealChessGuidance = Boolean(
+    selectedRound?.interaction?.kind === "chessTap"
+    && (showTactileHelp || wrongTactileValue || hasCompletedSelectedRound),
+  );
+  const showConnectionPanel = Boolean(isGameSelected && hasCompletedSelectedRound);
+  const canBrowseSelectedPuzzles = Boolean(puzzleBankLabels && selectedPuzzleTotal > 1);
+  const isPuzzleNavigationDisabled = isLoadingSelectedBank || selectedKindRounds.length < 2;
 
   useEffect(() => {
+    if (!isGameSelected) return;
+
     const kind = selectedRound?.kind;
     if (!kind) return;
 
@@ -1149,6 +1703,7 @@ export default function GamesRoomScreen({
     language,
     loadedRoundsByKind,
     room.slug,
+    isGameSelected,
     selectedRound?.kind,
   ]);
 
@@ -1174,20 +1729,48 @@ export default function GamesRoomScreen({
     });
   };
 
+  const markRoundAssisted = (round: SocialGameRound | null | undefined) => {
+    if (!round) return;
+
+    const key = roundPlayKey(round);
+    setAssistedRoundKeys((current) => current.includes(key) ? current : [...current, key]);
+  };
+
+  const persistStartedRound = async (round: SocialGameRound) => {
+    const key = roundPlayKey(round);
+    if (persistedStartedRoundKeys.includes(key)) return;
+
+    setPersistedStartedRoundKeys((current) => current.includes(key) ? current : [...current, key]);
+    await persistRoundStatus(round, "started");
+  };
+
   const persistSkippedRound = (round: SocialGameRound) => {
-    const key = `${round.kind}:${round.id}`;
-    if (startedRoundId === round.id || completedRoundId === round.id || persistedSkippedRoundKeys.includes(key)) return;
+    const key = roundPlayKey(round);
+    if (
+      startedRoundId === round.id
+      || completedRoundId === round.id
+      || persistedStartedRoundKeys.includes(key)
+      || persistedSkippedRoundKeys.includes(key)
+    ) return;
 
     setPersistedSkippedRoundKeys((current) => current.includes(key) ? current : [...current, key]);
     void persistRoundStatus(round, "skipped").catch(() => undefined);
   };
 
-  const selectRound = (round: SocialGameRound, options: { recordSkip?: boolean } = {}) => {
+  const selectRound = (round: SocialGameRound, options: { recordSkip?: boolean; enterPlayMode?: boolean } = {}) => {
     if (options.recordSkip && selectedRound && selectedRound.id !== round.id) {
       persistSkippedRound(selectedRound);
     }
+
+    const shouldEnterPlayMode = options.enterPlayMode || startedGameKinds.includes(round.kind);
     setSelectedRoundId(round.id);
-    setStartedRoundId(null);
+    if (shouldEnterPlayMode) {
+      setStartedGameKinds((current) => current.includes(round.kind) ? current : [...current, round.kind]);
+      setStartedRoundId(round.id);
+      void persistStartedRound(round).catch(() => undefined);
+    } else {
+      setStartedRoundId(null);
+    }
     setSelectedChoice("");
     setCompletedRoundId(null);
     setMatchResponse(null);
@@ -1203,16 +1786,44 @@ export default function GamesRoomScreen({
     setTactileFeedback(null);
   };
 
+  const chooseGameRound = (round: SocialGameRound) => {
+    setIsGameSelected(true);
+    selectRound(round, { enterPlayMode: true });
+  };
+
+  const handleBack = () => {
+    if (isGameSelected) {
+      setIsGameSelected(false);
+      setMatchResponse(null);
+      return;
+    }
+
+    onBack();
+  };
+
   const selectPuzzleAtOffset = (offset: number) => {
     if (!selectedRound || selectedKindRounds.length < 2) return;
 
     const currentIndex = Math.max(0, selectedPuzzleIndex);
+    const activeDifficultyTarget = difficultyTargetsByKind[selectedRound.kind];
+    if (offset > 0 && activeDifficultyTarget) {
+      const seenRoundKeys = new Set([
+        ...persistedStartedRoundKeys,
+        ...persistedCompletedRoundKeys,
+        ...persistedSkippedRoundKeys,
+        roundPlayKey(selectedRound),
+      ]);
+      const nextRound = pickPacedNextRound(selectedKindRounds, selectedRound, activeDifficultyTarget, seenRoundKeys);
+      selectRound(nextRound, { recordSkip: true, enterPlayMode: true });
+      return;
+    }
+
     const nextIndex = (currentIndex + offset + selectedKindRounds.length) % selectedKindRounds.length;
-    selectRound(selectedKindRounds[nextIndex], { recordSkip: true });
+    selectRound(selectedKindRounds[nextIndex], { recordSkip: true, enterPlayMode: true });
   };
 
   const persistCompletedRound = (round: SocialGameRound) => {
-    const key = `${round.kind}:${round.id}`;
+    const key = roundPlayKey(round);
     if (persistedCompletedRoundKeys.includes(key)) return;
 
     setPersistedCompletedRoundKeys((current) => current.includes(key) ? current : [...current, key]);
@@ -1220,6 +1831,12 @@ export default function GamesRoomScreen({
   };
 
   const markRoundComplete = (round: SocialGameRound) => {
+    const key = roundPlayKey(round);
+    const wasAssisted = assistedRoundKeys.includes(key);
+    setDifficultyTargetsByKind((current) => ({
+      ...current,
+      [round.kind]: nextDifficultyTarget(round, wasAssisted),
+    }));
     setCompletedRoundId(round.id);
     setChoiceFeedback(null);
     setTactileFeedback(null);
@@ -1230,6 +1847,7 @@ export default function GamesRoomScreen({
   const startRound = async () => {
     if (!selectedRound) return;
 
+    setStartedGameKinds((current) => current.includes(selectedRound.kind) ? current : [...current, selectedRound.kind]);
     setStartedRoundId(selectedRound.id);
     setSelectedChoice("");
     setCompletedRoundId(null);
@@ -1247,7 +1865,7 @@ export default function GamesRoomScreen({
     setIsPersistingRound(true);
 
     try {
-      await persistRoundStatus(selectedRound, "started");
+      await persistStartedRound(selectedRound);
     } catch {
       // The puzzle can still continue if exposure tracking is temporarily unavailable.
     } finally {
@@ -1265,6 +1883,7 @@ export default function GamesRoomScreen({
       return;
     }
 
+    markRoundAssisted(selectedRound);
     setTactileFeedback(null);
     setChoiceFeedback(getChoiceTryAgainCopy(language));
     setShowTactileHelp(true);
@@ -1274,6 +1893,10 @@ export default function GamesRoomScreen({
   const isCorrectTactileAnswer = (interaction: SocialGameRoundInteraction, value: string) => {
     if (interaction.kind === "chessTap") return interaction.answerSquares.includes(value);
     if (interaction.kind === "dominoPlay") {
+      if (interaction.answerTile && interaction.answerEndSide) {
+        const parsedValue = parseDominoAnswerValue(value);
+        return parsedValue.tileKey === dominoTileKey(interaction.answerTile) && parsedValue.end === interaction.answerEndSide;
+      }
       if (interaction.answerTile) return isDominoTileAnswer(value, interaction.answerTile);
       return Boolean(interaction.answerActionId) && interaction.answerActionId === value;
     }
@@ -1287,15 +1910,30 @@ export default function GamesRoomScreen({
     setSelectedTactileValue(value);
     setChoiceFeedback(null);
 
+    if (
+      selectedRound.interaction.kind === "dominoPlay"
+      && selectedRound.interaction.answerTile
+      && selectedRound.interaction.answerEndSide
+      && isDominoTileAnswer(value, selectedRound.interaction.answerTile)
+      && !parseDominoAnswerValue(value).end
+    ) {
+      setWrongTactileValue(null);
+      setTactileFeedback(null);
+      return;
+    }
+
     if (isCorrectTactileAnswer(selectedRound.interaction, value)) {
       markRoundComplete(selectedRound);
       return;
     }
 
+    markRoundAssisted(selectedRound);
     setWrongTactileValue(value);
     setTactileFeedback(getTactileTryAgainCopy(language));
-    setShowTactileHelp(true);
-    setShowTactileChoices(true);
+    if (selectedRound.kind !== "chess") {
+      setShowTactileHelp(true);
+      setShowTactileChoices(true);
+    }
   };
 
   const chooseWordTile = (index: number) => {
@@ -1340,6 +1978,7 @@ export default function GamesRoomScreen({
 
   const revealWordLetter = () => {
     if (!selectedRound || !selectedWordVisual || hasCompletedSelectedRound) return;
+    markRoundAssisted(selectedRound);
     setShowWordHelp(true);
 
     const answer = normalizeWordAnswer(selectedRound.answer);
@@ -1365,6 +2004,7 @@ export default function GamesRoomScreen({
       setWordFeedback(null);
       markRoundComplete(selectedRound);
     } else {
+      markRoundAssisted(selectedRound);
       setShowWordHelp(true);
       setShowWordChoices(true);
       setWordFeedback(getWordTryAgainCopy(language));
@@ -1379,7 +2019,7 @@ export default function GamesRoomScreen({
   };
 
   const findPartner = async () => {
-    if (!selectedRound || isMatching) return;
+    if (!isGameSelected || !selectedRound || isMatching) return;
 
     setIsMatching(true);
     try {
@@ -1399,22 +2039,23 @@ export default function GamesRoomScreen({
   };
 
   return (
-    <div className="min-h-screen bg-[#F7FAF8] px-4 pb-8 pt-4 text-[#07313A] sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#F7FAF8] px-4 pb-32 pt-4 text-[#07313A] sm:px-6 sm:pb-10 lg:px-8">
       <SocialStyles />
 
       <div className="mx-auto max-w-6xl">
         <header className="grid grid-cols-[56px_1fr_auto] items-center gap-3">
           <button
             type="button"
-            onClick={onBack}
+            onClick={handleBack}
             aria-label="Back"
+            data-testid="games-room-back"
             className="flex h-14 w-14 items-center justify-center rounded-[18px] bg-white text-[#075C64] shadow-[0_14px_30px_rgba(9,52,59,0.12)]"
           >
             <ArrowLeft size={27} strokeWidth={2.8} />
           </button>
 
           <div className="min-w-0 text-center">
-            <h1 className="font-display text-[42px] leading-[0.98] text-[#07313A] sm:text-[56px] lg:text-[64px]">
+            <h1 className={`whitespace-nowrap font-display leading-[0.98] text-[#07313A] ${isGameSelected ? "text-[30px] sm:text-[44px] lg:text-[52px]" : "text-[32px] sm:text-[56px] lg:text-[64px]"}`}>
               {room.name}
             </h1>
           </div>
@@ -1425,137 +2066,96 @@ export default function GamesRoomScreen({
           </div>
         </header>
 
-        <div className="mt-5 flex items-center justify-center gap-3">
-          <AgentAvatar
-            agentSlug={room.agentSlug}
-            fullName={room.agentFullName}
-            colour={room.agentColour}
-            size={64}
-            title={room.agentFullName}
-          />
-          <div className="min-w-0">
-            <p className="flex items-center gap-2 font-body text-[25px] font-extrabold leading-tight text-[#132C35]">
-              {room.agentFullName.split(" ")[0] || room.agentFullName} is hosting
-              <Sparkles size={22} className="text-[#7C3AED]" />
-            </p>
-            <p className="mt-1 font-body text-[17px] font-semibold leading-snug text-[#557078]">{gameTable.hostLine}</p>
-          </div>
-        </div>
-
-        <main className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)] lg:items-start">
-          <section className="space-y-5">
-            <div className="relative overflow-hidden rounded-[28px] bg-[#0A7372] shadow-[0_22px_52px_rgba(7,49,58,0.16)]">
-              <img
-                src={gameTableImage}
-                alt=""
-                className="aspect-[16/10] w-full object-cover"
-                draggable={false}
-              />
-              <div className="absolute left-4 top-4 rounded-[20px] bg-white/95 px-5 py-4 shadow-[0_16px_34px_rgba(7,49,58,0.12)] backdrop-blur-sm">
-                <p className="font-body text-[23px] font-extrabold leading-tight text-[#083640]">{gameTable.tableLabel}</p>
-                <p className="mt-2 flex items-center gap-2 font-body text-[18px] font-bold text-[#087C82]">
-                  <Users size={22} />
-                  {gameTable.readyLabel}
-                </p>
-              </div>
+        {!isGameSelected && (
+          <div className="mt-5 flex items-center justify-center gap-3">
+            <AgentAvatar
+              agentSlug={room.agentSlug}
+              fullName={room.agentFullName}
+              colour={room.agentColour}
+              size={64}
+              title={room.agentFullName}
+            />
+            <div className="min-w-0">
+              <p className="flex items-center gap-2 font-body text-[21px] font-extrabold leading-tight text-[#132C35] sm:text-[25px]">
+                {gameTable.hostLine}
+                <Sparkles size={22} className="text-[#7C3AED]" />
+              </p>
             </div>
+          </div>
+        )}
 
-            <section aria-labelledby="game-round-heading">
-              <h2 id="game-round-heading" className="font-body text-[30px] font-extrabold leading-tight text-[#07313A]">
-                {gameTable.chooseRoundLabel}
-              </h2>
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {roundCards.map((round) => {
-                  const active = round.kind === selectedRound?.kind;
-                  const Icon = roundIcons[round.kind];
-                  return (
-                    <button
-                      key={round.kind}
-                      type="button"
-                      onClick={() => selectRound(round, { recordSkip: true })}
-                      data-testid={`games-round-${round.kind}`}
-                      className="relative min-h-[148px] rounded-[24px] border bg-white px-3 py-4 text-center shadow-[0_12px_28px_rgba(11,60,66,0.08)] transition-transform active:scale-[0.99]"
-                      style={{
-                        borderColor: active ? "#087C82" : "#DDE5E3",
-                        background: active ? "linear-gradient(180deg,#E9FAF8 0%,#FFFFFF 100%)" : "#FFFFFF",
-                      }}
-                    >
-                      {active && (
-                        <span className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-[#087C82] text-white">
-                          <Check size={22} strokeWidth={3} />
-                        </span>
-                      )}
-                      <span className="mx-auto flex h-[58px] w-[58px] items-center justify-center rounded-[20px] bg-[#E8F7F6] text-[#087C82]">
-                        <Icon size={31} strokeWidth={2.6} />
-                      </span>
-                      <span className="mt-4 block font-body text-[19px] font-extrabold leading-tight text-[#0C2F38]">
-                        {round.title}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-
-            {selectedRound && (
-              <section
-                className="rounded-[28px] border border-[#D8E6E2] bg-white px-5 py-5 shadow-[0_16px_34px_rgba(11,60,66,0.08)]"
-                aria-live="polite"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="flex h-[58px] w-[58px] shrink-0 items-center justify-center rounded-[20px] bg-[#FFF4DA] text-[#A86200]">
-                    <Brain size={31} strokeWidth={2.5} />
-                  </div>
-                  <div className="min-w-0">
-                    <h2 className="font-body text-[25px] font-extrabold leading-tight text-[#07313A]">{selectedRound.title}</h2>
-                    <p className="mt-1 font-body text-[18px] font-semibold leading-snug text-[#597178]">{selectedRound.body}</p>
+        <main className={`mt-6 grid gap-5 lg:items-start ${showConnectionPanel ? "lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]" : ""}`}>
+          <section className={`min-w-0 space-y-5 ${isGameSelected && !showConnectionPanel ? "mx-auto w-full max-w-[720px]" : ""}`}>
+            {!isGameSelected && (
+              <>
+                <div className="relative overflow-hidden rounded-[28px] bg-[#0A7372] shadow-[0_22px_52px_rgba(7,49,58,0.16)]">
+                  <img
+                    src={gameTableImage}
+                    alt=""
+                    className="aspect-[16/10] w-full object-cover"
+                    draggable={false}
+                  />
+                  <div className="absolute left-4 top-4 rounded-[20px] bg-white/95 px-5 py-4 shadow-[0_16px_34px_rgba(7,49,58,0.12)] backdrop-blur-sm">
+                    <p className="font-body text-[23px] font-extrabold leading-tight text-[#083640]">{gameTable.tableLabel}</p>
+                    <p className="mt-2 flex items-center gap-2 font-body text-[18px] font-bold text-[#087C82]">
+                      <Users size={22} />
+                      {gameTable.readyLabel}
+                    </p>
                   </div>
                 </div>
-                {puzzleBankLabels && selectedPuzzleTotal > 1 && (
-                  <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-[#D8E6E2] bg-[#F4FAF8] px-4 py-3">
-                    <p className="font-body text-[18px] font-extrabold text-[#087C82]">
+
+                <section aria-labelledby="game-round-heading" data-testid="games-round-picker">
+                  <h2 id="game-round-heading" className="font-body text-[30px] font-extrabold leading-tight text-[#07313A]">
+                    {gameTable.chooseRoundLabel}
+                  </h2>
+                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {roundCards.map((round) => {
+                      const Icon = roundIcons[round.kind];
+                      return (
+                        <button
+                          key={round.kind}
+                          type="button"
+                          onClick={() => chooseGameRound(round)}
+                          data-testid={`games-round-${round.kind}`}
+                          className="relative min-h-[126px] rounded-[24px] border border-[#DDE5E3] bg-white px-3 py-4 text-center shadow-[0_12px_28px_rgba(11,60,66,0.08)] transition-transform active:scale-[0.99] sm:min-h-[148px]"
+                        >
+                          <span className="mx-auto flex h-[58px] w-[58px] items-center justify-center rounded-[20px] bg-[#E8F7F6] text-[#087C82]">
+                            <Icon size={31} strokeWidth={2.6} />
+                          </span>
+                          <span className="mt-4 block font-body text-[19px] font-extrabold leading-tight text-[#0C2F38]">
+                            {round.title}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              </>
+            )}
+
+            {isGameSelected && selectedRound && (
+              <section
+                className="min-w-0 rounded-[28px] border border-[#D8E6E2] bg-white px-4 py-4 shadow-[0_16px_34px_rgba(11,60,66,0.08)] sm:px-5 sm:py-5"
+                aria-live="polite"
+                data-testid="games-selected-puzzle"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[16px] bg-[#FFF4DA] text-[#A86200] sm:h-[52px] sm:w-[52px] sm:rounded-[18px]">
+                      <Brain size={26} strokeWidth={2.5} />
+                    </div>
+                    <h2 className="min-w-0 font-body text-[22px] font-extrabold leading-tight text-[#07313A] sm:text-[25px]">{selectedRound.title}</h2>
+                  </div>
+                  {puzzleBankLabels && selectedPuzzleTotal > 1 && (
+                    <p className="shrink-0 rounded-full border border-[#BFDAD7] bg-[#F4FAF8] px-3 py-2 font-body text-[15px] font-extrabold leading-none text-[#087C82] sm:px-4 sm:text-[17px]">
                       {puzzleBankLabels.progress}
                     </p>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => selectPuzzleAtOffset(-1)}
-                        disabled={isLoadingSelectedBank || selectedKindRounds.length < 2}
-                        aria-label={puzzleBankLabels.previous}
-                        data-testid="games-previous-puzzle"
-                        className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#BFDAD7] bg-white px-3 font-body text-[15px] font-extrabold text-[#075C64] shadow-[0_8px_18px_rgba(11,60,66,0.06)] disabled:opacity-55"
-                      >
-                        <ChevronLeft size={19} />
-                        <span className="hidden sm:inline">{puzzleBankLabels.previous}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => selectPuzzleAtOffset(1)}
-                        disabled={isLoadingSelectedBank || selectedKindRounds.length < 2}
-                        aria-label={puzzleBankLabels.next}
-                        data-testid="games-next-puzzle"
-                        className="flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] bg-[#087C82] px-4 font-body text-[16px] font-extrabold text-white shadow-[0_10px_22px_rgba(8,124,130,0.16)] disabled:bg-[#D8E6E2] disabled:text-[#61777D] disabled:shadow-none"
-                      >
-                        <span>{puzzleBankLabels.next}</span>
-                        <ChevronRight size={19} />
-                      </button>
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 {hasStartedSelectedRound ? (
-                  <div className="mt-5">
-                    <div className="mb-4">
-                      <PuzzleVisualPanel
-                        visual={selectedRound.visual}
-                        interaction={selectedRound.interaction}
-                        selectedTactileValue={selectedTactileValue}
-                        wrongTactileValue={wrongTactileValue}
-                        isComplete={hasCompletedSelectedRound}
-                        onChessSquareSelect={chooseTactileAnswer}
-                      />
-                    </div>
-                    <p className="font-body text-[22px] font-bold leading-snug text-[#173941]">{selectedRound.prompt}</p>
+                  <div className="mt-4">
+                    <p className="font-body text-[20px] font-extrabold leading-snug text-[#173941] sm:text-[22px]">{displayedPrompt}</p>
 
                     {selectedWordVisual ? (
                       <WordTilesInteraction
@@ -1573,8 +2173,12 @@ export default function GamesRoomScreen({
                         onUndo={undoWordTile}
                         onClear={clearWordTiles}
                         onShuffle={shuffleWordTiles}
-                        onShowHelp={() => setShowWordHelp(true)}
+                        onShowHelp={() => {
+                          markRoundAssisted(selectedRound);
+                          setShowWordHelp(true);
+                        }}
                         onShowChoices={() => {
+                          markRoundAssisted(selectedRound);
                           setShowWordHelp(true);
                           setShowWordChoices(true);
                         }}
@@ -1584,14 +2188,53 @@ export default function GamesRoomScreen({
                       />
                     ) : (
                       <>
-                        <TactileInteractionPanel
-                          interaction={selectedRound.interaction}
-                          language={language}
-                          selectedTactileValue={selectedTactileValue}
-                          isComplete={hasCompletedSelectedRound}
-                          onTactileAnswer={chooseTactileAnswer}
-                          onShowHelp={() => setShowTactileHelp(true)}
-                        />
+                        {!hasCompletedSelectedRound && (
+                          selectedRound.interaction?.kind === "chessTap"
+                          || selectedRound.interaction?.kind === "dominoPlay"
+                        ) && (
+                          <TactileInteractionPanel
+                            interaction={selectedRound.interaction}
+                            language={language}
+                            selectedTactileValue={selectedTactileValue}
+                            isComplete={hasCompletedSelectedRound}
+                            onTactileAnswer={chooseTactileAnswer}
+                            onShowHelp={() => {
+                              markRoundAssisted(selectedRound);
+                              setShowTactileHelp(true);
+                            }}
+                          />
+                        )}
+
+                        <div className="mt-4">
+                          <PuzzleVisualPanel
+                            visual={selectedRound.visual}
+                            interaction={selectedRound.interaction}
+                            language={language}
+                            selectedTactileValue={selectedTactileValue}
+                            wrongTactileValue={wrongTactileValue}
+                            isComplete={hasCompletedSelectedRound}
+                            revealChessGuidance={shouldRevealChessGuidance}
+                            onChessSquareSelect={chooseTactileAnswer}
+                            onDominoTileSelect={chooseTactileAnswer}
+                          />
+                        </div>
+
+                        {!hasCompletedSelectedRound
+                          && selectedRound.interaction?.kind !== "chessTap"
+                          && selectedRound.interaction?.kind !== "dominoPlay"
+                          && (
+                          <TactileInteractionPanel
+                            interaction={selectedRound.interaction}
+                            language={language}
+                            selectedTactileValue={selectedTactileValue}
+                            isComplete={hasCompletedSelectedRound}
+                            onTactileAnswer={chooseTactileAnswer}
+                            onShowHelp={() => {
+                              markRoundAssisted(selectedRound);
+                              setShowTactileHelp(true);
+                            }}
+                          />
+                        )}
 
                         {tactileFeedback && !hasCompletedSelectedRound && (
                           <p className="mt-3 rounded-[18px] bg-[#FFF7E8] px-4 py-3 font-body text-[17px] font-bold leading-snug text-[#8A5200]" role="status">
@@ -1608,6 +2251,7 @@ export default function GamesRoomScreen({
                               <button
                                 type="button"
                                 onClick={() => {
+                                  markRoundAssisted(selectedRound);
                                   setShowTactileHelp(true);
                                   setShowTactileChoices(true);
                                 }}
@@ -1666,119 +2310,128 @@ export default function GamesRoomScreen({
                 ) : (
                   <>
                     <div className="mt-5">
-                      <PuzzleVisualPanel visual={selectedRound.visual} />
+                      <PuzzleVisualPanel visual={selectedRound.visual} language={language} />
                     </div>
                     <p className="mt-5 font-body text-[20px] font-semibold leading-snug text-[#466871]">
-                      {selectedRound.prompt}
+                      {displayedPrompt}
                     </p>
+                  </>
+                )}
+
+                {!hasStartedSelectedRound ? (
+                  <div
+                    className={[
+                      "mt-5 grid items-center gap-3",
+                      canBrowseSelectedPuzzles ? "grid-cols-[50px_minmax(0,1fr)_50px] sm:grid-cols-[54px_minmax(0,1fr)_54px]" : "grid-cols-1",
+                    ].join(" ")}
+                    data-testid="games-puzzle-controls"
+                  >
+                    {canBrowseSelectedPuzzles && puzzleBankLabels && (
+                      <button
+                        type="button"
+                        onClick={() => selectPuzzleAtOffset(-1)}
+                        disabled={isPuzzleNavigationDisabled}
+                        aria-label={puzzleBankLabels.previous}
+                        title={puzzleBankLabels.previous}
+                        data-testid="games-previous-puzzle"
+                        className="flex h-[50px] w-[50px] items-center justify-center rounded-full border border-[#BFDAD7] bg-white text-[#075C64] shadow-[0_8px_18px_rgba(11,60,66,0.05)] transition-colors hover:bg-[#E8F7F6] disabled:opacity-45 sm:h-[54px] sm:w-[54px]"
+                      >
+                        <ChevronLeft size={23} strokeWidth={3} />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => void startRound()}
                       disabled={!selectedRound || isPersistingRound}
                       data-testid="games-start-round"
-                      className="mt-5 flex min-h-[64px] w-full items-center justify-center gap-3 rounded-[22px] bg-[#007B7E] px-5 font-body text-[21px] font-extrabold text-white shadow-[0_16px_34px_rgba(0,123,126,0.18)] disabled:opacity-55"
+                      className="flex min-h-[64px] w-full items-center justify-center gap-2 rounded-[22px] bg-[#007B7E] px-3 font-body text-[18px] font-extrabold text-white shadow-[0_16px_34px_rgba(0,123,126,0.18)] disabled:opacity-55 sm:gap-3 sm:px-5 sm:text-[21px]"
                     >
-                      <Users size={25} />
-                      {gameTable.startRoundLabel}
+                      <Users className="shrink-0" size={23} />
+                      <span className="whitespace-nowrap">{gameTable.startRoundLabel}</span>
                     </button>
-                  </>
-                )}
+                    {canBrowseSelectedPuzzles && puzzleBankLabels && (
+                      <button
+                        type="button"
+                        onClick={() => selectPuzzleAtOffset(1)}
+                        disabled={isPuzzleNavigationDisabled}
+                        aria-label={puzzleBankLabels.next}
+                        title={puzzleBankLabels.next}
+                        data-testid="games-next-puzzle"
+                        className="flex h-[50px] w-[50px] items-center justify-center rounded-full border border-[#BFDAD7] bg-white text-[#075C64] shadow-[0_8px_18px_rgba(11,60,66,0.05)] transition-colors hover:bg-[#E8F7F6] disabled:opacity-45 sm:h-[54px] sm:w-[54px]"
+                      >
+                        <ChevronRight size={23} strokeWidth={3} />
+                      </button>
+                    )}
+                  </div>
+                ) : canBrowseSelectedPuzzles && puzzleBankLabels ? (
+                  <div className="mt-5 grid grid-cols-2 gap-3" data-testid="games-puzzle-controls">
+                    <button
+                      type="button"
+                      onClick={() => selectPuzzleAtOffset(-1)}
+                      disabled={isPuzzleNavigationDisabled}
+                      aria-label={puzzleBankLabels.previous}
+                      data-testid="games-previous-puzzle"
+                      className="flex min-h-[58px] items-center justify-center gap-2 rounded-[20px] border border-[#BFDAD7] bg-white px-3 font-body text-[16px] font-extrabold text-[#075C64] shadow-[0_8px_18px_rgba(11,60,66,0.05)] disabled:opacity-45"
+                    >
+                      <ChevronLeft size={21} strokeWidth={3} />
+                      <span>{puzzleBankLabels.previous}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectPuzzleAtOffset(1)}
+                      disabled={isPuzzleNavigationDisabled}
+                      aria-label={puzzleBankLabels.next}
+                      data-testid="games-next-puzzle"
+                      className="flex min-h-[58px] items-center justify-center gap-2 rounded-[20px] bg-[#007B7E] px-3 font-body text-[16px] font-extrabold text-white shadow-[0_12px_28px_rgba(0,123,126,0.16)] disabled:bg-[#D8E6E2] disabled:text-[#61777D] disabled:shadow-none"
+                    >
+                      <span>{puzzleBankLabels.next}</span>
+                      <ChevronRight size={21} strokeWidth={3} />
+                    </button>
+                  </div>
+                ) : null}
               </section>
             )}
           </section>
 
-          <aside className="space-y-5">
-            <section className="rounded-[28px] border border-[#D8E6E2] bg-white px-5 py-5 shadow-[0_16px_34px_rgba(11,60,66,0.08)]">
-              <h2 className="font-body text-[27px] font-extrabold leading-tight text-[#07313A]">{gameTable.connectionTitle}</h2>
-              <p className="mt-2 font-body text-[17px] font-semibold leading-snug text-[#5B747B]">{gameTable.connectionBody}</p>
+          {showConnectionPanel && selectedRound && (
+          <aside className="space-y-5 lg:sticky lg:top-4">
+            <GameConnectionPanel
+              gameTable={gameTable}
+              selectedRound={selectedRound}
+              language={language}
+              isMatching={isMatching}
+              matchResponse={matchResponse}
+              onFindPartner={() => void findPartner()}
+            />
 
-              <div className="mt-5 space-y-3">
-                {gameTable.readyMembers.map((member, index) => (
-                  <div
-                    key={member.id}
-                    className="flex items-center gap-4 rounded-[22px] border border-[#E2E9E7] bg-[#FCFFFD] px-4 py-4"
-                  >
-                    <div
-                      className="relative flex h-[62px] w-[62px] shrink-0 items-center justify-center rounded-full font-body text-[22px] font-extrabold text-white"
-                      style={{ background: memberColours[index % memberColours.length] }}
-                    >
-                      {getMemberInitials(member.name)}
-                      <span className="absolute bottom-0 right-0 h-4 w-4 rounded-full border-2 border-white bg-[#2FB344]" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-body text-[23px] font-extrabold leading-tight text-[#173941]">{member.name}</p>
-                      <p className="mt-1 font-body text-[17px] font-semibold leading-snug text-[#61777D]">{member.statusLabel}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => void findPartner()}
-                      className="min-h-[52px] rounded-[17px] border border-[#087C82] px-4 font-body text-[17px] font-extrabold text-[#087C82]"
-                    >
-                      {gameTable.sayHelloLabel}
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => void findPartner()}
-                disabled={isMatching || !selectedRound}
-                data-testid="games-find-partner"
-                className="mt-5 flex min-h-[66px] w-full items-center justify-center gap-3 rounded-[22px] bg-[#007B7E] px-5 font-body text-[21px] font-extrabold text-white shadow-[0_16px_34px_rgba(0,123,126,0.2)] disabled:opacity-55"
-              >
-                <HeartHandshake size={25} />
-                {isMatching ? getMatchLoadingLabel(language) : gameTable.findPartnerLabel}
-              </button>
-
-              {matchResponse && (
-                <div className="mt-4 rounded-[22px] bg-[#F4FAF8] px-4 py-4" data-testid="games-match-result">
-                  <p className="font-body text-[18px] font-bold leading-snug text-[#173941]">{matchResponse.agentMessage}</p>
-                  {!matchResponse.noMatch && matchResponse.matchedUser && (
-                    <p className="mt-2 font-body text-[17px] font-semibold text-[#087C82]">
-                      {matchResponse.matchedUser.name}
-                    </p>
-                  )}
-                </div>
-              )}
-            </section>
-
-            <section className="rounded-[28px] border border-[#D8E6E2] bg-white px-5 py-5 shadow-[0_16px_34px_rgba(11,60,66,0.08)]">
-              <h2 className="font-body text-[25px] font-extrabold leading-tight text-[#07313A]">{getChatTitle(language)}</h2>
-              <div className="mt-4 space-y-3">
-                {visibleChat.map((item: SocialRoomChatItem, index) => (
-                  <div key={item.id} className="flex gap-3 rounded-[20px] bg-[#F7FAF8] px-4 py-4">
-                    <div
-                      className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full font-body text-[17px] font-extrabold text-white"
-                      style={{ background: memberColours[index % memberColours.length] }}
-                    >
-                      {getMemberInitials(item.authorName)}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <p className="font-body text-[17px] font-extrabold text-[#173941]">{item.authorName}</p>
-                        <p className="font-body text-[14px] font-semibold text-[#7D9095]">{formatChatTime(item.createdAt, language)}</p>
+            {visibleChat.length > 0 && (
+              <section className="rounded-[28px] border border-[#D8E6E2] bg-white px-5 py-5 shadow-[0_16px_34px_rgba(11,60,66,0.08)]">
+                <h2 className="font-body text-[25px] font-extrabold leading-tight text-[#07313A]">{getChatTitle(language)}</h2>
+                <div className="mt-4 space-y-3">
+                  {visibleChat.map((item: SocialRoomChatItem, index) => (
+                    <div key={item.id} className="flex gap-3 rounded-[20px] bg-[#F7FAF8] px-4 py-4">
+                      <div
+                        className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full font-body text-[17px] font-extrabold text-white"
+                        style={{ background: memberColours[index % memberColours.length] }}
+                      >
+                        {getMemberInitials(item.authorName)}
                       </div>
-                      <p className="mt-1 font-body text-[17px] font-semibold leading-snug text-[#5A7279]">{item.text}</p>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <p className="font-body text-[17px] font-extrabold text-[#173941]">{item.authorName}</p>
+                          <p className="font-body text-[14px] font-semibold text-[#7D9095]">{formatChatTime(item.createdAt, language)}</p>
+                        </div>
+                        <p className="mt-1 font-body text-[17px] font-semibold leading-snug text-[#5A7279]">{item.text}</p>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </section>
+                  ))}
+                </div>
+              </section>
+            )}
           </aside>
+          )}
         </main>
 
-        <div className="sticky bottom-3 z-10 mt-5 rounded-[26px] border border-[#D8E6E2] bg-white/95 p-3 shadow-[0_18px_44px_rgba(7,49,58,0.16)] backdrop-blur lg:hidden">
-          <button
-            type="button"
-            onClick={() => void findPartner()}
-            disabled={isMatching || !selectedRound}
-            className="flex min-h-[64px] w-full items-center justify-center gap-3 rounded-[22px] border border-[#087C82] bg-white px-5 font-body text-[21px] font-extrabold text-[#087C82] disabled:opacity-55"
-          >
-            <Send size={24} />
-            {gameTable.findPartnerLabel}
-          </button>
-        </div>
       </div>
     </div>
   );

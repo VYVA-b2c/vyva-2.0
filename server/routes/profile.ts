@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { and, desc, eq, count, inArray, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, count, inArray, or } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
 import {
@@ -53,10 +53,17 @@ import { signMedicalProfileToolToken } from "../lib/jwt.js";
 import { syncProfileEntitlement } from "../lib/entitlementSync.js";
 import { entitlementForTier } from "../lib/plans.js";
 import { mergeIdentityGender, readProfileGender } from "../lib/userPersonalization.js";
-import { getActiveProfileContext, getProfileChoices } from "../lib/profileAccess.js";
+import { getActiveProfileContext, getProfileChoices, isMissingAccountProfileLinkColumnError } from "../lib/profileAccess.js";
+import { isLocalDevelopmentRequest } from "../lib/requestEnvironment.js";
+import {
+  selectProfileIdByEmailFromDatabaseColumns,
+  selectProfileIdByPhoneDigitsFromDatabaseColumns,
+  selectProfileRowsByDatabaseColumns,
+  type ProfileReadColumn,
+} from "../lib/profileReadCompatibility.js";
+import { upsertProfileToleratingMissingColumns } from "../lib/profileWriteCompatibility.js";
 
 const DEMO_USER_ID = "demo-user";
-const IS_PROD = process.env.NODE_ENV === "production";
 const SUPPORTED_PROFILE_LANGUAGES = ["es", "en", "fr", "de", "it", "pt"] as const;
 type ProfileLanguage = (typeof SUPPORTED_PROFILE_LANGUAGES)[number];
 
@@ -106,6 +113,29 @@ function sameEmail(a: string | null | undefined, b: string | null | undefined): 
   return Boolean(a && b && a.trim().toLowerCase() === b.trim().toLowerCase());
 }
 
+function knownEmails(...values: unknown[]): string[] {
+  const seen = new Set<string>();
+  const emails: string[] = [];
+  for (const value of values) {
+    const email = trimToNull(value);
+    if (!email) continue;
+    const key = email.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    emails.push(email);
+  }
+  return emails;
+}
+
+function includesEmail(emails: string[], value: string | null | undefined): boolean {
+  return emails.some((email) => sameEmail(email, value));
+}
+
+function profileEmailForAccount(accountEmails: string[], value: string | null | undefined): string | null {
+  const email = trimToNull(value);
+  return includesEmail(accountEmails, email) ? null : email;
+}
+
 function samePhone(a: string | null | undefined, b: string | null | undefined): boolean {
   const left = phoneDigits(a);
   const right = phoneDigits(b);
@@ -127,24 +157,6 @@ function withoutLanguagePreference<T extends Record<string, unknown>>(values: T)
   return rest;
 }
 
-function missingColumnName(err: unknown): string | null {
-  const error = err as { message?: unknown };
-  const message = typeof error.message === "string" ? error.message : String(err);
-  const quotedMatch = message.match(/column\s+(?:"profiles"\.)?"([^"]+)"\s+does not exist/i);
-  if (quotedMatch?.[1]) return quotedMatch[1];
-  const bareMatch = message.match(/column\s+profiles\.([a-z0-9_]+)\s+does not exist/i);
-  return bareMatch?.[1] ?? null;
-}
-
-function omitColumns<T extends Record<string, unknown>>(values: T, columns: Set<string>): T {
-  if (columns.size === 0) return values;
-  const next = { ...values };
-  for (const column of columns) {
-    delete next[column as keyof T];
-  }
-  return next as T;
-}
-
 function isUniqueViolation(err: unknown, hints: string[]): boolean {
   const error = err as { code?: unknown; constraint?: unknown; detail?: unknown; message?: unknown };
   if (error.code !== "23505") return false;
@@ -162,10 +174,10 @@ async function resolveUserId(req: Request): Promise<string | null> {
   if (req.user?.id) {
     const context = await getActiveProfileContext(req.user.id);
     if (context.profileId) return context.profileId;
-    if (!IS_PROD) return req.user.id;
+    if (isLocalDevelopmentRequest(req)) return req.user.id;
     return null;
   }
-  if (!IS_PROD) return DEMO_USER_ID;
+  if (isLocalDevelopmentRequest(req)) return DEMO_USER_ID;
   return null;
 }
 
@@ -440,10 +452,15 @@ router.post("/active-profile", async (req: Request, res: Response) => {
       eq(profileMemberships.status, "active"),
     ));
 
-  await db
-    .update(users)
-    .set({ active_profile_id: selected.profileId })
-    .where(eq(users.id, accountUserId));
+  try {
+    await db
+      .update(users)
+      .set({ active_profile_id: selected.profileId })
+      .where(eq(users.id, accountUserId));
+  } catch (err) {
+    if (!isMissingAccountProfileLinkColumnError(err)) throw err;
+    console.warn("[profile] users.active_profile_id is missing; selected profile is stored via profile_memberships only.");
+  }
 
   return res.json({
     ok: true,
@@ -1052,24 +1069,10 @@ const profileSettingsSelection = {
   avatar_url: profiles.avatar_url,
 };
 
-const legacyProfileSettingsSelection = withoutLanguagePreference(profileSettingsSelection);
+const profileSettingsColumns = Object.keys(profileSettingsSelection) as ProfileReadColumn[];
 
 async function selectProfileSettingsRows(userId: string) {
-  try {
-    return await db
-      .select(profileSettingsSelection)
-      .from(profiles)
-      .where(eq(profiles.id, userId))
-      .limit(1);
-  } catch (err) {
-    if (!isMissingColumnError(err, "language_preference")) throw err;
-    const rows = await db
-      .select(legacyProfileSettingsSelection)
-      .from(profiles)
-      .where(eq(profiles.id, userId))
-      .limit(1);
-    return rows.map((row) => ({ ...row, language_preference: null }));
-  }
+  return selectProfileRowsByDatabaseColumns(userId, profileSettingsColumns);
 }
 
 router.get("/", async (req: Request, res: Response) => {
@@ -1078,7 +1081,7 @@ router.get("/", async (req: Request, res: Response) => {
   const accountUserId = req.user?.id ?? null;
 
   try {
-    const [rows, accountRows] = await Promise.all([
+    const [rows, accountRows, accountProfileRows] = await Promise.all([
       selectProfileSettingsRows(userId),
       accountUserId
         ? db
@@ -1092,6 +1095,9 @@ router.get("/", async (req: Request, res: Response) => {
               throw err;
             })
         : Promise.resolve([]),
+      accountUserId && accountUserId !== userId
+        ? selectProfileRowsByDatabaseColumns(accountUserId, ["email", "phone_number"])
+        : Promise.resolve([]),
     ]);
 
     if (!rows[0]) {
@@ -1099,9 +1105,8 @@ router.get("/", async (req: Request, res: Response) => {
     }
 
     const p = rows[0];
-    const accountEmail = typeof req.user?.email === "string"
-      ? req.user.email
-      : accountRows[0]?.email ?? null;
+    const accountEmails = knownEmails(req.user?.email, accountRows[0]?.email, accountProfileRows[0]?.email);
+    const accountEmail = accountEmails[0] ?? null;
     const nameParts = (p.full_name ?? "").trim().split(/\s+/);
     const firstName = nameParts[0] ?? "";
     const lastName  = nameParts.slice(1).join(" ");
@@ -1113,7 +1118,7 @@ router.get("/", async (req: Request, res: Response) => {
       preferredName:    p.preferred_name ?? "",
       dateOfBirth:      p.date_of_birth ?? "",
       gender:           readProfileGender(p.data_sharing_consent),
-      email:            p.email ?? accountEmail ?? "",
+      email:            profileEmailForAccount(accountEmails, p.email) ?? "",
       accountEmail:     accountEmail ?? "",
       accountUserId,
       profileId:        p.id,
@@ -1240,15 +1245,7 @@ router.post("/", async (req: Request, res: Response) => {
 
   try {
     const [existingRows, accountRows, accountProfileRows] = await Promise.all([
-      db
-        .select({
-          data_sharing_consent: profiles.data_sharing_consent,
-          email: profiles.email,
-          phone_number: profiles.phone_number,
-        })
-        .from(profiles)
-        .where(eq(profiles.id, userId))
-        .limit(1),
+      selectProfileRowsByDatabaseColumns(userId, ["data_sharing_consent", "email", "phone_number"]),
       accountUserId
         ? db
             .select({ email: users.email, phone_number: users.phone_number })
@@ -1262,68 +1259,54 @@ router.post("/", async (req: Request, res: Response) => {
             })
         : Promise.resolve([]),
       accountUserId && accountUserId !== userId
-        ? db
-            .select({ email: profiles.email, phone_number: profiles.phone_number })
-            .from(profiles)
-            .where(eq(profiles.id, accountUserId))
-            .limit(1)
+        ? selectProfileRowsByDatabaseColumns(accountUserId, ["email", "phone_number"])
         : Promise.resolve([]),
     ]);
     const existingProfile = existingRows[0];
     const account = accountRows[0];
     const accountProfile = accountProfileRows[0];
-    const accountEmail = typeof req.user?.email === "string" ? req.user.email : account?.email ?? accountProfile?.email;
+    const accountEmails = knownEmails(req.user?.email, account?.email, accountProfile?.email);
     const accountPhone = normalizeProfilePhone(account?.phone_number ?? accountProfile?.phone_number ?? null);
     const dataSharingConsent = mergeIdentityGender(existingRows[0]?.data_sharing_consent, d.gender);
     const inputEmail = trimToNull(d.email);
     const inputPhone = normalizeProfilePhone(d.phone);
     const inputWhatsapp = normalizeProfilePhone(d.whatsapp) ?? trimToNull(d.whatsapp);
     const isEditingActiveCareProfile = Boolean(accountUserId && accountUserId !== userId);
-    const profileEmail = isEditingActiveCareProfile && sameEmail(inputEmail, accountEmail)
-      ? existingProfile?.email ?? null
-      : inputEmail;
-    const profilePhone = isEditingActiveCareProfile && samePhone(inputPhone, accountPhone)
+    let profileEmail = profileEmailForAccount(accountEmails, inputEmail);
+    let profilePhone = isEditingActiveCareProfile && samePhone(inputPhone, accountPhone)
       ? normalizeProfilePhone(existingProfile?.phone_number) ?? null
       : inputPhone;
 
     if (profileEmail && !sameEmail(profileEmail, existingProfile?.email)) {
-      const [emailOwner] = await db
-        .select({ id: profiles.id })
-        .from(profiles)
-        .where(and(
-          sql`lower(${profiles.email}) = ${profileEmail.toLowerCase()}`,
-          ne(profiles.id, userId),
-        ))
-        .limit(1);
+      const emailOwner = await selectProfileIdByEmailFromDatabaseColumns(profileEmail, userId);
 
       if (emailOwner) {
-        return res.status(409).json({
-          error: "That email is already used on another profile. Use the account email only for your sign-in account, or choose a different profile email.",
-        });
+        if (isEditingActiveCareProfile && emailOwner.id === accountUserId) {
+          profileEmail = existingProfile?.email ?? null;
+        } else {
+          return res.status(409).json({
+            error: "That email is already used on another profile. Use the account email only for your sign-in account, or choose a different profile email.",
+          });
+        }
       }
     }
 
     const profilePhoneDigits = phoneDigits(profilePhone);
     if (profilePhone && profilePhoneDigits && !samePhone(profilePhone, existingProfile?.phone_number)) {
-      const [phoneOwner] = await db
-        .select({ id: profiles.id })
-        .from(profiles)
-        .where(and(
-          or(
-            sql`regexp_replace(coalesce(${profiles.phone_number}, ''), '[^0-9]', '', 'g') = ${profilePhoneDigits}`,
-            sql`regexp_replace(coalesce(${profiles.whatsapp_number}, ''), '[^0-9]', '', 'g') = ${profilePhoneDigits}`,
-          ),
-          ne(profiles.id, userId),
-        ))
-        .limit(1);
+      const phoneOwner = await selectProfileIdByPhoneDigitsFromDatabaseColumns(profilePhoneDigits, userId);
 
       if (phoneOwner) {
-        return res.status(409).json({
-          error: "That phone number is already used on another profile. Choose a different profile phone number.",
-        });
+        if (isEditingActiveCareProfile && phoneOwner.id === accountUserId) {
+          profilePhone = normalizeProfilePhone(existingProfile?.phone_number) ?? null;
+        } else {
+          return res.status(409).json({
+            error: "That phone number is already used on another profile. Choose a different profile phone number.",
+          });
+        }
       }
     }
 
+    const now = new Date();
     const insertValues = {
       id:               userId,
       full_name,
@@ -1345,6 +1328,14 @@ router.post("/", async (req: Request, res: Response) => {
       gp_phone:         d.gpPhone || null,
       gp_email:         d.gpEmail || null,
       data_sharing_consent: dataSharingConsent,
+      deployment:       "standard",
+      subscription_status: "trial",
+      subscription_tier: "free",
+      account_status:   "enabled",
+      role:             "user",
+      onboarding_complete: false,
+      created_at:       now,
+      updated_at:       now,
     };
     const updateValues = {
       full_name,
@@ -1366,27 +1357,10 @@ router.post("/", async (req: Request, res: Response) => {
       ...(hasGpPhoneInput ? { gp_phone: d.gpPhone || null } : {}),
       ...(hasGpEmailInput ? { gp_email: d.gpEmail || null } : {}),
       data_sharing_consent: dataSharingConsent,
-      updated_at:       new Date(),
+      updated_at:       now,
     };
 
-    const skippedColumns = new Set<string>();
-    while (true) {
-      try {
-        await db
-          .insert(profiles)
-          .values(omitColumns(insertValues, skippedColumns))
-          .onConflictDoUpdate({
-            target: profiles.id,
-            set: omitColumns(updateValues, skippedColumns),
-          });
-        break;
-      } catch (err) {
-        const column = missingColumnName(err);
-        if (!column || skippedColumns.has(column) || !(column in insertValues || column in updateValues)) throw err;
-        skippedColumns.add(column);
-        console.warn(`[profile POST] profiles.${column} is missing; saving account details without that optional field.`);
-      }
-    }
+    await upsertProfileToleratingMissingColumns(insertValues, updateValues, "[profile POST]");
 
     return res.json({ ok: true });
   } catch (err) {

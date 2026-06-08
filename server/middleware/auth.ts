@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import { verifyToken } from "../lib/jwt.js";
 import { verifySupabaseAccessToken } from "../lib/supabaseAuth.js";
 import { readAuthSessionCookie } from "../lib/sessionCookie.js";
+import { isLocalDevelopmentRequest } from "../lib/requestEnvironment.js";
 
 const SUPER_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL ?? "karim.assad@mokadigital.net").toLowerCase();
 
@@ -74,7 +75,7 @@ export async function authMiddleware(
   }
 
   // Dev/test fallback: trust x-user-id header only outside production.
-  if (process.env.NODE_ENV !== "production") {
+  if (isLocalDevelopmentRequest(req)) {
     const rawId = req.headers["x-user-id"] as string | undefined;
     if (rawId && rawId.trim().length > 0) {
       req.user = { id: rawId.trim() };

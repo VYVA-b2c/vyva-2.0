@@ -14,6 +14,17 @@ export const PHONE_COUNTRY_OPTIONS = [
 
 export type PhoneCountryCode = (typeof PHONE_COUNTRY_OPTIONS)[number]["value"];
 
+const PHONE_LOCAL_PLACEHOLDERS: Record<PhoneCountryCode, string> = {
+  ES: "612 345 678",
+  UK: "7700 900 123",
+  US: "201 555 0123",
+  DE: "151 12345678",
+  FR: "6 12 34 56 78",
+  IT: "345 123 4567",
+  PT: "912 345 678",
+  AE: "50 123 4567",
+};
+
 export type IdentityBasicsForm = {
   firstName: string;
   lastName: string;
@@ -32,6 +43,7 @@ export type ProfileIdentityResponse = {
   preferredName?: string | null;
   dateOfBirth?: string | null;
   email?: string | null;
+  accountEmail?: string | null;
   phone?: string | null;
   whatsapp?: string | null;
   country?: string | null;
@@ -83,6 +95,11 @@ export function formatPhoneLocal(value: string) {
   return groups ? groups.join(" ") : "";
 }
 
+export function phoneLocalPlaceholderForCountry(countryCode: string | null | undefined) {
+  const country = PHONE_COUNTRY_OPTIONS.find((option) => option.value === countryCode)?.value ?? "ES";
+  return PHONE_LOCAL_PLACEHOLDERS[country];
+}
+
 export function splitPhoneNumber(phone: string | null | undefined, countryCode: string | null | undefined) {
   const fallbackCountry = PHONE_COUNTRY_OPTIONS.find((option) => option.value === (countryCode || "ES"))?.value ?? "ES";
   const rawPhone = (phone ?? "").trim();
@@ -122,6 +139,14 @@ export function createEmptyIdentityForm(fallbackLanguage: LanguageCode = detectB
   };
 }
 
+function profileEmailFromResponse(profile: ProfileIdentityResponse | null | undefined) {
+  const email = profile?.email?.trim() ?? "";
+  const accountEmail = profile?.accountEmail?.trim() ?? "";
+  return email && accountEmail && email.toLowerCase() === accountEmail.toLowerCase()
+    ? ""
+    : email;
+}
+
 export function identityFromProfileResponse(
   profile: ProfileIdentityResponse | null | undefined,
   fallbackLanguage: LanguageCode = detectBrowserLanguage(),
@@ -135,7 +160,7 @@ export function identityFromProfileResponse(
     dateOfBirth: profile?.dateOfBirth ?? "",
     phoneCountry: phoneParts.phoneCountry,
     phoneLocal: phoneParts.phoneLocal,
-    email: profile?.email ?? "",
+    email: profileEmailFromResponse(profile),
     language: normalizeLanguageCode(profile?.languagePreference ?? profile?.language, fallbackLanguage),
     avatarUrl: profile?.avatarUrl ?? null,
   };

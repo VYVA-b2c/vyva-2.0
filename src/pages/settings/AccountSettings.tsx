@@ -21,6 +21,7 @@ import {
   createEmptyIdentityForm,
   formatPhoneLocal,
   identityFromProfileResponse,
+  phoneLocalPlaceholderForCountry,
   splitFullName,
   splitPhoneNumber,
   validateIdentityBasics,
@@ -728,7 +729,7 @@ export default function AccountSettings() {
                 setForm((current) => ({ ...current, phoneLocal: formatPhoneLocal(e.target.value) }));
                 if (errors.phone) setErrors((current) => ({ ...current, phone: undefined }));
               }}
-              placeholder={t("settings.account.phonePlaceholder", "000 000 000")}
+              placeholder={phoneLocalPlaceholderForCountry(form.phoneCountry)}
               className={`${accountInputClassName} ${errors.phone ? "border-red-400 focus-visible:ring-red-300" : ""}`}
               style={{
                 borderColor: errors.phone ? "#F87171" : "#C4B5FD",

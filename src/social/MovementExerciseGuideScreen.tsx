@@ -23,6 +23,7 @@ import {
 
 const MOVEMENT_ROOM_PATH = "/social-rooms/morning-movement";
 const DEFAULT_MOVEMENT_STEP_MOTION: MovementStepMotion = "seated-tall";
+const EMPTY_MOVEMENT_STEPS: string[] = [];
 
 type GuideCopy = {
   backToRoom: string;
@@ -364,7 +365,10 @@ export default function MovementExerciseGuideScreen() {
   }, [exerciseId, movementLanguage]);
   const session = exercise ? MOVEMENT_EXERCISE_SESSIONS[exercise.id] : null;
   const visual = exercise ? MOVEMENT_EXERCISE_VISUALS[exercise.id] : null;
-  const steps = session?.steps[movementLanguage] ?? [];
+  const steps = useMemo(
+    () => session?.steps[movementLanguage] ?? EMPTY_MOVEMENT_STEPS,
+    [movementLanguage, session],
+  );
   const currentStep = steps[stepIndex] ?? steps[0] ?? "";
   const totalSteps = Math.max(steps.length, 1);
   const isLastStep = stepIndex >= steps.length - 1;

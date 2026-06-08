@@ -9,15 +9,22 @@ import { accessLinks, communicationsLog, lifecycleEvents, onboardingState, profi
 import { signMagicLoginToken, verifyMagicLoginToken } from "../lib/jwt.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { sendMagicLoginEmail, sendPasswordResetEmail } from "../lib/email.js";
-import { getActiveProfileContext, type ActiveProfileContext } from "../lib/profileAccess.js";
+import { getActiveProfileContext, isMissingAccountProfileLinkColumnError, type ActiveProfileContext } from "../lib/profileAccess.js";
 import { getSupabaseConfig } from "../lib/supabaseAuth.js";
 import { clearAuthSessionCookie, issueAuthSessionCookie } from "../lib/sessionCookie.js";
 import { premiumTrialProfilePatch } from "../lib/premiumTrial.js";
+import { isProductionRuntime } from "../lib/requestEnvironment.js";
+import { isRelationSchemaUnavailableError } from "../lib/dbCompatibility.js";
+import {
+  upsertOptionalProfileMetadata,
+  upsertProfileMembershipToleratingMissingColumns,
+  upsertProfileToleratingMissingColumns,
+} from "../lib/profileWriteCompatibility.js";
 
 const scryptAsync = promisify(scrypt);
 
-const isDev = process.env.NODE_ENV !== "production";
-const isProduction = process.env.NODE_ENV === "production";
+const isDev = !isProductionRuntime();
+const isProduction = isProductionRuntime();
 const SUPER_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL ?? "karim.assad@mokadigital.net").toLowerCase();
 const emailSchema = z.string().trim().email();
 const SUPPORTED_PROFILE_LANGUAGES = ["es", "en", "fr", "de", "it", "pt", "cy"] as const;
@@ -279,65 +286,96 @@ async function createInitialSignupProfile(
   const trialPatch = premiumTrialProfilePatch();
   const now = new Date();
 
-  await db
-    .insert(profiles)
-    .values({
-      id: profileId,
-      email: isSelf ? user.email : null,
-      phone_number: isSelf ? user.phone_number : null,
-      language,
-      language_preference: language,
-      onboarding_channel: isSelf ? "web_form" : "proxy_web",
-      current_stage: "stage_1_identity",
-      ...trialPatch,
-    })
-    .onConflictDoUpdate({
-      target: profiles.id,
-      set: {
-        ...(user.email ? { email: user.email } : {}),
-        ...(user.phone_number ? { phone_number: user.phone_number } : {}),
-        language,
-        language_preference: language,
-        onboarding_channel: isSelf ? "web_form" : "proxy_web",
-        updated_at: now,
-      },
-    });
+  await upsertProfileToleratingMissingColumns({
+    id: profileId,
+    full_name: "Profile setup",
+    date_of_birth: "",
+    email: isSelf ? user.email : null,
+    phone_number: isSelf ? user.phone_number : null,
+    language,
+    language_preference: language,
+    deployment: "standard",
+    subscription_status: "trial",
+    subscription_tier: "free",
+    account_status: "enabled",
+    role: "user",
+    country_code: "ES",
+    timezone: "Europe/Madrid",
+    onboarding_complete: false,
+    data_sharing_consent: {},
+    created_at: now,
+    updated_at: now,
+  }, {
+    ...(user.email ? { email: user.email } : {}),
+    ...(user.phone_number ? { phone_number: user.phone_number } : {}),
+    language,
+    language_preference: language,
+    deployment: "standard",
+    subscription_status: "trial",
+    subscription_tier: "free",
+    account_status: "enabled",
+    role: "user",
+    country_code: "ES",
+    timezone: "Europe/Madrid",
+    onboarding_complete: false,
+    updated_at: now,
+  }, "[auth/register]");
 
-  await db
-    .insert(profileMemberships)
-    .values({
-      user_id: user.id,
-      profile_id: profileId,
-      role: isSelf ? "elder" : "caregiver",
-      relationship: isSelf ? "self" : "setup_initiator",
-      is_primary: true,
-      status: "active",
-      accepted_at: now,
-    })
-    .onConflictDoUpdate({
-      target: [profileMemberships.user_id, profileMemberships.profile_id],
-      set: {
-        role: isSelf ? "elder" : "caregiver",
-        relationship: isSelf ? "self" : "setup_initiator",
-        status: "active",
-        is_primary: true,
-        accepted_at: now,
-        updated_at: now,
-      },
-    });
+  await upsertOptionalProfileMetadata({
+    id: profileId,
+    onboarding_channel: isSelf ? "web_form" : "proxy_web",
+    current_stage: "stage_1_identity",
+    ...trialPatch,
+  }, {
+    onboarding_channel: isSelf ? "web_form" : "proxy_web",
+    current_stage: "stage_1_identity",
+    ...trialPatch,
+    updated_at: now,
+  }, "[auth/register]");
 
-  await db
-    .update(users)
-    .set({
-      active_profile_id: profileId,
-      onboarding_intent: setupFor,
-    })
-    .where(eq(users.id, user.id));
+  const membershipSaved = await upsertProfileMembershipToleratingMissingColumns({
+    user_id: user.id,
+    profile_id: profileId,
+    role: isSelf ? "elder" : "caregiver",
+    relationship: isSelf ? "self" : "setup_initiator",
+    is_primary: true,
+    status: "active",
+    accepted_at: now,
+  }, {
+    role: isSelf ? "elder" : "caregiver",
+    relationship: isSelf ? "self" : "setup_initiator",
+    status: "active",
+    is_primary: true,
+    accepted_at: now,
+    updated_at: now,
+  }, "[auth/register]");
 
-  await db
-    .insert(onboardingState)
-    .values({ user_id: profileId })
-    .onConflictDoNothing();
+  if (!membershipSaved && !isSelf) {
+    throw new Error("profile_memberships table is required for proxy profile setup");
+  }
+
+  try {
+    await db
+      .update(users)
+      .set({
+        active_profile_id: profileId,
+        onboarding_intent: setupFor,
+      })
+      .where(eq(users.id, user.id));
+  } catch (err) {
+    if (!isMissingAccountProfileLinkColumnError(err)) throw err;
+    console.warn("[auth/register] users profile link columns are missing; continuing with profile_memberships fallback.");
+  }
+
+  try {
+    await db
+      .insert(onboardingState)
+      .values({ user_id: profileId })
+      .onConflictDoNothing();
+  } catch (err) {
+    if (!isRelationSchemaUnavailableError(err, "onboarding_state")) throw err;
+    console.warn("[auth/register] onboarding_state schema is unavailable; continuing without onboarding state seed.");
+  }
 }
 
 async function hashPassword(password: string): Promise<string> {

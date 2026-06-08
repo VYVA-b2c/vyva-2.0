@@ -1,6 +1,6 @@
-export type SocialLanguage = "es" | "en" | "fr" | "de" | "it" | "pt";
+export type SocialLanguage = "es" | "de" | "en";
 
-export type SocialGameLanguage = SocialLanguage;
+export type SocialGameLanguage = "es" | "en" | "fr" | "de" | "it" | "pt";
 
 export type SocialRoomCategory = "activity" | "social" | "useful" | "connection";
 
@@ -14,6 +14,39 @@ export type SocialActivityType =
   | "advice";
 
 export type SocialGameKind = "chess" | "word" | "dominoes" | "bridge";
+
+export type SocialGameDifficulty = "easy" | "medium" | "hard" | "expert";
+
+export type SocialGameRoundInteraction =
+  | {
+      kind: "wordBuild";
+      instruction: string;
+      shuffleEnabled?: boolean;
+      revealLetterCount?: number;
+    }
+  | {
+      kind: "chessTap";
+      instruction: string;
+      answerSquares: string[];
+      selectableSquares?: string[];
+    }
+  | {
+      kind: "dominoPlay";
+      instruction: string;
+      answerTile?: [number, number];
+      candidateTiles?: Array<[number, number]>;
+      answerEnd?: number;
+      answerEndSide?: "left" | "right";
+      candidateEnds?: Array<"left" | "right">;
+      actions?: Array<{ id: string; label: string }>;
+      answerActionId?: string;
+    }
+  | {
+      kind: "bridgeAction";
+      instruction: string;
+      actions: Array<{ id: string; label: string }>;
+      answerActionId: string;
+    };
 
 export type SocialGameRoundVisual =
   | {
@@ -38,10 +71,17 @@ export type SocialGameRoundVisual =
       kind: "dominoes";
       caption: string;
       openEnds?: [number, number];
+      leftEnd?: number;
+      rightEnd?: number;
       hand?: Array<[number, number]>;
+      handLabel?: string;
       candidateTiles?: Array<[number, number]>;
       playedTile?: [number, number];
       focusTile?: [number, number];
+      layoutTiles?: Array<[number, number]>;
+      recentPass?: number;
+      remainingTiles?: number;
+      endChoices?: Array<"left" | "right">;
       target?: number;
       desired?: number;
       avoid?: number;
@@ -54,38 +94,9 @@ export type SocialGameRoundVisual =
       points?: number;
       contract?: string;
       partnerBid?: string;
-      cards?: Array<{ rank: string; suit: string }>;
+      cards?: Array<{ rank: string; suit: string; role?: "key" | "support" | "side" }>;
       suitLengths?: Array<{ suit: string; length: number }>;
       missingCard?: { rank: string; suit: string };
-    };
-
-export type SocialGameRoundInteraction =
-  | {
-      kind: "wordBuild";
-      instruction: string;
-      shuffleEnabled?: boolean;
-      revealLetterCount?: number;
-    }
-  | {
-      kind: "chessTap";
-      instruction: string;
-      answerSquares: string[];
-      selectableSquares?: string[];
-    }
-  | {
-      kind: "dominoPlay";
-      instruction: string;
-      answerTile?: [number, number];
-      candidateTiles?: Array<[number, number]>;
-      answerEnd?: number;
-      actions?: Array<{ id: string; label: string }>;
-      answerActionId?: string;
-    }
-  | {
-      kind: "bridgeAction";
-      instruction: string;
-      actions: Array<{ id: string; label: string }>;
-      answerActionId: string;
     };
 
 export type SocialGameRound = {
@@ -100,6 +111,7 @@ export type SocialGameRound = {
   tags: string[];
   estimatedDurationSeconds: number;
   successMessage: string;
+  difficulty?: SocialGameDifficulty;
   visual?: SocialGameRoundVisual;
   interaction?: SocialGameRoundInteraction;
   explanation?: string;
@@ -185,6 +197,7 @@ export type SocialRoomChatItem = {
 
 export type SocialRoomPlanResponseValue = "join" | "maybe";
 export type SocialRoomPlanKind = "plan" | "message" | "question";
+export type SocialRoomPlanHelperAction = "choose" | "pace" | "buddy" | "notify";
 export type SocialRoomComfortNeed = "listen_first" | "quiet_pace" | "easy_access" | "seating" | "transport_help" | "arrival_buddy" | "clear_cost";
 export type SocialRoomExperienceCategory =
   | "movie_date"
@@ -204,10 +217,21 @@ export type SocialRoomReplyTone = "support" | "curious" | "help" | "different";
 
 export type SocialMusicCauseId = "anthem" | "memory" | "bridge";
 
+export type SocialMusicCircleCulture = {
+  countryCode: string;
+  originLabel: string;
+  language: string;
+  fallback: boolean;
+};
+
 export type SocialMusicCircleSeedSong = {
+  id?: string;
   songText: string;
   causeId: SocialMusicCauseId;
   nudge: string;
+  originCountryCode?: string;
+  originLabel?: string;
+  matchTags?: string[];
 };
 
 export type SocialMusicCircleItem = {
@@ -230,7 +254,9 @@ export type SocialMusicCircle = {
   dayKey: string;
   prompt: string;
   featuredItemId?: string | null;
+  culture?: SocialMusicCircleCulture;
   seedSong?: SocialMusicCircleSeedSong | null;
+  starterSongs?: SocialMusicCircleSeedSong[];
   items: SocialMusicCircleItem[];
 };
 
@@ -308,6 +334,7 @@ export type SocialRoomPlan = {
   createdAt?: string | null;
   responseCounts: Record<SocialRoomPlanResponseValue, number>;
   myResponse?: SocialRoomPlanResponseValue | null;
+  myHelperActions?: SocialRoomPlanHelperAction[];
   replies?: SocialRoomReply[];
 };
 
@@ -327,6 +354,7 @@ export type SocialRoomPoll = {
   id: string;
   key: string;
   question: string;
+  sourcePlanKey?: string | null;
   status: "active" | "closed" | string;
   options: SocialRoomPollOption[];
   totalVotes: number;
@@ -357,6 +385,7 @@ export type SocialRoomSafetyState = {
   acknowledgementLabel?: string;
   acknowledgedLabel?: string;
   myAcknowledgedAt?: string | null;
+  myQuietPausedAt?: string | null;
 };
 
 export type SocialRoomNotification = {
@@ -364,8 +393,21 @@ export type SocialRoomNotification = {
   type: string;
   title: string;
   body: string;
+  metadata?: Record<string, unknown>;
   createdAt: string;
   readAt?: string | null;
+};
+
+export type SocialRoomVisibilityItem = {
+  id: "private" | "totals" | "shared" | string;
+  title: string;
+  body: string;
+};
+
+export type SocialRoomVisibilityState = {
+  title: string;
+  body: string;
+  items: SocialRoomVisibilityItem[];
 };
 
 export type SocialRoomDecisionGuide = {
@@ -383,11 +425,14 @@ export type SocialRoomPulse = {
   postedExperiences: SocialRoomPlan[];
   memberPresence: SocialRoomMember[];
   activePoll: SocialRoomPoll;
+  issuePolls?: SocialRoomPoll[];
   comfortCheck: SocialRoomComfortCheck;
   decisionGuide?: SocialRoomDecisionGuide;
   discussionPrompt: SocialRoomDiscussionPrompt;
   safety: SocialRoomSafetyState;
+  visibility?: SocialRoomVisibilityState;
   notifications: SocialRoomNotification[];
+  unreadNotificationCount?: number;
 };
 
 export type SocialReadingClubMetric = {

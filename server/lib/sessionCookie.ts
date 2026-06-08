@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { signToken } from "./jwt.js";
+import { isProductionRuntime } from "./requestEnvironment.js";
 
 export const AUTH_SESSION_COOKIE = "vyva_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
@@ -25,7 +26,7 @@ function serializeCookie(name: string, value: string, maxAgeSeconds: number): st
     `Max-Age=${maxAgeSeconds}`,
   ];
 
-  if (process.env.NODE_ENV === "production") {
+  if (isProductionRuntime()) {
     parts.push("Secure");
   }
 

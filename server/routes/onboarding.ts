@@ -16,8 +16,15 @@ import {
 import { z } from "zod";
 import { notifyElderOfProxySetup } from "../services/notifications.js";
 import { dispatchCommunicationsByIds } from "../services/communicationDispatcher.js";
-import { getActiveProfileContext, requireActiveProfileId } from "../lib/profileAccess.js";
+import { getActiveProfileContext, isMissingAccountProfileLinkColumnError, requireActiveProfileId } from "../lib/profileAccess.js";
 import { premiumTrialEndsAt, premiumTrialProfilePatch } from "../lib/premiumTrial.js";
+import { isRelationSchemaUnavailableError } from "../lib/dbCompatibility.js";
+import { selectProfileByDatabaseColumns } from "../lib/profileReadCompatibility.js";
+import {
+  upsertOptionalProfileMetadata,
+  upsertProfileMembershipToleratingMissingColumns,
+  upsertProfileToleratingMissingColumns,
+} from "../lib/profileWriteCompatibility.js";
 
 export const onboardingRouter = Router();
 
@@ -119,26 +126,32 @@ const HAS_FIELD_FEATURE_MAP: Record<string, Record<string, boolean>> = {
 };
 
 async function ensureOnboardingState(userId: string) {
-  const rows = await db
-    .select()
-    .from(onboardingState)
-    .where(eq(onboardingState.user_id, userId))
-    .limit(1);
+  try {
+    const rows = await db
+      .select()
+      .from(onboardingState)
+      .where(eq(onboardingState.user_id, userId))
+      .limit(1);
 
-  if (rows[0]) return rows[0];
+    if (rows[0]) return rows[0];
 
-  await db
-    .insert(onboardingState)
-    .values({ user_id: userId })
-    .onConflictDoNothing();
+    await db
+      .insert(onboardingState)
+      .values({ user_id: userId })
+      .onConflictDoNothing();
 
-  const created = await db
-    .select()
-    .from(onboardingState)
-    .where(eq(onboardingState.user_id, userId))
-    .limit(1);
+    const created = await db
+      .select()
+      .from(onboardingState)
+      .where(eq(onboardingState.user_id, userId))
+      .limit(1);
 
-  return created[0] ?? null;
+    return created[0] ?? null;
+  } catch (err) {
+    if (!isRelationSchemaUnavailableError(err, "onboarding_state")) throw err;
+    console.warn("[onboarding] onboarding_state schema is unavailable; continuing without onboarding state row.");
+    return null;
+  }
 }
 
 async function markField(userId: string, field: string): Promise<void> {
@@ -224,57 +237,90 @@ onboardingRouter.post("/start-profile", async (req: Request, res: Response) => {
     const now = new Date();
     const trialEndsAt = premiumTrialEndsAt(now);
 
-    await db
-      .insert(profiles)
-      .values({
-        id: profileId,
-        email: isSelf ? account.email : null,
-        phone_number: isSelf ? account.phone_number : null,
-        language: parsed.data.language,
-        subscription_status: "trial",
-        subscription_tier: "premium",
-        trial_ends_at: trialEndsAt,
-        onboarding_channel: isSelf ? "web_form" : "proxy_web",
-        current_stage: "stage_1_identity",
-      })
-      .onConflictDoUpdate({
-        target: profiles.id,
-        set: {
-          language: parsed.data.language,
-          updated_at: now,
-        },
-      });
+    await upsertProfileToleratingMissingColumns({
+      id: profileId,
+      full_name: "Profile setup",
+      date_of_birth: "",
+      email: isSelf ? account.email : null,
+      phone_number: isSelf ? account.phone_number : null,
+      language: parsed.data.language,
+      language_preference: parsed.data.language,
+      deployment: "standard",
+      subscription_status: "trial",
+      subscription_tier: "free",
+      account_status: "enabled",
+      role: "user",
+      country_code: "ES",
+      timezone: "Europe/Madrid",
+      onboarding_complete: false,
+      data_sharing_consent: {},
+      created_at: now,
+      updated_at: now,
+    }, {
+      ...(isSelf && account.email ? { email: account.email } : {}),
+      ...(isSelf && account.phone_number ? { phone_number: account.phone_number } : {}),
+      language: parsed.data.language,
+      language_preference: parsed.data.language,
+      deployment: "standard",
+      subscription_status: "trial",
+      subscription_tier: "free",
+      account_status: "enabled",
+      role: "user",
+      country_code: "ES",
+      timezone: "Europe/Madrid",
+      onboarding_complete: false,
+      updated_at: now,
+    }, "[onboarding/start-profile]");
 
-    await db
-      .insert(profileMemberships)
-      .values({
-        user_id: accountUserId,
-        profile_id: profileId,
-        role: isSelf ? "elder" : "caregiver",
-        relationship: isSelf ? "self" : "setup_initiator",
-        is_primary: true,
-        status: "active",
-        accepted_at: now,
-      })
-      .onConflictDoUpdate({
-        target: [profileMemberships.user_id, profileMemberships.profile_id],
-        set: {
-          role: isSelf ? "elder" : "caregiver",
-          relationship: isSelf ? "self" : "setup_initiator",
-          status: "active",
-          is_primary: true,
-          accepted_at: now,
-          updated_at: now,
-        },
-      });
+    await upsertOptionalProfileMetadata({
+      id: profileId,
+      subscription_status: "trial",
+      subscription_tier: "premium",
+      trial_ends_at: trialEndsAt,
+      onboarding_channel: isSelf ? "web_form" : "proxy_web",
+      current_stage: "stage_1_identity",
+    }, {
+      subscription_status: "trial",
+      subscription_tier: "premium",
+      trial_ends_at: trialEndsAt,
+      onboarding_channel: isSelf ? "web_form" : "proxy_web",
+      current_stage: "stage_1_identity",
+      updated_at: now,
+    }, "[onboarding/start-profile]");
 
-    await db
-      .update(users)
-      .set({
-        active_profile_id: profileId,
-        onboarding_intent: parsed.data.setup_for,
-      })
-      .where(eq(users.id, accountUserId));
+    const membershipSaved = await upsertProfileMembershipToleratingMissingColumns({
+      user_id: accountUserId,
+      profile_id: profileId,
+      role: isSelf ? "elder" : "caregiver",
+      relationship: isSelf ? "self" : "setup_initiator",
+      is_primary: true,
+      status: "active",
+      accepted_at: now,
+    }, {
+      role: isSelf ? "elder" : "caregiver",
+      relationship: isSelf ? "self" : "setup_initiator",
+      status: "active",
+      is_primary: true,
+      accepted_at: now,
+      updated_at: now,
+    }, "[onboarding/start-profile]");
+
+    if (!membershipSaved && !isSelf) {
+      throw new Error("profile_memberships table is required for proxy profile setup");
+    }
+
+    try {
+      await db
+        .update(users)
+        .set({
+          active_profile_id: profileId,
+          onboarding_intent: parsed.data.setup_for,
+        })
+        .where(eq(users.id, accountUserId));
+    } catch (err) {
+      if (!isMissingAccountProfileLinkColumnError(err)) throw err;
+      console.warn("[onboarding] users profile link columns are missing; continuing with profile_memberships fallback.");
+    }
 
     await ensureOnboardingState(profileId);
 
@@ -316,19 +362,30 @@ onboardingRouter.get("/state", async (req: Request, res: Response) => {
       });
     }
 
-    const [profileRows, stateRow, medicationRows] = await Promise.all([
-      db.select().from(profiles).where(eq(profiles.id, context.profileId)).limit(1),
+    const [profile, stateRow, medicationRows] = await Promise.all([
+      selectProfileByDatabaseColumns(context.profileId),
       ensureOnboardingState(context.profileId),
-      db.select()
+      db.select({
+        medication_name: userMedications.medication_name,
+        dosage: userMedications.dosage,
+        frequency: userMedications.frequency,
+        scheduled_times: userMedications.scheduled_times,
+      })
         .from(userMedications)
         .where(and(
           eq(userMedications.user_id, context.profileId),
           eq(userMedications.active, true),
           eq(userMedications.added_by, "onboarding"),
-        )),
+        ))
+        .catch((err) => {
+          const message = err instanceof Error ? err.message : String(err);
+          if (isRelationSchemaUnavailableError(err, "user_medications") || message.includes("does not exist")) {
+            console.warn("[onboarding] onboarding medication rows are unavailable; continuing with an empty medication list.");
+            return [];
+          }
+          throw err;
+        }),
     ]);
-
-    const profile = profileRows[0];
     const consent = (profile?.data_sharing_consent ?? {}) as Record<string, unknown>;
     const conditionSection = (consent.conditions ?? {}) as {
       health_conditions?: string[];
