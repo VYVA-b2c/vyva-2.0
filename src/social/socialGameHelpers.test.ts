@@ -55,6 +55,32 @@ describe("social games room helpers", () => {
     }
   });
 
+  it("keeps game prompts varied across every supported language", () => {
+    const promptVarietyExpectations: Record<SocialGameKind, { minUnique: number; maxRepeat: number }> = {
+      chess: { minUnique: 72, maxRepeat: 1 },
+      word: { minUnique: 45, maxRepeat: 5 },
+      dominoes: { minUnique: 72, maxRepeat: 1 },
+      bridge: { minUnique: 70, maxRepeat: 3 },
+    };
+
+    for (const language of supportedGameLanguages) {
+      const table = buildGameTable(language, 6);
+
+      for (const kind of supportedGameKinds) {
+        const rounds = table.rounds.filter((round) => round.kind === kind);
+        const promptCounts = new Map<string, number>();
+
+        for (const round of rounds) {
+          promptCounts.set(round.prompt, (promptCounts.get(round.prompt) ?? 0) + 1);
+        }
+
+        const expectation = promptVarietyExpectations[kind];
+        expect(promptCounts.size).toBeGreaterThanOrEqual(expectation.minUnique);
+        expect(Math.max(...promptCounts.values())).toBeLessThanOrEqual(expectation.maxRepeat);
+      }
+    }
+  });
+
   it("keeps the chess puzzle bank available in each supported app language", () => {
     for (const language of supportedGameLanguages) {
       const table = buildGameTable(language, 6);
@@ -65,12 +91,12 @@ describe("social games room helpers", () => {
 
   it("generates non-giveaway chess prompts and tactile instructions", () => {
     const actionPromptStart: Record<SocialGameLanguage, RegExp> = {
-      en: /^Find /,
-      es: /^Encuentra /,
-      fr: /^Trouvez /,
-      de: /^Finde[ ,]/,
-      it: /^Trova /,
-      pt: /^Encontre /,
+      en: /^(Find|Spot|Choose|Look for) /,
+      es: /^(Encuentra|Busca|Elige|Observa) /,
+      fr: /^(Trouvez|Reperez|Choisissez|Cherchez) /,
+      de: /^(Finde|Suche|Waehle|Erkenne) /,
+      it: /^(Trova|Osserva|Scegli|Cerca) /,
+      pt: /^(Encontre|Veja|Escolha|Procure) /,
     };
     const genericInstruction: Record<SocialGameLanguage, string> = {
       en: "Tap a piece or square.",
@@ -80,20 +106,38 @@ describe("social games room helpers", () => {
       it: "Tocca un pezzo o una casa.",
       pt: "Toque numa peca ou casa.",
     };
-    const giveawayPattern = /white (queen|rook|bishop|knight|pawn)|dama blanca|torre blanca|alfil blanco|caballo blanco|peon blanco|weisse dame|weissen turm|weissen laeufer|weissen springer|weissen bauern|dame blanche|tour blanche|fou blanc|cavalier blanc|pion blanc|donna bianca|torre bianca|alfiere bianco|cavallo bianco|pedone bianco|dama branca|torre branca|bispo branco|cavalo branco|peao branco|fork|horquilla|gabel|fourchette|forchetta|garfo|back-rank mate|mate de primera fila|grundreihenmatt|mat du couloir|matto di corridoio|mate de corredor|pin|clouage|inchiodatura|cravada|skewer|enfilade|infilata|espeto/i;
+    const giveawayPattern = /white (queen|rook|bishop|knight|pawn)|dama blanca|torre blanca|alfil blanco|caballo blanco|peon blanco|weisse dame|weissen turm|weissen laeufer|weissen springer|weissen bauern|dame blanche|tour blanche|fou blanc|cavalier blanc|pion blanc|donna bianca|torre bianca|alfiere bianco|cavallo bianco|pedone bianco|dama branca|torre branca|bispo branco|cavalo branco|peao branco|fork|horquilla|gabel|fourchette|forchetta|garfo|double threat|doble amenaza|doppelte drohung|double menace|doppia minaccia|ameaca dupla|back-rank mate|mate de primera fila|grundreihenmatt|mat du couloir|matto di corridoio|mate de corredor|\bpin\b|clouage|inchiodatura|cravada|skewer|enfilade|infilata|espeto/i;
 
     for (const language of supportedGameLanguages) {
       const chessRounds = buildGameTable(language, 6).rounds.filter((round) => round.kind === "chess");
+      const promptCounts = new Map<string, number>();
 
       expect(chessRounds).toHaveLength(80);
 
       for (const round of chessRounds) {
+        promptCounts.set(round.prompt, (promptCounts.get(round.prompt) ?? 0) + 1);
         expect(round.prompt).toMatch(actionPromptStart[language]);
         expect(round.prompt).not.toMatch(giveawayPattern);
         expect(round.prompt.toLocaleLowerCase()).not.toContain(round.answer.toLocaleLowerCase());
         expect(round.interaction?.kind).toBe("chessTap");
         if (round.interaction?.kind !== "chessTap") continue;
         expect(round.interaction.instruction).toBe(genericInstruction[language]);
+      }
+
+      expect(promptCounts.size).toBeGreaterThanOrEqual(72);
+      expect(Math.max(...promptCounts.values())).toBeLessThanOrEqual(1);
+
+      const chessThemeTags = new Set(
+        chessRounds.flatMap((round) => round.tags.filter((tag) => tag.startsWith("chess:"))),
+      );
+
+      for (const tag of chessThemeTags) {
+        const themePrompts = new Set(
+          chessRounds
+            .filter((round) => round.tags.includes(tag))
+            .map((round) => round.prompt),
+        );
+        expect(themePrompts.size).toBeGreaterThanOrEqual(4);
       }
     }
   });
@@ -363,11 +407,17 @@ describe("social games room helpers", () => {
   it("keeps the bridge puzzle bank available in each supported app language", () => {
     const retiredBridgeTags = new Set(["bridge:vocabulary", "bridge:table-trust", "bridge:no-trump-basics", "bridge:simple-finesse"]);
     const noviceCopyPattern = /calm|gentle|vocabulary|which bridge word|table manners|kind bridge|tranquil|calme|ruhig|amable|aimable/i;
+    const genericOnlyQuestionPattern = /^(What is the best bridge action|Cual es la mejor accion de bridge|Was ist die beste Bridge-Aktion|Quelle est la meilleure action de bridge|Qual e la migliore azione di bridge|Qual e a melhor acao de bridge)\?$/;
 
     for (const language of supportedGameLanguages) {
       const table = buildGameTable(language, 6);
       const bridgeRounds = table.rounds.filter((round) => round.kind === "bridge");
       const bridgeTags = new Set(bridgeRounds.flatMap((round) => round.tags));
+      const promptCounts = new Map<string, number>();
+
+      for (const round of bridgeRounds) {
+        promptCounts.set(round.prompt, (promptCounts.get(round.prompt) ?? 0) + 1);
+      }
 
       expect(bridgeRounds).toHaveLength(80);
       expect(new Set(bridgeRounds.map((round) => round.id)).size).toBe(bridgeRounds.length);
@@ -377,6 +427,9 @@ describe("social games room helpers", () => {
       expect(bridgeRounds.every((round) => round.tags.includes("game:bridge"))).toBe(true);
       expect(bridgeRounds.every((round) => !round.tags.some((tag) => retiredBridgeTags.has(tag)))).toBe(true);
       expect(bridgeRounds.every((round) => !noviceCopyPattern.test(`${round.prompt} ${round.body} ${round.successMessage}`))).toBe(true);
+      expect(bridgeRounds.every((round) => !genericOnlyQuestionPattern.test(round.prompt))).toBe(true);
+      expect(promptCounts.size).toBeGreaterThanOrEqual(70);
+      expect(Math.max(...promptCounts.values())).toBeLessThanOrEqual(3);
       expect(Array.from(bridgeTags)).toEqual(expect.arrayContaining([
         "bridge:stayman-transfer",
         "bridge:competitive-auction",
