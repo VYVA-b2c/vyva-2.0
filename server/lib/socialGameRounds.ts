@@ -1559,137 +1559,184 @@ const chessTapInstruction: Record<SocialGameLanguage, string> = {
   pt: "Toque numa peca ou casa.",
 };
 
-function chessTaskCopy(prompts: Record<SocialGameLanguage, string>): Record<SocialGameLanguage, ChessActionCopy> {
-  return {
-    en: { prompt: prompts.en, instruction: chessTapInstruction.en },
-    es: { prompt: prompts.es, instruction: chessTapInstruction.es },
-    fr: { prompt: prompts.fr, instruction: chessTapInstruction.fr },
-    de: { prompt: prompts.de, instruction: chessTapInstruction.de },
-    it: { prompt: prompts.it, instruction: chessTapInstruction.it },
-    pt: { prompt: prompts.pt, instruction: chessTapInstruction.pt },
-  };
-}
-
-const chessActionTemplates = {
-  doubleThreat: chessTaskCopy({
-    en: "Find the double threat.",
-    es: "Encuentra la doble amenaza.",
-    fr: "Trouvez la double menace.",
-    de: "Finde die doppelte Drohung.",
-    it: "Trova la doppia minaccia.",
-    pt: "Encontre a ameaca dupla.",
-  }),
-  kingTrap: chessTaskCopy({
-    en: "Find the strongest king pressure.",
-    es: "Encuentra la presion mas fuerte sobre el rey.",
-    fr: "Trouvez la meilleure pression sur le roi.",
-    de: "Finde den staerksten Druck gegen den Koenig.",
-    it: "Trova la pressione piu forte sul re.",
-    pt: "Encontre a pressao mais forte sobre o rei.",
-  }),
-  linePressure: chessTaskCopy({
-    en: "Find the pressure on the line.",
-    es: "Encuentra la presion en la linea.",
-    fr: "Trouvez la pression sur la ligne.",
-    de: "Finde den Druck auf der Linie.",
-    it: "Trova la pressione sulla linea.",
-    pt: "Encontre a pressao na linha.",
-  }),
-  valuableLine: chessTaskCopy({
-    en: "Find the forcing line.",
-    es: "Encuentra la linea forzada.",
-    fr: "Trouvez la ligne forcee.",
-    de: "Finde die forcierte Linie.",
-    it: "Trova la linea forzata.",
-    pt: "Encontre a linha forcada.",
-  }),
-  openLine: chessTaskCopy({
-    en: "Find the file pressure.",
-    es: "Encuentra la presion en la columna.",
-    fr: "Trouvez la pression sur la colonne.",
-    de: "Finde den Druck auf der Linie.",
-    it: "Trova la pressione sulla colonna.",
-    pt: "Encontre a pressao na coluna.",
-  }),
-  defenderWork: chessTaskCopy({
-    en: "Find the defender problem.",
-    es: "Encuentra el problema del defensor.",
-    fr: "Trouvez le probleme du defenseur.",
-    de: "Finde das Verteidigerproblem.",
-    it: "Trova il problema del difensore.",
-    pt: "Encontre o problema do defensor.",
-  }),
-  pullAway: chessTaskCopy({
-    en: "Find how to pull the defense away.",
-    es: "Encuentra como alejar la defensa.",
-    fr: "Trouvez comment eloigner la defense.",
-    de: "Finde, wie die Verteidigung weggezogen wird.",
-    it: "Trova come allontanare la difesa.",
-    pt: "Encontre como afastar a defesa.",
-  }),
-  inviteDanger: chessTaskCopy({
-    en: "Find the forcing square.",
-    es: "Encuentra la casilla forzada.",
-    fr: "Trouvez la case forcee.",
-    de: "Finde das forcierte Feld.",
-    it: "Trova la casa forzata.",
-    pt: "Encontre a casa forcada.",
-  }),
-  clearPath: chessTaskCopy({
-    en: "Find how to clear the path.",
-    es: "Encuentra como despejar el camino.",
-    fr: "Trouvez comment liberer le passage.",
-    de: "Finde, wie der Weg frei wird.",
-    it: "Trova come liberare il passaggio.",
-    pt: "Encontre como abrir o caminho.",
-  }),
-  tableMove: chessTaskCopy({
-    en: "Find the best forcing idea.",
-    es: "Encuentra la mejor idea forzada.",
-    fr: "Trouvez la meilleure idee forcee.",
-    de: "Finde die beste forcierte Idee.",
-    it: "Trova la migliore idea forzata.",
-    pt: "Encontre a melhor ideia forcada.",
-  }),
-  strongSquare: chessTaskCopy({
-    en: "Find the strongest square.",
-    es: "Encuentra la casilla mas fuerte.",
-    fr: "Trouvez la case la plus forte.",
-    de: "Finde das staerkste Feld.",
-    it: "Trova la casa piu forte.",
-    pt: "Encontre a casa mais forte.",
-  }),
-  escapeSquares: chessTaskCopy({
-    en: "Find the way to shrink the escape.",
-    es: "Encuentra como cerrar la salida.",
-    fr: "Trouvez comment reduire la fuite.",
-    de: "Finde, wie die Flucht enger wird.",
-    it: "Trova come chiudere la fuga.",
-    pt: "Encontre como fechar a fuga.",
-  }),
+const chessPromptStarters: Record<SocialGameLanguage, readonly string[]> = {
+  en: ["Find", "Spot", "Choose", "Look for"],
+  es: ["Encuentra", "Busca", "Elige", "Observa"],
+  fr: ["Trouvez", "Reperez", "Choisissez", "Cherchez"],
+  de: ["Finde", "Suche", "Waehle", "Erkenne"],
+  it: ["Trova", "Osserva", "Scegli", "Cerca"],
+  pt: ["Encontre", "Veja", "Escolha", "Procure"],
 };
 
-const chessActionTemplateByTag: Record<string, keyof typeof chessActionTemplates> = {
-  fork: "doubleThreat",
-  "double-attack": "doubleThreat",
-  "back-rank-mate": "kingTrap",
-  "mate-net": "escapeSquares",
-  pin: "linePressure",
-  skewer: "valuableLine",
-  "discovered-attack": "openLine",
-  deflection: "pullAway",
-  attraction: "inviteDanger",
-  "overloaded-defender": "defenderWork",
-  "remove-defender": "defenderWork",
-  clearance: "clearPath",
-  zwischenzug: "tableMove",
-  "trapped-piece": "escapeSquares",
-  promotion: "tableMove",
-  "open-file": "openLine",
-  outpost: "strongSquare",
-  "passed-pawn": "tableMove",
-  "stalemate-trap": "escapeSquares",
-  opposition: "tableMove",
+const chessActionTopics: Record<string, Record<SocialGameLanguage, string>> = {
+  fork: {
+    en: "the move with two targets",
+    es: "la jugada con dos objetivos",
+    fr: "le coup avec deux cibles",
+    de: "den Zug mit zwei Zielen",
+    it: "la mossa con due bersagli",
+    pt: "o lance com dois alvos",
+  },
+  "back-rank-mate": {
+    en: "the pressure around the boxed-in king",
+    es: "la presion contra el rey encerrado",
+    fr: "la pression contre le roi enferme",
+    de: "den Druck gegen den eingesperrten Koenig",
+    it: "la pressione sul re chiuso",
+    pt: "a pressao sobre o rei preso",
+  },
+  pin: {
+    en: "the line where a defender is stuck",
+    es: "la linea donde un defensor queda atado",
+    fr: "la ligne ou un defenseur reste bloque",
+    de: "die Linie, auf der ein Verteidiger feststeckt",
+    it: "la linea dove un difensore resta fermo",
+    pt: "a linha onde um defensor fica preso",
+  },
+  skewer: {
+    en: "the line that chases the front target",
+    es: "la linea que persigue el objetivo delantero",
+    fr: "la ligne qui chasse la cible de devant",
+    de: "die Linie, die das vordere Ziel jagt",
+    it: "la linea che caccia il bersaglio davanti",
+    pt: "a linha que persegue o alvo da frente",
+  },
+  "discovered-attack": {
+    en: "the move that opens a hidden line",
+    es: "la jugada que abre una linea oculta",
+    fr: "le coup qui ouvre une ligne cachee",
+    de: "den Zug, der eine versteckte Linie oeffnet",
+    it: "la mossa che apre una linea nascosta",
+    pt: "o lance que abre uma linha escondida",
+  },
+  "mate-net": {
+    en: "the move that cuts off the escape",
+    es: "la jugada que corta la salida",
+    fr: "le coup qui coupe la fuite",
+    de: "den Zug, der die Flucht abschneidet",
+    it: "la mossa che chiude la fuga",
+    pt: "o lance que corta a fuga",
+  },
+  "double-attack": {
+    en: "the move that makes two problems at once",
+    es: "la jugada que crea dos problemas a la vez",
+    fr: "le coup qui cree deux problemes a la fois",
+    de: "den Zug, der zwei Probleme zugleich macht",
+    it: "la mossa che crea due problemi insieme",
+    pt: "o lance que cria dois problemas ao mesmo tempo",
+  },
+  deflection: {
+    en: "the move that pulls a guard away",
+    es: "la jugada que aparta a un guardia",
+    fr: "le coup qui eloigne un gardien",
+    de: "den Zug, der einen Waechter wegzieht",
+    it: "la mossa che allontana una guardia",
+    pt: "o lance que afasta um guardiao",
+  },
+  attraction: {
+    en: "the square that makes the target unsafe",
+    es: "la casilla que vuelve inseguro al objetivo",
+    fr: "la case qui rend la cible moins sure",
+    de: "das Feld, das das Ziel unsicher macht",
+    it: "la casa che rende insicuro il bersaglio",
+    pt: "a casa que deixa o alvo inseguro",
+  },
+  "overloaded-defender": {
+    en: "the defender with too many jobs",
+    es: "el defensor con demasiadas tareas",
+    fr: "le defenseur avec trop de travail",
+    de: "den Verteidiger mit zu vielen Aufgaben",
+    it: "il difensore con troppi compiti",
+    pt: "o defensor com tarefas demais",
+  },
+  "remove-defender": {
+    en: "the move that clears a guard from duty",
+    es: "la jugada que quita al guardia",
+    fr: "le coup qui enleve le gardien",
+    de: "den Zug, der den Waechter entfernt",
+    it: "la mossa che toglie la guardia",
+    pt: "o lance que tira o guardiao",
+  },
+  clearance: {
+    en: "the move that opens room for another piece",
+    es: "la jugada que abre espacio para otra pieza",
+    fr: "le coup qui fait de la place pour une autre piece",
+    de: "den Zug, der Raum fuer eine andere Figur schafft",
+    it: "la mossa che fa spazio a un altro pezzo",
+    pt: "o lance que abre espaco para outra peca",
+  },
+  zwischenzug: {
+    en: "the surprise before the expected reply",
+    es: "la sorpresa antes de responder",
+    fr: "la surprise avant la reponse attendue",
+    de: "den Zug vor der erwarteten Antwort",
+    it: "la sorpresa prima della risposta",
+    pt: "a surpresa antes da resposta",
+  },
+  "trapped-piece": {
+    en: "the move that leaves a piece short of exits",
+    es: "la jugada que deja una pieza sin salidas",
+    fr: "le coup qui laisse une piece sans sorties",
+    de: "den Zug, der einer Figur die Auswege nimmt",
+    it: "la mossa che lascia un pezzo senza uscite",
+    pt: "o lance que deixa uma peca sem saidas",
+  },
+  promotion: {
+    en: "the pawn move that changes the race",
+    es: "el avance de peon que cambia la carrera",
+    fr: "l'avance de pion qui change la course",
+    de: "den Bauernzug, der das Rennen veraendert",
+    it: "la spinta di pedone che cambia la corsa",
+    pt: "o avanco de peao que muda a corrida",
+  },
+  "open-file": {
+    en: "the open line for heavy-piece pressure",
+    es: "la linea abierta para presionar",
+    fr: "la ligne ouverte pour la pression des grosses pieces",
+    de: "den Druck fuer die schweren Figuren",
+    it: "la linea aperta per la pressione dei pezzi pesanti",
+    pt: "a linha aberta para pressao das pecas pesadas",
+  },
+  outpost: {
+    en: "the stable square that improves the position",
+    es: "la casilla estable que mejora la posicion",
+    fr: "la case stable qui ameliore la position",
+    de: "das stabile Feld, das die Stellung verbessert",
+    it: "la casa stabile che migliora la posizione",
+    pt: "a casa estavel que melhora a posicao",
+  },
+  "passed-pawn": {
+    en: "the pawn path that is hardest to stop",
+    es: "el camino de peon mas dificil de parar",
+    fr: "le chemin du pion le plus difficile a arreter",
+    de: "den Bauernweg, der am schwersten zu stoppen ist",
+    it: "il percorso di pedone piu difficile da fermare",
+    pt: "o caminho de peao mais dificil de parar",
+  },
+  "stalemate-trap": {
+    en: "the drawing resource in the cornered position",
+    es: "el recurso de tablas en la posicion encerrada",
+    fr: "la ressource de nulle dans la position coincee",
+    de: "die Rettungsidee in der eingeklemmten Stellung",
+    it: "la risorsa di patta nella posizione chiusa",
+    pt: "o recurso de empate na posicao encurralada",
+  },
+  opposition: {
+    en: "the king move that wins the path",
+    es: "la jugada de rey que gana el paso",
+    fr: "le coup de roi qui gagne le passage",
+    de: "den Koenigszug, der den Weg gewinnt",
+    it: "la mossa di re che conquista il passaggio",
+    pt: "o lance de rei que ganha a passagem",
+  },
+  default: {
+    en: "the best forcing idea",
+    es: "la mejor idea forzada",
+    fr: "la meilleure idee forcee",
+    de: "die beste forcierte Idee",
+    it: "la migliore idea forzata",
+    pt: "a melhor ideia forcada",
+  },
 };
 
 function getChessTapTargetSquare(visual: SocialGameRoundVisual) {
@@ -1707,10 +1754,15 @@ function getChessTapTargetSquare(visual: SocialGameRoundVisual) {
   return arrowStart ?? highlightedFriendlyPiece?.square ?? friendlyPiece?.square ?? highlightedSquares[0] ?? visual.pieces[0]?.square ?? "";
 }
 
-function chessActionCopy(tag: string, language: SocialGameLanguage): ChessActionCopy {
-  const templateKey = chessActionTemplateByTag[tag] ?? "tableMove";
+function chessActionCopy(tag: string, language: SocialGameLanguage, variantIndex = 0): ChessActionCopy {
+  const starters = chessPromptStarters[language];
+  const starter = starters[variantIndex % starters.length] ?? starters[0];
+  const topic = (chessActionTopics[tag] ?? chessActionTopics.default)[language];
 
-  return chessActionTemplates[templateKey][language];
+  return {
+    prompt: `${starter} ${topic}.`,
+    instruction: chessTapInstruction[language],
+  };
 }
 
 function chessVisualCaption(_tag: string, language: SocialGameLanguage) {
@@ -2053,7 +2105,7 @@ function buildChessPuzzleBank(language: SocialLanguage): SocialGameRound[] {
     theme.variants.map((variant, index) => {
       const hint = (variant.hint ?? theme.hint)[language];
       const visual = buildChessVisual(theme.tag, language, index);
-      const actionCopy = chessActionCopy(theme.tag, language);
+      const actionCopy = chessActionCopy(theme.tag, language, index);
 
       return {
         id: variant.suffix ? `${theme.id}-${variant.suffix}` : theme.id,
@@ -2218,7 +2270,7 @@ function buildExtraChessPuzzleBank(language: ExtraGameLanguage): SocialGameRound
 
     return theme.variants.map((variant, index) => {
       const visual = buildChessVisual(theme.tag, language, index);
-      const actionCopy = chessActionCopy(theme.tag, language);
+      const actionCopy = chessActionCopy(theme.tag, language, index);
 
       return {
         id: variant.suffix ? `${theme.id}-${variant.suffix}` : theme.id,
@@ -2704,10 +2756,26 @@ function addWordDecoyTiles(tiles: string[], answer: string, themeTag: string, su
   return nextTiles;
 }
 
+function wordLengthCue(answer: string, language: SocialGameLanguage) {
+  const letterCount = wordAnswerLetters(answer).length;
+  const lengthCue: Record<SocialGameLanguage, string> = {
+    en: `Aim for ${letterCount} letters.`,
+    es: `Busca ${letterCount} letras.`,
+    fr: `Vise ${letterCount} lettres.`,
+    de: `Ziel: ${letterCount} Buchstaben.`,
+    it: `Punta a ${letterCount} lettere.`,
+    pt: `Busque ${letterCount} letras.`,
+  };
+
+  return lengthCue[language];
+}
+
 function wordTilesPrompt(themeTag: string, variant: WordPuzzleVariant, language: SocialLanguage) {
   const baseWord = localizedField(variant, "baseWord", language);
   const clue = localizedField(variant, "clue", language);
-  return wordTablePrompt(wordTableThemeTag(themeTag), language, baseWord, clue);
+  const answer = localizedField(variant, "answer", language);
+
+  return `${wordTablePrompt(wordTableThemeTag(themeTag), language, baseWord, clue)} ${wordLengthCue(answer, language)}`;
 }
 
 function buildWordTilesVisual(themeTag: string, variant: WordPuzzleVariant, language: SocialLanguage): SocialGameRoundVisual {
@@ -3964,7 +4032,7 @@ function buildExtraWordPuzzleBank(language: ExtraGameLanguage): SocialGameRound[
       kind: "word" as const,
       title: copy.title,
       body: wordTableBody(strategyTag, language),
-      prompt: wordTablePrompt(strategyTag, language),
+      prompt: `${wordTablePrompt(strategyTag, language)} ${wordLengthCue(answer, language)}`,
       choices: [...choices],
       answer,
       hint,
@@ -5348,14 +5416,18 @@ function bridgeCardsLabel(ranks: BridgeRank[] | undefined, suit: BridgeSuit | un
   return `${rankText} de ${suitText}`;
 }
 
+function bridgeCallLabel(level: number, suit: BridgeSuit, language: SocialGameLanguage) {
+  return `${level} ${bridgeSuitLabel(suit, language)}`;
+}
+
 function bridgeBidLabel(level: number, suit: BridgeSuit, language: SocialGameLanguage) {
-  const suitText = bridgeSuitLabel(suit, language);
-  if (language === "de") return `${level} ${suitText} reizen`;
-  if (language === "fr") return `Annoncer ${level} ${suitText}`;
-  if (language === "it") return `Dichiarare ${level} ${suitText}`;
-  if (language === "pt") return `Declarar ${level} ${suitText}`;
-  if (language === "es") return `Cantar ${level} ${suitText}`;
-  return `Bid ${level} ${suitText}`;
+  const callText = bridgeCallLabel(level, suit, language);
+  if (language === "de") return `${callText} reizen`;
+  if (language === "fr") return `Annoncer ${callText}`;
+  if (language === "it") return `Dichiarare ${callText}`;
+  if (language === "pt") return `Declarar ${callText}`;
+  if (language === "es") return `Cantar ${callText}`;
+  return `Bid ${callText}`;
 }
 
 function bridgeChoiceText(choice: BridgeChoice, language: SocialGameLanguage) {
@@ -5566,8 +5638,8 @@ function buildBridgeVisual(variant: BridgePuzzleVariant, language: SocialGameLan
     kind: "bridgeCards",
     caption,
     ...(variant.points !== undefined ? { points: variant.points } : {}),
-    ...(variant.contractLevel && variant.contractSuit ? { contract: bridgeBidLabel(variant.contractLevel, variant.contractSuit, language) } : {}),
-    ...(variant.partnerSuit ? { partnerBid: bridgeBidLabel(variant.partnerLevel ?? 1, variant.partnerSuit, language) } : {}),
+    ...(variant.contractLevel && variant.contractSuit ? { contract: bridgeCallLabel(variant.contractLevel, variant.contractSuit, language) } : {}),
+    ...(variant.partnerSuit ? { partnerBid: bridgeCallLabel(variant.partnerLevel ?? 1, variant.partnerSuit, language) } : {}),
     ...(cards.length ? { cards } : {}),
     ...(suitLengths.length ? { suitLengths } : {}),
     ...(variant.missing && variant.suit ? { missingCard: { rank: bridgeRankLabel(variant.missing, language), suit: bridgeSuitLabel(variant.suit, language) } } : {}),
@@ -5599,14 +5671,16 @@ function openingPrompt(variant: BridgePuzzleVariant, language: SocialGameLanguag
 }
 
 function partnerPrompt(variant: BridgePuzzleVariant, language: SocialGameLanguage) {
-  const partnerBid = bridgeBidLabel(variant.partnerLevel ?? 1, variant.partnerSuit ?? "clubs", language);
+  const partnerBid = bridgeCallLabel(variant.partnerLevel ?? 1, variant.partnerSuit ?? "clubs", language);
+  const hasShape = variant.length !== undefined && variant.suit !== undefined;
+  const shape = hasShape ? bridgeLength(variant.length, variant.suit, language) : "";
   const intro = bridgeText(
-    `Partner opened ${partnerBid}. You have ${bridgePoints(variant.points, language)} and ${bridgeLength(variant.length, variant.suit, language)}.`,
-    `El companero abrio ${partnerBid}. Tienes ${bridgePoints(variant.points, language)} y ${bridgeLength(variant.length, variant.suit, language)}.`,
-    `Partner hat ${partnerBid} eroeffnet. Du hast ${bridgePoints(variant.points, language)} und ${bridgeLength(variant.length, variant.suit, language)}.`,
-    `Le partenaire a ouvert ${partnerBid}. Tu as ${bridgePoints(variant.points, language)} et ${bridgeLength(variant.length, variant.suit, language)}.`,
-    `Il partner ha aperto ${partnerBid}. Hai ${bridgePoints(variant.points, language)} e ${bridgeLength(variant.length, variant.suit, language)}.`,
-    `O parceiro abriu ${partnerBid}. Voce tem ${bridgePoints(variant.points, language)} e ${bridgeLength(variant.length, variant.suit, language)}.`,
+    hasShape ? `Partner opened ${partnerBid}. You have ${bridgePoints(variant.points, language)} and ${shape}.` : `Partner opened ${partnerBid}. You have ${bridgePoints(variant.points, language)}.`,
+    hasShape ? `El companero abrio ${partnerBid}. Tienes ${bridgePoints(variant.points, language)} y ${shape}.` : `El companero abrio ${partnerBid}. Tienes ${bridgePoints(variant.points, language)}.`,
+    hasShape ? `Partner hat ${partnerBid} eroeffnet. Du hast ${bridgePoints(variant.points, language)} und ${shape}.` : `Partner hat ${partnerBid} eroeffnet. Du hast ${bridgePoints(variant.points, language)}.`,
+    hasShape ? `Le partenaire a ouvert ${partnerBid}. Tu as ${bridgePoints(variant.points, language)} et ${shape}.` : `Le partenaire a ouvert ${partnerBid}. Tu as ${bridgePoints(variant.points, language)}.`,
+    hasShape ? `Il partner ha aperto ${partnerBid}. Hai ${bridgePoints(variant.points, language)} e ${shape}.` : `Il partner ha aperto ${partnerBid}. Hai ${bridgePoints(variant.points, language)}.`,
+    hasShape ? `O parceiro abriu ${partnerBid}. Voce tem ${bridgePoints(variant.points, language)} e ${shape}.` : `O parceiro abriu ${partnerBid}. Voce tem ${bridgePoints(variant.points, language)}.`,
   );
   return `${intro[language]} ${bridgeQuestion(language)}`;
 }
@@ -5639,7 +5713,7 @@ function twoSuitPrompt(variant: BridgePuzzleVariant, language: SocialGameLanguag
 }
 
 function leadPrompt(variant: BridgePuzzleVariant, language: SocialGameLanguage) {
-  const contract = bridgeBidLabel(variant.contractLevel ?? 3, variant.contractSuit ?? "noTrump", language);
+  const contract = bridgeCallLabel(variant.contractLevel ?? 3, variant.contractSuit ?? "noTrump", language);
   const holding = bridgeCardsLabel(variant.sequence ?? variant.holding, variant.suit, language);
   const intro = bridgeText(
     `You are making the opening lead against ${contract}. Your useful holding is ${holding}.`,
@@ -5653,15 +5727,14 @@ function leadPrompt(variant: BridgePuzzleVariant, language: SocialGameLanguage) 
 }
 
 function conceptPrompt(variant: BridgePuzzleVariant, language: SocialGameLanguage) {
-  const suit = bridgeSuitLabel(variant.suit ?? variant.contractSuit, language);
   const cards = bridgeCardsLabel(variant.holding, variant.suit ?? variant.contractSuit, language);
   const intro = bridgeText(
-    `At the bridge table, the key clue is ${cards} in ${suit}.`,
-    `En la mesa de bridge, la pista clave es ${cards} en ${suit}.`,
-    `Am Bridgetisch ist der wichtige Hinweis ${cards} in ${suit}.`,
-    `A la table de bridge, l'indice cle est ${cards} en ${suit}.`,
-    `Al tavolo di bridge, l'indizio chiave e ${cards} a ${suit}.`,
-    `Na mesa de bridge, a pista principal e ${cards} em ${suit}.`,
+    `At the bridge table, the key holding is ${cards}.`,
+    `En la mesa de bridge, la pista clave es ${cards}.`,
+    `Am Bridgetisch ist der wichtige Hinweis ${cards}.`,
+    `A la table de bridge, l'indice cle est ${cards}.`,
+    `Al tavolo di bridge, l'indizio chiave e ${cards}.`,
+    `Na mesa de bridge, a pista principal e ${cards}.`,
   );
   return `${intro[language]} ${bridgeQuestion(language)}`;
 }
@@ -5826,7 +5899,7 @@ const bridgePuzzleThemes: BridgePuzzleTheme[] = [
     tag: "trump-timing",
     body: bridgeText("Decide when to draw trumps.", "Decide cuando sacar triunfos.", "Entscheide, wann Trumpf gezogen wird.", "Decide quand enlever les atouts.", "Decidi quando battere gli atout.", "Decida quando tirar trunfos."),
     successMessage: bridgeText("Good timing. Trumps are control, but sometimes side-suit work comes first.", "Buen tempo. Los triunfos controlan, pero a veces hay trabajo lateral.", "Gutes Timing. Trumpf kontrolliert, aber Nebenfarben kommen manchmal zuerst.", "Bon tempo. Les atouts controlent, mais une couleur secondaire peut passer avant.", "Buon tempo. Gli atout controllano, ma a volte serve il seme laterale.", "Bom tempo. Trunfos controlam, mas as vezes o naipe lateral vem primeiro."),
-    prompt: (variant, language) => `${bridgeBidLabel(variant.contractLevel ?? 4, variant.contractSuit ?? "hearts", language)}. ${bridgeQuestion(language)}`,
+    prompt: (variant, language) => `${bridgeCallLabel(variant.contractLevel ?? 4, variant.contractSuit ?? "hearts", language)}. ${bridgeQuestion(language)}`,
     hint: (_variant, language) => bridgeText("Draw trumps when ruffs threaten you; delay when you need a ruff.", "Saca triunfos si te amenazan fallos; espera si necesitas fallar.", "Ziehe Trumpf bei Schnappgefahr; warte, wenn du schnappen musst.", "Enleve les atouts si les coupes menacent; attends si tu dois couper.", "Batti atout se i tagli minacciano; aspetta se devi tagliare.", "Tire trunfos se cortes ameacam; espere se voce precisa cortar.")[language],
     variants: [
       { suffix: "draw-now-hearts", contractLevel: 4, contractSuit: "hearts", choices: [term("drawTrumps"), term("ruffLoser"), term("finesse")], answer: term("drawTrumps") },
@@ -5953,13 +6026,14 @@ function buildBridgePuzzleBank(language: SocialGameLanguage): SocialGameRound[] 
   return bridgePuzzleThemes.flatMap((theme) =>
     theme.variants.map((variant) => {
       const hint = theme.hint(variant, language);
+      const prompt = theme.prompt(variant, language);
 
       return {
         id: `${theme.id}-${variant.suffix}`,
         kind: "bridge" as const,
         title: bridgeRoundTitles[language],
         body: theme.body[language],
-        prompt: bridgeQuestion(language),
+        prompt,
         choices: variant.choices.map((choice) => bridgeChoiceText(choice, language)),
         answer: bridgeChoiceText(variant.answer, language),
         hint,

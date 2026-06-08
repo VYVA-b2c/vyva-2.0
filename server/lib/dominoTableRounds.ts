@@ -120,6 +120,25 @@ function dominoActionLabel(action: DominoActionKey, language: SocialGameLanguage
   return dominoActionLabels[action][language];
 }
 
+function dominoOpenEndsPrompt(variant: DominoTableVariant, language: SocialGameLanguage) {
+  const [leftEnd, rightEnd] = variant.openEnds;
+  const left = dominoValueLabel(leftEnd, language);
+  const right = dominoValueLabel(rightEnd, language);
+
+  return copy(
+    `Open ends: ${left} and ${right}.`,
+    `Extremos abiertos: ${left} y ${right}.`,
+    `Offene Enden: ${left} und ${right}.`,
+    `Bouts ouverts: ${left} et ${right}.`,
+    `Estremita aperte: ${left} e ${right}.`,
+    `Pontas abertas: ${left} e ${right}.`,
+  )[language];
+}
+
+function dominoPrompt(theme: DominoTableTheme, variant: DominoTableVariant, language: SocialGameLanguage) {
+  return `${theme.prompt[language]} ${dominoOpenEndsPrompt(variant, language)}`;
+}
+
 function dominoPlayChoiceLabel(tile: DominoTile, language: SocialGameLanguage, end?: DominoEnd) {
   const tileLabel = dominoTileLabel(tile, language);
   if (!end) return tileLabel;
@@ -684,7 +703,7 @@ export function buildDominoTablePuzzleBank(language: SocialGameLanguage): Social
         kind: "dominoes" as const,
         title: dominoesRoundTitles[language],
         body: theme.body[language],
-        prompt: theme.prompt[language],
+        prompt: dominoPrompt(theme, variant, language),
         choices,
         answer,
         hint,
