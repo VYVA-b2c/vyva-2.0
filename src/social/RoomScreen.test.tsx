@@ -91,6 +91,7 @@ const movementRoomResponse: SocialRoomResponse = {
   ],
   memberChat: [],
 };
+const movementExerciseIds = Object.keys(MOVEMENT_EXERCISE_SESSIONS) as Array<keyof typeof MOVEMENT_EXERCISE_SESSIONS>;
 
 const readingRoomResponse: SocialRoomResponse = {
   room: {
@@ -288,6 +289,15 @@ describe("RoomScreen movement room", () => {
         ).toHaveLength(steps.length);
       });
     });
+  });
+
+  it.each(movementExerciseIds)("renders an animation cue for the %s guide", (exerciseId) => {
+    renderRoom(`/social-rooms/morning-movement/exercises/${exerciseId}`);
+
+    expect(screen.getByTestId("movement-exercise-step-visual")).toHaveAttribute(
+      "data-motion",
+      MOVEMENT_EXERCISE_SESSIONS[exerciseId].visuals[0],
+    );
   });
 
   it("starts the live audio guide with exercise-specific context", async () => {
