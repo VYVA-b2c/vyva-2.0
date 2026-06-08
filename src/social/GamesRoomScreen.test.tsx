@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import GamesRoomScreen from "./GamesRoomScreen";
-import type { SocialGameRound, SocialRoomResponse } from "./types";
+import type { SocialGameDifficulty, SocialGameRound, SocialRoomResponse } from "./types";
 
 const apiFetchMock = vi.fn();
 
@@ -9,7 +9,21 @@ vi.mock("@/lib/queryClient", () => ({
   apiFetch: (...args: unknown[]) => apiFetchMock(...args),
 }));
 
+function testDifficultyForIndex(index: number): SocialGameDifficulty {
+  if (index === 0) return "medium";
+  if (index === 1) return "easy";
+  if (index === 2) return "hard";
+  if (index === 3) return "medium";
+  return ["easy", "medium", "hard", "expert"][index % 4] as SocialGameDifficulty;
+}
+
+function tagsWithDifficulty(tags: string[], difficulty: SocialGameDifficulty) {
+  return [...tags, `difficulty:${difficulty}`];
+}
+
 function createWordRound(index: number): SocialGameRound {
+  const difficulty = testDifficultyForIndex(index);
+
   if (index === 0) {
     return {
       id: "word-table-anagram-smile",
@@ -20,9 +34,10 @@ function createWordRound(index: number): SocialGameRound {
       choices: ["SMILE", "LIMES", "MILES"],
       answer: "SMILE",
       hint: "Choose the word you could send as a greeting.",
-      tags: ["games", "scrabble", "words", "game:word", "word:strategy", "word:anagram"],
+      tags: tagsWithDifficulty(["games", "scrabble", "words", "game:word", "word:strategy", "word:anagram"], difficulty),
       estimatedDurationSeconds: 75,
       successMessage: "Good word-table judgement.",
+      difficulty,
       interaction: {
         kind: "wordBuild",
         instruction: "Tap tiles into your tray.",
@@ -48,9 +63,10 @@ function createWordRound(index: number): SocialGameRound {
       choices: ["PEACE", "PACES", "CAPES"],
       answer: "PEACE",
       hint: "It means calm between people.",
-      tags: ["games", "scrabble", "words", "game:word", "word:strategy", "word:anagram"],
+      tags: tagsWithDifficulty(["games", "scrabble", "words", "game:word", "word:strategy", "word:anagram"], difficulty),
       estimatedDurationSeconds: 80,
       successMessage: "Good word-table judgement.",
+      difficulty,
       interaction: {
         kind: "wordBuild",
         instruction: "Tap tiles into your tray.",
@@ -75,9 +91,10 @@ function createWordRound(index: number): SocialGameRound {
     choices: [`WORD${index + 1}`, `TILE${index + 1}`, `GAME${index + 1}`],
     answer: `WORD${index + 1}`,
     hint: "Pick the strongest word.",
-    tags: ["games", "scrabble", "words", "game:word", "word:strategy", "word:test"],
+    tags: tagsWithDifficulty(["games", "scrabble", "words", "game:word", "word:strategy", "word:test"], difficulty),
     estimatedDurationSeconds: 80,
     successMessage: "Nice word choice.",
+    difficulty,
     interaction: {
       kind: "wordBuild",
       instruction: "Tap tiles into your tray.",
@@ -95,6 +112,8 @@ function createWordRound(index: number): SocialGameRound {
 const wordRounds = Array.from({ length: 80 }, (_, index) => createWordRound(index));
 
 function createDominoesRound(index: number): SocialGameRound {
+  const difficulty = testDifficultyForIndex(index);
+
   if (index === 0) {
     return {
       id: "domino-table-next-move-six-four",
@@ -105,9 +124,10 @@ function createDominoesRound(index: number): SocialGameRound {
       choices: ["Six-four", "Two-three", "Five-one", "Four-blank"],
       answer: "Six-four",
       hint: "After the tile lands, look for the new open number in your hand.",
-      tags: ["games", "dominoes", "game:dominoes", "dominoes:next-move"],
+      tags: tagsWithDifficulty(["games", "dominoes", "game:dominoes", "dominoes:next-move"], difficulty),
       estimatedDurationSeconds: 85,
       successMessage: "Good table sense. You left yourself a useful number.",
+      difficulty,
       interaction: {
         kind: "dominoPlay",
         instruction: "Tap a tile from your hand.",
@@ -139,9 +159,10 @@ function createDominoesRound(index: number): SocialGameRound {
       choices: ["Six-two on the right end", "Six-two on the left end", "Six-four"],
       answer: "Six-two on the right end",
       hint: "Try the end that leaves a number you can use again.",
-      tags: ["games", "dominoes", "game:dominoes", "dominoes:choose-end"],
+      tags: tagsWithDifficulty(["games", "dominoes", "game:dominoes", "dominoes:choose-end"], difficulty),
       estimatedDurationSeconds: 85,
       successMessage: "Nice. The same tile can tell two different stories.",
+      difficulty,
       interaction: {
         kind: "dominoPlay",
         instruction: "Tap a tile from your hand.",
@@ -174,9 +195,10 @@ function createDominoesRound(index: number): SocialGameRound {
     choices: [`Tile ${index + 1}`, `Pass ${index + 1}`, `Draw ${index + 1}`],
     answer: `Tile ${index + 1}`,
     hint: "Use the open ends and your hand.",
-    tags: ["games", "dominoes", "game:dominoes", "dominoes:test"],
+    tags: tagsWithDifficulty(["games", "dominoes", "game:dominoes", "dominoes:test"], difficulty),
     estimatedDurationSeconds: 85,
     successMessage: "Nice table sense.",
+    difficulty,
     interaction: {
       kind: "dominoPlay",
       instruction: "Tap a tile from your hand.",
@@ -199,6 +221,8 @@ function createDominoesRound(index: number): SocialGameRound {
 const dominoesRounds = Array.from({ length: 80 }, (_, index) => createDominoesRound(index));
 
 function createBridgeRound(index: number): SocialGameRound {
+  const difficulty = testDifficultyForIndex(index);
+
   if (index === 0) {
     return {
       id: "bridge-table-borderline-opening-rule-twenty",
@@ -209,9 +233,10 @@ function createBridgeRound(index: number): SocialGameRound {
       choices: ["Bid 1 spades", "Pass", "Bid 1 no-trump"],
       answer: "Bid 1 spades",
       hint: "Use points plus shape; do not count points alone.",
-      tags: ["games", "bridge", "cards", "game:bridge", "bridge:borderline-opening"],
+      tags: tagsWithDifficulty(["games", "bridge", "cards", "game:bridge", "bridge:borderline-opening"], difficulty),
       estimatedDurationSeconds: 85,
       successMessage: "Good auction judgement. Shape can justify action when points are close.",
+      difficulty,
       interaction: {
         kind: "bridgeAction",
         instruction: "Tap the best bridge action.",
@@ -250,9 +275,10 @@ function createBridgeRound(index: number): SocialGameRound {
       choices: ["Bid 1 no-trump", "Bid 2 no-trump", "Bid 1 clubs"],
       answer: "Bid 1 no-trump",
       hint: "Use points plus shape; do not count points alone.",
-      tags: ["games", "bridge", "cards", "game:bridge", "bridge:borderline-opening"],
+      tags: tagsWithDifficulty(["games", "bridge", "cards", "game:bridge", "bridge:borderline-opening"], difficulty),
       estimatedDurationSeconds: 85,
       successMessage: "Good auction judgement. Shape can justify action when points are close.",
+      difficulty,
       interaction: {
         kind: "bridgeAction",
         instruction: "Tap the best bridge action.",
@@ -288,9 +314,10 @@ function createBridgeRound(index: number): SocialGameRound {
     choices: [`Bridge ${index + 1}`, `Pass ${index + 1}`, `Lead ${index + 1}`],
     answer: `Bridge ${index + 1}`,
     hint: "Read the auction and table position.",
-    tags: ["games", "bridge", "cards", "game:bridge", "bridge:test"],
+    tags: tagsWithDifficulty(["games", "bridge", "cards", "game:bridge", "bridge:test"], difficulty),
     estimatedDurationSeconds: 85,
     successMessage: "Good bridge table choice.",
+    difficulty,
     interaction: {
       kind: "bridgeAction",
       instruction: "Tap the best bridge action.",
@@ -386,9 +413,10 @@ const roomResponse: SocialRoomResponse = {
         choices: ["Fork", "Castle", "Trade pawns"],
         answer: "Fork",
         hint: "One piece makes two threats at the same time.",
-        tags: ["games", "chess", "game:chess", "chess:fork"],
+        tags: tagsWithDifficulty(["games", "chess", "game:chess", "chess:fork"], "medium"),
         estimatedDurationSeconds: 90,
         successMessage: "Nice steady thinking. Forks are a classic way to start a chess chat.",
+        difficulty: "medium",
         interaction: {
           kind: "chessTap",
           instruction: "Tap a piece or square.",
@@ -420,9 +448,10 @@ const roomResponse: SocialRoomResponse = {
         choices: ["Back-rank mate", "En passant", "Pawn promotion"],
         answer: "Back-rank mate",
         hint: "The king has no safe square because its own pawns block the escape.",
-        tags: ["games", "chess", "game:chess", "chess:mate"],
+        tags: tagsWithDifficulty(["games", "chess", "game:chess", "chess:mate"], "hard"),
         estimatedDurationSeconds: 95,
         successMessage: "Good eye. Back-rank patterns are small puzzles that many chess players enjoy.",
+        difficulty: "hard",
         explanation: "Why this works: The king has no safe square because its own pawns block the escape.",
         tableTalkPrompt: "Ask someone which chess piece they enjoy moving most.",
         interaction: {
@@ -764,6 +793,50 @@ describe("GamesRoomScreen", () => {
         }),
       );
     });
+  });
+
+  it("paces the next word puzzle harder after a clean solve", async () => {
+    render(<GamesRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("games-round-word"));
+    fireEvent.click(screen.getByTestId("word-tile-4"));
+    fireEvent.click(screen.getByTestId("word-tile-2"));
+    fireEvent.click(screen.getByTestId("word-tile-1"));
+    fireEvent.click(screen.getByTestId("word-tile-3"));
+    fireEvent.click(screen.getByTestId("word-tile-0"));
+    fireEvent.click(screen.getByTestId("word-check-answer"));
+
+    expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("games-next-puzzle"));
+
+    expect(screen.getByText("Puzzle 3 of 80")).toBeInTheDocument();
+    expect(screen.getByText("Find the strongest test word 3.")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(gameRoundRequestBodies()).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          roundId: "word-table-test-3",
+          gameKind: "word",
+          status: "started",
+        }),
+      ]));
+    });
+  });
+
+  it("keeps the next word puzzle steadier after help was used", () => {
+    render(<GamesRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("games-round-word"));
+    fireEvent.click(screen.getByTestId("word-show-help"));
+    fireEvent.click(screen.getByTestId("word-show-choices"));
+    fireEvent.click(screen.getByText("SMILE"));
+
+    expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("games-next-puzzle"));
+
+    expect(screen.getByText("Puzzle 4 of 80")).toBeInTheDocument();
+    expect(screen.getByText("Find the strongest test word 4.")).toBeInTheDocument();
   });
 
   it("lets the Dominoes card browse an 80-puzzle dominoes bank", async () => {

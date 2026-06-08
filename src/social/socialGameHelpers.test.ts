@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import { buildGameDefaultRoundIds, buildGamePreferenceTag, buildGameTable } from "../../server/lib/socialGameRounds";
 import { buildReadingClubDestination } from "../../server/lib/readingClubDestination";
 import { formatSharedTopic, pickBestSocialMatch, supportsSocialMatching } from "../../server/lib/socialMatching";
-import type { SocialGameLanguage } from "./types";
+import type { SocialGameDifficulty, SocialGameKind, SocialGameLanguage } from "./types";
 
 const supportedGameLanguages: SocialGameLanguage[] = ["es", "en", "fr", "de", "it", "pt"];
+const supportedGameKinds: SocialGameKind[] = ["chess", "word", "dominoes", "bridge"];
+const supportedGameDifficulties: SocialGameDifficulty[] = ["easy", "medium", "hard", "expert"];
 
 describe("social games room helpers", () => {
   it("builds curated classic game rounds for the games room", () => {
@@ -26,14 +28,38 @@ describe("social games room helpers", () => {
     expect(bridgeRounds).toHaveLength(80);
     expect(new Set(bridgeRounds.map((round) => round.id)).size).toBe(bridgeRounds.length);
     expect(table.rounds.every((round) => round.tags.includes(buildGamePreferenceTag(round.kind)))).toBe(true);
+    expect(table.rounds.every((round) => round.difficulty && round.tags.includes(`difficulty:${round.difficulty}`))).toBe(true);
     expect(table.readyMembers.length).toBeGreaterThan(0);
+  });
+
+  it("calibrates game difficulty across every supported language and game", () => {
+    for (const language of supportedGameLanguages) {
+      const table = buildGameTable(language, 6);
+      const defaultRound = table.rounds.find((round) => round.id === table.defaultRoundId);
+
+      expect(defaultRound?.difficulty).toBe("medium");
+
+      for (const kind of supportedGameKinds) {
+        const kindRounds = table.rounds.filter((round) => round.kind === kind);
+        const defaultRoundId = table.defaultRoundIdsByKind?.[kind];
+        const kindDefaultRound = kindRounds.find((round) => round.id === defaultRoundId);
+
+        expect(kindRounds).toHaveLength(80);
+        expect(kindDefaultRound?.difficulty).toBe("medium");
+
+        for (const difficulty of supportedGameDifficulties) {
+          expect(kindRounds.filter((round) => round.difficulty === difficulty)).toHaveLength(20);
+          expect(kindRounds.every((round) => round.tags.includes(`difficulty:${round.difficulty}`))).toBe(true);
+        }
+      }
+    }
   });
 
   it("keeps the chess puzzle bank available in each supported app language", () => {
     for (const language of supportedGameLanguages) {
       const table = buildGameTable(language, 6);
       expect(table.rounds.filter((round) => round.kind === "chess")).toHaveLength(80);
-      expect(table.defaultRoundId).toBe("chess-clue-fork");
+      expect(table.rounds.find((round) => round.id === table.defaultRoundId)?.difficulty).toBe("medium");
     }
   });
 
@@ -103,7 +129,7 @@ describe("social games room helpers", () => {
       dominoes: 80,
       bridge: 80,
     });
-    expect(table.defaultRoundIndexesByKind?.chess).toBe(0);
+    expect(table.defaultRoundIndexesByKind?.chess).toBe(1);
   });
 
   it("prefers rounds outside the repeat cooldown after a bank has all been seen", () => {

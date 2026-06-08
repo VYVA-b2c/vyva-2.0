@@ -1,4 +1,5 @@
 import type {
+  SocialGameDifficulty,
   SocialGameKind,
   SocialGameLanguage,
   SocialGameReadyMember,
@@ -13,6 +14,8 @@ import { buildDominoTablePuzzleBank } from "./dominoTableRounds";
 type ExtraGameLanguage = Exclude<SocialGameLanguage, SocialLanguage>;
 
 const socialGameLanguages: SocialGameLanguage[] = ["es", "en", "fr", "de", "it", "pt"];
+const socialGameDifficultyOrder: SocialGameDifficulty[] = ["easy", "medium", "hard", "expert"];
+const DEFAULT_TARGET_DIFFICULTY: SocialGameDifficulty = "medium";
 
 function tactileInstruction(kind: SocialGameKind | "word", language: SocialGameLanguage) {
   const copy: Record<SocialGameKind, Record<SocialGameLanguage, string>> = {
@@ -5981,42 +5984,63 @@ const bridgePuzzleBank: Record<SocialGameLanguage, SocialGameRound[]> = {
   pt: buildBridgePuzzleBank("pt"),
 };
 
+function difficultyForRoundIndex(index: number): SocialGameDifficulty {
+  return socialGameDifficultyOrder[index % socialGameDifficultyOrder.length];
+}
+
+function difficultyTag(difficulty: SocialGameDifficulty) {
+  return `difficulty:${difficulty}`;
+}
+
+function calibratePuzzleBank(bank: SocialGameRound[]) {
+  return bank.map((round, index) => {
+    const difficulty = round.difficulty ?? difficultyForRoundIndex(index);
+    const tag = difficultyTag(difficulty);
+
+    return {
+      ...round,
+      difficulty,
+      tags: round.tags.includes(tag) ? round.tags : [...round.tags, tag],
+    };
+  });
+}
+
 const rounds: Record<SocialGameLanguage, SocialGameRound[]> = {
   en: [
-    ...chessPuzzleBank.en,
-    ...wordPuzzleBank.en,
-    ...dominoesPuzzleBank.en,
-    ...bridgePuzzleBank.en,
+    ...calibratePuzzleBank(chessPuzzleBank.en),
+    ...calibratePuzzleBank(wordPuzzleBank.en),
+    ...calibratePuzzleBank(dominoesPuzzleBank.en),
+    ...calibratePuzzleBank(bridgePuzzleBank.en),
   ],
   es: [
-    ...chessPuzzleBank.es,
-    ...wordPuzzleBank.es,
-    ...dominoesPuzzleBank.es,
-    ...bridgePuzzleBank.es,
+    ...calibratePuzzleBank(chessPuzzleBank.es),
+    ...calibratePuzzleBank(wordPuzzleBank.es),
+    ...calibratePuzzleBank(dominoesPuzzleBank.es),
+    ...calibratePuzzleBank(bridgePuzzleBank.es),
   ],
   de: [
-    ...chessPuzzleBank.de,
-    ...wordPuzzleBank.de,
-    ...dominoesPuzzleBank.de,
-    ...bridgePuzzleBank.de,
+    ...calibratePuzzleBank(chessPuzzleBank.de),
+    ...calibratePuzzleBank(wordPuzzleBank.de),
+    ...calibratePuzzleBank(dominoesPuzzleBank.de),
+    ...calibratePuzzleBank(bridgePuzzleBank.de),
   ],
   fr: [
-    ...chessPuzzleBank.fr,
-    ...wordPuzzleBank.fr,
-    ...dominoesPuzzleBank.fr,
-    ...bridgePuzzleBank.fr,
+    ...calibratePuzzleBank(chessPuzzleBank.fr),
+    ...calibratePuzzleBank(wordPuzzleBank.fr),
+    ...calibratePuzzleBank(dominoesPuzzleBank.fr),
+    ...calibratePuzzleBank(bridgePuzzleBank.fr),
   ],
   it: [
-    ...chessPuzzleBank.it,
-    ...wordPuzzleBank.it,
-    ...dominoesPuzzleBank.it,
-    ...bridgePuzzleBank.it,
+    ...calibratePuzzleBank(chessPuzzleBank.it),
+    ...calibratePuzzleBank(wordPuzzleBank.it),
+    ...calibratePuzzleBank(dominoesPuzzleBank.it),
+    ...calibratePuzzleBank(bridgePuzzleBank.it),
   ],
   pt: [
-    ...chessPuzzleBank.pt,
-    ...wordPuzzleBank.pt,
-    ...dominoesPuzzleBank.pt,
-    ...bridgePuzzleBank.pt,
+    ...calibratePuzzleBank(chessPuzzleBank.pt),
+    ...calibratePuzzleBank(wordPuzzleBank.pt),
+    ...calibratePuzzleBank(dominoesPuzzleBank.pt),
+    ...calibratePuzzleBank(bridgePuzzleBank.pt),
   ],
 };
 
@@ -6035,6 +6059,7 @@ type BuildGameTableOptions = {
   compact?: boolean;
   cooldownDays?: number;
   now?: Date;
+  targetDifficulty?: SocialGameDifficulty;
 };
 
 const DEFAULT_ROUND_COOLDOWN_DAYS = 14;
@@ -6067,11 +6092,38 @@ function getCooldownThreshold(options: BuildGameTableOptions = {}) {
   return nowTime - cooldownDays * 24 * 60 * 60 * 1000;
 }
 
+function difficultyPreference(targetDifficulty: SocialGameDifficulty = DEFAULT_TARGET_DIFFICULTY) {
+  if (targetDifficulty === "easy") return ["easy", "medium", "hard", "expert"] satisfies SocialGameDifficulty[];
+  if (targetDifficulty === "hard") return ["hard", "expert", "medium", "easy"] satisfies SocialGameDifficulty[];
+  if (targetDifficulty === "expert") return ["expert", "hard", "medium", "easy"] satisfies SocialGameDifficulty[];
+  return ["medium", "hard", "expert", "easy"] satisfies SocialGameDifficulty[];
+}
+
+function difficultyRank(round: SocialGameRound, targetDifficulty: SocialGameDifficulty = DEFAULT_TARGET_DIFFICULTY) {
+  const difficulty = round.difficulty ?? DEFAULT_TARGET_DIFFICULTY;
+  const index = difficultyPreference(targetDifficulty).indexOf(difficulty);
+  return index >= 0 ? index : difficultyPreference(targetDifficulty).length;
+}
+
+function sortDifficultyCandidates(
+  roundsToSort: SocialGameRound[],
+  kindRounds: SocialGameRound[],
+  targetDifficulty: SocialGameDifficulty = DEFAULT_TARGET_DIFFICULTY,
+) {
+  return [...roundsToSort].sort((a, b) => {
+    const difficultyDelta = difficultyRank(a, targetDifficulty) - difficultyRank(b, targetDifficulty);
+    if (difficultyDelta !== 0) return difficultyDelta;
+
+    return kindRounds.indexOf(a) - kindRounds.indexOf(b);
+  });
+}
+
 function sortRepeatCandidates(
   roundsToSort: SocialGameRound[],
   kindRounds: SocialGameRound[],
   kind: SocialGameKind,
   attemptsByRound: Map<string, SocialGameRoundAttemptSummary>,
+  targetDifficulty: SocialGameDifficulty = DEFAULT_TARGET_DIFFICULTY,
 ) {
   return [...roundsToSort].sort((a, b) => {
     const aAttempt = attemptsByRound.get(attemptKey(kind, a.id));
@@ -6081,6 +6133,9 @@ function sortRepeatCandidates(
 
     const seenDelta = toSeenTime(aAttempt?.lastSeenAt) - toSeenTime(bAttempt?.lastSeenAt);
     if (seenDelta !== 0) return seenDelta;
+
+    const difficultyDelta = difficultyRank(a, targetDifficulty) - difficultyRank(b, targetDifficulty);
+    if (difficultyDelta !== 0) return difficultyDelta;
 
     return kindRounds.indexOf(a) - kindRounds.indexOf(b);
   });
@@ -6095,8 +6150,10 @@ function pickDefaultRoundForKind(
   const kindRounds = localizedRounds.filter((round) => round.kind === kind);
   if (!kindRounds.length) return undefined;
 
-  const unseenRound = kindRounds.find((round) => !attemptsByRound.has(attemptKey(kind, round.id)));
-  if (unseenRound) return unseenRound.id;
+  const unseenRounds = kindRounds.filter((round) => !attemptsByRound.has(attemptKey(kind, round.id)));
+  if (unseenRounds.length) {
+    return sortDifficultyCandidates(unseenRounds, kindRounds, options.targetDifficulty)[0]?.id;
+  }
 
   const cooldownThreshold = getCooldownThreshold(options);
   const outsideCooldown = kindRounds.filter((round) => {
@@ -6109,6 +6166,7 @@ function pickDefaultRoundForKind(
     kindRounds,
     kind,
     attemptsByRound,
+    options.targetDifficulty,
   )[0]?.id;
 }
 

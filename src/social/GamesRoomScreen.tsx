@@ -24,6 +24,7 @@ import gameTableImage from "@/assets/games-room-tabletop.webp";
 import AgentAvatar from "./AgentAvatar";
 import SocialStyles from "./SocialStyles";
 import type {
+  SocialGameDifficulty,
   SocialGameKind,
   SocialGameLanguage,
   SocialGameRound,
@@ -50,8 +51,69 @@ const roundIcons: Record<SocialGameKind, LucideIcon> = {
 };
 
 const gameKindOrder: SocialGameKind[] = ["chess", "word", "dominoes", "bridge"];
+const gameDifficultyOrder: SocialGameDifficulty[] = ["easy", "medium", "hard", "expert"];
+const DEFAULT_GAME_DIFFICULTY: SocialGameDifficulty = "medium";
 
 type GameRoundsByKind = Partial<Record<SocialGameKind, SocialGameRound[]>>;
+
+function roundPlayKey(round: SocialGameRound) {
+  return `${round.kind}:${round.id}`;
+}
+
+function normalizedDifficulty(round?: SocialGameRound | null): SocialGameDifficulty {
+  return round?.difficulty ?? DEFAULT_GAME_DIFFICULTY;
+}
+
+function difficultyPreference(targetDifficulty: SocialGameDifficulty = DEFAULT_GAME_DIFFICULTY) {
+  if (targetDifficulty === "easy") return ["easy", "medium", "hard", "expert"] satisfies SocialGameDifficulty[];
+  if (targetDifficulty === "hard") return ["hard", "expert", "medium", "easy"] satisfies SocialGameDifficulty[];
+  if (targetDifficulty === "expert") return ["expert", "hard", "medium", "easy"] satisfies SocialGameDifficulty[];
+  return ["medium", "hard", "expert", "easy"] satisfies SocialGameDifficulty[];
+}
+
+function difficultyRank(round: SocialGameRound, targetDifficulty: SocialGameDifficulty = DEFAULT_GAME_DIFFICULTY) {
+  const index = difficultyPreference(targetDifficulty).indexOf(normalizedDifficulty(round));
+  return index >= 0 ? index : difficultyPreference(targetDifficulty).length;
+}
+
+function nextDifficultyTarget(round: SocialGameRound, wasAssisted: boolean): SocialGameDifficulty {
+  const currentRank = Math.max(0, gameDifficultyOrder.indexOf(normalizedDifficulty(round)));
+  if (wasAssisted) {
+    if (currentRank <= 1) return gameDifficultyOrder[currentRank] ?? DEFAULT_GAME_DIFFICULTY;
+    return gameDifficultyOrder[currentRank - 1] ?? DEFAULT_GAME_DIFFICULTY;
+  }
+
+  return gameDifficultyOrder[Math.min(gameDifficultyOrder.length - 1, currentRank + 1)] ?? DEFAULT_GAME_DIFFICULTY;
+}
+
+function circularDistance(fromIndex: number, toIndex: number, total: number) {
+  if (total <= 0) return 0;
+  return (toIndex - fromIndex + total) % total;
+}
+
+function pickPacedNextRound(
+  kindRounds: SocialGameRound[],
+  currentRound: SocialGameRound,
+  targetDifficulty: SocialGameDifficulty,
+  seenRoundKeys: Set<string>,
+) {
+  const currentIndex = Math.max(0, kindRounds.findIndex((round) => round.id === currentRound.id));
+  const candidates = kindRounds.filter((round) => round.id !== currentRound.id);
+  if (!candidates.length) return currentRound;
+
+  return [...candidates].sort((a, b) => {
+    const aSeen = seenRoundKeys.has(roundPlayKey(a)) ? 1 : 0;
+    const bSeen = seenRoundKeys.has(roundPlayKey(b)) ? 1 : 0;
+    if (aSeen !== bSeen) return aSeen - bSeen;
+
+    const difficultyDelta = difficultyRank(a, targetDifficulty) - difficultyRank(b, targetDifficulty);
+    if (difficultyDelta !== 0) return difficultyDelta;
+
+    const aIndex = kindRounds.findIndex((round) => round.id === a.id);
+    const bIndex = kindRounds.findIndex((round) => round.id === b.id);
+    return circularDistance(currentIndex, aIndex, kindRounds.length) - circularDistance(currentIndex, bIndex, kindRounds.length);
+  })[0] ?? currentRound;
+}
 
 function groupRoundsByKind(rounds: SocialGameRound[]): GameRoundsByKind {
   return rounds.reduce<GameRoundsByKind>((groups, round) => ({
@@ -1541,6 +1603,8 @@ export default function GamesRoomScreen({
   const [showTactileHelp, setShowTactileHelp] = useState(false);
   const [showTactileChoices, setShowTactileChoices] = useState(false);
   const [tactileFeedback, setTactileFeedback] = useState<string | null>(null);
+  const [difficultyTargetsByKind, setDifficultyTargetsByKind] = useState<Partial<Record<SocialGameKind, SocialGameDifficulty>>>({});
+  const [assistedRoundKeys, setAssistedRoundKeys] = useState<string[]>([]);
   const [persistedStartedRoundKeys, setPersistedStartedRoundKeys] = useState<string[]>([]);
   const [persistedCompletedRoundKeys, setPersistedCompletedRoundKeys] = useState<string[]>([]);
   const [persistedSkippedRoundKeys, setPersistedSkippedRoundKeys] = useState<string[]>([]);
@@ -1665,8 +1729,15 @@ export default function GamesRoomScreen({
     });
   };
 
+  const markRoundAssisted = (round: SocialGameRound | null | undefined) => {
+    if (!round) return;
+
+    const key = roundPlayKey(round);
+    setAssistedRoundKeys((current) => current.includes(key) ? current : [...current, key]);
+  };
+
   const persistStartedRound = async (round: SocialGameRound) => {
-    const key = `${round.kind}:${round.id}`;
+    const key = roundPlayKey(round);
     if (persistedStartedRoundKeys.includes(key)) return;
 
     setPersistedStartedRoundKeys((current) => current.includes(key) ? current : [...current, key]);
@@ -1674,7 +1745,7 @@ export default function GamesRoomScreen({
   };
 
   const persistSkippedRound = (round: SocialGameRound) => {
-    const key = `${round.kind}:${round.id}`;
+    const key = roundPlayKey(round);
     if (
       startedRoundId === round.id
       || completedRoundId === round.id
@@ -1734,12 +1805,25 @@ export default function GamesRoomScreen({
     if (!selectedRound || selectedKindRounds.length < 2) return;
 
     const currentIndex = Math.max(0, selectedPuzzleIndex);
+    const activeDifficultyTarget = difficultyTargetsByKind[selectedRound.kind];
+    if (offset > 0 && activeDifficultyTarget) {
+      const seenRoundKeys = new Set([
+        ...persistedStartedRoundKeys,
+        ...persistedCompletedRoundKeys,
+        ...persistedSkippedRoundKeys,
+        roundPlayKey(selectedRound),
+      ]);
+      const nextRound = pickPacedNextRound(selectedKindRounds, selectedRound, activeDifficultyTarget, seenRoundKeys);
+      selectRound(nextRound, { recordSkip: true, enterPlayMode: true });
+      return;
+    }
+
     const nextIndex = (currentIndex + offset + selectedKindRounds.length) % selectedKindRounds.length;
     selectRound(selectedKindRounds[nextIndex], { recordSkip: true, enterPlayMode: true });
   };
 
   const persistCompletedRound = (round: SocialGameRound) => {
-    const key = `${round.kind}:${round.id}`;
+    const key = roundPlayKey(round);
     if (persistedCompletedRoundKeys.includes(key)) return;
 
     setPersistedCompletedRoundKeys((current) => current.includes(key) ? current : [...current, key]);
@@ -1747,6 +1831,12 @@ export default function GamesRoomScreen({
   };
 
   const markRoundComplete = (round: SocialGameRound) => {
+    const key = roundPlayKey(round);
+    const wasAssisted = assistedRoundKeys.includes(key);
+    setDifficultyTargetsByKind((current) => ({
+      ...current,
+      [round.kind]: nextDifficultyTarget(round, wasAssisted),
+    }));
     setCompletedRoundId(round.id);
     setChoiceFeedback(null);
     setTactileFeedback(null);
@@ -1793,6 +1883,7 @@ export default function GamesRoomScreen({
       return;
     }
 
+    markRoundAssisted(selectedRound);
     setTactileFeedback(null);
     setChoiceFeedback(getChoiceTryAgainCopy(language));
     setShowTactileHelp(true);
@@ -1836,6 +1927,7 @@ export default function GamesRoomScreen({
       return;
     }
 
+    markRoundAssisted(selectedRound);
     setWrongTactileValue(value);
     setTactileFeedback(getTactileTryAgainCopy(language));
     if (selectedRound.kind !== "chess") {
@@ -1886,6 +1978,7 @@ export default function GamesRoomScreen({
 
   const revealWordLetter = () => {
     if (!selectedRound || !selectedWordVisual || hasCompletedSelectedRound) return;
+    markRoundAssisted(selectedRound);
     setShowWordHelp(true);
 
     const answer = normalizeWordAnswer(selectedRound.answer);
@@ -1911,6 +2004,7 @@ export default function GamesRoomScreen({
       setWordFeedback(null);
       markRoundComplete(selectedRound);
     } else {
+      markRoundAssisted(selectedRound);
       setShowWordHelp(true);
       setShowWordChoices(true);
       setWordFeedback(getWordTryAgainCopy(language));
@@ -2079,8 +2173,12 @@ export default function GamesRoomScreen({
                         onUndo={undoWordTile}
                         onClear={clearWordTiles}
                         onShuffle={shuffleWordTiles}
-                        onShowHelp={() => setShowWordHelp(true)}
+                        onShowHelp={() => {
+                          markRoundAssisted(selectedRound);
+                          setShowWordHelp(true);
+                        }}
                         onShowChoices={() => {
+                          markRoundAssisted(selectedRound);
                           setShowWordHelp(true);
                           setShowWordChoices(true);
                         }}
@@ -2100,7 +2198,10 @@ export default function GamesRoomScreen({
                             selectedTactileValue={selectedTactileValue}
                             isComplete={hasCompletedSelectedRound}
                             onTactileAnswer={chooseTactileAnswer}
-                            onShowHelp={() => setShowTactileHelp(true)}
+                            onShowHelp={() => {
+                              markRoundAssisted(selectedRound);
+                              setShowTactileHelp(true);
+                            }}
                           />
                         )}
 
@@ -2128,7 +2229,10 @@ export default function GamesRoomScreen({
                             selectedTactileValue={selectedTactileValue}
                             isComplete={hasCompletedSelectedRound}
                             onTactileAnswer={chooseTactileAnswer}
-                            onShowHelp={() => setShowTactileHelp(true)}
+                            onShowHelp={() => {
+                              markRoundAssisted(selectedRound);
+                              setShowTactileHelp(true);
+                            }}
                           />
                         )}
 
@@ -2147,6 +2251,7 @@ export default function GamesRoomScreen({
                               <button
                                 type="button"
                                 onClick={() => {
+                                  markRoundAssisted(selectedRound);
                                   setShowTactileHelp(true);
                                   setShowTactileChoices(true);
                                 }}
