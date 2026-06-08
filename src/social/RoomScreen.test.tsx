@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import MovementExerciseGuideScreen from "./MovementExerciseGuideScreen";
+import { MOVEMENT_EXERCISE_SESSIONS } from "./movementExercises";
 import RoomScreen from "./RoomScreen";
 import type { SocialRoomResponse } from "./types";
 
@@ -229,12 +230,14 @@ describe("RoomScreen movement room", () => {
     expect(screen.getByTestId("movement-exercise-guide")).toHaveTextContent("Chair yoga");
     expect(screen.getByTestId("movement-exercise-guide")).toHaveTextContent("Live audio guide");
     expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent("Sit tall with both feet flat.");
+    expect(screen.getByTestId("movement-exercise-step-visual")).toHaveAttribute("data-motion", "seated-tall");
     expect(screen.getByTestId("movement-exercise-guide-safety")).toHaveTextContent("Move gently. Stop if you feel pain, dizzy, or short of breath.");
     expect(screen.getByTestId("movement-exercise-guide-step-list")).toHaveTextContent("Session steps");
     expect(screen.getByTestId("movement-exercise-guide-audio-panel")).toHaveTextContent("The picture and audio stay on the same step.");
 
     fireEvent.click(screen.getByTestId("button-movement-guide-step-4"));
     expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent("Change sides slowly.");
+    expect(screen.getByTestId("movement-exercise-step-visual")).toHaveAttribute("data-motion", "side-change");
     fireEvent.click(screen.getByTestId("button-movement-guide-finish"));
 
     await waitFor(() => expect(screen.queryByTestId("movement-exercise-guide")).not.toBeInTheDocument());
@@ -257,19 +260,34 @@ describe("RoomScreen movement room", () => {
 
     expect(screen.getByTestId("movement-exercise-guide")).toHaveTextContent("Tai chi");
     expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent("Stand tall with a chair nearby if helpful.");
+    expect(screen.getByTestId("movement-exercise-step-visual")).toHaveAttribute("data-motion", "standing-support");
 
     fireEvent.click(screen.getByTestId("button-movement-guide-next"));
 
     expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent("Soften your knees.");
+    expect(screen.getByTestId("movement-exercise-step-visual")).toHaveAttribute("data-motion", "soft-knees");
 
     fireEvent.click(screen.getByTestId("button-movement-guide-back-step"));
 
     expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent("Stand tall with a chair nearby if helpful.");
+    expect(screen.getByTestId("movement-exercise-step-visual")).toHaveAttribute("data-motion", "standing-support");
 
     fireEvent.click(screen.getByTestId("button-movement-guide-step-4"));
 
     expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent("Float your hands forward and back slowly.");
+    expect(screen.getByTestId("movement-exercise-step-visual")).toHaveAttribute("data-motion", "hand-flow");
     expect(screen.getByTestId("button-movement-guide-finish")).toHaveTextContent("Finish and log 10 min");
+  });
+
+  it("has one animation cue for every Movement exercise guide step", () => {
+    Object.entries(MOVEMENT_EXERCISE_SESSIONS).forEach(([exerciseId, session]) => {
+      Object.entries(session.steps).forEach(([language, steps]) => {
+        expect(
+          session.visuals,
+          `${exerciseId} should have a visual cue for every ${language} step`,
+        ).toHaveLength(steps.length);
+      });
+    });
   });
 
   it("starts the live audio guide with exercise-specific context", async () => {
@@ -292,6 +310,7 @@ describe("RoomScreen movement room", () => {
           exercise_benefit: "Balance practice",
           current_step: "Stand tall with a chair nearby if helpful.",
           visual_step_label: "Step 1 of 4",
+          visual_motion: "standing-support",
           next_visual_action: "Next",
           safety_line: "Move gently. Stop if you feel pain, dizzy, or short of breath.",
         }),
@@ -310,7 +329,9 @@ describe("RoomScreen movement room", () => {
     fireEvent.click(screen.getByTestId("button-movement-guide-next"));
 
     expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent("Soften your knees.");
+    expect(screen.getByTestId("movement-exercise-step-visual")).toHaveAttribute("data-motion", "soft-knees");
     expect(voiceMock.sendContextUpdate).toHaveBeenCalledWith(expect.stringContaining("Soften your knees."));
+    expect(voiceMock.sendContextUpdate).toHaveBeenCalledWith(expect.stringContaining("\"visual_motion\":\"soft-knees\""));
     expect(voiceMock.sendText).toHaveBeenCalledWith(
       expect.stringContaining("Current step 2 of 4"),
       { invisibleInTranscript: true },

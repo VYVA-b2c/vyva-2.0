@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
+import MovementStepAnimation from "./MovementStepAnimation";
 import {
   MOVEMENT_EXERCISE_SESSIONS,
   MOVEMENT_EXERCISE_VISUALS,
@@ -16,9 +17,11 @@ import {
   saveLastMovementExerciseId,
   saveMovementWeekLogDates,
   type MovementExerciseLanguage,
+  type MovementStepMotion,
 } from "./movementExercises";
 
 const MOVEMENT_ROOM_PATH = "/social-rooms/morning-movement";
+const DEFAULT_MOVEMENT_STEP_MOTION: MovementStepMotion = "seated-tall";
 
 type GuideCopy = {
   backToRoom: string;
@@ -249,11 +252,11 @@ function getMovementGuideCopy(language: MovementExerciseLanguage): GuideCopy {
   };
 }
 
-function buildVoicePrompt(title: string, step: string, stepIndex: number, totalSteps: number, safety: string, readyHint: string) {
+function buildVoicePrompt(title: string, step: string, motion: MovementStepMotion, stepIndex: number, totalSteps: number, safety: string, readyHint: string) {
   return [
     `Guide the user through ${title}.`,
     `Current step ${stepIndex + 1} of ${totalSteps}: ${step}`,
-    `The visual guide is showing this exact step now.`,
+    `The visual guide is showing this exact step now with animation cue: ${motion}.`,
     `Do not move to a different step until the app sends new context.`,
     `Speak warmly, slowly, and plainly.`,
     `Keep it short, then pause so the user can move.`,
@@ -300,6 +303,10 @@ export default function MovementExerciseGuideScreen() {
   const isLastStep = stepIndex >= steps.length - 1;
   const progressPercent = Math.max(0, Math.min(100, ((stepIndex + 1) / totalSteps) * 100));
   const isAudioLive = voiceStatus === "connected";
+  const motionForStep = useCallback((nextStepIndex: number): MovementStepMotion => (
+    session?.visuals[nextStepIndex] ?? session?.visuals[0] ?? DEFAULT_MOVEMENT_STEP_MOTION
+  ), [session]);
+  const currentStepMotion = motionForStep(stepIndex);
 
   const voiceVariables = useCallback((nextStepIndex: number) => ({
     app_entrypoint: "movement_exercise_guide",
@@ -313,20 +320,22 @@ export default function MovementExerciseGuideScreen() {
     safety_line: sessionCopy.safety,
     visual_step_label: guideCopy.stepLabel(nextStepIndex + 1, steps.length),
     visual_step_text: steps[nextStepIndex] ?? "",
+    visual_motion: motionForStep(nextStepIndex),
     next_visual_action: nextStepIndex >= steps.length - 1 ? guideCopy.finish : guideCopy.nextStep,
     app_user_instruction: nextStepIndex >= steps.length - 1 ? guideCopy.finishHint : guideCopy.nextHint,
-  }), [exercise?.benefit, exercise?.id, exercise?.title, guideCopy, sessionCopy.safety, steps]);
+  }), [exercise?.benefit, exercise?.id, exercise?.title, guideCopy, motionForStep, sessionCopy.safety, steps]);
 
   const promptForStep = useCallback(
     (nextStepIndex: number) => buildVoicePrompt(
       exercise?.title ?? "this gentle exercise",
       steps[nextStepIndex] ?? "",
+      motionForStep(nextStepIndex),
       nextStepIndex,
       steps.length,
       sessionCopy.safety,
       nextStepIndex >= steps.length - 1 ? guideCopy.finishHint : guideCopy.nextHint,
     ),
-    [exercise?.title, guideCopy.finishHint, guideCopy.nextHint, sessionCopy.safety, steps],
+    [exercise?.title, guideCopy.finishHint, guideCopy.nextHint, motionForStep, sessionCopy.safety, steps],
   );
 
   const sendStepPrompt = useCallback((nextStepIndex: number) => {
@@ -438,8 +447,8 @@ export default function MovementExerciseGuideScreen() {
         {guideCopy.backToRoom}
       </button>
 
-      <div className="overflow-hidden rounded-[26px] border bg-white shadow-[0_16px_36px_rgba(18,48,71,0.1)] lg:grid lg:grid-cols-[0.9fr_1.1fr]" style={{ borderColor: visual.border }}>
-        <div className="relative min-h-[170px] bg-[#EEF7F9] sm:min-h-[230px] lg:min-h-full">
+      <div className="grid grid-cols-[128px_minmax(0,1fr)] overflow-hidden rounded-[26px] border bg-white shadow-[0_16px_36px_rgba(18,48,71,0.1)] sm:block lg:grid lg:grid-cols-[0.9fr_1.1fr]" style={{ borderColor: visual.border }}>
+        <div className="relative min-h-[142px] bg-[#EEF7F9] sm:min-h-[230px] lg:min-h-full">
           <img
             src={visual.image}
             alt=""
@@ -466,10 +475,10 @@ export default function MovementExerciseGuideScreen() {
               {guideCopy.tenMinutes}
             </span>
           </div>
-          <h1 className="mt-2 font-display text-[34px] leading-[1.02] text-[#123047] sm:mt-3 sm:text-[48px]">
+          <h1 className="mt-2 font-display text-[29px] leading-[1.02] text-[#123047] sm:mt-3 sm:text-[48px]">
             {exercise.title}
           </h1>
-          <p className="mt-1 max-w-[680px] font-body text-[16px] font-bold leading-snug text-[#66717B] sm:mt-2 sm:text-[18px]">
+          <p className="mt-1 max-w-[680px] font-body text-[14px] font-bold leading-snug text-[#66717B] sm:mt-2 sm:text-[18px]">
             {exercise.benefit}
           </p>
           <div className="mt-3 sm:mt-5" aria-label={guideCopy.stepLabel(stepIndex + 1, totalSteps)} role="progressbar" aria-valuemin={1} aria-valuemax={totalSteps} aria-valuenow={stepIndex + 1}>
@@ -505,8 +514,18 @@ export default function MovementExerciseGuideScreen() {
               ))}
             </div>
           </div>
+          <div className="mt-4">
+            <MovementStepAnimation
+              motion={currentStepMotion}
+              accent={visual.accent}
+              softBg={visual.softBg}
+              border={visual.border}
+              stepLabel={guideCopy.stepLabel(stepIndex + 1, totalSteps)}
+              instruction={currentStep}
+            />
+          </div>
           <p
-            className="mt-4 min-h-[132px] rounded-[22px] px-4 py-5 font-body text-[27px] font-black leading-[1.18] text-[#123047] sm:px-5 sm:text-[34px]"
+            className="mt-3 min-h-[92px] rounded-[20px] px-4 py-4 font-body text-[23px] font-black leading-[1.18] text-[#123047] sm:px-5 sm:text-[29px]"
             style={{ background: visual.softBg }}
             data-testid="movement-exercise-guide-step"
             aria-live="polite"
