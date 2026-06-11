@@ -12,18 +12,12 @@ const voiceMock = vi.hoisted(() => ({
   stopVoice: vi.fn(),
   sendText: vi.fn(),
   sendContextUpdate: vi.fn(),
+  beginUserTurn: vi.fn(),
+  endUserTurn: vi.fn(),
   status: "idle" as "idle" | "connecting" | "connected",
 }));
 const apiFetchMock = vi.fn();
 const queryMock = vi.fn();
-const voiceMocks = vi.hoisted(() => ({
-  startVoice: vi.fn(),
-  stopVoice: vi.fn(),
-  sendText: vi.fn(),
-  sendContextUpdate: vi.fn(),
-  beginUserTurn: vi.fn(),
-  endUserTurn: vi.fn(),
-}));
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
@@ -50,24 +44,29 @@ vi.mock("@/i18n", () => ({
 
 vi.mock("@/hooks/useVyvaVoice", () => ({
   useVyvaVoice: () => ({
-    startVoice: voiceMocks.startVoice,
-    stopVoice: voiceMocks.stopVoice,
-    sendText: voiceMocks.sendText,
-    sendContextUpdate: voiceMocks.sendContextUpdate,
-    status: "idle",
+    startVoice: voiceMock.startVoice,
+    stopVoice: voiceMock.stopVoice,
+    sendText: voiceMock.sendText,
+    sendContextUpdate: voiceMock.sendContextUpdate,
+    status: voiceMock.status,
     isSpeaking: false,
     isUserSpeaking: false,
     isConnecting: false,
     hasMicrophone: false,
     lastError: null,
     transcript: [],
-    beginUserTurn: voiceMocks.beginUserTurn,
-    endUserTurn: voiceMocks.endUserTurn,
+    beginUserTurn: voiceMock.beginUserTurn,
+    endUserTurn: voiceMock.endUserTurn,
   }),
 }));
 
 beforeEach(() => {
-  Object.values(voiceMocks).forEach((mock) => mock.mockClear());
+  Object.values(voiceMock).forEach((value) => {
+    if (typeof value === "function" && "mockClear" in value) {
+      value.mockClear();
+    }
+  });
+  voiceMock.status = "idle";
 });
 
 const movementRoomResponse: SocialRoomResponse = {
@@ -104,85 +103,6 @@ const movementRoomResponse: SocialRoomResponse = {
   memberChat: [],
 };
 const movementExerciseIds = Object.keys(MOVEMENT_EXERCISE_SESSIONS) as Array<keyof typeof MOVEMENT_EXERCISE_SESSIONS>;
-
-const readingRoomResponse: SocialRoomResponse = {
-  room: {
-    slug: "reading-room",
-    name: "Reading Room",
-    category: "social",
-    agentSlug: "isabel-mora",
-    agentFullName: "Isabel Mora",
-    agentColour: "#7C2D12",
-    agentCredential: "Literary host",
-    ctaLabel: "Enter the literary club",
-    topicTags: ["books", "stories", "companionship"],
-    timeSlots: ["morning", "afternoon"],
-    featured: true,
-    participantCount: 6,
-    sessionDate: "2026-06-04",
-    topic: "Books, scenes and memories shared gently.",
-    opener: "Welcome to the literary club.",
-    quote: "",
-    activityType: "discussion",
-    contentTag: "",
-    contentTitle: "A literary table",
-    contentBody: "A warm place for book memories.",
-    options: ["Share a memory", "Meet a reader"],
-    liveBadge: "6 in the club",
-  },
-  transcript: [],
-  promptChips: ["Share a scene", "Recommend gently"],
-  members: [
-    {
-      id: "member-maria",
-      name: "Maria",
-      sharedTopic: "Shares family novels and short poems",
-      statusLabel: "Ready for a note",
-    },
-    {
-      id: "member-jose",
-      name: "Jose",
-      sharedTopic: "Enjoys history, newspapers and biographies",
-      statusLabel: "Looking for calm conversation",
-    },
-  ],
-  memberChat: [],
-};
-
-const togetherRoomResponse: SocialRoomResponse = {
-  room: {
-    slug: "together-room",
-    name: "Together Room",
-    category: "connection",
-    agentSlug: "vyva-host",
-    agentFullName: "VYVA Host",
-    agentColour: "#6D28D9",
-    agentCredential: "Shared plans host",
-    ctaLabel: "Enter",
-    topicTags: ["friendship", "connection"],
-    timeSlots: ["afternoon"],
-    featured: true,
-    participantCount: 3,
-    sessionDate: "2026-06-04",
-    topic: "A small safe circle.",
-    opener: "Welcome.",
-    quote: "",
-    activityType: "discussion",
-    contentTag: "",
-    contentTitle: "",
-    contentBody: "",
-    options: [],
-    liveBadge: "3 present",
-  },
-  transcript: [],
-  promptChips: [],
-  members: [
-    { id: "member-carmen", name: "Carmen", statusLabel: "Looking for a quiet plan" },
-    { id: "member-luis", name: "Luis", statusLabel: "Comparing services" },
-    { id: "member-ana", name: "Ana", statusLabel: "Reviewing an offer" },
-  ],
-  memberChat: [],
-};
 
 const readingRoomResponse: SocialRoomResponse = {
   room: {
@@ -329,7 +249,7 @@ describe("RoomScreen Together Room", () => {
         expect.objectContaining({ method: "POST" }),
       );
     });
-    expect(voiceMocks.startVoice).not.toHaveBeenCalled();
+    expect(voiceMock.startVoice).not.toHaveBeenCalled();
   });
 });
 

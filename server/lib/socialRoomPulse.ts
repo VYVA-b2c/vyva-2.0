@@ -1695,33 +1695,6 @@ function memoryHelperActionsForPlan(planKey: string, roomSlug: string, userId: s
   );
 }
 
-function helperActionForReplyBody(body: string): SocialRoomPlanHelperAction | null {
-  const normalized = body.trim();
-  for (const language of Object.keys(PLAN_HELPER_REPLY_BODIES) as SocialLanguage[]) {
-    for (const action of PLAN_HELPER_ACTIONS) {
-      if (PLAN_HELPER_REPLY_BODIES[language][action] === normalized) return action;
-    }
-  }
-  return null;
-}
-
-function uniqueHelperActions(actions: Array<SocialRoomPlanHelperAction | null>) {
-  return PLAN_HELPER_ACTIONS.filter((action) => actions.includes(action));
-}
-
-function memoryHelperActionsForPlan(planKey: string, roomSlug: string, userId: string) {
-  return uniqueHelperActions(
-    memoryReplies
-      .filter((reply) => (
-        reply.planKey === planKey
-        && reply.roomSlug === publicRoomId(roomSlug)
-        && reply.userId === userId
-        && reply.status === "active"
-      ))
-      .map((reply) => helperActionForReplyBody(reply.body)),
-  );
-}
-
 function proposalToPlan(proposal: MemoryProposal, userId: string, language: SocialLanguage): SocialRoomPlan {
   return {
     id: proposal.planKey,

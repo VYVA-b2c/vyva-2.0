@@ -2692,8 +2692,8 @@ const RoomScreen = () => {
   }, [openMovementExerciseCard, repeatMovementExerciseId]);
 
   const openMovementSwapExercise = useCallback((intent: MovementSwapIntent) => {
-    openMovementExerciseCard(getMovementSwapExerciseId(intent, movementComfortLevel, repeatMovementExerciseId));
-  }, [movementComfortLevel, openMovementExerciseCard, repeatMovementExerciseId]);
+    openMovementExerciseCard(getMovementSwapExerciseId(intent, movementComfortLevel, lastMovementExerciseId));
+  }, [lastMovementExerciseId, movementComfortLevel, openMovementExerciseCard]);
 
   useEffect(() => {
     const loggedExerciseId = (location.state as { movementExerciseLoggedId?: unknown } | null)?.movementExerciseLoggedId;
